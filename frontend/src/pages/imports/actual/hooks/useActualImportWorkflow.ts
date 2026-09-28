@@ -8,7 +8,7 @@ import { findCurrencyExponent } from '@/utils/moneyInput'
 import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME } from '@/utils/transfers'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
-import { useImportAccountCreateState, useImportReferenceData } from '@/pages/imports/hooks'
+import { useImportAccountCreateState, useImportBudgetSelection, useImportReferenceData } from '@/pages/imports/hooks'
 import type { ImportCategoryKind, ImportProgressStep } from '@/pages/imports/types'
 import {
   canStartProviderImport,
@@ -330,11 +330,19 @@ export function useActualImportWorkflow() {
     [budget, currentMonth],
   )
 
-  // Importable budgets start checked until the user makes an explicit selection
-  const resolvedSelectedBudgetIds = useMemo(
-    () => selectedBudgetIds ?? new Set(budgetDrafts.filter((draft) => !draft.disabledReason).map((draft) => draft.categoryId)),
-    [budgetDrafts, selectedBudgetIds],
+  const importableBudgetIds = useMemo(
+    () => budgetDrafts.filter((draft) => !draft.disabledReason).map((draft) => draft.categoryId),
+    [budgetDrafts],
   )
+  const {
+    selectedKeys: resolvedSelectedBudgetIds,
+    toggleBudgetSelection,
+    setBudgetsSelected,
+  } = useImportBudgetSelection({
+    selection: selectedBudgetIds,
+    setSelection: setSelectedBudgetIds,
+    importableKeys: importableBudgetIds,
+  })
 
   const selectedBudgetDrafts = useMemo(
     () => budgetDrafts.filter((draft) => !draft.disabledReason && resolvedSelectedBudgetIds.has(draft.categoryId)),
@@ -646,28 +654,6 @@ export function useActualImportWorkflow() {
   const retryImportCommit = async () => {
     if (isImportInFlight) return
     await importRunController.retry(importAnswers, (runId, signal) => commitStagedJournal.mutateAsync({ runId, signal }))
-  }
-
-  const toggleBudgetSelection = (categoryId: string) => {
-    const next = new Set(resolvedSelectedBudgetIds)
-    if (next.has(categoryId)) {
-      next.delete(categoryId)
-    } else {
-      next.add(categoryId)
-    }
-    setSelectedBudgetIds(next)
-  }
-
-  const setBudgetsSelected = (categoryIds: string[], selected: boolean) => {
-    const next = new Set(resolvedSelectedBudgetIds)
-    for (const categoryId of categoryIds) {
-      if (selected) {
-        next.add(categoryId)
-      } else {
-        next.delete(categoryId)
-      }
-    }
-    setSelectedBudgetIds(next)
   }
 
   const setPaymentMode = (transferSourceId: string, mode: ActualPaymentMode) => {

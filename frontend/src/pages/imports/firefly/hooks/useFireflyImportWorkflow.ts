@@ -9,7 +9,7 @@ import { discardStagedRun } from '@/api/transaction-imports'
 import { waitForMilliseconds } from '@/utils/timing'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME } from '@/utils/transfers'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
-import { useImportAccountCreateState, useImportReferenceData } from '@/pages/imports/hooks'
+import { useImportAccountCreateState, useImportBudgetSelection, useImportReferenceData } from '@/pages/imports/hooks'
 import type {
   ImportCategoryKind,
   ImportFileDraft,
@@ -506,11 +506,15 @@ export function useFireflyImportWorkflow() {
     [budgetDrafts],
   )
 
-  // Importable budgets start checked until the user makes an explicit selection
-  const resolvedSelectedBudgets = useMemo(
-    () => selectedBudgetNames ?? new Set(importableBudgetNames),
-    [importableBudgetNames, selectedBudgetNames],
-  )
+  const {
+    selectedKeys: resolvedSelectedBudgets,
+    toggleBudgetSelection,
+    setBudgetsSelected,
+  } = useImportBudgetSelection({
+    selection: selectedBudgetNames,
+    setSelection: setSelectedBudgetNames,
+    importableKeys: importableBudgetNames,
+  })
 
   const pendingBudgetDrafts = useMemo(
     () => budgetDrafts.filter((draft) => !draft.disabledReason && resolvedSelectedBudgets.has(draft.name)),
@@ -702,16 +706,6 @@ export function useFireflyImportWorkflow() {
     await importRunController.retry(importAnswers, (runId, signal) => commitStagedFirefly.mutateAsync({ runId, signal }))
   }
 
-  const toggleBudgetSelection = (name: string) => {
-    const next = new Set(resolvedSelectedBudgets)
-    if (next.has(name)) {
-      next.delete(name)
-    } else {
-      next.add(name)
-    }
-    setSelectedBudgetNames(next)
-  }
-
   const resetFireflyWorkflow = () => {
     setTransactionsFile(null)
     setBudgetsFile(null)
@@ -807,6 +801,7 @@ export function useFireflyImportWorkflow() {
     cancelImport: importRunController.stop,
     closeImportOverlay: importRunController.close,
     toggleBudgetSelection,
+    setBudgetsSelected,
     resetFireflyWorkflow,
   }
 }

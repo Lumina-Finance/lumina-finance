@@ -1,8 +1,35 @@
-import { EyeOff } from 'lucide-react'
-import { Checkbox } from '@/components/forms/Checkbox'
-import { EmptyState, ImportInfoCard, ImportStep } from '@/pages/imports/components'
-import { FireflySkippedBudgetsTable } from '@/pages/imports/firefly/components'
+import { ImportInfoCard, type ImportBudgetColumn } from '@/pages/imports/components'
+import type { ImportSkippedTableRow } from '@/pages/imports/components/tables/SkippedTable'
+import { ImportBudgetStep } from '@/pages/imports/sections'
 import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
+import type { FireflyBudgetDraft } from '@/pages/imports/firefly/types'
+
+const SKIPPED_BUDGET_HEADERS = [
+  'Status',
+  'Currencies',
+  'Periods',
+  'Cadence',
+  'First Period',
+  'Last Period',
+  'Latest Amount',
+]
+
+const BUDGET_COLUMNS: ImportBudgetColumn<FireflyBudgetDraft>[] = [
+  { header: 'Cadence', widthClassName: 'w-[11%]', tone: 'muted', render: (draft) => draft.periodLabel ?? '' },
+  { header: 'Latest Amount', widthClassName: 'w-[14%]', align: 'right', tone: 'figure', render: (draft) => draft.amount },
+  { header: 'Categories', widthClassName: 'w-[26%]', tone: 'muted', truncate: true, render: (draft) => draft.categoryNames.join(', ') },
+  { header: 'First Period', widthClassName: 'w-[13%]', tone: 'figure', render: (draft) => draft.firstPeriodStart ?? '' },
+  {
+    header: 'Changes',
+    widthClassName: 'w-[14%]',
+    tone: 'muted',
+    render: (draft) => {
+      // A schedule with more than one distinct amount means the limit changed over time
+      const distinctAmountCount = new Set(draft.limits.map((limit) => limit.amount)).size
+      return distinctAmountCount > 1 ? `${distinctAmountCount} over time` : 'None'
+    },
+  },
+]
 
 type FireflyBudgetImportStepProps = Pick<
   FireflyImportWorkflow,
@@ -11,6 +38,7 @@ type FireflyBudgetImportStepProps = Pick<
   | 'budgetDrafts'
   | 'selectedBudgetNames'
   | 'toggleBudgetSelection'
+  | 'setBudgetsSelected'
   | 'importedBudgetNames'
   | 'budgetSelectionError'
   | 'budgetCountingNotes'
@@ -18,12 +46,7 @@ type FireflyBudgetImportStepProps = Pick<
 >
 
 /**
- * Previews the budgets the import will create and lets the user choose them
- *
- * Budgets the export cannot back move into their own skipped panel beneath
- * the selection table, in the same shape as the skipped transaction rows. The
- * import creates the selected budgets in the same save as the transactions,
- * so this step has no import button of its own
+ * Previews the budgets the import will create from the budgets export, and lets the user choose them
  */
 export function FireflyBudgetImportStep({
   importResult,
@@ -31,6 +54,7 @@ export function FireflyBudgetImportStep({
   budgetDrafts,
   selectedBudgetNames,
   toggleBudgetSelection,
+  setBudgetsSelected,
   importedBudgetNames,
   budgetSelectionError,
   budgetCountingNotes,
@@ -39,17 +63,43 @@ export function FireflyBudgetImportStep({
   if (!budgetsFile) return null
 
   const importableDrafts = budgetDrafts.filter((draft) => !draft.disabledReason)
-  const skippedDrafts = budgetDrafts.filter((draft) => draft.disabledReason)
-
-  // Selection drives what the import creates, so it locks while an import runs and once one has
-  // finished
-  const selectionLocked = importOverlayOpen || Boolean(importResult)
+  const skippedRows: ImportSkippedTableRow[] = budgetDrafts.flatMap((draft) => {
+    if (!draft.disabledReason) return []
+    return [{
+      key: draft.name,
+      lead: draft.name,
+      reason: draft.disabledReason,
+      cells: {
+        'Status': draft.isArchived ? 'Archived' : 'Active',
+        'Currencies': draft.currencyCodes.join(', '),
+        'Periods': draft.limits.length > 0 ? String(draft.limits.length) : '',
+        'Cadence': draft.periodLabel ?? '',
+        'First Period': draft.firstPeriodStart ?? '',
+        'Last Period': draft.lastPeriodEnd ?? '',
+        'Latest Amount': draft.amount,
+      },
+    }]
+  })
 
   return (
-    <ImportStep
-      index="04"
-      title="Budget Import"
+    <ImportBudgetStep
       description="Budgets derived from the budgets export and the staged transactions, imported together with them."
+      detectedCount={budgetDrafts.length}
+      skippedHeaders={SKIPPED_BUDGET_HEADERS}
+      skippedRows={skippedRows}
+      selectionError={budgetSelectionError}
+      noBudgetsDescription="The budgets CSV has no budget limit rows."
+      allSkippedDescription="Every budget in the export is skipped, for the reasons listed below."
+      budgets={importableDrafts}
+      getKey={(draft) => draft.name}
+      columns={BUDGET_COLUMNS}
+      nameWidthClassName="w-[18%]"
+      minWidthClassName="min-w-[58rem]"
+      // After an import the boxes show what was created rather than what was chosen
+      isChecked={(draft) => importedBudgetNames.has(draft.name) || (!importResult && selectedBudgetNames.has(draft.name))}
+      selectionLocked={importOverlayOpen || Boolean(importResult)}
+      onToggle={toggleBudgetSelection}
+      onSetAll={setBudgetsSelected}
     >
       <ImportInfoCard title="Periods as exported">
         Each budget keeps its limit periods exactly as exported, with their original dates and amounts, and continues on the cadence of its most recent period. A budget whose most recent period fits no Lumina Finance cadence is imported without recurring, shown as Not recurring below.
@@ -64,109 +114,6 @@ export function FireflyBudgetImportStep({
           {budgetCountingNotes.map((note) => <span key={note} className="mt-1 block first:mt-0">{note}</span>)}
         </ImportInfoCard>
       )}
-
-      {skippedDrafts.length > 0 && <FireflySkippedBudgetsTable drafts={skippedDrafts} />}
-
-      {budgetSelectionError && (
-        <p role="alert" className="text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
-          {budgetSelectionError}
-        </p>
-      )}
-
-      {budgetDrafts.length === 0 ? (
-        <EmptyState
-          title="No budgets detected"
-          description="The budgets CSV has no budget limit rows."
-        />
-      ) : importableDrafts.length === 0 ? (
-        <EmptyState
-          title="No importable budgets"
-          description="Every budget in the export is skipped, for the reasons listed below."
-        />
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[58rem] table-fixed text-left text-[0.9375rem]">
-            <colgroup>
-              <col className="w-12" />
-              <col className="w-[18%]" />
-              <col className="w-[11%]" />
-              <col className="w-[14%]" />
-              <col className="w-[26%]" />
-              <col className="w-[13%]" />
-              <col className="w-[14%]" />
-            </colgroup>
-            <thead style={{ color: 'var(--app-text-subtle)', background: 'var(--app-input-bg)' }}>
-              <tr>
-                <th className="w-12 px-2 py-2.5 font-medium" aria-label="Import selection" />
-                <th className="px-4 py-2.5 font-medium">Budget</th>
-                <th className="px-4 py-2.5 font-medium">Cadence</th>
-                <th className="px-4 py-2.5 text-right font-medium">Latest Amount</th>
-                <th className="px-4 py-2.5 font-medium">Categories</th>
-                <th className="px-4 py-2.5 font-medium">First Period</th>
-                <th className="px-4 py-2.5 font-medium">Changes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {importableDrafts.map((draft) => {
-                const imported = importedBudgetNames.has(draft.name)
-
-                // A schedule with more than one distinct amount means the
-                // limit changed over time, which the Changes column shows
-                const distinctAmountCount = new Set(draft.limits.map((limit) => limit.amount)).size
-
-                return (
-                  <tr key={draft.name}>
-                    <td className="px-2 py-2.5 align-middle">
-                      <span className="flex justify-center">
-                        <Checkbox
-                          checked={imported || (!importResult && selectedBudgetNames.has(draft.name))}
-                          disabled={selectionLocked}
-                          label={`Import ${draft.name}`}
-                          onChange={() => toggleBudgetSelection(draft.name)}
-                        />
-                      </span>
-                    </td>
-                    <td className="truncate px-4 py-2.5 align-middle font-medium">
-                      <span className="inline-flex max-w-full min-w-0 items-center gap-2">
-                        <span className="truncate">{draft.name}</span>
-                        {draft.isArchived && (
-                          <span
-                            className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
-                            style={{
-                              background: 'var(--app-surface-soft)',
-                              color: 'var(--app-text-muted)',
-                              border: '1px solid var(--app-border)',
-                            }}
-                          >
-                            <EyeOff size={11} aria-hidden />
-                            Archived
-                          </span>
-                        )}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5 align-middle" style={{ color: 'var(--app-text-muted)' }}>
-                      {draft.periodLabel ?? ''}
-                    </td>
-                    <td className="px-4 py-2.5 text-right align-middle font-financial tabular-nums">
-                      {draft.amount}
-                    </td>
-                    <td className="truncate px-4 py-2.5 align-middle" style={{ color: 'var(--app-text-muted)' }}>
-                      {draft.categoryNames.join(', ')}
-                    </td>
-                    <td className="px-4 py-2.5 align-middle font-financial tabular-nums">
-                      {draft.firstPeriodStart ?? ''}
-                    </td>
-                    <td className="px-4 py-2.5 align-middle" style={{ color: 'var(--app-text-muted)' }}>
-                      {distinctAmountCount > 1 ? `${distinctAmountCount} over time` : 'None'}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-    </ImportStep>
+    </ImportBudgetStep>
   )
 }
