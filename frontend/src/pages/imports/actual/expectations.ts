@@ -20,7 +20,7 @@ export const ACTUAL_EXPECTATIONS: ImportExpectations = {
     },
     {
       source: 'A payment with a category to an off-budget account, like a loan payment',
-      lumina: 'By default, a transfer between the two accounts, which budgets don\'t count, or one to or from outside the app when its other side isn\'t in the file. You can import it as an expense in its category instead, so its budget counts it as Actual did, and the off-budget account still shows the payment arriving',
+      lumina: 'By default, a transfer between the two accounts, which budgets don\'t count, or one to or from outside the app when its other side isn\'t in the file. You can import it in its category instead, as an expense or as income, the way Actual counted it. An expense then counts toward its budget, and the off-budget account still records it',
     },
     {
       source: 'A transfer with no category that pays a credit card, line of credit or HELOC',

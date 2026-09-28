@@ -10,6 +10,7 @@ import type { ActualJournal, ActualPaymentMode } from '@/pages/imports/actual/ty
 import {
   applyActualCreditPayments,
   applyActualPaymentModes,
+  getActualCategoryKind,
   getActualRevolvingAccountIds,
   getActualTransferCategoryOptions,
   getVisibleActualCategorySources,
@@ -122,6 +123,17 @@ describe('Actual Budget payments to off-budget accounts', () => {
       ['transfer:car', 'Car (transfers in Actual)'],
       ['transfer:', 'Transfers whose other side is missing'],
     ])
+  })
+
+  it('files an income category\'s payments from an off-budget account as income on the budget side', () => {
+    const incomeBudget = buildActualBudget([
+      { id: 'draw', accountId: 'checking', date: '2026-09-01', amount: 20000, payeeId: 'to-loan', transferredId: 'drawn', categoryId: 'bonus' },
+      { id: 'drawn', accountId: 'loan', date: '2026-09-01', amount: -20000, payeeId: 'to-checking', transferredId: 'draw' },
+    ], { categories: [{ id: 'bonus', name: 'Bonus', groupName: 'Income', isIncome: true, hidden: false }] })
+    const effective = applyActualPaymentModes(normaliseActualBudget(incomeBudget, '2026-09-26'), { 'transfer:bonus': 'category' })
+
+    expect(shape(effective.entries)).toEqual([['drawn', 'transfer', 'bonus', 'destination', 'Loan']])
+    expect(getActualCategoryKind(effective.categories.find((source) => source.id === 'bonus')!)).toBe('income')
   })
 
   it('keeps them as transfers by default', () => {

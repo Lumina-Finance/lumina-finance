@@ -49,8 +49,8 @@ const ACTUAL_RESERVED_PAYMENT_NAMES = [ACTUAL_TRANSFER_CATEGORY_NAME, BALANCE_AD
  *   can't be found is money leaving or arriving from outside Lumina, filed under a transfer category
  * - A transfer carrying a category, which Actual gives a payment to or from an off-budget account,
  *   names the category on its budget-side leg alone, under the category's transfer source. Each such
- *   category also has a spending source, so the user can file those payments as spending in it
- *   instead, which is how the import sends them unless told otherwise
+ *   category also has a spending source, so the user can file those payments as spending or income
+ *   in it instead. They stay transfers unless the user says otherwise
  * - Rows dated after `today` are imported like any other. Lumina Finance counts them from their
  *   date, so each account's balance here is as of `today`
  *

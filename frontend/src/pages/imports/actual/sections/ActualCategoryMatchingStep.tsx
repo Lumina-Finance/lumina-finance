@@ -47,7 +47,7 @@ function describePayments(source: ActualCategorySource, name: string) {
   const asCategory = source.isIncome
     ? `As Income, they count as income in ${name}`
     : `As Expense, they count as spending in ${name}, so its budget counts them the way Actual did`
-  return `In Actual, these are payments between a budget account and an off-budget account, like a loan, that you gave the ${name} category. As Transfer, they're imported as transfers between your accounts, which don't count toward budgets. ${asCategory}, and the off-budget account still shows them arriving.`
+  return `In Actual, these are payments between a budget account and an off-budget account, like a loan, that you gave the ${name} category. As Transfer, they're imported as transfers between your accounts, which don't count as spending or income. ${asCategory}, and the off-budget account still records them, so its balance stays right.`
 }
 
 const CREDIT_PAYMENTS_HELP = "Transfers without a category in Actual from your other accounts into a credit card, line of credit or HELOC, going by the account types under Account Mapping. They're imported under Credit Card Payment on both accounts, so they don't count as spending, since the purchases already counted when you made them."
@@ -102,7 +102,7 @@ export function ActualCategoryMatchingStep({
 
       {hasCategorisedTransfers && (
         <ImportInfoCard title="Payments to off-budget accounts">
-          In Actual, money moved between your budget and an off-budget account, like a loan payment, can have a category. Those rows are marked "transfers in Actual" and are imported as transfers. Transfers don't count toward budgets, so if you'd like a budget to count these the way Actual did, switch the row to Expense. The payment then counts as spending from your budget account, and the off-budget account still shows it arriving, so its balance stays right.
+          In Actual, money moved between your budget and an off-budget account, like a loan payment, can have a category. Those rows are marked "transfers in Actual" and are imported as transfers. Transfers don't count as spending or income, so if you'd like these counted the way Actual did, switch the row to Expense, or to Income for an income category. The payment then counts in that category on your budget account, and the off-budget account still records it, so its balance stays right.
         </ImportInfoCard>
       )}
 
