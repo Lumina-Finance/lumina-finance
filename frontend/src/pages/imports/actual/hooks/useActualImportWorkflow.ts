@@ -38,10 +38,16 @@ import {
   ACTUAL_TRANSFER_CATEGORY_NAME,
   getActualUnsupportedCurrencyError,
 } from '@/pages/imports/actual/constants'
-import type { ActualBudgetFile, ActualJournal, ActualSkippedRow } from '@/pages/imports/actual/types'
+import type { ActualBudgetFile, ActualJournal, ActualPaymentMode, ActualSkippedRow } from '@/pages/imports/actual/types'
 import { buildActualBudgetDrafts, buildActualRunBudgets, getActualBudgetRefusal } from '@/pages/imports/actual/utils/budgets'
-import { getActualCategoryKind, inferActualCategoryMappings } from '@/pages/imports/actual/utils/categories'
-import { normaliseActualBudget } from '@/pages/imports/actual/utils/normalise'
+import {
+  applyActualPaymentModes,
+  getActualCategoryKind,
+  getActualPaymentMode,
+  getVisibleActualCategorySources,
+  inferActualCategoryMappings,
+} from '@/pages/imports/actual/utils/categories'
+import { getActualTransferSourceId, normaliseActualBudget } from '@/pages/imports/actual/utils/normalise'
 import { buildActualImportPayload, isArchivedWhenCreated, type ActualAccountCreateDetails, type ActualImportBuild } from '@/pages/imports/actual/utils/payload'
 import { buildActualPreviewRows } from '@/pages/imports/actual/utils/preview'
 import { readActualBudgetFile } from '@/pages/imports/actual/utils/readFile'
@@ -109,6 +115,7 @@ export function useActualImportWorkflow() {
   } = useImportAccountCreateState(setAccountMappings, getActualAccountSourceScope)
   const [categoryMappings, setCategoryMappings] = useState<Record<string, string>>({})
   const [categoryCreateKinds, setCategoryCreateKinds] = useState<Record<string, ImportCategoryKind>>({})
+  const [paymentModes, setPaymentModes] = useState<Record<string, ActualPaymentMode>>({})
   const [selectedBudgetIds, setSelectedBudgetIds] = useState<Set<string> | null>(null)
   const [importRun, setImportRun] = useState<ProviderImportRunState<ActualSkippedRow>>(PROVIDER_IMPORT_RUN_IDLE)
   const [importRunController] = useState(() => createProviderImportRunController<ActualSkippedRow>({
@@ -135,6 +142,7 @@ export function useActualImportWorkflow() {
       accountCreateInstitutions,
       categoryMappings,
       categoryCreateKinds,
+      paymentModes,
       selectedBudgetIds,
     }),
     [
@@ -144,6 +152,7 @@ export function useActualImportWorkflow() {
       accountMappings,
       categoryCreateKinds,
       categoryMappings,
+      paymentModes,
       selectedBudgetIds,
     ],
   )
@@ -198,6 +207,18 @@ export function useActualImportWorkflow() {
   )
   const accountSources = journal.accounts
   const categorySources = journal.categories
+
+  // Every category with payments to off-budget accounts has a mode, spending until the user says otherwise
+  const resolvedPaymentModes = useMemo(
+    () => Object.fromEntries(categorySources.flatMap((source) => (
+      source.role === 'transfer' && source.categoryId ? [[source.id, getActualPaymentMode(paymentModes, source.id)]] : []
+    ))) as Record<string, ActualPaymentMode>,
+    [categorySources, paymentModes],
+  )
+
+  // What the import sends, previews and counts. Answers and budgets stay on the journal as read, so
+  // each source keeps its own answer while the user switches a mode back and forth
+  const effectiveJournal = useMemo(() => applyActualPaymentModes(journal, resolvedPaymentModes), [journal, resolvedPaymentModes])
 
   const supportedCurrencyCodes = useMemo(() => getSupportedCurrencyCodes(currencies), [currencies])
 
@@ -282,8 +303,8 @@ export function useActualImportWorkflow() {
 
   const currentMonth = today.slice(0, 7)
   const budgetDrafts = useMemo(
-    () => (budget ? buildActualBudgetDrafts(budget, journal, currentMonth) : []),
-    [budget, currentMonth, journal],
+    () => (budget ? buildActualBudgetDrafts(budget, currentMonth) : []),
+    [budget, currentMonth],
   )
 
   // Importable budgets start checked until the user makes an explicit selection
@@ -298,13 +319,18 @@ export function useActualImportWorkflow() {
   )
 
   const budgetCategorySources = useMemo(
-    () => new Set(selectedBudgetDrafts.flatMap((draft) => draft.categorySourceIds)),
+    () => new Set(selectedBudgetDrafts.map((draft) => draft.categorySourceId)),
     [selectedBudgetDrafts],
+  )
+
+  const visibleCategorySources = useMemo(
+    () => getVisibleActualCategorySources(categorySources, resolvedPaymentModes, budgetCategorySources),
+    [budgetCategorySources, categorySources, resolvedPaymentModes],
   )
 
   const importBuild = useMemo(
     () => (budget
-      ? buildActualImportPayload(journal, {
+      ? buildActualImportPayload(effectiveJournal, {
         accountMappings: resolvedAccountMappings,
         accountCreateDetails: resolvedAccountCreateDetails,
         accountById,
@@ -322,7 +348,7 @@ export function useActualImportWorkflow() {
       budgetCategorySources,
       categoryById,
       currencies,
-      journal,
+      effectiveJournal,
       resolvedAccountCreateDetails,
       resolvedAccountMappings,
       resolvedCategoryKinds,
@@ -340,14 +366,24 @@ export function useActualImportWorkflow() {
       budgetDecimals: budget?.budgetDecimals ?? 2,
       currencyExponent,
       categoryMappings: resolvedCategoryMappings,
+      categoryCreateKinds: resolvedCategoryKinds,
       categoryById,
     })])),
-    [budget, budgetDrafts, categoryById, currencyExponent, importBuild.currency, resolvedCategoryMappings],
+    [budget, budgetDrafts, categoryById, currencyExponent, importBuild.currency, resolvedCategoryKinds, resolvedCategoryMappings],
   )
 
   const pendingBudgetDrafts = useMemo(
     () => selectedBudgetDrafts.filter((draft) => !budgetRefusals.get(draft.categoryId)),
     [budgetRefusals, selectedBudgetDrafts],
+  )
+
+  // Budgets count expenses only, so one whose category's payments to off-budget accounts come in as
+  // transfers shows less spent than Actual did
+  const budgetsMissingPayments = useMemo(
+    () => pendingBudgetDrafts
+      .filter((draft) => resolvedPaymentModes[getActualTransferSourceId(draft.categoryId)] === 'transfer')
+      .map((draft) => draft.name),
+    [pendingBudgetDrafts, resolvedPaymentModes],
   )
 
   // Built here rather than at the import so a budget the import cannot send is refused while the
@@ -395,17 +431,17 @@ export function useActualImportWorkflow() {
 
   const importEstimate = useMemo(
     () => {
-      const entries = journal.entries.filter((entry) => !skippedTransactionIds.has(entry.transactionId))
+      const entries = effectiveJournal.entries.filter((entry) => !skippedTransactionIds.has(entry.transactionId))
       return {
         rowCount: entries.length,
         transactionEstimate: entries.reduce((total, entry) => total + (entry.type === 'transfer' ? 2 : 1), 0),
       }
     },
-    [journal.entries, skippedTransactionIds],
+    [effectiveJournal.entries, skippedTransactionIds],
   )
 
   const previewRows = useMemo(
-    () => buildActualPreviewRows(journal, {
+    () => buildActualPreviewRows(effectiveJournal, {
       accountMappings: resolvedAccountMappings,
       accountCreateDetails: resolvedAccountCreateDetails,
       accountById,
@@ -423,8 +459,8 @@ export function useActualImportWorkflow() {
       balanceAdjustmentCategory,
       categoryById,
       currencies,
+      effectiveJournal,
       institutionById,
-      journal,
       resolvedAccountCreateDetails,
       resolvedAccountMappings,
       resolvedCategoryKinds,
@@ -507,6 +543,7 @@ export function useActualImportWorkflow() {
     resetAccountCreateState()
     setCategoryMappings({})
     setCategoryCreateKinds({})
+    setPaymentModes({})
     setSelectedBudgetIds(null)
     importRunController.reset()
     importJournal.reset()
@@ -610,6 +647,10 @@ export function useActualImportWorkflow() {
     setSelectedBudgetIds(next)
   }
 
+  const setPaymentMode = (transferSourceId: string, mode: ActualPaymentMode) => {
+    setPaymentModes((current) => ({ ...current, [transferSourceId]: mode }))
+  }
+
   const resetActualWorkflow = () => {
     removeActualFile()
     setIsProcessingFile(false)
@@ -627,6 +668,8 @@ export function useActualImportWorkflow() {
     fileIntakeError,
     accountSources,
     categorySources,
+    visibleCategorySources,
+    paymentModes: resolvedPaymentModes,
     accountMappings: resolvedAccountMappings,
     autoFilledAccountSources,
     handAnsweredAccountSources,
@@ -647,6 +690,7 @@ export function useActualImportWorkflow() {
     resolvedCategoryKinds,
     budgetDrafts,
     budgetRefusals,
+    budgetsMissingPayments,
     selectedBudgetIds: resolvedSelectedBudgetIds,
     importedBudgetNames,
     budgetSelectionError,
@@ -690,6 +734,7 @@ export function useActualImportWorkflow() {
     setBatchAccountInstitution,
     setCategoryMappings,
     setCategoryCreateKinds,
+    setPaymentMode,
     handleActualFileChange,
     removeActualFile,
     updateActualAccountMapping,

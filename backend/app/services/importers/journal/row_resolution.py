@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.models.account import Account
+from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.currency import Currency
 from app.schemas.journal_import import JournalTransactionRow
@@ -74,7 +75,7 @@ class JournalLeg:
         merchant_name: Optional payee recorded as a merchant
         notes: Optional combined description and notes text
         tag_names: Tag names applied to the transaction
-        counterparty_account: Account the money moved to or from, set only on transfer legs
+        counterparty_account: Account the money moved to or from, set only on transfer legs whose category records one
     """
 
     account: Account
@@ -85,8 +86,9 @@ class JournalLeg:
     notes: str | None
     tag_names: list[str]
 
-    # Only a transfer pair knows the opposite endpoint, and every other category is forbidden from
-    # recording one, so a leg built anywhere else leaves this unset
+    # Only a transfer pair knows the opposite endpoint, and only a category that records it may keep
+    # it, so a leg built anywhere else, or a pair leg filed under an expense or income category,
+    # leaves this unset
     counterparty_account: Account | None = None
 
 
@@ -156,7 +158,13 @@ def _resolve_transfer_pair(
     notes: str | None,
     context: JournalResolutionContext,
 ) -> list[JournalLeg]:
-    """Resolve a row between two imported accounts into transfer legs
+    """Resolve a row between two imported accounts into its two legs
+
+    Both legs are transfers recording the other endpoint unless the row names a category leg. That
+    leg takes the row's mapped category, and when the category is an expense or income one it
+    records no counterparty and takes the other account's name from the row as its merchant, so a
+    loan payment from Actual Budget can be spending in its budget category. The other leg always
+    stays a transfer under the system Transfer category
 
     Args:
         row: Journal row from the import payload
@@ -166,11 +174,11 @@ def _resolve_transfer_pair(
         context: Lookups needed to resolve the row
 
     Returns:
-        Outgoing and incoming transfer legs, each recording the other endpoint
+        Outgoing and incoming legs
 
     Raises:
         JournalRowRefusedError: Raised when both endpoints resolve to one account, or when the
-            category a row gives one leg does not record a counterparty account
+            category a row gives one leg is a transfer category that does not record a counterparty
         HTTPException: Raised with 422 when that category is not mapped or not usable
     """
     # Two names in the file can be mapped onto one account, which is how a renamed account is
@@ -185,26 +193,28 @@ def _resolve_transfer_pair(
     elif row.category_leg == "destination":
         destination_category = _resolve_transfer_leg_category(row, destination_account, context)
 
+    source_records_counterparty = does_category_record_counterparty_account(source_category)
+    destination_records_counterparty = does_category_record_counterparty_account(destination_category)
     return [
         JournalLeg(
             account=source_account,
             dt=row.dt,
             amount=-_get_amount_in_account_currency(row, source_account, context),
             category=source_category,
-            merchant_name=None,
+            merchant_name=None if source_records_counterparty else row.destination_name,
             notes=notes,
             tag_names=row.tag_names,
-            counterparty_account=destination_account,
+            counterparty_account=destination_account if source_records_counterparty else None,
         ),
         JournalLeg(
             account=destination_account,
             dt=row.dt,
             amount=_get_amount_in_account_currency(row, destination_account, context),
             category=destination_category,
-            merchant_name=None,
+            merchant_name=None if destination_records_counterparty else row.source_name,
             notes=notes,
             tag_names=row.tag_names,
-            counterparty_account=source_account,
+            counterparty_account=source_account if destination_records_counterparty else None,
         ),
     ]
 
@@ -212,7 +222,8 @@ def _resolve_transfer_pair(
 def _resolve_transfer_leg_category(row: JournalTransactionRow, account: Account, context: JournalResolutionContext) -> Category:
     """Return the category a transfer row gives the leg it names
 
-    The leg keeps its counterparty account, so the category has to be one that records it
+    An expense or income category files the leg as spending or income. A transfer category keeps
+    the leg's counterparty account, so it has to be one that records it
 
     Args:
         row: Journal row naming a category leg
@@ -223,14 +234,15 @@ def _resolve_transfer_leg_category(row: JournalTransactionRow, account: Account,
         Category mapped to the row's category name
 
     Raises:
-        JournalRowRefusedError: Raised when the mapped category does not record a counterparty account
+        JournalRowRefusedError: Raised when the mapped category is a transfer category that does not
+            record a counterparty account
         HTTPException: Raised with 422 when the category is not mapped or not usable
     """
     category = _resolve_row_category(row, account, context)
-    if not does_category_record_counterparty_account(category):
+    if category.kind == CategoryKind.TRANSFER and not does_category_record_counterparty_account(category):
         raise JournalRowRefusedError(
-            f"The {row.category_leg} leg of a transfer needs a transfer category that records the other "
-            f"account, and category source {row.category} maps to {category.name}",
+            f"The {row.category_leg} leg of a transfer can't use a transfer category that doesn't record the "
+            f"other account, and category source {row.category} maps to {category.name}",
         )
     return category
 

@@ -18,6 +18,7 @@ type ActualFilesStepProps = Pick<
   | 'isProcessingFile'
   | 'fileIntakeError'
   | 'journal'
+  | 'visibleCategorySources'
   | 'handleActualFileChange'
   | 'removeActualFile'
   | 'uploadBlockReason'
@@ -41,6 +42,7 @@ export function ActualFilesStep({
   isProcessingFile,
   fileIntakeError,
   journal,
+  visibleCategorySources,
   handleActualFileChange,
   removeActualFile,
   uploadBlockReason,
@@ -140,7 +142,7 @@ export function ActualFilesStep({
       <div className="mt-auto flex flex-wrap gap-3 pt-3">
         <ImportStat label="Transactions" value={(stagedFile?.rowCount ?? 0).toString()} />
         <ImportStat label="Accounts" value={journal.accounts.length.toString()} />
-        <ImportStat label="Categories" value={journal.categories.length.toString()} />
+        <ImportStat label="Categories" value={visibleCategorySources.length.toString()} />
       </div>
     </ImportStep>
   )

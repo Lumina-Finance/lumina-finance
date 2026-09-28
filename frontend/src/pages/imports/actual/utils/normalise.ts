@@ -34,8 +34,8 @@ import { formatScaledAmount } from './amounts'
 // as an escaped # that starts no tag
 const ACTUAL_TAG_PATTERN = /(?<!#)#([^#\s]+)/g
 
-// Built-in categories a new payment category can't share a name with, since it would reuse one that
-// cancels the payment out of its budget or can't carry it
+// Built-in transfer categories a new spending category can't share a name with, since it would reuse
+// one that can't carry spending
 const ACTUAL_RESERVED_PAYMENT_NAMES = [ACTUAL_TRANSFER_CATEGORY_NAME, BALANCE_ADJUSTMENT_CATEGORY_NAME].map((name) => name.toLowerCase())
 
 /**
@@ -45,10 +45,12 @@ const ACTUAL_RESERVED_PAYMENT_NAMES = [ACTUAL_TRANSFER_CATEGORY_NAME, BALANCE_AD
  *   parent's payee when it has none and the parent's notes ahead of its own. A split whose parts
  *   don't add up to it is left out whole, since which part is wrong can't be told
  * - A transfer pairs only when both sides link to each other on the same day for exactly opposite
- *   amounts. The pair is uploaded once, from the side money leaves. When one side is off-budget,
- *   the category on the budget side travels with the pair on that leg alone, so its budget counts
- *   the payment once. A transfer whose other side can't be found is money leaving or arriving
- *   from outside Lumina, filed under a transfer category
+ *   amounts. The pair is uploaded once, from the side money leaves. A transfer whose other side
+ *   can't be found is money leaving or arriving from outside Lumina, filed under a transfer category
+ * - A transfer carrying a category, which Actual gives a payment to or from an off-budget account,
+ *   names the category on its budget-side leg alone, under the category's transfer source. Each such
+ *   category also has a spending source, so the user can file those payments as spending in it
+ *   instead, which is how the import sends them unless told otherwise
  * - Rows dated after `today` are imported like any other. Lumina Finance counts them from their
  *   date, so each account's balance here is as of `today`
  *
@@ -140,6 +142,7 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
         sourceAccountId: transaction.amount < 0 ? account.id : null,
         destinationAccountId: transaction.amount < 0 ? null : account.id,
         payeeName: null,
+        counterpartAccountName: null,
         categorySourceId: null,
         categoryLeg: null,
       })
@@ -165,6 +168,7 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
         ...base,
         ...getOneSidedAccounts(transaction, account),
         payeeName: null,
+        counterpartAccountName: getMerchantSafeName(counterpartAccount.name),
         categorySourceId: categoryUses.add('transfer', category ?? null, null),
         categoryLeg: null,
       })
@@ -177,17 +181,24 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
       ...base,
       ...getOneSidedAccounts(transaction, account),
       payeeName: payee?.name || null,
+      counterpartAccountName: null,
       categorySourceId: categoryUses.add(role, category, account.offBudget ? account : null),
       categoryLeg: null,
     })
   }
 
+  // Payments a category carries to off-budget accounts can be filed as spending in it, so the
+  // category needs a spending source even when no ordinary row uses it
+  for (const categoryId of categoryUses.getTransferCategoryIds()) {
+    const category = categoryById.get(categoryId)
+    if (category && !categoryUses.hasSpending(categoryId)) categoryUses.add('spending', category, null, 0)
+  }
+
   // A category budgeted in Actual is offered even without rows, so its budget can still track it.
-  // One used only on payments to off-budget accounts already is, as a transfer category. Income
-  // budgets aren't imported, so an income category needs rows to be offered
+  // Income budgets aren't imported, so an income category needs rows to be offered
   for (const figure of budget.budgetFigures) {
     const category = categoryById.get(figure.categoryId)
-    if (category && !category.isIncome && figure.amount > 0 && !categoryUses.hasCategory(category.id)) {
+    if (category && !category.isIncome && figure.amount > 0 && !categoryUses.hasSpending(category.id)) {
       categoryUses.add('spending', category, null, 0)
     }
   }
@@ -259,9 +270,16 @@ function buildTransferPair(
     sourceAccountId: account.id,
     destinationAccountId: counterpartAccount.id,
     payeeName: null,
+    counterpartAccountName: getMerchantSafeName(categoryLeg === 'destination' ? account.name : counterpartAccount.name),
     categorySourceId: category ? categoryUses.add('transfer', category, null) : null,
     categoryLeg,
   }
+}
+
+// An account name becomes a merchant when a payment is filed as spending, and one too long for a
+// merchant name leaves the row without one
+function getMerchantSafeName(name: string) {
+  return [...name].length > ACTUAL_PAYEE_NAME_MAX_LENGTH ? null : name || null
 }
 
 function getOneSidedAccounts(transaction: ActualTransaction, account: ActualAccount) {
@@ -396,19 +414,22 @@ class CategoryUses {
     return id
   }
 
-  hasCategory(categoryId: string) {
-    return [...this.uses.values()].some((use) => use.categoryId === categoryId)
+  hasSpending(categoryId: string) {
+    return this.uses.has(getCategorySourceId('spending', categoryId, null))
+  }
+
+  getTransferCategoryIds() {
+    return [...this.uses.values()].flatMap((use) => (use.role === 'transfer' && use.categoryId ? [use.categoryId] : []))
   }
 
   toSources(categories: ActualCategory[], accountById: Map<string, ActualAccount>): ActualCategorySource[] {
     const categoryById = new Map(categories.map((category) => [category.id, category]))
-    const spendingIds = new Set([...this.uses.values()].filter((use) => use.role === 'spending').map((use) => use.categoryId))
 
     const sources = [...this.uses].map(([id, use]): ActualCategorySource => {
       const category = use.categoryId ? categoryById.get(use.categoryId) : undefined
       const accountName = use.accountId ? accountById.get(use.accountId)?.name ?? '' : ''
       const name = category ? getActualCategoryName(category, categories) : ''
-      const labels = getSourceLabels(use.role, name, accountName, category ? spendingIds.has(category.id) : false)
+      const labels = getSourceLabels(use.role, name, accountName)
       return {
         id,
         role: use.role,
@@ -432,28 +453,30 @@ export function getActualCategoryName(category: ActualCategory, categories: Actu
   return isShared && category.groupName ? `${category.name} (${category.groupName})` : category.name
 }
 
+/** Names the transfer source of an Actual category, or of transfers with no category when given none */
+export function getActualTransferSourceId(categoryId: string | null) {
+  return `${ACTUAL_TRANSFER_CATEGORY_SOURCE_PREFIX}${categoryId ?? ''}`
+}
+
 function getCategorySourceId(role: ActualCategoryRole, categoryId: string | null, accountId: string | null) {
   if (role === 'spending') return categoryId ?? JOURNAL_NO_CATEGORY_SOURCE
-  if (role === 'transfer') return `${ACTUAL_TRANSFER_CATEGORY_SOURCE_PREFIX}${categoryId ?? ''}`
+  if (role === 'transfer') return getActualTransferSourceId(categoryId)
   if (role === 'offBudgetUncategorized') return `${ACTUAL_OFF_BUDGET_CATEGORY_SOURCE_PREFIX}${accountId ?? ''}`
   return JOURNAL_NO_CATEGORY_SOURCE
 }
 
 /**
- * Names a source for the categories step and for the category it creates. A transfer source
- * sharing its category with spending needs a name of its own, since one Lumina category can't be
- * both, and so does one named after a built-in category that can't carry a payment
+ * Names a source for the categories step and for the category it creates. A category's transfer
+ * source needs a name apart from its spending source, since one Lumina category can't be both, and a
+ * spending source named after a built-in category that can't carry spending needs one of its own
  */
-function getSourceLabels(role: ActualCategoryRole, name: string, accountName: string, alsoSpending: boolean) {
+function getSourceLabels(role: ActualCategoryRole, name: string, accountName: string) {
   if (role === 'transfer') {
     if (!name) return { label: 'Transfers whose other side is missing', createName: 'Transfer' }
-    const isReserved = ACTUAL_RESERVED_PAYMENT_NAMES.includes(name.toLowerCase())
-    return {
-      label: `${name} (transfers)`,
-      createName: alsoSpending ? `${name} Transfers` : isReserved ? `${name} Payments` : name,
-    }
+    return { label: `${name} (transfers)`, createName: `${name} Transfers` }
   }
   if (role === 'offBudgetUncategorized') return { label: `No category · ${accountName}`, createName: accountName }
   if (role === 'uncategorized') return { label: 'No category', createName: 'Miscellaneous' }
-  return { label: name, createName: name }
+  const isReserved = ACTUAL_RESERVED_PAYMENT_NAMES.includes(name.toLowerCase())
+  return { label: name, createName: isReserved ? `${name} Payments` : name }
 }

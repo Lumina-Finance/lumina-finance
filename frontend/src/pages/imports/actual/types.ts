@@ -95,10 +95,16 @@ export type ActualFileRead =
 
 /** What an Actual category source files rows under, which decides its label and default */
 export type ActualCategoryRole =
-  /** Ordinary rows carrying the category */
+  /**
+   * Ordinary rows carrying the category, and its payments to off-budget accounts while those are
+   * imported as spending. Every category used on such a payment has one, even without rows of its own
+   */
   | 'spending'
 
-  /** The budget-side leg of transfers to or from off-budget accounts that carry the category */
+  /**
+   * The budget-side leg of transfers to or from off-budget accounts that carry the category, while
+   * those are imported as transfers
+   */
   | 'transfer'
 
   /** Budget-side rows with no category */
@@ -106,6 +112,13 @@ export type ActualCategoryRole =
 
   /** Rows with no category in one off-budget account, where Actual never asks for one */
   | 'offBudgetUncategorized'
+
+/**
+ * How the payments one Actual category carries to or from off-budget accounts are imported:
+ * `category` files the budget-side leg as spending or income in the category, which its budget
+ * counts, and `transfer` keeps both legs transfers under a transfer category, which budgets don't
+ */
+export type ActualPaymentMode = 'category' | 'transfer'
 
 /**
  * One Actual account the import writes to, which the user links to a Lumina account or creates
@@ -142,7 +155,8 @@ export interface ActualAccountSource {
  * One category mapping source, which the categories step matches to a Lumina category or creates
  *
  * `id` is what the upload names it by: Actual's category id for spending, prefixed for the other
- * roles, so two Actual categories sharing a name stay apart
+ * roles, so two Actual categories sharing a name stay apart. A category with payments to off-budget
+ * accounts has a spending and a transfer source, and its payment mode picks which one those rows use
  */
 export interface ActualCategorySource {
   id: string
@@ -182,8 +196,18 @@ export interface ActualJournalEntry {
   /** The account money enters, null when it goes outside the import */
   destinationAccountId: string | null
 
-  /** The payee, which becomes the merchant on a withdrawal or deposit */
+  /**
+   * The payee, which becomes the merchant on a withdrawal or deposit, and on the budget-side leg of
+   * a transfer filed as spending
+   */
   payeeName: string | null
+
+  /**
+   * The name of the account on the other side of a transfer, seen from its budget-side leg, which is
+   * the payee once the payment is filed as spending. Null on a row that is no transfer between
+   * accounts, and when the name is longer than a merchant name can be
+   */
+  counterpartAccountName: string | null
   categorySourceId: string | null
 
   /** Set on a categorized transfer, naming the leg on the budget side */

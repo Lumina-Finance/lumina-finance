@@ -102,11 +102,22 @@ function resolveLegs(
     const destinationAmount = units(destination)
     if (sourceAmount === null || destinationAmount === null) return null
 
-    // The budget-side leg of a categorised transfer keeps its category, and the other takes Transfer
-    const legCategory = (leg: 'source' | 'destination') => (entry.categoryLeg === leg ? mappedCategory : options.transferCategory)
+    // The budget-side leg of a categorised transfer keeps its category, and the other takes Transfer.
+    // Filed as spending or income, that leg records no other account and takes it as its merchant
+    const buildLeg = (leg: 'source' | 'destination', account: ActualPreviewAccount, minorUnits: number, other: ActualPreviewAccount): ActualPreviewLeg => {
+      if (entry.categoryLeg !== leg) return { account, minorUnits, category: options.transferCategory, merchantName: null, counterpartyAccount: other }
+      const isSpending = mappedCategory && !canCarryActualTransfer(mappedCategory)
+      return {
+        account,
+        minorUnits,
+        category: mappedCategory,
+        merchantName: isSpending ? entry.payeeName : null,
+        counterpartyAccount: isSpending ? null : other,
+      }
+    }
     return [
-      { account: source, minorUnits: -sourceAmount, category: legCategory('source'), merchantName: null, counterpartyAccount: destination },
-      { account: destination, minorUnits: destinationAmount, category: legCategory('destination'), merchantName: null, counterpartyAccount: source },
+      buildLeg('source', source, -sourceAmount, destination),
+      buildLeg('destination', destination, destinationAmount, source),
     ]
   }
 

@@ -58,6 +58,25 @@ describe('normalising Actual Budget exports', () => {
       .toEqual(new Set(manifest.transfers.flatMap((transfer) => (transfer.category ? [`${transfer.category} (transfers)`] : []))))
   })
 
+  it('gives each category paid to an off-budget account a spending source, and names the account paid', async () => {
+    const { journal, manifest } = await normalise('envelope')
+    const sources = (name: string) => journal.categories.filter((source) => source.categoryId && source.label.startsWith(name))
+
+    // Car Payment and Investing are used only on payments, so their spending sources have no rows
+    for (const name of ['Car Payment', 'Investing']) {
+      expect(sources(name).map((source) => [source.role, source.label, source.createName, source.rowCount === 0])).toEqual([
+        ['spending', name, name, true],
+        ['transfer', `${name} (transfers)`, `${name} Transfers`, false],
+      ])
+    }
+
+    const accountName = new Map(journal.accounts.map((source) => [source.id, source.name]))
+    for (const entry of journal.entries.filter((candidate) => candidate.categoryLeg === 'source')) {
+      expect(entry.counterpartAccountName).toBe(accountName.get(entry.destinationAccountId!))
+    }
+    expect(manifest.transfers.some((transfer) => transfer.category === 'Car Payment')).toBe(true)
+  })
+
   it('files each budget category with what Actual counted against it', async () => {
     const { journal, manifest } = await normalise('envelope')
     const account = new Map(journal.accounts.map((source) => [source.id, source]))
@@ -296,23 +315,26 @@ describe('Actual Budget rows over the import limits', () => {
 })
 
 describe('Actual Budget categories used only on payments to off-budget accounts', () => {
-  it('offers a budgeted one as a single transfer category named after it', () => {
+  it('offers a budgeted one as its own category and as a transfer category apart from it', () => {
     const budget = buildActualBudget([
       { id: 'pay', accountId: 'checking', date: '2026-09-01', amount: -30000, payeeId: 'to-loan', transferredId: 'paid', categoryId: 'car' },
       { id: 'paid', accountId: 'loan', date: '2026-09-01', amount: 30000, payeeId: 'to-checking', transferredId: 'pay' },
     ], { budgetFigures: [{ month: '2026-09', categoryId: 'car', amount: 30000, carryover: false }] })
     const journal = normaliseActualBudget(budget, '2026-09-26')
 
-    expect(journal.categories.map((source) => [source.id, source.role, source.createName])).toEqual([['transfer:car', 'transfer', 'Car']])
+    expect(journal.categories.map((source) => [source.id, source.role, source.createName])).toEqual([
+      ['car', 'spending', 'Car'],
+      ['transfer:car', 'transfer', 'Car Transfers'],
+    ])
   })
 
-  it('names a payment category apart from a built-in one it would otherwise reuse', () => {
+  it('names a category apart from a built-in transfer category it would otherwise reuse', () => {
     const budget = buildActualBudget([
       { id: 'pay', accountId: 'checking', date: '2026-09-01', amount: -30000, payeeId: 'to-loan', transferredId: 'paid', categoryId: 'transfer' },
       { id: 'paid', accountId: 'loan', date: '2026-09-01', amount: 30000, payeeId: 'to-checking', transferredId: 'pay' },
     ], { categories: [{ id: 'transfer', name: 'transfer', groupName: 'Bills', isIncome: false, hidden: false }] })
 
-    expect(normaliseActualBudget(budget, '2026-09-26').categories.map((source) => source.createName)).toEqual(['transfer Payments'])
+    expect(normaliseActualBudget(budget, '2026-09-26').categories.map((source) => source.createName)).toEqual(['transfer Payments', 'transfer Transfers'])
   })
 
   it('writes amounts in the decimal places of a yen budget, keeping cents only where an amount has them', () => {

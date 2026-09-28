@@ -41,7 +41,7 @@ async def _list_transactions(client, headers):
 
 
 async def test_a_real_actual_export_imports_to_the_balances_totals_and_budgets_actual_reports(client):
-    """Every account's balance, every category's monthly total and every budget's months match Actual Budget."""
+    """Every account's balance, every category's monthly total and every budget's months and spending match Actual Budget."""
     headers = _get_auth_header(await _create_user(client))
 
     resp = await client.post("/transactions/import/runs", json={
@@ -140,3 +140,30 @@ async def test_a_real_actual_export_imports_to_the_balances_totals_and_budgets_a
         }
         for budget in expected["budgets"]
     }
+
+    # A budget tracks its one category in every account, and payments to off-budget accounts come in
+    # as spending in it, so each month before the export month shows spent what Actual counted
+    # against the category. Spending is negative in Actual's totals and positive as spent here
+    totals_by_source = {
+        (source, month["month"]): month["total"]
+        for month in expected["categoryMonths"]
+        for source in month["sources"]
+    }
+    base_budget_id_by_name = {budget["name"]: budget["id"] for budget in base_budgets}
+    compared_months = 0
+    for budget in FIXTURE["budgets"]["budgets"]:
+        [source] = budget["category_sources"]
+        utilizations = (await client.get(
+            f"/base-budgets/{base_budget_id_by_name[budget['name']]}/utilizations",
+            headers=headers,
+        )).json()
+        for utilization in utilizations:
+            month = utilization["period_start"][:7]
+            if month >= as_of[:7]:
+                continue
+            compared_months += 1
+            assert _format_cents(-utilization["total_spent"]) == totals_by_source.get((source, month), "0.00"), (
+                budget["name"],
+                month,
+            )
+    assert compared_months > 0

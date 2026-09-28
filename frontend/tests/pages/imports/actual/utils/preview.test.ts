@@ -6,6 +6,7 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import type { ActualJournal } from '@/pages/imports/actual/types'
+import { applyActualPaymentModes } from '@/pages/imports/actual/utils/categories'
 import { buildActualPreviewRows, type ActualPreviewOptions } from '@/pages/imports/actual/utils/preview'
 import { normaliseActualFixture } from './fixtures'
 
@@ -33,7 +34,7 @@ function createOptions(journal: ActualJournal, currency: string): ActualPreviewO
 }
 
 describe('Actual Budget import preview', () => {
-  it('shows a loan payment as a transfer categorised on the budget side only', async () => {
+  it('shows a loan payment kept as a transfer categorised on the budget side only', async () => {
     const { journal } = await normaliseActualFixture('edges')
     const payment = journal.entries.find((entry) => entry.date === '2026-07-05')!
     const rows = buildActualPreviewRows({ ...journal, entries: [payment] }, createOptions(journal, 'CAD'), 5)
@@ -43,6 +44,25 @@ describe('Actual Budget import preview', () => {
       ['Car Loan', 30000, 'Transfer', 'Checking'],
     ])
     expect(rows[0].transaction.counterparty_account_scope).toBe('tracked')
+  })
+
+  it('shows a loan payment filed as spending with the loan as its merchant and no other account', async () => {
+    const { journal } = await normaliseActualFixture('edges')
+    const effective = applyActualPaymentModes(journal, {})
+    const payment = effective.entries.find((entry) => entry.date === '2026-07-05')!
+    const rows = buildActualPreviewRows({ ...effective, entries: [payment] }, createOptions(effective, 'CAD'), 5)
+
+    expect(rows.map((row) => [
+      row.accountName,
+      row.transaction.amount,
+      row.category?.name,
+      row.transaction.merchant_name,
+      row.counterpartyAccountName,
+      row.transaction.counterparty_account_scope,
+    ])).toEqual([
+      ['Checking', -30000, 'Car', 'Car Loan', undefined, null],
+      ['Car Loan', 30000, 'Transfer', null, 'Checking', 'tracked'],
+    ])
   })
 
   it('writes opening balances as balance adjustments and yen in whole yen', async () => {

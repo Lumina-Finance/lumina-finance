@@ -270,27 +270,93 @@ async def test_an_actual_row_naming_a_category_leg_off_a_categorized_transfer_is
     assert isinstance(resp.json()["detail"], list)
 
 
-@pytest.mark.parametrize(("mapping", "mapped_name"), [
-    (_FOOD | {"source": "Car Payment"}, "Food"),
-    (None, "Balance Adjustment"),
-])
-async def test_an_actual_categorized_transfer_needs_a_category_that_records_the_other_account(client, mapping, mapped_name):
-    """The categorized leg keeps its counterparty, so a category that cannot record one is refused."""
+async def test_an_actual_categorized_transfer_refuses_a_transfer_category_that_cannot_record_the_other_account(client):
+    """A transfer category on the categorized leg has to keep its counterparty, which Balance Adjustment cannot."""
     headers = _get_auth_header(await _create_user(client))
-    if mapping is None:
-        mapping = {"source": "Car Payment", "category_id": await _get_system_category_id(client, headers, mapped_name)}
+    balance_adjustment_id = await _get_system_category_id(client, headers, "Balance Adjustment")
 
     resp = await _import_journal(client, headers, {
         "accounts": [_CHECKING, _CAR_LOAN],
-        "categories": [mapping],
+        "categories": [{"source": "Car Payment", "category_id": balance_adjustment_id}],
         "rows": [_car_payment_row()],
     }, source="actual_budget")
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == (
-        "Actual Budget transaction a1f0c7e2-0006: The source leg of a transfer needs a transfer category that "
-        f"records the other account, and category source Car Payment maps to {mapped_name}"
+        "Actual Budget transaction a1f0c7e2-0006: The source leg of a transfer can't use a transfer category that "
+        "doesn't record the other account, and category source Car Payment maps to Balance Adjustment"
     )
+
+
+@pytest.mark.parametrize(("category", "category_leg", "row_overrides", "merchant_name"), [
+    (
+        {"source": "Car Payment", "create": {"name": "Car Payment", "kind": "expense"}},
+        "source",
+        {"destination_name": "Car Loan"},
+        "Car Loan",
+    ),
+    (
+        {"source": "Car Payment", "create": {"name": "Loan Refund", "kind": "income"}},
+        "destination",
+        {
+            "source_account": "Car Loan",
+            "source_name": "Car Loan",
+            "destination_account": "Checking",
+            "destination_name": None,
+        },
+        "Car Loan",
+    ),
+])
+async def test_an_actual_categorized_transfer_files_its_budget_leg_as_an_expense_or_income(
+    client, category, category_leg, row_overrides, merchant_name,
+):
+    """The budget leg takes a plain category with the other account as its merchant, and the other leg stays a transfer."""
+    headers = _get_auth_header(await _create_user(client))
+    transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
+
+    resp = await _import_journal(client, headers, {
+        "accounts": [_CHECKING, _CAR_LOAN],
+        "categories": [category],
+        "rows": [_car_payment_row(category_leg=category_leg, **row_overrides)],
+    }, budgets={
+        "categories": [category],
+        "budgets": [{
+            "name": "Car Payment",
+            "currency": "CAD",
+            "category_sources": ["Car Payment"],
+            "limits": [{"start": "2026-02-01", "end": "2026-02-28", "amount": "300.00"}],
+            "recurrence": None,
+        }],
+    } if category["create"]["kind"] == "expense" else None, source="actual_budget")
+
+    assert resp.status_code == 201, resp.text
+    summary = resp.json()
+    checking_id = summary["account_source_ids"]["Checking"]
+    loan_id = summary["account_source_ids"]["Car Loan"]
+    category_id = summary["category_source_ids"]["Car Payment"]
+    transactions_by_account = {
+        transaction["account_id"]: transaction
+        for transaction in (await client.get("/transactions", headers=headers)).json()
+    }
+
+    budget_leg = transactions_by_account[checking_id]
+    loan_leg = transactions_by_account[loan_id]
+    assert (
+        budget_leg["category_id"],
+        budget_leg["counterparty_account_id"],
+        budget_leg["counterparty_account_scope"],
+        budget_leg["merchant_name"],
+    ) == (category_id, None, None, merchant_name)
+    assert (
+        loan_leg["category_id"],
+        loan_leg["counterparty_account_id"],
+        loan_leg["counterparty_account_scope"],
+    ) == (transfer_category_id, checking_id, "tracked")
+
+    if category["create"]["kind"] == "expense":
+        [budget] = (await client.get("/base-budgets", headers=headers)).json()
+        [utilization] = (await client.get(f"/base-budgets/{budget['id']}/utilizations", headers=headers)).json()
+        assert utilization["total_spent"] == 30000
 
 
 async def test_an_actual_categorized_transfer_can_name_its_destination_leg(client):

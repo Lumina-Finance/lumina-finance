@@ -3,50 +3,80 @@ import {
   CATEGORIES_LOAD_FAILURE_TITLE,
   CREATE_CATEGORY_VALUE,
 } from '@/pages/imports/constants'
-import { EmptyState, ImportInfoCard, ImportLoadFailure, ImportStep, ImportValueMatchTable } from '@/pages/imports/components'
+import {
+  EmptyState,
+  ImportInfoCard,
+  ImportLoadFailure,
+  ImportSegmentedToggle,
+  ImportStep,
+  ImportValueMatchTable,
+} from '@/pages/imports/components'
 import type { ActualImportWorkflow } from '@/pages/imports/actual/hooks'
+import type { ActualCategorySource, ActualPaymentMode } from '@/pages/imports/actual/types'
 import { getActualTransferCategoryOptions } from '@/pages/imports/actual/utils/categories'
 import { getActualCategoryName } from '@/pages/imports/actual/utils/normalise'
 
 type ActualCategoryMatchingStepProps = Pick<
   ActualImportWorkflow,
   | 'budget'
-  | 'categorySources'
+  | 'visibleCategorySources'
+  | 'paymentModes'
   | 'resolvedCategoryMappings'
   | 'autoFilledCategories'
   | 'resolvedCategoryKinds'
   | 'categoryById'
   | 'setCategoryCreateKinds'
   | 'setCategoryMappings'
+  | 'setPaymentMode'
   | 'categoryMatchOptions'
   | 'categoriesLoading'
   | 'categoriesFailed'
   | 'refetchCategories'
 >
 
+function getPaymentModeOptions(source: ActualCategorySource): Array<{ value: ActualPaymentMode; label: string }> {
+  return [
+    { value: 'category', label: source.isIncome ? 'Income' : 'Expense' },
+    { value: 'transfer', label: 'Transfer' },
+  ]
+}
+
+function describePayments(source: ActualCategorySource, name: string) {
+  const asCategory = source.isIncome
+    ? `As Income, they're income in ${name}`
+    : `As Expense, they're spending in ${name}, which its budget counts as Actual did`
+  return `In Actual, these are payments between a budget account and an off-budget account, like a loan, that you gave the ${name} category. ${asCategory}, and the off-budget account's side stays a transfer. As Transfer, they stay transfers between your accounts, which budgets don't count.`
+}
+
 /**
  * Category matching step of the Actual Budget import flow, showing every category the imported rows
  * and budgets use, matched to an existing category or queued to be created with a chosen kind
  *
- * Payments between the budget and an off-budget account carry the category as a transfer, so their
- * rows can only take a transfer category, which is created as one
+ * Payments between the budget and an off-budget account that carry a category get a row of their
+ * own, which chooses whether they come in as spending or income in that category or as transfers.
+ * As spending, the row answers for the category itself, sharing the answer of the category's own
+ * row when it has one. As transfers, it takes a transfer category of its own
  */
 export function ActualCategoryMatchingStep({
   budget,
-  categorySources,
+  visibleCategorySources,
+  paymentModes,
   resolvedCategoryMappings,
   autoFilledCategories,
   resolvedCategoryKinds,
   categoryById,
   setCategoryCreateKinds,
   setCategoryMappings,
+  setPaymentMode,
   categoryMatchOptions,
   categoriesLoading,
   categoriesFailed,
   refetchCategories,
 }: ActualCategoryMatchingStepProps) {
-  const hasCategorisedTransfers = categorySources.some((source) => source.role === 'transfer' && source.categoryId)
+  const hasCategorisedTransfers = visibleCategorySources.some((source) => source.role === 'transfer' && source.categoryId)
   const categoryByActualId = new Map(budget?.categories.map((category) => [category.id, category]))
+  const visibleIds = new Set(visibleCategorySources.map((source) => source.id))
+  const transferOptions = getActualTransferCategoryOptions(categoryMatchOptions, categoryById)
 
   return (
     <ImportStep
@@ -56,7 +86,7 @@ export function ActualCategoryMatchingStep({
     >
       {hasCategorisedTransfers && (
         <ImportInfoCard title="Payments to off-budget accounts">
-          Categories marked (transfers) hold payments to and from off-budget accounts that carried a category in Actual, such as a loan payment. They take a transfer category, and a budget for that category still counts them. A payment whose other side is in the file stays a transfer between your accounts. One whose other side isn't comes in on its own, as a withdrawal or deposit.
+          Categories marked (transfers) hold payments to and from off-budget accounts, like a loan payment, that carried a category in Actual. As Expense, or Income for an income category, the budget account's side is filed in that category, so its budget counts it as Actual did, and the off-budget account's side is a transfer. As Transfer, both sides stay transfers, which budgets don't count. A payment whose other side isn't in the file comes in on its own, as a withdrawal or deposit.
         </ImportInfoCard>
       )}
 
@@ -66,7 +96,7 @@ export function ActualCategoryMatchingStep({
           description={CATEGORIES_LOAD_FAILURE_EXPLANATION}
           onRetry={refetchCategories}
         />
-      ) : categorySources.length === 0 ? (
+      ) : visibleCategorySources.length === 0 ? (
         <EmptyState
           title={budget ? 'No categories to match' : 'No imported categories detected'}
           description={budget
@@ -79,29 +109,46 @@ export function ActualCategoryMatchingStep({
           detailLabel="Type"
           targetLabel="Existing Category"
           createValue={CREATE_CATEGORY_VALUE}
-          rows={categorySources.map((source) => {
-            const value = resolvedCategoryMappings[source.id] ?? ''
-            const existingMatch = Boolean(value) && value !== CREATE_CATEGORY_VALUE
+          rows={visibleCategorySources.map((source) => {
             const isTransfer = source.role === 'transfer'
             const category = isTransfer ? categoryByActualId.get(source.categoryId ?? '') : undefined
             const categoryName = category && budget ? getActualCategoryName(category, budget.categories) : ''
+
+            // A payment row filed as spending answers for its category's spending source, which is
+            // named by Actual's category id
+            const paymentMode: ActualPaymentMode | undefined = paymentModes[source.id]
+            const mappingId = paymentMode === 'category' && source.categoryId ? source.categoryId : source.id
+            const sharesVisibleRow = mappingId !== source.id && visibleIds.has(mappingId)
+            const value = resolvedCategoryMappings[mappingId] ?? ''
+            const existingMatch = Boolean(value) && value !== CREATE_CATEGORY_VALUE
 
             return {
               id: source.id,
               source: source.label,
               sourceHelp: categoryName
-                ? {
-                    label: `What ${source.label} means`,
-                    content: `In Actual, these are transfers between a budget account and an off-budget account, like a loan, that you gave the ${categoryName} category. Lumina Finance keeps them as transfers, so they need a transfer category. A ${categoryName} budget still counts them.`,
-                  }
+                ? { label: `What ${source.label} means`, content: describePayments(source, categoryName) }
                 : undefined,
-              autoFilled: autoFilledCategories.has(source.id),
-              detailKind: existingMatch ? categoryById.get(value)?.kind ?? '' : resolvedCategoryKinds[source.id] ?? '',
+
+              // The category's own row already shows whether its answer was filled in or is new
+              autoFilled: autoFilledCategories.has(mappingId) && !sharesVisibleRow,
+              hideCreateBadge: sharesVisibleRow,
+              detailKind: existingMatch ? categoryById.get(value)?.kind ?? '' : resolvedCategoryKinds[mappingId] ?? '',
               detailDisabled: existingMatch || isTransfer,
-              onDetailKindChange: (kind) => setCategoryCreateKinds((current) => ({ ...current, [source.id]: kind })),
+              detailNode: paymentMode
+                ? (
+                    <ImportSegmentedToggle
+                      options={getPaymentModeOptions(source)}
+                      value={paymentMode}
+                      label={`Import ${source.label} as`}
+                      onChange={(mode) => setPaymentMode(source.id, mode)}
+                      disabled={categoriesLoading}
+                    />
+                  )
+                : undefined,
+              onDetailKindChange: (kind) => setCategoryCreateKinds((current) => ({ ...current, [mappingId]: kind })),
               value,
-              onChange: (nextValue) => setCategoryMappings((current) => ({ ...current, [source.id]: nextValue })),
-              options: isTransfer ? getActualTransferCategoryOptions(categoryMatchOptions, categoryById, source) : undefined,
+              onChange: (nextValue) => setCategoryMappings((current) => ({ ...current, [mappingId]: nextValue })),
+              options: isTransfer && paymentMode !== 'category' ? transferOptions : undefined,
             }
           })}
           options={categoryMatchOptions}

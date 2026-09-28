@@ -1,6 +1,6 @@
 import { EyeOff } from 'lucide-react'
 import { Checkbox } from '@/components/forms/Checkbox'
-import { EmptyState, ImportInfoCard, ImportStep } from '@/pages/imports/components'
+import { EmptyState, ImportInfoCard, ImportNotice, ImportStep } from '@/pages/imports/components'
 import { IMPORT_EXCLUDED_ROW_BACKGROUND } from '@/pages/imports/constants'
 import { ActualSkippedBudgetsTable } from '@/pages/imports/actual/components'
 import type { ActualImportWorkflow } from '@/pages/imports/actual/hooks'
@@ -12,6 +12,7 @@ type ActualBudgetImportStepProps = Pick<
   | 'importResult'
   | 'budgetDrafts'
   | 'budgetRefusals'
+  | 'budgetsMissingPayments'
   | 'selectedBudgetIds'
   | 'toggleBudgetSelection'
   | 'setBudgetsSelected'
@@ -33,6 +34,7 @@ export function ActualBudgetImportStep({
   importResult,
   budgetDrafts,
   budgetRefusals,
+  budgetsMissingPayments,
   selectedBudgetIds,
   toggleBudgetSelection,
   setBudgetsSelected,
@@ -48,7 +50,6 @@ export function ActualBudgetImportStep({
     const reason = budgetRefusals.get(draft.categoryId)
     return reason ? [{ draft, reason }] : []
   })
-  const tracksTransfers = importableDrafts.some((draft) => draft.categorySourceIds.length > 1)
 
   // Selection drives what the import creates, so it locks while an import runs and once one has finished
   const selectionLocked = importOverlayOpen || Boolean(importResult)
@@ -66,15 +67,15 @@ export function ActualBudgetImportStep({
       title="Budget Import"
       description="Budgets built from what you budgeted each month in Actual, imported together with the transactions."
     >
+      {budgetsMissingPayments.length > 0 && (
+        <ImportNotice title="Payments these budgets won't count" items={budgetsMissingPayments}>
+          Their categories had payments to off-budget accounts that you're importing as transfers. Budgets count expenses only, so these will show less spent than Actual did:
+        </ImportNotice>
+      )}
+
       <ImportInfoCard title="Months as budgeted">
         Each month you budgeted a category above zero becomes one monthly period with that amount. A budget keeps repeating monthly only if you budgeted it for this month or later, and otherwise ends with its last month. Money Actual rolled over between months and what it showed as To Budget are not imported.
       </ImportInfoCard>
-
-      {tracksTransfers && (
-        <ImportInfoCard title="Payments counted too">
-          A budget whose category also carried payments to off-budget accounts, like a loan, tracks both its category and the transfer category those payments take, so it counts them as Actual did.
-        </ImportInfoCard>
-      )}
 
       {skippedBudgets.length > 0 && <ActualSkippedBudgetsTable budgets={skippedBudgets} budgetDecimals={budgetDecimals} />}
 

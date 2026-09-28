@@ -1,0 +1,685 @@
+{
+  "asOf": "2026-09-26",
+  "budgetType": null,
+  "currencyFeature": false,
+  "currency": null,
+  "amountScales": {
+    "transactions": 2,
+    "budgets": 2
+  },
+  "accounts": [
+    {
+      "name": "Car Loan",
+      "offBudget": true,
+      "closed": false,
+      "balance": "-8138.40",
+      "rowTotal": "-8138.40"
+    },
+    {
+      "name": "Checking",
+      "offBudget": false,
+      "closed": false,
+      "balance": "9363.30",
+      "rowTotal": "9363.30"
+    },
+    {
+      "name": "Savings",
+      "offBudget": false,
+      "closed": false,
+      "balance": "1060.00",
+      "rowTotal": "1060.00"
+    },
+    {
+      "name": "Wallet",
+      "offBudget": false,
+      "closed": true,
+      "balance": "100.00",
+      "rowTotal": "100.00"
+    }
+  ],
+  "accountMonths": [
+    {
+      "account": "Car Loan",
+      "month": "2026-07",
+      "count": 3,
+      "total": "-8738.40"
+    },
+    {
+      "account": "Car Loan",
+      "month": "2026-08",
+      "count": 1,
+      "total": "300.00"
+    },
+    {
+      "account": "Car Loan",
+      "month": "2026-09",
+      "count": 1,
+      "total": "300.00"
+    },
+    {
+      "account": "Checking",
+      "month": "2026-07",
+      "count": 14,
+      "total": "7018.30"
+    },
+    {
+      "account": "Checking",
+      "month": "2026-08",
+      "count": 3,
+      "total": "2665.00"
+    },
+    {
+      "account": "Checking",
+      "month": "2026-09",
+      "count": 2,
+      "total": "-320.00"
+    },
+    {
+      "account": "Savings",
+      "month": "2026-07",
+      "count": 3,
+      "total": "1060.00"
+    },
+    {
+      "account": "Wallet",
+      "month": "2026-07",
+      "count": 1,
+      "total": "80.00"
+    },
+    {
+      "account": "Wallet",
+      "month": "2026-09",
+      "count": 1,
+      "total": "20.00"
+    }
+  ],
+  "categoryMonths": [
+    {
+      "categoryGroup": "",
+      "category": "",
+      "month": "2026-07",
+      "total": "-187.50"
+    },
+    {
+      "categoryGroup": "",
+      "category": "",
+      "month": "2026-09",
+      "total": "0.00"
+    },
+    {
+      "categoryGroup": "Away",
+      "category": "Travel",
+      "month": "2026-07",
+      "total": "-40.00"
+    },
+    {
+      "categoryGroup": "Home",
+      "category": "Car",
+      "month": "2026-07",
+      "total": "-445.00"
+    },
+    {
+      "categoryGroup": "Home",
+      "category": "Car",
+      "month": "2026-08",
+      "total": "-300.00"
+    },
+    {
+      "categoryGroup": "Home",
+      "category": "Car",
+      "month": "2026-09",
+      "total": "-300.00"
+    },
+    {
+      "categoryGroup": "Home",
+      "category": "Groceries",
+      "month": "2026-07",
+      "total": "-64.20"
+    },
+    {
+      "categoryGroup": "Home",
+      "category": "Travel",
+      "month": "2026-07",
+      "total": "-150.00"
+    },
+    {
+      "categoryGroup": "Income",
+      "category": "Income",
+      "month": "2026-07",
+      "total": "3000.00"
+    },
+    {
+      "categoryGroup": "Income",
+      "category": "Income",
+      "month": "2026-08",
+      "total": "3000.00"
+    },
+    {
+      "categoryGroup": "Income",
+      "category": "Starting Balances",
+      "month": "2026-07",
+      "total": "6080.00"
+    },
+    {
+      "categoryGroup": "Retired",
+      "category": "Gym",
+      "month": "2026-07",
+      "total": "-35.00"
+    },
+    {
+      "categoryGroup": "Retired",
+      "category": "Gym",
+      "month": "2026-08",
+      "total": "-35.00"
+    }
+  ],
+  "budgets": [
+    {
+      "category": "Car",
+      "categoryGroup": "Home",
+      "hidden": false,
+      "isIncome": false,
+      "month": "2026-07",
+      "budgeted": "350.00",
+      "carryover": false
+    },
+    {
+      "category": "Groceries",
+      "categoryGroup": "Home",
+      "hidden": false,
+      "isIncome": false,
+      "month": "2026-07",
+      "budgeted": "400.00",
+      "carryover": false
+    },
+    {
+      "category": "Gym",
+      "categoryGroup": "Retired",
+      "hidden": true,
+      "isIncome": false,
+      "month": "2026-07",
+      "budgeted": "35.00",
+      "carryover": false
+    },
+    {
+      "category": "Travel",
+      "categoryGroup": "Home",
+      "hidden": false,
+      "isIncome": false,
+      "month": "2026-07",
+      "budgeted": "200.00",
+      "carryover": false
+    },
+    {
+      "category": "Travel",
+      "categoryGroup": "Away",
+      "hidden": false,
+      "isIncome": false,
+      "month": "2026-07",
+      "budgeted": "50.00",
+      "carryover": false
+    },
+    {
+      "category": "Car",
+      "categoryGroup": "Home",
+      "hidden": false,
+      "isIncome": false,
+      "month": "2026-08",
+      "budgeted": "350.00",
+      "carryover": false
+    },
+    {
+      "category": "Groceries",
+      "categoryGroup": "Home",
+      "hidden": false,
+      "isIncome": false,
+      "month": "2026-08",
+      "budgeted": "400.00",
+      "carryover": false
+    },
+    {
+      "category": "Gym",
+      "categoryGroup": "Retired",
+      "hidden": true,
+      "isIncome": false,
+      "month": "2026-08",
+      "budgeted": "35.00",
+      "carryover": false
+    },
+    {
+      "category": "Car",
+      "categoryGroup": "Home",
+      "hidden": false,
+      "isIncome": false,
+      "month": "2026-09",
+      "budgeted": "350.00",
+      "carryover": false
+    },
+    {
+      "category": "Car",
+      "categoryGroup": "Home",
+      "hidden": false,
+      "isIncome": false,
+      "month": "2026-10",
+      "budgeted": "350.00",
+      "carryover": false
+    }
+  ],
+  "transfers": [
+    {
+      "date": "2026-09-10",
+      "from": "Checking",
+      "to": "Wallet",
+      "amount": "20.00",
+      "category": null
+    },
+    {
+      "date": "2026-09-05",
+      "from": "Checking",
+      "to": "Car Loan",
+      "amount": "300.00",
+      "category": "Car"
+    },
+    {
+      "date": "2026-08-05",
+      "from": "Checking",
+      "to": "Car Loan",
+      "amount": "300.00",
+      "category": "Car"
+    },
+    {
+      "date": "2026-07-09",
+      "from": "Checking",
+      "to": "Savings",
+      "amount": "60.00",
+      "category": null
+    },
+    {
+      "date": "2026-07-05",
+      "from": "Checking",
+      "to": "Car Loan",
+      "amount": "300.00",
+      "category": "Car"
+    }
+  ],
+  "afterAsOf": [],
+  "rows": [
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2026-09-05",
+      "amount": "300.00",
+      "payee": "Checking",
+      "category": null,
+      "categoryGroup": null,
+      "transferTo": "Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": "September payment"
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2026-08-05",
+      "amount": "300.00",
+      "payee": "Checking",
+      "category": null,
+      "categoryGroup": null,
+      "transferTo": "Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": "August payment"
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2026-07-31",
+      "amount": "-38.40",
+      "payee": "Garage",
+      "category": null,
+      "categoryGroup": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": "Interest charged"
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2026-07-05",
+      "amount": "300.00",
+      "payee": "Checking",
+      "category": null,
+      "categoryGroup": null,
+      "transferTo": "Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": "July payment"
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2026-07-01",
+      "amount": "-9000.00",
+      "payee": "Starting Balance",
+      "category": null,
+      "categoryGroup": null,
+      "transferTo": null,
+      "isStartingBalance": true,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Checking",
+      "offBudget": false,
+      "date": "2026-09-10",
+      "amount": "-20.00",
+      "payee": "Wallet",
+      "category": null,
+      "categoryGroup": null,
+      "transferTo": "Wallet",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Checking",
+      "offBudget": false,
+      "date": "2026-09-05",
+      "amount": "-300.00",
+      "payee": "Car Loan",
+      "category": "Car",
+      "categoryGroup": "Home",
+      "transferTo": "Car Loan",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": "September payment"
+    },
+    {
+      "account": "Checking",
+      "offBudget": false,
+      "date": "2026-08-12",
+      "amount": "-35.00",
+      "payee": "Iron Gym",
+      "category": "Gym",
+      "categoryGroup": "Retired",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Checking",
+      "offBudget": false,
+      "date": "2026-08-05",
+      "amount": "-300.00",
+      "payee": "Car Loan",
+      "category": "Car",
+      "categoryGroup": "Home",
+      "transferTo": "Car Loan",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": "August payment"
+    },
+    {
+      "account": "Checking",
+      "offBudget": false,
+      "date": "2026-08-02",
+      "amount": "3000.00",
+      "payee": "Employer",
+      "category": "Income",
+      "categoryGroup": "Income",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Checking",
+      "offBudget": false,
+      "date": "2026-07-12",
+      "amount": "-35.00",
+      "payee": "Iron Gym",
+      "category": "Gym",
+      "categoryGroup": "Retired",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Checking",
+      "offBudget": false,
+      "date": "2026-07-11",
+      "amount": "-12.50",
+      "payee": "Corner Shop",
+      "category": null,
+      "categoryGroup": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Checking",
+      "offBudget": false,
+      "date": "2026-07-10",
+      "amount": "-55.00",
+      "payee": "Corner Shop",
+      "category": null,
+      "categoryGroup": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": true,
+      "notes": null
+    },
+    {
+      "account": "Checking",
+      "offBudget": false,
+      "date": "2026-07-10",
+      "amount": "-40.00",
+      "payee": "Corner Shop",
+      "category": "Travel",
+      "categoryGroup": "Away",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": true,
+      "notes": null
+    },
+    {
+      "account": "Checking",
+      "offBudget": false,
+      "date": "2026-07-09",
+      "amount": "-150.00",
+      "payee": "Corner Shop",
+      "category": "Travel",
+      "categoryGroup": "Home",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": true,
+      "notes": "Hotel"
+    },
+    {
+      "account": "Checking",
+      "offBudget": false,
+      "date": "2026-07-09",
+      "amount": "-60.00",
+      "payee": "Savings",
+      "category": null,
+      "categoryGroup": null,
+      "transferTo": "Savings",
+      "isStartingBalance": false,
+      "isSplitChild": true,
+      "notes": "Put aside"
+    },
+    {
+      "account": "Checking",
+      "offBudget": false,
+      "date": "2026-07-08",
+      "amount": "0.00",
+      "payee": "Savings",
+      "category": null,
+      "categoryGroup": null,
+      "transferTo": "Savings",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": "Zero transfer"
+    },
+    {
+      "account": "Checking",
+      "offBudget": false,
+      "date": "2026-07-07",
+      "amount": "-100.00",
+      "payee": null,
+      "category": "Car",
+      "categoryGroup": "Home",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Checking",
+      "offBudget": false,
+      "date": "2026-07-06",
+      "amount": "-120.00",
+      "payee": null,
+      "category": null,
+      "categoryGroup": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Checking",
+      "offBudget": false,
+      "date": "2026-07-05",
+      "amount": "-300.00",
+      "payee": "Car Loan",
+      "category": "Car",
+      "categoryGroup": "Home",
+      "transferTo": "Car Loan",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": "July payment"
+    },
+    {
+      "account": "Checking",
+      "offBudget": false,
+      "date": "2026-07-04",
+      "amount": "-45.00",
+      "payee": "Garage",
+      "category": "Car",
+      "categoryGroup": "Home",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": "Oil change #car"
+    },
+    {
+      "account": "Checking",
+      "offBudget": false,
+      "date": "2026-07-03",
+      "amount": "-64.20",
+      "payee": "Corner Shop",
+      "category": "Groceries",
+      "categoryGroup": "Home",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Checking",
+      "offBudget": false,
+      "date": "2026-07-02",
+      "amount": "3000.00",
+      "payee": "Employer",
+      "category": "Income",
+      "categoryGroup": "Income",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Checking",
+      "offBudget": false,
+      "date": "2026-07-01",
+      "amount": "5000.00",
+      "payee": "Starting Balance",
+      "category": "Starting Balances",
+      "categoryGroup": "Income",
+      "transferTo": null,
+      "isStartingBalance": true,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Savings",
+      "offBudget": false,
+      "date": "2026-07-09",
+      "amount": "60.00",
+      "payee": "Checking",
+      "category": null,
+      "categoryGroup": null,
+      "transferTo": "Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": "Put aside"
+    },
+    {
+      "account": "Savings",
+      "offBudget": false,
+      "date": "2026-07-08",
+      "amount": "0.00",
+      "payee": "Checking",
+      "category": null,
+      "categoryGroup": null,
+      "transferTo": "Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": "Zero transfer"
+    },
+    {
+      "account": "Savings",
+      "offBudget": false,
+      "date": "2026-07-01",
+      "amount": "1000.00",
+      "payee": "Starting Balance",
+      "category": "Starting Balances",
+      "categoryGroup": "Income",
+      "transferTo": null,
+      "isStartingBalance": true,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Wallet",
+      "offBudget": false,
+      "date": "2026-09-10",
+      "amount": "20.00",
+      "payee": "Checking",
+      "category": null,
+      "categoryGroup": null,
+      "transferTo": "Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Wallet",
+      "offBudget": false,
+      "date": "2026-07-01",
+      "amount": "80.00",
+      "payee": "Starting Balance",
+      "category": "Starting Balances",
+      "categoryGroup": "Income",
+      "transferTo": null,
+      "isStartingBalance": true,
+      "isSplitChild": false,
+      "notes": null
+    }
+  ]
+}

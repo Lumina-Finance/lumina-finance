@@ -59,10 +59,6 @@ export interface SkippedRowCells {
   payee: string
 }
 
-// The category source the import uploads for payments to and from off-budget accounts filed under
-// an Actual category, as its id with this in front
-export const TRANSFER_CATEGORY_SOURCE_PREFIX = 'transfer:'
-
 // The system category Lumina files opening balances and the adjustment that archiving writes under
 const BALANCE_ADJUSTMENT = 'Balance Adjustment'
 
@@ -204,13 +200,13 @@ function compareLaterRows(
   for (const row of manifest.afterAsOf) {
     const accountId = findLuminaAccountId(manifest, mappings, row.account)
     const amount = toCurrency(row.amount, ACTUAL_TRANSACTION_DECIMALS, currency)
-    const categoryIds = row.categoryId ? getLuminaCategoryIds(mappings, row.categoryId) : null
+    const luminaCategoryId = row.categoryId ? mappings.categories.get(row.categoryId) ?? '' : null
     const onDay = [...unmatched].filter((transaction) => (
       transaction.account_id === accountId
       && transaction.dt.slice(0, 10) === row.date
       && formatMinorUnits(transaction.amount, currency) === amount
     ))
-    const match = onDay.find((transaction) => !categoryIds || categoryIds.has(transaction.category_id))
+    const match = onDay.find((transaction) => luminaCategoryId === null || transaction.category_id === luminaCategoryId)
     const subject = `${row.date} ${row.account} ${amount}`
     if (match) {
       unmatched.delete(match)
@@ -226,8 +222,10 @@ function compareLaterRows(
 /**
  * Compares each transfer whose sides Actual links both ways, the ones the import pairs, with the
  * two legs Lumina holds for it: one on each account, naming the other, on the same day for
- * opposite amounts. A pair imported as two one-sided rows names no other account. The manifest
- * names a transfer's accounts rather than giving their ids, so they are found by name
+ * opposite amounts. A side on the budget that carries a category is spending in it, as the import
+ * files it by default, and names no other account, and so does a pair imported as two one-sided
+ * rows. The manifest names a transfer's accounts rather than giving their ids, so they are found
+ * by name
  */
 function compareTransfers(
   manifest: ActualManifest,
@@ -240,7 +238,7 @@ function compareTransfers(
 
   // Each leg answers one transfer, so two alike on one day need two pairs
   const unmatched = new Set(transactions)
-  const takeLeg = (accountId: string | undefined, counterpartyId: string | undefined, date: string, amount: string) => {
+  const takeLeg = (accountId: string | undefined, counterpartyId: string | null | undefined, date: string, amount: string) => {
     const leg = [...unmatched].find((transaction) => (
       transaction.account_id === accountId
       && transaction.counterparty_account_id === counterpartyId
@@ -251,12 +249,20 @@ function compareTransfers(
     return leg
   }
 
+  const isOnBudget = (name: string) => manifest.accounts.some((account) => account.name === name && !account.offBudget)
+  const isSpendingSide = (name: string, category: string | null) => Boolean(category) && isOnBudget(name)
+
   for (const transfer of manifest.transfers.filter((entry) => entry.linkedBothWays)) {
     const amount = toCurrency(transfer.amount, ACTUAL_TRANSACTION_DECIMALS, currency)
     const source = getLuminaAccountId(transfer.account)
     const destination = getLuminaAccountId(transfer.counterpartAccount)
-    const sourceLeg = takeLeg(source, destination, transfer.date, toCurrency(negate(transfer.amount), ACTUAL_TRANSACTION_DECIMALS, currency))
-    const destinationLeg = takeLeg(destination, source, transfer.date, amount)
+    const sourceLeg = takeLeg(
+      source,
+      isSpendingSide(transfer.account, transfer.category) ? null : destination,
+      transfer.date,
+      toCurrency(negate(transfer.amount), ACTUAL_TRANSACTION_DECIMALS, currency),
+    )
+    const destinationLeg = takeLeg(destination, isSpendingSide(transfer.counterpartAccount, transfer.counterpartCategory) ? null : source, transfer.date, amount)
     if (sourceLeg && destinationLeg) continue
     const held = sourceLeg ? `only the ${transfer.account} leg` : destinationLeg ? `only the ${transfer.counterpartAccount} leg` : 'absent'
     differences.add('transfer', `${transfer.date} ${transfer.account} → ${transfer.counterpartAccount} ${amount}`, 'paired', held)
@@ -264,9 +270,10 @@ function compareTransfers(
 }
 
 /**
- * Compares each Actual category's month totals with what Lumina files under the categories its
- * rows went to. Lumina counts a category on every account, and Actual only on the budget's own,
- * so the two agree only when the payments to off-budget accounts carry the category on one side
+ * Compares each Actual category's month totals with what Lumina files under the category its rows
+ * went to. Lumina counts a category on every account, and Actual only on the budget's own, so the
+ * two agree only because payments to off-budget accounts carry the category on their budget side
+ * alone, where the import files them as spending by default
  */
 function compareCategoryMonths(
   manifest: ActualManifest,
@@ -285,15 +292,15 @@ function compareCategoryMonths(
 
   for (const [categoryId, months] of actualTotals) {
     const label = requireCategory(categoryById, categoryId).label
-    const luminaIds = getLuminaCategoryIds(mappings, categoryId)
-    if (luminaIds.size === 0) {
+    const luminaId = mappings.categories.get(categoryId)
+    if (!luminaId) {
       const total = [...months.values()].reduce((sum, value) => sum + readStored(value, ACTUAL_TRANSACTION_DECIMALS), 0n)
       differences.add('category-not-imported', label, toCurrency(formatStored(total, ACTUAL_TRANSACTION_DECIMALS), ACTUAL_TRANSACTION_DECIMALS, currency), 'absent')
       continue
     }
 
     const luminaMonths = new Map<string, number>()
-    for (const transaction of transactions.filter((entry) => luminaIds.has(entry.category_id))) {
+    for (const transaction of transactions.filter((entry) => entry.category_id === luminaId)) {
       const month = transaction.dt.slice(0, 7)
       luminaMonths.set(month, (luminaMonths.get(month) ?? 0) + transaction.amount)
     }
@@ -344,8 +351,10 @@ function compareBudgets(
     }
     if (figures.some((figure) => figure.carryover)) differences.add('budget-carryover', category.label, 'carries over', 'no carryover')
 
+    // A budget tracks only the category its spending was filed under, as one made in the app does
     const tracked = budget.category_ids.map((id) => categoryNameById.get(id) ?? id).sort()
-    const expectedTracked = [...getLuminaCategoryIds(mappings, categoryId)].map((id) => categoryNameById.get(id) ?? id).sort()
+    const spendingId = mappings.categories.get(categoryId)
+    const expectedTracked = spendingId ? [categoryNameById.get(spendingId) ?? spendingId] : []
     if (tracked.join('|') !== expectedTracked.join('|')) {
       differences.add('budget-categories', category.label, expectedTracked.join(' | '), tracked.join(' | '))
     }
@@ -367,13 +376,6 @@ function compareBudgets(
   for (const budget of lumina.baseBudgets.filter((entry) => !paired.has(entry.id))) {
     differences.add('budget-extra', budget.name, 'absent', 'present')
   }
-}
-
-/** The Lumina categories the rows of one Actual category were filed under, spending and payments alike */
-function getLuminaCategoryIds(mappings: ImportMappings, categoryId: string) {
-  return new Set([categoryId, `${TRANSFER_CATEGORY_SOURCE_PREFIX}${categoryId}`]
-    .map((source) => mappings.categories.get(source))
-    .filter((id): id is string => Boolean(id)))
 }
 
 // The manifest names an account rather than giving its id wherever it describes a row

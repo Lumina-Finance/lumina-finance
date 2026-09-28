@@ -124,11 +124,13 @@ class JournalTransactionRow(BaseModel):
     notes: TrimmedImportText | None = Field(None, max_length=MAX_IMPORT_NOTES_LENGTH)
 
     # The one leg of a transfer between two imported accounts that takes the row's mapped category,
-    # which must record a counterparty account, while the other leg keeps the system Transfer
-    # category. Budgets add up signed amounts per tracked category across every account, so a
-    # category on both legs would cancel out. Actual Budget uses this for a transfer from an
-    # on-budget account to an off-budget one, such as a loan payment filed under a budget category.
-    # Null files both legs under Transfer and ignores the row's category
+    # while the other leg keeps the system Transfer category. An expense or income category makes
+    # that leg spending or income with the other side's name as its merchant, and a transfer
+    # category, which must record a counterparty account, keeps it a transfer. Budgets add up
+    # signed amounts per tracked category across every account, so a category on both legs would
+    # cancel out. Actual Budget uses this for a transfer from an on-budget account to an off-budget
+    # one, such as a loan payment filed under a budget category. Null files both legs under
+    # Transfer and ignores the row's category
     category_leg: Literal["source", "destination"] | None = None
 
     @model_validator(mode="after")

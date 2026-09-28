@@ -113,6 +113,9 @@ export interface ManifestTransfer {
   amount: string
   category: string | null
 
+  /** The category on the other side, where money arrives */
+  counterpartCategory: string | null
+
   /** Whether the other side links back, which Actual doesn't require */
   linkedBothWays: boolean
 }

@@ -4,8 +4,9 @@
  * manifest, so the two halves of the import are checked against Actual's own figures together
  *
  * Every account and category is created, in CAD, since the export has Actual's currency feature
- * off. To refresh the recorded upload after a deliberate change to what the screen sends, run this
- * test with WRITE_ACTUAL_REPLAY=1 set, and review the difference before committing it
+ * off, and payments to off-budget accounts are filed as spending in their categories, as they are
+ * by default. To refresh the recorded upload after a deliberate change to what the screen sends,
+ * run this test with WRITE_ACTUAL_REPLAY=1 set, and review the difference before committing it
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
@@ -13,7 +14,7 @@ import type { Currency } from '@/api/currency'
 import { buildJournalStageBatches, type ImportRunBudgets, type JournalImportStageBatch } from '@/api/provider-imports'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import { buildActualBudgetDrafts, buildActualRunBudgets } from '@/pages/imports/actual/utils/budgets'
-import { getActualCategoryKind } from '@/pages/imports/actual/utils/categories'
+import { applyActualPaymentModes, getActualCategoryKind } from '@/pages/imports/actual/utils/categories'
 import { buildActualImportPayload } from '@/pages/imports/actual/utils/payload'
 import { normaliseActualFixture } from './fixtures'
 
@@ -39,8 +40,9 @@ interface Replay {
 }
 
 async function buildReplay(): Promise<Replay> {
-  const { budget, journal, manifest } = await normaliseActualFixture('envelope')
-  const drafts = buildActualBudgetDrafts(budget, journal, manifest.asOf.slice(0, 7)).filter((draft) => !draft.disabledReason)
+  const { budget, journal: readJournal, manifest } = await normaliseActualFixture('envelope')
+  const journal = applyActualPaymentModes(readJournal, {})
+  const drafts = buildActualBudgetDrafts(budget, manifest.asOf.slice(0, 7)).filter((draft) => !draft.disabledReason)
   const build = buildActualImportPayload(journal, {
     accountMappings: Object.fromEntries(journal.accounts.map((account) => [account.id, CREATE_ACCOUNT_VALUE])),
     accountCreateDetails: Object.fromEntries(journal.accounts.map((account) => [
@@ -53,7 +55,7 @@ async function buildReplay(): Promise<Replay> {
     categoryById: new Map(),
     currencies: CURRENCIES,
     fileCurrency: null,
-    budgetCategorySources: new Set(drafts.flatMap((draft) => draft.categorySourceIds)),
+    budgetCategorySources: new Set(drafts.map((draft) => draft.categorySourceId)),
   })
   expect(build.errors).toEqual([])
 

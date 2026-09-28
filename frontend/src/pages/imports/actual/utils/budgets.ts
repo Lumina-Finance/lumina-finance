@@ -4,12 +4,14 @@ import type { TransactionImportCategoryMapping } from '@/api/transaction-imports
 import {
   ACTUAL_BUDGET_NAME_MAX_LENGTH,
   ACTUAL_BUDGET_NAME_TOO_LONG_REASON,
+  ACTUAL_BUDGET_NOT_EXPENSE_REASON,
   ACTUAL_INCOME_BUDGET_REASON,
   getActualBudgetAmountReason,
   getActualBudgetGroupCategoryReason,
 } from '@/pages/imports/actual/constants'
 import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
-import type { ActualBudgetFile, ActualJournal } from '@/pages/imports/actual/types'
+import type { ActualBudgetFile } from '@/pages/imports/actual/types'
+import type { ImportCategoryKind } from '@/pages/imports/types'
 import { formatScaledAmount } from './amounts'
 import { isGroupResource } from './scope'
 import { getActualCategoryName } from './normalise'
@@ -33,8 +35,11 @@ export interface ActualBudgetDraft {
   categoryId: string
   name: string
 
-  /** Every category source the category's rows are filed under, which the budget tracks together */
-  categorySourceIds: string[]
+  /**
+   * The category's spending source, the one category the budget tracks, named by Actual's category id.
+   * Payments to off-budget accounts count toward it only while they are filed as spending
+   */
+  categorySourceId: string
   months: { month: string; amount: number }[]
 
   /**
@@ -57,7 +62,7 @@ export interface ActualBudgetDraft {
  *
  * @param currentMonth - This month in the user's own timezone, as YYYY-MM
  */
-export function buildActualBudgetDrafts(budget: ActualBudgetFile, journal: ActualJournal, currentMonth: string): ActualBudgetDraft[] {
+export function buildActualBudgetDrafts(budget: ActualBudgetFile, currentMonth: string): ActualBudgetDraft[] {
   const categoryById = new Map(budget.categories.map((category) => [category.id, category]))
   const monthsByCategory = new Map<string, { month: string; amount: number }[]>()
   for (const figure of budget.budgetFigures) {
@@ -68,14 +73,12 @@ export function buildActualBudgetDrafts(budget: ActualBudgetFile, journal: Actua
   const drafts: ActualBudgetDraft[] = []
   for (const [categoryId, months] of monthsByCategory) {
     const category = categoryById.get(categoryId)!
-    const sources = journal.categories.filter((source) => source.categoryId === categoryId)
-    const spending = sources.find((source) => source.role === 'spending')
     months.sort((a, b) => a.month.localeCompare(b.month))
-    const name = spending?.label ?? getActualCategoryName(category, budget.categories)
+    const name = getActualCategoryName(category, budget.categories)
     drafts.push({
       categoryId,
       name,
-      categorySourceIds: sources.map((source) => source.id),
+      categorySourceId: categoryId,
       months,
       recurs: months[months.length - 1].month >= currentMonth,
       isArchived: category.hidden,
@@ -99,23 +102,25 @@ export function getActualBudgetRefusal(
     budgetDecimals,
     currencyExponent,
     categoryMappings,
+    categoryCreateKinds,
     categoryById,
   }: {
     currency: string | null
     budgetDecimals: number
     currencyExponent: number | null
     categoryMappings: Record<string, string>
+    categoryCreateKinds: Record<string, ImportCategoryKind>
     categoryById: Map<string, Category>
   },
 ): string | null {
   if (draft.disabledReason) return draft.disabledReason
 
   // An imported budget is the user's own, so it can only track their own or built-in categories
-  for (const source of draft.categorySourceIds) {
-    const choice = categoryMappings[source]
-    const category = choice && choice !== CREATE_CATEGORY_VALUE ? categoryById.get(choice) : undefined
-    if (category && isGroupResource(category)) return getActualBudgetGroupCategoryReason(category.name)
-  }
+  const choice = categoryMappings[draft.categorySourceId]
+  const category = choice && choice !== CREATE_CATEGORY_VALUE ? categoryById.get(choice) : undefined
+  if (category && isGroupResource(category)) return getActualBudgetGroupCategoryReason(category.name)
+  const kind = choice === CREATE_CATEGORY_VALUE ? categoryCreateKinds[draft.categorySourceId] : category?.kind
+  if (kind && kind !== 'expense') return ACTUAL_BUDGET_NOT_EXPENSE_REASON
 
   if (currency && currencyExponent !== null) {
     const month = draft.months.find(({ amount }) => formatScaledAmount(amount, budgetDecimals, currencyExponent) === null)
@@ -144,16 +149,14 @@ export function buildActualRunBudgets(
   const usedMappings = new Map<string, TransactionImportCategoryMapping>()
 
   const budgets = drafts.map((draft) => {
-    for (const source of draft.categorySourceIds) {
-      const mapping = mappingsBySource.get(source)
-      if (!mapping) throw new Error(`${draft.name}: its category is not mapped`)
-      usedMappings.set(source, mapping)
-    }
+    const mapping = mappingsBySource.get(draft.categorySourceId)
+    if (!mapping) throw new Error(`${draft.name}: its category is not mapped`)
+    usedMappings.set(draft.categorySourceId, mapping)
 
     return {
       name: draft.name,
       currency,
-      category_sources: draft.categorySourceIds,
+      category_sources: [draft.categorySourceId],
       limits: draft.months.map(({ month, amount }) => {
         const text = formatScaledAmount(amount, budgetDecimals, currencyExponent)
         if (text === null) throw new Error(`${draft.name}: its amount for ${month} doesn't fit ${currency}`)

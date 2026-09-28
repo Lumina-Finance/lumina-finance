@@ -36,6 +36,9 @@ export function ImportValueMatchTable({
 
     /** An explanation behind a question mark beside the source, for a row whose label needs one */
     sourceHelp?: { label: string; content: ReactNode }
+
+    /** Leaves out the New badge, for a row sharing its answer with another row that already shows it */
+    hideCreateBadge?: boolean
     autoFilled?: boolean
     detailAutoFilled?: boolean
     detail?: string
@@ -81,7 +84,7 @@ export function ImportValueMatchTable({
         <tbody>
           {rows.map((row, index) => {
             const sourceLabelId = `${labelNamespace}-source-${index}`
-            const creating = Boolean(createValue && row.value === createValue)
+            const creating = Boolean(createValue && row.value === createValue && !row.hideCreateBadge)
 
             return (
               <tr key={row.id} className={row.autoFilled || row.detailAutoFilled ? 'import-auto-fill-row' : undefined}>

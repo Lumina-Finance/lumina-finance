@@ -1,5 +1,6 @@
 import type { AccountType } from '@/api/accounts'
 import type { ImportFileType } from '@/pages/imports/utils/fileIntake'
+import type { ActualPaymentMode } from '@/pages/imports/actual/types'
 
 const MIB = 1024 * 1024
 
@@ -75,6 +76,10 @@ export const ACTUAL_PAYEE_NAME_MAX_LENGTH = 256
 export const ACTUAL_TRANSFER_CATEGORY_SOURCE_PREFIX = 'transfer:'
 export const ACTUAL_OFF_BUDGET_CATEGORY_SOURCE_PREFIX = 'off-budget:'
 
+// Payments a category carries to off-budget accounts are spending in it until the user says otherwise,
+// so its budget counts them as Actual did
+export const ACTUAL_DEFAULT_PAYMENT_MODE: ActualPaymentMode = 'category'
+
 export const ACTUAL_TRANSFER_SIDE_LEFT_OUT_REASON = "The other side of this transfer is left out, so this side is left out with it"
 
 export function getActualUnbalancedSplitReason(partsTotal: string, total: string) {
@@ -98,6 +103,9 @@ export function getActualBudgetAmountReason(amount: string, currencyCode: string
 export function getActualBudgetGroupCategoryReason(categoryName: string) {
   return `Its category ${categoryName} is matched to a group category, and an imported budget can only track your own or built-in categories`
 }
+
+// An imported budget tracks one expense category, as a budget made in the app does
+export const ACTUAL_BUDGET_NOT_EXPENSE_REASON = "Its category is matched to or created as a category that isn't an expense, and budgets track expenses only"
 
 /**
  * Lumina account types for the types older Actual releases asked for when an account was made.
@@ -141,12 +149,14 @@ export function getActualFileCurrencyError(fileCurrency: string, labels: string[
   return `This budget is in ${fileCurrency}, so every account must be in ${fileCurrency} too. Change the currency of ${labels.join(', ')}.`
 }
 
-export function getActualBuiltInTransferError(label: string) {
-  return `Match ${label} to a transfer category other than Transfer, which would cancel these payments out of their budget.`
-}
-
 export function getActualTransferCategoryError(label: string) {
   return `Match ${label} to a transfer category, since its rows stay transfers between your accounts.`
+}
+
+// A payment filed as spending keeps its budget-side leg, which a transfer category takes only when it
+// records the other account
+export function getActualPaymentCategoryError(label: string, categoryName: string) {
+  return `Match ${label} to another category, since ${categoryName} can't record the other account of its payments.`
 }
 
 export function getActualAccountNameTooLongError(label: string) {

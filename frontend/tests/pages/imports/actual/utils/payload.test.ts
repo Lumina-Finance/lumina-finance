@@ -8,17 +8,18 @@ import type { Currency } from '@/api/currency'
 import {
   ACTUAL_JOURNAL_ID_MAX_LENGTH,
   getActualAmountPrecisionReason,
-  getActualBuiltInTransferError,
   getActualCategoryCreateClashError,
   getActualCategoryNameTooLongError,
   getActualFileCurrencyError,
   getActualGroupAccountError,
   getActualGroupCategoryError,
   getActualMixedCurrencyError,
+  getActualPaymentCategoryError,
   getActualSharedAccountError,
   getActualTransferCategoryError,
 } from '@/pages/imports/actual/constants'
 import type { ActualJournal } from '@/pages/imports/actual/types'
+import { applyActualPaymentModes } from '@/pages/imports/actual/utils/categories'
 import { normaliseActualBudget } from '@/pages/imports/actual/utils/normalise'
 import { buildActualImportPayload, type ActualImportAnswers } from '@/pages/imports/actual/utils/payload'
 import {
@@ -42,6 +43,7 @@ const ARCHIVED = { id: 'old-savings', name: 'Old Savings', currency: 'CAD', can_
 const GROCERIES = { id: 'groceries', name: 'Groceries', kind: 'expense', group_id: null } as Category
 const CAR_INCOME = { id: 'car-income', name: 'Car', kind: 'income', group_id: null } as Category
 const TRANSFER = { id: 'transfer', name: 'Transfer', kind: 'transfer', group_id: null, is_system: true } as Category
+const BALANCE_ADJUSTMENT = { id: 'balance', name: 'Balance Adjustment', kind: 'transfer', group_id: null, is_system: true } as Category
 
 /** Creates every account in one currency and every category with the kind its role suggests */
 function createAnswers(journal: ActualJournal, currency = 'CAD'): ActualImportAnswers {
@@ -69,7 +71,7 @@ function findAccountId(journal: ActualJournal, name: string) {
 }
 
 describe('Actual Budget import payload', () => {
-  it('uploads every row, with loan payments categorised on the budget side and closed accounts archived', async () => {
+  it('uploads every row, with loan payments kept as transfers categorised on the budget side and closed accounts archived', async () => {
     const { journal } = await normaliseActualFixture('edges')
     const build = buildActualImportPayload(journal, createAnswers(journal))
 
@@ -90,6 +92,39 @@ describe('Actual Budget import payload', () => {
       source: `transfer:${car.categoryId}`,
       create: { name: 'Car Transfers', kind: 'transfer', icon: expect.any(String) },
     })
+  })
+
+  it('files loan payments as spending in their category by default, naming the loan as the payee', async () => {
+    const { journal } = await normaliseActualFixture('edges')
+    const effective = applyActualPaymentModes(journal, {})
+    const build = buildActualImportPayload(effective, createAnswers(effective))
+
+    expect(build.errors).toEqual([])
+    const car = journal.categories.find((source) => source.label === 'Car')!
+    const payments = build.payload!.rows.filter((row) => row.category_leg)
+    expect(payments.map((row) => [row.dt, row.type, row.category, row.category_leg, row.source_name, row.destination_name])).toEqual([
+      ['2026-07-05', 'transfer', car.id, 'source', null, 'Car Loan'],
+      ['2026-08-05', 'transfer', car.id, 'source', null, 'Car Loan'],
+      ['2026-09-05', 'transfer', car.id, 'source', null, 'Car Loan'],
+    ])
+    expect(build.payload!.categories).toContainEqual({ source: car.id, create: { name: 'Car', kind: 'expense', icon: expect.any(String) } })
+    expect(build.payload!.categories.some((mapping) => mapping.source === `transfer:${car.categoryId}`)).toBe(false)
+  })
+
+  it('keeps a payment filed as spending off a transfer category that can\'t record the other account', async () => {
+    const { journal } = await normaliseActualFixture('edges')
+    const effective = applyActualPaymentModes(journal, {})
+    const answers = createAnswers(effective)
+    const car = journal.categories.find((source) => source.label === 'Car')!
+    answers.categoryById.set(BALANCE_ADJUSTMENT.id, BALANCE_ADJUSTMENT)
+    answers.categoryMappings[car.id] = BALANCE_ADJUSTMENT.id
+
+    expect(buildActualImportPayload(effective, answers).errors).toEqual([getActualPaymentCategoryError('Car', 'Balance Adjustment')])
+
+    // A transfer category that records the other account keeps the payment a transfer
+    answers.categoryById.set(TRANSFER.id, TRANSFER)
+    answers.categoryMappings[car.id] = TRANSFER.id
+    expect(buildActualImportPayload(effective, answers).errors).toEqual([])
   })
 
   it('writes yen rows in whole yen', async () => {
@@ -194,12 +229,12 @@ describe('Actual Budget import payload', () => {
     const car = journal.categories.find((source) => source.label === 'Car')!
     const unused = { ...car, id: 'unused', label: 'Unused', createName: 'Unused', categoryId: 'unused', rowCount: 0 }
     const withUnused = { ...journal, categories: [...journal.categories, unused] }
-    const answers = { ...createAnswers(withUnused), budgetCategorySources: new Set([car.id, `transfer:${car.categoryId}`, 'unused']) }
+    const answers = { ...createAnswers(withUnused), budgetCategorySources: new Set([car.id, 'unused']) }
 
     const build = buildActualImportPayload(withUnused, answers)
     expect(build.errors).toEqual([])
     expect(build.payload?.categories.some((mapping) => mapping.source === 'unused')).toBe(false)
-    expect(build.budgetCategoryMappings.map((mapping) => mapping.source)).toEqual([car.id, `transfer:${car.categoryId}`, 'unused'])
+    expect(build.budgetCategoryMappings.map((mapping) => mapping.source)).toEqual([car.id, 'unused'])
   })
 
   it('keeps every account in the currency the file records', async () => {
@@ -215,14 +250,16 @@ describe('Actual Budget import payload', () => {
     expect(buildActualImportPayload(journal, linked).errors).toContain(getActualFileCurrencyError('JPY', [journal.accounts[0].label]))
   })
 
-  it('keeps a categorised payment off the built-in Transfer category', async () => {
+  it('files payments kept as transfers under the built-in Transfer category when asked', async () => {
     const { journal } = await normaliseActualFixture('edges')
     const answers = createAnswers(journal)
     const carTransfers = journal.categories.find((source) => source.role === 'transfer')!
     answers.categoryById.set(TRANSFER.id, TRANSFER)
     answers.categoryMappings[carTransfers.id] = TRANSFER.id
 
-    expect(buildActualImportPayload(journal, answers).errors).toEqual([getActualBuiltInTransferError(carTransfers.label)])
+    const build = buildActualImportPayload(journal, answers)
+    expect(build.errors).toEqual([])
+    expect(build.payload!.categories).toContainEqual({ source: carTransfers.id, category_id: TRANSFER.id })
   })
 
   it('creates a closed account open while it holds a row dated after today, sending or receiving', () => {

@@ -4,8 +4,8 @@ import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import type { ImportCategoryKind } from '@/pages/imports/types'
 import { getCategoryNameKey } from '@/pages/imports/utils/categoryMatching'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
-import { ACTUAL_MISCELLANEOUS_CATEGORY_NAME, ACTUAL_TRANSFER_CATEGORY_NAME } from '@/pages/imports/actual/constants'
-import type { ActualCategorySource } from '@/pages/imports/actual/types'
+import { ACTUAL_DEFAULT_PAYMENT_MODE, ACTUAL_MISCELLANEOUS_CATEGORY_NAME, ACTUAL_TRANSFER_CATEGORY_NAME } from '@/pages/imports/actual/constants'
+import type { ActualCategorySource, ActualJournal, ActualPaymentMode } from '@/pages/imports/actual/types'
 import { isGroupResource } from './scope'
 
 /**
@@ -17,21 +17,9 @@ export function getActualCategoryKind(source: ActualCategorySource): ImportCateg
   return source.isIncome ? 'income' : 'expense'
 }
 
-/** Whether a category can carry the budget-side leg of a transfer, which has to record the other account */
+/** Whether a category can carry a leg that stays a transfer, which has to record the other account */
 export function canCarryActualTransfer(category: Pick<Category, 'kind' | 'name'>) {
   return doesTransferRecordCounterpartyAccount(category.kind, category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
-}
-
-/**
- * Whether a category can take a transfer source's rows. Transfer suits a transfer with no category,
- * but a payment Actual gave a category would carry it on both legs and cancel out of its budget
- */
-export function canFileActualTransferSource(
-  source: Pick<ActualCategorySource, 'categoryId'>,
-  category: Pick<Category, 'kind' | 'name'>,
-) {
-  if (source.categoryId && getCategoryNameKey(category.name) === getCategoryNameKey(ACTUAL_TRANSFER_CATEGORY_NAME)) return false
-  return canCarryActualTransfer(category)
 }
 
 /**
@@ -72,7 +60,7 @@ export function inferActualCategoryMappings(
       !isGroupResource(category)
       && getCategoryNameKey(category.name) === key
       && category.kind === kind
-      && (source.role !== 'transfer' || canFileActualTransferSource(source, category))
+      && (source.role !== 'transfer' || canCarryActualTransfer(category))
     ))
     mappings[source.id] = match?.id ?? CREATE_CATEGORY_VALUE
   }
@@ -81,16 +69,75 @@ export function inferActualCategoryMappings(
 
 /**
  * Narrows the category choices for a transfer source to creating one and the categories that can
- * take its rows, so a loan payment can't be filed as spending that the transfer then cancels
+ * take its rows, which stay transfers between accounts
  */
-export function getActualTransferCategoryOptions(
-  options: DropdownOption[],
-  categoryById: Map<string, Category>,
-  source: Pick<ActualCategorySource, 'categoryId'>,
-) {
+export function getActualTransferCategoryOptions(options: DropdownOption[], categoryById: Map<string, Category>) {
   return options.filter((option) => {
     if (option.value === CREATE_CATEGORY_VALUE) return true
     const category = categoryById.get(option.value)
-    return category ? canFileActualTransferSource(source, category) : false
+    return category ? canCarryActualTransfer(category) : false
+  })
+}
+
+export function getActualPaymentMode(modes: Record<string, ActualPaymentMode>, transferSourceId: string) {
+  return modes[transferSourceId] ?? ACTUAL_DEFAULT_PAYMENT_MODE
+}
+
+/**
+ * Returns the journal as the import sends it once each category's payments to off-budget accounts
+ * are filed the way the user chose
+ *
+ * A payment filed as spending moves from the category's transfer source to its spending source,
+ * which is named by Actual's category id, keeping its budget-side leg and taking the other
+ * account's name as its payee. A spending source with no rows of its own is shown only through
+ * the transfer row then, so it takes that row's label, which is how an answer the import refuses
+ * for it names a row the user can see
+ *
+ * @param modes - Payment modes keyed by transfer source id, a missing one taking the default
+ */
+export function applyActualPaymentModes(journal: ActualJournal, modes: Record<string, ActualPaymentMode>): ActualJournal {
+  const spendingTransferSources = new Map<string, ActualCategorySource>()
+  for (const source of journal.categories) {
+    if (source.role === 'transfer' && source.categoryId && getActualPaymentMode(modes, source.id) === 'category') {
+      spendingTransferSources.set(source.id, source)
+    }
+  }
+  if (spendingTransferSources.size === 0) return journal
+
+  const transferLabelsByCategory = new Map([...spendingTransferSources.values()].map((source) => [source.categoryId, source.label]))
+  return {
+    ...journal,
+    categories: journal.categories.map((source) => {
+      const transferLabel = transferLabelsByCategory.get(source.categoryId)
+      return source.role === 'spending' && source.rowCount === 0 && transferLabel ? { ...source, label: transferLabel } : source
+    }),
+    entries: journal.entries.map((entry) => {
+      const source = spendingTransferSources.get(entry.categorySourceId ?? '')
+      if (!source?.categoryId) return entry
+      return { ...entry, categorySourceId: source.categoryId, payeeName: entry.counterpartAccountName }
+    }),
+  }
+}
+
+/**
+ * Leaves out the category sources the categories step doesn't show: a spending source with no rows
+ * of its own for a category whose payments to off-budget accounts have a transfer row, which stands
+ * for the whole category while those payments are spending. It shows once they are transfers and a
+ * selected budget tracks it, so its answer can still be given
+ *
+ * @param budgetSourceIds - Category sources the selected budgets track
+ */
+export function getVisibleActualCategorySources(
+  sources: ActualCategorySource[],
+  modes: Record<string, ActualPaymentMode>,
+  budgetSourceIds: ReadonlySet<string>,
+) {
+  const transferSourceIds = new Map(sources.flatMap((source) => (
+    source.role === 'transfer' && source.categoryId ? [[source.categoryId, source.id] as const] : []
+  )))
+  return sources.filter((source) => {
+    const transferSourceId = source.role === 'spending' && source.rowCount === 0 ? transferSourceIds.get(source.categoryId ?? '') : undefined
+    if (!transferSourceId) return true
+    return getActualPaymentMode(modes, transferSourceId) === 'transfer' && budgetSourceIds.has(source.id)
   })
 }

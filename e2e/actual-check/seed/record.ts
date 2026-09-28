@@ -130,6 +130,7 @@ export async function recordManifest(api: Api, options: RecordOptions): Promise<
       counterpartAccount: accountById.get(counterpartAccount)?.name ?? counterpartAccount,
       amount: formatStored(-row.amount, ACTUAL_TRANSACTION_DECIMALS),
       category: categoryById.get(liveCategory(row.category) ?? '')?.name ?? null,
+      counterpartCategory: categoryById.get(liveCategory(counterpart?.category) ?? '')?.name ?? null,
       linkedBothWays: counterpart?.transfer_id === row.id,
     })
   }
