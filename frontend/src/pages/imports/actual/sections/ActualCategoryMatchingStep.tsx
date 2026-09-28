@@ -84,9 +84,15 @@ export function ActualCategoryMatchingStep({
       title="Category Matching"
       description="Actual categories matched an existing category where possible. The rest are queued as new categories."
     >
+      {budget && (
+        <ImportInfoCard title="How Lumina Finance treats transfers">
+          Money moving between your own accounts is a transfer, which counts as neither spending nor income, so budgets don't count it. Transfers between your budget accounts in Actual come in under Transfer. That includes credit card payments, since the card's purchases already counted as spending when you made them, and counting the payment too would count them twice. A loan or mortgage payment is different: the money is gone once paid, so it can be spending, such as under Debt Payment.
+        </ImportInfoCard>
+      )}
+
       {hasCategorisedTransfers && (
         <ImportInfoCard title="Payments to off-budget accounts">
-          Categories marked (transfers) hold payments to and from off-budget accounts, like a loan payment, that carried a category in Actual. As Expense, or Income for an income category, the budget account's side is filed in that category, so its budget counts it as Actual did, and the off-budget account's side is a transfer. As Transfer, both sides stay transfers, which budgets don't count. A payment whose other side isn't in the file comes in on its own, as a withdrawal or deposit.
+          Rows marked "transfers in Actual" hold payments to and from off-budget accounts, like a loan payment, that carried a category in Actual. As Expense, or Income for an income category, the budget account's side is filed in that category, so its budget counts it as Actual did, and the off-budget account's side is a transfer. As Transfer, both sides stay transfers, which budgets don't count. A payment whose other side isn't in the file comes in on its own, as a withdrawal or deposit.
         </ImportInfoCard>
       )}
 

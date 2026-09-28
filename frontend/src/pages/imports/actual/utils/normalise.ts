@@ -473,7 +473,7 @@ function getCategorySourceId(role: ActualCategoryRole, categoryId: string | null
 function getSourceLabels(role: ActualCategoryRole, name: string, accountName: string) {
   if (role === 'transfer') {
     if (!name) return { label: 'Transfers whose other side is missing', createName: 'Transfer' }
-    return { label: `${name} (transfers)`, createName: `${name} Transfers` }
+    return { label: `${name} (transfers in Actual)`, createName: `${name} Transfers` }
   }
   if (role === 'offBudgetUncategorized') return { label: `No category · ${accountName}`, createName: accountName }
   if (role === 'uncategorized') return { label: 'No category', createName: 'Miscellaneous' }

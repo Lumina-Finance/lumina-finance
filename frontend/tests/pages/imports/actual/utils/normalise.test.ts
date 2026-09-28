@@ -55,7 +55,7 @@ describe('normalising Actual Budget exports', () => {
     expect(categorized).toHaveLength(manifest.transfers.filter((transfer) => transfer.category).length)
     expect(new Set(categorized.map((entry) => entry.categoryLeg))).toEqual(new Set(['source']))
     expect(new Set(categorized.map((entry) => getCategoryLabel(journal, entry.categorySourceId))))
-      .toEqual(new Set(manifest.transfers.flatMap((transfer) => (transfer.category ? [`${transfer.category} (transfers)`] : []))))
+      .toEqual(new Set(manifest.transfers.flatMap((transfer) => (transfer.category ? [`${transfer.category} (transfers in Actual)`] : []))))
   })
 
   it('gives each category paid to an off-budget account a spending source, and names the account paid', async () => {
@@ -66,7 +66,7 @@ describe('normalising Actual Budget exports', () => {
     for (const name of ['Car Payment', 'Investing']) {
       expect(sources(name).map((source) => [source.role, source.label, source.createName, source.rowCount === 0])).toEqual([
         ['spending', name, name, true],
-        ['transfer', `${name} (transfers)`, `${name} Transfers`, false],
+        ['transfer', `${name} (transfers in Actual)`, `${name} Transfers`, false],
       ])
     }
 
@@ -80,7 +80,7 @@ describe('normalising Actual Budget exports', () => {
   it('files each budget category with what Actual counted against it', async () => {
     const { journal, manifest } = await normalise('envelope')
     const account = new Map(journal.accounts.map((source) => [source.id, source]))
-    const categoryName = new Map(journal.categories.map((source) => [source.id, source.categoryId ? source.label.replace(/ \(transfers\)$/, '') : '']))
+    const categoryName = new Map(journal.categories.map((source) => [source.id, source.categoryId ? source.label.replace(/ \(transfers in Actual\)$/, '') : '']))
 
     // Lumina's budgets count a category in every account, so each categorised leg has to sit in an
     // account on Actual's budget for the totals to agree. Signed from that account's side
@@ -149,7 +149,7 @@ describe('normalising Actual Budget exports', () => {
       ['spending', 'Income', 'Income'],
       ['spending', 'Travel (Away)', 'Travel (Away)'],
       ['spending', 'Travel (Home)', 'Travel (Home)'],
-      ['transfer', 'Car (transfers)', 'Car Transfers'],
+      ['transfer', 'Car (transfers in Actual)', 'Car Transfers'],
       ['uncategorized', 'No category', 'Miscellaneous'],
       ['offBudgetUncategorized', 'No category · Car Loan', 'Car Loan'],
     ])

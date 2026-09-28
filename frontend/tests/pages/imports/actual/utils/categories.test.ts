@@ -41,7 +41,7 @@ describe('Actual Budget category defaults', () => {
       'Income': CREATE_CATEGORY_VALUE,
       'Travel (Away)': CREATE_CATEGORY_VALUE,
       'Travel (Home)': CREATE_CATEGORY_VALUE,
-      'Car (transfers)': CAR_TRANSFERS.id,
+      'Car (transfers in Actual)': CAR_TRANSFERS.id,
       'No category': MISCELLANEOUS.id,
       'No category · Car Loan': MISCELLANEOUS.id,
     })
@@ -64,7 +64,7 @@ describe('Actual Budget category defaults', () => {
 
   it('files a transfer whose other side is missing under Transfer, and a payment category under its own transfer category', () => {
     const missing = { id: 'transfer:', role: 'transfer', label: 'Transfers whose other side is missing', createName: 'Transfer', categoryId: null, accountId: null, isIncome: false, rowCount: 1 } as const
-    const payment = { ...missing, id: 'transfer:car', label: 'Car (transfers)', createName: 'Car Transfers', categoryId: 'car' }
+    const payment = { ...missing, id: 'transfer:car', label: 'Car (transfers in Actual)', createName: 'Car Transfers', categoryId: 'car' }
 
     expect(inferActualCategoryMappings([missing, payment], {}, CATEGORIES)).toEqual({ [missing.id]: TRANSFER.id, [payment.id]: CAR_TRANSFERS.id })
   })
@@ -107,8 +107,8 @@ describe('Actual Budget payments to off-budget accounts', () => {
 
     // The category's own source has no rows, so it answers to the transfer row's label
     expect(effective.categories.map((source) => [source.id, source.label])).toEqual([
-      ['car', 'Car (transfers)'],
-      ['transfer:car', 'Car (transfers)'],
+      ['car', 'Car (transfers in Actual)'],
+      ['transfer:car', 'Car (transfers in Actual)'],
       ['transfer:', 'Transfers whose other side is missing'],
     ])
   })

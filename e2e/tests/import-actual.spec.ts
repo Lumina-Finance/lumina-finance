@@ -115,7 +115,7 @@ test('imports loan payments Actual gave a category as spending in it, which its 
     await expect(page.getByRole('listbox')).toHaveCount(0)
   }
 
-  const paymentMode = page.getByRole('radiogroup', { name: 'Import Car (transfers) as' })
+  const paymentMode = page.getByRole('radiogroup', { name: 'Import Car (transfers in Actual) as' })
   await expect(paymentMode.getByRole('radio', { name: 'Expense' })).toHaveAttribute('aria-checked', 'true')
 
   // Kept as transfers, the payments are left out of the Car budget, which the budget step warns of
@@ -127,9 +127,9 @@ test('imports loan payments Actual gave a category as spending in it, which its 
   await expect(warning).toHaveCount(0)
 
   // As spending, the payments row answers for Car itself, so a choice on either row shows on both
-  const paymentsTarget = page.getByRole('combobox', { name: 'Existing Category Car (transfers)' })
+  const paymentsTarget = page.getByRole('combobox', { name: 'Existing Category Car (transfers in Actual)' })
   const carTarget = page.getByRole('combobox', { name: 'Existing Category Car', exact: true })
-  await chooseFromDropdown(page.locator('body'), 'Existing Category Car (transfers)', /Debt Payment/)
+  await chooseFromDropdown(page.locator('body'), 'Existing Category Car (transfers in Actual)', /Debt Payment/)
   await expect(carTarget).toContainText('Debt Payment')
   await expect(page.getByRole('listbox')).toHaveCount(0)
   await carTarget.click()
