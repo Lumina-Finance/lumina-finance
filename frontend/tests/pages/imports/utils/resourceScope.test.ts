@@ -1,5 +1,5 @@
 /**
- * Tests that an Actual Budget import offers and matches only the user's own accounts and
+ * Tests that a provider import offers and matches only the user's own accounts and
  * categories, never a group's
  */
 import { describe, expect, it } from 'vitest'
@@ -7,7 +7,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import { buildImportCategoryMatchOptions } from '@/pages/imports/utils'
-import { getPersonalAccounts, getPersonalCategoryOptions, resolveActualAccountMappings } from '@/pages/imports/actual/utils/scope'
+import { getPersonalAccounts, getPersonalCategoryOptions, resolveProviderAccountMappings } from '@/pages/imports/utils/resourceScope'
 
 function account(id: string, name: string, groupId: string | null = null) {
   return { id, name, currency: 'CAD', can_write: true, is_archived: false, group_id: groupId } as AccountsOverview
@@ -21,12 +21,12 @@ const SOURCES = [
   { id: 'savings-source', label: 'Savings', matchText: 'Savings', isCounterpartyOnly: false },
 ]
 
-describe('Actual Budget import scope', () => {
+describe('Provider import scope', () => {
   it('links only to the user\'s own accounts', () => {
     const accounts = [CHEQUING, FAMILY_CHEQUING, FAMILY_SAVINGS]
 
     expect(getPersonalAccounts(accounts)).toEqual([CHEQUING])
-    expect(resolveActualAccountMappings(SOURCES, {}, accounts, true)).toEqual({
+    expect(resolveProviderAccountMappings(SOURCES, {}, accounts, true)).toEqual({
       'chequing-source': CHEQUING.id,
       'savings-source': CREATE_ACCOUNT_VALUE,
     })

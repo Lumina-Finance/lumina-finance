@@ -53,7 +53,7 @@ import { getActualTransferSourceId, normaliseActualBudget } from '@/pages/import
 import { buildActualImportPayload, isArchivedWhenCreated, type ActualAccountCreateDetails, type ActualImportBuild } from '@/pages/imports/actual/utils/payload'
 import { buildActualPreviewRows } from '@/pages/imports/actual/utils/preview'
 import { readActualBudgetFile } from '@/pages/imports/actual/utils/readFile'
-import { getPersonalAccounts, getPersonalCategoryOptions, resolveActualAccountMappings } from '@/pages/imports/actual/utils/scope'
+import { getPersonalAccounts, getPersonalCategoryOptions, resolveProviderAccountMappings } from '@/pages/imports/utils/resourceScope'
 
 /** The export the flow has read, as the files step lists it */
 export interface ActualStagedFile {
@@ -228,7 +228,7 @@ export function useActualImportWorkflow() {
   )
 
   const resolvedAccountMappings = useMemo(
-    () => resolveActualAccountMappings(accountMappingSources, liveAccountMappings, selectableAccounts, accountsCurrent),
+    () => resolveProviderAccountMappings(accountMappingSources, liveAccountMappings, selectableAccounts, accountsCurrent),
     [accountMappingSources, accountsCurrent, liveAccountMappings, selectableAccounts],
   )
 

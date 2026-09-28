@@ -11,8 +11,6 @@ import {
   getActualCategoryCreateClashError,
   getActualCategoryNameTooLongError,
   getActualFileCurrencyError,
-  getActualGroupAccountError,
-  getActualGroupCategoryError,
   getActualMixedCurrencyError,
   getActualPaymentCategoryError,
   getActualPaymentKindClashError,
@@ -29,6 +27,8 @@ import {
   getCategoryDirectionClashError,
   getImportAccountCurrencyRequiredError,
   getImportAccountMappingError,
+  getImportGroupAccountError,
+  getImportGroupCategoryError,
   getImportReadOnlyAccountMappingError,
 } from '@/pages/imports/constants'
 import type { ImportCategoryKind } from '@/pages/imports/types'
@@ -353,8 +353,8 @@ describe('Actual Budget import payload', () => {
     answers.accountMappings[checking.id] = familyChequing.id
 
     expect(buildActualImportPayload(journal, answers).errors).toEqual([
-      getActualGroupAccountError(checking.label),
-      getActualGroupCategoryError(groceries.label),
+      getImportGroupAccountError(checking.label),
+      getImportGroupCategoryError(groceries.label),
     ])
   })
 

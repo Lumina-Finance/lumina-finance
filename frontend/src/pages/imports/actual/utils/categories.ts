@@ -14,7 +14,7 @@ import {
 } from '@/pages/imports/actual/constants'
 import type { ActualCategorySource, ActualJournal, ActualPaymentMode } from '@/pages/imports/actual/types'
 import type { ActualAccountCreateDetails } from './payload'
-import { isGroupResource } from './scope'
+import { isGroupResource } from '@/pages/imports/utils/resourceScope'
 
 /**
  * Says what kind of category a source is created as: transfer sources can only be transfers, since

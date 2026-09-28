@@ -189,6 +189,16 @@ export function getCategoryDirectionClashError(source: string, existingName: str
   return `${existingName} is already ${article} ${kind.toLowerCase()} category, so ${source} cannot be created with another type. Match it to ${existingName}, or set its type to ${kind}.`
 }
 
+// A provider import writes the user's own records, so it links to no group account or category,
+// whatever the export held
+export function getImportGroupCategoryError(label: string) {
+  return `Match ${label} to one of your own categories or a built-in one. Imports don't use group categories.`
+}
+
+export function getImportGroupAccountError(label: string) {
+  return `Link ${label} to one of your own accounts or a new one. Imports don't write to group accounts.`
+}
+
 /** Says which account source still needs a mapping */
 export function getImportAccountMappingError(name: string) {
   return `Map account: ${name}`
