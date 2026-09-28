@@ -69,14 +69,10 @@ test('imports an Actual Budget export with the balances and budgets Actual showe
   }
   await expect(page.getByText('Not imported', { exact: true })).toHaveCount(0)
 
-  // A budget left unticked is not created
-  await page.getByRole('checkbox', { name: 'Import Food' }).click()
-  await expect(page.getByText('Not imported', { exact: true })).toHaveCount(1)
-
   const response = await commitImport(page)
   const result = await response.json() as { transactions_created: number; budgets: { name: string }[] }
   expect(result.transactions_created).toBe(YEN_MANIFEST.rows.length)
-  expect(result.budgets.map((budget) => budget.name)).toEqual(['Bills'])
+  expect(result.budgets.map((budget) => budget.name).sort()).toEqual(['Bills', 'Food'])
 
   const headers = asUser(user)
   const accounts = await request.get(`${API_BASE_URL}/accounts`, { headers })
@@ -84,8 +80,8 @@ test('imports an Actual Budget export with the balances and budgets Actual showe
     .map((account) => [account.name, `${account.currency} ${account.current_balance}`]))
   expect(balances).toEqual(Object.fromEntries(YEN_MANIFEST.accounts.map((account) => [account.name, `JPY ${Number(account.balance)}`])))
 
-  // Each month Actual budgeted above zero is one period of that many whole yen, and the budget
-  // doesn't repeat, since it ended before this month
+  // Each month Actual budgeted above zero is one period of that many whole yen, and neither
+  // budget repeats, since both ended before this month
   const periods = await (await request.get(`${API_BASE_URL}/budgets`, { headers })).json() as {
     period_start: string
     overall_limit: number
@@ -93,7 +89,7 @@ test('imports an Actual Budget export with the balances and budgets Actual showe
   }[]
   expect(periods.map((period) => [period.base_budget.name, period.period_start.slice(0, 7), period.overall_limit, period.base_budget.recurs]).sort())
     .toEqual(YEN_MANIFEST.budgets
-      .filter((figure) => figure.category === 'Bills' && Number(figure.budgeted) > 0)
+      .filter((figure) => !figure.isIncome && Number(figure.budgeted) > 0)
       .map((figure) => [figure.category, figure.month, Number(figure.budgeted), false])
       .sort())
 })
@@ -241,6 +237,17 @@ test('imports transfers into a credit card under Credit Card Payment on both acc
     .map((leg) => [leg.dt.slice(0, 10), leg.amount, leg.category_id])
     .sort())
     .toEqual(payments.map((payment) => [payment.date, -Math.round(Number(payment.amount) * 100), creditCardPayment]).sort())
+})
+
+test('leaves out a budget left unticked', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await uploadActualExport(page, user, YEN_FIXTURE)
+
+  await page.getByRole('checkbox', { name: 'Import Food' }).click()
+  await expect(page.getByText('Not imported', { exact: true })).toHaveCount(1)
+
+  const result = await (await commitImport(page)).json() as { budgets: { name: string }[] }
+  expect(result.budgets.map((budget) => budget.name)).toEqual(['Bills'])
 })
 
 // A save that failed for a reason trying again could clear keeps its upload, so trying again saves

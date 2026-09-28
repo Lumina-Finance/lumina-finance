@@ -30,6 +30,13 @@ test('imports a Firefly III export with only the budgets left ticked', async ({ 
   const budgets = page.getByRole('table').filter({ has: page.getByRole('checkbox', { name: 'Import Food' }) })
   await expect(budgets.getByRole('columnheader')).toHaveText([/.*/, 'Budget', 'Cadence', 'Latest Amount', 'Categories', 'First Period', 'Changes'])
 
+  // The header box clears every budget and then brings them all back
+  const rows = budgets.getByRole('checkbox', { name: /^Import / })
+  await budgets.getByRole('checkbox', { name: 'Deselect all budgets' }).click()
+  for (const box of await rows.all()) await expect(box).not.toBeChecked()
+  await budgets.getByRole('checkbox', { name: 'Select all budgets' }).click()
+  for (const box of await rows.all()) await expect(box).toBeChecked()
+
   // A budget left out stays in the list, crossed off and tagged
   await budgets.getByRole('checkbox', { name: 'Import Travel' }).click()
   await expect(budgets.getByRole('checkbox', { name: 'Import Travel' })).not.toBeChecked()
@@ -42,7 +49,7 @@ test('imports a Firefly III export with only the budgets left ticked', async ({ 
 
   // Every budget still ticked is created, not just the first
   const ticked: string[] = []
-  for (const box of await budgets.getByRole('checkbox', { name: /^Import / }).all()) {
+  for (const box of await rows.all()) {
     if (await box.isChecked()) ticked.push((await box.getAttribute('aria-label') ?? '').replace(/^Import /, ''))
   }
   expect(ticked.length).toBeGreaterThan(1)
