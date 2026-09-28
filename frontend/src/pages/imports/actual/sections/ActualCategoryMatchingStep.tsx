@@ -13,7 +13,7 @@ import {
 } from '@/pages/imports/components'
 import type { Category } from '@/api/categories'
 import type { ActualImportWorkflow } from '@/pages/imports/actual/hooks'
-import { ACTUAL_CREDIT_PAYMENT_CATEGORY_SOURCE } from '@/pages/imports/actual/constants'
+import { ACTUAL_CREDIT_PAYMENT_CATEGORY_SOURCE, getActualPaymentsHelp } from '@/pages/imports/actual/constants'
 import type { ActualCategorySource, ActualPaymentMode } from '@/pages/imports/actual/types'
 import { getActualTransferCategoryOptions } from '@/pages/imports/actual/utils/categories'
 import { getActualCategoryName } from '@/pages/imports/actual/utils/normalise'
@@ -41,13 +41,6 @@ function getPaymentModeOptions(source: ActualCategorySource): Array<{ value: Act
     { value: 'category', label: source.isIncome ? 'Income' : 'Expense' },
     { value: 'transfer', label: 'Transfer' },
   ]
-}
-
-function describePayments(source: ActualCategorySource, name: string) {
-  const asCategory = source.isIncome
-    ? `As Income, they count as income in ${name}`
-    : `As Expense, they count as spending in ${name}, so its budget counts them the way Actual did`
-  return `In Actual, these are payments between a budget account and an off-budget account, like a loan, that you gave the ${name} category. As Transfer, they're imported as transfers between your accounts, which don't count as spending or income. ${asCategory}, and the off-budget account still records them, so its balance stays right.`
 }
 
 const CREDIT_PAYMENTS_HELP = "Transfers without a category in Actual from your other accounts into a credit card, line of credit or HELOC, going by the account types under Account Mapping. They're imported under Credit Card Payment on both accounts, so they don't count as spending, since the purchases already counted when you made them."
@@ -142,7 +135,7 @@ export function ActualCategoryMatchingStep({
               id: source.id,
               source: source.label,
               sourceHelp: categoryName
-                ? { label: `What ${source.label} means`, content: describePayments(source, categoryName) }
+                ? { label: `What ${source.label} means`, content: getActualPaymentsHelp(categoryName, source.isIncome) }
                 : source.id === ACTUAL_CREDIT_PAYMENT_CATEGORY_SOURCE
                   ? { label: `What ${source.label} means`, content: CREDIT_PAYMENTS_HELP }
                   : undefined,

@@ -165,6 +165,15 @@ export function getActualPaymentCategoryError(label: string, categoryName: strin
   return `Match ${label} to another category, since ${categoryName} can't record the other account of its payments.`
 }
 
+// Explains a category's payments to off-budget accounts and what each choice does with them. An
+// income category's payments come into the budget, so only an expense category's reach a budget
+export function getActualPaymentsHelp(categoryName: string, isIncome: boolean) {
+  const asCategory = isIncome
+    ? `As Income, they count as income in ${categoryName}`
+    : `As Expense, they count as spending in ${categoryName}, so its budget counts them the way Actual did`
+  return `In Actual, these are payments between a budget account and an off-budget account, like a loan, that you gave the ${categoryName} category. As Transfer, they're imported as transfers between your accounts, which don't count as spending or income. ${asCategory}, and the off-budget account still records them, so its balance stays right.`
+}
+
 // Payments filed in their category would create one under a name another kind already has, which
 // matching one of the right kind or keeping them as transfers settles
 export function getActualPaymentKindClashError(label: string, existingName: string, existingKind: Category['kind'], kind: ImportCategoryKind) {
