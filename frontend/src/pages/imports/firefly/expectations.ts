@@ -97,7 +97,7 @@ const LEFT_BEHIND: ImportExpectations['leftBehind'] = [
 /** What a Firefly III import changes, keeps and leaves behind, shown before anything is staged */
 export const FIREFLY_EXPECTATIONS: ImportExpectations = {
   intro: 'Firefly III records every journal against two accounts. Lumina Finance records one entry per account, so '
-    + 'some of your data changes shape on the way in.',
+    + 'some of your data is imported in a different form.',
   deviation: DEVIATION_TEXT,
   changes: CONVERTED_MAPPINGS,
   leftBehind: LEFT_BEHIND,

@@ -25,7 +25,7 @@ const FIREFLY_EXPORT_DOCS_URL = 'https://docs.firefly-iii.org/tutorials/firefly-
 const FILE_SLOTS: Array<{ kind: FireflyFileKind; label: string; hint: string; required: boolean }> = [
   { kind: 'transactions', label: 'Transactions CSV', hint: 'The journal rows to import.', required: true },
   { kind: 'budgets', label: 'Budgets CSV', hint: 'Without it, create budgets by hand after the import.', required: false },
-  { kind: 'accounts', label: 'Accounts CSV', hint: 'Without it, every account comes across as active checking.', required: false },
+  { kind: 'accounts', label: 'Accounts CSV', hint: 'Without it, each asset account is imported as an active checking account unless you choose another type.', required: false },
 ]
 
 /**
