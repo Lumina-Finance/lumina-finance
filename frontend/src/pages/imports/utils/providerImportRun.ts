@@ -1,4 +1,5 @@
-import type { JournalImportRunResponse } from '@/api/provider-imports'
+import type { ImportRunBudgets, JournalImportRunResponse } from '@/api/provider-imports'
+import { getJsonByteSize } from '@/api/shared/importBatchSize'
 import { STEP_DOT_WAVE_MS } from '@/pages/imports/components/ProgressOverlay'
 import type { ImportOverlayPhase } from '@/pages/imports/types'
 import { getImportCommitFailure } from '@/pages/imports/utils/commitFailure'
@@ -54,6 +55,34 @@ export const PROVIDER_IMPORT_STAGE_CROSS_OFF_MS = 750
  * for the rest of the request, so a selection too large to send is refused before anything uploads
  */
 export const PROVIDER_MAX_BUDGETS_REQUEST_BYTES = 9 * 1024 * 1024
+
+/**
+ * Builds the budgets a provider import creates alongside its rows, or the reason it can't. Built
+ * ahead of the import so a budget it cannot send is refused while the selection can still change
+ */
+export function buildProviderRunBudgets(build: () => ImportRunBudgets): { budgets: ImportRunBudgets | null; error: string | null } {
+  try {
+    const budgets = build()
+
+    // The budgets go in one request, and a request past the server's limit is refused whole
+    if (getJsonByteSize(budgets) > PROVIDER_MAX_BUDGETS_REQUEST_BYTES) {
+      return { budgets: null, error: 'The selected budgets are too large to import at once. Select fewer budgets.' }
+    }
+    return { budgets, error: null }
+  } catch (error) {
+    return { budgets: null, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+/**
+ * Why the selected budgets can't be imported, if they can't. The importer takes a bounded number of
+ * budgets, and its refusal would name none of them
+ */
+export function getProviderBudgetSelectionError(selectedCount: number, maxBudgets: number, buildError: string | null) {
+  return selectedCount > maxBudgets
+    ? `Select at most ${maxBudgets.toLocaleString()} budgets to import, since the importer takes up to that many at once.`
+    : buildError
+}
 
 // Added after the reason a provider import failed. An import the server refused, or one that failed
 // while uploading, wrote nothing. A save that failed for another reason may or may not have landed,

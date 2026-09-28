@@ -1,35 +1,27 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useCommitStagedJournalImport, useImportJournal, type ImportRunBudgets } from '@/api/provider-imports'
-import { getJsonByteSize } from '@/api/shared/importBatchSize'
-import { discardStagedRun } from '@/api/transaction-imports'
+import { useMemo, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { getTodayYmd, resolveTimeZone } from '@/utils/date'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
-import { BALANCE_ADJUSTMENT_CATEGORY_NAME } from '@/utils/transfers'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
-import { useImportAccountCreateState, useImportBudgetSelection, useImportReferenceData } from '@/pages/imports/hooks'
-import type { ImportCategoryKind, ImportProgressStep } from '@/pages/imports/types'
 import {
-  canStartProviderImport,
+  useImportAccountCreateState,
+  useImportBudgetSelection,
+  useProviderAccountAnswers,
+  useProviderImportReferenceData,
+  useProviderImportRun,
+} from '@/pages/imports/hooks'
+import type { ImportCategoryKind } from '@/pages/imports/types'
+import {
+  buildProviderRunBudgets,
   countCreatedImportSources,
-  createProviderImportRunController,
-  describeProviderImportFailure,
-  dropVanishedAccountMappings,
   dropVanishedCategoryMappings,
-  formatProviderImportSummary,
   getImportUploadBlockReason,
-  getProviderImportError,
+  getProviderBudgetSelectionError,
   getSupportedCurrencyCodes,
   groupPreviewRowsByDate,
-  isAutoFilledAccountSource,
   processImportFileIntake,
-  PROVIDER_IMPORT_RUN_IDLE,
-  PROVIDER_IMPORT_STAGES,
-  PROVIDER_MAX_BUDGETS_REQUEST_BYTES,
-  buildImportAccountOptions,
   type ImportFileAcquisition,
-  type ProviderImportRunState,
 } from '@/pages/imports/utils'
 import {
   ACTUAL_IMPORT_FILE_TYPE,
@@ -53,7 +45,6 @@ import { getActualTransferSourceId, normaliseActualBudget } from '@/pages/import
 import { buildActualImportPayload, isArchivedWhenCreated, type ActualAccountCreateDetails, type ActualImportBuild } from '@/pages/imports/actual/utils/payload'
 import { buildActualPreviewRows } from '@/pages/imports/actual/utils/preview'
 import { readActualBudgetFile } from '@/pages/imports/actual/utils/readFile'
-import { getPersonalAccounts, getPersonalCategoryOptions, resolveProviderAccountMappings } from '@/pages/imports/utils/resourceScope'
 
 /** The export the flow has read, as the files step lists it */
 export interface ActualStagedFile {
@@ -119,21 +110,6 @@ export function useActualImportWorkflow() {
   const [categoryCreateKinds, setCategoryCreateKinds] = useState<Record<string, ImportCategoryKind>>({})
   const [paymentModes, setPaymentModes] = useState<Record<string, ActualPaymentMode>>({})
   const [selectedBudgetIds, setSelectedBudgetIds] = useState<Set<string> | null>(null)
-  const [importRun, setImportRun] = useState<ProviderImportRunState<ActualSkippedRow>>(PROVIDER_IMPORT_RUN_IDLE)
-  const [importRunController] = useState(() => createProviderImportRunController<ActualSkippedRow>({
-    onChange: setImportRun,
-    discardStagedRun: (runId) => void discardStagedRun(runId),
-    wait: waitForMilliseconds,
-  }))
-  const {
-    failure: importFailure,
-    completedImport,
-    overlayPhase: importOverlayPhase,
-    stageState: importStageState,
-    canStop: canStopImport,
-    stagedRunId,
-  } = importRun
-  const importResult = completedImport?.result ?? null
 
   // Every answer the user gives about the import, as one value that changes only when one of them does
   const importAnswers = useMemo(
@@ -159,10 +135,7 @@ export function useActualImportWorkflow() {
     ],
   )
 
-  // A failure is about the answers the import was sent with, so it stops showing once one changes
-  const importError = getProviderImportError(importFailure, importAnswers)
-  const importJournal = useImportJournal()
-  const commitStagedJournal = useCommitStagedJournalImport()
+  const run = useProviderImportRun<ActualSkippedRow>({ source: 'actual_budget', answers: importAnswers })
   const {
     categories,
     currencies,
@@ -179,29 +152,18 @@ export function useActualImportWorkflow() {
     institutionsLoading,
     categoriesLoading,
     selectableAccounts,
+    accountOptions,
     currencyOptions,
     institutionOptions,
-    categoryMatchOptions: allCategoryMatchOptions,
+    categoryMatchOptions,
     accountById,
     categoryById,
     institutionById,
-  } = useImportReferenceData()
 
-  const accountOptions = useMemo(() => buildImportAccountOptions(getPersonalAccounts(selectableAccounts)), [selectableAccounts])
-  const categoryMatchOptions = useMemo(
-    () => getPersonalCategoryOptions(allCategoryMatchOptions, categoryById),
-    [allCategoryMatchOptions, categoryById],
-  )
-
-  // The commit files transfer legs and opening balances under these seeded categories
-  const transferCategory = useMemo(
-    () => (categories ?? []).find((category) => category.is_system && category.name === ACTUAL_TRANSFER_CATEGORY_NAME),
-    [categories],
-  )
-  const balanceAdjustmentCategory = useMemo(
-    () => (categories ?? []).find((category) => category.is_system && category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME),
-    [categories],
-  )
+    // The commit files transfer legs and opening balances under these seeded categories
+    transferCategory,
+    balanceAdjustmentCategory,
+  } = useProviderImportReferenceData({ transferCategoryName: ACTUAL_TRANSFER_CATEGORY_NAME })
 
   const journal = useMemo(
     () => (budget ? normaliseActualBudget(budget, today) : EMPTY_JOURNAL),
@@ -221,33 +183,11 @@ export function useActualImportWorkflow() {
     [accountSources],
   )
 
-  // An answer pointing at a deleted account is dropped before anything is derived from it
-  const liveAccountMappings = useMemo(
-    () => (accountsResolved ? dropVanishedAccountMappings(accountMappings, accountById).mappings : accountMappings),
-    [accountById, accountMappings, accountsResolved],
-  )
-
-  const resolvedAccountMappings = useMemo(
-    () => resolveProviderAccountMappings({
-      sources: accountMappingSources,
-      liveMappings: liveAccountMappings,
-      selectableAccounts,
-      accountsCurrent,
-    }),
-    [accountMappingSources, accountsCurrent, liveAccountMappings, selectableAccounts],
-  )
-
-  const autoFilledAccountSources = useMemo(
-    () => new Set(accountSources.map((source) => source.id).filter((source) => (
-      isAutoFilledAccountSource(liveAccountMappings[source] ?? '', resolvedAccountMappings[source] ?? '', false)
-    ))),
-    [accountSources, liveAccountMappings, resolvedAccountMappings],
-  )
-
-  const handAnsweredAccountSources = useMemo(
-    () => new Set(Object.entries(liveAccountMappings).filter(([, choice]) => choice).map(([source]) => source)),
-    [liveAccountMappings],
-  )
+  const { resolvedAccountMappings, autoFilledAccountSources, handAnsweredAccountSources } = useProviderAccountAnswers({
+    sources: accountMappingSources,
+    accountMappings,
+    reference: { accountsResolved, accountsCurrent, accountById, selectableAccounts },
+  })
 
   const resolvedAccountCreateDetails = useMemo(
     () => {
@@ -417,37 +357,24 @@ export function useActualImportWorkflow() {
     [pendingBudgetDrafts, resolvedPaymentModes],
   )
 
-  // Built here rather than at the import so a budget the import cannot send is refused while the
-  // selection can still change
-  const runBudgetsBuild = useMemo<{ budgets: ImportRunBudgets | null; error: string | null }>(
+  const runBudgetsBuild = useMemo(
     () => {
-      if (!importBuild.payload || !importBuild.currency || currencyExponent === null || pendingBudgetDrafts.length === 0) {
+      const currency = importBuild.currency
+      if (!importBuild.payload || !currency || currencyExponent === null || pendingBudgetDrafts.length === 0) {
         return { budgets: null, error: null }
       }
-      try {
-        const budgets = buildActualRunBudgets(
-          pendingBudgetDrafts,
-          importBuild.currency,
-          budget?.budgetDecimals ?? 2,
-          currencyExponent,
-          importBuild.budgetCategoryMappings,
-        )
-
-        // The budgets go in one request, and a request past the server's limit is refused whole
-        if (getJsonByteSize(budgets) > PROVIDER_MAX_BUDGETS_REQUEST_BYTES) {
-          return { budgets: null, error: 'The selected budgets are too large to import at once. Select fewer budgets.' }
-        }
-        return { budgets, error: null }
-      } catch (error) {
-        return { budgets: null, error: error instanceof Error ? error.message : String(error) }
-      }
+      return buildProviderRunBudgets(() => buildActualRunBudgets(
+        pendingBudgetDrafts,
+        currency,
+        budget?.budgetDecimals ?? 2,
+        currencyExponent,
+        importBuild.budgetCategoryMappings,
+      ))
     },
     [budget, currencyExponent, importBuild, pendingBudgetDrafts],
   )
 
-  const budgetSelectionError = pendingBudgetDrafts.length > ACTUAL_MAX_BUDGETS
-    ? `Select at most ${ACTUAL_MAX_BUDGETS.toLocaleString()} budgets to import, since the importer takes up to that many at once.`
-    : runBudgetsBuild.error
+  const budgetSelectionError = getProviderBudgetSelectionError(pendingBudgetDrafts.length, ACTUAL_MAX_BUDGETS, runBudgetsBuild.error)
 
   // Rows the reader left out and rows the chosen currency can't hold, in date order
   const predictedSkippedRows = useMemo(
@@ -533,41 +460,7 @@ export function useActualImportWorkflow() {
     return source.closed && source.rowCount > 0 && Boolean(choice) && choice !== CREATE_ACCOUNT_VALUE
   })
 
-  const importOverlaySteps = useMemo<ImportProgressStep[] | undefined>(
-    () => {
-      if (!importStageState) return undefined
-      const { isFinished, stage } = importStageState
-      const currentIndex = PROVIDER_IMPORT_STAGES.findIndex((entry) => entry.id === stage)
-      return PROVIDER_IMPORT_STAGES.slice(currentIndex).map((entry, index) => ({
-        id: entry.id,
-        label: entry.label,
-        status: index > 0 ? 'queued' : isFinished ? 'done' : 'active',
-      }))
-    },
-    [importStageState],
-  )
-
-  const completedSkippedCount = completedImport?.skippedRowsAtCommit.length ?? 0
-  const importSummary = importResult ? formatProviderImportSummary(importResult, completedSkippedCount) : ''
-  const importedBudgetNames = useMemo(
-    () => new Set(importResult?.budgets.map((result) => result.name) ?? []),
-    [importResult],
-  )
-
-  const importOverlayError = importError && importOverlayPhase === 'error'
-    ? describeProviderImportFailure(importError, stagedRunId !== null)
-    : importError
-  const importOverlayOpen = importOverlayPhase !== 'idle'
-  const isImportInFlight = importJournal.isPending || commitStagedJournal.isPending
-
-  const canCommitImport = canStartProviderImport({
-    hasPayload: importBuild.payload !== null,
-    isProcessingFile,
-    budgetSelectionError,
-    overlayOpen: importOverlayOpen,
-    inFlight: isImportInFlight,
-    hasResult: importResult !== null,
-  })
+  const canCommitImport = run.canCommit({ hasPayload: importBuild.payload !== null, isProcessingFile, budgetSelectionError })
 
   const resetAnswers = () => {
     setAccountMappings({})
@@ -576,9 +469,7 @@ export function useActualImportWorkflow() {
     setCategoryCreateKinds({})
     setPaymentModes({})
     setSelectedBudgetIds(null)
-    importRunController.reset()
-    importJournal.reset()
-    commitStagedJournal.reset()
+    run.resetImportRun()
   }
 
   const handleActualFileChange = async (acquiredFiles: ImportFileAcquisition) => {
@@ -636,24 +527,12 @@ export function useActualImportWorkflow() {
   const handleCommitImport = async () => {
     const payload = importBuild.payload
     if (!payload || !canCommitImport) return
-
-    // The import creates the budgets selected when it started, so they are captured here
-    const request = {
-      source: 'actual_budget' as const,
+    await run.startImport({
       payload,
       budgets: runBudgetsBuild.budgets,
       archiveAccountSources: importBuild.archiveAccountSources,
-    }
-    await importRunController.start(
-      predictedSkippedRows,
-      importAnswers,
-      (signal, onStaged) => importJournal.mutateAsync({ request, signal, onStaged }),
-    )
-  }
-
-  const retryImportCommit = async () => {
-    if (isImportInFlight) return
-    await importRunController.retry(importAnswers, (runId, signal) => commitStagedJournal.mutateAsync({ runId, signal }))
+      skippedRows: predictedSkippedRows,
+    })
   }
 
   const setPaymentMode = (transferSourceId: string, mode: ActualPaymentMode) => {
@@ -665,11 +544,8 @@ export function useActualImportWorkflow() {
     setIsProcessingFile(false)
   }
 
-  // Leaving the page abandons the import: while uploading that drops what was uploaded, and while
-  // saving it only stops waiting, since the save is the server's to finish
-  useEffect(() => () => importRunController.stop(), [importRunController])
-
   return {
+    ...run.workflow,
     stagedFile,
     budget,
     journal,
@@ -701,28 +577,15 @@ export function useActualImportWorkflow() {
     budgetRefusals,
     budgetsMissingPayments,
     selectedBudgetIds: resolvedSelectedBudgetIds,
-    importedBudgetNames,
     budgetSelectionError,
     importEstimate,
     previewRows,
     previewGroups,
     predictedSkippedRows,
-    completedImport,
-    completedSkippedCount,
     newAccountCount,
     newCategoryCount,
     importBuild,
-    importError,
-    importOverlayError,
-    importResult,
-    importOverlayPhase,
-    importOverlayOpen,
-    importOverlaySteps,
-    importSummary,
     canCommitImport,
-    isImportInFlight,
-    canStopImport,
-    canRetryImportCommit: stagedRunId !== null,
     accountsLoading,
     currenciesLoading,
     uploadBlockReason: getImportUploadBlockReason(currencies, currenciesError),
@@ -748,9 +611,6 @@ export function useActualImportWorkflow() {
     removeActualFile,
     updateActualAccountMapping,
     handleCommitImport,
-    retryImportCommit,
-    cancelImport: importRunController.stop,
-    closeImportOverlay: importRunController.close,
     toggleBudgetSelection,
     setBudgetsSelected,
     resetActualWorkflow,
