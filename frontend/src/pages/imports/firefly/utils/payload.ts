@@ -122,8 +122,16 @@ export function buildFireflyImportPayload({
     const hasRows = rowAccountSources.has(source)
     const isCreate = choice === CREATE_ACCOUNT_VALUE
 
+    // No group account is offered, so one still chosen is a stale answer, refused wherever it
+    // points. Imports write only the user's own records
+    const existing = isCreate ? undefined : accountById.get(choice)
+    if (existing && isGroupResource(existing)) {
+      addError(getImportGroupAccountError(label))
+      continue
+    }
+
     // An existing account only the accounts export lists takes nothing, so its answer is kept but
-    // neither checked nor sent
+    // otherwise neither checked nor sent
     if (!isCreate && !hasRows && details) continue
 
     // Only an account the import creates is archived, so one the user already has is left as it is
@@ -132,16 +140,11 @@ export function buildFireflyImportPayload({
     if (isCreate && details && !details.isActive) archiveAccountSources.push(source)
 
     if (!isCreate) {
-      // Every Firefly source takes rows, and an archived or read-only account takes none, so an
+      // Every source still here takes rows, and an archived or read-only account takes none, so an
       // account archived or made read-only after it was chosen is refused here rather than by the
       // server part way through the import
-      const account = accountById.get(choice)
-      if (account && !isImportableAccount(account)) {
-        addError(getImportReadOnlyAccountMappingError(label, account))
-        continue
-      }
-      if (account && isGroupResource(account)) {
-        addError(getImportGroupAccountError(label))
+      if (existing && !isImportableAccount(existing)) {
+        addError(getImportReadOnlyAccountMappingError(label, existing))
         continue
       }
 

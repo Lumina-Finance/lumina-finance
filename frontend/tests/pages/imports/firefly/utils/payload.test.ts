@@ -735,7 +735,7 @@ describe('importing with the Firefly III accounts export', () => {
     account('Market', 'Expense account', '1'),
   ]
 
-  function build(accountMappings: (ids: Record<string, string>) => Record<string, string>) {
+  function build(accountMappings: (ids: Record<string, string>) => Record<string, string>, accounts = [ARCHIVED]) {
     const rows = [ROW, WALLET_ROW]
     const accountSources = getFireflyAccountSources(rows, readFireflyAccountDetails(ACCOUNT_ROWS))
     const ids = Object.fromEntries(accountSources.list.map((source) => [source.name, source.id]))
@@ -746,7 +746,7 @@ describe('importing with the Firefly III accounts export', () => {
       skippedRows: new Set([ROW]),
       accountSources,
       accountMappings: accountMappings(ids),
-      accountById: new Map([[ARCHIVED.id, ARCHIVED]]),
+      accountById: new Map(accounts.map((existing) => [existing.id, existing])),
       accountCreateDetails: Object.fromEntries(accountSources.list.map((source) => [
         source.id,
         { ...prefills[source.id], institutionId: '' },
@@ -791,5 +791,20 @@ describe('importing with the Firefly III accounts export', () => {
 
     expect(result.errors).toEqual([])
     expect(result.archiveAccountSources).toEqual([ids.Chequing])
+  })
+
+  // No group account is offered, so one still chosen is a stale answer, refused even where the
+  // account would take no rows
+  it('refuses a group account chosen for an account no uploaded row names', () => {
+    const familyLoan = { id: 'family-loan', name: 'Family Loan', can_write: true, is_archived: false, group_id: 'family' } as AccountsOverview
+    const { result } = build((ids) => ({
+      [ids.Chequing]: CREATE_ACCOUNT_VALUE,
+      [ids.Wallet]: CREATE_ACCOUNT_VALUE,
+      [ids['Rainy Day']]: CREATE_ACCOUNT_VALUE,
+      [ids['Old Loan']]: familyLoan.id,
+    }), [familyLoan])
+
+    expect(result.payload).toBeNull()
+    expect(result.errors).toContain("Link Old Loan to one of your own accounts or a new one. Imports don't write to group accounts.")
   })
 })
