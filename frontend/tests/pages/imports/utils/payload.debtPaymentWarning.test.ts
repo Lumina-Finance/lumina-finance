@@ -237,7 +237,7 @@ describe('guidance for CSV rows filed under system Debt Payment', () => {
     })
 
     expect(result.errors).toEqual([
-      'Debt Payment already records expense, so DEBT PAYMENT cannot be created. Match it to that category, or set its type to expense.',
+      'Debt Payment is already an expense category, so DEBT PAYMENT cannot be created with another type. Match it to Debt Payment, or set its type to Expense.',
     ])
     expect(result.payload).toBeNull()
     expect(result.rowWarnings).toEqual([])

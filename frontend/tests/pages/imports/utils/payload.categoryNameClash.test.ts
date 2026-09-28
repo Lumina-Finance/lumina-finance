@@ -84,7 +84,7 @@ describe('queueing a new category under a name the user already has', () => {
 
     expect(payload).toBeNull()
     expect(errors).toEqual([
-      'Bonus already records income, so Bonus cannot be created. Match it to that category, or set its type to income.',
+      'Bonus is already an income category, so Bonus cannot be created with another type. Match it to Bonus, or set its type to Income.',
     ])
   })
 
@@ -93,7 +93,7 @@ describe('queueing a new category under a name the user already has', () => {
 
     expect(payload).toBeNull()
     expect(errors).toEqual([
-      'Bonus already records income, so BONUS cannot be created. Match it to that category, or set its type to income.',
+      'Bonus is already an income category, so BONUS cannot be created with another type. Match it to Bonus, or set its type to Income.',
     ])
   })
 

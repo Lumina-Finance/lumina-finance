@@ -508,7 +508,7 @@ describe('the Firefly row values the payload sends', () => {
 
     expect(result.payload).toBeNull()
     expect(result.errors).toEqual([
-      'groceries already records income, so Groceries cannot be created. Match it to that category, or set its type to income.',
+      'groceries is already an income category, so Groceries cannot be created with another type. Match it to groceries, or set its type to Income.',
     ])
   })
 

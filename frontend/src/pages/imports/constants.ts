@@ -184,8 +184,9 @@ export function getTooManyMappingsError(kind: 'account' | 'category', count: num
  * direction, which the commit refuses because one name records one direction
  */
 export function getCategoryDirectionClashError(source: string, existingName: string, existingKind: Category['kind']) {
-  const direction = KIND_LABELS[existingKind].toLowerCase()
-  return `${existingName} already records ${direction}, so ${source} cannot be created. Match it to that category, or set its type to ${direction}.`
+  const kind = KIND_LABELS[existingKind]
+  const article = existingKind === 'transfer' ? 'a' : 'an'
+  return `${existingName} is already ${article} ${kind.toLowerCase()} category, so ${source} cannot be created with another type. Match it to ${existingName}, or set its type to ${kind}.`
 }
 
 /** Says which account source still needs a mapping */
