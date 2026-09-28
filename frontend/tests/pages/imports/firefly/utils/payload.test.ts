@@ -7,13 +7,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
 import { buildJournalStageBatches } from '@/api/provider-imports'
 import type { Category } from '@/api/categories'
-import {
-  CREATE_ACCOUNT_VALUE,
-  CREATE_CATEGORY_VALUE,
-  getImportGroupAccountError,
-  getImportGroupCategoryError,
-  MAX_IMPORT_NOTES_LENGTH,
-} from '@/pages/imports/constants'
+import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, MAX_IMPORT_NOTES_LENGTH } from '@/pages/imports/constants'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import {
   buildFireflyAccountPrefills,
@@ -115,7 +109,7 @@ describe('a Firefly answer naming a group account or category', () => {
     const result = buildWithMapping(familyChequing.id, [familyChequing])
 
     expect(result.payload).toBeNull()
-    expect(result.errors).toContain(getImportGroupAccountError('Chequing'))
+    expect(result.errors).toContain("Link Chequing to one of your own accounts or a new one. Imports don't write to group accounts.")
   })
 
   it('refuses a group category and says which source', () => {
@@ -135,7 +129,7 @@ describe('a Firefly answer naming a group account or category', () => {
     })
 
     expect(result.payload).toBeNull()
-    expect(result.errors).toContain(getImportGroupCategoryError('Groceries'))
+    expect(result.errors).toContain("Match Groceries to one of your own categories or a built-in one. Imports don't use group categories.")
   })
 })
 

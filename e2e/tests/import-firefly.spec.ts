@@ -35,6 +35,17 @@ test('imports a Firefly III export with only the budgets left ticked', async ({ 
   await expect(budgets.getByRole('checkbox', { name: 'Import Travel' })).not.toBeChecked()
   await expect(budgets.getByRole('checkbox', { name: 'Import Food' })).toBeChecked()
   await expect(budgets.getByText('Not imported', { exact: true })).toHaveCount(1)
+  const rowOf = (name: string) => budgets.getByRole('row').filter({ has: page.getByRole('checkbox', { name: `Import ${name}` }) })
+  await expect(rowOf('Travel').getByText('Travel', { exact: true }).first()).toHaveCSS('text-decoration-line', 'line-through')
+  const shading = (name: string) => rowOf(name).evaluate((row) => getComputedStyle(row).backgroundColor)
+  expect(await shading('Travel')).not.toBe(await shading('Food'))
+
+  // Every budget still ticked is created, not just the first
+  const ticked: string[] = []
+  for (const box of await budgets.getByRole('checkbox', { name: /^Import / }).all()) {
+    if (await box.isChecked()) ticked.push((await box.getAttribute('aria-label') ?? '').replace(/^Import /, ''))
+  }
+  expect(ticked.length).toBeGreaterThan(1)
 
   const commit = page.getByRole('button', { name: 'Commit import', exact: true })
   await expect(commit).toBeEnabled()
@@ -45,7 +56,6 @@ test('imports a Firefly III export with only the budgets left ticked', async ({ 
   expect(response.status()).toBe(201)
 
   const result = await response.json() as { budgets: { name: string }[] }
-  const created = result.budgets.map((budget) => budget.name)
-  expect(created).toContain('Food')
-  expect(created).not.toContain('Travel')
+  expect(result.budgets.map((budget) => budget.name).sort()).toEqual(ticked.sort())
+  expect(ticked).not.toContain('Travel')
 })
