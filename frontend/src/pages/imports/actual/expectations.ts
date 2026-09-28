@@ -20,7 +20,7 @@ export const ACTUAL_EXPECTATIONS: ImportExpectations = {
     },
     {
       source: 'A payment with a category to an off-budget account, like a loan payment',
-      lumina: 'By default, spending or income in that category on the budget account\'s side, with the off-budget account\'s side a transfer naming the budget account, so its budget counts it as Actual did, or a withdrawal or deposit in that category when its other side isn\'t in the file. You can import it as a transfer instead, which budgets don\'t count',
+      lumina: 'By default, a transfer between the two accounts, which budgets don\'t count, or one to or from outside the app when its other side isn\'t in the file. You can file it in its category instead, so its budget counts it as Actual did, and the off-budget account\'s side stays a transfer',
     },
     {
       source: 'A split transaction',

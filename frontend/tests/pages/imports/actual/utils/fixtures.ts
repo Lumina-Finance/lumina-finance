@@ -18,7 +18,8 @@
 import { readFileSync } from 'node:fs'
 import { unzipSync } from 'fflate'
 import initSqlJs from 'sql.js'
-import type { ActualBudgetFile, ActualTransaction } from '@/pages/imports/actual/types'
+import type { ActualBudgetFile, ActualJournal, ActualTransaction } from '@/pages/imports/actual/types'
+import { applyActualPaymentModes } from '@/pages/imports/actual/utils/categories'
 import { normaliseActualBudget } from '@/pages/imports/actual/utils/normalise'
 import { readActualBudgetFile } from '@/pages/imports/actual/utils/readFile'
 
@@ -124,4 +125,15 @@ export function buildActualBudget(transactions: Array<Partial<ActualTransaction>
     budgetFigures: [],
     ...overrides,
   }
+}
+
+/**
+ * Files every category's payments to off-budget accounts in the category itself, the choice that
+ * matches what Actual counted against each budget
+ */
+export function fileActualPaymentsInCategory(journal: ActualJournal) {
+  const modes = Object.fromEntries(journal.categories.flatMap((source) => (
+    source.role === 'transfer' && source.categoryId ? [[source.id, 'category' as const]] : []
+  )))
+  return applyActualPaymentModes(journal, modes)
 }

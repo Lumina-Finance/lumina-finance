@@ -37,6 +37,9 @@ export function inferActualCategoryMappings(
   const systemCategory = (name: string) => categories.find((category) => category.is_system && category.name === name)
   const miscellaneous = systemCategory(ACTUAL_MISCELLANEOUS_CATEGORY_NAME)
   const transfer = systemCategory(ACTUAL_TRANSFER_CATEGORY_NAME)
+  const spendingLabelByCategory = new Map(sources.flatMap((source) => (
+    source.role === 'spending' && source.categoryId ? [[source.categoryId, source.label] as const] : []
+  )))
 
   const mappings: Record<string, string> = {}
   for (const source of sources) {
@@ -54,14 +57,18 @@ export function inferActualCategoryMappings(
       continue
     }
 
+    // A category's payments kept as transfers take a transfer category of Actual's own name first,
+    // such as the built-in Credit Card Payment, before the one they would be created under
     const kind = getActualCategoryKind(source)
-    const key = getCategoryNameKey(source.createName)
-    const match = categories.find((category) => (
+    const names = source.role === 'transfer' && source.categoryId
+      ? [spendingLabelByCategory.get(source.categoryId), source.createName]
+      : [source.createName]
+    const match = names.flatMap((name) => (name ? [getCategoryNameKey(name)] : [])).map((key) => categories.find((category) => (
       !isGroupResource(category)
       && getCategoryNameKey(category.name) === key
       && category.kind === kind
       && (source.role !== 'transfer' || canCarryActualTransfer(category))
-    ))
+    ))).find(Boolean)
     mappings[source.id] = match?.id ?? CREATE_CATEGORY_VALUE
   }
   return mappings

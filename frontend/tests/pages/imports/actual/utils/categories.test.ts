@@ -69,6 +69,15 @@ describe('Actual Budget category defaults', () => {
     expect(inferActualCategoryMappings([missing, payment], {}, CATEGORIES)).toEqual({ [missing.id]: TRANSFER.id, [payment.id]: CAR_TRANSFERS.id })
   })
 
+  it('matches payments kept as transfers to a transfer category of their Actual name first, like the built-in Credit Card Payment', () => {
+    const cardPayment = category('card-payment', 'Credit Card Payment', 'transfer', true)
+    const spending = { id: 'visa', role: 'spending', label: 'Credit Card Payment', createName: 'Credit Card Payment', categoryId: 'visa', accountId: null, isIncome: false, rowCount: 0 } as const
+    const payment = { ...spending, id: 'transfer:visa', role: 'transfer', label: 'Credit Card Payment (transfers in Actual)', createName: 'Credit Card Payment Transfers' } as const
+
+    expect(inferActualCategoryMappings([spending, payment], {}, [...CATEGORIES, cardPayment]))
+      .toEqual({ [spending.id]: CREATE_CATEGORY_VALUE, [payment.id]: cardPayment.id })
+  })
+
   it('never matches a group category', async () => {
     const { journal } = await normaliseActualFixture('edges')
     const groupGroceries = { ...category('group-groceries', 'Groceries', 'expense'), group_id: 'family' }
@@ -96,8 +105,8 @@ describe('Actual Budget payments to off-budget accounts', () => {
     entry.payeeName,
   ])
 
-  it('files them as spending in their category by default, naming the other account as the payee', () => {
-    const effective = applyActualPaymentModes(journal, {})
+  it('files them as spending in their category when asked, naming the other account as the payee', () => {
+    const effective = applyActualPaymentModes(journal, { 'transfer:car': 'category' })
 
     expect(shape(effective.entries)).toEqual([
       ['pay', 'transfer', 'car', 'source', 'Loan'],
@@ -113,8 +122,8 @@ describe('Actual Budget payments to off-budget accounts', () => {
     ])
   })
 
-  it('keeps them as transfers when asked', () => {
-    expect(applyActualPaymentModes(journal, { 'transfer:car': 'transfer' })).toBe(journal)
+  it('keeps them as transfers by default', () => {
+    expect(applyActualPaymentModes(journal, {})).toBe(journal)
     expect(shape(journal.entries)).toEqual([
       ['pay', 'transfer', 'transfer:car', 'source', null],
       ['late-out', 'withdrawal', 'transfer:car', null, null],
@@ -127,9 +136,9 @@ describe('Actual Budget payments to off-budget accounts', () => {
       getVisibleActualCategorySources(journal.categories, modes, new Set(budgetSources)).map((source) => source.id)
     )
 
-    expect(visible({}, ['car'])).toEqual(['transfer:car', 'transfer:'])
+    expect(visible({ 'transfer:car': 'category' }, ['car'])).toEqual(['transfer:car', 'transfer:'])
     expect(visible({ 'transfer:car': 'transfer' }, [])).toEqual(['transfer:car', 'transfer:'])
-    expect(visible({ 'transfer:car': 'transfer' }, ['car'])).toEqual(['car', 'transfer:car', 'transfer:'])
+    expect(visible({}, ['car'])).toEqual(['car', 'transfer:car', 'transfer:'])
   })
 
   it('always shows a category row with rows of its own', async () => {

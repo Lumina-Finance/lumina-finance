@@ -15,11 +15,11 @@ import {
   getActualGroupCategoryError,
   getActualMixedCurrencyError,
   getActualPaymentCategoryError,
+  getActualPaymentKindClashError,
   getActualSharedAccountError,
   getActualTransferCategoryError,
 } from '@/pages/imports/actual/constants'
 import type { ActualJournal } from '@/pages/imports/actual/types'
-import { applyActualPaymentModes } from '@/pages/imports/actual/utils/categories'
 import { normaliseActualBudget } from '@/pages/imports/actual/utils/normalise'
 import { buildActualImportPayload, type ActualImportAnswers } from '@/pages/imports/actual/utils/payload'
 import {
@@ -31,7 +31,7 @@ import {
   getImportReadOnlyAccountMappingError,
 } from '@/pages/imports/constants'
 import type { ImportCategoryKind } from '@/pages/imports/types'
-import { buildActualBudget, normaliseActualFixture } from './fixtures'
+import { buildActualBudget, fileActualPaymentsInCategory, normaliseActualFixture } from './fixtures'
 
 const CURRENCIES = [
   { id: 'CAD', name: 'Canadian dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -94,9 +94,9 @@ describe('Actual Budget import payload', () => {
     })
   })
 
-  it('files loan payments as spending in their category by default, naming the loan as the payee', async () => {
+  it('files loan payments as spending in their category when asked, naming the loan as the payee', async () => {
     const { journal } = await normaliseActualFixture('edges')
-    const effective = applyActualPaymentModes(journal, {})
+    const effective = fileActualPaymentsInCategory(journal)
     const build = buildActualImportPayload(effective, createAnswers(effective))
 
     expect(build.errors).toEqual([])
@@ -113,7 +113,7 @@ describe('Actual Budget import payload', () => {
 
   it('keeps a payment filed as spending off a transfer category that can\'t record the other account', async () => {
     const { journal } = await normaliseActualFixture('edges')
-    const effective = applyActualPaymentModes(journal, {})
+    const effective = fileActualPaymentsInCategory(journal)
     const answers = createAnswers(effective)
     const car = journal.categories.find((source) => source.label === 'Car')!
     answers.categoryById.set(BALANCE_ADJUSTMENT.id, BALANCE_ADJUSTMENT)
@@ -125,6 +125,18 @@ describe('Actual Budget import payload', () => {
     answers.categoryById.set(TRANSFER.id, TRANSFER)
     answers.categoryMappings[car.id] = TRANSFER.id
     expect(buildActualImportPayload(effective, answers).errors).toEqual([])
+  })
+
+  it('says in the payments row\'s terms when filing them in their category would reuse a name another kind has', async () => {
+    const { journal } = await normaliseActualFixture('envelope')
+    const effective = fileActualPaymentsInCategory(journal)
+    const answers = createAnswers(effective)
+    const carPayment = { id: 'car-payment', name: 'Car Payment', kind: 'transfer', group_id: null } as Category
+    answers.categoryById.set(carPayment.id, carPayment)
+
+    expect(buildActualImportPayload(effective, answers).errors).toContainEqual(
+      getActualPaymentKindClashError('Car Payment (transfers in Actual)', 'Car Payment', 'transfer', 'expense'),
+    )
   })
 
   it('writes yen rows in whole yen', async () => {

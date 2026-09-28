@@ -14,9 +14,9 @@ import type { Currency } from '@/api/currency'
 import { buildJournalStageBatches, type ImportRunBudgets, type JournalImportStageBatch } from '@/api/provider-imports'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import { buildActualBudgetDrafts, buildActualRunBudgets } from '@/pages/imports/actual/utils/budgets'
-import { applyActualPaymentModes, getActualCategoryKind } from '@/pages/imports/actual/utils/categories'
+import { getActualCategoryKind } from '@/pages/imports/actual/utils/categories'
 import { buildActualImportPayload } from '@/pages/imports/actual/utils/payload'
-import { normaliseActualFixture } from './fixtures'
+import { fileActualPaymentsInCategory, normaliseActualFixture } from './fixtures'
 
 const REPLAY = new URL('../../../../../../backend/tests/fixtures/actual/envelope-upload.json', import.meta.url)
 const CURRENCIES = [{ id: 'CAD', name: 'Canadian dollar', symbol: '$', minor_unit_exponent: 2 }] as Currency[]
@@ -41,7 +41,7 @@ interface Replay {
 
 async function buildReplay(): Promise<Replay> {
   const { budget, journal: readJournal, manifest } = await normaliseActualFixture('envelope')
-  const journal = applyActualPaymentModes(readJournal, {})
+  const journal = fileActualPaymentsInCategory(readJournal)
   const drafts = buildActualBudgetDrafts(budget, manifest.asOf.slice(0, 7)).filter((draft) => !draft.disabledReason)
   const build = buildActualImportPayload(journal, {
     accountMappings: Object.fromEntries(journal.accounts.map((account) => [account.id, CREATE_ACCOUNT_VALUE])),

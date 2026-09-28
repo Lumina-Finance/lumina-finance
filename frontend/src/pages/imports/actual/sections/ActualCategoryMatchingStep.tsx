@@ -11,6 +11,7 @@ import {
   ImportStep,
   ImportValueMatchTable,
 } from '@/pages/imports/components'
+import type { Category } from '@/api/categories'
 import type { ActualImportWorkflow } from '@/pages/imports/actual/hooks'
 import type { ActualCategorySource, ActualPaymentMode } from '@/pages/imports/actual/types'
 import { getActualTransferCategoryOptions } from '@/pages/imports/actual/utils/categories'
@@ -45,7 +46,7 @@ function describePayments(source: ActualCategorySource, name: string) {
   const asCategory = source.isIncome
     ? `As Income, they're income in ${name}`
     : `As Expense, they're spending in ${name}, which its budget counts as Actual did`
-  return `In Actual, these are payments between a budget account and an off-budget account, like a loan, that you gave the ${name} category. ${asCategory}, and the off-budget account's side stays a transfer. As Transfer, they stay transfers between your accounts, which budgets don't count.`
+  return `In Actual, these are payments between a budget account and an off-budget account, like a loan, that you gave the ${name} category. As Transfer, they stay transfers between your accounts, which budgets don't count. ${asCategory}, and the off-budget account's side stays a transfer.`
 }
 
 /**
@@ -78,6 +79,12 @@ export function ActualCategoryMatchingStep({
   const visibleIds = new Set(visibleCategorySources.map((source) => source.id))
   const transferOptions = getActualTransferCategoryOptions(categoryMatchOptions, categoryById)
 
+  // Payments filed in their category take one of its own kind, so the row can never quietly turn them
+  // back into transfers while its toggle says otherwise
+  const kindOptions = (kind: Category['kind']) => categoryMatchOptions.filter((option) => (
+    option.value === CREATE_CATEGORY_VALUE || categoryById.get(option.value)?.kind === kind
+  ))
+
   return (
     <ImportStep
       index="03"
@@ -85,14 +92,14 @@ export function ActualCategoryMatchingStep({
       description="Actual categories matched an existing category where possible. The rest are queued as new categories."
     >
       {budget && (
-        <ImportInfoCard title="Transfers aren't spending">
-          Moving money between your own accounts, like paying off a credit card, is a transfer, so it won't show up as spending or count toward your budgets. You already counted that spending when you used the card. A car loan or mortgage is different: buying the car or house was never counted as spending, so the payments can be, under Debt Payment.
+        <ImportInfoCard title="Transfers and debt payments">
+          Money you move between your own accounts is a transfer, so it doesn't count as spending or toward a budget. Paying your credit card works this way, since the purchases already counted when you made them. So does paying a loan or mortgage you track as an account, where only the interest counts as spending. If you'd rather not track the debt as an account, you can record the whole payment as an expense in Debt Payment.
         </ImportInfoCard>
       )}
 
       {hasCategorisedTransfers && (
         <ImportInfoCard title="Payments to off-budget accounts">
-          Rows marked "transfers in Actual" hold payments to and from off-budget accounts, like a loan payment, that carried a category in Actual. As Expense, or Income for an income category, the budget account's side is filed in that category, so its budget counts it as Actual did, and the off-budget account's side is a transfer. As Transfer, both sides stay transfers, which budgets don't count. A payment whose other side isn't in the file comes in on its own, as a withdrawal or deposit.
+          Rows marked "transfers in Actual" are payments to and from off-budget accounts, like a loan payment, that had a category in Actual. They come in as transfers, which budgets don't count. Switch one to Expense, or Income for an income category, to count the budget account's side in that category as Actual did, while the off-budget account's side stays a transfer. A payment whose other side isn't in the file comes in on its own.
         </ImportInfoCard>
       )}
 
@@ -154,7 +161,7 @@ export function ActualCategoryMatchingStep({
               onDetailKindChange: (kind) => setCategoryCreateKinds((current) => ({ ...current, [mappingId]: kind })),
               value,
               onChange: (nextValue) => setCategoryMappings((current) => ({ ...current, [mappingId]: nextValue })),
-              options: isTransfer && paymentMode !== 'category' ? transferOptions : undefined,
+              options: !isTransfer ? undefined : paymentMode === 'category' ? kindOptions(source.isIncome ? 'income' : 'expense') : transferOptions,
             }
           })}
           options={categoryMatchOptions}

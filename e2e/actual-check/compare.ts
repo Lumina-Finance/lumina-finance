@@ -222,8 +222,8 @@ function compareLaterRows(
 /**
  * Compares each transfer whose sides Actual links both ways, the ones the import pairs, with the
  * two legs Lumina holds for it: one on each account, naming the other, on the same day for
- * opposite amounts. A side on the budget that carries a category is spending in it, as the import
- * files it by default, and names no other account, and so does a pair imported as two one-sided
+ * opposite amounts. A side on the budget that carries a category is spending in it, as the check
+ * files it, and names no other account, and so does a pair imported as two one-sided
  * rows. The manifest names a transfer's accounts rather than giving their ids, so they are found
  * by name
  */
@@ -273,7 +273,7 @@ function compareTransfers(
  * Compares each Actual category's month totals with what Lumina files under the category its rows
  * went to. Lumina counts a category on every account, and Actual only on the budget's own, so the
  * two agree only because payments to off-budget accounts carry the category on their budget side
- * alone, where the import files them as spending by default
+ * alone, where the check files them as spending
  */
 function compareCategoryMonths(
   manifest: ActualManifest,

@@ -17,6 +17,7 @@ import {
   getActualGroupCategoryError,
   getActualMixedCurrencyError,
   getActualPaymentCategoryError,
+  getActualPaymentKindClashError,
   getActualSharedAccountError,
   getActualTransferCategoryError,
 } from '@/pages/imports/actual/constants'
@@ -128,7 +129,12 @@ export function buildActualImportPayload(journal: ActualJournal, answers: Actual
   const mappedCategories = journal.categories.filter((source) => (
     writtenCategorySources.has(source.id) || answers.budgetCategorySources.has(source.id)
   ))
-  const mappings = buildCategoryMappings(mappedCategories, getCategoryLegSources(journal), answers, addError)
+  // A spending source with no rows of its own that still writes some holds only a category's payments
+  // to off-budget accounts, shown through their row, so a clash on it is put in that row's terms
+  const paymentOnlySources = new Set(mappedCategories.flatMap((source) => (
+    source.role === 'spending' && source.rowCount === 0 && writtenCategorySources.has(source.id) ? [source.id] : []
+  )))
+  const mappings = buildCategoryMappings(mappedCategories, getCategoryLegSources(journal), paymentOnlySources, answers, addError)
   const categories = mappings.filter((mapping) => writtenCategorySources.has(mapping.source))
   const budgetCategoryMappings = mappings.filter((mapping) => answers.budgetCategorySources.has(mapping.source))
 
@@ -231,6 +237,7 @@ function getCategoryLegSources(journal: ActualJournal) {
 function buildCategoryMappings(
   sources: ActualCategorySource[],
   categoryLegSources: ReadonlySet<string>,
+  paymentOnlySources: ReadonlySet<string>,
   { categoryMappings, categoryCreateKinds, categoryById }: ActualImportAnswers,
   addError: (message: string) => void,
 ) {
@@ -284,7 +291,9 @@ function buildCategoryMappings(
     // direction, so either clash is what the commit would refuse
     const reused = findReusedImportCategory(source.createName, categoryById.values())
     if (reused && reused.kind !== kind) {
-      addError(getCategoryDirectionClashError(source.label, reused.name, reused.kind))
+      addError(paymentOnlySources.has(source.id)
+        ? getActualPaymentKindClashError(source.label, reused.name, reused.kind, kind)
+        : getCategoryDirectionClashError(source.label, reused.name, reused.kind))
       continue
     }
     const key = getCategoryNameKey(source.createName)

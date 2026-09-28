@@ -6,9 +6,8 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import type { ActualJournal } from '@/pages/imports/actual/types'
-import { applyActualPaymentModes } from '@/pages/imports/actual/utils/categories'
 import { buildActualPreviewRows, type ActualPreviewOptions } from '@/pages/imports/actual/utils/preview'
-import { normaliseActualFixture } from './fixtures'
+import { fileActualPaymentsInCategory, normaliseActualFixture } from './fixtures'
 
 const CURRENCIES = [
   { id: 'CAD', name: 'Canadian dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -48,7 +47,7 @@ describe('Actual Budget import preview', () => {
 
   it('shows a loan payment filed as spending with the loan as its merchant and no other account', async () => {
     const { journal } = await normaliseActualFixture('edges')
-    const effective = applyActualPaymentModes(journal, {})
+    const effective = fileActualPaymentsInCategory(journal)
     const payment = effective.entries.find((entry) => entry.date === '2026-07-05')!
     const rows = buildActualPreviewRows({ ...effective, entries: [payment] }, createOptions(effective, 'CAD'), 5)
 

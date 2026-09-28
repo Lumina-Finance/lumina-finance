@@ -1,4 +1,6 @@
 import type { AccountType } from '@/api/accounts'
+import type { Category } from '@/api/categories'
+import type { ImportCategoryKind } from '@/pages/imports/types'
 import type { ImportFileType } from '@/pages/imports/utils/fileIntake'
 import type { ActualPaymentMode } from '@/pages/imports/actual/types'
 
@@ -76,9 +78,9 @@ export const ACTUAL_PAYEE_NAME_MAX_LENGTH = 256
 export const ACTUAL_TRANSFER_CATEGORY_SOURCE_PREFIX = 'transfer:'
 export const ACTUAL_OFF_BUDGET_CATEGORY_SOURCE_PREFIX = 'off-budget:'
 
-// Payments a category carries to off-budget accounts are spending in it until the user says otherwise,
-// so its budget counts them as Actual did
-export const ACTUAL_DEFAULT_PAYMENT_MODE: ActualPaymentMode = 'category'
+// Payments a category carries to off-budget accounts stay transfers until the user files them in the
+// category, since the account they reach comes in as one of the user's own, as a tracked debt does
+export const ACTUAL_DEFAULT_PAYMENT_MODE: ActualPaymentMode = 'transfer'
 
 export const ACTUAL_TRANSFER_SIDE_LEFT_OUT_REASON = "The other side of this transfer is left out, so this side is left out with it"
 
@@ -157,6 +159,15 @@ export function getActualTransferCategoryError(label: string) {
 // records the other account
 export function getActualPaymentCategoryError(label: string, categoryName: string) {
   return `Match ${label} to another category, since ${categoryName} can't record the other account of its payments.`
+}
+
+// Payments filed in their category would create one under a name another kind already has, which
+// matching one of the right kind or keeping them as transfers settles
+export function getActualPaymentKindClashError(label: string, existingName: string, existingKind: Category['kind'], kind: ImportCategoryKind) {
+  const existing = existingKind === 'expense' ? 'an expense' : existingKind === 'income' ? 'an income' : 'a transfer'
+  const wanted = kind === 'income' ? 'income' : 'spending'
+  const match = kind === 'income' ? 'an income' : 'an expense'
+  return `${existingName} is already ${existing} category, so ${label} can't come in as ${wanted} under that name. Match it to ${match} category, or switch it to Transfer.`
 }
 
 export function getActualAccountNameTooLongError(label: string) {

@@ -116,12 +116,11 @@ test('imports loan payments Actual gave a category as spending in it, which its 
   }
 
   const paymentMode = page.getByRole('radiogroup', { name: 'Import Car (transfers in Actual) as' })
-  await expect(paymentMode.getByRole('radio', { name: 'Expense' })).toHaveAttribute('aria-checked', 'true')
+  await expect(paymentMode.getByRole('radio', { name: 'Transfer' })).toHaveAttribute('aria-checked', 'true')
 
-  // Kept as transfers, the payments are left out of the Car budget, which the budget step warns of
+  // Kept as transfers by default, the payments are left out of the Car budget, which the budget step
+  // warns of until they're filed as spending in Car
   const warning = page.getByText("Payments these budgets won't count", { exact: true })
-  await expect(warning).toHaveCount(0)
-  await paymentMode.getByRole('radio', { name: 'Transfer' }).click()
   await expect(warning.locator('..').getByRole('listitem')).toHaveText(['Car'])
   await paymentMode.getByRole('radio', { name: 'Expense' }).click()
   await expect(warning).toHaveCount(0)

@@ -135,6 +135,12 @@ async function importAndCompare(
     await page.getByRole('button', { name: 'Apply', exact: true }).click()
   }
 
+  // Budgets compare with what Actual counted against them, which takes each category's payments to
+  // off-budget accounts filed in the category rather than kept as the transfers they start as
+  for (const paymentMode of await page.getByRole('radiogroup', { name: /^Import .* \(transfers in Actual\) as$/ }).all()) {
+    await paymentMode.getByRole('radio', { name: /^(Expense|Income)$/ }).click()
+  }
+
   const commit = page.getByRole('button', { name: 'Commit import', exact: true })
   await expect(commit).toBeEnabled()
   await commit.click()
