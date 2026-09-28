@@ -85,8 +85,8 @@ export function ActualCategoryMatchingStep({
       description="Actual categories matched an existing category where possible. The rest are queued as new categories."
     >
       {budget && (
-        <ImportInfoCard title="How Lumina Finance treats transfers">
-          Money moving between your own accounts is a transfer, which counts as neither spending nor income, so budgets don't count it. Transfers between your budget accounts in Actual come in under Transfer. That includes credit card payments, since the card's purchases already counted as spending when you made them, and counting the payment too would count them twice. A loan or mortgage payment is different: the money is gone once paid, so it can be spending, such as under Debt Payment.
+        <ImportInfoCard title="Transfers aren't spending">
+          Moving money between your own accounts, like paying off a credit card, is a transfer, so it won't show up as spending or count toward your budgets. You already counted that spending when you used the card. A car loan or mortgage is different: buying the car or house was never counted as spending, so the payments can be, under Debt Payment.
         </ImportInfoCard>
       )}
 
