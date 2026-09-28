@@ -1,16 +1,6 @@
-import {
-  CATEGORIES_LOAD_FAILURE_EXPLANATION,
-  CATEGORIES_LOAD_FAILURE_TITLE,
-  CREATE_CATEGORY_VALUE,
-} from '@/pages/imports/constants'
-import {
-  EmptyState,
-  ImportInfoCard,
-  ImportLoadFailure,
-  ImportSegmentedToggle,
-  ImportStep,
-  ImportValueMatchTable,
-} from '@/pages/imports/components'
+import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
+import { ImportInfoCard, ImportSegmentedToggle } from '@/pages/imports/components'
+import { ImportCategoryMatchingLayout, type ImportCategoryMatchRow } from '@/pages/imports/sections'
 import type { Category } from '@/api/categories'
 import type { ActualImportWorkflow } from '@/pages/imports/actual/hooks'
 import { ACTUAL_CREDIT_PAYMENT_CATEGORY_SOURCE, getActualPaymentsHelp } from '@/pages/imports/actual/constants'
@@ -81,11 +71,64 @@ export function ActualCategoryMatchingStep({
     option.value === CREATE_CATEGORY_VALUE || categoryById.get(option.value)?.kind === kind
   ))
 
+  const rows: ImportCategoryMatchRow[] = visibleCategorySources.map((source) => {
+    const isTransfer = source.role === 'transfer'
+    const category = isTransfer ? categoryByActualId.get(source.categoryId ?? '') : undefined
+    const categoryName = category && budget ? getActualCategoryName(category, budget.categories) : ''
+
+    // A payment row filed as spending answers for its category's spending source, which is
+    // named by Actual's category id
+    const paymentMode: ActualPaymentMode | undefined = paymentModes[source.id]
+    const mappingId = paymentMode === 'category' && source.categoryId ? source.categoryId : source.id
+    const sharesVisibleRow = mappingId !== source.id && visibleIds.has(mappingId)
+    const value = resolvedCategoryMappings[mappingId] ?? ''
+    const existingMatch = Boolean(value) && value !== CREATE_CATEGORY_VALUE
+
+    return {
+      id: source.id,
+      source: source.label,
+      sourceHelp: categoryName
+        ? { label: `What ${source.label} means`, content: getActualPaymentsHelp(categoryName, source.isIncome) }
+        : source.id === ACTUAL_CREDIT_PAYMENT_CATEGORY_SOURCE
+          ? { label: `What ${source.label} means`, content: CREDIT_PAYMENTS_HELP }
+          : undefined,
+
+      // The category's own row already shows whether its answer was filled in or is new
+      autoFilled: autoFilledCategories.has(mappingId) && !sharesVisibleRow,
+      hideCreateBadge: sharesVisibleRow,
+      detailKind: existingMatch ? categoryById.get(value)?.kind ?? '' : resolvedCategoryKinds[mappingId] ?? '',
+      detailDisabled: existingMatch || isTransfer,
+      detailNode: paymentMode
+        ? (
+            <ImportSegmentedToggle
+              options={getPaymentModeOptions(source)}
+              value={paymentMode}
+              label={`Import ${source.label} as`}
+              onChange={(mode) => setPaymentMode(source.id, mode)}
+              disabled={categoriesLoading}
+            />
+          )
+        : undefined,
+      onDetailKindChange: (kind) => setCategoryCreateKinds((current) => ({ ...current, [mappingId]: kind })),
+      value,
+      onChange: (nextValue) => setCategoryMappings((current) => ({ ...current, [mappingId]: nextValue })),
+      options: !isTransfer ? undefined : paymentMode === 'category' ? kindOptions(source.isIncome ? 'income' : 'expense') : transferOptions,
+    }
+  })
+
   return (
-    <ImportStep
+    <ImportCategoryMatchingLayout
       index="03"
-      title="Category Matching"
       description="Actual categories matched an existing category where possible. The rest are queued as new categories."
+      sourceLabel="Category From Actual"
+      empty={budget
+        ? { title: 'No categories to match', description: 'No imported row or budget uses a category of its own.' }
+        : { title: 'No imported categories detected', description: 'Upload the budget export first.' }}
+      rows={rows}
+      options={categoryMatchOptions}
+      categoriesLoading={categoriesLoading}
+      categoriesFailed={categoriesFailed}
+      refetchCategories={refetchCategories}
     >
       {budget && (
         <ImportInfoCard title="Transfers and debt payments">
@@ -98,74 +141,6 @@ export function ActualCategoryMatchingStep({
           In Actual, money moved between your budget and an off-budget account, like a loan payment, can have a category. Those rows are marked "transfers in Actual" and are imported as transfers. Transfers don't count as spending or income, so if you'd like these counted the way Actual did, switch the row to Expense, or to Income for an income category. The payment then counts in that category on your budget account, and the off-budget account still records it, so its balance stays right.
         </ImportInfoCard>
       )}
-
-      {categoriesFailed ? (
-        <ImportLoadFailure
-          title={CATEGORIES_LOAD_FAILURE_TITLE}
-          description={CATEGORIES_LOAD_FAILURE_EXPLANATION}
-          onRetry={refetchCategories}
-        />
-      ) : visibleCategorySources.length === 0 ? (
-        <EmptyState
-          title={budget ? 'No categories to match' : 'No imported categories detected'}
-          description={budget
-            ? 'No imported row or budget uses a category of its own.'
-            : 'Upload the budget export first.'}
-        />
-      ) : (
-        <ImportValueMatchTable
-          sourceLabel="Category From Actual"
-          detailLabel="Type"
-          targetLabel="Existing Category"
-          createValue={CREATE_CATEGORY_VALUE}
-          rows={visibleCategorySources.map((source) => {
-            const isTransfer = source.role === 'transfer'
-            const category = isTransfer ? categoryByActualId.get(source.categoryId ?? '') : undefined
-            const categoryName = category && budget ? getActualCategoryName(category, budget.categories) : ''
-
-            // A payment row filed as spending answers for its category's spending source, which is
-            // named by Actual's category id
-            const paymentMode: ActualPaymentMode | undefined = paymentModes[source.id]
-            const mappingId = paymentMode === 'category' && source.categoryId ? source.categoryId : source.id
-            const sharesVisibleRow = mappingId !== source.id && visibleIds.has(mappingId)
-            const value = resolvedCategoryMappings[mappingId] ?? ''
-            const existingMatch = Boolean(value) && value !== CREATE_CATEGORY_VALUE
-
-            return {
-              id: source.id,
-              source: source.label,
-              sourceHelp: categoryName
-                ? { label: `What ${source.label} means`, content: getActualPaymentsHelp(categoryName, source.isIncome) }
-                : source.id === ACTUAL_CREDIT_PAYMENT_CATEGORY_SOURCE
-                  ? { label: `What ${source.label} means`, content: CREDIT_PAYMENTS_HELP }
-                  : undefined,
-
-              // The category's own row already shows whether its answer was filled in or is new
-              autoFilled: autoFilledCategories.has(mappingId) && !sharesVisibleRow,
-              hideCreateBadge: sharesVisibleRow,
-              detailKind: existingMatch ? categoryById.get(value)?.kind ?? '' : resolvedCategoryKinds[mappingId] ?? '',
-              detailDisabled: existingMatch || isTransfer,
-              detailNode: paymentMode
-                ? (
-                    <ImportSegmentedToggle
-                      options={getPaymentModeOptions(source)}
-                      value={paymentMode}
-                      label={`Import ${source.label} as`}
-                      onChange={(mode) => setPaymentMode(source.id, mode)}
-                      disabled={categoriesLoading}
-                    />
-                  )
-                : undefined,
-              onDetailKindChange: (kind) => setCategoryCreateKinds((current) => ({ ...current, [mappingId]: kind })),
-              value,
-              onChange: (nextValue) => setCategoryMappings((current) => ({ ...current, [mappingId]: nextValue })),
-              options: !isTransfer ? undefined : paymentMode === 'category' ? kindOptions(source.isIncome ? 'income' : 'expense') : transferOptions,
-            }
-          })}
-          options={categoryMatchOptions}
-          disabled={categoriesLoading}
-        />
-      )}
-    </ImportStep>
+    </ImportCategoryMatchingLayout>
   )
 }
