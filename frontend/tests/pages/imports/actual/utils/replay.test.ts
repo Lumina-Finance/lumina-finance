@@ -4,17 +4,21 @@
  * manifest, so the two halves of the import are checked against Actual's own figures together
  *
  * Every account and category is created, in CAD, since the export has Actual's currency feature
- * off, and payments to off-budget accounts are filed as spending in their categories, as they are
- * by default. To refresh the recorded upload after a deliberate change to what the screen sends,
- * run this test with WRITE_ACTUAL_REPLAY=1 set, and review the difference before committing it
+ * off. Payments to off-budget accounts are filed as spending in their categories, which is what
+ * Actual counted against each budget, and each account is created as the type it is proposed as.
+ * No account proposed as a credit account receives a transfer in this export, so no credit card
+ * payments are filed. To refresh the recorded upload after a deliberate change to what the
+ * screen sends, run this test with WRITE_ACTUAL_REPLAY=1 set, and review the difference before
+ * committing it
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { ACCOUNT_KIND_BY_TYPE } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
 import { buildJournalStageBatches, type ImportRunBudgets, type JournalImportStageBatch } from '@/api/provider-imports'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import { buildActualBudgetDrafts, buildActualRunBudgets } from '@/pages/imports/actual/utils/budgets'
-import { getActualCategoryKind } from '@/pages/imports/actual/utils/categories'
+import { applyActualCreditPayments, getActualCategoryKind } from '@/pages/imports/actual/utils/categories'
 import { buildActualImportPayload } from '@/pages/imports/actual/utils/payload'
 import { fileActualPaymentsInCategory, normaliseActualFixture } from './fixtures'
 
@@ -41,7 +45,8 @@ interface Replay {
 
 async function buildReplay(): Promise<Replay> {
   const { budget, journal: readJournal, manifest } = await normaliseActualFixture('envelope')
-  const journal = fileActualPaymentsInCategory(readJournal)
+  const revolvingAccountIds = new Set(readJournal.accounts.filter((account) => ACCOUNT_KIND_BY_TYPE[account.proposedType] === 'revolving').map((account) => account.id))
+  const journal = fileActualPaymentsInCategory(applyActualCreditPayments(readJournal, revolvingAccountIds))
   const drafts = buildActualBudgetDrafts(budget, manifest.asOf.slice(0, 7)).filter((draft) => !draft.disabledReason)
   const build = buildActualImportPayload(journal, {
     accountMappings: Object.fromEntries(journal.accounts.map((account) => [account.id, CREATE_ACCOUNT_VALUE])),

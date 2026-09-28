@@ -382,6 +382,47 @@ async def test_an_actual_categorized_transfer_can_name_its_destination_leg(clien
     }
 
 
+async def test_an_actual_transfer_naming_both_legs_files_each_under_its_transfer_category(client):
+    """A credit card payment takes Credit Card Payment on both legs, each still recording the other account."""
+    headers = _get_auth_header(await _create_user(client))
+    credit_card_payment_id = await _get_system_category_id(client, headers, "Credit Card Payment")
+    visa = {"source": "Visa", "create": {"name": "Visa", "account_type": "credit_card", "currency": "CAD"}}
+
+    resp = await _import_journal(client, headers, {
+        "accounts": [_CHECKING, visa],
+        "categories": [{"source": "credit-payment:", "category_id": credit_card_payment_id}],
+        "rows": [_car_payment_row(destination_account="Visa", category="credit-payment:", category_leg="both")],
+    }, source="actual_budget")
+
+    assert resp.status_code == 201, resp.text
+    accounts = resp.json()["account_source_ids"]
+    legs = {
+        transaction["account_id"]: (transaction["category_id"], transaction["counterparty_account_id"])
+        for transaction in (await client.get("/transactions", headers=headers)).json()
+    }
+    assert legs == {
+        accounts["Checking"]: (credit_card_payment_id, accounts["Visa"]),
+        accounts["Visa"]: (credit_card_payment_id, accounts["Checking"]),
+    }
+
+
+async def test_an_actual_transfer_naming_both_legs_refuses_a_category_that_is_not_a_transfer(client):
+    """Spending on one leg and the same category on the other would cancel out, so both legs need a transfer category."""
+    headers = _get_auth_header(await _create_user(client))
+
+    resp = await _import_journal(client, headers, {
+        "accounts": [_CHECKING, _CAR_LOAN],
+        "categories": [{"source": "Car Payment", "create": {"name": "Car Payment", "kind": "expense"}}],
+        "rows": [_car_payment_row(category_leg="both")],
+    }, source="actual_budget")
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == (
+        "Actual Budget transaction a1f0c7e2-0006: Both legs of a transfer can only share a transfer category, "
+        "and category source Car Payment maps to Car Payment"
+    )
+
+
 @pytest.mark.parametrize(("source", "method", "path", "body", "detail"), [
     (
         "generic",

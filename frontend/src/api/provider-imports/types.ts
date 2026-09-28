@@ -11,9 +11,10 @@ export type JournalImportSource = 'firefly' | 'actual_budget';
 /**
  * Which leg of a transfer between two imported accounts carries the row's category, the other
  * keeping Transfer. Set when the transfer is spending the user budgets for, such as a loan payment
- * from a budgeted account, since both legs carrying one category would cancel in its budget
+ * from a budgeted account, since both legs carrying one category would cancel in its budget. Both
+ * files both legs under a transfer category, as a credit card payment is
  */
-export type JournalCategoryLeg = 'source' | 'destination';
+export type JournalCategoryLeg = 'source' | 'destination' | 'both';
 
 /**
  * One export journal row compiled by the frontend

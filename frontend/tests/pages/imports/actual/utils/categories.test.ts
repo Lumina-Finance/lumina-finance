@@ -1,14 +1,16 @@
 /**
  * Tests the category answers the Actual Budget import fills in, the choices a transfer row gets, and
- * how payments to off-budget accounts are filed and shown
+ * how payments to off-budget accounts and credit accounts are filed and shown
  */
 import { describe, expect, it } from 'vitest'
 import type { Category } from '@/api/categories'
-import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
+import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import { buildImportCategoryMatchOptions } from '@/pages/imports/utils'
 import type { ActualJournal, ActualPaymentMode } from '@/pages/imports/actual/types'
 import {
+  applyActualCreditPayments,
   applyActualPaymentModes,
+  getActualRevolvingAccountIds,
   getActualTransferCategoryOptions,
   getVisibleActualCategorySources,
   inferActualCategoryMappings,
@@ -145,5 +147,93 @@ describe('Actual Budget payments to off-budget accounts', () => {
     const { journal: edges } = await normaliseActualFixture('edges')
 
     expect(getVisibleActualCategorySources(edges.categories, {}, new Set())).toEqual(edges.categories)
+  })
+})
+
+describe('Actual Budget credit card payments', () => {
+  // A card payment from checking, a refund from the card back to checking, and a move to savings
+  const budget = buildActualBudget([
+    { id: 'pay-card', accountId: 'checking', date: '2026-09-01', amount: -10000, payeeId: 'to-visa', transferredId: 'card-paid' },
+    { id: 'card-paid', accountId: 'visa', date: '2026-09-01', amount: 10000, payeeId: 'to-checking', transferredId: 'pay-card' },
+    { id: 'refund', accountId: 'visa', date: '2026-09-02', amount: -2000, payeeId: 'to-checking', transferredId: 'refunded' },
+    { id: 'refunded', accountId: 'checking', date: '2026-09-02', amount: 2000, payeeId: 'to-visa', transferredId: 'refund' },
+    { id: 'save', accountId: 'checking', date: '2026-09-03', amount: -5000, payeeId: 'to-savings', transferredId: 'saved' },
+    { id: 'saved', accountId: 'savings', date: '2026-09-03', amount: 5000, payeeId: 'to-checking', transferredId: 'save' },
+  ], {
+    accounts: [
+      { id: 'checking', name: 'Checking', offBudget: false, closed: false, type: null },
+      { id: 'savings', name: 'Savings', offBudget: false, closed: false, type: null },
+      { id: 'visa', name: 'Visa', offBudget: false, closed: false, type: null },
+    ],
+    payees: [
+      { id: 'to-checking', name: '', transferAccountId: 'checking' },
+      { id: 'to-savings', name: '', transferAccountId: 'savings' },
+      { id: 'to-visa', name: '', transferAccountId: 'visa' },
+    ],
+  })
+  const journal = normaliseActualBudget(budget, '2026-09-26')
+  const shape = (entries: ActualJournal['entries']) => entries.map((entry) => [entry.transactionId, entry.categorySourceId, entry.categoryLeg])
+
+  it('files a transfer into a credit account under its own source on both legs, and leaves the rest as transfers', () => {
+    const effective = applyActualCreditPayments(journal, new Set(['visa']))
+
+    expect(shape(effective.entries)).toEqual([
+      ['pay-card', 'credit-payment:', 'both'],
+      ['refund', null, null],
+      ['save', null, null],
+    ])
+    expect(effective.categories.map((source) => [source.id, source.role, source.createName, source.rowCount])).toEqual([
+      ['credit-payment:', 'transfer', 'Credit Card Payment', 1],
+    ])
+  })
+
+  it('leaves the journal as it is without a credit account, or when both sides are credit accounts', () => {
+    expect(applyActualCreditPayments(journal, new Set())).toBe(journal)
+    expect(applyActualCreditPayments(journal, new Set(['visa', 'checking']))).toBe(journal)
+  })
+
+  it('leaves a payment Actual gave a category to that category and its payment mode', () => {
+    const categorised = normaliseActualBudget(buildActualBudget([
+      { id: 'pay', accountId: 'checking', date: '2026-09-01', amount: -30000, payeeId: 'to-loan', transferredId: 'paid', categoryId: 'car' },
+      { id: 'paid', accountId: 'loan', date: '2026-09-01', amount: 30000, payeeId: 'to-checking', transferredId: 'pay' },
+    ]), '2026-09-26')
+
+    expect(applyActualCreditPayments(categorised, new Set(['loan']))).toBe(categorised)
+    expect(shape(categorised.entries)).toEqual([['pay', 'transfer:car', 'source']])
+  })
+
+  it('matches them to the built-in Credit Card Payment', () => {
+    const creditCardPayment = category('credit-card-payment', 'Credit Card Payment', 'transfer', true)
+    const { categories } = applyActualCreditPayments(journal, new Set(['visa']))
+
+    expect(inferActualCategoryMappings(categories, {}, [...CATEGORIES, creditCardPayment])).toEqual({ 'credit-payment:': creditCardPayment.id })
+  })
+})
+
+describe('Actual Budget revolving credit accounts', () => {
+  const accountById = new Map([
+    ['visa-card', { account_kind: 'revolving' as const }],
+    ['everyday', { account_kind: 'asset' as const }],
+  ])
+  const details = {
+    new: { accountType: 'credit_card' },
+    'new-heloc': { accountType: 'heloc' },
+    'new-savings': { accountType: 'savings' },
+    linked: { accountType: 'checking' },
+    'linked-asset': { accountType: 'credit_card' },
+    unanswered: { accountType: 'credit_card' },
+  }
+
+  it('follows the type a new account is created as, and the kind of an existing account it is linked to', () => {
+    const revolving = getActualRevolvingAccountIds(Object.keys(details), {
+      'new': CREATE_ACCOUNT_VALUE,
+      'new-heloc': CREATE_ACCOUNT_VALUE,
+      'new-savings': CREATE_ACCOUNT_VALUE,
+      'linked': 'visa-card',
+      'linked-asset': 'everyday',
+      'unanswered': '',
+    }, details, accountById)
+
+    expect([...revolving].sort()).toEqual(['linked', 'new', 'new-heloc'])
   })
 })

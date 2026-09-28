@@ -41,9 +41,11 @@ import {
 import type { ActualBudgetFile, ActualJournal, ActualPaymentMode, ActualSkippedRow } from '@/pages/imports/actual/types'
 import { buildActualBudgetDrafts, buildActualRunBudgets, getActualBudgetRefusal } from '@/pages/imports/actual/utils/budgets'
 import {
+  applyActualCreditPayments,
   applyActualPaymentModes,
   getActualCategoryKind,
   getActualPaymentMode,
+  getActualRevolvingAccountIds,
   getVisibleActualCategorySources,
   inferActualCategoryMappings,
 } from '@/pages/imports/actual/utils/categories'
@@ -206,19 +208,6 @@ export function useActualImportWorkflow() {
     [budget, today],
   )
   const accountSources = journal.accounts
-  const categorySources = journal.categories
-
-  // Every category with payments to off-budget accounts has a mode, spending until the user says otherwise
-  const resolvedPaymentModes = useMemo(
-    () => Object.fromEntries(categorySources.flatMap((source) => (
-      source.role === 'transfer' && source.categoryId ? [[source.id, getActualPaymentMode(paymentModes, source.id)]] : []
-    ))) as Record<string, ActualPaymentMode>,
-    [categorySources, paymentModes],
-  )
-
-  // What the import sends, previews and counts. Answers and budgets stay on the journal as read, so
-  // each source keeps its own answer while the user switches a mode back and forth
-  const effectiveJournal = useMemo(() => applyActualPaymentModes(journal, resolvedPaymentModes), [journal, resolvedPaymentModes])
 
   const supportedCurrencyCodes = useMemo(() => getSupportedCurrencyCodes(currencies), [currencies])
 
@@ -268,6 +257,35 @@ export function useActualImportWorkflow() {
       return details
     },
     [accountCreateCurrencies, accountCreateInstitutions, accountCreateTypes, accountSources, proposedCurrency],
+  )
+
+  // Whether a transfer pays a credit account follows the account each side is linked to or created as
+  const revolvingAccountIds = useMemo(
+    () => getActualRevolvingAccountIds(
+      accountSources.map((source) => source.id),
+      resolvedAccountMappings,
+      resolvedAccountCreateDetails,
+      accountById,
+    ),
+    [accountById, accountSources, resolvedAccountCreateDetails, resolvedAccountMappings],
+  )
+
+  const creditJournal = useMemo(() => applyActualCreditPayments(journal, revolvingAccountIds), [journal, revolvingAccountIds])
+  const categorySources = creditJournal.categories
+
+  // Every category with payments to off-budget accounts has a mode, a transfer until the user says otherwise
+  const resolvedPaymentModes = useMemo(
+    () => Object.fromEntries(categorySources.flatMap((source) => (
+      source.role === 'transfer' && source.categoryId ? [[source.id, getActualPaymentMode(paymentModes, source.id)]] : []
+    ))) as Record<string, ActualPaymentMode>,
+    [categorySources, paymentModes],
+  )
+
+  // What the import sends, previews and counts. Answers and budgets stay on the journal as read, so
+  // each source keeps its own answer while the user switches a mode back and forth
+  const effectiveJournal = useMemo(
+    () => applyActualPaymentModes(creditJournal, resolvedPaymentModes),
+    [creditJournal, resolvedPaymentModes],
   )
 
   // Same reason as the accounts above: a match pointing at a deleted category would reach the commit

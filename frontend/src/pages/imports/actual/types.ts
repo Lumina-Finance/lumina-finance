@@ -1,4 +1,5 @@
 import type { AccountType } from '@/api/accounts'
+import type { JournalCategoryLeg } from '@/api/provider-imports'
 
 /** Which of Actual's two budget kinds a file has switched on */
 export type ActualBudgetType = 'envelope' | 'tracking'
@@ -210,8 +211,11 @@ export interface ActualJournalEntry {
   counterpartAccountName: string | null
   categorySourceId: string | null
 
-  /** Set on a categorized transfer, naming the leg on the budget side */
-  categoryLeg: 'source' | 'destination' | null
+  /**
+   * Set on a categorized transfer, naming the leg on the budget side, and on a credit card payment,
+   * which files both legs under its category
+   */
+  categoryLeg: JournalCategoryLeg | null
   notes: string | null
   tags: string[]
 }

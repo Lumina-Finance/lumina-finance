@@ -21,6 +21,7 @@ import {
 } from '@/pages/imports/actual/constants'
 import type { ActualJournal } from '@/pages/imports/actual/types'
 import { normaliseActualBudget } from '@/pages/imports/actual/utils/normalise'
+import { applyActualCreditPayments } from '@/pages/imports/actual/utils/categories'
 import { buildActualImportPayload, type ActualImportAnswers } from '@/pages/imports/actual/utils/payload'
 import {
   CREATE_ACCOUNT_VALUE,
@@ -272,6 +273,32 @@ describe('Actual Budget import payload', () => {
     const build = buildActualImportPayload(journal, answers)
     expect(build.errors).toEqual([])
     expect(build.payload!.categories).toContainEqual({ source: carTransfers.id, category_id: TRANSFER.id })
+  })
+
+  it('sends a credit card payment with its category on both legs, under Credit Card Payment, Transfer or a new one', () => {
+    const budget = buildActualBudget([
+      { id: 'pay-card', accountId: 'checking', date: '2026-09-01', amount: -10000, payeeId: 'to-savings', transferredId: 'card-paid' },
+      { id: 'card-paid', accountId: 'savings', date: '2026-09-01', amount: 10000, payeeId: 'to-checking', transferredId: 'pay-card' },
+    ])
+    const journal = applyActualCreditPayments(normaliseActualBudget(budget, '2026-09-26'), new Set(['savings']))
+    const creditCardPayment = { id: 'credit-card-payment', name: 'Credit Card Payment', kind: 'transfer', group_id: null, is_system: true } as Category
+
+    for (const choice of [creditCardPayment.id, TRANSFER.id, CREATE_CATEGORY_VALUE]) {
+      const answers = createAnswers(journal)
+      answers.categoryById.set(creditCardPayment.id, creditCardPayment)
+      answers.categoryById.set(TRANSFER.id, TRANSFER)
+      answers.categoryMappings['credit-payment:'] = choice
+
+      const build = buildActualImportPayload(journal, answers)
+      expect(build.errors).toEqual([])
+      const [row] = build.payload!.rows
+      expect([row.category, row.category_leg, row.source_name, row.destination_name]).toEqual(['credit-payment:', 'both', null, null])
+      expect(build.payload!.categories.filter((mapping) => mapping.source === 'credit-payment:')).toEqual([
+        choice === CREATE_CATEGORY_VALUE
+          ? { source: 'credit-payment:', create: expect.objectContaining({ name: 'Credit Card Payment', kind: 'transfer' }) }
+          : { source: 'credit-payment:', category_id: choice },
+      ])
+    }
   })
 
   it('creates a closed account open while it holds a row dated after today, sending or receiving', () => {

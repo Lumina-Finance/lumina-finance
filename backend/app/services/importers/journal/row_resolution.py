@@ -3,6 +3,7 @@
 import uuid
 from dataclasses import dataclass
 from datetime import date
+from typing import Literal
 
 from app.models.account import Account
 from app.models.base import CategoryKind
@@ -163,8 +164,9 @@ def _resolve_transfer_pair(
     Both legs are transfers recording the other endpoint unless the row names a category leg. That
     leg takes the row's mapped category, and when the category is an expense or income one it
     records no counterparty and takes the other account's name from the row as its merchant, so a
-    loan payment from Actual Budget can be spending in its budget category. The other leg always
-    stays a transfer under the system Transfer category
+    loan payment from Actual Budget can be spending in its budget category. The other leg stays a
+    transfer under the system Transfer category, unless the row names both legs, which then share
+    its transfer category, as a credit card payment does
 
     Args:
         row: Journal row from the import payload
@@ -188,10 +190,10 @@ def _resolve_transfer_pair(
         raise JournalRowRefusedError("Transfer source and destination resolve to the same account")
 
     source_category = destination_category = context.transfer_category
-    if row.category_leg == "source":
-        source_category = _resolve_transfer_leg_category(row, source_account, context)
-    elif row.category_leg == "destination":
-        destination_category = _resolve_transfer_leg_category(row, destination_account, context)
+    if row.category_leg in ("source", "both"):
+        source_category = _resolve_transfer_leg_category(row, "source", source_account, context)
+    if row.category_leg in ("destination", "both"):
+        destination_category = _resolve_transfer_leg_category(row, "destination", destination_account, context)
 
     source_records_counterparty = does_category_record_counterparty_account(source_category)
     destination_records_counterparty = does_category_record_counterparty_account(destination_category)
@@ -219,14 +221,22 @@ def _resolve_transfer_pair(
     ]
 
 
-def _resolve_transfer_leg_category(row: JournalTransactionRow, account: Account, context: JournalResolutionContext) -> Category:
+def _resolve_transfer_leg_category(
+    row: JournalTransactionRow,
+    leg: Literal["source", "destination"],
+    account: Account,
+    context: JournalResolutionContext,
+) -> Category:
     """Return the category a transfer row gives the leg it names
 
     An expense or income category files the leg as spending or income. A transfer category keeps
-    the leg's counterparty account, so it has to be one that records it
+    the leg's counterparty account, so it has to be one that records it. A row naming both legs takes
+    a transfer category only, since spending on one leg and the same category on the other would
+    cancel out
 
     Args:
         row: Journal row naming a category leg
+        leg: Which leg the category is resolved for
         account: Account the named leg is written to
         context: Lookups needed to resolve the row
 
@@ -235,13 +245,18 @@ def _resolve_transfer_leg_category(row: JournalTransactionRow, account: Account,
 
     Raises:
         JournalRowRefusedError: Raised when the mapped category is a transfer category that does not
-            record a counterparty account
+            record a counterparty account, or is not a transfer category on a row naming both legs
         HTTPException: Raised with 422 when the category is not mapped or not usable
     """
     category = _resolve_row_category(row, account, context)
+    if row.category_leg == "both" and category.kind != CategoryKind.TRANSFER:
+        raise JournalRowRefusedError(
+            f"Both legs of a transfer can only share a transfer category, and category source {row.category} "
+            f"maps to {category.name}",
+        )
     if category.kind == CategoryKind.TRANSFER and not does_category_record_counterparty_account(category):
         raise JournalRowRefusedError(
-            f"The {row.category_leg} leg of a transfer can't use a transfer category that doesn't record the "
+            f"The {leg} leg of a transfer can't use a transfer category that doesn't record the "
             f"other account, and category source {row.category} maps to {category.name}",
         )
     return category

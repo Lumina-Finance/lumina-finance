@@ -6,6 +6,7 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import type { ActualJournal } from '@/pages/imports/actual/types'
+import { applyActualCreditPayments } from '@/pages/imports/actual/utils/categories'
 import { buildActualPreviewRows, type ActualPreviewOptions } from '@/pages/imports/actual/utils/preview'
 import { fileActualPaymentsInCategory, normaliseActualFixture } from './fixtures'
 
@@ -61,6 +62,18 @@ describe('Actual Budget import preview', () => {
     ])).toEqual([
       ['Checking', -30000, 'Car', 'Car Loan', undefined, null],
       ['Car Loan', 30000, 'Transfer', null, 'Checking', 'tracked'],
+    ])
+  })
+
+  it('shows a credit card payment under its category on both legs, each naming the other account', async () => {
+    const { journal } = await normaliseActualFixture('edges')
+    const payment = journal.entries.find((entry) => entry.date === '2026-07-05')!
+    const credit = applyActualCreditPayments({ ...journal, entries: [{ ...payment, categorySourceId: null, categoryLeg: null }] }, new Set([payment.destinationAccountId!]))
+    const rows = buildActualPreviewRows(credit, createOptions(credit, 'CAD'), 5)
+
+    expect(rows.map((row) => [row.accountName, row.transaction.amount, row.category?.name, row.counterpartyAccountName])).toEqual([
+      ['Checking', -30000, 'Credit Card Payment', 'Car Loan'],
+      ['Car Loan', 30000, 'Credit Card Payment', 'Checking'],
     ])
   })
 

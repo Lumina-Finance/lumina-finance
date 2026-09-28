@@ -23,6 +23,10 @@ export const ACTUAL_EXPECTATIONS: ImportExpectations = {
       lumina: 'By default, a transfer between the two accounts, which budgets don\'t count, or one to or from outside the app when its other side isn\'t in the file. You can import it as an expense in its category instead, so its budget counts it as Actual did, and the off-budget account still shows the payment arriving',
     },
     {
+      source: 'A transfer with no category that pays a credit card, line of credit or HELOC',
+      lumina: 'A payment in Credit Card Payment on both accounts, which doesn\'t count as spending',
+    },
+    {
       source: 'A split transaction',
       lumina: 'Separate entries that are no longer linked, each keeping the payee and notes',
     },

@@ -103,9 +103,10 @@ function resolveLegs(
     if (sourceAmount === null || destinationAmount === null) return null
 
     // The budget-side leg of a categorised transfer keeps its category, and the other takes Transfer.
-    // Filed as spending or income, that leg records no other account and takes it as its merchant
+    // Filed as spending or income, that leg records no other account and takes it as its merchant. A
+    // credit card payment files both legs under its category
     const buildLeg = (leg: 'source' | 'destination', account: ActualPreviewAccount, minorUnits: number, other: ActualPreviewAccount): ActualPreviewLeg => {
-      if (entry.categoryLeg !== leg) return { account, minorUnits, category: options.transferCategory, merchantName: null, counterpartyAccount: other }
+      if (entry.categoryLeg !== leg && entry.categoryLeg !== 'both') return { account, minorUnits, category: options.transferCategory, merchantName: null, counterpartyAccount: other }
       const isSpending = mappedCategory && !canCarryActualTransfer(mappedCategory)
       return {
         account,

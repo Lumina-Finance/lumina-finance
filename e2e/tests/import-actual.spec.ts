@@ -194,3 +194,57 @@ test('imports loan payments Actual gave a category as spending in it, which its 
     .map((month) => [month.month, -Math.round(Number(month.total) * 100)])
     .sort())
 })
+
+test('imports transfers into a credit card under Credit Card Payment on both accounts', async ({ page, request }) => {
+  const user = await signUp(request, 'CAD')
+  await uploadActualExport(page, user, EDGES_FIXTURE)
+  for (const account of EDGES_MANIFEST.accounts) {
+    await chooseFromDropdown(page.locator('body'), `Currency ${account.name}`, /^CAD$/)
+    await expect(page.getByRole('listbox')).toHaveCount(0)
+  }
+
+  // Actual records no account types, so Savings is proposed as an asset and its transfers stay plain
+  // transfers until it's set up as a credit card, when they get a row of their own
+  const paymentsTarget = page.getByRole('combobox', { name: 'Existing Category Payments to credit cards and credit lines' })
+  await expect(paymentsTarget).toHaveCount(0)
+  await chooseFromDropdown(page.locator('body'), 'Type Savings', /^Credit Card$/)
+  await expect(page.getByRole('listbox')).toHaveCount(0)
+  await expect(paymentsTarget).toContainText('Credit Card Payment')
+
+  await commitImport(page)
+
+  const headers = { Authorization: `Bearer ${user.accessToken}` }
+  const accounts = await (await request.get(`${API_BASE_URL}/accounts`, { headers })).json() as { id: string; name: string }[]
+  const accountId = (name: string) => accounts.find((account) => account.name === name)!.id
+  const categories = await (await request.get(`${API_BASE_URL}/categories`, { headers })).json() as {
+    id: string
+    name: string
+    is_system: boolean
+  }[]
+  const creditCardPayment = categories.find((category) => category.name === 'Credit Card Payment' && category.is_system)!.id
+
+  const transactions = await (await request.get(`${API_BASE_URL}/transactions`, {
+    headers,
+    params: new URLSearchParams([['account_id', accountId('Savings')], ['limit', '50']]),
+  })).json() as { account_id: string; dt: string; amount: number; category_id: string; counterparty_account_id: string | null }[]
+  expect(transactions.length).toBeLessThan(50)
+
+  // Each payment is Credit Card Payment on the card, naming Checking, and the Checking side mirrors it.
+  // The manifest lists transfers that move money, so the zero transfer the budget also holds is left out
+  const payments = EDGES_MANIFEST.transfers.filter((transfer) => transfer.from === 'Checking' && transfer.to === 'Savings' && !transfer.category)
+  expect(payments.length).toBeGreaterThan(0)
+  const cardLegs = transactions.filter((transaction) => transaction.counterparty_account_id === accountId('Checking') && transaction.amount !== 0)
+  expect(cardLegs.map((leg) => [leg.dt.slice(0, 10), leg.amount, leg.category_id]).sort())
+    .toEqual(payments.map((payment) => [payment.date, Math.round(Number(payment.amount) * 100), creditCardPayment]).sort())
+
+  const checking = await (await request.get(`${API_BASE_URL}/transactions`, {
+    headers,
+    params: new URLSearchParams([['account_id', accountId('Checking')], ['limit', '50']]),
+  })).json() as { dt: string; amount: number; category_id: string; counterparty_account_id: string | null }[]
+  expect(checking.length).toBeLessThan(50)
+  expect(checking
+    .filter((transaction) => transaction.counterparty_account_id === accountId('Savings') && transaction.amount !== 0)
+    .map((leg) => [leg.dt.slice(0, 10), leg.amount, leg.category_id])
+    .sort())
+    .toEqual(payments.map((payment) => [payment.date, -Math.round(Number(payment.amount) * 100), creditCardPayment]).sort())
+})

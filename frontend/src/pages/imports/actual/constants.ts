@@ -78,6 +78,10 @@ export const ACTUAL_PAYEE_NAME_MAX_LENGTH = 256
 export const ACTUAL_TRANSFER_CATEGORY_SOURCE_PREFIX = 'transfer:'
 export const ACTUAL_OFF_BUDGET_CATEGORY_SOURCE_PREFIX = 'off-budget:'
 
+// The one source every transfer paying down a credit card, line of credit or HELOC is filed under
+export const ACTUAL_CREDIT_PAYMENT_CATEGORY_SOURCE = 'credit-payment:'
+export const ACTUAL_CREDIT_PAYMENT_LABEL = 'Payments to credit cards and credit lines'
+
 // Payments a category carries to off-budget accounts stay transfers until the user files them in the
 // category, since the account they reach comes in as one of the user's own, as a tracked debt does
 export const ACTUAL_DEFAULT_PAYMENT_MODE: ActualPaymentMode = 'transfer'

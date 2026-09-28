@@ -1,11 +1,19 @@
+import { ACCOUNT_KIND_BY_TYPE, type AccountsOverview, type AccountType } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
-import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
+import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import type { ImportCategoryKind } from '@/pages/imports/types'
 import { getCategoryNameKey } from '@/pages/imports/utils/categoryMatching'
-import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
-import { ACTUAL_DEFAULT_PAYMENT_MODE, ACTUAL_MISCELLANEOUS_CATEGORY_NAME, ACTUAL_TRANSFER_CATEGORY_NAME } from '@/pages/imports/actual/constants'
+import { BALANCE_ADJUSTMENT_CATEGORY_NAME, CREDIT_CARD_PAYMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
+import {
+  ACTUAL_CREDIT_PAYMENT_CATEGORY_SOURCE,
+  ACTUAL_CREDIT_PAYMENT_LABEL,
+  ACTUAL_DEFAULT_PAYMENT_MODE,
+  ACTUAL_MISCELLANEOUS_CATEGORY_NAME,
+  ACTUAL_TRANSFER_CATEGORY_NAME,
+} from '@/pages/imports/actual/constants'
 import type { ActualCategorySource, ActualJournal, ActualPaymentMode } from '@/pages/imports/actual/types'
+import type { ActualAccountCreateDetails } from './payload'
 import { isGroupResource } from './scope'
 
 /**
@@ -26,7 +34,7 @@ export function canCarryActualTransfer(category: Pick<Category, 'kind' | 'name'>
  * Fills in the category answers the user has not given
  *
  * Rows without a category go to Miscellaneous, as they do for Firefly III, and transfers whose other
- * side is gone go to Transfer. Every other source takes an existing personal or built-in category of
+ * side is gone go to Transfer. Credit card payments take Credit Card Payment by its name. Every other source takes an existing personal or built-in category of
  * the same name and kind, capitals folded, and is created otherwise
  */
 export function inferActualCategoryMappings(
@@ -52,7 +60,7 @@ export function inferActualCategoryMappings(
       mappings[source.id] = miscellaneous?.id ?? CREATE_CATEGORY_VALUE
       continue
     }
-    if (source.role === 'transfer' && !source.categoryId) {
+    if (source.role === 'transfer' && !source.categoryId && source.id !== ACTUAL_CREDIT_PAYMENT_CATEGORY_SOURCE) {
       mappings[source.id] = transfer?.id ?? CREATE_CATEGORY_VALUE
       continue
     }
@@ -147,4 +155,66 @@ export function getVisibleActualCategorySources(
     if (!transferSourceId) return true
     return getActualPaymentMode(modes, transferSourceId) === 'transfer' && budgetSourceIds.has(source.id)
   })
+}
+
+/**
+ * Returns the journal with each transfer that pays a credit card, line of credit or HELOC filed
+ * under one source of its own, which Credit Card Payment takes on both legs, as a payment entered in
+ * the app is
+ *
+ * Only a transfer Actual gave no category counts, from an account that isn't revolving credit into
+ * one that is, going by the types the account step settles. A transfer between two credit accounts
+ * moves a balance rather than paying one, so it stays a transfer
+ *
+ * @param revolvingAccountIds - Actual accounts that are revolving credit in Lumina Finance
+ */
+export function applyActualCreditPayments(journal: ActualJournal, revolvingAccountIds: ReadonlySet<string>): ActualJournal {
+  let rowCount = 0
+  const entries = journal.entries.map((entry) => {
+    if (entry.type !== 'transfer' || entry.categorySourceId || !entry.sourceAccountId || !entry.destinationAccountId) return entry
+    if (!revolvingAccountIds.has(entry.destinationAccountId) || revolvingAccountIds.has(entry.sourceAccountId)) return entry
+    rowCount += 1
+    return { ...entry, categorySourceId: ACTUAL_CREDIT_PAYMENT_CATEGORY_SOURCE, categoryLeg: 'both' as const }
+  })
+  if (rowCount === 0) return journal
+
+  const source: ActualCategorySource = {
+    id: ACTUAL_CREDIT_PAYMENT_CATEGORY_SOURCE,
+    role: 'transfer',
+    label: ACTUAL_CREDIT_PAYMENT_LABEL,
+    createName: CREDIT_CARD_PAYMENT_CATEGORY_NAME,
+    categoryId: null,
+    accountId: null,
+    isIncome: false,
+    rowCount,
+  }
+
+  // Listed after the categorised transfers, where the other transfer rows are
+  const insertAt = journal.categories.findIndex((candidate) => candidate.role === 'uncategorized' || candidate.role === 'offBudgetUncategorized')
+  const categories = [...journal.categories]
+  categories.splice(insertAt === -1 ? categories.length : insertAt, 0, source)
+  return { ...journal, categories, entries }
+}
+
+/**
+ * Returns the Actual accounts that are revolving credit in Lumina Finance, going by the existing
+ * account each is linked to or the type it is created as. An account without an answer yet isn't one
+ *
+ * @param accountMappings - Each Actual account's answer: an existing account id, create, or empty
+ * @param accountCreateDetails - Each Actual account's details for when it is created
+ */
+export function getActualRevolvingAccountIds(
+  accountIds: string[],
+  accountMappings: Record<string, string>,
+  accountCreateDetails: Record<string, Pick<ActualAccountCreateDetails, 'accountType'>>,
+  accountById: ReadonlyMap<string, Pick<AccountsOverview, 'account_kind'>>,
+): Set<string> {
+  return new Set(accountIds.filter((id) => {
+    const choice = accountMappings[id]
+    const createdType = accountCreateDetails[id]?.accountType
+    const kind = choice === CREATE_ACCOUNT_VALUE
+      ? createdType ? ACCOUNT_KIND_BY_TYPE[createdType as AccountType] : undefined
+      : accountById.get(choice ?? '')?.account_kind
+    return kind === 'revolving'
+  }))
 }

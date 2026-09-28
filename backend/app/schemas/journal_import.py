@@ -129,9 +129,10 @@ class JournalTransactionRow(BaseModel):
     # category, which must record a counterparty account, keeps it a transfer. Budgets add up
     # signed amounts per tracked category across every account, so a category on both legs would
     # cancel out. Actual Budget uses this for a transfer from an on-budget account to an off-budget
-    # one, such as a loan payment filed under a budget category. Null files both legs under
-    # Transfer and ignores the row's category
-    category_leg: Literal["source", "destination"] | None = None
+    # one, such as a loan payment filed under a budget category. Both files both legs under the row's
+    # category, which must then be a transfer category recording a counterparty account, as a
+    # credit card payment is. Null files both legs under Transfer and ignores the row's category
+    category_leg: Literal["source", "destination", "both"] | None = None
 
     @model_validator(mode="after")
     def _require_whole_foreign_amount(self):

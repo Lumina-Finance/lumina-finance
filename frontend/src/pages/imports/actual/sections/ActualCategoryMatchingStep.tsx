@@ -13,6 +13,7 @@ import {
 } from '@/pages/imports/components'
 import type { Category } from '@/api/categories'
 import type { ActualImportWorkflow } from '@/pages/imports/actual/hooks'
+import { ACTUAL_CREDIT_PAYMENT_CATEGORY_SOURCE } from '@/pages/imports/actual/constants'
 import type { ActualCategorySource, ActualPaymentMode } from '@/pages/imports/actual/types'
 import { getActualTransferCategoryOptions } from '@/pages/imports/actual/utils/categories'
 import { getActualCategoryName } from '@/pages/imports/actual/utils/normalise'
@@ -48,6 +49,8 @@ function describePayments(source: ActualCategorySource, name: string) {
     : `As Expense, they count as spending in ${name}, so its budget counts them the way Actual did`
   return `In Actual, these are payments between a budget account and an off-budget account, like a loan, that you gave the ${name} category. As Transfer, they're imported as transfers between your accounts, which don't count toward budgets. ${asCategory}, and the off-budget account still shows them arriving.`
 }
+
+const CREDIT_PAYMENTS_HELP = "Transfers without a category in Actual from your other accounts into a credit card, line of credit or HELOC, going by the account types under Account Mapping. They're imported under Credit Card Payment on both accounts, so they don't count as spending, since the purchases already counted when you made them."
 
 /**
  * Category matching step of the Actual Budget import flow, showing every category the imported rows
@@ -140,7 +143,9 @@ export function ActualCategoryMatchingStep({
               source: source.label,
               sourceHelp: categoryName
                 ? { label: `What ${source.label} means`, content: describePayments(source, categoryName) }
-                : undefined,
+                : source.id === ACTUAL_CREDIT_PAYMENT_CATEGORY_SOURCE
+                  ? { label: `What ${source.label} means`, content: CREDIT_PAYMENTS_HELP }
+                  : undefined,
 
               // The category's own row already shows whether its answer was filled in or is new
               autoFilled: autoFilledCategories.has(mappingId) && !sharesVisibleRow,
