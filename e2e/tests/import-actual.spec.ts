@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
-import { TEST_PASSWORD, TEST_TIMEZONE, type TestUser } from '../support/api'
+import { asUser, signUpUser, type TestUser } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
@@ -22,16 +22,6 @@ const EDGES_MANIFEST = JSON.parse(readFileSync(new URL('../fixtures/actual-edges
   accounts: { name: string }[]
   categoryMonths: { category: string; month: string; total: string }[]
   transfers: { date: string; from: string; to: string; amount: string; category: string | null }[]
-}
-
-async function signUp(request: APIRequestContext, baseCurrency: string): Promise<TestUser> {
-  const email = `e2e-actual-${crypto.randomUUID()}@example.com`
-  const signup = await request.post(`${API_BASE_URL}/auth/signup`, {
-    data: { email, password: TEST_PASSWORD, first_name: 'Actual', tz: TEST_TIMEZONE, base_currency: baseCurrency },
-  })
-  expect(signup.status()).toBe(201)
-  const auth = await signup.json() as { access_token: string }
-  return { email, password: TEST_PASSWORD, firstName: 'Actual', accessToken: auth.access_token }
 }
 
 async function uploadActualExport(page: Page, user: TestUser, fixture: string) {
@@ -58,7 +48,7 @@ async function commitImport(page: Page) {
 
 test('imports an Actual Budget export with the balances and budgets Actual showed', async ({ page, request }) => {
   // A base currency other than the file's, so the accounts can only be yen because the file says so
-  const user = await signUp(request, 'CAD')
+  const user = await signUpUser(request)
   await uploadActualExport(page, user, YEN_FIXTURE)
 
   // Income budgets are left out, and the two spending budgets ended before this month
@@ -84,7 +74,7 @@ test('imports an Actual Budget export with the balances and budgets Actual showe
   expect(result.transactions_created).toBe(YEN_MANIFEST.rows.length)
   expect(result.budgets.map((budget) => budget.name).sort()).toEqual(['Bills', 'Food'])
 
-  const headers = { Authorization: `Bearer ${user.accessToken}` }
+  const headers = asUser(user)
   const accounts = await request.get(`${API_BASE_URL}/accounts`, { headers })
   const balances = Object.fromEntries((await accounts.json() as { name: string; currency: string; current_balance: number }[])
     .map((account) => [account.name, `${account.currency} ${account.current_balance}`]))
@@ -105,7 +95,7 @@ test('imports an Actual Budget export with the balances and budgets Actual showe
 })
 
 test('imports loan payments Actual gave a category as spending in it, which its budget counts', async ({ page, request }) => {
-  const user = await signUp(request, 'CAD')
+  const user = await signUpUser(request)
   await uploadActualExport(page, user, EDGES_FIXTURE)
 
   // The export has Actual's currency feature off, so each new account needs one. Each list closes
@@ -137,7 +127,7 @@ test('imports loan payments Actual gave a category as spending in it, which its 
 
   await commitImport(page)
 
-  const headers = { Authorization: `Bearer ${user.accessToken}` }
+  const headers = asUser(user)
   const accounts = await (await request.get(`${API_BASE_URL}/accounts`, { headers })).json() as { id: string; name: string }[]
   const accountId = (name: string) => accounts.find((account) => account.name === name)!.id
   const categories = await (await request.get(`${API_BASE_URL}/categories`, { headers })).json() as {
@@ -196,7 +186,7 @@ test('imports loan payments Actual gave a category as spending in it, which its 
 })
 
 test('imports transfers into a credit card under Credit Card Payment on both accounts', async ({ page, request }) => {
-  const user = await signUp(request, 'CAD')
+  const user = await signUpUser(request)
   await uploadActualExport(page, user, EDGES_FIXTURE)
   for (const account of EDGES_MANIFEST.accounts) {
     await chooseFromDropdown(page.locator('body'), `Currency ${account.name}`, /^CAD$/)
@@ -213,7 +203,7 @@ test('imports transfers into a credit card under Credit Card Payment on both acc
 
   await commitImport(page)
 
-  const headers = { Authorization: `Bearer ${user.accessToken}` }
+  const headers = asUser(user)
   const accounts = await (await request.get(`${API_BASE_URL}/accounts`, { headers })).json() as { id: string; name: string }[]
   const accountId = (name: string) => accounts.find((account) => account.name === name)!.id
   const categories = await (await request.get(`${API_BASE_URL}/categories`, { headers })).json() as {
