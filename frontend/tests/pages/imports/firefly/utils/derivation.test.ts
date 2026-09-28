@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Category } from '@/api/categories'
 import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
+import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import type { CsvRow } from '@/pages/imports/types'
 import {
   buildFireflyAccountPrefills,
@@ -156,6 +157,23 @@ describe('inferFireflyCategoryMappings', () => {
     )
 
     expect(mappings[JOURNAL_NO_CATEGORY_SOURCE]).toBe('chosen')
+  })
+
+  it("matches the user's own category over a group one of the same name", () => {
+    const familyGroceries = createCategory({ id: 'family-groceries', group_id: 'family' })
+    const groceries = createCategory({ id: 'groceries' })
+
+    const mappings = inferFireflyCategoryMappings(['Groceries'], {}, [familyGroceries, groceries], { Groceries: 'expense' })
+
+    expect(mappings.Groceries).toBe('groceries')
+  })
+
+  it('queues a new category rather than matching a group one', () => {
+    const familyGroceries = createCategory({ id: 'family-groceries', group_id: 'family' })
+
+    const mappings = inferFireflyCategoryMappings(['Groceries'], {}, [familyGroceries], { Groceries: 'expense' })
+
+    expect(mappings.Groceries).toBe(CREATE_CATEGORY_VALUE)
   })
 })
 

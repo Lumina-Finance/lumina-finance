@@ -7,7 +7,13 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
 import { buildJournalStageBatches } from '@/api/provider-imports'
 import type { Category } from '@/api/categories'
-import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, MAX_IMPORT_NOTES_LENGTH } from '@/pages/imports/constants'
+import {
+  CREATE_ACCOUNT_VALUE,
+  CREATE_CATEGORY_VALUE,
+  getImportGroupAccountError,
+  getImportGroupCategoryError,
+  MAX_IMPORT_NOTES_LENGTH,
+} from '@/pages/imports/constants'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import {
   buildFireflyAccountPrefills,
@@ -98,6 +104,38 @@ describe('a Firefly account the user can only read', () => {
 
     expect(result.payload).toBeNull()
     expect(result.errors).toContain('Map to an account you can write to: Chequing')
+  })
+})
+
+// Imports write the user's own records, so an answer naming a group's account or category, such as
+// one given before the list changed, is refused before upload rather than by the server
+describe('a Firefly answer naming a group account or category', () => {
+  it('refuses a group account and says which source', () => {
+    const familyChequing = { ...CHEQUING, id: 'family-chequing', group_id: 'family' } as AccountsOverview
+    const result = buildWithMapping(familyChequing.id, [familyChequing])
+
+    expect(result.payload).toBeNull()
+    expect(result.errors).toContain(getImportGroupAccountError('Chequing'))
+  })
+
+  it('refuses a group category and says which source', () => {
+    const familyGroceries = { id: 'family-groceries', name: 'Groceries', kind: 'expense', group_id: 'family' } as Category
+    const result = buildFireflyImportPayload({
+      transactionsFile: TRANSACTIONS_FILE,
+      skippedRows: new Set(),
+      rows: [ROW],
+      accountSources: createNameKeyedAccountSources(['Chequing']),
+      accountMappings: { Chequing: CHEQUING.id },
+      accountById: new Map([[CHEQUING.id, CHEQUING]]),
+      accountCreateDetails: {},
+      importedCategories: ['Groceries'],
+      categoryMappings: { Groceries: familyGroceries.id },
+      categoryCreateKinds: {},
+      categoryById: new Map([[familyGroceries.id, familyGroceries]]),
+    })
+
+    expect(result.payload).toBeNull()
+    expect(result.errors).toContain(getImportGroupCategoryError('Groceries'))
   })
 })
 

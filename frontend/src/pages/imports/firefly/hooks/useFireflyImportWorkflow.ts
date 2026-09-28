@@ -22,6 +22,7 @@ import {
   getImportUploadBlockReason,
   getSupportedCurrencyCodes,
   groupPreviewRowsByDate,
+  buildImportAccountOptions,
   isAutoFilledAccountSource,
   processImportFileIntake,
   canStartProviderImport,
@@ -35,6 +36,7 @@ import {
   PROVIDER_MAX_BUDGETS_REQUEST_BYTES,
   type ImportFileAcquisition,
 } from '@/pages/imports/utils'
+import { getPersonalAccounts, getPersonalCategoryOptions, resolveProviderAccountMappings } from '@/pages/imports/utils/resourceScope'
 import {
   FIREFLY_CSV_PROCESSING_MIN_MS,
   FIREFLY_MAX_BUDGETS,
@@ -58,7 +60,6 @@ import {
   inferFireflyCategoryMappings,
   readFireflyAccountDetails,
   readFireflyCsvFile,
-  resolveFireflyAccountMappings,
   type FireflyAccountCreateDetails,
   type FireflyRowResolutionOptions,
   type FireflySkippedRowDetail,
@@ -173,14 +174,19 @@ export function useFireflyImportWorkflow() {
     institutionsLoading,
     categoriesLoading,
     selectableAccounts,
-    accountOptions,
     currencyOptions,
     institutionOptions,
-    categoryMatchOptions,
+    categoryMatchOptions: allCategoryMatchOptions,
     accountById,
     categoryById,
     institutionById,
   } = useImportReferenceData()
+
+  const accountOptions = useMemo(() => buildImportAccountOptions(getPersonalAccounts(selectableAccounts)), [selectableAccounts])
+  const categoryMatchOptions = useMemo(
+    () => getPersonalCategoryOptions(allCategoryMatchOptions, categoryById),
+    [allCategoryMatchOptions, categoryById],
+  )
 
   // The commit assigns these seeded system categories to transfer legs and
   // balance rows, so the preview reads them from the user's category list
@@ -254,7 +260,7 @@ export function useFireflyImportWorkflow() {
   const resolvedAccountMappings = useMemo(
     // Both sides of a Firefly transfer take rows, so no source here can record an archived or
     // read-only account and both matching lists are the same one
-    () => resolveFireflyAccountMappings({
+    () => resolveProviderAccountMappings({
       sources: accountMappingSources,
       liveMappings: liveAccountMappings,
       selectableAccounts,

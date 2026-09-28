@@ -26,7 +26,7 @@ describe('Provider import scope', () => {
     const accounts = [CHEQUING, FAMILY_CHEQUING, FAMILY_SAVINGS]
 
     expect(getPersonalAccounts(accounts)).toEqual([CHEQUING])
-    expect(resolveProviderAccountMappings(SOURCES, {}, accounts, true)).toEqual({
+    expect(resolveProviderAccountMappings({ sources: SOURCES, liveMappings: {}, selectableAccounts: accounts, accountsCurrent: true })).toEqual({
       'chequing-source': CHEQUING.id,
       'savings-source': CREATE_ACCOUNT_VALUE,
     })

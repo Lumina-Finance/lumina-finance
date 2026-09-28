@@ -137,6 +137,59 @@ export async function findReferenceId(
   return match.id
 }
 
+/**
+ * Create a group over the API, with the user as its only member.
+ *
+ * @param request - Playwright request context
+ * @param user - Group owner
+ * @param name - Group name
+ * @returns The group's id
+ * @throws When creation does not answer 201
+ */
+export async function createGroup(request: APIRequestContext, user: TestUser, name: string): Promise<string> {
+  const response = await request.post(`${API_BASE_URL}/groups`, { headers: asUser(user), data: { name } })
+  if (response.status() !== 201) {
+    throw new Error(`creating group ${name} answered ${response.status()}: ${await response.text()}`)
+  }
+
+  const body = (await response.json()) as { id: string }
+  return body.id
+}
+
+export interface CreateCategoryOptions {
+  name: string
+  kind?: 'expense' | 'income' | 'transfer'
+
+  /** Makes it a group category, which every member of the group can see */
+  groupId?: string
+}
+
+/**
+ * Create a category over the API.
+ *
+ * @param request - Playwright request context
+ * @param user - Category owner
+ * @param options - What to create, defaulting to an expense category of the user's own
+ * @returns The category's id
+ * @throws When creation does not answer 201
+ */
+export async function createCategory(
+  request: APIRequestContext,
+  user: TestUser,
+  options: CreateCategoryOptions,
+): Promise<string> {
+  const response = await request.post(`${API_BASE_URL}/categories`, {
+    headers: asUser(user),
+    data: { name: options.name, kind: options.kind ?? 'expense', group_id: options.groupId },
+  })
+  if (response.status() !== 201) {
+    throw new Error(`creating category ${options.name} answered ${response.status()}: ${await response.text()}`)
+  }
+
+  const body = (await response.json()) as { id: string }
+  return body.id
+}
+
 export interface SeededAccount {
   id: string
   name: string
@@ -154,6 +207,9 @@ export interface CreateAccountOptions {
 
   /** Signed opening balance in minor units */
   startingBalance?: number
+
+  /** Makes it a group account, which every member of the group can see */
+  groupId?: string
 }
 
 /**
@@ -181,6 +237,7 @@ export async function createAccount(
       currency,
       institution_id: options.institutionId,
       starting_balance: options.startingBalance ?? null,
+      group_id: options.groupId,
     },
   })
 

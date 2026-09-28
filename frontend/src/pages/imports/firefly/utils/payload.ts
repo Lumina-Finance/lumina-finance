@@ -13,6 +13,8 @@ import {
   getImportReadOnlyAccountMappingError,
   getImportCategoryMappingError,
   getImportCategoryTypeRequiredError,
+  getImportGroupAccountError,
+  getImportGroupCategoryError,
   getImportNoRowsError,
   getTooManyMappingsError,
   MAX_IMPORT_MAPPINGS,
@@ -23,6 +25,7 @@ import type { FireflyAccountSources, FireflyImportBuildResult } from '@/pages/im
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import { isImportableAccount } from '@/pages/imports/utils/accountScope'
 import { findReusedImportCategory, getCategoryNameKey } from '@/pages/imports/utils/categoryMatching'
+import { isGroupResource } from '@/pages/imports/utils/resourceScope'
 import {
   countCharacters,
   getFireflyRowAmounts,
@@ -137,6 +140,10 @@ export function buildFireflyImportPayload({
         addError(getImportReadOnlyAccountMappingError(label, account))
         continue
       }
+      if (account && isGroupResource(account)) {
+        addError(getImportGroupAccountError(label))
+        continue
+      }
 
       if (isSent) accounts.push({ source, account_id: choice })
       continue
@@ -181,6 +188,11 @@ export function buildFireflyImportPayload({
     }
 
     if (choice !== CREATE_CATEGORY_VALUE) {
+      const category = categoryById.get(choice)
+      if (category && isGroupResource(category)) {
+        addError(getImportGroupCategoryError(source))
+        continue
+      }
       categories.push({ source, category_id: choice })
       continue
     }

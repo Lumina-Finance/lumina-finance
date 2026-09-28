@@ -228,7 +228,12 @@ export function useActualImportWorkflow() {
   )
 
   const resolvedAccountMappings = useMemo(
-    () => resolveProviderAccountMappings(accountMappingSources, liveAccountMappings, selectableAccounts, accountsCurrent),
+    () => resolveProviderAccountMappings({
+      sources: accountMappingSources,
+      liveMappings: liveAccountMappings,
+      selectableAccounts,
+      accountsCurrent,
+    }),
     [accountMappingSources, accountsCurrent, liveAccountMappings, selectableAccounts],
   )
 

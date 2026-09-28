@@ -9,6 +9,7 @@ import {
   MAX_IMPORT_TAGS_PER_ROW,
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportCategoryKind } from '@/pages/imports/types'
+import { isGroupResource } from '@/pages/imports/utils/resourceScope'
 import {
   FIREFLY_BALANCE_ROW_UNATTACHED_REASON,
   FIREFLY_DEPOSIT_DESTINATION_UNTRACKED_REASON,
@@ -580,7 +581,7 @@ export function buildFireflyCategoryKinds(rows: CsvRow[]): Record<string, Import
 }
 
 /**
- * Matches category sources to existing categories by case-insensitive name,
+ * Matches category sources to the user's own or built-in categories by case-insensitive name,
  * preferring the inferred kind on duplicates, and defaults the rest to create
  */
 export function inferFireflyCategoryMappings(
@@ -591,6 +592,7 @@ export function inferFireflyCategoryMappings(
 ): Record<string, string> {
   const categoriesByName = new Map<string, Category[]>()
   for (const category of categories) {
+    if (isGroupResource(category)) continue
     const key = category.name.trim().toLowerCase()
     const bucket = categoriesByName.get(key) ?? []
     bucket.push(category)
