@@ -24,6 +24,9 @@ test('imports a Firefly III export with only the budgets left ticked', async ({ 
     await expect(page.getByText(file.split('/').at(-1)!, { exact: true })).toBeVisible()
   }
 
+  // Category Matching explains how the import files transfers once the transactions are staged
+  await expect(page.getByText('Transfers and debt payments', { exact: true })).toBeVisible()
+
   const budgets = page.getByRole('table').filter({ has: page.getByRole('checkbox', { name: 'Import Food' }) })
   await expect(budgets.getByRole('columnheader')).toHaveText([/.*/, 'Budget', 'Cadence', 'Latest Amount', 'Categories', 'First Period', 'Changes'])
 

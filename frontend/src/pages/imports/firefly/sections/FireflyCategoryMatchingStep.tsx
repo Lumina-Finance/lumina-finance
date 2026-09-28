@@ -1,4 +1,5 @@
-import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
+import { CREATE_CATEGORY_VALUE, TRANSFERS_AND_DEBT_PAYMENTS_TITLE, TRANSFERS_EXPLANATION } from '@/pages/imports/constants'
+import { ImportInfoCard } from '@/pages/imports/components'
 import { ImportCategoryMatchingLayout } from '@/pages/imports/sections'
 import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
 
@@ -69,6 +70,14 @@ export function FireflyCategoryMatchingStep({
       categoriesLoading={categoriesLoading}
       categoriesFailed={categoriesFailed}
       refetchCategories={refetchCategories}
-    />
+    >
+      {/* Worded to the row resolution: a journal between two imported accounts is a transfer
+          whatever its Firefly III type, and only a row paying or paid by someone keeps its category */}
+      {transactionsFile && (
+        <ImportInfoCard title={TRANSFERS_AND_DEBT_PAYMENTS_TITLE}>
+          {TRANSFERS_EXPLANATION} Anything in Firefly III between two accounts you're importing, like your asset accounts, loans, debts and mortgages, is imported as a transfer, whatever its type in Firefly III. So a payment recorded as a withdrawal into a loan, debt or mortgage is a transfer too, and its category isn't imported. A payment recorded as a withdrawal to an expense account is imported as spending in its category, which you can match to Debt Payment below.
+        </ImportInfoCard>
+      )}
+    </ImportCategoryMatchingLayout>
   )
 }

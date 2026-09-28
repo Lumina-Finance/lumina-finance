@@ -1,4 +1,4 @@
-import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
+import { CREATE_CATEGORY_VALUE, TRANSFERS_AND_DEBT_PAYMENTS_TITLE, TRANSFERS_EXPLANATION } from '@/pages/imports/constants'
 import { ImportInfoCard, ImportSegmentedToggle } from '@/pages/imports/components'
 import { ImportCategoryMatchingLayout, type ImportCategoryMatchRow } from '@/pages/imports/sections'
 import type { Category } from '@/api/categories'
@@ -131,8 +131,8 @@ export function ActualCategoryMatchingStep({
       refetchCategories={refetchCategories}
     >
       {budget && (
-        <ImportInfoCard title="Transfers and debt payments">
-          Money you move between your own accounts is a transfer, so it doesn't count as spending or toward a budget. Paying your credit card works this way, since the purchases already counted when you made them. So does paying a loan or mortgage you track as an account, where only the interest counts as spending. If you'd rather not track the debt as an account, you can record the whole payment as an expense in Debt Payment.
+        <ImportInfoCard title={TRANSFERS_AND_DEBT_PAYMENTS_TITLE}>
+          {TRANSFERS_EXPLANATION} So does paying a loan or mortgage you track as an account, where only the interest counts as spending. If you'd rather not track the debt as an account, you can record the whole payment as an expense in Debt Payment.
         </ImportInfoCard>
       )}
 

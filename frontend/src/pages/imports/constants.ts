@@ -448,6 +448,11 @@ export const CLEARED_ACCOUNT_SOURCES_EXPLANATION = 'An account these sources wer
 export const CLEARED_CATEGORY_SOURCES_TITLE = 'Answers cleared'
 export const CLEARED_CATEGORY_SOURCES_EXPLANATION = 'A category these values were matched to no longer exists, so their answers were cleared. Choose a category for each one, or queue a new one for it:'
 
+// Opens the transfers card on a provider import's Category Matching step, which then says how that
+// import files its own transfers and debt payments
+export const TRANSFERS_AND_DEBT_PAYMENTS_TITLE = 'Transfers and debt payments'
+export const TRANSFERS_EXPLANATION = "Money you move between your own accounts is a transfer, so it doesn't count as spending or toward a budget. Paying your credit card works this way, since the purchases already counted when you made them."
+
 // Carries the account an import was started from, as a query parameter rather than router state so
 // the scope survives a reload and a shared address
 export const IMPORT_ACCOUNT_PARAM = 'account'
