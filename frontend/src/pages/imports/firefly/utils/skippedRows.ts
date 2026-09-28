@@ -1,7 +1,6 @@
 import type { CsvRow, ImportRowProblem } from '@/pages/imports/types'
 import { FIREFLY_MISSING_REQUIRED_VALUES_REASON, FIREFLY_TAG_TOO_LONG_REASON } from '@/pages/imports/firefly/constants'
 import { getImportRowId } from '@/pages/imports/utils/common'
-import type { CompletedProviderImport } from '@/pages/imports/utils/providerImportRun'
 import { getDebtPaymentImportNote } from '@/pages/imports/utils/categoryMatching'
 import {
   getFireflyMissingRequiredFields,
@@ -52,28 +51,6 @@ export interface FireflyImportForecast {
 /** Resolution options paired with the staged file that gives source rows their identity */
 export interface FireflyImportForecastOptions extends FireflyRowResolutionOptions {
   fileId: string | null
-}
-
-/**
- * Selects the skipped rows the preview table shows before or after commit
- */
-export function getFireflySkippedRowsDisplay({
-  liveForecastRows,
-  completedImport,
-}: {
-  liveForecastRows: FireflySkippedRowDetail[]
-  completedImport: CompletedProviderImport<FireflySkippedRowDetail> | null
-}) {
-  const rows = completedImport?.skippedRowsAtCommit ?? liveForecastRows
-  const totalCount = rows.length
-  const plural = totalCount === 1 ? '' : 's'
-  return {
-    rows,
-    totalCount,
-    title: completedImport
-      ? `${totalCount} row${plural} ${totalCount === 1 ? 'was' : 'were'} not imported`
-      : `${totalCount} row${plural} will not be imported`,
-  }
 }
 
 /**

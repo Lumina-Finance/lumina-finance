@@ -67,6 +67,31 @@ export interface CompletedProviderImport<TSkipped> {
   skippedRowsAtCommit: TSkipped[]
 }
 
+/**
+ * Selects the skipped rows the preview shows, with its title. Once the import has run, they are the
+ * rows it was started with, since later answers no longer change what it wrote
+ *
+ * The weekly checks read the title after the import, so its wording is theirs to match
+ */
+export function getProviderSkippedRowsDisplay<TSkipped>({
+  liveForecastRows,
+  completedImport,
+}: {
+  liveForecastRows: TSkipped[]
+  completedImport: CompletedProviderImport<TSkipped> | null
+}) {
+  const rows = completedImport?.skippedRowsAtCommit ?? liveForecastRows
+  const totalCount = rows.length
+  const plural = totalCount === 1 ? '' : 's'
+  return {
+    rows,
+    totalCount,
+    title: completedImport
+      ? `${totalCount} row${plural} ${totalCount === 1 ? 'was' : 'were'} not imported`
+      : `${totalCount} row${plural} will not be imported`,
+  }
+}
+
 /** Why the last attempt failed, with the answers it was started with */
 export interface ProviderImportFailure {
   message: string

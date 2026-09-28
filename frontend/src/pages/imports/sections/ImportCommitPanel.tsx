@@ -1,3 +1,4 @@
+import { ImportCommitFooter } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 
 type ImportCommitPanelProps = Pick<
@@ -19,20 +20,12 @@ export function ImportCommitPanel({
   importResult,
 }: ImportCommitPanelProps) {
   return (
-    <div className="flex flex-col items-end gap-3 pb-1">
-      {importError && (
-        <p role="alert" className="max-w-xl text-right text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
-          {importError}
-        </p>
-      )}
-      <button
-        type="button"
-        className="app-primary-button"
-        onClick={handleCommitImport}
-        disabled={!canCommitImport}
-      >
-        {importResult ? 'Imported' : 'Commit import'}
-      </button>
-    </div>
+    <ImportCommitFooter
+      importError={importError}
+      canCommit={canCommitImport}
+      imported={Boolean(importResult)}
+      onCommit={handleCommitImport}
+      className="pb-1"
+    />
   )
 }
