@@ -62,7 +62,7 @@ export type ColumnMap = Record<ColumnTarget, string>
 export type ColumnValidationErrors = Record<string, string>
 export type CsvRow = Record<string, string>
 export type ImportCategoryKind = Category['kind']
-export type ImportDataSource = 'generic' | 'firefly'
+export type ImportDataSource = 'generic' | 'firefly' | 'actual'
 export type ImportOverlayPhase = 'idle' | 'importing' | 'success' | 'error' | 'cancelled'
 export type ImportProgressStepStatus = 'active' | 'queued' | 'done'
 
@@ -175,4 +175,26 @@ export interface ImportBuildResult {
 export interface ImportUploadBlock {
   message: string
   isFailure: boolean
+}
+
+/**
+ * What a provider import changes on the way in, shown before anything is staged
+ *
+ * The groups are ordered by what it costs to not know: the one thing whose totals will not match,
+ * then data that arrives in a new shape, then what stays behind
+ */
+export interface ImportExpectations {
+  intro: string
+
+  /** The difference whose figures will not tie back to the source app */
+  deviation: string
+
+  /** Each concept that arrives intact in a new shape, as the user knows it and what it becomes */
+  changes: { source: string; lumina: string }[]
+
+  /**
+   * Everything left behind, grouped by what it applies to and listed without saying which might
+   * arrive later, since a hint otherwise would be read as a promise
+   */
+  leftBehind: { group: string; items: string[] }[]
 }

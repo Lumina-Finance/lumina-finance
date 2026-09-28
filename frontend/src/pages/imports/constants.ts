@@ -184,8 +184,9 @@ export function getTooManyMappingsError(kind: 'account' | 'category', count: num
  * direction, which the commit refuses because one name records one direction
  */
 export function getCategoryDirectionClashError(source: string, existingName: string, existingKind: Category['kind']) {
-  const direction = KIND_LABELS[existingKind].toLowerCase()
-  return `${existingName} already records ${direction}, so ${source} cannot be created. Match it to that category, or set its type to ${direction}.`
+  const kind = KIND_LABELS[existingKind]
+  const article = existingKind === 'transfer' ? 'a' : 'an'
+  return `${existingName} is already ${article} ${kind.toLowerCase()} category, so ${source} cannot be created with another type. Match it to ${existingName}, or set its type to ${kind}.`
 }
 
 /** Says which account source still needs a mapping */
@@ -284,7 +285,7 @@ export const CURRENCIES_LOADING_UPLOAD_BLOCK = 'Loading currencies...'
 export const CURRENCIES_FAILED_UPLOAD_BLOCK = 'Currencies could not be loaded, and a file cannot be read without them. Reload the page to try again.'
 
 // How many entries the skipped table lists before summarizing the remainder, shared by every table
-// built on it: refused rows in both import flows, and the Firefly budgets it cannot bring in
+// built on it: refused rows in every import flow, and the Firefly III and Actual Budget budgets it cannot bring in
 export const SKIPPED_TABLE_VISIBLE_LIMIT = 20
 
 // How many compiled transactions the preview shows. Read by the builder that stops at it and by the
@@ -577,3 +578,6 @@ export const ACCOUNT_TYPE_OPTIONS: DropdownOption[] = [
 export const IMPORT_INSET_STYLE: CSSProperties = {
   background: 'color-mix(in srgb, var(--app-input-bg) 58%, var(--app-bg))',
 }
+
+// The shade of a table row the import leaves out, which stays listed so it can be brought back
+export const IMPORT_EXCLUDED_ROW_BACKGROUND = 'color-mix(in srgb, var(--app-bg) 88%, var(--app-text) 12%)'

@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
-import type { FireflyBudgetImportRecurrence } from '@/api/firefly-imports'
+import type { ImportBudgetRecurrence } from '@/api/provider-imports'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import type { FireflyBudgetDraft } from '@/pages/imports/firefly/types'
 import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
@@ -38,7 +38,7 @@ const CURRENCIES = [
   { id: 'JPY', minor_unit_exponent: 0 },
 ] as Currency[]
 
-const MONTHLY_ON_THE_FIRST: FireflyBudgetImportRecurrence = { freq: 'monthly', instance_length: 1, weekday: null, dom: 1, month: null }
+const MONTHLY_ON_THE_FIRST: ImportBudgetRecurrence = { freq: 'monthly', instance_length: 1, weekday: null, dom: 1, month: null }
 
 /**
  * Builds budget drafts against the supported currencies, with every category left unmatched
@@ -521,7 +521,7 @@ describe('buildFireflyBudgetDrafts', () => {
   // The backend checks the sent cadence against the latest period, and
   // backend/tests/routes/transactions/test_firefly_budget_imports.py runs the same cases, so a budget
   // shown recurring here is one the backend stores recurring
-  it.each<[string, CsvRow[], FireflyBudgetImportRecurrence | null, string]>([
+  it.each<[string, CsvRow[], ImportBudgetRecurrence | null, string]>([
     [
       'quarterly after monthly',
       [

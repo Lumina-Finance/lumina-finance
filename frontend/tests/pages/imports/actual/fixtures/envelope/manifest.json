@@ -1,0 +1,7587 @@
+{
+  "asOf": "2026-09-26",
+  "budgetType": "envelope",
+  "currencyFeature": false,
+  "currency": null,
+  "amountScales": {
+    "transactions": 2,
+    "budgets": 2
+  },
+  "accounts": [
+    {
+      "name": "Brokerage",
+      "offBudget": true,
+      "closed": false,
+      "balance": "144276.92",
+      "rowTotal": "144276.92"
+    },
+    {
+      "name": "Everyday Checking",
+      "offBudget": false,
+      "closed": false,
+      "balance": "28324.90",
+      "rowTotal": "28324.90"
+    },
+    {
+      "name": "Car Loan",
+      "offBudget": true,
+      "closed": false,
+      "balance": "-4402.00",
+      "rowTotal": "-4402.00"
+    },
+    {
+      "name": "Rainy Day Savings",
+      "offBudget": false,
+      "closed": false,
+      "balance": "14062.40",
+      "rowTotal": "14062.40"
+    },
+    {
+      "name": "Visa Card",
+      "offBudget": false,
+      "closed": false,
+      "balance": "740.35",
+      "rowTotal": "740.35"
+    },
+    {
+      "name": "Café Wallet ☕",
+      "offBudget": false,
+      "closed": false,
+      "balance": "-505.70",
+      "rowTotal": "-505.70"
+    },
+    {
+      "name": "Old Joint Checking",
+      "offBudget": false,
+      "closed": true,
+      "balance": "0.00",
+      "rowTotal": "0.00"
+    }
+  ],
+  "accountMonths": [
+    {
+      "account": "Brokerage",
+      "month": "2025-01",
+      "count": 3,
+      "total": "15109.50"
+    },
+    {
+      "account": "Brokerage",
+      "month": "2025-02",
+      "count": 1,
+      "total": "212.34"
+    },
+    {
+      "account": "Brokerage",
+      "month": "2025-03",
+      "count": 2,
+      "total": "462.34"
+    },
+    {
+      "account": "Brokerage",
+      "month": "2025-04",
+      "count": 1,
+      "total": "-140.50"
+    },
+    {
+      "account": "Brokerage",
+      "month": "2025-05",
+      "count": 2,
+      "total": "462.34"
+    },
+    {
+      "account": "Brokerage",
+      "month": "2025-06",
+      "count": 1,
+      "total": "212.34"
+    },
+    {
+      "account": "Brokerage",
+      "month": "2025-07",
+      "count": 2,
+      "total": "109.50"
+    },
+    {
+      "account": "Brokerage",
+      "month": "2025-08",
+      "count": 1,
+      "total": "212.34"
+    },
+    {
+      "account": "Brokerage",
+      "month": "2025-09",
+      "count": 2,
+      "total": "462.34"
+    },
+    {
+      "account": "Brokerage",
+      "month": "2025-10",
+      "count": 1,
+      "total": "-140.50"
+    },
+    {
+      "account": "Brokerage",
+      "month": "2025-11",
+      "count": 2,
+      "total": "462.34"
+    },
+    {
+      "account": "Brokerage",
+      "month": "2025-12",
+      "count": 1,
+      "total": "212.34"
+    },
+    {
+      "account": "Brokerage",
+      "month": "2026-01",
+      "count": 2,
+      "total": "109.50"
+    },
+    {
+      "account": "Brokerage",
+      "month": "2026-02",
+      "count": 1,
+      "total": "212.34"
+    },
+    {
+      "account": "Brokerage",
+      "month": "2026-03",
+      "count": 2,
+      "total": "462.34"
+    },
+    {
+      "account": "Brokerage",
+      "month": "2026-04",
+      "count": 1,
+      "total": "-140.50"
+    },
+    {
+      "account": "Brokerage",
+      "month": "2026-05",
+      "count": 2,
+      "total": "462.34"
+    },
+    {
+      "account": "Brokerage",
+      "month": "2026-06",
+      "count": 2,
+      "total": "125212.34"
+    },
+    {
+      "account": "Brokerage",
+      "month": "2026-07",
+      "count": 2,
+      "total": "109.50"
+    },
+    {
+      "account": "Brokerage",
+      "month": "2026-08",
+      "count": 1,
+      "total": "212.34"
+    },
+    {
+      "account": "Café Wallet ☕",
+      "month": "2025-01",
+      "count": 2,
+      "total": "36.25"
+    },
+    {
+      "account": "Café Wallet ☕",
+      "month": "2025-02",
+      "count": 1,
+      "total": "-23.75"
+    },
+    {
+      "account": "Café Wallet ☕",
+      "month": "2025-03",
+      "count": 1,
+      "total": "-23.75"
+    },
+    {
+      "account": "Café Wallet ☕",
+      "month": "2025-04",
+      "count": 1,
+      "total": "-23.75"
+    },
+    {
+      "account": "Café Wallet ☕",
+      "month": "2025-05",
+      "count": 1,
+      "total": "-23.75"
+    },
+    {
+      "account": "Café Wallet ☕",
+      "month": "2025-06",
+      "count": 1,
+      "total": "-23.75"
+    },
+    {
+      "account": "Café Wallet ☕",
+      "month": "2025-07",
+      "count": 1,
+      "total": "-23.75"
+    },
+    {
+      "account": "Café Wallet ☕",
+      "month": "2025-08",
+      "count": 1,
+      "total": "-23.75"
+    },
+    {
+      "account": "Café Wallet ☕",
+      "month": "2025-09",
+      "count": 1,
+      "total": "-23.75"
+    },
+    {
+      "account": "Café Wallet ☕",
+      "month": "2025-10",
+      "count": 1,
+      "total": "-23.75"
+    },
+    {
+      "account": "Café Wallet ☕",
+      "month": "2025-11",
+      "count": 2,
+      "total": "-109.95"
+    },
+    {
+      "account": "Café Wallet ☕",
+      "month": "2025-12",
+      "count": 1,
+      "total": "-23.75"
+    },
+    {
+      "account": "Café Wallet ☕",
+      "month": "2026-01",
+      "count": 1,
+      "total": "-23.75"
+    },
+    {
+      "account": "Café Wallet ☕",
+      "month": "2026-02",
+      "count": 1,
+      "total": "-23.75"
+    },
+    {
+      "account": "Café Wallet ☕",
+      "month": "2026-03",
+      "count": 2,
+      "total": "-28.25"
+    },
+    {
+      "account": "Café Wallet ☕",
+      "month": "2026-04",
+      "count": 1,
+      "total": "-23.75"
+    },
+    {
+      "account": "Café Wallet ☕",
+      "month": "2026-05",
+      "count": 1,
+      "total": "-23.75"
+    },
+    {
+      "account": "Café Wallet ☕",
+      "month": "2026-06",
+      "count": 1,
+      "total": "-23.75"
+    },
+    {
+      "account": "Café Wallet ☕",
+      "month": "2026-07",
+      "count": 1,
+      "total": "-23.75"
+    },
+    {
+      "account": "Café Wallet ☕",
+      "month": "2026-08",
+      "count": 1,
+      "total": "-23.75"
+    },
+    {
+      "account": "Car Loan",
+      "month": "2025-01",
+      "count": 3,
+      "total": "-11620.10"
+    },
+    {
+      "account": "Car Loan",
+      "month": "2025-02",
+      "count": 2,
+      "total": "379.90"
+    },
+    {
+      "account": "Car Loan",
+      "month": "2025-03",
+      "count": 2,
+      "total": "379.90"
+    },
+    {
+      "account": "Car Loan",
+      "month": "2025-04",
+      "count": 2,
+      "total": "379.90"
+    },
+    {
+      "account": "Car Loan",
+      "month": "2025-05",
+      "count": 2,
+      "total": "379.90"
+    },
+    {
+      "account": "Car Loan",
+      "month": "2025-06",
+      "count": 2,
+      "total": "379.90"
+    },
+    {
+      "account": "Car Loan",
+      "month": "2025-07",
+      "count": 2,
+      "total": "379.90"
+    },
+    {
+      "account": "Car Loan",
+      "month": "2025-08",
+      "count": 2,
+      "total": "379.90"
+    },
+    {
+      "account": "Car Loan",
+      "month": "2025-09",
+      "count": 2,
+      "total": "379.90"
+    },
+    {
+      "account": "Car Loan",
+      "month": "2025-10",
+      "count": 2,
+      "total": "379.90"
+    },
+    {
+      "account": "Car Loan",
+      "month": "2025-11",
+      "count": 2,
+      "total": "379.90"
+    },
+    {
+      "account": "Car Loan",
+      "month": "2025-12",
+      "count": 2,
+      "total": "379.90"
+    },
+    {
+      "account": "Car Loan",
+      "month": "2026-01",
+      "count": 2,
+      "total": "379.90"
+    },
+    {
+      "account": "Car Loan",
+      "month": "2026-02",
+      "count": 2,
+      "total": "379.90"
+    },
+    {
+      "account": "Car Loan",
+      "month": "2026-03",
+      "count": 2,
+      "total": "379.90"
+    },
+    {
+      "account": "Car Loan",
+      "month": "2026-04",
+      "count": 2,
+      "total": "379.90"
+    },
+    {
+      "account": "Car Loan",
+      "month": "2026-05",
+      "count": 2,
+      "total": "379.90"
+    },
+    {
+      "account": "Car Loan",
+      "month": "2026-06",
+      "count": 2,
+      "total": "379.90"
+    },
+    {
+      "account": "Car Loan",
+      "month": "2026-07",
+      "count": 2,
+      "total": "379.90"
+    },
+    {
+      "account": "Car Loan",
+      "month": "2026-08",
+      "count": 2,
+      "total": "379.90"
+    },
+    {
+      "account": "Everyday Checking",
+      "month": "2025-01",
+      "count": 9,
+      "total": "3624.55"
+    },
+    {
+      "account": "Everyday Checking",
+      "month": "2025-02",
+      "count": 8,
+      "total": "1377.18"
+    },
+    {
+      "account": "Everyday Checking",
+      "month": "2025-03",
+      "count": 8,
+      "total": "1169.81"
+    },
+    {
+      "account": "Everyday Checking",
+      "month": "2025-04",
+      "count": 7,
+      "total": "1417.44"
+    },
+    {
+      "account": "Everyday Checking",
+      "month": "2025-05",
+      "count": 8,
+      "total": "1165.07"
+    },
+    {
+      "account": "Everyday Checking",
+      "month": "2025-06",
+      "count": 8,
+      "total": "1809.90"
+    },
+    {
+      "account": "Everyday Checking",
+      "month": "2025-07",
+      "count": 8,
+      "total": "1160.33"
+    },
+    {
+      "account": "Everyday Checking",
+      "month": "2025-08",
+      "count": 7,
+      "total": "1407.96"
+    },
+    {
+      "account": "Everyday Checking",
+      "month": "2025-09",
+      "count": 8,
+      "total": "1155.59"
+    },
+    {
+      "account": "Everyday Checking",
+      "month": "2025-10",
+      "count": 7,
+      "total": "1403.22"
+    },
+    {
+      "account": "Everyday Checking",
+      "month": "2025-11",
+      "count": 8,
+      "total": "1150.85"
+    },
+    {
+      "account": "Everyday Checking",
+      "month": "2025-12",
+      "count": 7,
+      "total": "1398.48"
+    },
+    {
+      "account": "Everyday Checking",
+      "month": "2026-01",
+      "count": 8,
+      "total": "1146.11"
+    },
+    {
+      "account": "Everyday Checking",
+      "month": "2026-02",
+      "count": 7,
+      "total": "1393.74"
+    },
+    {
+      "account": "Everyday Checking",
+      "month": "2026-03",
+      "count": 8,
+      "total": "1141.37"
+    },
+    {
+      "account": "Everyday Checking",
+      "month": "2026-04",
+      "count": 8,
+      "total": "1371.00"
+    },
+    {
+      "account": "Everyday Checking",
+      "month": "2026-05",
+      "count": 8,
+      "total": "1136.63"
+    },
+    {
+      "account": "Everyday Checking",
+      "month": "2026-06",
+      "count": 7,
+      "total": "1384.26"
+    },
+    {
+      "account": "Everyday Checking",
+      "month": "2026-07",
+      "count": 8,
+      "total": "1131.89"
+    },
+    {
+      "account": "Everyday Checking",
+      "month": "2026-08",
+      "count": 7,
+      "total": "1379.52"
+    },
+    {
+      "account": "Old Joint Checking",
+      "month": "2025-01",
+      "count": 1,
+      "total": "500.00"
+    },
+    {
+      "account": "Old Joint Checking",
+      "month": "2025-02",
+      "count": 1,
+      "total": "-40.00"
+    },
+    {
+      "account": "Old Joint Checking",
+      "month": "2025-03",
+      "count": 1,
+      "total": "-62.80"
+    },
+    {
+      "account": "Old Joint Checking",
+      "month": "2025-06",
+      "count": 1,
+      "total": "-397.20"
+    },
+    {
+      "account": "Rainy Day Savings",
+      "month": "2025-01",
+      "count": 3,
+      "total": "8303.12"
+    },
+    {
+      "account": "Rainy Day Savings",
+      "month": "2025-02",
+      "count": 2,
+      "total": "303.12"
+    },
+    {
+      "account": "Rainy Day Savings",
+      "month": "2025-03",
+      "count": 2,
+      "total": "303.12"
+    },
+    {
+      "account": "Rainy Day Savings",
+      "month": "2025-04",
+      "count": 2,
+      "total": "303.12"
+    },
+    {
+      "account": "Rainy Day Savings",
+      "month": "2025-05",
+      "count": 2,
+      "total": "303.12"
+    },
+    {
+      "account": "Rainy Day Savings",
+      "month": "2025-06",
+      "count": 2,
+      "total": "303.12"
+    },
+    {
+      "account": "Rainy Day Savings",
+      "month": "2025-07",
+      "count": 2,
+      "total": "303.12"
+    },
+    {
+      "account": "Rainy Day Savings",
+      "month": "2025-08",
+      "count": 2,
+      "total": "303.12"
+    },
+    {
+      "account": "Rainy Day Savings",
+      "month": "2025-09",
+      "count": 2,
+      "total": "303.12"
+    },
+    {
+      "account": "Rainy Day Savings",
+      "month": "2025-10",
+      "count": 2,
+      "total": "303.12"
+    },
+    {
+      "account": "Rainy Day Savings",
+      "month": "2025-11",
+      "count": 2,
+      "total": "303.12"
+    },
+    {
+      "account": "Rainy Day Savings",
+      "month": "2025-12",
+      "count": 2,
+      "total": "303.12"
+    },
+    {
+      "account": "Rainy Day Savings",
+      "month": "2026-01",
+      "count": 2,
+      "total": "303.12"
+    },
+    {
+      "account": "Rainy Day Savings",
+      "month": "2026-02",
+      "count": 2,
+      "total": "303.12"
+    },
+    {
+      "account": "Rainy Day Savings",
+      "month": "2026-03",
+      "count": 2,
+      "total": "303.12"
+    },
+    {
+      "account": "Rainy Day Savings",
+      "month": "2026-04",
+      "count": 2,
+      "total": "303.12"
+    },
+    {
+      "account": "Rainy Day Savings",
+      "month": "2026-05",
+      "count": 2,
+      "total": "303.12"
+    },
+    {
+      "account": "Rainy Day Savings",
+      "month": "2026-06",
+      "count": 2,
+      "total": "303.12"
+    },
+    {
+      "account": "Rainy Day Savings",
+      "month": "2026-07",
+      "count": 2,
+      "total": "303.12"
+    },
+    {
+      "account": "Rainy Day Savings",
+      "month": "2026-08",
+      "count": 2,
+      "total": "303.12"
+    },
+    {
+      "account": "Visa Card",
+      "month": "2025-01",
+      "count": 3,
+      "total": "-214.35"
+    },
+    {
+      "account": "Visa Card",
+      "month": "2025-02",
+      "count": 4,
+      "total": "-14.10"
+    },
+    {
+      "account": "Visa Card",
+      "month": "2025-03",
+      "count": 2,
+      "total": "135.90"
+    },
+    {
+      "account": "Visa Card",
+      "month": "2025-04",
+      "count": 2,
+      "total": "135.90"
+    },
+    {
+      "account": "Visa Card",
+      "month": "2025-05",
+      "count": 4,
+      "total": "-14.10"
+    },
+    {
+      "account": "Visa Card",
+      "month": "2025-06",
+      "count": 2,
+      "total": "135.90"
+    },
+    {
+      "account": "Visa Card",
+      "month": "2025-07",
+      "count": 3,
+      "total": "-476.50"
+    },
+    {
+      "account": "Visa Card",
+      "month": "2025-08",
+      "count": 5,
+      "total": "20.90"
+    },
+    {
+      "account": "Visa Card",
+      "month": "2025-09",
+      "count": 2,
+      "total": "135.90"
+    },
+    {
+      "account": "Visa Card",
+      "month": "2025-10",
+      "count": 2,
+      "total": "135.90"
+    },
+    {
+      "account": "Visa Card",
+      "month": "2025-11",
+      "count": 4,
+      "total": "-14.10"
+    },
+    {
+      "account": "Visa Card",
+      "month": "2025-12",
+      "count": 2,
+      "total": "135.90"
+    },
+    {
+      "account": "Visa Card",
+      "month": "2026-01",
+      "count": 2,
+      "total": "135.90"
+    },
+    {
+      "account": "Visa Card",
+      "month": "2026-02",
+      "count": 4,
+      "total": "-14.10"
+    },
+    {
+      "account": "Visa Card",
+      "month": "2026-03",
+      "count": 2,
+      "total": "135.90"
+    },
+    {
+      "account": "Visa Card",
+      "month": "2026-04",
+      "count": 2,
+      "total": "135.90"
+    },
+    {
+      "account": "Visa Card",
+      "month": "2026-05",
+      "count": 4,
+      "total": "-14.10"
+    },
+    {
+      "account": "Visa Card",
+      "month": "2026-06",
+      "count": 2,
+      "total": "135.90"
+    },
+    {
+      "account": "Visa Card",
+      "month": "2026-07",
+      "count": 2,
+      "total": "135.90"
+    },
+    {
+      "account": "Visa Card",
+      "month": "2026-08",
+      "count": 4,
+      "total": "-14.10"
+    }
+  ],
+  "categoryMonths": [
+    {
+      "category": "",
+      "month": "2025-01",
+      "total": "0.00"
+    },
+    {
+      "category": "",
+      "month": "2025-02",
+      "total": "0.00"
+    },
+    {
+      "category": "",
+      "month": "2025-03",
+      "total": "0.00"
+    },
+    {
+      "category": "",
+      "month": "2025-04",
+      "total": "0.00"
+    },
+    {
+      "category": "",
+      "month": "2025-05",
+      "total": "0.00"
+    },
+    {
+      "category": "",
+      "month": "2025-06",
+      "total": "0.00"
+    },
+    {
+      "category": "",
+      "month": "2025-07",
+      "total": "0.00"
+    },
+    {
+      "category": "",
+      "month": "2025-08",
+      "total": "0.00"
+    },
+    {
+      "category": "",
+      "month": "2025-09",
+      "total": "0.00"
+    },
+    {
+      "category": "",
+      "month": "2025-10",
+      "total": "0.00"
+    },
+    {
+      "category": "",
+      "month": "2025-11",
+      "total": "0.00"
+    },
+    {
+      "category": "",
+      "month": "2025-12",
+      "total": "0.00"
+    },
+    {
+      "category": "",
+      "month": "2026-01",
+      "total": "0.00"
+    },
+    {
+      "category": "",
+      "month": "2026-02",
+      "total": "0.00"
+    },
+    {
+      "category": "",
+      "month": "2026-03",
+      "total": "0.00"
+    },
+    {
+      "category": "",
+      "month": "2026-04",
+      "total": "-18.00"
+    },
+    {
+      "category": "",
+      "month": "2026-05",
+      "total": "0.00"
+    },
+    {
+      "category": "",
+      "month": "2026-06",
+      "total": "0.00"
+    },
+    {
+      "category": "",
+      "month": "2026-07",
+      "total": "0.00"
+    },
+    {
+      "category": "",
+      "month": "2026-08",
+      "total": "0.00"
+    },
+    {
+      "category": "Café & Snacks",
+      "month": "2026-03",
+      "total": "-4.50"
+    },
+    {
+      "category": "Car Payment",
+      "month": "2025-01",
+      "total": "-425.00"
+    },
+    {
+      "category": "Car Payment",
+      "month": "2025-02",
+      "total": "-425.00"
+    },
+    {
+      "category": "Car Payment",
+      "month": "2025-03",
+      "total": "-425.00"
+    },
+    {
+      "category": "Car Payment",
+      "month": "2025-04",
+      "total": "-425.00"
+    },
+    {
+      "category": "Car Payment",
+      "month": "2025-05",
+      "total": "-425.00"
+    },
+    {
+      "category": "Car Payment",
+      "month": "2025-06",
+      "total": "-425.00"
+    },
+    {
+      "category": "Car Payment",
+      "month": "2025-07",
+      "total": "-425.00"
+    },
+    {
+      "category": "Car Payment",
+      "month": "2025-08",
+      "total": "-425.00"
+    },
+    {
+      "category": "Car Payment",
+      "month": "2025-09",
+      "total": "-425.00"
+    },
+    {
+      "category": "Car Payment",
+      "month": "2025-10",
+      "total": "-425.00"
+    },
+    {
+      "category": "Car Payment",
+      "month": "2025-11",
+      "total": "-425.00"
+    },
+    {
+      "category": "Car Payment",
+      "month": "2025-12",
+      "total": "-425.00"
+    },
+    {
+      "category": "Car Payment",
+      "month": "2026-01",
+      "total": "-425.00"
+    },
+    {
+      "category": "Car Payment",
+      "month": "2026-02",
+      "total": "-425.00"
+    },
+    {
+      "category": "Car Payment",
+      "month": "2026-03",
+      "total": "-425.00"
+    },
+    {
+      "category": "Car Payment",
+      "month": "2026-04",
+      "total": "-425.00"
+    },
+    {
+      "category": "Car Payment",
+      "month": "2026-05",
+      "total": "-425.00"
+    },
+    {
+      "category": "Car Payment",
+      "month": "2026-06",
+      "total": "-425.00"
+    },
+    {
+      "category": "Car Payment",
+      "month": "2026-07",
+      "total": "-425.00"
+    },
+    {
+      "category": "Car Payment",
+      "month": "2026-08",
+      "total": "-425.00"
+    },
+    {
+      "category": "Dining Out",
+      "month": "2025-01",
+      "total": "-23.75"
+    },
+    {
+      "category": "Dining Out",
+      "month": "2025-02",
+      "total": "-23.75"
+    },
+    {
+      "category": "Dining Out",
+      "month": "2025-03",
+      "total": "-23.75"
+    },
+    {
+      "category": "Dining Out",
+      "month": "2025-04",
+      "total": "-23.75"
+    },
+    {
+      "category": "Dining Out",
+      "month": "2025-05",
+      "total": "-23.75"
+    },
+    {
+      "category": "Dining Out",
+      "month": "2025-06",
+      "total": "-23.75"
+    },
+    {
+      "category": "Dining Out",
+      "month": "2025-07",
+      "total": "-23.75"
+    },
+    {
+      "category": "Dining Out",
+      "month": "2025-08",
+      "total": "-23.75"
+    },
+    {
+      "category": "Dining Out",
+      "month": "2025-09",
+      "total": "-23.75"
+    },
+    {
+      "category": "Dining Out",
+      "month": "2025-10",
+      "total": "-23.75"
+    },
+    {
+      "category": "Dining Out",
+      "month": "2025-11",
+      "total": "-109.95"
+    },
+    {
+      "category": "Dining Out",
+      "month": "2025-12",
+      "total": "-23.75"
+    },
+    {
+      "category": "Dining Out",
+      "month": "2026-01",
+      "total": "-23.75"
+    },
+    {
+      "category": "Dining Out",
+      "month": "2026-02",
+      "total": "-23.75"
+    },
+    {
+      "category": "Dining Out",
+      "month": "2026-03",
+      "total": "-23.75"
+    },
+    {
+      "category": "Dining Out",
+      "month": "2026-04",
+      "total": "-23.75"
+    },
+    {
+      "category": "Dining Out",
+      "month": "2026-05",
+      "total": "-23.75"
+    },
+    {
+      "category": "Dining Out",
+      "month": "2026-06",
+      "total": "-23.75"
+    },
+    {
+      "category": "Dining Out",
+      "month": "2026-07",
+      "total": "-23.75"
+    },
+    {
+      "category": "Dining Out",
+      "month": "2026-08",
+      "total": "-23.75"
+    },
+    {
+      "category": "Groceries",
+      "month": "2025-01",
+      "total": "-184.55"
+    },
+    {
+      "category": "Groceries",
+      "month": "2025-02",
+      "total": "-225.55"
+    },
+    {
+      "category": "Groceries",
+      "month": "2025-03",
+      "total": "-249.35"
+    },
+    {
+      "category": "Groceries",
+      "month": "2025-04",
+      "total": "-187.55"
+    },
+    {
+      "category": "Groceries",
+      "month": "2025-05",
+      "total": "-188.55"
+    },
+    {
+      "category": "Groceries",
+      "month": "2025-06",
+      "total": "-189.55"
+    },
+    {
+      "category": "Groceries",
+      "month": "2025-07",
+      "total": "-190.55"
+    },
+    {
+      "category": "Groceries",
+      "month": "2025-08",
+      "total": "-191.55"
+    },
+    {
+      "category": "Groceries",
+      "month": "2025-09",
+      "total": "-192.55"
+    },
+    {
+      "category": "Groceries",
+      "month": "2025-10",
+      "total": "-193.55"
+    },
+    {
+      "category": "Groceries",
+      "month": "2025-11",
+      "total": "-194.55"
+    },
+    {
+      "category": "Groceries",
+      "month": "2025-12",
+      "total": "-195.55"
+    },
+    {
+      "category": "Groceries",
+      "month": "2026-01",
+      "total": "-196.55"
+    },
+    {
+      "category": "Groceries",
+      "month": "2026-02",
+      "total": "-197.55"
+    },
+    {
+      "category": "Groceries",
+      "month": "2026-03",
+      "total": "-198.55"
+    },
+    {
+      "category": "Groceries",
+      "month": "2026-04",
+      "total": "-199.55"
+    },
+    {
+      "category": "Groceries",
+      "month": "2026-05",
+      "total": "-200.55"
+    },
+    {
+      "category": "Groceries",
+      "month": "2026-06",
+      "total": "-201.55"
+    },
+    {
+      "category": "Groceries",
+      "month": "2026-07",
+      "total": "-202.55"
+    },
+    {
+      "category": "Groceries",
+      "month": "2026-08",
+      "total": "-203.55"
+    },
+    {
+      "category": "Hobbies",
+      "month": "2025-02",
+      "total": "-100.00"
+    },
+    {
+      "category": "Hobbies",
+      "month": "2025-05",
+      "total": "-100.00"
+    },
+    {
+      "category": "Hobbies",
+      "month": "2025-08",
+      "total": "-65.00"
+    },
+    {
+      "category": "Hobbies",
+      "month": "2025-11",
+      "total": "-100.00"
+    },
+    {
+      "category": "Hobbies",
+      "month": "2026-02",
+      "total": "-100.00"
+    },
+    {
+      "category": "Hobbies",
+      "month": "2026-05",
+      "total": "-100.00"
+    },
+    {
+      "category": "Hobbies",
+      "month": "2026-08",
+      "total": "-100.00"
+    },
+    {
+      "category": "Interest",
+      "month": "2025-01",
+      "total": "3.12"
+    },
+    {
+      "category": "Interest",
+      "month": "2025-02",
+      "total": "3.12"
+    },
+    {
+      "category": "Interest",
+      "month": "2025-03",
+      "total": "3.12"
+    },
+    {
+      "category": "Interest",
+      "month": "2025-04",
+      "total": "3.12"
+    },
+    {
+      "category": "Interest",
+      "month": "2025-05",
+      "total": "3.12"
+    },
+    {
+      "category": "Interest",
+      "month": "2025-06",
+      "total": "3.12"
+    },
+    {
+      "category": "Interest",
+      "month": "2025-07",
+      "total": "3.12"
+    },
+    {
+      "category": "Interest",
+      "month": "2025-08",
+      "total": "3.12"
+    },
+    {
+      "category": "Interest",
+      "month": "2025-09",
+      "total": "3.12"
+    },
+    {
+      "category": "Interest",
+      "month": "2025-10",
+      "total": "3.12"
+    },
+    {
+      "category": "Interest",
+      "month": "2025-11",
+      "total": "3.12"
+    },
+    {
+      "category": "Interest",
+      "month": "2025-12",
+      "total": "3.12"
+    },
+    {
+      "category": "Interest",
+      "month": "2026-01",
+      "total": "3.12"
+    },
+    {
+      "category": "Interest",
+      "month": "2026-02",
+      "total": "3.12"
+    },
+    {
+      "category": "Interest",
+      "month": "2026-03",
+      "total": "3.12"
+    },
+    {
+      "category": "Interest",
+      "month": "2026-04",
+      "total": "3.12"
+    },
+    {
+      "category": "Interest",
+      "month": "2026-05",
+      "total": "3.12"
+    },
+    {
+      "category": "Interest",
+      "month": "2026-06",
+      "total": "3.12"
+    },
+    {
+      "category": "Interest",
+      "month": "2026-07",
+      "total": "3.12"
+    },
+    {
+      "category": "Interest",
+      "month": "2026-08",
+      "total": "3.12"
+    },
+    {
+      "category": "Investing",
+      "month": "2025-01",
+      "total": "-250.00"
+    },
+    {
+      "category": "Investing",
+      "month": "2025-03",
+      "total": "-250.00"
+    },
+    {
+      "category": "Investing",
+      "month": "2025-05",
+      "total": "-250.00"
+    },
+    {
+      "category": "Investing",
+      "month": "2025-07",
+      "total": "-250.00"
+    },
+    {
+      "category": "Investing",
+      "month": "2025-09",
+      "total": "-250.00"
+    },
+    {
+      "category": "Investing",
+      "month": "2025-11",
+      "total": "-250.00"
+    },
+    {
+      "category": "Investing",
+      "month": "2026-01",
+      "total": "-250.00"
+    },
+    {
+      "category": "Investing",
+      "month": "2026-03",
+      "total": "-250.00"
+    },
+    {
+      "category": "Investing",
+      "month": "2026-05",
+      "total": "-250.00"
+    },
+    {
+      "category": "Investing",
+      "month": "2026-07",
+      "total": "-250.00"
+    },
+    {
+      "category": "Old Hobby",
+      "month": "2025-02",
+      "total": "-45.00"
+    },
+    {
+      "category": "Rent",
+      "month": "2025-01",
+      "total": "-1650.00"
+    },
+    {
+      "category": "Rent",
+      "month": "2025-02",
+      "total": "-1650.00"
+    },
+    {
+      "category": "Rent",
+      "month": "2025-03",
+      "total": "-1650.00"
+    },
+    {
+      "category": "Rent",
+      "month": "2025-04",
+      "total": "-1650.00"
+    },
+    {
+      "category": "Rent",
+      "month": "2025-05",
+      "total": "-1650.00"
+    },
+    {
+      "category": "Rent",
+      "month": "2025-06",
+      "total": "-1650.00"
+    },
+    {
+      "category": "Rent",
+      "month": "2025-07",
+      "total": "-1650.00"
+    },
+    {
+      "category": "Rent",
+      "month": "2025-08",
+      "total": "-1650.00"
+    },
+    {
+      "category": "Rent",
+      "month": "2025-09",
+      "total": "-1650.00"
+    },
+    {
+      "category": "Rent",
+      "month": "2025-10",
+      "total": "-1650.00"
+    },
+    {
+      "category": "Rent",
+      "month": "2025-11",
+      "total": "-1650.00"
+    },
+    {
+      "category": "Rent",
+      "month": "2025-12",
+      "total": "-1650.00"
+    },
+    {
+      "category": "Rent",
+      "month": "2026-01",
+      "total": "-1650.00"
+    },
+    {
+      "category": "Rent",
+      "month": "2026-02",
+      "total": "-1650.00"
+    },
+    {
+      "category": "Rent",
+      "month": "2026-03",
+      "total": "-1650.00"
+    },
+    {
+      "category": "Rent",
+      "month": "2026-04",
+      "total": "-1650.00"
+    },
+    {
+      "category": "Rent",
+      "month": "2026-05",
+      "total": "-1650.00"
+    },
+    {
+      "category": "Rent",
+      "month": "2026-06",
+      "total": "-1650.00"
+    },
+    {
+      "category": "Rent",
+      "month": "2026-07",
+      "total": "-1650.00"
+    },
+    {
+      "category": "Rent",
+      "month": "2026-08",
+      "total": "-1650.00"
+    },
+    {
+      "category": "Salary",
+      "month": "2025-01",
+      "total": "4200.00"
+    },
+    {
+      "category": "Salary",
+      "month": "2025-02",
+      "total": "4200.00"
+    },
+    {
+      "category": "Salary",
+      "month": "2025-03",
+      "total": "4200.00"
+    },
+    {
+      "category": "Salary",
+      "month": "2025-04",
+      "total": "4200.00"
+    },
+    {
+      "category": "Salary",
+      "month": "2025-05",
+      "total": "4200.00"
+    },
+    {
+      "category": "Salary",
+      "month": "2025-06",
+      "total": "4200.00"
+    },
+    {
+      "category": "Salary",
+      "month": "2025-07",
+      "total": "4200.00"
+    },
+    {
+      "category": "Salary",
+      "month": "2025-08",
+      "total": "4200.00"
+    },
+    {
+      "category": "Salary",
+      "month": "2025-09",
+      "total": "4200.00"
+    },
+    {
+      "category": "Salary",
+      "month": "2025-10",
+      "total": "4200.00"
+    },
+    {
+      "category": "Salary",
+      "month": "2025-11",
+      "total": "4200.00"
+    },
+    {
+      "category": "Salary",
+      "month": "2025-12",
+      "total": "4200.00"
+    },
+    {
+      "category": "Salary",
+      "month": "2026-01",
+      "total": "4200.00"
+    },
+    {
+      "category": "Salary",
+      "month": "2026-02",
+      "total": "4200.00"
+    },
+    {
+      "category": "Salary",
+      "month": "2026-03",
+      "total": "4200.00"
+    },
+    {
+      "category": "Salary",
+      "month": "2026-04",
+      "total": "4200.00"
+    },
+    {
+      "category": "Salary",
+      "month": "2026-05",
+      "total": "4200.00"
+    },
+    {
+      "category": "Salary",
+      "month": "2026-06",
+      "total": "4200.00"
+    },
+    {
+      "category": "Salary",
+      "month": "2026-07",
+      "total": "4200.00"
+    },
+    {
+      "category": "Salary",
+      "month": "2026-08",
+      "total": "4200.00"
+    },
+    {
+      "category": "Starting Balances",
+      "month": "2025-01",
+      "total": "10659.75"
+    },
+    {
+      "category": "Travel",
+      "month": "2025-07",
+      "total": "-612.40"
+    },
+    {
+      "category": "Utilities",
+      "month": "2025-01",
+      "total": "-80.00"
+    },
+    {
+      "category": "Utilities",
+      "month": "2025-02",
+      "total": "-131.37"
+    },
+    {
+      "category": "Utilities",
+      "month": "2025-03",
+      "total": "-82.74"
+    },
+    {
+      "category": "Utilities",
+      "month": "2025-04",
+      "total": "-84.11"
+    },
+    {
+      "category": "Utilities",
+      "month": "2025-05",
+      "total": "-135.48"
+    },
+    {
+      "category": "Utilities",
+      "month": "2025-06",
+      "total": "-86.85"
+    },
+    {
+      "category": "Utilities",
+      "month": "2025-07",
+      "total": "-88.22"
+    },
+    {
+      "category": "Utilities",
+      "month": "2025-08",
+      "total": "-139.59"
+    },
+    {
+      "category": "Utilities",
+      "month": "2025-09",
+      "total": "-90.96"
+    },
+    {
+      "category": "Utilities",
+      "month": "2025-10",
+      "total": "-92.33"
+    },
+    {
+      "category": "Utilities",
+      "month": "2025-11",
+      "total": "-143.70"
+    },
+    {
+      "category": "Utilities",
+      "month": "2025-12",
+      "total": "-95.07"
+    },
+    {
+      "category": "Utilities",
+      "month": "2026-01",
+      "total": "-96.44"
+    },
+    {
+      "category": "Utilities",
+      "month": "2026-02",
+      "total": "-147.81"
+    },
+    {
+      "category": "Utilities",
+      "month": "2026-03",
+      "total": "-99.18"
+    },
+    {
+      "category": "Utilities",
+      "month": "2026-04",
+      "total": "-100.55"
+    },
+    {
+      "category": "Utilities",
+      "month": "2026-05",
+      "total": "-151.92"
+    },
+    {
+      "category": "Utilities",
+      "month": "2026-06",
+      "total": "-103.29"
+    },
+    {
+      "category": "Utilities",
+      "month": "2026-07",
+      "total": "-104.66"
+    },
+    {
+      "category": "Utilities",
+      "month": "2026-08",
+      "total": "-156.03"
+    }
+  ],
+  "budgets": [
+    {
+      "category": "Car Payment",
+      "isIncome": false,
+      "month": "2025-01",
+      "budgeted": "425.00",
+      "carryover": false
+    },
+    {
+      "category": "Dining Out",
+      "isIncome": false,
+      "month": "2025-01",
+      "budgeted": "120.00",
+      "carryover": false
+    },
+    {
+      "category": "Groceries",
+      "isIncome": false,
+      "month": "2025-01",
+      "budgeted": "450.00",
+      "carryover": false
+    },
+    {
+      "category": "Hobbies",
+      "isIncome": false,
+      "month": "2025-01",
+      "budgeted": "80.00",
+      "carryover": false
+    },
+    {
+      "category": "Investing",
+      "isIncome": false,
+      "month": "2025-01",
+      "budgeted": "250.00",
+      "carryover": false
+    },
+    {
+      "category": "Old Hobby",
+      "isIncome": false,
+      "month": "2025-01",
+      "budgeted": "40.00",
+      "carryover": false
+    },
+    {
+      "category": "Rent",
+      "isIncome": false,
+      "month": "2025-01",
+      "budgeted": "1650.00",
+      "carryover": false
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2025-01",
+      "budgeted": "150.00",
+      "carryover": true
+    },
+    {
+      "category": "Utilities",
+      "isIncome": false,
+      "month": "2025-01",
+      "budgeted": "110.00",
+      "carryover": false
+    },
+    {
+      "category": "Car Payment",
+      "isIncome": false,
+      "month": "2025-02",
+      "budgeted": "425.00",
+      "carryover": false
+    },
+    {
+      "category": "Dining Out",
+      "isIncome": false,
+      "month": "2025-02",
+      "budgeted": "120.00",
+      "carryover": false
+    },
+    {
+      "category": "Groceries",
+      "isIncome": false,
+      "month": "2025-02",
+      "budgeted": "450.00",
+      "carryover": false
+    },
+    {
+      "category": "Hobbies",
+      "isIncome": false,
+      "month": "2025-02",
+      "budgeted": "80.00",
+      "carryover": false
+    },
+    {
+      "category": "Rent",
+      "isIncome": false,
+      "month": "2025-02",
+      "budgeted": "1650.00",
+      "carryover": false
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2025-02",
+      "budgeted": "150.00",
+      "carryover": true
+    },
+    {
+      "category": "Utilities",
+      "isIncome": false,
+      "month": "2025-02",
+      "budgeted": "110.00",
+      "carryover": false
+    },
+    {
+      "category": "Car Payment",
+      "isIncome": false,
+      "month": "2025-03",
+      "budgeted": "425.00",
+      "carryover": false
+    },
+    {
+      "category": "Dining Out",
+      "isIncome": false,
+      "month": "2025-03",
+      "budgeted": "120.00",
+      "carryover": false
+    },
+    {
+      "category": "Groceries",
+      "isIncome": false,
+      "month": "2025-03",
+      "budgeted": "450.00",
+      "carryover": false
+    },
+    {
+      "category": "Hobbies",
+      "isIncome": false,
+      "month": "2025-03",
+      "budgeted": "80.00",
+      "carryover": false
+    },
+    {
+      "category": "Investing",
+      "isIncome": false,
+      "month": "2025-03",
+      "budgeted": "250.00",
+      "carryover": false
+    },
+    {
+      "category": "Rent",
+      "isIncome": false,
+      "month": "2025-03",
+      "budgeted": "1650.00",
+      "carryover": false
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2025-03",
+      "budgeted": "150.00",
+      "carryover": true
+    },
+    {
+      "category": "Utilities",
+      "isIncome": false,
+      "month": "2025-03",
+      "budgeted": "110.00",
+      "carryover": false
+    },
+    {
+      "category": "Car Payment",
+      "isIncome": false,
+      "month": "2025-04",
+      "budgeted": "425.00",
+      "carryover": false
+    },
+    {
+      "category": "Dining Out",
+      "isIncome": false,
+      "month": "2025-04",
+      "budgeted": "120.00",
+      "carryover": false
+    },
+    {
+      "category": "Groceries",
+      "isIncome": false,
+      "month": "2025-04",
+      "budgeted": "450.00",
+      "carryover": false
+    },
+    {
+      "category": "Hobbies",
+      "isIncome": false,
+      "month": "2025-04",
+      "budgeted": "80.00",
+      "carryover": false
+    },
+    {
+      "category": "Rent",
+      "isIncome": false,
+      "month": "2025-04",
+      "budgeted": "1650.00",
+      "carryover": false
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2025-04",
+      "budgeted": "150.00",
+      "carryover": true
+    },
+    {
+      "category": "Utilities",
+      "isIncome": false,
+      "month": "2025-04",
+      "budgeted": "110.00",
+      "carryover": false
+    },
+    {
+      "category": "Car Payment",
+      "isIncome": false,
+      "month": "2025-05",
+      "budgeted": "425.00",
+      "carryover": false
+    },
+    {
+      "category": "Dining Out",
+      "isIncome": false,
+      "month": "2025-05",
+      "budgeted": "120.00",
+      "carryover": false
+    },
+    {
+      "category": "Groceries",
+      "isIncome": false,
+      "month": "2025-05",
+      "budgeted": "450.00",
+      "carryover": false
+    },
+    {
+      "category": "Hobbies",
+      "isIncome": false,
+      "month": "2025-05",
+      "budgeted": "80.00",
+      "carryover": false
+    },
+    {
+      "category": "Investing",
+      "isIncome": false,
+      "month": "2025-05",
+      "budgeted": "250.00",
+      "carryover": false
+    },
+    {
+      "category": "Rent",
+      "isIncome": false,
+      "month": "2025-05",
+      "budgeted": "1650.00",
+      "carryover": false
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2025-05",
+      "budgeted": "150.00",
+      "carryover": true
+    },
+    {
+      "category": "Utilities",
+      "isIncome": false,
+      "month": "2025-05",
+      "budgeted": "110.00",
+      "carryover": false
+    },
+    {
+      "category": "Car Payment",
+      "isIncome": false,
+      "month": "2025-06",
+      "budgeted": "425.00",
+      "carryover": false
+    },
+    {
+      "category": "Dining Out",
+      "isIncome": false,
+      "month": "2025-06",
+      "budgeted": "120.00",
+      "carryover": false
+    },
+    {
+      "category": "Groceries",
+      "isIncome": false,
+      "month": "2025-06",
+      "budgeted": "450.00",
+      "carryover": false
+    },
+    {
+      "category": "Hobbies",
+      "isIncome": false,
+      "month": "2025-06",
+      "budgeted": "80.00",
+      "carryover": false
+    },
+    {
+      "category": "Rent",
+      "isIncome": false,
+      "month": "2025-06",
+      "budgeted": "1650.00",
+      "carryover": false
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2025-06",
+      "budgeted": "150.00",
+      "carryover": true
+    },
+    {
+      "category": "Utilities",
+      "isIncome": false,
+      "month": "2025-06",
+      "budgeted": "110.00",
+      "carryover": false
+    },
+    {
+      "category": "Car Payment",
+      "isIncome": false,
+      "month": "2025-07",
+      "budgeted": "425.00",
+      "carryover": false
+    },
+    {
+      "category": "Dining Out",
+      "isIncome": false,
+      "month": "2025-07",
+      "budgeted": "120.00",
+      "carryover": false
+    },
+    {
+      "category": "Groceries",
+      "isIncome": false,
+      "month": "2025-07",
+      "budgeted": "450.00",
+      "carryover": false
+    },
+    {
+      "category": "Investing",
+      "isIncome": false,
+      "month": "2025-07",
+      "budgeted": "250.00",
+      "carryover": false
+    },
+    {
+      "category": "Rent",
+      "isIncome": false,
+      "month": "2025-07",
+      "budgeted": "1650.00",
+      "carryover": false
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2025-07",
+      "budgeted": "150.00",
+      "carryover": true
+    },
+    {
+      "category": "Utilities",
+      "isIncome": false,
+      "month": "2025-07",
+      "budgeted": "110.00",
+      "carryover": false
+    },
+    {
+      "category": "Car Payment",
+      "isIncome": false,
+      "month": "2025-08",
+      "budgeted": "425.00",
+      "carryover": false
+    },
+    {
+      "category": "Dining Out",
+      "isIncome": false,
+      "month": "2025-08",
+      "budgeted": "120.00",
+      "carryover": false
+    },
+    {
+      "category": "Groceries",
+      "isIncome": false,
+      "month": "2025-08",
+      "budgeted": "450.00",
+      "carryover": false
+    },
+    {
+      "category": "Rent",
+      "isIncome": false,
+      "month": "2025-08",
+      "budgeted": "1650.00",
+      "carryover": false
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2025-08",
+      "budgeted": "150.00",
+      "carryover": true
+    },
+    {
+      "category": "Utilities",
+      "isIncome": false,
+      "month": "2025-08",
+      "budgeted": "110.00",
+      "carryover": false
+    },
+    {
+      "category": "Car Payment",
+      "isIncome": false,
+      "month": "2025-09",
+      "budgeted": "425.00",
+      "carryover": false
+    },
+    {
+      "category": "Dining Out",
+      "isIncome": false,
+      "month": "2025-09",
+      "budgeted": "120.00",
+      "carryover": false
+    },
+    {
+      "category": "Groceries",
+      "isIncome": false,
+      "month": "2025-09",
+      "budgeted": "450.00",
+      "carryover": false
+    },
+    {
+      "category": "Hobbies",
+      "isIncome": false,
+      "month": "2025-09",
+      "budgeted": "80.00",
+      "carryover": false
+    },
+    {
+      "category": "Investing",
+      "isIncome": false,
+      "month": "2025-09",
+      "budgeted": "250.00",
+      "carryover": false
+    },
+    {
+      "category": "Rent",
+      "isIncome": false,
+      "month": "2025-09",
+      "budgeted": "1650.00",
+      "carryover": false
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2025-09",
+      "budgeted": "150.00",
+      "carryover": true
+    },
+    {
+      "category": "Utilities",
+      "isIncome": false,
+      "month": "2025-09",
+      "budgeted": "110.00",
+      "carryover": false
+    },
+    {
+      "category": "Car Payment",
+      "isIncome": false,
+      "month": "2025-10",
+      "budgeted": "425.00",
+      "carryover": false
+    },
+    {
+      "category": "Dining Out",
+      "isIncome": false,
+      "month": "2025-10",
+      "budgeted": "120.00",
+      "carryover": false
+    },
+    {
+      "category": "Groceries",
+      "isIncome": false,
+      "month": "2025-10",
+      "budgeted": "450.00",
+      "carryover": false
+    },
+    {
+      "category": "Hobbies",
+      "isIncome": false,
+      "month": "2025-10",
+      "budgeted": "80.00",
+      "carryover": false
+    },
+    {
+      "category": "Rent",
+      "isIncome": false,
+      "month": "2025-10",
+      "budgeted": "1650.00",
+      "carryover": false
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2025-10",
+      "budgeted": "150.00",
+      "carryover": true
+    },
+    {
+      "category": "Utilities",
+      "isIncome": false,
+      "month": "2025-10",
+      "budgeted": "110.00",
+      "carryover": false
+    },
+    {
+      "category": "Car Payment",
+      "isIncome": false,
+      "month": "2025-11",
+      "budgeted": "425.00",
+      "carryover": false
+    },
+    {
+      "category": "Dining Out",
+      "isIncome": false,
+      "month": "2025-11",
+      "budgeted": "120.00",
+      "carryover": false
+    },
+    {
+      "category": "Groceries",
+      "isIncome": false,
+      "month": "2025-11",
+      "budgeted": "450.00",
+      "carryover": false
+    },
+    {
+      "category": "Hobbies",
+      "isIncome": false,
+      "month": "2025-11",
+      "budgeted": "80.00",
+      "carryover": false
+    },
+    {
+      "category": "Investing",
+      "isIncome": false,
+      "month": "2025-11",
+      "budgeted": "250.00",
+      "carryover": false
+    },
+    {
+      "category": "Rent",
+      "isIncome": false,
+      "month": "2025-11",
+      "budgeted": "1650.00",
+      "carryover": false
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2025-11",
+      "budgeted": "150.00",
+      "carryover": true
+    },
+    {
+      "category": "Utilities",
+      "isIncome": false,
+      "month": "2025-11",
+      "budgeted": "110.00",
+      "carryover": false
+    },
+    {
+      "category": "Car Payment",
+      "isIncome": false,
+      "month": "2025-12",
+      "budgeted": "425.00",
+      "carryover": false
+    },
+    {
+      "category": "Dining Out",
+      "isIncome": false,
+      "month": "2025-12",
+      "budgeted": "120.00",
+      "carryover": false
+    },
+    {
+      "category": "Groceries",
+      "isIncome": false,
+      "month": "2025-12",
+      "budgeted": "450.00",
+      "carryover": false
+    },
+    {
+      "category": "Hobbies",
+      "isIncome": false,
+      "month": "2025-12",
+      "budgeted": "80.00",
+      "carryover": false
+    },
+    {
+      "category": "Rent",
+      "isIncome": false,
+      "month": "2025-12",
+      "budgeted": "1650.00",
+      "carryover": false
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2025-12",
+      "budgeted": "150.00",
+      "carryover": true
+    },
+    {
+      "category": "Utilities",
+      "isIncome": false,
+      "month": "2025-12",
+      "budgeted": "110.00",
+      "carryover": false
+    },
+    {
+      "category": "Car Payment",
+      "isIncome": false,
+      "month": "2026-01",
+      "budgeted": "425.00",
+      "carryover": false
+    },
+    {
+      "category": "Dining Out",
+      "isIncome": false,
+      "month": "2026-01",
+      "budgeted": "120.00",
+      "carryover": false
+    },
+    {
+      "category": "Groceries",
+      "isIncome": false,
+      "month": "2026-01",
+      "budgeted": "450.00",
+      "carryover": false
+    },
+    {
+      "category": "Hobbies",
+      "isIncome": false,
+      "month": "2026-01",
+      "budgeted": "80.00",
+      "carryover": false
+    },
+    {
+      "category": "Investing",
+      "isIncome": false,
+      "month": "2026-01",
+      "budgeted": "250.00",
+      "carryover": false
+    },
+    {
+      "category": "Rent",
+      "isIncome": false,
+      "month": "2026-01",
+      "budgeted": "1650.00",
+      "carryover": false
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2026-01",
+      "budgeted": "150.00",
+      "carryover": true
+    },
+    {
+      "category": "Utilities",
+      "isIncome": false,
+      "month": "2026-01",
+      "budgeted": "110.00",
+      "carryover": false
+    },
+    {
+      "category": "Car Payment",
+      "isIncome": false,
+      "month": "2026-02",
+      "budgeted": "425.00",
+      "carryover": false
+    },
+    {
+      "category": "Dining Out",
+      "isIncome": false,
+      "month": "2026-02",
+      "budgeted": "120.00",
+      "carryover": false
+    },
+    {
+      "category": "Groceries",
+      "isIncome": false,
+      "month": "2026-02",
+      "budgeted": "450.00",
+      "carryover": false
+    },
+    {
+      "category": "Hobbies",
+      "isIncome": false,
+      "month": "2026-02",
+      "budgeted": "80.00",
+      "carryover": false
+    },
+    {
+      "category": "Rent",
+      "isIncome": false,
+      "month": "2026-02",
+      "budgeted": "1650.00",
+      "carryover": false
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2026-02",
+      "budgeted": "150.00",
+      "carryover": true
+    },
+    {
+      "category": "Utilities",
+      "isIncome": false,
+      "month": "2026-02",
+      "budgeted": "110.00",
+      "carryover": false
+    },
+    {
+      "category": "Car Payment",
+      "isIncome": false,
+      "month": "2026-03",
+      "budgeted": "425.00",
+      "carryover": false
+    },
+    {
+      "category": "Dining Out",
+      "isIncome": false,
+      "month": "2026-03",
+      "budgeted": "120.00",
+      "carryover": false
+    },
+    {
+      "category": "Groceries",
+      "isIncome": false,
+      "month": "2026-03",
+      "budgeted": "450.00",
+      "carryover": false
+    },
+    {
+      "category": "Hobbies",
+      "isIncome": false,
+      "month": "2026-03",
+      "budgeted": "80.00",
+      "carryover": false
+    },
+    {
+      "category": "Investing",
+      "isIncome": false,
+      "month": "2026-03",
+      "budgeted": "250.00",
+      "carryover": false
+    },
+    {
+      "category": "Rent",
+      "isIncome": false,
+      "month": "2026-03",
+      "budgeted": "1650.00",
+      "carryover": false
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2026-03",
+      "budgeted": "150.00",
+      "carryover": true
+    },
+    {
+      "category": "Utilities",
+      "isIncome": false,
+      "month": "2026-03",
+      "budgeted": "110.00",
+      "carryover": false
+    },
+    {
+      "category": "Car Payment",
+      "isIncome": false,
+      "month": "2026-04",
+      "budgeted": "425.00",
+      "carryover": false
+    },
+    {
+      "category": "Dining Out",
+      "isIncome": false,
+      "month": "2026-04",
+      "budgeted": "120.00",
+      "carryover": false
+    },
+    {
+      "category": "Groceries",
+      "isIncome": false,
+      "month": "2026-04",
+      "budgeted": "450.00",
+      "carryover": false
+    },
+    {
+      "category": "Hobbies",
+      "isIncome": false,
+      "month": "2026-04",
+      "budgeted": "80.00",
+      "carryover": false
+    },
+    {
+      "category": "Rent",
+      "isIncome": false,
+      "month": "2026-04",
+      "budgeted": "1650.00",
+      "carryover": false
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2026-04",
+      "budgeted": "150.00",
+      "carryover": true
+    },
+    {
+      "category": "Utilities",
+      "isIncome": false,
+      "month": "2026-04",
+      "budgeted": "110.00",
+      "carryover": false
+    },
+    {
+      "category": "Car Payment",
+      "isIncome": false,
+      "month": "2026-05",
+      "budgeted": "425.00",
+      "carryover": false
+    },
+    {
+      "category": "Dining Out",
+      "isIncome": false,
+      "month": "2026-05",
+      "budgeted": "120.00",
+      "carryover": false
+    },
+    {
+      "category": "Groceries",
+      "isIncome": false,
+      "month": "2026-05",
+      "budgeted": "450.00",
+      "carryover": false
+    },
+    {
+      "category": "Hobbies",
+      "isIncome": false,
+      "month": "2026-05",
+      "budgeted": "80.00",
+      "carryover": false
+    },
+    {
+      "category": "Investing",
+      "isIncome": false,
+      "month": "2026-05",
+      "budgeted": "250.00",
+      "carryover": false
+    },
+    {
+      "category": "Rent",
+      "isIncome": false,
+      "month": "2026-05",
+      "budgeted": "1650.00",
+      "carryover": false
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2026-05",
+      "budgeted": "150.00",
+      "carryover": true
+    },
+    {
+      "category": "Utilities",
+      "isIncome": false,
+      "month": "2026-05",
+      "budgeted": "110.00",
+      "carryover": false
+    },
+    {
+      "category": "Car Payment",
+      "isIncome": false,
+      "month": "2026-06",
+      "budgeted": "425.00",
+      "carryover": false
+    },
+    {
+      "category": "Dining Out",
+      "isIncome": false,
+      "month": "2026-06",
+      "budgeted": "120.00",
+      "carryover": false
+    },
+    {
+      "category": "Groceries",
+      "isIncome": false,
+      "month": "2026-06",
+      "budgeted": "450.00",
+      "carryover": false
+    },
+    {
+      "category": "Hobbies",
+      "isIncome": false,
+      "month": "2026-06",
+      "budgeted": "80.00",
+      "carryover": false
+    },
+    {
+      "category": "Rent",
+      "isIncome": false,
+      "month": "2026-06",
+      "budgeted": "1650.00",
+      "carryover": false
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2026-06",
+      "budgeted": "150.00",
+      "carryover": true
+    },
+    {
+      "category": "Utilities",
+      "isIncome": false,
+      "month": "2026-06",
+      "budgeted": "110.00",
+      "carryover": false
+    },
+    {
+      "category": "Car Payment",
+      "isIncome": false,
+      "month": "2026-07",
+      "budgeted": "425.00",
+      "carryover": false
+    },
+    {
+      "category": "Dining Out",
+      "isIncome": false,
+      "month": "2026-07",
+      "budgeted": "120.00",
+      "carryover": false
+    },
+    {
+      "category": "Groceries",
+      "isIncome": false,
+      "month": "2026-07",
+      "budgeted": "450.00",
+      "carryover": false
+    },
+    {
+      "category": "Investing",
+      "isIncome": false,
+      "month": "2026-07",
+      "budgeted": "250.00",
+      "carryover": false
+    },
+    {
+      "category": "Rent",
+      "isIncome": false,
+      "month": "2026-07",
+      "budgeted": "1650.00",
+      "carryover": false
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2026-07",
+      "budgeted": "150.00",
+      "carryover": true
+    },
+    {
+      "category": "Utilities",
+      "isIncome": false,
+      "month": "2026-07",
+      "budgeted": "110.00",
+      "carryover": false
+    },
+    {
+      "category": "Car Payment",
+      "isIncome": false,
+      "month": "2026-08",
+      "budgeted": "425.00",
+      "carryover": false
+    },
+    {
+      "category": "Dining Out",
+      "isIncome": false,
+      "month": "2026-08",
+      "budgeted": "120.00",
+      "carryover": false
+    },
+    {
+      "category": "Groceries",
+      "isIncome": false,
+      "month": "2026-08",
+      "budgeted": "450.00",
+      "carryover": false
+    },
+    {
+      "category": "Rent",
+      "isIncome": false,
+      "month": "2026-08",
+      "budgeted": "1650.00",
+      "carryover": false
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2026-08",
+      "budgeted": "150.00",
+      "carryover": true
+    },
+    {
+      "category": "Utilities",
+      "isIncome": false,
+      "month": "2026-08",
+      "budgeted": "110.00",
+      "carryover": false
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2026-09",
+      "budgeted": "0.00",
+      "carryover": true
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2026-10",
+      "budgeted": "0.00",
+      "carryover": true
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2026-11",
+      "budgeted": "0.00",
+      "carryover": true
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2026-12",
+      "budgeted": "0.00",
+      "carryover": true
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2027-01",
+      "budgeted": "0.00",
+      "carryover": true
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2027-02",
+      "budgeted": "0.00",
+      "carryover": true
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2027-03",
+      "budgeted": "0.00",
+      "carryover": true
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2027-04",
+      "budgeted": "0.00",
+      "carryover": true
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2027-05",
+      "budgeted": "0.00",
+      "carryover": true
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2027-06",
+      "budgeted": "0.00",
+      "carryover": true
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2027-07",
+      "budgeted": "0.00",
+      "carryover": true
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2027-08",
+      "budgeted": "0.00",
+      "carryover": true
+    },
+    {
+      "category": "Travel",
+      "isIncome": false,
+      "month": "2027-09",
+      "budgeted": "0.00",
+      "carryover": true
+    }
+  ],
+  "transfers": [
+    {
+      "date": "2026-08-20",
+      "from": "Everyday Checking",
+      "to": "Visa Card",
+      "amount": "200.00",
+      "category": null
+    },
+    {
+      "date": "2026-08-15",
+      "from": "Everyday Checking",
+      "to": "Rainy Day Savings",
+      "amount": "300.00",
+      "category": null
+    },
+    {
+      "date": "2026-08-05",
+      "from": "Everyday Checking",
+      "to": "Car Loan",
+      "amount": "425.00",
+      "category": "Car Payment"
+    },
+    {
+      "date": "2026-07-25",
+      "from": "Everyday Checking",
+      "to": "Brokerage",
+      "amount": "250.00",
+      "category": "Investing"
+    },
+    {
+      "date": "2026-07-20",
+      "from": "Everyday Checking",
+      "to": "Visa Card",
+      "amount": "200.00",
+      "category": null
+    },
+    {
+      "date": "2026-07-15",
+      "from": "Everyday Checking",
+      "to": "Rainy Day Savings",
+      "amount": "300.00",
+      "category": null
+    },
+    {
+      "date": "2026-07-05",
+      "from": "Everyday Checking",
+      "to": "Car Loan",
+      "amount": "425.00",
+      "category": "Car Payment"
+    },
+    {
+      "date": "2026-06-20",
+      "from": "Everyday Checking",
+      "to": "Visa Card",
+      "amount": "200.00",
+      "category": null
+    },
+    {
+      "date": "2026-06-15",
+      "from": "Everyday Checking",
+      "to": "Rainy Day Savings",
+      "amount": "300.00",
+      "category": null
+    },
+    {
+      "date": "2026-06-05",
+      "from": "Everyday Checking",
+      "to": "Car Loan",
+      "amount": "425.00",
+      "category": "Car Payment"
+    },
+    {
+      "date": "2026-05-25",
+      "from": "Everyday Checking",
+      "to": "Brokerage",
+      "amount": "250.00",
+      "category": "Investing"
+    },
+    {
+      "date": "2026-05-20",
+      "from": "Everyday Checking",
+      "to": "Visa Card",
+      "amount": "200.00",
+      "category": null
+    },
+    {
+      "date": "2026-05-15",
+      "from": "Everyday Checking",
+      "to": "Rainy Day Savings",
+      "amount": "300.00",
+      "category": null
+    },
+    {
+      "date": "2026-05-05",
+      "from": "Everyday Checking",
+      "to": "Car Loan",
+      "amount": "425.00",
+      "category": "Car Payment"
+    },
+    {
+      "date": "2026-04-20",
+      "from": "Everyday Checking",
+      "to": "Visa Card",
+      "amount": "200.00",
+      "category": null
+    },
+    {
+      "date": "2026-04-15",
+      "from": "Everyday Checking",
+      "to": "Rainy Day Savings",
+      "amount": "300.00",
+      "category": null
+    },
+    {
+      "date": "2026-04-05",
+      "from": "Everyday Checking",
+      "to": "Car Loan",
+      "amount": "425.00",
+      "category": "Car Payment"
+    },
+    {
+      "date": "2026-03-25",
+      "from": "Everyday Checking",
+      "to": "Brokerage",
+      "amount": "250.00",
+      "category": "Investing"
+    },
+    {
+      "date": "2026-03-20",
+      "from": "Everyday Checking",
+      "to": "Visa Card",
+      "amount": "200.00",
+      "category": null
+    },
+    {
+      "date": "2026-03-15",
+      "from": "Everyday Checking",
+      "to": "Rainy Day Savings",
+      "amount": "300.00",
+      "category": null
+    },
+    {
+      "date": "2026-03-05",
+      "from": "Everyday Checking",
+      "to": "Car Loan",
+      "amount": "425.00",
+      "category": "Car Payment"
+    },
+    {
+      "date": "2026-02-20",
+      "from": "Everyday Checking",
+      "to": "Visa Card",
+      "amount": "200.00",
+      "category": null
+    },
+    {
+      "date": "2026-02-15",
+      "from": "Everyday Checking",
+      "to": "Rainy Day Savings",
+      "amount": "300.00",
+      "category": null
+    },
+    {
+      "date": "2026-02-05",
+      "from": "Everyday Checking",
+      "to": "Car Loan",
+      "amount": "425.00",
+      "category": "Car Payment"
+    },
+    {
+      "date": "2026-01-25",
+      "from": "Everyday Checking",
+      "to": "Brokerage",
+      "amount": "250.00",
+      "category": "Investing"
+    },
+    {
+      "date": "2026-01-20",
+      "from": "Everyday Checking",
+      "to": "Visa Card",
+      "amount": "200.00",
+      "category": null
+    },
+    {
+      "date": "2026-01-15",
+      "from": "Everyday Checking",
+      "to": "Rainy Day Savings",
+      "amount": "300.00",
+      "category": null
+    },
+    {
+      "date": "2026-01-05",
+      "from": "Everyday Checking",
+      "to": "Car Loan",
+      "amount": "425.00",
+      "category": "Car Payment"
+    },
+    {
+      "date": "2025-12-20",
+      "from": "Everyday Checking",
+      "to": "Visa Card",
+      "amount": "200.00",
+      "category": null
+    },
+    {
+      "date": "2025-12-15",
+      "from": "Everyday Checking",
+      "to": "Rainy Day Savings",
+      "amount": "300.00",
+      "category": null
+    },
+    {
+      "date": "2025-12-05",
+      "from": "Everyday Checking",
+      "to": "Car Loan",
+      "amount": "425.00",
+      "category": "Car Payment"
+    },
+    {
+      "date": "2025-11-25",
+      "from": "Everyday Checking",
+      "to": "Brokerage",
+      "amount": "250.00",
+      "category": "Investing"
+    },
+    {
+      "date": "2025-11-20",
+      "from": "Everyday Checking",
+      "to": "Visa Card",
+      "amount": "200.00",
+      "category": null
+    },
+    {
+      "date": "2025-11-15",
+      "from": "Everyday Checking",
+      "to": "Rainy Day Savings",
+      "amount": "300.00",
+      "category": null
+    },
+    {
+      "date": "2025-11-05",
+      "from": "Everyday Checking",
+      "to": "Car Loan",
+      "amount": "425.00",
+      "category": "Car Payment"
+    },
+    {
+      "date": "2025-10-20",
+      "from": "Everyday Checking",
+      "to": "Visa Card",
+      "amount": "200.00",
+      "category": null
+    },
+    {
+      "date": "2025-10-15",
+      "from": "Everyday Checking",
+      "to": "Rainy Day Savings",
+      "amount": "300.00",
+      "category": null
+    },
+    {
+      "date": "2025-10-05",
+      "from": "Everyday Checking",
+      "to": "Car Loan",
+      "amount": "425.00",
+      "category": "Car Payment"
+    },
+    {
+      "date": "2025-09-25",
+      "from": "Everyday Checking",
+      "to": "Brokerage",
+      "amount": "250.00",
+      "category": "Investing"
+    },
+    {
+      "date": "2025-09-20",
+      "from": "Everyday Checking",
+      "to": "Visa Card",
+      "amount": "200.00",
+      "category": null
+    },
+    {
+      "date": "2025-09-15",
+      "from": "Everyday Checking",
+      "to": "Rainy Day Savings",
+      "amount": "300.00",
+      "category": null
+    },
+    {
+      "date": "2025-09-05",
+      "from": "Everyday Checking",
+      "to": "Car Loan",
+      "amount": "425.00",
+      "category": "Car Payment"
+    },
+    {
+      "date": "2025-08-20",
+      "from": "Everyday Checking",
+      "to": "Visa Card",
+      "amount": "200.00",
+      "category": null
+    },
+    {
+      "date": "2025-08-15",
+      "from": "Everyday Checking",
+      "to": "Rainy Day Savings",
+      "amount": "300.00",
+      "category": null
+    },
+    {
+      "date": "2025-08-05",
+      "from": "Everyday Checking",
+      "to": "Car Loan",
+      "amount": "425.00",
+      "category": "Car Payment"
+    },
+    {
+      "date": "2025-07-25",
+      "from": "Everyday Checking",
+      "to": "Brokerage",
+      "amount": "250.00",
+      "category": "Investing"
+    },
+    {
+      "date": "2025-07-20",
+      "from": "Everyday Checking",
+      "to": "Visa Card",
+      "amount": "200.00",
+      "category": null
+    },
+    {
+      "date": "2025-07-15",
+      "from": "Everyday Checking",
+      "to": "Rainy Day Savings",
+      "amount": "300.00",
+      "category": null
+    },
+    {
+      "date": "2025-07-05",
+      "from": "Everyday Checking",
+      "to": "Car Loan",
+      "amount": "425.00",
+      "category": "Car Payment"
+    },
+    {
+      "date": "2025-06-20",
+      "from": "Everyday Checking",
+      "to": "Visa Card",
+      "amount": "200.00",
+      "category": null
+    },
+    {
+      "date": "2025-06-15",
+      "from": "Everyday Checking",
+      "to": "Rainy Day Savings",
+      "amount": "300.00",
+      "category": null
+    },
+    {
+      "date": "2025-06-05",
+      "from": "Everyday Checking",
+      "to": "Car Loan",
+      "amount": "425.00",
+      "category": "Car Payment"
+    },
+    {
+      "date": "2025-05-25",
+      "from": "Everyday Checking",
+      "to": "Brokerage",
+      "amount": "250.00",
+      "category": "Investing"
+    },
+    {
+      "date": "2025-05-20",
+      "from": "Everyday Checking",
+      "to": "Visa Card",
+      "amount": "200.00",
+      "category": null
+    },
+    {
+      "date": "2025-05-15",
+      "from": "Everyday Checking",
+      "to": "Rainy Day Savings",
+      "amount": "300.00",
+      "category": null
+    },
+    {
+      "date": "2025-05-05",
+      "from": "Everyday Checking",
+      "to": "Car Loan",
+      "amount": "425.00",
+      "category": "Car Payment"
+    },
+    {
+      "date": "2025-04-20",
+      "from": "Everyday Checking",
+      "to": "Visa Card",
+      "amount": "200.00",
+      "category": null
+    },
+    {
+      "date": "2025-04-15",
+      "from": "Everyday Checking",
+      "to": "Rainy Day Savings",
+      "amount": "300.00",
+      "category": null
+    },
+    {
+      "date": "2025-04-05",
+      "from": "Everyday Checking",
+      "to": "Car Loan",
+      "amount": "425.00",
+      "category": "Car Payment"
+    },
+    {
+      "date": "2025-03-25",
+      "from": "Everyday Checking",
+      "to": "Brokerage",
+      "amount": "250.00",
+      "category": "Investing"
+    },
+    {
+      "date": "2025-03-20",
+      "from": "Everyday Checking",
+      "to": "Visa Card",
+      "amount": "200.00",
+      "category": null
+    },
+    {
+      "date": "2025-03-15",
+      "from": "Everyday Checking",
+      "to": "Rainy Day Savings",
+      "amount": "300.00",
+      "category": null
+    },
+    {
+      "date": "2025-03-05",
+      "from": "Everyday Checking",
+      "to": "Car Loan",
+      "amount": "425.00",
+      "category": "Car Payment"
+    },
+    {
+      "date": "2025-02-20",
+      "from": "Everyday Checking",
+      "to": "Visa Card",
+      "amount": "200.00",
+      "category": null
+    },
+    {
+      "date": "2025-02-15",
+      "from": "Everyday Checking",
+      "to": "Rainy Day Savings",
+      "amount": "300.00",
+      "category": null
+    },
+    {
+      "date": "2025-02-05",
+      "from": "Everyday Checking",
+      "to": "Car Loan",
+      "amount": "425.00",
+      "category": "Car Payment"
+    },
+    {
+      "date": "2025-01-25",
+      "from": "Everyday Checking",
+      "to": "Brokerage",
+      "amount": "250.00",
+      "category": "Investing"
+    },
+    {
+      "date": "2025-01-20",
+      "from": "Everyday Checking",
+      "to": "Visa Card",
+      "amount": "200.00",
+      "category": null
+    },
+    {
+      "date": "2025-01-15",
+      "from": "Everyday Checking",
+      "to": "Rainy Day Savings",
+      "amount": "300.00",
+      "category": null
+    },
+    {
+      "date": "2025-01-05",
+      "from": "Everyday Checking",
+      "to": "Car Loan",
+      "amount": "425.00",
+      "category": "Car Payment"
+    },
+    {
+      "date": "2025-06-30",
+      "from": "Old Joint Checking",
+      "to": "Everyday Checking",
+      "amount": "397.20",
+      "category": null
+    }
+  ],
+  "afterAsOf": [
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-11-01",
+      "amount": "-99.00",
+      "payee": "Gym",
+      "category": "Hobbies",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2027-01-10",
+      "amount": "-12.00",
+      "payee": "Gym",
+      "category": "Hobbies",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    }
+  ],
+  "rows": [
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2026-08-28",
+      "amount": "212.34",
+      "payee": "Market Movement",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2026-07-28",
+      "amount": "-140.50",
+      "payee": "Market Movement",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2026-07-25",
+      "amount": "250.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2026-06-28",
+      "amount": "212.34",
+      "payee": "Market Movement",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2026-06-01",
+      "amount": "125000.00",
+      "payee": "Market Movement",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": "Inheritance transferred in kind"
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2026-05-28",
+      "amount": "212.34",
+      "payee": "Market Movement",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2026-05-25",
+      "amount": "250.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2026-04-28",
+      "amount": "-140.50",
+      "payee": "Market Movement",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2026-03-28",
+      "amount": "212.34",
+      "payee": "Market Movement",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2026-03-25",
+      "amount": "250.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2026-02-28",
+      "amount": "212.34",
+      "payee": "Market Movement",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2026-01-28",
+      "amount": "-140.50",
+      "payee": "Market Movement",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2026-01-25",
+      "amount": "250.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2025-12-28",
+      "amount": "212.34",
+      "payee": "Market Movement",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2025-11-28",
+      "amount": "212.34",
+      "payee": "Market Movement",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2025-11-25",
+      "amount": "250.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2025-10-28",
+      "amount": "-140.50",
+      "payee": "Market Movement",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2025-09-28",
+      "amount": "212.34",
+      "payee": "Market Movement",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2025-09-25",
+      "amount": "250.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2025-08-28",
+      "amount": "212.34",
+      "payee": "Market Movement",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2025-07-28",
+      "amount": "-140.50",
+      "payee": "Market Movement",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2025-07-25",
+      "amount": "250.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2025-06-28",
+      "amount": "212.34",
+      "payee": "Market Movement",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2025-05-28",
+      "amount": "212.34",
+      "payee": "Market Movement",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2025-05-25",
+      "amount": "250.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2025-04-28",
+      "amount": "-140.50",
+      "payee": "Market Movement",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2025-03-28",
+      "amount": "212.34",
+      "payee": "Market Movement",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2025-03-25",
+      "amount": "250.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2025-02-28",
+      "amount": "212.34",
+      "payee": "Market Movement",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2025-01-28",
+      "amount": "-140.50",
+      "payee": "Market Movement",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2025-01-25",
+      "amount": "250.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Brokerage",
+      "offBudget": true,
+      "date": "2025-01-01",
+      "amount": "15000.00",
+      "payee": "Starting Balance",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": true,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-08-20",
+      "amount": "-200.00",
+      "payee": "Visa Card",
+      "category": null,
+      "transferTo": "Visa Card",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-08-15",
+      "amount": "-300.00",
+      "payee": "Rainy Day Savings",
+      "category": null,
+      "transferTo": "Rainy Day Savings",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-08-12",
+      "amount": "-106.03",
+      "payee": "Hydro Ottawa",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-08-07",
+      "amount": "-139.45",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-08-05",
+      "amount": "-425.00",
+      "payee": "Car Loan",
+      "category": "Car Payment",
+      "transferTo": "Car Loan",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-08-01",
+      "amount": "4200.00",
+      "payee": "Acme Corp",
+      "category": "Salary",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-08-01",
+      "amount": "-1650.00",
+      "payee": "Landlord Co",
+      "category": "Rent",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-07-25",
+      "amount": "-250.00",
+      "payee": "Brokerage",
+      "category": "Investing",
+      "transferTo": "Brokerage",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-07-20",
+      "amount": "-200.00",
+      "payee": "Visa Card",
+      "category": null,
+      "transferTo": "Visa Card",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-07-15",
+      "amount": "-300.00",
+      "payee": "Rainy Day Savings",
+      "category": null,
+      "transferTo": "Rainy Day Savings",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-07-12",
+      "amount": "-104.66",
+      "payee": "Hydro Ottawa",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-07-07",
+      "amount": "-138.45",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-07-05",
+      "amount": "-425.00",
+      "payee": "Car Loan",
+      "category": "Car Payment",
+      "transferTo": "Car Loan",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-07-01",
+      "amount": "4200.00",
+      "payee": "Acme Corp",
+      "category": "Salary",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-07-01",
+      "amount": "-1650.00",
+      "payee": "Landlord Co",
+      "category": "Rent",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-06-20",
+      "amount": "-200.00",
+      "payee": "Visa Card",
+      "category": null,
+      "transferTo": "Visa Card",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-06-15",
+      "amount": "-300.00",
+      "payee": "Rainy Day Savings",
+      "category": null,
+      "transferTo": "Rainy Day Savings",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-06-12",
+      "amount": "-103.29",
+      "payee": "Hydro Ottawa",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-06-07",
+      "amount": "-137.45",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-06-05",
+      "amount": "-425.00",
+      "payee": "Car Loan",
+      "category": "Car Payment",
+      "transferTo": "Car Loan",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-06-01",
+      "amount": "4200.00",
+      "payee": "Acme Corp",
+      "category": "Salary",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-06-01",
+      "amount": "-1650.00",
+      "payee": "Landlord Co",
+      "category": "Rent",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-05-25",
+      "amount": "-250.00",
+      "payee": "Brokerage",
+      "category": "Investing",
+      "transferTo": "Brokerage",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-05-20",
+      "amount": "-200.00",
+      "payee": "Visa Card",
+      "category": null,
+      "transferTo": "Visa Card",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-05-15",
+      "amount": "-300.00",
+      "payee": "Rainy Day Savings",
+      "category": null,
+      "transferTo": "Rainy Day Savings",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-05-12",
+      "amount": "-101.92",
+      "payee": "Hydro Ottawa",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-05-07",
+      "amount": "-136.45",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-05-05",
+      "amount": "-425.00",
+      "payee": "Car Loan",
+      "category": "Car Payment",
+      "transferTo": "Car Loan",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-05-01",
+      "amount": "4200.00",
+      "payee": "Acme Corp",
+      "category": "Salary",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-05-01",
+      "amount": "-1650.00",
+      "payee": "Landlord Co",
+      "category": "Rent",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-04-20",
+      "amount": "-200.00",
+      "payee": "Visa Card",
+      "category": null,
+      "transferTo": "Visa Card",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-04-19",
+      "amount": "-18.00",
+      "payee": "Parking Meter",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-04-15",
+      "amount": "-300.00",
+      "payee": "Rainy Day Savings",
+      "category": null,
+      "transferTo": "Rainy Day Savings",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-04-12",
+      "amount": "-100.55",
+      "payee": "Hydro Ottawa",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-04-07",
+      "amount": "-135.45",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-04-05",
+      "amount": "-425.00",
+      "payee": "Car Loan",
+      "category": "Car Payment",
+      "transferTo": "Car Loan",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-04-01",
+      "amount": "4200.00",
+      "payee": "Acme Corp",
+      "category": "Salary",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-04-01",
+      "amount": "-1650.00",
+      "payee": "Landlord Co",
+      "category": "Rent",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-03-25",
+      "amount": "-250.00",
+      "payee": "Brokerage",
+      "category": "Investing",
+      "transferTo": "Brokerage",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-03-20",
+      "amount": "-200.00",
+      "payee": "Visa Card",
+      "category": null,
+      "transferTo": "Visa Card",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-03-15",
+      "amount": "-300.00",
+      "payee": "Rainy Day Savings",
+      "category": null,
+      "transferTo": "Rainy Day Savings",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-03-12",
+      "amount": "-99.18",
+      "payee": "Hydro Ottawa",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-03-07",
+      "amount": "-134.45",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-03-05",
+      "amount": "-425.00",
+      "payee": "Car Loan",
+      "category": "Car Payment",
+      "transferTo": "Car Loan",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-03-01",
+      "amount": "4200.00",
+      "payee": "Acme Corp",
+      "category": "Salary",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-03-01",
+      "amount": "-1650.00",
+      "payee": "Landlord Co",
+      "category": "Rent",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-02-20",
+      "amount": "-200.00",
+      "payee": "Visa Card",
+      "category": null,
+      "transferTo": "Visa Card",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-02-15",
+      "amount": "-300.00",
+      "payee": "Rainy Day Savings",
+      "category": null,
+      "transferTo": "Rainy Day Savings",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-02-12",
+      "amount": "-97.81",
+      "payee": "Hydro Ottawa",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-02-07",
+      "amount": "-133.45",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-02-05",
+      "amount": "-425.00",
+      "payee": "Car Loan",
+      "category": "Car Payment",
+      "transferTo": "Car Loan",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-02-01",
+      "amount": "4200.00",
+      "payee": "Acme Corp",
+      "category": "Salary",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-02-01",
+      "amount": "-1650.00",
+      "payee": "Landlord Co",
+      "category": "Rent",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-01-25",
+      "amount": "-250.00",
+      "payee": "Brokerage",
+      "category": "Investing",
+      "transferTo": "Brokerage",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-01-20",
+      "amount": "-200.00",
+      "payee": "Visa Card",
+      "category": null,
+      "transferTo": "Visa Card",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-01-15",
+      "amount": "-300.00",
+      "payee": "Rainy Day Savings",
+      "category": null,
+      "transferTo": "Rainy Day Savings",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-01-12",
+      "amount": "-96.44",
+      "payee": "Hydro Ottawa",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-01-07",
+      "amount": "-132.45",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-01-05",
+      "amount": "-425.00",
+      "payee": "Car Loan",
+      "category": "Car Payment",
+      "transferTo": "Car Loan",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-01-01",
+      "amount": "4200.00",
+      "payee": "Acme Corp",
+      "category": "Salary",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2026-01-01",
+      "amount": "-1650.00",
+      "payee": "Landlord Co",
+      "category": "Rent",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-12-20",
+      "amount": "-200.00",
+      "payee": "Visa Card",
+      "category": null,
+      "transferTo": "Visa Card",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-12-15",
+      "amount": "-300.00",
+      "payee": "Rainy Day Savings",
+      "category": null,
+      "transferTo": "Rainy Day Savings",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-12-12",
+      "amount": "-95.07",
+      "payee": "Hydro Ottawa",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-12-07",
+      "amount": "-131.45",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-12-05",
+      "amount": "-425.00",
+      "payee": "Car Loan",
+      "category": "Car Payment",
+      "transferTo": "Car Loan",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-12-01",
+      "amount": "4200.00",
+      "payee": "Acme Corp",
+      "category": "Salary",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-12-01",
+      "amount": "-1650.00",
+      "payee": "Landlord Co",
+      "category": "Rent",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-11-25",
+      "amount": "-250.00",
+      "payee": "Brokerage",
+      "category": "Investing",
+      "transferTo": "Brokerage",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-11-20",
+      "amount": "-200.00",
+      "payee": "Visa Card",
+      "category": null,
+      "transferTo": "Visa Card",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-11-15",
+      "amount": "-300.00",
+      "payee": "Rainy Day Savings",
+      "category": null,
+      "transferTo": "Rainy Day Savings",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-11-12",
+      "amount": "-93.70",
+      "payee": "Hydro Ottawa",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-11-07",
+      "amount": "-130.45",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-11-05",
+      "amount": "-425.00",
+      "payee": "Car Loan",
+      "category": "Car Payment",
+      "transferTo": "Car Loan",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-11-01",
+      "amount": "4200.00",
+      "payee": "Acme Corp",
+      "category": "Salary",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-11-01",
+      "amount": "-1650.00",
+      "payee": "Landlord Co",
+      "category": "Rent",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-10-20",
+      "amount": "-200.00",
+      "payee": "Visa Card",
+      "category": null,
+      "transferTo": "Visa Card",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-10-15",
+      "amount": "-300.00",
+      "payee": "Rainy Day Savings",
+      "category": null,
+      "transferTo": "Rainy Day Savings",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-10-12",
+      "amount": "-92.33",
+      "payee": "Hydro Ottawa",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-10-07",
+      "amount": "-129.45",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-10-05",
+      "amount": "-425.00",
+      "payee": "Car Loan",
+      "category": "Car Payment",
+      "transferTo": "Car Loan",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-10-01",
+      "amount": "4200.00",
+      "payee": "Acme Corp",
+      "category": "Salary",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-10-01",
+      "amount": "-1650.00",
+      "payee": "Landlord Co",
+      "category": "Rent",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-09-25",
+      "amount": "-250.00",
+      "payee": "Brokerage",
+      "category": "Investing",
+      "transferTo": "Brokerage",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-09-20",
+      "amount": "-200.00",
+      "payee": "Visa Card",
+      "category": null,
+      "transferTo": "Visa Card",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-09-15",
+      "amount": "-300.00",
+      "payee": "Rainy Day Savings",
+      "category": null,
+      "transferTo": "Rainy Day Savings",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-09-12",
+      "amount": "-90.96",
+      "payee": "Hydro Ottawa",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-09-07",
+      "amount": "-128.45",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-09-05",
+      "amount": "-425.00",
+      "payee": "Car Loan",
+      "category": "Car Payment",
+      "transferTo": "Car Loan",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-09-01",
+      "amount": "4200.00",
+      "payee": "Acme Corp",
+      "category": "Salary",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-09-01",
+      "amount": "-1650.00",
+      "payee": "Landlord Co",
+      "category": "Rent",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-08-20",
+      "amount": "-200.00",
+      "payee": "Visa Card",
+      "category": null,
+      "transferTo": "Visa Card",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-08-15",
+      "amount": "-300.00",
+      "payee": "Rainy Day Savings",
+      "category": null,
+      "transferTo": "Rainy Day Savings",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-08-12",
+      "amount": "-89.59",
+      "payee": "Hydro Ottawa",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-08-07",
+      "amount": "-127.45",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-08-05",
+      "amount": "-425.00",
+      "payee": "Car Loan",
+      "category": "Car Payment",
+      "transferTo": "Car Loan",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-08-01",
+      "amount": "4200.00",
+      "payee": "Acme Corp",
+      "category": "Salary",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-08-01",
+      "amount": "-1650.00",
+      "payee": "Landlord Co",
+      "category": "Rent",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-07-25",
+      "amount": "-250.00",
+      "payee": "Brokerage",
+      "category": "Investing",
+      "transferTo": "Brokerage",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-07-20",
+      "amount": "-200.00",
+      "payee": "Visa Card",
+      "category": null,
+      "transferTo": "Visa Card",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-07-15",
+      "amount": "-300.00",
+      "payee": "Rainy Day Savings",
+      "category": null,
+      "transferTo": "Rainy Day Savings",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-07-12",
+      "amount": "-88.22",
+      "payee": "Hydro Ottawa",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-07-07",
+      "amount": "-126.45",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-07-05",
+      "amount": "-425.00",
+      "payee": "Car Loan",
+      "category": "Car Payment",
+      "transferTo": "Car Loan",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-07-01",
+      "amount": "4200.00",
+      "payee": "Acme Corp",
+      "category": "Salary",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-07-01",
+      "amount": "-1650.00",
+      "payee": "Landlord Co",
+      "category": "Rent",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-06-30",
+      "amount": "397.20",
+      "payee": "Old Joint Checking",
+      "category": null,
+      "transferTo": "Old Joint Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-06-20",
+      "amount": "-200.00",
+      "payee": "Visa Card",
+      "category": null,
+      "transferTo": "Visa Card",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-06-15",
+      "amount": "-300.00",
+      "payee": "Rainy Day Savings",
+      "category": null,
+      "transferTo": "Rainy Day Savings",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-06-12",
+      "amount": "-86.85",
+      "payee": "Hydro Ottawa",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-06-07",
+      "amount": "-125.45",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-06-05",
+      "amount": "-425.00",
+      "payee": "Car Loan",
+      "category": "Car Payment",
+      "transferTo": "Car Loan",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-06-01",
+      "amount": "4200.00",
+      "payee": "Acme Corp",
+      "category": "Salary",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-06-01",
+      "amount": "-1650.00",
+      "payee": "Landlord Co",
+      "category": "Rent",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-05-25",
+      "amount": "-250.00",
+      "payee": "Brokerage",
+      "category": "Investing",
+      "transferTo": "Brokerage",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-05-20",
+      "amount": "-200.00",
+      "payee": "Visa Card",
+      "category": null,
+      "transferTo": "Visa Card",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-05-15",
+      "amount": "-300.00",
+      "payee": "Rainy Day Savings",
+      "category": null,
+      "transferTo": "Rainy Day Savings",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-05-12",
+      "amount": "-85.48",
+      "payee": "Hydro Ottawa",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-05-07",
+      "amount": "-124.45",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-05-05",
+      "amount": "-425.00",
+      "payee": "Car Loan",
+      "category": "Car Payment",
+      "transferTo": "Car Loan",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-05-01",
+      "amount": "4200.00",
+      "payee": "Acme Corp",
+      "category": "Salary",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-05-01",
+      "amount": "-1650.00",
+      "payee": "Landlord Co",
+      "category": "Rent",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-04-20",
+      "amount": "-200.00",
+      "payee": "Visa Card",
+      "category": null,
+      "transferTo": "Visa Card",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-04-15",
+      "amount": "-300.00",
+      "payee": "Rainy Day Savings",
+      "category": null,
+      "transferTo": "Rainy Day Savings",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-04-12",
+      "amount": "-84.11",
+      "payee": "Hydro Ottawa",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-04-07",
+      "amount": "-123.45",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-04-05",
+      "amount": "-425.00",
+      "payee": "Car Loan",
+      "category": "Car Payment",
+      "transferTo": "Car Loan",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-04-01",
+      "amount": "4200.00",
+      "payee": "Acme Corp",
+      "category": "Salary",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-04-01",
+      "amount": "-1650.00",
+      "payee": "Landlord Co",
+      "category": "Rent",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-03-25",
+      "amount": "-250.00",
+      "payee": "Brokerage",
+      "category": "Investing",
+      "transferTo": "Brokerage",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-03-20",
+      "amount": "-200.00",
+      "payee": "Visa Card",
+      "category": null,
+      "transferTo": "Visa Card",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-03-15",
+      "amount": "-300.00",
+      "payee": "Rainy Day Savings",
+      "category": null,
+      "transferTo": "Rainy Day Savings",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-03-12",
+      "amount": "-82.74",
+      "payee": "Hydro Ottawa",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-03-07",
+      "amount": "-122.45",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-03-05",
+      "amount": "-425.00",
+      "payee": "Car Loan",
+      "category": "Car Payment",
+      "transferTo": "Car Loan",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-03-01",
+      "amount": "4200.00",
+      "payee": "Acme Corp",
+      "category": "Salary",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-03-01",
+      "amount": "-1650.00",
+      "payee": "Landlord Co",
+      "category": "Rent",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-02-20",
+      "amount": "-200.00",
+      "payee": "Visa Card",
+      "category": null,
+      "transferTo": "Visa Card",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-02-15",
+      "amount": "-300.00",
+      "payee": "Rainy Day Savings",
+      "category": null,
+      "transferTo": "Rainy Day Savings",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-02-12",
+      "amount": "-81.37",
+      "payee": "Hydro Ottawa",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-02-11",
+      "amount": "-45.00",
+      "payee": "Canadian Tire",
+      "category": "Old Hobby",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": "Model paints"
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-02-07",
+      "amount": "-121.45",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-02-05",
+      "amount": "-425.00",
+      "payee": "Car Loan",
+      "category": "Car Payment",
+      "transferTo": "Car Loan",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-02-01",
+      "amount": "4200.00",
+      "payee": "Acme Corp",
+      "category": "Salary",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-02-01",
+      "amount": "-1650.00",
+      "payee": "Landlord Co",
+      "category": "Rent",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-01-25",
+      "amount": "-250.00",
+      "payee": "Brokerage",
+      "category": "Investing",
+      "transferTo": "Brokerage",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-01-20",
+      "amount": "-200.00",
+      "payee": "Visa Card",
+      "category": null,
+      "transferTo": "Visa Card",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-01-15",
+      "amount": "-300.00",
+      "payee": "Rainy Day Savings",
+      "category": null,
+      "transferTo": "Rainy Day Savings",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-01-12",
+      "amount": "-80.00",
+      "payee": "Hydro Ottawa",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-01-07",
+      "amount": "-120.45",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-01-05",
+      "amount": "-425.00",
+      "payee": "Car Loan",
+      "category": "Car Payment",
+      "transferTo": "Car Loan",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-01-01",
+      "amount": "4200.00",
+      "payee": "Acme Corp",
+      "category": "Salary",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-01-01",
+      "amount": "-1650.00",
+      "payee": "Landlord Co",
+      "category": "Rent",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Everyday Checking",
+      "offBudget": false,
+      "date": "2025-01-01",
+      "amount": "2450.00",
+      "payee": "Starting Balance",
+      "category": "Starting Balances",
+      "transferTo": null,
+      "isStartingBalance": true,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2026-08-05",
+      "amount": "425.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2026-08-05",
+      "amount": "-45.10",
+      "payee": "Car Loan Interest",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2026-07-05",
+      "amount": "425.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2026-07-05",
+      "amount": "-45.10",
+      "payee": "Car Loan Interest",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2026-06-05",
+      "amount": "425.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2026-06-05",
+      "amount": "-45.10",
+      "payee": "Car Loan Interest",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2026-05-05",
+      "amount": "425.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2026-05-05",
+      "amount": "-45.10",
+      "payee": "Car Loan Interest",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2026-04-05",
+      "amount": "425.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2026-04-05",
+      "amount": "-45.10",
+      "payee": "Car Loan Interest",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2026-03-05",
+      "amount": "425.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2026-03-05",
+      "amount": "-45.10",
+      "payee": "Car Loan Interest",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2026-02-05",
+      "amount": "425.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2026-02-05",
+      "amount": "-45.10",
+      "payee": "Car Loan Interest",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2026-01-05",
+      "amount": "425.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2026-01-05",
+      "amount": "-45.10",
+      "payee": "Car Loan Interest",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-12-05",
+      "amount": "425.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-12-05",
+      "amount": "-45.10",
+      "payee": "Car Loan Interest",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-11-05",
+      "amount": "425.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-11-05",
+      "amount": "-45.10",
+      "payee": "Car Loan Interest",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-10-05",
+      "amount": "425.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-10-05",
+      "amount": "-45.10",
+      "payee": "Car Loan Interest",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-09-05",
+      "amount": "425.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-09-05",
+      "amount": "-45.10",
+      "payee": "Car Loan Interest",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-08-05",
+      "amount": "425.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-08-05",
+      "amount": "-45.10",
+      "payee": "Car Loan Interest",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-07-05",
+      "amount": "425.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-07-05",
+      "amount": "-45.10",
+      "payee": "Car Loan Interest",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-06-05",
+      "amount": "425.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-06-05",
+      "amount": "-45.10",
+      "payee": "Car Loan Interest",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-05-05",
+      "amount": "425.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-05-05",
+      "amount": "-45.10",
+      "payee": "Car Loan Interest",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-04-05",
+      "amount": "425.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-04-05",
+      "amount": "-45.10",
+      "payee": "Car Loan Interest",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-03-05",
+      "amount": "425.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-03-05",
+      "amount": "-45.10",
+      "payee": "Car Loan Interest",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-02-05",
+      "amount": "425.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-02-05",
+      "amount": "-45.10",
+      "payee": "Car Loan Interest",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-01-05",
+      "amount": "-45.10",
+      "payee": "Car Loan Interest",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-01-05",
+      "amount": "425.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Car Loan",
+      "offBudget": true,
+      "date": "2025-01-01",
+      "amount": "-12000.00",
+      "payee": "Starting Balance",
+      "category": null,
+      "transferTo": null,
+      "isStartingBalance": true,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2026-08-28",
+      "amount": "3.12",
+      "payee": "Bank Interest",
+      "category": "Interest",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2026-08-15",
+      "amount": "300.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2026-07-28",
+      "amount": "3.12",
+      "payee": "Bank Interest",
+      "category": "Interest",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2026-07-15",
+      "amount": "300.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2026-06-28",
+      "amount": "3.12",
+      "payee": "Bank Interest",
+      "category": "Interest",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2026-06-15",
+      "amount": "300.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2026-05-28",
+      "amount": "3.12",
+      "payee": "Bank Interest",
+      "category": "Interest",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2026-05-15",
+      "amount": "300.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2026-04-28",
+      "amount": "3.12",
+      "payee": "Bank Interest",
+      "category": "Interest",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2026-04-15",
+      "amount": "300.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2026-03-28",
+      "amount": "3.12",
+      "payee": "Bank Interest",
+      "category": "Interest",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2026-03-15",
+      "amount": "300.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2026-02-28",
+      "amount": "3.12",
+      "payee": "Bank Interest",
+      "category": "Interest",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2026-02-15",
+      "amount": "300.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2026-01-28",
+      "amount": "3.12",
+      "payee": "Bank Interest",
+      "category": "Interest",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2026-01-15",
+      "amount": "300.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-12-28",
+      "amount": "3.12",
+      "payee": "Bank Interest",
+      "category": "Interest",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-12-15",
+      "amount": "300.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-11-28",
+      "amount": "3.12",
+      "payee": "Bank Interest",
+      "category": "Interest",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-11-15",
+      "amount": "300.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-10-28",
+      "amount": "3.12",
+      "payee": "Bank Interest",
+      "category": "Interest",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-10-15",
+      "amount": "300.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-09-28",
+      "amount": "3.12",
+      "payee": "Bank Interest",
+      "category": "Interest",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-09-15",
+      "amount": "300.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-08-28",
+      "amount": "3.12",
+      "payee": "Bank Interest",
+      "category": "Interest",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-08-15",
+      "amount": "300.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-07-28",
+      "amount": "3.12",
+      "payee": "Bank Interest",
+      "category": "Interest",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-07-15",
+      "amount": "300.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-06-28",
+      "amount": "3.12",
+      "payee": "Bank Interest",
+      "category": "Interest",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-06-15",
+      "amount": "300.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-05-28",
+      "amount": "3.12",
+      "payee": "Bank Interest",
+      "category": "Interest",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-05-15",
+      "amount": "300.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-04-28",
+      "amount": "3.12",
+      "payee": "Bank Interest",
+      "category": "Interest",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-04-15",
+      "amount": "300.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-03-28",
+      "amount": "3.12",
+      "payee": "Bank Interest",
+      "category": "Interest",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-03-15",
+      "amount": "300.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-02-28",
+      "amount": "3.12",
+      "payee": "Bank Interest",
+      "category": "Interest",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-02-15",
+      "amount": "300.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-01-28",
+      "amount": "3.12",
+      "payee": "Bank Interest",
+      "category": "Interest",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-01-15",
+      "amount": "300.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Rainy Day Savings",
+      "offBudget": false,
+      "date": "2025-01-01",
+      "amount": "8000.00",
+      "payee": "Starting Balance",
+      "category": "Starting Balances",
+      "transferTo": null,
+      "isStartingBalance": true,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2026-08-20",
+      "amount": "200.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2026-08-18",
+      "amount": "-64.10",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2026-08-09",
+      "amount": "-100.00",
+      "payee": "Canadian Tire",
+      "category": "Hobbies",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": true,
+      "notes": "Garden tools"
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2026-08-09",
+      "amount": "-50.00",
+      "payee": "Canadian Tire",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": true,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2026-07-20",
+      "amount": "200.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2026-07-18",
+      "amount": "-64.10",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2026-06-20",
+      "amount": "200.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2026-06-18",
+      "amount": "-64.10",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2026-05-20",
+      "amount": "200.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2026-05-18",
+      "amount": "-64.10",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2026-05-09",
+      "amount": "-100.00",
+      "payee": "Canadian Tire",
+      "category": "Hobbies",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": true,
+      "notes": "Garden tools"
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2026-05-09",
+      "amount": "-50.00",
+      "payee": "Canadian Tire",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": true,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2026-04-20",
+      "amount": "200.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2026-04-18",
+      "amount": "-64.10",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2026-03-20",
+      "amount": "200.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2026-03-18",
+      "amount": "-64.10",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2026-02-20",
+      "amount": "200.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2026-02-18",
+      "amount": "-64.10",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2026-02-09",
+      "amount": "-100.00",
+      "payee": "Canadian Tire",
+      "category": "Hobbies",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": true,
+      "notes": "Garden tools"
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2026-02-09",
+      "amount": "-50.00",
+      "payee": "Canadian Tire",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": true,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2026-01-20",
+      "amount": "200.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2026-01-18",
+      "amount": "-64.10",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-12-20",
+      "amount": "200.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-12-18",
+      "amount": "-64.10",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-11-20",
+      "amount": "200.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-11-18",
+      "amount": "-64.10",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-11-09",
+      "amount": "-100.00",
+      "payee": "Canadian Tire",
+      "category": "Hobbies",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": true,
+      "notes": "Garden tools"
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-11-09",
+      "amount": "-50.00",
+      "payee": "Canadian Tire",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": true,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-10-20",
+      "amount": "200.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-10-18",
+      "amount": "-64.10",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-09-20",
+      "amount": "200.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-09-18",
+      "amount": "-64.10",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-08-20",
+      "amount": "200.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-08-18",
+      "amount": "-64.10",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-08-14",
+      "amount": "35.00",
+      "payee": "Canadian Tire",
+      "category": "Hobbies",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": "Returned a rake"
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-08-09",
+      "amount": "-100.00",
+      "payee": "Canadian Tire",
+      "category": "Hobbies",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": true,
+      "notes": "Garden tools"
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-08-09",
+      "amount": "-50.00",
+      "payee": "Canadian Tire",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": true,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-07-20",
+      "amount": "200.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-07-18",
+      "amount": "-64.10",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-07-03",
+      "amount": "-612.40",
+      "payee": "Air Canada",
+      "category": "Travel",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": "Flight to Lisbon #travel #summer-2025"
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-06-20",
+      "amount": "200.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-06-18",
+      "amount": "-64.10",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-05-20",
+      "amount": "200.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-05-18",
+      "amount": "-64.10",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-05-09",
+      "amount": "-100.00",
+      "payee": "Canadian Tire",
+      "category": "Hobbies",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": true,
+      "notes": "Garden tools"
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-05-09",
+      "amount": "-50.00",
+      "payee": "Canadian Tire",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": true,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-04-20",
+      "amount": "200.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-04-18",
+      "amount": "-64.10",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-03-20",
+      "amount": "200.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-03-18",
+      "amount": "-64.10",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-02-20",
+      "amount": "200.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-02-18",
+      "amount": "-64.10",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-02-09",
+      "amount": "-100.00",
+      "payee": "Canadian Tire",
+      "category": "Hobbies",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": true,
+      "notes": "Garden tools"
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-02-09",
+      "amount": "-50.00",
+      "payee": "Canadian Tire",
+      "category": "Utilities",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": true,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-01-20",
+      "amount": "200.00",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-01-18",
+      "amount": "-64.10",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Visa Card",
+      "offBudget": false,
+      "date": "2025-01-01",
+      "amount": "-350.25",
+      "payee": "Starting Balance",
+      "category": "Starting Balances",
+      "transferTo": null,
+      "isStartingBalance": true,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Café Wallet ☕",
+      "offBudget": false,
+      "date": "2026-08-22",
+      "amount": "-23.75",
+      "payee": "Café Olé",
+      "category": "Dining Out",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Café Wallet ☕",
+      "offBudget": false,
+      "date": "2026-07-22",
+      "amount": "-23.75",
+      "payee": "Café Olé",
+      "category": "Dining Out",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Café Wallet ☕",
+      "offBudget": false,
+      "date": "2026-06-22",
+      "amount": "-23.75",
+      "payee": "Café Olé",
+      "category": "Dining Out",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Café Wallet ☕",
+      "offBudget": false,
+      "date": "2026-05-22",
+      "amount": "-23.75",
+      "payee": "Café Olé",
+      "category": "Dining Out",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Café Wallet ☕",
+      "offBudget": false,
+      "date": "2026-04-22",
+      "amount": "-23.75",
+      "payee": "Café Olé",
+      "category": "Dining Out",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Café Wallet ☕",
+      "offBudget": false,
+      "date": "2026-03-22",
+      "amount": "-23.75",
+      "payee": "Café Olé",
+      "category": "Dining Out",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Café Wallet ☕",
+      "offBudget": false,
+      "date": "2026-03-02",
+      "amount": "-4.50",
+      "payee": "Café Olé",
+      "category": "Café & Snacks",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Café Wallet ☕",
+      "offBudget": false,
+      "date": "2026-02-22",
+      "amount": "-23.75",
+      "payee": "Café Olé",
+      "category": "Dining Out",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Café Wallet ☕",
+      "offBudget": false,
+      "date": "2026-01-22",
+      "amount": "-23.75",
+      "payee": "Café Olé",
+      "category": "Dining Out",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Café Wallet ☕",
+      "offBudget": false,
+      "date": "2025-12-22",
+      "amount": "-23.75",
+      "payee": "Café Olé",
+      "category": "Dining Out",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Café Wallet ☕",
+      "offBudget": false,
+      "date": "2025-11-22",
+      "amount": "-23.75",
+      "payee": "Café Olé",
+      "category": "Dining Out",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Café Wallet ☕",
+      "offBudget": false,
+      "date": "2025-11-08",
+      "amount": "-86.20",
+      "payee": "Café Olé",
+      "category": "Dining Out",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": "Birthday dinner #family #celebration"
+    },
+    {
+      "account": "Café Wallet ☕",
+      "offBudget": false,
+      "date": "2025-10-22",
+      "amount": "-23.75",
+      "payee": "Café Olé",
+      "category": "Dining Out",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Café Wallet ☕",
+      "offBudget": false,
+      "date": "2025-09-22",
+      "amount": "-23.75",
+      "payee": "Café Olé",
+      "category": "Dining Out",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Café Wallet ☕",
+      "offBudget": false,
+      "date": "2025-08-22",
+      "amount": "-23.75",
+      "payee": "Café Olé",
+      "category": "Dining Out",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Café Wallet ☕",
+      "offBudget": false,
+      "date": "2025-07-22",
+      "amount": "-23.75",
+      "payee": "Café Olé",
+      "category": "Dining Out",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Café Wallet ☕",
+      "offBudget": false,
+      "date": "2025-06-22",
+      "amount": "-23.75",
+      "payee": "Café Olé",
+      "category": "Dining Out",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Café Wallet ☕",
+      "offBudget": false,
+      "date": "2025-05-22",
+      "amount": "-23.75",
+      "payee": "Café Olé",
+      "category": "Dining Out",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Café Wallet ☕",
+      "offBudget": false,
+      "date": "2025-04-22",
+      "amount": "-23.75",
+      "payee": "Café Olé",
+      "category": "Dining Out",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Café Wallet ☕",
+      "offBudget": false,
+      "date": "2025-03-22",
+      "amount": "-23.75",
+      "payee": "Café Olé",
+      "category": "Dining Out",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Café Wallet ☕",
+      "offBudget": false,
+      "date": "2025-02-22",
+      "amount": "-23.75",
+      "payee": "Café Olé",
+      "category": "Dining Out",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Café Wallet ☕",
+      "offBudget": false,
+      "date": "2025-01-22",
+      "amount": "-23.75",
+      "payee": "Café Olé",
+      "category": "Dining Out",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Café Wallet ☕",
+      "offBudget": false,
+      "date": "2025-01-01",
+      "amount": "60.00",
+      "payee": "Starting Balance",
+      "category": "Starting Balances",
+      "transferTo": null,
+      "isStartingBalance": true,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Old Joint Checking",
+      "offBudget": false,
+      "date": "2025-06-30",
+      "amount": "-397.20",
+      "payee": "Everyday Checking",
+      "category": null,
+      "transferTo": "Everyday Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Old Joint Checking",
+      "offBudget": false,
+      "date": "2025-03-03",
+      "amount": "-62.80",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Old Joint Checking",
+      "offBudget": false,
+      "date": "2025-02-03",
+      "amount": "-40.00",
+      "payee": "Loblaws",
+      "category": "Groceries",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Old Joint Checking",
+      "offBudget": false,
+      "date": "2025-01-01",
+      "amount": "500.00",
+      "payee": "Starting Balance",
+      "category": "Starting Balances",
+      "transferTo": null,
+      "isStartingBalance": true,
+      "isSplitChild": false,
+      "notes": null
+    }
+  ]
+}

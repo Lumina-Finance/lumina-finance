@@ -1,0 +1,8 @@
+{
+  "name": "actual-check-seed",
+  "private": true,
+  "type": "module",
+  "allowScripts": {
+    "better-sqlite3": true
+  }
+}

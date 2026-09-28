@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  useCommitStagedFireflyImport,
-  useImportFirefly,
-  type FireflyImportRunBudgets,
-} from '@/api/firefly-imports'
+  useCommitStagedJournalImport,
+  useImportJournal,
+  type ImportRunBudgets,
+} from '@/api/provider-imports'
 import { getJsonByteSize } from '@/api/shared/importBatchSize'
 import { discardStagedRun } from '@/api/transaction-imports'
 import { waitForMilliseconds } from '@/utils/timing'
@@ -15,6 +15,7 @@ import type {
   ImportFileDraft,
   ImportProgressStep,
 } from '@/pages/imports/types'
+import type { ProviderImportRunState } from '@/pages/imports/utils'
 import {
   dropVanishedAccountMappings,
   dropVanishedCategoryMappings,
@@ -23,15 +24,20 @@ import {
   groupPreviewRowsByDate,
   isAutoFilledAccountSource,
   processImportFileIntake,
+  canStartProviderImport,
+  countCreatedImportSources,
+  createProviderImportRunController,
+  describeProviderImportFailure,
+  formatProviderImportSummary,
+  getProviderImportError,
+  PROVIDER_IMPORT_RUN_IDLE,
+  PROVIDER_IMPORT_STAGES,
+  PROVIDER_MAX_BUDGETS_REQUEST_BYTES,
   type ImportFileAcquisition,
 } from '@/pages/imports/utils'
 import {
   FIREFLY_CSV_PROCESSING_MIN_MS,
-  FIREFLY_IMPORT_NOTHING_SAVED_NOTE,
-  FIREFLY_IMPORT_SAVE_AGAIN_NOTE,
-  FIREFLY_IMPORT_STAGES,
   FIREFLY_MAX_BUDGETS,
-  FIREFLY_MAX_BUDGETS_REQUEST_BYTES,
   FIREFLY_SAMPLE_PREVIEW_LIMIT,
   FIREFLY_TRANSFER_CATEGORY_NAME,
 } from '@/pages/imports/firefly/constants'
@@ -44,23 +50,18 @@ import {
   buildFireflyImportPayload,
   buildFireflyPreviewRows,
   buildFireflyRunBudgets,
-  canStartFireflyImport,
-  countFireflyCreatedSources,
-  createFireflyImportRunController,
-  FIREFLY_IMPORT_RUN_IDLE,
   forecastFireflyImport,
-  formatFireflyImportSummary,
   getFireflyFileHeaders,
   getFireflyFileRows,
   getFireflyImportedCategories,
   getFireflyAccountSources,
-  getFireflyImportError,
   inferFireflyCategoryMappings,
   readFireflyAccountDetails,
   readFireflyCsvFile,
   resolveFireflyAccountMappings,
   type FireflyAccountCreateDetails,
   type FireflyRowResolutionOptions,
+  type FireflySkippedRowDetail,
 } from '@/pages/imports/firefly/utils'
 
 // This flow reads its account sources from the staged export rather than from a column the user
@@ -109,8 +110,8 @@ export function useFireflyImportWorkflow() {
   } = useImportAccountCreateState(setAccountMappings, getFireflyAccountSourceScope)
   const [categoryMappings, setCategoryMappings] = useState<Record<string, string>>({})
   const [categoryCreateKinds, setCategoryCreateKinds] = useState<Record<string, ImportCategoryKind>>({})
-  const [importRun, setImportRun] = useState(FIREFLY_IMPORT_RUN_IDLE)
-  const [importRunController] = useState(() => createFireflyImportRunController({
+  const [importRun, setImportRun] = useState<ProviderImportRunState<FireflySkippedRowDetail>>(PROVIDER_IMPORT_RUN_IDLE)
+  const [importRunController] = useState(() => createProviderImportRunController<FireflySkippedRowDetail>({
     onChange: setImportRun,
     discardStagedRun: (runId) => void discardStagedRun(runId),
     wait: waitForMilliseconds,
@@ -153,9 +154,9 @@ export function useFireflyImportWorkflow() {
   )
 
   // A failure is about the answers the import was sent with, so it stops showing once one changes
-  const importError = getFireflyImportError(importFailure, importAnswers)
-  const importFirefly = useImportFirefly()
-  const commitStagedFirefly = useCommitStagedFireflyImport()
+  const importError = getProviderImportError(importFailure, importAnswers)
+  const importFirefly = useImportJournal()
+  const commitStagedFirefly = useCommitStagedJournalImport()
   const {
     categories,
     currencies,
@@ -461,7 +462,7 @@ export function useFireflyImportWorkflow() {
   // A source answered create is counted only while the import sends it, since the commit creates
   // nothing for a source whose rows are all skipped unless the accounts export lists it
   const newAccountCount = useMemo(
-    () => countFireflyCreatedSources(
+    () => countCreatedImportSources(
       trackedAccounts.map((source) => source.id),
       resolvedAccountMappings,
       CREATE_ACCOUNT_VALUE,
@@ -471,7 +472,7 @@ export function useFireflyImportWorkflow() {
   )
 
   const newCategoryCount = useMemo(
-    () => countFireflyCreatedSources(
+    () => countCreatedImportSources(
       importedCategories,
       resolvedCategoryMappings,
       CREATE_CATEGORY_VALUE,
@@ -524,7 +525,7 @@ export function useFireflyImportWorkflow() {
 
   // What the run creates alongside the rows, built here rather than at the import so a budget the
   // import cannot send is refused while the selection can still change
-  const runBudgetsBuild = useMemo<{ budgets: FireflyImportRunBudgets | null; error: string | null }>(
+  const runBudgetsBuild = useMemo<{ budgets: ImportRunBudgets | null; error: string | null }>(
     () => {
       const categoryMappings = importBuild.payload?.categories
       if (!categoryMappings || pendingBudgetDrafts.length === 0) return { budgets: null, error: null }
@@ -533,7 +534,7 @@ export function useFireflyImportWorkflow() {
         const budgets = buildFireflyRunBudgets(pendingBudgetDrafts, categoryMappings)
 
         // The budgets go in one request, and a request past the server's limit is refused whole
-        if (getJsonByteSize(budgets) > FIREFLY_MAX_BUDGETS_REQUEST_BYTES) {
+        if (getJsonByteSize(budgets) > PROVIDER_MAX_BUDGETS_REQUEST_BYTES) {
           return { budgets: null, error: 'The selected budgets are too large to import at once. Select fewer budgets.' }
         }
         return { budgets, error: null }
@@ -558,8 +559,8 @@ export function useFireflyImportWorkflow() {
       // on top turns done the moment its work lands and stays there struck off
       // until the next one takes over
       const { isFinished, stage } = importStageState
-      const currentIndex = FIREFLY_IMPORT_STAGES.findIndex((entry) => entry.id === stage)
-      return FIREFLY_IMPORT_STAGES.slice(currentIndex).map((entry, index) => ({
+      const currentIndex = PROVIDER_IMPORT_STAGES.findIndex((entry) => entry.id === stage)
+      return PROVIDER_IMPORT_STAGES.slice(currentIndex).map((entry, index) => ({
         id: entry.id,
         label: entry.label,
         status: index > 0 ? 'queued' : isFinished ? 'done' : 'active',
@@ -569,7 +570,7 @@ export function useFireflyImportWorkflow() {
   )
 
   const completedSkippedCount = completedImport?.skippedRowsAtCommit.length ?? 0
-  const importSummary = importResult ? formatFireflyImportSummary(importResult, completedSkippedCount) : ''
+  const importSummary = importResult ? formatProviderImportSummary(importResult, completedSkippedCount) : ''
 
   const importedBudgetNames = useMemo(
     () => new Set(importResult?.budgets.map((budget) => budget.name) ?? []),
@@ -579,14 +580,14 @@ export function useFireflyImportWorkflow() {
   // Only the overlay says what a failure left, read off the upload still kept, since closing it
   // drops that upload and the preview beside the button then shows the reason alone
   const importOverlayError = importError && importOverlayPhase === 'error'
-    ? describeFireflyImportFailure(importError, stagedRunId !== null)
+    ? describeProviderImportFailure(importError, stagedRunId !== null)
     : importError
   const importOverlayOpen = importOverlayPhase !== 'idle'
   const isImportInFlight = importFirefly.isPending || commitStagedFirefly.isPending
 
-  const canCommitImport = canStartFireflyImport({
+  const canCommitImport = canStartProviderImport({
     hasPayload: importBuild.payload !== null,
-    processingFileKind,
+    isProcessingFile: processingFileKind !== null,
     budgetSelectionError,
     overlayOpen: importOverlayOpen,
     inFlight: isImportInFlight,
@@ -678,6 +679,7 @@ export function useFireflyImportWorkflow() {
 
     // The import creates the budgets selected when it started, so they are captured here
     const request = {
+      source: 'firefly' as const,
       payload,
       budgets: runBudgetsBuild.budgets,
       archiveAccountSources: importBuild.archiveAccountSources,
@@ -804,11 +806,3 @@ export function useFireflyImportWorkflow() {
 }
 
 export type FireflyImportWorkflow = ReturnType<typeof useFireflyImportWorkflow>
-
-/**
- * Says why an import failed and what that left behind: nothing, or an upload that can be saved again
- */
-function describeFireflyImportFailure(reason: string, canSaveAgain: boolean) {
-  const sentence = /[.!?]$/.test(reason) ? reason : `${reason}.`
-  return `${sentence} ${canSaveAgain ? FIREFLY_IMPORT_SAVE_AGAIN_NOTE : FIREFLY_IMPORT_NOTHING_SAVED_NOTE}`
-}

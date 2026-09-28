@@ -10,8 +10,8 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.import_run import ImportRunSource
 from app.models.user import User
-from app.schemas.firefly_import import FireflyImportRunResponse, FireflyImportStageRequest
 from app.schemas.import_run import ImportRunArchiveRequest, ImportRunBudgetsRequest
+from app.schemas.journal_import import JournalImportRunResponse, JournalImportStageRequest
 from app.schemas.transaction import (
     BulkUpdateTransactionsRequest,
     BulkUpdateTransactionsResponse,
@@ -25,14 +25,14 @@ from app.schemas.transaction import (
     UpdateTransactionRequest,
 )
 from app.services.importers import (
-    commit_firefly_run,
     commit_import_run,
+    commit_journal_run,
     delete_import_run,
     open_import_run,
-    stage_firefly_batch,
     stage_import_archive,
     stage_import_batch,
     stage_import_budgets,
+    stage_journal_batch,
 )
 from app.services.transactions.bulk_update import bulk_update_transactions
 from app.services.transactions.creation import create_transaction_and_get_response
@@ -238,14 +238,14 @@ async def commit_transaction_import_run(
     return await commit_import_run(db, user, run_id)
 
 
-@router.post("/import/runs/{run_id}/firefly/rows", status_code=status.HTTP_204_NO_CONTENT)
-async def stage_firefly_import_rows(
+@router.post("/import/runs/{run_id}/journal/rows", status_code=status.HTTP_204_NO_CONTENT)
+async def stage_journal_import_rows(
     run_id: uuid.UUID,
-    data: FireflyImportStageRequest,
+    data: JournalImportStageRequest,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Park one batch of a Firefly III export against its run
+    """Park one batch of a Firefly III or Actual Budget journal against its run
 
     Args:
         run_id: Run the batch belongs to
@@ -253,7 +253,7 @@ async def stage_firefly_import_rows(
         user: Authenticated user running the import
         db: Active database session
     """
-    await stage_firefly_batch(db, user, run_id, data)
+    await stage_journal_batch(db, user, run_id, data)
 
 
 @router.put("/import/runs/{run_id}/budgets", status_code=status.HTTP_204_NO_CONTENT)
@@ -293,16 +293,16 @@ async def stage_import_run_archive(
 
 
 @router.post(
-    "/import/runs/{run_id}/firefly/commit",
-    response_model=FireflyImportRunResponse,
+    "/import/runs/{run_id}/journal/commit",
+    response_model=JournalImportRunResponse,
     status_code=status.HTTP_201_CREATED,
 )
-async def commit_firefly_import_run(
+async def commit_journal_import_run(
     run_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Write a staged Firefly III export, its budgets and its archiving in one transaction
+    """Write a staged Firefly III or Actual Budget journal, its budgets and its archiving in one transaction
 
     Args:
         run_id: Run to commit
@@ -312,7 +312,7 @@ async def commit_firefly_import_run(
     Returns:
         Summary of everything the commit wrote
     """
-    return await commit_firefly_run(db, user, run_id)
+    return await commit_journal_run(db, user, run_id)
 
 
 @router.delete("/import/runs/{run_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -2,13 +2,13 @@
 
 from pydantic import BaseModel, Field
 
-from app.schemas.firefly_import import (
+from app.schemas.journal_import import (
     MAX_BUDGET_LIMIT_PERIODS,
-    MAX_FIREFLY_BUDGET_CATEGORIES,
-    MAX_FIREFLY_BUDGETS,
+    MAX_JOURNAL_BUDGET_CATEGORIES,
+    MAX_JOURNAL_BUDGETS,
     CurrencyCode,
-    FireflyBudgetLimit,
-    FireflyBudgetRecurrence,
+    JournalBudgetLimit,
+    JournalBudgetRecurrence,
     TrimmedImportText,
     UniqueTrimmedImportTexts,
 )
@@ -24,9 +24,9 @@ class ImportBudgetDraft(BaseModel):
 
     name: TrimmedImportText = Field(max_length=256)
     currency: CurrencyCode
-    category_sources: list[TrimmedImportText] = Field(min_length=1, max_length=MAX_FIREFLY_BUDGET_CATEGORIES)
-    limits: list[FireflyBudgetLimit] = Field(min_length=1, max_length=MAX_BUDGET_LIMIT_PERIODS)
-    recurrence: FireflyBudgetRecurrence | None
+    category_sources: list[TrimmedImportText] = Field(min_length=1, max_length=MAX_JOURNAL_BUDGET_CATEGORIES)
+    limits: list[JournalBudgetLimit] = Field(min_length=1, max_length=MAX_BUDGET_LIMIT_PERIODS)
+    recurrence: JournalBudgetRecurrence | None
     is_archived: bool = False
 
 
@@ -38,7 +38,7 @@ class ImportRunBudgetsRequest(BaseModel):
     """
 
     categories: list[TransactionImportCategoryMapping] = Field(default=[], max_length=MAX_IMPORT_MAPPINGS)
-    budgets: list[ImportBudgetDraft] = Field(default=[], max_length=MAX_FIREFLY_BUDGETS)
+    budgets: list[ImportBudgetDraft] = Field(default=[], max_length=MAX_JOURNAL_BUDGETS)
 
 
 class ImportRunArchiveRequest(BaseModel):

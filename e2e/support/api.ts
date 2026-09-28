@@ -72,7 +72,7 @@ export async function signUpUser(request: APIRequestContext): Promise<TestUser> 
 /**
  * Build the authorization header for calls made as a signed-up user.
  */
-function asUser(user: TestUser): Record<string, string> {
+export function asUser(user: TestUser): Record<string, string> {
   return { Authorization: `Bearer ${user.accessToken}` }
 }
 

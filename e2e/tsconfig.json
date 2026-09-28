@@ -19,5 +19,9 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["playwright.config.ts", "support", "tests", "firefly-check"]
+  "include": ["playwright.config.ts", "support", "tests", "firefly-check", "actual-check"],
+
+  // The Actual seed imports @actual-app/api, which the check installs beside it when it runs, and
+  // which this package leaves out
+  "exclude": ["actual-check/seed"]
 }

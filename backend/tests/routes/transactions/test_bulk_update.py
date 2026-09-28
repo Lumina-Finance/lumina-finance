@@ -10,8 +10,8 @@ from app.models.base import TransferCounterpartyScope
 from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
 from app.services.accounts import snapshots as account_snapshots_module
-from app.services.importers.firefly import service as firefly_import_module
 from app.services.importers.generic import service as generic_import_module
+from app.services.importers.journal import service as journal_import_module
 from app.services.transactions import bulk_update as bulk_update_module
 from app.services.transactions import creation as creation_module
 from app.services.transactions import deletion as deletion_module
@@ -25,7 +25,7 @@ from tests.routes.transactions._helpers import (
     _create_tag,
     _create_transaction,
     _get_system_category_id,
-    _import_firefly,
+    _import_journal,
     _import_transactions,
     _seed_usd_currency,
     _setup_user_with_deps,
@@ -2239,7 +2239,7 @@ async def test_concurrent_firefly_import_waits_for_bulk_rebuild_and_preserves_to
 
     async def import_other_transaction():
         """Import the second transaction through the real Firefly III run."""
-        return await _import_firefly(client, headers, {
+        return await _import_journal(client, headers, {
             "accounts": [{"source": "Main Chequing", "account_id": account_id}],
             "categories": [{"source": "Groceries", "category_id": category_id}],
             "rows": [{
@@ -2261,7 +2261,7 @@ async def test_concurrent_firefly_import_waits_for_bulk_rebuild_and_preserves_to
         headers,
         transaction_id,
         monkeypatch,
-        firefly_import_module,
+        journal_import_module,
         import_other_transaction,
     )
 

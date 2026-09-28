@@ -12,7 +12,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import type { Currency } from '@/api/currency'
-import { buildFireflyStageBatches, type FireflyImportRunBudgets, type FireflyImportStageBatch } from '@/api/firefly-imports'
+import { buildJournalStageBatches, type ImportRunBudgets, type JournalImportStageBatch } from '@/api/provider-imports'
 import {
   buildFireflyBudgetDrafts,
   buildFireflyRunBudgets,
@@ -49,7 +49,7 @@ const readFixture = (name: string) => readFileSync(new URL(`../fixtures/real-exp
 const capturedUpload = JSON.parse(readFileSync(
   new URL('../../../../../../backend/tests/fixtures/firefly/real-export-upload.json', import.meta.url),
   'utf8',
-)) as { transactions: FireflyImportStageBatch[]; budgets: FireflyImportRunBudgets | null; archive: string[] | null }
+)) as { transactions: JournalImportStageBatch[]; budgets: ImportRunBudgets | null; archive: string[] | null }
 const manifest = JSON.parse(readFixture('manifest.json')) as Manifest
 const { fireflyVersion } = JSON.parse(readFixture('run.json')) as { fireflyVersion: string }
 
@@ -150,7 +150,7 @@ describe(`a real Firefly III ${fireflyVersion} export`, () => {
       CURRENCIES,
       accounts.rows,
     )
-    const batches = await buildFireflyStageBatches(payload)
+    const batches = await buildJournalStageBatches(payload)
     expect(archiveAccountSources).toEqual(capturedUpload.archive ?? [])
 
     expect(batches).toHaveLength(capturedUpload.transactions.length)

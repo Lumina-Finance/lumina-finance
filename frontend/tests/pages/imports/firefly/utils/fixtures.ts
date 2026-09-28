@@ -1,5 +1,5 @@
 import type { Currency } from '@/api/currency'
-import { isFireflyTrackedAccountType } from '@/api/firefly-imports'
+import { isFireflyTrackedAccountType } from '@/pages/imports/firefly/utils'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import type { FireflyAccountSource, FireflyAccountSources } from '@/pages/imports/firefly/types'
 import {

@@ -16,7 +16,7 @@ from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
 from app.models.cache_state import UserCacheState
 from app.models.category import Category
 from app.models.currency import Currency
-from app.services.importers.firefly.budgets import write_firefly_budgets
+from app.services.importers.journal.budgets import write_journal_budgets
 from tests.conftest import ScopedSession, TestSession, scoped_engine
 from tests.routes.base_budgets._helpers import (
     _create_base_budget,
@@ -83,7 +83,7 @@ def _observe_budget_import(fail_after: str | None = None) -> Iterator[Callable[[
         nonlocal writing_budgets
         writing_budgets = True
         try:
-            return await write_firefly_budgets(*args, **kwargs)
+            return await write_journal_budgets(*args, **kwargs)
         finally:
             writing_budgets = False
 
@@ -159,7 +159,7 @@ def _observe_budget_import(fail_after: str | None = None) -> Iterator[Callable[[
     event.listen(sync_session_class, "after_flush", after_flush)
     event.listen(sync_session_class, "after_commit", after_commit)
     try:
-        with patch("app.services.importers.firefly.run.write_firefly_budgets", observed_write_firefly_budgets):
+        with patch("app.services.importers.journal.run.write_journal_budgets", observed_write_firefly_budgets):
             yield snapshot
     finally:
         event.remove(scoped_engine.sync_engine, "before_cursor_execute", before_cursor_execute)
@@ -214,7 +214,7 @@ async def _stage_budgets(client, headers, payload):
     )
     assert resp.status_code == 201, resp.text
     run_path = f"/transactions/import/runs/{resp.json()['id']}"
-    resp = await client.post(f"{run_path}/firefly/rows", json={
+    resp = await client.post(f"{run_path}/journal/rows", json={
         "accounts": [_chequing_mapping()],
         "categories": [],
         "rows": [_firefly_row(
@@ -249,7 +249,7 @@ async def _import_budgets(client, headers, payload):
     staged, run_path = await _stage_budgets(client, headers, payload)
     if staged.status_code != 204:
         return staged
-    return await client.post(f"{run_path}/firefly/commit", headers=headers)
+    return await client.post(f"{run_path}/journal/commit", headers=headers)
 
 
 async def _import_one_budget(client, headers, category_id, limits, name="Groceries", is_archived=None, recurrence=None):
@@ -432,7 +432,7 @@ async def _assert_compact_budget_import(client, record_property):
     staged, run_path = await _stage_budgets(client, headers, payload)
     assert staged.status_code == 204, staged.text
     with _observe_budget_import() as get_observations:
-        response = await client.post(f"{run_path}/firefly/commit", headers=headers)
+        response = await client.post(f"{run_path}/journal/commit", headers=headers)
     observations = get_observations()
 
     assert response.status_code == 201
@@ -662,7 +662,7 @@ async def test_firefly_budget_import_bounds_pending_children(client):
     })
     assert staged.status_code == 204, staged.text
     with _observe_budget_import() as get_observations:
-        response = await client.post(f"{run_path}/firefly/commit", headers=headers)
+        response = await client.post(f"{run_path}/journal/commit", headers=headers)
     observations = get_observations()
 
     assert response.status_code == 201
@@ -897,7 +897,7 @@ async def test_firefly_budget_import_rolls_back_database_failures(client, fault_
     assert staged.status_code == 204, staged.text
     with _observe_budget_import(fail_after=fault_boundary) as get_observations:
         with pytest.raises(DBAPIError):
-            await client.post(f"{run_path}/firefly/commit", headers=headers)
+            await client.post(f"{run_path}/journal/commit", headers=headers)
     observations = get_observations()
 
     assert observations.fault_attempts == 1, observations

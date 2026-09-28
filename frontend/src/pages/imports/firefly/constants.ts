@@ -1,7 +1,5 @@
 import type { AccountType } from '@/api/accounts'
-import { STEP_DOT_WAVE_MS } from '@/pages/imports/components'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
-import type { FireflyImportStage } from './types'
 
 /**
  * Columns the transactions export must contain before the flow can compile rows
@@ -292,42 +290,3 @@ export function getFireflySplitTitleLine(groupTitle: string) {
 
 export const FIREFLY_SAMPLE_PREVIEW_LIMIT = 5
 export const FIREFLY_CSV_PROCESSING_MIN_MS = LOADING_ANIMATION_MIN_MS
-export const FIREFLY_IMPORT_OVERLAY_MIN_MS = LOADING_ANIMATION_MIN_MS
-
-/**
- * Stages of the import in the order they run, as the overlay lists them
- */
-export const FIREFLY_IMPORT_STAGES: { id: FireflyImportStage; label: string }[] = [
-  { id: 'uploading', label: 'Uploading the export' },
-  { id: 'saving', label: 'Saving the import' },
-]
-
-/**
- * How long the upload stage holds the overlay before saving takes over
- *
- * A small export uploads faster than the transition between the stages reads, so without a floor
- * the upload stage would flash past unseen. The floor is pinned to one full dot wave so a stage is
- * never struck off mid-cycle
- */
-export const FIREFLY_IMPORT_STAGE_MIN_MS = STEP_DOT_WAVE_MS
-
-/**
- * How long a finished stage stays on the overlay struck off before the next
- * stage takes its place
- *
- * The strike is what tells the user the stage landed, so this has to outlast
- * the line being drawn and leave a beat to read it afterwards
- */
-export const FIREFLY_IMPORT_STAGE_CROSS_OFF_MS = 750
-
-/**
- * Largest budgets request the import sends, kept under the server's 10 MiB request limit with room
- * for the rest of the request, so a selection too large to send is refused before anything uploads
- */
-export const FIREFLY_MAX_BUDGETS_REQUEST_BYTES = 9 * 1024 * 1024
-
-// Added after the reason a Firefly III import failed. An import the server refused, or one that failed
-// while uploading, wrote nothing. A save that failed for another reason may or may not have landed,
-// and saving it again answers either way
-export const FIREFLY_IMPORT_NOTHING_SAVED_NOTE = 'Nothing was added to your ledger.'
-export const FIREFLY_IMPORT_SAVE_AGAIN_NOTE = 'Your upload is kept, so you can try saving it again.'

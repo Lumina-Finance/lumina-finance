@@ -57,7 +57,7 @@ export function buildUploadFixture(
   ))
 
   const transactions = uploads
-    .filter((upload) => upload.method === 'POST' && upload.path.endsWith('/firefly/rows'))
+    .filter((upload) => upload.method === 'POST' && upload.path.endsWith('/journal/rows'))
     .map(({ body }) => {
       const { accounts, categories, rows, start_row_index } = body as StageBody
 

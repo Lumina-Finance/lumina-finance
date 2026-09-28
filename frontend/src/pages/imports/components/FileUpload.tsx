@@ -3,10 +3,7 @@ import { FileText, LoaderCircle, TriangleAlert, Upload, X } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { IMPORT_INSET_STYLE } from '@/pages/imports/constants'
 import type { ImportFileDraft, ImportUploadBlock } from '@/pages/imports/types'
-import { formatBytes, selectDroppedImportFiles, type ImportFileSelection } from '@/pages/imports/utils'
-
-// Shown on the card and read out by the live region beside it, so both say the same thing
-const PROCESSING_STATUS = 'Processing CSV'
+import { CSV_IMPORT_FILE_TYPE, formatBytes, selectDroppedImportFiles, type ImportFileSelection, type ImportFileType } from '@/pages/imports/utils'
 
 /**
  * Upload affordance shared by the import flows that animates between its idle
@@ -32,6 +29,7 @@ export function ImportUploadCard({
   disabled,
   rejection,
   blockReason,
+  fileType = CSV_IMPORT_FILE_TYPE,
   onClick,
   onDropFile,
 }: {
@@ -41,6 +39,9 @@ export function ImportUploadCard({
   disabled: boolean
   rejection?: string | null
   blockReason?: ImportUploadBlock | null
+
+  /** The kind of file the card takes and says it is reading, a CSV file unless the flow takes something else */
+  fileType?: ImportFileType
   onClick: () => void
   onDropFile: (selection: ImportFileSelection) => void
 }) {
@@ -110,7 +111,7 @@ export function ImportUploadCard({
           event.preventDefault()
           setDragState({ depth: 0, disabled })
           if (disabled) return
-          onDropFile(selectDroppedImportFiles(event.dataTransfer.items, event.dataTransfer.files))
+          onDropFile(selectDroppedImportFiles(event.dataTransfer.items, event.dataTransfer.files, fileType))
         }}
       >
         <span className="relative grid min-h-[5.75rem] w-full items-center justify-items-center overflow-hidden">
@@ -134,7 +135,7 @@ export function ImportUploadCard({
                   <LoaderCircle size={21} strokeWidth={2.4} className="animate-spin motion-reduce:animate-none" aria-hidden />
                 </span>
                 <span className="block text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
-                  {PROCESSING_STATUS}
+                  {fileType.processingStatus}
                 </span>
                 <span className="mt-2 flex items-center gap-1" aria-hidden>
                   <span className="h-1.5 w-6 animate-pulse" style={{ background: 'var(--app-accent)' }} />
@@ -222,14 +223,21 @@ export function ImportUploadCard({
           the text arrives. The refusal and waiting messages carry their own regions inside the
           card, and only the processing state was left without one */}
       <span className="sr-only" role="status">
-        {processing ? PROCESSING_STATUS : ''}
+        {processing ? fileType.processingStatus : ''}
       </span>
     </>
   )
 }
 
+/** What the staged-file table shows beneath one file's name, and how many rows it holds */
+export interface ImportStagedFileSummary {
+  detail: string
+  tone: 'plain' | 'notice' | 'error'
+  rowCount: number
+}
+
 /**
- * Staged-file table shared by the import flows, listing each upload's
+ * Staged-file table shared by the CSV import flows, listing each upload's
  * metadata and row count with a remove action
  */
 export function ImportStagedFileList({
@@ -238,6 +246,21 @@ export function ImportStagedFileList({
 }: {
   files: ImportFileDraft[]
   onRemove: (file: ImportFileDraft) => void
+}) {
+  return <ImportStagedFileTable files={files} describe={describeCsvFile} onRemove={onRemove} />
+}
+
+/**
+ * Staged-file table for any kind of upload, with the flow saying what each file holds
+ */
+export function ImportStagedFileTable<TFile extends { id: string; name: string }>({
+  files,
+  describe,
+  onRemove,
+}: {
+  files: TFile[]
+  describe: (file: TFile) => ImportStagedFileSummary
+  onRemove: (file: TFile) => void
 }) {
   return (
     <div className="overflow-hidden">
@@ -250,52 +273,55 @@ export function ImportStagedFileList({
         <span aria-label="Actions" />
       </div>
       <div className="max-h-64 overflow-y-auto">
-        {files.map((file) => (
-          <div
-            key={file.id}
-            className="grid grid-cols-[minmax(0,1fr)_4rem_2.25rem] items-center gap-3 px-3 py-3"
-          >
-            <div className="flex min-w-0 items-center gap-3">
-              <FileText size={17} className="shrink-0" style={{ color: 'var(--app-text-muted)' }} aria-hidden />
-              <div className="min-w-0">
-                <p className="truncate text-[0.9375rem] font-medium">{file.name}</p>
-                <p className="truncate text-xs" style={{ color: getFileMetaColor(file) }}>
-                  {getFileMeta(file)}
-                </p>
-              </div>
-            </div>
-            <span className="text-right text-[0.9375rem] font-medium tabular-nums">{file.rows.length}</span>
-            <button
-              type="button"
-              className="app-icon-button"
-              onClick={() => onRemove(file)}
-              aria-label={`Remove ${file.name}`}
+        {files.map((file) => {
+          const summary = describe(file)
+          return (
+            <div
+              key={file.id}
+              className="grid grid-cols-[minmax(0,1fr)_4rem_2.25rem] items-center gap-3 px-3 py-3"
             >
-              <X size={16} aria-hidden />
-            </button>
-          </div>
-        ))}
+              <div className="flex min-w-0 items-center gap-3">
+                <FileText size={17} className="shrink-0" style={{ color: 'var(--app-text-muted)' }} aria-hidden />
+                <div className="min-w-0">
+                  <p className="truncate text-[0.9375rem] font-medium">{file.name}</p>
+                  <p className="truncate text-xs" style={{ color: SUMMARY_TONE_COLORS[summary.tone] }}>
+                    {summary.detail}
+                  </p>
+                </div>
+              </div>
+              <span className="text-right text-[0.9375rem] font-medium tabular-nums">{summary.rowCount}</span>
+              <button
+                type="button"
+                className="app-icon-button"
+                onClick={() => onRemove(file)}
+                aria-label={`Remove ${file.name}`}
+              >
+                <X size={16} aria-hidden />
+              </button>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
 }
 
-/**
- * Formats one staged file's size and column details, surfacing its error in their place, and adding
- * anything the reader had to say about a file that staged anyway
- */
-function getFileMeta(file: ImportFileDraft) {
-  if (file.error) return file.error
-
-  const meta = `${formatBytes(file.size)} · ${file.headers.length} columns${file.hasHeaderRow ? '' : ' · no header row'}`
-  return file.notice ? `${meta} · ${file.notice}` : meta
+// A file that cannot be used is told apart from one that staged with something worth knowing about it
+const SUMMARY_TONE_COLORS: Record<ImportStagedFileSummary['tone'], string> = {
+  plain: 'var(--app-text-subtle)',
+  notice: 'var(--app-warning-text)',
+  error: 'var(--app-negative)',
 }
 
 /**
- * Colours the detail line by what it is saying, so a file that cannot be used is told apart from one
- * that staged with something worth knowing about it
+ * Formats one staged CSV file's size and column details, surfacing its error in their place, and
+ * adding anything the reader had to say about a file that staged anyway
  */
-function getFileMetaColor(file: ImportFileDraft) {
-  if (file.error) return 'var(--app-negative)'
-  return file.notice ? 'var(--app-warning-text)' : 'var(--app-text-subtle)'
+function describeCsvFile(file: ImportFileDraft): ImportStagedFileSummary {
+  if (file.error) return { detail: file.error, tone: 'error', rowCount: file.rows.length }
+
+  const meta = `${formatBytes(file.size)} · ${file.headers.length} columns${file.hasHeaderRow ? '' : ' · no header row'}`
+  return file.notice
+    ? { detail: `${meta} · ${file.notice}`, tone: 'notice', rowCount: file.rows.length }
+    : { detail: meta, tone: 'plain', rowCount: file.rows.length }
 }

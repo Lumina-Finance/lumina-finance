@@ -4,7 +4,7 @@ import type { Transaction } from '@/api/transactions'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { formatPreviewMoney } from '@/pages/imports/utils/formatPreviewMoney'
 
-/** Distinguishes exact generic previews from the existing numeric Firefly previews */
+/** Distinguishes exact generic previews from the numeric Firefly III and Actual Budget previews */
 function isExactPreview(transaction: Transaction | ExactPreviewTransaction): transaction is ExactPreviewTransaction {
   return typeof transaction.amount === 'bigint'
 }

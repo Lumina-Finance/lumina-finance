@@ -1,7 +1,20 @@
-import { isFireflyTrackedAccountType } from '@/api/firefly-imports/rowSources'
 import { FIREFLY_ACTIVE_VALUE, FIREFLY_INACTIVE_VALUE } from '@/pages/imports/firefly/constants'
 import type { FireflyAccountDetails } from '@/pages/imports/firefly/types'
 import type { CsvRow } from '@/pages/imports/types'
+
+/**
+ * Firefly III account types that resolve to Lumina accounts rather than merchants, matched
+ * case-insensitively against source and destination types
+ */
+const FIREFLY_TRACKED_ACCOUNT_TYPES = new Set(['asset account', 'loan', 'debt', 'mortgage'])
+
+/**
+ * Checks whether a Firefly III endpoint type must be mapped to a Lumina account
+ */
+export function isFireflyTrackedAccountType(accountType: string | null | undefined) {
+  if (!accountType) return false
+  return FIREFLY_TRACKED_ACCOUNT_TYPES.has(accountType.trim().toLowerCase())
+}
 
 /**
  * Keys an account by its name and its type, read the way Firefly III matches them, so a transaction

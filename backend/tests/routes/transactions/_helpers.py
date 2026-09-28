@@ -205,28 +205,30 @@ async def _import_transactions(client, headers, payload):
     return await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
 
 
-async def _import_firefly(client, headers, payload, budgets=None):
-    """Stage a whole Firefly III payload as one batch of a Firefly III run, with any budgets, and commit it
+async def _import_journal(client, headers, payload, budgets=None, source="firefly", archive=None):
+    """Stage a whole journal payload as one batch of a journal run, with any budgets and archiving, and commit it
 
     Args:
         client: The async test client
         headers: Auth headers for the importing user
         payload: Account mappings, category mappings and journal rows, as the import screen builds them
         budgets: The budgets request, left unsent when None
+        archive: The accounts to archive request, left unsent when None
+        source: Importer the run is opened for, firefly or actual_budget
 
     Returns:
         The commit response, or the first call that refused the import
     """
     run_resp = await client.post(
         "/transactions/import/runs",
-        json={"expected_transaction_count": len(payload["rows"]), "source": "firefly"},
+        json={"expected_transaction_count": len(payload["rows"]), "source": source},
         headers=headers,
     )
     if run_resp.status_code != 201:
         return run_resp
 
     run_path = f"/transactions/import/runs/{run_resp.json()['id']}"
-    stage_resp = await client.post(f"{run_path}/firefly/rows", json={**payload, "start_row_index": 0}, headers=headers)
+    stage_resp = await client.post(f"{run_path}/journal/rows", json={**payload, "start_row_index": 0}, headers=headers)
     if stage_resp.status_code != 204:
         return stage_resp
 
@@ -235,4 +237,9 @@ async def _import_firefly(client, headers, payload, budgets=None):
         if budgets_resp.status_code != 204:
             return budgets_resp
 
-    return await client.post(f"{run_path}/firefly/commit", headers=headers)
+    if archive is not None:
+        archive_resp = await client.put(f"{run_path}/archive", json=archive, headers=headers)
+        if archive_resp.status_code != 204:
+            return archive_resp
+
+    return await client.post(f"{run_path}/journal/commit", headers=headers)

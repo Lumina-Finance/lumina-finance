@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { Category } from '@/api/categories'
-import { FIREFLY_NO_CATEGORY_SOURCE } from '@/api/firefly-imports'
+import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import type { CsvRow } from '@/pages/imports/types'
 import {
   buildFireflyAccountPrefills,
@@ -121,7 +121,7 @@ describe('getFireflyImportedCategories', () => {
       createWithdrawal('Chequing', 'CAD', { category: '' }),
     ]
 
-    expect(getFireflyImportedCategories(rows)).toEqual(['Groceries', FIREFLY_NO_CATEGORY_SOURCE])
+    expect(getFireflyImportedCategories(rows)).toEqual(['Groceries', JOURNAL_NO_CATEGORY_SOURCE])
   })
 })
 
@@ -135,13 +135,13 @@ describe('inferFireflyCategoryMappings', () => {
     })
 
     const mappings = inferFireflyCategoryMappings(
-      [FIREFLY_NO_CATEGORY_SOURCE],
+      [JOURNAL_NO_CATEGORY_SOURCE],
       {},
       [miscellaneous],
-      { [FIREFLY_NO_CATEGORY_SOURCE]: 'expense' },
+      { [JOURNAL_NO_CATEGORY_SOURCE]: 'expense' },
     )
 
-    expect(mappings[FIREFLY_NO_CATEGORY_SOURCE]).toBe('miscellaneous')
+    expect(mappings[JOURNAL_NO_CATEGORY_SOURCE]).toBe('miscellaneous')
   })
 
   it('keeps an explicit choice for the placeholder over the automatic match', () => {
@@ -149,13 +149,13 @@ describe('inferFireflyCategoryMappings', () => {
     const chosen = createCategory({ id: 'chosen', name: 'Shopping' })
 
     const mappings = inferFireflyCategoryMappings(
-      [FIREFLY_NO_CATEGORY_SOURCE],
-      { [FIREFLY_NO_CATEGORY_SOURCE]: 'chosen' },
+      [JOURNAL_NO_CATEGORY_SOURCE],
+      { [JOURNAL_NO_CATEGORY_SOURCE]: 'chosen' },
       [miscellaneous, chosen],
-      { [FIREFLY_NO_CATEGORY_SOURCE]: 'expense' },
+      { [JOURNAL_NO_CATEGORY_SOURCE]: 'expense' },
     )
 
-    expect(mappings[FIREFLY_NO_CATEGORY_SOURCE]).toBe('chosen')
+    expect(mappings[JOURNAL_NO_CATEGORY_SOURCE]).toBe('chosen')
   })
 })
 

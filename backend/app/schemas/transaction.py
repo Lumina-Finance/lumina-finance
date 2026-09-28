@@ -18,7 +18,7 @@ MAX_IMPORT_ROWS = 100_000
 # One batch becomes a single insert carrying five bind parameters per row, and a statement may
 # carry 65535 of them, so a batch past about 13000 rows fails inside the driver rather than being
 # refused. The browser closes a batch on its byte budget long before this, at roughly 4000 rows.
-# The Firefly III import reuses the figure, where a row carries more fields and a batch of them
+# The journal import reuses the figure, where a row carries more fields and a batch of them
 # reaches roughly 2000 rows against the same byte budget
 MAX_IMPORT_BATCH_ROWS = 5_000
 
@@ -425,9 +425,9 @@ class TransactionImportRunRequest(BaseModel):
 
     expected_transaction_count: int = Field(gt=0, le=MAX_IMPORT_ROWS)
 
-    # Which importer's rows the run stages, so each importer's commit reads only its own. Actual
-    # Budget runs are held for that importer, which has no rows of its own yet
-    source: Literal["generic", "firefly"] = "generic"
+    # Which importer's rows the run stages, so each importer's commit reads only its own. Firefly III
+    # and Actual Budget runs both stage journal rows, and the source decides how a refusal names a row
+    source: Literal["generic", "firefly", "actual_budget"] = "generic"
 
 
 class TransactionImportRunResponse(BaseModel):

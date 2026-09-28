@@ -15,8 +15,7 @@ from app.models.base import Base
 class ImportRunSource(enum.StrEnum):
     """The importer a run came from
 
-    Actual Budget is held for its own importer, which has no rows of its own yet, so the API opens
-    only the first two
+    Firefly III and Actual Budget runs both stage journal rows and share one commit
     """
 
     GENERIC = "generic"
@@ -52,8 +51,8 @@ class ImportRun(Base):
     )
 
     # What the file will write, checked against the staged rows before a commit runs, so a run
-    # missing a batch is refused rather than importing part of a file. For a Firefly III run this
-    # counts journal rows, which a transfer between two imported accounts writes twice
+    # missing a batch is refused rather than importing part of a file. For a Firefly III or Actual
+    # Budget run this counts journal rows, which a transfer between two imported accounts writes twice
     expected_transaction_count: Mapped[int] = mapped_column(Integer, nullable=False)
 
     # Each batch carries the mappings its own rows reference, merged in here by source, so the

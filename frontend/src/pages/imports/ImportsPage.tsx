@@ -11,11 +11,20 @@ import {
   IMPORT_SCOPE_FAILURE_EXPLANATION,
   IMPORT_SCOPE_FAILURE_TITLE,
 } from './constants'
-import { ImportLoadFailure, ImportProgressOverlay } from './components'
+import { ImportExpectationsCard, ImportLoadFailure, ImportProgressOverlay } from './components'
+import { ACTUAL_EXPECTATIONS } from './actual/expectations'
+import { useActualImportWorkflow } from './actual/hooks'
+import {
+  ActualAccountMappingStep,
+  ActualBudgetImportStep,
+  ActualCategoryMatchingStep,
+  ActualFilesStep,
+  ActualPreviewStep,
+} from './actual/sections'
+import { FIREFLY_EXPECTATIONS } from './firefly/expectations'
 import { useFireflyImportWorkflow } from './firefly/hooks'
 import {
   FireflyAccountMappingStep,
-  FireflyExpectationsCard,
   FireflyBudgetImportStep,
   FireflyCategoryMatchingStep,
   FireflyFilesStep,
@@ -35,9 +44,16 @@ import {
 } from './sections'
 import type { ImportDataSource } from './types'
 
+// What the header says each flow stages
+const FLOW_DESCRIPTIONS: Record<ImportDataSource, string> = {
+  generic: 'Stage one CSV transaction file before it is added to your ledger.',
+  firefly: 'Stage a Firefly III export before it is added to your ledger.',
+  actual: 'Stage an Actual Budget export before it is added to your ledger.',
+}
+
 /**
- * Renders the CSV import workflow page, switching between the generic and Firefly III flows and
- * showing the shared progress overlay while a commit runs
+ * Renders the import workflow page, switching between the generic CSV, Firefly III and Actual Budget
+ * flows and showing the shared progress overlay while a commit runs
  *
  * Only one flow can be staged at a time, so changing the data source resets whichever flow is being
  * left, so its staged state cannot leak into a later import run
@@ -51,11 +67,12 @@ export default function ImportsPage() {
   const scopeState = scopeLoadingVisible ? 'loading' : accountScope.state
   const workflow = useTransactionImportWorkflow(accountScope.account)
   const fireflyWorkflow = useFireflyImportWorkflow()
+  const actualWorkflow = useActualImportWorkflow()
 
   // An import started from an account is the generic flow and nothing else, since the account it
-  // fixes has no meaning to the Firefly one. Read from the scope rather than from the stored choice,
+  // fixes has no meaning to the provider ones. Read from the scope rather than from the stored choice,
   // because that choice is page state and a change of query string leaves the page mounted, so a
-  // scope arriving over a staged Firefly export has to render the generic flow without disturbing
+  // scope arriving over a staged provider export has to render the generic flow without disturbing
   // what the user had. Leaving the scope gives that export back
   const isScopedToAccount = accountScope.state === 'ready'
 
@@ -68,9 +85,21 @@ export default function ImportsPage() {
   const isFireflyBusy = fireflyWorkflow.importOverlayOpen
     || fireflyWorkflow.processingFileKind !== null
     || fireflyWorkflow.isImportInFlight
+  const isActualBusy = actualWorkflow.importOverlayOpen
+    || actualWorkflow.isProcessingFile
+    || actualWorkflow.isImportInFlight
   const isGenericBusy = workflow.importOverlayOpen || workflow.isProcessingFiles || workflow.isImportInFlight
-  const isFirefly = isFireflyBusy || (!isGenericBusy && dataSource === 'firefly' && !isScopedToAccount)
-  const importOverlayOpen = isFirefly ? fireflyWorkflow.importOverlayOpen : workflow.importOverlayOpen
+  const activeFlow: ImportDataSource = isFireflyBusy
+    ? 'firefly'
+    : isActualBusy
+      ? 'actual'
+      : isGenericBusy || isScopedToAccount
+        ? 'generic'
+        : dataSource
+
+  // Both provider flows run the same staged import, so the overlay reads either one the same way
+  const providerWorkflow = activeFlow === 'actual' ? actualWorkflow : fireflyWorkflow
+  const importOverlayOpen = activeFlow === 'generic' ? workflow.importOverlayOpen : providerWorkflow.importOverlayOpen
 
   // Where the page came from, which is also where its two exits go while the scope holds
   const scopedAccountPath = accountScope.accountId ? `/accounts/${accountScope.accountId}` : null
@@ -88,13 +117,13 @@ export default function ImportsPage() {
 
   // Switching source resets the flow being left, so a file still being read or an import still
   // being written would finish into a flow the user has already discarded
-  const isImportBusy = overlayOnScreen || isFireflyBusy || isGenericBusy
+  const isImportBusy = overlayOnScreen || isFireflyBusy || isActualBusy || isGenericBusy
 
   // Every mapping answer is made against these three lists, and one of them going stale sends the
   // import at a category or account that has since been renamed or deleted elsewhere. Categories in
   // particular never revalidate on their own, since their query never goes stale and the cache is
   // kept in local storage for months. Invalidating here rather than inside the reference-data hook,
-  // which both workflows mount: two refetches issued in the same commit cancel one another
+  // which every workflow mounts: two refetches issued in the same commit cancel one another
   // Exact, since the account list's key is the prefix of every per-account key: without it, opening
   // this page marks each account's snapshots, cash flow and spending breakdown stale as well, and
   // the account pages refetch all of them instead of painting from the cache
@@ -126,8 +155,10 @@ export default function ImportsPage() {
     // leak into a later import run
     if (dataSource === 'generic') {
       workflow.resetImportWorkflow()
-    } else {
+    } else if (dataSource === 'firefly') {
       fireflyWorkflow.resetFireflyWorkflow()
+    } else {
+      actualWorkflow.resetActualWorkflow()
     }
     setDataSource(next)
   }
@@ -226,15 +257,13 @@ export default function ImportsPage() {
             <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0 pr-14 sm:pr-16">
                 <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
-                  CSV import
+                  {activeFlow === 'actual' ? 'Budget import' : 'CSV import'}
                 </p>
                 <h1 className="font-serif text-3xl font-normal">
                   Import Transactions
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
-                  {isFirefly
-                    ? 'Stage a Firefly III export before it is added to your ledger.'
-                    : 'Stage one CSV transaction file before it is added to your ledger.'}
+                  {FLOW_DESCRIPTIONS[activeFlow]}
                 </p>
               </div>
             </div>
@@ -246,21 +275,33 @@ export default function ImportsPage() {
                 {/* An import started from an account has one source, so the choice is not offered */}
                 {!isScopedToAccount && <ImportSourceStep value={dataSource} onChange={handleDataSourceChange} />}
                 <div className="min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1">
-                  {isFirefly ? <FireflyFilesStep {...fireflyWorkflow} /> : <ImportFilesStep {...workflow} />}
+                  {activeFlow === 'firefly' && <FireflyFilesStep {...fireflyWorkflow} />}
+                  {activeFlow === 'actual' && <ActualFilesStep {...actualWorkflow} />}
+                  {activeFlow === 'generic' && <ImportFilesStep {...workflow} />}
                 </div>
               </aside>
 
               <div className="min-w-0 xl:h-full xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1">
                 <div className="space-y-8">
-                  {isFirefly ? (
+                  {activeFlow === 'actual' && (
                     <>
-                      <FireflyExpectationsCard />
+                      <ImportExpectationsCard expectations={ACTUAL_EXPECTATIONS} />
+                      <ActualAccountMappingStep {...actualWorkflow} />
+                      <ActualCategoryMatchingStep {...actualWorkflow} />
+                      <ActualBudgetImportStep {...actualWorkflow} />
+                      <ActualPreviewStep {...actualWorkflow} />
+                    </>
+                  )}
+                  {activeFlow === 'firefly' && (
+                    <>
+                      <ImportExpectationsCard expectations={FIREFLY_EXPECTATIONS} />
                       <FireflyAccountMappingStep {...fireflyWorkflow} />
                       <FireflyCategoryMatchingStep {...fireflyWorkflow} />
                       <FireflyBudgetImportStep {...fireflyWorkflow} />
                       <FireflyPreviewStep {...fireflyWorkflow} />
                     </>
-                  ) : (
+                  )}
+                  {activeFlow === 'generic' && (
                     <>
                       <ImportColumnMappingStep {...workflow} />
                       <ImportAccountMappingStep {...workflow} />
@@ -290,24 +331,24 @@ export default function ImportsPage() {
         </div>
       </div>
 
-      {isFirefly ? (
+      {activeFlow !== 'generic' ? (
         <ImportProgressOverlay
           onScreen={overlayOnScreen}
           returnFocusTo={overlayOpener}
           returnFocusFallbackRef={pageRef}
-          phase={fireflyWorkflow.importOverlayPhase}
-          steps={fireflyWorkflow.importOverlaySteps}
-          summary={fireflyWorkflow.importSummary}
-          error={fireflyWorkflow.importOverlayError}
+          phase={providerWorkflow.importOverlayPhase}
+          steps={providerWorkflow.importOverlaySteps}
+          summary={providerWorkflow.importSummary}
+          error={providerWorkflow.importOverlayError}
           onDone={handleDone}
-          onReturnToImport={fireflyWorkflow.closeImportOverlay}
-          onReview={fireflyWorkflow.importOverlayPhase === 'success'
-            && fireflyWorkflow.completedSkippedCount > 0
-            ? fireflyWorkflow.closeImportOverlay
+          onReturnToImport={providerWorkflow.closeImportOverlay}
+          onReview={providerWorkflow.importOverlayPhase === 'success'
+            && providerWorkflow.completedSkippedCount > 0
+            ? providerWorkflow.closeImportOverlay
             : undefined}
           onClosed={() => setOverlayOnScreen(false)}
-          onCancel={fireflyWorkflow.canStopImport ? fireflyWorkflow.cancelImport : undefined}
-          onRetry={fireflyWorkflow.canRetryImportCommit ? fireflyWorkflow.retryImportCommit : undefined}
+          onCancel={providerWorkflow.canStopImport ? providerWorkflow.cancelImport : undefined}
+          onRetry={providerWorkflow.canRetryImportCommit ? providerWorkflow.retryImportCommit : undefined}
         />
       ) : (
         <ImportProgressOverlay

@@ -1,6 +1,6 @@
 import type { AccountType } from '@/api/accounts'
 import type { Category } from '@/api/categories'
-import { FIREFLY_NO_CATEGORY_SOURCE, isFireflyTrackedAccountType } from '@/api/firefly-imports'
+import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import {
   CREATE_CATEGORY_VALUE,
   getRowNotesTooLongReason,
@@ -38,7 +38,7 @@ import type {
 } from '@/pages/imports/firefly/types'
 import { toImportMinorUnits } from '@/pages/imports/utils/valueParsers'
 import { parseYmd } from '@/utils/date'
-import { getFireflyAccountKey } from './accountsExport'
+import { getFireflyAccountKey, isFireflyTrackedAccountType } from './accountsExport'
 
 /**
  * Extracts the date part of a Firefly III timestamp, empty when unparseable
@@ -538,7 +538,7 @@ export function getFireflyImportedCategories(rows: CsvRow[]): string[] {
   }
 
   const sorted = [...categories].sort((a, b) => a.localeCompare(b))
-  if (hasUncategorizedRows) sorted.push(FIREFLY_NO_CATEGORY_SOURCE)
+  if (hasUncategorizedRows) sorted.push(JOURNAL_NO_CATEGORY_SOURCE)
   return sorted
 }
 
@@ -562,7 +562,7 @@ export function buildFireflyCategoryKinds(rows: CsvRow[]): Record<string, Import
   for (const row of getFireflyCategoryUseRows(rows)) {
     const journalType = row.type?.trim().toLowerCase() ?? ''
 
-    const source = row.category?.trim() || FIREFLY_NO_CATEGORY_SOURCE
+    const source = row.category?.trim() || JOURNAL_NO_CATEGORY_SOURCE
     const tally = votes.get(source) ?? { expense: 0, income: 0 }
     if (journalType === FIREFLY_TYPE_WITHDRAWAL) {
       tally.expense += 1
@@ -610,7 +610,7 @@ export function inferFireflyCategoryMappings(
       continue
     }
 
-    if (source === FIREFLY_NO_CATEGORY_SOURCE) {
+    if (source === JOURNAL_NO_CATEGORY_SOURCE) {
       next[source] = miscellaneous ? miscellaneous.id : CREATE_CATEGORY_VALUE
       continue
     }

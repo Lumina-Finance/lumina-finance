@@ -3,12 +3,13 @@ import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import { ImportStep } from '@/pages/imports/components'
 import type { ImportDataSource } from '@/pages/imports/types'
 
-// The Firefly III flow is newer and converts most of an export but not all of
-// it, so the option is flagged as beta up front rather than letting that only
-// surface once a file is staged
+// The provider flows are newer and convert most of an export but not all of
+// it, so their options are flagged as beta up front rather than letting that
+// only surface once a file is staged
 const DATA_SOURCE_OPTIONS: DropdownOption[] = [
   { value: 'generic', label: 'Generic CSV' },
   { value: 'firefly', label: 'Firefly III', badge: 'Beta' },
+  { value: 'actual', label: 'Actual Budget', badge: 'Beta' },
 ]
 
 /**

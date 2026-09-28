@@ -44,7 +44,7 @@ async def _open_run(client, headers, expected_transaction_count, source="firefly
 
 async def _stage(client, headers, run_id, start_row_index, rows, accounts=None, categories=None):
     """Stage one batch of Firefly III rows"""
-    resp = await client.post(f"/transactions/import/runs/{run_id}/firefly/rows", json={
+    resp = await client.post(f"/transactions/import/runs/{run_id}/journal/rows", json={
         "accounts": accounts or [_chequing_mapping()],
         "categories": [_GROCERIES] if categories is None else categories,
         "rows": rows,
@@ -116,7 +116,7 @@ async def test_a_firefly_run_commits_rows_budgets_and_archiving_from_every_batch
     })
     await _put(client, headers, run_id, "archive", {"account_sources": ["US Dollar Savings"]})
 
-    resp = await client.post(f"/transactions/import/runs/{run_id}/firefly/commit", headers=headers)
+    resp = await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers)
     assert resp.status_code == 201, resp.text
     summary = resp.json()
     assert {key: summary[key] for key in (
@@ -151,7 +151,7 @@ async def test_a_firefly_run_commits_rows_budgets_and_archiving_from_every_batch
 
     # A commit whose response was lost is answered from the first, writing nothing again
     before = await _snapshot(client, headers)
-    repeat = await client.post(f"/transactions/import/runs/{run_id}/firefly/commit", headers=headers)
+    repeat = await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers)
     assert repeat.status_code == 201
     assert repeat.json() == summary
     assert await _snapshot(client, headers) == before
@@ -165,7 +165,7 @@ async def test_a_firefly_run_commits_more_rows_than_one_batch_carries(client):
     await _stage(client, headers, run_id, 0, [_firefly_row(journal_id=str(index)) for index in range(5000)])
     await _stage(client, headers, run_id, 5000, [_firefly_row(journal_id="5000")])
 
-    resp = await client.post(f"/transactions/import/runs/{run_id}/firefly/commit", headers=headers)
+    resp = await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers)
     assert resp.status_code == 201, resp.text
     assert (resp.json()["rows_imported"], resp.json()["transactions_created"]) == (5001, 5001)
 
@@ -216,13 +216,13 @@ async def test_a_firefly_run_failing_at_any_stage_saves_nothing(client, case, de
     }.get(case, [])
     await _put(client, headers, run_id, "archive", {"account_sources": archive})
 
-    resp = await client.post(f"/transactions/import/runs/{run_id}/firefly/commit", headers=headers)
+    resp = await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers)
     assert resp.status_code == 422
     assert resp.json()["detail"].startswith(detail)
     assert await _snapshot(client, headers) == before
 
     # Still open, so the same commit answers the same way rather than from a stored summary
-    again = await client.post(f"/transactions/import/runs/{run_id}/firefly/commit", headers=headers)
+    again = await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers)
     assert (again.status_code, again.json()["detail"]) == (422, resp.json()["detail"])
 
 
@@ -238,13 +238,13 @@ _GENERIC_BATCH = {
     (
         "generic",
         "post",
-        "firefly/rows",
+        "journal/rows",
         {"accounts": [_chequing_mapping()], "rows": [_firefly_row()], "start_row_index": 0},
         "This import run is a CSV import",
     ),
     ("firefly", "post", "rows", _GENERIC_BATCH, "This import run is a Firefly III import"),
     ("firefly", "post", "commit", None, "This import run is a Firefly III import"),
-    ("generic", "post", "firefly/commit", None, "This import run is a CSV import"),
+    ("generic", "post", "journal/commit", None, "This import run is a CSV import"),
     ("generic", "put", "budgets", {"budgets": [_budget()]}, "A CSV import has no budgets"),
     ("generic", "put", "archive", {"account_sources": ["Main Chequing"]}, "A CSV import archives no accounts"),
 ])
@@ -265,7 +265,7 @@ async def test_another_users_firefly_run_is_out_of_reach(client):
     base = f"/transactions/import/runs/{run_id}"
 
     responses = [
-        await client.post(f"{base}/firefly/rows", json={
+        await client.post(f"{base}/journal/rows", json={
             "accounts": [_chequing_mapping()],
             "categories": [_GROCERIES],
             "rows": [_firefly_row()],
@@ -273,7 +273,7 @@ async def test_another_users_firefly_run_is_out_of_reach(client):
         }, headers=other_headers),
         await client.put(f"{base}/budgets", json={"categories": [_GROCERIES], "budgets": [_budget()]}, headers=other_headers),
         await client.put(f"{base}/archive", json={"account_sources": ["Everyday Chequing"]}, headers=other_headers),
-        await client.post(f"{base}/firefly/commit", headers=other_headers),
+        await client.post(f"{base}/journal/commit", headers=other_headers),
     ]
 
     assert [(resp.status_code, resp.json()["detail"]) for resp in responses] == [(404, "Import run not found")] * 4
@@ -285,7 +285,7 @@ async def test_a_firefly_run_refuses_an_outside_account_when_staged_and_takes_th
     run_id = await _open_run(client, headers, 1)
     brokerage_row = _firefly_row(source_account="Brokerage elsewhere")
 
-    refused = await client.post(f"/transactions/import/runs/{run_id}/firefly/rows", json={
+    refused = await client.post(f"/transactions/import/runs/{run_id}/journal/rows", json={
         "accounts": [{"source": "Brokerage elsewhere", "outside": True}],
         "categories": [_GROCERIES],
         "rows": [brokerage_row],
@@ -297,7 +297,7 @@ async def test_a_firefly_run_refuses_an_outside_account_when_staged_and_takes_th
 
     brokerage = {"source": "Brokerage elsewhere", "create": {"name": "Brokerage", "account_type": "checking", "currency": "CAD"}}
     await _stage(client, headers, run_id, 0, [brokerage_row], accounts=[brokerage])
-    committed = await client.post(f"/transactions/import/runs/{run_id}/firefly/commit", headers=headers)
+    committed = await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers)
     assert committed.status_code == 201, committed.text
     assert committed.json()["transactions_created"] == 1
 
