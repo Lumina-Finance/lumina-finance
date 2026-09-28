@@ -33,5 +33,5 @@ test('names the import file-picker entry without opening a picker', async ({ pag
   await expect(budgets).toBeVisible()
   await expect(budgets).toHaveAccessibleName('Upload budgets csv Without it, create budgets by hand after the import.')
   const accounts = page.getByRole('button', { name: /^Upload accounts csv/ })
-  await expect(accounts).toHaveAccessibleName('Upload accounts csv Without it, each asset account is imported as an active checking account unless you choose another type.')
+  await expect(accounts).toHaveAccessibleName('Upload accounts csv Without it, each new asset account is created as an active checking account unless you choose another type.')
 })
