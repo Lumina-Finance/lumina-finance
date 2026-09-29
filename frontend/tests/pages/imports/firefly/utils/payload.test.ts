@@ -101,6 +101,38 @@ describe('a Firefly account the user can only read', () => {
   })
 })
 
+// Imports write the user's own records, so an answer naming a group's account or category, such as
+// one given before the list changed, is refused before upload rather than by the server
+describe('a Firefly answer naming a group account or category', () => {
+  it('refuses a group account and says which source', () => {
+    const familyChequing = { ...CHEQUING, id: 'family-chequing', group_id: 'family' } as AccountsOverview
+    const result = buildWithMapping(familyChequing.id, [familyChequing])
+
+    expect(result.payload).toBeNull()
+    expect(result.errors).toContain("Link Chequing to one of your own accounts or a new one. Imports don't write to group accounts.")
+  })
+
+  it('refuses a group category and says which source', () => {
+    const familyGroceries = { id: 'family-groceries', name: 'Groceries', kind: 'expense', group_id: 'family' } as Category
+    const result = buildFireflyImportPayload({
+      transactionsFile: TRANSACTIONS_FILE,
+      skippedRows: new Set(),
+      rows: [ROW],
+      accountSources: createNameKeyedAccountSources(['Chequing']),
+      accountMappings: { Chequing: CHEQUING.id },
+      accountById: new Map([[CHEQUING.id, CHEQUING]]),
+      accountCreateDetails: {},
+      importedCategories: ['Groceries'],
+      categoryMappings: { Groceries: familyGroceries.id },
+      categoryCreateKinds: {},
+      categoryById: new Map([[familyGroceries.id, familyGroceries]]),
+    })
+
+    expect(result.payload).toBeNull()
+    expect(result.errors).toContain("Match Groceries to one of your own categories or a built-in one. Imports don't use group categories.")
+  })
+})
+
 
 describe('Firefly amount payloads', () => {
   // The endpoint takes the one canonical form of each value and reads direction from the type
@@ -703,7 +735,7 @@ describe('importing with the Firefly III accounts export', () => {
     account('Market', 'Expense account', '1'),
   ]
 
-  function build(accountMappings: (ids: Record<string, string>) => Record<string, string>) {
+  function build(accountMappings: (ids: Record<string, string>) => Record<string, string>, accounts = [ARCHIVED]) {
     const rows = [ROW, WALLET_ROW]
     const accountSources = getFireflyAccountSources(rows, readFireflyAccountDetails(ACCOUNT_ROWS))
     const ids = Object.fromEntries(accountSources.list.map((source) => [source.name, source.id]))
@@ -714,7 +746,7 @@ describe('importing with the Firefly III accounts export', () => {
       skippedRows: new Set([ROW]),
       accountSources,
       accountMappings: accountMappings(ids),
-      accountById: new Map([[ARCHIVED.id, ARCHIVED]]),
+      accountById: new Map(accounts.map((existing) => [existing.id, existing])),
       accountCreateDetails: Object.fromEntries(accountSources.list.map((source) => [
         source.id,
         { ...prefills[source.id], institutionId: '' },
@@ -759,5 +791,20 @@ describe('importing with the Firefly III accounts export', () => {
 
     expect(result.errors).toEqual([])
     expect(result.archiveAccountSources).toEqual([ids.Chequing])
+  })
+
+  // No group account is offered, so one still chosen is a stale answer, refused even where the
+  // account would take no rows
+  it('refuses a group account chosen for an account no uploaded row names', () => {
+    const familyLoan = { id: 'family-loan', name: 'Family Loan', can_write: true, is_archived: false, group_id: 'family' } as AccountsOverview
+    const { result } = build((ids) => ({
+      [ids.Chequing]: CREATE_ACCOUNT_VALUE,
+      [ids.Wallet]: CREATE_ACCOUNT_VALUE,
+      [ids['Rainy Day']]: CREATE_ACCOUNT_VALUE,
+      [ids['Old Loan']]: familyLoan.id,
+    }), [familyLoan])
+
+    expect(result.payload).toBeNull()
+    expect(result.errors).toContain("Link Old Loan to one of your own accounts or a new one. Imports don't write to group accounts.")
   })
 })

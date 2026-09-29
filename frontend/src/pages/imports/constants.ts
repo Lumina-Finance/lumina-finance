@@ -189,6 +189,16 @@ export function getCategoryDirectionClashError(source: string, existingName: str
   return `${existingName} is already ${article} ${kind.toLowerCase()} category, so ${source} cannot be created with another type. Match it to ${existingName}, or set its type to ${kind}.`
 }
 
+// A provider import writes the user's own records, so it links to no group account or category,
+// whatever the export held
+export function getImportGroupCategoryError(label: string) {
+  return `Match ${label} to one of your own categories or a built-in one. Imports don't use group categories.`
+}
+
+export function getImportGroupAccountError(label: string) {
+  return `Link ${label} to one of your own accounts or a new one. Imports don't write to group accounts.`
+}
+
 /** Says which account source still needs a mapping */
 export function getImportAccountMappingError(name: string) {
   return `Map account: ${name}`
@@ -437,6 +447,11 @@ export const CLEARED_ACCOUNT_SOURCES_TITLE = 'Answers cleared'
 export const CLEARED_ACCOUNT_SOURCES_EXPLANATION = 'An account these sources were matched to no longer exists, so their answers were cleared. Answer each one again:'
 export const CLEARED_CATEGORY_SOURCES_TITLE = 'Answers cleared'
 export const CLEARED_CATEGORY_SOURCES_EXPLANATION = 'A category these values were matched to no longer exists, so their answers were cleared. Choose a category for each one, or queue a new one for it:'
+
+// Opens the transfers card on a provider import's Category Matching step, which then says how that
+// import files its own transfers and debt payments
+export const TRANSFERS_AND_DEBT_PAYMENTS_TITLE = 'Transfers and debt payments'
+export const TRANSFERS_EXPLANATION = "Money you move between your own accounts is a transfer, so it counts as neither spending nor income, and budgets leave it out. Paying your credit card works this way, since the purchases already counted when you made them."
 
 // Carries the account an import was started from, as a query parameter rather than router state so
 // the scope survives a reload and a shared address

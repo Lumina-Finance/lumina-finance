@@ -1,15 +1,21 @@
 import { expect, test, type APIRequestContext } from '@playwright/test'
 
-import { createAccount, signUpUser, type TestUser } from '../support/api'
-import { logInViaApi, openPage } from '../support/app'
+import { createAccount, createCategory, createGroup, signUpUser, type TestUser } from '../support/api'
+import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 const SHARED_ACCOUNT_NAME = 'Family Chequing'
 const OWN_ACCOUNT_NAME = 'My Chequing'
+const GROUP_CATEGORY_NAME = 'Pet Supplies'
 const CSV = [
   'Date,Amount,Category,Merchant,Account',
   `2024-03-15,-12.34,Groceries,Unknown,${SHARED_ACCOUNT_NAME}`,
   `2024-03-16,-23.45,Groceries,Unknown,${OWN_ACCOUNT_NAME}`,
+].join('\n')
+const FIREFLY_CSV = [
+  'journal_id,type,amount,currency_code,date,source_name,source_type,destination_name,destination_type,category,description',
+  `1,Withdrawal,-12.34,CAD,2024-03-15 00:00:00,${SHARED_ACCOUNT_NAME},Asset account,Market,Expense account,${GROUP_CATEGORY_NAME},Kibble`,
+  `2,Withdrawal,-23.45,CAD,2024-03-16 00:00:00,${OWN_ACCOUNT_NAME},Asset account,Market,Expense account,${GROUP_CATEGORY_NAME},Treats`,
 ].join('\n')
 
 /**
@@ -90,4 +96,36 @@ test('keeps an account the user can only read out of the accounts an import writ
   const listbox = page.getByRole('listbox')
   await expect(listbox.getByRole('option', { name: OWN_ACCOUNT_NAME })).toBeVisible()
   await expect(listbox.getByRole('option', { name: SHARED_ACCOUNT_NAME })).toHaveCount(0)
+})
+
+// A provider import writes the user's own records, so a group account or category of the same name
+// as one in the export is neither matched nor offered, even where the user can write to it
+test('keeps group accounts and categories out of a Firefly III import', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const groupId = await createGroup(request, user, 'Household')
+  await createAccount(request, user, { name: SHARED_ACCOUNT_NAME, groupId })
+  await createAccount(request, user, { name: OWN_ACCOUNT_NAME })
+  await createCategory(request, user, { name: GROUP_CATEGORY_NAME, groupId })
+
+  await logInViaApi(page, user)
+  await openPage(page, '/settings/imports')
+  await chooseFromDropdown(page.locator('body'), 'Data Source', /^Firefly III/)
+  const upload = page.locator('input[type="file"][accept=".csv,text/csv"]').first()
+  await expect(upload).toBeEnabled()
+  await upload.setInputFiles({ name: 'transactions.csv', mimeType: 'text/csv', buffer: Buffer.from(FIREFLY_CSV) })
+
+  const ownRow = page.getByRole('combobox', { name: `Existing Account ${OWN_ACCOUNT_NAME}`, exact: true })
+  const groupRow = page.getByRole('combobox', { name: `Existing Account ${SHARED_ACCOUNT_NAME}`, exact: true })
+  await expect(ownRow).toHaveText(OWN_ACCOUNT_NAME)
+  await expect(groupRow).toHaveText('Create New Account')
+  await groupRow.click()
+  await expect(page.getByRole('listbox').getByRole('option', { name: OWN_ACCOUNT_NAME })).toBeVisible()
+  await expect(page.getByRole('listbox').getByRole('option', { name: SHARED_ACCOUNT_NAME })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+
+  const categoryRow = page.getByRole('combobox', { name: `Existing Category ${GROUP_CATEGORY_NAME}`, exact: true })
+  await expect(categoryRow).toHaveText('Create new category')
+  await categoryRow.click()
+  await expect(page.getByRole('listbox').getByRole('option', { name: 'Groceries', exact: true })).toBeVisible()
+  await expect(page.getByRole('listbox').getByRole('option', { name: GROUP_CATEGORY_NAME })).toHaveCount(0)
 })

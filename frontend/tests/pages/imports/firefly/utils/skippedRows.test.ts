@@ -15,9 +15,9 @@ import {
   MAX_IMPORT_TAGS_PER_ROW,
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportRowProblem } from '@/pages/imports/types'
+import { getProviderSkippedRowsDisplay } from '@/pages/imports/utils'
 import {
   forecastFireflyImport,
-  getFireflySkippedRowsDisplay,
   isFireflyRowUploadable,
   resolveFireflyRowLegs,
   type FireflySkippedRowDetail,
@@ -182,11 +182,11 @@ function createImportResult(overrides: Partial<JournalImportRunResponse> = {}): 
   }
 }
 
-describe('getFireflySkippedRowsDisplay before commit', () => {
+describe('getProviderSkippedRowsDisplay before commit', () => {
   it('shows the forecast rows under a future-tense title', () => {
     const forecastRows = [createSkippedDetail(0), createSkippedDetail(1)]
 
-    expect(getFireflySkippedRowsDisplay({ liveForecastRows: forecastRows, completedImport: null })).toEqual({
+    expect(getProviderSkippedRowsDisplay({ liveForecastRows: forecastRows, completedImport: null })).toEqual({
       rows: forecastRows,
       totalCount: 2,
       title: '2 rows will not be imported',
@@ -194,7 +194,7 @@ describe('getFireflySkippedRowsDisplay before commit', () => {
   })
 })
 
-describe('getFireflySkippedRowsDisplay after commit', () => {
+describe('getProviderSkippedRowsDisplay after commit', () => {
   it('retains the commit-time source row after live account mappings move the same skip pair', () => {
     const sameAccountReason = 'Transfer source and destination resolve to the same account'
     const firstRow = createFireflyRow({
@@ -249,7 +249,7 @@ describe('getFireflySkippedRowsDisplay after commit', () => {
       skippedRows: [{ rowNumber: 3, cells: secondRow, reason: sameAccountReason }],
     })
 
-    expect(getFireflySkippedRowsDisplay({
+    expect(getProviderSkippedRowsDisplay({
       liveForecastRows: livePrediction.skippedRows,
       completedImport: {
         result: importResult,

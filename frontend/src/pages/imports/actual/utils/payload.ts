@@ -13,8 +13,6 @@ import {
   getActualCategoryCreateClashError,
   getActualCategoryNameTooLongError,
   getActualFileCurrencyError,
-  getActualGroupAccountError,
-  getActualGroupCategoryError,
   getActualMixedCurrencyError,
   getActualPaymentCategoryError,
   getActualPaymentKindClashError,
@@ -35,6 +33,8 @@ import {
   getImportAccountTypeUnsupportedError,
   getImportCategoryMappingError,
   getImportCategoryTypeRequiredError,
+  getImportGroupAccountError,
+  getImportGroupCategoryError,
   getImportNoRowsError,
   getImportReadOnlyAccountMappingError,
   getTooManyMappingsError,
@@ -44,7 +44,7 @@ import { isImportableAccount } from '@/pages/imports/utils/accountScope'
 import { findReusedImportCategory, getCategoryNameKey } from '@/pages/imports/utils/categoryMatching'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import { formatScaledAmount } from './amounts'
-import { isGroupResource } from './scope'
+import { isGroupResource } from '@/pages/imports/utils/resourceScope'
 import { canCarryActualTransfer } from './categories'
 import { formatHundredths } from './normalise'
 
@@ -182,7 +182,7 @@ function buildAccountMappings(
         continue
       }
       if (account && isGroupResource(account)) {
-        addError(getActualGroupAccountError(source.label))
+        addError(getImportGroupAccountError(source.label))
         continue
       }
       labelsByLinkedAccount.set(choice, [...(labelsByLinkedAccount.get(choice) ?? []), source.label])
@@ -254,7 +254,7 @@ function buildCategoryMappings(
     if (choice !== CREATE_CATEGORY_VALUE) {
       const category = categoryById.get(choice)
       if (category && isGroupResource(category)) {
-        addError(getActualGroupCategoryError(source.label))
+        addError(getImportGroupCategoryError(source.label))
         continue
       }
       if (source.role === 'transfer' && category && !canCarryActualTransfer(category)) {

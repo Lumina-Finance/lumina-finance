@@ -238,3 +238,47 @@ test('imports transfers into a credit card under Credit Card Payment on both acc
     .sort())
     .toEqual(payments.map((payment) => [payment.date, -Math.round(Number(payment.amount) * 100), creditCardPayment]).sort())
 })
+
+test('leaves out a budget left unticked', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await uploadActualExport(page, user, YEN_FIXTURE)
+
+  await page.getByRole('checkbox', { name: 'Import Food' }).click()
+  await expect(page.getByText('Not imported', { exact: true })).toHaveCount(1)
+
+  const result = await (await commitImport(page)).json() as { budgets: { name: string }[] }
+  expect(result.budgets.map((budget) => budget.name)).toEqual(['Bills'])
+})
+
+// A save that failed for a reason trying again could clear keeps its upload, so trying again saves
+// it without uploading the export a second time
+test('saves a kept upload again after its first save failed', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await uploadActualExport(page, user, YEN_FIXTURE)
+
+  const commitUrl = /\/transactions\/import\/runs\/[^/]+\/journal\/commit$/
+  let commitAttempts = 0
+  await page.route(commitUrl, async (route) => {
+    commitAttempts += 1
+    if (commitAttempts === 1) {
+      await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ detail: 'Service unavailable' }) })
+      return
+    }
+    await route.continue()
+  })
+
+  const commit = page.getByRole('button', { name: 'Commit import', exact: true })
+  await expect(commit).toBeEnabled()
+  await commit.click()
+
+  const retry = page.getByRole('button', { name: 'Try again', exact: true })
+  await expect(retry).toBeVisible()
+  const saved = page.waitForResponse((response) => response.request().method() === 'POST' && commitUrl.test(response.url()))
+  await retry.click()
+  const response = await saved
+  expect(response.status()).toBe(201)
+  expect(commitAttempts).toBe(2)
+
+  const result = await response.json() as { transactions_created: number }
+  expect(result.transactions_created).toBe(YEN_MANIFEST.rows.length)
+})

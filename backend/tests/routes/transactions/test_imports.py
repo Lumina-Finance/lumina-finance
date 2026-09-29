@@ -854,17 +854,43 @@ async def test_a_category_source_creating_a_name_the_user_already_has_reuses_it(
     assert transaction["category_id"] == existing.json()["id"]
 
 
-async def test_a_category_source_creating_a_name_recording_the_other_direction_is_refused(client):
-    """One name records one direction, so the refusal says which and what to do about it."""
+@pytest.mark.parametrize(
+    ("existing_kind", "requested_kind", "expected_detail"),
+    [
+        (
+            "expense",
+            "income",
+            "Garden Club is already an expense category, so Garden Club cannot be created with another type. "
+            "Match it to Garden Club, or set its type to Expense",
+        ),
+        (
+            "income",
+            "expense",
+            "Garden Club is already an income category, so Garden Club cannot be created with another type. "
+            "Match it to Garden Club, or set its type to Income",
+        ),
+        (
+            "transfer",
+            "expense",
+            "Garden Club is already a transfer category, so Garden Club cannot be created with another type. "
+            "Match it to Garden Club, or set its type to Transfer",
+        ),
+    ],
+)
+async def test_a_category_source_creating_a_name_recording_the_other_direction_is_refused(
+    client, existing_kind, requested_kind, expected_detail
+):
+    """One name records one direction, so the refusal names the category's type and what to do about it."""
     headers, account_id, _ = await _setup_user_with_deps(client)
-    await _create_category(client, headers, name="Bonus", kind="income")
+    created = await _create_category(client, headers, name="Garden Club", kind=existing_kind)
+    assert created.status_code == 201, created.text
 
     resp = await _import_transactions(client, headers, {
         "accounts": [{"source": "Main Chequing", "account_id": account_id}],
-        "categories": [{"source": "Bonus", "create": {"name": "Bonus", "kind": "expense"}}],
+        "categories": [{"source": "Garden Club", "create": {"name": "Garden Club", "kind": requested_kind}}],
         "rows": [{
             "account_source": "Main Chequing",
-            "category_source": "Bonus",
+            "category_source": "Garden Club",
             "dt": "2026-04-10",
             "amount": "-1.00",
             "tag_names": [],
@@ -872,10 +898,7 @@ async def test_a_category_source_creating_a_name_recording_the_other_direction_i
     })
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == (
-        "A category named Bonus already records income, so this import cannot create Bonus as "
-        "expense. Match this value to that category, or set its type to income."
-    )
+    assert resp.json()["detail"] == expected_detail
     assert (await client.get("/transactions", headers=headers)).json() == []
 
 

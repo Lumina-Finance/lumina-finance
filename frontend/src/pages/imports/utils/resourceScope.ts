@@ -3,14 +3,14 @@ import type { Category } from '@/api/categories'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import { CREATE_ACCOUNT_VALUE } from '@/pages/imports/constants'
 import type { ImportAccountSource } from '@/pages/imports/types'
-import { inferAccountMappingsWithCollisions } from '@/pages/imports/utils'
+import { inferAccountMappingsWithCollisions } from './accountMapping'
 
 /**
- * Which existing accounts and categories an Actual import may use
+ * Which existing accounts and categories a provider import may use
  *
  * An import writes the user's own records. Every account in the file comes in as the user's own,
- * even one shared in Actual, and no group account or group category is offered, matched or taken.
- * Supporting grouped resources starts here
+ * even one shared in the source app, and no group account or group category is offered, matched or
+ * taken. Supporting grouped resources starts here
  */
 export function isGroupResource(resource: { group_id?: string | null }) {
   return Boolean(resource.group_id)
@@ -34,14 +34,19 @@ export function getPersonalCategoryOptions(options: DropdownOption[], categoryBy
  * user's own where only one fits. Once the account list is current, the rest default to
  * create-new, apart from names sharing one match, which need an explicit answer
  */
-export function resolveActualAccountMappings(
-  sources: ImportAccountSource[],
-  explicitMappings: Record<string, string>,
-  selectableAccounts: AccountsOverview[],
-  accountsCurrent: boolean,
-) {
+export function resolveProviderAccountMappings({
+  sources,
+  liveMappings,
+  selectableAccounts,
+  accountsCurrent,
+}: {
+  sources: ImportAccountSource[]
+  liveMappings: Record<string, string>
+  selectableAccounts: AccountsOverview[]
+  accountsCurrent: boolean
+}): Record<string, string> {
   const personalAccounts = getPersonalAccounts(selectableAccounts)
-  const inferred = inferAccountMappingsWithCollisions(sources, explicitMappings, {
+  const inferred = inferAccountMappingsWithCollisions(sources, liveMappings, {
     rowAccounts: personalAccounts,
     counterpartyAccounts: personalAccounts,
   })

@@ -13,7 +13,7 @@ import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import type { ActualBudgetFile } from '@/pages/imports/actual/types'
 import type { ImportCategoryKind } from '@/pages/imports/types'
 import { formatScaledAmount } from './amounts'
-import { isGroupResource } from './scope'
+import { isGroupResource } from '@/pages/imports/utils/resourceScope'
 import { getActualCategoryName } from './normalise'
 
 // Actual budgets by calendar month, so every imported budget repeats on the first of each month

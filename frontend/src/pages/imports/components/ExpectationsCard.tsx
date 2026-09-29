@@ -5,10 +5,10 @@ import type { ImportExpectations } from '@/pages/imports/types'
 
 /**
  * Concept mapping shown at the top of a provider import flow so users know which of their data
- * changes shape on the way in, since the source app models transactions differently
+ * is imported in a different form, since the source app models transactions differently
  *
  * The three groups are ordered by what it costs to not know: the one thing
- * whose totals will not match leads, then data that arrives in a new shape,
+ * whose totals will not match leads, then data imported in a different form,
  * then what stays behind
  */
 export function ImportExpectationsCard({ expectations }: { expectations: ImportExpectations }) {
@@ -43,7 +43,7 @@ export function ImportExpectationsCard({ expectations }: { expectations: ImportE
             </p>
           </ConceptGroup>
 
-          <CollapsedConceptGroup title="Changes shape" toggleLabel="changes shape" railColour="var(--app-accent)">
+          <CollapsedConceptGroup title="Imported in a different form" toggleLabel="data imported in a different form" railColour="var(--app-accent)">
             <ul className="mt-1.5 flex flex-col gap-1.5 text-sm leading-5" style={{ color: 'var(--app-text)' }}>
               {expectations.changes.map((mapping) => (
                 <li key={mapping.source}>

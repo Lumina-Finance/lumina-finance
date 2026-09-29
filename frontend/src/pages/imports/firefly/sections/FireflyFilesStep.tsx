@@ -1,16 +1,7 @@
-import { useRef } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
-import {
-  EmptyState,
-  ImportStagedFileList,
-  ImportStat,
-  ImportStep,
-  ImportUploadCard,
-} from '@/pages/imports/components'
-import type { ImportFileDraft, ImportUploadBlock } from '@/pages/imports/types'
+import { ImportFileSlot, ImportFilesStepLayout, ImportStagedFileList } from '@/pages/imports/components'
+import type { ImportFileDraft } from '@/pages/imports/types'
 import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
 import type { FireflyFileKind } from '@/pages/imports/firefly/types'
-import type { ImportFileAcquisition } from '@/pages/imports/utils'
 
 type FireflyFilesStepProps = Pick<
   FireflyImportWorkflow,
@@ -27,10 +18,6 @@ type FireflyFilesStepProps = Pick<
   | 'uploadBlockReason'
 >
 
-// Matches the ease the transaction list uses for row growth and collapse
-const SLOT_SWAP_EASE = [0.25, 0.1, 0.25, 1] as const
-const SLOT_SWAP_DURATION = 0.24
-
 // Firefly III's own guide, linked rather than repeated so the steps stay current as its screens change
 const FIREFLY_EXPORT_DOCS_URL = 'https://docs.firefly-iii.org/tutorials/firefly-iii/exporting-data/'
 
@@ -38,7 +25,7 @@ const FIREFLY_EXPORT_DOCS_URL = 'https://docs.firefly-iii.org/tutorials/firefly-
 const FILE_SLOTS: Array<{ kind: FireflyFileKind; label: string; hint: string; required: boolean }> = [
   { kind: 'transactions', label: 'Transactions CSV', hint: 'The journal rows to import.', required: true },
   { kind: 'budgets', label: 'Budgets CSV', hint: 'Without it, create budgets by hand after the import.', required: false },
-  { kind: 'accounts', label: 'Accounts CSV', hint: 'Without it, every account comes across as active checking.', required: false },
+  { kind: 'accounts', label: 'Accounts CSV', hint: 'Without it, each new asset account is created as an active checking account unless you choose another type.', required: false },
 ]
 
 /**
@@ -66,8 +53,7 @@ export function FireflyFilesStep({
   }
 
   return (
-    <ImportStep
-      index="01"
+    <ImportFilesStepLayout
       title="Files"
       description={(
         <>
@@ -84,143 +70,40 @@ export function FireflyFilesStep({
           .
         </>
       )}
-      className="xl:min-h-full"
-      contentClassName="flex min-h-0 flex-col gap-3"
+      stats={[
+        { label: 'Rows', value: fireflyRows.length },
+        { label: 'Accounts', value: trackedAccounts.length },
+        { label: 'Categories', value: importedCategories.length },
+      ]}
     >
-      {FILE_SLOTS.map((slot, slotIndex) => (
-        <FireflyFileSlot
-          key={slot.kind}
-          kind={slot.kind}
-          label={slot.label}
-          hint={slot.hint}
-          required={slot.required}
-          file={filesByKind[slot.kind]}
-          processing={processingFileKind === slot.kind}
-          intakeRejection={fileIntakeErrors[slot.kind]}
-          disabled={processingFileKind !== null}
-          // A block is about the step rather than any one slot, so it is stated on the slot the
-          // user reaches first and the others are only disabled. Repeating it would read as
-          // separate problems, and each slot's message is a live region a screen reader announces
-          blockReason={slotIndex === 0 ? uploadBlockReason : null}
-          isBlocked={uploadBlockReason !== null}
-          onFileChange={handleFireflyFileChange}
-          onRemove={removeFireflyFile}
-        />
-      ))}
+      {FILE_SLOTS.map((slot, slotIndex) => {
+        const file = filesByKind[slot.kind]
 
-      <div className="mt-auto flex flex-wrap gap-3 pt-3">
-        <ImportStat label="Rows" value={fireflyRows.length.toString()} />
-        <ImportStat label="Accounts" value={trackedAccounts.length.toString()} />
-        <ImportStat label="Categories" value={importedCategories.length.toString()} />
-      </div>
-    </ImportStep>
-  )
-}
+        // A rejected file never becomes a staged file, so the slot keeps its upload card and
+        // reports the refusal in place
+        const stagedFile = file && !file.error ? file : null
 
-/**
- * One upload slot pairing the shared upload card with its staged file or the
- * blank placeholder when nothing is staged
- */
-function FireflyFileSlot({
-  kind,
-  label,
-  hint,
-  required,
-  file,
-  processing,
-  intakeRejection,
-  disabled,
-  blockReason,
-  isBlocked,
-  onFileChange,
-  onRemove,
-}: {
-  kind: FireflyFileKind
-  label: string
-  hint: string
-  required: boolean
-  file: ImportFileDraft | null
-  processing: boolean
-  intakeRejection: string | null
-  disabled: boolean
-  blockReason: ImportUploadBlock | null
-
-  /** Whether no file can be staged, which every slot answers to even where only one states why */
-  isBlocked: boolean
-  onFileChange: (kind: FireflyFileKind, files: ImportFileAcquisition) => Promise<void>
-  onRemove: (kind: FireflyFileKind) => void
-}) {
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  // A rejected file never becomes a staged file, so the slot keeps its upload
-  // card and any guidance beside it and reports the refusal in place
-  const stagedFile = file && !file.error ? file : null
-  const rejection = intakeRejection ?? file?.error ?? null
-  const isUploadBlocked = disabled || isBlocked
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-baseline justify-between gap-3">
-        <p className="text-sm font-semibold">{label}</p>
-        <span className="text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
-          {required ? 'Required' : 'Optional'}
-        </span>
-      </div>
-      <input
-        ref={inputRef}
-        type="file"
-        className="hidden"
-        accept=".csv,text/csv"
-        onChange={async (event) => {
-          const input = event.currentTarget
-          try {
-            await onFileChange(kind, input.files ?? [])
-          } finally {
-            input.value = ''
-          }
-        }}
-        disabled={isUploadBlocked}
-      />
-
-      {/* Each slot takes exactly one file, so the upload card
-          animate away once a file lands and grow back when it is removed */}
-      <AnimatePresence initial={false} mode="wait">
-        {stagedFile ? (
-          <motion.div
-            key="staged"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
-            transition={{ duration: SLOT_SWAP_DURATION, ease: SLOT_SWAP_EASE }}
-          >
-            <ImportStagedFileList files={[stagedFile]} onRemove={() => onRemove(kind)} />
-          </motion.div>
-        ) : (
-          <motion.div
-            key="upload"
-            className="space-y-2"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
-            transition={{ duration: SLOT_SWAP_DURATION, ease: SLOT_SWAP_EASE }}
-          >
-            <ImportUploadCard
-              title={`Upload ${label.toLowerCase()}`}
-              hint={hint}
-              processing={processing}
-              disabled={isUploadBlocked}
-              rejection={rejection}
-              blockReason={blockReason}
-              onClick={() => inputRef.current?.click()}
-              onDropFile={(selection) => void onFileChange(kind, selection)}
-            />
-            <EmptyState
-              title="No file staged"
-              description="The uploaded file will appear here."
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+        return (
+          <ImportFileSlot
+            key={slot.kind}
+            label={slot.label}
+            required={slot.required}
+            accept=".csv,text/csv"
+            uploadTitle={`Upload ${slot.label.toLowerCase()}`}
+            hint={slot.hint}
+            staged={stagedFile && <ImportStagedFileList files={[stagedFile]} onRemove={() => removeFireflyFile(slot.kind)} />}
+            processing={processingFileKind === slot.kind}
+            // Every slot answers to a block, even where only one states why
+            disabled={processingFileKind !== null || uploadBlockReason !== null}
+            rejection={fileIntakeErrors[slot.kind] ?? file?.error ?? null}
+            // A block is about the step rather than any one slot, so it is stated on the slot the
+            // user reaches first and the others are only disabled. Repeating it would read as
+            // separate problems, and each slot's message is a live region a screen reader announces
+            blockReason={slotIndex === 0 ? uploadBlockReason : null}
+            onFileChange={(selection) => handleFireflyFileChange(slot.kind, selection)}
+          />
+        )
+      })}
+    </ImportFilesStepLayout>
   )
 }

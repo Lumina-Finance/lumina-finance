@@ -1,14 +1,15 @@
 /**
- * Tests Firefly account resolution through the production mapping boundary
+ * Tests how a provider import fills in account answers from stored choices, name matches and
+ * create-new defaults
  */
 import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import { CREATE_ACCOUNT_VALUE } from '@/pages/imports/constants'
 import type { ImportAccountSource } from '@/pages/imports/types'
-import { resolveFireflyAccountMappings } from '@/pages/imports/firefly/utils'
+import { resolveProviderAccountMappings } from '@/pages/imports/utils/resourceScope'
 import { isAutoFilledAccountSource } from '@/pages/imports/utils'
 
-/** Creates a tracked Firefly account source */
+/** Creates a tracked provider account source */
 function createSource(name = 'Chequing'): ImportAccountSource {
   return { id: name, label: name, matchText: name, isCounterpartyOnly: false }
 }
@@ -35,9 +36,9 @@ function createAccount(overrides: Partial<AccountsOverview> = {}): AccountsOverv
   }
 }
 
-describe('resolveFireflyAccountMappings', () => {
+describe('resolveProviderAccountMappings', () => {
   it('leaves an unmatched source unanswered before the first account list is current', () => {
-    expect(resolveFireflyAccountMappings({
+    expect(resolveProviderAccountMappings({
       sources: [createSource()],
       liveMappings: {},
       selectableAccounts: [],
@@ -48,13 +49,13 @@ describe('resolveFireflyAccountMappings', () => {
   it('waits over a cached empty list before using the matching current account', () => {
     const sources = [createSource()]
 
-    expect(resolveFireflyAccountMappings({
+    expect(resolveProviderAccountMappings({
       sources,
       liveMappings: {},
       selectableAccounts: [],
       accountsCurrent: false,
     })).toEqual({})
-    expect(resolveFireflyAccountMappings({
+    expect(resolveProviderAccountMappings({
       sources,
       liveMappings: {},
       selectableAccounts: [createAccount()],
@@ -63,7 +64,7 @@ describe('resolveFireflyAccountMappings', () => {
   })
 
   it('does not default to create from an unrelated cached account after a failed refresh', () => {
-    expect(resolveFireflyAccountMappings({
+    expect(resolveProviderAccountMappings({
       sources: [createSource()],
       liveMappings: {},
       selectableAccounts: [createAccount({ id: 'savings', name: 'Savings' })],
@@ -72,7 +73,7 @@ describe('resolveFireflyAccountMappings', () => {
   })
 
   it('defaults an unmatched source to create when the account list is current', () => {
-    expect(resolveFireflyAccountMappings({
+    expect(resolveProviderAccountMappings({
       sources: [createSource()],
       liveMappings: {},
       selectableAccounts: [],
@@ -81,7 +82,7 @@ describe('resolveFireflyAccountMappings', () => {
   })
 
   it('uses a unique name match when the account list is current', () => {
-    expect(resolveFireflyAccountMappings({
+    expect(resolveProviderAccountMappings({
       sources: [createSource()],
       liveMappings: {},
       selectableAccounts: [createAccount()],
@@ -90,7 +91,7 @@ describe('resolveFireflyAccountMappings', () => {
   })
 
   it('defaults a nonmatching source to create when the account list is current', () => {
-    expect(resolveFireflyAccountMappings({
+    expect(resolveProviderAccountMappings({
       sources: [createSource()],
       liveMappings: {},
       selectableAccounts: [createAccount({ id: 'savings', name: 'Savings' })],
@@ -106,7 +107,7 @@ describe('resolveFireflyAccountMappings', () => {
     const originalMappings = { ...liveMappings }
 
     for (const accountsCurrent of [false, true]) {
-      expect(resolveFireflyAccountMappings({
+      expect(resolveProviderAccountMappings({
         sources: [createSource()],
         liveMappings,
         selectableAccounts: [],
@@ -124,8 +125,8 @@ describe('resolveFireflyAccountMappings', () => {
     const originalAccounts = selectableAccounts.map((account) => ({ ...account }))
 
     const options = { sources, liveMappings, selectableAccounts, accountsCurrent: true }
-    const first = resolveFireflyAccountMappings(options)
-    const second = resolveFireflyAccountMappings(options)
+    const first = resolveProviderAccountMappings(options)
+    const second = resolveProviderAccountMappings(options)
 
     expect(first).toEqual({ Chequing: 'chequing' })
     expect(second).toEqual(first)
@@ -138,7 +139,7 @@ describe('resolveFireflyAccountMappings', () => {
     const sources = [createSource('Everyday Chequing'), createSource('Everyday Chequing Card One')]
     const everyday = createAccount({ id: 'everyday', name: 'Everyday Chequing' })
 
-    expect(resolveFireflyAccountMappings({
+    expect(resolveProviderAccountMappings({
       sources,
       liveMappings: {},
       selectableAccounts: [everyday],
@@ -150,7 +151,7 @@ describe('resolveFireflyAccountMappings', () => {
     const sources = [createSource('Everyday Chequing'), createSource('Everyday Chequing Card One')]
     const everyday = createAccount({ id: 'everyday', name: 'Everyday Chequing' })
 
-    expect(resolveFireflyAccountMappings({
+    expect(resolveProviderAccountMappings({
       sources,
       liveMappings: { 'Everyday Chequing': 'everyday' },
       selectableAccounts: [everyday],
@@ -166,7 +167,7 @@ describe('resolveFireflyAccountMappings', () => {
       'Everyday Chequing Card One': 'everyday',
     }
 
-    expect(resolveFireflyAccountMappings({
+    expect(resolveProviderAccountMappings({
       sources,
       liveMappings,
       selectableAccounts: [everyday],
@@ -182,7 +183,7 @@ describe('resolveFireflyAccountMappings', () => {
     ]
     const everyday = createAccount({ id: 'everyday', name: 'Everyday Chequing' })
 
-    expect(resolveFireflyAccountMappings({
+    expect(resolveProviderAccountMappings({
       sources,
       liveMappings: {},
       selectableAccounts: [everyday],
@@ -202,7 +203,7 @@ describe('resolveFireflyAccountMappings', () => {
       createAccount({ id: 'card-two', name: 'Everyday Chequing Card Two' }),
     ]
 
-    expect(resolveFireflyAccountMappings({
+    expect(resolveProviderAccountMappings({
       sources,
       liveMappings: {},
       selectableAccounts: accounts,
@@ -215,7 +216,7 @@ describe('resolveFireflyAccountMappings', () => {
   })
 })
 
-describe('Firefly account auto-fill classification', () => {
+describe('provider account auto-fill classification', () => {
   it('highlights only an inferred existing-account answer', () => {
     expect(isAutoFilledAccountSource('', '', false)).toBe(false)
     expect(isAutoFilledAccountSource('', CREATE_ACCOUNT_VALUE, false)).toBe(false)

@@ -1,4 +1,5 @@
-import type { JournalImportRunResponse } from '@/api/provider-imports'
+import type { ImportRunBudgets, JournalImportRunResponse } from '@/api/provider-imports'
+import { getJsonByteSize } from '@/api/shared/importBatchSize'
 import { STEP_DOT_WAVE_MS } from '@/pages/imports/components/ProgressOverlay'
 import type { ImportOverlayPhase } from '@/pages/imports/types'
 import { getImportCommitFailure } from '@/pages/imports/utils/commitFailure'
@@ -55,6 +56,34 @@ export const PROVIDER_IMPORT_STAGE_CROSS_OFF_MS = 750
  */
 export const PROVIDER_MAX_BUDGETS_REQUEST_BYTES = 9 * 1024 * 1024
 
+/**
+ * Builds the budgets a provider import creates alongside its rows, or the reason it can't. Built
+ * ahead of the import so a budget it cannot send is refused while the selection can still change
+ */
+export function buildProviderRunBudgets(build: () => ImportRunBudgets): { budgets: ImportRunBudgets | null; error: string | null } {
+  try {
+    const budgets = build()
+
+    // The budgets go in one request, and a request past the server's limit is refused whole
+    if (getJsonByteSize(budgets) > PROVIDER_MAX_BUDGETS_REQUEST_BYTES) {
+      return { budgets: null, error: 'The selected budgets are too large to import at once. Select fewer budgets.' }
+    }
+    return { budgets, error: null }
+  } catch (error) {
+    return { budgets: null, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+/**
+ * Why the selected budgets can't be imported, if they can't. The importer takes a bounded number of
+ * budgets, and its refusal would name none of them
+ */
+export function getProviderBudgetSelectionError(selectedCount: number, maxBudgets: number, buildError: string | null) {
+  return selectedCount > maxBudgets
+    ? `Select at most ${maxBudgets.toLocaleString()} budgets to import, since the importer takes up to that many at once.`
+    : buildError
+}
+
 // Added after the reason a provider import failed. An import the server refused, or one that failed
 // while uploading, wrote nothing. A save that failed for another reason may or may not have landed,
 // and saving it again answers either way
@@ -65,6 +94,31 @@ const PROVIDER_IMPORT_SAVE_AGAIN_NOTE = 'Your upload is kept, so you can try sav
 export interface CompletedProviderImport<TSkipped> {
   result: JournalImportRunResponse
   skippedRowsAtCommit: TSkipped[]
+}
+
+/**
+ * Selects the skipped rows the preview shows, with its title. Once the import has run, they are the
+ * rows it was started with, since later answers no longer change what it wrote
+ *
+ * The weekly checks read the title after the import, so its wording is theirs to match
+ */
+export function getProviderSkippedRowsDisplay<TSkipped>({
+  liveForecastRows,
+  completedImport,
+}: {
+  liveForecastRows: TSkipped[]
+  completedImport: CompletedProviderImport<TSkipped> | null
+}) {
+  const rows = completedImport?.skippedRowsAtCommit ?? liveForecastRows
+  const totalCount = rows.length
+  const plural = totalCount === 1 ? '' : 's'
+  return {
+    rows,
+    totalCount,
+    title: completedImport
+      ? `${totalCount} row${plural} ${totalCount === 1 ? 'was' : 'were'} not imported`
+      : `${totalCount} row${plural} will not be imported`,
+  }
 }
 
 /** Why the last attempt failed, with the answers it was started with */

@@ -178,7 +178,7 @@ export interface ImportUploadBlock {
 }
 
 /**
- * What a provider import changes on the way in, shown before anything is staged
+ * What a provider import changes, keeps and leaves behind, shown before anything is staged
  *
  * The groups are ordered by what it costs to not know: the one thing whose totals will not match,
  * then data that arrives in a new shape, then what stays behind

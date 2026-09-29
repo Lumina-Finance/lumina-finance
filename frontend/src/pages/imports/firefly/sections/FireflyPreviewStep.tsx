@@ -1,13 +1,13 @@
-import { EmptyState, ImportPreviewList, ImportRowProblemsTable, ImportStat, ImportStep } from '@/pages/imports/components'
+import { ImportRowProblemsTable } from '@/pages/imports/components'
+import { ImportProviderPreviewStep } from '@/pages/imports/sections'
+import { getProviderSkippedRowsDisplay } from '@/pages/imports/utils'
 import { FireflySkippedRowsTable } from '@/pages/imports/firefly/components'
 import { FIREFLY_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/firefly/constants'
 import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
-import { getFireflySkippedRowsDisplay } from '@/pages/imports/firefly/utils'
 
 type FireflyPreviewStepProps = Pick<
   FireflyImportWorkflow,
   | 'importEstimate'
-  | 'previewRows'
   | 'previewGroups'
   | 'predictedSkippedRows'
   | 'predictedRowWarnings'
@@ -24,15 +24,11 @@ type FireflyPreviewStepProps = Pick<
 >
 
 /**
- * Preview and commit step of the Firefly III import flow, showing a sample of the transactions the
- * commit will create, skipped rows, non-blocking row guidance and the button that starts the commit
- *
- * The step number shifts by one depending on whether a budgets export is staged, since the budget
- * step before it only exists when there is one
+ * Preview and commit step of the Firefly III import flow, which also lists the rows that import but
+ * are worth a look
  */
 export function FireflyPreviewStep({
   importEstimate,
-  previewRows,
   previewGroups,
   predictedSkippedRows,
   predictedRowWarnings,
@@ -47,31 +43,26 @@ export function FireflyPreviewStep({
   canCommitImport,
   handleCommitImport,
 }: FireflyPreviewStepProps) {
-  const skippedRowsDisplay = getFireflySkippedRowsDisplay({
-    liveForecastRows: predictedSkippedRows,
-    completedImport,
-  })
+  const skipped = getProviderSkippedRowsDisplay({ liveForecastRows: predictedSkippedRows, completedImport })
 
   return (
-    <ImportStep
-      // The budget step only exists when a budgets export is staged, so the
-      // steps after it close the gap when there is none
-      index={budgetsFile ? '05' : '04'}
-      title="Preview and Commit"
-      description={`Showing the first ${FIREFLY_SAMPLE_PREVIEW_LIMIT} transactions as they will appear in your ledger.`}
+    <ImportProviderPreviewStep
+      // The budget step only exists when a budgets export is staged
+      hasBudgetStep={Boolean(budgetsFile)}
+      sampleLimit={FIREFLY_SAMPLE_PREVIEW_LIMIT}
+      stats={{ ...importEstimate, newAccountCount, newCategoryCount }}
+      previewGroups={previewGroups}
+      buildError={importBuild.errors[0] ?? null}
+      importError={importError}
+      imported={Boolean(importResult)}
+      canCommit={canCommitImport}
+      onCommit={handleCommitImport}
     >
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <ImportStat label="Rows" value={importEstimate.rowCount.toString()} />
-        <ImportStat label="Will Create" value={importEstimate.transactionEstimate.toString()} />
-        <ImportStat label="New Accounts" value={newAccountCount.toString()} />
-        <ImportStat label="New Categories" value={newCategoryCount.toString()} />
-      </div>
-
-      {skippedRowsDisplay.totalCount > 0 && (
+      {skipped.totalCount > 0 && (
         <FireflySkippedRowsTable
-          title={skippedRowsDisplay.title}
-          rows={skippedRowsDisplay.rows}
-          totalCount={skippedRowsDisplay.totalCount}
+          title={skipped.title}
+          rows={skipped.rows}
+          totalCount={skipped.totalCount}
           headers={fireflyHeaders}
         />
       )}
@@ -88,36 +79,6 @@ export function FireflyPreviewStep({
           />
         </div>
       )}
-
-      {previewRows.length === 0 ? (
-        <EmptyState
-          title="No preview rows"
-          description="Transactions compiled from the export will appear here."
-        />
-      ) : (
-        <ImportPreviewList groups={previewGroups} />
-      )}
-
-      <div className="flex flex-col items-end gap-3 pt-2">
-        {importBuild.errors.length > 0 && (
-          <p className="max-w-xl text-right text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
-            {importBuild.errors[0]}
-          </p>
-        )}
-        {importError && (
-          <p role="alert" className="max-w-xl text-right text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
-            {importError}
-          </p>
-        )}
-        <button
-          type="button"
-          className="app-primary-button"
-          onClick={handleCommitImport}
-          disabled={!canCommitImport}
-        >
-          {importResult ? 'Imported' : 'Commit import'}
-        </button>
-      </div>
-    </ImportStep>
+    </ImportProviderPreviewStep>
   )
 }

@@ -1,10 +1,11 @@
-import { EyeOff } from 'lucide-react'
-import { Checkbox } from '@/components/forms/Checkbox'
-import { EmptyState, ImportInfoCard, ImportNotice, ImportStep } from '@/pages/imports/components'
-import { IMPORT_EXCLUDED_ROW_BACKGROUND } from '@/pages/imports/constants'
-import { ActualSkippedBudgetsTable } from '@/pages/imports/actual/components'
+import { ImportInfoCard, ImportNotice, type ImportBudgetColumn } from '@/pages/imports/components'
+import type { ImportSkippedTableRow } from '@/pages/imports/components/tables/SkippedTable'
+import { ImportBudgetStep } from '@/pages/imports/sections'
 import type { ActualImportWorkflow } from '@/pages/imports/actual/hooks'
 import { formatScaledAmount } from '@/pages/imports/actual/utils/amounts'
+import type { ActualBudgetDraft } from '@/pages/imports/actual/utils/budgets'
+
+const SKIPPED_BUDGET_HEADERS = ['Months', 'First Month', 'Last Month', 'Latest Amount']
 
 type ActualBudgetImportStepProps = Pick<
   ActualImportWorkflow,
@@ -25,9 +26,8 @@ type ActualBudgetImportStepProps = Pick<
  * Previews the budgets the import will create from what Actual budgeted each month, and lets the
  * user choose them
  *
- * Budgets the import can't create move into their own skipped panel with the reason, and come back
- * when an answer elsewhere changes it. The import creates the selected budgets in the same save as
- * the transactions, so this step has no import button of its own
+ * A budget the import can't create comes back from the skipped panel when an answer elsewhere
+ * changes its reason
  */
 export function ActualBudgetImportStep({
   budget,
@@ -45,27 +45,60 @@ export function ActualBudgetImportStep({
   if (!budget) return null
 
   const budgetDecimals = budget.budgetDecimals
+  const formatAmount = (amount: number) => formatScaledAmount(amount, budgetDecimals, budgetDecimals) ?? ''
   const importableDrafts = budgetDrafts.filter((draft) => !budgetRefusals.get(draft.categoryId))
-  const skippedBudgets = budgetDrafts.flatMap((draft) => {
+  const skippedRows: ImportSkippedTableRow[] = budgetDrafts.flatMap((draft) => {
     const reason = budgetRefusals.get(draft.categoryId)
-    return reason ? [{ draft, reason }] : []
+    if (!reason) return []
+    return [{
+      key: draft.categoryId,
+      lead: draft.name,
+      reason,
+      cells: {
+        'Months': String(draft.months.length),
+        'First Month': draft.months[0]?.month ?? '',
+        'Last Month': draft.months.at(-1)?.month ?? '',
+        'Latest Amount': formatAmount(draft.months.at(-1)?.amount ?? 0),
+      },
+    }]
   })
 
-  // Selection drives what the import creates, so it locks while an import runs and once one has finished
-  const selectionLocked = importOverlayOpen || Boolean(importResult)
-
-  // After an import the boxes show what was created rather than what was chosen
-  const isChecked = (draft: (typeof importableDrafts)[number]) => (
-    importedBudgetNames.has(draft.name) || (!importResult && selectedBudgetIds.has(draft.categoryId))
-  )
-  const allChecked = importableDrafts.length > 0 && importableDrafts.every(isChecked)
-  const someChecked = !allChecked && importableDrafts.some(isChecked)
+  const columns: ImportBudgetColumn<ActualBudgetDraft>[] = [
+    { header: 'Repeats', widthClassName: 'w-[15%]', tone: 'muted', render: (draft) => (draft.recurs ? 'Monthly' : 'Not recurring') },
+    {
+      header: 'Latest Amount',
+      widthClassName: 'w-[16%]',
+      align: 'right',
+      tone: 'figure',
+      render: (draft) => {
+        const latest = draft.months.at(-1)
+        return latest ? formatAmount(latest.amount) : ''
+      },
+    },
+    { header: 'Months', widthClassName: 'w-[11%]', align: 'right', tone: 'figure', render: (draft) => draft.months.length },
+    { header: 'First Month', widthClassName: 'w-[14%]', tone: 'figure', render: (draft) => draft.months[0]?.month ?? '' },
+    { header: 'Last Month', widthClassName: 'w-[14%]', tone: 'figure', render: (draft) => draft.months.at(-1)?.month ?? '' },
+  ]
 
   return (
-    <ImportStep
-      index="04"
-      title="Budget Import"
+    <ImportBudgetStep
       description="Your Actual budgets, month by month. They're imported along with your transactions."
+      detectedCount={budgetDrafts.length}
+      skippedHeaders={SKIPPED_BUDGET_HEADERS}
+      skippedRows={skippedRows}
+      selectionError={budgetSelectionError}
+      noBudgetsDescription="Nothing in this budget was given an amount above zero."
+      allSkippedDescription="Every budget is skipped, for the reasons listed above."
+      budgets={importableDrafts}
+      getKey={(draft) => draft.categoryId}
+      columns={columns}
+      nameWidthClassName="w-[26%]"
+      minWidthClassName="min-w-[52rem]"
+      // After an import the boxes show what was created rather than what was chosen
+      isChecked={(draft) => importedBudgetNames.has(draft.name) || (!importResult && selectedBudgetIds.has(draft.categoryId))}
+      selectionLocked={importOverlayOpen || Boolean(importResult)}
+      onToggle={toggleBudgetSelection}
+      onSetAll={setBudgetsSelected}
     >
       {budgetsMissingPayments.length > 0 && (
         <ImportNotice title="Some budgets won't count these payments" items={budgetsMissingPayments}>
@@ -76,114 +109,6 @@ export function ActualBudgetImportStep({
       <ImportInfoCard title="How your budget months are imported">
         Each month you budgeted more than zero becomes a period, with that amount as its limit. A month budgeted at zero is left as a gap in the budget's history. If you budgeted a category for this month or later, its budget keeps recurring monthly at its latest limit. Otherwise it ends after the last month you budgeted. Categories you hid in Actual are imported as archived budgets. Rollover and To Budget aren't imported, since each period in Lumina Finance starts fresh.
       </ImportInfoCard>
-
-      {skippedBudgets.length > 0 && <ActualSkippedBudgetsTable budgets={skippedBudgets} budgetDecimals={budgetDecimals} />}
-
-      {budgetSelectionError && (
-        <p role="alert" className="text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
-          {budgetSelectionError}
-        </p>
-      )}
-
-      {budgetDrafts.length === 0 ? (
-        <EmptyState title="No budgets detected" description="Nothing in this budget was given an amount above zero." />
-      ) : importableDrafts.length === 0 ? (
-        <EmptyState title="No importable budgets" description="Every budget is skipped, for the reasons listed above." />
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[52rem] table-fixed text-left text-[0.9375rem]">
-            <colgroup>
-              <col className="w-12" />
-              <col className="w-[26%]" />
-              <col className="w-[15%]" />
-              <col className="w-[16%]" />
-              <col className="w-[11%]" />
-              <col className="w-[14%]" />
-              <col className="w-[14%]" />
-            </colgroup>
-            <thead style={{ color: 'var(--app-text-subtle)', background: 'var(--app-input-bg)' }}>
-              <tr>
-                <th className="w-12 px-2 py-2.5 font-medium">
-                  <span className="flex justify-center">
-                    <Checkbox
-                      checked={allChecked}
-                      indeterminate={someChecked}
-                      disabled={selectionLocked}
-                      label={allChecked ? 'Deselect all budgets' : 'Select all budgets'}
-                      onChange={() => setBudgetsSelected(importableDrafts.map((draft) => draft.categoryId), !allChecked)}
-                    />
-                  </span>
-                </th>
-                <th className="px-4 py-2.5 font-medium">Budget</th>
-                <th className="px-4 py-2.5 font-medium">Repeats</th>
-                <th className="px-4 py-2.5 text-right font-medium">Latest Amount</th>
-                <th className="px-4 py-2.5 text-right font-medium">Months</th>
-                <th className="px-4 py-2.5 font-medium">First Month</th>
-                <th className="px-4 py-2.5 font-medium">Last Month</th>
-              </tr>
-            </thead>
-            <tbody>
-              {importableDrafts.map((draft) => {
-                const latest = draft.months.at(-1)
-                const excluded = !isChecked(draft)
-                const strike = excluded ? 'line-through' : ''
-
-                return (
-                  <tr
-                    key={draft.categoryId}
-                    style={excluded ? { background: IMPORT_EXCLUDED_ROW_BACKGROUND, color: 'var(--app-text-muted)' } : undefined}
-                  >
-                    <td className="px-2 py-2.5 align-middle">
-                      <span className="flex justify-center">
-                        <Checkbox
-                          checked={isChecked(draft)}
-                          disabled={selectionLocked}
-                          label={`Import ${draft.name}`}
-                          onChange={() => toggleBudgetSelection(draft.categoryId)}
-                        />
-                      </span>
-                    </td>
-                    <td className="truncate px-4 py-2.5 align-middle font-medium">
-                      <span className="inline-flex max-w-full min-w-0 items-center gap-2">
-                        <span className={`truncate ${strike}`}>{draft.name}</span>
-                        {excluded && (
-                          <span className="shrink-0 text-[0.6875rem] font-semibold uppercase" style={{ color: 'var(--app-text-subtle)' }}>
-                            Not imported
-                          </span>
-                        )}
-                        {draft.isArchived && (
-                          <span
-                            className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
-                            style={{
-                              background: 'var(--app-surface-soft)',
-                              color: 'var(--app-text-muted)',
-                              border: '1px solid var(--app-border)',
-                            }}
-                          >
-                            <EyeOff size={11} aria-hidden />
-                            Archived
-                          </span>
-                        )}
-                      </span>
-                    </td>
-                    <td className={`px-4 py-2.5 align-middle ${strike}`} style={{ color: 'var(--app-text-muted)' }}>
-                      {draft.recurs ? 'Monthly' : 'Not recurring'}
-                    </td>
-                    <td className={`px-4 py-2.5 text-right align-middle font-financial tabular-nums ${strike}`}>
-                      {latest ? formatScaledAmount(latest.amount, budgetDecimals, budgetDecimals) : ''}
-                    </td>
-                    <td className={`px-4 py-2.5 text-right align-middle font-financial tabular-nums ${strike}`}>
-                      {draft.months.length}
-                    </td>
-                    <td className={`px-4 py-2.5 align-middle font-financial tabular-nums ${strike}`}>{draft.months[0]?.month ?? ''}</td>
-                    <td className={`px-4 py-2.5 align-middle font-financial tabular-nums ${strike}`}>{latest?.month ?? ''}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </ImportStep>
+    </ImportBudgetStep>
   )
 }
