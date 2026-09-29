@@ -31,6 +31,8 @@ import { useTransactionSearch } from '@/pages/transactions/hooks/useTransactionS
 import type { TransactionListAccount, TransactionListFilters } from '@/pages/transactions/types/transactionList'
 import { groupTransactionsByDate } from '@/pages/transactions/utils/transactionDateGroups'
 import { normalizeTransactionFilters } from '@/pages/transactions/utils/normalizeTransactionFilters'
+import { useTodayYmd } from '@/hooks/useTodayYmd'
+import { splitUpcoming } from '@/utils/upcoming'
 
 const DEFAULT_DATE_HEADER_STICKY_TOP = 72
 
@@ -145,9 +147,28 @@ export default function TransactionListSection({
     () => new Map(accounts.map((account) => [account.id, account])),
     [accounts],
   )
+  const today = useTodayYmd()
+  const [isUpcomingExpanded, setIsUpcomingExpanded] = useState(false)
+  const { upcoming: upcomingTransactions, rest: pastTransactions } = useMemo(
+    () => splitUpcoming(displayedTransactions, (transaction) => transaction.dt, today),
+    [displayedTransactions, today],
+  )
+  // A section that empties closes, so it comes back collapsed as it first appeared
+  if (upcomingTransactions.length === 0 && isUpcomingExpanded) setIsUpcomingExpanded(false)
+  const upcomingDateGroups = useMemo(
+    () => groupTransactionsByDate(upcomingTransactions),
+    [upcomingTransactions],
+  )
   const dateGroups = useMemo(
-    () => groupTransactionsByDate(displayedTransactions),
-    [displayedTransactions],
+    () => groupTransactionsByDate(pastTransactions),
+    [pastTransactions],
+  )
+
+  // The rows on screen, in the order they appear. Upcoming rows count only while their section is open,
+  // so a range never runs through rows nobody can see and closing the section drops their ticks
+  const shownTransactions = useMemo(
+    () => (isUpcomingExpanded ? [...upcomingTransactions, ...pastTransactions] : pastTransactions),
+    [isUpcomingExpanded, upcomingTransactions, pastTransactions],
   )
   const createDisabled = Boolean(fixedAccount?.is_archived)
   const createDisabledReason = createDisabled ? 'Archived accounts are read-only' : undefined
@@ -166,11 +187,11 @@ export default function TransactionListSection({
   // The rows a range runs along, in the order they appear, carrying the same editable rule the row
   // itself shows
   const selectableRows = useMemo(
-    () => displayedTransactions.map((transaction) => ({
+    () => shownTransactions.map((transaction) => ({
       id: transaction.id,
       isReadOnly: Boolean(getTransactionReadOnlyReason(transaction, accountMap, categoryMap, fixedAccount)),
     })),
-    [displayedTransactions, accountMap, categoryMap, fixedAccount],
+    [shownTransactions, accountMap, categoryMap, fixedAccount],
   )
 
   const transactionCurrencyById = useMemo(
@@ -440,7 +461,7 @@ export default function TransactionListSection({
             >
               Unable to load transactions.
             </motion.p>
-          ) : displayedTransactionsLoaded && dateGroups.length === 0 ? (
+          ) : displayedTransactionsLoaded && displayedTransactions.length === 0 ? (
             <motion.p
               key={`empty-${listRevealKey}`}
               className="py-8 text-center italic text-sm"
@@ -462,6 +483,10 @@ export default function TransactionListSection({
             >
               <TransactionDateGroupList
                 dateGroups={dateGroups}
+                upcomingDateGroups={upcomingDateGroups}
+                today={today}
+                isUpcomingExpanded={isUpcomingExpanded}
+                onToggleUpcoming={() => setIsUpcomingExpanded((current) => !current)}
                 categoryMap={categoryMap}
                 accountMap={accountMap}
                 fixedAccount={fixedAccount}

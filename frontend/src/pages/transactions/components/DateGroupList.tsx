@@ -5,6 +5,8 @@ import type { Transaction } from '@/api/transactions'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { Checkbox } from '@/components/forms/Checkbox'
 import TransactionRow, { type TransactionRowSelection } from '@/components/transactions/Row'
+import { TRANSACTION_LIST_SUBGRID } from '@/components/transactions/listLayout'
+import { UPCOMING_DAY_TOTAL_COLOUR, UpcomingSection } from '@/components/transactions/UpcomingSection'
 import type { GroupSelectionMark } from '@/pages/transactions/components/bulk-edit/selection'
 import {
   REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
@@ -67,6 +69,10 @@ export default function TransactionDateGroupList({
   stickyTop,
   prefersReducedMotion,
   skipEnterAnimation = false,
+  upcomingDateGroups,
+  today,
+  isUpcomingExpanded = false,
+  onToggleUpcoming,
   isSelecting = false,
   buildRowSelection,
   buildHeadingSelection,
@@ -82,6 +88,14 @@ export default function TransactionDateGroupList({
   prefersReducedMotion: boolean | null
   // Makes a newly added row or group appear without the grow in, used for a lazy loaded page of rows
   skipEnterAnimation?: boolean
+
+  // Days after the user's today, shown above the others in the collapsible Upcoming section, whose
+  // open state the caller holds because it decides which rows a selection runs along
+  upcomingDateGroups?: TransactionDateGroup[]
+  // The user's today as "YYYY-MM-DD", which the Upcoming header reads its dates against
+  today?: string
+  isUpcomingExpanded?: boolean
+  onToggleUpcoming?: () => void
   // Opens the rail the checkbox sits in, which the import preview never asks for
   isSelecting?: boolean
   buildRowSelection?: (transactionId: string, isReadOnly: boolean) => TransactionRowSelection
@@ -91,31 +105,24 @@ export default function TransactionDateGroupList({
 }) {
   const { formatCurrency } = useMoneyFormatters()
 
-  return (
-    <motion.div
-      className={`min-[1300px]:grid min-[1300px]:gap-x-3 ${LIST_COLUMNS}`}
-      style={{ paddingLeft: TRANSACTION_CHECKBOX_RAIL }}
-      initial={false}
-      animate={{
-        [TRANSACTION_CHECKBOX_RAIL_VARIABLE]: isSelecting ? TRANSACTION_CHECKBOX_RAIL_WIDTH : '0rem',
-      }}
-      transition={{
-        duration: prefersReducedMotion ? 0 : TRANSACTION_CHECKBOX_RAIL_DURATION_S,
-        ease: TRANSACTION_LIST_EASE,
-      }}
-    >
-      {/* initial={false} suppresses the first render and the whole-list swap on filter changes, so a
-          group only animates here when it is genuinely added (a new day's first transaction) or removed
-          (its last transaction deleted) while the list stays mounted */}
+  // Inside the open Upcoming section the headings stay in place, since its own header is what sticks
+  // there, and a heading stuck at the same height would slide over it. Their totals take the section's
+  // muted colour rather than the colours of money in and out, since none of it counts yet
+  function renderDateGroups(groups: TransactionDateGroup[], isUpcoming = false) {
+    // initial={false} suppresses the first render and the whole-list swap on filter changes, so a group
+    // only animates here when it is genuinely added (a new day's first transaction) or removed (its last
+    // transaction deleted) while the list stays mounted
+    return (
       <AnimatePresence initial={false}>
-        {dateGroups.map(({ dateLabel, transactions }) => {
+        {groups.map(({ dateLabel, transactions }) => {
           const dailyTotal = getTransactionDateGroupTotal(transactions, fixedAccount)
-          const dailyColor = dailyTotal >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
+          let dailyColor = dailyTotal >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
+          if (isUpcoming) dailyColor = UPCOMING_DAY_TOTAL_COLOUR
           const headingSelection = buildHeadingSelection?.(transactions.map((transaction) => transaction.id))
           return (
             <motion.div
               key={`${dateLabel}-${listRevealKey}`}
-              className="min-[1300px]:col-span-full min-[1300px]:grid min-[1300px]:grid-cols-subgrid"
+              className={TRANSACTION_LIST_SUBGRID}
               initial={skipEnterAnimation ? false : prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={
@@ -131,9 +138,9 @@ export default function TransactionDateGroupList({
               transition={{ duration: prefersReducedMotion ? 0 : 0.28, ease: TRANSACTION_LIST_EASE }}
             >
             <div
-              className="sticky z-20 flex items-center justify-between rounded-lg py-2 pr-3 min-[1300px]:col-span-full"
+              className={`${isUpcoming ? 'relative' : 'sticky z-20'} flex items-center justify-between rounded-lg py-2 pr-3 min-[1300px]:col-span-full`}
               style={{
-                top: stickyTop,
+                top: isUpcoming ? undefined : stickyTop,
                 background: 'var(--app-input-bg)',
                 borderBottom: '1px solid var(--app-border)',
                 ...REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
@@ -225,6 +232,37 @@ export default function TransactionDateGroupList({
           )
         })}
       </AnimatePresence>
+    )
+  }
+
+  return (
+    <motion.div
+      className={`min-[1300px]:grid min-[1300px]:gap-x-3 ${LIST_COLUMNS}`}
+      style={{ paddingLeft: TRANSACTION_CHECKBOX_RAIL }}
+      initial={false}
+      animate={{
+        [TRANSACTION_CHECKBOX_RAIL_VARIABLE]: isSelecting ? TRANSACTION_CHECKBOX_RAIL_WIDTH : '0rem',
+      }}
+      transition={{
+        duration: prefersReducedMotion ? 0 : TRANSACTION_CHECKBOX_RAIL_DURATION_S,
+        ease: TRANSACTION_LIST_EASE,
+      }}
+    >
+      {upcomingDateGroups && today && onToggleUpcoming && (
+        <UpcomingSection
+          transactionDates={upcomingDateGroups.flatMap((group) => group.transactions.map((transaction) => transaction.dt))}
+          today={today}
+          expanded={isUpcomingExpanded}
+          onToggle={onToggleUpcoming}
+          gridClassName={TRANSACTION_LIST_SUBGRID}
+          // Where the day headings stick, below the strip of page colour the toolbar draws under itself,
+          // which would otherwise cover the top edge of the box
+          stickyTop={stickyTop}
+        >
+          {renderDateGroups(upcomingDateGroups, true)}
+        </UpcomingSection>
+      )}
+      {renderDateGroups(dateGroups)}
     </motion.div>
   )
 }

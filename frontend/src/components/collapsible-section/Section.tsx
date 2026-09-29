@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react'
+import { useId, useState, type CSSProperties, type ReactNode } from 'react'
 import { ChevronDown, type LucideIcon } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 
@@ -25,17 +25,28 @@ type CollapsibleSectionProps = {
   // on its own column tracks
   className?: string
   bodyClassName?: string
+
+  // Sizing and placement for the header, so a list with a gutter beside its rows, such as a checkbox
+  // rail, can run the header across it the way its row backgrounds run, and can stick it below its bar
+  headerStyle?: CSSProperties
+
+  // How wide the slot the icon sits at the start of is, so a list can start the label level with its
+  // own text while the icon stays put. The icon's own width when not given
+  iconSlotWidth?: string
   children: ReactNode
 }
 
 /**
  * Renders how many items a section holds as a pill, for a header summary
+ *
+ * Its number takes the full text colour in every section, since the header's muted one falls below a
+ * readable contrast on the pill's tint in the dark theme
  */
 export function CollapsibleSectionCount({ count }: { count: number }) {
   return (
     <span
       className="rounded-full px-2 py-0.5 text-xs font-semibold"
-      style={{ background: 'var(--app-accent-soft)' }}
+      style={{ background: 'var(--app-accent-soft)', color: 'var(--app-text)' }}
     >
       {count}
     </span>
@@ -59,6 +70,8 @@ export function CollapsibleSection({
   opensInstantly = false,
   className,
   bodyClassName = '',
+  headerStyle,
+  iconSlotWidth,
   children,
 }: CollapsibleSectionProps) {
   const bodyId = useId()
@@ -83,25 +96,29 @@ export function CollapsibleSection({
 
   return (
     <div className={className}>
+      {/* Inside a list that scrolls sideways, the header fits the visible width and stays in view. Each
+          part sits on the first line, so a summary that wraps keeps the label and chevron level with its
+          first line rather than centred between its lines */}
       <button
         type="button"
-        className="col-span-full flex w-full items-center gap-3 py-2 text-left transition-colors hover:text-[var(--app-text)]"
+        className="sticky left-0 z-10 col-span-full flex w-full max-w-[100cqw] items-start gap-3 py-2 text-left transition-colors hover:text-[var(--app-text)]"
         style={{
           borderTop: '1px solid var(--app-border)',
           color: 'var(--app-text-muted)',
+          ...headerStyle,
         }}
         aria-expanded={expanded}
         aria-controls={bodyId}
         onClick={handleToggle}
       >
-        <Icon size={16} aria-hidden />
-        <span className="font-medium">{label}</span>
-        <span className="flex min-w-0 flex-1 items-center gap-3">{summary}</span>
-        <ChevronDown
-          size={16}
-          className={`shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}
-          aria-hidden
-        />
+        <span className="flex h-6 shrink-0 items-center" style={{ width: iconSlotWidth }}>
+          <Icon size={16} aria-hidden />
+        </span>
+        <span className="font-medium leading-6">{label}</span>
+        <span className="flex min-h-6 min-w-0 flex-1 items-center gap-3">{summary}</span>
+        <span className="flex h-6 shrink-0 items-center">
+          <ChevronDown size={16} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden />
+        </span>
       </button>
 
       <motion.div
