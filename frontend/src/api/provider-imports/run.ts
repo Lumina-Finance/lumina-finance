@@ -1,6 +1,7 @@
 import { buildJournalStageBatches } from '@/api/provider-imports/batching';
 import {
   commitJournalImportRun,
+  fetchJournalImportRunResult,
   openJournalImportRun,
   putImportRunArchive,
   putImportRunBudgets,
@@ -40,13 +41,14 @@ export interface JournalImportRequest {
  * @param request - The prepared rows, budgets and accounts to archive
  * @param signal - Abandons the upload. The run is dropped when this fires during staging, while
  *   during the commit it only stops waiting, since the commit may already have landed
- * @param onStaged - Runs once everything is staged, before the commit starts, so the screen can
- *   show the upload finishing. Stopping while it runs still counts as stopping during staging
+ * @param onStaged - Runs once everything is staged, before the commit starts, with the run the
+ *   commit will write, so the screen can show the upload finishing and remember the run in case the
+ *   commit's answer is lost. Stopping while it runs still counts as stopping during staging
  */
 export async function runJournalImport(
   { source, payload, budgets, archiveAccountSources }: JournalImportRequest,
   signal?: AbortSignal,
-  onStaged?: () => Promise<void>,
+  onStaged?: (runId: string) => Promise<void>,
 ): Promise<JournalImportRunResponse> {
   const batches = await buildJournalStageBatches(payload);
   const run = await openJournalImportRun(source, payload.rows.length, signal);
@@ -55,7 +57,7 @@ export async function runJournalImport(
     for (const batch of batches) await stageJournalImportRows(run.id, batch, signal);
     if (budgets && budgets.budgets.length > 0) await putImportRunBudgets(run.id, budgets, signal);
     if (archiveAccountSources.length > 0) await putImportRunArchive(run.id, archiveAccountSources, signal);
-    await onStaged?.();
+    await onStaged?.(run.id);
     signal?.throwIfAborted();
   } catch (error) {
     await discardStagedRun(run.id);
@@ -77,6 +79,23 @@ export async function runJournalImport(
 export async function commitStagedJournalRun(runId: string, signal?: AbortSignal): Promise<JournalImportRunResponse> {
   try {
     return await commitJournalImportRun(runId, signal);
+  } catch (error) {
+    throw new TransactionImportRunError(getImportFailureMessage(error), 'commit', runId, { cause: error });
+  }
+}
+
+/**
+ * Asks whether a commit the browser never heard back from landed, without committing anything
+ *
+ * A failure reads the same way a commit's does: a run that is gone or abandoned wrote nothing, and
+ * any other refusal leaves the question open
+ *
+ * @param runId - The run whose commit went unanswered
+ * @param signal - Stops waiting for the answer
+ */
+export async function checkStagedJournalRun(runId: string, signal?: AbortSignal): Promise<JournalImportRunResponse> {
+  try {
+    return await fetchJournalImportRunResult(runId, signal);
   } catch (error) {
     throw new TransactionImportRunError(getImportFailureMessage(error), 'commit', runId, { cause: error });
   }

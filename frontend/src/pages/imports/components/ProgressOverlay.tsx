@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, type RefObject } from 'react'
-import { AlertCircle, CheckCircle2, CircleStop, LoaderCircle } from 'lucide-react'
+import { AlertCircle, CheckCircle2, CircleHelp, CircleStop, LoaderCircle } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { Variants } from 'motion/react'
 import type { ImportOverlayPhase, ImportProgressStep, ImportProgressStepStatus } from '@/pages/imports/types'
@@ -137,6 +137,13 @@ interface ImportProgressOverlayProps {
   /** Runs a failed import again without re-uploading it, offered only when that could work */
   onRetry?: () => void
 
+  /**
+   * Leaves the import while a save nobody answered for holds the overlay, offered in place of going
+   * back to the import, which could start the same import a second time. Left out where leaving would
+   * lose the save, which leaves trying again as the only way on
+   */
+  onLeave?: () => void
+
   /** Closes a successful overlay onto result details that remain on the import page */
   onReview?: () => void
   phase: ImportOverlayPhase
@@ -163,6 +170,7 @@ export function ImportProgressOverlay({
   onClosed,
   onCancel,
   onRetry,
+  onLeave,
   onReview,
   phase,
   steps,
@@ -194,21 +202,27 @@ export function ImportProgressOverlay({
   // An import the user stopped is not one that went wrong, so it is told apart from a failure
   // everywhere the two would otherwise read the same: the title, the icon and the message colour
   const stopped = phase === 'cancelled'
-  const ended = failed || stopped
+
+  // A save nobody answered for is neither, since it may have landed, so it reads as uncertain
+  // rather than failed, and its way out leaves the import instead of going back to it
+  const unconfirmed = phase === 'unconfirmed'
+  const ended = failed || stopped || unconfirmed
 
   // The stage list already says what is in flight, so the title stops
   // repeating the first stage when a flow supplies one
   const title = stopped
     ? 'Import stopped'
-    : failed
-      ? 'Import failed'
-      : complete
-        ? 'Import complete'
-        : steps
-          ? 'Importing'
-          : 'Importing transactions'
+    : unconfirmed
+      ? 'Import not confirmed'
+      : failed
+        ? 'Import failed'
+        : complete
+          ? 'Import complete'
+          : steps
+            ? 'Importing'
+            : 'Importing transactions'
   const message = ended
-    ? error ?? (stopped ? 'Import stopped.' : GENERIC_IMPORT_FAILURE)
+    ? error ?? (stopped ? 'Import stopped.' : unconfirmed ? 'Import not confirmed.' : GENERIC_IMPORT_FAILURE)
     : complete
       ? summary || 'Your import is complete.'
       : 'Your import is being added to your ledger, and nothing is saved until it finishes.'
@@ -260,7 +274,7 @@ export function ImportProgressOverlay({
             <motion.div
               className="mb-5 flex h-20 w-20 items-center justify-center"
               animate={{
-                color: stopped
+                color: stopped || unconfirmed
                   ? OVERLAY_MUTED_TEXT
                   : failed ? OVERLAY_ERROR : complete ? OVERLAY_SUCCESS : OVERLAY_ACCENT,
               }}
@@ -270,7 +284,7 @@ export function ImportProgressOverlay({
             >
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span
-                  key={stopped ? 'cancelled' : failed ? 'error' : complete ? 'success' : 'importing'}
+                  key={stopped ? 'cancelled' : unconfirmed ? 'unconfirmed' : failed ? 'error' : complete ? 'success' : 'importing'}
                   className="flex h-full w-full items-center justify-center"
                   variants={iconVariants}
                   initial="hidden"
@@ -279,6 +293,8 @@ export function ImportProgressOverlay({
                 >
                   {stopped ? (
                     <CircleStop size={48} strokeWidth={1.9} />
+                  ) : unconfirmed ? (
+                    <CircleHelp size={48} strokeWidth={1.9} />
                   ) : failed ? (
                     <AlertCircle size={48} strokeWidth={1.9} />
                   ) : complete ? (
@@ -372,13 +388,23 @@ export function ImportProgressOverlay({
                         Try again
                       </button>
                     )}
-                    <button
-                      type="button"
-                      className={`app-secondary-button ${overlayButtonClass} sm:min-w-[8.5rem]`}
-                      onClick={onReturnToImport}
-                    >
-                      Back to import
-                    </button>
+                    {unconfirmed ? onLeave && (
+                      <button
+                        type="button"
+                        className={`app-secondary-button ${overlayButtonClass} sm:min-w-[8.5rem]`}
+                        onClick={onLeave}
+                      >
+                        Leave import
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className={`app-secondary-button ${overlayButtonClass} sm:min-w-[8.5rem]`}
+                        onClick={onReturnToImport}
+                      >
+                        Back to import
+                      </button>
+                    )}
                   </motion.div>
                 )}
               </motion.div>

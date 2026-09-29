@@ -1,19 +1,24 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import {
+  useCheckStagedJournalImport,
   useCommitStagedJournalImport,
   useImportJournal,
   type JournalImportRequest,
   type JournalImportSource,
 } from '@/api/provider-imports'
 import { discardStagedRun } from '@/api/transaction-imports'
+import { useAuth } from '@/hooks/useAuth'
 import { waitForMilliseconds } from '@/utils/timing'
 import type { ImportProgressStep } from '@/pages/imports/types'
 import {
   canStartProviderImport,
   createProviderImportRunController,
+  createUnconfirmedImportSaveStore,
   describeProviderImportFailure,
   formatProviderImportSummary,
+  getBrowserLocalStorage,
   getProviderImportError,
+  getUnconfirmedImportSavePrefix,
   PROVIDER_IMPORT_RUN_IDLE,
   PROVIDER_IMPORT_STAGES,
   type ProviderImportRunState,
@@ -23,9 +28,10 @@ import {
  * Runs a provider import as one run that uploads everything and then writes all of it at once, and
  * holds where the latest attempt stands for the overlay and the import button
  *
- * An import that fails writes nothing, and one whose save failed for a reason trying again could
- * clear keeps its upload, so a retry only saves again. A failure is about the answers the import
- * was sent with, so it stops showing once one of them changes
+ * An import that fails writes nothing. One whose save went unanswered may already have landed, so
+ * it keeps its upload, remembered past the page, and holds the overlay until saving again or asking
+ * the server settles it. A failure is about the answers the import was sent with, so it stops
+ * showing once one of them changes
  */
 export function useProviderImportRun<TSkipped>({
   source,
@@ -36,16 +42,25 @@ export function useProviderImportRun<TSkipped>({
   /** Every answer the user gives about the import, as one value that changes only when one of them does */
   answers: object
 }) {
+  const { user } = useAuth()
   const [run, setRun] = useState<ProviderImportRunState<TSkipped>>(PROVIDER_IMPORT_RUN_IDLE)
   const [controller] = useState(() => createProviderImportRunController<TSkipped>({
     onChange: setRun,
     discardStagedRun: (runId) => void discardStagedRun(runId),
     wait: waitForMilliseconds,
+
+    // Without a signed-in user there is nobody to keep saves for, and the page still holds its own
+    unconfirmedSaves: createUnconfirmedImportSaveStore(
+      user ? getBrowserLocalStorage() : null,
+      user ? getUnconfirmedImportSavePrefix(user.id, source) : '',
+      Date.now,
+    ),
   }))
   const importJournal = useImportJournal()
   const commitStagedJournal = useCommitStagedJournalImport()
+  const { mutateAsync: checkStagedRun } = useCheckStagedJournalImport()
 
-  const { failure, completedImport, overlayPhase, stageState, canStop, stagedRunId } = run
+  const { failure, completedImport, overlayPhase, stageState, canStop, stagedRunId, isSaveRemembered } = run
   const importResult = completedImport?.result ?? null
   const importError = getProviderImportError(failure, answers)
 
@@ -67,7 +82,7 @@ export function useProviderImportRun<TSkipped>({
     [stageState],
   )
 
-  const completedSkippedCount = completedImport?.skippedRowsAtCommit.length ?? 0
+  const completedSkippedCount = completedImport?.skippedCount ?? 0
   const importedBudgetNames = useMemo(
     () => new Set(importResult?.budgets.map((budget) => budget.name) ?? []),
     [importResult],
@@ -117,6 +132,12 @@ export function useProviderImportRun<TSkipped>({
     commitStagedJournal.reset()
   }
 
+  // A save this browser sent and never heard back about takes the overlay before anything can be
+  // started, laid out ahead of the first paint so the page never shows Commit import in between
+  useLayoutEffect(() => {
+    void controller.resume(answers, (runId) => checkStagedRun({ runId }))
+  }, [controller, answers, checkStagedRun])
+
   // Leaving the page abandons the import: while uploading that drops what was uploaded, and while
   // saving it only stops waiting, since the save is the server's to finish
   useEffect(() => () => controller.stop(), [controller])
@@ -132,20 +153,25 @@ export function useProviderImportRun<TSkipped>({
       completedSkippedCount,
       importError,
 
-      // Only the overlay says what a failure left, read off the upload still kept, since closing it
-      // drops that upload and the preview beside the button then shows the reason alone
-      importOverlayError: importError && overlayPhase === 'error'
-        ? describeProviderImportFailure(importError, stagedRunId !== null)
-        : importError,
+      // Only the overlay says what a failure left behind, and the preview beside the button shows the
+      // reason alone once it closes. A save nobody answered for is described by what may have
+      // happened to it rather than by its reason
+      importOverlayError: describeProviderImportFailure(overlayPhase, importError),
       importResult,
       importOverlayPhase: overlayPhase,
       importOverlayOpen,
       importOverlaySteps,
       importSummary: importResult ? formatProviderImportSummary(importResult, completedSkippedCount) : '',
       importedBudgetNames,
+
+      // Only rows kept from this visit can be listed, so a save learned about later offers none
+      canReviewSkippedRows: (completedImport?.skippedRowsAtCommit.length ?? 0) > 0,
       isImportInFlight,
       canStopImport: canStop,
       canRetryImportCommit: stagedRunId !== null,
+
+      // A save the browser refused to keep is lost by leaving, so only trying again is offered
+      canLeaveImport: isSaveRemembered,
       retryImportCommit,
       cancelImport: controller.stop,
       closeImportOverlay: controller.close,

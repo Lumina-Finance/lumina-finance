@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { ApiError } from '@/api/auth/errors'
 import type { JournalImportRunResponse } from '@/api/provider-imports'
 import { TransactionImportRunError } from '@/api/transaction-imports'
 import type { FireflySkippedRowDetail } from '@/pages/imports/firefly/utils'
@@ -6,10 +7,13 @@ import {
   canStartProviderImport,
   countCreatedImportSources,
   createProviderImportRunController,
+  createUnconfirmedImportSaveStore,
+  describeProviderImportFailure,
   formatProviderImportSummary,
   getProviderImportError,
   type ProviderImportRunState,
 } from '@/pages/imports/utils'
+import { createMemoryStorage } from './fixtures'
 
 const RESULT = { rows_imported: 3 } as JournalImportRunResponse
 const SKIPPED_AT_START: FireflySkippedRowDetail[] = [{ journalId: '7', rowNumber: 8, cells: {}, reason: 'Left out' }]
@@ -52,22 +56,34 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
-/** A controller whose minimum waits end at once, recording every state it reports */
-function createHarness() {
+const SAVES_PREFIX = 'saves:'
+
+/**
+ * A controller whose minimum waits end at once, recording every state it reports, with its saves
+ * kept in the storage given so a second harness can stand for the page opened again
+ */
+function createHarness(storage = createMemoryStorage()) {
   const states: ProviderImportRunState<FireflySkippedRowDetail>[] = []
   const discardStagedRun = vi.fn()
+  const saves = createUnconfirmedImportSaveStore(storage, SAVES_PREFIX, () => 0)
   const controller = createProviderImportRunController<FireflySkippedRowDetail>({
     onChange: (state) => states.push(state),
     discardStagedRun,
     wait: () => Promise.resolve(),
+    unconfirmedSaves: saves,
   })
-  return { controller, states, discardStagedRun }
+  return { controller, states, discardStagedRun, saves, storage }
 }
 
-/** An upload that stages, hands over to saving, then fails while saving in a way worth repeating */
+/** The error a save throws once the server has answered it with a status */
+function refusedSave(status: number, detail = 'Refused') {
+  return new TransactionImportRunError(detail, 'commit', 'run-1', { cause: new ApiError(detail, status) })
+}
+
+/** An upload that stages, hands over to saving, then fails while saving without an answer */
 async function failWhileSaving(controller: ReturnType<typeof createHarness>['controller'], answers: object) {
   await controller.start(SKIPPED_AT_START, answers, async (_signal, onStaged) => {
-    await onStaged()
+    await onStaged('run-1')
     throw new TransactionImportRunError('The server went away', 'commit', 'run-1')
   })
 }
@@ -80,7 +96,7 @@ describe('provider import run', () => {
 
     const running = controller.start(SKIPPED_AT_START, {}, async (_signal, onStaged) => {
       await staged.promise
-      await onStaged()
+      await onStaged('run-1')
       return saved.promise
     })
     expect(controller.getState()).toMatchObject({ overlayPhase: 'importing', canStop: true, stageState: { stage: 'uploading' } })
@@ -117,7 +133,7 @@ describe('provider import run', () => {
   it('keeps an upload whose save failed, and saves only that upload again with the rows it left out', async () => {
     const { controller } = createHarness()
     await failWhileSaving(controller, {})
-    expect(controller.getState()).toMatchObject({ overlayPhase: 'error', stagedRunId: 'run-1', failure: { message: 'The server went away' } })
+    expect(controller.getState()).toMatchObject({ overlayPhase: 'unconfirmed', stagedRunId: 'run-1', failure: { message: 'The server went away' } })
 
     const commit = vi.fn().mockResolvedValue(RESULT)
     await controller.retry({}, commit)
@@ -130,14 +146,145 @@ describe('provider import run', () => {
     })
   })
 
-  it('drops the kept upload when a failed import is closed, and ignores closing while it runs', async () => {
+  it('keeps a save whose outcome is unknown when the overlay is asked to close, so it cannot be imported again', async () => {
+    const { controller, discardStagedRun } = createHarness()
+    await failWhileSaving(controller, {})
+
+    controller.close()
+
+    expect(discardStagedRun).not.toHaveBeenCalled()
+    expect(controller.getState()).toMatchObject({ overlayPhase: 'unconfirmed', stagedRunId: 'run-1' })
+  })
+
+  it('holds a save through a retry the first save still blocks, and lets it go once the server says it wrote nothing', async () => {
+    const { controller, discardStagedRun } = createHarness()
+    await failWhileSaving(controller, {})
+
+    await controller.retry({}, () => Promise.reject(refusedSave(409, 'This import is already being worked on')))
+    expect(controller.getState()).toMatchObject({ overlayPhase: 'unconfirmed', stagedRunId: 'run-1' })
+
+    await controller.retry({}, () => Promise.reject(refusedSave(404, 'Import run not found')))
+    expect(discardStagedRun).toHaveBeenCalledWith('run-1')
+    expect(controller.getState()).toMatchObject({ overlayPhase: 'error', stagedRunId: null })
+
+    controller.close()
+    expect(controller.getState().overlayPhase).toBe('idle')
+  })
+
+  it('remembers a sent save past the page until the server answers for it', async () => {
+    const { controller, saves } = createHarness()
+
+    await failWhileSaving(controller, {})
+    expect(saves.readOldest()).toMatchObject({ runId: 'run-1', skippedCount: SKIPPED_AT_START.length })
+
+    await controller.retry({}, () => Promise.reject(refusedSave(422)))
+    expect(saves.readOldest()).toBeNull()
+
+    await controller.start(SKIPPED_AT_START, {}, async (_signal, onStaged) => {
+      await onStaged('run-2')
+      return RESULT
+    })
+    expect(saves.readOldest()).toBeNull()
+  })
+
+  it('picks up a save remembered from an earlier visit, holding the overlay until the server answers for it', async () => {
+    const storage = createMemoryStorage()
+    await failWhileSaving(createHarness(storage).controller, {})
+    const { controller, saves } = createHarness(storage)
+
+    await controller.resume({}, () => Promise.reject(refusedSave(409, 'This import has not been saved yet')))
+    expect(controller.getState()).toMatchObject({ overlayPhase: 'unconfirmed', stagedRunId: 'run-1' })
+    expect(saves.readOldest()).toMatchObject({ runId: 'run-1' })
+
+    const commit = vi.fn().mockResolvedValue(RESULT)
+    await controller.retry({}, commit)
+    expect(commit).toHaveBeenCalledWith('run-1', expect.any(AbortSignal))
+    expect(controller.getState()).toMatchObject({
+      overlayPhase: 'success',
+      completedImport: { result: RESULT, skippedRowsAtCommit: [], skippedCount: SKIPPED_AT_START.length },
+    })
+    expect(saves.readOldest()).toBeNull()
+  })
+
+  it('shows what a remembered save wrote, or that it wrote nothing, as soon as the server says', async () => {
+    const landed = createMemoryStorage()
+    await failWhileSaving(createHarness(landed).controller, {})
+    const afterLanding = createHarness(landed)
+    await afterLanding.controller.resume({}, () => Promise.resolve(RESULT))
+
+    const expired = createMemoryStorage()
+    await failWhileSaving(createHarness(expired).controller, {})
+    const afterExpiry = createHarness(expired)
+    await afterExpiry.controller.resume({}, () => Promise.reject(refusedSave(422, 'This import expired before it was saved')))
+
+    expect(afterLanding.controller.getState()).toMatchObject({ overlayPhase: 'success', completedImport: { result: RESULT } })
+    expect(afterExpiry.controller.getState()).toMatchObject({
+      overlayPhase: 'error',
+      failure: { message: 'This import expired before it was saved' },
+    })
+    expect([afterLanding.saves.readOldest(), afterExpiry.saves.readOldest()]).toEqual([null, null])
+  })
+
+  it('answers for every save left unanswered, including one another tab sent later, before uploading anything new', async () => {
+    const storage = createMemoryStorage()
+    await failWhileSaving(createHarness(storage).controller, {})
+    const { controller } = createHarness(storage)
+    const check = vi.fn()
+      .mockRejectedValueOnce(refusedSave(404, 'Import run not found'))
+      .mockRejectedValue(refusedSave(409, 'This import has not been saved yet'))
+    await controller.resume({}, check)
+    controller.close()
+    expect(controller.getState().overlayPhase).toBe('idle')
+
+    await createHarness(storage).controller.start([], {}, async (_signal, onStaged) => {
+      await onStaged('run-2')
+      throw new TransactionImportRunError('The server went away', 'commit', 'run-2')
+    })
+    const upload = vi.fn()
+    await controller.start(SKIPPED_AT_START, {}, upload)
+
+    expect(upload).not.toHaveBeenCalled()
+    expect(check).toHaveBeenLastCalledWith('run-2')
+    expect(controller.getState()).toMatchObject({ overlayPhase: 'unconfirmed', stagedRunId: 'run-2' })
+  })
+
+  it('offers no way to leave a save the browser refused to keep, since leaving would lose it', async () => {
+    const full = createMemoryStorage()
+    full.setItem = () => {
+      throw new DOMException('Full', 'QuotaExceededError')
+    }
+    const kept = createHarness()
+    const unkept = createHarness(full)
+
+    await failWhileSaving(kept.controller, {})
+    await failWhileSaving(unkept.controller, {})
+
+    expect(kept.controller.getState()).toMatchObject({ overlayPhase: 'unconfirmed', isSaveRemembered: true })
+    expect(unkept.controller.getState()).toMatchObject({ overlayPhase: 'unconfirmed', stagedRunId: 'run-1', isSaveRemembered: false })
+  })
+
+  it('lets a retry pressed while a remembered save is being asked about settle it', async () => {
+    const storage = createMemoryStorage()
+    await failWhileSaving(createHarness(storage).controller, {})
+    const { controller } = createHarness(storage)
+    const check = deferred<JournalImportRunResponse>()
+
+    const resuming = controller.resume({}, () => check.promise)
+    await controller.retry({}, () => Promise.reject(refusedSave(422)))
+    check.resolve(RESULT)
+    await resuming
+
+    expect(controller.getState()).toMatchObject({ overlayPhase: 'error', completedImport: null })
+  })
+
+  it('drops the upload of a save the server refused, closes it, and ignores closing while it runs', async () => {
     const { controller, discardStagedRun } = createHarness()
     const upload = deferred<JournalImportRunResponse>()
 
     const running = controller.start(SKIPPED_AT_START, {}, () => upload.promise)
     controller.close()
     expect(controller.getState().overlayPhase).toBe('importing')
-    upload.reject(new TransactionImportRunError('The server went away', 'commit', 'run-1'))
+    upload.reject(refusedSave(422))
     await running
 
     controller.close()
@@ -219,5 +366,19 @@ describe('the completed provider import summary', () => {
     const result = createImportResult({ rows_imported: 2, transactions_created: 2, budgets_created: 2 })
 
     expect(formatProviderImportSummary(result, 1)).toBe('2 rows imported · 2 transactions created · 1 skipped · 2 budgets imported')
+  })
+})
+
+describe('what the overlay says about an import that did not land', () => {
+  it('says a save nobody answered for may already have gone through, whatever went wrong', () => {
+    expect(describeProviderImportFailure('unconfirmed', 'Failed to fetch')).toBe(
+      "We couldn't confirm whether your import was saved, so it may already have gone through. Try again to check. If it was saved, you'll see what it added, and trying again never adds your transactions twice.",
+    )
+  })
+
+  it('says a refused import added nothing, after its reason', () => {
+    expect(describeProviderImportFailure('error', 'This import expired before it was saved')).toBe(
+      'This import expired before it was saved. Nothing was added to your ledger.',
+    )
   })
 })

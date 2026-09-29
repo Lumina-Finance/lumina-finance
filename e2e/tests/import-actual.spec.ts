@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
 import { asUser, signUpUser, type TestUser } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
@@ -250,18 +250,35 @@ test('leaves out a budget left unticked', async ({ page, request }) => {
   expect(result.budgets.map((budget) => budget.name)).toEqual(['Bills'])
 })
 
-// A save that failed for a reason trying again could clear keeps its upload, so trying again saves
-// it without uploading the export a second time
-test('saves a kept upload again after its first save failed', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  await uploadActualExport(page, user, YEN_FIXTURE)
+const JOURNAL_COMMIT_URL = /\/transactions\/import\/runs\/([^/]+)\/journal\/commit$/
+const JOURNAL_RESULT_URL = /\/transactions\/import\/runs\/[^/]+\/journal\/result$/
+const UNCONFIRMED_MESSAGE = "We couldn't confirm whether your import was saved, so it may already have gone through. "
+  + "Try again to check. If it was saved, you'll see what it added, and trying again never adds your transactions twice."
 
-  const commitUrl = /\/transactions\/import\/runs\/[^/]+\/journal\/commit$/
+// Every transaction in the ledger, page by page, since the list gives at most 50 at a time
+async function countLedgerTransactions(request: APIRequestContext, user: TestUser) {
+  let count = 0
+  for (let offset = 0; ; offset += 50) {
+    const response = await request.get(`${API_BASE_URL}/transactions`, {
+      headers: asUser(user),
+      params: { limit: 50, offset },
+    })
+    expect(response.status()).toBe(200)
+    const page = await response.json() as unknown[]
+    count += page.length
+    if (page.length < 50) return count
+  }
+}
+
+// Drops the first save's answer, by default after it reached the server and wrote the import, which
+// the browser can't tell apart from a save that never arrived
+async function commitWithLostResponse(page: Page, { reachesServer = true } = {}) {
   let commitAttempts = 0
-  await page.route(commitUrl, async (route) => {
+  await page.route(JOURNAL_COMMIT_URL, async (route) => {
     commitAttempts += 1
     if (commitAttempts === 1) {
-      await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ detail: 'Service unavailable' }) })
+      if (reachesServer) expect((await route.fetch()).status()).toBe(201)
+      await route.abort('connectionfailed')
       return
     }
     await route.continue()
@@ -270,15 +287,74 @@ test('saves a kept upload again after its first save failed', async ({ page, req
   const commit = page.getByRole('button', { name: 'Commit import', exact: true })
   await expect(commit).toBeEnabled()
   await commit.click()
+  await expect(page.getByText('Import not confirmed', { exact: true })).toBeVisible()
+  await expect(page.getByText(UNCONFIRMED_MESSAGE, { exact: true })).toBeVisible()
+  return () => commitAttempts
+}
 
-  const retry = page.getByRole('button', { name: 'Try again', exact: true })
-  await expect(retry).toBeVisible()
-  const saved = page.waitForResponse((response) => response.request().method() === 'POST' && commitUrl.test(response.url()))
-  await retry.click()
+// A save whose answer was lost may have written the import, so the overlay says so and only offers
+// to ask again, and asking again shows what the first save wrote rather than writing it twice
+test('shows what a save wrote when its answer was lost, without importing it twice', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await uploadActualExport(page, user, YEN_FIXTURE)
+
+  const commitAttempts = await commitWithLostResponse(page)
+  await expect(page.getByRole('button', { name: 'Back to import', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Leave import', exact: true })).toBeVisible()
+  const ledgerAfterFirstSave = await countLedgerTransactions(request, user)
+  expect(ledgerAfterFirstSave).toBeGreaterThan(0)
+
+  const saved = page.waitForResponse((response) => response.request().method() === 'POST' && JOURNAL_COMMIT_URL.test(response.url()))
+  await page.getByRole('button', { name: 'Try again', exact: true }).click()
   const response = await saved
   expect(response.status()).toBe(201)
-  expect(commitAttempts).toBe(2)
+  expect(commitAttempts()).toBe(2)
+  await expect(page.getByText('Import complete', { exact: true })).toBeVisible()
 
   const result = await response.json() as { transactions_created: number }
+  expect(result.transactions_created).toBe(YEN_MANIFEST.rows.length)
+  expect(await countLedgerTransactions(request, user)).toBe(ledgerAfterFirstSave)
+})
+
+// The browser keeps the save it couldn't confirm, so opening the page again asks the server what
+// became of it and shows the import it wrote
+test('shows what a save wrote when the page is opened again after its answer was lost', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await uploadActualExport(page, user, YEN_FIXTURE)
+  const commitAttempts = await commitWithLostResponse(page)
+  const ledgerAfterFirstSave = await countLedgerTransactions(request, user)
+
+  const checked = page.waitForResponse((response) => response.request().method() === 'GET' && JOURNAL_RESULT_URL.test(response.url()))
+  await page.reload()
+  expect((await checked).status()).toBe(200)
+  await expect(page.getByText('Import complete', { exact: true })).toBeVisible()
+  expect(commitAttempts()).toBe(1)
+  expect(await countLedgerTransactions(request, user)).toBe(ledgerAfterFirstSave)
+
+  // Answered, so the browser forgets it and the next visit opens on an empty page
+  await page.reload()
+  await expect(page.getByText('Data Source', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('Import complete', { exact: true })).toHaveCount(0)
+})
+
+// A save that never reached the server wrote nothing, and once its run is gone, opening the page
+// again says so and lets the import start over
+test('says a remembered save added nothing once its run is gone, and lets the import start again', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await uploadActualExport(page, user, YEN_FIXTURE)
+  const firstCommit = page.waitForRequest(JOURNAL_COMMIT_URL)
+  await commitWithLostResponse(page, { reachesServer: false })
+  const runId = JOURNAL_COMMIT_URL.exec((await firstCommit).url())?.[1]
+  expect((await request.delete(`${API_BASE_URL}/transactions/import/runs/${runId}`, { headers: asUser(user) })).status()).toBe(204)
+
+  const checked = page.waitForResponse((response) => response.request().method() === 'GET' && JOURNAL_RESULT_URL.test(response.url()))
+  await page.reload()
+  expect((await checked).status()).toBe(404)
+  await expect(page.getByText('Import run not found. Nothing was added to your ledger.', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Back to import', exact: true }).click()
+  expect(await countLedgerTransactions(request, user)).toBe(0)
+
+  await uploadActualExport(page, user, YEN_FIXTURE)
+  const result = await (await commitImport(page)).json() as { transactions_created: number }
   expect(result.transactions_created).toBe(YEN_MANIFEST.rows.length)
 })
