@@ -3,10 +3,12 @@
 import uuid
 from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,6 +40,11 @@ from app.services.importers.shared.categories import (
 from app.services.importers.shared.merchants import load_import_merchant_keys, load_usable_import_merchants
 from app.services.importers.shared.run_locking import load_locked_run
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
+
+# How long a run can go uncommitted before it counts as abandoned. An upload stages and commits
+# within minutes, so a run this old is one nobody is coming back to, and saving it now would land
+# an import its user may already have given up on and brought in again
+ABANDONED_RUN_AGE = timedelta(hours=24)
 
 # How a refusal names the importer a run belongs to
 _RUN_SOURCE_LABELS = {
@@ -109,6 +116,7 @@ async def open_import_run(
     Returns:
         The opened run
     """
+    await delete_abandoned_import_runs(db, user)
     run = ImportRun(
         owner_id=user.id,
         source=source,
@@ -122,6 +130,35 @@ async def open_import_run(
     db.add(run)
     await db.commit()
     return run
+
+
+def is_run_abandoned(run: ImportRun) -> bool:
+    """Whether a run went uncommitted for so long that it can no longer be saved"""
+    return run.committed_at is None and run.created_at < datetime.now(UTC) - ABANDONED_RUN_AGE
+
+
+async def delete_abandoned_import_runs(db: AsyncSession, user: User) -> None:
+    """Delete the caller's runs that were never committed and are now abandoned, with what they staged
+
+    Nothing else ever removes a run its user walked away from, so this runs whenever they open
+    another. A committed run stays, since a commit whose response was lost is answered from it
+
+    Args:
+        db: Active database session
+        user: Authenticated user opening a run
+    """
+    # A run another request holds is skipped rather than waited on. A commit holding it either
+    # lands, and the run is no longer this query's, or refuses it as abandoned
+    abandoned = (
+        select(ImportRun.id)
+        .where(
+            ImportRun.owner_id == user.id,
+            ImportRun.committed_at.is_(None),
+            ImportRun.created_at < datetime.now(UTC) - ABANDONED_RUN_AGE,
+        )
+        .with_for_update(skip_locked=True)
+    )
+    await db.execute(delete(ImportRun).where(ImportRun.id.in_(abandoned)))
 
 
 async def delete_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> None:

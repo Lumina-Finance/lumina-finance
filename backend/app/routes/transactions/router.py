@@ -28,6 +28,7 @@ from app.services.importers import (
     commit_import_run,
     commit_journal_run,
     delete_import_run,
+    get_journal_run_result,
     open_import_run,
     stage_import_archive,
     stage_import_batch,
@@ -313,6 +314,25 @@ async def commit_journal_import_run(
         Summary of everything the commit wrote
     """
     return await commit_journal_run(db, user, run_id)
+
+
+@router.get("/import/runs/{run_id}/journal/result", response_model=JournalImportRunResponse)
+async def get_journal_import_run_result(
+    run_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return what a committed Firefly III or Actual Budget run wrote, without writing anything
+
+    Args:
+        run_id: Run to read
+        user: Authenticated user whose run it is
+        db: Active database session
+
+    Returns:
+        Summary the commit returned
+    """
+    return await get_journal_run_result(db, run_id)
 
 
 @router.delete("/import/runs/{run_id}", status_code=status.HTTP_204_NO_CONTENT)

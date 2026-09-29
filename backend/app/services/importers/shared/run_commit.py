@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.import_run import ImportRun, ImportRunSource, ImportStagedRow
 from app.services.importers.shared.run_locking import load_locked_run
-from app.services.importers.shared.run_staging import require_run_source
+from app.services.importers.shared.run_staging import is_run_abandoned, require_run_source
 
 
 async def lock_run_for_commit(db: AsyncSession, run_id: uuid.UUID, sources: Collection[ImportRunSource]) -> ImportRun:
@@ -31,11 +31,20 @@ async def lock_run_for_commit(db: AsyncSession, run_id: uuid.UUID, sources: Coll
     Raises:
         HTTPException: Raised with 404 when there is no such run of the caller's, 409 when
             another request already holds it, and 422 when an importer outside the sources opened it
+            or the run was abandoned before it was committed
     """
     run = await load_locked_run(db, run_id)
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Import run not found")
     require_run_source(run, sources)
+
+    # Refused rather than written, so an import its user has since brought in again cannot land a
+    # second time. The page reads the refusal as nothing written, which is true
+    if is_run_abandoned(run):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="This import expired before it was saved",
+        )
     return run
 
 

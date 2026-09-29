@@ -5,12 +5,21 @@ transaction currency and any foreign amount as the export states them, and every
 account named by its mapping source
 """
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import text
 
+from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header
-from tests.routes.transactions._helpers import _create_account, _seed_usd_currency, _setup_user_with_deps
+from tests.routes.transactions._helpers import (
+    _PAST_ABANDONMENT,
+    _age_run,
+    _create_account,
+    _seed_usd_currency,
+    _setup_user_with_deps,
+)
 from tests.routes.transactions.test_firefly_imports import _chequing_mapping, _firefly_row
 
 _GROCERIES = {"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}
@@ -274,9 +283,10 @@ async def test_another_users_firefly_run_is_out_of_reach(client):
         await client.put(f"{base}/budgets", json={"categories": [_GROCERIES], "budgets": [_budget()]}, headers=other_headers),
         await client.put(f"{base}/archive", json={"account_sources": ["Everyday Chequing"]}, headers=other_headers),
         await client.post(f"{base}/journal/commit", headers=other_headers),
+        await client.get(f"{base}/journal/result", headers=other_headers),
     ]
 
-    assert [(resp.status_code, resp.json()["detail"]) for resp in responses] == [(404, "Import run not found")] * 4
+    assert [(resp.status_code, resp.json()["detail"]) for resp in responses] == [(404, "Import run not found")] * 5
 
 
 async def test_a_firefly_run_refuses_an_outside_account_when_staged_and_takes_the_corrected_answer(client):
@@ -322,3 +332,98 @@ async def test_a_firefly_run_refuses_budgets_or_archiving_the_import_screen_woul
     resp = await client.put(f"/transactions/import/runs/{run_id}/{part}", json=body, headers=headers)
     assert resp.status_code == 422
     assert isinstance(resp.json()["detail"], list)
+
+
+async def _open_staged_run(client, headers):
+    """Open a one-row run and stage its row, leaving it ready to commit"""
+    run_id = await _open_run(client, headers, 1)
+    await _stage(client, headers, run_id, 0, [_firefly_row()])
+    return run_id
+
+
+async def _count_run_rows(run_id):
+    """Return how many rows are left of a run and of what it staged, read past row-level security"""
+    async with TestSession() as session:
+        runs = (await session.execute(text("SELECT count(*) FROM import_runs WHERE id = :id"), {"id": run_id})).scalar_one()
+        staged = (await session.execute(
+            text("SELECT count(*) FROM import_staged_rows WHERE import_run_id = :id"), {"id": run_id},
+        )).scalar_one()
+    return runs, staged
+
+
+async def test_opening_a_run_deletes_the_users_abandoned_runs_and_keeps_committed_and_recent_ones(client):
+    """A run left uncommitted goes once the user imports again, and a committed one still answers its commit."""
+    headers = _get_auth_header(await _create_user(client))
+    other_headers, _, _ = await _setup_user_with_deps(client, email="other@example.com", name_prefix="Other")
+    others = await _open_staged_run(client, other_headers)
+    await _age_run(others, _PAST_ABANDONMENT)
+    committed = await _open_staged_run(client, headers)
+    summary = (await client.post(f"/transactions/import/runs/{committed}/journal/commit", headers=headers)).json()
+    abandoned = await _open_staged_run(client, headers)
+    recent = await _open_staged_run(client, headers)
+    await _age_run(committed, _PAST_ABANDONMENT)
+    await _age_run(abandoned, _PAST_ABANDONMENT)
+
+    await _open_run(client, headers, 1)
+
+    replayed, gone, fresh = [
+        await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers)
+        for run_id in (committed, abandoned, recent)
+    ]
+    assert (replayed.status_code, replayed.json()) == (201, summary)
+    assert (gone.status_code, gone.json()["detail"]) == (404, "Import run not found")
+    assert fresh.status_code == 201, fresh.text
+    assert await _count_run_rows(abandoned) == (0, 0)
+
+    # Only the importing user's runs are cleared, however long another user has left theirs
+    assert await _count_run_rows(others) == (1, 1)
+
+
+async def test_opening_a_run_passes_over_an_abandoned_run_another_request_holds(client):
+    """A run a commit still holds is left for that commit to settle, rather than waited on or deleted."""
+    headers = _get_auth_header(await _create_user(client))
+    held = await _open_staged_run(client, headers)
+    await _age_run(held, _PAST_ABANDONMENT)
+
+    # Bounded so that waiting on the held run fails this test rather than hanging it
+    async with TestSession() as holder:
+        await holder.execute(text("SELECT id FROM import_runs WHERE id = :id FOR UPDATE"), {"id": held})
+        async with asyncio.timeout(5):
+            await _open_run(client, headers, 1)
+        await holder.rollback()
+
+    assert await _count_run_rows(held) == (1, 1)
+
+
+async def test_an_abandoned_run_is_refused_rather_than_saved(client):
+    """A run left uncommitted past the cutoff never lands, so an import brought in again since cannot double."""
+    headers = _get_auth_header(await _create_user(client))
+    before = await _snapshot(client, headers)
+    run_id = await _open_staged_run(client, headers)
+    await _age_run(run_id, _PAST_ABANDONMENT)
+
+    resp = await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers)
+
+    assert (resp.status_code, resp.json()["detail"]) == (422, "This import expired before it was saved")
+    assert await _snapshot(client, headers) == before
+
+
+async def test_a_runs_result_reads_what_its_commit_wrote_without_writing_it(client):
+    """A page that never heard back from a commit learns whether it landed, and asking never lands it."""
+    headers = _get_auth_header(await _create_user(client))
+    before = await _snapshot(client, headers)
+    run_id = await _open_staged_run(client, headers)
+    abandoned = await _open_staged_run(client, headers)
+    await _age_run(abandoned, _PAST_ABANDONMENT)
+
+    unsaved = await client.get(f"/transactions/import/runs/{run_id}/journal/result", headers=headers)
+    expired = await client.get(f"/transactions/import/runs/{abandoned}/journal/result", headers=headers)
+    assert [(resp.status_code, resp.json()["detail"]) for resp in (unsaved, expired)] == [
+        (409, "This import has not been saved yet"),
+        (422, "This import expired before it was saved"),
+    ]
+    assert await _snapshot(client, headers) == before
+
+    summary = (await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers)).json()
+    saved = await client.get(f"/transactions/import/runs/{run_id}/journal/result", headers=headers)
+    assert (saved.status_code, saved.json()) == (200, summary)

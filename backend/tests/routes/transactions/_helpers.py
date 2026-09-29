@@ -1,12 +1,29 @@
 
 
+from datetime import timedelta
+
+from sqlalchemy import text
+
 from app.models.base import InstitutionStatus
 from app.models.currency import Currency
 from app.models.institution import Institution
+from app.services.importers.shared.run_staging import ABANDONED_RUN_AGE
 from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
+
+# Just past the age at which a run left uncommitted counts as abandoned
+_PAST_ABANDONMENT = ABANDONED_RUN_AGE + timedelta(minutes=1)
+
+async def _age_run(run_id, age):
+    """Move a run's opening back, as if it had been left that long"""
+    async with TestSession() as session:
+        await session.execute(
+            text("UPDATE import_runs SET created_at = created_at - CAST(:age AS interval) WHERE id = :id"),
+            {"age": age, "id": run_id},
+        )
+        await session.commit()
 
 async def _seed_usd_currency():
     """Seed a USD currency row directly in the database for fx_rate validation tests
