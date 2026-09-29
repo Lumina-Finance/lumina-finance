@@ -1,13 +1,13 @@
 import { useRef, useState } from 'react'
-import { ChevronDown, EyeOff } from 'lucide-react'
+import { EyeOff } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 import type { BudgetUtilization } from '@/api/budgets'
+import { CollapsibleSection, CollapsibleSectionCount } from '@/components/collapsible-section/Section'
 import BudgetCard from '@/pages/budgets/components/budget-card/Card'
 import { EASE } from '@/pages/budgets/constants'
 import type { BudgetCardViewModel } from '@/pages/budgets/types'
 
 const ARCHIVED_BUDGETS_SCROLL_OFFSET_PX = 24
-const ARCHIVED_BUDGETS_TRANSITION_SECONDS = 0.24
 
 // Matches the mt-6 spacing the section used before its appearance became animated
 const ARCHIVED_SECTION_MARGIN_TOP_PX = 24
@@ -45,41 +45,8 @@ export default function BudgetArchivedSection({
   onOpenBudget,
 }: BudgetArchivedSectionProps) {
   const [expanded, setExpanded] = useState(false)
-  const [cardsMounted, setCardsMounted] = useState(false)
   const sectionRef = useRef<HTMLElement>(null)
   const prefersReducedMotion = useReducedMotion()
-
-  /**
-   * Toggles archived cards while keeping closing cards mounted until their height animation finishes
-   */
-  function toggleExpanded() {
-    if (expanded) {
-      setExpanded(false)
-      return
-    }
-
-    setCardsMounted(true)
-    setExpanded(true)
-  }
-
-  /**
-   * Scrolls the archived grid into view once its expand animation finishes, since only then does the
-   * page height reflect the expanded layout and let the scroll clamp land on the real bottom
-   *
-   * Removes collapsed cards once the collapse animation finishes instead, so their closing height
-   * transition can play before they unmount
-   */
-  function handleExpansionAnimationComplete() {
-    if (expanded) {
-      const section = sectionRef.current
-      if (!section) return
-
-      scrollArchivedBudgetsIntoView(section, prefersReducedMotion)
-      return
-    }
-
-    setCardsMounted(false)
-  }
 
   return (
     <motion.section
@@ -93,68 +60,34 @@ export default function BudgetArchivedSection({
         ease: EASE,
       }}
     >
-      <button
-        type="button"
-        className="flex w-full items-center gap-3 py-2 text-left transition-colors hover:text-[var(--app-text)]"
-        style={{
-          borderTop: '1px solid var(--app-border)',
-          color: 'var(--app-text-muted)',
+      <CollapsibleSection
+        icon={EyeOff}
+        label="Archived budgets"
+        summary={<CollapsibleSectionCount count={budgetCards.length} />}
+        expanded={expanded}
+        onToggle={() => setExpanded((current) => !current)}
+        onExpandComplete={() => {
+          if (sectionRef.current) scrollArchivedBudgetsIntoView(sectionRef.current, prefersReducedMotion)
         }}
-        aria-expanded={expanded}
-        onClick={toggleExpanded}
       >
-        <EyeOff size={16} aria-hidden />
-        <span className="font-medium">Archived budgets</span>
-        <span
-          className="rounded-full px-2 py-0.5 text-xs font-semibold"
-          style={{ background: 'var(--app-accent-soft)' }}
-        >
-          {budgetCards.length}
-        </span>
-        <ChevronDown
-          size={16}
-          className={`ml-auto transition-transform ${expanded ? 'rotate-180' : ''}`}
-          aria-hidden
-        />
-      </button>
+        <div className="app-budget-grid pt-1">
+          {budgetCards.map((budgetCard) => {
+            const { baseBudget, latestPeriod, categoryNames } = budgetCard
 
-      <motion.div
-        className="grid overflow-hidden"
-        initial={false}
-        animate={{
-          gridTemplateRows: expanded ? '1fr' : '0fr',
-          opacity: expanded ? 1 : 0,
-        }}
-        transition={{
-          duration: prefersReducedMotion ? 0 : ARCHIVED_BUDGETS_TRANSITION_SECONDS,
-          ease: EASE,
-        }}
-        aria-hidden={!expanded}
-        inert={!expanded}
-        onAnimationComplete={handleExpansionAnimationComplete}
-      >
-        {cardsMounted && (
-          <div className="min-h-0 overflow-hidden pt-1">
-            <div className="app-budget-grid">
-              {budgetCards.map((budgetCard) => {
-                const { baseBudget, latestPeriod, categoryNames } = budgetCard
-
-                return (
-                  <BudgetCard
-                    key={baseBudget.id}
-                    baseBudget={baseBudget}
-                    latestPeriod={latestPeriod}
-                    categoryNames={categoryNames}
-                    utilization={latestPeriod ? latestUtilizationByBudgetId.get(latestPeriod.id) : undefined}
-                    isArchived
-                    onOpen={() => onOpenBudget(budgetCard)}
-                  />
-                )
-              })}
-            </div>
-          </div>
-        )}
-      </motion.div>
+            return (
+              <BudgetCard
+                key={baseBudget.id}
+                baseBudget={baseBudget}
+                latestPeriod={latestPeriod}
+                categoryNames={categoryNames}
+                utilization={latestPeriod ? latestUtilizationByBudgetId.get(latestPeriod.id) : undefined}
+                isArchived
+                onOpen={() => onOpenBudget(budgetCard)}
+              />
+            )
+          })}
+        </div>
+      </CollapsibleSection>
     </motion.section>
   )
 }
