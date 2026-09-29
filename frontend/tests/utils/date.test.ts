@@ -8,6 +8,7 @@ import {
   addDays,
   addMonths,
   formatDate,
+  formatDateRangeLabel,
   formatYmd,
   getDaysInMonth,
   getIsoWeek,
@@ -92,6 +93,14 @@ describe('YYYY-MM-DD strings', () => {
   it('writes and reads back the same calendar day', () => {
     expect(formatYmd(new Date(2026, 0, 5))).toBe('2026-01-05')
     expect(formatYmd(parseYmd('2026-01-05')!)).toBe('2026-01-05')
+  })
+
+  it('formats a range without timezone-shifting either end', () => {
+    expect(formatDateRangeLabel('2026-06-01', '2026-06-30')).toBe('Jun 1, 2026 – Jun 30, 2026')
+  })
+
+  it('keeps a range end naming no real day as written, rather than the day it would roll forward to', () => {
+    expect(formatDateRangeLabel('2026-02-31', '2026-03-31')).toBe('2026-02-31 – Mar 31, 2026')
   })
 
   it('returns null for a string that names no date', () => {

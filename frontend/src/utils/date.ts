@@ -169,6 +169,20 @@ export function parseYmd(ymd: string): Date | null {
 }
 
 /**
+ * Formats a range of "YYYY-MM-DD" calendar dates, such as "Jun 1, 2026 – Jun 30, 2026"
+ *
+ * An end of the range that is not a real date keeps its raw string, so the label states what it was
+ * given rather than the day the date constructor would have rolled it forward to
+ */
+export function formatDateRangeLabel(from: string, to: string): string {
+  const label = (value: string) => {
+    const date = parseYmd(value)
+    return date ? formatDate(date, DATE_FORMATS.monthDayYear) : value
+  }
+  return `${label(from)} – ${label(to)}`
+}
+
+/**
  * Reads a "YYYY-MM-DD" string into a time value that can be ordered arithmetically
  *
  * Sorting reads each date once into a number rather than comparing the strings, which would follow

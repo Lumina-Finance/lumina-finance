@@ -16,10 +16,8 @@ import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
 import TransactionsTopBand from '@/pages/transactions/components/TopBand'
 import { toTransactionListAccount } from '@/pages/transactions/types/transactionList'
 import { useTransactionNavigationFilters } from '@/pages/transactions/hooks/useTransactionNavigationFilters'
-import {
-  formatOverviewRangeLabel,
-  getCurrentMonthOverviewRange,
-} from '@/pages/transactions/utils/date'
+import { getCurrentMonthOverviewRange } from '@/pages/transactions/utils/date'
+import { formatDateRangeLabel } from '@/utils/date'
 
 // Fade out the failed summary before revealing the recovered summary without chart entrances
 const RETRY_FADE_SECONDS = 0.2
@@ -106,7 +104,7 @@ export default function TransactionsPage() {
   const overviewFromDate = filters.from_date ?? monthStart
   const overviewToDate = filters.to_date ?? today
   const rangeLabel = useMemo(
-    () => formatOverviewRangeLabel(overviewFromDate, overviewToDate),
+    () => formatDateRangeLabel(overviewFromDate, overviewToDate),
     [overviewFromDate, overviewToDate],
   )
   // The overview supports a single account and the date range, so it scopes to the chosen account
