@@ -254,7 +254,6 @@ describe('getProviderSkippedRowsDisplay after commit', () => {
       completedImport: {
         result: importResult,
         skippedRowsAtCommit: predictionAtCommit.skippedRows,
-        skippedCount: predictionAtCommit.skippedRows.length,
       },
     })).toEqual({
       rows: [predictionAtCommit.skippedRows[0]],

@@ -3,7 +3,6 @@ import { getJsonByteSize } from '@/api/shared/importBatchSize'
 import { STEP_DOT_WAVE_MS } from '@/pages/imports/components/ProgressOverlay'
 import type { ImportOverlayPhase } from '@/pages/imports/types'
 import { getImportCommitFailure } from '@/pages/imports/utils/commitFailure'
-import type { UnconfirmedImportSave, UnconfirmedImportSaveStore } from '@/pages/imports/utils/unconfirmedImportSave'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 
 /**
@@ -85,22 +84,16 @@ export function getProviderBudgetSelectionError(selectedCount: number, maxBudget
     : buildError
 }
 
-// Added after the reason a provider import failed, which is only ever one known to have written
-// nothing: the server refused it, or it stopped before the save was sent
+// Added after the reason a provider import failed. An import the server refused, or one that failed
+// while uploading, wrote nothing. A save that failed for another reason may or may not have landed,
+// and saving it again answers either way
 const PROVIDER_IMPORT_NOTHING_SAVED_NOTE = 'Nothing was added to your ledger.'
-
-// Shown in place of a reason when a save was sent and never answered, since the reason says
-// nothing about whether it landed. Saving the same run again is safe because the server answers a
-// committed run with what it wrote rather than writing it again
-const PROVIDER_IMPORT_UNCONFIRMED_MESSAGE = "We couldn't confirm whether your import was saved, so it may already have gone through. Try again to check. If it was saved, you'll see what it added, and trying again never adds your transactions twice."
+const PROVIDER_IMPORT_SAVE_AGAIN_NOTE = 'Your upload is kept, so you can try saving it again.'
 
 /** What one completed import wrote, with the rows it left out, captured when it started */
 export interface CompletedProviderImport<TSkipped> {
   result: JournalImportRunResponse
-
-  /** Empty for a save the page learned about after being left, since only the count was kept */
   skippedRowsAtCommit: TSkipped[]
-  skippedCount: number
 }
 
 /**
@@ -145,13 +138,9 @@ export interface ProviderImportRunState<TSkipped = unknown> {
   // whole or not at all, and stopping would only stop waiting for it
   canStop: boolean
 
-  // A save that was sent and never answered may already have landed, so its run is held until the
-  // server answers for it. Saving again runs against this, and nothing new can start meanwhile
+  // An import whose save stopped for a reason saving again could clear leaves its upload staged,
+  // and this is what the second attempt runs against
   stagedRunId: string | null
-
-  // Whether the browser kept that save past the page. One it refused to keep lives only here, so the
-  // overlay offers no way to leave it that would lose it
-  isSaveRemembered: boolean
   failure: ProviderImportFailure | null
   completedImport: CompletedProviderImport<TSkipped> | null
 }
@@ -161,7 +150,6 @@ export const PROVIDER_IMPORT_RUN_IDLE: ProviderImportRunState<never> = {
   stageState: null,
   canStop: false,
   stagedRunId: null,
-  isSaveRemembered: false,
   failure: null,
   completedImport: null,
 }
@@ -170,9 +158,6 @@ interface ProviderImportRunDependencies<TSkipped> {
   onChange: (state: ProviderImportRunState<TSkipped>) => void
   discardStagedRun: (runId: string) => void
   wait: (milliseconds: number) => Promise<void>
-
-  /** Keeps each sent save past the page until the server answers for it */
-  unconfirmedSaves: UnconfirmedImportSaveStore
 }
 
 /**
@@ -186,7 +171,6 @@ export function createProviderImportRunController<TSkipped>({
   onChange,
   discardStagedRun,
   wait,
-  unconfirmedSaves,
 }: ProviderImportRunDependencies<TSkipped>) {
   let state: ProviderImportRunState<TSkipped> = PROVIDER_IMPORT_RUN_IDLE
 
@@ -196,32 +180,12 @@ export function createProviderImportRunController<TSkipped>({
   let abortController: AbortController | null = null
 
   // What the kept upload left out, captured when it was staged, so saving it again reports the
-  // rows it really left out even if the mappings have moved since. A save remembered from before
-  // the page opened brings only the count
+  // rows it really left out even if the mappings have moved since
   let stagedSkippedRows: TSkipped[] = []
-  let stagedSkippedCount = 0
-
-  // The run whose save the latest attempt sent, remembered past the page until the server answers
-  let sentRunId: string | null = null
-  let hasResumed = false
-
-  // How to ask the server about a remembered save, kept from the first time the page asked, so an
-  // import started later settles one another tab has since left unanswered before it uploads
-  let checkSave: ((runId: string) => Promise<JournalImportRunResponse>) | null = null
 
   const update = (patch: Partial<ProviderImportRunState<TSkipped>>) => {
     state = { ...state, ...patch }
     onChange(state)
-  }
-
-  const rememberSentSave = (runId: string, skippedCount: number) => {
-    sentRunId = runId
-    update({ isSaveRemembered: unconfirmedSaves.record({ runId, skippedCount }) })
-  }
-
-  const forgetSentSave = () => {
-    if (sentRunId) unconfirmedSaves.clear(sentRunId)
-    sentRunId = null
   }
 
   /**
@@ -233,28 +197,12 @@ export function createProviderImportRunController<TSkipped>({
   }
 
   /**
-   * Records how an attempt ended without landing. A save the server may have written holds the
-   * overlay until it is answered for, and anything known to have written nothing lets it close
-   */
-  const reportFailure = (error: unknown, cancelled: boolean, answers: object) => {
-    const failure = getImportCommitFailure(error, cancelled)
-    if (failure.discardableRunId) discardStagedRun(failure.discardableRunId)
-    if (!failure.retryableRunId) forgetSentSave()
-    update({
-      canStop: false,
-      stagedRunId: failure.retryableRunId,
-      failure: { message: failure.message, answers },
-      overlayPhase: failure.retryableRunId ? 'unconfirmed' : cancelled ? 'cancelled' : 'error',
-    })
-  }
-
-  /**
    * Runs one attempt at the import, whether the whole upload or only saving an upload kept from
    * an attempt that failed, and records how it ended
    */
   const runAttempt = async (
     firstStage: ProviderImportStage,
-    skipped: { rows: TSkipped[]; count: number },
+    skippedRowsAtCommit: TSkipped[],
     answers: object,
     attempt: (signal: AbortSignal) => Promise<JournalImportRunResponse>,
   ) => {
@@ -262,13 +210,11 @@ export function createProviderImportRunController<TSkipped>({
     attemptId = currentAttemptId
     const controller = new AbortController()
     abortController = controller
-    sentRunId = null
 
     update({
       failure: null,
       completedImport: null,
       stagedRunId: null,
-      isSaveRemembered: false,
       canStop: firstStage === 'uploading',
       stageState: { stage: firstStage, isFinished: false },
       overlayPhase: 'importing',
@@ -278,8 +224,7 @@ export function createProviderImportRunController<TSkipped>({
     try {
       const result = await attempt(controller.signal)
       if (attemptId !== currentAttemptId) return
-      forgetSentSave()
-      update({ canStop: false, completedImport: { result, skippedRowsAtCommit: skipped.rows, skippedCount: skipped.count } })
+      update({ canStop: false, completedImport: { result, skippedRowsAtCommit } })
 
       // The last stage is struck off while the overlay is still importing, so it lands as visibly
       // as the upload stage did when it handed over
@@ -293,45 +238,17 @@ export function createProviderImportRunController<TSkipped>({
       if (!controller.signal.aborted) await minimumOverlay
       if (attemptId !== currentAttemptId) return
 
-      stagedSkippedRows = skipped.rows
-      stagedSkippedCount = skipped.count
-      reportFailure(error, controller.signal.aborted, answers)
+      const failure = getImportCommitFailure(error, controller.signal.aborted)
+      if (failure.discardableRunId) discardStagedRun(failure.discardableRunId)
+      stagedSkippedRows = skippedRowsAtCommit
+      update({
+        canStop: false,
+        stagedRunId: failure.retryableRunId,
+        failure: { message: failure.message, answers },
+        overlayPhase: controller.signal.aborted ? 'cancelled' : 'error',
+      })
     } finally {
       if (abortController === controller) abortController = null
-    }
-  }
-
-  /**
-   * Holds the overlay on a save this browser remembered and asks the server whether it landed.
-   * Asking writes nothing, so a save it cannot yet answer for stays open for the user to save again
-   */
-  const settleRememberedSave = async (
-    save: UnconfirmedImportSave,
-    answers: object,
-    check: (runId: string) => Promise<JournalImportRunResponse>,
-  ) => {
-    const currentAttemptId = attemptId
-    sentRunId = save.runId
-    stagedSkippedRows = []
-    stagedSkippedCount = save.skippedCount
-    update({ overlayPhase: 'unconfirmed', stagedRunId: save.runId, isSaveRemembered: true, failure: null })
-
-    try {
-      const result = await check(save.runId)
-      if (attemptId !== currentAttemptId) return
-      forgetSentSave()
-      update({
-        stagedRunId: null,
-        completedImport: { result, skippedRowsAtCommit: [], skippedCount: save.skippedCount },
-        overlayPhase: 'success',
-      })
-    } catch (error) {
-      if (attemptId !== currentAttemptId) return
-      const failure = getImportCommitFailure(error, false)
-
-      // Still unanswered, so the overlay keeps offering to save it again
-      if (failure.retryableRunId) return
-      reportFailure(error, false, answers)
     }
   }
 
@@ -339,28 +256,20 @@ export function createProviderImportRunController<TSkipped>({
     getState: () => state,
 
     /**
-     * Uploads the whole import and saves it, unless this browser still holds a save nobody has
-     * answered for, which is settled first instead
+     * Uploads the whole import and saves it
      *
      * @param skippedRowsAtCommit - Rows the import leaves out, captured before the first await since
      *   the response can outlive the mappings used for its request
      * @param answers - The answers the import is sent with, which a failure is reported against
-     * @param upload - Sends the import, calling its second argument with the run once everything
-     *   is staged
+     * @param upload - Sends the import, calling its second argument once everything is staged
      */
     start: (
       skippedRowsAtCommit: TSkipped[],
       answers: object,
-      upload: (signal: AbortSignal, onStaged: (runId: string) => Promise<void>) => Promise<JournalImportRunResponse>,
+      upload: (signal: AbortSignal, onStaged: () => Promise<void>) => Promise<JournalImportRunResponse>,
     ) => {
-      // A save still unanswered, whether from another tab or one the page already settled another
-      // save ahead of, is answered for before anything new uploads, since it may hold this import
-      const remembered = checkSave ? unconfirmedSaves.readOldest() : null
-      if (checkSave && remembered) return settleRememberedSave(remembered, answers, checkSave)
-
       const uploadMinimum = wait(PROVIDER_IMPORT_STAGE_MIN_MS)
-      const skipped = { rows: skippedRowsAtCommit, count: skippedRowsAtCommit.length }
-      return runAttempt('uploading', skipped, answers, (signal) => upload(signal, async (runId) => {
+      return runAttempt('uploading', skippedRowsAtCommit, answers, (signal) => upload(signal, async () => {
         // Nothing is saved until the upload has finished, so the stage list hands over to saving
         // before the save starts, and stopping is no longer offered from there
         await uploadMinimum
@@ -368,13 +277,11 @@ export function createProviderImportRunController<TSkipped>({
         await showStage('uploading', true)
         if (signal.aborted) return
         update({ canStop: false, stageState: { stage: 'saving', isFinished: false } })
-        rememberSentSave(runId, skipped.count)
       }))
     },
 
     /**
-     * Saves the upload a save that went unanswered kept, without uploading it again. The server
-     * answers a run it already committed with what it wrote, so this settles either way
+     * Saves the upload an attempt that failed while saving kept, without uploading it again
      */
     retry: async (
       answers: object,
@@ -382,29 +289,7 @@ export function createProviderImportRunController<TSkipped>({
     ) => {
       const runId = state.stagedRunId
       if (!runId) return
-      const skipped = { rows: stagedSkippedRows, count: stagedSkippedCount }
-      await runAttempt('saving', skipped, answers, (signal) => {
-        rememberSentSave(runId, skipped.count)
-        return commit(runId, signal)
-      })
-    },
-
-    /**
-     * Picks up the oldest save this browser sent and never heard back about when the page opens, and
-     * keeps the way to ask about one for any import started later
-     *
-     * @param answers - The answers on screen, which a failure the server gives is reported against
-     * @param check - Asks for what the run's commit wrote
-     */
-    resume: async (
-      answers: object,
-      check: (runId: string) => Promise<JournalImportRunResponse>,
-    ) => {
-      if (hasResumed || state.overlayPhase !== 'idle') return
-      hasResumed = true
-      checkSave = check
-      const save = unconfirmedSaves.readOldest()
-      if (save) await settleRememberedSave(save, answers, check)
+      await runAttempt('saving', stagedSkippedRows, answers, (signal) => commit(runId, signal))
     },
 
     /**
@@ -416,20 +301,16 @@ export function createProviderImportRunController<TSkipped>({
     },
 
     /**
-     * Closes a finished overlay, and leaving a failed import behind gives up on its kept upload. A
-     * save nobody has answered for can't be closed on, since starting again could import it twice
+     * Closes a finished overlay, and leaving a failed import behind gives up on its kept upload
      */
     close: () => {
-      if (state.overlayPhase === 'idle' || state.overlayPhase === 'importing' || state.overlayPhase === 'unconfirmed') return
+      if (state.overlayPhase === 'idle' || state.overlayPhase === 'importing') return
       if (state.stagedRunId) discardStagedRun(state.stagedRunId)
       update({ stagedRunId: null, overlayPhase: 'idle' })
     },
 
     /**
      * Forgets every attempt, stopping one in progress and dropping any kept upload
-     *
-     * The saves remembered past the page stay, since only the server can say one did not land.
-     * Everything that resets sits under the overlay, which a save in flight or unanswered holds
      */
     reset: () => {
       attemptId += 1
@@ -487,15 +368,11 @@ export function countCreatedImportSources(
 }
 
 /**
- * What the overlay says about an import that ended without landing: that a save nobody answered
- * for may already have gone through, or why a failed one wrote nothing. A stopped import keeps
- * its own message
+ * Says why an import failed and what that left behind: nothing, or an upload that can be saved again
  */
-export function describeProviderImportFailure(phase: ImportOverlayPhase, reason: string | null) {
-  if (phase === 'unconfirmed') return PROVIDER_IMPORT_UNCONFIRMED_MESSAGE
-  if (phase !== 'error' || reason === null) return reason
+export function describeProviderImportFailure(reason: string, canSaveAgain: boolean) {
   const sentence = /[.!?]$/.test(reason) ? reason : `${reason}.`
-  return `${sentence} ${PROVIDER_IMPORT_NOTHING_SAVED_NOTE}`
+  return `${sentence} ${canSaveAgain ? PROVIDER_IMPORT_SAVE_AGAIN_NOTE : PROVIDER_IMPORT_NOTHING_SAVED_NOTE}`
 }
 
 /**

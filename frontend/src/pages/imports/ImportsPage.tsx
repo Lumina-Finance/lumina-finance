@@ -343,13 +343,12 @@ export default function ImportsPage() {
           onDone={handleDone}
           onReturnToImport={providerWorkflow.closeImportOverlay}
           onReview={providerWorkflow.importOverlayPhase === 'success'
-            && providerWorkflow.canReviewSkippedRows
+            && providerWorkflow.completedSkippedCount > 0
             ? providerWorkflow.closeImportOverlay
             : undefined}
           onClosed={() => setOverlayOnScreen(false)}
           onCancel={providerWorkflow.canStopImport ? providerWorkflow.cancelImport : undefined}
           onRetry={providerWorkflow.canRetryImportCommit ? providerWorkflow.retryImportCommit : undefined}
-          onLeave={providerWorkflow.canLeaveImport ? () => navigate('/settings') : undefined}
         />
       ) : (
         <ImportProgressOverlay

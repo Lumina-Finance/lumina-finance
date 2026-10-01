@@ -63,12 +63,7 @@ export type ColumnValidationErrors = Record<string, string>
 export type CsvRow = Record<string, string>
 export type ImportCategoryKind = Category['kind']
 export type ImportDataSource = 'generic' | 'firefly' | 'actual'
-
-/**
- * Where an import's overlay stands. `unconfirmed` is a save that was sent but never answered, which
- * may already have landed, so only saving the same run again or leaving the import gets out of it
- */
-export type ImportOverlayPhase = 'idle' | 'importing' | 'success' | 'error' | 'cancelled' | 'unconfirmed'
+export type ImportOverlayPhase = 'idle' | 'importing' | 'success' | 'error' | 'cancelled'
 export type ImportProgressStepStatus = 'active' | 'queued' | 'done'
 
 /**

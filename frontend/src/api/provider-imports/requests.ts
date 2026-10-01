@@ -69,13 +69,3 @@ export function commitJournalImportRun(runId: string, signal?: AbortSignal) {
     signal,
   });
 }
-
-/**
- * Reads what a staged export's commit wrote, without ever writing it
- *
- * Refused with 409 while the run is uncommitted, and with 422 once it has sat uncommitted long
- * enough to be abandoned, which the server then never saves
- */
-export function fetchJournalImportRunResult(runId: string, signal?: AbortSignal) {
-  return authenticatedFetch<JournalImportRunResponse>(`/transactions/import/runs/${runId}/journal/result`, { signal });
-}
