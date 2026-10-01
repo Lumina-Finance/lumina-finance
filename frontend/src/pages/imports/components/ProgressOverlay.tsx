@@ -222,18 +222,10 @@ export function ImportProgressOverlay({
     : complete
       ? summary || 'Your import is complete.'
       : 'Your import is being added to your ledger, and nothing is saved until it finishes.'
-  const messageStyle = complete
-    ? {
-        color: OVERLAY_SUCCESS,
-        maxWidth: 'calc(100vw - 2.5rem)',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-        width: 'max-content',
-      }
-    : {
-        color: failed ? OVERLAY_ERROR : OVERLAY_MUTED_TEXT,
-      }
+  // A completion message wraps like any other, since cutting it short on a phone hides what was imported
+  const messageStyle = {
+    color: complete ? OVERLAY_SUCCESS : failed ? OVERLAY_ERROR : OVERLAY_MUTED_TEXT,
+  }
 
   return (
     <AnimatePresence onExitComplete={onClosed}>
