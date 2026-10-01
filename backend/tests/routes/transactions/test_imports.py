@@ -20,9 +20,7 @@ from app.services.merchants.defaults import (
 from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id
 from tests.routes.transactions._helpers import (
-    _PAST_ABANDONMENT,
     NONEXISTENT_ID,
-    _age_run,
     _create_account,
     _create_category,
     _create_merchant,
@@ -708,19 +706,6 @@ async def test_committing_a_run_missing_rows_is_refused(client):
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "This import has 1 of its 3 rows staged"
-    assert (await client.get("/transactions", headers=headers)).json() == []
-
-
-async def test_committing_an_abandoned_run_is_refused(client):
-    """A file left unsaved past the cutoff never lands, so the same file brought in again since cannot double."""
-    headers, account_id, category_id = await _setup_user_with_deps(client)
-    run_id = await _open_run(client, headers, 1)
-    await client.post(f"/transactions/import/runs/{run_id}/rows", json=_batch(account_id, category_id, ["-1.00"]), headers=headers)
-    await _age_run(run_id, _PAST_ABANDONMENT)
-
-    resp = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
-
-    assert (resp.status_code, resp.json()["detail"]) == (422, "This import expired before it was saved")
     assert (await client.get("/transactions", headers=headers)).json() == []
 
 

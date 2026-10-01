@@ -283,10 +283,9 @@ async def test_another_users_firefly_run_is_out_of_reach(client):
         await client.put(f"{base}/budgets", json={"categories": [_GROCERIES], "budgets": [_budget()]}, headers=other_headers),
         await client.put(f"{base}/archive", json={"account_sources": ["Everyday Chequing"]}, headers=other_headers),
         await client.post(f"{base}/journal/commit", headers=other_headers),
-        await client.get(f"{base}/journal/result", headers=other_headers),
     ]
 
-    assert [(resp.status_code, resp.json()["detail"]) for resp in responses] == [(404, "Import run not found")] * 5
+    assert [(resp.status_code, resp.json()["detail"]) for resp in responses] == [(404, "Import run not found")] * 4
 
 
 async def test_a_firefly_run_refuses_an_outside_account_when_staged_and_takes_the_corrected_answer(client):
@@ -406,24 +405,3 @@ async def test_an_abandoned_run_is_refused_rather_than_saved(client):
 
     assert (resp.status_code, resp.json()["detail"]) == (422, "This import expired before it was saved")
     assert await _snapshot(client, headers) == before
-
-
-async def test_a_runs_result_reads_what_its_commit_wrote_without_writing_it(client):
-    """A page that never heard back from a commit learns whether it landed, and asking never lands it."""
-    headers = _get_auth_header(await _create_user(client))
-    before = await _snapshot(client, headers)
-    run_id = await _open_staged_run(client, headers)
-    abandoned = await _open_staged_run(client, headers)
-    await _age_run(abandoned, _PAST_ABANDONMENT)
-
-    unsaved = await client.get(f"/transactions/import/runs/{run_id}/journal/result", headers=headers)
-    expired = await client.get(f"/transactions/import/runs/{abandoned}/journal/result", headers=headers)
-    assert [(resp.status_code, resp.json()["detail"]) for resp in (unsaved, expired)] == [
-        (409, "This import has not been saved yet"),
-        (422, "This import expired before it was saved"),
-    ]
-    assert await _snapshot(client, headers) == before
-
-    summary = (await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers)).json()
-    saved = await client.get(f"/transactions/import/runs/{run_id}/journal/result", headers=headers)
-    assert (saved.status_code, saved.json()) == (200, summary)

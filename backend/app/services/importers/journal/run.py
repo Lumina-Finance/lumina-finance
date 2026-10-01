@@ -143,30 +143,6 @@ async def commit_journal_run(db: AsyncSession, user: User, run_id: uuid.UUID) ->
     return response
 
 
-async def get_journal_run_result(db: AsyncSession, run_id: uuid.UUID) -> JournalImportRunResponse:
-    """Return what a journal run's commit wrote, without ever writing it
-
-    This is how a page that never heard back from a commit learns whether it landed. The run is
-    held while it is read, so a commit still running is waited on rather than read as unsaved
-
-    Args:
-        db: Active database session
-        run_id: Run to read
-
-    Returns:
-        Summary the commit returned
-
-    Raises:
-        HTTPException: Raised with 404 for a run that is absent or not the caller's, 409 when the
-            run has not been committed or another request holds it, and 422 when a non-journal
-            importer opened the run or it was abandoned before it was committed
-    """
-    run = await lock_run_for_commit(db, run_id, JOURNAL_RUN_SOURCES)
-    if run.committed_at is None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This import has not been saved yet")
-    return JournalImportRunResponse.model_validate(run.summary)
-
-
 def _resolve_budget_categories(
     draft: ImportBudgetDraft,
     categories_by_source: dict[str, Category],
