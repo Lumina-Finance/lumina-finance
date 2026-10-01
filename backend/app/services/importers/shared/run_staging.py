@@ -88,22 +88,30 @@ async def load_staging_references(
     account_ids = {mapping.account_id for mapping in accounts if mapping.account_id is not None}
     creates = [mapping.create for mapping in accounts if mapping.create is not None]
     currencies, institutions = await load_import_account_references(
-        db, {create.currency.upper() for create in creates},
+        db,
+        {create.currency.upper() for create in creates},
         {create.institution_id for create in creates if create.institution_id is not None},
     )
     account_access = await load_account_access_lookup(db, account_ids, user.id)
     visible_categories = await load_visible_import_categories(
-        db, {mapping.category_id for mapping in categories if mapping.category_id is not None}, user.id,
+        db,
+        {mapping.category_id for mapping in categories if mapping.category_id is not None},
+        user.id,
     )
     usable_merchants = await load_usable_import_merchants(
-        db, {mapping.merchant_id for mapping in merchants if mapping.merchant_id is not None}, user.id,
+        db,
+        {mapping.merchant_id for mapping in merchants if mapping.merchant_id is not None},
+        user.id,
     )
     merchant_keys = await load_import_merchant_keys(db, {mapping.source.strip() for mapping in merchants})
     return StagingReferences(account_access, currencies, institutions, visible_categories, usable_merchants, merchant_keys)
 
 
 async def open_import_run(
-    db: AsyncSession, user: User, expected_transaction_count: int, source: ImportRunSource,
+    db: AsyncSession,
+    user: User,
+    expected_transaction_count: int,
+    source: ImportRunSource,
 ) -> ImportRun:
     """Open a run for a file about to be staged
 
@@ -246,7 +254,9 @@ async def stage_import_archive(db: AsyncSession, run_id: uuid.UUID, data: Import
 
 
 async def load_uncommitted_run(
-    db: AsyncSession, run_id: uuid.UUID, sources: Collection[ImportRunSource] | None = None,
+    db: AsyncSession,
+    run_id: uuid.UUID,
+    sources: Collection[ImportRunSource] | None = None,
 ) -> ImportRun:
     """Return the caller's run, held for the rest of the transaction, when it is still open
 
@@ -318,9 +328,7 @@ def require_batch_within_run(run: ImportRun, start_row_index: int, row_count: in
 def merge_import_mappings(
     stored: dict[str, Any],
     mappings: (
-        Sequence[TransactionImportAccountMapping]
-        | Sequence[TransactionImportCategoryMapping]
-        | Sequence[TransactionImportMerchantMapping]
+        Sequence[TransactionImportAccountMapping] | Sequence[TransactionImportCategoryMapping] | Sequence[TransactionImportMerchantMapping]
     ),
     label: str,
     get_key: Callable[[str], str] = lambda source: source,
@@ -404,9 +412,7 @@ async def insert_staged_rows(
         for offset, row in enumerate(rows)
     ]
     await db.execute(
-        insert(ImportStagedRow)
-        .values(values)
-        .on_conflict_do_nothing(constraint="uq_import_staged_row_run_index"),
+        insert(ImportStagedRow).values(values).on_conflict_do_nothing(constraint="uq_import_staged_row_run_index"),
     )
 
 
@@ -454,7 +460,11 @@ async def validate_account_mapping(
 
     if mapping.account_id is not None:
         await check_account_access(
-            db, mapping.account_id, user.id, PermissionLevel.READ, access_lookup=references.account_access,
+            db,
+            mapping.account_id,
+            user.id,
+            PermissionLevel.READ,
+            access_lookup=references.account_access,
         )
         return
 
