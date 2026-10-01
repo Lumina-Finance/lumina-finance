@@ -4,6 +4,7 @@ import { TransactionImportRunError, type StagedRunSettlement } from '@/api/trans
 import { STEP_DOT_WAVE_MS } from '@/pages/imports/components/ProgressOverlay'
 import type { ImportOverlayPhase } from '@/pages/imports/types'
 import { getImportCommitFailure } from '@/pages/imports/utils/commitFailure'
+import { joinImportSummaryParts } from '@/pages/imports/utils/common'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 
 /**
@@ -498,5 +499,5 @@ export function formatProviderImportSummary(result: JournalImportRunResponse, sk
     parts.push(`${result.accounts_archived} account${result.accounts_archived === 1 ? '' : 's'} archived`)
   }
 
-  return parts.join(' · ')
+  return joinImportSummaryParts(parts)
 }

@@ -323,12 +323,23 @@ describe('the completed provider import summary', () => {
   it('counts the rows the browser left out as skipped', () => {
     const result = createImportResult({ rows_imported: 1, transactions_created: 1 })
 
-    expect(formatProviderImportSummary(result, 2)).toBe('1 row imported · 1 transaction created · 2 skipped')
+    expect(formatProviderImportSummary(result, 2).replaceAll('\u00a0', ' ')).toBe('1 row imported · 1 transaction created · 2 skipped')
   })
 
   it('preserves plural row, transaction and budget segments in their current order', () => {
     const result = createImportResult({ rows_imported: 2, transactions_created: 2, budgets_created: 2 })
 
-    expect(formatProviderImportSummary(result, 1)).toBe('2 rows imported · 2 transactions created · 1 skipped · 2 budgets imported')
+    expect(formatProviderImportSummary(result, 1).replaceAll('\u00a0', ' ')).toBe('2 rows imported · 2 transactions created · 1 skipped · 2 budgets imported')
+  })
+
+  // A narrow overlay wraps the summary, and a break inside a count strands its number from its word
+  it('lets a line break only after a separator', () => {
+    const result = createImportResult({ rows_imported: 10, transactions_created: 11 })
+
+    expect(formatProviderImportSummary(result, 0).split(' ')).toEqual([
+      '10\u00a0rows\u00a0imported\u00a0·',
+      '11\u00a0transactions\u00a0created\u00a0·',
+      '0\u00a0skipped',
+    ])
   })
 })
