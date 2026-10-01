@@ -94,8 +94,8 @@ const PROVIDER_IMPORT_NOTHING_SAVED_NOTE = 'Nothing was added to your ledger.'
 // settles it either way without writing anything twice, since the screen keeps the upload, so the
 // copy leads with that and leaves what is unknown to the note for someone about to leave
 const PROVIDER_IMPORT_INTERRUPTED_TITLE = 'Save interrupted'
-const PROVIDER_IMPORT_INTERRUPTED_MESSAGE = 'The import was interrupted. Try again to finish saving your import. Nothing will be added twice as long as you remain on this screen.'
-const PROVIDER_IMPORT_INTERRUPTED_NOTE = 'Leaving this page? Check your transactions before importing again.'
+const PROVIDER_IMPORT_INTERRUPTED_MESSAGE = 'The import was interrupted. Try again to finish saving your import. Nothing will be added twice as long as you stay on the import page.'
+const PROVIDER_IMPORT_INTERRUPTED_NOTE = 'Leaving the import page? Check your transactions before importing again.'
 const PROVIDER_IMPORT_INTERRUPTED_FOOTER = 'Save interrupted. Please try again.'
 
 // Why an import stopped before sending anything when the server gave no answer about the upload

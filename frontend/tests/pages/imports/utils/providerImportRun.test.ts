@@ -279,8 +279,8 @@ describe('describing a failed provider import', () => {
   it('says an interrupted save can be finished from this screen, and what to do before leaving', () => {
     expect(describeProviderImportFailure({ message: 'Failed to fetch', interrupted: true })).toEqual({
       overlayTitle: 'Save interrupted',
-      overlayMessage: 'The import was interrupted. Try again to finish saving your import. Nothing will be added twice as long as you remain on this screen.',
-      overlayNote: 'Leaving this page? Check your transactions before importing again.',
+      overlayMessage: 'The import was interrupted. Try again to finish saving your import. Nothing will be added twice as long as you stay on the import page.',
+      overlayNote: 'Leaving the import page? Check your transactions before importing again.',
       footerMessage: 'Save interrupted. Please try again.',
     })
   })
