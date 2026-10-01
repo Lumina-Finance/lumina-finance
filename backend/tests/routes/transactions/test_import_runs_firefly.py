@@ -405,3 +405,16 @@ async def test_an_abandoned_run_is_refused_rather_than_saved(client):
 
     assert (resp.status_code, resp.json()["detail"]) == (422, "This import expired before it was saved")
     assert await _snapshot(client, headers) == before
+
+
+async def test_renewing_a_sign_in_deletes_the_users_abandoned_runs(client):
+    """A run left uncommitted goes even when its user never imports again, so nothing is kept for good."""
+    signup = await _create_user(client)
+    abandoned = await _open_staged_run(client, _get_auth_header(signup))
+    await _age_run(abandoned, _PAST_ABANDONMENT)
+    client.cookies.set("refresh_token", signup.cookies["refresh_token"])
+
+    resp = await client.post("/auth/refresh")
+
+    assert resp.status_code == 200, resp.text
+    assert await _count_run_rows(abandoned) == (0, 0)

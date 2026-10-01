@@ -141,11 +141,12 @@ async def delete_abandoned_import_runs(db: AsyncSession, user: User) -> None:
     """Delete the caller's runs that were never committed and are now abandoned, with what they staged
 
     Nothing else ever removes a run its user walked away from, so this runs whenever they open
-    another. A committed run stays, since a commit whose response was lost is answered from it
+    another and whenever they sign in or their sign-in is renewed. A committed run stays, since a
+    commit whose response was lost is answered from it
 
     Args:
         db: Active database session
-        user: Authenticated user opening a run
+        user: User whose abandoned runs are deleted
     """
     # A run another request holds is skipped rather than waited on. A commit holding it either
     # lands, and the run is no longer this query's, or refuses it as abandoned
