@@ -386,7 +386,7 @@ export function ImportProgressOverlay({
 
                 {ended && note && (
                   <motion.p
-                    className="mt-5 max-w-sm text-xs leading-5"
+                    className="mt-5 max-w-sm text-balance text-xs leading-5"
                     style={{ color: OVERLAY_MUTED_TEXT }}
                     variants={itemVariants}
                   >
