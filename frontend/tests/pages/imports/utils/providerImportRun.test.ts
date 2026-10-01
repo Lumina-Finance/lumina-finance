@@ -1,3 +1,7 @@
+/**
+ * Guards the provider import run: an interrupted save keeps its upload so nothing is imported twice,
+ * Try again saves it, a fresh import settles it first, and the failure wording and summary say what happened
+ */
 import { describe, expect, it, vi } from 'vitest'
 import type { JournalImportRunResponse } from '@/api/provider-imports'
 import { TransactionImportRunError, type StagedRunSettlement } from '@/api/transaction-imports'
@@ -11,6 +15,7 @@ import {
   getProviderImportError,
   type ProviderImportRunState,
 } from '@/pages/imports/utils'
+import { withPlainSpaces } from './fixtures'
 
 const RESULT = { rows_imported: 3 } as JournalImportRunResponse
 const SKIPPED_AT_START: FireflySkippedRowDetail[] = [{ journalId: '7', rowNumber: 8, cells: {}, reason: 'Left out' }]
@@ -196,13 +201,43 @@ describe('provider import run', () => {
     expect(settleStagedRun).toHaveBeenCalledWith('run-1')
     expect(requests.upload).toHaveBeenCalledTimes(1)
     expect(requests.commit).not.toHaveBeenCalled()
-    expect(controller.getState()).toMatchObject({ overlayPhase: 'success', stagedRunId: null, completedImport: { savedEarlier: false } })
+    expect(controller.getState()).toMatchObject({
+      overlayPhase: 'success',
+      stagedRunId: null,
+      completedImport: { savedEarlier: false, skippedRowsAtCommit: [] },
+    })
+  })
+
+  it('keeps a replacement upload whose save was interrupted too, and Try again saves only that one', async () => {
+    const { controller, settleStagedRun } = createHarness('discarded')
+    await failWhileSaving(controller, {})
+    controller.close()
+    const requests = createRequests()
+    requests.upload.mockImplementation(async (_signal, onStaged) => {
+      await onStaged()
+      throw new TransactionImportRunError('The server went away', 'commit', 'run-2')
+    })
+
+    await controller.start([], { changed: true }, requests)
+    expect(controller.getState()).toMatchObject({ overlayPhase: 'error', stagedRunId: 'run-2', failure: { interrupted: true } })
+
+    await controller.retry()
+
+    expect(settleStagedRun).toHaveBeenCalledTimes(1)
+    expect(requests.upload).toHaveBeenCalledTimes(1)
+    expect(requests.commit).toHaveBeenCalledWith('run-2', expect.any(AbortSignal))
+    expect(controller.getState()).toMatchObject({
+      overlayPhase: 'success',
+      completedImport: { savedEarlier: false, skippedRowsAtCommit: [] },
+    })
   })
 
   it('sends nothing new when the kept upload had been saved, and reports that earlier import', async () => {
-    const { controller } = createHarness('saved')
+    const { controller, discardStagedRun } = createHarness('saved')
     await failWhileSaving(controller, {})
     controller.reset()
+    expect(controller.getState()).toMatchObject({ stagedRunId: 'run-1', failure: null })
+    expect(discardStagedRun).not.toHaveBeenCalled()
     const requests = createRequests()
 
     await controller.start([], { changed: true }, requests)
@@ -254,16 +289,6 @@ describe('provider import run', () => {
     expect(controller.getState()).toMatchObject({ overlayPhase: 'idle', completedImport: null, failure: null })
   })
 
-  it('keeps an interrupted upload through a reset, for the next import to settle', async () => {
-    const { controller, discardStagedRun } = createHarness()
-    await failWhileSaving(controller, {})
-
-    controller.reset()
-
-    expect(discardStagedRun).not.toHaveBeenCalled()
-    expect(controller.getState()).toMatchObject({ stagedRunId: 'run-1', failure: null })
-  })
-
   it('shows a failure only while the answers it was about are unchanged', async () => {
     const { controller } = createHarness()
     const answers = { accountMappings: {} }
@@ -277,13 +302,18 @@ describe('provider import run', () => {
 
 describe('describing a failed provider import', () => {
   it('says an interrupted save can be finished from this screen, and what to do before leaving', () => {
-    expect(describeProviderImportFailure({ message: 'Failed to fetch', interrupted: true })).toEqual({
+    const copy = describeProviderImportFailure({ message: 'Failed to fetch', interrupted: true })
+
+    expect(copy).toEqual({
       overlayTitle: 'Save interrupted',
       overlayMessage: 'The import was interrupted. Try again to finish saving your import. Nothing will be added twice as long as you stay on the import page.',
       overlayEmphasis: 'stay on the import page',
       overlayNote: 'Leaving the import page? Check your transactions before importing again.',
       footerMessage: 'Save interrupted. Please try again.',
     })
+
+    // The overlay bolds the phrase only where the message holds it, so a rewording must keep it
+    expect(copy.overlayMessage).toContain(copy.overlayEmphasis)
   })
 
   it('says a refused import added nothing, beside its reason', () => {
@@ -325,13 +355,13 @@ describe('the completed provider import summary', () => {
   it('counts the rows the browser left out as skipped', () => {
     const result = createImportResult({ rows_imported: 1, transactions_created: 1 })
 
-    expect(formatProviderImportSummary(result, 2).replaceAll('\u00a0', ' ')).toBe('1 row imported · 1 transaction created · 2 skipped')
+    expect(withPlainSpaces(formatProviderImportSummary(result, 2))).toBe('1 row imported · 1 transaction created · 2 skipped')
   })
 
   it('preserves plural row, transaction and budget segments in their current order', () => {
     const result = createImportResult({ rows_imported: 2, transactions_created: 2, budgets_created: 2 })
 
-    expect(formatProviderImportSummary(result, 1).replaceAll('\u00a0', ' ')).toBe('2 rows imported · 2 transactions created · 1 skipped · 2 budgets imported')
+    expect(withPlainSpaces(formatProviderImportSummary(result, 1))).toBe('2 rows imported · 2 transactions created · 1 skipped · 2 budgets imported')
   })
 
   // A narrow overlay wraps the summary, and a break inside a count strands its number from its word

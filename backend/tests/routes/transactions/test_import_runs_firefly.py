@@ -16,6 +16,7 @@ from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header
 from tests.routes.transactions._helpers import (
     _PAST_ABANDONMENT,
+    _SHORT_OF_ABANDONMENT,
     _age_run,
     _create_account,
     _seed_usd_currency,
@@ -437,6 +438,8 @@ async def test_opening_a_run_deletes_the_users_abandoned_runs_and_keeps_committe
     recent = await _open_staged_run(client, headers)
     await _age_run(committed, _PAST_ABANDONMENT)
     await _age_run(abandoned, _PAST_ABANDONMENT)
+    # Just short of the cutoff, so a cutoff set too short would delete it
+    await _age_run(recent, _SHORT_OF_ABANDONMENT)
 
     await _open_run(client, headers, 1)
 

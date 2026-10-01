@@ -11,8 +11,9 @@ from tests.routes.support import _create_user, _get_auth_header, _get_system_mer
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
-# Just past the age at which a run left uncommitted counts as abandoned
+# Just either side of the age at which a run left uncommitted counts as abandoned
 _PAST_ABANDONMENT = ABANDONED_RUN_AGE + timedelta(minutes=1)
+_SHORT_OF_ABANDONMENT = ABANDONED_RUN_AGE - timedelta(minutes=1)
 
 
 async def _age_run(run_id, age):
