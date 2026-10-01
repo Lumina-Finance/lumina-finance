@@ -340,6 +340,7 @@ export default function ImportsPage() {
           steps={providerWorkflow.importOverlaySteps}
           summary={providerWorkflow.importSummary}
           error={providerWorkflow.importOverlayError}
+          errorEmphasis={providerWorkflow.importOverlayErrorEmphasis}
           title={providerWorkflow.importOverlayTitle}
           note={providerWorkflow.importOverlayNote}
           onDone={handleDone}

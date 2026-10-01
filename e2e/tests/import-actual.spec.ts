@@ -320,6 +320,7 @@ test('imports nothing twice after a save that landed but whose answer was lost',
   const overlay = page.getByRole('dialog')
   await expect(overlay.getByText('Save interrupted', { exact: true })).toBeVisible()
   await expect(overlay.getByText('The import was interrupted. Try again to finish saving your import. Nothing will be added twice as long as you stay on the import page.', { exact: true })).toBeVisible()
+  await expect(overlay.getByRole('strong')).toHaveText('stay on the import page')
   await expect(overlay.getByText('Leaving the import page? Check your transactions before importing again.', { exact: true })).toBeVisible()
   const ledgerAfterFirstSave = await countLedgerTransactions(request, user)
   expect(ledgerAfterFirstSave).toBeGreaterThan(0)

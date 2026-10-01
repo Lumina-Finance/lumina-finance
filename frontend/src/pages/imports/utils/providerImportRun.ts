@@ -95,6 +95,8 @@ const PROVIDER_IMPORT_NOTHING_SAVED_NOTE = 'Nothing was added to your ledger.'
 // copy leads with that and leaves what is unknown to the note for someone about to leave
 const PROVIDER_IMPORT_INTERRUPTED_TITLE = 'Save interrupted'
 const PROVIDER_IMPORT_INTERRUPTED_MESSAGE = 'The import was interrupted. Try again to finish saving your import. Nothing will be added twice as long as you stay on the import page.'
+// The one condition the promise rests on, set in bold so it isn't read past
+const PROVIDER_IMPORT_INTERRUPTED_EMPHASIS = 'stay on the import page'
 const PROVIDER_IMPORT_INTERRUPTED_NOTE = 'Leaving the import page? Check your transactions before importing again.'
 const PROVIDER_IMPORT_INTERRUPTED_FOOTER = 'Save interrupted. Please try again.'
 
@@ -449,6 +451,9 @@ export interface ProviderImportFailureCopy {
   overlayTitle: string | null
   overlayMessage: string
 
+  /** Words of the overlay message set in bold, or null when none need it */
+  overlayEmphasis: string | null
+
   /** Set apart under the overlay's buttons, for a step that matters only to someone leaving */
   overlayNote: string | null
   footerMessage: string
@@ -463,6 +468,7 @@ export function describeProviderImportFailure({ message, interrupted }: Pick<Pro
     return {
       overlayTitle: PROVIDER_IMPORT_INTERRUPTED_TITLE,
       overlayMessage: PROVIDER_IMPORT_INTERRUPTED_MESSAGE,
+      overlayEmphasis: PROVIDER_IMPORT_INTERRUPTED_EMPHASIS,
       overlayNote: PROVIDER_IMPORT_INTERRUPTED_NOTE,
       footerMessage: PROVIDER_IMPORT_INTERRUPTED_FOOTER,
     }
@@ -472,6 +478,7 @@ export function describeProviderImportFailure({ message, interrupted }: Pick<Pro
   return {
     overlayTitle: null,
     overlayMessage: `${sentence} ${PROVIDER_IMPORT_NOTHING_SAVED_NOTE}`,
+    overlayEmphasis: null,
     overlayNote: null,
     footerMessage: message,
   }

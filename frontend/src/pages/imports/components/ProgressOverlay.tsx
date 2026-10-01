@@ -123,6 +123,9 @@ const iconVariants: Variants = {
 interface ImportProgressOverlayProps {
   error: string | null
 
+  /** Words of the error set in bold, for the one condition a user must not read past */
+  errorEmphasis?: string
+
   /** Replaces the title an ended import would otherwise have, for a flow that can say more about it */
   title?: string
 
@@ -161,6 +164,7 @@ interface ImportProgressOverlayProps {
  */
 export function ImportProgressOverlay({
   error,
+  errorEmphasis,
   title: endedTitle,
   note,
   onScreen,
@@ -309,7 +313,7 @@ export function ImportProgressOverlay({
                   style={messageStyle}
                   variants={itemVariants}
                 >
-                  {message}
+                  {renderEmphasis(message, failed ? errorEmphasis : undefined)}
                 </motion.p>
 
                 {!complete && !ended && steps && steps.length > 0 && (
@@ -510,5 +514,21 @@ function ImportProgressStepEllipsis({ running }: ImportProgressStepEllipsisProps
         />
       ))}
     </span>
+  )
+}
+
+/**
+ * Sets the first appearance of a phrase in bold, leaving the text as it is when the phrase isn't in it
+ */
+function renderEmphasis(text: string, phrase: string | undefined) {
+  const start = phrase ? text.indexOf(phrase) : -1
+  if (!phrase || start < 0) return text
+
+  return (
+    <>
+      {text.slice(0, start)}
+      <strong className="font-semibold">{phrase}</strong>
+      {text.slice(start + phrase.length)}
+    </>
   )
 }

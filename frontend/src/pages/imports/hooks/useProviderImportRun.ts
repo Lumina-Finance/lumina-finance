@@ -137,6 +137,7 @@ export function useProviderImportRun<TSkipped>({
       completedSkippedCount,
       importError: failureCopy?.footerMessage ?? importError,
       importOverlayError: overlayFailureCopy?.overlayMessage ?? importError,
+      importOverlayErrorEmphasis: overlayFailureCopy?.overlayEmphasis ?? undefined,
       importOverlayTitle: overlayFailureCopy?.overlayTitle ?? undefined,
       importOverlayNote: overlayFailureCopy?.overlayNote ?? undefined,
       importResult,

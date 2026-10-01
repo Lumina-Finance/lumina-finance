@@ -280,6 +280,7 @@ describe('describing a failed provider import', () => {
     expect(describeProviderImportFailure({ message: 'Failed to fetch', interrupted: true })).toEqual({
       overlayTitle: 'Save interrupted',
       overlayMessage: 'The import was interrupted. Try again to finish saving your import. Nothing will be added twice as long as you stay on the import page.',
+      overlayEmphasis: 'stay on the import page',
       overlayNote: 'Leaving the import page? Check your transactions before importing again.',
       footerMessage: 'Save interrupted. Please try again.',
     })
@@ -289,6 +290,7 @@ describe('describing a failed provider import', () => {
     expect(describeProviderImportFailure({ message: 'Account is archived', interrupted: false })).toEqual({
       overlayTitle: null,
       overlayMessage: 'Account is archived. Nothing was added to your ledger.',
+      overlayEmphasis: null,
       overlayNote: null,
       footerMessage: 'Account is archived',
     })
