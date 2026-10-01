@@ -1,4 +1,5 @@
 """Auth token route helpers"""
+
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
@@ -206,9 +207,7 @@ def verify_reauth_stepup_proof(user_id: uuid.UUID, proof: str) -> None:
     try:
         payload = decode_oidc_reauth_stepup_token(proof)
     except jwt.PyJWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required"
-        ) from None
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required") from None
     if payload["sub"] != str(user_id):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required")
 
@@ -245,9 +244,7 @@ async def complete_mfa_challenge(db: AsyncSession, mfa_token: str, code: str, pu
     return await _complete_mfa_challenge(db, mfa_token, purpose, lambda user_id: verify_login_second_factor(db, user_id, code))
 
 
-async def complete_mfa_challenge_with_passkey(
-    db: AsyncSession, mfa_token: str, credential: dict[str, Any], purpose: str
-) -> tuple[User, str]:
+async def complete_mfa_challenge_with_passkey(db: AsyncSession, mfa_token: str, credential: dict[str, Any], purpose: str) -> tuple[User, str]:
     """Complete a second-factor step with a passkey assertion
 
     Args:
@@ -532,10 +529,12 @@ async def issue_and_store_tokens(
     db.add(create_auth_token(user.id, session_id, access_jti, AuthTokenKind.ACCESS, access_exp))
     db.add(create_auth_token(user.id, session_id, refresh_jti, AuthTokenKind.REFRESH, refresh_exp))
     await db.commit()
+
+    # Built before the cleanup, whose rollback on failure would expire the user it reads
+    auth_response = AuthResponse(user=UserInfo.model_validate(user), access_token=access_token)
     await _delete_abandoned_imports(db, user)
 
     set_refresh_cookie(request, response, refresh_token)
-    auth_response = AuthResponse(user=UserInfo.model_validate(user), access_token=access_token)
     return auth_response
 
 
