@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
 import { asUser, signUpUser, type TestUser } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
@@ -281,4 +281,55 @@ test('saves a kept upload again after its first save failed', async ({ page, req
 
   const result = await response.json() as { transactions_created: number }
   expect(result.transactions_created).toBe(YEN_MANIFEST.rows.length)
+})
+
+async function countLedgerTransactions(request: APIRequestContext, user: TestUser) {
+  let count = 0
+  for (let offset = 0; ; offset += 50) {
+    const response = await request.get(`${API_BASE_URL}/transactions`, {
+      headers: asUser(user),
+      params: { limit: 50, offset },
+    })
+    expect(response.status()).toBe(200)
+    const page = await response.json() as unknown[]
+    count += page.length
+    if (page.length < 50) return count
+  }
+}
+
+// A save whose answer was lost may have landed. Importing again from the same screen, even with an
+// answer changed, finds out first and writes nothing twice
+test('imports nothing twice after a save that landed but whose answer was lost', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await uploadActualExport(page, user, YEN_FIXTURE)
+
+  const commitUrl = /\/transactions\/import\/runs\/[^/]+\/journal\/commit$/
+  let commitAttempts = 0
+  await page.route(commitUrl, async (route) => {
+    commitAttempts += 1
+    if (commitAttempts > 1) {
+      await route.continue()
+      return
+    }
+    const landed = await route.fetch()
+    expect(landed.status()).toBe(201)
+    await route.abort('connectionfailed')
+  })
+
+  await page.getByRole('button', { name: 'Commit import', exact: true }).click()
+  const overlay = page.getByRole('dialog')
+  await expect(overlay.getByText('Save interrupted', { exact: true })).toBeVisible()
+  await expect(overlay.getByText('The import was interrupted. Try again to finish saving your import. Nothing will be added twice as long as you remain on this screen.', { exact: true })).toBeVisible()
+  await expect(overlay.getByText('Leaving this page? Check your transactions before importing again.', { exact: true })).toBeVisible()
+  const ledgerAfterFirstSave = await countLedgerTransactions(request, user)
+  expect(ledgerAfterFirstSave).toBeGreaterThan(0)
+
+  await overlay.getByRole('button', { name: 'Back to import', exact: true }).click()
+  await expect(page.getByText('Save interrupted. Please try again.', { exact: true })).toBeVisible()
+  await page.getByRole('checkbox', { name: 'Import Food' }).click()
+  await page.getByRole('button', { name: 'Commit import', exact: true }).click()
+
+  await expect(overlay.getByText('Import complete', { exact: true })).toBeVisible()
+  await expect(overlay.getByText('Your earlier import was saved, so this one wasn\'t imported.', { exact: true })).toBeVisible()
+  expect(await countLedgerTransactions(request, user)).toBe(ledgerAfterFirstSave)
 })

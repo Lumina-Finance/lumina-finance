@@ -5,7 +5,7 @@ import {
   type JournalImportRequest,
   type JournalImportSource,
 } from '@/api/provider-imports'
-import { discardStagedRun } from '@/api/transaction-imports'
+import { discardStagedRun, settleStagedRun } from '@/api/transaction-imports'
 import { waitForMilliseconds } from '@/utils/timing'
 import type { ImportProgressStep } from '@/pages/imports/types'
 import {
@@ -15,6 +15,7 @@ import {
   formatProviderImportSummary,
   getProviderImportError,
   PROVIDER_IMPORT_RUN_IDLE,
+  PROVIDER_IMPORT_SAVED_EARLIER_MESSAGE,
   PROVIDER_IMPORT_STAGES,
   type ProviderImportRunState,
 } from '@/pages/imports/utils'
@@ -23,9 +24,9 @@ import {
  * Runs a provider import as one run that uploads everything and then writes all of it at once, and
  * holds where the latest attempt stands for the overlay and the import button
  *
- * An import that fails writes nothing, and one whose save failed for a reason trying again could
- * clear keeps its upload, so a retry only saves again. A failure is about the answers the import
- * was sent with, so it stops showing once one of them changes
+ * An import that fails writes nothing. One whose save ended with no answer keeps its upload for as
+ * long as this screen is open, and the next import settles it first, so nothing is written twice.
+ * A failure is about the answers the import was sent with, so it stops showing once one changes
  */
 export function useProviderImportRun<TSkipped>({
   source,
@@ -40,6 +41,7 @@ export function useProviderImportRun<TSkipped>({
   const [controller] = useState(() => createProviderImportRunController<TSkipped>({
     onChange: setRun,
     discardStagedRun: (runId) => void discardStagedRun(runId),
+    settleStagedRun,
     wait: waitForMilliseconds,
   }))
   const importJournal = useImportJournal()
@@ -48,6 +50,10 @@ export function useProviderImportRun<TSkipped>({
   const { failure, completedImport, overlayPhase, stageState, canStop, stagedRunId } = run
   const importResult = completedImport?.result ?? null
   const importError = getProviderImportError(failure, answers)
+  const failureCopy = failure && importError !== null ? describeProviderImportFailure(failure) : null
+
+  // The overlay says the most about a failure, and the line beside Commit import repeats it briefly
+  const overlayFailureCopy = overlayPhase === 'error' ? failureCopy : null
 
   const importOverlaySteps = useMemo<ImportProgressStep[] | undefined>(
     () => {
@@ -98,16 +104,15 @@ export function useProviderImportRun<TSkipped>({
    */
   const startImport = async ({ skippedRows, ...request }: Omit<JournalImportRequest, 'source'> & { skippedRows: TSkipped[] }) => {
     const journalRequest: JournalImportRequest = { source, ...request }
-    await controller.start(
-      skippedRows,
-      answers,
-      (signal, onStaged) => importJournal.mutateAsync({ request: journalRequest, signal, onStaged }),
-    )
+    await controller.start(skippedRows, answers, {
+      upload: (signal, onStaged) => importJournal.mutateAsync({ request: journalRequest, signal, onStaged }),
+      commit: (runId, signal) => commitStagedJournal.mutateAsync({ runId, signal }),
+    })
   }
 
   const retryImportCommit = async () => {
     if (isImportInFlight) return
-    await controller.retry(answers, (runId, signal) => commitStagedJournal.mutateAsync({ runId, signal }))
+    await controller.retry()
   }
 
   /** Forgets every attempt, for when the answers it was given for no longer apply */
@@ -130,22 +135,21 @@ export function useProviderImportRun<TSkipped>({
     workflow: {
       completedImport,
       completedSkippedCount,
-      importError,
-
-      // Only the overlay says what a failure left, read off the upload still kept, since closing it
-      // drops that upload and the preview beside the button then shows the reason alone
-      importOverlayError: importError && overlayPhase === 'error'
-        ? describeProviderImportFailure(importError, stagedRunId !== null)
-        : importError,
+      importError: failureCopy?.footerMessage ?? importError,
+      importOverlayError: overlayFailureCopy?.overlayMessage ?? importError,
+      importOverlayTitle: overlayFailureCopy?.overlayTitle ?? undefined,
+      importOverlayNote: overlayFailureCopy?.overlayNote ?? undefined,
       importResult,
       importOverlayPhase: overlayPhase,
       importOverlayOpen,
       importOverlaySteps,
-      importSummary: importResult ? formatProviderImportSummary(importResult, completedSkippedCount) : '',
+      importSummary: completedImport?.savedEarlier
+        ? PROVIDER_IMPORT_SAVED_EARLIER_MESSAGE
+        : importResult ? formatProviderImportSummary(importResult, completedSkippedCount) : '',
       importedBudgetNames,
       isImportInFlight,
       canStopImport: canStop,
-      canRetryImportCommit: stagedRunId !== null,
+      canRetryImportCommit: stagedRunId !== null && failure?.interrupted === true,
       retryImportCommit,
       cancelImport: controller.stop,
       closeImportOverlay: controller.close,
