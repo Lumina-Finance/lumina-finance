@@ -57,6 +57,7 @@ async function buildReplay(): Promise<Replay> {
     accountById: new Map(),
     categoryMappings: Object.fromEntries(journal.categories.map((source) => [source.id, CREATE_CATEGORY_VALUE])),
     categoryCreateKinds: Object.fromEntries(journal.categories.map((source) => [source.id, getActualCategoryKind(source)])),
+    categoryRenames: {},
     categoryById: new Map(),
     currencies: CURRENCIES,
     fileCurrency: null,

@@ -16,6 +16,7 @@ import {
   buildProviderRunBudgets,
   countCreatedImportSources,
   dropVanishedCategoryMappings,
+  getImportCategoryRenames,
   getImportUploadBlockReason,
   getProviderBudgetSelectionError,
   getSupportedCurrencyCodes,
@@ -24,6 +25,7 @@ import {
   type ImportFileAcquisition,
 } from '@/pages/imports/utils'
 import {
+  ACTUAL_CATEGORY_RENAME_APP_NAME,
   ACTUAL_IMPORT_FILE_TYPE,
   ACTUAL_MAX_BUDGETS,
   ACTUAL_SAMPLE_PREVIEW_LIMIT,
@@ -108,6 +110,7 @@ export function useActualImportWorkflow() {
   } = useImportAccountCreateState(setAccountMappings, getActualAccountSourceScope)
   const [categoryMappings, setCategoryMappings] = useState<Record<string, string>>({})
   const [categoryCreateKinds, setCategoryCreateKinds] = useState<Record<string, ImportCategoryKind>>({})
+  const [categoryCreateNames, setCategoryCreateNames] = useState<Record<string, string>>({})
   const [paymentModes, setPaymentModes] = useState<Record<string, ActualPaymentMode>>({})
   const [selectedBudgetIds, setSelectedBudgetIds] = useState<Set<string> | null>(null)
 
@@ -120,6 +123,7 @@ export function useActualImportWorkflow() {
       accountCreateInstitutions,
       categoryMappings,
       categoryCreateKinds,
+      categoryCreateNames,
       paymentModes,
       selectedBudgetIds,
     }),
@@ -129,6 +133,7 @@ export function useActualImportWorkflow() {
       accountCreateTypes,
       accountMappings,
       categoryCreateKinds,
+      categoryCreateNames,
       categoryMappings,
       paymentModes,
       selectedBudgetIds,
@@ -264,6 +269,18 @@ export function useActualImportWorkflow() {
     [categoryCreateKinds, categorySources],
   )
 
+  const categoryRenames = useMemo(
+    () => getImportCategoryRenames({
+      sources: categorySources.map((source) => ({ id: source.id, name: source.createName })),
+      mappings: resolvedCategoryMappings,
+      kinds: resolvedCategoryKinds,
+      typedNames: categoryCreateNames,
+      categoryById,
+      appName: ACTUAL_CATEGORY_RENAME_APP_NAME,
+    }),
+    [categoryById, categoryCreateNames, categorySources, resolvedCategoryKinds, resolvedCategoryMappings],
+  )
+
   const currentMonth = today.slice(0, 7)
   const budgetDrafts = useMemo(
     () => (budget ? buildActualBudgetDrafts(budget, currentMonth) : []),
@@ -307,6 +324,7 @@ export function useActualImportWorkflow() {
         accountById,
         categoryMappings: resolvedCategoryMappings,
         categoryCreateKinds: resolvedCategoryKinds,
+        categoryRenames,
         categoryById,
         currencies,
         fileCurrency: budget.currencyCode,
@@ -318,6 +336,7 @@ export function useActualImportWorkflow() {
       budget,
       budgetCategorySources,
       categoryById,
+      categoryRenames,
       currencies,
       effectiveJournal,
       resolvedAccountCreateDetails,
@@ -406,6 +425,7 @@ export function useActualImportWorkflow() {
       institutionById,
       categoryMappings: resolvedCategoryMappings,
       categoryCreateKinds: resolvedCategoryKinds,
+      categoryRenames,
       categoryById,
       transferCategory,
       balanceAdjustmentCategory,
@@ -416,6 +436,7 @@ export function useActualImportWorkflow() {
       accountById,
       balanceAdjustmentCategory,
       categoryById,
+      categoryRenames,
       currencies,
       effectiveJournal,
       institutionById,
@@ -467,6 +488,7 @@ export function useActualImportWorkflow() {
     resetAccountCreateState()
     setCategoryMappings({})
     setCategoryCreateKinds({})
+    setCategoryCreateNames({})
     setPaymentModes({})
     setSelectedBudgetIds(null)
     run.resetImportRun()
@@ -573,6 +595,7 @@ export function useActualImportWorkflow() {
     resolvedCategoryMappings,
     autoFilledCategories,
     resolvedCategoryKinds,
+    categoryRenames,
     budgetDrafts,
     budgetRefusals,
     budgetsMissingPayments,
@@ -606,6 +629,7 @@ export function useActualImportWorkflow() {
     setBatchAccountInstitution,
     setCategoryMappings,
     setCategoryCreateKinds,
+    setCategoryCreateNames,
     setPaymentMode,
     handleActualFileChange,
     removeActualFile,

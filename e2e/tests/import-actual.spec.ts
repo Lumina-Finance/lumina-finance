@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
-import { asUser, signUpUser, type TestUser } from '../support/api'
+import { asUser, createCategory, signUpUser, type TestUser } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
@@ -183,6 +183,34 @@ test('imports loan payments Actual gave a category as spending in it, which its 
     .filter((month) => month.category === 'Car' && month.month < exportMonth)
     .map((month) => [month.month, -Math.round(Number(month.total) * 100)])
     .sort())
+})
+
+test('imports a category under a new name when one of another kind already has its name', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await createCategory(request, user, { name: 'Car', kind: 'transfer' })
+  await uploadActualExport(page, user, EDGES_FIXTURE)
+
+  for (const account of EDGES_MANIFEST.accounts) {
+    await chooseFromDropdown(page.locator('body'), `Currency ${account.name}`, /^CAD$/)
+    await expect(page.getByRole('listbox')).toHaveCount(0)
+  }
+
+  // Created as spending, Car can't take the name the user's transfer category holds, so the step
+  // proposes another the user can change
+  await page.getByRole('combobox', { name: 'Existing Category Car', exact: true }).click()
+  await page.getByRole('option', { name: 'Create new category' }).click()
+  const newName = page.getByRole('textbox', { name: 'Car is already a transfer category, so this one is created as' })
+  await expect(newName).toHaveValue('Car (Actual)')
+  await newName.fill('Car costs')
+
+  await commitImport(page)
+
+  const categories = await (await request.get(`${API_BASE_URL}/categories`, { headers: asUser(user) })).json() as {
+    name: string
+    kind: string
+  }[]
+  expect(categories.filter((category) => ['Car', 'Car costs'].includes(category.name)).map(({ name, kind }) => [name, kind]).sort())
+    .toEqual([['Car costs', 'expense'], ['Car', 'transfer']])
 })
 
 test('imports transfers into a credit card under Credit Card Payment on both accounts', async ({ page, request }) => {

@@ -116,6 +116,7 @@ function createOptions(overrides: Partial<Parameters<typeof buildFireflyPreviewR
     categoryById: new Map([[groceries.id, groceries]]),
     categoryMappings: { Groceries: groceries.id },
     categoryCreateKinds: {},
+    categoryRenames: {},
     transferCategory,
     balanceAdjustmentCategory,
     currencies: CURRENCIES,
@@ -167,6 +168,7 @@ describe('firefly preview rows', () => {
       accountCreateDetails: { 'US Savings': { accountType: 'savings', currency: 'usd', institutionId: 'bank' } },
       categoryMappings: { Salary: CREATE_CATEGORY_VALUE },
       categoryCreateKinds: { Salary: 'income' },
+      categoryRenames: {},
     }))
 
     expect(rows).toHaveLength(1)

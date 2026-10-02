@@ -13,6 +13,7 @@ import {
   buildProviderRunBudgets,
   countCreatedImportSources,
   dropVanishedCategoryMappings,
+  getImportCategoryRenames,
   getImportUploadBlockReason,
   getProviderBudgetSelectionError,
   getSupportedCurrencyCodes,
@@ -21,6 +22,7 @@ import {
   type ImportFileAcquisition,
 } from '@/pages/imports/utils'
 import {
+  FIREFLY_CATEGORY_RENAME_APP_NAME,
   FIREFLY_CSV_PROCESSING_MIN_MS,
   FIREFLY_MAX_BUDGETS,
   FIREFLY_SAMPLE_PREVIEW_LIMIT,
@@ -94,6 +96,7 @@ export function useFireflyImportWorkflow() {
   } = useImportAccountCreateState(setAccountMappings, getFireflyAccountSourceScope)
   const [categoryMappings, setCategoryMappings] = useState<Record<string, string>>({})
   const [categoryCreateKinds, setCategoryCreateKinds] = useState<Record<string, ImportCategoryKind>>({})
+  const [categoryCreateNames, setCategoryCreateNames] = useState<Record<string, string>>({})
   const [selectedBudgetNames, setSelectedBudgetNames] = useState<Set<string> | null>(null)
 
   // Every answer the user gives about the import, as one value that changes only when one of them does
@@ -107,6 +110,7 @@ export function useFireflyImportWorkflow() {
       accountCreateInstitutions,
       categoryMappings,
       categoryCreateKinds,
+      categoryCreateNames,
       selectedBudgetNames,
     }),
     [
@@ -117,6 +121,7 @@ export function useFireflyImportWorkflow() {
       accountsFile,
       budgetsFile,
       categoryCreateKinds,
+      categoryCreateNames,
       categoryMappings,
       selectedBudgetNames,
     ],
@@ -269,6 +274,18 @@ export function useFireflyImportWorkflow() {
     [categoryCreateKinds, importedCategories, inferredCategoryKinds],
   )
 
+  const categoryRenames = useMemo(
+    () => getImportCategoryRenames({
+      sources: importedCategories.map((source) => ({ id: source, name: source })),
+      mappings: resolvedCategoryMappings,
+      kinds: resolvedCategoryKinds,
+      typedNames: categoryCreateNames,
+      categoryById,
+      appName: FIREFLY_CATEGORY_RENAME_APP_NAME,
+    }),
+    [categoryById, categoryCreateNames, importedCategories, resolvedCategoryKinds, resolvedCategoryMappings],
+  )
+
   const previewRows = useMemo(
     () => buildFireflyPreviewRows({
       rows: fireflyRows,
@@ -281,6 +298,7 @@ export function useFireflyImportWorkflow() {
       categoryById,
       categoryMappings: resolvedCategoryMappings,
       categoryCreateKinds: resolvedCategoryKinds,
+      categoryRenames,
       transferCategory,
       balanceAdjustmentCategory,
       currencies,
@@ -295,6 +313,7 @@ export function useFireflyImportWorkflow() {
       institutionById,
       resolvedAccountCreateDetails,
       resolvedAccountMappings,
+      categoryRenames,
       resolvedCategoryKinds,
       resolvedCategoryMappings,
       transferCategory,
@@ -316,6 +335,7 @@ export function useFireflyImportWorkflow() {
       categoryById,
       categoryMappings: resolvedCategoryMappings,
       categoryCreateKinds: resolvedCategoryKinds,
+      categoryRenames,
       transferCategory,
       balanceAdjustmentCategory,
       currencies,
@@ -329,6 +349,7 @@ export function useFireflyImportWorkflow() {
       institutionById,
       resolvedAccountCreateDetails,
       resolvedAccountMappings,
+      categoryRenames,
       resolvedCategoryKinds,
       resolvedCategoryMappings,
       transferCategory,
@@ -364,6 +385,7 @@ export function useFireflyImportWorkflow() {
       importedCategories,
       categoryMappings: resolvedCategoryMappings,
       categoryCreateKinds: resolvedCategoryKinds,
+      categoryRenames,
       categoryById,
     }),
     [
@@ -375,6 +397,7 @@ export function useFireflyImportWorkflow() {
       importedCategories,
       resolvedAccountCreateDetails,
       resolvedAccountMappings,
+      categoryRenames,
       resolvedCategoryKinds,
       resolvedCategoryMappings,
       transactionsFile,
@@ -473,6 +496,7 @@ export function useFireflyImportWorkflow() {
     resetAccountCreateState()
     setCategoryMappings({})
     setCategoryCreateKinds({})
+    setCategoryCreateNames({})
   }
 
   const resetCommitState = () => {
@@ -594,6 +618,7 @@ export function useFireflyImportWorkflow() {
     resolvedCategoryMappings,
     autoFilledCategories,
     resolvedCategoryKinds,
+    categoryRenames,
     importEstimate,
     previewRows,
     previewGroups,
@@ -627,6 +652,7 @@ export function useFireflyImportWorkflow() {
     setBatchAccountInstitution,
     setCategoryMappings,
     setCategoryCreateKinds,
+    setCategoryCreateNames,
     handleFireflyFileChange,
     removeFireflyFile,
     updateFireflyAccountMapping,

@@ -25,6 +25,7 @@ function createOptions(journal: ActualJournal, currency: string): ActualPreviewO
     institutionById: new Map(),
     categoryMappings: Object.fromEntries(journal.categories.map((source) => [source.id, CREATE_CATEGORY_VALUE])),
     categoryCreateKinds: Object.fromEntries(journal.categories.map((source) => [source.id, source.role === 'transfer' ? 'transfer' : 'expense'])),
+    categoryRenames: {},
     categoryById: new Map(),
     transferCategory: TRANSFER,
     balanceAdjustmentCategory: BALANCE_ADJUSTMENT,

@@ -51,6 +51,12 @@ export function ImportValueMatchTable({
 
     /** Targets for this row alone, where it can only take some of the shared ones */
     options?: DropdownOption[]
+
+    /**
+     * The name a new target is created under, for a row whose own name is taken, labelled with the
+     * reason it needs another
+     */
+    rename?: { label: string; value: string; onChange: (value: string) => void }
   }>
   options: DropdownOption[]
   disabled: boolean
@@ -104,6 +110,21 @@ export function ImportValueMatchTable({
                       </span>
                     )}
                   </div>
+                  {row.rename && (
+                    <div className="mt-1.5">
+                      <label htmlFor={`${sourceLabelId}-rename`} className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                        {row.rename.label}
+                      </label>
+                      <input
+                        id={`${sourceLabelId}-rename`}
+                        type="text"
+                        className="app-input mt-1 w-full"
+                        value={row.rename.value}
+                        onChange={(event) => row.rename?.onChange(event.target.value)}
+                        disabled={disabled}
+                      />
+                    </div>
+                  )}
                 </td>
                 {detailLabel && (
                   <td className="px-4 py-2 align-middle">

@@ -672,6 +672,7 @@ describe('how imported Firefly budgets will count spending', () => {
         ...categoryMappings,
       },
       categoryCreateKinds: {},
+      categoryRenames: {},
       transferCategory: undefined,
       balanceAdjustmentCategory: undefined,
       currencies: CURRENCIES,

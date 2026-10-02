@@ -7,7 +7,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
 import { buildJournalStageBatches } from '@/api/provider-imports'
 import type { Category } from '@/api/categories'
-import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, MAX_IMPORT_NOTES_LENGTH } from '@/pages/imports/constants'
+import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON, MAX_IMPORT_NOTES_LENGTH } from '@/pages/imports/constants'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import {
   buildFireflyAccountPrefills,
@@ -71,6 +71,7 @@ function buildWithMapping(accountId: string, accounts: AccountsOverview[], row: 
     importedCategories: ['Groceries'],
     categoryMappings: { Groceries: 'groceries' },
     categoryCreateKinds: {},
+    categoryRenames: {},
     categoryById: new Map(),
   })
 }
@@ -125,6 +126,7 @@ describe('a Firefly answer naming a group account or category', () => {
       importedCategories: ['Groceries'],
       categoryMappings: { Groceries: familyGroceries.id },
       categoryCreateKinds: {},
+      categoryRenames: {},
       categoryById: new Map([[familyGroceries.id, familyGroceries]]),
     })
 
@@ -166,6 +168,7 @@ describe('a Firefly export with no uploadable rows', () => {
       importedCategories: [],
       categoryMappings: {},
       categoryCreateKinds: {},
+      categoryRenames: {},
       categoryById: new Map(),
     })
 
@@ -188,6 +191,7 @@ describe('Firefly sources used only by skipped rows', () => {
       importedCategories: ['Groceries', 'Travel'],
       categoryMappings: { Groceries: CREATE_CATEGORY_VALUE, Travel: CREATE_CATEGORY_VALUE },
       categoryCreateKinds: {},
+      categoryRenames: {},
       categoryById: new Map(),
     })
 
@@ -215,6 +219,7 @@ describe('Firefly account mapping completeness', () => {
       importedCategories: ['Groceries'],
       categoryMappings: { Groceries: 'groceries' },
       categoryCreateKinds: {},
+      categoryRenames: {},
       categoryById: new Map(),
     })
 
@@ -240,6 +245,7 @@ describe('Firefly account mapping completeness', () => {
       importedCategories: ['Groceries'],
       categoryMappings: { Groceries: 'groceries' },
       categoryCreateKinds: {},
+      categoryRenames: {},
       categoryById: new Map(),
     })
 
@@ -268,6 +274,7 @@ describe('a Firefly account name longer than a new account takes', () => {
       importedCategories: ['Groceries'],
       categoryMappings: { Groceries: 'groceries' },
       categoryCreateKinds: {},
+      categoryRenames: {},
       categoryById: new Map(),
     })
   }
@@ -387,6 +394,7 @@ describe('a Firefly asset account and loan sharing a name', () => {
       importedCategories: ['(no category)', 'Groceries'],
       categoryMappings: { '(no category)': 'misc', Groceries: 'groceries' },
       categoryCreateKinds: {},
+      categoryRenames: {},
       categoryById: new Map(),
     })
 
@@ -407,6 +415,7 @@ describe('a Firefly asset account and loan sharing a name', () => {
       categoryById: new Map(),
       categoryMappings: {},
       categoryCreateKinds: {},
+      categoryRenames: {},
       transferCategory: undefined,
       balanceAdjustmentCategory: undefined,
       currencies: CURRENCIES,
@@ -427,6 +436,7 @@ describe('a Firefly asset account and loan sharing a name', () => {
       importedCategories: ['(no category)', 'Groceries'],
       categoryMappings: { '(no category)': 'misc', Groceries: 'groceries' },
       categoryCreateKinds: {},
+      categoryRenames: {},
       categoryById: new Map(),
     })
     expect(result.errors).toEqual([])
@@ -475,6 +485,7 @@ describe('the Firefly row values the payload sends', () => {
       importedCategories: ['Groceries'],
       categoryMappings: { Groceries: 'groceries' },
       categoryCreateKinds: {},
+      categoryRenames: {},
       categoryById: new Map(),
       ...categoryOverrides,
     })
@@ -535,6 +546,7 @@ describe('the Firefly row values the payload sends', () => {
     const result = build(ROW, {
       categoryMappings: { Groceries: CREATE_CATEGORY_VALUE },
       categoryCreateKinds: { Groceries: 'expense' },
+      categoryRenames: {},
       categoryById: new Map([[incomeGroceries.id, incomeGroceries]]),
     })
 
@@ -542,6 +554,54 @@ describe('the Firefly row values the payload sends', () => {
     expect(result.errors).toEqual([
       'groceries is already an income category, so Groceries cannot be created with another type. Match it to groceries, or set its type to Income.',
     ])
+  })
+
+  describe('a new category renamed because another kind holds its name', () => {
+    const incomeGroceries = { id: 'groceries', name: 'Groceries', kind: 'income', group_id: null, is_system: false } as Category
+    const buildRenamed = (name: string, overrides: Partial<Parameters<typeof buildFireflyImportPayload>[0]> = {}) => build(ROW, {
+      categoryMappings: { Groceries: CREATE_CATEGORY_VALUE },
+      categoryCreateKinds: { Groceries: 'expense' },
+      categoryRenames: { Groceries: { name, heldBy: incomeGroceries } },
+      categoryById: new Map([[incomeGroceries.id, incomeGroceries]]),
+      ...overrides,
+    })
+
+    it('is created under its new name', () => {
+      const result = buildRenamed(' Groceries (Firefly III) ')
+
+      expect(result.errors).toEqual([])
+      expect(result.payload?.categories).toEqual([
+        { source: 'Groceries', create: { name: 'Groceries (Firefly III)', kind: 'expense', icon: DEFAULT_CATEGORY_ICON } },
+      ])
+    })
+
+    it('asks for a name when the new one is cleared', () => {
+      expect(buildRenamed(' ').errors).toEqual(['Enter a name for the new category from Groceries.'])
+    })
+
+    // The new name is checked as the commit reads it, against the other categories the import creates
+    it('refuses a new name another new category holds for the other direction', () => {
+      const deposit: CsvRow = {
+        ...ROW,
+        journal_id: '2',
+        type: 'Deposit',
+        amount: '80.00',
+        source_name: 'Employer',
+        source_type: 'Revenue account',
+        destination_name: 'Chequing',
+        destination_type: 'Asset account',
+        category: 'Food',
+      }
+
+      const result = buildRenamed('food', {
+        rows: [ROW, deposit],
+        importedCategories: ['Food', 'Groceries'],
+        categoryMappings: { Food: CREATE_CATEGORY_VALUE, Groceries: CREATE_CATEGORY_VALUE },
+        categoryCreateKinds: { Food: 'income', Groceries: 'expense' },
+      })
+
+      expect(result.errors).toEqual(['Food and Groceries would be created as one category, so they need the same type.'])
+    })
   })
 
   // A refund filed as ROAD TRIPS and spending filed as Road Trips each default to a new category
@@ -569,6 +629,7 @@ describe('the Firefly row values the payload sends', () => {
       importedCategories,
       categoryMappings: inferFireflyCategoryMappings(importedCategories, {}, [], categoryCreateKinds),
       categoryCreateKinds,
+      categoryRenames: {},
     })
 
     expect(result.payload).toBeNull()
@@ -754,6 +815,7 @@ describe('importing with the Firefly III accounts export', () => {
       importedCategories: ['Groceries'],
       categoryMappings: { Groceries: 'groceries' },
       categoryCreateKinds: {},
+      categoryRenames: {},
       categoryById: new Map(),
     })
     return { ids, result }

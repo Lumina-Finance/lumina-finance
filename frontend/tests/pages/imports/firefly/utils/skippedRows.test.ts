@@ -121,6 +121,7 @@ function createOptions(
     categoryById: new Map([[groceries.id, groceries]]),
     categoryMappings: { Groceries: groceries.id },
     categoryCreateKinds: {},
+    categoryRenames: {},
     currencies: CURRENCIES,
     transferCategory: createCategory({ id: 'transfer', name: 'Transfer', kind: 'transfer', is_system: true }),
     balanceAdjustmentCategory: createCategory({
@@ -681,6 +682,7 @@ describe('forecastFireflyImport', () => {
       categoryById: new Map(categories.map((category) => [category.id, category])),
       categoryMappings: { 'DEBT PAYMENT': CREATE_CATEGORY_VALUE },
       categoryCreateKinds: { 'DEBT PAYMENT': 'expense' },
+      categoryRenames: {},
     })
     const forecast = forecastFireflyImport([row], options)
 
@@ -732,6 +734,7 @@ describe('forecastFireflyImport', () => {
           [categorySource]: mapping === 'direct' ? debtPayment.id : CREATE_CATEGORY_VALUE,
         },
         categoryCreateKinds: mapping === 'direct' ? {} : { [categorySource]: 'expense' },
+        categoryRenames: {},
       }),
     )
 

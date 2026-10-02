@@ -1,4 +1,9 @@
-import { CREATE_CATEGORY_VALUE, TRANSFERS_AND_DEBT_PAYMENTS_TITLE, TRANSFERS_EXPLANATION } from '@/pages/imports/constants'
+import {
+  CREATE_CATEGORY_VALUE,
+  getImportCategoryRenameLabel,
+  TRANSFERS_AND_DEBT_PAYMENTS_TITLE,
+  TRANSFERS_EXPLANATION,
+} from '@/pages/imports/constants'
 import { ImportInfoCard, ImportSegmentedToggle } from '@/pages/imports/components'
 import { ImportCategoryMatchingLayout, type ImportCategoryMatchRow } from '@/pages/imports/sections'
 import type { Category } from '@/api/categories'
@@ -16,8 +21,10 @@ type ActualCategoryMatchingStepProps = Pick<
   | 'resolvedCategoryMappings'
   | 'autoFilledCategories'
   | 'resolvedCategoryKinds'
+  | 'categoryRenames'
   | 'categoryById'
   | 'setCategoryCreateKinds'
+  | 'setCategoryCreateNames'
   | 'setCategoryMappings'
   | 'setPaymentMode'
   | 'categoryMatchOptions'
@@ -51,8 +58,10 @@ export function ActualCategoryMatchingStep({
   resolvedCategoryMappings,
   autoFilledCategories,
   resolvedCategoryKinds,
+  categoryRenames,
   categoryById,
   setCategoryCreateKinds,
+  setCategoryCreateNames,
   setCategoryMappings,
   setPaymentMode,
   categoryMatchOptions,
@@ -84,6 +93,9 @@ export function ActualCategoryMatchingStep({
     const value = resolvedCategoryMappings[mappingId] ?? ''
     const existingMatch = Boolean(value) && value !== CREATE_CATEGORY_VALUE
 
+    // Asked once, on the row that shows the category's answer
+    const rename = sharesVisibleRow ? undefined : categoryRenames[mappingId]
+
     return {
       id: source.id,
       source: source.label,
@@ -112,6 +124,11 @@ export function ActualCategoryMatchingStep({
       onDetailKindChange: (kind) => setCategoryCreateKinds((current) => ({ ...current, [mappingId]: kind })),
       value,
       onChange: (nextValue) => setCategoryMappings((current) => ({ ...current, [mappingId]: nextValue })),
+      rename: rename && {
+        label: getImportCategoryRenameLabel(rename.heldBy.name, rename.heldBy.kind),
+        value: rename.name,
+        onChange: (name: string) => setCategoryCreateNames((current) => ({ ...current, [mappingId]: name })),
+      },
       options: !isTransfer ? undefined : paymentMode === 'category' ? kindOptions(source.isIncome ? 'income' : 'expense') : transferOptions,
     }
   })

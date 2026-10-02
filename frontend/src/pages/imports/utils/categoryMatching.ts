@@ -1,6 +1,19 @@
 import type { Category } from '@/api/categories'
-import { CREATE_CATEGORY_VALUE, DEBT_PAYMENT_IMPORT_NOTE } from '@/pages/imports/constants'
-import type { ColumnMap, ImportAmountDirection, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
+import {
+  CREATE_CATEGORY_VALUE,
+  DEBT_PAYMENT_IMPORT_NOTE,
+  getCategoryCreateClashError,
+  getCategoryDirectionClashError,
+  getImportCategoryRenameProposal,
+  getImportCategoryRenameRequiredError,
+} from '@/pages/imports/constants'
+import type {
+  ColumnMap,
+  ImportAmountDirection,
+  ImportCategoryKind,
+  ImportCategoryRename,
+  ImportFileDraft,
+} from '@/pages/imports/types'
 import { DEBT_PAYMENT_CATEGORY_NAME } from '@/utils/transfers'
 import { DEFAULT_IMPORT_AMOUNT_FORMAT, type ImportAmountFormat } from './amountFormats'
 import { resolveImportAmount } from './columnMapping'
@@ -209,6 +222,92 @@ export function findReusedImportCategory(source: string, categories: Iterable<Ca
   }
 
   return systemMatch
+}
+
+/**
+ * Settles another name for each new category whose own name an existing category holds for another
+ * kind, proposing one marked with the app the import comes from unless the user typed their own
+ *
+ * One name records one kind, so such a category can only be created under a name of its own. A
+ * source matched to an existing category, or whose name is free or held for the same kind, keeps its
+ * own name and is left out, so switching its type to match drops a name typed for it
+ *
+ * @param sources - Each category source with the name it is created under when nothing holds it
+ * @param typedNames - The names the user typed, kept even when blank so the step can ask for one
+ * @param appName - The app the import comes from, as the proposed name carries it
+ */
+export function getImportCategoryRenames({
+  sources,
+  mappings,
+  kinds,
+  typedNames,
+  categoryById,
+  appName,
+}: {
+  sources: Array<{ id: string; name: string }>
+  mappings: Record<string, string>
+  kinds: Record<string, ImportCategoryKind>
+  typedNames: Record<string, string>
+  categoryById: Map<string, Category>
+  appName: string
+}) {
+  const renames: Record<string, ImportCategoryRename> = {}
+
+  for (const source of sources) {
+    if (mappings[source.id] !== CREATE_CATEGORY_VALUE) continue
+
+    const heldBy = findReusedImportCategory(source.name, categoryById.values())
+    if (!heldBy || heldBy.kind === kinds[source.id]) continue
+
+    renames[source.id] = {
+      name: typedNames[source.id] ?? getImportCategoryRenameProposal(source.name, appName),
+      heldBy,
+    }
+  }
+
+  return renames
+}
+
+/**
+ * Checks the name a provider import creates a category under against the user's categories and the
+ * ones the same import creates before it, returning what to tell the user, or null when the commit
+ * will take it
+ *
+ * A new category reuses one of the same name, capitals folded, and one name records one kind, so
+ * either clash is what the commit would refuse. Caught here instead, where the step can say which
+ * category to answer differently
+ *
+ * @param createdByKey - The new categories already declared, keyed by name, which this one joins
+ * when it passes
+ */
+export function checkImportCategoryCreate({
+  label,
+  name,
+  isRenamed,
+  kind,
+  categoryById,
+  createdByKey,
+}: {
+  label: string
+  name: string
+  isRenamed: boolean
+  kind: ImportCategoryKind
+  categoryById: Map<string, Category>
+  createdByKey: Map<string, { label: string; kind: ImportCategoryKind }>
+}) {
+  if (isRenamed && !name.trim()) return getImportCategoryRenameRequiredError(label)
+
+  const reused = findReusedImportCategory(name, categoryById.values())
+  if (reused && reused.kind !== kind) {
+    return getCategoryDirectionClashError(isRenamed ? name.trim() : label, reused.name, reused.kind)
+  }
+
+  const key = getCategoryNameKey(name)
+  const earlier = createdByKey.get(key)
+  if (earlier && earlier.kind !== kind) return getCategoryCreateClashError(earlier.label, label)
+
+  createdByKey.set(key, { label, kind })
+  return null
 }
 
 /** Returns repayment guidance only for the exact system Debt Payment category */

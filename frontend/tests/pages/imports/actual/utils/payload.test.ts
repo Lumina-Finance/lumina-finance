@@ -6,14 +6,13 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import {
+  ACTUAL_CATEGORY_RENAME_APP_NAME,
   ACTUAL_JOURNAL_ID_MAX_LENGTH,
   getActualAmountPrecisionReason,
-  getActualCategoryCreateClashError,
   getActualCategoryNameTooLongError,
   getActualFileCurrencyError,
   getActualMixedCurrencyError,
   getActualPaymentCategoryError,
-  getActualPaymentKindClashError,
   getActualSharedAccountError,
   getActualTransferCategoryError,
 } from '@/pages/imports/actual/constants'
@@ -24,6 +23,8 @@ import { buildActualImportPayload, type ActualImportAnswers } from '@/pages/impo
 import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
+  DEFAULT_CATEGORY_ICON,
+  getCategoryCreateClashError,
   getCategoryDirectionClashError,
   getImportAccountCurrencyRequiredError,
   getImportAccountMappingError,
@@ -32,6 +33,7 @@ import {
   getImportReadOnlyAccountMappingError,
 } from '@/pages/imports/constants'
 import type { ImportCategoryKind } from '@/pages/imports/types'
+import { getImportCategoryRenames } from '@/pages/imports/utils'
 import { buildActualBudget, fileActualPaymentsInCategory, normaliseActualFixture } from './fixtures'
 
 const CURRENCIES = [
@@ -58,6 +60,7 @@ function createAnswers(journal: ActualJournal, currency = 'CAD'): ActualImportAn
     accountById: new Map([CHEQUING, ARCHIVED].map((account) => [account.id, account])),
     categoryMappings: Object.fromEntries(journal.categories.map((source) => [source.id, CREATE_CATEGORY_VALUE])),
     categoryCreateKinds: Object.fromEntries(journal.categories.map((source) => [source.id, kindOf(source.role, source.isIncome)])),
+    categoryRenames: {},
     categoryById: new Map([[GROCERIES.id, GROCERIES]]),
     currencies: CURRENCIES,
     fileCurrency: null,
@@ -128,16 +131,29 @@ describe('Actual Budget import payload', () => {
     expect(buildActualImportPayload(effective, answers).errors).toEqual([])
   })
 
-  it('says in the payments row\'s terms when filing them in their category would reuse a name another kind has', async () => {
+  // The case the rename exists for: payments filed as spending in Car Payment, a name the user
+  // already has for transfers, which the commit would otherwise refuse
+  it('creates a category under the proposed name when another kind holds its own', async () => {
     const { journal } = await normaliseActualFixture('envelope')
     const effective = fileActualPaymentsInCategory(journal)
     const answers = createAnswers(effective)
     const carPayment = { id: 'car-payment', name: 'Car Payment', kind: 'transfer', group_id: null } as Category
     answers.categoryById.set(carPayment.id, carPayment)
 
-    expect(buildActualImportPayload(effective, answers).errors).toContainEqual(
-      getActualPaymentKindClashError('Car Payment (transfers in Actual)', 'Car Payment', 'transfer', 'expense'),
-    )
+    answers.categoryRenames = getImportCategoryRenames({
+      sources: effective.categories.map((source) => ({ id: source.id, name: source.createName })),
+      mappings: answers.categoryMappings,
+      kinds: answers.categoryCreateKinds,
+      typedNames: {},
+      categoryById: answers.categoryById,
+      appName: ACTUAL_CATEGORY_RENAME_APP_NAME,
+    })
+
+    const build = buildActualImportPayload(effective, answers)
+    expect(build.errors).toEqual([])
+    expect(build.payload?.categories).toContainEqual(expect.objectContaining({
+      create: { name: 'Car Payment (Actual)', kind: 'expense', icon: DEFAULT_CATEGORY_ICON },
+    }))
   })
 
   it('writes yen rows in whole yen', async () => {
@@ -228,7 +244,7 @@ describe('Actual Budget import payload', () => {
     expect(errors).toEqual(expect.arrayContaining([
       getActualTransferCategoryError(carTransfers.label),
       getCategoryDirectionClashError('Car', 'Car', 'income'),
-      getActualCategoryCreateClashError('Gym', 'Gym (Twin)'),
+      getCategoryCreateClashError('Gym', 'Gym (Twin)'),
     ]))
     expect(errors).toHaveLength(3)
 

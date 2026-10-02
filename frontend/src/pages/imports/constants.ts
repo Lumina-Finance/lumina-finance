@@ -189,6 +189,29 @@ export function getCategoryDirectionClashError(source: string, existingName: str
   return `${existingName} is already ${article} ${kind.toLowerCase()} category, so ${source} cannot be created with another type. Match it to ${existingName}, or set its type to ${kind}.`
 }
 
+/**
+ * The name proposed for a new category whose own name an existing category holds for another kind,
+ * marked with the app the import comes from so the two read apart wherever categories are listed
+ */
+export function getImportCategoryRenameProposal(name: string, appName: string) {
+  return `${name} (${appName})`
+}
+
+/** Labels the name a new category is created under, saying why it can't keep its own */
+export function getImportCategoryRenameLabel(existingName: string, existingKind: Category['kind']) {
+  const article = existingKind === 'transfer' ? 'a' : 'an'
+  return `${existingName} is already ${article} ${KIND_LABELS[existingKind].toLowerCase()} category, so this one is created as`
+}
+
+export function getImportCategoryRenameRequiredError(label: string) {
+  return `Enter a name for the new category from ${label}.`
+}
+
+// The commit folds two new categories of one name, capitals aside, into one, which can hold only one kind
+export function getCategoryCreateClashError(firstLabel: string, secondLabel: string) {
+  return `${firstLabel} and ${secondLabel} would be created as one category, so they need the same type.`
+}
+
 // A provider import writes the user's own records, so it links to no group account or category,
 // whatever the export held
 export function getImportGroupCategoryError(label: string) {
