@@ -230,7 +230,8 @@ export function findReusedImportCategory(source: string, categories: Iterable<Ca
  *
  * One name records one kind, so such a category can only be created under a name of its own. A
  * source matched to an existing category, or whose name is free or held for the same kind, keeps its
- * own name and is left out, so switching its type to match drops a name typed for it
+ * own name and is left out, so switching its type to match sets aside a name typed for it until the
+ * type is switched back
  *
  * @param sources - Each category source with the name it is created under when nothing holds it
  * @param typedNames - The names the user typed, kept even when blank so the step can ask for one

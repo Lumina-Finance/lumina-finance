@@ -119,6 +119,7 @@ export function ImportValueMatchTable({
                         id={`${sourceLabelId}-rename`}
                         type="text"
                         className="app-input mt-1 w-full"
+                        maxLength={256}
                         value={row.rename.value}
                         onChange={(event) => row.rename?.onChange(event.target.value)}
                         disabled={disabled}

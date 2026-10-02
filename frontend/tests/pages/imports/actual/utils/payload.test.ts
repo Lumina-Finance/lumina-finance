@@ -154,6 +154,10 @@ describe('Actual Budget import payload', () => {
     expect(build.payload?.categories).toContainEqual(expect.objectContaining({
       create: { name: 'Car Payment (Actual)', kind: 'expense', icon: DEFAULT_CATEGORY_ICON },
     }))
+
+    // A cleared name stops the upload instead of creating a category with no name
+    for (const rename of Object.values(answers.categoryRenames)) rename.name = ' '
+    expect(buildActualImportPayload(effective, answers).errors).toEqual(['Enter a name for the new category from Car Payment (transfers in Actual).'])
   })
 
   it('writes yen rows in whole yen', async () => {

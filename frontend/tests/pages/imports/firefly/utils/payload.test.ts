@@ -579,6 +579,16 @@ describe('the Firefly row values the payload sends', () => {
       expect(buildRenamed(' ').errors).toEqual(['Enter a name for the new category from Groceries.'])
     })
 
+    it('refuses a new name an existing category holds for the other direction', () => {
+      const salary = { id: 'salary', name: 'Salary', kind: 'income', group_id: null, is_system: false } as Category
+
+      const result = buildRenamed(' salary ', { categoryById: new Map([[incomeGroceries.id, incomeGroceries], [salary.id, salary]]) })
+
+      expect(result.errors).toEqual([
+        'Salary is already an income category, so salary cannot be created with another type. Match it to Salary, or set its type to Income.',
+      ])
+    })
+
     // The new name is checked as the commit reads it, against the other categories the import creates
     it('refuses a new name another new category holds for the other direction', () => {
       const deposit: CsvRow = {

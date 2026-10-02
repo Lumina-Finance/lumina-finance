@@ -759,6 +759,27 @@ describe('how imported Firefly budgets will count spending', () => {
     })).toEqual(expected)
   })
 
+  it('matches a new category by the name it is renamed to', () => {
+    const incomeCoffee = { id: 'coffee', name: 'Coffee', kind: 'income', group_id: null, is_system: false } as Category
+    const rows = [
+      createTransactionRow({ journal_id: '1', budget: 'Food', category: 'Restaurants', ...payee('Bistro') }),
+      createTransactionRow({ journal_id: '2', budget: 'Holiday', category: 'Coffee', ...payee('Café') }),
+    ]
+
+    expect(buildFireflyBudgetCountingNotes({
+      drafts: buildDrafts({ budgetsFile, transactionRows: rows }),
+      selectedNames: new Set(['Food', 'Holiday']),
+      rows,
+      options: {
+        ...createOptions({ Coffee: CREATE_CATEGORY_VALUE }),
+        categoryRenames: { Coffee: { name: 'restaurants', heldBy: incomeCoffee } },
+      },
+    })).toEqual([
+      "Food shares Restaurants with Holiday, so it also counts Holiday's spending in Restaurants.",
+      "Holiday shares Restaurants with Food, so it also counts Food's spending in Restaurants.",
+    ])
+  })
+
   it('totals the budgeted spending with no category as each row will import', () => {
     const rows = [
       ...transactionRows,

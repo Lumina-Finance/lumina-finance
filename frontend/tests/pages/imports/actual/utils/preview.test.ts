@@ -66,6 +66,18 @@ describe('Actual Budget import preview', () => {
     ])
   })
 
+  it('shows a new category under the name it is renamed to', async () => {
+    const { journal } = await normaliseActualFixture('edges')
+    const effective = fileActualPaymentsInCategory(journal)
+    const payment = effective.entries.find((entry) => entry.date === '2026-07-05')!
+    const car = { id: 'car', name: 'Car', kind: 'transfer' } as Category
+    const options = { ...createOptions(effective, 'CAD'), categoryRenames: { [payment.categorySourceId!]: { name: 'Car costs', heldBy: car } } }
+
+    const rows = buildActualPreviewRows({ ...effective, entries: [payment] }, options, 5)
+
+    expect(rows.map((row) => row.category?.name)).toEqual(['Car costs', 'Transfer'])
+  })
+
   it('shows a credit card payment under its category on both legs, each naming the other account', async () => {
     const { journal } = await normaliseActualFixture('edges')
     const payment = journal.entries.find((entry) => entry.date === '2026-07-05')!

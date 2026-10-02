@@ -185,6 +185,17 @@ describe('firefly preview rows', () => {
     })
   })
 
+  it('shows a new category under the name it is renamed to', () => {
+    const groceries = createCategory()
+    const rows = buildFireflyPreviewRows(createOptions({
+      categoryMappings: { Groceries: CREATE_CATEGORY_VALUE },
+      categoryCreateKinds: { Groceries: 'income' },
+      categoryRenames: { Groceries: { name: 'Groceries (Firefly III)', heldBy: groceries } },
+    }))
+
+    expect(rows[0]?.category).toMatchObject({ name: 'Groceries (Firefly III)', kind: 'income' })
+  })
+
   it('maps a row between two tracked accounts to transfer legs using the foreign amount on the cross-currency side', () => {
     const usSavings = createAccount({ id: 'us-savings', name: 'US Savings', currency: 'USD' })
     const rows = buildFireflyPreviewRows(createOptions({

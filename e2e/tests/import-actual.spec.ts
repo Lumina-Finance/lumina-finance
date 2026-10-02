@@ -209,8 +209,11 @@ test('imports a category under a new name when one of another kind already has i
     name: string
     kind: string
   }[]
-  expect(categories.filter((category) => ['Car', 'Car costs'].includes(category.name)).map(({ name, kind }) => [name, kind]).sort())
-    .toEqual([['Car costs', 'expense'], ['Car', 'transfer']])
+  expect(categories
+    .filter((category) => ['Car', 'Car costs'].includes(category.name))
+    .map(({ name, kind }) => [name, kind])
+    .sort(([a], [b]) => a.localeCompare(b)))
+    .toEqual([['Car', 'transfer'], ['Car costs', 'expense']])
 })
 
 test('imports transfers into a credit card under Credit Card Payment on both accounts', async ({ page, request }) => {
