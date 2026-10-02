@@ -207,7 +207,7 @@ export function getImportCategoryRenameHelp({ heldBy, sourceName, kind }: Import
   const article = (categoryKind: ImportCategoryKind) => (categoryKind === 'transfer' ? 'a' : 'an')
   const held = KIND_LABELS[heldBy.kind].toLowerCase()
   const wanted = KIND_LABELS[kind].toLowerCase()
-  return `${heldBy.name} is already ${article(heldBy.kind)} ${held} category. If you'd still like to import transactions categorized as "${sourceName}" as ${article(kind)} ${wanted} category, you have to rename it.`
+  return `"${heldBy.name}" is already ${article(heldBy.kind)} ${held} category. If you'd still like to import transactions categorized as "${sourceName}" as ${article(kind)} ${wanted} category, you have to rename it.`
 }
 
 export function getImportCategoryRenameRequiredError(label: string) {
