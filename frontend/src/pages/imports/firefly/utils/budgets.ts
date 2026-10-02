@@ -227,7 +227,7 @@ function getFireflyCategoryTarget(source: string, options: FireflyRowResolutionO
     return { key: mapping, name: options.categoryById.get(mapping)?.name ?? source }
   }
 
-  const name = options.categoryRenames[source] ?? source
+  const name = options.categoryRenames[source]?.name ?? source
   const reused = findReusedImportCategory(name, options.categoryById.values())
   return reused ? { key: reused.id, name: reused.name } : { key: `new:${getCategoryNameKey(name)}`, name }
 }

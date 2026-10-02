@@ -33,16 +33,16 @@ function getRenames(overrides: Partial<Parameters<typeof getImportCategoryRename
 }
 
 describe('renaming a new category whose name another kind holds', () => {
-  it('proposes the name marked with the app', () => {
+  it('proposes the name marked with the app and says which category holds it', () => {
     expect(getRenames()).toEqual({
-      'actual-ccp': 'Credit Card Payment (Actual)',
+      'actual-ccp': { name: 'Credit Card Payment (Actual)', heldBy: CREDIT_CARD_PAYMENT, isProposed: true },
     })
   })
 
   // A cleared field stays cleared, so the import asks for a name rather than quietly restoring one
   it('keeps the name the user typed, even a blank one', () => {
-    expect(getRenames({ typedNames: { 'actual-ccp': 'Card payoff' } })['actual-ccp']).toBe('Card payoff')
-    expect(getRenames({ typedNames: { 'actual-ccp': '' } })['actual-ccp']).toBe('')
+    expect(getRenames({ typedNames: { 'actual-ccp': 'Card payoff' } })['actual-ccp']).toMatchObject({ name: 'Card payoff', isProposed: false })
+    expect(getRenames({ typedNames: { 'actual-ccp': '' } })['actual-ccp']).toMatchObject({ name: '', isProposed: false })
   })
 
   it('leaves the name alone where nothing blocks it', () => {

@@ -202,6 +202,12 @@ export function getImportCategoryRenameLabel(label: string) {
   return `Name for the new category from ${label}`
 }
 
+/** Says why a new category is proposed under another name than its own */
+export function getImportCategoryRenameHelp(existingName: string, existingKind: Category['kind']) {
+  const article = existingKind === 'transfer' ? 'a' : 'an'
+  return `${existingName} is already ${article} ${KIND_LABELS[existingKind].toLowerCase()} category, so this one needs a name of its own.`
+}
+
 export function getImportCategoryRenameRequiredError(label: string) {
   return `Enter a name for the new category from ${label}.`
 }

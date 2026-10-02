@@ -16,6 +16,7 @@ const CURRENCIES = [
 ] as Currency[]
 const TRANSFER = { id: 'transfer', name: 'Transfer', kind: 'transfer', is_system: true } as Category
 const BALANCE_ADJUSTMENT = { id: 'balance', name: 'Balance Adjustment', kind: 'transfer', is_system: true } as Category
+const CAR = { id: 'car', name: 'Car', kind: 'transfer' } as Category
 
 function createOptions(journal: ActualJournal, currency: string): ActualPreviewOptions {
   return {
@@ -70,7 +71,7 @@ describe('Actual Budget import preview', () => {
     const { journal } = await normaliseActualFixture('edges')
     const effective = fileActualPaymentsInCategory(journal)
     const payment = effective.entries.find((entry) => entry.date === '2026-07-05')!
-    const options = { ...createOptions(effective, 'CAD'), categoryRenames: { [payment.categorySourceId!]: 'Car costs' } }
+    const options = { ...createOptions(effective, 'CAD'), categoryRenames: { [payment.categorySourceId!]: { name: 'Car costs', heldBy: CAR, isProposed: false } } }
 
     const rows = buildActualPreviewRows({ ...effective, entries: [payment] }, options, 5)
 

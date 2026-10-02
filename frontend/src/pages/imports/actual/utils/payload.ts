@@ -36,7 +36,7 @@ import {
   getImportReadOnlyAccountMappingError,
   getTooManyMappingsError,
 } from '@/pages/imports/constants'
-import type { ImportCategoryKind } from '@/pages/imports/types'
+import type { ImportCategoryKind, ImportCategoryRename } from '@/pages/imports/types'
 import { isImportableAccount } from '@/pages/imports/utils/accountScope'
 import { checkImportCategoryCreate } from '@/pages/imports/utils/categoryMatching'
 import { findCurrencyExponent } from '@/utils/moneyInput'
@@ -60,7 +60,7 @@ export interface ActualImportAnswers {
   categoryCreateKinds: Record<string, ImportCategoryKind>
 
   /** New categories created under another name, because an existing category holds their own */
-  categoryRenames: Record<string, string>
+  categoryRenames: Record<string, ImportCategoryRename>
   categoryById: Map<string, Category>
   currencies: Currency[]
 
@@ -270,7 +270,7 @@ function buildCategoryMappings(
     }
 
     const rename = categoryRenames[source.id]
-    const name = rename?.trim() ?? source.createName
+    const name = rename?.name.trim() ?? source.createName
     if (source.role === 'transfer' && !canCarryActualTransfer({ kind, name })) {
       addError(getActualTransferCategoryError(source.label))
       continue

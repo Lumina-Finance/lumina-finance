@@ -11,6 +11,7 @@ import type {
   ColumnMap,
   ImportAmountDirection,
   ImportCategoryKind,
+  ImportCategoryRename,
   ImportFileDraft,
 } from '@/pages/imports/types'
 import { DEBT_PAYMENT_CATEGORY_NAME } from '@/utils/transfers'
@@ -251,7 +252,7 @@ export function getImportCategoryRenames({
   categoryById: Map<string, Category>
   appName: string
 }) {
-  const renames: Record<string, string> = {}
+  const renames: Record<string, ImportCategoryRename> = {}
 
   for (const source of sources) {
     if (mappings[source.id] !== CREATE_CATEGORY_VALUE) continue
@@ -259,7 +260,12 @@ export function getImportCategoryRenames({
     const heldBy = findReusedImportCategory(source.name, categoryById.values())
     if (!heldBy || heldBy.kind === kinds[source.id]) continue
 
-    renames[source.id] = typedNames[source.id] ?? getImportCategoryRenameProposal(source.name, appName)
+    const typed = typedNames[source.id]
+    renames[source.id] = {
+      name: typed ?? getImportCategoryRenameProposal(source.name, appName),
+      heldBy,
+      isProposed: typed === undefined,
+    }
   }
 
   return renames

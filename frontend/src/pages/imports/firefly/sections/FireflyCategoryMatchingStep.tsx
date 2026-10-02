@@ -1,5 +1,6 @@
 import {
   CREATE_CATEGORY_VALUE,
+  getImportCategoryRenameHelp,
   getImportCategoryRenameLabel,
   TRANSFERS_AND_DEBT_PAYMENTS_TITLE,
   TRANSFERS_EXPLANATION,
@@ -76,7 +77,9 @@ export function FireflyCategoryMatchingStep({
           onChange: (nextValue) => setCategoryMappings((current) => ({ ...current, [source]: nextValue })),
           rename: rename === undefined ? undefined : {
             label: getImportCategoryRenameLabel(source),
-            value: rename,
+            help: getImportCategoryRenameHelp(rename.heldBy.name, rename.heldBy.kind),
+            value: rename.name,
+            isProposed: rename.isProposed,
             onChange: (name: string) => setCategoryCreateNames((current) => ({ ...current, [source]: name })),
           },
         }

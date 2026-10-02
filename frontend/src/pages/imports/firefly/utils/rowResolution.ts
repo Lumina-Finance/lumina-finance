@@ -4,7 +4,7 @@ import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import type { Institution } from '@/api/institutions'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
 import type { Currency } from '@/api/currency'
-import type { CsvRow, ImportCategoryKind } from '@/pages/imports/types'
+import type { CsvRow, ImportCategoryKind, ImportCategoryRename } from '@/pages/imports/types'
 import { MAX_IMPORT_MINOR_UNITS, toImportMinorUnits } from '@/pages/imports/utils'
 import { findReusedImportCategory } from '@/pages/imports/utils/categoryMatching'
 import { findCurrencyExponent } from '@/utils/moneyInput'
@@ -40,7 +40,7 @@ export interface FireflyRowResolutionOptions {
   categoryCreateKinds: Record<string, ImportCategoryKind>
 
   /** New categories created under another name, because an existing category holds their own */
-  categoryRenames: Record<string, string>
+  categoryRenames: Record<string, ImportCategoryRename>
   transferCategory: Category | undefined
   balanceAdjustmentCategory: Category | undefined
 
@@ -322,7 +322,7 @@ function getFireflyMappedCategory(
       id: `firefly-preview-category-${source}`,
       group_id: null,
       owner_id: null,
-      name: options.categoryRenames[source] ?? source,
+      name: options.categoryRenames[source]?.name ?? source,
       kind: options.categoryCreateKinds[source] ?? 'expense',
       icon: DEFAULT_CATEGORY_ICON,
       is_system: false,

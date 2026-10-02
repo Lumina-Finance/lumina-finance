@@ -1,5 +1,6 @@
 import {
   CREATE_CATEGORY_VALUE,
+  getImportCategoryRenameHelp,
   getImportCategoryRenameLabel,
   TRANSFERS_AND_DEBT_PAYMENTS_TITLE,
   TRANSFERS_EXPLANATION,
@@ -126,7 +127,9 @@ export function ActualCategoryMatchingStep({
       onChange: (nextValue) => setCategoryMappings((current) => ({ ...current, [mappingId]: nextValue })),
       rename: rename === undefined ? undefined : {
         label: getImportCategoryRenameLabel(source.label),
-        value: rename,
+        help: getImportCategoryRenameHelp(rename.heldBy.name, rename.heldBy.kind),
+        value: rename.name,
+        isProposed: rename.isProposed,
         onChange: (name: string) => setCategoryCreateNames((current) => ({ ...current, [mappingId]: name })),
       },
       options: !isTransfer ? undefined : paymentMode === 'category' ? kindOptions(source.isIncome ? 'income' : 'expense') : transferOptions,

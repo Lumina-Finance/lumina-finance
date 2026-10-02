@@ -78,6 +78,20 @@ export interface ImportProgressStep {
   status: ImportProgressStepStatus
 }
 
+/**
+ * The name a new category is created under in place of its own, because an existing category
+ * already holds its own name for another kind
+ */
+export interface ImportCategoryRename {
+  name: string
+
+  /** The category holding the source's own name, which the step names to say why */
+  heldBy: Category
+
+  /** Whether the name is still the one the import proposed, which the step flags until the user answers */
+  isProposed: boolean
+}
+
 export interface ImportAccountSource {
   id: string
   label: string

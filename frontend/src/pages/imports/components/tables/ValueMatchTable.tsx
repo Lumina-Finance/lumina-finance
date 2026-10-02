@@ -56,7 +56,17 @@ export function ImportValueMatchTable({
      * The name a new target is created under, for a row whose own name is taken, edited where
      * the source's name would show
      */
-    rename?: { label: string; value: string; onChange: (value: string) => void }
+    rename?: {
+      label: string
+
+      /** Why the row needs another name, behind a warning beside the field */
+      help: string
+      value: string
+
+      /** Flags the field until the user answers, since the import chose the name for them */
+      isProposed: boolean
+      onChange: (value: string) => void
+    }
   }>
   options: DropdownOption[]
   disabled: boolean
@@ -92,6 +102,9 @@ export function ImportValueMatchTable({
             const sourceLabelId = `${labelNamespace}-source-${index}`
             const creating = Boolean(createValue && row.value === createValue && !row.hideCreateBadge)
 
+            // The scrolling box clips a tooltip leaving it, so one opens toward the rows below or above
+            const tooltipPlacement = index < rows.length / 2 ? 'bottom' : 'top'
+
             return (
               <tr key={row.id} className={row.autoFilled || row.detailAutoFilled ? 'import-auto-fill-row' : undefined}>
                 <td className="px-4 py-2 align-middle">
@@ -102,7 +115,7 @@ export function ImportValueMatchTable({
                         <span id={sourceLabelId} className="sr-only">{row.source}</span>
                         <input
                           type="text"
-                          className={`app-input h-[var(--app-dropdown-height-compact)] min-w-0 flex-1 ${row.rename.value.trim() ? '' : 'app-input-error'}`}
+                          className={`app-input h-[var(--app-dropdown-height-compact)] min-w-0 flex-1 ${row.rename.isProposed || !row.rename.value.trim() ? 'app-input-error' : ''}`}
                           aria-label={row.rename.label}
                           aria-invalid={!row.rename.value.trim()}
                           maxLength={256}
@@ -110,13 +123,18 @@ export function ImportValueMatchTable({
                           onChange={(event) => row.rename?.onChange(event.target.value)}
                           disabled={disabled}
                         />
+                        <span className="flex shrink-0">
+                          <IconTooltip label={`Why ${row.source} has a new name`} level="important" placement={tooltipPlacement} widthClassName="w-64">
+                            {row.rename.help}
+                          </IconTooltip>
+                        </span>
                       </>
                     ) : (
                       <p id={sourceLabelId} className="truncate font-medium" title={row.source}>{row.source}</p>
                     )}
                     {row.sourceHelp && (
                       <span className="flex shrink-0">
-                        <IconTooltip label={row.sourceHelp.label} icon={CircleHelp} widthClassName="w-64">
+                        <IconTooltip label={row.sourceHelp.label} icon={CircleHelp} placement={tooltipPlacement} widthClassName="w-64">
                           {row.sourceHelp.content}
                         </IconTooltip>
                       </span>
