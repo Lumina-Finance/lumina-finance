@@ -124,9 +124,9 @@ export function ActualCategoryMatchingStep({
       onDetailKindChange: (kind) => setCategoryCreateKinds((current) => ({ ...current, [mappingId]: kind })),
       value,
       onChange: (nextValue) => setCategoryMappings((current) => ({ ...current, [mappingId]: nextValue })),
-      rename: rename && {
-        label: getImportCategoryRenameLabel(rename.heldBy.name, rename.heldBy.kind),
-        value: rename.name,
+      rename: rename === undefined ? undefined : {
+        label: getImportCategoryRenameLabel(source.label),
+        value: rename,
         onChange: (name: string) => setCategoryCreateNames((current) => ({ ...current, [mappingId]: name })),
       },
       options: !isTransfer ? undefined : paymentMode === 'category' ? kindOptions(source.isIncome ? 'income' : 'expense') : transferOptions,

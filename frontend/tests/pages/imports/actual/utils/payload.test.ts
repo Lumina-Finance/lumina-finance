@@ -156,7 +156,7 @@ describe('Actual Budget import payload', () => {
     }))
 
     // A cleared name stops the upload instead of creating a category with no name
-    for (const rename of Object.values(answers.categoryRenames)) rename.name = ' '
+    for (const id of Object.keys(answers.categoryRenames)) answers.categoryRenames[id] = ' '
     expect(buildActualImportPayload(effective, answers).errors).toEqual(['Enter a name for the new category from Car Payment (transfers in Actual).'])
   })
 

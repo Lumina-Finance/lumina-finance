@@ -53,8 +53,8 @@ export function ImportValueMatchTable({
     options?: DropdownOption[]
 
     /**
-     * The name a new target is created under, for a row whose own name is taken, labelled with the
-     * reason it needs another
+     * The name a new target is created under, for a row whose own name is taken, edited where
+     * the source's name would show
      */
     rename?: { label: string; value: string; onChange: (value: string) => void }
   }>
@@ -96,7 +96,24 @@ export function ImportValueMatchTable({
               <tr key={row.id} className={row.autoFilled || row.detailAutoFilled ? 'import-auto-fill-row' : undefined}>
                 <td className="px-4 py-2 align-middle">
                   <div className="flex min-w-0 items-center gap-2">
-                    <p id={sourceLabelId} className="truncate font-medium" title={row.source}>{row.source}</p>
+                    {row.rename ? (
+                      <>
+                        {/* Names the row for its dropdown, which the field's text would rename as it is typed */}
+                        <span id={sourceLabelId} className="sr-only">{row.source}</span>
+                        <input
+                          type="text"
+                          className={`app-input h-[var(--app-dropdown-height-compact)] min-w-0 flex-1 ${row.rename.value.trim() ? '' : 'app-input-error'}`}
+                          aria-label={row.rename.label}
+                          aria-invalid={!row.rename.value.trim()}
+                          maxLength={256}
+                          value={row.rename.value}
+                          onChange={(event) => row.rename?.onChange(event.target.value)}
+                          disabled={disabled}
+                        />
+                      </>
+                    ) : (
+                      <p id={sourceLabelId} className="truncate font-medium" title={row.source}>{row.source}</p>
+                    )}
                     {row.sourceHelp && (
                       <span className="flex shrink-0">
                         <IconTooltip label={row.sourceHelp.label} icon={CircleHelp} widthClassName="w-64">
@@ -110,23 +127,6 @@ export function ImportValueMatchTable({
                       </span>
                     )}
                   </div>
-                  {row.rename && (
-                    <div className="mt-1.5">
-                      <label htmlFor={`${sourceLabelId}-rename`} className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                        {row.rename.label}
-                      </label>
-                      <input
-                        id={`${sourceLabelId}-rename`}
-                        type="text"
-                        className={`app-input mt-1 h-[var(--app-dropdown-height-compact)] w-full ${row.rename.value.trim() ? '' : 'app-input-error'}`}
-                        aria-invalid={!row.rename.value.trim()}
-                        maxLength={256}
-                        value={row.rename.value}
-                        onChange={(event) => row.rename?.onChange(event.target.value)}
-                        disabled={disabled}
-                      />
-                    </div>
-                  )}
                 </td>
                 {detailLabel && (
                   <td className="px-4 py-2 align-middle">

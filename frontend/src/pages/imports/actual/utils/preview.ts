@@ -3,7 +3,7 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
-import type { ImportCategoryKind, ImportCategoryRename, PreviewTransactionRow } from '@/pages/imports/types'
+import type { ImportCategoryKind, PreviewTransactionRow } from '@/pages/imports/types'
 import { getPreviewDateLabel } from '@/pages/imports/utils'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import type { ActualAccountSource, ActualJournal, ActualJournalEntry } from '@/pages/imports/actual/types'
@@ -19,7 +19,7 @@ export interface ActualPreviewOptions {
   categoryCreateKinds: Record<string, ImportCategoryKind>
 
   /** New categories created under another name, because an existing category holds their own */
-  categoryRenames: Record<string, ImportCategoryRename>
+  categoryRenames: Record<string, string>
   categoryById: Map<string, Category>
   transferCategory: Category | undefined
   balanceAdjustmentCategory: Category | undefined
@@ -169,7 +169,7 @@ function resolveCategory(sourceId: string, createName: string, options: ActualPr
     id: `actual-preview-category-${sourceId}`,
     group_id: null,
     owner_id: null,
-    name: options.categoryRenames[sourceId]?.name ?? createName,
+    name: options.categoryRenames[sourceId] ?? createName,
     kind: options.categoryCreateKinds[sourceId] ?? 'expense',
     icon: DEFAULT_CATEGORY_ICON,
     is_system: false,

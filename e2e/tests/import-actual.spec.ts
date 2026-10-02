@@ -199,7 +199,7 @@ test('imports a category under a new name when one of another kind already has i
   // proposes another the user can change
   await page.getByRole('combobox', { name: 'Existing Category Car', exact: true }).click()
   await page.getByRole('option', { name: 'Create new category' }).click()
-  const newName = page.getByRole('textbox', { name: 'Car is already a transfer category, so this one is created as' })
+  const newName = page.getByRole('textbox', { name: 'Name for the new category from Car' })
   await expect(newName).toHaveValue('Car (Actual)')
   await newName.fill('Car costs')
 

@@ -74,9 +74,9 @@ export function FireflyCategoryMatchingStep({
           onDetailKindChange: (kind) => setCategoryCreateKinds((current) => ({ ...current, [source]: kind })),
           value,
           onChange: (nextValue) => setCategoryMappings((current) => ({ ...current, [source]: nextValue })),
-          rename: rename && {
-            label: getImportCategoryRenameLabel(rename.heldBy.name, rename.heldBy.kind),
-            value: rename.name,
+          rename: rename === undefined ? undefined : {
+            label: getImportCategoryRenameLabel(source),
+            value: rename,
             onChange: (name: string) => setCategoryCreateNames((current) => ({ ...current, [source]: name })),
           },
         }

@@ -18,7 +18,7 @@ import {
   getTooManyMappingsError,
   MAX_IMPORT_MAPPINGS,
 } from '@/pages/imports/constants'
-import type { CsvRow, ImportCategoryKind, ImportCategoryRename, ImportFileDraft } from '@/pages/imports/types'
+import type { CsvRow, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
 import { FIREFLY_ACCOUNT_NAME_MAX_LENGTH, FIREFLY_TYPE_DEPOSIT } from '@/pages/imports/firefly/constants'
 import type { FireflyAccountSources, FireflyImportBuildResult } from '@/pages/imports/firefly/types'
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
@@ -82,7 +82,7 @@ export function buildFireflyImportPayload({
   categoryCreateKinds: Record<string, ImportCategoryKind>
 
   /** New categories created under another name, because an existing category holds their own */
-  categoryRenames: Record<string, ImportCategoryRename>
+  categoryRenames: Record<string, string>
 
   /** The user's categories, which a new category of the same name is created as */
   categoryById: Map<string, Category>
@@ -210,11 +210,11 @@ export function buildFireflyImportPayload({
     }
 
     const rename = categoryRenames[source]
-    const name = rename?.name.trim() ?? source
+    const name = rename?.trim() ?? source
     const createError = checkImportCategoryCreate({
       label: source,
       name,
-      isRenamed: Boolean(rename),
+      isRenamed: rename !== undefined,
       kind,
       categoryById,
       createdByKey: createdCategoryByKey,

@@ -70,8 +70,7 @@ describe('Actual Budget import preview', () => {
     const { journal } = await normaliseActualFixture('edges')
     const effective = fileActualPaymentsInCategory(journal)
     const payment = effective.entries.find((entry) => entry.date === '2026-07-05')!
-    const car = { id: 'car', name: 'Car', kind: 'transfer' } as Category
-    const options = { ...createOptions(effective, 'CAD'), categoryRenames: { [payment.categorySourceId!]: { name: 'Car costs', heldBy: car } } }
+    const options = { ...createOptions(effective, 'CAD'), categoryRenames: { [payment.categorySourceId!]: 'Car costs' } }
 
     const rows = buildActualPreviewRows({ ...effective, entries: [payment] }, options, 5)
 

@@ -197,10 +197,9 @@ export function getImportCategoryRenameProposal(name: string, appName: string) {
   return `${name} (${appName})`
 }
 
-/** Labels the name a new category is created under, saying why it can't keep its own */
-export function getImportCategoryRenameLabel(existingName: string, existingKind: Category['kind']) {
-  const article = existingKind === 'transfer' ? 'a' : 'an'
-  return `${existingName} is already ${article} ${KIND_LABELS[existingKind].toLowerCase()} category, so this one is created as`
+/** Names the field holding the name a new category is created under in place of its own */
+export function getImportCategoryRenameLabel(label: string) {
+  return `Name for the new category from ${label}`
 }
 
 export function getImportCategoryRenameRequiredError(label: string) {

@@ -186,11 +186,10 @@ describe('firefly preview rows', () => {
   })
 
   it('shows a new category under the name it is renamed to', () => {
-    const groceries = createCategory()
     const rows = buildFireflyPreviewRows(createOptions({
       categoryMappings: { Groceries: CREATE_CATEGORY_VALUE },
       categoryCreateKinds: { Groceries: 'income' },
-      categoryRenames: { Groceries: { name: 'Groceries (Firefly III)', heldBy: groceries } },
+      categoryRenames: { Groceries: 'Groceries (Firefly III)' },
     }))
 
     expect(rows[0]?.category).toMatchObject({ name: 'Groceries (Firefly III)', kind: 'income' })
