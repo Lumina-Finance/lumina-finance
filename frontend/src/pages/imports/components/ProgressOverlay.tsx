@@ -122,6 +122,15 @@ const iconVariants: Variants = {
 
 interface ImportProgressOverlayProps {
   error: string | null
+
+  /** Words of the error set in bold, for the one condition a user must not read past */
+  errorEmphasis?: string
+
+  /** Replaces the title an ended import would otherwise have, for a flow that can say more about it */
+  title?: string
+
+  /** Set apart under the buttons of an ended import, for a step that matters only to someone leaving */
+  note?: string
   onScreen: boolean
   returnFocusTo: HTMLElement | null
   returnFocusFallbackRef: RefObject<HTMLElement | null>
@@ -155,6 +164,9 @@ interface ImportProgressOverlayProps {
  */
 export function ImportProgressOverlay({
   error,
+  errorEmphasis,
+  title: endedTitle,
+  note,
   onScreen,
   returnFocusTo,
   returnFocusFallbackRef,
@@ -198,32 +210,26 @@ export function ImportProgressOverlay({
 
   // The stage list already says what is in flight, so the title stops
   // repeating the first stage when a flow supplies one
-  const title = stopped
-    ? 'Import stopped'
-    : failed
-      ? 'Import failed'
-      : complete
-        ? 'Import complete'
-        : steps
-          ? 'Importing'
-          : 'Importing transactions'
+  const title = ended && endedTitle
+    ? endedTitle
+    : stopped
+      ? 'Import stopped'
+      : failed
+        ? 'Import failed'
+        : complete
+          ? 'Import complete'
+          : steps
+            ? 'Importing'
+            : 'Importing transactions'
   const message = ended
     ? error ?? (stopped ? 'Import stopped.' : GENERIC_IMPORT_FAILURE)
     : complete
       ? summary || 'Your import is complete.'
       : 'Your import is being added to your ledger, and nothing is saved until it finishes.'
-  const messageStyle = complete
-    ? {
-        color: OVERLAY_SUCCESS,
-        maxWidth: 'calc(100vw - 2.5rem)',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-        width: 'max-content',
-      }
-    : {
-        color: failed ? OVERLAY_ERROR : OVERLAY_MUTED_TEXT,
-      }
+  // A completion message wraps like any other, since cutting it short on a phone hides what was imported
+  const messageStyle = {
+    color: complete ? OVERLAY_SUCCESS : failed ? OVERLAY_ERROR : OVERLAY_MUTED_TEXT,
+  }
 
   return (
     <AnimatePresence onExitComplete={onClosed}>
@@ -248,7 +254,7 @@ export function ImportProgressOverlay({
         >
           <h2 id={titleId} className="sr-only">Import progress</h2>
           <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
-            {title}. {steps?.find((step) => step.status === 'active')?.label ?? ''} {message}
+            {title}. {steps?.find((step) => step.status === 'active')?.label ?? ''} {message}{ended && note ? ` ${note}` : ''}
           </p>
           <motion.div
             className="relative flex w-full max-w-[30rem] flex-col items-center px-4 py-8 text-center"
@@ -307,7 +313,7 @@ export function ImportProgressOverlay({
                   style={messageStyle}
                   variants={itemVariants}
                 >
-                  {message}
+                  {renderEmphasis(message, failed ? errorEmphasis : undefined)}
                 </motion.p>
 
                 {!complete && !ended && steps && steps.length > 0 && (
@@ -380,6 +386,16 @@ export function ImportProgressOverlay({
                       Back to import
                     </button>
                   </motion.div>
+                )}
+
+                {ended && note && (
+                  <motion.p
+                    className="mt-5 max-w-sm text-balance text-xs leading-5"
+                    style={{ color: OVERLAY_MUTED_TEXT }}
+                    variants={itemVariants}
+                  >
+                    {note}
+                  </motion.p>
                 )}
               </motion.div>
             </AnimatePresence>
@@ -498,5 +514,21 @@ function ImportProgressStepEllipsis({ running }: ImportProgressStepEllipsisProps
         />
       ))}
     </span>
+  )
+}
+
+/**
+ * Sets the first appearance of a phrase in bold, leaving the text as it is when the phrase isn't in it
+ */
+function renderEmphasis(text: string, phrase: string | undefined) {
+  const start = phrase ? text.indexOf(phrase) : -1
+  if (!phrase || start < 0) return text
+
+  return (
+    <>
+      {text.slice(0, start)}
+      <strong className="font-semibold">{phrase}</strong>
+      {text.slice(start + phrase.length)}
+    </>
   )
 }

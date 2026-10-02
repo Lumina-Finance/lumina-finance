@@ -3,10 +3,12 @@
 import uuid
 from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,6 +40,11 @@ from app.services.importers.shared.categories import (
 from app.services.importers.shared.merchants import load_import_merchant_keys, load_usable_import_merchants
 from app.services.importers.shared.run_locking import load_locked_run
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
+
+# How long a run can go uncommitted before it counts as abandoned. An upload stages and commits
+# within minutes, so a run this old is one nobody is coming back to, and saving it now would land
+# an import its user may already have given up on and brought in again
+ABANDONED_RUN_AGE = timedelta(hours=24)
 
 # How a refusal names the importer a run belongs to
 _RUN_SOURCE_LABELS = {
@@ -81,22 +88,30 @@ async def load_staging_references(
     account_ids = {mapping.account_id for mapping in accounts if mapping.account_id is not None}
     creates = [mapping.create for mapping in accounts if mapping.create is not None]
     currencies, institutions = await load_import_account_references(
-        db, {create.currency.upper() for create in creates},
+        db,
+        {create.currency.upper() for create in creates},
         {create.institution_id for create in creates if create.institution_id is not None},
     )
     account_access = await load_account_access_lookup(db, account_ids, user.id)
     visible_categories = await load_visible_import_categories(
-        db, {mapping.category_id for mapping in categories if mapping.category_id is not None}, user.id,
+        db,
+        {mapping.category_id for mapping in categories if mapping.category_id is not None},
+        user.id,
     )
     usable_merchants = await load_usable_import_merchants(
-        db, {mapping.merchant_id for mapping in merchants if mapping.merchant_id is not None}, user.id,
+        db,
+        {mapping.merchant_id for mapping in merchants if mapping.merchant_id is not None},
+        user.id,
     )
     merchant_keys = await load_import_merchant_keys(db, {mapping.source.strip() for mapping in merchants})
     return StagingReferences(account_access, currencies, institutions, visible_categories, usable_merchants, merchant_keys)
 
 
 async def open_import_run(
-    db: AsyncSession, user: User, expected_transaction_count: int, source: ImportRunSource,
+    db: AsyncSession,
+    user: User,
+    expected_transaction_count: int,
+    source: ImportRunSource,
 ) -> ImportRun:
     """Open a run for a file about to be staged
 
@@ -109,6 +124,7 @@ async def open_import_run(
     Returns:
         The opened run
     """
+    await delete_abandoned_import_runs(db, user)
     run = ImportRun(
         owner_id=user.id,
         source=source,
@@ -122,6 +138,36 @@ async def open_import_run(
     db.add(run)
     await db.commit()
     return run
+
+
+def is_run_abandoned(run: ImportRun) -> bool:
+    """Whether a run went uncommitted for so long that it can no longer be saved"""
+    return run.committed_at is None and run.created_at < datetime.now(UTC) - ABANDONED_RUN_AGE
+
+
+async def delete_abandoned_import_runs(db: AsyncSession, user: User) -> None:
+    """Delete the caller's runs that were never committed and are now abandoned, with what they staged
+
+    Nothing else ever removes a run its user walked away from, so this runs whenever they open
+    another and whenever they sign in or their sign-in is renewed. A committed run stays, since a
+    commit whose response was lost is answered from it
+
+    Args:
+        db: Active database session
+        user: User whose abandoned runs are deleted
+    """
+    # A run another request holds is skipped rather than waited on. A commit holding it either
+    # lands, and the run is no longer this query's, or refuses it as abandoned
+    abandoned = (
+        select(ImportRun.id)
+        .where(
+            ImportRun.owner_id == user.id,
+            ImportRun.committed_at.is_(None),
+            ImportRun.created_at < datetime.now(UTC) - ABANDONED_RUN_AGE,
+        )
+        .with_for_update(skip_locked=True)
+    )
+    await db.execute(delete(ImportRun).where(ImportRun.id.in_(abandoned)))
 
 
 async def delete_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> None:
@@ -208,7 +254,9 @@ async def stage_import_archive(db: AsyncSession, run_id: uuid.UUID, data: Import
 
 
 async def load_uncommitted_run(
-    db: AsyncSession, run_id: uuid.UUID, sources: Collection[ImportRunSource] | None = None,
+    db: AsyncSession,
+    run_id: uuid.UUID,
+    sources: Collection[ImportRunSource] | None = None,
 ) -> ImportRun:
     """Return the caller's run, held for the rest of the transaction, when it is still open
 
@@ -280,9 +328,7 @@ def require_batch_within_run(run: ImportRun, start_row_index: int, row_count: in
 def merge_import_mappings(
     stored: dict[str, Any],
     mappings: (
-        Sequence[TransactionImportAccountMapping]
-        | Sequence[TransactionImportCategoryMapping]
-        | Sequence[TransactionImportMerchantMapping]
+        Sequence[TransactionImportAccountMapping] | Sequence[TransactionImportCategoryMapping] | Sequence[TransactionImportMerchantMapping]
     ),
     label: str,
     get_key: Callable[[str], str] = lambda source: source,
@@ -366,9 +412,7 @@ async def insert_staged_rows(
         for offset, row in enumerate(rows)
     ]
     await db.execute(
-        insert(ImportStagedRow)
-        .values(values)
-        .on_conflict_do_nothing(constraint="uq_import_staged_row_run_index"),
+        insert(ImportStagedRow).values(values).on_conflict_do_nothing(constraint="uq_import_staged_row_run_index"),
     )
 
 
@@ -416,7 +460,11 @@ async def validate_account_mapping(
 
     if mapping.account_id is not None:
         await check_account_access(
-            db, mapping.account_id, user.id, PermissionLevel.READ, access_lookup=references.account_access,
+            db,
+            mapping.account_id,
+            user.id,
+            PermissionLevel.READ,
+            access_lookup=references.account_access,
         )
         return
 

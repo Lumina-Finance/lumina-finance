@@ -20,6 +20,18 @@ export type TransactionImportPhase = 'staging' | 'commit';
 // already running needs, since committing again answers with what that one wrote
 const PERMANENT_COMMIT_FAILURE_STATUSES = new Set([404, 422]);
 
+// How the server refuses to drop a run that has been committed, which is the one refusal that
+// says a commit whose answer was lost did land. The server refuses a run another request is still
+// working on with the same status, so only this text tells the two apart
+const RUN_ALREADY_COMMITTED_STATUS = 409;
+const RUN_ALREADY_COMMITTED_DETAIL = 'This import has already been committed';
+
+/**
+ * What dropping a kept run found out about it: that nothing of it was saved, that its commit had
+ * landed after all, or nothing either way
+ */
+export type StagedRunSettlement = 'discarded' | 'saved' | 'unsettled';
+
 /**
  * An import that stopped, and what is left of it
  *
@@ -104,6 +116,29 @@ export async function discardStagedRun(runId: string): Promise<void> {
     await deleteTransactionImportRun(runId);
   } catch {
     // Nothing to report: an undropped run is invisible rows, not something a user can act on
+  }
+}
+
+/**
+ * Drops a kept run and reports whether its commit had landed
+ *
+ * A run whose commit failed with no answer may have been written anyway, and the server keeps a
+ * committed run, refusing to drop it. So the drop itself is what tells an import about to start
+ * afresh whether starting would write the same rows a second time
+ *
+ * @param runId - The kept run to drop
+ */
+export async function settleStagedRun(runId: string): Promise<StagedRunSettlement> {
+  try {
+    await deleteTransactionImportRun(runId);
+    return 'discarded';
+  } catch (error) {
+    if (!(error instanceof ApiError)) return 'unsettled';
+
+    // A committed run is never deleted, so one that is gone was never written
+    if (error.status === 404) return 'discarded';
+    if (error.status === RUN_ALREADY_COMMITTED_STATUS && error.detail === RUN_ALREADY_COMMITTED_DETAIL) return 'saved';
+    return 'unsettled';
   }
 }
 

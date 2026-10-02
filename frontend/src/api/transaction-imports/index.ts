@@ -19,6 +19,7 @@ export {
   discardStagedRun,
   isImportCommitWorthRepeating,
   runTransactionImport,
+  settleStagedRun,
 } from '@/api/transaction-imports/run';
-export type { TransactionImportPhase } from '@/api/transaction-imports/run';
+export type { StagedRunSettlement, TransactionImportPhase } from '@/api/transaction-imports/run';
 export { useCommitStagedImport, useImportTransactions } from '@/api/transaction-imports/hooks';

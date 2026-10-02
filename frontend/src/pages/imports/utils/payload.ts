@@ -45,7 +45,7 @@ import { findReusedImportCategory, getCategoryMatchKind, getDebtPaymentImportNot
 import { buildImportMerchantMappings } from './merchantMatching'
 import { getImportDirectionValues } from './columnMapping'
 import { isImportableAccount } from './accountScope'
-import { getImportRowId } from './common'
+import { getImportRowId, joinImportSummaryParts } from './common'
 import { getAmountArrangementClashError, getMissingRequiredColumnLabels } from './workflowOptions'
 import {
   getCurrencyByAccountSource,
@@ -523,7 +523,7 @@ function appendAccountMapping(
 }
 
 /**
- * Formats a completed import's created counts into one summary line for the progress overlay
+ * Formats a completed import's created counts into the summary for the progress overlay
  */
 export function formatImportSummary(result: TransactionImportResponse) {
   const parts = [
@@ -532,5 +532,5 @@ export function formatImportSummary(result: TransactionImportResponse) {
     `${result.categories_created} categor${result.categories_created === 1 ? 'y' : 'ies'} created`,
   ]
 
-  return parts.join(' · ')
+  return joinImportSummaryParts(parts)
 }

@@ -1,4 +1,6 @@
 """Auth token route helpers"""
+
+import logging
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
@@ -48,6 +50,9 @@ from app.services.auth.tokens import (
 )
 from app.services.auth.two_factor import SECOND_FACTOR_PASSKEY, verify_login_second_factor
 from app.services.auth.webauthn import verify_passkey_second_factor
+from app.services.importers.shared.run_staging import delete_abandoned_import_runs
+
+logger = logging.getLogger(__name__)
 
 _refresh_public_key = load_pem_private_key(JWT_REFRESH_PRIVATE_KEY.encode(), password=None).public_key()
 _access_public_key = load_pem_private_key(JWT_ACCESS_PRIVATE_KEY.encode(), password=None).public_key()
@@ -202,9 +207,7 @@ def verify_reauth_stepup_proof(user_id: uuid.UUID, proof: str) -> None:
     try:
         payload = decode_oidc_reauth_stepup_token(proof)
     except jwt.PyJWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required"
-        ) from None
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required") from None
     if payload["sub"] != str(user_id):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required")
 
@@ -241,9 +244,7 @@ async def complete_mfa_challenge(db: AsyncSession, mfa_token: str, code: str, pu
     return await _complete_mfa_challenge(db, mfa_token, purpose, lambda user_id: verify_login_second_factor(db, user_id, code))
 
 
-async def complete_mfa_challenge_with_passkey(
-    db: AsyncSession, mfa_token: str, credential: dict[str, Any], purpose: str
-) -> tuple[User, str]:
+async def complete_mfa_challenge_with_passkey(db: AsyncSession, mfa_token: str, credential: dict[str, Any], purpose: str) -> tuple[User, str]:
     """Complete a second-factor step with a passkey assertion
 
     Args:
@@ -529,9 +530,23 @@ async def issue_and_store_tokens(
     db.add(create_auth_token(user.id, session_id, refresh_jti, AuthTokenKind.REFRESH, refresh_exp))
     await db.commit()
 
-    set_refresh_cookie(request, response, refresh_token)
+    # Built before the cleanup, whose rollback on failure would expire the user it reads
     auth_response = AuthResponse(user=UserInfo.model_validate(user), access_token=access_token)
+    await _delete_abandoned_imports(db, user)
+
+    set_refresh_cookie(request, response, refresh_token)
     return auth_response
+
+
+async def _delete_abandoned_imports(db: AsyncSession, user: User) -> None:
+    """Delete the user's abandoned import uploads, so one is never kept for good even if they never import again"""
+    try:
+        await delete_abandoned_import_runs(db, user)
+        await db.commit()
+    except Exception:
+        # Sign-in has already succeeded by now and must not fail over a cleanup the next sign-in repeats
+        await db.rollback()
+        logger.warning("Abandoned import uploads could not be deleted", exc_info=True)
 
 
 def _get_refresh_grace_expiry() -> datetime:

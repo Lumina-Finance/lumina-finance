@@ -61,3 +61,11 @@ export function formatBytes(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
+
+/**
+ * Joins the counts of a finished import into one summary line that wraps only between counts, so a
+ * narrow overlay never leaves a number on one line and what it counts on the next
+ */
+export function joinImportSummaryParts(parts: string[]) {
+  return parts.map((part) => part.replaceAll(' ', ' ')).join(' · ')
+}

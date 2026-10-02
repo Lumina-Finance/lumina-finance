@@ -1,12 +1,30 @@
+from datetime import timedelta
 
+from sqlalchemy import text
 
 from app.models.base import InstitutionStatus
 from app.models.currency import Currency
 from app.models.institution import Institution
+from app.services.importers.shared.run_staging import ABANDONED_RUN_AGE
 from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
+
+# Just either side of the age at which a run left uncommitted counts as abandoned
+_PAST_ABANDONMENT = ABANDONED_RUN_AGE + timedelta(minutes=1)
+_SHORT_OF_ABANDONMENT = ABANDONED_RUN_AGE - timedelta(minutes=1)
+
+
+async def _age_run(run_id, age):
+    """Move a run's opening back, as if it had been left that long"""
+    async with TestSession() as session:
+        await session.execute(
+            text("UPDATE import_runs SET created_at = created_at - CAST(:age AS interval) WHERE id = :id"),
+            {"age": age, "id": run_id},
+        )
+        await session.commit()
+
 
 async def _seed_usd_currency():
     """Seed a USD currency row directly in the database for fx_rate validation tests
@@ -15,15 +33,14 @@ async def _seed_usd_currency():
     not user-created resources
     """
     async with TestSession() as session:
-
         # Insert USD as seeded currency data for transaction FX validation tests
         session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
         await session.commit()
 
+
 async def _seed_institution():
     """Seed an institution directly for import-created account linking"""
     async with TestSession() as session:
-
         # Insert a canonical institution row so import mappings can link accounts
         inst = Institution(
             status=InstitutionStatus.CANONICAL,
@@ -35,6 +52,7 @@ async def _seed_institution():
         await session.commit()
         await session.refresh(inst)
         return inst
+
 
 async def _create_category(client, headers, **overrides):
     """Create a category via POST /categories
@@ -51,6 +69,7 @@ async def _create_category(client, headers, **overrides):
     """
     payload = {"name": "Test Expense", "kind": "expense", **overrides}
     return await client.post("/categories", json=payload, headers=headers)
+
 
 async def _create_account(client, headers, **overrides):
     """Create an account via POST /accounts
@@ -74,6 +93,7 @@ async def _create_account(client, headers, **overrides):
     }
     return await client.post("/accounts", json=payload, headers=headers)
 
+
 async def _create_merchant(client, headers, **overrides):
     """Create a merchant via POST /merchants
 
@@ -90,6 +110,7 @@ async def _create_merchant(client, headers, **overrides):
     payload = {"name": "Costco", **overrides}
     return await client.post("/merchants", json=payload, headers=headers)
 
+
 async def _create_tag(client, headers, **overrides):
     """Create a tag via POST /tags
 
@@ -105,6 +126,7 @@ async def _create_tag(client, headers, **overrides):
     """
     payload = {"name": "vacation", **overrides}
     return await client.post("/tags", json=payload, headers=headers)
+
 
 async def _create_transaction(client, headers, account_id, category_id, **overrides):
     """Create a transaction via POST /transactions
@@ -141,6 +163,7 @@ async def _get_system_category_id(client, headers, name="Groceries"):
     resp = await client.get("/categories", headers=headers)
     return next(category["id"] for category in resp.json() if category["name"] == name)
 
+
 async def _setup_user_with_deps(client, email="test@example.com", name_prefix="Main"):
     """Sign up a user and create the minimum dependencies for a transaction
 
@@ -158,17 +181,21 @@ async def _setup_user_with_deps(client, email="test@example.com", name_prefix="M
     if email == "test@example.com":
         signup_resp = await _create_user(client)
     else:
-        signup_resp = await client.post("/auth/signup", json={
-            "email": email,
-            "password": "SecurePassword123!",
-            "first_name": name_prefix,
-            "tz": "America/Toronto",
-            "base_currency": "CAD",
-        })
+        signup_resp = await client.post(
+            "/auth/signup",
+            json={
+                "email": email,
+                "password": "SecurePassword123!",
+                "first_name": name_prefix,
+                "tz": "America/Toronto",
+                "base_currency": "CAD",
+            },
+        )
     headers = _get_auth_header(signup_resp)
     account_resp = await _create_account(client, headers, name=f"{name_prefix} Chequing")
     category_resp = await _create_category(client, headers, name=f"{name_prefix} Groceries")
     return headers, account_resp.json()["id"], category_resp.json()["id"]
+
 
 async def _import_transactions(client, headers, payload):
     """Stage a whole payload as one batch and commit it

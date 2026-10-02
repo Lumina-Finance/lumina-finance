@@ -1,8 +1,10 @@
 import type { ImportRunBudgets, JournalImportRunResponse } from '@/api/provider-imports'
 import { getJsonByteSize } from '@/api/shared/importBatchSize'
+import { TransactionImportRunError, type StagedRunSettlement } from '@/api/transaction-imports'
 import { STEP_DOT_WAVE_MS } from '@/pages/imports/components/ProgressOverlay'
 import type { ImportOverlayPhase } from '@/pages/imports/types'
 import { getImportCommitFailure } from '@/pages/imports/utils/commitFailure'
+import { joinImportSummaryParts } from '@/pages/imports/utils/common'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 
 /**
@@ -84,16 +86,35 @@ export function getProviderBudgetSelectionError(selectedCount: number, maxBudget
     : buildError
 }
 
-// Added after the reason a provider import failed. An import the server refused, or one that failed
-// while uploading, wrote nothing. A save that failed for another reason may or may not have landed,
-// and saving it again answers either way
+// Added after the reason a provider import failed when the server refused it, or it failed while
+// uploading, since either way it wrote nothing
 const PROVIDER_IMPORT_NOTHING_SAVED_NOTE = 'Nothing was added to your ledger.'
-const PROVIDER_IMPORT_SAVE_AGAIN_NOTE = 'Your upload is kept, so you can try saving it again.'
+
+// A save that ended with no answer may or may not have landed. Saving again from this screen
+// settles it either way without writing anything twice, since the screen keeps the upload, so the
+// copy leads with that and leaves what is unknown to the note for someone about to leave
+const PROVIDER_IMPORT_INTERRUPTED_TITLE = 'Save interrupted'
+const PROVIDER_IMPORT_INTERRUPTED_MESSAGE = 'The import was interrupted. Try again to finish saving your import. Nothing will be added twice as long as you stay on the import page.'
+// The one condition the promise rests on, set in bold so it isn't read past
+const PROVIDER_IMPORT_INTERRUPTED_EMPHASIS = 'stay on the import page'
+const PROVIDER_IMPORT_INTERRUPTED_NOTE = 'Leaving the import page? Check your transactions before importing again.'
+const PROVIDER_IMPORT_INTERRUPTED_FOOTER = 'Save interrupted. Please try again.'
+
+// Why an import stopped before sending anything when the server gave no answer about the upload
+// it kept. The interrupted copy above is what the user reads, so this only names the case
+const PROVIDER_IMPORT_UNSETTLED_REASON = 'The interrupted save could not be checked'
+
+/** Said in place of the summary when an import was not sent because the interrupted save had landed */
+export const PROVIDER_IMPORT_SAVED_EARLIER_MESSAGE = 'Your earlier import was saved, so this one wasn\'t imported.'
 
 /** What one completed import wrote, with the rows it left out, captured when it started */
 export interface CompletedProviderImport<TSkipped> {
   result: JournalImportRunResponse
   skippedRowsAtCommit: TSkipped[]
+
+  // Set when a save thought interrupted had landed, so what the screen shows is that earlier
+  // import rather than the one just asked for, which was never sent
+  savedEarlier: boolean
 }
 
 /**
@@ -125,6 +146,9 @@ export function getProviderSkippedRowsDisplay<TSkipped>({
 export interface ProviderImportFailure {
   message: string
   answers: object
+
+  /** Whether the save ended with no answer, so the upload is kept and may already have landed */
+  interrupted: boolean
 }
 
 /**
@@ -138,8 +162,8 @@ export interface ProviderImportRunState<TSkipped = unknown> {
   // whole or not at all, and stopping would only stop waiting for it
   canStop: boolean
 
-  // An import whose save stopped for a reason saving again could clear leaves its upload staged,
-  // and this is what the second attempt runs against
+  // A save that ended with no answer leaves its upload staged, kept until an import from this
+  // screen settles whether it landed, since starting afresh without asking could write it twice
   stagedRunId: string | null
   failure: ProviderImportFailure | null
   completedImport: CompletedProviderImport<TSkipped> | null
@@ -157,7 +181,22 @@ export const PROVIDER_IMPORT_RUN_IDLE: ProviderImportRunState<never> = {
 interface ProviderImportRunDependencies<TSkipped> {
   onChange: (state: ProviderImportRunState<TSkipped>) => void
   discardStagedRun: (runId: string) => void
+  settleStagedRun: (runId: string) => Promise<StagedRunSettlement>
   wait: (milliseconds: number) => Promise<void>
+}
+
+/** How one attempt reaches the server: by uploading the whole import, or by saving a kept upload */
+export interface ProviderImportRequests {
+  /** Sends the import, calling its second argument once everything is staged */
+  upload: (signal: AbortSignal, onStaged: () => Promise<void>) => Promise<JournalImportRunResponse>
+  commit: (runId: string, signal: AbortSignal) => Promise<JournalImportRunResponse>
+}
+
+/** An attempt as it was started, kept so Try again can start it the same way */
+interface ProviderImportStart<TSkipped> {
+  skippedRowsAtCommit: TSkipped[]
+  answers: object
+  requests: ProviderImportRequests
 }
 
 /**
@@ -166,10 +205,16 @@ interface ProviderImportRunDependencies<TSkipped> {
  * The state lives here rather than in the screen's render, since the overlay keeps its buttons on
  * screen while it fades and each one carries the handler from the render before it closed. Every
  * action therefore reads the run as it really is
+ *
+ * A save that ends with no answer may have landed, so its upload is kept for as long as the screen
+ * is open, whatever the user does next. Saving it again lands it at most once, and an import
+ * started with other answers first drops it, which the server refuses for an upload that had
+ * landed. Either way nothing is written twice
  */
 export function createProviderImportRunController<TSkipped>({
   onChange,
   discardStagedRun,
+  settleStagedRun,
   wait,
 }: ProviderImportRunDependencies<TSkipped>) {
   let state: ProviderImportRunState<TSkipped> = PROVIDER_IMPORT_RUN_IDLE
@@ -179,9 +224,11 @@ export function createProviderImportRunController<TSkipped>({
   let attemptId = 0
   let abortController: AbortController | null = null
 
-  // What the kept upload left out, captured when it was staged, so saving it again reports the
-  // rows it really left out even if the mappings have moved since
+  // The answers the kept upload was sent with and the rows it left out, captured when it was
+  // staged. They decide whether an import can save that upload as it is, and what saving it reports
+  let stagedAnswers: object | null = null
   let stagedSkippedRows: TSkipped[] = []
+  let lastStart: ProviderImportStart<TSkipped> | null = null
 
   const update = (patch: Partial<ProviderImportRunState<TSkipped>>) => {
     state = { ...state, ...patch }
@@ -197,34 +244,77 @@ export function createProviderImportRunController<TSkipped>({
   }
 
   /**
-   * Runs one attempt at the import, whether the whole upload or only saving an upload kept from
-   * an attempt that failed, and records how it ended
+   * Runs one attempt at the import and records how it ended
+   *
+   * An upload kept from an interrupted save is saved as it is when the answers are the ones it was
+   * sent with. Otherwise it is dropped first, and only an upload that was never saved lets the new
+   * one go ahead. One that had landed is answered with what it wrote, and one the server gave no
+   * answer about stays kept, so the next attempt asks again
    */
-  const runAttempt = async (
-    firstStage: ProviderImportStage,
-    skippedRowsAtCommit: TSkipped[],
-    answers: object,
-    attempt: (signal: AbortSignal) => Promise<JournalImportRunResponse>,
-  ) => {
+  const runAttempt = async ({ skippedRowsAtCommit, answers, requests }: ProviderImportStart<TSkipped>) => {
     const currentAttemptId = attemptId + 1
     attemptId = currentAttemptId
     const controller = new AbortController()
     abortController = controller
+    const keptRunId = state.stagedRunId
+    const keptAnswers = stagedAnswers
+    const keptSkippedRows = stagedSkippedRows
+    const savingKeptUpload = keptRunId !== null && keptAnswers === answers
+    const firstStage: ProviderImportStage = savingKeptUpload ? 'saving' : 'uploading'
 
     update({
       failure: null,
       completedImport: null,
-      stagedRunId: null,
       canStop: firstStage === 'uploading',
       stageState: { stage: firstStage, isFinished: false },
       overlayPhase: 'importing',
     })
     const minimumOverlay = wait(PROVIDER_IMPORT_OVERLAY_MIN_MS)
+    const uploadMinimum = wait(PROVIDER_IMPORT_STAGE_MIN_MS)
+
+    // Nothing is saved until the upload has finished, so the stage list hands over to saving
+    // before the save starts, and stopping is no longer offered from there
+    const handOverToSaving = async () => {
+      await uploadMinimum
+      if (controller.signal.aborted) return
+      await showStage('uploading', true)
+      if (controller.signal.aborted) return
+      update({ canStop: false, stageState: { stage: 'saving', isFinished: false } })
+    }
+
+    // Which run an interrupted save leaves kept, and what it was sent with: the kept upload while
+    // this attempt is still working out what became of it, and the new upload once one is sent
+    let runAnswers = keptAnswers ?? answers
+    let runSkippedRows = keptRunId ? keptSkippedRows : skippedRowsAtCommit
 
     try {
-      const result = await attempt(controller.signal)
+      let result: JournalImportRunResponse
+      let savedEarlier = false
+      if (keptRunId && savingKeptUpload) {
+        result = await requests.commit(keptRunId, controller.signal)
+      } else {
+        const settlement = keptRunId ? await settleStagedRun(keptRunId) : 'discarded'
+        if (settlement === 'unsettled') {
+          throw new TransactionImportRunError(PROVIDER_IMPORT_UNSETTLED_REASON, 'commit', keptRunId)
+        }
+        if (keptRunId && settlement === 'saved') {
+          // Saving a run that was committed only answers with what that commit wrote
+          result = await requests.commit(keptRunId, controller.signal)
+          savedEarlier = true
+        } else {
+          runAnswers = answers
+          runSkippedRows = skippedRowsAtCommit
+          result = await requests.upload(controller.signal, handOverToSaving)
+        }
+      }
       if (attemptId !== currentAttemptId) return
-      update({ canStop: false, completedImport: { result, skippedRowsAtCommit } })
+      stagedAnswers = null
+      stagedSkippedRows = []
+      update({
+        canStop: false,
+        stagedRunId: null,
+        completedImport: { result, skippedRowsAtCommit: runSkippedRows, savedEarlier },
+      })
 
       // The last stage is struck off while the overlay is still importing, so it lands as visibly
       // as the upload stage did when it handed over
@@ -240,11 +330,16 @@ export function createProviderImportRunController<TSkipped>({
 
       const failure = getImportCommitFailure(error, controller.signal.aborted)
       if (failure.discardableRunId) discardStagedRun(failure.discardableRunId)
-      stagedSkippedRows = skippedRowsAtCommit
+      stagedAnswers = failure.retryableRunId ? runAnswers : null
+      stagedSkippedRows = failure.retryableRunId ? runSkippedRows : []
       update({
         canStop: false,
         stagedRunId: failure.retryableRunId,
-        failure: { message: failure.message, answers },
+        failure: {
+          message: failure.message,
+          answers,
+          interrupted: failure.retryableRunId !== null && !controller.signal.aborted,
+        },
         overlayPhase: controller.signal.aborted ? 'cancelled' : 'error',
       })
     } finally {
@@ -256,40 +351,23 @@ export function createProviderImportRunController<TSkipped>({
     getState: () => state,
 
     /**
-     * Uploads the whole import and saves it
+     * Imports with the answers on screen, saving or settling an upload kept from an interrupted save first
      *
      * @param skippedRowsAtCommit - Rows the import leaves out, captured before the first await since
      *   the response can outlive the mappings used for its request
      * @param answers - The answers the import is sent with, which a failure is reported against
-     * @param upload - Sends the import, calling its second argument once everything is staged
+     * @param requests - How the import reaches the server
      */
-    start: (
-      skippedRowsAtCommit: TSkipped[],
-      answers: object,
-      upload: (signal: AbortSignal, onStaged: () => Promise<void>) => Promise<JournalImportRunResponse>,
-    ) => {
-      const uploadMinimum = wait(PROVIDER_IMPORT_STAGE_MIN_MS)
-      return runAttempt('uploading', skippedRowsAtCommit, answers, (signal) => upload(signal, async () => {
-        // Nothing is saved until the upload has finished, so the stage list hands over to saving
-        // before the save starts, and stopping is no longer offered from there
-        await uploadMinimum
-        if (signal.aborted) return
-        await showStage('uploading', true)
-        if (signal.aborted) return
-        update({ canStop: false, stageState: { stage: 'saving', isFinished: false } })
-      }))
+    start: (skippedRowsAtCommit: TSkipped[], answers: object, requests: ProviderImportRequests) => {
+      lastStart = { skippedRowsAtCommit, answers, requests }
+      return runAttempt(lastStart)
     },
 
     /**
-     * Saves the upload an attempt that failed while saving kept, without uploading it again
+     * Starts the last import again as it was started, which saves an interrupted upload it kept
      */
-    retry: async (
-      answers: object,
-      commit: (runId: string, signal: AbortSignal) => Promise<JournalImportRunResponse>,
-    ) => {
-      const runId = state.stagedRunId
-      if (!runId) return
-      await runAttempt('saving', stagedSkippedRows, answers, (signal) => commit(runId, signal))
+    retry: async () => {
+      if (lastStart) await runAttempt(lastStart)
     },
 
     /**
@@ -301,22 +379,22 @@ export function createProviderImportRunController<TSkipped>({
     },
 
     /**
-     * Closes a finished overlay, and leaving a failed import behind gives up on its kept upload
+     * Closes a finished overlay, keeping any upload an interrupted save left, so importing again
+     * from this screen settles it rather than writing its rows a second time
      */
     close: () => {
       if (state.overlayPhase === 'idle' || state.overlayPhase === 'importing') return
-      if (state.stagedRunId) discardStagedRun(state.stagedRunId)
-      update({ stagedRunId: null, overlayPhase: 'idle' })
+      update({ overlayPhase: 'idle' })
     },
 
     /**
-     * Forgets every attempt, stopping one in progress and dropping any kept upload
+     * Forgets every attempt, stopping one in progress, but keeps an upload an interrupted save left
+     * for the next import on this screen to settle
      */
     reset: () => {
       attemptId += 1
       abortController?.abort()
-      if (state.stagedRunId) discardStagedRun(state.stagedRunId)
-      update(PROVIDER_IMPORT_RUN_IDLE)
+      update({ ...PROVIDER_IMPORT_RUN_IDLE, stagedRunId: state.stagedRunId })
     },
   }
 }
@@ -367,12 +445,43 @@ export function countCreatedImportSources(
   return sources.filter((source) => mappings[source] === createValue && writtenSources.has(source)).length
 }
 
+/** What the overlay and the line beside Commit import say about a failed import */
+export interface ProviderImportFailureCopy {
+  /** Replaces the overlay's own title, which is null when that title already fits */
+  overlayTitle: string | null
+  overlayMessage: string
+
+  /** Words of the overlay message set in bold, or null when none need it */
+  overlayEmphasis: string | null
+
+  /** Set apart under the overlay's buttons, for a step that matters only to someone leaving */
+  overlayNote: string | null
+  footerMessage: string
+}
+
 /**
- * Says why an import failed and what that left behind: nothing, or an upload that can be saved again
+ * Says what a failed import left behind: nothing, or a save that was interrupted and may already
+ * have landed, which saving again from this screen settles without writing anything twice
  */
-export function describeProviderImportFailure(reason: string, canSaveAgain: boolean) {
-  const sentence = /[.!?]$/.test(reason) ? reason : `${reason}.`
-  return `${sentence} ${canSaveAgain ? PROVIDER_IMPORT_SAVE_AGAIN_NOTE : PROVIDER_IMPORT_NOTHING_SAVED_NOTE}`
+export function describeProviderImportFailure({ message, interrupted }: Pick<ProviderImportFailure, 'message' | 'interrupted'>): ProviderImportFailureCopy {
+  if (interrupted) {
+    return {
+      overlayTitle: PROVIDER_IMPORT_INTERRUPTED_TITLE,
+      overlayMessage: PROVIDER_IMPORT_INTERRUPTED_MESSAGE,
+      overlayEmphasis: PROVIDER_IMPORT_INTERRUPTED_EMPHASIS,
+      overlayNote: PROVIDER_IMPORT_INTERRUPTED_NOTE,
+      footerMessage: PROVIDER_IMPORT_INTERRUPTED_FOOTER,
+    }
+  }
+
+  const sentence = /[.!?]$/.test(message) ? message : `${message}.`
+  return {
+    overlayTitle: null,
+    overlayMessage: `${sentence} ${PROVIDER_IMPORT_NOTHING_SAVED_NOTE}`,
+    overlayEmphasis: null,
+    overlayNote: null,
+    footerMessage: message,
+  }
 }
 
 /**
@@ -397,5 +506,5 @@ export function formatProviderImportSummary(result: JournalImportRunResponse, sk
     parts.push(`${result.accounts_archived} account${result.accounts_archived === 1 ? '' : 's'} archived`)
   }
 
-  return parts.join(' · ')
+  return joinImportSummaryParts(parts)
 }

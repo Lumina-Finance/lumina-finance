@@ -26,6 +26,7 @@ import {
   TransactionImportRunError,
   isImportCommitWorthRepeating,
   runTransactionImport,
+  settleStagedRun,
 } from '@/api/transaction-imports';
 
 const RUN_ID = 'run_1';
@@ -247,5 +248,20 @@ describe('staging a transaction import', () => {
     const error = await runTransactionImport(payload).catch((thrown: unknown) => thrown);
 
     expect(isImportCommitWorthRepeating(error)).toBe(false);
+  });
+});
+
+describe('settling a kept run before importing afresh', () => {
+  it.each([
+    ['dropped', undefined, 'discarded'],
+    ['already gone', new ApiError('Import run not found', 404, { detail: 'Import run not found' }), 'discarded'],
+    ['committed after all', new ApiError('This import has already been committed', 409, { detail: 'This import has already been committed' }), 'saved'],
+    ['held by a commit still running', new ApiError('This import is already being worked on', 409, { detail: 'This import is already being worked on' }), 'unsettled'],
+    ['unanswered', new TypeError('Failed to fetch'), 'unsettled'],
+  ])('reads a run that is %s', async (_case, failure, settlement) => {
+    if (failure) authenticatedFetchMock.mockRejectedValueOnce(failure);
+    else authenticatedFetchMock.mockResolvedValueOnce(undefined);
+
+    expect(await settleStagedRun(RUN_ID)).toBe(settlement);
   });
 });
