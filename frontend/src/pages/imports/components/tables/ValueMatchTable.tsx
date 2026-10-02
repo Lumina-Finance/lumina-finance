@@ -118,7 +118,8 @@ export function ImportValueMatchTable({
                       <input
                         id={`${sourceLabelId}-rename`}
                         type="text"
-                        className="app-input mt-1 w-full"
+                        className={`app-input mt-1 h-[var(--app-dropdown-height-compact)] w-full ${row.rename.value.trim() ? '' : 'app-input-error'}`}
+                        aria-invalid={!row.rename.value.trim()}
                         maxLength={256}
                         value={row.rename.value}
                         onChange={(event) => row.rename?.onChange(event.target.value)}
