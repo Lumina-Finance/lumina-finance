@@ -35,7 +35,7 @@ function getRenames(overrides: Partial<Parameters<typeof getImportCategoryRename
 describe('renaming a new category whose name another kind holds', () => {
   it('proposes the name marked with the app and says which category holds it', () => {
     expect(getRenames()).toEqual({
-      'actual-ccp': { name: 'Credit Card Payment (Actual)', heldBy: CREDIT_CARD_PAYMENT, isProposed: true },
+      'actual-ccp': { name: 'Credit Card Payment (Actual)', sourceName: 'Credit Card Payment', kind: 'expense', heldBy: CREDIT_CARD_PAYMENT, isProposed: true },
     })
   })
 

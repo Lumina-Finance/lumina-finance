@@ -772,7 +772,7 @@ describe('how imported Firefly budgets will count spending', () => {
       rows,
       options: {
         ...createOptions({ Coffee: CREATE_CATEGORY_VALUE }),
-        categoryRenames: { Coffee: { name: 'restaurants', heldBy: incomeCoffee, isProposed: false } },
+        categoryRenames: { Coffee: { name: 'restaurants', sourceName: 'Coffee', kind: 'expense', heldBy: incomeCoffee, isProposed: false } },
       },
     })).toEqual([
       "Food shares Restaurants with Holiday, so it also counts Holiday's spending in Restaurants.",

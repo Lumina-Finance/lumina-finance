@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
-import type { ColumnMap, ColumnTarget, ColumnTargetGroup, ImportAmountDirection, ImportCategoryKind } from './types'
+import type { ColumnMap, ColumnTarget, ColumnTargetGroup, ImportAmountDirection, ImportCategoryKind, ImportCategoryRename } from './types'
 import type { ImportDateFormat } from './utils/valueParsers'
 import type { ImportAmountFormat } from './utils/amountFormats'
 
@@ -203,9 +203,11 @@ export function getImportCategoryRenameLabel(label: string) {
 }
 
 /** Says why a new category is proposed under another name than its own */
-export function getImportCategoryRenameHelp(existingName: string, existingKind: Category['kind']) {
-  const article = existingKind === 'transfer' ? 'a' : 'an'
-  return `${existingName} is already ${article} ${KIND_LABELS[existingKind].toLowerCase()} category, so this one needs a name of its own.`
+export function getImportCategoryRenameHelp({ heldBy, sourceName, kind }: ImportCategoryRename) {
+  const article = (categoryKind: ImportCategoryKind) => (categoryKind === 'transfer' ? 'a' : 'an')
+  const held = KIND_LABELS[heldBy.kind].toLowerCase()
+  const wanted = KIND_LABELS[kind].toLowerCase()
+  return `${heldBy.name} is already ${article(heldBy.kind)} ${held} category. If you'd still like to import transactions categorized as "${sourceName}" as ${article(kind)} ${wanted} category, you have to rename it.`
 }
 
 export function getImportCategoryRenameRequiredError(label: string) {

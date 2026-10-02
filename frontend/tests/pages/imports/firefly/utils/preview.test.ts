@@ -189,7 +189,7 @@ describe('firefly preview rows', () => {
     const rows = buildFireflyPreviewRows(createOptions({
       categoryMappings: { Groceries: CREATE_CATEGORY_VALUE },
       categoryCreateKinds: { Groceries: 'income' },
-      categoryRenames: { Groceries: { name: 'Groceries (Firefly III)', heldBy: createCategory(), isProposed: true } },
+      categoryRenames: { Groceries: { name: 'Groceries (Firefly III)', sourceName: 'Groceries', kind: 'income', heldBy: createCategory(), isProposed: true } },
     }))
 
     expect(rows[0]?.category).toMatchObject({ name: 'Groceries (Firefly III)', kind: 'income' })

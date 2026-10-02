@@ -127,7 +127,7 @@ export function ActualCategoryMatchingStep({
       onChange: (nextValue) => setCategoryMappings((current) => ({ ...current, [mappingId]: nextValue })),
       rename: rename === undefined ? undefined : {
         label: getImportCategoryRenameLabel(source.label),
-        help: getImportCategoryRenameHelp(rename.heldBy.name, rename.heldBy.kind),
+        help: getImportCategoryRenameHelp(rename),
         value: rename.name,
         isProposed: rename.isProposed,
         onChange: (name: string) => setCategoryCreateNames((current) => ({ ...current, [mappingId]: name })),

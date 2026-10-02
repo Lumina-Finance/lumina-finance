@@ -561,7 +561,7 @@ describe('the Firefly row values the payload sends', () => {
     const buildRenamed = (name: string, overrides: Partial<Parameters<typeof buildFireflyImportPayload>[0]> = {}) => build(ROW, {
       categoryMappings: { Groceries: CREATE_CATEGORY_VALUE },
       categoryCreateKinds: { Groceries: 'expense' },
-      categoryRenames: { Groceries: { name, heldBy: incomeGroceries, isProposed: false } },
+      categoryRenames: { Groceries: { name, sourceName: 'Groceries', kind: 'expense', heldBy: incomeGroceries, isProposed: false } },
       categoryById: new Map([[incomeGroceries.id, incomeGroceries]]),
       ...overrides,
     })

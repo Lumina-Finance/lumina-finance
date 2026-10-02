@@ -85,6 +85,12 @@ export interface ImportProgressStep {
 export interface ImportCategoryRename {
   name: string
 
+  /** The source's own name, as the export names it */
+  sourceName: string
+
+  /** The type the new category is created with */
+  kind: ImportCategoryKind
+
   /** The category holding the source's own name, which the step names to say why */
   heldBy: Category
 

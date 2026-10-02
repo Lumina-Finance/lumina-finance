@@ -263,6 +263,8 @@ export function getImportCategoryRenames({
     const typed = typedNames[source.id]
     renames[source.id] = {
       name: typed ?? getImportCategoryRenameProposal(source.name, appName),
+      sourceName: source.name,
+      kind: kinds[source.id],
       heldBy,
       isProposed: typed === undefined,
     }
