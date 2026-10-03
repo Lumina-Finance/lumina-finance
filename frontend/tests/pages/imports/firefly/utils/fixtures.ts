@@ -63,6 +63,7 @@ export function stageFireflyImportAsNew(
     categoryById: new Map(),
     categoryMappings: Object.fromEntries(importedCategories.map((source) => [source, CREATE_CATEGORY_VALUE])),
     categoryCreateKinds,
+    categoryRenames: {},
     transferCategory: undefined,
     balanceAdjustmentCategory: undefined,
     currencies,

@@ -116,6 +116,7 @@ function createOptions(overrides: Partial<Parameters<typeof buildFireflyPreviewR
     categoryById: new Map([[groceries.id, groceries]]),
     categoryMappings: { Groceries: groceries.id },
     categoryCreateKinds: {},
+    categoryRenames: {},
     transferCategory,
     balanceAdjustmentCategory,
     currencies: CURRENCIES,
@@ -167,6 +168,7 @@ describe('firefly preview rows', () => {
       accountCreateDetails: { 'US Savings': { accountType: 'savings', currency: 'usd', institutionId: 'bank' } },
       categoryMappings: { Salary: CREATE_CATEGORY_VALUE },
       categoryCreateKinds: { Salary: 'income' },
+      categoryRenames: {},
     }))
 
     expect(rows).toHaveLength(1)
@@ -181,6 +183,16 @@ describe('firefly preview rows', () => {
         merchant_name: 'Employer',
       },
     })
+  })
+
+  it('shows a new category under the name it is renamed to', () => {
+    const rows = buildFireflyPreviewRows(createOptions({
+      categoryMappings: { Groceries: CREATE_CATEGORY_VALUE },
+      categoryCreateKinds: { Groceries: 'income' },
+      categoryRenames: { Groceries: { name: 'Groceries (Firefly III)', sourceName: 'Groceries', kind: 'income', heldBy: createCategory(), isProposed: true } },
+    }))
+
+    expect(rows[0]?.category).toMatchObject({ name: 'Groceries (Firefly III)', kind: 'income' })
   })
 
   it('maps a row between two tracked accounts to transfer legs using the foreign amount on the cross-currency side', () => {

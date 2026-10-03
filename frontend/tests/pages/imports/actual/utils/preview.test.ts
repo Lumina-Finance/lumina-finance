@@ -16,6 +16,7 @@ const CURRENCIES = [
 ] as Currency[]
 const TRANSFER = { id: 'transfer', name: 'Transfer', kind: 'transfer', is_system: true } as Category
 const BALANCE_ADJUSTMENT = { id: 'balance', name: 'Balance Adjustment', kind: 'transfer', is_system: true } as Category
+const CAR = { id: 'car', name: 'Car', kind: 'transfer' } as Category
 
 function createOptions(journal: ActualJournal, currency: string): ActualPreviewOptions {
   return {
@@ -25,6 +26,7 @@ function createOptions(journal: ActualJournal, currency: string): ActualPreviewO
     institutionById: new Map(),
     categoryMappings: Object.fromEntries(journal.categories.map((source) => [source.id, CREATE_CATEGORY_VALUE])),
     categoryCreateKinds: Object.fromEntries(journal.categories.map((source) => [source.id, source.role === 'transfer' ? 'transfer' : 'expense'])),
+    categoryRenames: {},
     categoryById: new Map(),
     transferCategory: TRANSFER,
     balanceAdjustmentCategory: BALANCE_ADJUSTMENT,
@@ -63,6 +65,17 @@ describe('Actual Budget import preview', () => {
       ['Checking', -30000, 'Car', 'Car Loan', undefined, null],
       ['Car Loan', 30000, 'Transfer', null, 'Checking', 'tracked'],
     ])
+  })
+
+  it('shows a new category under the name it is renamed to', async () => {
+    const { journal } = await normaliseActualFixture('edges')
+    const effective = fileActualPaymentsInCategory(journal)
+    const payment = effective.entries.find((entry) => entry.date === '2026-07-05')!
+    const options = { ...createOptions(effective, 'CAD'), categoryRenames: { [payment.categorySourceId!]: { name: 'Car costs', sourceName: 'Car', kind: 'expense' as const, heldBy: CAR, isProposed: false } } }
+
+    const rows = buildActualPreviewRows({ ...effective, entries: [payment] }, options, 5)
+
+    expect(rows.map((row) => row.category?.name)).toEqual(['Car costs', 'Transfer'])
   })
 
   it('shows a credit card payment under its category on both legs, each naming the other account', async () => {

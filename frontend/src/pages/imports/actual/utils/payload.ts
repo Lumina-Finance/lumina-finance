@@ -10,12 +10,10 @@ import {
   ACTUAL_TRANSACTION_DECIMALS,
   getActualAccountNameTooLongError,
   getActualAmountPrecisionReason,
-  getActualCategoryCreateClashError,
   getActualCategoryNameTooLongError,
   getActualFileCurrencyError,
   getActualMixedCurrencyError,
   getActualPaymentCategoryError,
-  getActualPaymentKindClashError,
   getActualSharedAccountError,
   getActualTransferCategoryError,
 } from '@/pages/imports/actual/constants'
@@ -26,7 +24,6 @@ import {
   CREATE_CATEGORY_VALUE,
   DEFAULT_CATEGORY_ICON,
   MAX_IMPORT_MAPPINGS,
-  getCategoryDirectionClashError,
   getImportAccountCurrencyRequiredError,
   getImportAccountMappingError,
   getImportAccountTypeRequiredError,
@@ -39,9 +36,9 @@ import {
   getImportReadOnlyAccountMappingError,
   getTooManyMappingsError,
 } from '@/pages/imports/constants'
-import type { ImportCategoryKind } from '@/pages/imports/types'
+import type { ImportCategoryKind, ImportCategoryRename } from '@/pages/imports/types'
 import { isImportableAccount } from '@/pages/imports/utils/accountScope'
-import { findReusedImportCategory, getCategoryNameKey } from '@/pages/imports/utils/categoryMatching'
+import { checkImportCategoryCreate } from '@/pages/imports/utils/categoryMatching'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import { formatScaledAmount } from './amounts'
 import { isGroupResource } from '@/pages/imports/utils/resourceScope'
@@ -61,6 +58,9 @@ export interface ActualImportAnswers {
   accountById: Map<string, AccountsOverview>
   categoryMappings: Record<string, string>
   categoryCreateKinds: Record<string, ImportCategoryKind>
+
+  /** New categories created under another name, because an existing category holds their own */
+  categoryRenames: Record<string, ImportCategoryRename>
   categoryById: Map<string, Category>
   currencies: Currency[]
 
@@ -129,12 +129,7 @@ export function buildActualImportPayload(journal: ActualJournal, answers: Actual
   const mappedCategories = journal.categories.filter((source) => (
     writtenCategorySources.has(source.id) || answers.budgetCategorySources.has(source.id)
   ))
-  // A spending source with no rows of its own that still writes some holds only a category's payments
-  // to off-budget accounts, shown through their row, so a clash on it is put in that row's terms
-  const paymentOnlySources = new Set(mappedCategories.flatMap((source) => (
-    source.role === 'spending' && source.rowCount === 0 && writtenCategorySources.has(source.id) ? [source.id] : []
-  )))
-  const mappings = buildCategoryMappings(mappedCategories, getCategoryLegSources(journal), paymentOnlySources, answers, addError)
+  const mappings = buildCategoryMappings(mappedCategories, getCategoryLegSources(journal), answers, addError)
   const categories = mappings.filter((mapping) => writtenCategorySources.has(mapping.source))
   const budgetCategoryMappings = mappings.filter((mapping) => answers.budgetCategorySources.has(mapping.source))
 
@@ -237,8 +232,7 @@ function getCategoryLegSources(journal: ActualJournal) {
 function buildCategoryMappings(
   sources: ActualCategorySource[],
   categoryLegSources: ReadonlySet<string>,
-  paymentOnlySources: ReadonlySet<string>,
-  { categoryMappings, categoryCreateKinds, categoryById }: ActualImportAnswers,
+  { categoryMappings, categoryCreateKinds, categoryRenames, categoryById }: ActualImportAnswers,
   addError: (message: string) => void,
 ) {
   const categories: JournalImportPayload['categories'] = []
@@ -274,37 +268,36 @@ function buildCategoryMappings(
       addError(getImportCategoryTypeRequiredError(source.label))
       continue
     }
-    if (source.role === 'transfer' && !canCarryActualTransfer({ kind, name: source.createName })) {
+
+    const rename = categoryRenames[source.id]
+    const name = rename?.name.trim() ?? source.createName
+    if (source.role === 'transfer' && !canCarryActualTransfer({ kind, name })) {
       addError(getActualTransferCategoryError(source.label))
       continue
     }
-    if (categoryLegSources.has(source.id) && kind === 'transfer' && !canCarryActualTransfer({ kind, name: source.createName })) {
-      addError(getActualPaymentCategoryError(source.label, source.createName))
+    if (categoryLegSources.has(source.id) && kind === 'transfer' && !canCarryActualTransfer({ kind, name })) {
+      addError(getActualPaymentCategoryError(source.label, name))
       continue
     }
-    if (source.createName.length > ACTUAL_CATEGORY_NAME_MAX_LENGTH) {
+    if (name.length > ACTUAL_CATEGORY_NAME_MAX_LENGTH) {
       addError(getActualCategoryNameTooLongError(source.label))
       continue
     }
 
-    // A new category reuses one of the same name, capitals folded, and one name records one
-    // direction, so either clash is what the commit would refuse
-    const reused = findReusedImportCategory(source.createName, categoryById.values())
-    if (reused && reused.kind !== kind) {
-      addError(paymentOnlySources.has(source.id)
-        ? getActualPaymentKindClashError(source.label, reused.name, reused.kind, kind)
-        : getCategoryDirectionClashError(source.label, reused.name, reused.kind))
+    const createError = checkImportCategoryCreate({
+      label: source.label,
+      name,
+      isRenamed: rename !== undefined,
+      kind,
+      categoryById,
+      createdByKey,
+    })
+    if (createError) {
+      addError(createError)
       continue
     }
-    const key = getCategoryNameKey(source.createName)
-    const earlier = createdByKey.get(key)
-    if (earlier && earlier.kind !== kind) {
-      addError(getActualCategoryCreateClashError(earlier.label, source.label))
-      continue
-    }
-    createdByKey.set(key, { label: source.label, kind })
 
-    categories.push({ source: source.id, create: { name: source.createName, kind, icon: DEFAULT_CATEGORY_ICON } })
+    categories.push({ source: source.id, create: { name, kind, icon: DEFAULT_CATEGORY_ICON } })
   }
 
   return categories

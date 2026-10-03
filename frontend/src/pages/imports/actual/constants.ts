@@ -1,6 +1,4 @@
 import type { AccountType } from '@/api/accounts'
-import type { Category } from '@/api/categories'
-import type { ImportCategoryKind } from '@/pages/imports/types'
 import type { ImportFileType } from '@/pages/imports/utils/fileIntake'
 import type { ActualPaymentMode } from '@/pages/imports/actual/types'
 
@@ -133,6 +131,10 @@ export const ACTUAL_ACCOUNT_NAME_MAX_LENGTH = 256
 export const ACTUAL_CATEGORY_NAME_MAX_LENGTH = 256
 export const ACTUAL_BUDGET_NAME_MAX_LENGTH = 256
 
+// Marks a new category renamed because an existing one holds its name for another kind, as Actual
+// Budget's users call it
+export const ACTUAL_CATEGORY_RENAME_APP_NAME = 'Actual'
+
 export function getActualCategoryNameTooLongError(label: string) {
   return `Match ${label} to an existing category, since a new category name holds at most ${ACTUAL_CATEGORY_NAME_MAX_LENGTH} characters.`
 }
@@ -174,21 +176,8 @@ export function getActualPaymentsHelp(categoryName: string, isIncome: boolean) {
   return `In Actual, these are payments between a budget account and an off-budget account, like a loan, that you gave the ${categoryName} category. As Transfer, they're imported as transfers between your accounts, which don't count as spending or income. ${asCategory}, and the off-budget account still records them, so its balance stays right.`
 }
 
-// Payments filed in their category would create one under a name another kind already has, which
-// matching one of the right kind or keeping them as transfers settles
-export function getActualPaymentKindClashError(label: string, existingName: string, existingKind: Category['kind'], kind: ImportCategoryKind) {
-  const existing = existingKind === 'expense' ? 'an expense' : existingKind === 'income' ? 'an income' : 'a transfer'
-  const wanted = kind === 'income' ? 'income' : 'spending'
-  const match = kind === 'income' ? 'an income' : 'an expense'
-  return `${existingName} is already ${existing} category, so ${label} can't be imported as ${wanted} under that name. Match it to ${match} category, or switch it to Transfer.`
-}
-
 export function getActualAccountNameTooLongError(label: string) {
   return `Link to an existing account, since a new account name holds at most ${ACTUAL_ACCOUNT_NAME_MAX_LENGTH} characters: ${label}`
-}
-
-export function getActualCategoryCreateClashError(firstLabel: string, secondLabel: string) {
-  return `${firstLabel} and ${secondLabel} would be created as one category, so they need the same type.`
 }
 
 // How many transactions the preview shows before the import

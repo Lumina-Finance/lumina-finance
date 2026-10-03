@@ -51,6 +51,22 @@ export function ImportValueMatchTable({
 
     /** Targets for this row alone, where it can only take some of the shared ones */
     options?: DropdownOption[]
+
+    /**
+     * The name a new target is created under, for a row whose own name is taken, edited where
+     * the source's name would show
+     */
+    rename?: {
+      label: string
+
+      /** Why the row needs another name, behind a warning beside the field */
+      help: string
+      value: string
+
+      /** Flags the field until the user answers, since the import chose the name for them */
+      isProposed: boolean
+      onChange: (value: string) => void
+    }
   }>
   options: DropdownOption[]
   disabled: boolean
@@ -86,14 +102,39 @@ export function ImportValueMatchTable({
             const sourceLabelId = `${labelNamespace}-source-${index}`
             const creating = Boolean(createValue && row.value === createValue && !row.hideCreateBadge)
 
+            // The scrolling box clips a tooltip leaving it, so one opens toward the rows below or above
+            const tooltipPlacement = index < rows.length / 2 ? 'bottom' : 'top'
+
             return (
               <tr key={row.id} className={row.autoFilled || row.detailAutoFilled ? 'import-auto-fill-row' : undefined}>
                 <td className="px-4 py-2 align-middle">
                   <div className="flex min-w-0 items-center gap-2">
-                    <p id={sourceLabelId} className="truncate font-medium" title={row.source}>{row.source}</p>
+                    {row.rename ? (
+                      <>
+                        {/* Names the row for its dropdown, which the field's text would rename as it is typed */}
+                        <span id={sourceLabelId} className="sr-only">{row.source}</span>
+                        <input
+                          type="text"
+                          className={`app-input h-[var(--app-dropdown-height-compact)] min-w-0 flex-1 ${row.rename.isProposed || !row.rename.value.trim() ? 'app-input-error' : ''}`}
+                          aria-label={row.rename.label}
+                          aria-invalid={!row.rename.value.trim()}
+                          maxLength={256}
+                          value={row.rename.value}
+                          onChange={(event) => row.rename?.onChange(event.target.value)}
+                          disabled={disabled}
+                        />
+                        <span className="flex shrink-0">
+                          <IconTooltip label={`Why ${row.source} has a new name`} level="important" placement={tooltipPlacement} widthClassName="w-64">
+                            {row.rename.help}
+                          </IconTooltip>
+                        </span>
+                      </>
+                    ) : (
+                      <p id={sourceLabelId} className="truncate font-medium" title={row.source}>{row.source}</p>
+                    )}
                     {row.sourceHelp && (
                       <span className="flex shrink-0">
-                        <IconTooltip label={row.sourceHelp.label} icon={CircleHelp} widthClassName="w-64">
+                        <IconTooltip label={row.sourceHelp.label} icon={CircleHelp} placement={tooltipPlacement} widthClassName="w-64">
                           {row.sourceHelp.content}
                         </IconTooltip>
                       </span>

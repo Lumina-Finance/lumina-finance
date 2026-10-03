@@ -5,7 +5,6 @@ import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   DEFAULT_CATEGORY_ICON,
-  getCategoryDirectionClashError,
   getImportAccountCurrencyRequiredError,
   getImportAccountMappingError,
   getImportAccountTypeRequiredError,
@@ -19,12 +18,12 @@ import {
   getTooManyMappingsError,
   MAX_IMPORT_MAPPINGS,
 } from '@/pages/imports/constants'
-import type { CsvRow, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
+import type { CsvRow, ImportCategoryKind, ImportCategoryRename, ImportFileDraft } from '@/pages/imports/types'
 import { FIREFLY_ACCOUNT_NAME_MAX_LENGTH, FIREFLY_TYPE_DEPOSIT } from '@/pages/imports/firefly/constants'
 import type { FireflyAccountSources, FireflyImportBuildResult } from '@/pages/imports/firefly/types'
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import { isImportableAccount } from '@/pages/imports/utils/accountScope'
-import { findReusedImportCategory, getCategoryNameKey } from '@/pages/imports/utils/categoryMatching'
+import { checkImportCategoryCreate } from '@/pages/imports/utils/categoryMatching'
 import { isGroupResource } from '@/pages/imports/utils/resourceScope'
 import {
   countCharacters,
@@ -63,6 +62,7 @@ export function buildFireflyImportPayload({
   importedCategories,
   categoryMappings,
   categoryCreateKinds,
+  categoryRenames,
   categoryById,
 }: {
   transactionsFile: ImportFileDraft | null
@@ -80,6 +80,9 @@ export function buildFireflyImportPayload({
   importedCategories: string[]
   categoryMappings: Record<string, string>
   categoryCreateKinds: Record<string, ImportCategoryKind>
+
+  /** New categories created under another name, because an existing category holds their own */
+  categoryRenames: Record<string, ImportCategoryRename>
 
   /** The user's categories, which a new category of the same name is created as */
   categoryById: Map<string, Category>
@@ -182,7 +185,7 @@ export function buildFireflyImportPayload({
   }
 
   const categories: JournalImportPayload['categories'] = []
-  const createdCategoryByKey = new Map<string, { source: string; kind: ImportCategoryKind }>()
+  const createdCategoryByKey = new Map<string, { label: string; kind: ImportCategoryKind }>()
   for (const source of importedCategories) {
     const choice = categoryMappings[source]
     if (!choice) {
@@ -206,27 +209,25 @@ export function buildFireflyImportPayload({
       continue
     }
 
-    // A new category reuses one of the same name, capitals folded, and one name records one
-    // direction, so either clash is what the commit would refuse. Caught here, where the step can
-    // say which category to answer differently
-    const reused = findReusedImportCategory(source, categoryById.values())
-    if (reused && reused.kind !== kind) {
-      addError(getCategoryDirectionClashError(source, reused.name, reused.kind))
+    const rename = categoryRenames[source]
+    const name = rename?.name.trim() ?? source
+    const createError = checkImportCategoryCreate({
+      label: source,
+      name,
+      isRenamed: rename !== undefined,
+      kind,
+      categoryById,
+      createdByKey: createdCategoryByKey,
+    })
+    if (createError) {
+      addError(createError)
       continue
     }
-
-    const key = getCategoryNameKey(source)
-    const earlierCreate = createdCategoryByKey.get(key)
-    if (earlierCreate && earlierCreate.kind !== kind) {
-      addError(getFireflyCategoryCreateClashError(earlierCreate.source, source))
-      continue
-    }
-    createdCategoryByKey.set(key, { source, kind })
 
     categories.push({
       source,
       create: {
-        name: source,
+        name,
         kind,
         icon: DEFAULT_CATEGORY_ICON,
       },
@@ -307,10 +308,6 @@ function buildFireflyImportRows(
   }
 
   return { rows: payloadRows, rowAccountSources, writtenCategorySources }
-}
-
-function getFireflyCategoryCreateClashError(firstSource: string, secondSource: string) {
-  return `${firstSource} and ${secondSource} would be created as one category, so they need the same type.`
 }
 
 function getFireflyAccountNameTooLongError(label: string) {

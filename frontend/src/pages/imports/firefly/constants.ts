@@ -290,3 +290,6 @@ export function getFireflySplitTitleLine(groupTitle: string) {
 
 export const FIREFLY_SAMPLE_PREVIEW_LIMIT = 5
 export const FIREFLY_CSV_PROCESSING_MIN_MS = LOADING_ANIMATION_MIN_MS
+
+// Marks a new category renamed because an existing one holds its name for another kind
+export const FIREFLY_CATEGORY_RENAME_APP_NAME = 'Firefly III'

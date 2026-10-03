@@ -96,6 +96,7 @@ describe('removing the formula escape from Firefly III cells', () => {
     categoryById: new Map(),
     categoryMappings: {},
     categoryCreateKinds: {},
+    categoryRenames: {},
     transferCategory: undefined,
     balanceAdjustmentCategory: undefined,
     currencies: CURRENCIES,

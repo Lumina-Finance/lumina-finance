@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
-import type { ColumnMap, ColumnTarget, ColumnTargetGroup, ImportAmountDirection, ImportCategoryKind } from './types'
+import type { ColumnMap, ColumnTarget, ColumnTargetGroup, ImportAmountDirection, ImportCategoryKind, ImportCategoryRename } from './types'
 import type { ImportDateFormat } from './utils/valueParsers'
 import type { ImportAmountFormat } from './utils/amountFormats'
 
@@ -187,6 +187,36 @@ export function getCategoryDirectionClashError(source: string, existingName: str
   const kind = KIND_LABELS[existingKind]
   const article = existingKind === 'transfer' ? 'a' : 'an'
   return `${existingName} is already ${article} ${kind.toLowerCase()} category, so ${source} cannot be created with another type. Match it to ${existingName}, or set its type to ${kind}.`
+}
+
+/**
+ * The name proposed for a new category whose own name an existing category holds for another kind,
+ * marked with the app the import comes from so the two read apart wherever categories are listed
+ */
+export function getImportCategoryRenameProposal(name: string, appName: string) {
+  return `${name} (${appName})`
+}
+
+/** Names the field holding the name a new category is created under in place of its own */
+export function getImportCategoryRenameLabel(label: string) {
+  return `Name for the new category from ${label}`
+}
+
+/** Says why a new category is proposed under another name than its own */
+export function getImportCategoryRenameHelp({ heldBy, sourceName, kind }: ImportCategoryRename) {
+  const article = (categoryKind: ImportCategoryKind) => (categoryKind === 'transfer' ? 'a' : 'an')
+  const held = KIND_LABELS[heldBy.kind].toLowerCase()
+  const wanted = KIND_LABELS[kind].toLowerCase()
+  return `"${heldBy.name}" is already ${article(heldBy.kind)} ${held} category. If you'd still like to import transactions categorized as "${sourceName}" as ${article(kind)} ${wanted} category, you have to rename it.`
+}
+
+export function getImportCategoryRenameRequiredError(label: string) {
+  return `Enter a name for the new category from ${label}.`
+}
+
+// The commit folds two new categories of one name, capitals aside, into one, which can hold only one kind
+export function getCategoryCreateClashError(firstLabel: string, secondLabel: string) {
+  return `${firstLabel} and ${secondLabel} would be created as one category, so they need the same type.`
 }
 
 // A provider import writes the user's own records, so it links to no group account or category,
