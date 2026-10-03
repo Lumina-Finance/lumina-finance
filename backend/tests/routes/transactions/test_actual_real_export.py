@@ -14,42 +14,19 @@ from zoneinfo import ZoneInfo
 
 from tests.routes.support import _create_user, _get_auth_header
 from tests.routes.support.auth_helpers import SIGNUP_PAYLOAD
+from tests.routes.transactions._import_helpers import _format_manifest_amount, _list_transactions, _open_run
 
 FIXTURE = json.loads(
     (Path(__file__).resolve().parents[2] / "fixtures" / "actual" / "envelope-upload.json").read_text(),
 )
 
 
-def _format_cents(minor_units):
-    """Write CAD minor units the way the manifest writes amounts"""
-    return f"{Decimal(minor_units).scaleb(-2):.2f}"
-
-
-async def _list_transactions(client, headers):
-    """Read every transaction the user has, a page at a time"""
-    transactions = []
-    while True:
-        resp = await client.get(
-            "/transactions",
-            params={"sort_by": "dt", "sort_order": "asc", "limit": 50, "offset": len(transactions)},
-            headers=headers,
-        )
-        page = resp.json()
-        transactions.extend(page)
-        if len(page) < 50:
-            return transactions
-
-
 async def test_a_real_actual_export_imports_to_the_balances_totals_and_budgets_actual_reports(client):
     """Every account's balance, every category's monthly total and every budget's months and spending match Actual Budget."""
     headers = _get_auth_header(await _create_user(client))
 
-    resp = await client.post("/transactions/import/runs", json={
-        "expected_transaction_count": sum(len(batch["rows"]) for batch in FIXTURE["transactions"]),
-        "source": "actual_budget",
-    }, headers=headers)
-    assert resp.status_code == 201, resp.text
-    run_path = f"/transactions/import/runs/{resp.json()['id']}"
+    run_id = await _open_run(client, headers, sum(len(batch["rows"]) for batch in FIXTURE["transactions"]), "actual_budget")
+    run_path = f"/transactions/import/runs/{run_id}"
 
     for batch in FIXTURE["transactions"]:
         resp = await client.post(f"{run_path}/journal/rows", json=batch, headers=headers)
@@ -75,9 +52,9 @@ async def test_a_real_actual_export_imports_to_the_balances_totals_and_budgets_a
         if as_of < transaction["dt"][:10] <= today:
             come_due[account_name_by_id[transaction["account_id"]]] += transaction["amount"]
     assert sorted(
-        (account["name"], _format_cents(account["current_balance"]), account["is_archived"]) for account in accounts
+        (account["name"], _format_manifest_amount(account["current_balance"]), account["is_archived"]) for account in accounts
     ) == sorted(
-        (account["name"], _format_cents(Decimal(account["balance"]).scaleb(2) + come_due[account["name"]]), account["closed"])
+        (account["name"], _format_manifest_amount(Decimal(account["balance"]).scaleb(2) + come_due[account["name"]]), account["closed"])
         for account in expected["accounts"]
     )
 
@@ -96,7 +73,7 @@ async def test_a_real_actual_export_imports_to_the_balances_totals_and_budgets_a
         (
             account_name_by_id[transaction["account_id"]],
             transaction["dt"][:10],
-            _format_cents(transaction["amount"]),
+            _format_manifest_amount(transaction["amount"]),
             categories[transaction["category_id"]],
         )
         for transaction in transactions
@@ -119,7 +96,7 @@ async def test_a_real_actual_export_imports_to_the_balances_totals_and_budgets_a
     for month in expected["categoryMonths"]:
         names = {created_name_by_source[source] for source in month["sources"] if source in created_name_by_source}
         total = sum(totals[(name, month["month"])] for name in names)
-        assert _format_cents(total) == month["total"], (sorted(names), month["month"])
+        assert _format_manifest_amount(total) == month["total"], (sorted(names), month["month"])
 
     # A recurring budget can open a period for a month after the export, so only the imported months compare
     base_budgets = (await client.get("/base-budgets", headers=headers)).json()
@@ -129,7 +106,7 @@ async def test_a_real_actual_export_imports_to_the_balances_totals_and_budgets_a
     for period in (await client.get("/budgets", headers=headers)).json():
         month = period["period_start"][:7]
         if month <= last_month.get(name_by_budget_id[period["base_budget_id"]], month):
-            periods[period["base_budget_id"]].append((month, _format_cents(period["overall_limit"])))
+            periods[period["base_budget_id"]].append((month, _format_manifest_amount(period["overall_limit"])))
     assert {
         budget["name"]: {"archived": budget["is_archived"], "periods": sorted(periods[budget["id"]])}
         for budget in base_budgets
@@ -162,7 +139,7 @@ async def test_a_real_actual_export_imports_to_the_balances_totals_and_budgets_a
             if month >= as_of[:7]:
                 continue
             compared_months += 1
-            assert _format_cents(-utilization["total_spent"]) == totals_by_source.get((source, month), "0.00"), (
+            assert _format_manifest_amount(-utilization["total_spent"]) == totals_by_source.get((source, month), "0.00"), (
                 budget["name"],
                 month,
             )

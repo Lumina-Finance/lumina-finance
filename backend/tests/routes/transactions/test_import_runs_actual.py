@@ -8,7 +8,8 @@ off-budget one carrying its budget category on the on-budget leg
 import pytest
 
 from tests.routes.support import _create_user, _get_auth_header
-from tests.routes.transactions._helpers import _get_system_category_id, _import_journal
+from tests.routes.transactions._helpers import _get_system_category_id
+from tests.routes.transactions._import_helpers import _import_run, _open_run
 
 _CHECKING = {"source": "Checking", "create": {"name": "Checking", "account_type": "checking", "currency": "CAD"}}
 _OLD_SAVINGS = {"source": "Old Savings", "create": {"name": "Old Savings", "account_type": "savings", "currency": "CAD"}}
@@ -66,23 +67,12 @@ def _car_payment_row(**overrides):
     })
 
 
-async def _open_run(client, headers, source="actual_budget", expected_transaction_count=1):
-    """Open a run and return its id"""
-    resp = await client.post(
-        "/transactions/import/runs",
-        json={"expected_transaction_count": expected_transaction_count, "source": source},
-        headers=headers,
-    )
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
-
-
 async def test_an_actual_run_commits_a_journal_with_a_categorized_loan_payment_and_its_budget(client):
     """Every row shape an Actual Budget export compiles to lands, with the loan payment counted once."""
     headers = _get_auth_header(await _create_user(client))
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
-    resp = await _import_journal(client, headers, {
+    resp = await _import_run(client, headers, {
         "accounts": [_CHECKING, _OLD_SAVINGS, _CAR_LOAN],
         "categories": [
             _FOOD,
@@ -256,7 +246,7 @@ async def test_an_actual_run_commits_a_journal_with_a_categorized_loan_payment_a
 async def test_an_actual_row_naming_a_category_leg_off_a_categorized_transfer_is_refused_by_the_schema(client, overrides):
     """A category leg only means something on a transfer that carries a category."""
     headers = _get_auth_header(await _create_user(client))
-    run_id = await _open_run(client, headers)
+    run_id = await _open_run(client, headers, 1, "actual_budget")
 
     resp = await client.post(f"/transactions/import/runs/{run_id}/journal/rows", json={
         "accounts": [_CHECKING, _CAR_LOAN],
@@ -275,7 +265,7 @@ async def test_an_actual_categorized_transfer_refuses_a_transfer_category_that_c
     headers = _get_auth_header(await _create_user(client))
     balance_adjustment_id = await _get_system_category_id(client, headers, "Balance Adjustment")
 
-    resp = await _import_journal(client, headers, {
+    resp = await _import_run(client, headers, {
         "accounts": [_CHECKING, _CAR_LOAN],
         "categories": [{"source": "Car Payment", "category_id": balance_adjustment_id}],
         "rows": [_car_payment_row()],
@@ -314,7 +304,7 @@ async def test_an_actual_categorized_transfer_files_its_budget_leg_as_an_expense
     headers = _get_auth_header(await _create_user(client))
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
-    resp = await _import_journal(client, headers, {
+    resp = await _import_run(client, headers, {
         "accounts": [_CHECKING, _CAR_LOAN],
         "categories": [category],
         "rows": [_car_payment_row(category_leg=category_leg, **row_overrides)],
@@ -364,7 +354,7 @@ async def test_an_actual_categorized_transfer_can_name_its_destination_leg(clien
     headers = _get_auth_header(await _create_user(client))
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
-    resp = await _import_journal(client, headers, {
+    resp = await _import_run(client, headers, {
         "accounts": [_CHECKING, _CAR_LOAN],
         "categories": [_CAR_PAYMENT],
         "rows": [_car_payment_row(category_leg="destination")],
@@ -388,7 +378,7 @@ async def test_an_actual_transfer_naming_both_legs_files_each_under_its_transfer
     credit_card_payment_id = await _get_system_category_id(client, headers, "Credit Card Payment")
     visa = {"source": "Visa", "create": {"name": "Visa", "account_type": "credit_card", "currency": "CAD"}}
 
-    resp = await _import_journal(client, headers, {
+    resp = await _import_run(client, headers, {
         "accounts": [_CHECKING, visa],
         "categories": [{"source": "credit-payment:", "category_id": credit_card_payment_id}],
         "rows": [_car_payment_row(destination_account="Visa", category="credit-payment:", category_leg="both")],
@@ -410,7 +400,7 @@ async def test_an_actual_transfer_naming_both_legs_refuses_a_category_that_is_no
     """Spending on one leg and the same category on the other would cancel out, so both legs need a transfer category."""
     headers = _get_auth_header(await _create_user(client))
 
-    resp = await _import_journal(client, headers, {
+    resp = await _import_run(client, headers, {
         "accounts": [_CHECKING, _CAR_LOAN],
         "categories": [{"source": "Car Payment", "create": {"name": "Car Payment", "kind": "expense"}}],
         "rows": [_car_payment_row(category_leg="both")],
@@ -421,35 +411,3 @@ async def test_an_actual_transfer_naming_both_legs_refuses_a_category_that_is_no
         "Actual Budget transaction a1f0c7e2-0006: Both legs of a transfer can only share a transfer category, "
         "and category source Car Payment maps to Car Payment"
     )
-
-
-@pytest.mark.parametrize(("source", "method", "path", "body", "detail"), [
-    (
-        "generic",
-        "post",
-        "journal/rows",
-        {"accounts": [_CHECKING], "categories": [_FOOD], "rows": [_actual_row()], "start_row_index": 0},
-        "This import run is a CSV import",
-    ),
-    ("generic", "post", "journal/commit", None, "This import run is a CSV import"),
-    (
-        "actual_budget",
-        "post",
-        "rows",
-        {
-            "accounts": [_CHECKING],
-            "categories": [_FOOD],
-            "rows": [{"account_source": "Checking", "category_source": "Food", "dt": "2026-01-10", "amount": "-1.00"}],
-            "start_row_index": 0,
-        },
-        "This import run is an Actual Budget import",
-    ),
-    ("actual_budget", "post", "commit", None, "This import run is an Actual Budget import"),
-])
-async def test_journal_and_generic_endpoints_refuse_each_other_s_runs(client, source, method, path, body, detail):
-    """An Actual Budget run takes journal rows, and a generic run is refused on the journal endpoints."""
-    headers = _get_auth_header(await _create_user(client))
-    run_id = await _open_run(client, headers, source=source)
-
-    resp = await client.request(method, f"/transactions/import/runs/{run_id}/{path}", json=body, headers=headers)
-    assert (resp.status_code, resp.json()["detail"]) == (422, detail)

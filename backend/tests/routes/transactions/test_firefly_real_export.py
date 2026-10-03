@@ -10,12 +10,12 @@ user that run signed up, so this test maps them back to its own user's categorie
 
 import json
 from collections import defaultdict
-from decimal import Decimal
 from pathlib import Path
 
 from app.models.currency import Currency
 from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header
+from tests.routes.transactions._import_helpers import _format_manifest_amount, _list_transactions, _open_run
 
 FIXTURE = json.loads(
     (Path(__file__).resolve().parents[2] / "fixtures" / "firefly" / "real-export-upload.json").read_text(),
@@ -49,27 +49,6 @@ async def _get_category_ids_by_name(client, headers):
     return {category["name"]: category["id"] for category in resp.json()}
 
 
-def _format_minor_units(minor_units, currency):
-    """Write minor units the way the manifest writes amounts"""
-    exponent = CURRENCY_EXPONENTS[currency]
-    return f"{Decimal(minor_units).scaleb(-exponent):.{exponent}f}"
-
-
-async def _list_transactions(client, headers):
-    """Read every transaction the user has, a page at a time"""
-    transactions = []
-    while True:
-        resp = await client.get(
-            "/transactions",
-            params={"sort_by": "dt", "sort_order": "asc", "limit": 50, "offset": len(transactions)},
-            headers=headers,
-        )
-        page = resp.json()
-        transactions.extend(page)
-        if len(page) < 50:
-            return transactions
-
-
 async def test_a_real_firefly_export_imports_to_the_balances_and_totals_firefly_reports(client):
     """Every account's balance and active state, every category's monthly total and every budget's periods match Firefly III."""
     await _seed_currencies()
@@ -90,12 +69,8 @@ async def test_a_real_firefly_export_imports_to_the_balances_and_totals_firefly_
                 categories.append(mapping)
         return categories
 
-    resp = await client.post("/transactions/import/runs", json={
-        "expected_transaction_count": sum(len(batch["rows"]) for batch in FIXTURE["transactions"]),
-        "source": "firefly",
-    }, headers=headers)
-    assert resp.status_code == 201, resp.text
-    run_path = f"/transactions/import/runs/{resp.json()['id']}"
+    run_id = await _open_run(client, headers, sum(len(batch["rows"]) for batch in FIXTURE["transactions"]), "firefly")
+    run_path = f"/transactions/import/runs/{run_id}"
 
     for batch in FIXTURE["transactions"]:
         resp = await client.post(
@@ -128,7 +103,7 @@ async def test_a_real_firefly_export_imports_to_the_balances_and_totals_firefly_
         (
             account["name"],
             account["account_type"] if account["account_type"] in liability_types else "asset",
-            _format_minor_units(account["current_balance"], account["currency"]),
+            _format_manifest_amount(account["current_balance"], CURRENCY_EXPONENTS[account["currency"]]),
             not account["is_archived"],
         )
         for account in accounts
@@ -154,7 +129,7 @@ async def test_a_real_firefly_export_imports_to_the_balances_and_totals_firefly_
         currency = currency_by_account_id[transaction["account_id"]]
         amount = transaction["amount"] if transaction["account_amount"] is None else transaction["account_amount"]
         totals[(category, transaction["dt"][:7], currency)] += amount
-    assert {key: _format_minor_units(total, key[2]) for key, total in totals.items()} == {
+    assert {key: _format_manifest_amount(total, CURRENCY_EXPONENTS[key[2]]) for key, total in totals.items()} == {
         (lumina_category_by_source[month["category"] or NO_CATEGORY_SOURCE], month["month"], month["currency"]): month["total"]
         for month in expected["categoryMonths"]
     }
@@ -166,7 +141,12 @@ async def test_a_real_firefly_export_imports_to_the_balances_and_totals_firefly_
     for period in (await client.get("/budgets", headers=headers)).json():
         currency = currency_by_budget_id[period["base_budget_id"]]
         periods[period["base_budget_id"]].append(
-            (period["period_start"], period["period_end"], _format_minor_units(period["overall_limit"], currency), currency),
+            (
+                period["period_start"],
+                period["period_end"],
+                _format_manifest_amount(period["overall_limit"], CURRENCY_EXPONENTS[currency]),
+                currency,
+            ),
         )
     assert {
         budget["name"]: {
