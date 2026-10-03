@@ -8,33 +8,11 @@ name before a request carrying either shape reaches the route.
 import pytest
 from fastapi import HTTPException
 
-from app.models.currency import Currency
-from app.models.user import User
 from app.schemas.transaction import TransactionImportAccountMapping
 from app.services.importers.shared.accounts import resolve_import_account_sources
 from app.services.importers.shared.stats import ImportStats
 from tests.conftest import TestSession
-
-
-async def _seed_user(session) -> User:
-    """Insert the user the account sources resolve for
-
-    Args:
-        session: Database session the test runs in
-
-    Returns:
-        The seeded user
-    """
-    session.add(Currency(id="CAD", name="Canadian Dollar", symbol="$", minor_unit_exponent=2))
-    user = User(
-        email="account-sources-import@example.com",
-        first_name="Import",
-        tz="America/Toronto",
-        base_currency="CAD",
-    )
-    session.add(user)
-    await session.flush()
-    return user
+from tests.services.importers._helpers import _seed_user
 
 
 async def test_naming_one_source_twice_as_outside_money_is_refused_as_a_duplicate():

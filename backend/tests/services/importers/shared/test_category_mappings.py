@@ -12,8 +12,6 @@ from fastapi import HTTPException
 
 from app.models.base import CategoryKind
 from app.models.category import Category
-from app.models.currency import Currency
-from app.models.user import User
 from app.schemas.transaction import TransactionImportCategoryMapping
 from app.services.importers.shared.categories import (
     get_or_create_import_categories_by_source,
@@ -22,27 +20,7 @@ from app.services.importers.shared.categories import (
 )
 from app.services.importers.shared.stats import ImportStats
 from tests.conftest import TestSession
-
-
-async def _seed_user(session) -> User:
-    """Insert the user the category sources resolve for
-
-    Args:
-        session: Database session the test runs in
-
-    Returns:
-        The seeded user
-    """
-    session.add(Currency(id="CAD", name="Canadian Dollar", symbol="$", minor_unit_exponent=2))
-    user = User(
-        email="category-mappings-import@example.com",
-        first_name="Import",
-        tz="America/Toronto",
-        base_currency="CAD",
-    )
-    session.add(user)
-    await session.flush()
-    return user
+from tests.services.importers._helpers import _seed_user
 
 
 async def test_naming_one_source_twice_is_refused_once_the_first_mapping_has_resolved():

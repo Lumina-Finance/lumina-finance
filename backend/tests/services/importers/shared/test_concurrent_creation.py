@@ -20,7 +20,6 @@ from sqlalchemy import literal_column, select, text
 
 from app.models.base import CategoryKind
 from app.models.category import Category
-from app.models.currency import Currency
 from app.models.merchant import Merchant
 from app.models.tag import Tag
 from app.models.user import User
@@ -32,6 +31,7 @@ from app.services.importers.shared.merchants import (
 from app.services.importers.shared.stats import ImportStats
 from app.services.importers.shared.tags import create_missing_import_tags
 from tests.conftest import TestSession
+from tests.services.importers._helpers import _seed_user
 
 _CATEGORY_CONFLICT = {
     "index_elements": [Category.owner_id, literal_column("lower(name)")],
@@ -47,31 +47,10 @@ _TAG_CONFLICT = {
 }
 
 
-async def _seed_user(session) -> uuid.UUID:
-    """Insert the user the records belong to
-
-    Args:
-        session: Database session the test runs in
-
-    Returns:
-        Identifier of the user
-    """
-    session.add(Currency(id="CAD", name="Canadian Dollar", symbol="$", minor_unit_exponent=2))
-    user = User(
-        email="concurrent-import@example.com",
-        first_name="Concurrent",
-        tz="America/Toronto",
-        base_currency="CAD",
-    )
-    session.add(user)
-    await session.flush()
-    return user.id
-
-
 async def test_a_category_of_that_name_already_written_is_skipped_by_the_insert():
     """The second insert writes nothing rather than breaking the unique index and the transaction."""
     async with TestSession() as session:
-        user_id = await _seed_user(session)
+        user_id = (await _seed_user(session)).id
         values = [{"owner_id": user_id, "group_id": None, "name": "Bonus", "kind": CategoryKind.INCOME}]
 
         first = await insert_import_records_if_absent(session, Category, values, **_CATEGORY_CONFLICT)
@@ -89,7 +68,7 @@ async def test_a_category_of_that_name_already_written_is_skipped_by_the_insert(
 async def test_a_category_spelled_differently_is_skipped_by_the_insert_too():
     """The insert skips on the same rule the routes compare by, not on the name as spelled."""
     async with TestSession() as session:
-        user_id = await _seed_user(session)
+        user_id = (await _seed_user(session)).id
 
         await insert_import_records_if_absent(
             session,
@@ -110,7 +89,7 @@ async def test_a_category_spelled_differently_is_skipped_by_the_insert_too():
 async def test_only_the_merchants_not_already_there_are_written():
     """One insert carries every new merchant, and the ones another request wrote are left alone."""
     async with TestSession() as session:
-        user_id = await _seed_user(session)
+        user_id = (await _seed_user(session)).id
         await insert_import_records_if_absent(
             session,
             Merchant,
@@ -134,7 +113,7 @@ async def test_only_the_merchants_not_already_there_are_written():
 async def test_a_merchant_written_after_the_lookup_is_reused_rather_than_failing_the_import():
     """A lookup taken before another request committed is what a race leaves this holding."""
     async with TestSession() as session:
-        user_id = await _seed_user(session)
+        user_id = (await _seed_user(session)).id
         existing = (await insert_import_records_if_absent(
             session,
             Merchant,
@@ -157,7 +136,7 @@ async def test_a_merchant_written_after_the_lookup_is_reused_rather_than_failing
 async def test_a_tag_written_after_the_lookup_is_reused_rather_than_failing_the_import():
     """Tags carry the same insert, so two imports both introducing one name do not fail either."""
     async with TestSession() as session:
-        user_id = await _seed_user(session)
+        user_id = (await _seed_user(session)).id
         existing = (await insert_import_records_if_absent(
             session,
             Tag,
@@ -178,7 +157,7 @@ async def test_a_tag_written_after_the_lookup_is_reused_rather_than_failing_the_
 async def test_another_users_merchant_does_not_block_writing_your_own():
     """The insert skips only within the scope its index covers, so one user's names bound nobody else."""
     async with TestSession() as session:
-        user_id = await _seed_user(session)
+        user_id = (await _seed_user(session)).id
         other_user_id = await _seed_other_user(session)
 
         # Owned by somebody else, so the insert skips nothing and the row is invisible to this user.
