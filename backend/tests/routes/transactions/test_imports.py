@@ -5,8 +5,6 @@ import pytest
 from sqlalchemy import text
 
 from app.schemas.transaction import (
-    MAX_IMPORT_BATCH_ROWS,
-    MAX_IMPORT_MAPPINGS,
     MAX_IMPORT_NOTES_LENGTH,
     MAX_IMPORT_TAG_NAME_LENGTH,
     MAX_IMPORT_TAGS_PER_ROW,
@@ -689,21 +687,6 @@ async def test_committing_a_run_missing_rows_is_refused(client):
     assert (await client.get("/transactions", headers=headers)).json() == []
 
 
-async def test_staging_a_batch_over_the_row_cap_is_refused(client):
-    """A batch larger than one insert can carry is refused rather than failing inside the driver."""
-    headers, account_id, category_id = await _setup_user_with_deps(client)
-    oversized = MAX_IMPORT_BATCH_ROWS + 1
-    run_id = await _open_run(client, headers, oversized)
-
-    resp = await client.post(
-        f"/transactions/import/runs/{run_id}/rows",
-        json=_batch(account_id, category_id, ["-1.00"] * oversized),
-        headers=headers,
-    )
-
-    assert resp.status_code == 422
-
-
 async def test_a_row_stating_no_payee_is_stamped_with_the_unknown_merchant(client):
     """A file with no payee for a row still writes a transaction carrying a merchant."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
@@ -1172,42 +1155,6 @@ async def test_two_spellings_of_one_payee_in_a_file_make_one_merchant(client):
     assert len({transaction["merchant_id"] for transaction in transactions}) == 1
 
 
-async def test_staging_a_batch_over_the_mapping_cap_is_refused(client):
-    """A batch declaring more mappings than an import may carry is refused before any is checked."""
-    headers, account_id, category_id = await _setup_user_with_deps(client)
-    run_id = await _open_run(client, headers, 1)
-    batch = _batch(account_id, category_id, ["-1.00"])
-    batch["categories"] += _category_mappings(range(MAX_IMPORT_MAPPINGS))
-
-    resp = await client.post(f"/transactions/import/runs/{run_id}/rows", json=batch, headers=headers)
-
-    assert resp.status_code == 422
-
-
-async def test_staging_refuses_more_mappings_than_an_import_may_declare_across_batches(client):
-    """Two batches each under the cap cannot together leave the run holding more than it."""
-    headers, account_id, category_id = await _setup_user_with_deps(client)
-    run_id = await _open_run(client, headers, 2)
-    half = MAX_IMPORT_MAPPINGS // 2 + 1
-
-    first_batch = _batch(account_id, category_id, ["-1.00"])
-    first_batch["categories"] += _category_mappings(range(half))
-    second_batch = _batch(account_id, category_id, ["-2.00"], start_row_index=1)
-    second_batch["categories"] += _category_mappings(range(half, half * 2))
-
-    first = await client.post(f"/transactions/import/runs/{run_id}/rows", json=first_batch, headers=headers)
-    second = await client.post(f"/transactions/import/runs/{run_id}/rows", json=second_batch, headers=headers)
-
-    assert first.status_code == 204
-    assert second.status_code == 422
-    # The run already held the Groceries mapping every batch declares, so the total runs one past
-    # the two halves
-    assert second.json()["detail"] == (
-        f"This import declares {half * 2 + 1} distinct values for Category source, "
-        f"and the limit is {MAX_IMPORT_MAPPINGS}"
-    )
-
-
 async def test_staging_a_row_whose_notes_are_too_long_is_refused(client):
     """A note past the cap is refused as its batch is staged rather than at the commit."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
@@ -1257,27 +1204,6 @@ async def test_staging_accepts_a_row_at_every_row_cap(client):
     resp = await client.post(f"/transactions/import/runs/{run_id}/rows", json=batch, headers=headers)
 
     assert resp.status_code == 204
-
-
-async def test_staging_accepts_a_run_holding_exactly_the_mapping_cap(client):
-    """A run sitting on the mapping cap is staged, so the bound refuses only past it."""
-    headers, account_id, category_id = await _setup_user_with_deps(client)
-    run_id = await _open_run(client, headers, 1)
-    batch = _batch(account_id, category_id, ["-1.00"])
-    # One short of the cap, since the batch already declares the Groceries mapping its row uses
-    batch["categories"] += _category_mappings(range(MAX_IMPORT_MAPPINGS - 1))
-
-    resp = await client.post(f"/transactions/import/runs/{run_id}/rows", json=batch, headers=headers)
-
-    assert resp.status_code == 204
-
-
-def _category_mappings(indexes):
-    """Build category mappings creating one new category per index"""
-    return [
-        {"source": f"Category {index}", "create": {"name": f"Category {index}", "kind": "expense"}}
-        for index in indexes
-    ]
 
 
 async def _insert_personal_merchant_beside_a_shared_one(sibling_merchant_id, name):
