@@ -1,21 +1,26 @@
 /**
  * Covers the limits a staged batch is built against, so a batch the API would refuse is never sent
  *
- * The row count and the mapping count are both capped by the API. A batch closed on bytes alone
- * would pass the byte budget and fail the request, and re-batching the same payload would build the
- * same batch, so the upload could not recover
+ * The request size, the row count and the mapping count are all capped by the API. A batch closed
+ * on bytes alone would pass the byte budget and fail the request, and re-batching the same payload
+ * would build the same batch, so the upload could not recover
  */
 import { describe, expect, it } from 'vitest';
 
 import {
+  MAX_IMPORT_BATCH_BYTES,
   MAX_IMPORT_BATCH_MAPPINGS,
   MAX_IMPORT_BATCH_ROWS,
+  getJsonByteSize,
 } from '@/api/shared/importBatchSize';
 import { buildStagedImportBatches } from '@/api/transaction-imports';
 import type {
   TransactionImportPayload,
   TransactionImportRow,
 } from '@/api/transaction-imports';
+
+// Notes long enough that a few dozen rows fill a batch's byte budget, far below any other limit
+const LONG_NOTES = 'x'.repeat(10_000);
 
 /**
  * Builds one row, optionally against a category source of its own
@@ -117,5 +122,29 @@ describe('the limits a staged batch is built against', () => {
       expectedIndex += batch.rows.length;
     }
     expect(expectedIndex).toBe(sources.length);
+  });
+
+  it('closes a batch before its request grows past the byte budget', async () => {
+    const payload: TransactionImportPayload = {
+      ...buildPayload(['G']),
+      rows: Array.from({ length: 200 }, (_, index) => ({ ...buildRow(), notes: `${index} ${LONG_NOTES}` })),
+    };
+
+    const batches = await buildStagedImportBatches(payload);
+
+    expect(batches.length).toBeGreaterThan(1);
+    for (const batch of batches) {
+      expect(getJsonByteSize(batch)).toBeLessThanOrEqual(MAX_IMPORT_BATCH_BYTES);
+    }
+    expect(batches.flatMap((batch) => batch.rows)).toEqual(payload.rows);
+  });
+
+  it('refuses a single row too large to upload rather than sending it', async () => {
+    const payload: TransactionImportPayload = {
+      ...buildPayload(['G']),
+      rows: [{ ...buildRow(), notes: 'x'.repeat(MAX_IMPORT_BATCH_BYTES) }],
+    };
+
+    await expect(buildStagedImportBatches(payload)).rejects.toThrow(/too large to upload/);
   });
 });
