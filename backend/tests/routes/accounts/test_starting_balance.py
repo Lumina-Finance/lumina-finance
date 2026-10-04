@@ -31,6 +31,7 @@ from tests.routes.support import (
 USER_TZ = "America/Toronto"
 
 ALREADY_HAS_TRANSACTIONS = "This account already has transactions, so a starting balance can't be recorded"
+NOT_OWN_ACCOUNT = "Starting balances can only be recorded on your own accounts"
 
 
 async def _account_transactions(account_id: str):
@@ -200,8 +201,8 @@ async def test_record_starting_balance_on_another_users_account_returns_404(clie
     assert await _account_transactions(account_id) == []
 
 
-async def test_record_starting_balance_on_a_group_account_returns_404_to_its_admin(client):
-    """Grouped resources are left out of the new flow, so even the group's admin finds no account."""
+async def test_record_starting_balance_on_a_group_account_returns_403_to_its_admin(client):
+    """Grouped resources are left out of the new flow, so even the group's admin is told it isn't theirs."""
     headers = _get_auth_header(await _create_user(client))
     group_id = await _create_group(client, headers)
     account_id = (await _create_account(client, headers, group_id=group_id)).json()["id"]
@@ -210,13 +211,13 @@ async def test_record_starting_balance_on_a_group_account_returns_404_to_its_adm
     assert (await client.patch(f"/accounts/{account_id}", json={"name": "Shared"}, headers=headers)).status_code == 200
     resp = await _record_starting_balance(client, headers, account_id, 100_00)
 
-    assert resp.status_code == 404
-    assert resp.json()["detail"] == "Account not found"
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == NOT_OWN_ACCOUNT
     assert await _account_transactions(account_id) == []
 
 
-async def test_record_starting_balance_on_an_account_shared_through_a_grant_returns_404(client):
-    """A member holding an admin grant on someone else's account finds no account to record on."""
+async def test_record_starting_balance_on_an_account_shared_through_a_grant_returns_403(client):
+    """A member holding an admin grant on someone else's account is told it isn't theirs."""
     owner_headers = _get_auth_header(await _create_user(client))
     member_resp = await _create_second_user(client)
     member_headers = _get_auth_header(member_resp)
@@ -233,8 +234,8 @@ async def test_record_starting_balance_on_an_account_shared_through_a_grant_retu
     assert edited.status_code == 200
     resp = await _record_starting_balance(client, member_headers, account_id, 100_00)
 
-    assert resp.status_code == 404
-    assert resp.json()["detail"] == "Account not found"
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == NOT_OWN_ACCOUNT
     assert await _account_transactions(account_id) == []
 
 

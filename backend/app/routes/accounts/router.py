@@ -184,8 +184,8 @@ async def record_starting_balance(
         Account with derived balance fields
 
     Raises:
-        HTTPException: The account isn't the user's own personal account or already has
-            transactions, or the stored timezone does not resolve
+        HTTPException: The account isn't visible to the user, isn't their own personal account or
+            already has transactions, or the stored timezone does not resolve
     """
     today = datetime.now(resolve_timezone(user.tz)).date()
     account = await record_starting_balance_for_user(db, account_id, data, user, today)
