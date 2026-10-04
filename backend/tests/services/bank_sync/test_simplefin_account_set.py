@@ -1,8 +1,9 @@
 """SimpleFIN account set reading tests
 
-Guards how recorded SimpleFIN Bridge responses become records bound for the ledger: a wrong date
-moves a transaction across the import boundary, and a rounded amount silently changes the user's
-money
+Guards how SimpleFIN Bridge responses become records bound for the ledger: a wrong date moves a
+transaction across the import boundary, and a rounded amount silently changes the user's money.
+The sample response is written by hand from the protocol, plus the Bridge's undocumented payee and
+memo, and its conventions are assumed until checked against real Bridge data
 """
 
 import json
@@ -23,13 +24,13 @@ from app.services.bank_sync.providers.simplefin.account_set import (
 _FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "simplefin"
 _EXPONENTS = {"USD": 2, "JPY": 0, "BHD": 3}
 
-# The day the recorded response was requested, after every stamp in it, so a record dated by the
-# request can't pass for one dated by its stamp
+# The day the sample response stands as requested on, after every stamp in it, so a record dated
+# by the request can't pass for one dated by its stamp
 _REQUESTED_ON = date(2026, 10, 6)
 
 
 def _accounts(timezone: str = "America/Los_Angeles") -> dict[str, ExternalAccount]:
-    """Read the recorded accounts response for a user in the timezone, by account id"""
+    """Read the sample accounts response for a user in the timezone, by account id"""
     account_set = read_account_set((_FIXTURES / "accounts.json").read_bytes())
     dating = RecordDating(timezone=ZoneInfo(timezone), requested_on=_REQUESTED_ON)
     accounts = read_external_accounts(account_set, currency_exponents=_EXPONENTS, dating=dating)
@@ -37,7 +38,7 @@ def _accounts(timezone: str = "America/Los_Angeles") -> dict[str, ExternalAccoun
 
 
 def _records(timezone: str = "America/Los_Angeles") -> dict[str, ProviderRecord]:
-    """Read every record in the recorded accounts response, by transaction id"""
+    """Read every record in the sample accounts response, by transaction id"""
     return {record.external_id: record for account in _accounts(timezone).values() for record in account.records}
 
 
