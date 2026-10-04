@@ -43,23 +43,15 @@ async def record_account_starting_balance(
 
     Args:
         db: Active database session
-        account: Account receiving the starting balance, already checked for access
+        account: The user's own personal account, which receives the starting balance
         user_id: User recording the starting balance
         amount: Starting balance in minor units, above zero
         adjustment_date: The user's today, which dates the adjustment
 
     Raises:
-        HTTPException: The account is a group account, already has transactions, the amount is outside the
-            range an account balance can hold, or the Balance Adjustment category or the Myself merchant is
-            not configured
+        HTTPException: The account already has transactions, the amount is outside the range an account
+            balance can hold, or the Balance Adjustment category or the Myself merchant is not configured
     """
-    # Group accounts are left out, as every new flow leaves them out until grouped resources are built
-    if account.group_id is not None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="A starting balance can only be recorded on a personal account",
-        )
-
     # The row lock conflicts with the key share lock a transaction insert takes on its account
     await db.execute(select(Account.id).where(Account.id == account.id).with_for_update())
     first_transaction_id = await db.scalar(

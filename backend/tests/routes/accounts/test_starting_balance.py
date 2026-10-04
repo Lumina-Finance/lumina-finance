@@ -13,7 +13,12 @@ from app.models.category import Category
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
 from tests.routes.accounts._account_helpers import _create_second_user, _created_at_in_tz, _FixedClock
-from tests.routes.accounts._balance_snapshot_helpers import _create_category, _create_group, _create_transaction
+from tests.routes.accounts._balance_snapshot_helpers import (
+    _create_category,
+    _create_group,
+    _create_transaction,
+    _grant_account_permission,
+)
 from tests.routes.support import (
     _create_account,
     _create_user,
@@ -138,16 +143,41 @@ async def test_record_starting_balance_on_another_users_account_returns_404(clie
     assert await _account_transactions(account_id) == []
 
 
-async def test_record_starting_balance_refuses_a_group_account(client):
-    """A group account is left out of the new flow, even for the group's admin."""
+async def test_record_starting_balance_on_a_group_account_returns_404_to_its_admin(client):
+    """Grouped resources are left out of the new flow, so even the group's admin finds no account."""
     headers = _get_auth_header(await _create_user(client))
     group_id = await _create_group(client, headers)
     account_id = (await _create_account(client, headers, group_id=group_id)).json()["id"]
 
+    # The admin can edit the account, so only the ownership rule refuses the starting balance
+    assert (await client.patch(f"/accounts/{account_id}", json={"name": "Shared"}, headers=headers)).status_code == 200
     resp = await _record_starting_balance(client, headers, account_id, 100_00)
 
-    assert resp.status_code == 422
-    assert resp.json()["detail"] == "A starting balance can only be recorded on a personal account"
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Account not found"
+    assert await _account_transactions(account_id) == []
+
+
+async def test_record_starting_balance_on_an_account_shared_through_a_grant_returns_404(client):
+    """A member holding an admin grant on someone else's account finds no account to record on."""
+    owner_headers = _get_auth_header(await _create_user(client))
+    member_resp = await _create_second_user(client)
+    member_headers = _get_auth_header(member_resp)
+    member_id = member_resp.json()["user"]["id"]
+    group_id = await _create_group(client, owner_headers)
+    added = await client.post(f"/groups/{group_id}/members", json={"user_id": member_id}, headers=owner_headers)
+    assert added.status_code == 201
+    account_id = (await _create_account(client, owner_headers, group_id=group_id)).json()["id"]
+    granted = await _grant_account_permission(client, owner_headers, account_id, member_id, "admin")
+    assert granted.status_code == 201
+
+    # The grant lets the member edit the account, so only the ownership rule refuses the starting balance
+    edited = await client.patch(f"/accounts/{account_id}", json={"name": "Shared"}, headers=member_headers)
+    assert edited.status_code == 200
+    resp = await _record_starting_balance(client, member_headers, account_id, 100_00)
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Account not found"
     assert await _account_transactions(account_id) == []
 
 
