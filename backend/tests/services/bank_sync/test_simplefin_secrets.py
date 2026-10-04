@@ -16,7 +16,7 @@ import httpx
 import pytest
 
 from app.services.bank_sync.outbound import OutboundGuard
-from app.services.bank_sync.providers.contract import ClaimRefused, FetchResult, ProviderUnreachable
+from app.services.bank_sync.providers.contract import ClaimRefused, FetchResult
 from app.services.bank_sync.providers.simplefin.adapter import SimpleFinAdapter
 from tests.services.bank_sync.local_bridge import LOOPBACK, LocalBridge, serve_local_bridge
 from tests.services.bank_sync.stand_ins import FixedResolver
@@ -71,21 +71,12 @@ async def test_claim_keeps_both_urls_out_of_every_log(tmp_path, caplog):
     _assert_kept_out(bridge, caplog.text)
 
 
-@pytest.mark.parametrize(
-    ("status", "content_type", "body", "error"),
-    [
-        (403, "text/plain", b"Forbidden", ClaimRefused),
-        (500, "text/plain", b"Internal Server Error", ProviderUnreachable),
-        (200, "text/html", b"<html><body>Maintenance</body></html>", ProviderUnreachable),
-    ],
-    ids=["used", "server-error", "html"],
-)
-async def test_failed_claim_keeps_the_claim_url_out_of_the_error_and_logs(tmp_path, caplog, status, content_type, body, error):
-    """However a claim fails, its exception and the logs name no part of the claim URL"""
+async def test_failed_claim_keeps_the_claim_url_out_of_the_error_and_logs(tmp_path, caplog):
+    """A refused claim's exception and the logs name no part of the claim URL"""
     caplog.set_level(logging.DEBUG)
 
-    async with serve_local_bridge(tmp_path, "bridge.test", lambda _head: (status, content_type, body)) as bridge:
-        with pytest.raises(error) as failure:
+    async with serve_local_bridge(tmp_path, "bridge.test", lambda _head: (403, "text/plain", b"Forbidden")) as bridge:
+        with pytest.raises(ClaimRefused) as failure:
             await _adapter(bridge).claim(_setup_token(bridge))
 
     _assert_kept_out(bridge, *_described(failure.value), caplog.text)

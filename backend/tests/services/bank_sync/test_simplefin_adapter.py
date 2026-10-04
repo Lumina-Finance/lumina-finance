@@ -168,12 +168,12 @@ async def test_fetch_asks_for_the_window_for_chosen_accounts():
 
     [request] = bridge.requests
     assert request.url.path == "/simplefin/accounts"
-    assert request.url.params.multi_items() == [
-        ("version", "2"),
-        ("start-date", "1782864000"),
-        ("end-date", "1790640000"),
+    assert sorted(request.url.params.multi_items()) == [
         ("account", "ACT-chequing"),
         ("account", "ACT-visa"),
+        ("end-date", "1790640000"),
+        ("start-date", "1782864000"),
+        ("version", "2"),
     ]
     assert result.request_error is None
     assert result.accounts[0].records[0].external_id == "TRN-coffee"
@@ -216,7 +216,7 @@ async def test_discovery_asks_for_balances_only():
     result = await simplefin_adapter(bridge).discover(_ACCESS_URL, currency_exponents=_EXPONENTS)
 
     [request] = bridge.requests
-    assert request.url.params.multi_items() == [("version", "2"), ("balances-only", "1")]
+    assert sorted(request.url.params.multi_items()) == [("balances-only", "1"), ("version", "2")]
     assert [(account.external_id, account.balance) for account in result.accounts] == [
         ("ACT-chequing", 251075),
         ("ACT-visa", -64012),

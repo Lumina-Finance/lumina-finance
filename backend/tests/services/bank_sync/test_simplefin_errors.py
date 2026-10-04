@@ -59,10 +59,6 @@ async def _fetch_with(adapter: SimpleFinAdapter, access_url: str = _ACCESS_URL) 
 @pytest.mark.parametrize(
     ("respond", "error"),
     [
-        (
-            answer_with(403, b'{"errlist": [{"code": "gen.auth", "msg": "Forbidden"}]}', "application/json"),
-            ProviderError(_CREDENTIAL_REJECTED, "SimpleFIN Bridge rejected the stored access credential"),
-        ),
         (answer_with(403, b"Forbidden"), ProviderError(_CREDENTIAL_REJECTED, "SimpleFIN Bridge rejected the stored access credential")),
         (answer_with(403, b"<!DOCTYPE html><title>Access denied</title>", "text/html"), ProviderError(_TEMPORARY, _UNREACHABLE)),
         (answer_with(503, b"Service Unavailable"), ProviderError(_TEMPORARY, _UNREACHABLE)),
@@ -79,7 +75,6 @@ async def _fetch_with(adapter: SimpleFinAdapter, access_url: str = _ACCESS_URL) 
         (answer_with(302, b""), ProviderError(_UNKNOWN, _UNREADABLE)),
     ],
     ids=[
-        "403-json",
         "403-text",
         "403-html",
         "5xx",

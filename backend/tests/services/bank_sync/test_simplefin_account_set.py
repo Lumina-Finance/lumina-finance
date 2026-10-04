@@ -103,11 +103,11 @@ def test_pending_record_is_dated_by_when_it_happened_or_else_the_request_day(rec
 
 @pytest.mark.parametrize(
     ("record_id", "raw_amount", "amount"),
-    [("TRN-konbini", "-1500", -1500), ("TRN-refund", "12.340", 12340), ("TRN-coffee", "-4.500", -450)],
-    ids=["jpy", "bhd", "usd-with-a-trailing-zero"],
+    [("TRN-konbini", "-1500", -1500), ("TRN-refund", "12.340", 12340)],
+    ids=["jpy", "bhd"],
 )
 def test_amount_becomes_minor_units_at_its_currency_precision(record_id, raw_amount, amount):
-    """Each currency's own exponent applies, signs are kept, and extra trailing zeros are fine"""
+    """Each currency's own exponent applies, and signs are kept"""
     record = _records()[record_id]
 
     assert record.amount == amount

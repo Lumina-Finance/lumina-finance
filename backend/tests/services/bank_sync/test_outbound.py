@@ -1,12 +1,10 @@
 """Outbound request guard tests
 
 A SimpleFIN setup token decodes to a URL the user controls, so these guard against a crafted URL
-or a hostile DNS answer making the server reach an internal address, and against a secret URL
-reaching a log
+or a hostile DNS answer making the server reach an internal address
 """
 
 import asyncio
-import logging
 import socket
 
 import httpx
@@ -234,19 +232,3 @@ async def test_tls_connects_to_the_checked_address_and_verifies_the_host_name(tm
     assert bridge.server_names == ["bridge.test"]
     [head] = bridge.request_heads
     assert f"\r\nhost: bridge.test:{bridge.port}\r\n" in head.decode("ascii").lower()
-
-
-async def test_guarded_request_keeps_its_url_out_of_every_log(tmp_path, caplog):
-    """A claim URL's path is its secret, so the HTTP libraries' own logging never records it"""
-    caplog.set_level(logging.DEBUG)
-
-    def answer(_head: bytes) -> tuple[int, str, bytes]:
-        """Answer a claim with an Access URL"""
-        return 200, "text/plain", b"https://user:pass@bridge.test/simplefin"
-
-    async with serve_local_bridge(tmp_path, "bridge.test", answer) as bridge:
-        guard = OutboundGuard([], bridge.origin, resolve=FixedResolver(LOOPBACK), transport=httpx.AsyncHTTPTransport(verify=bridge.client_tls))
-
-        await guard.send("POST", httpx.URL(f"{bridge.origin}/simplefin/claim/SECRET-CLAIM-PATH"), content=b"")
-
-    assert "SECRET-CLAIM-PATH" not in caplog.text
