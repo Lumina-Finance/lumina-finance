@@ -288,6 +288,12 @@ export type BankLink = {
   /** The next automatic attempt, null while an action is needed or the account is paused */
   next_attempt_at: string | null;
   waiting_on_budget: boolean;
+
+  /**
+   * True while a job syncs the link, and for Sync now from the moment the request is accepted until
+   * its job finishes, queued included, so the Sync now response already carries it and the status
+   * never falls back to the last sync while the job waits its turn
+   */
   sync_in_progress: boolean;
   action_needed: BankActionNeeded | null;
 

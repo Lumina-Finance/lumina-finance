@@ -10,31 +10,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { transactionKeys } from '@/api/cache/queryKeys';
 import { replaceCachedTransaction } from '@/api/cache/updates/transactions';
 import type { Transaction } from '@/api/transactions/types';
+import { createBankTransaction } from './fixtures';
 
-const waiting: Transaction = {
-  id: 'bank-expense', created_by_user_id: 'test-user', account_id: 'account-1',
-  dt: '2026-09-29', merchant_id: 'merchant', merchant_name: 'Test merchant',
-  category_id: 'expense', amount: -1250, account_amount: null, base_currency_amount: null,
-  currency: 'CAD', fx_rate: null, notes: null,
-  counterparty_account_id: null, counterparty_account_scope: null,
-  created_at: '2026-09-30T12:00:00Z', updated_at: '2026-09-30T12:00:00Z', tag_ids: [], tags: [],
-  bank_source: {
-    provider: 'simplefin',
-    provider_name: 'SimpleFIN',
-    bank_values: {
-      date: '2026-09-29',
-      amount: -1250,
-      raw_amount: null,
-      description: 'Coffee',
-      merchant_name: null,
-      category_hint: null,
-    },
-    edited_fields: [],
-    review_item_id: 'item-1',
-  },
-};
-const kept: Transaction = { ...waiting, bank_source: { ...waiting.bank_source!, review_item_id: null } };
-const other: Transaction = { ...waiting, id: 'hand-entered', bank_source: null };
+const waiting = createBankTransaction('bank-expense', 'item-1');
+const kept = createBankTransaction('bank-expense');
+const other: Transaction = { ...createBankTransaction('hand-entered'), bank_source: null };
 
 let queryClient: QueryClient;
 

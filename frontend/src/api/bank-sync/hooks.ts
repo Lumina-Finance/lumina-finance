@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BANK_DISCOVERY_POLL_MS } from '@/api/bank-sync/constants';
-import { getBankLinksPollInterval } from '@/api/bank-sync/polling';
+import { getBankLinksPollInterval, getBankLinksStaleTime, isRefusedRead } from '@/api/bank-sync/polling';
 import {
   acceptOpeningAdjustment,
   addReviewItem,
@@ -44,6 +44,7 @@ import {
   applyRestoredBankValue,
   applyReviewDecision,
   refreshBankLinkState,
+  replaceCachedBankLink,
 } from '@/api/cache/updates/bankSync';
 import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
 import { useAuth } from '@/hooks/useAuth';
@@ -55,6 +56,9 @@ const LEDGER_WRITING_RESOLUTIONS: ReadonlySet<ReviewResolution> = new Set(['acce
 // Bank data changes outside any request this window makes, so a screen that opens reads it again
 // rather than trusting a copy the worker may have moved on from
 const BANK_DATA_STALE_TIME_MS = 0;
+
+// The app's own default, kept for a link read that failed on the way rather than being refused
+const LINKS_READ_RETRIES = 1;
 
 export function useBankProviders() {
   const { accessToken } = useAuth();
@@ -100,7 +104,11 @@ export function useDiscoveredBankAccounts(connectionId: string | null, accountId
  * Reads every link with its status
  *
  * Only the heartbeat in the signed-in shell polls, so the list is read on one timer however many
- * screens show it. Every other reader takes what that timer keeps current
+ * screens show it. Every other reader takes what that timer keeps current, since the list stays
+ * fresh until the next poll would read it
+ *
+ * A read the server refuses is not asked again, neither straight away nor by the next screen to
+ * open, so a server without the route answers one request rather than one for every screen
  */
 export function useBankLinks({ poll = false, enabled = true }: { poll?: boolean; enabled?: boolean } = {}) {
   const { accessToken } = useAuth();
@@ -108,8 +116,10 @@ export function useBankLinks({ poll = false, enabled = true }: { poll?: boolean;
     queryKey: bankSyncKeys.links(),
     queryFn: fetchBankLinks,
     enabled: enabled && !!accessToken,
-    staleTime: BANK_DATA_STALE_TIME_MS,
-    refetchInterval: poll ? (query) => getBankLinksPollInterval(query.state.data) : false,
+    staleTime: (query) => getBankLinksStaleTime(query.state.data),
+    retry: (failureCount, error) => !isRefusedRead(error) && failureCount < LINKS_READ_RETRIES,
+    retryOnMount: false,
+    refetchInterval: poll ? (query) => getBankLinksPollInterval(query.state.data, query.state.error) : false,
     refetchIntervalInBackground: poll,
   });
 }
@@ -271,16 +281,17 @@ export function useUnlinkBankAccount() {
 }
 
 /**
- * Asks for a sync now. Settled either way, since a refusal also means the status shown is out of date
+ * Asks for a sync now. The link it answers with already shows the sync in progress, which goes
+ * straight into the list so the poll switches to its fast pace at once. A refusal means the status
+ * shown is out of date, so the list is read again instead
  */
 export function useSyncBankAccount() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (accountId: string) => runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => syncBankLink(accountId)),
-    onSettled: () => {
-      invalidateBankLinks(queryClient);
-      invalidateBankSyncStatus(queryClient);
-    },
+    onSuccess: (link) => replaceCachedBankLink(queryClient, link),
+    onError: () => invalidateBankLinks(queryClient),
+    onSettled: () => invalidateBankSyncStatus(queryClient),
   });
 }
 

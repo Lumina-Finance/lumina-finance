@@ -73,6 +73,16 @@ export async function refreshBankLinkState(queryClient: QueryClient): Promise<vo
 }
 
 /**
+ * Puts a link the server answered with in place of the cached one, so the status shows what the
+ * request did without waiting for the next poll
+ */
+export function replaceCachedBankLink(queryClient: QueryClient, link: BankLink): void {
+  queryClient.setQueryData<BankLink[]>(bankSyncKeys.links(), (links) =>
+    links?.map((cached) => (cached.account_id === link.account_id ? link : cached)),
+  );
+}
+
+/**
  * Whether a link brought in data since it was last read: a sync that succeeded, or an import that
  * finished another part. Either can add review items, pending rows and, where a kind of change is
  * trusted, ledger transactions

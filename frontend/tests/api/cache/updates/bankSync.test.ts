@@ -1,78 +1,46 @@
 /**
- * Covers the cache writes behind bank sync: the polled link list, review decisions and account deletion
+ * Covers the cache writes behind bank sync: the polled link list, a Sync now answer, review decisions,
+ * a link made or removed, and account deletion
  *
  * These tests catch a polled link list that changed nothing refetching every bank view, a sync that
  * brought in data leaving the review inbox, pending rows, transaction lists or the account's balance
- * stale, a decided item staying in a later page or its count, and a deleted account's items lingering
- * in a cached bulk approval preview
+ * stale, a decided item staying in a later page or its count, an item leaving the inbox before its
+ * transaction shows in the list, a decision that left the ledger alone reloading it, a link change
+ * settling before the views that show it have refetched, and a deleted account's items lingering in
+ * a cached bulk approval preview
  */
-import { QueryClient, type InfiniteData, type QueryKey } from '@tanstack/react-query';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { QueryClient, QueryObserver, type InfiniteData, type QueryKey } from '@tanstack/react-query';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { BANK_LINKS_ACTIVE_POLL_MS } from '@/api/bank-sync/constants';
+import { getBankLinksPollInterval } from '@/api/bank-sync/polling';
+import type { BankLink, BankReviewPage } from '@/api/bank-sync/types';
 import { accountKeys, bankSyncKeys, transactionKeys } from '@/api/cache/queryKeys';
 import {
   applyBankLinkChanges,
+  applyLedgerReviewOutcome,
+  applyReviewDecision,
   clearDeletedAccountBankData,
+  refreshBankLinkState,
   removeReviewItemsFromPages,
+  replaceCachedBankLink,
 } from '@/api/cache/updates/bankSync';
-import type { BankLink, BankReviewItem, BankReviewItemKind, BankReviewPage } from '@/api/bank-sync/types';
+import type { Transaction } from '@/api/transactions/types';
+import { createBankLink, createBankTransaction, createReviewItem } from './fixtures';
+
+type CachedReviewPages = InfiniteData<BankReviewPage, string | null>;
 
 let queryClient: QueryClient;
+let unsubscribes: Array<() => void> = [];
 
 beforeEach(() => {
   queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
 });
 
-function createBankLink(overrides: Partial<BankLink> = {}): BankLink {
-  return {
-    account_id: 'account-1',
-    connection_id: 'connection-1',
-    provider: 'simplefin',
-    provider_name: 'SimpleFIN',
-    external_account_id: 'bank-account-1',
-    external_account_name: 'Chequing',
-    institution_name: 'Example Bank',
-    import_start: '2026-01-01',
-    linked_at: '2026-09-01T12:00:00Z',
-    import: null,
-    history_reminder: null,
-    last_success_at: '2026-09-30T12:00:00Z',
-    last_attempt: null,
-    next_attempt_at: '2026-10-01T00:00:00Z',
-    waiting_on_budget: false,
-    sync_in_progress: false,
-    action_needed: null,
-    waiting_new_count: 0,
-    review_warning: false,
-    paused: false,
-    balance: null,
-    ...overrides,
-  };
-}
-
-function createReviewItem(id: string, kind: BankReviewItemKind): BankReviewItem {
-  return {
-    id,
-    kind,
-    account_id: 'account-1',
-    provider: 'simplefin',
-    provider_name: 'SimpleFIN',
-    external_transaction_id: `bank-${id}`,
-    received_at: '2026-09-30T12:00:00Z',
-    version: 1,
-    bank: {
-      date: '2026-09-29',
-      amount: -1250,
-      raw_amount: null,
-      description: 'Coffee',
-      merchant_name: null,
-      category_hint: null,
-    },
-    transaction_id: kind === 'new' ? null : `transaction-${id}`,
-    current: null,
-    changed_fields: kind === 'correction' ? ['amount'] : [],
-    protected_fields: [],
-  };
-}
+afterEach(() => {
+  for (const unsubscribe of unsubscribes) unsubscribe();
+  unsubscribes = [];
+  queryClient.clear();
+});
 
 const statusKeys: QueryKey[] = [
   bankSyncKeys.accountStatus('account-1'),
@@ -86,12 +54,56 @@ const reviewKeys: QueryKey[] = [
 ];
 const ledgerKeys: QueryKey[] = [transactionKeys.list({}), accountKeys.detail('account-1')];
 const otherAccountKey = accountKeys.detail('account-2');
+const reviewKey = bankSyncKeys.reviewItems(undefined);
 
 /** Seeds one cached query under every key the polled link list can make stale */
 function seedBankViews(): void {
   for (const key of [...statusKeys, ...reviewKeys, ...ledgerKeys, otherAccountKey]) {
     queryClient.setQueryData(key, {});
   }
+}
+
+/** Seeds the review inbox as two pages of two items each */
+function seedReviewPages(): void {
+  queryClient.setQueryData<CachedReviewPages>(reviewKey, {
+    pages: [
+      {
+        items: [createReviewItem('item-1', 'new'), createReviewItem('item-2', 'new')],
+        counts: { new: 3, correction: 1, removal: 0 },
+        next_cursor: 'cursor-2',
+      },
+      {
+        items: [createReviewItem('item-3', 'new'), createReviewItem('item-4', 'correction')],
+        counts: { new: 3, correction: 1, removal: 0 },
+        next_cursor: null,
+      },
+    ],
+    pageParams: [null, 'cursor-2'],
+  });
+}
+
+function reviewItemIds(): string[] {
+  return queryClient.getQueryData<CachedReviewPages>(reviewKey)?.pages.flatMap((page) => page.items.map((item) => item.id)) ?? [];
+}
+
+/**
+ * Keeps a query on screen, the way a mounted view would, with a read that answers only when the test
+ * says, so a caller waiting on the refetch can be caught waiting
+ */
+function observeWithHeldRead(key: QueryKey, data: unknown): () => void {
+  let answer: () => void = () => {};
+  const read = new Promise<unknown>((resolve) => {
+    answer = () => resolve(data);
+  });
+  queryClient.setQueryData(key, data);
+  const observer = new QueryObserver(queryClient, { queryKey: key, queryFn: () => read, staleTime: Infinity });
+  unsubscribes.push(observer.subscribe(() => {}));
+  return answer;
+}
+
+/** Lets pending promise callbacks run */
+function settle(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 function expectInvalidated(keys: QueryKey[], invalidated: boolean): void {
@@ -158,30 +170,25 @@ describe('a polled change in the link list', () => {
   });
 });
 
-describe('decided review items', () => {
-  const firstPage: BankReviewPage = {
-    items: [createReviewItem('item-1', 'new'), createReviewItem('item-2', 'new')],
-    counts: { new: 3, correction: 1, removal: 0 },
-    next_cursor: 'cursor-2',
-  };
-  const secondPage: BankReviewPage = {
-    items: [createReviewItem('item-3', 'new'), createReviewItem('item-4', 'correction')],
-    counts: { new: 3, correction: 1, removal: 0 },
-    next_cursor: null,
-  };
-  const key = bankSyncKeys.reviewItems(undefined);
+describe('a Sync now answer', () => {
+  it('replaces its link in the list, which switches the poll to its fast pace at once', () => {
+    queryClient.setQueryData(bankSyncKeys.links(), [createBankLink(), createBankLink({ account_id: 'account-2' })]);
 
-  beforeEach(() => {
-    queryClient.setQueryData<InfiniteData<BankReviewPage, string | null>>(key, {
-      pages: [firstPage, secondPage],
-      pageParams: [null, 'cursor-2'],
-    });
+    replaceCachedBankLink(queryClient, createBankLink({ sync_in_progress: true }));
+
+    const links = queryClient.getQueryData<BankLink[]>(bankSyncKeys.links());
+    expect(links?.map((link) => [link.account_id, link.sync_in_progress])).toEqual([['account-1', true], ['account-2', false]]);
+    expect(getBankLinksPollInterval(links, null)).toBe(BANK_LINKS_ACTIVE_POLL_MS);
   });
+});
+
+describe('decided review items', () => {
+  beforeEach(seedReviewPages);
 
   it('leave every cached page, and every page count, while the cursors stay', () => {
     removeReviewItemsFromPages(queryClient, (item) => item.id === 'item-1' || item.id === 'item-4');
 
-    const data = queryClient.getQueryData<InfiniteData<BankReviewPage, string | null>>(key);
+    const data = queryClient.getQueryData<CachedReviewPages>(reviewKey);
     expect(data?.pages.map((page) => page.items.map((item) => item.id))).toEqual([['item-2'], ['item-3']]);
     expect(data?.pages.map((page) => page.counts)).toEqual([
       { new: 2, correction: 0, removal: 0 },
@@ -192,11 +199,92 @@ describe('decided review items', () => {
   });
 
   it('leave the cached list untouched when none of them is cached', () => {
-    const cached = queryClient.getQueryData(key);
+    const cached = queryClient.getQueryData(reviewKey);
 
     removeReviewItemsFromPages(queryClient, (item) => item.id === 'item-9');
 
-    expect(queryClient.getQueryData(key)).toBe(cached);
+    expect(queryClient.getQueryData(reviewKey)).toBe(cached);
+  });
+});
+
+describe('a review decision that wrote to the ledger', () => {
+  beforeEach(() => {
+    seedBankViews();
+    seedReviewPages();
+  });
+
+  it('takes the item out of the inbox only once the transaction list has refetched', async () => {
+    const answerTransactions = observeWithHeldRead(transactionKeys.list({ account_id: 'account-1' }), []);
+    const answerLinks = observeWithHeldRead(bankSyncKeys.links(), [createBankLink()]);
+
+    const done = applyLedgerReviewOutcome(queryClient, ['account-1'], (item) => item.id === 'item-1');
+    await settle();
+
+    expect(reviewItemIds()).toContain('item-1');
+
+    answerTransactions();
+    answerLinks();
+    await done;
+
+    expect(reviewItemIds()).toEqual(['item-2', 'item-3', 'item-4']);
+    expectInvalidated([...statusKeys, bankSyncKeys.bulkPreview(undefined), accountKeys.detail('account-1')], true);
+    expectInvalidated([otherAccountKey], false);
+  });
+});
+
+describe('a review decision that left the ledger alone', () => {
+  const waiting = createBankTransaction('transaction-item-4', 'item-4');
+  const kept = createBankTransaction('transaction-item-4');
+
+  beforeEach(() => {
+    seedReviewPages();
+    queryClient.setQueryData(bankSyncKeys.links(), [createBankLink()]);
+    queryClient.setQueryData(bankSyncKeys.bulkPreview(undefined), {});
+    for (const key of statusKeys) queryClient.setQueryData(key, {});
+    queryClient.setQueryData(transactionKeys.list({}), [waiting]);
+  });
+
+  it('puts the kept transaction in place and settles the inbox without reloading the ledger', () => {
+    applyReviewDecision(queryClient, (item) => item.id === 'item-4', kept);
+
+    expect(queryClient.getQueryData<Transaction[]>(transactionKeys.list({}))).toEqual([kept]);
+    expect(reviewItemIds()).toEqual(['item-1', 'item-2', 'item-3']);
+    expectInvalidated([bankSyncKeys.links(), ...statusKeys, bankSyncKeys.bulkPreview(undefined)], true);
+    expectInvalidated([transactionKeys.list({})], false);
+  });
+
+  it('settles a dismissed item, which answers with no transaction, leaving the ledger as it was', () => {
+    applyReviewDecision(queryClient, (item) => item.id === 'item-1', undefined);
+
+    expect(queryClient.getQueryData<Transaction[]>(transactionKeys.list({}))).toEqual([waiting]);
+    expect(reviewItemIds()).toEqual(['item-2', 'item-3', 'item-4']);
+  });
+});
+
+describe('a link made or removed', () => {
+  it('settles once the links, the account status, the connections and the providers have refetched', async () => {
+    queryClient.setQueryData(reviewKey, {});
+    const answers = [
+      observeWithHeldRead(bankSyncKeys.links(), []),
+      observeWithHeldRead(bankSyncKeys.accountStatus('account-1'), {}),
+      observeWithHeldRead(bankSyncKeys.connections(), []),
+      observeWithHeldRead(bankSyncKeys.providers(), {}),
+    ];
+    let settled = false;
+
+    const done = refreshBankLinkState(queryClient).then(() => {
+      settled = true;
+    });
+    await settle();
+
+    expectInvalidated([reviewKey], true);
+    for (const answer of answers.slice(0, -1)) answer();
+    await settle();
+    expect(settled).toBe(false);
+
+    answers[answers.length - 1]();
+    await done;
+    expect(settled).toBe(true);
   });
 });
 

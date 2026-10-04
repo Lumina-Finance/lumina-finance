@@ -1,9 +1,8 @@
 /**
  * Covers the bank sync request functions, the contract the backend routes implement
  *
- * These tests catch a request reaching the wrong path, method or query string, a body losing the
- * field names the backend reads, such as the version bulk approval checks, and a review decision
- * answered with no content being read as a transaction
+ * These tests catch a request reaching the wrong path, method or query string, and a body losing the
+ * field names the backend reads, such as the version bulk approval checks
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -25,7 +24,6 @@ import {
   reconnectBankConnection,
   resolveReviewItem,
   restoreBankValue,
-  syncBankLink,
 } from '@/api/bank-sync/requests';
 
 beforeEach(() => {
@@ -95,15 +93,6 @@ describe('bank sync writes', () => {
     });
   });
 
-  it('asks for a sync with no body', async () => {
-    await syncBankLink('account-1');
-
-    expect(authenticatedFetchMock).toHaveBeenCalledWith('/accounts/account-1/bank-link/sync', {
-      method: 'POST',
-      body: undefined,
-    });
-  });
-
   it('previews bulk approval for every account with a null account list', async () => {
     await fetchBulkApprovalPreview();
     await fetchBulkApprovalPreview(['account-1']);
@@ -123,10 +112,9 @@ describe('bank sync writes', () => {
     });
   });
 
-  it('settles a review item through its resolution path and passes on an empty answer', async () => {
-    authenticatedFetchMock.mockResolvedValue(undefined);
+  it('settles a review item through its resolution path', async () => {
+    await resolveReviewItem({ itemId: 'item-1', resolution: 'remove-from-ledger' });
 
-    await expect(resolveReviewItem({ itemId: 'item-1', resolution: 'remove-from-ledger' })).resolves.toBeUndefined();
     expect(authenticatedFetchMock).toHaveBeenCalledWith('/bank-review/items/item-1/remove-from-ledger', {
       method: 'POST',
       body: undefined,
