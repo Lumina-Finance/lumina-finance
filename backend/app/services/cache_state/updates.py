@@ -7,8 +7,8 @@ from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database import current_session_id_ctx
 from app.db.rls.functions import BUMP_GROUP_MEMBER_CACHE
-from app.dependencies import get_current_session_id
 from app.models.cache_state import GroupCacheState, UserCacheState
 
 
@@ -110,12 +110,14 @@ async def _upsert_cache_state(
         None
     """
     changed_at = sa.func.clock_timestamp()
-    session_id = get_current_session_id()
-    stmt = insert(model).values({
-        id_column_name: id_value,
-        "changed_at": changed_at,
-        "last_changed_session_id": session_id,
-    })
+    session_id = current_session_id_ctx.get()
+    stmt = insert(model).values(
+        {
+            id_column_name: id_value,
+            "changed_at": changed_at,
+            "last_changed_session_id": session_id,
+        }
+    )
 
     # Upsert the scope cache timestamp so repeated writes refresh the same row
     await db.execute(

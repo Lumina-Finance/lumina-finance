@@ -8,7 +8,7 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
-from app.dependencies import get_current_session_id
+from app.database import current_session_id_ctx
 from app.models.cache_state import GroupCacheState, UserCacheState
 from app.models.group import GroupMember
 
@@ -53,7 +53,7 @@ async def get_visible_cache_status(db: AsyncSession, user_id: uuid.UUID) -> Visi
     Returns:
         Personal, group, and combined cache status visible to the user
     """
-    current_session_id = get_current_session_id()
+    current_session_id = current_session_id_ctx.get()
 
     # Fetch the user's personal cache state for the top-level personal scope
     personal_state = await db.get(UserCacheState, user_id)
@@ -63,10 +63,7 @@ async def get_visible_cache_status(db: AsyncSession, user_id: uuid.UUID) -> Visi
     group_result = await db.execute(
         sa.select(GroupCacheState).where(GroupCacheState.group_id.in_(select_user_group_ids(user_id))),
     )
-    groups = {
-        state.group_id: _scope_status(state, current_session_id)
-        for state in group_result.scalars().all()
-    }
+    groups = {state.group_id: _scope_status(state, current_session_id) for state in group_result.scalars().all()}
 
     values = [personal.changed_at, *(group.changed_at for group in groups.values())]
     changed_values = [value for value in values if value is not None]
@@ -119,8 +116,6 @@ def _scope_status(
     return ScopeCacheStatus(
         changed_at=_as_utc(state.changed_at),
         last_change_from_current_session=(
-            current_session_id is not None
-            and state.last_changed_session_id is not None
-            and state.last_changed_session_id == current_session_id
+            current_session_id is not None and state.last_changed_session_id is not None and state.last_changed_session_id == current_session_id
         ),
     )
