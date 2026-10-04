@@ -222,6 +222,9 @@ export function getImportCategoryRenameProposal(name: string, appName: string) {
   return `${name} (${appName})`
 }
 
+// Marks a new category from a CSV file renamed because an existing one holds its name for another kind
+export const CSV_CATEGORY_RENAME_APP_NAME = 'CSV'
+
 /** Names the field holding the name a new category is created under in place of its own */
 export function getImportCategoryRenameLabel(label: string) {
   return `Name for the new category from ${label}`

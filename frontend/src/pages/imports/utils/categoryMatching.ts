@@ -1,9 +1,12 @@
 import type { Category } from '@/api/categories'
 import {
   CREATE_CATEGORY_VALUE,
+  CSV_CATEGORY_RENAME_APP_NAME,
   DEBT_PAYMENT_IMPORT_NOTE,
   getCategoryCreateClashError,
   getCategoryDirectionClashError,
+  getImportCategoryRenameHelp,
+  getImportCategoryRenameLabel,
   getImportCategoryRenameProposal,
   getImportCategoryRenameRequiredError,
 } from '@/pages/imports/constants'
@@ -274,7 +277,66 @@ export function getImportCategoryRenames({
 }
 
 /**
- * Checks the name a provider import creates a category under against the user's categories and the
+ * Settles another name for each new category from a CSV file whose own name an existing category
+ * holds for another type
+ *
+ * A value's type is the one chosen for it, or else the one its amounts read as. A value whose amounts
+ * leave its type open has no type to clash yet, so it is offered no new name
+ */
+export function getCsvCategoryRenames({
+  importedCategories,
+  mappings,
+  createKinds,
+  typesBySource,
+  typedNames,
+  categoryById,
+}: {
+  importedCategories: string[]
+  mappings: Record<string, string>
+  createKinds: Record<string, ImportCategoryKind>
+  typesBySource: Record<string, string>
+  typedNames: Record<string, string>
+  categoryById: Map<string, Category>
+}) {
+  const kinds: Record<string, ImportCategoryKind> = {}
+  for (const category of importedCategories) {
+    const kind = getCategoryMatchKind('', createKinds[category], typesBySource[category], categoryById)
+    if (kind) kinds[category] = kind
+  }
+
+  return getImportCategoryRenames({
+    sources: Object.keys(kinds).map((category) => ({ id: category, name: category })),
+    mappings,
+    kinds,
+    typedNames,
+    categoryById,
+    appName: CSV_CATEGORY_RENAME_APP_NAME,
+  })
+}
+
+/**
+ * The field a category row shows in place of its name while a new category needs another name,
+ * or nothing while it keeps its own
+ *
+ * @param label - The source as the row names it
+ */
+export function getImportCategoryRenameField(
+  label: string,
+  rename: ImportCategoryRename | undefined,
+  onChange: (name: string) => void,
+) {
+  if (rename === undefined) return undefined
+  return {
+    label: getImportCategoryRenameLabel(label),
+    help: getImportCategoryRenameHelp(rename),
+    value: rename.name,
+    isProposed: rename.isProposed,
+    onChange,
+  }
+}
+
+/**
+ * Checks the name an import creates a category under against the user's categories and the
  * ones the same import creates before it, returning what to tell the user, or null when the commit
  * will take it
  *

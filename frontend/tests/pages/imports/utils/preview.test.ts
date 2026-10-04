@@ -452,3 +452,31 @@ describe('import preview rows', () => {
     expect(rows.at(-1)?.transaction.dt).toBe('2026-06-06')
   })
 })
+
+describe('previewing a new category renamed because another type holds its name', () => {
+  it('shows the rows under the name typed for it', () => {
+    const transferCar = createCategory({ id: 'transfer-car', name: 'Car', kind: 'transfer' })
+    const account = createAccount()
+    const rows = buildImportPreviewRows({
+      files: [createFile([{ Date: '2026-06-11', Amount: '-40.00', Category: 'Car', Merchant: '', Notes: '', Tags: '', Currency: '' }])],
+      columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', amount: 'Amount', category_id: 'Category' },
+      dateFormat: 'yearFirst',
+      directionAnswers: {},
+      missingRequiredColumnLabels: [],
+      currencies,
+      accountById: new Map([[account.id, account]]),
+      accountCreateCurrencies: {},
+      accountCreateInstitutions: {},
+      categoryById: new Map([[transferCar.id, transferCar]]),
+      categoryCreateKinds: { Car: 'expense' },
+      categoryRenames: { Car: { name: 'Car costs', sourceName: 'Car', kind: 'expense', heldBy: transferCar, isProposed: false } },
+      categoryTypesBySource: {},
+      institutionById: new Map(),
+      resolvedAccountMappings: { 'file-1': account.id },
+      resolvedCategoryMappings: { Car: CREATE_CATEGORY_VALUE },
+      rowProblems: [],
+    })
+
+    expect(rows[0].category).toMatchObject({ name: 'Car costs', kind: 'expense' })
+  })
+})

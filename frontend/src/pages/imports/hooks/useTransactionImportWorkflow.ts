@@ -24,6 +24,7 @@ import {
   dropVanishedAccountMappings,
   dropVanishedCategoryMappings,
   getImportDirectionValues,
+  getCsvCategoryRenames,
   getImportedCategoryTypes,
   getImportedCategories,
   getImportedMerchants,
@@ -210,6 +211,9 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const [categoryAutoMatchKey, setCategoryAutoMatchKey] = useState('')
   const [scopedCategoryCreateKinds, setScopedCategoryCreateKinds] = useState<ScopedImportAnswers<ImportCategoryKind>>(emptyScopedImportAnswers)
 
+  // The name the user typed for a new category whose own name an existing category holds for another type
+  const [scopedCategoryCreateNames, setScopedCategoryCreateNames] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
+
   // What the user answered for each payee value, and the name they wrote for one being created.
   // Scoped like every other answer, so a second file's payees start unanswered
   const [scopedMerchantMappings, setScopedMerchantMappings] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
@@ -240,6 +244,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       scopedDirectionAnswers,
       scopedCategoryMappings,
       scopedCategoryCreateKinds,
+      scopedCategoryCreateNames,
       scopedMerchantMappings,
       scopedMerchantCreateNames,
     }),
@@ -253,6 +258,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       fixedAccount?.id,
       scopedAccountMappings,
       scopedCategoryCreateKinds,
+      scopedCategoryCreateNames,
       scopedCategoryMappings,
       scopedDirectionAnswers,
       scopedMerchantCreateNames,
@@ -287,6 +293,18 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
 
   const setCategoryCreateKinds: Dispatch<SetStateAction<Record<string, ImportCategoryKind>>> = (update) => {
     setScopedCategoryCreateKinds((current) => {
+      const answers = readScopedImportAnswers(current, getCategorySourceScope)
+      return writeScopedImportAnswers(current, typeof update === 'function' ? update(answers) : update, getCategorySourceScope)
+    })
+  }
+
+  const categoryCreateNames = useMemo(
+    () => readScopedImportAnswers(scopedCategoryCreateNames, getCategorySourceScope),
+    [getCategorySourceScope, scopedCategoryCreateNames],
+  )
+
+  const setCategoryCreateNames: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
+    setScopedCategoryCreateNames((current) => {
       const answers = readScopedImportAnswers(current, getCategorySourceScope)
       return writeScopedImportAnswers(current, typeof update === 'function' ? update(answers) : update, getCategorySourceScope)
     })
@@ -689,6 +707,18 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     [clearedCategorySources, importedCategories],
   )
 
+  const categoryRenames = useMemo(
+    () => getCsvCategoryRenames({
+      importedCategories,
+      mappings: resolvedCategoryMappings,
+      createKinds: categoryCreateKinds,
+      typesBySource: categoryTypesBySource,
+      typedNames: categoryCreateNames,
+      categoryById,
+    }),
+    [categoryById, categoryCreateKinds, categoryCreateNames, categoryTypesBySource, importedCategories, resolvedCategoryMappings],
+  )
+
   const importBuild = useMemo(
     () => buildTransactionImportPayload({
       accountById,
@@ -700,6 +730,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       categoryById,
       categoryCreateKinds,
       categoryMappings: resolvedCategoryMappings,
+      categoryRenames,
       categoryTypesBySource,
       columnMap,
       columnValidationErrors: resolvedColumnValidationErrors,
@@ -724,6 +755,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       accountMappingSources,
       categoryById,
       categoryCreateKinds,
+      categoryRenames,
       categoryTypesBySource,
       currencies,
       columnMap,
@@ -761,13 +793,14 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       accountCreateInstitutions,
       categoryById,
       categoryCreateKinds,
+      categoryRenames,
       categoryTypesBySource,
       institutionById,
       resolvedAccountMappings,
       resolvedCategoryMappings,
       rowProblems: importBuild.rowProblems,
     }),
-    [accountById, accountCreateInstitutions, amountFormat, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, dateFormat, directionAnswers, files, importBuild.rowProblems, institutionById, missingRequiredColumnLabels, resolvedAccountCreateCurrencies, resolvedAccountMappings, resolvedCategoryMappings, timeZone],
+    [accountById, accountCreateInstitutions, amountFormat, categoryById, categoryCreateKinds, categoryRenames, categoryTypesBySource, columnMap, currencies, dateFormat, directionAnswers, files, importBuild.rowProblems, institutionById, missingRequiredColumnLabels, resolvedAccountCreateCurrencies, resolvedAccountMappings, resolvedCategoryMappings, timeZone],
   )
 
   const previewGroups = useMemo(
@@ -954,6 +987,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setScopedCategoryMappings(emptyScopedImportAnswers)
     setCategoryAutoMatchKey('')
     setScopedCategoryCreateKinds(emptyScopedImportAnswers)
+    setScopedCategoryCreateNames(emptyScopedImportAnswers)
     setScopedMerchantMappings(emptyScopedImportAnswers)
     setScopedMerchantCreateNames(emptyScopedImportAnswers)
     if (inputRef.current) inputRef.current.value = ''
@@ -994,6 +1028,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setDirectionAnswer,
     categoryMappings: resolvedCategoryMappings,
     categoryCreateKinds,
+    categoryRenames,
     merchantMappings,
     merchantCreateNames,
     matchedMerchantByKey,
@@ -1050,6 +1085,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setBatchAccountInstitution,
     setCategoryMappings,
     setCategoryCreateKinds,
+    setCategoryCreateNames,
     setMerchantMappings,
     setMerchantCreateNames,
     setMerchantSearch,

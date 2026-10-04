@@ -4,7 +4,7 @@ import {
 } from '@/pages/imports/constants'
 import { ImportNotice } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
-import { getCategoryMatchKind, isExistingCategoryMatch } from '@/pages/imports/utils'
+import { getCategoryMatchKind, getImportCategoryRenameField, isExistingCategoryMatch } from '@/pages/imports/utils'
 import { ImportCategoryMatchingLayout } from './ImportCategoryMatchingLayout'
 
 type ImportCategoryMatchingStepProps = Pick<
@@ -14,8 +14,10 @@ type ImportCategoryMatchingStepProps = Pick<
   | 'autoFilledCategories'
   | 'categoryCreateKinds'
   | 'categoryTypesBySource'
+  | 'categoryRenames'
   | 'categoryById'
   | 'setCategoryCreateKinds'
+  | 'setCategoryCreateNames'
   | 'setCategoryMappings'
   | 'categoryMatchOptions'
   | 'categoriesLoading'
@@ -34,8 +36,10 @@ export function ImportCategoryMatchingStep({
   autoFilledCategories,
   categoryCreateKinds,
   categoryTypesBySource,
+  categoryRenames,
   categoryById,
   setCategoryCreateKinds,
+  setCategoryCreateNames,
   setCategoryMappings,
   categoryMatchOptions,
   categoriesLoading,
@@ -69,6 +73,11 @@ export function ImportCategoryMatchingStep({
           onDetailKindChange: (kind) => setCategoryCreateKinds((current) => ({ ...current, [category]: kind })),
           value,
           onChange: (nextValue) => setCategoryMappings((current) => ({ ...current, [category]: nextValue })),
+          rename: getImportCategoryRenameField(
+            category,
+            categoryRenames[category],
+            (name) => setCategoryCreateNames((current) => ({ ...current, [category]: name })),
+          ),
         }
       })}
       options={categoryMatchOptions}

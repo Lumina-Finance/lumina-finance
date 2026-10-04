@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import { CREATE_CATEGORY_VALUE, EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
-import type { CsvRow, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
+import type { CsvRow, ImportCategoryKind, ImportCategoryRename, ImportFileDraft } from '@/pages/imports/types'
 import { buildTransactionImportPayload } from '@/pages/imports/utils'
 
 const CURRENCIES: Currency[] = [
@@ -62,7 +62,11 @@ function build(categorySource: string, kind: ImportCategoryKind, categories: Cat
 /**
  * Builds a commit payload for each value answered "create new category" with the kind given for it
  */
-function buildCreatingCategories(kinds: Record<string, ImportCategoryKind>, categories: Category[]) {
+function buildCreatingCategories(
+  kinds: Record<string, ImportCategoryKind>,
+  categories: Category[],
+  categoryRenames: Record<string, ImportCategoryRename> = {},
+) {
   const sources = Object.keys(kinds)
   return buildTransactionImportPayload({
     accountById: new Map(),
@@ -74,6 +78,7 @@ function buildCreatingCategories(kinds: Record<string, ImportCategoryKind>, cate
     categoryById: new Map(categories.map((category) => [category.id, category])),
     categoryCreateKinds: kinds,
     categoryMappings: Object.fromEntries(sources.map((source) => [source, CREATE_CATEGORY_VALUE])),
+    categoryRenames,
     categoryTypesBySource: {},
     columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', category_id: 'Category', amount: 'Amount' },
     columnValidationErrors: {},
@@ -145,5 +150,24 @@ describe('queueing two new categories whose names differ only in capitals', () =
     const { errors } = buildCreatingCategories({ Gifts: 'expense', GIFTS: 'expense' }, [])
 
     expect(errors).toEqual([])
+  })
+})
+
+describe('renaming a new category whose name the user already has for another type', () => {
+  const transferCar: Category = { ...PERSONAL_INCOME_BONUS, id: 'transfer-car', name: 'Car', kind: 'transfer' }
+  const rename = (name: string): ImportCategoryRename => ({ name, sourceName: 'Car', kind: 'expense', heldBy: transferCar, isProposed: false })
+
+  it('creates the category under the name typed for it', () => {
+    const { payload, errors } = buildCreatingCategories({ Car: 'expense' }, [transferCar], { Car: rename(' Car costs ') })
+
+    expect(errors).toEqual([])
+    expect(payload?.categories).toEqual([{ source: 'Car', create: { name: 'Car costs', kind: 'expense', icon: '🏷️' } }])
+  })
+
+  it('asks for a name when the field is cleared', () => {
+    const { payload, errors } = buildCreatingCategories({ Car: 'expense' }, [transferCar], { Car: rename('') })
+
+    expect(payload).toBeNull()
+    expect(errors).toEqual(['Enter a name for the new category from Car.'])
   })
 })

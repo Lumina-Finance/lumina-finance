@@ -1,12 +1,11 @@
 import {
   CREATE_CATEGORY_VALUE,
-  getImportCategoryRenameHelp,
-  getImportCategoryRenameLabel,
   TRANSFERS_AND_DEBT_PAYMENTS_TITLE,
   TRANSFERS_EXPLANATION,
 } from '@/pages/imports/constants'
 import { ImportInfoCard, ImportSegmentedToggle } from '@/pages/imports/components'
 import { ImportCategoryMatchingLayout, type ImportCategoryMatchRow } from '@/pages/imports/sections'
+import { getImportCategoryRenameField } from '@/pages/imports/utils'
 import type { Category } from '@/api/categories'
 import type { ActualImportWorkflow } from '@/pages/imports/actual/hooks'
 import { ACTUAL_CREDIT_PAYMENT_CATEGORY_SOURCE, getActualPaymentsHelp } from '@/pages/imports/actual/constants'
@@ -125,13 +124,11 @@ export function ActualCategoryMatchingStep({
       onDetailKindChange: (kind) => setCategoryCreateKinds((current) => ({ ...current, [mappingId]: kind })),
       value,
       onChange: (nextValue) => setCategoryMappings((current) => ({ ...current, [mappingId]: nextValue })),
-      rename: rename === undefined ? undefined : {
-        label: getImportCategoryRenameLabel(source.label),
-        help: getImportCategoryRenameHelp(rename),
-        value: rename.name,
-        isProposed: rename.isProposed,
-        onChange: (name: string) => setCategoryCreateNames((current) => ({ ...current, [mappingId]: name })),
-      },
+      rename: getImportCategoryRenameField(
+        source.label,
+        rename,
+        (name) => setCategoryCreateNames((current) => ({ ...current, [mappingId]: name })),
+      ),
       options: !isTransfer ? undefined : paymentMode === 'category' ? kindOptions(source.isIncome ? 'income' : 'expense') : transferOptions,
     }
   })

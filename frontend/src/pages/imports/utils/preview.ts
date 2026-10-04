@@ -13,6 +13,7 @@ import type {
   ColumnMap,
   ImportAmountDirection,
   ImportCategoryKind,
+  ImportCategoryRename,
   ImportFileDraft,
   ImportRowProblem,
   PreviewTransactionRow,
@@ -53,6 +54,9 @@ interface BuildImportPreviewRowsOptions {
   accountCreateInstitutions: Record<string, string>
   categoryById: Map<string, Category>
   categoryCreateKinds: Record<string, ImportCategoryKind>
+
+  /** New categories created under another name, because an existing category holds their own */
+  categoryRenames?: Record<string, ImportCategoryRename>
   categoryTypesBySource: Record<string, string>
   institutionById: Map<string, Institution>
   resolvedAccountMappings: Record<string, string>
@@ -97,6 +101,7 @@ export function buildImportPreviewRows({
   accountCreateInstitutions,
   categoryById,
   categoryCreateKinds,
+  categoryRenames = {},
   categoryTypesBySource,
   institutionById,
   resolvedAccountMappings,
@@ -172,6 +177,7 @@ export function buildImportPreviewRows({
         resolvedCategoryMappings,
         categoryById,
         categoryCreateKinds,
+        categoryRenames,
         categoryTypesBySource,
       )
 
@@ -265,6 +271,7 @@ export function getPreviewCategory(
   categoryMappings: Record<string, string>,
   categoryById: Map<string, Category>,
   categoryCreateKinds: Record<string, ImportCategoryKind>,
+  categoryRenames: Record<string, ImportCategoryRename>,
   categoryTypesBySource: Record<string, string>,
 ) {
   if (!importedCategory) return undefined
@@ -279,7 +286,7 @@ export function getPreviewCategory(
     )
     if (!kind) return undefined
 
-    return buildPreviewCategory(importedCategory, importedCategory, kind)
+    return buildPreviewCategory(importedCategory, categoryRenames[importedCategory]?.name ?? importedCategory, kind)
   }
 
   if (mapped) return categoryById.get(mapped)

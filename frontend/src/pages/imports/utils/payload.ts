@@ -19,6 +19,7 @@ import type {
   ImportAmountDirection,
   ImportBuildResult,
   ImportCategoryKind,
+  ImportCategoryRename,
   ImportFileDraft,
   ImportRowProblem,
 } from '@/pages/imports/types'
@@ -62,6 +63,7 @@ export function buildTransactionImportPayload({
   categoryById,
   categoryCreateKinds,
   categoryMappings,
+  categoryRenames = {},
   categoryTypesBySource,
   columnMap,
   columnValidationErrors,
@@ -84,6 +86,9 @@ export function buildTransactionImportPayload({
   categoryById: Map<string, Category>
   categoryCreateKinds: Record<string, ImportCategoryKind>
   categoryMappings: Record<string, string>
+
+  /** New categories created under another name, because an existing category holds their own */
+  categoryRenames?: Record<string, ImportCategoryRename>
   categoryTypesBySource: Record<string, string>
   columnMap: ColumnMap
   columnValidationErrors: ColumnValidationErrors
@@ -223,7 +228,7 @@ export function buildTransactionImportPayload({
       createName: source,
       choice: categoryMappings[source] ?? '',
       createKind: getCategoryMatchKind('', categoryCreateKinds[source], categoryTypesBySource[source], categoryById),
-      rename: undefined,
+      rename: categoryRenames[source],
       categoryById,
       createdByKey,
       refusesGroupCategory: false,
