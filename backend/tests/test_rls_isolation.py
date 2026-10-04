@@ -11,7 +11,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import delete, func, insert, select, text
 from sqlalchemy.exc import ProgrammingError
 
 from app.models.account import Account, AccountPermission
@@ -706,23 +706,65 @@ async def test_bank_rows_on_a_shared_group_account_stay_with_their_owner(users, 
         assert await _count_visible(session, type(row)) == 1
 
 
+async def _insert_without_returning(session, row) -> None:
+    """Insert a row's set columns without RETURNING
+
+    A RETURNING clause makes the new row pass the read policy too, so leaving it out leaves the
+    write check as the only thing that can refuse the row
+    """
+    values = {column.key: getattr(row, column.key) for column in row.__table__.columns if getattr(row, column.key) is not None}
+    await session.execute(insert(type(row)).values(**values))
+
+
+async def _refused_as(user_id, row) -> None:
+    """Assert the write check refuses a user's insert of a row"""
+    async with _act_as(user_id) as session:
+        with pytest.raises(ProgrammingError, match="row-level security"):
+            await _insert_without_returning(session, row)
+
+
 @pytest.mark.parametrize("build", _GROUP_ACCOUNT_ROWS)
 async def test_bank_row_owned_by_another_user_on_a_shared_group_account_is_refused(users, group_account, build):
     """B can't write a bank row in A's name on the joint account they both use"""
     user_a, user_b = users
-    async with _act_as(user_b.id) as session:
-        session.add(build(group_account, user_a.id))
-        with pytest.raises(ProgrammingError, match="row-level security"):
-            await session.flush()
+    await _refused_as(user_b.id, build(group_account, user_a.id))
 
 
 async def test_bank_connection_owned_by_another_user_is_refused(users):
     """A user can't add a connection in someone else's name"""
     user_a, user_b = users
+    await _refused_as(user_b.id, _build_bank_connection(user_a.id))
+
+
+# Rows tied to a connection, built on B's connection and, for a link, on B's account, so the
+# connection and account checks pass for B and only the owner condition is left to weigh
+_CONNECTION_ROWS = [
+    pytest.param(
+        lambda connection, _: BankProviderRequest(connection_id=connection.id, purpose=ProviderRequestPurpose.SYNC),
+        id="provider_request",
+    ),
+    pytest.param(lambda connection, _: _build_external_account(connection), id="external_account"),
+    pytest.param(lambda connection, _: _build_signin_notice(connection), id="signin_notice"),
+    pytest.param(lambda connection, _: BankSyncJob(connection_id=connection.id, kind=BankSyncJobKind.MANUAL), id="sync_job"),
+    pytest.param(lambda connection, account: _build_bank_link(account, connection), id="account_link"),
+]
+
+
+@pytest.mark.parametrize("build", _CONNECTION_ROWS)
+async def test_bank_row_on_the_users_own_connection_owned_by_another_user_is_refused(users, build):
+    """B can write the row on their own connection in their own name, but not in A's"""
+    user_a, user_b = users
+    async with TestSession() as session:
+        account_b = _build_account(user_b.id, "B Everyday")
+        connection_b = _build_bank_connection(user_b.id)
+        session.add_all([account_b, connection_b])
+        await session.commit()
+
+    # The same row in B's own name goes in, so only its owner can be what refuses it below
     async with _act_as(user_b.id) as session:
-        session.add(_build_bank_connection(user_a.id))
-        with pytest.raises(ProgrammingError, match="row-level security"):
-            await session.flush()
+        await _insert_without_returning(session, _owned_by(build(connection_b, account_b), user_b.id))
+
+    await _refused_as(user_b.id, _owned_by(build(connection_b, account_b), user_a.id))
 
 
 @pytest.mark.parametrize(
