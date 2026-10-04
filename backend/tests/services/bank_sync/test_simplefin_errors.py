@@ -260,6 +260,8 @@ async def test_bank_login_problem_stops_only_that_logins_accounts(scenario: Fake
     assert result.request_error is None
     assert result.login_errors == {"CON-harbour": ProviderError(_BANK_LOGIN_NEEDED, "Harbour Bank needs you to sign in again.")}
     assert result.account_errors == {}
+    # The fake Bridge repeats the message in the older errors list, which adds nothing more
+    assert result.warnings == ()
     assert {account.external_id: account.login_key for account in result.accounts} == {
         "ACT-chequing": "CON-harbour",
         "ACT-savings": "CON-harbour",
@@ -327,12 +329,16 @@ async def test_general_warning_beside_data_keeps_the_data(scenario: FakeBridgeSc
 
 
 @pytest.mark.parametrize(
-    "message",
-    ["You have hit today's refresh limit for this token", "Rate limit reached. Please wait before refreshing"],
-    ids=["refresh-limit", "rate-limit"],
+    ("message", "kind"),
+    [
+        ("You have hit today's refresh limit for this token", _RATE_LIMITED),
+        ("Rate limit reached. Please wait before refreshing", _RATE_LIMITED),
+        ("Harbour Bank needs you to sign in again.", _UNKNOWN),
+    ],
+    ids=["refresh-limit", "rate-limit", "sign-in"],
 )
-async def test_quota_warning_only_in_the_older_errors_list_is_recognised(message):
-    """Bridge versions that send only plain messages still have their quota warnings kept beside the data"""
+async def test_message_only_in_the_older_errors_list_is_a_warning_beside_the_data(message, kind):
+    """Servers that send only plain messages have their quota warnings and other problems kept beside the data"""
     body = {
         "errors": [message],
         "connections": [{"conn_id": "CON-harbour", "name": "Harbour Bank", "org_id": "ORG-harbour"}],
@@ -350,18 +356,22 @@ async def test_quota_warning_only_in_the_older_errors_list_is_recognised(message
 
     result = await _fetch(simplefin_adapter(RecordingBridge(answer_with(200, json.dumps(body).encode(), "application/json")).transport))
 
-    assert result.warnings == (ProviderError(_RATE_LIMITED, message),)
+    assert result.warnings == (ProviderError(kind, message),)
     assert [account.external_id for account in result.accounts] == ["ACT-chequing"]
 
 
-async def test_quota_warning_only_in_the_older_errors_list_without_data_is_rate_limited():
-    """A plain quota message that comes back alone keeps nothing, and the day's requests count as spent"""
-    message = "Too many requests today. Please make fewer requests."
+@pytest.mark.parametrize(
+    ("message", "kind"),
+    [("Too many requests today. Please make fewer requests.", _RATE_LIMITED), ("Harbour Bank needs you to sign in again.", _UNKNOWN)],
+    ids=["quota", "sign-in"],
+)
+async def test_message_only_in_the_older_errors_list_without_data_fails_the_request(message, kind):
+    """A plain message that comes back alone keeps nothing, and a quota one counts the day's requests as spent"""
     body = {"errors": [message], "connections": [], "accounts": []}
 
     result = await _fetch(simplefin_adapter(RecordingBridge(answer_with(200, json.dumps(body).encode(), "application/json")).transport))
 
-    assert result.request_error == ProviderError(_RATE_LIMITED, message)
+    assert result.request_error == ProviderError(kind, message)
     assert result.warnings == ()
 
 

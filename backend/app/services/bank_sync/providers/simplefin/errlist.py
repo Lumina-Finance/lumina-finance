@@ -82,10 +82,19 @@ def fetch_result(
         else:
             request_errors.append(error)
 
+    # The older errors list names no code, login or account, and a server may report a problem only
+    # there, so one that errlist doesn't repeat counts like an unknown general code: a warning
+    # beside data, which keeps any bank account it leaves out from being read as gone
+    listed_messages = {problem.msg.strip() for problem in account_set.errlist}
     for message in account_set.errors:
-        if _QUOTA_WARNING.search(message):
-            error = ProviderError(ProviderErrorKind.RATE_LIMITED, message.strip())
-            (warnings if has_data else request_errors).append(error)
+        text = message.strip()
+        if _QUOTA_WARNING.search(text):
+            kind = ProviderErrorKind.RATE_LIMITED
+        elif text and text not in listed_messages:
+            kind = ProviderErrorKind.UNKNOWN
+        else:
+            continue
+        (warnings if has_data else request_errors).append(ProviderError(kind, text))
 
     # A quota warning can arrive in both lists
     unique_warnings = tuple(dict.fromkeys(warnings))
