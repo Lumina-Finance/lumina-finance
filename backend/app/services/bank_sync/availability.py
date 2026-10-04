@@ -128,7 +128,7 @@ async def get_institution_allowance(db: AsyncSession, user_id: uuid.UUID, provid
         .where(BankAccountLink.owner_id == user_id, BankAccountLink.provider == provider, _LIVE_LINK)
         .group_by(BankExternalAccount.institution_key)
     )
-    return InstitutionAllowance(limit=get_institution_limit(user_id, provider), in_use=dict(in_use.tuples().all()))
+    return InstitutionAllowance(limit=get_institution_limit(user_id, provider), in_use=dict(in_use.all()))
 
 
 async def list_link_candidates(db: AsyncSession, user_id: uuid.UUID) -> list[Account]:
