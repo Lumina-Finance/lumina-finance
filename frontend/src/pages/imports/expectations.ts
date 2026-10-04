@@ -17,27 +17,25 @@ export function getCsvExpectations(fixedAccountName: string | null): ImportExpec
   const destination = fixedAccountName ?? 'the account you map it to'
 
   return {
-    intro: `Lumina Finance records each row of your file as one transaction in ${destination}, and reads only the `
-      + 'columns you map.',
-    deviation: 'A transfer row records only its own side. The other account changes only when your file has a row '
-      + "of its own for that side, so until then its balance can read differently from your bank's.",
+    intro: `Each row of your file becomes one transaction in ${destination}.`,
+    deviation: "A transfer row only changes its own account. Import the other account's side too, or that account's "
+      + "balance won't match your bank's.",
     changes: [
       {
         source: 'A currency column',
-        lumina: "A check against the account's currency, with nothing converted. A row in another currency is left "
-          + 'out and listed, unless you write it to an account in that currency or stop importing the column',
+        lumina: "Checked, not converted. A row in a currency its account isn't kept in is left out",
       },
       {
-        source: 'An account the import creates',
-        lumina: 'A new account with no opening balance and no credit limit, which you can add once it exists',
+        source: 'A new account',
+        lumina: 'No opening balance or credit limit until you add them',
       },
     ],
     leftBehind: [
       {
-        group: "Anything that isn't a transaction row",
+        group: 'Not imported',
         items: [
           'Budgets',
-          "A running balance or any other column you don't map",
+          "Columns you don't map, like a running balance",
         ],
       },
     ],

@@ -24,7 +24,7 @@ describe('the card saying what an import does with its data', () => {
   // Started from an account's page, every row goes to that account and nothing asks where
   it('names the account an import started from an account writes every row to', () => {
     expect(getImportExpectations('generic', 'Everyday chequing').intro).toBe(
-      'Lumina Finance records each row of your file as one transaction in Everyday chequing, and reads only the columns you map.',
+      'Each row of your file becomes one transaction in Everyday chequing.',
     )
   })
 
