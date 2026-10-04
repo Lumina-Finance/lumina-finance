@@ -84,11 +84,18 @@ describe('recordStartingBalanceSettled', () => {
     await expect(recordStartingBalanceSettled(SAVE)).rejects.toBeInstanceOf(StartingBalanceUnsettledError);
   });
 
-  it('answers a second save as saved when the first one landed unseen', async () => {
+  it('answers a second save as saved when the first one landed unseen, whatever the refusal says', async () => {
     const saved = createChequing(125000);
-    failSaveThenRead(new ApiError(ALREADY_HAS_TRANSACTIONS, 422, { detail: ALREADY_HAS_TRANSACTIONS }), saved);
+    failSaveThenRead(new ApiError('Refused in other words', 422, { detail: 'Refused in other words' }), saved);
 
     await expect(recordStartingBalanceSettled(SAVE)).resolves.toEqual(saved);
+  });
+
+  it('passes on a refusal when the account does not hold the typed balance', async () => {
+    const refusal = new ApiError(ALREADY_HAS_TRANSACTIONS, 422, { detail: ALREADY_HAS_TRANSACTIONS });
+    failSaveThenRead(refusal, createChequing(-4250));
+
+    await expect(recordStartingBalanceSettled(SAVE)).rejects.toBe(refusal);
   });
 
   it('passes on a refusal the server answered without reading the account', async () => {

@@ -6,10 +6,10 @@ import type { Account } from '@/api/accounts/types';
 // says no more about whether it landed than a dropped connection does
 const UNANSWERED_STATUSES = new Set([502, 503, 504]);
 
-// The refusal a second save meets once the first has landed, which is how a save sent again after
-// an unanswered one finds out it had been saved after all
-const ALREADY_HAS_TRANSACTIONS_STATUS = 422;
-const ALREADY_HAS_TRANSACTIONS_DETAIL = 'This account already has transactions, so a starting balance can\'t be recorded';
+// A second save is refused with this once the first has landed, which is how a save sent again
+// after an unanswered one finds out it had been saved after all. Reading the account tells that
+// refusal from any other with the same status, so the backend's wording isn't relied on
+const REFUSED_STATUS = 422;
 
 /** A save ended with no answer and the account shows it didn't land, so it can be sent again as it is */
 export class StartingBalanceNotSavedError extends Error {
@@ -31,10 +31,8 @@ function isUnanswered(error: unknown): boolean {
   return !(error instanceof ApiError) || UNANSWERED_STATUSES.has(error.status);
 }
 
-function isAlreadyHasTransactions(error: unknown): boolean {
-  return error instanceof ApiError
-    && error.status === ALREADY_HAS_TRANSACTIONS_STATUS
-    && error.detail === ALREADY_HAS_TRANSACTIONS_DETAIL;
+function isRefused(error: unknown): boolean {
+  return error instanceof ApiError && error.status === REFUSED_STATUS;
 }
 
 /**
@@ -42,7 +40,8 @@ function isAlreadyHasTransactions(error: unknown): boolean {
  *
  * The account is new and the balance its only entry, so the account holding exactly that balance
  * means the save landed, which is then answered as a save. A save sent again after one that did
- * land is refused for the transactions the account now has, and is settled the same way
+ * land is refused for the transactions the account now has, so a refusal is settled the same way,
+ * and passed on as it is when the account doesn't hold the balance
  *
  * @param variables - The account and the balance as the user states it
  * @returns The account with the starting balance, whether this save or an earlier one recorded it
@@ -56,7 +55,7 @@ export async function recordStartingBalanceSettled(
     return await recordStartingBalance(variables);
   } catch (error) {
     const unanswered = isUnanswered(error);
-    if (!unanswered && !isAlreadyHasTransactions(error)) throw error;
+    if (!unanswered && !isRefused(error)) throw error;
 
     let account: Account;
     try {
