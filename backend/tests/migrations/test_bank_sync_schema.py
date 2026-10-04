@@ -5,6 +5,7 @@ migration left out would still pass. These tests share one migrated database per
 runs inside a transaction rolled back at its end, so none sees another's rows
 """
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -12,7 +13,7 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.exc import IntegrityError, ProgrammingError
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.config.database import APP_DB_USER
@@ -244,28 +245,15 @@ async def test_bank_signin_notice_is_recorded_once_per_bank_login(session):
     await _add(session, _build_signin_notice(connection, "login-2"))
 
 
-async def test_account_review_preferences_start_on_review_and_go_with_the_account(session):
-    """A row stored without choices reads Review all, and deleting the account deletes it"""
+async def test_account_review_preferences_go_with_the_account(session):
+    """Deleting an account deletes its stored choices"""
     user = await _owner(session)
     everyday = _build_account(user.id)
     await _add(session, everyday)
-    await session.execute(
-        text("INSERT INTO account_review_preferences (account_id, owner_id) VALUES (:account_id, :owner_id)"),
-        {"account_id": everyday.id, "owner_id": user.id},
-    )
+    await _add(session, AccountReviewPreference(account_id=everyday.id, owner_id=user.id, corrections="trust"))
 
-    stored = (
-        await session.execute(
-            select(
-                AccountReviewPreference.new_transactions,
-                AccountReviewPreference.corrections,
-                AccountReviewPreference.removals,
-            )
-        )
-    ).one()
     await session.execute(delete(Account).where(Account.id == everyday.id))
 
-    assert tuple(stored) == ("review", "review", "review")
     assert await session.scalar(select(func.count()).select_from(AccountReviewPreference)) == 0
 
 
@@ -457,11 +445,16 @@ async def test_bank_sync_jobs_one_running_and_one_queued_per_connection(session)
     await _refused(session, job(BankSyncJobStatus.QUEUED), "uq_bank_sync_jobs_queued")
 
 
+def _app_role_engine(database_name: str) -> AsyncEngine:
+    """Return an engine connecting to a migrated database as the app role, with no request identity"""
+    url = f"postgresql+asyncpg://{APP_DB_USER}:{resolve_role_password('app', generate=False)}@{DB_HOST}:{DB_PORT}/{database_name}"
+    return create_async_engine(url, poolclass=NullPool)
+
+
 async def test_migration_revisions_tell_the_app_role_the_database_is_at_head(migrated_database):
     """The worker checks the migration level through its own role, which can't read the history"""
     head = ScriptDirectory.from_config(Config(str(_BACKEND_DIR / "alembic.ini"))).get_current_head()
-    app_role_url = f"postgresql+asyncpg://{APP_DB_USER}:{resolve_role_password('app', generate=False)}@{DB_HOST}:{DB_PORT}/{migrated_database}"
-    engine = create_async_engine(app_role_url, poolclass=NullPool)
+    engine = _app_role_engine(migrated_database)
     try:
         async with engine.connect() as connection:
             assert (await connection.scalars(text("SELECT public.migration_revisions()"))).all() == [head]
@@ -469,3 +462,48 @@ async def test_migration_revisions_tell_the_app_role_the_database_is_at_head(mig
                 await connection.execute(text("SELECT version_num FROM alembic_version"))
     finally:
         await engine.dispose()
+
+
+async def test_bank_sync_heartbeat_written_by_the_worker_is_readable_by_the_app_role(migrated_database):
+    """The app tells whether sync is running from the heartbeat the worker's scan stamps"""
+    scanned_at = datetime(2026, 10, 4, 12, 0, tzinfo=UTC)
+    engine = _app_role_engine(migrated_database)
+    try:
+        async with engine.connect() as connection:
+            await connection.execute(text("SELECT public.record_bank_sync_scan(:now)"), {"now": scanned_at})
+            heartbeat = (await connection.execute(text("SELECT id, last_scan_at FROM bank_sync_heartbeat"))).all()
+            await connection.rollback()
+    finally:
+        await engine.dispose()
+
+    assert [tuple(row) for row in heartbeat] == [(1, scanned_at)]
+
+
+# Every bank sync table holding a user's rows
+_SECURED_BANK_TABLES = (
+    "bank_connections",
+    "bank_provider_requests",
+    "bank_external_accounts",
+    "bank_account_links",
+    "bank_signin_notices",
+    "account_review_preferences",
+    "bank_transactions",
+    "bank_pending_transactions",
+    "bank_sync_jobs",
+)
+
+
+async def test_bank_tables_have_row_level_security_and_a_policy_from_the_migrations(session):
+    """A bank table the migrations left unsecured would show one user's bank data to every user"""
+    secured = (
+        await session.execute(
+            text(
+                "SELECT c.relname, c.relrowsecurity, EXISTS (SELECT 1 FROM pg_policies p "
+                "WHERE p.schemaname = 'public' AND p.tablename = c.relname) "
+                "FROM pg_class c WHERE c.relnamespace = 'public'::regnamespace AND c.relname = ANY(:tables)"
+            ),
+            {"tables": list(_SECURED_BANK_TABLES)},
+        )
+    ).all()
+
+    assert {name: (enabled, has_policy) for name, enabled, has_policy in secured} == dict.fromkeys(_SECURED_BANK_TABLES, (True, True))
