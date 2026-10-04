@@ -1,7 +1,6 @@
 import { ImportRowProblemsTable, ImportRowWarningsTable } from '@/pages/imports/components'
-import { ImportProviderPreviewStep } from '@/pages/imports/sections'
+import { ImportPreviewLayout } from '@/pages/imports/sections'
 import { getProviderSkippedRowsDisplay } from '@/pages/imports/utils'
-import { IMPORT_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/constants'
 import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
 
 type FireflyPreviewStepProps = Pick<
@@ -45,12 +44,12 @@ export function FireflyPreviewStep({
   const skipped = getProviderSkippedRowsDisplay({ liveForecastRows: predictedSkippedRows, completedImport })
 
   return (
-    <ImportProviderPreviewStep
+    <ImportPreviewLayout
       // The budget step only exists when a budgets export is staged
-      hasBudgetStep={Boolean(budgetsFile)}
-      sampleLimit={IMPORT_SAMPLE_PREVIEW_LIMIT}
+      index={budgetsFile ? '05' : '04'}
       stats={{ ...importEstimate, newAccountCount, newCategoryCount }}
       previewGroups={previewGroups}
+      emptyDescription="Transactions compiled from the export will appear here."
       buildError={importBuild.errors[0] ?? null}
       importError={importError}
       imported={Boolean(importResult)}
@@ -67,6 +66,6 @@ export function FireflyPreviewStep({
       )}
 
       <ImportRowWarningsTable rowWarnings={predictedRowWarnings} headers={fireflyHeaders} />
-    </ImportProviderPreviewStep>
+    </ImportPreviewLayout>
   )
 }

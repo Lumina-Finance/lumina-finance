@@ -38,7 +38,7 @@ for (const example of CASES) {
     await expect(upload).toBeEnabled()
     await upload.setInputFiles({ name: 'exact-amounts.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) })
 
-    const preview = page.locator('section').filter({ has: page.getByText('Imported Data Preview', { exact: true }) })
+    const preview = page.locator('section').filter({ has: page.getByText('Preview and Commit', { exact: true }) })
     await expect(preview).toBeVisible()
     // Only currency placement comes from Intl; the expected financial digits are literal fixtures
     const magnitudes = await page.evaluate(({ currency, digits, smallDigits }) => {

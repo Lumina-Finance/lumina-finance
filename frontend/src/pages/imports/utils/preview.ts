@@ -3,6 +3,7 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
 import {
+  CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   IMPORT_SAMPLE_PREVIEW_LIMIT,
   SELF_MERCHANT_NAME,
@@ -14,6 +15,7 @@ import type {
   ImportAmountDirection,
   ImportCategoryKind,
   ImportCategoryRename,
+  ImportBuildResult,
   ImportFileDraft,
   ImportRowProblem,
   PreviewTransactionRow,
@@ -291,4 +293,37 @@ export function getPreviewCategory(
 
   if (mapped) return categoryById.get(mapped)
   return undefined
+}
+
+/**
+ * Works out the CSV import's summary figures, the same four every import's preview opens with
+ *
+ * Every row becomes one transaction, so a built import creates one per row it sends. Until it can
+ * be built, the rows already refused are left out and the rest are counted, since answering the
+ * questions still open changes which accounts and categories they land in, not whether they import.
+ * A source answered create-new counts as one new account or category
+ *
+ * @param rowCount - Every data row in the staged files
+ */
+export function getCsvImportStats({
+  rowCount,
+  importBuild,
+  accountSources,
+  accountMappings,
+  importedCategories,
+  categoryMappings,
+}: {
+  rowCount: number
+  importBuild: Pick<ImportBuildResult, 'payload' | 'rowProblems'>
+  accountSources: Array<{ id: string }>
+  accountMappings: Record<string, string>
+  importedCategories: string[]
+  categoryMappings: Record<string, string>
+}) {
+  return {
+    rowCount,
+    transactionEstimate: importBuild.payload?.rows.length ?? Math.max(rowCount - importBuild.rowProblems.length, 0),
+    newAccountCount: accountSources.filter((source) => accountMappings[source.id] === CREATE_ACCOUNT_VALUE).length,
+    newCategoryCount: importedCategories.filter((source) => categoryMappings[source] === CREATE_CATEGORY_VALUE).length,
+  }
 }

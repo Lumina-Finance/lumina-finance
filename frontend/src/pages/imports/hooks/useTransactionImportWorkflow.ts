@@ -43,6 +43,7 @@ import {
   inferCategoryMappings,
   isAutoFilledAccountSource,
   isColumnMappingComplete,
+  getCsvImportStats,
   groupPreviewRowsByDate,
   guessImportDirectionAnswers,
   inferColumnMap,
@@ -809,6 +810,14 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   )
 
   const totalRows = files.reduce((sum, file) => sum + file.rows.length, 0)
+  const importStats = getCsvImportStats({
+    rowCount: totalRows,
+    importBuild,
+    accountSources: accountMappingSources,
+    accountMappings: resolvedAccountMappings,
+    importedCategories,
+    categoryMappings: resolvedCategoryMappings,
+  })
   const mappedFieldCount = headers.length === 0 ? 0 : Object.values(columnMap).filter(Boolean).length
   const canCommitImport = run.canCommit({ hasPayload: importBuild.payload !== null, isProcessingFile: isProcessingFiles })
 
@@ -1072,6 +1081,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     autoFilledCategories,
     previewRows,
     previewGroups,
+    importStats,
     importBuild,
     totalRows,
     mappedFieldCount,

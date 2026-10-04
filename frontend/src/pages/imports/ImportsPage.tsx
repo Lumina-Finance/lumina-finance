@@ -37,7 +37,6 @@ import {
   ImportMerchantMatchingStep,
   ImportCategoryMatchingStep,
   ImportColumnMappingStep,
-  ImportCommitPanel,
   ImportFilesStep,
   ImportPreviewStep,
   ImportSourceStep,
@@ -322,7 +321,6 @@ export default function ImportsPage() {
                         onToggle={() => workflow.setTagHandlingOpen((current) => !current)}
                       />
                       <ImportPreviewStep {...workflow} />
-                      <ImportCommitPanel {...workflow} />
                     </>
                   )}
                 </div>

@@ -1,6 +1,6 @@
-import { EmptyState, ImportNotice, ImportPreviewList, ImportRowProblemsTable, ImportRowWarningsTable, ImportStep } from '@/pages/imports/components'
-import { IMPORT_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/constants'
+import { ImportNotice, ImportRowProblemsTable, ImportRowWarningsTable } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
+import { ImportPreviewLayout } from './ImportPreviewLayout'
 
 /**
  * Heads the reasons the import cannot go ahead
@@ -14,7 +14,15 @@ function getBlockingErrorsTitle(count: number) {
 
 type ImportPreviewStepProps = Pick<
   TransactionImportWorkflow,
-  'files' | 'previewRows' | 'previewGroups' | 'importBuild' | 'headers'
+  | 'files'
+  | 'previewGroups'
+  | 'importStats'
+  | 'importBuild'
+  | 'headers'
+  | 'importError'
+  | 'handleCommitImport'
+  | 'canCommitImport'
+  | 'importResult'
 >
 
 // How many reasons the step spells out before counting the rest. A file of unmatched categories
@@ -43,8 +51,9 @@ function getHiddenErrorSummary(count: number) {
 }
 
 /**
- * Preview step of the generic CSV import flow, showing a sample of the compiled transactions or,
- * while anything still stands between the mappings and a commit, the reasons instead
+ * Preview and commit step of the generic CSV import flow, opening with the summary every import
+ * shows, then a sample of the compiled transactions or, while anything still stands between the
+ * mappings and a commit, the reasons instead
  *
  * Rows that cannot be converted are listed above the sample with the reason each was refused, and
  * the import stays refused until every one of them is gone. Rows that will import but are probably
@@ -56,20 +65,36 @@ function getHiddenErrorSummary(count: number) {
  */
 export function ImportPreviewStep({
   files,
-  previewRows,
   previewGroups,
+  importStats,
   importBuild,
   headers,
+  importError,
+  handleCommitImport,
+  canCommitImport,
+  importResult,
 }: ImportPreviewStepProps) {
   const visibleErrors = importBuild.errors.slice(0, VISIBLE_ERROR_LIMIT)
   const hiddenErrorCount = importBuild.errors.length - visibleErrors.length
   const hasBlockingErrors = files.length > 0 && importBuild.errors.length > 0
 
   return (
-    <ImportStep
+    <ImportPreviewLayout
       index="07"
-      title="Imported Data Preview"
-      description={`The first ${IMPORT_SAMPLE_PREVIEW_LIMIT} transactions as they will appear in your ledger.`}
+      stats={importStats}
+      blocked={hasBlockingErrors ? (
+        <ImportNotice
+          tone="danger"
+          title={getBlockingErrorsTitle(importBuild.errors.length)}
+          items={hiddenErrorCount > 0 ? [...visibleErrors, getHiddenErrorSummary(hiddenErrorCount)] : visibleErrors}
+        />
+      ) : undefined}
+      previewGroups={previewGroups}
+      emptyDescription="Mapped rows will appear here."
+      importError={importError}
+      imported={Boolean(importResult)}
+      canCommit={canCommitImport}
+      onCommit={handleCommitImport}
     >
       {importBuild.rowProblems.length > 0 && (
         <div className="mb-4">
@@ -89,20 +114,6 @@ export function ImportPreviewStep({
           {warning}
         </p>
       ))}
-      {hasBlockingErrors ? (
-        <ImportNotice
-          tone="danger"
-          title={getBlockingErrorsTitle(importBuild.errors.length)}
-          items={hiddenErrorCount > 0 ? [...visibleErrors, getHiddenErrorSummary(hiddenErrorCount)] : visibleErrors}
-        />
-      ) : previewRows.length === 0 ? (
-        <EmptyState
-          title="No preview rows"
-          description="Mapped rows will appear here."
-        />
-      ) : (
-        <ImportPreviewList groups={previewGroups} />
-      )}
-    </ImportStep>
+    </ImportPreviewLayout>
   )
 }
