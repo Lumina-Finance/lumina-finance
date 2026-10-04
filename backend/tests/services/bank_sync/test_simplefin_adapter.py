@@ -183,9 +183,11 @@ async def test_fetch_asks_for_the_window_for_chosen_accounts():
 async def test_window_reaching_today_asks_for_pending_records_when_wanted(include_pending, asks_for_pending):
     """Only the window that ends today sends pending=1, and only when the sync wants pending records"""
     bridge = RecordingBridge(_recorded("accounts.json"))
-    now = datetime.now(UTC)
 
-    await _fetch_window(bridge, now - timedelta(days=30), now, include_pending=include_pending)
+    # Ending a minute ahead keeps the window reaching today even if midnight passes mid-test
+    end = datetime.now(UTC) + timedelta(minutes=1)
+
+    await _fetch_window(bridge, end - timedelta(days=30), end, include_pending=include_pending)
 
     [request] = bridge.requests
     assert (("pending", "1") in request.url.params.multi_items()) is asks_for_pending
