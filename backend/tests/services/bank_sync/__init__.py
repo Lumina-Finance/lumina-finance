@@ -1,0 +1,1 @@
+"""Bank sync service tests"""
