@@ -13,38 +13,12 @@ from sqlalchemy import func, select, text
 
 from app.models.bank_connection import BankConnection
 from app.models.bank_sync_job import BankSyncHeartbeat, BankSyncJob, BankSyncJobKind, BankSyncJobStatus
-from app.models.currency import Currency
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
 from tests.conftest import ScopedSession, TestSession
-from tests.routes.support.bank_sync_helpers import _build_bank_connection, _build_user
+from tests.routes.support.bank_sync_helpers import _job_states, _seed_job
 from tests.routes.support.identity_helpers import _act_as
 
 _CLAIM = text("SELECT job_id, owner_id, connection_id, kind, discover, attempt FROM public.claim_bank_sync_jobs(:limit)")
-
-
-@pytest.fixture
-async def connections():
-    """Commit four connections, each with its own owner, so the worker's sessions can see them"""
-    async with TestSession() as session:
-        session.add(Currency(id="CAD", name="Canadian Dollar", symbol="$", minor_unit_exponent=2))
-        await session.flush()
-        users = [_build_user(f"owner{index}@example.com") for index in range(4)]
-        session.add_all(users)
-        await session.flush()
-        built = [_build_bank_connection(user.id) for user in users]
-        session.add_all(built)
-        await session.commit()
-    return built
-
-
-async def _seed_job(connection: BankConnection, kind: BankSyncJobKind, **values) -> BankSyncJob:
-    """Commit a job for a connection, queued and due an hour ago unless told otherwise"""
-    values.setdefault("run_after", datetime.now(UTC) - timedelta(hours=1))
-    job = BankSyncJob(owner_id=connection.owner_id, connection_id=connection.id, kind=kind, **values)
-    async with TestSession() as session:
-        session.add(job)
-        await session.commit()
-    return job
 
 
 async def _claim(limit: int) -> list:
@@ -53,13 +27,6 @@ async def _claim(limit: int) -> list:
         claimed = (await session.execute(_CLAIM, {"limit": limit})).all()
         await session.commit()
     return claimed
-
-
-async def _job_states() -> dict:
-    """Return every job's status and attempt by id, read as the table owner"""
-    async with TestSession() as session:
-        rows = (await session.execute(select(BankSyncJob.id, BankSyncJob.status, BankSyncJob.attempt))).all()
-    return {job_id: (status, attempt) for job_id, status, attempt in rows}
 
 
 async def test_claim_takes_initial_and_manual_jobs_before_retries_and_scheduled_ones(connections):

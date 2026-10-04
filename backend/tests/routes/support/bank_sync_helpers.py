@@ -4,11 +4,14 @@ Bank sync records have no routes yet that create them, so tests build them direc
 returns an unsaved row with the fields every test needs, for the caller to add to whichever session
 it is testing through. Rows other rows point at get their id up front, so a dependent row can be
 built before the first is flushed, though each level still has to be flushed before the next.
-Route tests record a bank source on a transaction they created through the API
+Route tests record a bank source on a transaction they created through the API, and jobs are
+committed, since the worker reaches them through sessions of its own
 """
 
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
+
+from sqlalchemy import select
 
 from app.models.account import Account
 from app.models.bank_connection import (
@@ -20,6 +23,7 @@ from app.models.bank_connection import (
     BankSigninNotice,
 )
 from app.models.bank_pending_transaction import BankPendingTransaction
+from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
 from app.models.base import AccountKind, AccountType, CategoryKind
 from app.models.category import Category
@@ -195,3 +199,20 @@ def _build_pending_transaction(account: Account, external_transaction_id: str, a
         description="HOLD HARBOUR FUEL",
         observed_at=datetime(2026, 10, 4, 9, 0, tzinfo=UTC),
     )
+
+
+async def _seed_job(connection: BankConnection, kind: BankSyncJobKind, **values) -> BankSyncJob:
+    """Commit a job for a connection, queued and due an hour ago unless told otherwise"""
+    values.setdefault("run_after", datetime.now(UTC) - timedelta(hours=1))
+    job = BankSyncJob(owner_id=connection.owner_id, connection_id=connection.id, kind=kind, **values)
+    async with TestSession() as session:
+        session.add(job)
+        await session.commit()
+    return job
+
+
+async def _job_states() -> dict:
+    """Return every job's status and attempt by id, read as the table owner"""
+    async with TestSession() as session:
+        rows = (await session.execute(select(BankSyncJob.id, BankSyncJob.status, BankSyncJob.attempt))).all()
+    return {job_id: (status, attempt) for job_id, status, attempt in rows}

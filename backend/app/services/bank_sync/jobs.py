@@ -1,13 +1,42 @@
-"""Queueing bank sync jobs"""
+"""Bank sync jobs: queueing, claiming, and the fence around a job's finishing step"""
 
 import uuid
+from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import case, func, text
+from sqlalchemy import case, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.rls.functions import CLAIM_BANK_SYNC_JOBS
+from app.models.bank_connection import BankAccountLink, BankLinkState
 from app.models.bank_sync_job import CLAIM_RANK, BankSyncJob, BankSyncJobKind, BankSyncJobStatus
+from app.services.bank_sync.providers.contract import ProviderError
+
+_CLAIM_ONE = text(f"SELECT job_id, owner_id, connection_id, kind, discover, attempt FROM {CLAIM_BANK_SYNC_JOBS}(1)")  # noqa: S608
+
+
+@dataclass(frozen=True)
+class ClaimedJob:
+    """A job as its claim handed it to a runner
+
+    The attempt number is what the runner holds the job by: a later claim of the same job moves it
+    """
+
+    id: uuid.UUID
+    owner_id: uuid.UUID
+    connection_id: uuid.UUID
+    kind: BankSyncJobKind
+    discover: bool
+    attempt: int
+
+
+class JobNotHeld(Exception):
+    """The runner no longer holds the job, so nothing it found may be written
+
+    A later attempt claimed the job after this runner's lease ran out, or it already finished
+    """
 
 
 def _priority(kind):
@@ -62,3 +91,83 @@ async def enqueue_bank_sync_job(
             },
         )
     )
+
+
+async def claim_bank_sync_job(db: AsyncSession) -> ClaimedJob | None:
+    """Claim the next due job across every user, or return None when none is due
+
+    Runs as the worker, with no request identity, since only the claim sees across users. The
+    caller commits before running the job, so no database connection is held while it runs
+
+    Args:
+        db: Session with no request identity
+    """
+    row = (await db.execute(_CLAIM_ONE)).one_or_none()
+    if row is None:
+        return None
+    return ClaimedJob(
+        id=row.job_id,
+        owner_id=row.owner_id,
+        connection_id=row.connection_id,
+        kind=BankSyncJobKind(row.kind),
+        discover=row.discover,
+        attempt=row.attempt,
+    )
+
+
+async def lock_job_for_finish(db: AsyncSession, job: ClaimedJob, links: Sequence[BankAccountLink]) -> list[BankAccountLink]:
+    """Start a job's finishing step: lock the job, and return the links it may still write for
+
+    A job writes what it found in one transaction, which this opens, and only while its runner
+    still holds the job, so a runner that outlived its lease writes nothing. Of the links the job
+    set out to sync, only those still active on the same bank account of the same connection are
+    returned, so a link unlinked, waiting for its bank account to be chosen again, or moved to
+    another bank account while the job fetched gets none of its results. The job and those links
+    stay locked until the caller commits
+
+    Args:
+        db: The job owner's session, which the results are then written in
+        job: The job as claimed
+        links: The links the job syncs, as they stood when it started
+
+    Returns:
+        The links still covered, freshly read and locked, in id order
+
+    Raises:
+        JobNotHeld: A later attempt holds the job, or it already finished
+    """
+    held = await db.scalar(
+        select(BankSyncJob.id)
+        .where(
+            BankSyncJob.id == job.id,
+            BankSyncJob.status == BankSyncJobStatus.RUNNING,
+            BankSyncJob.attempt == job.attempt,
+        )
+        .with_for_update()
+    )
+    if held is None:
+        raise JobNotHeld(f"Attempt {job.attempt} no longer holds bank sync job {job.id}")
+    if not links:
+        return []
+
+    started_on = {link.id: (link.connection_id, link.external_account_id) for link in links}
+    current = await db.scalars(select(BankAccountLink).where(BankAccountLink.id.in_(started_on)).order_by(BankAccountLink.id).with_for_update())
+    return [
+        link for link in current if link.state == BankLinkState.ACTIVE and (link.connection_id, link.external_account_id) == started_on[link.id]
+    ]
+
+
+async def finish_job(db: AsyncSession, job: ClaimedJob, error: ProviderError | None = None) -> None:
+    """Record a job as finished, failed when given the error that stopped it
+
+    The caller locked the job with lock_job_for_finish in this transaction, and commits
+
+    Args:
+        db: The job owner's session
+        job: The job as claimed
+        error: What stopped the job, or None when it succeeded
+    """
+    finished = {"status": BankSyncJobStatus.SUCCEEDED, "finished_at": func.now()}
+    if error is not None:
+        finished |= {"status": BankSyncJobStatus.FAILED, "last_error_kind": error.kind, "last_error_reason": error.reason}
+    await db.execute(update(BankSyncJob).where(BankSyncJob.id == job.id).values(finished))
