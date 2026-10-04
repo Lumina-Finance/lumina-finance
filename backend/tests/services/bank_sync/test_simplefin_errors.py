@@ -354,6 +354,17 @@ async def test_quota_warning_only_in_the_older_errors_list_is_recognised(message
     assert [account.external_id for account in result.accounts] == ["ACT-chequing"]
 
 
+async def test_quota_warning_only_in_the_older_errors_list_without_data_is_rate_limited():
+    """A plain quota message that comes back alone keeps nothing, and the day's requests count as spent"""
+    message = "Too many requests today. Please make fewer requests."
+    body = {"errors": [message], "connections": [], "accounts": []}
+
+    result = await _fetch(simplefin_adapter(RecordingBridge(answer_with(200, json.dumps(body).encode(), "application/json")).transport))
+
+    assert result.request_error == ProviderError(_RATE_LIMITED, message)
+    assert result.warnings == ()
+
+
 async def test_account_left_out_of_the_response_fails(scenario: FakeBridgeScenario):
     """A requested account the response leaves out fails for this sync, while the others proceed"""
     await scenario.add_harbour_accounts()
