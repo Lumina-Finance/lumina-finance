@@ -6,8 +6,8 @@ import httpx
 
 from app.config.env import optional_csv_env
 
-# SimpleFIN Bridge's two servers. An operator who sets the list replaces these, so a hosted
-# deployment can keep exactly these and a self-hosted one can add its own SimpleFIN servers
+# SimpleFIN Bridge's two servers, always allowed. A self-hosted operator adds their own SimpleFIN
+# servers beside them, so connections already made through the Bridge keep working
 _SIMPLEFIN_BRIDGE_ORIGINS = ["https://beta-bridge.simplefin.org", "https://bridge.simplefin.org"]
 
 
@@ -47,16 +47,32 @@ def _read_origin(key: str, value: str, *, schemes: tuple[str, ...]) -> str:
     return value
 
 
+def read_simplefin_origins() -> list[str]:
+    """Return the origins SimpleFIN requests may reach: SimpleFIN Bridge's, then any the operator adds
+
+    Raises:
+        RuntimeError: An added entry is not an HTTPS origin
+    """
+    added = [
+        _read_origin("BANK_SYNC_SIMPLEFIN_ORIGINS", origin, schemes=("https",)) for origin in optional_csv_env("BANK_SYNC_SIMPLEFIN_ORIGINS")
+    ]
+    return [*_SIMPLEFIN_BRIDGE_ORIGINS, *added]
+
+
+def read_simplefin_test_origin() -> str | None:
+    """Return the testing-only origin, or None when it is unset
+
+    Raises:
+        RuntimeError: The value is not an HTTP or HTTPS origin
+    """
+    value = os.getenv("BANK_SYNC_SIMPLEFIN_TEST_ORIGIN", "").strip()
+    return _read_origin("BANK_SYNC_SIMPLEFIN_TEST_ORIGIN", value, schemes=("http", "https")) if value else None
+
+
 # Origins SimpleFIN requests may reach, always over HTTPS and only at public addresses
-BANK_SYNC_SIMPLEFIN_ORIGINS = [
-    _read_origin("BANK_SYNC_SIMPLEFIN_ORIGINS", origin, schemes=("https",))
-    for origin in optional_csv_env("BANK_SYNC_SIMPLEFIN_ORIGINS") or _SIMPLEFIN_BRIDGE_ORIGINS
-]
+BANK_SYNC_SIMPLEFIN_ORIGINS = read_simplefin_origins()
 
 # Testing only: one origin exempt from the HTTPS and public address checks, so development
 # instances and browser tests can reach a fake SimpleFIN Bridge on a private network. Unset by
 # default and kept out of the self-hosting docs, and the app warns at start while it is set
-_test_origin = os.getenv("BANK_SYNC_SIMPLEFIN_TEST_ORIGIN", "").strip()
-BANK_SYNC_SIMPLEFIN_TEST_ORIGIN = (
-    _read_origin("BANK_SYNC_SIMPLEFIN_TEST_ORIGIN", _test_origin, schemes=("http", "https")) if _test_origin else None
-)
+BANK_SYNC_SIMPLEFIN_TEST_ORIGIN = read_simplefin_test_origin()

@@ -1,18 +1,30 @@
 """Bank sync settings tests
 
-Guards the origins SimpleFIN requests may reach: an entry that also carried credentials, a path or
-plain HTTP would widen what the outbound guard lets through
+Guards the origins SimpleFIN requests may reach: an operator's own server must add to SimpleFIN
+Bridge rather than replace it, which would leave every Bridge connection needing a reconnect, and an
+entry that also carried credentials, a path or plain HTTP would widen what the outbound guard lets
+through
 """
 
 import pytest
 
-from app.config.bank_sync import _read_origin
+from app.config.bank_sync import read_simplefin_origins, read_simplefin_test_origin
+
+_BRIDGE_ORIGINS = ["https://beta-bridge.simplefin.org", "https://bridge.simplefin.org"]
 
 
-@pytest.mark.parametrize("origin", ["https://bridge.simplefin.org", "https://simplefin.example:8443", "https://simplefin.example/"])
-def test_origin_entry_with_a_scheme_host_and_port_is_accepted(origin):
-    """An operator's own HTTPS server is accepted as written, with or without a port"""
-    assert _read_origin("BANK_SYNC_SIMPLEFIN_ORIGINS", origin, schemes=("https",)) == origin
+def test_simplefin_origins_unset_allows_only_simplefin_bridge(monkeypatch):
+    """A deployment that adds nothing reaches only SimpleFIN Bridge's two servers"""
+    monkeypatch.delenv("BANK_SYNC_SIMPLEFIN_ORIGINS", raising=False)
+
+    assert read_simplefin_origins() == _BRIDGE_ORIGINS
+
+
+def test_simplefin_origins_added_keep_simplefin_bridge(monkeypatch):
+    """An operator's own servers, with or without a port, are allowed beside SimpleFIN Bridge"""
+    monkeypatch.setenv("BANK_SYNC_SIMPLEFIN_ORIGINS", "https://simplefin.example:8443, https://sfin.example/")
+
+    assert read_simplefin_origins() == [*_BRIDGE_ORIGINS, "https://simplefin.example:8443", "https://sfin.example/"]
 
 
 @pytest.mark.parametrize(
@@ -27,14 +39,23 @@ def test_origin_entry_with_a_scheme_host_and_port_is_accepted(origin):
     ],
     ids=["plain-http", "user-info", "path", "query", "fragment", "no-host"],
 )
-def test_origin_entry_with_anything_beyond_an_origin_is_refused_at_start(origin):
+def test_simplefin_origins_entry_beyond_an_origin_is_refused_at_start(monkeypatch, origin):
     """The app refuses to start rather than guessing which part of the entry was meant"""
+    monkeypatch.setenv("BANK_SYNC_SIMPLEFIN_ORIGINS", origin)
+
     with pytest.raises(RuntimeError, match="Invalid BANK_SYNC_SIMPLEFIN_ORIGINS entry"):
-        _read_origin("BANK_SYNC_SIMPLEFIN_ORIGINS", origin, schemes=("https",))
+        read_simplefin_origins()
 
 
-def test_testing_only_origin_may_use_plain_http():
+def test_simplefin_test_origin_unset_is_none(monkeypatch):
+    """The testing-only exemption exists only while it is set"""
+    monkeypatch.delenv("BANK_SYNC_SIMPLEFIN_TEST_ORIGIN", raising=False)
+
+    assert read_simplefin_test_origin() is None
+
+
+def test_simplefin_test_origin_may_use_plain_http(monkeypatch):
     """The fake SimpleFIN Bridge in development and CI is served over plain HTTP"""
-    origin = "http://fake-bridge:8080"
+    monkeypatch.setenv("BANK_SYNC_SIMPLEFIN_TEST_ORIGIN", "http://fake-bridge:8080")
 
-    assert _read_origin("BANK_SYNC_SIMPLEFIN_TEST_ORIGIN", origin, schemes=("http", "https")) == origin
+    assert read_simplefin_test_origin() == "http://fake-bridge:8080"
