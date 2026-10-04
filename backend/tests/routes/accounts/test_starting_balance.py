@@ -5,8 +5,9 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import delete, func, select, text
 
+from app.models.account import AccountBalanceSnapshot
 from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.transaction import Transaction
@@ -160,6 +161,28 @@ async def test_record_starting_balance_refuses_an_archived_account(client):
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Account is archived"
     assert await _account_transactions(account_id) == []
+
+
+async def test_record_starting_balance_writes_nothing_if_balance_adjustment_category_missing(client):
+    """Missing Balance Adjustment configuration leaves the account at zero with no transaction."""
+    headers = _get_auth_header(await _create_user(client))
+    account_id = (await _create_account(client, headers)).json()["id"]
+    async with TestSession() as session:
+        await session.execute(delete(Category).where(Category.name == "Balance Adjustment", Category.is_system.is_(True)))
+        await session.commit()
+
+    resp = await _record_starting_balance(client, headers, account_id, 100_00)
+
+    assert resp.status_code == 500
+    assert resp.json()["detail"] == "Balance adjustment category is not configured"
+    async with TestSession() as session:
+        transaction_count = await session.scalar(select(func.count(Transaction.id)))
+        snapshot = await session.scalar(
+            select(AccountBalanceSnapshot).where(AccountBalanceSnapshot.account_id == UUID(account_id)),
+        )
+    assert transaction_count == 0
+    assert snapshot is not None
+    assert snapshot.balance == 0
 
 
 async def test_record_starting_balance_waits_for_a_transaction_still_saving_and_refuses(client):

@@ -49,8 +49,9 @@ async def record_account_starting_balance(
         adjustment_date: The user's today, which dates the adjustment
 
     Raises:
-        HTTPException: The account is a group account, is archived, already has transactions, or the
-            Balance Adjustment category or the Myself merchant is not configured
+        HTTPException: The account is a group account, is archived, already has transactions, the amount
+            is outside the range an account balance can hold, or the Balance Adjustment category or the
+            Myself merchant is not configured
     """
     # Group accounts are left out, as every new flow leaves them out until grouped resources are built
     if account.group_id is not None:
@@ -72,38 +73,9 @@ async def record_account_starting_balance(
         )
 
     signed_amount = amount if account.account_kind == AccountKind.ASSET else -amount
-    await add_account_starting_balance_adjustment(
-        db,
-        account,
-        user_id=user_id,
-        amount=signed_amount,
-        adjustment_date=adjustment_date,
-    )
 
-
-async def add_account_starting_balance_adjustment(
-    db: AsyncSession,
-    account: Account,
-    *,
-    user_id: uuid.UUID,
-    amount: int,
-    adjustment_date: date,
-) -> None:
-    """Add the starting balance adjustment for an account
-
-    Args:
-        db: Active database session
-        account: Account receiving the starting balance
-        user_id: User creating the account
-        amount: Starting balance amount in minor units
-        adjustment_date: Date used for the adjustment transaction
-
-    Raises:
-        HTTPException: The amount is outside the range an account balance can hold, or the balance
-            adjustment category or the Myself merchant is not configured
-    """
-    # A new account holds nothing else, so the amount is its whole balance
-    refuse_unstorable_balance(account.name, amount)
+    # The account holds nothing else yet, so the amount is its whole balance
+    refuse_unstorable_balance(account.name, signed_amount)
     db.add(
         Transaction(
             created_by_user_id=user_id,
@@ -111,7 +83,7 @@ async def add_account_starting_balance_adjustment(
             dt=adjustment_date,
             category_id=await _get_system_balance_adjustment_category_id(db),
             merchant_id=await _get_self_merchant_id(db),
-            amount=amount,
+            amount=signed_amount,
             currency=account.currency,
             fx_rate=None,
             notes=_STARTING_BALANCE_NOTE,

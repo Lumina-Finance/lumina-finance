@@ -14,7 +14,7 @@ from tests.routes.merchants._helpers import (
     _get_system_category_id,
     _own_merchant_names,
 )
-from tests.routes.support import _create_account, _create_user, _get_auth_header, _get_system_merchant_id
+from tests.routes.support import _create_account, _create_user, _get_auth_header, _get_system_merchant_id, _record_starting_balance
 
 # --- GET /merchants usage ranking ---
 
@@ -79,15 +79,11 @@ async def test_list_merchants_ignores_the_balance_adjustments_the_app_writes(cli
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    # Each account written with a starting balance produces a balance adjustment carrying Myself
+    # Each starting balance recorded produces a balance adjustment carrying Myself. A refused one
+    # would leave Myself unused and the test passing without testing anything, so each must succeed
     for name in ("Chequing", "Savings", "Vacation"):
-        await client.post("/accounts", json={
-            "account_kind": "asset",
-            "account_type": "checking",
-            "name": name,
-            "currency": "CAD",
-            "starting_balance": 100_00,
-        }, headers=headers)
+        opened_id = (await _create_account(client, headers, name=name)).json()["id"]
+        assert (await _record_starting_balance(client, headers, opened_id, 100_00)).status_code == 200
 
     account_id = await _create_checking_account(client, headers)
     category_id = await _get_system_category_id(client, headers)
