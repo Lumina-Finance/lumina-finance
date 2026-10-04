@@ -71,6 +71,33 @@ export interface DropdownBoxPosition {
   width: number
 }
 
+/** The left and right edges of the modal panel a field sits in, as the screen measures them */
+export type DropdownPanelSides = {
+  left: number
+  right: number
+}
+
+/**
+ * Narrows the sides the box may grow into to those of the modal panel its field sits in
+ *
+ * Inside a modal the sides are the panel's own wherever they sit within the screen, so a box opened
+ * from a field near the panel's edge grows the other way or narrower rather than out over the
+ * backdrop. Only the sides: a panel is as tall as its content, so its top and foot would leave a field
+ * near either no room to open a list into. Above and below, the box keeps to the dialog body's own
+ * bounds while they leave the list room for a few options.
+ */
+export function clampDropdownViewportToPanel(
+  viewport: DropdownViewport,
+  panel: DropdownPanelSides | null,
+): DropdownViewport {
+  if (!panel) return viewport
+
+  const left = Math.max(viewport.offsetLeft, panel.left)
+  const right = Math.min(viewport.offsetLeft + viewport.width, panel.right)
+
+  return { ...viewport, offsetLeft: left, width: Math.max(0, right - left) }
+}
+
 /**
  * Whether two placements would put the box in exactly the same spot at exactly the same size
  *
