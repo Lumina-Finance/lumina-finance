@@ -1,4 +1,4 @@
-"""Staging a Firefly III or Actual Budget journal as an import run, and committing it in one transaction"""
+"""Staging a Firefly III or Actual Budget journal as an import run, with its budgets and archiving, and committing it in one transaction"""
 
 import uuid
 from datetime import datetime
@@ -9,11 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.base import PermissionLevel
 from app.models.category import Category
-from app.models.import_run import ImportRun, ImportRunSource
+from app.models.import_run import ImportRun, ImportRunSource, ImportStagedRow
 from app.models.user import User
 from app.permissions import check_account_access
 from app.schemas.import_run import (
     ImportBudgetDraft,
+    ImportRunArchiveRequest,
+    ImportRunBudgetsRequest,
     JournalImportRunResponse,
     JournalImportStageRequest,
     JournalTransactionRow,
@@ -28,14 +30,12 @@ from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.importers.journal.budgets import JournalBudgetImport, write_journal_budgets
 from app.services.importers.journal.constants import JOURNAL_RUN_SOURCES
 from app.services.importers.journal.service import JournalWriteResult, write_journal_transactions
-from app.services.importers.shared.run_commit import finish_run_commit, get_every_staged_row, lock_run_for_commit
+from app.services.importers.shared.run_commit import commit_run
 from app.services.importers.shared.run_staging import (
-    insert_staged_rows,
     load_staging_references,
     load_uncommitted_run,
     merge_import_mappings,
-    require_batch_within_run,
-    validate_account_mapping,
+    stage_run_batch,
     validate_category_mapping,
 )
 from app.services.importers.shared.save_results import build_import_summary
@@ -50,6 +50,11 @@ async def stage_journal_batch(
 ) -> None:
     """Park one batch of a journal export against its run, after checking its mappings
 
+    Every journal account source is an endpoint rows are written to, and the journal states both
+    sides of a transfer itself, so there is nothing an outside answer could describe and one is
+    refused. Money leaving the tracked accounts is a withdrawal or deposit to a payee under a
+    transfer category instead, which records the outside counterparty
+
     Args:
         db: Active database session
         user: Authenticated user running the import
@@ -63,34 +68,78 @@ async def stage_journal_batch(
         HTTPException: Raised with 404 for a run that is not the caller's or a mapped account they
             cannot reach, 409 for a run already committed or one another request is working on, and
             422 for a run a non-journal importer opened, a batch reaching past the export's row count,
-            re-declaring a source differently, or declaring a mapping staging can already tell is
-            unusable
+            an account source answered as outside, re-declaring a source differently, or declaring a
+            mapping staging can already tell is unusable
     """
-    run = await load_uncommitted_run(db, run_id, JOURNAL_RUN_SOURCES)
-    require_batch_within_run(run, data.start_row_index, len(data.rows))
+    await stage_run_batch(
+        db,
+        user,
+        run_id,
+        JOURNAL_RUN_SOURCES,
+        accounts=data.accounts,
+        categories=data.categories,
+        rows=data.rows,
+        start_row_index=data.start_row_index,
+        allows_outside_accounts=False,
+    )
 
-    references = await load_staging_references(db, user, data.accounts, data.categories)
-    for account_mapping in data.accounts:
-        # Every journal account source is an endpoint rows are written to, and the journal states
-        # both sides of a transfer itself, so there is nothing here an outside answer could describe.
-        # Money leaving the tracked accounts is a withdrawal or deposit to a payee under a transfer
-        # category instead, which records the outside counterparty. Refusing it here rather than at
-        # the commit keeps the run open for the corrected answer
-        if account_mapping.outside:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"Account source cannot be outside the tracked accounts: {account_mapping.source}",
-            )
-        await validate_account_mapping(db, user, account_mapping, references)
+
+async def stage_import_budgets(db: AsyncSession, user: User, run_id: uuid.UUID, data: ImportRunBudgetsRequest) -> None:
+    """Replace the budgets a provider run creates once its transactions are written
+
+    Replacing rather than adding is what lets a request whose response was lost be sent again.
+    The category mappings the budgets name are merged like a batch's, since a budget can track a
+    category no staged row uses. Whether every named source has a mapping is checked at the
+    commit, which is the first point that has every batch
+
+    Args:
+        db: Active database session
+        user: Authenticated user running the import
+        run_id: Run the budgets belong to
+        data: Budget drafts and the category mappings they need
+
+    Returns:
+        None
+
+    Raises:
+        HTTPException: Raised with 404 for a run that is not the caller's, 409 for a run already
+            committed or one another request is working on, and 422 for a generic CSV run, which
+            has no budgets, or a category mapping staging can already tell is unusable
+    """
+    run = await load_uncommitted_run(db, run_id)
+    if run.source == ImportRunSource.GENERIC:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="A CSV import has no budgets")
+
+    references = await load_staging_references(db, user, [], data.categories)
     for category_mapping in data.categories:
         await validate_category_mapping(db, user, category_mapping, references)
 
-    # Reassigned rather than mutated, since SQLAlchemy tracks a JSONB column by identity and would
-    # not see a change made inside the dictionary it already holds
-    run.account_mappings = merge_import_mappings(run.account_mappings, data.accounts, "Account source")
     run.category_mappings = merge_import_mappings(run.category_mappings, data.categories, "Category source")
+    run.budget_drafts = [budget.model_dump(mode="json") for budget in data.budgets]
+    await db.commit()
 
-    await insert_staged_rows(db, run, user.id, data.start_row_index, data.rows)
+
+async def stage_import_archive(db: AsyncSession, run_id: uuid.UUID, data: ImportRunArchiveRequest) -> None:
+    """Replace the accounts a provider run archives once everything else is written
+
+    Args:
+        db: Active database session
+        run_id: Run the list belongs to
+        data: Account mapping sources to archive
+
+    Returns:
+        None
+
+    Raises:
+        HTTPException: Raised with 404 for a run that is not the caller's, 409 for a run already
+            committed or one another request is working on, and 422 for a generic CSV run, which
+            archives nothing
+    """
+    run = await load_uncommitted_run(db, run_id)
+    if run.source == ImportRunSource.GENERIC:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="A CSV import archives no accounts")
+
+    run.archive_account_sources = data.account_sources
     await db.commit()
 
 
@@ -118,11 +167,32 @@ async def commit_journal_run(db: AsyncSession, user: User, run_id: uuid.UUID) ->
             run declared, when a row cannot be written (naming the row as the export does), when a budget names a category
             source with no mapping or cannot be created, or when an account cannot be archived
     """
-    run = await lock_run_for_commit(db, run_id, JOURNAL_RUN_SOURCES)
-    if run.committed_at is not None:
-        return JournalImportRunResponse.model_validate(run.summary)
+    return await commit_run(
+        db,
+        run_id,
+        JOURNAL_RUN_SOURCES,
+        JournalImportRunResponse,
+        lambda run, staged_rows: _write_run(db, user, run, staged_rows),
+    )
 
-    staged_rows = await get_every_staged_row(db, run)
+
+async def _write_run(
+    db: AsyncSession,
+    user: User,
+    run: ImportRun,
+    staged_rows: list[ImportStagedRow],
+) -> JournalImportRunResponse:
+    """Write a journal run's rows, then its budgets, then its archiving, without committing
+
+    Args:
+        db: Active database session
+        user: Authenticated user running the import
+        run: Run holding the merged mappings, budget drafts and accounts to archive
+        staged_rows: Staged rows in export order
+
+    Returns:
+        Summary of everything the commit wrote
+    """
     written = await write_journal_transactions(
         db,
         user,
@@ -139,7 +209,7 @@ async def commit_journal_run(db: AsyncSession, user: User, run_id: uuid.UUID) ->
     budget_results = await write_journal_budgets(db, user, budgets)
     archived_count, adjustment_count = await _archive_accounts(db, user, run, written)
 
-    response = build_import_summary(
+    return build_import_summary(
         JournalImportRunResponse,
         transactions_created=written.legs_created,
         stats=written.stats,
@@ -151,8 +221,6 @@ async def commit_journal_run(db: AsyncSession, user: User, run_id: uuid.UUID) ->
         accounts_archived=archived_count,
         archive_adjustments_created=adjustment_count,
     )
-    await finish_run_commit(db, run, response)
-    return response
 
 
 def _resolve_budget_categories(

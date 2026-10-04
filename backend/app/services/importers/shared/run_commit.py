@@ -1,7 +1,7 @@
 """Commit steps every import run shares, whichever importer opened it"""
 
 import uuid
-from collections.abc import Collection
+from collections.abc import Awaitable, Callable, Collection
 from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
@@ -14,7 +14,46 @@ from app.services.importers.shared.run_locking import load_locked_run
 from app.services.importers.shared.run_staging import is_run_abandoned, require_run_source
 
 
-async def lock_run_for_commit(db: AsyncSession, run_id: uuid.UUID, sources: Collection[ImportRunSource]) -> ImportRun:
+async def commit_run[Summary: BaseModel](
+    db: AsyncSession,
+    run_id: uuid.UUID,
+    sources: Collection[ImportRunSource],
+    summary_type: type[Summary],
+    write_run: Callable[[ImportRun, list[ImportStagedRow]], Awaitable[Summary]],
+) -> Summary:
+    """Write a staged run into the ledger, in one transaction with clearing what it staged
+
+    A run already committed answers with the summary it returned the first time, so a commit whose
+    response was lost can be repeated without importing the file twice
+
+    Args:
+        db: Active database session
+        run_id: Run to commit
+        sources: Importers whose runs the asking commit writes, one of which must have opened the run
+        summary_type: The summary the importer returns, which a repeated commit is answered with
+        write_run: The importer's own writing, given the run and its staged rows in file order and
+            returning the summary, without committing
+
+    Returns:
+        The summary of what the commit wrote
+
+    Raises:
+        HTTPException: Raised with 404 for a run that is absent or not the caller's, 409 when
+            another request holds the run, and 422 when an importer outside the sources opened the
+            run, when it was abandoned before it was committed, or when the staged rows do not add
+            up to the file the run declared. The importer's writing raises its own refusals
+    """
+    run = await _lock_run_for_commit(db, run_id, sources)
+    if run.committed_at is not None:
+        return summary_type.model_validate(run.summary)
+
+    rows = await _get_every_staged_row(db, run)
+    summary = await write_run(run, rows)
+    await _finish_run_commit(db, run, summary)
+    return summary
+
+
+async def _lock_run_for_commit(db: AsyncSession, run_id: uuid.UUID, sources: Collection[ImportRunSource]) -> ImportRun:
     """Return the caller's run, held until this transaction ends
 
     The row-level security policy is what scopes this to the caller, so another user's run is
@@ -48,7 +87,7 @@ async def lock_run_for_commit(db: AsyncSession, run_id: uuid.UUID, sources: Coll
     return run
 
 
-async def get_every_staged_row(db: AsyncSession, run: ImportRun) -> list[ImportStagedRow]:
+async def _get_every_staged_row(db: AsyncSession, run: ImportRun) -> list[ImportStagedRow]:
     """Return a run's staged rows in the order they appeared in the file, once all have arrived
 
     Args:
@@ -77,7 +116,7 @@ async def get_every_staged_row(db: AsyncSession, run: ImportRun) -> list[ImportS
     return rows
 
 
-async def finish_run_commit(db: AsyncSession, run: ImportRun, summary: BaseModel) -> None:
+async def _finish_run_commit(db: AsyncSession, run: ImportRun, summary: BaseModel) -> None:
     """Clear what a run staged and record its summary, committing everything the run wrote
 
     The staged copy has served its purpose once the rows are in the ledger, and it goes in the

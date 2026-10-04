@@ -1,4 +1,4 @@
-"""Committing a staged transaction import run into the ledger"""
+"""Staging a generic CSV import as a run, and committing it into the ledger in one transaction"""
 
 import uuid
 
@@ -13,9 +13,55 @@ from app.schemas.import_run import (
     TransactionImportRequest,
     TransactionImportResponse,
     TransactionImportRow,
+    TransactionImportStageRequest,
 )
 from app.services.importers.generic.service import import_transactions
-from app.services.importers.shared.run_commit import finish_run_commit, get_every_staged_row, lock_run_for_commit
+from app.services.importers.shared.run_commit import commit_run
+from app.services.importers.shared.run_staging import stage_run_batch
+
+# The runs the CSV endpoints take
+_GENERIC_RUN_SOURCES = frozenset({ImportRunSource.GENERIC})
+
+
+async def stage_import_batch(
+    db: AsyncSession,
+    user: User,
+    run_id: uuid.UUID,
+    data: TransactionImportStageRequest,
+) -> None:
+    """Park one batch of a file against its run, after checking the mappings it declares
+
+    A CSV row names the account at its other end, which can be answered as money that left the
+    tracked accounts, and the batch carries the payee values the user answered by hand
+
+    Args:
+        db: Active database session
+        user: Authenticated user running the import
+        run_id: Run the batch belongs to
+        data: Mappings this batch's rows reference, and the rows themselves
+
+    Returns:
+        None
+
+    Raises:
+        HTTPException: Raised with 404 for a run that is not the caller's or a mapped account they
+            cannot reach, 409 for a run already committed or one another request is working on, and
+            422 for a run another importer opened, a batch reaching past the file's row count,
+            re-declaring a source differently, or declaring a mapping staging can already tell is
+            unusable
+    """
+    await stage_run_batch(
+        db,
+        user,
+        run_id,
+        _GENERIC_RUN_SOURCES,
+        accounts=data.accounts,
+        categories=data.categories,
+        rows=data.rows,
+        start_row_index=data.start_row_index,
+        allows_outside_accounts=True,
+        merchants=data.merchants,
+    )
 
 
 async def commit_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> TransactionImportResponse:
@@ -40,14 +86,13 @@ async def commit_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> 
             declared, when a staged row cannot be written as it stands, or when a mapping the run
             recorded no longer resolves
     """
-    run = await lock_run_for_commit(db, run_id, {ImportRunSource.GENERIC})
-    if run.committed_at is not None:
-        return TransactionImportResponse.model_validate(run.summary)
-
-    rows = await get_every_staged_row(db, run)
-    response = await import_transactions(db, user, _build_import_request(run, rows))
-    await finish_run_commit(db, run, response)
-    return response
+    return await commit_run(
+        db,
+        run_id,
+        _GENERIC_RUN_SOURCES,
+        TransactionImportResponse,
+        lambda run, rows: import_transactions(db, user, _build_import_request(run, rows)),
+    )
 
 
 def _build_import_request(run: ImportRun, rows: list[ImportStagedRow]) -> TransactionImportRequest:
