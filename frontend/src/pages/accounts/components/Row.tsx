@@ -99,10 +99,13 @@ export default function AccountRow({
         )
   const [setMetaLine, fittedForm] = useFittedForm(availableCreditForms ?? [])
 
+  // The link sits on the name and stretches over the whole row, rather than wrapping it, because the
+  // row holds a control of its own, the FX badge, and a link cannot contain one. The badge is raised
+  // above the stretched link so a tap on it opens its tooltip rather than the account. Keyboard focus
+  // on the link lights the row as a hover does
   return (
-    <Link
-      to={`/accounts/${account.id}`}
-      className={`group/row app-focus-inset focus-visible:bg-transparent! flex min-w-0 items-stretch overflow-hidden rounded-xl hover:bg-[var(--app-accent-soft)] ${
+    <div
+      className={`group/row app-focus-inset relative flex min-w-0 items-stretch rounded-xl hover:bg-[var(--app-accent-soft)] has-[a:focus-visible]:bg-transparent! has-[a:focus-visible]:[outline:var(--app-focus-outline)] ${
         isArchived
           ? 'my-1 border border-dashed opacity-75 transition-[color,background-color,opacity] hover:opacity-100'
           : 'transition-control'
@@ -144,7 +147,12 @@ export default function AccountRow({
                 after its last word. Wider screens keep them in a row and cut a long name short */}
             <div className="min-w-0 flex-1 min-[750px]:flex min-[750px]:items-center min-[750px]:gap-2">
               <p className="inline font-medium [overflow-wrap:anywhere] min-[750px]:block min-[750px]:min-w-0 min-[750px]:truncate">
-                {account.name}
+                <Link
+                  to={`/accounts/${account.id}`}
+                  className="after:absolute after:inset-0 after:rounded-xl after:content-[''] focus-visible:outline-none"
+                >
+                  {account.name}
+                </Link>
               </p>
               {linkedPlan && (
                 <span className="ml-2 inline-flex align-[0.1em] min-[750px]:ml-0 min-[750px]:shrink-0">
@@ -195,11 +203,13 @@ export default function AccountRow({
               >
                 {convertedBalanceText}
               </p>
-              <FxStatusBadge
-                label="Account balance FX status"
-                fxStatus={fxStatus}
-                getMessage={getAccountBalanceFxStatusMessage}
-              />
+              <span className="relative z-10 inline-flex">
+                <FxStatusBadge
+                  label="Account balance FX status"
+                  fxStatus={fxStatus}
+                  getMessage={getAccountBalanceFxStatusMessage}
+                />
+              </span>
             </div>
           )}
           {/* Wider screens keep the credit still available under the balance. A phone puts it beside the type */}
@@ -213,6 +223,6 @@ export default function AccountRow({
           )}
         </div>
       </div>
-    </Link>
+    </div>
   )
 }

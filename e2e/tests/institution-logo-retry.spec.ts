@@ -47,7 +47,10 @@ async function openFailedAccountRow(page: Page, request: Parameters<typeof creat
   const service = await stubIconService(page)
   await logInViaApi(page, user)
   await openPage(page, '/accounts')
-  const row = page.getByRole('link', { name: new RegExp(`${bank} account`) })
+  // The row is its own box, with the link on the account's name stretched over it
+  const row = page
+    .locator('[data-testid^="account-row-"]')
+    .filter({ has: page.getByRole('link', { name: new RegExp(`${bank} account`) }) })
   // A bank that has no usable logo is drawn as a circle holding its initial
   await expect(row.getByText(bank.charAt(0), { exact: true })).toBeVisible()
   await expect(row.getByRole('img')).toHaveCount(0)

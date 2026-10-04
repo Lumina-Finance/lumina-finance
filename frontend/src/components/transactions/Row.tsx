@@ -1,4 +1,4 @@
-import { useContext, useState, type MouseEvent } from 'react'
+import { useContext, useId, useState, type MouseEvent } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Link2, StickyNote, Tag as TagIcon } from 'lucide-react'
 import type { Institution } from '@/api/institutions'
@@ -316,7 +316,7 @@ export function TransactionRowView({
   onOpen,
 }: TransactionRowViewProps) {
   const wide = !phoneLayout
-  const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
+  const handleClick = (event: MouseEvent<HTMLElement>) => {
     if (!selection) {
       onOpen()
       return
@@ -327,12 +327,13 @@ export function TransactionRowView({
     // pointer the highlight has already answered
     if (selection.isSelectable || event.shiftKey) selection.onToggle(event.shiftKey)
   }
-  const reasonProps = getDisabledReasonProps<HTMLButtonElement>(
+  const reasonProps = getDisabledReasonProps<HTMLElement>(
     disabledReason ?? { isUnavailable: false, controlProps: {}, handleBlockedClick: () => {} },
     { onClick: handleClick },
   )
   const isHeldOff = disabledReason?.isUnavailable === true
   const marker = bankMarker ? <BankMarker {...bankMarker} /> : null
+  const contentId = useId()
 
   // The row clips its content only while the height animates, so the grow and collapse read cleanly
   // while the resting row still lets a tag tooltip overflow past its edges
@@ -456,20 +457,33 @@ export function TransactionRowView({
         )}
       </AnimatePresence>
 
-      {/* The row's own click target. It is a button nested inside the row rather than the row
-          itself, because a checkbox is a button too and one cannot contain the other. On a wide
-          screen it declares a subgrid of its own so the cells inside it still line up against the
-          tracks the list declares */}
+      {/* The row's own control, laid under its content rather than around it, because the content
+          holds controls of its own, such as the bank marker, and one button cannot contain another.
+          It is the row's keyboard stop and takes its name from the content, and a press anywhere on
+          the content reaches the same handler through the content itself */}
       <button
-        data-testid={`transaction-row-${transaction.id}`}
         type="button"
+        aria-labelledby={contentId}
         // In selection mode the checkbox is the row's single stop, so the same row does not offer
         // two controls doing the same thing
         tabIndex={selection ? -1 : undefined}
         {...reasonProps}
         aria-pressed={pressed}
-        className={`block w-full min-w-0 flex-1 ${isHeldOff ? 'cursor-not-allowed' : 'cursor-pointer'} px-3 text-left focus-visible:outline-none ${wide ? 'min-[750px]:col-span-5 min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4' : ''}`}
-        style={{ scrollMarginTop: TRANSACTION_ROW_SCROLL_MARGIN }}
+        className={`absolute inset-y-0 right-0 ${isHeldOff ? 'cursor-not-allowed' : 'cursor-pointer'} focus-visible:outline-none`}
+        style={{ left: TRANSACTION_CHECKBOX_RAIL, scrollMarginTop: TRANSACTION_ROW_SCROLL_MARGIN }}
+      />
+
+      {/* Positioned so it paints above the button, and from 750px wide it declares a subgrid of its
+          own so the cells inside it still line up against the tracks the list declares. The pointer
+          reaches the button's reason through this content, since the button lies beneath it */}
+      <div
+        id={contentId}
+        data-testid={`transaction-row-${transaction.id}`}
+        onClick={reasonProps.onClick}
+        onMouseEnter={reasonProps.onMouseEnter}
+        onMouseMove={reasonProps.onMouseMove}
+        onMouseLeave={reasonProps.onMouseLeave}
+        className={`relative block w-full min-w-0 flex-1 ${isHeldOff ? 'cursor-not-allowed' : 'cursor-pointer'} px-3 text-left ${wide ? 'min-[750px]:col-span-5 min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4' : ''}`}
       >
         {/* Row from 750px wide: each cell is a direct child of this button's subgrid, which spans the
           list's content tracks, so every row shares the same column tracks and stays aligned. The
@@ -649,7 +663,7 @@ export function TransactionRowView({
             </span>
           )}
         </span>
-      </button>
+      </div>
     </motion.div>
   )
 }
