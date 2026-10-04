@@ -21,6 +21,7 @@ from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, check_values
+from app.services.bank_sync.providers.contract import ProviderErrorKind
 
 
 class BankSyncJobKind(enum.StrEnum):
@@ -48,16 +49,6 @@ class BankSyncJobStatus(enum.StrEnum):
     FAILED = "failed"
 
 
-class BankSyncErrorKind(enum.StrEnum):
-    """The typed failures a provider adapter reports"""
-
-    CREDENTIAL_REJECTED = "credential_rejected"
-    BANK_LOGIN_NEEDED = "bank_login_needed"
-    RATE_LIMITED = "rate_limited"
-    TEMPORARY = "temporary"
-    UNKNOWN = "unknown"
-
-
 # The heartbeat table holds one row, and this is its id
 HEARTBEAT_ID = 1
 
@@ -77,7 +68,7 @@ class BankSyncJob(Base):
         CheckConstraint(f"kind IN ({check_values(BankSyncJobKind)})", name="ck_bank_sync_jobs_kind"),
         CheckConstraint(f"status IN ({check_values(BankSyncJobStatus)})", name="ck_bank_sync_jobs_status"),
         CheckConstraint(
-            f"last_error_kind IN ({check_values(BankSyncErrorKind)})",
+            f"last_error_kind IN ({check_values(ProviderErrorKind)})",
             name="ck_bank_sync_jobs_last_error_kind",
         ),
         CheckConstraint(
@@ -111,6 +102,8 @@ class BankSyncJob(Base):
 
     # The links the job syncs, recorded once it runs so their status can say a sync is under way
     covered_link_ids: Mapped[list[uuid.UUID] | None] = mapped_column(ARRAY(Uuid))
+
+    # The kind of the last failure the provider adapter reported
     last_error_kind: Mapped[str | None] = mapped_column(VARCHAR(32))
 
     # The provider's own message or one built from its host and status, cut to 500 characters, and
