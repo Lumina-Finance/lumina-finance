@@ -51,17 +51,20 @@ class BankLinkState(enum.StrEnum):
 
 
 class BankImportKind(enum.StrEnum):
-    """Which import a link's import start belongs to"""
+    """The latest import into a link: the first one, or a catch-up that resumed it
+
+    A catch-up fetches from the link's checkpoint and never moves its import start
+    """
 
     INITIAL = "initial"
 
-    # Linking again after an unlink
+    # Linking again after an unlink, as a new link with an import start of its own
     RELINK = "relink"
 
-    # The catch-up after the user chose the bank account again
+    # The catch-up after the user chose the bank account again, fetching from the checkpoint
     CHOOSE_AGAIN = "choose_again"
 
-    # The catch-up after a rejected credential was replaced, starting at the resumed checkpoint
+    # The catch-up after a rejected credential was replaced, fetching from the checkpoint
     RECONNECT = "reconnect"
 
 
@@ -171,8 +174,8 @@ class BankExternalAccount(Base):
     # The bank login the account sits under, which a bank sign-in problem is reported against
     login_key: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # Exactly as the provider sent it, which may be an ISO code, a custom currency's URL or
-    # nothing, so a bank account Lumina can't hold in a ledger is still listed and explained
+    # Exactly as the provider sent it, which may be an ISO code or a custom currency's URL, so a
+    # bank account Lumina can't hold in a ledger is still listed and explained
     currency: Mapped[str] = mapped_column(Text, nullable=False)
 
     # In the currency's minor units, or null when the provider's figure can't be stored exactly
@@ -242,6 +245,9 @@ class BankAccountLink(Base):
         server_default=BankLinkState.ACTIVE.value,
     )
     import_kind: Mapped[str] = mapped_column(VARCHAR(16), nullable=False)
+
+    # The first day the link's bank data covers. A catch-up fetches from the checkpoint instead
+    # and never moves it
     import_start: Mapped[date] = mapped_column(Date, nullable=False)
     linked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     unlinked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

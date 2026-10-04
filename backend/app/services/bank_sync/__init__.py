@@ -1,1 +1,1 @@
-"""Bank sync: provider adapters, the outbound request guard they share, and the stored sync state"""
+"""Bank sync: the stored sync state, the rules that read it, and queueing sync jobs"""
