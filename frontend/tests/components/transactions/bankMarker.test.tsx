@@ -1,12 +1,16 @@
 /**
  * Guards the bank marker on a transaction row: a bank-imported row names its provider and adds the
- * edited note and the Needs review marker only when they apply, a manual row carries no marker, and
- * the marker's controls are never nested inside the row's own button, nor open the row when pressed
+ * edited note and the Needs review marker only when they apply, a manual row carries no marker, the
+ * marker's controls are never nested inside the row's own button, nor open the row when pressed, and
+ * the row's button is its title, so a screen reader does not read the row and its provider twice
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import { BankMarker } from '@/components/transactions/BankMarker'
 import { TransactionRowView, type TransactionRowMetadata } from '@/components/transactions/Row'
+
+// The row renders a layout for each breakpoint and shows only one, so each marker appears this often
+const LAYOUTS = 3
 
 const TRANSACTION: TransactionRowMetadata = {
   id: 'transaction-1',
@@ -40,10 +44,10 @@ function hasNestedButton(markup: string): boolean {
 }
 
 describe('bank marker', () => {
-  it('names the provider on a bank-imported row and nothing more while it is untouched', () => {
+  it('names the provider in each of the row\'s three layouts and nothing more while it is untouched', () => {
     const markup = renderRow({ providerName: 'SimpleFIN', isEdited: false, needsReview: false })
 
-    expect(markup).toContain('aria-label="From SimpleFIN"')
+    expect(markup.split('aria-label="From SimpleFIN"')).toHaveLength(LAYOUTS + 1)
     expect(markup).not.toContain('You edited a value the bank supplied')
     expect(markup).not.toContain('Needs review')
   })
@@ -56,12 +60,12 @@ describe('bank marker', () => {
     expect(hasNestedButton(markup)).toBe(false)
   })
 
-  it('names the row button from the content it sits under', () => {
-    const markup = renderRow({ providerName: 'SimpleFIN', isEdited: false, needsReview: false })
-    const labelledBy = markup.match(/<button[^>]*aria-labelledby="([^"]+)"/)?.[1]
+  it('makes the title the row\'s button, so the row is read once with the provider named once', () => {
+    const markup = renderRow({ providerName: 'SimpleFIN', isEdited: false, needsReview: true, onShowReview: () => {} })
 
-    expect(labelledBy).toBeDefined()
-    expect(markup).toContain(`id="${labelledBy}" data-testid="transaction-row-transaction-1"`)
+    expect(markup.match(/<button [^>]*>Corner Grocer<\/button>/g)).toHaveLength(LAYOUTS)
+    expect(markup).not.toContain('aria-labelledby')
+    expect(markup.match(/aria-hidden="true"[^>]*><span class="app-tooltip-panel[^>]*>From SimpleFIN</g)).toHaveLength(LAYOUTS)
   })
 
   it('keeps a press on the marker from reaching the row', () => {

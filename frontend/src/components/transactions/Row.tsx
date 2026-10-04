@@ -1,4 +1,4 @@
-import { useContext, useId, useState, type MouseEvent } from 'react'
+import { useContext, useState, type MouseEvent } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Link2, StickyNote, Tag as TagIcon } from 'lucide-react'
 import type { Institution } from '@/api/institutions'
@@ -333,7 +333,6 @@ export function TransactionRowView({
   )
   const isHeldOff = disabledReason?.isUnavailable === true
   const marker = bankMarker ? <BankMarker {...bankMarker} /> : null
-  const contentId = useId()
 
   // The row clips its content only while the height animates, so the grow and collapse read cleanly
   // while the resting row still lets a tag tooltip overflow past its edges
@@ -384,6 +383,30 @@ export function TransactionRowView({
         ? 'var(--app-hover-soft)'
         : undefined
 
+  // The row's own control is its title, stretched over the whole row by a layer laid across it, the
+  // way an account row stretches its name. The controls inside the row, such as the bank marker and
+  // the tags, are positioned and so sit above that layer, which keeps them hoverable and pressable
+  // and keeps one button from holding another. A screen reader reads the row once, in order, with
+  // the title as the button. Each layout has its own title, and only the one on screen is rendered.
+  // The press and the pointer are taken by the content the layer stretches across, so the title
+  // carries only the rest of the reason: its description, its focus and the blocked key press. The
+  // row draws the shared focus ring around itself while the title has keyboard focus
+  const { onClick: handleContentClick, onMouseEnter, onMouseMove, onMouseLeave, ...titleReasonProps } = reasonProps
+  const titleButton = (
+    <button
+      type="button"
+      // In selection mode the checkbox is the row's single stop, so the same row does not offer two
+      // controls doing the same thing
+      tabIndex={selection ? -1 : undefined}
+      {...titleReasonProps}
+      aria-pressed={pressed}
+      className={`min-w-0 ${isHeldOff ? 'cursor-not-allowed' : 'cursor-pointer'} truncate text-left after:absolute after:inset-0 after:content-[''] focus-visible:outline-none`}
+      style={{ scrollMarginTop: TRANSACTION_ROW_SCROLL_MARGIN }}
+    >
+      {title}
+    </button>
+  )
+
   return (
     <motion.div
       onMouseEnter={selection?.onPointerEnter}
@@ -433,7 +456,7 @@ export function TransactionRowView({
           <motion.span
             key="row-checkbox"
             // Laid over the rail rather than placed in the row, because a cell of the row would take
-            // one of the list's columns, and the button beside it asks for all five of them. The rail
+            // one of the list's columns, and the content beside it asks for all five of them. The rail
             // is the row's own left padding, so the box sits still at the list's edge while the rail
             // opens and closes underneath the rest of the row
             className="absolute inset-y-0 left-0 flex items-center justify-center"
@@ -457,35 +480,23 @@ export function TransactionRowView({
         )}
       </AnimatePresence>
 
-      {/* The row's own control, laid under its content rather than around it, because the content
-          holds controls of its own, such as the bank marker, and one button cannot contain another.
-          It is the row's keyboard stop and takes its name from the content, and a press anywhere on
-          the content reaches the same handler through the content itself */}
-      <button
-        type="button"
-        aria-labelledby={contentId}
-        // In selection mode the checkbox is the row's single stop, so the same row does not offer
-        // two controls doing the same thing
-        tabIndex={selection ? -1 : undefined}
-        {...reasonProps}
-        aria-pressed={pressed}
-        className={`absolute inset-y-0 right-0 ${isHeldOff ? 'cursor-not-allowed' : 'cursor-pointer'} focus-visible:outline-none`}
-        style={{ left: TRANSACTION_CHECKBOX_RAIL, scrollMarginTop: TRANSACTION_ROW_SCROLL_MARGIN }}
-      />
-
-      {/* Positioned so it paints above the button, and from 750px wide it declares a subgrid of its
-          own so the cells inside it still line up against the tracks the list declares. The pointer
-          reaches the button's reason through this content, since the button lies beneath it */}
+      {/* What the title's layer stretches across, and from 750px wide a subgrid of its own so the
+          cells inside it still line up against the tracks the list declares. A press anywhere on it
+          lands here, the title's own press and Enter on it included, along with a press on a tag,
+          which sits above the layer for its tooltip. A shift-press holds back the text selection it
+          would otherwise stretch across the rows it ranges over */}
       <div
-        id={contentId}
         data-testid={`transaction-row-${transaction.id}`}
-        onClick={reasonProps.onClick}
-        onMouseEnter={reasonProps.onMouseEnter}
-        onMouseMove={reasonProps.onMouseMove}
-        onMouseLeave={reasonProps.onMouseLeave}
+        onClick={handleContentClick}
+        onMouseEnter={onMouseEnter}
+        onMouseMove={onMouseMove}
+        onMouseLeave={onMouseLeave}
+        onMouseDown={(event) => {
+          if (event.shiftKey) event.preventDefault()
+        }}
         className={`relative block w-full min-w-0 flex-1 ${isHeldOff ? 'cursor-not-allowed' : 'cursor-pointer'} px-3 text-left ${wide ? 'min-[750px]:col-span-5 min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4' : ''}`}
       >
-        {/* Row from 750px wide: each cell is a direct child of this button's subgrid, which spans the
+        {/* Row from 750px wide: each cell is a direct child of this content's subgrid, which spans the
           list's content tracks, so every row shares the same column tracks and stays aligned. The
           category and account tracks grow to their widest content across all rows, showing long
           names while there is room and truncating only when there is not, with the note and tags
@@ -506,7 +517,7 @@ export function TransactionRowView({
                 className="mt-0.5 flex min-w-0 items-center gap-1.5 text-sm"
                 style={{ color: 'var(--app-text-muted)' }}
               >
-                <span className="min-w-0 truncate">{title}</span>
+                {titleButton}
                 {marker}
               </span>
             </span>
@@ -612,7 +623,7 @@ export function TransactionRowView({
           </span>
 
           <span className="col-start-2 row-start-1 flex min-w-0 items-center gap-1.5 text-[0.9375rem] font-medium leading-5">
-            <span className="min-w-0 truncate">{title}</span>
+            {titleButton}
             {marker}
           </span>
 

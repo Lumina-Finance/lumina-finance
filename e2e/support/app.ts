@@ -531,6 +531,24 @@ export async function readSettledScrollingBox(inside: Locator): Promise<Scrollin
 }
 
 /**
+ * Wait until an element stops moving, such as a calendar easing in or a tooltip gliding to a new place,
+ * and read where it rests. Two reads in a row that agree mean it has stopped
+ *
+ * @param element - The element to measure
+ * @returns The element's resting box
+ */
+export async function readSettledBox(element: Locator): Promise<NonNullable<Awaited<ReturnType<Locator['boundingBox']>>>> {
+  let last: Awaited<ReturnType<Locator['boundingBox']>> = null
+  await expect.poll(async () => {
+    const current = await element.boundingBox()
+    const isStill = current !== null && JSON.stringify(current) === JSON.stringify(last)
+    last = current
+    return isStill
+  }).toBe(true)
+  return last!
+}
+
+/**
  * Measure the room left between the element's bottom and the bottom of what its scrolling box shows.
  *
  * @param position - A reading from `readScrollingBox` or `readSettledScrollingBox`

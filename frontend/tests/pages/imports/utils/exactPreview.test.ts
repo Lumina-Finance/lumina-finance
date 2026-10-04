@@ -12,15 +12,19 @@ import { buildTransactionImportPayload } from '@/pages/imports/utils/payload'
 import { formatPreviewMoney } from '@/pages/imports/utils/formatPreviewMoney'
 import { formatCurrency, formatMovedCurrency } from '@/utils/formatCurrency'
 
-const captured = vi.hoisted(() => ({ buttons: [] as { onClick: (event: { shiftKey: boolean }) => void; tabIndex?: number }[] }))
+type PointerEventStub = { shiftKey: boolean; preventDefault?: () => void }
+type RowContentProps = { 'data-testid'?: string; onClick: (event: PointerEventStub) => void; onMouseDown: (event: PointerEventStub) => void }
+const captured = vi.hoisted(() => ({ rows: [] as RowContentProps[] }))
 
 vi.mock('motion/react', () => ({
   AnimatePresence: ({ children }: { children: ReactNode }) => children,
   useReducedMotion: () => false,
   motion: {
     div: ({ children }: { children: ReactNode }) => {
-      const button = ([children].flat() as ReactElement[]).find((child) => child?.type === 'button')
-      if (button) captured.buttons.push(button.props as typeof captured.buttons[number])
+      // The row's content, which every press on the row reaches, the title's own included
+      const content = ([children].flat() as ReactElement<RowContentProps>[])
+        .find((child) => child?.props?.['data-testid']?.startsWith('transaction-row-'))
+      if (content) captured.rows.push(content.props)
       return createElement('div', null, children)
     },
     span: ({ children }: { children: ReactNode }) => createElement('span', null, children),
@@ -165,20 +169,47 @@ describe('exact generic import presentation', () => {
     const { rows } = build('CAD', ['-12.34'])
     const transaction: Transaction = { ...rows[0].transaction, amount: -1234, account_amount: -1234, base_currency_amount: -1234 }
     const onOpen = vi.fn()
-    captured.buttons = []
-    renderToStaticMarkup(createElement(TransactionRow, { transaction, currency: 'CAD', category: CATEGORY, onOpen }))
-    captured.buttons.at(-1)!.onClick({ shiftKey: false })
+    captured.rows = []
+    const markup = renderToStaticMarkup(createElement(TransactionRow, { transaction, currency: 'CAD', category: CATEGORY, onOpen }))
+    captured.rows.at(-1)!.onClick({ shiftKey: false })
     expect(onOpen).toHaveBeenCalledWith(transaction)
     expect(onOpen.mock.calls[0][0]).toBe(transaction)
+    expect(markup.match(/<button type="button" class="[^"]*">/g)).toHaveLength(2)
+
     const onToggle = vi.fn()
-    renderToStaticMarkup(createElement(TransactionRow, {
+    const selectingMarkup = renderToStaticMarkup(createElement(TransactionRow, {
       transaction, currency: 'CAD', category: CATEGORY, onOpen,
       selection: { mark: 'selected', isSelectable: true, onToggle, onPointerEnter: () => {} },
     }))
-    const selected = captured.buttons.at(-1)!
-    expect(selected.tabIndex).toBe(-1)
+    const selected = captured.rows.at(-1)!
+    expect(selectingMarkup.match(/<button type="button" tabindex="-1"/g)).toHaveLength(2)
+    selected.onClick({ shiftKey: false })
     selected.onClick({ shiftKey: true })
-    expect(onToggle).toHaveBeenCalledWith(true)
+    expect(onToggle.mock.calls).toEqual([[false], [true]])
     expect(onOpen).toHaveBeenCalledTimes(1)
+  })
+
+  it('takes a shift-press on a row the app will not edit for a range, and holds back the text selection it would stretch', () => {
+    const { rows } = build('CAD', ['-12.34'])
+    const transaction: Transaction = { ...rows[0].transaction, amount: -1234, account_amount: -1234, base_currency_amount: -1234 }
+    const onToggle = vi.fn()
+    captured.rows = []
+    renderToStaticMarkup(createElement(TransactionRow, {
+      transaction, currency: 'CAD', category: CATEGORY, onOpen: () => {},
+      selection: { mark: 'none', isSelectable: false, onToggle, onPointerEnter: () => {} },
+    }))
+    const row = captured.rows.at(-1)!
+
+    row.onClick({ shiftKey: false })
+    expect(onToggle).not.toHaveBeenCalled()
+    row.onClick({ shiftKey: true })
+    expect(onToggle).toHaveBeenCalledWith(true)
+
+    const plain = vi.fn()
+    const shifted = vi.fn()
+    row.onMouseDown({ shiftKey: false, preventDefault: plain })
+    row.onMouseDown({ shiftKey: true, preventDefault: shifted })
+    expect(plain).not.toHaveBeenCalled()
+    expect(shifted).toHaveBeenCalledOnce()
   })
 })

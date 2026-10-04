@@ -133,17 +133,17 @@ test('shows a hover on an upcoming row in the light theme', async ({ page, reque
  * Returns how far the colour drawn at the top edge of a row's background moves once the pointer is on the row,
  * as the sum of the change in each colour channel. The point sits in the row's own padding, above its text
  */
-async function hoverChange(page: Page, rowButton: Locator): Promise<number> {
-  // The background belongs to the row around the button, which also holds the checkbox in selection
-  const point = await rowButton.evaluate((button) => {
-    const rect = button.parentElement!.getBoundingClientRect()
+async function hoverChange(page: Page, rowContent: Locator): Promise<number> {
+  // The background belongs to the row around its content, which also holds the checkbox in selection
+  const point = await rowContent.evaluate((content) => {
+    const rect = content.parentElement!.getBoundingClientRect()
     return { x: rect.left + rect.width / 2, y: rect.top + 3 }
   })
   await page.mouse.move(0, 0)
   const before = await colourAt(page, point.x, point.y)
   await page.mouse.move(point.x, point.y)
   // The hover fades in, so the colour is read once the row is hovered and its fade has ended
-  await expect.poll(() => rowButton.evaluate(({ parentElement: row }) => row!.matches(':hover') && row!.getAnimations().length === 0)).toBe(true)
+  await expect.poll(() => rowContent.evaluate(({ parentElement: row }) => row!.matches(':hover') && row!.getAnimations().length === 0)).toBe(true)
   const after = await colourAt(page, point.x, point.y)
   await page.mouse.move(0, 0)
   return after.reduce((sum, channel, index) => sum + Math.abs(channel - before[index]), 0)
@@ -164,6 +164,32 @@ async function colourAt(page: Page, x: number, y: number): Promise<number[]> {
     return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)]
   }, shot.toString('base64'))
 }
+
+test('ticks rows pressed in selection mode, and a shift-press ticks the range between without selecting text', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday Chequing' })
+  for (const amount of [-1000, -2000, -3000]) {
+    await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount })
+  }
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  const rows = page.getByTestId(/^transaction-row-/)
+  await expect(rows).toHaveCount(3)
+
+  await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
+  const ticks = page.getByRole('checkbox', { name: /^Select (?!the transactions shown on ).+ on / })
+  await expect(ticks).toHaveCount(3)
+
+  await rows.first().click()
+  await expect(ticks.first()).toBeChecked()
+  await expect(ticks.nth(1)).not.toBeChecked()
+
+  // The range runs across rows of text, which a shift-press would otherwise select along the way
+  await rows.last().click({ modifiers: ['Shift'] })
+  for (const tick of await ticks.all()) await expect(tick).toBeChecked()
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe('')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+})
 
 test('keeps the open Upcoming header on screen through a long run of upcoming transactions', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)

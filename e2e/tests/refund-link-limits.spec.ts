@@ -3,7 +3,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
-import { logInViaApi, openModal, openPage } from '../support/app'
+import { logInViaApi, openModal, openPage, readSettledBox } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 function saveButton(dialog: Locator) {
@@ -95,6 +95,17 @@ test('greys out the refunds that no longer fit and updates them as rows are pick
   await press('$37.19').focus()
   await page.keyboard.press('Enter')
   await expect(press('$37.19')).toHaveAttribute('aria-pressed', 'false')
+  // Keyboard focus sets the reason beside the whole row, clear of the category and account the title sits over
+  await press('$20.00').focus()
+  await page.keyboard.press('Shift+Tab')
+  await expect(press('$37.19')).toBeFocused()
+  await expect(tooltip).toHaveCSS('opacity', '1')
+  // Read once the reason stops gliding from where the earlier hover showed it
+  const reasonBox = await readSettledBox(tooltip)
+  const rowBox = (await content.boundingBox())!
+  const isClearOfRow = reasonBox.y >= rowBox.y + rowBox.height || reasonBox.y + reasonBox.height <= rowBox.y
+    || reasonBox.x >= rowBox.x + rowBox.width || reasonBox.x + reasonBox.width <= rowBox.x
+  expect(isClearOfRow, `reason ${JSON.stringify(reasonBox)} clear of row ${JSON.stringify(rowBox)}`).toBe(true)
 
   // Two rows can be picked together. The $20.00 pick leaves $17.13, the $15.00 pick $2.13, which fits nothing else
   await press('$20.00').click()

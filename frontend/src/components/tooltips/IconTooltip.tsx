@@ -343,10 +343,13 @@ export default function IconTooltip({
           />
         )}
       </button>
+      {/* Hidden from assistive technology until it shows, opened or reached from the keyboard, so a
+          screen reader does not read a panel nobody can see after the trigger has already named it */}
       <span
         ref={tooltipRef}
         role={interactive ? undefined : 'tooltip'}
         className={tooltipWrapperClassName}
+        aria-hidden={!isShown && !isHovered ? true : undefined}
         inert={interactive && !isShown && !isHovered}
         style={{
           left: position.left,

@@ -21,12 +21,13 @@ export type TransactionRowBankMarker = {
  * Marks a row as imported from a bank: a muted bank icon naming the provider in a tooltip, a dot once
  * the user has edited a bank value, and a Needs review marker while a proposal waits
  *
- * The row opens on a press anywhere on its content, so a press on one of these controls stops here
- * rather than opening the row as well
+ * Positioned, so it sits above the layer that stretches the row's title over the whole row and takes
+ * its own presses. The row opens on a press anywhere on its content, so a press here stops rather
+ * than opening the row as well
  */
 export function BankMarker({ providerName, isEdited, needsReview, onShowReview }: TransactionRowBankMarker) {
   return (
-    <span className="inline-flex shrink-0 items-center gap-1.5" onClick={(event) => event.stopPropagation()}>
+    <span className="relative inline-flex shrink-0 items-center gap-1.5" onClick={(event) => event.stopPropagation()}>
       <span className="relative inline-flex">
         <IconTooltip
           label={`From ${providerName}`}

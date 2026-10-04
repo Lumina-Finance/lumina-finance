@@ -1,6 +1,7 @@
 /**
- * Guards the icon tooltip's options: a panel sized to its content unless the caller sets a width, and
- * an outline icon whose strokes are not filled in on hover
+ * Guards the icon tooltip's options: a panel sized to its content up to a limit unless the caller sets
+ * a width, an outline icon whose strokes are not filled in on hover, and a closed panel a screen
+ * reader does not read
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { Landmark } from 'lucide-react'
@@ -25,8 +26,16 @@ describe('icon tooltip', () => {
     )
 
     expect(fitted).toContain('w-max')
+    expect(fitted.some((name) => name.startsWith('max-w-'))).toBe(true)
     expect(fixed).toContain('w-72')
     expect(fixed).not.toContain('w-max')
+  })
+
+  it('hides the closed panel from assistive technology, so only its trigger is read', () => {
+    const markup = renderToStaticMarkup(<IconTooltip label="About this">Short note</IconTooltip>)
+
+    expect(markup).toContain('aria-label="About this" aria-expanded="false"')
+    expect(markup).toMatch(/<span [^>]*aria-hidden="true"[^>]*><span class="app-tooltip-panel[^>]*>Short note</)
   })
 
   it('keeps an outline icon unfilled on hover when asked to', () => {
