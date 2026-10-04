@@ -451,6 +451,25 @@ describe('dropdown box placement', () => {
       expect(1200 - position.right).toBe(850)
     })
 
+    // The panel's top sets the room above a field near its foot, and with it the list kept inside: the
+    // head and box edges take 54 of the room, and five rows take 180
+    it.each([
+      { list: 179, panelTop: 155, openAbove: false, listMaxHeight: 346 },
+      { list: 180, panelTop: 154, openAbove: true, listMaxHeight: 180 },
+      { list: 181, panelTop: 153, openAbove: true, listMaxHeight: 181 },
+    ])('keeps a box whose list would be $list inside the panel only from five rows up', ({ panelTop, openAbove, listMaxHeight }) => {
+      const position = getDropdownBoxPosition({
+        ...head,
+        anchorRect: { bottom: 400, left: 320, top: 360, width: 200 },
+        panel: { ...panel, top: panelTop, bottom: 420 },
+        viewport: wide,
+      })
+
+      // Below five rows it leaves the panel for the screen's 428 below, against 388 above
+      expect(position.openAbove).toBe(openAbove)
+      expect(position.listMaxHeight).toBe(listMaxHeight)
+    })
+
     it('grows past the panel’s top over the modal’s title when the screen has more room above', () => {
       const position = getDropdownBoxPosition({
         ...head,
