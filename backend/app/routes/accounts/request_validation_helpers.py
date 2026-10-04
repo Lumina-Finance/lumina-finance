@@ -25,8 +25,10 @@ async def validate_create_account_request(db: AsyncSession, data: CreateAccountR
         data: Account creation request body
 
     Raises:
-        HTTPException: Account kind, type, currency, institution, or credit limit is invalid
+        HTTPException: The request comes from an out-of-date page with a starting balance, or account
+            kind, type, currency, institution, or credit limit is invalid
     """
+    _raise_for_starting_balance_from_out_of_date_page(data.starting_balance)
     account_kind = _get_valid_account_kind(data.account_kind)
     account_type = _get_valid_account_type(data.account_type)
     _raise_for_mismatched_account_kind_and_type(account_kind, account_type)
@@ -109,6 +111,26 @@ def _raise_for_mismatched_account_kind_and_type(account_kind: AccountKind, accou
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Account kind does not match account type",
+        )
+
+
+def _raise_for_starting_balance_from_out_of_date_page(starting_balance: int | None) -> None:
+    """Raise when a create request still carries a starting balance
+
+    Only a page loaded before the starting balance got its own request sends one. The null or zero
+    it sends for a blank field loses nothing and is accepted. A typed balance is refused before the
+    account is saved, so adding the account again after a reload leaves no duplicate
+
+    Args:
+        starting_balance: Starting balance from the request, in minor units
+
+    Raises:
+        HTTPException: The starting balance is set and not zero
+    """
+    if starting_balance:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="This page is out of date, so reload it and add the account again",
         )
 
 

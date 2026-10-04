@@ -4,6 +4,7 @@ from decimal import Decimal
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
+import pytest
 from sqlalchemy import select, update
 
 from app.models.account import AccountBalanceSnapshot
@@ -399,12 +400,24 @@ async def test_create_group_account_anchors_on_group_owner_creation_day(client):
     assert snapshot.balance == 0
 
 
-async def test_create_account_writes_only_the_zero_anchor_even_when_sent_a_starting_balance(client):
-    """Creation writes no opening balance, so a starting balance an older client still sends is ignored."""
+async def test_create_account_refuses_a_starting_balance_from_an_out_of_date_page(client):
+    """A balance typed into a page loaded before it got its own request is refused, not lost."""
+    headers = _get_auth_header(await _create_user(client))
+
+    resp = await _create_account(client, headers, starting_balance=123_45)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "This page is out of date, so reload it and add the account again"
+    assert (await client.get("/accounts", headers=headers)).json() == []
+
+
+@pytest.mark.parametrize("starting_balance", [None, 0])
+async def test_create_account_writes_only_the_zero_anchor_for_a_blank_starting_balance(client, starting_balance):
+    """The null or zero an out-of-date page sends for a blank field loses nothing, so it's accepted."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await _create_account(client, headers, starting_balance=123_45)
+    resp = await _create_account(client, headers, starting_balance=starting_balance)
 
     assert resp.status_code == 201
     data = resp.json()

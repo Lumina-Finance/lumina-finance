@@ -81,6 +81,10 @@ class CreateAccountRequest(BaseModel):
     currency: str = Field(min_length=3, max_length=3)
     credit_limit: int | None = Field(None, ge=0)  # Only valid on liability accounts
     notes: str | None = Field(None, max_length=MAX_ACCOUNT_NOTES_LENGTH)
+
+    # A starting balance has its own request once the account exists, but a page loaded before that
+    # still sends the one typed into its form, which is refused rather than dropped without a word
+    starting_balance: int | None = None
     is_archived: bool = False
     group_id: uuid.UUID | None = None
 
