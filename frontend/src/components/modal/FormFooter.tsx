@@ -46,7 +46,9 @@ interface ModalFormFooterProps {
 }
 
 /**
- * Cancel and submit actions for a modal form, with the submission's own error message beside them
+ * Cancel and submit actions for a modal form, with the submission's own error message beside them.
+ * In the row the buttons wider screens get, the buttons keep their width and the message wraps
+ * in the space left beside them
  */
 export function ModalFormFooter({
   submitLabel,
@@ -86,7 +88,7 @@ export function ModalFormFooter({
   const cancelButton = (
     <button
       type="button"
-      className="app-secondary-button w-full sm:w-auto"
+      className="app-secondary-button w-full shrink-0 sm:w-auto"
       onClick={onCancel}
       disabled={submitDisabled}
       data-modal-initial-focus={primaryOnLeft ? 'true' : undefined}
@@ -105,7 +107,7 @@ export function ModalFormFooter({
       disabled={submitDisabled}
       disabledReason={submitDisabled ? undefined : submitBlockedReason}
       aria-busy={submitDisabled}
-      className={`${tone === 'danger' ? 'app-danger-button' : 'app-primary-button'}${submitDisabled ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : ` ${submitWidthClassName}`}`}
+      className={`${tone === 'danger' ? 'app-danger-button' : 'app-primary-button'} shrink-0${submitDisabled ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : ` ${submitWidthClassName}`}`}
     >
       {/* The spinner replaces the label, so it carries the label as its own name and a screen reader still
           says which action is in flight */}

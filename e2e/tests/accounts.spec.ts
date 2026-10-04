@@ -259,6 +259,9 @@ test('keeps the prompt and the typed balance when a save is lost before it lands
 
   const prompt = await createAccountThroughModal(page)
   const balance = prompt.getByLabel('Starting balance', { exact: true })
+  const buttons = [prompt.getByRole('button', { name: 'Skip' }), prompt.getByRole('button', { name: 'Continue' })]
+  const buttonWidths = () => Promise.all(buttons.map(async (button) => (await button.boundingBox())?.width))
+  const widthsBeforeMessage = await buttonWidths()
 
   // The save never reaches the server, so the account read after it is still at zero
   const saveUrl = `${API_BASE_URL}/accounts/*/starting-balance`
@@ -268,6 +271,10 @@ test('keeps the prompt and the typed balance when a save is lost before it lands
 
   await expect(prompt.getByRole('alert')).toHaveText('Oops, your starting balance wasn\'t saved. Please press Continue to try again.')
   await expect(balance).toHaveValue('1250.00')
+
+  // The message wraps beside the buttons rather than taking width from them. Continue grows back
+  // from its saving state, so its width is read once that has settled
+  await expect.poll(buttonWidths).toEqual(widthsBeforeMessage)
 
   await page.unroute(saveUrl)
   await prompt.getByRole('button', { name: 'Continue' }).click()
