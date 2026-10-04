@@ -146,6 +146,9 @@
     --app-chart-positive: #5d8f6d;
     --app-chart-negative: #ab5e56;
     --app-warning: #d6b400;
+    /* Status dots are small, so waiting-on-review needs a deeper yellow than a fill to hold its own on
+       cream, at least the 3:1 a non-text mark needs (about 3.4:1 on the page background) */
+    --app-warning-dot: #9e8500;
     --app-warning-soft: #d6b40029;
     --app-warning-text: #6f5700;
     /* Muted text on the warning tint, such as the archive warning's explanation, which the tint leaves readable here */
@@ -157,8 +160,12 @@
     /* The gray FX badge's hover and open fill, which its white label sits on */
     --app-fx-gray-fill: var(--app-text-muted);
     --app-negative: #9a3c34;
+    /* Edges items waiting for review, which take the warning hue until the user decides on them */
+    --app-warning-border: #d6b40066;
     --app-negative-soft: #9a3c341a;
     --app-negative-border: #9a3c344d;
+    /* Bank activity outside the ledger, such as imports and syncs, takes a hue no ledger row uses */
+    --app-bank: #2f6f7a;
     /* Filled destructive buttons need a darker red than negative text to keep white labels readable */
     --app-danger-fill: #9a3c34;
     /* Their fill under the pointer or keyboard focus, darker in both themes, since a lighter red would
@@ -266,6 +273,7 @@
     --app-chart-positive: #5d8f6d;
     --app-chart-negative: #ab5e56;
     --app-warning: #f5d547;
+    --app-warning-dot: #f5d547;
     --app-warning-soft: #f5d5472e;
     --app-warning-text: #f8e28a;
     /* The muted colour falls short of the contrast text needs on the warning tint here, so it is drawn a quarter of
@@ -277,6 +285,7 @@
        the page, which keeps its warm gray */
     --app-fx-gray-fill: color-mix(in srgb, var(--app-text-muted) 70%, var(--app-bg));
     --app-negative: #d8776a;
+    --app-warning-border: #f5d54752;
     --app-negative-soft: #b8584e1f;
     --app-negative-border: #b8584e59;
     --app-danger-fill: #b8584e;
@@ -284,6 +293,7 @@
     --app-button-primary-bg-hover: #d5b978;
     --app-button-primary-text: #100f0e;
     --app-nav-bg: #12100d;
+    --app-bank: #86bac1;
     --app-shadow-soft: 0 2px 20px #00000061, 0 1px 4px #0000003d;
   }
 

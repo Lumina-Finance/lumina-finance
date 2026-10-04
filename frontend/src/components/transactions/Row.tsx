@@ -7,6 +7,7 @@ import type { Transaction } from '@/api/transactions'
 import type { useDisabledReason } from '@/hooks/useDisabledReason'
 import { getDisabledReasonProps } from '@/utils/disabledReasonControl'
 import { Checkbox } from '@/components/forms/Checkbox'
+import { BankMarker, type TransactionRowBankMarker } from '@/components/transactions/BankMarker'
 import { MAX_BULK_EDIT_TRANSACTIONS } from '@/components/transactions/bulk-edit/constants'
 import type { RowSelectionMark } from '@/components/transactions/bulk-edit/selection'
 import {
@@ -111,6 +112,9 @@ interface TransactionRowProps {
   // and described for a screen reader, as for a greyed out button. The row's own reason text is not drawn
   disabledReason?: DisabledReasonState
   selection?: TransactionRowSelection
+
+  // Present on a bank-imported transaction only, so manual rows look exactly as they always have
+  bankMarker?: TransactionRowBankMarker
   onOpen: (transaction: Transaction) => void
 }
 
@@ -308,6 +312,7 @@ export function TransactionRowView({
   pressed,
   disabledReason,
   selection,
+  bankMarker,
   onOpen,
 }: TransactionRowViewProps) {
   const wide = !phoneLayout
@@ -327,6 +332,8 @@ export function TransactionRowView({
     { onClick: handleClick },
   )
   const isHeldOff = disabledReason?.isUnavailable === true
+  const marker = bankMarker ? <BankMarker {...bankMarker} /> : null
+
   // The row clips its content only while the height animates, so the grow and collapse read cleanly
   // while the resting row still lets a tag tooltip overflow past its edges
   const [isAnimatingHeight, setIsAnimatingHeight] = useState(false)
@@ -481,8 +488,12 @@ export function TransactionRowView({
 
             <span className="hidden min-w-0 min-[750px]:block">
               <span className="block truncate font-medium">{categoryName}</span>
-              <span className="mt-0.5 block truncate text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                {title}
+              <span
+                className="mt-0.5 flex min-w-0 items-center gap-1.5 text-sm"
+                style={{ color: 'var(--app-text-muted)' }}
+              >
+                <span className="min-w-0 truncate">{title}</span>
+                {marker}
               </span>
             </span>
 
@@ -586,8 +597,9 @@ export function TransactionRowView({
             {categoryIcon}
           </span>
 
-          <span className="col-start-2 row-start-1 min-w-0 truncate text-[0.9375rem] font-medium leading-5">
-            {title}
+          <span className="col-start-2 row-start-1 flex min-w-0 items-center gap-1.5 text-[0.9375rem] font-medium leading-5">
+            <span className="min-w-0 truncate">{title}</span>
+            {marker}
           </span>
 
           <span
