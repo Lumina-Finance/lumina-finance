@@ -30,6 +30,7 @@ const selected: Transaction = {
     { id: 'tag-b', group_id: null, name: 'Household' },
     { id: 'tag-a', group_id: null, name: 'Essential' },
   ],
+  bank_source: null,
 }
 
 const unselected: Transaction = {

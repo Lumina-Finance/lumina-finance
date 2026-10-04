@@ -1,3 +1,4 @@
+import type { TransactionBankSource } from '@/api/bank-sync/types'
 import type { FxStatus } from '@/api/shared/fx'
 
 /**
@@ -56,6 +57,9 @@ export interface Transaction {
   updated_at: string
   tag_ids: string[]
   tags: TransactionTag[]
+
+  /** Where a bank-imported transaction came from, null on one entered by hand */
+  bank_source: TransactionBankSource | null
 }
 
 export interface TransactionTag {

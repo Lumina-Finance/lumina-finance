@@ -178,6 +178,36 @@ function withoutLinksTo(transaction: Transaction, removed: Set<string>): Transac
 }
 
 /**
+ * Puts the server's copy of a transaction in place of the cached one in every list and detail
+ *
+ * For a change that leaves every ledger value as it was, such as a review decision that only clears
+ * the Needs review marker, so the rows update without the lists refetching
+ */
+export function replaceCachedTransaction(queryClient: QueryClient, transaction: Transaction): void {
+  const replace = (item: Transaction) => (item.id === transaction.id ? transaction : item)
+  const transactionQueries = queryClient.getQueriesData<Transaction | Transaction[] | InfiniteData<Transaction[]>>({
+    queryKey: transactionKeys.all,
+    exact: false,
+  })
+
+  for (const [queryKey, data] of transactionQueries) {
+    if (!data) continue
+    if (isInfiniteTransactionsData(data)) {
+      if (!data.pages.some((page) => page.some((item) => item.id === transaction.id))) continue
+      queryClient.setQueryData<InfiniteData<Transaction[]>>(queryKey, {
+        ...data,
+        pages: data.pages.map((page) => page.map(replace)),
+      })
+    } else if (Array.isArray(data)) {
+      if (!data.some((item) => item.id === transaction.id)) continue
+      queryClient.setQueryData<Transaction[]>(queryKey, data.map(replace))
+    } else if (data.id === transaction.id) {
+      queryClient.setQueryData<Transaction>(queryKey, transaction)
+    }
+  }
+}
+
+/**
  * Reads cached account plan links without triggering a network request during invalidation
  */
 function getCachedAccountTaxAdvantagedCategoryId(

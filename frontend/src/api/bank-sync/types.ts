@@ -1,0 +1,520 @@
+import type { TransferCounterpartyScope } from '@/api/transactions/types';
+
+export type BankProviderId = 'simplefin';
+
+/**
+ * Where a provider is connected: once in settings when one credential reaches every bank account the
+ * user holds there, or inside an account's link flow when it authorizes one institution at a time
+ */
+export type BankProviderConnectsFrom = 'settings' | 'account';
+
+/**
+ * A provider adapter the deployment has enabled
+ */
+export type BankProvider = {
+  id: BankProviderId;
+  name: string;
+
+  /** One sentence on what connecting it reaches, shown where the user chooses a provider */
+  description: string;
+  connects_from: BankProviderConnectsFrom;
+
+  /**
+   * Whether new connections may be made, which the server controls per provider
+   *
+   * Withdrawing an offer leaves existing connections working: they keep syncing, link further
+   * accounts, reconnect and disconnect as before
+   */
+  offered: boolean;
+
+  /** How many calendar months back an import may start, set per deployment */
+  history_limit_months: number;
+
+  /** False when the provider cannot say how much history it holds, which SimpleFIN cannot */
+  advertises_history: boolean;
+
+  /**
+   * How many institutions the user may link through this provider across all their connections, or
+   * null when the deployment sets no limit. The hosted version charges per institution each month for
+   * some providers, so a plan sets it there. The provider itself may still limit what it allows
+   */
+  institution_limit: number | null;
+
+  /** Institutions with a bank account linked through this provider, each counted once toward the limit */
+  institutions_in_use: string[];
+};
+
+export type BankProvidersResponse = {
+  /** The single "may this user link bank accounts" check, always true on self-hosted deployments */
+  may_link: boolean;
+
+  /**
+   * False when the sync worker has not checked in for 15 minutes, so nothing would run a new import or
+   * sync. Adding a connection and linking are refused with a reason until it is back
+   */
+  sync_running: boolean;
+  providers: BankProvider[];
+};
+
+/**
+ * Rolling 24-hour request count for one provider connection
+ */
+export type BankRequestBudget = {
+  limit: number;
+  used: number;
+
+  /** ISO timestamp when the oldest counted request leaves the window, null while requests remain */
+  available_again_at: string | null;
+};
+
+export type BankConnectionStatus = 'active' | 'credential_rejected';
+
+/**
+ * One stored provider credential, owned by the user and shared by every account linked through it
+ */
+export type BankConnection = {
+  id: string;
+  provider: BankProviderId;
+  provider_name: string;
+
+  /** The user's own name for the connection, shown in place of the provider's name when set */
+  nickname: string | null;
+
+  /** Where the credential points, shown so the user can tell connections apart */
+  server_label: string;
+  created_at: string;
+  status: BankConnectionStatus;
+
+  /** The bank accounts the credential last returned, kept while a rejected credential waits for a reconnect */
+  accounts: ConnectionBankAccount[];
+
+  /**
+   * True while the connection's bank accounts are waiting on a listing still to run, such as after a
+   * claim or reconnect whose own listing failed. `accounts` fills in when it finishes
+   */
+  discovery_pending: boolean;
+  request_budget: BankRequestBudget;
+};
+
+/**
+ * A bank account a connection returns, as the connection lists it outside any one account
+ */
+export type ConnectionBankAccount = {
+  external_id: string;
+  name: string;
+  institution_name: string;
+
+  /** ISO 4217 code, or the URL SimpleFIN uses for a custom currency */
+  currency: string;
+
+  /** True for a provider-specific currency, which no account can link to */
+  custom_currency: boolean;
+  linked_account_id: string | null;
+
+  /**
+   * The Lumina accounts this bank account may be linked to: personally owned, not archived, writable,
+   * in the same currency and not already linked. Empty for a custom currency
+   */
+  eligible_account_ids: string[];
+};
+
+export type UnavailableBankAccountReason = 'already_linked' | 'currency_mismatch' | 'custom_currency' | 'institution_limit';
+
+/**
+ * A bank account a connection returned, described relative to the account being linked
+ */
+export type DiscoveredBankAccount = {
+  external_id: string;
+  name: string;
+  institution_name: string;
+
+  /** ISO 4217 code, or the URL SimpleFIN uses for a custom currency */
+  currency: string;
+
+  /** Provider balance in minor units of the bank account's currency, null when it can't be stored exactly */
+  balance: number | null;
+  balance_date: string;
+  linkable: boolean;
+  unavailable_reason: UnavailableBankAccountReason | null;
+  unavailable_message: string | null;
+
+  /** Whether the institution looks different from the one the account names */
+  institution_differs: boolean;
+};
+
+/**
+ * The bank accounts a connection returned for the account being linked
+ */
+export type DiscoveredBankAccounts = {
+  /**
+   * True while a fresh listing runs, which opening the link flow asks for when the last one is over
+   * an hour old. `accounts` is the previous listing until it finishes
+   */
+  discovery_pending: boolean;
+  accounts: DiscoveredBankAccount[];
+};
+
+export type ClaimSetupTokenPayload = {
+  provider: BankProviderId;
+  setup_token: string;
+
+  /** Optional, and blank means none */
+  nickname?: string | null;
+};
+
+/**
+ * What replacing a rejected credential did to the accounts linked through it
+ */
+export type ReconnectConnectionResult = {
+  connection: BankConnection;
+
+  /** Accounts whose bank account came back unchanged, which resume syncing */
+  resumed_account_ids: string[];
+
+  /** Accounts whose bank account came back under a new identity, which must be chosen again */
+  choose_again_account_ids: string[];
+};
+
+/**
+ * The permitted import start range for one account and provider
+ *
+ * Every date is a calendar date in YYYY-MM-DD form, computed in the user's profile timezone
+ */
+export type BankImportRange = {
+  suggested_start: string;
+
+  /** The suggestion before the range raised it, shown so a moved start is never silent */
+  default_suggestion: string;
+  earliest_allowed: string;
+  latest_allowed: string;
+
+  /** The day after the latest ledger transaction dated today or earlier, null for an empty account */
+  ledger_floor: string | null;
+  provider_limit_date: string;
+  provider_history_months: number;
+  latest_ledger_date: string | null;
+};
+
+export type LinkBankAccountPayload = {
+  account_id: string;
+  connection_id: string;
+  external_account_id: string;
+  start_date: string;
+};
+
+export type BankSyncOutcome = 'success' | 'failure';
+
+export type BankSyncAttempt = {
+  at: string;
+  outcome: BankSyncOutcome;
+  reason: string | null;
+};
+
+/**
+ * Why sync is stopped until the user acts: a rejected credential is reconnected in settings, a bank
+ * login is fixed at the provider, and a bank account the provider now reports under a new identity is
+ * chosen again from the account
+ */
+export type BankActionNeededKind = 'reconnect' | 'bank_login' | 'choose_account';
+
+export type BankActionNeeded = {
+  kind: BankActionNeededKind;
+  since: string;
+  message: string;
+};
+
+/**
+ * Why an import runs: a first link, a relink after the account was unlinked, or a bank account
+ * chosen again after the provider stopped recognizing the linked one
+ */
+export type BankImportKind = 'initial' | 'reconnect' | 'choose_again';
+
+/**
+ * Where an import stands. One waiting on the connection's request budget is not running, and its
+ * link's `next_attempt_at` says when its next part can
+ */
+export type BankImportState = 'running' | 'waiting_on_budget' | 'complete';
+
+/**
+ * Progress of the import that runs when an account is linked or reconnected, which always
+ * completes regardless of the review backlog
+ */
+export type BankImportProgress = {
+  kind: BankImportKind;
+  state: BankImportState;
+  requested_start: string;
+  windows_total: number;
+  windows_done: number;
+  items_found: number;
+
+  /** Earliest booked transaction the provider returned, null until one arrives */
+  earliest_returned_date: string | null;
+};
+
+export type BankHistoryReminder = {
+  requested_start: string;
+  earliest_returned: string | null;
+};
+
+export type BankBalance = {
+  /** Provider balance in minor units of the account currency */
+  amount: number;
+
+  /** ISO timestamp the provider gives the balance as of */
+  balance_date: string;
+
+  /** Read-only available balance in minor units, when the provider supplies one */
+  available: number | null;
+};
+
+/**
+ * The link between one account and one bank account, with everything its status shows
+ */
+export type BankLink = {
+  account_id: string;
+  connection_id: string;
+  provider: BankProviderId;
+  provider_name: string;
+  external_account_id: string;
+  external_account_name: string;
+  institution_name: string;
+  import_start: string;
+  linked_at: string;
+  import: BankImportProgress | null;
+  history_reminder: BankHistoryReminder | null;
+  last_success_at: string | null;
+  last_attempt: BankSyncAttempt | null;
+
+  /** The next automatic attempt, null while an action is needed or the account is paused */
+  next_attempt_at: string | null;
+  waiting_on_budget: boolean;
+  sync_in_progress: boolean;
+  action_needed: BankActionNeeded | null;
+
+  /** New posted items awaiting their first review, the count the warning and pause read */
+  waiting_new_count: number;
+  review_warning: boolean;
+  paused: boolean;
+
+  /** Null until the provider reports a balance, and when the one it reports can't be stored exactly */
+  balance: BankBalance | null;
+};
+
+/**
+ * What an account last linked to, kept after unlinking so a later link reads as a reconnect and can
+ * be checked against the bank account the provider returns this time
+ */
+export type PreviousBankLink = {
+  provider_name: string;
+  external_account_id: string;
+  external_account_name: string;
+  institution_name: string;
+  unlinked_at: string;
+};
+
+/**
+ * Everything the account page needs to show about one account's bank link
+ */
+export type AccountBankStatus = {
+  account_id: string;
+  link: BankLink | null;
+  previous_link: PreviousBankLink | null;
+
+  /** False for an account this release does not link, such as a group-owned one */
+  linkable: boolean;
+  unlinkable_reason: string | null;
+};
+
+export type ReviewDecision = 'review' | 'trust';
+
+export type ReviewPreferences = {
+  new_transactions: ReviewDecision;
+  corrections: ReviewDecision;
+  removals: ReviewDecision;
+};
+
+export type BankField = 'date' | 'amount' | 'description' | 'merchant_name' | 'category_hint';
+
+/**
+ * The bank fields a correction can change. A change to only the merchant name or category hint
+ * updates what the bank last said without opening one
+ */
+export type CorrectableBankField = Extract<BankField, 'date' | 'amount' | 'description'>;
+
+/**
+ * The bank fields the ledger row can differ from, which count as the user's own once they do and
+ * which Restore bank value puts back. The ledger has no description of its own to edit
+ */
+export type EditableBankField = Extract<BankField, 'date' | 'amount'>;
+
+/**
+ * The values a bank supplies for one booked transaction
+ */
+export type BankValues = {
+  date: string;
+
+  /**
+   * Signed minor units, money out negative. Null when the bank sent more decimal places than the
+   * currency holds, which is never rounded: `raw_amount` holds it and the user enters the amount
+   */
+  amount: number | null;
+
+  /** The amount exactly as the bank sent it, given only when `amount` is null */
+  raw_amount: string | null;
+  description: string;
+  merchant_name: string | null;
+  category_hint: string | null;
+};
+
+export type BankReviewItemKind = 'new' | 'correction' | 'removal';
+
+/**
+ * One item waiting in the review inbox, outside the ledger and every calculation until acted on
+ */
+export type BankReviewItem = {
+  id: string;
+  kind: BankReviewItemKind;
+  account_id: string;
+  provider: BankProviderId;
+  provider_name: string;
+  external_transaction_id: string;
+  received_at: string;
+
+  /** Moves on whenever the bank changes the item, so bulk approval applies only what was previewed */
+  version: number;
+
+  /** The bank's values: the whole item for a new one, the proposal for a correction */
+  bank: BankValues;
+
+  /** The ledger transaction a correction or removal is about */
+  transaction_id: string | null;
+
+  /** The approved ledger values a correction would change */
+  current: BankValues | null;
+  changed_fields: CorrectableBankField[];
+
+  /** Fields the user has edited, which a correction leaves alone */
+  protected_fields: EditableBankField[];
+};
+
+/**
+ * How many items wait of each kind, across every page of the list
+ */
+export type BankReviewCounts = Record<BankReviewItemKind, number>;
+
+/**
+ * One page of the review inbox, newest first
+ */
+export type BankReviewPage = {
+  items: BankReviewItem[];
+  counts: BankReviewCounts;
+
+  /** Passed back to read the page after this one, null on the last page */
+  next_cursor: string | null;
+};
+
+export type AddReviewItemPayload = {
+  category_id: string;
+  merchant_id: string;
+  dt: string;
+
+  /** Signed minor units, money out negative. Required, so an item whose bank amount is null gets one */
+  amount: number;
+  notes?: string | null;
+  tag_ids?: string[];
+  counterparty_account_id?: string | null;
+  counterparty_account_scope?: TransferCounterpartyScope | null;
+};
+
+export type BulkApprovalGroup = {
+  kind: BankReviewItemKind;
+  count: number;
+
+  /** Signed change to account balances in minor units, summed per currency */
+  net_effect: { currency: string; amount: number }[];
+  items: BankReviewItem[];
+};
+
+export type BulkApprovalPreview = {
+  groups: BulkApprovalGroup[];
+
+  /** New items left in the inbox because they have no merchant or category or no storable amount yet */
+  excluded_count: number;
+};
+
+/**
+ * One previewed item to apply, at the version the preview showed
+ */
+export type BulkApprovalItem = {
+  id: string;
+  version: number;
+};
+
+export type BulkApprovalPayload = {
+  items: BulkApprovalItem[];
+};
+
+export type BulkApprovalResult = {
+  added: number;
+  corrected: number;
+  removed: number;
+
+  /** Previewed items left waiting, because the bank changed them since the preview or they could not be applied */
+  failed: number;
+};
+
+/**
+ * A read-only unsettled bank transaction, outside the ledger and review
+ */
+export type PendingBankTransaction = {
+  id: string;
+  account_id: string;
+  provider_name: string;
+  date: string;
+
+  /** Signed minor units, money out negative, null when it can't be stored exactly */
+  amount: number | null;
+
+  /** The amount exactly as the bank sent it, given only when `amount` is null */
+  raw_amount: string | null;
+  description: string;
+};
+
+/**
+ * Where a ledger transaction came from, carried on every transaction response and null on one the
+ * user entered by hand
+ */
+export type TransactionBankSource = {
+  provider: BankProviderId;
+  provider_name: string;
+
+  /** The latest values the bank supplied */
+  bank_values: BankValues;
+
+  /** The fields whose ledger value differs from the bank's, which a trusted correction leaves alone */
+  edited_fields: EditableBankField[];
+
+  /** The waiting correction or removal about this transaction, if any */
+  review_item_id: string | null;
+};
+
+export type OpeningAdjustmentState = 'not_ready' | 'offered' | 'accepted' | 'skipped' | 'none';
+
+export type OpeningAdjustmentOffer = {
+  state: OpeningAdjustmentState;
+
+  /** Provider balance minus ledger balance as of the balance date, in minor units */
+  amount: number;
+  adjustment_date: string;
+  balance_date: string;
+
+  /** Minor units */
+  bank_balance: number;
+
+  /** Minor units */
+  ledger_balance: number;
+};
+
+export type UnlinkResult = {
+  unlinked_account_ids: string[];
+};

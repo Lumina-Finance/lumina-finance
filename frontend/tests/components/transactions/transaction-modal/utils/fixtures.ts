@@ -81,6 +81,7 @@ export function createTransaction(overrides: Partial<Transaction> = {}): Transac
     updated_at: '2026-06-11T12:00:00Z',
     tag_ids: overrides.tag_ids ?? [],
     tags: overrides.tags ?? [],
+    bank_source: null,
     ...overrides,
   }
 }

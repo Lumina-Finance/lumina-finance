@@ -1,5 +1,6 @@
 export * from '@/api/cache/invalidation/accounts';
 export * from '@/api/cache/invalidation/aggregate';
+export * from '@/api/cache/invalidation/bankSync';
 export * from '@/api/cache/invalidation/budgets';
 export * from '@/api/cache/invalidation/dashboard';
 export * from '@/api/cache/invalidation/insights';

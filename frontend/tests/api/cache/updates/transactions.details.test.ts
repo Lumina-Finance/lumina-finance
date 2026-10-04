@@ -52,6 +52,7 @@ const target: Transaction = {
   updated_at: '2026-09-01T12:00:00Z',
   tag_ids: [],
   tags: [],
+  bank_source: null,
 }
 const other: Transaction = { ...target, id: 'newer-expense', amount: -100, dt: '2026-09-14' }
 

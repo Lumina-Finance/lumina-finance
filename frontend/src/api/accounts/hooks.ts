@@ -11,6 +11,7 @@ import {
   refreshAfterInterruptedStartingBalance,
   updateCachedAccountList,
 } from '@/api/cache/updates/accounts';
+import { clearDeletedAccountBankData } from '@/api/cache/updates/bankSync';
 import {
   createAccount,
   deleteAccount,
@@ -139,6 +140,7 @@ export function useDeleteAccount({ minimumPendingMs = 0 }: { minimumPendingMs?: 
       // answers not found, so the page forgets the rest as it leaves (useForgetDeletedAccount)
       queryClient.removeQueries({ queryKey: accountKeys.accountScope(accountId), type: 'inactive' });
       invalidateAccountAggregateData(queryClient, accountId, context?.deletedAccount, { isDeleted: true });
+      clearDeletedAccountBankData(queryClient);
     },
   });
 }

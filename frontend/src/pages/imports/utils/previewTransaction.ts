@@ -70,6 +70,7 @@ export function buildPreviewTransactionRow(input: PreviewTransactionInput): Prev
     updated_at: input.timestamp,
     tag_ids: tagIds,
     tags: input.tagNames.map((tag, tagIndex) => ({ id: tagIds[tagIndex], group_id: null, name: tag })),
+    bank_source: null,
   }
 
   return {
