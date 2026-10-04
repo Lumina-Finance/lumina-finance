@@ -21,6 +21,7 @@ import { applyRecordedStartingBalance, refreshAfterInterruptedStartingBalance } 
 
 // Every view a starting balance changes, by name, so a failure says which one was left fresh
 const STARTING_BALANCE_VIEWS: Record<string, QueryKey> = {
+  accountBalanceHistory: accountKeys.snapshots('card', {}),
   transactions: transactionKeys.list({}),
   transactionOverview: transactionOverviewKeys.detail({}),
   dashboardNetWorth: dashboardKeys.netWorth(30),
@@ -78,15 +79,15 @@ function freshViews(queryClient: QueryClient): string[] {
 }
 
 describe('applyRecordedStartingBalance', () => {
-  it('shows a card owing 400.00 at once and marks net worth and credit used stale', () => {
+  it('shows a card owing 400.00 at once and marks every view built on its balance stale', () => {
     const queryClient = createSeededClient();
 
     applyRecordedStartingBalance(queryClient, createCard(-40000));
 
     const accounts = queryClient.getQueryData<AccountsOverview[]>(accountKeys.list());
     expect(accounts?.map((account) => account.current_balance)).toEqual([-40000]);
-    expect(queryClient.getQueryState(dashboardKeys.netWorth(30))?.isInvalidated).toBe(true);
-    expect(queryClient.getQueryState(dashboardKeys.credit())?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryData<Account>(accountKeys.detail('card'))?.current_balance).toBe(-40000);
+    expect(freshViews(queryClient)).toEqual([]);
   });
 });
 
