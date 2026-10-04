@@ -19,6 +19,14 @@ from app.database import current_user_id_ctx
 from app.models.account import Account
 from app.models.account_import_layout import AccountImportLayout
 from app.models.account_import_source import AccountImportSource
+from app.models.bank_connection import (
+    BankAccountLink,
+    BankConnection,
+    BankExternalAccount,
+    BankProviderRequest,
+    BankSigninNotice,
+    ProviderRequestPurpose,
+)
 from app.models.base import AccountKind, AccountType, CategoryKind, RecurrenceFreq
 from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
 from app.models.cache_state import UserCacheState
@@ -28,6 +36,12 @@ from app.models.group import Group, GroupMember
 from app.models.transaction import Transaction
 from app.models.user import User, UserCreditExcludedAccount
 from tests.conftest import ScopedSession, TestSession
+from tests.routes.support.bank_sync_helpers import (
+    _build_bank_connection,
+    _build_bank_link,
+    _build_external_account,
+    _build_signin_notice,
+)
 
 
 @asynccontextmanager
@@ -489,3 +503,109 @@ async def test_cache_bump_is_refused_for_a_null_target():
     async with _act_as(None) as session:
         with pytest.raises(ProgrammingError, match="Not authorized"):
             await session.execute(_BUMP_MEMBER_CACHE, {"user_id": None, "group_id": uuid.uuid4()})
+
+
+_BANK_MODELS = [BankConnection, BankProviderRequest, BankExternalAccount, BankAccountLink, BankSigninNotice]
+
+
+async def _create_bank_records(session, owner_id) -> tuple[Account, BankConnection]:
+    """Create one of each bank sync record for a user in a session, returning the account and connection"""
+    account = _build_account(owner_id, "Everyday")
+    connection = _build_bank_connection(owner_id)
+    session.add_all([account, connection])
+    await session.flush()
+    session.add_all(
+        [
+            BankProviderRequest(owner_id=owner_id, connection_id=connection.id, purpose=ProviderRequestPurpose.SYNC),
+            _build_external_account(connection),
+            _build_bank_link(account, connection),
+            _build_signin_notice(connection),
+        ]
+    )
+    await session.flush()
+    return account, connection
+
+
+def _owned_by(row, owner_id):
+    """Return a row with its owner replaced"""
+    row.owner_id = owner_id
+    return row
+
+
+@pytest.fixture
+async def bank_records(users):
+    """Seed one of each bank sync record for user A, returning A's connection"""
+    user_a, _ = users
+    async with TestSession() as session:
+        _, connection = await _create_bank_records(session, user_a.id)
+        await session.commit()
+    return connection
+
+
+async def test_bank_records_owner_can_create_and_read_back(users):
+    """The owner writes every bank sync record through the app role and reads each back"""
+    user_a, _ = users
+    async with _act_as(user_a.id) as session:
+        await _create_bank_records(session, user_a.id)
+
+        for model in _BANK_MODELS:
+            assert len((await session.scalars(select(model.id))).all()) == 1
+
+
+@pytest.mark.parametrize("model", _BANK_MODELS, ids=lambda model: model.__tablename__)
+async def test_bank_records_are_invisible_to_other_users(users, bank_records, model):
+    """Another user sees none of a user's bank sync records"""
+    user_a, user_b = users
+    async with _act_as(user_b.id) as session:
+        assert (await session.scalars(select(model.id))).all() == []
+
+    async with _act_as(user_a.id) as session:
+        assert len((await session.scalars(select(model.id))).all()) == 1
+
+
+@pytest.mark.parametrize(
+    "build",
+    [
+        lambda connection, owner_id, _: BankProviderRequest(
+            owner_id=owner_id,
+            connection_id=connection.id,
+            purpose=ProviderRequestPurpose.SYNC,
+        ),
+        lambda connection, owner_id, _: _owned_by(_build_external_account(connection, "ACT-B"), owner_id),
+        lambda connection, owner_id, _: _owned_by(_build_signin_notice(connection, "login-b"), owner_id),
+        lambda connection, _, account: _build_bank_link(account, connection, "ACT-B"),
+    ],
+    ids=["provider_request", "external_account", "signin_notice", "account_link"],
+)
+async def test_bank_record_naming_another_users_connection_is_refused(users, bank_records, build):
+    """A user can't attach their own records to a connection that isn't theirs
+
+    Foreign keys skip row-level security, so the write check is what stops a guessed connection ID
+    """
+    _, user_b = users
+    async with TestSession() as session:
+        account_b = _build_account(user_b.id, "B Everyday")
+        session.add(account_b)
+        await session.commit()
+
+    async with _act_as(user_b.id) as session:
+        session.add(build(bank_records, user_b.id, account_b))
+        with pytest.raises(ProgrammingError, match="row-level security"):
+            await session.flush()
+
+
+async def test_bank_link_on_another_users_account_is_refused(users, bank_records):
+    """A user can't link someone else's Lumina account, even through their own connection"""
+    user_a, user_b = users
+    async with TestSession() as session:
+        account_a = (await session.scalars(select(Account).where(Account.owner_id == user_a.id))).one()
+        connection_b = _build_bank_connection(user_b.id)
+        session.add(connection_b)
+        await session.commit()
+
+    link = _build_bank_link(account_a, connection_b, "ACT-B")
+    link.owner_id = user_b.id
+    async with _act_as(user_b.id) as session:
+        session.add(link)
+        with pytest.raises(ProgrammingError, match="row-level security"):
+            await session.flush()

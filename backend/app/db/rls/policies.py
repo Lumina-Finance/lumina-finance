@@ -19,6 +19,9 @@ from app.db.rls.functions import (
 # Table privileges the app role holds on the data it serves
 APP_TABLE_PRIVILEGES = "SELECT, INSERT, UPDATE, DELETE"
 
+# Whether the bank connection a row names is one the current user can see
+_SEES_CONNECTION = "EXISTS (SELECT 1 FROM public.bank_connections c WHERE c.id = connection_id)"
+
 # (table, USING, WITH CHECK) for tables secured by a single policy. Where a table's read
 # helper resolves access by reading the table itself, the USING clause also lists the
 # direct owner and group-admin predicates so a creator can read back the row it just
@@ -51,6 +54,18 @@ SECURED_TABLES = (
     ("saved_insights_ranges", f"user_id = {CURRENT_USER_ID}()", f"user_id = {CURRENT_USER_ID}()"),
     ("import_runs", f"owner_id = {CURRENT_USER_ID}()", f"owner_id = {CURRENT_USER_ID}()"),
     ("import_staged_rows", f"owner_id = {CURRENT_USER_ID}()", f"owner_id = {CURRENT_USER_ID}()"),
+    # Bank sync records belong to their owner, and those tied to a Lumina account also need
+    # access to it. Foreign keys skip row-level security, so a write naming a connection or a
+    # ledger row also has to see it, which keeps one user from attaching rows to another's
+    ("bank_connections", f"owner_id = {CURRENT_USER_ID}()", f"owner_id = {CURRENT_USER_ID}()"),
+    ("bank_provider_requests", f"owner_id = {CURRENT_USER_ID}()", f"owner_id = {CURRENT_USER_ID}() AND {_SEES_CONNECTION}"),
+    ("bank_external_accounts", f"owner_id = {CURRENT_USER_ID}()", f"owner_id = {CURRENT_USER_ID}() AND {_SEES_CONNECTION}"),
+    (
+        "bank_account_links",
+        f"owner_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)",
+        f"owner_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id) AND (connection_id IS NULL OR {_SEES_CONNECTION})",
+    ),
+    ("bank_signin_notices", f"owner_id = {CURRENT_USER_ID}()", f"owner_id = {CURRENT_USER_ID}() AND {_SEES_CONNECTION}"),
     ("users", f"id = {CURRENT_USER_ID}()", f"id = {CURRENT_USER_ID}()"),
     (
         "tags",

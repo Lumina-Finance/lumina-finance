@@ -8,6 +8,7 @@ from app.models.types import EncryptedText, find_encrypted_columns
 
 # The columns holding a Fernet token today. A new one belongs here and in the model
 _EXPECTED_ENCRYPTED_COLUMNS = [
+    ("bank_connections", "credential_encrypted"),
     ("oidc_providers", "client_secret_encrypted"),
     ("totp_credentials", "secret_encrypted"),
 ]
