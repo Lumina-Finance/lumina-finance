@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { CalendarDay } from '@/components/date-field/CalendarDay'
 import { parseIsoDate } from '@/components/date-field/dateSegments'
 import { getFocusableElements, getNextTabStop } from '@/components/modal/focus'
 import { STACKING_LEVELS } from '@/constants/stackingLevels'
@@ -16,6 +17,9 @@ interface CalendarPopoverProps {
   value: string
   onSelect: (value: string) => void
   onClose: () => void
+
+  // Days the field refuses, shown as unavailable and never selected
+  isDateDisabled?: (iso: string) => boolean
 }
 
 const POPOVER_WIDTH = 264
@@ -88,7 +92,7 @@ function useCalendarPosition(open: boolean, anchorRef: RefObject<HTMLElement | n
  * Renders a floating month grid for picking a date, keeping the browser calendar out of the flow so
  * the date field stays consistent across browsers
  */
-export default function CalendarPopover({ open, anchorRef, value, onSelect, onClose }: CalendarPopoverProps) {
+export default function CalendarPopover({ open, anchorRef, value, onSelect, onClose, isDateDisabled }: CalendarPopoverProps) {
   const position = useCalendarPosition(open, anchorRef)
   const gridRef = useRef<HTMLDivElement>(null)
   const restoreFocusRef = useRef(true)
@@ -329,28 +333,22 @@ export default function CalendarPopover({ open, anchorRef, value, onSelect, onCl
               >
                 {cells.map((date) => {
                   const iso = formatYmd(date)
-                  const inMonth = date.getMonth() + 1 === viewMonth.month
-                  const isSelected = iso === value
-                  const isToday = iso === todayIso
 
                   return (
-                    <button
+                    <CalendarDay
                       key={iso}
-                      type="button"
-                      data-iso={iso}
-                      tabIndex={iso === focusedIso ? 0 : -1}
-                      aria-pressed={isSelected}
-                      onClick={() => {
-                        onSelect(iso)
+                      date={date}
+                      iso={iso}
+                      inMonth={date.getMonth() + 1 === viewMonth.month}
+                      isSelected={iso === value}
+                      isToday={iso === todayIso}
+                      isDisabled={isDateDisabled?.(iso) ?? false}
+                      focusable={iso === focusedIso}
+                      onPick={(picked) => {
+                        onSelect(picked)
                         onClose()
                       }}
-                      className="app-calendar-day"
-                      data-selected={isSelected || undefined}
-                      data-today={isToday || undefined}
-                      data-outside={!inMonth || undefined}
-                    >
-                      {date.getDate()}
-                    </button>
+                    />
                   )
                 })}
               </motion.div>

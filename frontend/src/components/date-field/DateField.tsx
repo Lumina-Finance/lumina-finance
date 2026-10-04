@@ -59,6 +59,8 @@ interface DateFieldProps {
   // Lights the field with its focus look without moving focus into it: 'lit' while a change made elsewhere is
   // pointed out, 'fading' while the light eases out again. Left out, or null, the field is as focus makes it
   stepHighlight?: 'lit' | 'fading' | null
+  // Days the calendar refuses. Typing one is still possible, so the form validates the value too
+  isDateDisabled?: (iso: string) => boolean
 }
 
 const SEGMENT_PLACEHOLDER: Record<DateSegmentName, string> = { year: 'yyyy', month: 'mm', day: 'dd' }
@@ -95,6 +97,7 @@ export default function DateField({
   describedById,
   keyShortcuts,
   stepHighlight = null,
+  isDateDisabled,
 }: DateFieldProps) {
   const { user } = useAuth()
   const [segments, setSegments] = useState<DateSegments>(() => parseIsoDate(value))
@@ -317,6 +320,7 @@ export default function DateField({
         value={value}
         onSelect={(iso) => commit(parseIsoDate(iso))}
         onClose={() => setPopoverOpen(false)}
+        isDateDisabled={isDateDisabled}
       />
     </div>
   )

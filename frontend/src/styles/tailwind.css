@@ -942,9 +942,10 @@
   }
 
   /* Subtle and muted text both fall under 4.5:1 on the accent tint in the dark theme, so a neighbouring month's day
-     under the pointer or keyboard focus reads in the text colour, like any other day */
-  .app-calendar-day[data-outside]:not([data-selected]):hover,
-  .app-calendar-day[data-outside]:not([data-selected]):focus-visible {
+     under the pointer or keyboard focus reads in the text colour, like any other day. A refused one keeps
+     its fade */
+  .app-calendar-day[data-outside]:not([data-selected]):not([data-disabled]):hover,
+  .app-calendar-day[data-outside]:not([data-selected]):not([data-disabled]):focus-visible {
     color: var(--app-text);
   }
 
@@ -965,6 +966,20 @@
   @media (hover: hover) {
     .app-calendar-day[data-selected]:hover {
       background: var(--app-button-primary-bg-hover);
+    }
+  }
+
+  /* A day the field refuses, struck through as well as faded so it does not rest on colour alone */
+  .app-calendar-day[data-disabled] {
+    cursor: not-allowed;
+    color: var(--app-text-subtle);
+    text-decoration: line-through;
+    opacity: 0.55;
+  }
+
+  @media (hover: hover) {
+    .app-calendar-day[data-disabled]:hover {
+      background: transparent;
     }
   }
 
