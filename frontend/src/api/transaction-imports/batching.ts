@@ -1,18 +1,6 @@
-import {
-  IMPORT_BATCH_YIELD_INTERVAL,
-  MAX_IMPORT_BATCH_BYTES,
-  MAX_IMPORT_BATCH_MAPPINGS,
-  MAX_IMPORT_BATCH_ROWS,
-  TARGET_IMPORT_BATCH_BYTES,
-  getEmptyImportPayloadByteSize,
-  getNextArrayItemByteSize,
-  yieldToBrowser,
-} from '@/api/shared/importBatchSize';
+import { buildImportBatches } from '@/api/shared/importBatching';
 import { getMerchantNameKey } from '@/api/shared/merchantNameKey';
 import type {
-  TransactionImportAccountMapping,
-  TransactionImportCategoryMapping,
-  TransactionImportMerchantMapping,
   TransactionImportPayload,
   TransactionImportRow,
   TransactionImportStageBatch,
@@ -20,125 +8,41 @@ import type {
 
 /**
  * Splits a prepared import into batches that each fit the request-size budget
- *
- * Nothing is created while a file is staged, so a batch carries the mappings its own rows
- * reference exactly as they were prepared, and no batch depends on what an earlier one returned
  */
 export async function buildStagedImportBatches(
   payload: TransactionImportPayload,
 ): Promise<TransactionImportStageBatch[]> {
-  const accountMappingsBySource = getImportMappingsBySource(payload.accounts);
-  const categoryMappingsBySource = getImportMappingsBySource(payload.categories);
-
   // Keyed by what matches a payee rather than by the spelling the answer names, so a row spelling
   // it differently still finds the answer given for it
   const merchantMappingsByKey = new Map(
     payload.merchants.map((mapping) => [getMerchantNameKey(mapping.source), mapping]),
   );
-  const batches: TransactionImportStageBatch[] = [];
-  let rowIndex = 0;
 
-  while (rowIndex < payload.rows.length) {
-    const batch = await buildNextStagedBatch(
-      payload.rows,
-      rowIndex,
-      accountMappingsBySource,
-      categoryMappingsBySource,
-      merchantMappingsByKey,
-    );
-    batches.push(batch.payload);
-    rowIndex = batch.nextRowIndex;
-  }
-
-  return batches;
-}
-
-/**
- * Builds the next batch without exceeding the request-size budget
- */
-async function buildNextStagedBatch(
-  sourceRows: TransactionImportRow[],
-  startIndex: number,
-  accountMappingsBySource: Map<string, TransactionImportAccountMapping>,
-  categoryMappingsBySource: Map<string, TransactionImportCategoryMapping>,
-  merchantMappingsByKey: Map<string, TransactionImportMerchantMapping>,
-) {
-  const rows: TransactionImportRow[] = [];
-  const accountSources = new Set<string>();
-  const categorySources = new Set<string>();
-  const merchantKeys = new Set<string>();
-  let estimatedBytes = getEmptyImportPayloadByteSize();
-  let rowIndex = startIndex;
-
-  // Each row may introduce account and category mappings, so the batch budget tracks both
-  while (rowIndex < sourceRows.length) {
-    const row = sourceRows[rowIndex];
-    let nextEstimatedBytes = estimatedBytes
-      + getNextArrayItemByteSize(rows.length, row)
-      + getNextMappingByteSize(row.category_source, categorySources, categoryMappingsBySource, 'Category');
-    for (const source of getRowAccountSources(row)) {
-      nextEstimatedBytes += getNextMappingByteSize(source, accountSources, accountMappingsBySource, 'Account');
-    }
-
-    // Only the payee values the user answered carry a mapping, so a row whose payee was left alone
-    // adds nothing to the batch and is not looked up as though it must be there
-    const rowMerchantKey = getRowMerchantKey(row, merchantMappingsByKey);
-    if (rowMerchantKey && !merchantKeys.has(rowMerchantKey)) {
-      nextEstimatedBytes += getNextArrayItemByteSize(merchantKeys.size, merchantMappingsByKey.get(rowMerchantKey));
-    }
-
-    // Mappings are small enough that a file with many distinct values fills the count long before
-    // it fills the byte budget, so both are what closes a batch
-    const nextAccountSources = countWithNewSources(accountSources, getRowAccountSources(row));
-    const nextCategorySources = countWithNewSources(categorySources, [row.category_source]);
-    const nextMerchantKeys = countWithNewSources(merchantKeys, rowMerchantKey ? [rowMerchantKey] : []);
-    const isBatchFull = nextEstimatedBytes > TARGET_IMPORT_BATCH_BYTES
-      || rows.length >= MAX_IMPORT_BATCH_ROWS
-      || nextAccountSources > MAX_IMPORT_BATCH_MAPPINGS
-      || nextCategorySources > MAX_IMPORT_BATCH_MAPPINGS
-      || nextMerchantKeys > MAX_IMPORT_BATCH_MAPPINGS;
-
-    if (rows.length > 0 && isBatchFull) break;
-    if (rows.length === 0 && nextEstimatedBytes > MAX_IMPORT_BATCH_BYTES) {
-      throw new Error('One imported row is too large to upload safely.');
-    }
-
-    rows.push(row);
-    for (const source of getRowAccountSources(row)) accountSources.add(source);
-    categorySources.add(row.category_source);
-    if (rowMerchantKey) merchantKeys.add(rowMerchantKey);
-    estimatedBytes = nextEstimatedBytes;
-    rowIndex += 1;
-
-    if ((rowIndex - startIndex) % IMPORT_BATCH_YIELD_INTERVAL === 0) {
-      await yieldToBrowser();
-    }
-  }
-
-  if (rows.length === 0) throw new Error('No import rows are available to upload.');
-
-  return {
-    payload: {
-      accounts: [...accountSources].map((source) => getMapping(source, accountMappingsBySource, 'Account')),
-      categories: [...categorySources].map((source) => getMapping(source, categoryMappingsBySource, 'Category')),
-      merchants: [...merchantKeys].map((key) => getMapping(key, merchantMappingsByKey, 'Merchant')),
-      rows,
-      start_row_index: startIndex,
+  return buildImportBatches({
+    rows: payload.rows,
+    mappings: {
+      accounts: new Map(payload.accounts.map((mapping) => [mapping.source, mapping])),
+      categories: new Map(payload.categories.map((mapping) => [mapping.source, mapping])),
+      merchants: merchantMappingsByKey,
     },
-    nextRowIndex: rowIndex,
-  };
+    getRowSources: (row) => ({
+      accounts: getRowAccountSources(row),
+      categories: [row.category_source],
+      merchants: getRowMerchantKeys(row, merchantMappingsByKey),
+    }),
+  });
 }
 
 /**
  * The answered payee value a row carries, or nothing where its payee was left alone
+ *
+ * Only the payee values the user answered carry a mapping, so a row whose payee was left alone
+ * adds nothing to the batch and is not looked up as though it must be there
  */
-function getRowMerchantKey(
-  row: TransactionImportRow,
-  merchantMappingsByKey: Map<string, TransactionImportMerchantMapping>,
-) {
-  if (!row.merchant_name) return '';
+function getRowMerchantKeys(row: TransactionImportRow, merchantMappingsByKey: Map<string, unknown>) {
+  if (!row.merchant_name) return [];
   const key = getMerchantNameKey(row.merchant_name);
-  return merchantMappingsByKey.has(key) ? key : '';
+  return merchantMappingsByKey.has(key) ? [key] : [];
 }
 
 /**
@@ -151,38 +55,4 @@ function getRowAccountSources(row: TransactionImportRow) {
   return row.counterparty_account_source
     ? [row.account_source, row.counterparty_account_source]
     : [row.account_source];
-}
-
-function getImportMappingsBySource<T extends { source: string }>(mappings: T[]) {
-  return new Map(mappings.map((mapping) => [mapping.source, mapping]));
-}
-
-/**
- * Counts what a set would hold once the given sources were added to it
- */
-function countWithNewSources(sources: Set<string>, candidates: string[]) {
-  const added = new Set(candidates.filter((source) => !sources.has(source)));
-  return sources.size + added.size;
-}
-
-/**
- * Returns the mapping for a source the payload must already carry
- */
-function getMapping<T>(source: string, mappingsBySource: Map<string, T>, label: string): T {
-  const mapping = mappingsBySource.get(source);
-  if (!mapping) throw new Error(`${label} source is not mapped: ${source}`);
-  return mapping;
-}
-
-/**
- * Estimates the bytes a source adds to a batch that does not carry it yet
- */
-function getNextMappingByteSize<T>(
-  source: string,
-  sources: Set<string>,
-  mappingsBySource: Map<string, T>,
-  label: string,
-) {
-  if (sources.has(source)) return 0;
-  return getNextArrayItemByteSize(sources.size, getMapping(source, mappingsBySource, label));
 }

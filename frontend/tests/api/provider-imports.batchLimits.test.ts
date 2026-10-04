@@ -98,6 +98,21 @@ describe('the limits a staged provider batch is built against', () => {
     expectEveryRowStagedOnceInOrder(batches, rows);
   });
 
+  it('sends an account no row names with the first batch only, so it is created once', async () => {
+    const rows = Array.from({ length: 200 }, (_, index) => buildRow(index, 'G', LONG_NOTES));
+    const payload = buildPayload(rows);
+    const emptyAccount = { source: 'E', account_id: 'acc_2' };
+    payload.accounts.push(emptyAccount);
+
+    const batches = await buildJournalStageBatches(payload);
+
+    expect(batches.length).toBeGreaterThan(1);
+    expect(batches[0].accounts).toContainEqual(emptyAccount);
+    for (const batch of batches.slice(1)) {
+      expect(batch.accounts).not.toContainEqual(emptyAccount);
+    }
+  });
+
   it('refuses a single row too large to upload rather than sending it', async () => {
     const payload = buildPayload([buildRow(0, 'G', 'x'.repeat(MAX_IMPORT_BATCH_BYTES))]);
 
