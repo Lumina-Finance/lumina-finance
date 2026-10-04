@@ -79,14 +79,6 @@ def _origin_of(url: httpx.URL) -> tuple[str, str, int | None]:
     return url.scheme, url.raw_host.decode("ascii").lower(), url.port or _DEFAULT_PORTS.get(url.scheme)
 
 
-def _is_public(address: IpAddress) -> bool:
-    """Return whether an address is globally routable"""
-    # An IPv4 address written in IPv6 form reaches the IPv4 host, so it is judged as one
-    if isinstance(address, IPv6Address) and address.ipv4_mapped is not None:
-        address = address.ipv4_mapped
-    return address.is_global
-
-
 class OutboundGuard:
     """Sends provider requests only to allowed origins, at addresses checked to be public"""
 
@@ -173,7 +165,9 @@ class OutboundGuard:
 
         if not addresses:
             raise httpx.ConnectError(f"Couldn't resolve {host}")
-        if not is_test_origin and not all(_is_public(address) for address in addresses):
+        # An IPv4 address written in IPv6 form is judged as the IPv4 address it reaches, which
+        # is_global does itself since Python 3.13
+        if not is_test_origin and not all(address.is_global for address in addresses):
             raise AddressRefused(f"{host} resolves to an address that isn't public")
 
         # The connection goes to a checked address, while the Host header and the TLS server name
