@@ -979,12 +979,13 @@
     }
   }
 
-  /* A day the field refuses, struck through as well as faded so it does not rest on colour alone */
+  /* A day the field refuses, struck through as well as faded so it does not rest on colour alone.
+     Faded by mixing its colour into the calendar's own background rather than by opacity, which took
+     it below AA. This mix keeps about 5.6:1, and 6.3:1 in dark, where muted text would fall short */
   .app-calendar-day[data-disabled] {
     cursor: not-allowed;
-    color: var(--app-text-subtle);
+    color: color-mix(in srgb, var(--app-text) 65%, var(--app-input-bg));
     text-decoration: line-through;
-    opacity: 0.55;
   }
 
   @media (hover: hover) {
