@@ -2,7 +2,12 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { createAccount, createTransaction, signUpUser } from '../support/api'
 import { openPage, chooseFromDropdown, logInViaApi, openModal } from '../support/app'
-import { expectPendingAction, whileApiRequestHeld } from '../support/selectors'
+import {
+  expectPendingAction,
+  getTransactionRowButton,
+  MINUS,
+  whileApiRequestHeld,
+} from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: creating, recording and editing accounts give the same result at every size
@@ -310,9 +315,10 @@ test('records an expense through the modal and shows it as money out', async ({ 
 
   const row = page.getByTestId(/^transaction-row-/)
   await expect(row).toHaveCount(1)
-  await expect(row).toHaveRole('button')
-  await expect(row).toHaveAccessibleName(/−\$42\.50/)
-  await expect(row.getByTestId('transaction-amount').filter({ visible: true })).toHaveText('−$42.50')
+  const rowButton = await getTransactionRowButton(row)
+  await expect(rowButton).toHaveRole('button')
+  await expect(rowButton).toHaveAccessibleName(new RegExp(`${MINUS}\\$42\\.50`))
+  await expect(row.getByTestId('transaction-amount').filter({ visible: true })).toHaveText(`${MINUS}$42.50`)
 })
 
 test('keeps the account save action named while an edit is pending', async ({ page, request }) => {

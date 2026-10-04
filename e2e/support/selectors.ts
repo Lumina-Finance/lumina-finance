@@ -4,6 +4,9 @@ import { API_BASE_URL } from './target'
 
 const NO_CONTENT_STATUS = 204
 
+/** The true minus sign the app puts before an amount that moved out, which a hyphen never matches */
+export const MINUS = String.fromCodePoint(0x2212)
+
 /** Assert identity selection still finds an accessible pending action */
 export async function expectPendingAction(action: Locator, name: string): Promise<void> {
   await expect(action).toHaveRole('button')
@@ -80,12 +83,24 @@ export async function whileApiRequestHeld(
   }
 }
 
+/**
+ * Find the button that opens a transaction row, given the row's content
+ *
+ * The button lies under the content rather than around it, so the controls inside the row are never
+ * nested in it, and it takes its name from the content it points at
+ */
+export async function getTransactionRowButton(row: Locator): Promise<Locator> {
+  const contentId = await row.getAttribute('id')
+  return row.page().locator(`button[aria-labelledby="${contentId}"]`)
+}
+
 /** Assert a scoped row remains named and has exactly one rendered responsive amount */
 export async function expectTransactionRow(page: Page, id: string, amount: string): Promise<void> {
   const row = page.getByTestId(`transaction-row-${id}`)
   await expect(row).toBeVisible()
-  await expect(row).toHaveRole('button')
-  await expect(row).toHaveAccessibleName(new RegExp(amount.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  const button = await getTransactionRowButton(row)
+  await expect(button).toHaveRole('button')
+  await expect(button).toHaveAccessibleName(new RegExp(amount.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   const amounts = row.getByTestId('transaction-amount')
   await expect(amounts).toHaveCount(2)
   const visibleAmount = amounts.filter({ visible: true })
