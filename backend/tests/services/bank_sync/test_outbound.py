@@ -15,9 +15,12 @@ import pytest
 from app.services.bank_sync import outbound
 from app.services.bank_sync.outbound import AddressRefused, IpAddress, OriginRefused, OutboundGuard
 from tests.services.bank_sync.local_bridge import LOOPBACK, serve_local_bridge
-from tests.services.bank_sync.stand_ins import PUBLIC_ADDRESS, FixedResolver, RecordingBridge
+from tests.services.bank_sync.stand_ins import PUBLIC_ADDRESS, FixedResolver, RecordingBridge, fail_with
 
 _BRIDGE_ORIGIN = "https://bridge.simplefin.org"
+
+# Globally routable, like PUBLIC_ADDRESS, and never connected to
+_PUBLIC_IPV6_ADDRESS = "2606:4700:4700::1111"
 _ACCOUNTS_URL = httpx.URL("https://bridge.simplefin.org/simplefin/accounts")
 
 
@@ -85,6 +88,40 @@ async def test_host_resolving_to_a_non_public_address_is_refused(addresses):
     assert bridge.requests == []
 
 
+async def test_address_that_cant_be_connected_to_falls_back_to_the_next_checked_one():
+    """A host whose IPv6 address has no route from here is still reached over its IPv4 address"""
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        """Fail to connect over IPv6, as a container without an IPv6 route does"""
+        if request.url.host == _PUBLIC_IPV6_ADDRESS:
+            raise httpx.ConnectError("Network is unreachable", request=request)
+        return httpx.Response(200, json={})
+
+    bridge = RecordingBridge(answer)
+    guard = OutboundGuard([_BRIDGE_ORIGIN], resolve=FixedResolver(_PUBLIC_IPV6_ADDRESS, PUBLIC_ADDRESS), transport=bridge.transport)
+
+    response = await guard.send("GET", _ACCOUNTS_URL)
+
+    assert response.status_code == 200
+    assert [request.url.host for request in bridge.requests] == [_PUBLIC_IPV6_ADDRESS, PUBLIC_ADDRESS]
+
+
+@pytest.mark.parametrize(
+    ("error", "attempts"),
+    [(httpx.ConnectError, 2), (httpx.ConnectTimeout, 2), (httpx.ReadTimeout, 1)],
+    ids=["no-address-connects", "no-address-connects-in-time", "fails-after-connecting"],
+)
+async def test_request_moves_to_another_address_only_while_connecting(error, attempts):
+    """Every address is tried before giving up, while a request that may have arrived is never resent"""
+    bridge = RecordingBridge(fail_with(error))
+    guard = OutboundGuard([_BRIDGE_ORIGIN], resolve=FixedResolver(_PUBLIC_IPV6_ADDRESS, PUBLIC_ADDRESS), transport=bridge.transport)
+
+    with pytest.raises(error):
+        await guard.send("GET", _ACCOUNTS_URL)
+
+    assert len(bridge.requests) == attempts
+
+
 async def test_redirect_is_not_followed():
     """A redirect, here towards a metadata endpoint, comes back as the answer and is never requested"""
     bridge = RecordingBridge(lambda _request: httpx.Response(302, headers={"Location": "http://169.254.169.254/latest/meta-data"}))
@@ -96,17 +133,21 @@ async def test_redirect_is_not_followed():
     assert len(bridge.requests) == 1
 
 
-async def test_host_that_does_not_resolve_fails_as_a_connection_error():
+async def _fail_lookup(host: str, port: int) -> list[IpAddress]:
+    """Fail the way the system resolver does for an unknown name"""
+    raise socket.gaierror(socket.EAI_NONAME, "Name or service not known")
+
+
+@pytest.mark.parametrize("resolve", [_fail_lookup, FixedResolver()], ids=["lookup-fails", "no-addresses"])
+async def test_host_that_does_not_resolve_fails_as_a_connection_error(resolve):
     """A lookup failure reaches callers as the transport failure they already handle"""
-
-    async def fail_lookup(host: str, port: int) -> list[IpAddress]:
-        """Fail the way the system resolver does for an unknown name"""
-        raise socket.gaierror(socket.EAI_NONAME, "Name or service not known")
-
-    guard = OutboundGuard([_BRIDGE_ORIGIN], resolve=fail_lookup, transport=RecordingBridge().transport)
+    bridge = RecordingBridge()
+    guard = OutboundGuard([_BRIDGE_ORIGIN], resolve=resolve, transport=bridge.transport)
 
     with pytest.raises(httpx.ConnectError):
         await guard.send("GET", _ACCOUNTS_URL)
+
+    assert bridge.requests == []
 
 
 async def test_host_lookup_that_never_answers_times_out_as_connecting(monkeypatch):

@@ -8,6 +8,7 @@ can't send it elsewhere
 """
 
 import asyncio
+import contextlib
 import logging
 import socket
 from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
@@ -68,7 +69,7 @@ async def resolve_host(host: str, port: int) -> list[IpAddress]:
         The resolved addresses, in the order the system prefers them
     """
     # AI_ADDRCONFIG leaves out IPv6 answers on a machine with no IPv6 address, as containers
-    # often are, so the first address is one the connection can actually reach
+    # often are, so the connection doesn't start with addresses it can never reach
     address_infos = await asyncio.get_running_loop().getaddrinfo(host, port, type=socket.SOCK_STREAM, flags=socket.AI_ADDRCONFIG)
     return [ip_address(sockaddr[0]) for *_, sockaddr in address_infos]
 
@@ -170,12 +171,13 @@ class OutboundGuard:
         except OSError:
             raise httpx.ConnectError(f"Couldn't resolve {host}") from None
 
+        if not addresses:
+            raise httpx.ConnectError(f"Couldn't resolve {host}")
         if not is_test_origin and not all(_is_public(address) for address in addresses):
             raise AddressRefused(f"{host} resolves to an address that isn't public")
 
-        # The connection goes to the checked address, while the Host header and the TLS server
-        # name keep the original host, so certificate checks still name it
-        pinned_url = url.copy_with(host=str(addresses[0]))
+        # The connection goes to a checked address, while the Host header and the TLS server name
+        # keep the original host, so certificate checks still name it
         request_headers = {**(headers or {}), "Host": url.netloc.decode("ascii")}
 
         guarded = _guarded_request_running.set(True)
@@ -183,15 +185,26 @@ class OutboundGuard:
             # A proxy from the environment would make the connection itself, to whatever address it
             # resolved, so none is used
             async with build_http_client(REQUEST_TIMEOUT, transport=self._transport, trust_env=False) as client:
-                return await client.request(
-                    method,
-                    pinned_url,
-                    headers=request_headers,
-                    params=params,
-                    auth=auth,
-                    content=content,
-                    follow_redirects=False,
-                    extensions={"sni_hostname": host},
-                )
+
+                async def request_at(address: IpAddress) -> httpx.Response:
+                    """Send the request to one checked address"""
+                    return await client.request(
+                        method,
+                        url.copy_with(host=str(address)),
+                        headers=request_headers,
+                        params=params,
+                        auth=auth,
+                        content=content,
+                        follow_redirects=False,
+                        extensions={"sni_hostname": host},
+                    )
+
+                # A host can list an address this server has no route to, such as IPv6 in a
+                # container without it, so a failed connection moves on to the next checked one.
+                # Only connecting is retried, since a request that may have arrived is never resent
+                for address in addresses[:-1]:
+                    with contextlib.suppress(httpx.ConnectError, httpx.ConnectTimeout):
+                        return await request_at(address)
+                return await request_at(addresses[-1])
         finally:
             _guarded_request_running.reset(guarded)
