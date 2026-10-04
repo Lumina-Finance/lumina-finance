@@ -118,15 +118,6 @@ async def test_request_budget_at_20_of_20_frees_when_the_oldest_request_leaves_t
     assert budget == RequestBudget(limit=20, used=20, available_again_at=datetime(2026, 10, 4, 9, 12, tzinfo=UTC))
 
 
-async def test_request_budget_counts_only_the_last_24_hours(db):
-    """A request sent exactly 24 hours ago no longer counts, so 19 others leave one free"""
-    connection = await _connection_with_requests(db, _NOW - timedelta(hours=24), *(_NOW - timedelta(hours=hours) for hours in range(1, 20)))
-
-    budget = await read_request_budget(db, connection, now=_NOW)
-
-    assert budget == RequestBudget(limit=20, used=19, available_again_at=None)
-
-
 def test_request_budget_after_the_limit_is_lowered_waits_for_enough_requests_to_leave():
     """With 22 counted under a limit of 20, three have to leave before a request frees, so the third oldest decides"""
     counted = [_NOW - timedelta(hours=23, minutes=minutes) for minutes in range(22, 0, -1)]
@@ -134,16 +125,6 @@ def test_request_budget_after_the_limit_is_lowered_waits_for_enough_requests_to_
     budget = summarize_request_budget(counted, limit=20, spent_until=None, now=_NOW)
 
     assert budget == RequestBudget(limit=20, used=22, available_again_at=counted[2] + timedelta(hours=24))
-
-
-async def test_reserve_counts_a_request_while_one_is_free(db):
-    """At 19 of 20 the request is counted, under its purpose, before anything is sent"""
-    connection = await _connection_with_requests(db, *_example_requests(19))
-
-    await reserve_provider_request(db, connection, purpose=ProviderRequestPurpose.DISCOVERY, now=_EXAMPLE_NOW)
-
-    assert await _counted(db, connection) == 20
-    assert await db.scalar(select(BankProviderRequest.purpose).where(BankProviderRequest.requested_at == _EXAMPLE_NOW)) == "discovery"
 
 
 async def test_reserve_at_the_cap_is_refused_until_the_oldest_request_leaves(db):

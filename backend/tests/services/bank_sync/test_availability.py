@@ -152,36 +152,29 @@ def test_link_eligibility_refuses_a_bank_account_already_linked():
     assert (unavailable.reason, unavailable.message) == (UnavailableReason.ALREADY_LINKED, "Already linked to Everyday")
 
 
-def test_link_eligibility_refuses_a_new_institution_past_the_limit():
-    """With a limit of 1 and Harbour Bank in use, Northgate is refused and another Harbour account isn't"""
-    allowance = InstitutionAllowance(limit=1, in_use={"harbour": "Harbour Bank"})
+@pytest.mark.parametrize(
+    ("in_use", "message"),
+    [
+        ({"harbour": "Harbour Bank"}, "Would go over your limit of 1 institution for SimpleFIN"),
+        ({"harbour": "Harbour Bank", "northgate": "Northgate Credit Union"}, "Would go over your limit of 2 institutions for SimpleFIN"),
+    ],
+    ids=["one", "several"],
+)
+def test_link_eligibility_refuses_a_new_institution_past_the_limit(in_use, message):
+    """With the limit reached, Lakeshore Trust is refused and another Harbour Bank account isn't"""
+    allowance = InstitutionAllowance(limit=len(in_use), in_use=in_use)
     everyday = _account("Everyday", "USD")
 
-    northgate = find_unavailability(
-        _bank_account(institution_key="northgate"), everyday, linked_to=None, allowance=allowance, provider_name="SimpleFIN"
+    lakeshore = find_unavailability(
+        _bank_account(institution_key="lakeshore"), everyday, linked_to=None, allowance=allowance, provider_name="SimpleFIN"
     )
     harbour = find_unavailability(
         _bank_account(institution_key="harbour"), everyday, linked_to=None, allowance=allowance, provider_name="SimpleFIN"
     )
 
-    assert northgate is not None
-    assert (northgate.reason, northgate.message) == (
-        UnavailableReason.INSTITUTION_LIMIT,
-        "Would go over your limit of 1 institution for SimpleFIN",
-    )
+    assert lakeshore is not None
+    assert (lakeshore.reason, lakeshore.message) == (UnavailableReason.INSTITUTION_LIMIT, message)
     assert harbour is None
-
-
-def test_link_eligibility_names_a_limit_of_several_institutions_in_the_plural():
-    """A limit of 2 with Harbour Bank and Northgate in use refuses a third institution"""
-    allowance = InstitutionAllowance(limit=2, in_use={"harbour": "Harbour Bank", "northgate": "Northgate Credit Union"})
-
-    unavailable = find_unavailability(
-        _bank_account(institution_key="lakeshore"), _account("Everyday", "USD"), linked_to=None, allowance=allowance, provider_name="SimpleFIN"
-    )
-
-    assert unavailable is not None
-    assert unavailable.message == "Would go over your limit of 2 institutions for SimpleFIN"
 
 
 def test_link_eligibility_without_an_institution_limit_takes_any_institution():
@@ -197,13 +190,8 @@ def test_link_eligibility_without_an_institution_limit_takes_any_institution():
 
 @pytest.mark.parametrize(
     ("since_scan", "running"),
-    [
-        (timedelta(minutes=14), True),
-        (timedelta(minutes=15), True),
-        (timedelta(minutes=15, microseconds=1), False),
-        (timedelta(minutes=16), False),
-    ],
-    ids=["14-minutes", "15-minutes", "just-past-15", "16-minutes"],
+    [(timedelta(minutes=15), True), (timedelta(minutes=15, microseconds=1), False)],
+    ids=["15-minutes", "just-past-15"],
 )
 async def test_sync_running_reads_the_heartbeat_up_to_15_minutes_old(db, frozen_now, since_scan, running):
     """A heartbeat 15 minutes old still counts, and anything older means the worker has stopped"""

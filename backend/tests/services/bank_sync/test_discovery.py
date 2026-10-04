@@ -55,23 +55,30 @@ class _WatchedTransport(httpx.AsyncBaseTransport):
         return response
 
 
-async def _claimed_connection(db, scenario: FakeBridgeScenario) -> BankConnection:
-    """Claim the scenario and store its connection for a new user, as the claim request would"""
-    access_url = await simplefin_adapter(FakeBridgeTransport()).claim(scenario.setup_token)
-    db.add_all(
-        [
-            Currency(id="CAD", name="Canadian Dollar", symbol="$", minor_unit_exponent=2),
-            Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
-            Currency(id="EUR", name="Euro", symbol="€", minor_unit_exponent=2),
-        ]
-    )
+async def _stored_connection(db) -> BankConnection:
+    """Store a connection for a new user in CAD, its credential a placeholder no request is sent with"""
+    db.add(Currency(id="CAD", name="Canadian Dollar", symbol="$", minor_unit_exponent=2))
     await db.flush()
     user = _build_user("discovery@example.com")
     db.add(user)
     await db.flush()
     connection = _build_bank_connection(user.id)
-    connection.credential_encrypted = encrypt(access_url)
     db.add(connection)
+    await db.flush()
+    return connection
+
+
+async def _claimed_connection(db, scenario: FakeBridgeScenario) -> BankConnection:
+    """Claim the scenario and store its connection for a new user, as the claim request would"""
+    access_url = await simplefin_adapter(FakeBridgeTransport()).claim(scenario.setup_token)
+    db.add_all(
+        [
+            Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
+            Currency(id="EUR", name="Euro", symbol="€", minor_unit_exponent=2),
+        ]
+    )
+    connection = await _stored_connection(db)
+    connection.credential_encrypted = encrypt(access_url)
     await db.flush()
     return connection
 
@@ -279,19 +286,32 @@ async def test_discovery_link_returns_by_itself_when_its_bank_account_is_listed_
 
 
 async def test_discovery_currency_change_moves_the_link_until_the_currency_matches_again(db, scenario: FakeBridgeScenario):
-    """Travel Wallet moving from USD to EUR stops Travel's sync, and moving back resumes it"""
+    """Travel Wallet moving from USD to EUR refreshes its balance in euros and stops Travel's sync, and moving back resumes it"""
     await scenario.add_harbour_accounts()
+    yen = {"id": "ACT-yen", "name": "Tokyo Wallet", "conn_id": "CON-harbour", "currency": "JPY", "balance": "15000"}
+    await scenario.change("POST", "/accounts", yen)
     connection = await _claimed_connection(db, scenario)
+    db.add(Currency(id="JPY", name="Japanese Yen", symbol="¥", minor_unit_exponent=0))
     travel = await _linked(db, connection, "Travel", "ACT-savings")
     await _discover(db, connection)
-    await scenario.change("PATCH", "/accounts/ACT-savings", {"currency": "EUR"})
+    await scenario.change("PATCH", "/accounts/ACT-savings", {"currency": "EUR", "balance": "7400.50"})
+    await scenario.change("PATCH", "/accounts/ACT-yen", {"balance": "12500"})
 
     await _discover(db, connection, _NOW + timedelta(days=1))
     moved = await _link_state(travel)
+    refreshed = (
+        await db.execute(
+            select(BankExternalAccount.external_id, BankExternalAccount.currency, BankExternalAccount.balance).where(
+                BankExternalAccount.external_id.in_(("ACT-savings", "ACT-yen"))
+            )
+        )
+    ).all()
     await scenario.change("PATCH", "/accounts/ACT-savings", {"currency": "USD"})
     await _discover(db, connection, _NOW + timedelta(days=2))
 
     assert moved == BankLinkState.CHOOSE_ACCOUNT
+    # The yen has no minor unit, so 12,500 yen is stored as 12500
+    assert sorted(tuple(row) for row in refreshed) == [("ACT-savings", "EUR", 740050), ("ACT-yen", "JPY", 12500)]
     assert await _link_state(travel) == BankLinkState.ACTIVE
 
 
@@ -326,9 +346,9 @@ async def test_discovery_told_the_quota_is_spent_marks_the_budget_spent(db, scen
     assert bool(await _listed(connection)) is stored
 
 
-async def test_discovery_bank_account_listed_twice_is_stored_once(db, scenario: FakeBridgeScenario):
+async def test_discovery_bank_account_listed_twice_is_stored_once(db):
     """A provider repeating a bank account in one answer doesn't fail the discovery"""
-    connection = await _claimed_connection(db, scenario)
+    connection = await _stored_connection(db)
     listed = ExternalAccount(
         external_id="ACT-chequing",
         name="Everyday Chequing",
