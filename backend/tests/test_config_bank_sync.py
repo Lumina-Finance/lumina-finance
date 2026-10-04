@@ -3,12 +3,13 @@
 Guards the origins SimpleFIN requests may reach: an operator's own server must add to SimpleFIN
 Bridge rather than replace it, which would leave every Bridge connection needing a reconnect, and an
 entry that also carried credentials, a path or plain HTTP would widen what the outbound guard lets
-through. Also guards how many jobs the self-hosted worker runs at once
+through. Also guards the counts an operator sets, such as the daily request cap and how many jobs the
+self-hosted worker runs at once, which share one reader
 """
 
 import pytest
 
-from app.config.bank_sync import read_simplefin_origins, read_simplefin_test_origin, read_worker_concurrency
+from app.config.bank_sync import read_count_setting, read_simplefin_origins, read_simplefin_test_origin
 
 _BRIDGE_ORIGINS = ["https://beta-bridge.simplefin.org", "https://bridge.simplefin.org"]
 
@@ -61,21 +62,32 @@ def test_simplefin_test_origin_may_use_plain_http(monkeypatch):
     assert read_simplefin_test_origin() == "http://fake-bridge:8080"
 
 
-@pytest.mark.parametrize(("value", "expected"), [(None, 2), ("5", 5)], ids=["unset", "set"])
-def test_worker_concurrency_is_2_unless_set(monkeypatch, value, expected):
-    """The self-hosted worker runs 2 jobs at once unless the operator chooses otherwise"""
+@pytest.mark.parametrize(("value", "expected"), [(None, 20), ("", 20), ("12", 12)], ids=["unset", "blank", "set"])
+def test_count_setting_reads_a_whole_number_or_its_default(monkeypatch, value, expected):
+    """An operator may lower the daily request cap, and leaving it unset keeps 20"""
     if value is None:
-        monkeypatch.delenv("BANK_SYNC_WORKER_CONCURRENCY", raising=False)
+        monkeypatch.delenv("BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS", raising=False)
     else:
-        monkeypatch.setenv("BANK_SYNC_WORKER_CONCURRENCY", value)
+        monkeypatch.setenv("BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS", value)
 
-    assert read_worker_concurrency() == expected
+    assert read_count_setting("BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS", 20) == expected
 
 
-@pytest.mark.parametrize("value", ["0", "two", "1.5", "-1"])
-def test_worker_concurrency_other_than_a_whole_number_of_at_least_1_is_refused_at_start(monkeypatch, value):
-    """A worker that could run no jobs, or a guessed number of them, refuses to start instead"""
-    monkeypatch.setenv("BANK_SYNC_WORKER_CONCURRENCY", value)
+@pytest.mark.parametrize("value", ["0", "-3", "1.5", "twelve"])
+def test_count_setting_below_one_or_not_whole_is_refused_at_start(monkeypatch, value):
+    """A cap of 0 would stop every request for good, or a worker run no jobs, so the app or worker refuses to start"""
+    monkeypatch.setenv("BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS", value)
 
-    with pytest.raises(RuntimeError, match="Invalid BANK_SYNC_WORKER_CONCURRENCY"):
-        read_worker_concurrency()
+    with pytest.raises(RuntimeError, match="Invalid BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS"):
+        read_count_setting("BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS", 20)
+
+
+def test_count_setting_above_its_maximum_is_refused_at_start(monkeypatch):
+    """SimpleFIN Bridge expects 24 requests a day at most and can disable a token past it, so a higher cap stops the app or worker starting"""
+    monkeypatch.setenv("BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS", "25")
+
+    with pytest.raises(RuntimeError, match="Invalid BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS"):
+        read_count_setting("BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS", 20, maximum=24)
+
+    monkeypatch.setenv("BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS", "24")
+    assert read_count_setting("BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS", 20, maximum=24) == 24

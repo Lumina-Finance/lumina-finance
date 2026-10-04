@@ -51,6 +51,26 @@ def _read_origin(key: str, value: str, *, schemes: tuple[str, ...]) -> str:
     return value
 
 
+def read_count_setting(key: str, default: int, *, maximum: int | None = None) -> int:
+    """Return a setting that counts something, such as months, requests or jobs, which must be at least 1
+
+    Args:
+        key: Environment variable holding the count
+        default: The count when the variable is unset or blank
+        maximum: The most the count may be, or None for no limit
+
+    Raises:
+        RuntimeError: The value is not a whole number of at least 1, or is over the maximum
+    """
+    value = os.getenv(key, "").strip()
+    if not value:
+        return default
+    if not value.isdecimal() or int(value) < 1 or (maximum is not None and int(value) > maximum):
+        limits = "at least 1" if maximum is None else f"from 1 to {maximum}"
+        raise RuntimeError(f"Invalid {key} {value!r}. It must be a whole number {limits}")
+    return int(value)
+
+
 def read_simplefin_origins() -> list[str]:
     """Return the origins SimpleFIN requests may reach: SimpleFIN Bridge's, then any the operator adds
 
@@ -73,20 +93,6 @@ def read_simplefin_test_origin() -> str | None:
     return _read_origin("BANK_SYNC_SIMPLEFIN_TEST_ORIGIN", value, schemes=("http", "https")) if value else None
 
 
-def read_worker_concurrency() -> int:
-    """Return how many jobs the self-hosted worker runs at once, 2 unless the operator sets it
-
-    Raises:
-        RuntimeError: The value is not a whole number of at least 1
-    """
-    value = os.getenv("BANK_SYNC_WORKER_CONCURRENCY", "").strip()
-    if not value:
-        return _DEFAULT_WORKER_CONCURRENCY
-    if not value.isdecimal() or int(value) < 1:
-        raise RuntimeError(f"Invalid BANK_SYNC_WORKER_CONCURRENCY {value!r}. It must be a whole number of at least 1")
-    return int(value)
-
-
 # Origins SimpleFIN requests may reach, always over HTTPS and only at public addresses
 BANK_SYNC_SIMPLEFIN_ORIGINS = read_simplefin_origins()
 
@@ -96,7 +102,7 @@ BANK_SYNC_SIMPLEFIN_ORIGINS = read_simplefin_origins()
 BANK_SYNC_SIMPLEFIN_TEST_ORIGIN = read_simplefin_test_origin()
 
 # How many jobs the self-hosted worker runs at once, each on a different connection
-BANK_SYNC_WORKER_CONCURRENCY = read_worker_concurrency()
+BANK_SYNC_WORKER_CONCURRENCY = read_count_setting("BANK_SYNC_WORKER_CONCURRENCY", _DEFAULT_WORKER_CONCURRENCY)
 
 # Whether SimpleFIN is available at all. Self-hosted deployments enable every provider by default
 BANK_SYNC_SIMPLEFIN_ENABLED = optional_bool_env("BANK_SYNC_SIMPLEFIN_ENABLED", True)
@@ -107,8 +113,9 @@ BANK_SYNC_SIMPLEFIN_OFFERED = optional_bool_env("BANK_SYNC_SIMPLEFIN_OFFERED", T
 
 # How many calendar months back a SimpleFIN import may start. A change applies only to start
 # dates chosen afterwards
-BANK_SYNC_SIMPLEFIN_HISTORY_MONTHS = int(os.getenv("BANK_SYNC_SIMPLEFIN_HISTORY_MONTHS", "12"))
+BANK_SYNC_SIMPLEFIN_HISTORY_MONTHS = read_count_setting("BANK_SYNC_SIMPLEFIN_HISTORY_MONTHS", 12)
 
 # Requests each SimpleFIN connection may send in a rolling 24 hours, below the 24 a day SimpleFIN
-# Bridge expects, so setup and retries never earn a warning that could get the token disabled
-BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS = int(os.getenv("BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS", "20"))
+# Bridge expects, so setup and retries never earn a warning that could get the token disabled. A higher value than
+# the 24 is refused at start
+BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS = read_count_setting("BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS", 20, maximum=24)

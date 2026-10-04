@@ -1,19 +1,38 @@
-"""Provider request records, which the rolling 24-hour request budget counts
+"""Provider request records, and the rolling 24-hour request budget they count
 
 A record kept past the window would count against a budget it no longer belongs to, and one
-pruned early would let Lumina exceed the Bridge's limit, which disables the user's token
+pruned early, a request let through at the cap or a quota warning ignored would let Lumina exceed
+the Bridge's limit, which disables the user's token
 """
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+import pytest
+from sqlalchemy import select, text
 
-from app.models.bank_connection import BankProviderRequest, ProviderRequestPurpose
+from app.models.bank_connection import BankConnection, BankProviderRequest, ProviderRequestPurpose
 from app.models.currency import Currency
-from app.services.bank_sync.provider_requests import record_provider_request
+from app.services.bank_sync.provider_requests import (
+    RequestBudget,
+    RequestBudgetSpent,
+    is_quota_spent,
+    mark_request_budget_spent,
+    read_request_budget,
+    record_provider_request,
+    reserve_provider_request,
+    summarize_request_budget,
+)
+from tests.conftest import TestSession
+from tests.fake_simplefin_bridge import FakeBridgeTransport
 from tests.routes.support.bank_sync_helpers import _build_bank_connection, _build_user
+from tests.services.bank_sync.stand_ins import FakeBridgeScenario, simplefin_adapter
 
 _NOW = datetime(2026, 10, 4, 12, 0, tzinfo=UTC)
+
+# Connection A in the example: 20 requests in the last 24 hours, the oldest at 09:12 yesterday
+_EXAMPLE_NOW = datetime(2026, 10, 4, 8, 30, tzinfo=UTC)
+_EXAMPLE_OLDEST = datetime(2026, 10, 3, 9, 12, tzinfo=UTC)
 
 
 async def _seed_connection(db, email: str):
@@ -65,3 +84,142 @@ async def test_record_provider_request_prunes_the_connections_records_past_24_ho
         (connection.id, _NOW - timedelta(hours=23), "sync"),
         (connection.id, _NOW, "discovery"),
     ]
+
+
+async def _connection_with_requests(db, *sent_at: datetime) -> BankConnection:
+    """Add a user and their connection, which sent a request at each of the times"""
+    db.add(Currency(id="CAD", name="Canadian Dollar", symbol="$", minor_unit_exponent=2))
+    await db.flush()
+    connection = await _seed_connection(db, "budget@example.com")
+    db.add_all(
+        BankProviderRequest(owner_id=connection.owner_id, connection_id=connection.id, purpose=ProviderRequestPurpose.SYNC, requested_at=moment)
+        for moment in sent_at
+    )
+    await db.flush()
+    return connection
+
+
+def _example_requests(count: int = 20) -> list[datetime]:
+    """Return Connection A's request times: the oldest at 09:12 yesterday, then one every 30 minutes"""
+    return [_EXAMPLE_OLDEST + timedelta(minutes=30 * step) for step in range(count)]
+
+
+async def _counted(db, connection: BankConnection) -> int:
+    """Return how many request records the connection has"""
+    return len((await db.scalars(select(BankProviderRequest.id).where(BankProviderRequest.connection_id == connection.id))).all())
+
+
+async def test_request_budget_at_20_of_20_frees_when_the_oldest_request_leaves_the_24_hours(db):
+    """Connection A's 20 requests since 09:12 yesterday leave none at 08:30, and one frees at 09:12"""
+    connection = await _connection_with_requests(db, *_example_requests())
+
+    budget = await read_request_budget(db, connection, now=_EXAMPLE_NOW)
+
+    assert budget == RequestBudget(limit=20, used=20, available_again_at=datetime(2026, 10, 4, 9, 12, tzinfo=UTC))
+
+
+async def test_request_budget_counts_only_the_last_24_hours(db):
+    """A request sent exactly 24 hours ago no longer counts, so 19 others leave one free"""
+    connection = await _connection_with_requests(db, _NOW - timedelta(hours=24), *(_NOW - timedelta(hours=hours) for hours in range(1, 20)))
+
+    budget = await read_request_budget(db, connection, now=_NOW)
+
+    assert budget == RequestBudget(limit=20, used=19, available_again_at=None)
+
+
+def test_request_budget_after_the_limit_is_lowered_waits_for_enough_requests_to_leave():
+    """With 22 counted under a limit of 20, three have to leave before a request frees, so the third oldest decides"""
+    counted = [_NOW - timedelta(hours=23, minutes=minutes) for minutes in range(22, 0, -1)]
+
+    budget = summarize_request_budget(counted, limit=20, spent_until=None, now=_NOW)
+
+    assert budget == RequestBudget(limit=20, used=22, available_again_at=counted[2] + timedelta(hours=24))
+
+
+async def test_reserve_counts_a_request_while_one_is_free(db):
+    """At 19 of 20 the request is counted, under its purpose, before anything is sent"""
+    connection = await _connection_with_requests(db, *_example_requests(19))
+
+    await reserve_provider_request(db, connection, purpose=ProviderRequestPurpose.DISCOVERY, now=_EXAMPLE_NOW)
+
+    assert await _counted(db, connection) == 20
+    assert await db.scalar(select(BankProviderRequest.purpose).where(BankProviderRequest.requested_at == _EXAMPLE_NOW)) == "discovery"
+
+
+async def test_reserve_at_the_cap_is_refused_until_the_oldest_request_leaves(db):
+    """The sync due at 08:30 is refused with 09:12 and counts nothing, and goes ahead at 09:12"""
+    connection = await _connection_with_requests(db, *_example_requests())
+
+    with pytest.raises(RequestBudgetSpent) as refused:
+        await reserve_provider_request(db, connection, purpose=ProviderRequestPurpose.SYNC, now=_EXAMPLE_NOW)
+    assert refused.value.available_again_at == datetime(2026, 10, 4, 9, 12, tzinfo=UTC)
+    assert await _counted(db, connection) == 20
+
+    await reserve_provider_request(db, connection, purpose=ProviderRequestPurpose.SYNC, now=datetime(2026, 10, 4, 9, 12, tzinfo=UTC))
+
+    # The oldest left the 24 hours and was pruned as the new one was counted
+    assert await _counted(db, connection) == 20
+
+
+async def test_reserve_by_two_senders_at_once_gives_the_last_request_to_one():
+    """At 19 of 20, a second sender waits for the first and is refused, rather than both sending"""
+    async with TestSession() as setup:
+        connection = await _connection_with_requests(setup, *_example_requests(19))
+        await setup.commit()
+
+    async with TestSession() as first, TestSession() as second, TestSession() as watcher:
+        await reserve_provider_request(first, connection, purpose=ProviderRequestPurpose.SYNC, now=_EXAMPLE_NOW)
+        second_pid = await second.scalar(text("SELECT pg_backend_pid()"))
+        await second.execute(text("SET LOCAL lock_timeout = '5s'"))
+        racing = asyncio.create_task(reserve_provider_request(second, connection, purpose=ProviderRequestPurpose.SYNC, now=_EXAMPLE_NOW))
+
+        # The second sender has to be waiting on the first one's lock before the first commits,
+        # so a missing lock fails here rather than letting both through
+        async with asyncio.timeout(5):
+            while not await watcher.scalar(text("SELECT wait_event_type = 'Lock' FROM pg_stat_activity WHERE pid = :pid"), {"pid": second_pid}):
+                await watcher.rollback()
+                await asyncio.sleep(0.05)
+        await first.commit()
+
+        with pytest.raises(RequestBudgetSpent):
+            async with asyncio.timeout(5):
+                await racing
+
+    async with TestSession() as check:
+        assert await _counted(check, connection) == 20
+
+
+@pytest.mark.parametrize("fault", ["rate_limited", "quota_warning"], ids=["429", "quota-warning-with-data"])
+async def test_quota_spent_answer_marks_the_budget_spent_until_the_oldest_request_leaves(db, scenario: FakeBridgeScenario, fault):
+    """With 3 of 20 used, a 429 or a quota warning beside data leaves none until the oldest of the 3 leaves"""
+    await scenario.add_harbour_accounts()
+    adapter = simplefin_adapter(FakeBridgeTransport())
+    access_url = await adapter.claim(scenario.setup_token)
+    await scenario.change("PUT", "/fault", {"kind": fault})
+    oldest = _NOW - timedelta(hours=5)
+    connection = await _connection_with_requests(db, oldest, _NOW - timedelta(hours=1))
+    await reserve_provider_request(db, connection, purpose=ProviderRequestPurpose.DISCOVERY, now=_NOW)
+
+    result = await adapter.discover(access_url, currency_exponents={"USD": 2})
+    assert is_quota_spent(result)
+    await mark_request_budget_spent(db, connection, now=_NOW)
+
+    frees_at = oldest + timedelta(hours=24)
+    assert await read_request_budget(db, connection, now=_NOW) == RequestBudget(limit=20, used=20, available_again_at=frees_at)
+    with pytest.raises(RequestBudgetSpent) as refused:
+        await reserve_provider_request(db, connection, purpose=ProviderRequestPurpose.SYNC, now=frees_at - timedelta(seconds=1))
+    assert refused.value.available_again_at == frees_at
+    await reserve_provider_request(db, connection, purpose=ProviderRequestPurpose.SYNC, now=frees_at)
+
+
+async def test_other_warnings_beside_data_leave_the_budget_alone(scenario: FakeBridgeScenario):
+    """A maintenance notice isn't about the quota, so the rest of the budget can still be used"""
+    await scenario.add_harbour_accounts()
+    adapter = simplefin_adapter(FakeBridgeTransport())
+    access_url = await adapter.claim(scenario.setup_token)
+    await scenario.change("POST", "/errors", {"code": "gen.maintenance", "msg": "Some banks may be slow to update tonight."})
+
+    result = await adapter.discover(access_url, currency_exponents={"USD": 2})
+
+    assert result.warnings
+    assert not is_quota_spent(result)

@@ -130,6 +130,10 @@ class BankConnection(Base):
     next_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    # Set when the provider says its request quota is spent, to when the oldest request then
+    # counted leaves the 24 hours, so nothing more is sent before a request frees up
+    request_budget_spent_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
 
 class BankProviderRequest(Base):
     """One request sent to a provider, counted against the connection's rolling 24-hour budget
