@@ -14,7 +14,6 @@ from app.models.user import User
 from app.permissions import check_account_access
 from app.schemas.import_run import (
     ImportBudgetDraft,
-    JournalBudgetImportResult,
     JournalImportRunResponse,
     JournalImportStageRequest,
     JournalTransactionRow,
@@ -39,6 +38,7 @@ from app.services.importers.shared.run_staging import (
     validate_account_mapping,
     validate_category_mapping,
 )
+from app.services.importers.shared.save_results import build_import_summary
 from app.utils.dates import resolve_timezone
 
 
@@ -133,13 +133,24 @@ async def commit_journal_run(db: AsyncSession, user: User, run_id: uuid.UUID) ->
     )
 
     budgets = [
-        _resolve_budget_categories(ImportBudgetDraft.model_validate(draft), written.categories_by_source)
+        _resolve_budget_categories(ImportBudgetDraft.model_validate(draft), written.import_lookups.categories_by_source)
         for draft in run.budget_drafts
     ]
     budget_results = await write_journal_budgets(db, user, budgets)
     archived_count, adjustment_count = await _archive_accounts(db, user, run, written)
 
-    response = _build_response(written, len(staged_rows), budget_results, archived_count, adjustment_count)
+    response = build_import_summary(
+        JournalImportRunResponse,
+        transactions_created=written.legs_created,
+        stats=written.stats,
+        import_lookups=written.import_lookups,
+        first_import_date_by_account_id=written.first_import_date_by_account_id,
+        rows_imported=len(staged_rows),
+        budgets_created=len(budget_results),
+        budgets=budget_results,
+        accounts_archived=archived_count,
+        archive_adjustments_created=adjustment_count,
+    )
     await finish_run_commit(db, run, response)
     return response
 
@@ -215,7 +226,7 @@ async def _archive_accounts(
     adjustment_count = 0
 
     for source in run.archive_account_sources:
-        account: Account | None = written.accounts_by_source.get(source)
+        account: Account | None = written.import_lookups.accounts_by_source.get(source)
         if account is None or account.id not in created_account_ids:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -238,48 +249,3 @@ async def _archive_accounts(
         await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
 
     return len(run.archive_account_sources), adjustment_count
-
-
-def _build_response(
-    written: JournalWriteResult,
-    rows_imported: int,
-    budget_results: list[JournalBudgetImportResult],
-    archived_count: int,
-    adjustment_count: int,
-) -> JournalImportRunResponse:
-    """Build the commit's summary
-
-    Args:
-        written: What the commit's rows created
-        rows_imported: Journal rows the run staged, every one of them written
-        budget_results: Budgets created with their period counts
-        archived_count: Accounts archived
-        adjustment_count: Balance adjustments archiving added
-
-    Returns:
-        The commit's summary
-    """
-    stats = written.stats
-    return JournalImportRunResponse(
-        rows_imported=rows_imported,
-        transactions_created=written.legs_created,
-        accounts_created=stats.accounts_created,
-        accounts_reused=stats.accounts_reused,
-        categories_created=stats.categories_created,
-        categories_reused=stats.categories_reused,
-        merchants_created=stats.merchants_created,
-        merchants_reused=stats.merchants_reused,
-        tags_created=stats.tags_created,
-        tags_reused=stats.tags_reused,
-        budgets_created=len(budget_results),
-        budgets=budget_results,
-        accounts_archived=archived_count,
-        archive_adjustments_created=adjustment_count,
-        affected_account_ids=list(written.first_import_date_by_account_id.keys()),
-        account_source_ids={source: account.id for source, account in written.accounts_by_source.items()},
-        category_source_ids={source: category.id for source, category in written.categories_by_source.items()},
-        created_account_ids=stats.created_account_ids,
-        created_category_ids=stats.created_category_ids,
-        created_merchant_ids=stats.created_merchant_ids,
-        created_tag_ids=stats.created_tag_ids,
-    )

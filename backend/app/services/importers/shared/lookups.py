@@ -1,4 +1,4 @@
-"""Transaction import lookup helpers"""
+"""Reference data every import's save loads before it writes rows"""
 
 from dataclasses import dataclass
 
@@ -9,7 +9,7 @@ from app.models.category import Category
 from app.models.currency import Currency
 from app.models.tag import Tag
 from app.models.user import User
-from app.schemas.import_run import TransactionImportRequest
+from app.schemas.import_run import TransactionImportAccountMapping, TransactionImportCategoryMapping
 from app.services.importers.shared.accounts import resolve_import_account_sources
 from app.services.importers.shared.categories import get_or_create_import_categories_by_source
 from app.services.importers.shared.currencies import get_import_currencies_by_code
@@ -19,7 +19,7 @@ from app.services.importers.shared.tags import get_personal_import_tags_by_name
 
 
 @dataclass
-class TransactionImportLookups:
+class ImportLookups:
     """Store lookup maps used while creating imported transactions
 
     Attributes:
@@ -39,51 +39,31 @@ class TransactionImportLookups:
     tags_by_name: dict[str, Tag]
 
 
-def get_counterparty_only_sources(data: TransactionImportRequest) -> set[str]:
-    """Return the declared account sources no row in the file is written to
-
-    Worked out from the rows rather than read off the payload, because these resolve under a
-    weaker rule than an account rows are written to, and a client that could declare one would be
-    choosing its own permission check. A source used both ways keeps the strict rule, since the
-    rows using it are still written, and the whole file is resolved at once, so that holds across
-    every row rather than within a part of it
-
-    Args:
-        data: The whole file, rebuilt from its run
-
-    Returns:
-        Trimmed sources that appear as no row's account source
-    """
-    row_account_sources = {row.account_source.strip() for row in data.rows}
-    return {mapping.source.strip() for mapping in data.accounts} - row_account_sources
-
-
-async def load_transaction_import_lookups(
+async def load_import_lookups(
     db: AsyncSession,
     user: User,
-    data: TransactionImportRequest,
+    accounts: list[TransactionImportAccountMapping],
+    categories: list[TransactionImportCategoryMapping],
     stats: ImportStats,
-) -> TransactionImportLookups:
-    """Load lookup maps needed to create imported transactions
+    counterparty_only_sources: set[str],
+) -> ImportLookups:
+    """Resolve or create every mapped account and category, then load what the rows look up
 
     Args:
         db: Active database session
         user: Authenticated user running the import
-        data: The whole file, rebuilt from its run
+        accounts: Account mappings the run holds
+        categories: Category mappings the run holds
         stats: Import summary counters updated while mappings are matched or created
+        counterparty_only_sources: Trimmed account sources no row is written to, which resolve
+            under the weaker counterparty rule
 
     Returns:
-        Lookup maps used by the transaction import row creation helper
+        Lookup maps the rows are written from
     """
-    account_sources = await resolve_import_account_sources(
-        db,
-        user,
-        data.accounts,
-        stats,
-        get_counterparty_only_sources(data),
-    )
+    account_sources = await resolve_import_account_sources(db, user, accounts, stats, counterparty_only_sources)
     accounts_by_source = account_sources.accounts_by_source
-    categories_by_source = await get_or_create_import_categories_by_source(db, user, data.categories, stats)
+    categories_by_source = await get_or_create_import_categories_by_source(db, user, categories, stats)
 
     # Load currencies after account mappings because new accounts can introduce new currency codes
     account_currency_codes = {account.currency for account in accounts_by_source.values()}
@@ -91,7 +71,7 @@ async def load_transaction_import_lookups(
     merchants = await load_import_merchants(db, user.id)
     tags_by_name = await get_personal_import_tags_by_name(db, user.id)
 
-    transaction_import_lookups = TransactionImportLookups(
+    return ImportLookups(
         accounts_by_source=accounts_by_source,
         outside_account_sources=account_sources.outside_sources,
         categories_by_source=categories_by_source,
@@ -99,4 +79,3 @@ async def load_transaction_import_lookups(
         merchants=merchants,
         tags_by_name=tags_by_name,
     )
-    return transaction_import_lookups

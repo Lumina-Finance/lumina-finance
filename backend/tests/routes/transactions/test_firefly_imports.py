@@ -144,6 +144,28 @@ async def test_firefly_import_records_accounts_it_creates_as_each_other_s_other_
     assert transactions_by_account[savings_id]["counterparty_account_id"] == chequing_id
 
 
+async def test_firefly_import_lists_affected_accounts_in_the_csv_import_s_sorted_order(client):
+    """The summary lists the accounts it wrote to sorted, whatever order the rows reached them in."""
+    headers = _get_auth_header(await _create_user(client))
+    chequing_id = (await _create_account(client, headers)).json()["id"]
+    savings_id = (await _create_account(client, headers, name="Main Savings", account_type="savings")).json()["id"]
+
+    # Whichever account sorts later is named first, so listing the accounts in the order the rows
+    # reached them fails this rather than passing on the ids that happened to come up
+    later, earlier = sorted([("Chequing", chequing_id), ("Savings", savings_id)], key=lambda pair: pair[1], reverse=True)
+    resp = await _import_run(client, headers, {
+        "accounts": [{"source": source, "account_id": account_id} for source, account_id in (later, earlier)],
+        "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
+        "rows": [
+            _firefly_row(journal_id=str(index), source_account=source)
+            for index, (source, _account_id) in enumerate((later, earlier))
+        ],
+    }, source="firefly")
+
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["affected_account_ids"] == sorted([chequing_id, savings_id])
+
+
 async def test_firefly_transfer_legs_are_stamped_with_the_self_merchant(client):
     """Neither leg of a transfer has a payee, so both get what the app puts on its own transfers."""
     signup_resp = await _create_user(client)

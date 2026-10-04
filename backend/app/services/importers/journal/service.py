@@ -8,16 +8,13 @@ from datetime import date
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.account import Account
 from app.models.base import TransferCounterpartyScope
-from app.models.category import Category
 from app.models.import_run import ImportRunSource
 from app.models.tag import TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.import_run import JournalTransactionRow, TransactionImportAccountMapping, TransactionImportCategoryMapping
 from app.services.accounts.snapshots import recompute_account_snapshots
-from app.services.cache_state import mark_cache_changed_for_scope, mark_user_cache_changed
 from app.services.categories.transfer_rules import does_category_record_counterparty_account
 from app.services.importers.journal.constants import JOURNAL_GENERIC_REFUSAL_REASON, JOURNAL_ROW_LABELS
 from app.services.importers.journal.row_resolution import (
@@ -27,22 +24,16 @@ from app.services.importers.journal.row_resolution import (
     resolve_journal_row,
 )
 from app.services.importers.journal.system_categories import get_journal_system_categories
-from app.services.importers.shared.accounts import resolve_import_account_sources
-from app.services.importers.shared.categories import get_or_create_import_categories_by_source
-from app.services.importers.shared.currencies import get_import_currencies_by_code
+from app.services.importers.shared.lookups import ImportLookups, load_import_lookups
 from app.services.importers.shared.merchants import (
     ImportMerchants,
     create_missing_import_merchants,
     get_import_merchant,
     get_no_payee_merchants,
-    load_import_merchants,
 )
+from app.services.importers.shared.save_results import mark_import_caches_changed
 from app.services.importers.shared.stats import ImportStats
-from app.services.importers.shared.tags import (
-    create_missing_import_tags,
-    get_import_row_tags,
-    get_personal_import_tags_by_name,
-)
+from app.services.importers.shared.tags import create_missing_import_tags, get_import_row_tags
 
 # Transactions inserted per flush so imports of tens of thousands of rows use
 # batched INSERTs instead of one round trip per row
@@ -57,8 +48,7 @@ class JournalWriteResult:
 
     stats: ImportStats
     legs_created: int
-    accounts_by_source: dict[str, Account]
-    categories_by_source: dict[str, Category]
+    import_lookups: ImportLookups
     first_import_date_by_account_id: dict[uuid.UUID, date]
 
 
@@ -92,22 +82,14 @@ async def write_journal_transactions(
     # Both legs of a journal transfer get a row written, so every source here is an account the
     # import writes to and none of them takes the weaker counterparty rule. Staging refuses an
     # outside answer for a journal run, so every source resolves to an account
-    account_sources = await resolve_import_account_sources(db, user, accounts, stats, set())
-    accounts_by_source = account_sources.accounts_by_source
-    categories_by_source = await get_or_create_import_categories_by_source(db, user, categories, stats)
-
-    # Load currencies after account mappings because new accounts can introduce new currency codes
-    account_currency_codes = {account.currency for account in accounts_by_source.values()}
-    currencies_by_code = await get_import_currencies_by_code(db, account_currency_codes)
-    merchants = await load_import_merchants(db, user.id)
-    tags_by_name = await get_personal_import_tags_by_name(db, user.id)
+    import_lookups = await load_import_lookups(db, user, accounts, categories, stats, set())
     transfer_category, balance_adjustment_category = await get_journal_system_categories(db)
 
     context = JournalResolutionContext(
         user_id=user.id,
-        accounts_by_source=accounts_by_source,
-        categories_by_source=categories_by_source,
-        currencies_by_code=currencies_by_code,
+        accounts_by_source=import_lookups.accounts_by_source,
+        categories_by_source=import_lookups.categories_by_source,
+        currencies_by_code=import_lookups.currencies_by_code,
         transfer_category=transfer_category,
         balance_adjustment_category=balance_adjustment_category,
     )
@@ -118,8 +100,8 @@ async def write_journal_transactions(
         db,
         user_id=user.id,
         legs=legs,
-        merchants=merchants,
-        tags_by_name=tags_by_name,
+        merchants=import_lookups.merchants,
+        tags_by_name=import_lookups.tags_by_name,
         stats=stats,
     )
 
@@ -127,17 +109,16 @@ async def write_journal_transactions(
 
     # Recompute every affected account together so concurrent writers use one lock order
     await recompute_account_snapshots(db, first_import_date_by_account_id)
-    await _mark_caches_changed_for_imported_accounts(
+    await mark_import_caches_changed(
         db,
         user.id,
-        accounts_by_source,
+        import_lookups.accounts_by_source,
         first_import_date_by_account_id,
     )
     return JournalWriteResult(
         stats=stats,
         legs_created=len(legs),
-        accounts_by_source=accounts_by_source,
-        categories_by_source=categories_by_source,
+        import_lookups=import_lookups,
         first_import_date_by_account_id=first_import_date_by_account_id,
     )
 
@@ -291,26 +272,3 @@ def _get_leg_counterparty_scope(leg: JournalLeg) -> TransferCounterpartyScope | 
     if does_category_record_counterparty_account(leg.category):
         return TransferCounterpartyScope.OUTSIDE
     return None
-
-
-async def _mark_caches_changed_for_imported_accounts(
-    db: AsyncSession,
-    user_id: uuid.UUID,
-    accounts_by_source: dict[str, Account],
-    first_import_date_by_account_id: dict[uuid.UUID, date],
-) -> None:
-    """Mark user and account-scope caches changed after importing transactions
-
-    Args:
-        db: Active database session
-        user_id: Identifier for the user running the import
-        accounts_by_source: Account rows keyed by import source
-        first_import_date_by_account_id: Earliest imported transaction date by affected account ID
-    """
-    await mark_user_cache_changed(db, user_id)
-    affected_accounts = {account.id: account for account in accounts_by_source.values()}
-
-    # Mark each affected account scope so personal and group cache entries refresh
-    for account_id in first_import_date_by_account_id:
-        account = affected_accounts[account_id]
-        await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)

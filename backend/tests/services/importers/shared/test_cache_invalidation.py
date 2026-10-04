@@ -19,7 +19,7 @@ from app.models.account import Account
 from app.models.base import AccountKind, AccountType
 from app.models.cache_state import GroupCacheState
 from app.models.group import Group
-from app.services.importers.generic.service import _mark_caches_changed_for_imported_accounts
+from app.services.importers.shared.save_results import mark_import_caches_changed
 from tests.conftest import TestSession
 from tests.services.importers._helpers import _seed_user
 
@@ -51,7 +51,7 @@ async def test_an_import_reaching_a_group_account_after_a_personal_one_marks_the
         session.add_all([personal, shared])
         await session.flush()
 
-        await _mark_caches_changed_for_imported_accounts(
+        await mark_import_caches_changed(
             session,
             user_id,
             {"Chequing": personal, "Joint Savings": shared},

@@ -1,19 +1,13 @@
 """Transaction import orchestration service"""
-import uuid
-from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.account import Account
 from app.models.user import User
 from app.schemas.import_run import TransactionImportRequest, TransactionImportResponse
 from app.services.accounts.snapshots import recompute_account_snapshots
-from app.services.cache_state import mark_cache_changed_for_scope, mark_user_cache_changed
 from app.services.importers.generic.imported_transaction_helpers import create_imported_transactions
-from app.services.importers.generic.lookup_helpers import (
-    load_transaction_import_lookups,
-)
-from app.services.importers.generic.response_helpers import build_transaction_import_response
+from app.services.importers.shared.lookups import load_import_lookups
+from app.services.importers.shared.save_results import build_import_summary, mark_import_caches_changed
 from app.services.importers.shared.stats import ImportStats
 
 
@@ -36,7 +30,14 @@ async def import_transactions(
         Import summary containing transaction, account, category, merchant, tag, and affected account counts
     """
     stats = ImportStats()
-    import_lookups = await load_transaction_import_lookups(db, user, data, stats)
+    import_lookups = await load_import_lookups(
+        db,
+        user,
+        data.accounts,
+        data.categories,
+        stats,
+        _get_counterparty_only_sources(data),
+    )
     first_import_date_by_account_id = await create_imported_transactions(
         db,
         user_id=user.id,
@@ -48,43 +49,36 @@ async def import_transactions(
 
     await db.flush()
     await recompute_account_snapshots(db, first_import_date_by_account_id)
-    await _mark_caches_changed_for_imported_accounts(
+    await mark_import_caches_changed(
         db,
         user.id,
         import_lookups.accounts_by_source,
         first_import_date_by_account_id,
     )
 
-    transaction_import_response = build_transaction_import_response(
-        data,
-        stats,
-        import_lookups,
-        first_import_date_by_account_id,
+    return build_import_summary(
+        TransactionImportResponse,
+        transactions_created=len(data.rows),
+        stats=stats,
+        import_lookups=import_lookups,
+        first_import_date_by_account_id=first_import_date_by_account_id,
     )
-    return transaction_import_response
 
 
-async def _mark_caches_changed_for_imported_accounts(
-    db: AsyncSession,
-    user_id: uuid.UUID,
-    accounts_by_source: dict[str, Account],
-    first_import_date_by_account_id: dict[uuid.UUID, date],
-) -> None:
-    """Mark user and account-scope caches changed after importing transactions
+def _get_counterparty_only_sources(data: TransactionImportRequest) -> set[str]:
+    """Return the declared account sources no row in the file is written to
+
+    Worked out from the rows rather than read off the payload, because these resolve under a
+    weaker rule than an account rows are written to, and a client that could declare one would be
+    choosing its own permission check. A source used both ways keeps the strict rule, since the
+    rows using it are still written, and the whole file is resolved at once, so that holds across
+    every row rather than within a part of it
 
     Args:
-        db: Active database session
-        user_id: Identifier for the user running the import
-        accounts_by_source: Account rows keyed by import source
-        first_import_date_by_account_id: Earliest imported transaction date by affected account ID
+        data: The whole file, rebuilt from its run
 
     Returns:
-        None
+        Trimmed sources that appear as no row's account source
     """
-    await mark_user_cache_changed(db, user_id)
-    affected_accounts = {account.id: account for account in accounts_by_source.values()}
-
-    # Mark each affected account scope so personal and group cache entries refresh
-    for account_id in first_import_date_by_account_id:
-        account = affected_accounts[account_id]
-        await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
+    row_account_sources = {row.account_source.strip() for row in data.rows}
+    return {mapping.source.strip() for mapping in data.accounts} - row_account_sources

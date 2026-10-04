@@ -14,7 +14,7 @@ from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
 from app.schemas.import_run import TransactionImportMerchantMapping, TransactionImportRow
 from app.services.importers.generic.amounts import parse_import_amount_to_minor_units
-from app.services.importers.generic.lookup_helpers import TransactionImportLookups
+from app.services.importers.shared.lookups import ImportLookups
 from app.services.importers.shared.merchants import (
     create_missing_import_merchants,
     get_import_merchant,
@@ -42,7 +42,7 @@ async def create_imported_transactions(
     user_id: uuid.UUID,
     rows: list[TransactionImportRow],
     merchant_mappings: list[TransactionImportMerchantMapping],
-    import_lookups: TransactionImportLookups,
+    import_lookups: ImportLookups,
     stats: ImportStats,
 ) -> dict[uuid.UUID, date]:
     """Create imported transaction rows and return first import dates by account
