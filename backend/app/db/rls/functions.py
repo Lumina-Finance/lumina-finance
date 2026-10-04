@@ -16,6 +16,7 @@ from typing import NamedTuple
 from sqlalchemy import Connection, text
 
 from app.config.imports import ABANDONED_RUN_AGE, IMPORT_UNDO_WINDOW
+from app.models.bank_sync_job import CLAIM_RANK
 
 # Schema-qualified helper names, the single source reused by the policies and the
 # application call sites so a rename is one edit rather than a search across files
@@ -42,6 +43,11 @@ _REFUSE_UNDER_A_REQUEST_IDENTITY = f"""
             RAISE EXCEPTION 'Only the bank sync worker may call this'
                 USING ERRCODE = 'insufficient_privilege';
         END IF;"""
+
+# A claimed job's kind ranked in claim order, from the job model's ranking. The merge of new work into a
+# queued job ranks by the model in Python, and the claim function holds this copy, so a change to the
+# ranking reaches a database only through a migration that recreates the helpers
+_CLAIM_RANK_OF_KIND = "CASE j.kind " + " ".join(f"WHEN '{kind}' THEN {rank}" for kind, rank in CLAIM_RANK.items()) + " END"
 
 # Signatures the app no longer creates, dropped wherever the helpers are applied or revoked.
 # bump_user_cache stamped whatever user id it was given, and the app role can execute every
@@ -319,7 +325,7 @@ _HELPERS: tuple[_Helper, ...] = (
                 )
             ) OR (j.status = 'running' AND j.lease_expires_at <= now())
             ORDER BY
-                CASE j.kind WHEN 'initial' THEN 0 WHEN 'manual' THEN 1 WHEN 'retry' THEN 2 ELSE 3 END,
+                {_CLAIM_RANK_OF_KIND},
                 j.run_after,
                 j.created_at
             LIMIT p_limit

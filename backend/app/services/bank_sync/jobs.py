@@ -7,16 +7,12 @@ from sqlalchemy import case, func, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobStatus
+from app.models.bank_sync_job import CLAIM_RANK, BankSyncJob, BankSyncJobKind, BankSyncJobStatus
 
 
 def _priority(kind):
     """Return a SQL expression ranking a job kind in claim order, lowest first"""
-    return case(
-        {BankSyncJobKind.INITIAL: 0, BankSyncJobKind.MANUAL: 1, BankSyncJobKind.RETRY: 2},
-        value=kind,
-        else_=3,
-    )
+    return case(CLAIM_RANK, value=kind)
 
 
 async def enqueue_bank_sync_job(

@@ -32,6 +32,13 @@ class BankSyncJobKind(enum.StrEnum):
     SCHEDULED = "scheduled"
 
 
+# Each kind's rank in the claim order, lowest claimed first, taken from the order the kinds are
+# declared in. The claim and the merge of new work into a queued job both rank by it. Copied into the
+# claim function in app.db.rls.functions, so a change reaches a database only through a migration that
+# recreates the helpers
+CLAIM_RANK: dict[BankSyncJobKind, int] = {kind: rank for rank, kind in enumerate(BankSyncJobKind)}
+
+
 class BankSyncJobStatus(enum.StrEnum):
     """Where a job stands"""
 
