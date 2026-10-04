@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
 from app.schemas.transaction import TransactionResponse
 from app.services.transactions.links import get_transaction_links_batch
+from app.services.bank_sync.sources import get_bank_sources_batch
 from app.services.transactions.listing.amounts import get_transaction_listing_converted_amounts
 from app.services.transactions.listing.queries import build_transaction_listing_query
 from app.services.transactions.listing.validation import validate_transaction_listing_filters
@@ -74,8 +75,8 @@ async def list_transaction_responses(
             first: an exact match, then the nearest amounts, then other currencies
 
     Returns:
-        Transaction responses enriched with tag summaries, merchant names, and
-        account/base-currency converted amounts
+        Transaction responses enriched with tag summaries, merchant names, bank
+        sources, and account/base-currency converted amounts
 
     Raises:
         HTTPException: Raised with 422 for invalid sort fields, sort order, date
@@ -127,6 +128,7 @@ async def list_transaction_responses(
         db,
         [transaction.id for transaction in transactions],
     )
+    bank_sources_by_transaction_id = await get_bank_sources_batch(db, transactions)
 
     account_amounts_by_transaction_id, base_amounts_by_transaction_id = await get_transaction_listing_converted_amounts(
         db,
@@ -144,6 +146,7 @@ async def list_transaction_responses(
             base_currency_amount=base_amounts_by_transaction_id[transaction.id],
             refund_of_transaction_id=original_by_refund.get(transaction.id),
             refund_transaction_ids=refunds_by_original.get(transaction.id),
+            bank_source=bank_sources_by_transaction_id.get(transaction.id),
         )
         for transaction in transactions
     ]

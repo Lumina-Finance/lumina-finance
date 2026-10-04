@@ -9,11 +9,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any, Literal
 
-from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
-
-# The bank fields a ledger row can differ from. The ledger has no description column, so the raw
-# bank description is always shown read-only and can't be edited
-EditableBankField = Literal["date", "amount"]
+from app.models.bank_transaction import BankTransaction, BankTransactionDisposition, EditableBankField
 
 # The fields whose change opens a correction on an accepted record. A change to only the merchant
 # name or category hint updates the stored observation without one

@@ -7,6 +7,7 @@ from datetime import date, datetime
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 from app.models.base import TransferCounterpartyScope
+from app.schemas.bank_sync import TransactionBankSource
 from app.schemas.fx import FxStatus
 from app.schemas.import_run import MAX_IMPORT_NOTES_LENGTH, MAX_IMPORT_TAGS_PER_ROW
 
@@ -104,6 +105,9 @@ class TransactionResponse(BaseModel):
     updated_at: datetime
     tag_ids: list[uuid.UUID] = []
     tags: list[TransactionTagSummary] = []
+
+    # Where a bank-imported transaction came from, null on a manual one
+    bank_source: TransactionBankSource | None = None
 
     model_config = {"from_attributes": True}
 

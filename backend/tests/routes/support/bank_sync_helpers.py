@@ -3,7 +3,8 @@
 Bank sync records have no routes yet that create them, so tests build them directly. Each builder
 returns an unsaved row with the fields every test needs, for the caller to add to whichever session
 it is testing through. Rows other rows point at get their id up front, so a dependent row can be
-built before the first is flushed, though each level still has to be flushed before the next
+built before the first is flushed, though each level still has to be flushed before the next.
+Route tests record a bank source on a transaction they created through the API
 """
 
 import uuid
@@ -24,11 +25,15 @@ from app.models.base import AccountKind, AccountType, CategoryKind
 from app.models.category import Category
 from app.models.transaction import Transaction
 from app.models.user import User
+from tests.conftest import TestSession
 
 BANK_ACCOUNT_ID = "ACT-1"
 LINK_START = date(2026, 9, 1)
 BANK_DATE = date(2026, 10, 3)
 BANK_DESCRIPTION = "HARBOUR COFFEE 0412"
+
+# When the app received the record of a bank-sourced transaction, which a test pins where it reads it back
+BANK_RECEIVED_AT = datetime(2026, 10, 4, 9, 5, tzinfo=UTC)
 
 
 def _build_user(email: str) -> User:
@@ -156,6 +161,27 @@ def _build_bank_transaction(
         aligned_date=BANK_DATE if accepted else None,
         aligned_amount=amount if accepted else None,
     )
+
+
+async def _record_bank_source(
+    transaction_id: str | uuid.UUID,
+    external_transaction_id: str = "TRN-1001",
+    *,
+    bank_amount: int = -1250,
+) -> uuid.UUID:
+    """Commit the accepted bank transaction a ledger row came from, aligned with the bank's values
+
+    Returns:
+        The bank transaction's id, which is also its review item's
+    """
+    async with TestSession() as session:
+        txn = await session.get(Transaction, uuid.UUID(str(transaction_id)))
+        account = await session.get(Account, txn.account_id)
+        record = _build_bank_transaction(account, external_transaction_id, amount=bank_amount, transaction=txn)
+        record.received_at = BANK_RECEIVED_AT
+        session.add(record)
+        await session.commit()
+    return record.id
 
 
 def _build_pending_transaction(account: Account, external_transaction_id: str, amount: int = -2500) -> BankPendingTransaction:

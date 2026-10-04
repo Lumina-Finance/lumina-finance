@@ -10,6 +10,7 @@ from app.config.dashboard import DASHBOARD_RECENT_TRANSACTIONS_LIMIT
 from app.models.transaction import Transaction
 from app.schemas.transaction import TransactionResponse
 from app.services.transactions.links import get_transaction_links_batch
+from app.services.bank_sync.sources import get_bank_sources_batch
 from app.services.transactions.response_helpers import (
     build_transaction_response,
     get_merchant_names_batch,
@@ -60,6 +61,7 @@ async def get_recent_transactions(
         db,
         [transaction.id for transaction in transactions],
     )
+    bank_sources_by_transaction_id = await get_bank_sources_batch(db, transactions)
     return [
         build_transaction_response(
             transaction,
@@ -68,6 +70,7 @@ async def get_recent_transactions(
             tag_summaries_by_transaction_id[transaction.id],
             refund_of_transaction_id=original_by_refund.get(transaction.id),
             refund_transaction_ids=refunds_by_original.get(transaction.id),
+            bank_source=bank_sources_by_transaction_id.get(transaction.id),
         )
         for transaction in transactions
     ]

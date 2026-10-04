@@ -3,7 +3,7 @@
 import enum
 import uuid
 from datetime import date, datetime
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 from sqlalchemy import VARCHAR, BigInteger, CheckConstraint, Date, DateTime, ForeignKey, Integer, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
@@ -26,6 +26,11 @@ class OpenReviewKind(enum.StrEnum):
 
     CORRECTION = "correction"
     REMOVAL = "removal"
+
+
+# The bank fields a ledger row can differ from. The ledger has no description column, so the raw
+# bank description is always shown read-only and can't be edited
+EditableBankField = Literal["date", "amount"]
 
 
 def _check_values(values: type[enum.StrEnum]) -> str:
