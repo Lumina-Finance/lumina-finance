@@ -63,6 +63,17 @@ _ROLLBACKS = [
         "bank transaction records",
         id="bank_transactions",
     ),
+    pytest.param(
+        "2e9b5d8c1f47",
+        (
+            "INSERT INTO bank_pending_transactions "
+            "(id, owner_id, account_id, external_transaction_id, transaction_date, amount, description, observed_at) "
+            "VALUES (gen_random_uuid(), :user_id, :account_id, 'P-1', '2026-10-04', -2500, 'HOLD', now())",
+        ),
+        "bank_pending_transactions",
+        "the pending bank transactions",
+        id="pending_transactions",
+    ),
 ]
 
 

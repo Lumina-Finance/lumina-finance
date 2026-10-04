@@ -28,6 +28,7 @@ from app.models.bank_connection import (
     BankSigninNotice,
     ProviderRequestPurpose,
 )
+from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_transaction import BankTransaction
 from app.models.base import AccountKind, AccountType, CategoryKind, RecurrenceFreq
 from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
@@ -44,6 +45,7 @@ from tests.routes.support.bank_sync_helpers import (
     _build_bank_transaction,
     _build_external_account,
     _build_ledger_transaction,
+    _build_pending_transaction,
     _build_signin_notice,
 )
 
@@ -517,6 +519,7 @@ _BANK_MODELS = [
     BankSigninNotice,
     AccountReviewPreference,
     BankTransaction,
+    BankPendingTransaction,
 ]
 
 
@@ -539,6 +542,7 @@ async def _create_bank_records(session, owner_id) -> tuple[Account, BankConnecti
             _build_signin_notice(connection),
             AccountReviewPreference(account_id=account.id, owner_id=owner_id),
             _build_bank_transaction(account),
+            _build_pending_transaction(account, "P-1"),
         ]
     )
     await session.flush()
@@ -619,8 +623,9 @@ async def test_bank_record_naming_another_users_connection_is_refused(users, ban
         lambda account, connection, owner_id: _owned_by(_build_bank_link(account, connection, "ACT-B"), owner_id),
         lambda account, _, owner_id: AccountReviewPreference(account_id=account.id, owner_id=owner_id),
         lambda account, _, owner_id: _owned_by(_build_bank_transaction(account, "TRN-B"), owner_id),
+        lambda account, _, owner_id: _owned_by(_build_pending_transaction(account, "P-B"), owner_id),
     ],
-    ids=["account_link", "review_preferences", "bank_transaction"],
+    ids=["account_link", "review_preferences", "bank_transaction", "pending_transaction"],
 )
 async def test_bank_record_on_another_users_account_is_refused(users, bank_records, build):
     """A user can't put bank records on someone else's Lumina account, even as the row's owner"""

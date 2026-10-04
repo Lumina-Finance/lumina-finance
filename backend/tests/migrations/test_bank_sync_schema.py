@@ -21,6 +21,7 @@ from app.models.bank_connection import (
     BankSigninNotice,
     ProviderRequestPurpose,
 )
+from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -34,6 +35,7 @@ from tests.routes.support.bank_sync_helpers import (
     _build_category,
     _build_external_account,
     _build_ledger_transaction,
+    _build_pending_transaction,
     _build_signin_notice,
     _build_user,
 )
@@ -392,3 +394,31 @@ async def test_bank_transaction_records_go_with_the_account_dismissals_included(
     await session.execute(delete(Account).where(Account.id == everyday.id))
 
     assert await session.scalar(select(func.count()).select_from(BankTransaction)) == 0
+
+
+async def test_bank_pending_transaction_amount_is_stored_exactly_or_as_sent(session):
+    """A pending amount the currency can't hold is kept as written, never both or neither"""
+    user = await _owner(session)
+    everyday = _build_account(user.id)
+    await _add(session, everyday)
+    as_sent = _build_pending_transaction(everyday, "P-1")
+    as_sent.amount = None
+    as_sent.raw_amount = "-25.005"
+    neither = _build_pending_transaction(everyday, "P-2")
+    neither.amount = None
+
+    await _add(session, as_sent)
+    await _refused(session, neither, "ck_bank_pending_transactions_amount")
+
+
+async def test_bank_pending_transactions_go_with_the_account(session):
+    """Deleting the Lumina account deletes its pending items and no one else's"""
+    user = await _owner(session)
+    everyday = _build_account(user.id, "Everyday")
+    rewards = _build_account(user.id, "Rewards Visa")
+    await _add(session, everyday, rewards)
+    await _add(session, _build_pending_transaction(everyday, "P-1"), _build_pending_transaction(rewards, "P-2"))
+
+    await session.execute(delete(Account).where(Account.id == everyday.id))
+
+    assert (await session.scalars(select(BankPendingTransaction.external_transaction_id))).all() == ["P-2"]

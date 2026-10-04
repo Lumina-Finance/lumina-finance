@@ -79,6 +79,11 @@ SECURED_TABLES = (
         f"owner_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)",
         f"owner_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id) AND (transaction_id IS NULL OR {_SEES_LEDGER_ROW})",
     ),
+    (
+        "bank_pending_transactions",
+        f"owner_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)",
+        f"owner_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)",
+    ),
     ("users", f"id = {CURRENT_USER_ID}()", f"id = {CURRENT_USER_ID}()"),
     (
         "tags",

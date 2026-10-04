@@ -18,6 +18,7 @@ from app.models.bank_connection import (
     BankProvider,
     BankSigninNotice,
 )
+from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
 from app.models.base import AccountKind, AccountType, CategoryKind
 from app.models.category import Category
@@ -154,4 +155,17 @@ def _build_bank_transaction(
         observed_at=datetime(2026, 10, 4, 9, 0, tzinfo=UTC),
         aligned_date=BANK_DATE if accepted else None,
         aligned_amount=amount if accepted else None,
+    )
+
+
+def _build_pending_transaction(account: Account, external_transaction_id: str, amount: int = -2500) -> BankPendingTransaction:
+    """Return an unsaved pending item the bank reports for an account"""
+    return BankPendingTransaction(
+        owner_id=account.owner_id,
+        account_id=account.id,
+        external_transaction_id=external_transaction_id,
+        transaction_date=date(2026, 10, 4),
+        amount=amount,
+        description="HOLD HARBOUR FUEL",
+        observed_at=datetime(2026, 10, 4, 9, 0, tzinfo=UTC),
     )
