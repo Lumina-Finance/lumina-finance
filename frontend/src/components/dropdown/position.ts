@@ -71,31 +71,42 @@ export interface DropdownBoxPosition {
   width: number
 }
 
-/** The left and right edges of the modal panel a field sits in, as the screen measures them */
-export type DropdownPanelSides = {
+/** The edges of the modal panel a field sits in, as the screen measures them */
+export type DropdownPanelEdges = {
+  bottom: number
   left: number
   right: number
+  top: number
 }
 
 /**
- * Narrows the sides the box may grow into to those of the modal panel its field sits in
+ * Narrows the room the box may grow into to the modal panel its field sits in
  *
- * Inside a modal the sides are the panel's own wherever they sit within the screen, so a box opened
- * from a field near the panel's edge grows the other way or narrower rather than out over the
- * backdrop. Only the sides: a panel is as tall as its content, so its top and foot would leave a field
- * near either no room to open a list into. Above and below, the box keeps to the dialog body's own
- * bounds while they leave the list room for a few options.
+ * Inside a modal the room is the panel's own wherever it sits within the screen, so a box opened from
+ * a field near one of the panel's edges grows the other way, or shorter or narrower, rather than out
+ * over the backdrop. A field near the foot of a short panel opens upward for that reason, and the list
+ * scrolls within whatever height the panel leaves it. Within the panel, the box also keeps to the
+ * dialog body's own bounds while they leave the list a few options. The layout sizes stay the
+ * screen's, since the box's pinned edges are still placed against the screen
  */
 export function clampDropdownViewportToPanel(
   viewport: DropdownViewport,
-  panel: DropdownPanelSides | null,
+  panel: DropdownPanelEdges | null,
 ): DropdownViewport {
   if (!panel) return viewport
 
   const left = Math.max(viewport.offsetLeft, panel.left)
   const right = Math.min(viewport.offsetLeft + viewport.width, panel.right)
+  const top = Math.max(viewport.offsetTop, panel.top)
+  const bottom = Math.min(viewport.offsetTop + viewport.height, panel.bottom)
 
-  return { ...viewport, offsetLeft: left, width: Math.max(0, right - left) }
+  return {
+    ...viewport,
+    height: Math.max(0, bottom - top),
+    offsetLeft: left,
+    offsetTop: top,
+    width: Math.max(0, right - left),
+  }
 }
 
 /**
@@ -199,7 +210,7 @@ const DROPDOWN_VIEWPORT_PADDING = 12
 
 // The least list a box kept inside its bounds may be left with: three option rows of 36px. A field
 // scrolled hard against the edge of a dialog's body would otherwise open to a sliver, so there the
-// box takes the room the screen has instead, over the dialog's title or buttons
+// box takes the room its modal panel has instead, over the dialog's title or buttons
 const DROPDOWN_MIN_BOUNDED_LIST_HEIGHT = 108
 
 /**

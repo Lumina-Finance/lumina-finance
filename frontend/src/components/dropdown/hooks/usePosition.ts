@@ -29,7 +29,7 @@ interface UseDropdownPositionResult {
 
 /**
  * Reads the visual viewport when available so mobile browser chrome does not push the box off-screen,
- * narrowed to the sides of the modal panel the field sits in, if any
+ * narrowed to the modal panel the field sits in, if any
  */
 function getViewport(wrapper: HTMLElement): DropdownViewport {
   const visualViewport = window.visualViewport

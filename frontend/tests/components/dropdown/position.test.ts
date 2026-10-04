@@ -368,7 +368,7 @@ describe('dropdown box placement', () => {
 
   describe('a box opened from a field inside a modal', () => {
     const wide = { height: 800, layoutHeight: 800, layoutWidth: 1200, offsetLeft: 0, offsetTop: 0, width: 1200 }
-    const panel = { left: 300, right: 900 }
+    const panel = { bottom: 700, left: 300, right: 900, top: 50 }
 
     it('opens leftward from a field near the panel’s right edge rather than out over the backdrop', () => {
       const anchorRect = { bottom: 140, left: 700, top: 100, width: 150 }
@@ -393,7 +393,7 @@ describe('dropdown box placement', () => {
       const position = getDropdownBoxPosition({
         ...head,
         anchorRect: { bottom: 140, left: 320, top: 100, width: 100 },
-        viewport: clampDropdownViewportToPanel(wide, { left: 300, right: 600 }),
+        viewport: clampDropdownViewportToPanel(wide, { ...panel, right: 600 }),
       })
 
       // 268 to the right against 108 to the left, so it keeps opening rightward and stops at the
@@ -403,10 +403,44 @@ describe('dropdown box placement', () => {
       expect(position.left + position.openWidth).toBe(588)
     })
 
-    it('keeps the screen’s own sides where the panel reaches past them, and the screen’s outside a modal', () => {
-      const panned = { ...wide, offsetLeft: 100, width: 300 }
+    it('opens upward from a field near the foot of the panel rather than past it over the backdrop', () => {
+      const anchorRect = { bottom: 340, left: 320, top: 300, width: 200 }
+      const unclamped = getDropdownBoxPosition({ ...head, anchorRect, viewport: wide })
+      const clamped = getDropdownBoxPosition({
+        ...head,
+        anchorRect,
+        viewport: clampDropdownViewportToPanel(wide, { ...panel, bottom: 420 }),
+      })
 
-      expect(clampDropdownViewportToPanel(panned, { left: -50, right: 900 })).toEqual(panned)
+      // Against the screen there are 488px below, so the box would open down to 700, 280px past the
+      // panel's foot. Inside the panel there are 108 below and 278 above, so it opens up instead
+      expect(unclamped.openAbove).toBe(false)
+      expect(unclamped.top + unclamped.boxMaxHeight).toBe(700)
+      expect(clamped.openAbove).toBe(true)
+      expect(clamped.boxMaxHeight).toBe(278)
+      expect(clamped.bottom).toBe(460)
+    })
+
+    it('stops a box opening upward at the panel’s top padding rather than over the modal above it', () => {
+      const position = getDropdownBoxPosition({
+        ...head,
+        searchable: true,
+        anchorRect: { bottom: 400, left: 320, top: 360, width: 200 },
+        viewport: clampDropdownViewportToPanel(wide, { ...panel, top: 200, bottom: 420 }),
+      })
+
+      // 48px below inside the panel against 188 above, so it opens up to 212, the panel's top plus
+      // its padding, and the list takes what the head, search and box edges leave
+      expect(position.openAbove).toBe(true)
+      expect(position.boxMaxHeight).toBe(188)
+      expect(400 - position.boxMaxHeight).toBe(212)
+      expect(position.listMaxHeight).toBe(92)
+    })
+
+    it('keeps the screen’s own edges where the panel reaches past them, and the screen’s outside a modal', () => {
+      const panned = { ...wide, offsetLeft: 100, offsetTop: 40, height: 500, width: 300 }
+
+      expect(clampDropdownViewportToPanel(panned, { bottom: 900, left: -50, right: 900, top: -20 })).toEqual(panned)
       expect(clampDropdownViewportToPanel(wide, null)).toBe(wide)
     })
   })
