@@ -192,6 +192,10 @@ class SimpleFinAdapter(ProviderAdapter):
             return _failed(ProviderErrorKind.TEMPORARY, _UNREACHABLE_MESSAGE)
         except ResponseTooLargeError:
             return _failed(ProviderErrorKind.TEMPORARY, _UNREADABLE_MESSAGE)
+
+        # A lookup or connection that ran out of time never reached the Bridge
+        except httpx.ConnectTimeout:
+            return _failed(ProviderErrorKind.TEMPORARY, _UNREACHABLE_MESSAGE)
         except httpx.TimeoutException:
             return _failed(ProviderErrorKind.TEMPORARY, _TIMED_OUT_MESSAGE)
         except httpx.RequestError:

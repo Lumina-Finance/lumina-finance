@@ -6,6 +6,7 @@ get the user's token disabled. The fake SimpleFIN Bridge produces each problem i
 stand-in answers the rest
 """
 
+import asyncio
 import json
 import logging
 from datetime import UTC, datetime
@@ -17,10 +18,19 @@ import pytest
 
 from app.http_client import MAX_RESPONSE_BYTES
 from app.services.bank_sync import outbound
+from app.services.bank_sync.outbound import IpAddress, OutboundGuard
 from app.services.bank_sync.providers.contract import FetchResult, ProviderError, ProviderErrorKind
 from app.services.bank_sync.providers.simplefin.adapter import SimpleFinAdapter
 from tests.fake_simplefin_bridge import FakeBridgeTransport
-from tests.services.bank_sync.stand_ins import FakeBridgeScenario, RecordingBridge, Responder, answer_with, fail_with, simplefin_adapter
+from tests.services.bank_sync.stand_ins import (
+    SIMPLEFIN_BRIDGE_ORIGIN,
+    FakeBridgeScenario,
+    RecordingBridge,
+    Responder,
+    answer_with,
+    fail_with,
+    simplefin_adapter,
+)
 
 _ACCESS_URL = "https://demo-user:demo-password@beta-bridge.simplefin.org/simplefin"
 _ALL_ACCOUNTS = ("ACT-chequing", "ACT-savings", "ACT-visa")
@@ -140,6 +150,26 @@ async def test_access_url_on_a_server_no_longer_allowed_needs_reconnecting():
     result = await _fetch(simplefin_adapter(bridge.transport), "https://user:pass@intranet.example/simplefin")
 
     assert result.request_error == ProviderError(_CREDENTIAL_REJECTED, "This Lumina Finance server is not set up to contact intranet.example")
+    assert bridge.requests == []
+
+
+async def test_bridge_whose_name_never_resolves_couldnt_be_reached(monkeypatch):
+    """A lookup that runs out of time never reached the Bridge, so it reads as unreachable rather than slow"""
+    monkeypatch.setattr(outbound, "REQUEST_TIMEOUT", httpx.Timeout(30.0, connect=0.05))
+
+    async def hang(host: str, port: int) -> list[IpAddress]:
+        """Never answer, as a resolver whose server has gone quiet"""
+        await asyncio.Event().wait()
+        return []
+
+    bridge = RecordingBridge()
+    adapter = SimpleFinAdapter(OutboundGuard([SIMPLEFIN_BRIDGE_ORIGIN], resolve=hang, transport=bridge.transport))
+
+    # Bounded, so a lookup left unlimited fails the test rather than hanging it
+    async with asyncio.timeout(5):
+        result = await _fetch(adapter)
+
+    assert result.request_error == ProviderError(_TEMPORARY, _UNREACHABLE)
     assert bridge.requests == []
 
 
