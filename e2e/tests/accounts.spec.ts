@@ -320,17 +320,13 @@ test('records an expense through the modal and shows it as money out', async ({ 
   await expect(row.getByTestId('transaction-amount').filter({ visible: true })).toHaveText(`${MINUS}$42.50`)
 })
 
-test('rings an account row and a transaction row in the accent outline under keyboard focus', async ({ page, request }) => {
+test('rings an account row in the accent outline under keyboard focus', async ({ page, request }) => {
   const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: ACCOUNT_NAME })
-  const id = await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -4250 })
+  await createAccount(request, user, { name: ACCOUNT_NAME })
   await logInViaApi(page, user)
-
   await openPage(page, '/accounts')
-  await expectStretchedFocusRing(page.getByRole('link', { name: ACCOUNT_NAME, exact: true }))
 
-  await openPage(page, '/transactions')
-  await expectStretchedFocusRing(getTransactionRowButton(page.getByTestId(`transaction-row-${id}`)))
+  await expectStretchedFocusRing(page.getByRole('link', { name: ACCOUNT_NAME, exact: true }))
 })
 
 test('keeps the account save action named while an edit is pending', async ({ page, request }) => {

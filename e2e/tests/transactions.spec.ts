@@ -2,7 +2,14 @@ import { expect, test, type APIRequestContext, type Locator, type Page } from '@
 
 import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser, startOfDayInTestTimezone } from '../support/api'
 import { openPage, chooseFromDropdown, filterByCategory, loadEveryTransaction, logInViaApi, openModal } from '../support/app'
-import { expectPendingAction, expectTransactionRow, whileApiRequestHeld } from '../support/selectors'
+import {
+  expectPendingAction,
+  expectStretchedFocusRing,
+  expectTransactionRow,
+  getTransactionRowButton,
+  MINUS,
+  whileApiRequestHeld,
+} from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
@@ -165,7 +172,8 @@ async function colourAt(page: Page, x: number, y: number): Promise<number[]> {
   }, shot.toString('base64'))
 }
 
-test('ticks rows pressed in selection mode, and a shift-press ticks the range between without selecting text', async ({ page, request }) => {
+/** Opens the transactions page in selection mode for a new user with three transactions today */
+async function openSelectingListOfThree(page: Page, request: APIRequestContext) {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday Chequing' })
   for (const amount of [-1000, -2000, -3000]) {
@@ -179,16 +187,39 @@ test('ticks rows pressed in selection mode, and a shift-press ticks the range be
   await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
   const ticks = page.getByRole('checkbox', { name: /^Select (?!the transactions shown on ).+ on / })
   await expect(ticks).toHaveCount(3)
+  return { rows, ticks }
+}
+
+test('ticks a row pressed in selection mode rather than opening it', async ({ page, request }) => {
+  const { rows, ticks } = await openSelectingListOfThree(page, request)
 
   await rows.first().click()
+
   await expect(ticks.first()).toBeChecked()
   await expect(ticks.nth(1)).not.toBeChecked()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+})
 
-  // The range runs across rows of text, which a shift-press would otherwise select along the way
+test('ticks the range between on a shift-press without selecting the text it runs across', async ({ page, request }) => {
+  const { rows, ticks } = await openSelectingListOfThree(page, request)
+  await rows.first().click()
+  await expect(ticks.first()).toBeChecked()
+
   await rows.last().click({ modifiers: ['Shift'] })
+
   for (const tick of await ticks.all()) await expect(tick).toBeChecked()
   expect(await page.evaluate(() => window.getSelection()?.toString())).toBe('')
   await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+test('rings a transaction row in the accent outline under keyboard focus', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday Chequing' })
+  const id = await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -4250 })
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+
+  await expectStretchedFocusRing(getTransactionRowButton(page.getByTestId(`transaction-row-${id}`)))
 })
 
 test('keeps the open Upcoming header on screen through a long run of upcoming transactions', AT_EVERY_SIZE, async ({ page, request }) => {
