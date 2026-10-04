@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.abuse_log import log_source_address
 from app.config.log_level import LOG_LEVEL
+from app.config.bank_sync import BANK_SYNC_SIMPLEFIN_TEST_ORIGIN
 from app.config.oidc import OIDC_PROVIDER_CONFIGS
 from app.config.runtime import ALLOWED_ORIGINS, RUNTIME
 from app.database import async_session, engine, verify_app_role_is_unprivileged
@@ -51,7 +52,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
-    """Verify the runtime and its keys, seed OIDC providers, then prune expired records while serving"""
+    """Verify the runtime, its keys and each bank provider's settings, seed OIDC providers, then prune expired records while serving"""
     await verify_app_role_is_unprivileged()
 
     # The seeding below rewrites the OIDC client secret under whatever key resolved, so a
@@ -74,6 +75,13 @@ async def _lifespan(_app: FastAPI):
         logger.info("OIDC sign-in enabled for: %s", enabled_slugs)
     else:
         logger.info("OIDC sign-in is not configured")
+
+    if BANK_SYNC_SIMPLEFIN_TEST_ORIGIN:
+        logger.warning(
+            "BANK_SYNC_SIMPLEFIN_TEST_ORIGIN lets SimpleFIN requests reach %s without HTTPS or the public address check. "
+            "It is for testing only",
+            BANK_SYNC_SIMPLEFIN_TEST_ORIGIN,
+        )
 
     # The cache's pool lives as long as the app, in every runtime, and a server without ValKey starts as usual
     async with use_valkey():
