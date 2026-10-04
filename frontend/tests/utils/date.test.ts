@@ -8,6 +8,8 @@ import {
   addDays,
   addMonths,
   formatDate,
+  formatDateRangeLabel,
+  formatShortDateRangeLabel,
   formatYmd,
   getDaysInMonth,
   getIsoWeek,
@@ -92,6 +94,32 @@ describe('YYYY-MM-DD strings', () => {
   it('writes and reads back the same calendar day', () => {
     expect(formatYmd(new Date(2026, 0, 5))).toBe('2026-01-05')
     expect(formatYmd(parseYmd('2026-01-05')!)).toBe('2026-01-05')
+  })
+
+  it('formats a range without timezone-shifting either end', () => {
+    expect(formatDateRangeLabel('2026-06-01', '2026-06-30')).toBe('Jun 1, 2026 – Jun 30, 2026')
+  })
+
+  it('keeps a range end naming no real day as written, rather than the day it would roll forward to', () => {
+    expect(formatDateRangeLabel('2026-02-31', '2026-03-31')).toBe('2026-02-31 – Mar 31, 2026')
+  })
+
+  it('shortens a range within the current year to the parts that change', () => {
+    expect(formatShortDateRangeLabel('2026-10-05', '2026-10-31', 2026)).toBe('Oct 5 – 31')
+    expect(formatShortDateRangeLabel('2026-10-28', '2026-11-03', 2026)).toBe('Oct 28 – Nov 3')
+    expect(formatShortDateRangeLabel('2026-10-03', '2026-10-03', 2026)).toBe('Oct 3')
+  })
+
+  it('names only the years of a short range that are not the current one, once where both ends share it', () => {
+    expect(formatShortDateRangeLabel('2026-12-28', '2027-01-03', 2026)).toBe('Dec 28 – Jan 3, 2027')
+    expect(formatShortDateRangeLabel('2027-03-03', '2027-03-15', 2026)).toBe('Mar 3 – 15, 2027')
+    expect(formatShortDateRangeLabel('2027-01-03', '2027-02-05', 2026)).toBe('Jan 3 – Feb 5, 2027')
+    expect(formatShortDateRangeLabel('2027-12-28', '2028-01-03', 2026)).toBe('Dec 28, 2027 – Jan 3, 2028')
+    expect(formatShortDateRangeLabel('2027-03-03', '2027-03-03', 2026)).toBe('Mar 3, 2027')
+  })
+
+  it('falls back to the full labels when an end of a short range names no real day', () => {
+    expect(formatShortDateRangeLabel('2026-02-31', '2026-03-31', 2026)).toBe('2026-02-31 – Mar 31, 2026')
   })
 
   it('returns null for a string that names no date', () => {

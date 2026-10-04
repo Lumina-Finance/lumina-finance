@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useContext, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { StickyNote, Tag as TagIcon } from 'lucide-react'
 import type { Institution } from '@/api/institutions'
@@ -14,6 +14,7 @@ import {
   TRANSACTION_CHECKBOX_RAIL_WIDTH,
 } from '@/pages/transactions/constants/transactionList'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
+import { FadedRowsContext } from '@/contexts/FadedRowsContext'
 import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
 
 const MAX_VISIBLE_TAGS = 1
@@ -89,6 +90,10 @@ interface TransactionRowViewProps extends Omit<TransactionRowProps, 'transaction
   amountPresentation: TransactionAmountPresentation
   onOpen: () => void
 }
+
+// How far a faded section dims a row's category icon. Icons carry no text, so the contrast every text
+// needs doesn't bound it, but a pale icon such as the white plate all but vanished on the light rows below this
+const FADED_CATEGORY_ICON_OPACITY = 0.75
 
 function amountColor(category: Category | undefined, amount: number) {
   if (category?.kind === 'expense' && amount > 0) return 'var(--app-positive)'
@@ -224,8 +229,13 @@ export function TransactionRowView({
   const hasSupplementalMeta = hasNotes || hasVisibleTags
   const hasAccountMeta = !!accountName || !!accountInstitution
   const readOnly = Boolean(readOnlyReason)
+  const isInFadedSection = useContext(FadedRowsContext)
   const formattedAmount = amountPresentation.text
-  const transactionAmountColor = amountColor(category, amountPresentation.sign)
+  // A faded section draws a refund or reversal in its muted text too, through the text token it remaps to
+  // the muted colour, and dims the category icon, which colour can't reach, so nothing in the row reads
+  // as strongly as one that counts
+  const transactionAmountColor = isInFadedSection ? 'var(--app-text)' : amountColor(category, amountPresentation.sign)
+  const categoryIconStyle = isInFadedSection ? { opacity: FADED_CATEGORY_ICON_OPACITY } : undefined
 
   // Only the limit gets a title here, since a read-only row already explains itself through the
   // pill beside its account name
@@ -245,7 +255,7 @@ export function TransactionRowView({
       initial={skipEnterAnimation ? false : prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0, paddingTop: 0, paddingBottom: 0 }}
       // The row's whole vertical padding, set here rather than in a class, so it can animate from
       // zero and the row grows from a fully collapsed height
-      animate={{ opacity: readOnly ? 0.68 : 1, height: 'auto', paddingTop: '0.625rem', paddingBottom: '0.625rem' }}
+      animate={{ opacity: readOnly && !isInFadedSection ? 0.68 : 1, height: 'auto', paddingTop: '0.625rem', paddingBottom: '0.625rem' }}
       exit={
         prefersReducedMotion
           ? { opacity: 0, transition: { duration: 0 } }
@@ -332,7 +342,7 @@ export function TransactionRowView({
           and account tracks grow to their widest content across all rows, showing long names while
           there is room and truncating only when there is not, with notes as the flexible filler
           that compresses first */}
-      <span className="hidden text-2xl leading-none min-[1300px]:block" aria-hidden>
+      <span className="hidden text-2xl leading-none min-[1300px]:block" style={categoryIconStyle} aria-hidden>
         {categoryIcon}
       </span>
 
@@ -414,7 +424,7 @@ export function TransactionRowView({
       </span>
 
       <span className="grid grid-cols-[2.125rem_minmax(0,1fr)_max-content] items-start gap-x-2.5 gap-y-1 min-[750px]:hidden">
-        <span className="row-span-3 pt-0.5 text-[1.35rem] leading-none" aria-hidden>
+        <span className="row-span-3 pt-0.5 text-[1.35rem] leading-none" style={categoryIconStyle} aria-hidden>
           {categoryIcon}
         </span>
 
@@ -479,7 +489,7 @@ export function TransactionRowView({
       </span>
 
       <span className="hidden grid-cols-[2.75rem_minmax(0,1fr)_max-content] items-start gap-x-3 gap-y-1.5 min-[750px]:grid min-[1300px]:hidden">
-        <span className="row-span-3 text-2xl leading-none" aria-hidden>
+        <span className="row-span-3 text-2xl leading-none" style={categoryIconStyle} aria-hidden>
           {categoryIcon}
         </span>
 

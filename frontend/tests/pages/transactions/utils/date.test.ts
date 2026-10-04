@@ -1,21 +1,10 @@
 /**
- * Tests transaction date helpers so visible filter and overview range labels stay stable across refactors
+ * Tests transaction date helpers so the overview range follows the user's timezone rather than the browser's
  */
 import { describe, expect, it } from 'vitest'
-import {
-  formatOverviewRangeLabel,
-  getCurrentMonthOverviewRange,
-} from '@/pages/transactions/utils/date'
+import { getCurrentMonthOverviewRange } from '@/pages/transactions/utils/date'
 
 describe('transaction date helpers', () => {
-  it('formats full overview labels without timezone-shifting date-only inputs', () => {
-    expect(formatOverviewRangeLabel('2026-06-01', '2026-06-30')).toBe('Jun 1, 2026 – Jun 30, 2026')
-  })
-
-  it('keeps a bound naming no real day as written, rather than the day it would roll forward to', () => {
-    expect(formatOverviewRangeLabel('2026-02-31', '2026-03-31')).toBe('2026-02-31 – Mar 31, 2026')
-  })
-
   it('builds the current month overview range in the user timezone', () => {
     const now = new Date('2026-07-01T02:00:00Z')
 

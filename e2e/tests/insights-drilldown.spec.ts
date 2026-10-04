@@ -43,7 +43,11 @@ async function createDrillFixture(request: APIRequestContext) {
   expect(archived.status()).toBe(200)
   const unfiltered = await request.get(`${API_BASE_URL}/transactions`, { headers })
   expect(unfiltered.status()).toBe(200)
-  const unfilteredIds = (await unfiltered.json() as { id: string }[]).map((transaction) => transaction.id)
+  // The browser's clock is fixed on TO, so anything dated later waits in the list's closed Upcoming
+  // section rather than showing as a row
+  const unfilteredIds = (await unfiltered.json() as { id: string; dt: string }[])
+    .filter((transaction) => transaction.dt <= TO)
+    .map((transaction) => transaction.id)
   return { user, categories, selected, otherIds, readOnlyId, account, allIds, unfilteredIds }
 }
 
@@ -304,7 +308,9 @@ test('validates initial URL filters and keeps local-only changes out of address 
   await expect.poll(() => Array.from(new URL(page.url()).searchParams)).toEqual([['context', 'one'], ['context', 'two']])
   await expectRows(page, fixture.unfilteredIds)
   await openPage(page, `/transactions?category_id=${id}&from_date=${TO}&to_date=${FROM}`)
-  await expectRows(page, [...fixture.selected, fixture.allIds[3], fixture.allIds[4]])
+  // The day after TO is upcoming on the fixed clock, so it is counted in the closed section instead
+  await expectRows(page, [...fixture.selected, fixture.allIds[3]])
+  await expect(page.getByRole('button', { name: /Upcoming/ })).toHaveText(/^Upcoming1\D/)
 })
 
 test('allows keyboard access beyond the legend and to crossover categories', async ({ page, drillFixture: fixture }) => {

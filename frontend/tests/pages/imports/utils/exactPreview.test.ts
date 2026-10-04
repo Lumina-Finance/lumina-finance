@@ -1,6 +1,6 @@
 import { createElement, type ReactElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Currency } from '@/api/currency'
 import type { Transaction } from '@/api/transactions'
 import type { Category } from '@/api/categories'
@@ -15,9 +15,10 @@ const captured = vi.hoisted(() => ({ buttons: [] as { onClick: (event: { shiftKe
 
 vi.mock('motion/react', () => ({
   AnimatePresence: ({ children }: { children: ReactNode }) => children,
+  useReducedMotion: () => false,
   motion: {
     div: ({ children }: { children: ReactNode }) => {
-      const button = (children as ReactElement[]).find((child) => child?.type === 'button')
+      const button = ([children].flat() as ReactElement[]).find((child) => child?.type === 'button')
       if (button) captured.buttons.push(button.props as typeof captured.buttons[number])
       return createElement('div', null, children)
     },
@@ -27,6 +28,13 @@ vi.mock('motion/react', () => ({
 vi.mock('@/hooks/useMoneyFormatters', () => ({
   useMoneyFormatters: () => ({ currencies: CURRENCIES, formatCurrency: (amount: number, currency: string) => formatCurrency(amount, currency, CURRENCIES) }),
 }))
+
+// A today later than every preview row, so each row renders in the list rather than behind the Upcoming
+// section, except in the test that moves it before them
+const LATER_THAN_EVERY_ROW = '9999-12-31'
+const today = vi.hoisted(() => ({ ymd: '9999-12-31' }))
+vi.mock('@/hooks/useTodayYmd', () => ({ useTodayYmd: () => today.ymd }))
+afterEach(() => { today.ymd = LATER_THAN_EVERY_ROW })
 
 import { ImportPreviewList } from '@/pages/imports/components/PreviewList'
 import TransactionRow from '@/components/transactions/Row'
@@ -135,6 +143,17 @@ describe('exact generic import presentation', () => {
     rows[0].transaction.counterparty_account_scope = 'outside'
     const markup = renderToStaticMarkup(createElement(ImportPreviewList, { groups: groupPreviewRowsByDate(rows) }))
     expect(markup).toContain(direction)
+  })
+
+  it('gathers a day after today under the closed Upcoming section rather than in the list', () => {
+    const { rows } = build('CAD', ['-12.34'])
+    today.ymd = '2024-03-14'
+
+    const markup = renderToStaticMarkup(createElement(ImportPreviewList, { groups: groupPreviewRowsByDate(rows) }))
+
+    expect(markup).toContain('aria-expanded="false"')
+    expect(markup).toContain('>Upcoming<')
+    expect(amountNodes(markup)).toEqual([])
   })
 
   it('retains the numeric Firefly presentation branch', () => {

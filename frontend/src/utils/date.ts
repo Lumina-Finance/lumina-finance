@@ -169,6 +169,54 @@ export function parseYmd(ymd: string): Date | null {
 }
 
 /**
+ * Formats a "YYYY-MM-DD" calendar date as a label, such as "Jun 1, 2026"
+ *
+ * A string that is not a real date keeps its raw value, so the label states what it was given rather
+ * than the day the date constructor would have rolled it forward to
+ */
+function formatDateLabel(ymd: string): string {
+  const date = parseYmd(ymd)
+  return date ? formatDate(date, DATE_FORMATS.monthDayYear) : ymd
+}
+
+/**
+ * Formats a range of "YYYY-MM-DD" calendar dates, such as "Jun 1, 2026 – Jun 30, 2026", with each end
+ * labelled as `formatDateLabel` labels it
+ */
+export function formatDateRangeLabel(from: string, to: string): string {
+  return `${formatDateLabel(from)} – ${formatDateLabel(to)}`
+}
+
+/**
+ * Formats a range of "YYYY-MM-DD" calendar dates as briefly as it still reads clearly, such as
+ * "Oct 5 – 31" or "Oct 28 – Nov 3". A year shows only where it isn't the current one, once for a range
+ * within one year, as in "Dec 28 – Jan 3, 2027" or "Mar 3 – 15, 2027", and a range of one day reads as
+ * that day alone
+ *
+ * A string that is not a real date falls back to the full labels `formatDateRangeLabel` gives
+ *
+ * @param currentYear - The year it is for the user, which decides whether the year needs saying
+ */
+export function formatShortDateRangeLabel(from: string, to: string, currentYear: number): string {
+  const start = parseYmd(from)
+  const end = parseYmd(to)
+  if (!start || !end) return formatDateRangeLabel(from, to)
+
+  // Written out rather than left to the browser's range formatting, whose spacing around the dash
+  // differs between browsers and from the full range labels
+  const label = (date: Date, withYear: boolean) =>
+    formatDate(date, withYear ? DATE_FORMATS.monthDayYear : DATE_FORMATS.monthDay)
+  const endShowsYear = end.getFullYear() !== currentYear
+  if (from === to) return label(end, endShowsYear)
+
+  // The end's year covers the start too unless the start falls in another year that isn't this one
+  const startShowsYear = start.getFullYear() !== end.getFullYear() && start.getFullYear() !== currentYear
+  const sameMonth = start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth()
+  const endText = sameMonth ? `${end.getDate()}${endShowsYear ? `, ${end.getFullYear()}` : ''}` : label(end, endShowsYear)
+  return `${label(start, startShowsYear)} – ${endText}`
+}
+
+/**
  * Reads a "YYYY-MM-DD" string into a time value that can be ordered arithmetically
  *
  * Sorting reads each date once into a number rather than comparing the strings, which would follow

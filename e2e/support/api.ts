@@ -89,6 +89,35 @@ export function todayInTestTimezone(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: TEST_TIMEZONE }).format(new Date())
 }
 
+/**
+ * The date a number of days from today, in the timezone the browser and the seeded data share
+ *
+ * Steps whole calendar days in UTC, where no daylight saving change can skip or repeat one
+ *
+ * @param days - Days to step, negative for the past
+ * @returns The date as YYYY-MM-DD
+ */
+export function daysFromTodayInTestTimezone(days: number): string {
+  const [year, month, day] = todayInTestTimezone().split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10)
+}
+
+/**
+ * The moment a date begins in the timezone the browser and the seeded data share
+ *
+ * Reads the zone's offset at midnight UTC on that date, which matches its midnight because daylight
+ * saving changes there at 2 am
+ *
+ * @param date - The date as YYYY-MM-DD
+ * @returns Local midnight on that date
+ */
+export function startOfDayInTestTimezone(date: string): Date {
+  const offset = new Intl.DateTimeFormat('en-US', { timeZone: TEST_TIMEZONE, timeZoneName: 'longOffset' })
+    .formatToParts(new Date(`${date}T00:00:00Z`))
+    .find((part) => part.type === 'timeZoneName')!.value.replace('GMT', '')
+  return new Date(`${date}T00:00:00${offset}`)
+}
+
 // A monthly budget's period has to start on the day its cadence is anchored to, and the API
 // refuses any other day rather than moving it
 const BUDGET_ANCHOR_DAY = 1
