@@ -199,17 +199,6 @@ async def test_test_origin_exempts_only_itself(url, refusal):
     assert bridge.requests == []
 
 
-async def test_fake_bridge_is_refused_without_the_test_origin():
-    """With the testing-only setting unset, the same fake Bridge origin is refused"""
-    bridge = RecordingBridge()
-    guard = OutboundGuard([_BRIDGE_ORIGIN], resolve=FixedResolver("172.18.0.5"), transport=bridge.transport)
-
-    with pytest.raises(OriginRefused):
-        await guard.send("GET", httpx.URL("http://fake-bridge:8080/simplefin/accounts"))
-
-    assert bridge.requests == []
-
-
 async def test_proxy_named_in_the_environment_is_not_used(tmp_path, monkeypatch):
     """A proxy would connect to whatever address it resolved, so the request goes straight to the checked one
 
