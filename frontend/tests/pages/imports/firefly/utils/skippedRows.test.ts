@@ -13,6 +13,7 @@ import {
   getRowTooManyTagsReason,
   MAX_IMPORT_NOTES_LENGTH,
   MAX_IMPORT_TAGS_PER_ROW,
+  IMPORT_SAMPLE_PREVIEW_LIMIT,
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportRowProblem } from '@/pages/imports/types'
 import { getProviderSkippedRowsDisplay } from '@/pages/imports/utils'
@@ -26,7 +27,6 @@ import {
 import {
   FIREFLY_GENERIC_SKIP_REASON,
   FIREFLY_MISSING_REQUIRED_VALUES_REASON,
-  FIREFLY_SAMPLE_PREVIEW_LIMIT,
 } from '@/pages/imports/firefly/constants'
 import { createNameKeyedAccountSources } from './fixtures'
 
@@ -802,10 +802,10 @@ describe('forecastFireflyImport', () => {
       name: 'Debt Payment',
       is_system: true,
     })
-    const rows = Array.from({ length: FIREFLY_SAMPLE_PREVIEW_LIMIT + 2 }, (_, index) => createFireflyRow({
-      journal_id: index >= FIREFLY_SAMPLE_PREVIEW_LIMIT ? 'shared-journal' : String(index + 1),
+    const rows = Array.from({ length: IMPORT_SAMPLE_PREVIEW_LIMIT + 2 }, (_, index) => createFireflyRow({
+      journal_id: index >= IMPORT_SAMPLE_PREVIEW_LIMIT ? 'shared-journal' : String(index + 1),
       date: `2026-06-${String(index + 1).padStart(2, '0')} 00:00:00`,
-      category: index >= FIREFLY_SAMPLE_PREVIEW_LIMIT ? 'Debt Payment' : 'Groceries',
+      category: index >= IMPORT_SAMPLE_PREVIEW_LIMIT ? 'Debt Payment' : 'Groceries',
     }))
     const forecast = forecastFireflyImport(
       rows,
@@ -822,20 +822,20 @@ describe('forecastFireflyImport', () => {
     )
 
     expect(forecast).toMatchObject({
-      rowCount: FIREFLY_SAMPLE_PREVIEW_LIMIT + 2,
-      transactionEstimate: FIREFLY_SAMPLE_PREVIEW_LIMIT + 2,
+      rowCount: IMPORT_SAMPLE_PREVIEW_LIMIT + 2,
+      transactionEstimate: IMPORT_SAMPLE_PREVIEW_LIMIT + 2,
       skippedRows: [],
       rowWarnings: [
         {
-          id: `transactions-file-${FIREFLY_SAMPLE_PREVIEW_LIMIT}`,
-          rowNumber: FIREFLY_SAMPLE_PREVIEW_LIMIT + 2,
-          cells: rows[FIREFLY_SAMPLE_PREVIEW_LIMIT],
+          id: `transactions-file-${IMPORT_SAMPLE_PREVIEW_LIMIT}`,
+          rowNumber: IMPORT_SAMPLE_PREVIEW_LIMIT + 2,
+          cells: rows[IMPORT_SAMPLE_PREVIEW_LIMIT],
           reason: EXPECTED_DEBT_PAYMENT_NOTE,
         },
         {
-          id: `transactions-file-${FIREFLY_SAMPLE_PREVIEW_LIMIT + 1}`,
-          rowNumber: FIREFLY_SAMPLE_PREVIEW_LIMIT + 3,
-          cells: rows[FIREFLY_SAMPLE_PREVIEW_LIMIT + 1],
+          id: `transactions-file-${IMPORT_SAMPLE_PREVIEW_LIMIT + 1}`,
+          rowNumber: IMPORT_SAMPLE_PREVIEW_LIMIT + 3,
+          cells: rows[IMPORT_SAMPLE_PREVIEW_LIMIT + 1],
           reason: EXPECTED_DEBT_PAYMENT_NOTE,
         },
       ],

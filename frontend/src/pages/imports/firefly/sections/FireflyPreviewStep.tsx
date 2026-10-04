@@ -2,7 +2,7 @@ import { ImportRowProblemsTable } from '@/pages/imports/components'
 import { ImportProviderPreviewStep } from '@/pages/imports/sections'
 import { getProviderSkippedRowsDisplay } from '@/pages/imports/utils'
 import { FireflySkippedRowsTable } from '@/pages/imports/firefly/components'
-import { FIREFLY_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/firefly/constants'
+import { IMPORT_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/constants'
 import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
 
 type FireflyPreviewStepProps = Pick<
@@ -49,7 +49,7 @@ export function FireflyPreviewStep({
     <ImportProviderPreviewStep
       // The budget step only exists when a budgets export is staged
       hasBudgetStep={Boolean(budgetsFile)}
-      sampleLimit={FIREFLY_SAMPLE_PREVIEW_LIMIT}
+      sampleLimit={IMPORT_SAMPLE_PREVIEW_LIMIT}
       stats={{ ...importEstimate, newAccountCount, newCategoryCount }}
       previewGroups={previewGroups}
       buildError={importBuild.errors[0] ?? null}

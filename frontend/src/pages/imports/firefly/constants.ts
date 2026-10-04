@@ -56,33 +56,6 @@ export const FIREFLY_ACCOUNTS_REQUIRED_HEADERS = [
 export const FIREFLY_ACTIVE_VALUE = '1'
 export const FIREFLY_INACTIVE_VALUE = ''
 
-/**
- * Longest tag name a Lumina tag can hold, mirroring the backend cap
- *
- * Firefly III allows longer tags, and a row carrying one would fail the
- * whole import on the backend, so such rows are dropped before upload
- * with the tag named instead
- */
-export const FIREFLY_TAG_NAME_MAX_LENGTH = 64
-
-// The longest name a Lumina account takes, which Firefly III account names can exceed
-export const FIREFLY_ACCOUNT_NAME_MAX_LENGTH = 256
-
-/**
- * Longest value the import endpoint takes in each row field, mirroring the backend schema
- *
- * An export can still hold a longer value, from Firefly III's longer text fields or a hand-edited
- * file, and one such row would fail the whole import, so it is dropped before upload with
- * the field named instead
- */
-export const FIREFLY_ROW_FIELD_MAX_LENGTHS = {
-  journalId: 64,
-  amount: 64,
-  description: 1024,
-  category: 256,
-  payee: 256,
-} as const
-
 export const FIREFLY_TAG_TOO_LONG_REASON = 'Tag name is too long'
 
 /**
@@ -129,17 +102,10 @@ export const FIREFLY_BUDGET_PERIOD_ENDS_BEFORE_START_REASON = 'A limit period en
 export const FIREFLY_BUDGET_OVERLAPPING_PERIODS_REASON = 'Two of its limit periods overlap'
 
 /**
- * Longest budget name, most limit periods and most tracked categories the budget import takes,
- * mirroring the backend schema
+ * Most limit periods and most tracked categories the budget import takes, mirroring the backend schema
  */
-export const FIREFLY_BUDGET_NAME_MAX_LENGTH = 256
 export const FIREFLY_BUDGET_MAX_LIMIT_PERIODS = 1200
 export const FIREFLY_BUDGET_MAX_CATEGORIES = 1000
-
-/**
- * Most budgets one import takes, mirroring the backend schema
- */
-export const FIREFLY_MAX_BUDGETS = 1000
 
 /**
  * Longest cadence the budget import stores, the largest value its small-integer column holds
@@ -288,7 +254,6 @@ export function getFireflySplitTitleLine(groupTitle: string) {
   return `Split transaction: ${groupTitle}`
 }
 
-export const FIREFLY_SAMPLE_PREVIEW_LIMIT = 5
 export const FIREFLY_CSV_PROCESSING_MIN_MS = LOADING_ANIMATION_MIN_MS
 
 // Marks a new category renamed because an existing one holds its name for another kind

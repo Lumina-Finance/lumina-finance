@@ -1,6 +1,5 @@
 import type { CsvRow, PreviewTransactionRow } from '@/pages/imports/types'
-import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
-import { getPreviewDateLabel } from '@/pages/imports/utils'
+import { buildPreviewTransactionRow, getPreviewCounterpartyScope } from '@/pages/imports/utils'
 import {
   getFireflyRowDate,
   getFireflyRowSentNotes,
@@ -48,17 +47,6 @@ export function buildFireflyPreviewRows(options: BuildFireflyPreviewRowsOptions)
 }
 
 /**
- * Resolves what a previewed leg records about where its money went, mirroring the commit
- */
-function getFireflyLegCounterpartyScope(leg: FireflyResolvedLeg) {
-  if (leg.counterpartyAccount) return 'tracked'
-  if (!leg.category) return null
-  return doesTransferRecordCounterpartyAccount(leg.category.kind, leg.category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
-    ? 'outside'
-    : null
-}
-
-/**
  * Wraps one resolved leg in the shape the shared transaction row renders
  */
 function buildFireflyPreviewRow(
@@ -68,49 +56,26 @@ function buildFireflyPreviewRow(
   timestamp: string,
   groupSizes: FireflySplitGroupSizes,
 ): PreviewTransactionRow {
-  const id = `firefly-preview-${row.journal_id.trim()}-${legIndex}`
-  const dt = getFireflyRowDate(row.date ?? '')
-  const tagNames = splitFireflyTags(row.tags ?? '')
-  const tagIds = tagNames.map((tag, tagIndex) => `${id}-tag-${tagIndex}-${tag}`)
-
   // The commit joins the journal description and the notes the row is sent with into the leg notes
   const notes = [row.description, getFireflyRowSentNotes(row, groupSizes)]
     .map((part) => part?.trim() ?? '')
     .filter(Boolean)
     .join('\n')
 
-  return {
-    id,
-    accountInstitution: leg.account.institution,
-    accountName: leg.account.name,
+  // An account queued for creation carries the create sentinel until the import mints its id, the
+  // same stand-in the leg's own account uses. A transfer leg with no second endpoint in the export
+  // records that the money left the app, as the commit does
+  return buildPreviewTransactionRow({
+    id: `firefly-preview-${row.journal_id.trim()}-${legIndex}`,
+    account: leg.account,
     category: leg.category,
-    currency: leg.account.currency,
-    dateLabel: getPreviewDateLabel(dt),
-    counterpartyAccountName: leg.counterpartyAccount?.name,
-    transaction: {
-      id,
-      created_by_user_id: 'import-preview',
-      account_id: leg.account.id,
-      dt,
-      merchant_id: leg.merchantName ? `${id}-merchant` : null,
-      merchant_name: leg.merchantName,
-      category_id: leg.category?.id ?? '',
-      amount: leg.amount,
-      account_amount: leg.amount,
-      base_currency_amount: leg.amount,
-      currency: leg.account.currency,
-      fx_rate: null,
-      notes: notes || null,
-
-      // An account queued for creation carries the create sentinel until the import mints its id,
-      // the same stand-in the leg's own account uses above. A transfer leg with no second endpoint
-      // in the export records that the money left the app, as the commit does
-      counterparty_account_id: leg.counterpartyAccount?.id ?? null,
-      counterparty_account_scope: getFireflyLegCounterpartyScope(leg),
-      created_at: timestamp,
-      updated_at: timestamp,
-      tag_ids: tagIds,
-      tags: tagNames.map((tag, tagIndex) => ({ id: tagIds[tagIndex], group_id: null, name: tag })),
-    },
-  }
+    dt: getFireflyRowDate(row.date ?? ''),
+    amount: leg.amount,
+    merchantName: leg.merchantName,
+    notes: notes || null,
+    counterpartyAccount: leg.counterpartyAccount,
+    counterpartyScope: getPreviewCounterpartyScope(leg.category, leg.counterpartyAccount),
+    tagNames: splitFireflyTags(row.tags ?? ''),
+    timestamp,
+  })
 }

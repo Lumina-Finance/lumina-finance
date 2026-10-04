@@ -4,9 +4,6 @@ import type { Currency } from '@/api/currency'
 import type { JournalImportPayload, JournalImportRow } from '@/api/provider-imports'
 import type { TransactionImportCategoryMapping } from '@/api/transaction-imports'
 import {
-  ACTUAL_ACCOUNT_NAME_MAX_LENGTH,
-  ACTUAL_CATEGORY_NAME_MAX_LENGTH,
-  ACTUAL_JOURNAL_ID_MAX_LENGTH,
   ACTUAL_TRANSACTION_DECIMALS,
   getActualAccountNameTooLongError,
   getActualAmountPrecisionReason,
@@ -35,6 +32,9 @@ import {
   getImportNoRowsError,
   getImportReadOnlyAccountMappingError,
   getTooManyMappingsError,
+  IMPORT_ACCOUNT_NAME_MAX_LENGTH,
+  IMPORT_CATEGORY_NAME_MAX_LENGTH,
+  JOURNAL_ROW_FIELD_MAX_LENGTHS,
 } from '@/pages/imports/constants'
 import type { ImportCategoryKind, ImportCategoryRename } from '@/pages/imports/types'
 import { isImportableAccount } from '@/pages/imports/utils/accountScope'
@@ -186,7 +186,7 @@ function buildAccountMappings(
       continue
     }
 
-    if ([...source.name].length > ACTUAL_ACCOUNT_NAME_MAX_LENGTH) {
+    if ([...source.name].length > IMPORT_ACCOUNT_NAME_MAX_LENGTH) {
       addError(getActualAccountNameTooLongError(source.label))
       continue
     }
@@ -279,7 +279,7 @@ function buildCategoryMappings(
       addError(getActualPaymentCategoryError(source.label, name))
       continue
     }
-    if (name.length > ACTUAL_CATEGORY_NAME_MAX_LENGTH) {
+    if (name.length > IMPORT_CATEGORY_NAME_MAX_LENGTH) {
       addError(getActualCategoryNameTooLongError(source.label))
       continue
     }
@@ -328,8 +328,10 @@ function buildRows(journal: ActualJournal, accountCurrencies: Map<string, string
     if (entry.categorySourceId) writtenCategorySources.add(entry.categorySourceId)
     const isDeposit = entry.type === 'deposit'
     rows.push({
-      // The row id only names a row in an error, and the end of a long one is the part's own id
-      journal_id: entry.transactionId.slice(-ACTUAL_JOURNAL_ID_MAX_LENGTH),
+      // The row id only names a row in an error, and the end of a long one is the part's own id. Actual ids
+      // are 36 characters, but a split part written by an early Actual version keeps the id
+      // `<parent id>/<part id>` it was given then
+      journal_id: entry.transactionId.slice(-JOURNAL_ROW_FIELD_MAX_LENGTHS.journalId),
       type: entry.type,
       dt: entry.date,
       amount,

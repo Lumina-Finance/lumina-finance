@@ -1,12 +1,17 @@
 import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
-import { MAX_IMPORT_NOTES_LENGTH, MAX_IMPORT_TAGS_PER_ROW, getRowNotesTooLongReason, getRowTooManyTagsReason } from '@/pages/imports/constants'
+import {
+  IMPORT_TAG_NAME_MAX_LENGTH,
+  JOURNAL_ROW_FIELD_MAX_LENGTHS,
+  MAX_IMPORT_NOTES_LENGTH,
+  MAX_IMPORT_TAGS_PER_ROW,
+  getRowNotesTooLongReason,
+  getRowTooManyTagsReason,
+} from '@/pages/imports/constants'
 import type { AccountType } from '@/api/accounts'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME } from '@/utils/transfers'
 import {
   ACTUAL_ACCOUNT_TYPES,
   ACTUAL_OFF_BUDGET_CATEGORY_SOURCE_PREFIX,
-  ACTUAL_PAYEE_NAME_MAX_LENGTH,
-  ACTUAL_TAG_NAME_MAX_LENGTH,
   ACTUAL_TRANSACTION_DECIMALS,
   ACTUAL_TRANSFER_CATEGORY_NAME,
   ACTUAL_TRANSFER_SIDE_LEFT_OUT_REASON,
@@ -279,7 +284,7 @@ function buildTransferPair(
 // An account name becomes a merchant when a payment is filed as spending, and one too long for a
 // merchant name leaves the row without one
 function getMerchantSafeName(name: string) {
-  return [...name].length > ACTUAL_PAYEE_NAME_MAX_LENGTH ? null : name || null
+  return [...name].length > JOURNAL_ROW_FIELD_MAX_LENGTHS.payee ? null : name || null
 }
 
 function getOneSidedAccounts(transaction: ActualTransaction, account: ActualAccount) {
@@ -299,10 +304,10 @@ function getRowLimitReason(notes: string | null, tags: string[], payeeName: stri
   const notesLength = [...(notes ?? '')].length
   if (notesLength > MAX_IMPORT_NOTES_LENGTH) return getRowNotesTooLongReason(notesLength)
   if (tags.length > MAX_IMPORT_TAGS_PER_ROW) return getRowTooManyTagsReason(tags.length)
-  const longTag = tags.find((tag) => [...tag].length > ACTUAL_TAG_NAME_MAX_LENGTH)
+  const longTag = tags.find((tag) => [...tag].length > IMPORT_TAG_NAME_MAX_LENGTH)
   if (longTag) return getActualTagTooLongReason(longTag)
   const payeeLength = [...(payeeName ?? '')].length
-  if (payeeLength > ACTUAL_PAYEE_NAME_MAX_LENGTH) return getActualPayeeTooLongReason(payeeLength)
+  if (payeeLength > JOURNAL_ROW_FIELD_MAX_LENGTHS.payee) return getActualPayeeTooLongReason(payeeLength)
   return null
 }
 

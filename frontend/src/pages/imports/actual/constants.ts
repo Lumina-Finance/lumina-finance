@@ -1,6 +1,13 @@
 import type { AccountType } from '@/api/accounts'
 import type { ImportFileType } from '@/pages/imports/utils/fileIntake'
 import type { ActualPaymentMode } from '@/pages/imports/actual/types'
+import {
+  IMPORT_ACCOUNT_NAME_MAX_LENGTH,
+  IMPORT_BUDGET_NAME_MAX_LENGTH,
+  IMPORT_CATEGORY_NAME_MAX_LENGTH,
+  IMPORT_TAG_NAME_MAX_LENGTH,
+  JOURNAL_ROW_FIELD_MAX_LENGTHS,
+} from '@/pages/imports/constants'
 
 const MIB = 1024 * 1024
 
@@ -65,13 +72,6 @@ export const ACTUAL_REQUIRED_COLUMNS: Record<string, string[]> = {
 /** Where to get a file the import reads, repeated in each refusal that means the wrong file came */
 export const ACTUAL_FILE_GUIDANCE = "Choose the .zip from Actual's Settings under Export data, or the db.sqlite in Actual's data folder."
 
-/**
- * Longest tag and payee the import endpoint takes, mirroring the backend schema. Actual takes
- * longer ones, and one such row would fail the whole import, so it is left out with the value named
- */
-export const ACTUAL_TAG_NAME_MAX_LENGTH = 64
-export const ACTUAL_PAYEE_NAME_MAX_LENGTH = 256
-
 /** Prefixes that keep each category role's mapping sources apart from Actual's category ids */
 export const ACTUAL_TRANSFER_CATEGORY_SOURCE_PREFIX = 'transfer:'
 export const ACTUAL_OFF_BUDGET_CATEGORY_SOURCE_PREFIX = 'off-budget:'
@@ -91,11 +91,11 @@ export function getActualUnbalancedSplitReason(partsTotal: string, total: string
 }
 
 export function getActualTagTooLongReason(tag: string) {
-  return `The tag #${tag.slice(0, 28)} is longer than the ${ACTUAL_TAG_NAME_MAX_LENGTH} characters a tag can have`
+  return `The tag #${tag.slice(0, 28)} is longer than the ${IMPORT_TAG_NAME_MAX_LENGTH} characters a tag can have`
 }
 
 export function getActualPayeeTooLongReason(length: number) {
-  return `The payee is ${length.toLocaleString()} characters, and the importer takes up to ${ACTUAL_PAYEE_NAME_MAX_LENGTH}`
+  return `The payee is ${length.toLocaleString()} characters, and the importer takes up to ${JOURNAL_ROW_FIELD_MAX_LENGTHS.payee}`
 }
 
 export const ACTUAL_INCOME_BUDGET_REASON = 'Budgets only track expenses, so income budgets aren\'t imported'
@@ -124,22 +124,15 @@ export const ACTUAL_ACCOUNT_TYPES: Record<string, AccountType> = {
   debt: 'loan',
 }
 
-// The longest name a Lumina account takes, which an Actual account name can exceed
-export const ACTUAL_ACCOUNT_NAME_MAX_LENGTH = 256
-
-// The longest name a Lumina category or budget takes, which an Actual category name can exceed
-export const ACTUAL_CATEGORY_NAME_MAX_LENGTH = 256
-export const ACTUAL_BUDGET_NAME_MAX_LENGTH = 256
-
 // Marks a new category renamed because an existing one holds its name for another kind, as Actual
 // Budget's users call it
 export const ACTUAL_CATEGORY_RENAME_APP_NAME = 'Actual'
 
 export function getActualCategoryNameTooLongError(label: string) {
-  return `Match ${label} to an existing category, since a new category name holds at most ${ACTUAL_CATEGORY_NAME_MAX_LENGTH} characters.`
+  return `Match ${label} to an existing category, since a new category name holds at most ${IMPORT_CATEGORY_NAME_MAX_LENGTH} characters.`
 }
 
-export const ACTUAL_BUDGET_NAME_TOO_LONG_REASON = `Its name is over ${ACTUAL_BUDGET_NAME_MAX_LENGTH} characters, longer than a budget name can be`
+export const ACTUAL_BUDGET_NAME_TOO_LONG_REASON = `Its name is over ${IMPORT_BUDGET_NAME_MAX_LENGTH} characters, longer than a budget name can be`
 
 export function getActualAmountPrecisionReason(amount: string, currencyCode: string) {
   return `The amount ${amount} has more decimal places than ${currencyCode} holds`
@@ -177,14 +170,8 @@ export function getActualPaymentsHelp(categoryName: string, isIncome: boolean) {
 }
 
 export function getActualAccountNameTooLongError(label: string) {
-  return `Link to an existing account, since a new account name holds at most ${ACTUAL_ACCOUNT_NAME_MAX_LENGTH} characters: ${label}`
+  return `Link to an existing account, since a new account name holds at most ${IMPORT_ACCOUNT_NAME_MAX_LENGTH} characters: ${label}`
 }
-
-// How many transactions the preview shows before the import
-export const ACTUAL_SAMPLE_PREVIEW_LIMIT = 5
-
-// The budget import takes a bounded number of budgets at once
-export const ACTUAL_MAX_BUDGETS = 1000
 
 // The page Actual keeps on exporting a budget, linked rather than repeated so the steps stay current
 export const ACTUAL_EXPORT_DOCS_URL = 'https://actualbudget.org/docs/backup-restore/backup/'
@@ -211,7 +198,3 @@ export const ACTUAL_MISCELLANEOUS_CATEGORY_NAME = 'Miscellaneous'
 // An account created from Actual opens with the starting balance Actual recorded for it, written as
 // a balance adjustment, so the shared note about adding one does not apply
 export const ACTUAL_CREATED_ACCOUNT_EXPLANATION = 'These will be created as new accounts, each opening with the starting balance Actual recorded and no credit limit:'
-
-// The longest row id an import upload takes. Actual ids are 36 characters, but a split part written
-// by an early Actual version keeps the id `<parent id>/<part id>` it was given then
-export const ACTUAL_JOURNAL_ID_MAX_LENGTH = 64

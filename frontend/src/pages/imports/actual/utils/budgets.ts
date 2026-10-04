@@ -2,14 +2,13 @@ import type { ImportBudgetRecurrence, ImportRunBudgets } from '@/api/provider-im
 import type { Category } from '@/api/categories'
 import type { TransactionImportCategoryMapping } from '@/api/transaction-imports'
 import {
-  ACTUAL_BUDGET_NAME_MAX_LENGTH,
   ACTUAL_BUDGET_NAME_TOO_LONG_REASON,
   ACTUAL_BUDGET_NOT_EXPENSE_REASON,
   ACTUAL_INCOME_BUDGET_REASON,
   getActualBudgetAmountReason,
   getActualBudgetGroupCategoryReason,
 } from '@/pages/imports/actual/constants'
-import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
+import { CREATE_CATEGORY_VALUE, IMPORT_BUDGET_NAME_MAX_LENGTH } from '@/pages/imports/constants'
 import type { ActualBudgetFile } from '@/pages/imports/actual/types'
 import type { ImportCategoryKind } from '@/pages/imports/types'
 import { formatScaledAmount } from './amounts'
@@ -84,7 +83,7 @@ export function buildActualBudgetDrafts(budget: ActualBudgetFile, currentMonth: 
       isArchived: category.hidden,
       disabledReason: category.isIncome
         ? ACTUAL_INCOME_BUDGET_REASON
-        : name.length > ACTUAL_BUDGET_NAME_MAX_LENGTH ? ACTUAL_BUDGET_NAME_TOO_LONG_REASON : null,
+        : name.length > IMPORT_BUDGET_NAME_MAX_LENGTH ? ACTUAL_BUDGET_NAME_TOO_LONG_REASON : null,
     })
   }
   return drafts.sort((a, b) => a.name.localeCompare(b.name))

@@ -2,7 +2,7 @@ import { useId, type ReactNode } from 'react'
 import { CircleHelp } from 'lucide-react'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
-import { IMPORT_CATEGORY_KIND_OPTIONS } from '@/pages/imports/constants'
+import { IMPORT_CATEGORY_KIND_OPTIONS, IMPORT_CATEGORY_NAME_MAX_LENGTH } from '@/pages/imports/constants'
 import type { ImportCategoryKind } from '@/pages/imports/types'
 import { ImportSegmentedToggle } from './SegmentedToggle'
 
@@ -118,7 +118,7 @@ export function ImportValueMatchTable({
                           className={`app-input h-[var(--app-dropdown-height-compact)] min-w-0 flex-1 ${row.rename.isProposed || !row.rename.value.trim() ? 'app-input-error' : ''}`}
                           aria-label={row.rename.label}
                           aria-invalid={!row.rename.value.trim()}
-                          maxLength={256}
+                          maxLength={IMPORT_CATEGORY_NAME_MAX_LENGTH}
                           value={row.rename.value}
                           onChange={(event) => row.rename?.onChange(event.target.value)}
                           disabled={disabled}

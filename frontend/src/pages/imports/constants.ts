@@ -164,6 +164,31 @@ export const SKIP_MERCHANT_VALUE = '__skip_merchant__'
 export const MAX_IMPORT_NOTES_LENGTH = 10_000
 export const MAX_IMPORT_TAGS_PER_ROW = 32
 
+// The longest names the API takes for what an import creates. A source app can hold longer ones,
+// so each import refuses or leaves out an overlong name before upload, naming it
+export const IMPORT_ACCOUNT_NAME_MAX_LENGTH = 256
+export const IMPORT_CATEGORY_NAME_MAX_LENGTH = 256
+export const IMPORT_TAG_NAME_MAX_LENGTH = 64
+export const IMPORT_BUDGET_NAME_MAX_LENGTH = 256
+
+// Most budgets one import takes, mirroring the backend schema
+export const IMPORT_MAX_BUDGETS = 1000
+
+/**
+ * Longest value the journal import endpoint takes in each row field, mirroring the backend schema
+ *
+ * An export can still hold a longer value, from the source app's longer text fields or a
+ * hand-edited file, and one such row would fail the whole import, so it is left out before upload
+ * with the field named instead
+ */
+export const JOURNAL_ROW_FIELD_MAX_LENGTHS = {
+  journalId: 64,
+  amount: 64,
+  description: 1024,
+  category: 256,
+  payee: 256,
+} as const
+
 // Distinct account or category values one import may declare, matching what the API accepts across
 // a whole run rather than per request, so splitting the batches differently cannot get past it
 export const MAX_IMPORT_MAPPINGS = 1_000

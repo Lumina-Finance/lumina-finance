@@ -3,7 +3,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { getTodayYmd, resolveTimeZone } from '@/utils/date'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
-import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
+import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, IMPORT_MAX_BUDGETS, IMPORT_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/constants'
 import {
   useImportAccountCreateState,
   useImportBudgetSelection,
@@ -27,8 +27,6 @@ import {
 import {
   ACTUAL_CATEGORY_RENAME_APP_NAME,
   ACTUAL_IMPORT_FILE_TYPE,
-  ACTUAL_MAX_BUDGETS,
-  ACTUAL_SAMPLE_PREVIEW_LIMIT,
   ACTUAL_TRANSFER_CATEGORY_NAME,
   getActualUnsupportedCurrencyError,
 } from '@/pages/imports/actual/constants'
@@ -393,7 +391,7 @@ export function useActualImportWorkflow() {
     [budget, currencyExponent, importBuild, pendingBudgetDrafts],
   )
 
-  const budgetSelectionError = getProviderBudgetSelectionError(pendingBudgetDrafts.length, ACTUAL_MAX_BUDGETS, runBudgetsBuild.error)
+  const budgetSelectionError = getProviderBudgetSelectionError(pendingBudgetDrafts.length, IMPORT_MAX_BUDGETS, runBudgetsBuild.error)
 
   // Rows the reader left out and rows the chosen currency can't hold, in date order
   const predictedSkippedRows = useMemo(
@@ -431,7 +429,7 @@ export function useActualImportWorkflow() {
       balanceAdjustmentCategory,
       currencies,
       skippedTransactionIds,
-    }, ACTUAL_SAMPLE_PREVIEW_LIMIT),
+    }, IMPORT_SAMPLE_PREVIEW_LIMIT),
     [
       accountById,
       balanceAdjustmentCategory,

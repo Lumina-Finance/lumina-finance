@@ -195,7 +195,7 @@ describe('import preview rows', () => {
         amount: -1234n,
         account_amount: -1234n,
         fx_rate: null,
-        merchant_id: 'import-preview-merchant-file-1-0',
+        merchant_id: 'file-1-0-merchant',
         merchant_name: 'Market',
         notes: 'Weekly shop',
         tag_ids: ['file-1-0-tag-0-food', 'file-1-0-tag-1-essentials'],

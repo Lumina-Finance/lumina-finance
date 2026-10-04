@@ -17,9 +17,10 @@ import {
   getImportNoRowsError,
   getTooManyMappingsError,
   MAX_IMPORT_MAPPINGS,
+  IMPORT_ACCOUNT_NAME_MAX_LENGTH,
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportCategoryKind, ImportCategoryRename, ImportFileDraft } from '@/pages/imports/types'
-import { FIREFLY_ACCOUNT_NAME_MAX_LENGTH, FIREFLY_TYPE_DEPOSIT } from '@/pages/imports/firefly/constants'
+import { FIREFLY_TYPE_DEPOSIT } from '@/pages/imports/firefly/constants'
 import type { FireflyAccountSources, FireflyImportBuildResult } from '@/pages/imports/firefly/types'
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import { isImportableAccount } from '@/pages/imports/utils/accountScope'
@@ -157,7 +158,7 @@ export function buildFireflyImportPayload({
 
     // Firefly III takes longer account names than Lumina does, and the name is the only thing a
     // new account could carry over, so such an account can only be mapped to an existing one
-    if (countCharacters(name) > FIREFLY_ACCOUNT_NAME_MAX_LENGTH) {
+    if (countCharacters(name) > IMPORT_ACCOUNT_NAME_MAX_LENGTH) {
       addError(getFireflyAccountNameTooLongError(label))
       continue
     }
@@ -311,7 +312,7 @@ function buildFireflyImportRows(
 }
 
 function getFireflyAccountNameTooLongError(label: string) {
-  return `Map to an existing account, since a new account name holds at most ${FIREFLY_ACCOUNT_NAME_MAX_LENGTH} characters: ${label}`
+  return `Map to an existing account, since a new account name holds at most ${IMPORT_ACCOUNT_NAME_MAX_LENGTH} characters: ${label}`
 }
 
 function cleanOptional(value: string | undefined) {

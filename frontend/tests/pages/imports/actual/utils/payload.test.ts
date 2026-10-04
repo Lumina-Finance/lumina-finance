@@ -7,7 +7,6 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import {
   ACTUAL_CATEGORY_RENAME_APP_NAME,
-  ACTUAL_JOURNAL_ID_MAX_LENGTH,
   getActualAmountPrecisionReason,
   getActualCategoryNameTooLongError,
   getActualFileCurrencyError,
@@ -31,6 +30,7 @@ import {
   getImportGroupAccountError,
   getImportGroupCategoryError,
   getImportReadOnlyAccountMappingError,
+  JOURNAL_ROW_FIELD_MAX_LENGTHS,
 } from '@/pages/imports/constants'
 import type { ImportCategoryKind } from '@/pages/imports/types'
 import { getImportCategoryRenames } from '@/pages/imports/utils'
@@ -387,7 +387,7 @@ describe('Actual Budget import payload', () => {
 
     expect(build.errors).toEqual([])
     const sent = build.payload!.rows[0].journal_id
-    expect(sent).toHaveLength(ACTUAL_JOURNAL_ID_MAX_LENGTH)
+    expect(sent).toHaveLength(JOURNAL_ROW_FIELD_MAX_LENGTHS.journalId)
     expect(sent.endsWith(partId)).toBe(true)
   })
 

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { waitForMilliseconds } from '@/utils/timing'
-import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
+import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, IMPORT_MAX_BUDGETS, IMPORT_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/constants'
 import {
   useImportAccountCreateState,
   useImportBudgetSelection,
@@ -24,8 +24,6 @@ import {
 import {
   FIREFLY_CATEGORY_RENAME_APP_NAME,
   FIREFLY_CSV_PROCESSING_MIN_MS,
-  FIREFLY_MAX_BUDGETS,
-  FIREFLY_SAMPLE_PREVIEW_LIMIT,
   FIREFLY_TRANSFER_CATEGORY_NAME,
 } from '@/pages/imports/firefly/constants'
 import type { FireflyFileKind } from '@/pages/imports/firefly/types'
@@ -289,7 +287,7 @@ export function useFireflyImportWorkflow() {
   const previewRows = useMemo(
     () => buildFireflyPreviewRows({
       rows: fireflyRows,
-      limit: FIREFLY_SAMPLE_PREVIEW_LIMIT,
+      limit: IMPORT_SAMPLE_PREVIEW_LIMIT,
       accountSources,
       accountById,
       accountMappings: resolvedAccountMappings,
@@ -483,7 +481,7 @@ export function useFireflyImportWorkflow() {
     [importBuild.payload, pendingBudgetDrafts],
   )
 
-  const budgetSelectionError = getProviderBudgetSelectionError(pendingBudgetDrafts.length, FIREFLY_MAX_BUDGETS, runBudgetsBuild.error)
+  const budgetSelectionError = getProviderBudgetSelectionError(pendingBudgetDrafts.length, IMPORT_MAX_BUDGETS, runBudgetsBuild.error)
 
   const canCommitImport = run.canCommit({
     hasPayload: importBuild.payload !== null,
