@@ -1,0 +1,139 @@
+"""Turning the problems a SimpleFIN account set reports into the contract's typed failures
+
+Each errlist code has a prefix: gen for the whole request, con for a bank login and act for an
+account, and an entry may name the login or account it affects. A message SimpleFIN sends is meant
+for the user, so it becomes the failure's reason
+"""
+
+import re
+from collections.abc import Sequence
+
+from app.services.bank_sync.providers.contract import ExternalAccount, FetchResult, ProviderError, ProviderErrorKind
+from app.services.bank_sync.providers.simplefin.account_set import AccountSet, Problem, is_possibly_cut_off
+
+CREDENTIAL_REJECTED_MESSAGE = "SimpleFIN Bridge rejected the stored access credential"
+RATE_LIMITED_MESSAGE = "SimpleFIN Bridge asked Lumina Finance to make fewer requests"
+_BANK_LOGIN_MESSAGE = "SimpleFIN Bridge says your bank needs you to sign in again"
+_REPORTED_MESSAGE = "SimpleFIN Bridge reported a problem"
+_MISSING_ACCOUNT_MESSAGE = "SimpleFIN Bridge didn't return this account"
+
+# The reason for a problem SimpleFIN sends without a message
+_FALLBACK_REASONS = {
+    ProviderErrorKind.CREDENTIAL_REJECTED: CREDENTIAL_REJECTED_MESSAGE,
+    ProviderErrorKind.BANK_LOGIN_NEEDED: _BANK_LOGIN_MESSAGE,
+    ProviderErrorKind.RATE_LIMITED: RATE_LIMITED_MESSAGE,
+    ProviderErrorKind.TEMPORARY: _REPORTED_MESSAGE,
+    ProviderErrorKind.UNKNOWN: _REPORTED_MESSAGE,
+}
+
+# When several failures affect one request, login or account, the first of these wins
+_PRECEDENCE = (
+    ProviderErrorKind.CREDENTIAL_REJECTED,
+    ProviderErrorKind.BANK_LOGIN_NEEDED,
+    ProviderErrorKind.RATE_LIMITED,
+    ProviderErrorKind.TEMPORARY,
+    ProviderErrorKind.UNKNOWN,
+)
+
+# How SimpleFIN Bridge words a warning that its request quota is spent, in a general errlist entry
+# or the older errors list. Unverified against real SimpleFIN Bridge data
+_QUOTA_WARNING = re.compile(r"fewer requests|refresh limit|rate[ -]?limit|too many requests", re.IGNORECASE)
+
+# SimpleFIN's demo Bridge sends this as gen.api beside the whole history when a request spans more
+# than 45 days, so beside data it is a note and not a failure. A refusal that comes back without
+# accounts still fails
+_RANGE_NOTE = re.compile(r"exceeds recommended range", re.IGNORECASE)
+
+
+def fetch_result(
+    account_set: AccountSet,
+    accounts: tuple[ExternalAccount, ...],
+    *,
+    requested_account_ids: Sequence[str] = (),
+) -> FetchResult:
+    """Combine the accounts read from a response with the problems it reports
+
+    Args:
+        account_set: The parsed response
+        accounts: Its accounts, already normalized
+        requested_account_ids: The accounts a fetch asked for, each failing when the response
+            leaves it out without saying why
+
+    Returns:
+        The result, failing the whole request when a problem affects every account in it
+    """
+    has_data = bool(account_set.accounts)
+    request_errors: list[ProviderError] = []
+    login_errors: dict[str, ProviderError] = {}
+    account_errors: dict[str, ProviderError] = {}
+    warnings: list[ProviderError] = []
+
+    for problem in account_set.errlist:
+        kind, is_warning = _classify(problem, has_data=has_data)
+        error = ProviderError(kind, problem.msg.strip() or _FALLBACK_REASONS[kind])
+        if is_warning:
+            warnings.append(error)
+        elif kind is ProviderErrorKind.CREDENTIAL_REJECTED:
+            request_errors.append(error)
+        elif problem.account_id and kind is not ProviderErrorKind.BANK_LOGIN_NEEDED:
+            _keep_most_serious(account_errors, problem.account_id, error)
+        elif problem.conn_id:
+            _keep_most_serious(login_errors, problem.conn_id, error)
+        else:
+            request_errors.append(error)
+
+    for message in account_set.errors:
+        if _QUOTA_WARNING.search(message):
+            error = ProviderError(ProviderErrorKind.RATE_LIMITED, message.strip())
+            (warnings if has_data else request_errors).append(error)
+
+    # A quota warning can arrive in both lists
+    unique_warnings = tuple(dict.fromkeys(warnings))
+    if request_errors:
+        return FetchResult(request_error=min(request_errors, key=_seriousness), warnings=unique_warnings)
+
+    returned_ids = {account.external_id for account in accounts}
+    for account_id in requested_account_ids:
+        if account_id not in returned_ids and account_id not in account_errors:
+            account_errors[account_id] = ProviderError(ProviderErrorKind.TEMPORARY, _MISSING_ACCOUNT_MESSAGE)
+
+    return FetchResult(
+        accounts=accounts,
+        account_errors=account_errors,
+        login_errors=login_errors,
+        warnings=unique_warnings,
+        possibly_cut_off=is_possibly_cut_off(account_set),
+    )
+
+
+def _classify(problem: Problem, *, has_data: bool) -> tuple[ProviderErrorKind, bool]:
+    """Return the failure a problem stands for, and whether it is only a warning beside data kept
+
+    An unknown subcode takes its prefix's meaning, except that an unknown general code beside
+    account data is only a warning. A general quota warning beside data is one too
+    """
+    prefix = problem.code.partition(".")[0]
+    if problem.code == "gen.auth":
+        return ProviderErrorKind.CREDENTIAL_REJECTED, False
+    if prefix == "gen" and _QUOTA_WARNING.search(problem.msg):
+        return ProviderErrorKind.RATE_LIMITED, has_data
+    if problem.code == "gen.api":
+        return ProviderErrorKind.TEMPORARY, has_data and bool(_RANGE_NOTE.search(problem.msg))
+    if prefix == "gen":
+        return ProviderErrorKind.UNKNOWN, has_data
+    if prefix == "con":
+        return ProviderErrorKind.BANK_LOGIN_NEEDED, False
+    if prefix == "act":
+        return ProviderErrorKind.TEMPORARY, False
+    return ProviderErrorKind.UNKNOWN, False
+
+
+def _seriousness(error: ProviderError) -> int:
+    """Return where an error's kind falls in precedence, lowest first"""
+    return _PRECEDENCE.index(error.kind)
+
+
+def _keep_most_serious(errors: dict[str, ProviderError], key: str, error: ProviderError) -> None:
+    """Record an error under a key unless a more serious one is already there"""
+    if key not in errors or _seriousness(error) < _seriousness(errors[key]):
+        errors[key] = error

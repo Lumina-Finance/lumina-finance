@@ -15,7 +15,8 @@ import httpx
 
 from app.config.bank_sync import BANK_SYNC_SIMPLEFIN_ORIGINS, BANK_SYNC_SIMPLEFIN_TEST_ORIGIN
 from app.config.runtime import APP_VERSION
-from app.services.bank_sync.outbound import AddressRefused, OriginRefused, OutboundGuard, OutboundRefused
+from app.http_client import ResponseTooLargeError
+from app.services.bank_sync.outbound import AddressRefused, OriginRefused, OutboundGuard
 from app.services.bank_sync.providers.contract import (
     ClaimRefused,
     ConnectsFrom,
@@ -28,10 +29,10 @@ from app.services.bank_sync.providers.contract import (
 from app.services.bank_sync.providers.simplefin.account_set import (
     RecordDating,
     UnreadableAccountSet,
-    is_possibly_cut_off,
     read_account_set,
     read_external_accounts,
 )
+from app.services.bank_sync.providers.simplefin.errlist import CREDENTIAL_REJECTED_MESSAGE, RATE_LIMITED_MESSAGE, fetch_result
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,9 @@ _SETUP_HOST_NOT_ALLOWED_MESSAGE = "This setup token points to {host}, which this
 _SETUP_ALREADY_USED_MESSAGE = "This setup token has already been used. Create a new one in SimpleFIN Bridge"
 _UNREACHABLE_MESSAGE = "SimpleFIN Bridge couldn't be reached"
 _UNREADABLE_MESSAGE = "SimpleFIN Bridge sent a response Lumina Finance couldn't read"
+_TIMED_OUT_MESSAGE = "SimpleFIN Bridge did not respond in time"
+_PAYMENT_MESSAGE = "SimpleFIN Bridge reports a payment problem"
+_SERVER_NOT_ALLOWED_MESSAGE = "This Lumina Finance server is not set up to contact {host}"
 
 
 class SimpleFinAdapter(ProviderAdapter):
@@ -129,7 +133,9 @@ class SimpleFinAdapter(ProviderAdapter):
         params.extend(("account", account_id) for account_id in account_ids)
 
         dating = RecordDating(timezone=timezone, requested_on=datetime.now(timezone).date())
-        return await self._read_accounts(credential, params, currency_exponents=currency_exponents, dating=dating)
+        return await self._read_accounts(
+            credential, params, currency_exponents=currency_exponents, dating=dating, requested_account_ids=account_ids
+        )
 
     def _decode_setup_token(self, setup_token: str) -> httpx.URL:
         """Return the claim URL a setup token holds, once the guard allows its origin
@@ -161,28 +167,57 @@ class SimpleFinAdapter(ProviderAdapter):
         *,
         currency_exponents: Mapping[str, int],
         dating: RecordDating | None,
+        requested_account_ids: Sequence[str] = (),
     ) -> FetchResult:
-        """Send one accounts request and normalize what comes back"""
+        """Send one accounts request and normalize what comes back, or why nothing usable did"""
         base_url, auth = _split_access_url(credential)
         accounts_url = base_url.copy_with(path=f"{base_url.path.rstrip('/')}/accounts")
         try:
             response = await self._guard.send("GET", accounts_url, headers=_HEADERS, params=params, auth=auth)
-        except OutboundRefused, httpx.RequestError:
+
+        # The operator has stopped allowing the server this connection was made with
+        except OriginRefused:
+            return _failed(ProviderErrorKind.CREDENTIAL_REJECTED, _SERVER_NOT_ALLOWED_MESSAGE.format(host=base_url.host))
+        except AddressRefused:
+            logger.warning("Refused to reach SimpleFIN at %s, which resolves to an address that isn't public", base_url.host)
+            return _failed(ProviderErrorKind.TEMPORARY, _UNREACHABLE_MESSAGE)
+        except ResponseTooLargeError:
+            return _failed(ProviderErrorKind.TEMPORARY, _UNREADABLE_MESSAGE)
+        except httpx.TimeoutException:
+            return _failed(ProviderErrorKind.TEMPORARY, _TIMED_OUT_MESSAGE)
+        except httpx.RequestError:
             return _failed(ProviderErrorKind.TEMPORARY, _UNREACHABLE_MESSAGE)
         if response.status_code != 200:
-            return _failed(ProviderErrorKind.TEMPORARY, _UNREACHABLE_MESSAGE)
+            return FetchResult(request_error=_status_error(response))
 
         try:
             account_set = read_account_set(response.content)
             accounts = read_external_accounts(account_set, currency_exponents=currency_exponents, dating=dating)
         except UnreadableAccountSet:
             return _failed(ProviderErrorKind.TEMPORARY, _UNREADABLE_MESSAGE)
-        return FetchResult(accounts=accounts, possibly_cut_off=is_possibly_cut_off(account_set))
+        return fetch_result(account_set, accounts, requested_account_ids=requested_account_ids)
 
 
 def _failed(kind: ProviderErrorKind, reason: str) -> FetchResult:
     """Return a result failing every account in the request"""
     return FetchResult(request_error=ProviderError(kind, reason))
+
+
+def _status_error(response: httpx.Response) -> ProviderError:
+    """Return the failure an accounts response with a status other than 200 stands for"""
+    status = response.status_code
+
+    # SimpleFIN answers a revoked or unknown Access URL with a 403, while the edge in front of it
+    # answers its own failures with an HTML page
+    if status == 403 and not _is_html(response):
+        return ProviderError(ProviderErrorKind.CREDENTIAL_REJECTED, CREDENTIAL_REJECTED_MESSAGE)
+    if status == 429:
+        return ProviderError(ProviderErrorKind.RATE_LIMITED, RATE_LIMITED_MESSAGE)
+    if status == 402:
+        return ProviderError(ProviderErrorKind.PAYMENT_REQUIRED, _PAYMENT_MESSAGE)
+    if status == 403 or status >= 500:
+        return ProviderError(ProviderErrorKind.TEMPORARY, _UNREACHABLE_MESSAGE)
+    return ProviderError(ProviderErrorKind.UNKNOWN, _UNREADABLE_MESSAGE)
 
 
 def _is_html(response: httpx.Response) -> bool:

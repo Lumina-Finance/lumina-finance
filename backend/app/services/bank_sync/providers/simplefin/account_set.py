@@ -74,9 +74,22 @@ class _Connection(_Model):
     org_id: str
 
 
+class Problem(_Model):
+    """A problem SimpleFIN reports in errlist, naming the bank login or account it affects if any"""
+
+    code: str
+    msg: str = ""
+    conn_id: str | None = None
+    account_id: str | None = None
+
+
 class AccountSet(_Model):
     """A SimpleFIN version 2 response to an accounts request"""
 
+    errlist: list[Problem] = []
+
+    # The older list of plain messages, which SimpleFIN Bridge still sends
+    errors: list[str] = []
     connections: list[_Connection] = []
     accounts: list[_Account] = []
 

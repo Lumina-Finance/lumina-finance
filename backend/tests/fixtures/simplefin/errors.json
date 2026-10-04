@@ -1,0 +1,120 @@
+{
+  "credential-rejected": {
+    "errlist": [{"code": "gen.auth", "msg": "Your access token is no longer valid. Create a new setup token to reconnect."}],
+    "errors": ["Your access token is no longer valid. Create a new setup token to reconnect."],
+    "connections": [],
+    "accounts": []
+  },
+  "bridge-api-error": {
+    "errlist": [{"code": "gen.api", "msg": "SimpleFIN Bridge is having trouble right now. Try again later."}],
+    "connections": [],
+    "accounts": []
+  },
+  "bank-login-needed": {
+    "errlist": [{"code": "con.auth", "msg": "Harbour Bank needs you to sign in again.", "conn_id": "CON-harbour"}],
+    "connections": [
+      {"conn_id": "CON-harbour", "name": "Harbour Bank", "org_id": "ORG-harbour", "sfin_url": "https://beta-bridge.simplefin.org/simplefin"},
+      {"conn_id": "CON-harbourline", "name": "Harbourline Card Services", "org_id": "ORG-harbourline", "sfin_url": "https://beta-bridge.simplefin.org/simplefin"}
+    ],
+    "accounts": [
+      {"id": "ACT-chequing", "name": "Everyday Chequing", "conn_id": "CON-harbour", "currency": "USD", "balance": "2510.75", "balance-date": 1791028800, "transactions": []},
+      {"id": "ACT-savings", "name": "Online Savings", "conn_id": "CON-harbour", "currency": "USD", "balance": "8200.00", "balance-date": 1791028800, "transactions": []},
+      {"id": "ACT-visa", "name": "Rewards Visa", "conn_id": "CON-harbourline", "currency": "USD", "balance": "-640.12", "balance-date": 1791115200, "transactions": [
+        {"id": "TRN-streaming", "posted": 1791115200, "amount": "-15.99", "description": "STREAMFLIX.COM"}
+      ]}
+    ]
+  },
+  "bank-login-needed-naming-no-login": {
+    "errlist": [{"code": "con.auth", "msg": ""}],
+    "connections": [
+      {"conn_id": "CON-harbour", "name": "Harbour Bank", "org_id": "ORG-harbour", "sfin_url": "https://beta-bridge.simplefin.org/simplefin"},
+      {"conn_id": "CON-harbourline", "name": "Harbourline Card Services", "org_id": "ORG-harbourline", "sfin_url": "https://beta-bridge.simplefin.org/simplefin"}
+    ],
+    "accounts": [
+      {"id": "ACT-chequing", "name": "Everyday Chequing", "conn_id": "CON-harbour", "currency": "USD", "balance": "2510.75", "balance-date": 1791028800, "transactions": []},
+      {"id": "ACT-savings", "name": "Online Savings", "conn_id": "CON-harbour", "currency": "USD", "balance": "8200.00", "balance-date": 1791028800, "transactions": []},
+      {"id": "ACT-visa", "name": "Rewards Visa", "conn_id": "CON-harbourline", "currency": "USD", "balance": "-640.12", "balance-date": 1791028800, "transactions": []}
+    ]
+  },
+  "account-failed": {
+    "errlist": [{"code": "act.sync", "msg": "Rewards Visa couldn't be updated.", "conn_id": "CON-harbourline", "account_id": "ACT-visa"}],
+    "connections": [
+      {"conn_id": "CON-harbour", "name": "Harbour Bank", "org_id": "ORG-harbour", "sfin_url": "https://beta-bridge.simplefin.org/simplefin"},
+      {"conn_id": "CON-harbourline", "name": "Harbourline Card Services", "org_id": "ORG-harbourline", "sfin_url": "https://beta-bridge.simplefin.org/simplefin"}
+    ],
+    "accounts": [
+      {"id": "ACT-chequing", "name": "Everyday Chequing", "conn_id": "CON-harbour", "currency": "USD", "balance": "2510.75", "balance-date": 1791115200, "transactions": []},
+      {"id": "ACT-savings", "name": "Online Savings", "conn_id": "CON-harbour", "currency": "USD", "balance": "8200.00", "balance-date": 1791115200, "transactions": []},
+      {"id": "ACT-visa", "name": "Rewards Visa", "conn_id": "CON-harbourline", "currency": "USD", "balance": "-640.12", "balance-date": 1791028800, "transactions": []}
+    ]
+  },
+  "unknown-subcodes": {
+    "errlist": [
+      {"code": "con.security_code", "msg": "Harbour Bank wants a security code.", "conn_id": "CON-harbour"},
+      {"code": "act.closing", "msg": "Rewards Visa is being closed.", "conn_id": "CON-harbourline", "account_id": "ACT-visa"}
+    ],
+    "connections": [
+      {"conn_id": "CON-harbour", "name": "Harbour Bank", "org_id": "ORG-harbour", "sfin_url": "https://beta-bridge.simplefin.org/simplefin"},
+      {"conn_id": "CON-harbourline", "name": "Harbourline Card Services", "org_id": "ORG-harbourline", "sfin_url": "https://beta-bridge.simplefin.org/simplefin"}
+    ],
+    "accounts": [
+      {"id": "ACT-chequing", "name": "Everyday Chequing", "conn_id": "CON-harbour", "currency": "USD", "balance": "2510.75", "balance-date": 1791028800, "transactions": []},
+      {"id": "ACT-savings", "name": "Online Savings", "conn_id": "CON-harbour", "currency": "USD", "balance": "8200.00", "balance-date": 1791028800, "transactions": []},
+      {"id": "ACT-visa", "name": "Rewards Visa", "conn_id": "CON-harbourline", "currency": "USD", "balance": "-640.12", "balance-date": 1791028800, "transactions": []}
+    ]
+  },
+  "unknown-general-code-with-data": {
+    "errlist": [{"code": "gen.maintenance", "msg": "Some banks may be slow to update tonight."}],
+    "connections": [
+      {"conn_id": "CON-harbour", "name": "Harbour Bank", "org_id": "ORG-harbour", "sfin_url": "https://beta-bridge.simplefin.org/simplefin"},
+      {"conn_id": "CON-harbourline", "name": "Harbourline Card Services", "org_id": "ORG-harbourline", "sfin_url": "https://beta-bridge.simplefin.org/simplefin"}
+    ],
+    "accounts": [
+      {"id": "ACT-chequing", "name": "Everyday Chequing", "conn_id": "CON-harbour", "currency": "USD", "balance": "2510.75", "balance-date": 1791115200, "transactions": []},
+      {"id": "ACT-savings", "name": "Online Savings", "conn_id": "CON-harbour", "currency": "USD", "balance": "8200.00", "balance-date": 1791115200, "transactions": []},
+      {"id": "ACT-visa", "name": "Rewards Visa", "conn_id": "CON-harbourline", "currency": "USD", "balance": "-640.12", "balance-date": 1791115200, "transactions": []}
+    ]
+  },
+  "unknown-general-code-without-data": {
+    "errlist": [{"code": "gen.maintenance", "msg": "SimpleFIN Bridge is down for maintenance until 02:00 UTC."}],
+    "connections": [],
+    "accounts": []
+  },
+  "unknown-prefix": {
+    "errlist": [{"code": "org.unsupported", "msg": "Harbour Bank is no longer supported."}],
+    "connections": [
+      {"conn_id": "CON-harbour", "name": "Harbour Bank", "org_id": "ORG-harbour", "sfin_url": "https://beta-bridge.simplefin.org/simplefin"}
+    ],
+    "accounts": [
+      {"id": "ACT-chequing", "name": "Everyday Chequing", "conn_id": "CON-harbour", "currency": "USD", "balance": "2510.75", "balance-date": 1791115200, "transactions": []}
+    ]
+  },
+  "quota-warning-with-data": {
+    "errlist": [{"code": "gen.notice", "msg": "You've reached today's refresh limit. Make fewer requests or this token may be disabled."}],
+    "errors": ["You've reached today's refresh limit. Make fewer requests or this token may be disabled."],
+    "connections": [
+      {"conn_id": "CON-harbour", "name": "Harbour Bank", "org_id": "ORG-harbour", "sfin_url": "https://beta-bridge.simplefin.org/simplefin"},
+      {"conn_id": "CON-harbourline", "name": "Harbourline Card Services", "org_id": "ORG-harbourline", "sfin_url": "https://beta-bridge.simplefin.org/simplefin"}
+    ],
+    "accounts": [
+      {"id": "ACT-chequing", "name": "Everyday Chequing", "conn_id": "CON-harbour", "currency": "USD", "balance": "2510.75", "balance-date": 1791115200, "transactions": []},
+      {"id": "ACT-savings", "name": "Online Savings", "conn_id": "CON-harbour", "currency": "USD", "balance": "8200.00", "balance-date": 1791115200, "transactions": []},
+      {"id": "ACT-visa", "name": "Rewards Visa", "conn_id": "CON-harbourline", "currency": "USD", "balance": "-640.12", "balance-date": 1791115200, "transactions": []}
+    ]
+  },
+  "quota-warning-without-data": {
+    "errors": ["Too many requests today. Please make fewer requests."],
+    "connections": [],
+    "accounts": []
+  },
+  "account-missing": {
+    "errlist": [],
+    "connections": [
+      {"conn_id": "CON-harbour", "name": "Harbour Bank", "org_id": "ORG-harbour", "sfin_url": "https://beta-bridge.simplefin.org/simplefin"}
+    ],
+    "accounts": [
+      {"id": "ACT-chequing", "name": "Everyday Chequing", "conn_id": "CON-harbour", "currency": "USD", "balance": "2510.75", "balance-date": 1791115200, "transactions": []},
+      {"id": "ACT-savings", "name": "Online Savings", "conn_id": "CON-harbour", "currency": "USD", "balance": "8200.00", "balance-date": 1791115200, "transactions": []}
+    ]
+  }
+}
