@@ -1,6 +1,7 @@
 import { useId, useState, type CSSProperties, type ReactNode } from 'react'
 import { ChevronDown, type LucideIcon } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
+import { AppSlotMachineText } from '@/components/display/SlotMachineText'
 
 const COLLAPSIBLE_SECTION_EASE = [0.25, 0.1, 0.25, 1] as const
 const COLLAPSIBLE_SECTION_TRANSITION_SECONDS = 0.24
@@ -40,7 +41,8 @@ type CollapsibleSectionProps = {
  * Renders how many items a section holds as a pill, for a header summary
  *
  * Its number takes the full text colour in every section, since the header's muted one falls below a
- * readable contrast on the pill's tint in the dark theme
+ * readable contrast on the pill's tint in the dark theme. A changed count rolls to its new value, and the
+ * pill eases to its new width with it
  */
 export function CollapsibleSectionCount({ count }: { count: number }) {
   return (
@@ -48,7 +50,7 @@ export function CollapsibleSectionCount({ count }: { count: number }) {
       className="rounded-full px-2 py-0.5 text-xs font-semibold"
       style={{ background: 'var(--app-accent-soft)', color: 'var(--app-text)' }}
     >
-      {count}
+      <AppSlotMachineText text={String(count)} />
     </span>
   )
 }

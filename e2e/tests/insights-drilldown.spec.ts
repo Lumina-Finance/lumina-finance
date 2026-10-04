@@ -310,7 +310,7 @@ test('validates initial URL filters and keeps local-only changes out of address 
   await openPage(page, `/transactions?category_id=${id}&from_date=${TO}&to_date=${FROM}`)
   // The day after TO is upcoming on the fixed clock, so it is counted in the closed section instead
   await expectRows(page, [...fixture.selected, fixture.allIds[3]])
-  await expect(page.getByRole('button', { name: /Upcoming/ })).toHaveText(/^Upcoming1\D/)
+  await expect(page.getByRole('button', { name: /Upcoming/ })).toHaveAccessibleName(/^Upcoming\s*1\D/)
 })
 
 test('allows keyboard access beyond the legend and to crossover categories', async ({ page, drillFixture: fixture }) => {
