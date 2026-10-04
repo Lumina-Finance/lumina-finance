@@ -212,7 +212,8 @@ class ProviderAdapter(ABC):
             account_ids: External ids of the bank accounts to fetch
             start: First instant of the window, inclusive
             end: Instant the window ends before, at most max_window_days after start
-            include_pending: Whether to ask for pending records too
+            include_pending: Whether to ask for pending records too. A provider may ask for them
+                only in a window that reaches today
             timezone: The user's profile timezone, which dates records
             currency_exponents: Minor-unit exponent of every currency Lumina holds, by code
 

@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 import httpx
 import pytest
 
-from app.services.bank_sync.providers.contract import ClaimRefused, ProviderUnreachable
+from app.services.bank_sync.providers.contract import ClaimRefused, FetchResult, ProviderUnreachable
 from tests.services.bank_sync.stand_ins import RecordingBridge, answer_with, fail_with, simplefin_adapter
 
 _FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "simplefin"
@@ -147,20 +147,24 @@ async def test_access_url_for_a_server_not_added_is_refused():
     assert str(refusal.value) == "This setup token points to intranet.example, which this Lumina Finance server is not set up to contact"
 
 
-@pytest.mark.parametrize("include_pending", [False, True])
-async def test_fetch_asks_for_version_2_over_the_window_for_chosen_accounts(include_pending):
-    """One request covers the window for the chosen accounts, asking for pending items only when told"""
-    bridge = RecordingBridge(_recorded("accounts.json"))
-
-    result = await simplefin_adapter(bridge).fetch(
+async def _fetch_window(bridge: RecordingBridge, start: datetime, end: datetime, *, include_pending: bool = True) -> FetchResult:
+    """Fetch Everyday Chequing and Rewards Visa over a window for a user in Los Angeles"""
+    return await simplefin_adapter(bridge).fetch(
         _ACCESS_URL,
         account_ids=["ACT-chequing", "ACT-visa"],
-        start=_WINDOW_START,
-        end=_WINDOW_END,
+        start=start,
+        end=end,
         include_pending=include_pending,
         timezone=ZoneInfo("America/Los_Angeles"),
         currency_exponents=_EXPONENTS,
     )
+
+
+async def test_fetch_asks_for_the_window_for_chosen_accounts():
+    """One request covers the window for the chosen accounts, and a past window asks for no pending records"""
+    bridge = RecordingBridge(_recorded("accounts.json"))
+
+    result = await _fetch_window(bridge, _WINDOW_START, _WINDOW_END)
 
     [request] = bridge.requests
     assert request.url.path == "/simplefin/accounts"
@@ -168,7 +172,6 @@ async def test_fetch_asks_for_version_2_over_the_window_for_chosen_accounts(incl
         ("version", "2"),
         ("start-date", "1782864000"),
         ("end-date", "1790640000"),
-        *([("pending", "1")] if include_pending else []),
         ("account", "ACT-chequing"),
         ("account", "ACT-visa"),
     ]
@@ -176,17 +179,32 @@ async def test_fetch_asks_for_version_2_over_the_window_for_chosen_accounts(incl
     assert result.accounts[0].records[0].external_id == "TRN-coffee"
 
 
-async def test_requests_carry_the_credentials_only_as_http_basic():
-    """The Access URL's user info is sent as an Authorization header, never in the URL"""
+@pytest.mark.parametrize(("include_pending", "asks_for_pending"), [(True, True), (False, False)])
+async def test_window_reaching_today_asks_for_pending_records_when_wanted(include_pending, asks_for_pending):
+    """Only the window that ends today sends pending=1, and only when the sync wants pending records"""
+    bridge = RecordingBridge(_recorded("accounts.json"))
+    now = datetime.now(UTC)
+
+    await _fetch_window(bridge, now - timedelta(days=30), now, include_pending=include_pending)
+
+    [request] = bridge.requests
+    assert (("pending", "1") in request.url.params.multi_items()) is asks_for_pending
+
+
+async def test_every_accounts_request_carries_the_version_a_user_agent_and_basic_credentials():
+    """Discovery and fetch both send the Access URL's user info as HTTP Basic, never in the URL"""
     bridge = RecordingBridge(_recorded("balances.json"))
 
     await simplefin_adapter(bridge).discover(_ACCESS_URL, currency_exponents=_EXPONENTS)
+    await _fetch_window(bridge, _WINDOW_START, _WINDOW_END)
 
-    [request] = bridge.requests
-    assert request.headers["authorization"] == "Basic " + base64.b64encode(b"demo-user:demo-password").decode()
-    assert not request.url.userinfo
-    assert "demo-password" not in str(request.url)
-    assert request.headers["user-agent"].startswith("LuminaFinance")
+    assert len(bridge.requests) == 2
+    for request in bridge.requests:
+        assert request.url.params["version"] == "2"
+        assert request.headers["authorization"] == "Basic " + base64.b64encode(b"demo-user:demo-password").decode()
+        assert not request.url.userinfo
+        assert "demo-password" not in str(request.url)
+        assert request.headers["user-agent"].startswith("LuminaFinance")
 
 
 async def test_discovery_asks_for_balances_only():
@@ -208,14 +226,6 @@ async def test_window_longer_than_90_days_is_refused_before_sending():
     bridge = RecordingBridge()
 
     with pytest.raises(ValueError, match="90 days"):
-        await simplefin_adapter(bridge).fetch(
-            _ACCESS_URL,
-            account_ids=["ACT-chequing"],
-            start=_WINDOW_START,
-            end=_WINDOW_END + timedelta(seconds=1),
-            include_pending=False,
-            timezone=ZoneInfo("America/Los_Angeles"),
-            currency_exponents=_EXPONENTS,
-        )
+        await _fetch_window(bridge, _WINDOW_START, _WINDOW_END + timedelta(seconds=1))
 
     assert bridge.requests == []
