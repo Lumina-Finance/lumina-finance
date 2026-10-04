@@ -10,8 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.base import TransferCounterpartyScope
 from app.models.import_run import ImportRunSource
-from app.models.tag import TransactionTag
-from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.import_run import JournalTransactionRow, TransactionImportAccountMapping, TransactionImportCategoryMapping
 from app.services.accounts.snapshots import recompute_account_snapshots
@@ -25,19 +23,9 @@ from app.services.importers.journal.row_resolution import (
 )
 from app.services.importers.journal.system_categories import get_journal_system_categories
 from app.services.importers.shared.lookups import ImportLookups, load_import_lookups
-from app.services.importers.shared.merchants import (
-    ImportMerchants,
-    create_missing_import_merchants,
-    get_import_merchant,
-    get_no_payee_merchants,
-)
 from app.services.importers.shared.save_results import mark_import_caches_changed
 from app.services.importers.shared.stats import ImportStats
-from app.services.importers.shared.tags import create_missing_import_tags, get_import_row_tags
-
-# Transactions inserted per flush so imports of tens of thousands of rows use
-# batched INSERTs instead of one round trip per row
-INSERT_CHUNK_SIZE = 1000
+from app.services.importers.shared.transaction_writer import ImportedTransaction, write_imported_transactions
 
 logger = logging.getLogger(__name__)
 
@@ -96,16 +84,16 @@ async def write_journal_transactions(
     legs_by_row = _resolve_rows(rows, context, JOURNAL_ROW_LABELS[source])
     legs = [leg for row_legs in legs_by_row for leg in row_legs]
 
-    first_import_date_by_account_id = await _write_legs(
+    # The journal flow has no step asking about a payee, so every value keeps what the importer does
+    # unasked: matching an existing merchant by name, and creating one where nothing matches
+    first_import_date_by_account_id = await write_imported_transactions(
         db,
         user_id=user.id,
-        legs=legs,
-        merchants=import_lookups.merchants,
-        tags_by_name=import_lookups.tags_by_name,
+        transactions=[_to_imported_transaction(leg) for leg in legs],
+        merchant_mappings=[],
+        import_lookups=import_lookups,
         stats=stats,
     )
-
-    await db.flush()
 
     # Recompute every affected account together so concurrent writers use one lock order
     await recompute_account_snapshots(db, first_import_date_by_account_id)
@@ -173,85 +161,26 @@ def _resolve_rows(
     return legs_by_row
 
 
-async def _write_legs(
-    db: AsyncSession,
-    *,
-    user_id: uuid.UUID,
-    legs: list[JournalLeg],
-    merchants: ImportMerchants,
-    tags_by_name: dict,
-    stats: ImportStats,
-) -> dict[uuid.UUID, date]:
-    """Insert transaction legs in chunks and return first dates by account
+def _to_imported_transaction(leg: JournalLeg) -> ImportedTransaction:
+    """Return the transaction one leg writes
 
     Args:
-        db: Active database session
-        user_id: Identifier for the user running the import
-        legs: Transaction legs resolved from the import payload
-        merchants: Request-local merchant lookup holding what each payee value resolves to
-        tags_by_name: Request-local tag lookup keyed by tag name
-        stats: Import summary counters updated during the import
+        leg: Transaction leg resolved from the import payload
 
     Returns:
-        Earliest imported transaction date by affected account ID
+        The leg as the shared writer takes it
     """
-    first_import_date_by_account_id: dict[uuid.UUID, date] = {}
-    no_payee_merchants = get_no_payee_merchants(merchants)
-
-    # Every merchant and tag the export introduces is created before the legs are walked, so each
-    # costs one insert for the whole export rather than one per leg that first mentions it
-    # The journal flow has no step asking about a payee, so every value keeps what the importer
-    # does unasked: matching an existing merchant by name, and creating one where nothing matches
-    await create_missing_import_merchants(db, user_id, (leg.merchant_name for leg in legs), [], merchants, stats)
-    await create_missing_import_tags(
-        db,
-        user_id,
-        (tag_name for leg in legs for tag_name in leg.tag_names),
-        tags_by_name,
-        stats,
+    return ImportedTransaction(
+        account=leg.account,
+        dt=leg.dt,
+        amount=leg.amount,
+        category=leg.category,
+        merchant_name=leg.merchant_name,
+        notes=leg.notes,
+        tag_names=leg.tag_names,
+        counterparty_account_id=leg.counterparty_account.id if leg.counterparty_account else None,
+        counterparty_account_scope=_get_leg_counterparty_scope(leg),
     )
-
-    for chunk_start in range(0, len(legs), INSERT_CHUNK_SIZE):
-        chunk = legs[chunk_start:chunk_start + INSERT_CHUNK_SIZE]
-        pending: list[tuple[Transaction, list]] = []
-
-        for leg in chunk:
-            # Every transaction carries a merchant, and a transfer leg or a balance adjustment has
-            # no payee of its own, so the shared merchant for its kind stands in
-            merchant = (
-                get_import_merchant(leg.merchant_name, merchants, stats)
-                or no_payee_merchants.get_for_category(leg.category)
-            )
-            tags = get_import_row_tags(leg.tag_names, tags_by_name, stats)
-            transaction = Transaction(
-                created_by_user_id=user_id,
-                account_id=leg.account.id,
-                dt=leg.dt,
-                merchant_id=merchant.id,
-                category_id=leg.category.id,
-                amount=leg.amount,
-                currency=leg.account.currency,
-                fx_rate=None,
-                notes=leg.notes,
-                counterparty_account_id=leg.counterparty_account.id if leg.counterparty_account else None,
-                counterparty_account_scope=_get_leg_counterparty_scope(leg),
-            )
-            pending.append((transaction, tags))
-
-            current_first = first_import_date_by_account_id.get(leg.account.id)
-            first_import_date_by_account_id[leg.account.id] = (
-                leg.dt if current_first is None else min(current_first, leg.dt)
-            )
-
-        # One flush per chunk assigns ids to the whole batch so tag links can
-        # be added without a round trip per transaction
-        db.add_all([transaction for transaction, _ in pending])
-        await db.flush()
-        for transaction, tags in pending:
-            for tag in tags:
-                db.add(TransactionTag(transaction_id=transaction.id, tag_id=tag.id))
-
-    return first_import_date_by_account_id
 
 
 def _get_leg_counterparty_scope(leg: JournalLeg) -> TransferCounterpartyScope | None:

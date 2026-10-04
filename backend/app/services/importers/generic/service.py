@@ -5,10 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
 from app.schemas.import_run import TransactionImportRequest, TransactionImportResponse
 from app.services.accounts.snapshots import recompute_account_snapshots
-from app.services.importers.generic.imported_transaction_helpers import create_imported_transactions
+from app.services.importers.generic.row_resolution import resolve_import_rows
 from app.services.importers.shared.lookups import load_import_lookups
 from app.services.importers.shared.save_results import build_import_summary, mark_import_caches_changed
 from app.services.importers.shared.stats import ImportStats
+from app.services.importers.shared.transaction_writer import write_imported_transactions
 
 
 async def import_transactions(
@@ -38,16 +39,15 @@ async def import_transactions(
         stats,
         _get_counterparty_only_sources(data),
     )
-    first_import_date_by_account_id = await create_imported_transactions(
+    first_import_date_by_account_id = await write_imported_transactions(
         db,
         user_id=user.id,
-        rows=data.rows,
+        transactions=resolve_import_rows(data.rows, import_lookups, user.id),
         merchant_mappings=data.merchants,
         import_lookups=import_lookups,
         stats=stats,
     )
 
-    await db.flush()
     await recompute_account_snapshots(db, first_import_date_by_account_id)
     await mark_import_caches_changed(
         db,
