@@ -197,7 +197,9 @@ export function buildImportPreviewRows({
       const isCounterpartyAnswered = !counterpartySource || Boolean(counterpartyChoice)
 
       rows.push(buildPreviewTransactionRow({
-        id: getImportRowId(file.id, rowIndex),
+        // Prefixed like the other imports' previews, which is how a previewed row is told apart from a
+        // ledger transaction by its id
+        id: `import-preview-${getImportRowId(file.id, rowIndex)}`,
 
         // The row shows in the currency settled above, which holds even before the account step is answered
         account: { ...(account ?? { id: accountChoice, name: accountName, institution: null }), currency },

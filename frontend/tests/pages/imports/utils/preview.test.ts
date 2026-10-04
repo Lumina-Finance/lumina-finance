@@ -191,14 +191,15 @@ describe('import preview rows', () => {
         icon: '🏷️',
       },
       transaction: {
+        id: 'import-preview-file-1-0',
         account_id: CREATE_ACCOUNT_VALUE,
         amount: -1234n,
         account_amount: -1234n,
         fx_rate: null,
-        merchant_id: 'file-1-0-merchant',
+        merchant_id: 'import-preview-file-1-0-merchant',
         merchant_name: 'Market',
         notes: 'Weekly shop',
-        tag_ids: ['file-1-0-tag-0-food', 'file-1-0-tag-1-essentials'],
+        tag_ids: ['import-preview-file-1-0-tag-0-food', 'import-preview-file-1-0-tag-1-essentials'],
         tags: [
           { name: 'food' },
           { name: 'essentials' },
