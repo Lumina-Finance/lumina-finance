@@ -223,6 +223,30 @@ test('closes the prompt as saved when the save lands but its answer is lost', as
   await expect(page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) })).toContainText('$1,250.00')
 })
 
+test('keeps the prompt and the typed balance when a save is lost before it lands', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/accounts')
+
+  const prompt = await createAccountThroughModal(page)
+  const balance = prompt.getByLabel('Starting balance', { exact: true })
+
+  // The save never reaches the server, so the account read after it is still at zero
+  const saveUrl = `${API_BASE_URL}/accounts/*/starting-balance`
+  await page.route(saveUrl, (route) => route.abort('failed'))
+  await balance.fill('1250.00')
+  await prompt.getByRole('button', { name: 'Continue' }).click()
+
+  await expect(prompt.getByRole('alert')).toHaveText('Oops, your starting balance wasn\'t saved. Please press Continue to try again.')
+  await expect(balance).toHaveValue('1250.00')
+
+  await page.unroute(saveUrl)
+  await prompt.getByRole('button', { name: 'Continue' }).click()
+
+  await expect(prompt).toBeHidden()
+  await expect(page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) })).toContainText('$1,250.00')
+})
+
 test('records an expense through the modal and shows it as money out', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: ACCOUNT_NAME })
