@@ -74,6 +74,16 @@ _ROLLBACKS = [
         "the pending bank transactions",
         id="pending_transactions",
     ),
+    pytest.param(
+        "a8d3f6b2c5e1",
+        (
+            _CONNECTION,
+            "INSERT INTO bank_sync_jobs (id, owner_id, connection_id, kind) VALUES (gen_random_uuid(), :user_id, :connection_id, 'scheduled')",
+        ),
+        "bank_sync_jobs",
+        "bank sync jobs",
+        id="sync_jobs",
+    ),
 ]
 
 

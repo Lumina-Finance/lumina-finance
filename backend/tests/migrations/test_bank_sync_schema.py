@@ -5,11 +5,18 @@ migration left out would still pass. These tests share one migrated database per
 runs inside a transaction rolled back at its end, so none sees another's rows
 """
 
-import pytest
-from sqlalchemy import delete, func, select, text, update
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from pathlib import Path
 
+import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+from sqlalchemy import delete, func, select, text, update
+from sqlalchemy.exc import IntegrityError, ProgrammingError
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.pool import NullPool
+
+from app.config.database import APP_DB_USER
+from app.db.credentials import resolve_role_password
 from app.models.account import Account
 from app.models.account_review_preference import AccountReviewPreference
 from app.models.bank_connection import (
@@ -22,10 +29,11 @@ from app.models.bank_connection import (
     ProviderRequestPurpose,
 )
 from app.models.bank_pending_transaction import BankPendingTransaction
+from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobStatus
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
 from app.models.transaction import Transaction
 from app.models.user import User
-from tests.conftest import WORKER_DB_NAME
+from tests.conftest import DB_HOST, DB_PORT, WORKER_DB_NAME
 from tests.migrations.support import _create_engine_for_database, _drop_database, _recreate_database, _run_alembic_upgrade
 from tests.routes.support.bank_sync_helpers import (
     _build_account,
@@ -41,6 +49,7 @@ from tests.routes.support.bank_sync_helpers import (
 )
 
 _DATABASE_NAME = f"{WORKER_DB_NAME}_alembic_bank_sync"
+_BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 
 @pytest.fixture(scope="module")
@@ -422,3 +431,41 @@ async def test_bank_pending_transactions_go_with_the_account(session):
     await session.execute(delete(Account).where(Account.id == everyday.id))
 
     assert (await session.scalars(select(BankPendingTransaction.external_transaction_id))).all() == ["P-2"]
+
+
+async def test_bank_sync_jobs_one_running_and_one_queued_per_connection(session):
+    """A second running or queued job on a connection is refused, and finished ones pile up freely"""
+    user = await _owner(session)
+    connection = _build_bank_connection(user.id)
+    await _add(session, connection)
+
+    def job(status: BankSyncJobStatus) -> BankSyncJob:
+        finished = status in (BankSyncJobStatus.SUCCEEDED, BankSyncJobStatus.FAILED)
+        return BankSyncJob(
+            owner_id=user.id,
+            connection_id=connection.id,
+            kind=BankSyncJobKind.SCHEDULED,
+            status=status,
+            lease_expires_at=func.now() if status == BankSyncJobStatus.RUNNING else None,
+            finished_at=func.now() if finished else None,
+        )
+
+    await _add(session, job(BankSyncJobStatus.RUNNING), job(BankSyncJobStatus.QUEUED))
+    await _add(session, job(BankSyncJobStatus.SUCCEEDED), job(BankSyncJobStatus.FAILED), job(BankSyncJobStatus.SUCCEEDED))
+
+    await _refused(session, job(BankSyncJobStatus.RUNNING), "uq_bank_sync_jobs_running")
+    await _refused(session, job(BankSyncJobStatus.QUEUED), "uq_bank_sync_jobs_queued")
+
+
+async def test_migration_revisions_tell_the_app_role_the_database_is_at_head(migrated_database):
+    """The worker checks the migration level through its own role, which can't read the history"""
+    head = ScriptDirectory.from_config(Config(str(_BACKEND_DIR / "alembic.ini"))).get_current_head()
+    app_role_url = f"postgresql+asyncpg://{APP_DB_USER}:{resolve_role_password('app', generate=False)}@{DB_HOST}:{DB_PORT}/{migrated_database}"
+    engine = create_async_engine(app_role_url, poolclass=NullPool)
+    try:
+        async with engine.connect() as connection:
+            assert (await connection.scalars(text("SELECT public.migration_revisions()"))).all() == [head]
+            with pytest.raises(ProgrammingError, match="permission denied"):
+                await connection.execute(text("SELECT version_num FROM alembic_version"))
+    finally:
+        await engine.dispose()

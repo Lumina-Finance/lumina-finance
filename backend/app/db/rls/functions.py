@@ -30,6 +30,18 @@ USER_TZ = "public.user_tz"
 BUMP_GROUP_MEMBER_CACHE = "public.bump_group_member_cache"
 BUDGET_SPEND_ROWS = "public.budget_spend_rows"
 PRUNE_EXPIRED_IMPORT_RUNS = "public.prune_expired_import_runs"
+CLAIM_BANK_SYNC_JOBS = "public.claim_bank_sync_jobs"
+LIST_DUE_BANK_CONNECTIONS = "public.list_due_bank_connections"
+RECORD_BANK_SYNC_SCAN = "public.record_bank_sync_scan"
+MIGRATION_REVISIONS = "public.migration_revisions"
+
+# The worker functions see across users, which only the worker, connecting with no request
+# identity, may do. Refusing a call made under an identity keeps a request from reaching them
+_REFUSE_UNDER_A_REQUEST_IDENTITY = f"""
+        IF {CURRENT_USER_ID}() IS NOT NULL THEN
+            RAISE EXCEPTION 'Only the bank sync worker may call this'
+                USING ERRCODE = 'insufficient_privilege';
+        END IF;"""
 
 # Signatures the app no longer creates, dropped wherever the helpers are applied or revoked.
 # bump_user_cache stamped whatever user id it was given, and the app role can execute every
@@ -279,6 +291,102 @@ _HELPERS: tuple[_Helper, ...] = (
     $$
     """,
         f"{PRUNE_EXPIRED_IMPORT_RUNS}()",
+    ),
+    # The bank sync worker's functions are plpgsql, whose bodies are resolved only when they run,
+    # because the bootstrap migration creates every helper before the bank sync tables exist.
+    # Each returns only what the worker needs to go on as the owning user
+    #
+    # Claim the next due jobs across every user, initial and manual first. A queued job waits
+    # while its connection has a job running, and a running job whose lease ran out is claimed
+    # again as a new attempt, so a crashed worker's job resumes and its first runner can tell it
+    # no longer holds it. SKIP LOCKED keeps two workers claiming at once from taking one job
+    _Helper(
+        f"""
+    CREATE OR REPLACE FUNCTION {CLAIM_BANK_SYNC_JOBS}(p_limit integer)
+    RETURNS TABLE (job_id uuid, owner_id uuid, connection_id uuid, kind text, discover boolean, attempt integer)
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+    #variable_conflict use_column
+    BEGIN{_REFUSE_UNDER_A_REQUEST_IDENTITY}
+
+        RETURN QUERY
+        WITH claimable AS (
+            SELECT j.id FROM public.bank_sync_jobs j
+            WHERE (
+                j.status = 'queued' AND j.run_after <= now()
+                AND NOT EXISTS (
+                    SELECT 1 FROM public.bank_sync_jobs r
+                    WHERE r.connection_id = j.connection_id AND r.status = 'running'
+                )
+            ) OR (j.status = 'running' AND j.lease_expires_at <= now())
+            ORDER BY
+                CASE j.kind WHEN 'initial' THEN 0 WHEN 'manual' THEN 1 WHEN 'retry' THEN 2 ELSE 3 END,
+                j.run_after,
+                j.created_at
+            LIMIT p_limit
+            FOR UPDATE OF j SKIP LOCKED
+        )
+        UPDATE public.bank_sync_jobs j
+        SET status = 'running', attempt = j.attempt + 1, lease_expires_at = now() + interval '10 minutes'
+        FROM claimable c
+        WHERE j.id = c.id
+        RETURNING j.id, j.owner_id, j.connection_id, j.kind::text, j.discover, j.attempt;
+    END
+    $$
+    """,
+        f"{CLAIM_BANK_SYNC_JOBS}(integer)",
+    ),
+    # The connections due for a scheduled sync, by id and owner only. A rejected credential
+    # stops automatic sync until the user reconnects
+    _Helper(
+        f"""
+    CREATE OR REPLACE FUNCTION {LIST_DUE_BANK_CONNECTIONS}(p_now timestamptz)
+    RETURNS TABLE (connection_id uuid, owner_id uuid)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
+    #variable_conflict use_column
+    BEGIN{_REFUSE_UNDER_A_REQUEST_IDENTITY}
+
+        RETURN QUERY
+        SELECT c.id, c.owner_id FROM public.bank_connections c
+        WHERE c.next_sync_at <= p_now AND c.credential_rejected_at IS NULL
+        ORDER BY c.next_sync_at;
+    END
+    $$
+    """,
+        f"{LIST_DUE_BANK_CONNECTIONS}(timestamptz)",
+    ),
+    # Stamp the worker's heartbeat after a due scan, and delete jobs finished more than 30 days
+    # ago, the retention the design sets for job rows. The heartbeat is its table's one row, id 1
+    _Helper(
+        f"""
+    CREATE OR REPLACE FUNCTION {RECORD_BANK_SYNC_SCAN}(p_now timestamptz) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+    BEGIN{_REFUSE_UNDER_A_REQUEST_IDENTITY}
+
+        INSERT INTO public.bank_sync_heartbeat (id, last_scan_at) VALUES (1, p_now)
+        ON CONFLICT (id) DO UPDATE SET last_scan_at = EXCLUDED.last_scan_at;
+        DELETE FROM public.bank_sync_jobs WHERE finished_at < p_now - interval '30 days';
+    END
+    $$
+    """,
+        f"{RECORD_BANK_SYNC_SCAN}(timestamptz)",
+    ),
+    # The revisions the database is migrated to, which the worker compares with the head it
+    # ships before it starts. The app role can't read the migration history itself, and the
+    # revision says nothing about any user, so this one refuses no one. A database never
+    # migrated, such as the test schema built from the models, has no history and returns none
+    _Helper(
+        f"""
+    CREATE OR REPLACE FUNCTION {MIGRATION_REVISIONS}() RETURNS SETOF text
+    LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
+    BEGIN
+        IF to_regclass('public.alembic_version') IS NULL THEN
+            RETURN;
+        END IF;
+        RETURN QUERY SELECT version_num::text FROM public.alembic_version;
+    END
+    $$
+    """,
+        f"{MIGRATION_REVISIONS}()",
     ),
 )
 

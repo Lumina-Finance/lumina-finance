@@ -29,6 +29,7 @@ from app.models.bank_connection import (
     ProviderRequestPurpose,
 )
 from app.models.bank_pending_transaction import BankPendingTransaction
+from app.models.bank_sync_job import BankSyncHeartbeat, BankSyncJob, BankSyncJobKind
 from app.models.bank_transaction import BankTransaction
 from app.models.base import AccountKind, AccountType, CategoryKind, RecurrenceFreq
 from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
@@ -520,6 +521,7 @@ _BANK_MODELS = [
     AccountReviewPreference,
     BankTransaction,
     BankPendingTransaction,
+    BankSyncJob,
 ]
 
 
@@ -543,6 +545,7 @@ async def _create_bank_records(session, owner_id) -> tuple[Account, BankConnecti
             AccountReviewPreference(account_id=account.id, owner_id=owner_id),
             _build_bank_transaction(account),
             _build_pending_transaction(account, "P-1"),
+            BankSyncJob(owner_id=owner_id, connection_id=connection.id, kind=BankSyncJobKind.SCHEDULED),
         ]
     )
     await session.flush()
@@ -597,8 +600,13 @@ async def test_bank_records_are_invisible_to_other_users(users, bank_records, mo
         lambda connection, owner_id, _: _owned_by(_build_external_account(connection, "ACT-B"), owner_id),
         lambda connection, owner_id, _: _owned_by(_build_signin_notice(connection, "login-b"), owner_id),
         lambda connection, _, account: _build_bank_link(account, connection, "ACT-B"),
+        lambda connection, owner_id, _: BankSyncJob(
+            owner_id=owner_id,
+            connection_id=connection.id,
+            kind=BankSyncJobKind.MANUAL,
+        ),
     ],
-    ids=["provider_request", "external_account", "signin_notice", "account_link"],
+    ids=["provider_request", "external_account", "signin_notice", "account_link", "sync_job"],
 )
 async def test_bank_record_naming_another_users_connection_is_refused(users, bank_records, build):
     """A user can't attach their own records to a connection that isn't theirs
@@ -659,3 +667,33 @@ async def test_bank_transaction_naming_another_users_ledger_row_is_refused(users
         session.add(_build_bank_transaction(account_b, transaction=ledger_row_a))
         with pytest.raises(ProgrammingError, match="row-level security"):
             await session.flush()
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        "SELECT * FROM public.claim_bank_sync_jobs(10)",
+        "SELECT * FROM public.list_due_bank_connections(now())",
+        "SELECT public.record_bank_sync_scan(now())",
+    ],
+    ids=["claim", "list_due", "record_scan"],
+)
+async def test_bank_sync_worker_functions_refuse_a_request_identity(users, bank_records, call):
+    """A request runs as one user, so it can't reach the functions that see every user's jobs"""
+    user_a, _ = users
+    async with _act_as(user_a.id) as session:
+        with pytest.raises(ProgrammingError, match="Only the bank sync worker may call this"):
+            await session.execute(text(call))
+
+
+async def test_bank_sync_heartbeat_is_read_by_the_app_and_written_only_by_the_worker(users):
+    """Any request can tell whether sync is running, while only the worker's scan stamps it"""
+    user_a, _ = users
+    async with _act_as(None) as worker:
+        await worker.execute(text("SELECT public.record_bank_sync_scan(now())"))
+        await worker.commit()
+
+    async with _act_as(user_a.id) as session:
+        assert await _count_visible(session, BankSyncHeartbeat) == 1
+        with pytest.raises(ProgrammingError, match="permission denied"):
+            await session.execute(text("UPDATE bank_sync_heartbeat SET last_scan_at = now()"))
