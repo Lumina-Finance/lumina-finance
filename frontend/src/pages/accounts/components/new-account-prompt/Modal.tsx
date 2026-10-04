@@ -123,7 +123,7 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
             {...balanceInput}
           />
         </div>
-        <p className="mt-1.5 text-xs italic" style={{ color: 'var(--app-text-subtle)' }}>
+        <p className="mt-1.5 text-xs italic" style={{ color: 'var(--app-text-muted)' }}>
           Recorded as a balance adjustment dated today.
         </p>
       </div>
