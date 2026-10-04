@@ -206,6 +206,9 @@ def _wire_accounts(accounts: list[Account], start: int, end: int, *, include_pen
 
         # The protocol makes transactions optional, and a balances-only read leaves the key out
         if not balances_only:
+            # Oldest first, so the cap drops the newest booked transactions within each account, and
+            # an account listed after the cap is reached keeps none. Which ones the Bridge drops isn't
+            # published
             booked = sorted(
                 (item for item in account.transactions if not item.pending and start <= item.posted < end),
                 key=lambda item: item.posted,

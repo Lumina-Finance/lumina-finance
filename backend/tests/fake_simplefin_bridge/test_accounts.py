@@ -1,9 +1,7 @@
 import httpx
 import pytest
 
-from tests.fake_simplefin_bridge import FakeBridgeTransport
 from tests.fake_simplefin_bridge._helpers import (
-    BRIDGE_URL,
     DAY_SECONDS,
     _add_account,
     _add_transactions,
@@ -61,6 +59,8 @@ async def test_accounts_scenarios_of_different_tokens_are_isolated(bridge):
     first = await _get_accounts(bridge, await _claim_access_url(bridge, first_token))
     second = await _get_accounts(bridge, await _claim_access_url(bridge, second_token))
 
+    assert first.status_code == 200
+    assert second.status_code == 200
     assert [account["id"] for account in first.json()["accounts"]] == ["ACT-first"]
     assert [error["code"] for error in first.json()["errlist"]] == ["con.auth"]
     assert [account["id"] for account in second.json()["accounts"]] == ["ACT-second"]
@@ -79,18 +79,41 @@ async def test_accounts_booked_transactions_past_1000_in_a_response_are_left_out
 
     resp = await _get_accounts(bridge, access_url, {"start-date": END - 30 * DAY_SECONDS, "end-date": END, "pending": 1})
 
+    assert resp.status_code == 200
     transactions = [item for account in resp.json()["accounts"] for item in account["transactions"]]
     assert sum(not item.get("pending") for item in transactions) == 1_000
     assert [item["description"] for item in transactions if item.get("pending")] == ["HOLD"]
 
 
-async def test_accounts_timeout_fault_raises_read_timeout_in_process():
-    """Mounted in-process, a timeout fault times out at the client's read timeout as a request to the server does"""
-    async with httpx.AsyncClient(transport=FakeBridgeTransport(), base_url=BRIDGE_URL, timeout=0.2) as bridge:
-        scenario_id, setup_token = await _create_scenario(bridge)
-        access_url = await _claim_access_url(bridge, setup_token)
-        fault = await bridge.put(f"/control/scenarios/{scenario_id}/fault", json={"kind": "timeout"})
-        assert fault.status_code == 200
+async def test_accounts_window_includes_its_start_and_excludes_its_end(bridge):
+    """start-date is inclusive and end-date exclusive, so adjacent windows neither skip nor repeat a transaction"""
+    scenario_id, setup_token = await _create_scenario(bridge)
+    account_id = await _add_account(bridge, scenario_id)
+    start = END - 30 * DAY_SECONDS
+    await _add_transactions(
+        bridge,
+        scenario_id,
+        account_id,
+        [
+            {"id": "TRN-at-start", "posted": start, "amount": "-1.00", "description": "FIRST"},
+            {"id": "TRN-at-end", "posted": END, "amount": "-2.00", "description": "NEXT WINDOW"},
+        ],
+    )
+    access_url = await _claim_access_url(bridge, setup_token)
 
-        with pytest.raises(httpx.ReadTimeout):
-            await _get_accounts(bridge, access_url)
+    resp = await _get_accounts(bridge, access_url, {"start-date": start, "end-date": END})
+
+    assert resp.status_code == 200
+    assert [item["id"] for item in resp.json()["accounts"][0]["transactions"]] == ["TRN-at-start"]
+
+
+async def test_accounts_timeout_fault_raises_read_timeout_in_process(bridge):
+    """Mounted in-process, a timeout fault times out at the client's read timeout as a request to the server does"""
+    scenario_id, setup_token = await _create_scenario(bridge)
+    access_url = await _claim_access_url(bridge, setup_token)
+    fault = await bridge.put(f"/control/scenarios/{scenario_id}/fault", json={"kind": "timeout"})
+    assert fault.status_code == 200
+
+    # A per-request timeout reaches the transport, so only this request is held to it
+    with pytest.raises(httpx.ReadTimeout):
+        await bridge.get(f"{access_url}/accounts", params={"version": "2"}, timeout=0.2)
