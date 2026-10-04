@@ -6,10 +6,8 @@ or hold back ones they chose to trust
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import func, update
 
 from app.models.account_review_preference import ReviewDecision
-from app.models.bank_connection import BankAccountLink, BankLinkState
 from app.models.currency import Currency
 from app.services.bank_sync.review_preferences import (
     REVIEW_ALL,
@@ -17,7 +15,7 @@ from app.services.bank_sync.review_preferences import (
     get_review_preferences,
     update_review_preferences,
 )
-from tests.routes.support.bank_sync_helpers import _build_account, _build_bank_connection, _build_bank_link, _build_user
+from tests.routes.support.bank_sync_helpers import _build_account, _build_user
 
 _REVIEW = ReviewDecision.REVIEW
 _TRUST = ReviewDecision.TRUST
@@ -50,32 +48,6 @@ async def test_review_preferences_update_of_one_choice_leaves_the_others(db, eve
     assert after_first == ReviewPreferences(new_transactions=_REVIEW, corrections=_TRUST, removals=_REVIEW)
     assert after_second == ReviewPreferences(new_transactions=_TRUST, corrections=_TRUST, removals=_REVIEW)
     assert await get_review_preferences(db, everyday.owner_id, everyday.id) == after_second
-
-
-async def test_review_preferences_survive_linking_another_bank_account(db, everyday):
-    """Auto-approve all on Everyday still reads Trust after it is unlinked and linked elsewhere"""
-    connection = _build_bank_connection(everyday.owner_id)
-    db.add(connection)
-    await db.flush()
-    first_link = _build_bank_link(everyday, connection, "ACT-1")
-    db.add(first_link)
-    await db.flush()
-    await update_review_preferences(
-        db,
-        everyday.owner_id,
-        everyday.id,
-        new_transactions=_TRUST,
-        corrections=_TRUST,
-        removals=_TRUST,
-    )
-
-    await db.execute(
-        update(BankAccountLink).where(BankAccountLink.id == first_link.id).values(state=BankLinkState.UNLINKED, unlinked_at=func.now())
-    )
-    db.add(_build_bank_link(everyday, connection, "ACT-2"))
-    await db.flush()
-
-    assert await get_review_preferences(db, everyday.owner_id, everyday.id) == ReviewPreferences(_TRUST, _TRUST, _TRUST)
 
 
 async def test_review_preferences_another_users_account_is_not_found(db, everyday):

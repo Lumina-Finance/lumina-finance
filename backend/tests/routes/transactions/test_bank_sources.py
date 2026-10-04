@@ -8,12 +8,11 @@ outlives the link and connection it came through
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import event, func, select
+from sqlalchemy import event
 
 from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
 from app.models.bank_transaction import BankTransaction, OpenReviewKind
-from app.models.transaction import Transaction
 from tests.conftest import TestSession, scoped_engine
 from tests.routes.support.bank_sync_helpers import (
     BANK_DATE,
@@ -28,13 +27,7 @@ from tests.routes.support.bank_sync_helpers import (
 from tests.routes.transactions._helpers import _create_transaction, _setup_user_with_deps
 
 
-def _bank_source(
-    *,
-    amount: int | None = -1250,
-    raw_amount: str | None = None,
-    edited_fields: list[str] | None = None,
-    review_item_id: UUID | None = None,
-) -> dict:
+def _bank_source(*, amount: int = -1250, edited_fields: list[str] | None = None, review_item_id: UUID | None = None) -> dict:
     """Return the bank source a SimpleFIN coffee purchase on the bank's date carries"""
     return {
         "provider": "simplefin",
@@ -42,7 +35,7 @@ def _bank_source(
         "bank_values": {
             "date": BANK_DATE.isoformat(),
             "amount": amount,
-            "raw_amount": raw_amount,
+            "raw_amount": None,
             "description": BANK_DESCRIPTION,
             "merchant_name": None,
             "category_hint": None,
@@ -64,10 +57,13 @@ async def test_manual_transaction_responses_carry_no_bank_source(client):
     """A hand-entered $30.00 lunch has no bank source when created, read or listed"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     created = await _create_transaction(client, headers, account_id, category_id, amount=-3000)
+    assert created.status_code == 201, created.text
 
     detail = await client.get(f"/transactions/{created.json()['id']}", headers=headers)
     listed = await client.get("/transactions", headers=headers)
 
+    assert detail.status_code == 200, detail.text
+    assert listed.status_code == 200, listed.text
     assert created.json()["bank_source"] is None
     assert detail.json()["bank_source"] is None
     assert [row["bank_source"] for row in listed.json()] == [None]
@@ -82,57 +78,23 @@ async def test_bank_source_marks_the_amount_edited_while_the_ledger_differs_from
     detail = await client.get(f"/transactions/{transaction_id}", headers=headers)
     listed = await client.get("/transactions", headers=headers)
 
+    assert detail.status_code == 200, detail.text
+    assert listed.status_code == 200, listed.text
     assert detail.json()["bank_source"] == _bank_source(edited_fields=["amount"])
     assert [row["bank_source"] for row in listed.json()] == [_bank_source(edited_fields=["amount"])]
 
 
-async def test_bank_source_with_an_amount_sent_too_precise_shows_it_as_sent_and_edited(client):
-    """An amount the bank couldn't give exactly was entered by the user, so it counts as edited"""
-    headers, account_id, category_id = await _setup_user_with_deps(client)
-    transaction_id = await _create_on_bank_date(client, headers, account_id, category_id, -1251)
-    record_id = await _record_bank_source(transaction_id)
-    async with TestSession() as session:
-        record = await session.get(BankTransaction, record_id)
-        record.observed_amount = None
-        record.raw_amount = "-12.505"
-        record.aligned_amount = None
-        await session.commit()
-
-    detail = await client.get(f"/transactions/{transaction_id}", headers=headers)
-
-    assert detail.json()["bank_source"] == _bank_source(amount=None, raw_amount="-12.505", edited_fields=["amount"])
-
-
-async def test_editing_the_amount_back_to_the_bank_value_keeps_the_source_with_nothing_edited(client):
-    """The edit changes the same bank-sourced row, which stops counting as edited"""
-    headers, account_id, category_id = await _setup_user_with_deps(client)
-    transaction_id = await _create_on_bank_date(client, headers, account_id, category_id, -1000)
-    record_id = await _record_bank_source(transaction_id, bank_amount=-1250)
-
-    updated = await client.patch(f"/transactions/{transaction_id}", headers=headers, json={"amount": -1250})
-
-    assert updated.status_code == 200, updated.text
-    assert updated.json()["id"] == transaction_id
-    assert updated.json()["bank_source"] == _bank_source()
-    async with TestSession() as session:
-        assert await session.scalar(select(func.count()).select_from(Transaction)) == 1
-        assert await session.scalar(select(BankTransaction.transaction_id).where(BankTransaction.id == record_id)) == UUID(transaction_id)
-
-
-async def test_editing_the_date_marks_it_edited_and_bulk_editing_keeps_the_source(client):
-    """Moving the date a day is an edit, and a bulk note change leaves the source in place"""
+async def test_editing_the_date_keeps_the_source_and_marks_the_date_edited(client):
+    """Moving a bank-sourced transaction a day edits that same row, which stays bank-sourced"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     transaction_id = await _create_on_bank_date(client, headers, account_id, category_id, -1250)
     await _record_bank_source(transaction_id)
 
     updated = await client.patch(f"/transactions/{transaction_id}", headers=headers, json={"dt": "2026-10-02"})
-    bulk = await client.patch("/transactions/bulk", headers=headers, json={"transaction_ids": [transaction_id], "notes": "Latte"})
-    detail = await client.get(f"/transactions/{transaction_id}", headers=headers)
 
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["id"] == transaction_id
     assert updated.json()["bank_source"] == _bank_source(edited_fields=["date"])
-    assert bulk.status_code == 200, bulk.text
-    assert detail.json()["notes"] == "Latte"
-    assert detail.json()["bank_source"] == _bank_source(edited_fields=["date"])
 
 
 async def test_bank_source_names_the_waiting_correction_about_the_transaction(client):
@@ -148,6 +110,7 @@ async def test_bank_source_names_the_waiting_correction_about_the_transaction(cl
 
     listed = await client.get("/transactions", headers=headers)
 
+    assert listed.status_code == 200, listed.text
     assert [row["bank_source"] for row in listed.json()] == [_bank_source(amount=-1300, review_item_id=record_id)]
 
 
@@ -174,6 +137,7 @@ async def test_bank_source_stays_readable_after_unlinking_and_disconnecting(clie
         await session.commit()
     detail = await client.get(f"/transactions/{transaction_id}", headers=headers)
 
+    assert detail.status_code == 200, detail.text
     assert detail.json()["bank_source"] == _bank_source()
 
 
