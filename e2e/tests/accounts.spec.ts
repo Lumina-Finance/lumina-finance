@@ -203,6 +203,35 @@ test('keeps the notes written for an account, shows them on its page and clears 
   await expect(page.getByText('Notes', { exact: true })).toHaveCount(0)
 })
 
+test('lets a refused minus in an empty field be cleared, and closes it as blank', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/accounts')
+  const startingBalanceRequests = watchStartingBalanceRequests(page)
+
+  const prompt = await createAccountThroughModal(page)
+  const balance = prompt.getByLabel('Starting balance', { exact: true })
+  const error = prompt.getByRole('alert').filter({ hasText: 'Must be zero or higher' })
+
+  // Text holding a minus is refused whole, so the field stays empty while it says why
+  await balance.fill('-5')
+  await expect(balance).toHaveValue('')
+  await expect(error).toBeVisible()
+
+  // Deleting in the field it left empty changes no text, and is still the answer to the message
+  await balance.press('Backspace')
+  await expect(error).toBeHidden()
+
+  // Continue takes the field as it stands, so a blank one closes as blank with the message showing
+  await balance.fill('-5')
+  await expect(error).toBeVisible()
+  await prompt.getByRole('button', { name: 'Continue' }).click()
+
+  await expect(prompt).toBeHidden()
+  await expect(page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) })).toContainText('$0.00')
+  expect(startingBalanceRequests).toEqual([])
+})
+
 test('closes the prompt as saved when the save lands but its answer is lost', async ({ page, request }) => {
   const user = await signUpUser(request)
   await logInViaApi(page, user)

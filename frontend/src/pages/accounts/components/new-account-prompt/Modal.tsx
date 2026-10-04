@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type KeyboardEvent } from 'react'
 import { Landmark } from 'lucide-react'
 import { StartingBalanceNotSavedError, useRecordStartingBalance, type AccountsOverview } from '@/api/accounts'
 import { ApiError } from '@/api/auth'
@@ -56,9 +56,16 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
   })
   const balanceError = typedMinus ? 'Must be zero or higher' : undefined
 
+  // Deleting in a field the refused text left empty changes no text, so no change arrives to clear
+  // the message, yet it is still the person taking the minus back
+  const handleBalanceKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Backspace' || event.key === 'Delete') setTypedMinus(false)
+  }
+
+  // The refused text never reached the field, so Continue takes the field as it stands, closing a
+  // blank one as blank whether or not the message still shows
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (typedMinus) return
 
     // A blank or zero balance is the balance the account already has, so there is nothing to record
     const amount = toMinorUnits(startingBalance, exponent)
@@ -125,6 +132,7 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
             placeholder="Optional"
             disabled={recordStartingBalance.isPending}
             {...balanceInput}
+            onKeyDown={handleBalanceKeyDown}
           />
         </div>
         <p className="mt-1.5 text-xs italic" style={{ color: 'var(--app-text-muted)' }}>
