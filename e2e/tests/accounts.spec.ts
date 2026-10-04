@@ -10,15 +10,17 @@ import { API_BASE_URL } from '../support/target'
 const ACCOUNT_NAME = 'Everyday Chequing'
 
 /**
- * Create a chequing account through the modal on the accounts page.
+ * Create an account through the modal on the accounts page.
  *
  * @param page - Page already showing the accounts page
+ * @param accountType - Label of the type to choose, a chequing account unless given
+ * @param name - Name to give the account
  * @returns The prompt for the starting balance that saving the account opens
  */
-async function createChequingThroughModal(page: Page): Promise<Locator> {
+async function createAccountThroughModal(page: Page, accountType = 'Checking', name = ACCOUNT_NAME): Promise<Locator> {
   const dialog = await openModal(page, ['Add account'], 'Add account')
-  await chooseFromDropdown(dialog, 'Account type', 'Checking')
-  await dialog.getByLabel('Account name').fill(ACCOUNT_NAME)
+  await chooseFromDropdown(dialog, 'Account type', accountType)
+  await dialog.getByLabel('Account name').fill(name)
 
   // Currency is left alone: it already holds the base currency chosen at signup
   await dialog.getByRole('button', { name: 'Create account' }).click()
@@ -57,7 +59,7 @@ test('starts a new user with no accounts and creates one with its starting balan
   // assertion also fails if row-level security ever stops separating one user from another
   await expect(page.getByText('No accounts yet')).toBeVisible()
 
-  const prompt = await createChequingThroughModal(page)
+  const prompt = await createAccountThroughModal(page)
   await prompt.getByLabel('Starting balance', { exact: true }).fill('1250.00')
   await prompt.getByRole('button', { name: 'Continue' }).click()
 
@@ -65,12 +67,51 @@ test('starts a new user with no accounts and creates one with its starting balan
   await expect(page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) })).toContainText('$1,250.00')
 })
 
+test('records a new credit card\'s amount owed as a balance below zero', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/accounts')
+
+  const prompt = await createAccountThroughModal(page, 'Credit card', 'Rewards Card')
+  await prompt.getByLabel('Starting amount owed', { exact: true }).fill('400.00')
+  await prompt.getByRole('button', { name: 'Continue' }).click()
+
+  await expect(prompt).toBeHidden()
+  // The list writes a balance below zero in parentheses
+  await expect(page.getByRole('link', { name: /Rewards Card/ })).toContainText('($400.00)')
+})
+
+test('leaves a new account at zero when its starting balance is left blank or skipped', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/accounts')
+
+  // Neither way records anything, so no request is sent, not even one answered later
+  const startingBalanceRequests: string[] = []
+  page.on('request', (sent) => {
+    if (sent.url().endsWith('/starting-balance')) startingBalanceRequests.push(sent.url())
+  })
+
+  const blank = await createAccountThroughModal(page)
+  await blank.getByRole('button', { name: 'Continue' }).click()
+  await expect(blank).toBeHidden()
+  await expect(page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) })).toContainText('$0.00')
+
+  const skipped = await createAccountThroughModal(page, 'Savings', 'Rainy Day Savings')
+  await skipped.getByLabel('Starting balance', { exact: true }).fill('300.00')
+  await skipped.getByRole('button', { name: 'Skip' }).click()
+  await expect(skipped).toBeHidden()
+  await expect(page.getByRole('link', { name: /Rainy Day Savings/ })).toContainText('$0.00')
+
+  expect(startingBalanceRequests).toEqual([])
+})
+
 test('answers a minus typed into the starting balance rather than dropping it', async ({ page, request }) => {
   const user = await signUpUser(request)
   await logInViaApi(page, user)
   await openPage(page, '/accounts')
 
-  const prompt = await createChequingThroughModal(page)
+  const prompt = await createAccountThroughModal(page)
   const balance = prompt.getByLabel('Starting balance', { exact: true })
   const error = prompt.getByRole('alert').filter({ hasText: 'Must be zero or higher' })
   await balance.pressSequentially('-')
@@ -148,7 +189,7 @@ test('sends the user to check the balance when its save lands but the answer is 
   await logInViaApi(page, user)
   await openPage(page, '/accounts')
 
-  const prompt = await createChequingThroughModal(page)
+  const prompt = await createAccountThroughModal(page)
 
   // The balance reaches the server and is saved, then the browser is told the connection failed
   await page.route(`${API_BASE_URL}/accounts/*/starting-balance`, async (route) => {
