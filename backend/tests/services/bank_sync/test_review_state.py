@@ -83,6 +83,15 @@ def test_changed_fields_amount_and_description_changes_are_reported():
     assert changed_fields(_accepted(), incoming) == ["amount", "description"]
 
 
+def test_changed_fields_revised_amount_the_bank_cannot_give_exactly_is_a_change():
+    """The bank revising -12.505 to -12.506, neither of which fits in cents, changes the amount"""
+    record = _accepted()
+    record.observed_amount = None
+    record.raw_amount = "-12.505"
+
+    assert changed_fields(record, _observation(amount=None, raw_amount="-12.506")) == ["amount"]
+
+
 def test_changed_fields_repeat_of_the_stored_observation_changes_nothing():
     """Repeated delivery of what is already stored is no change"""
     assert changed_fields(_accepted(), _observation()) == []
