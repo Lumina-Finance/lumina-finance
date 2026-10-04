@@ -1,4 +1,4 @@
-"""Bank sync jobs: queueing, claiming across users, the due scan and the heartbeat
+"""Bank sync jobs: queueing, claiming across users, the fence around finishing, the due scan and the heartbeat
 
 The claim and the due scan run as the worker, the app role with no request identity, through the
 definer functions, and queueing runs as the connection's owner under row-level security, so these
@@ -9,13 +9,13 @@ queued job started beside a running one would race it
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select, text, update
 
 from app.models.bank_connection import BankConnection
 from app.models.bank_sync_job import BankSyncHeartbeat, BankSyncJob, BankSyncJobKind, BankSyncJobStatus
-from app.services.bank_sync.jobs import enqueue_bank_sync_job
+from app.services.bank_sync.jobs import ClaimedJob, JobNotHeld, claim_bank_sync_job, enqueue_bank_sync_job, finish_job, lock_job_for_finish
 from tests.conftest import ScopedSession, TestSession
-from tests.routes.support.bank_sync_helpers import _job_states, _seed_job
+from tests.routes.support.bank_sync_helpers import _build_bank_connection, _job_states, _seed_job
 from tests.routes.support.identity_helpers import _act_as
 
 _CLAIM = text("SELECT job_id, owner_id, connection_id, kind, discover, attempt FROM public.claim_bank_sync_jobs(:limit)")
@@ -88,6 +88,58 @@ async def test_claim_takes_back_an_expired_job_before_the_connections_queued_one
     async with TestSession() as session:
         lease_expires_at = await session.scalar(select(BankSyncJob.lease_expires_at).where(BankSyncJob.id == crashed.id))
     assert before + timedelta(minutes=9) < lease_expires_at < datetime.now(UTC) + timedelta(minutes=11)
+
+
+async def _claim_job() -> ClaimedJob:
+    """Claim the next due job as the worker, the way a runner does"""
+    async with ScopedSession() as session:
+        job = await claim_bank_sync_job(session)
+        await session.commit()
+    return job
+
+
+async def _holds(job: ClaimedJob) -> bool:
+    """Return whether the job's finishing step may go ahead, opened as its owner and rolled back"""
+    async with _act_as(job.owner_id) as session:
+        try:
+            await lock_job_for_finish(session, job, links=())
+        except JobNotHeld:
+            return False
+    return True
+
+
+async def test_lock_job_for_finish_refuses_an_attempt_a_later_claim_took_over(connections):
+    """Attempt 1, whose lease ran out, may write nothing, while attempt 2 and the owner's other job's attempt 1 still may"""
+    second_connection = _build_bank_connection(connections[0].owner_id)
+    async with TestSession() as session:
+        session.add(second_connection)
+        await session.commit()
+    taken_over = await _seed_job(connections[0], BankSyncJobKind.MANUAL)
+    await _seed_job(second_connection, BankSyncJobKind.SCHEDULED)
+    first, other = await _claim_job(), await _claim_job()
+    async with TestSession() as session:
+        await session.execute(
+            update(BankSyncJob).where(BankSyncJob.id == taken_over.id).values(lease_expires_at=datetime.now(UTC) - timedelta(minutes=1))
+        )
+        await session.commit()
+    second = await _claim_job()
+
+    assert [(job.id, job.attempt) for job in (first, second)] == [(taken_over.id, 1), (taken_over.id, 2)]
+    assert other.attempt == 1
+    assert [await _holds(job) for job in (first, second, other)] == [False, True, True]
+
+
+async def test_lock_job_for_finish_refuses_a_job_already_finished(connections):
+    """A runner that already recorded its job as finished can't record it a second time, as failed or otherwise"""
+    await _seed_job(connections[0], BankSyncJobKind.SCHEDULED)
+    job = await _claim_job()
+    async with _act_as(job.owner_id) as session:
+        await lock_job_for_finish(session, job, links=())
+        await finish_job(session, job)
+        await session.commit()
+
+    assert not await _holds(job)
+    assert (await _job_states())[job.id] == ("succeeded", 1)
 
 
 async def test_claim_returns_only_what_the_worker_needs_and_leaves_jobs_not_yet_due(connections):

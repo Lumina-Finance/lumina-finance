@@ -466,6 +466,19 @@ async def test_migration_revisions_tell_the_app_role_the_database_is_at_head(mig
         await engine.dispose()
 
 
+async def test_is_database_migrated_is_false_while_the_database_is_at_an_earlier_revision(session):
+    """After an upgrade the worker claims nothing until the app has migrated the database to this release
+
+    The worker reads the revision through the definer function, so recording the revision before
+    head is what a database the app hasn't migrated yet looks like to it
+    """
+    script = ScriptDirectory.from_config(Config(str(_BACKEND_DIR / "alembic.ini")))
+    earlier = script.get_revision(script.get_current_head()).down_revision
+    await session.execute(text("UPDATE alembic_version SET version_num = :earlier"), {"earlier": earlier})
+
+    assert await is_database_migrated(await session.connection()) is False
+
+
 async def test_bank_sync_heartbeat_written_by_the_worker_is_readable_by_the_app_role(migrated_database):
     """The app tells whether sync is running from the heartbeat the worker's scan stamps"""
     scanned_at = datetime(2026, 10, 4, 12, 0, tzinfo=UTC)

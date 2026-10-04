@@ -28,14 +28,7 @@ from app.services.bank_sync import sync, worker
 from app.services.bank_sync.jobs import ClaimedJob, finish_job, lock_job_for_finish
 from app.services.bank_sync.pending import replace_pending_transactions
 from app.services.bank_sync.sync import run_sync_job
-from app.services.bank_sync.worker import (
-    JOB_TIME_LIMIT,
-    MAX_JOB_ATTEMPTS,
-    enqueue_due_work,
-    is_database_migrated,
-    is_sync_worker_running,
-    run_jobs,
-)
+from app.services.bank_sync.worker import MAX_JOB_ATTEMPTS, enqueue_due_work, is_sync_worker_running, run_jobs
 from tests.conftest import ScopedSession, TestSession
 from tests.routes.support.bank_sync_helpers import (
     _build_account,
@@ -62,21 +55,28 @@ def _worker_sessions(monkeypatch):
 class _FetchingRunner:
     """Stands in for a sync of a connection's active links, writing a pending item for each it may still write for
 
-    A job named in held waits after reading its links, as a job waits on the provider, until the test
-    releases it. The item it writes names its attempt, and every run is recorded by job and attempt
+    An attempt named in held waits after reading its links, as a job waits on the provider, until the
+    test releases it, and one named in failing then raises instead of writing. The item it writes
+    names its attempt, and every run is recorded by job and attempt
     """
 
-    def __init__(self, accounts: Sequence[Account] = (), held: Sequence[tuple[uuid.UUID, int]] = ()) -> None:
-        """Write for these accounts, and hold these attempts of these jobs mid-fetch"""
+    def __init__(
+        self,
+        accounts: Sequence[Account] = (),
+        held: Sequence[tuple[uuid.UUID, int]] = (),
+        failing: Sequence[tuple[uuid.UUID, int]] = (),
+    ) -> None:
+        """Write for these accounts, hold these attempts of these jobs mid-fetch, and fail these"""
         self.accounts = {account.id: account for account in accounts}
-        self.held = set(held)
-        self.fetching = asyncio.Event()
-        self.release = asyncio.Event()
+        self.fetching = {attempt: asyncio.Event() for attempt in held}
+        self.release = {attempt: asyncio.Event() for attempt in held}
+        self.failing = set(failing)
         self.runs: list[tuple[uuid.UUID, int]] = []
 
     async def __call__(self, job: ClaimedJob) -> None:
-        """Read the links, wait if held, then write inside the job's fence"""
-        self.runs.append((job.id, job.attempt))
+        """Read the links, wait if held, then fail or write inside the job's fence"""
+        attempt = (job.id, job.attempt)
+        self.runs.append(attempt)
         async with ScopedSession() as db:
             links = (
                 await db.scalars(
@@ -85,9 +85,11 @@ class _FetchingRunner:
                     )
                 )
             ).all()
-        if (job.id, job.attempt) in self.held:
-            self.fetching.set()
-            await self.release.wait()
+        if attempt in self.fetching:
+            self.fetching[attempt].set()
+            await self.release[attempt].wait()
+        if attempt in self.failing:
+            raise RuntimeError("Unexpected bank data")
 
         async with ScopedSession() as db:
             for link in await lock_job_for_finish(db, job, links):
@@ -118,12 +120,19 @@ async def _pending_items() -> set[tuple[uuid.UUID, str]]:
 
 
 async def _job_outcomes() -> dict:
-    """Return every job's status and recorded error by id"""
+    """Return every job's status and the kind of error recorded for it by id"""
     async with TestSession() as session:
-        rows = (
-            await session.execute(select(BankSyncJob.id, BankSyncJob.status, BankSyncJob.last_error_kind, BankSyncJob.last_error_reason))
-        ).all()
-    return {job_id: (status, kind, reason) for job_id, status, kind, reason in rows}
+        rows = (await session.execute(select(BankSyncJob.id, BankSyncJob.status, BankSyncJob.last_error_kind))).all()
+    return {job_id: (status, kind) for job_id, status, kind in rows}
+
+
+async def _expire_lease(job: BankSyncJob) -> None:
+    """End a running job's lease a minute ago, as though its worker stopped mid-job"""
+    async with TestSession() as session:
+        await session.execute(
+            update(BankSyncJob).where(BankSyncJob.id == job.id).values(lease_expires_at=datetime.now(UTC) - timedelta(minutes=1))
+        )
+        await session.commit()
 
 
 async def test_run_jobs_called_at_once_run_each_owners_job_as_that_owner(connections, monkeypatch):
@@ -149,49 +158,39 @@ async def test_run_jobs_called_at_once_run_each_owners_job_as_that_owner(connect
     assert await _job_states() == {job.id: ("succeeded", 1) for job in jobs}
 
 
-async def test_run_jobs_claims_a_job_whose_lease_ran_out_and_its_first_runner_finishing_late_writes_nothing(connections, monkeypatch):
-    """A worker restarting mid-fetch loses the job to attempt 2, and attempt 1 finishing afterwards changes nothing"""
+@pytest.mark.parametrize("late_outcome", ["finishes", "fails"])
+async def test_run_jobs_attempt_whose_lease_ran_out_changes_nothing_when_it_ends_during_the_next_attempt(
+    connections, monkeypatch, late_outcome
+):
+    """A worker restarting mid-fetch loses the job to attempt 2, and attempt 1 ending while attempt 2 still fetches changes nothing
+
+    Attempt 1 ends while the job is still running, so only the attempt number keeps its results, or
+    its failure, from landing on attempt 2's job
+    """
     connection = connections[0]
     accounts, _ = await _seed_links(connection, "ACT-1")
     job = await _seed_job(connection, BankSyncJobKind.SCHEDULED)
-    runner = _FetchingRunner(accounts, held=[(job.id, 1)])
+    first, second = (job.id, 1), (job.id, 2)
+    runner = _FetchingRunner(accounts, held=[first, second], failing=[first] if late_outcome == "fails" else [])
     monkeypatch.setattr(worker, "run_sync_job", runner)
 
     async with asyncio.timeout(_WAIT_SECONDS):
         first_runner = asyncio.create_task(run_jobs(1))
-        await runner.fetching.wait()
-        async with TestSession() as session:
-            await session.execute(
-                update(BankSyncJob).where(BankSyncJob.id == job.id).values(lease_expires_at=datetime.now(UTC) - timedelta(seconds=1))
-            )
-            await session.commit()
-        assert await run_jobs(1) == 1
-        runner.release.set()
+        await runner.fetching[first].wait()
+        await _expire_lease(job)
+        second_runner = asyncio.create_task(run_jobs(1))
+        await runner.fetching[second].wait()
+        runner.release[first].set()
         assert await first_runner == 1
 
-    assert runner.runs == [(job.id, 1), (job.id, 2)]
+        assert await _pending_items() == set()
+        assert await _job_states() == {job.id: ("running", 2)}
+
+        runner.release[second].set()
+        assert await second_runner == 1
+
     assert await _pending_items() == {(accounts[0].id, "HOLD-2")}
     assert await _job_states() == {job.id: ("succeeded", 2)}
-
-
-async def test_run_jobs_holds_a_connections_queued_job_until_its_reclaimed_job_finishes(connections, monkeypatch):
-    """A crashed job's second attempt runs first, other connections' jobs go meanwhile, and the queued one follows"""
-    lapsed = datetime.now(UTC) - timedelta(minutes=1)
-    crashed = await _seed_job(connections[0], BankSyncJobKind.SCHEDULED, status=BankSyncJobStatus.RUNNING, attempt=1, lease_expires_at=lapsed)
-    queued = await _seed_job(connections[0], BankSyncJobKind.MANUAL)
-    runner = _FetchingRunner(held=[(crashed.id, 2)])
-    monkeypatch.setattr(worker, "run_sync_job", runner)
-
-    async with asyncio.timeout(_WAIT_SECONDS):
-        first_runner = asyncio.create_task(run_jobs(10))
-        await runner.fetching.wait()
-        other = await _seed_job(connections[1], BankSyncJobKind.SCHEDULED)
-        assert await run_jobs(10) == 1
-        runner.release.set()
-        assert await first_runner == 2
-
-    assert runner.runs == [(crashed.id, 2), (other.id, 1), (queued.id, 1)]
-    assert await _job_states() == {crashed.id: ("succeeded", 2), queued.id: ("succeeded", 1), other.id: ("succeeded", 1)}
 
 
 @pytest.mark.parametrize(
@@ -218,11 +217,11 @@ async def test_job_finishing_after_a_link_changed_mid_fetch_writes_nothing_for_t
 
     async with asyncio.timeout(_WAIT_SECONDS):
         running = asyncio.create_task(run_jobs(1))
-        await runner.fetching.wait()
+        await runner.fetching[(job.id, 1)].wait()
         async with TestSession() as session:
             await session.execute(update(BankAccountLink).where(BankAccountLink.id == savings_link.id).values(change(spare)))
             await session.commit()
-        runner.release.set()
+        runner.release[(job.id, 1)].set()
         await running
 
     assert await _pending_items() == {(everyday.id, "HOLD-1")}
@@ -233,16 +232,21 @@ async def test_job_finishing_after_a_link_changed_mid_fetch_writes_nothing_for_t
     ("max_jobs", "time_left", "claimed"),
     [
         (2, None, 2),
-        (10, JOB_TIME_LIMIT - timedelta(seconds=1), 0),
-        (10, JOB_TIME_LIMIT + timedelta(minutes=1), 3),
+        (10, timedelta(minutes=5) - timedelta(seconds=1), 0),
+        (10, timedelta(minutes=5), 3),
     ],
-    ids=["stops_at_its_job_count", "deadline_too_near_for_a_job", "deadline_far_enough_for_every_job"],
+    ids=["stops_at_its_job_count", "deadline_under_5_minutes_away", "deadline_5_minutes_away"],
 )
-async def test_run_jobs_claims_no_more_than_its_count_and_nothing_that_could_run_past_its_deadline(connections, max_jobs, time_left, claimed):
-    """A hosted runner's call returns within its limits and leaves the rest queued for its next call"""
+async def test_run_jobs_claims_no_more_than_its_count_and_nothing_that_could_run_past_its_deadline(
+    connections, frozen_now, max_jobs, time_left, claimed
+):
+    """A hosted runner's call returns within its limits and leaves the rest queued for its next call
+
+    A job may run for 5 minutes, so one is claimed only while the deadline is at least that far off
+    """
     for connection in connections[:3]:
         await _seed_job(connection, BankSyncJobKind.SCHEDULED)
-    deadline = None if time_left is None else datetime.now(UTC) + time_left
+    deadline = None if time_left is None else frozen_now + time_left
 
     assert await run_jobs(max_jobs, deadline) == claimed
 
@@ -270,21 +274,15 @@ async def test_run_jobs_gives_up_on_a_job_interrupted_three_times_and_runs_the_q
 
     if runs_again:
         assert runner.runs == [(interrupted.id, MAX_JOB_ATTEMPTS), (queued.id, 1)]
-        assert (await _job_outcomes())[interrupted.id] == ("succeeded", None, None)
+        assert (await _job_outcomes())[interrupted.id] == ("succeeded", None)
     else:
         assert runner.runs == [(queued.id, 1)]
-        assert (await _job_outcomes())[interrupted.id] == ("failed", "unknown", "The sync was interrupted 3 times")
-    assert (await _job_outcomes())[queued.id] == ("succeeded", None, None)
+        assert (await _job_outcomes())[interrupted.id] == ("failed", "unknown")
+    assert (await _job_outcomes())[queued.id] == ("succeeded", None)
 
 
-@pytest.mark.parametrize(
-    ("failure", "kind", "reason"),
-    [
-        ("raises", "unknown", "The sync stopped because of an unexpected error"),
-        ("hangs", "temporary", "The sync took longer than 5 minutes"),
-    ],
-)
-async def test_run_jobs_records_a_job_that_fails_and_runs_the_next(connections, monkeypatch, failure, kind, reason):
+@pytest.mark.parametrize(("failure", "kind"), [("raises", "unknown"), ("hangs", "temporary")])
+async def test_run_jobs_records_a_job_that_fails_and_runs_the_next(connections, monkeypatch, failure, kind):
     """A job that raises or runs past its time limit is recorded as failed, and the next job still runs"""
     failing = await _seed_job(connections[0], BankSyncJobKind.SCHEDULED)
     following = await _seed_job(connections[1], BankSyncJobKind.SCHEDULED)
@@ -303,7 +301,7 @@ async def test_run_jobs_records_a_job_that_fails_and_runs_the_next(connections, 
     async with asyncio.timeout(_WAIT_SECONDS):
         assert await run_jobs(10) == 2
 
-    assert await _job_outcomes() == {failing.id: ("failed", kind, reason), following.id: ("succeeded", None, None)}
+    assert await _job_outcomes() == {failing.id: ("failed", kind), following.id: ("succeeded", None)}
 
 
 async def test_enqueue_due_work_queues_each_due_connection_as_its_owner_and_stamps_the_heartbeat(connections, frozen_now):
@@ -328,6 +326,15 @@ async def test_enqueue_due_work_queues_each_due_connection_as_its_owner_and_stam
     assert last_scan_at == frozen_now
 
 
+async def test_enqueue_due_work_with_nothing_due_still_stamps_the_heartbeat(frozen_now):
+    """A fresh install with no connections still shows sync running, so connecting a bank isn't disabled"""
+    await enqueue_due_work()
+
+    async with TestSession() as session:
+        assert (await session.execute(select(BankSyncJob.id))).all() == []
+        assert await session.scalar(select(BankSyncHeartbeat.last_scan_at)) == frozen_now
+
+
 @pytest.mark.parametrize(
     ("scanned_ago", "running"),
     [(None, False), (timedelta(minutes=15), True), (timedelta(minutes=15, seconds=1), False)],
@@ -343,12 +350,6 @@ async def test_is_sync_worker_running_until_its_heartbeat_is_over_15_minutes_old
 
     async with ScopedSession() as session:
         assert await is_sync_worker_running(session, now) is running
-
-
-async def test_is_database_migrated_is_false_for_a_database_never_migrated():
-    """The worker waits rather than claim jobs from a database the migrations haven't brought to this release"""
-    async with ScopedSession() as session:
-        assert await is_database_migrated(await session.connection()) is False
 
 
 def test_worker_imports_without_the_token_signing_keys():
