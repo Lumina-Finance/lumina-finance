@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
-import { discardStagedRun } from '@/api/import-runs'
 import {
   useCommitStagedImport,
   useImportTransactions,
@@ -10,7 +9,7 @@ import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import { useAuth } from '@/hooks/useAuth'
 import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
-import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportAmountDirection, ImportCategoryKind, ImportFileDraft, ImportOverlayPhase, PreviewTransactionRow } from '@/pages/imports/types'
+import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportAmountDirection, ImportCategoryKind, ImportFileDraft, PreviewTransactionRow } from '@/pages/imports/types'
 import {
   buildColumnTargetOptions,
   buildImportAnswerScope,
@@ -37,7 +36,6 @@ import {
   getMissingRequiredColumnLabels,
   getNextAutoFilledColumnHeaders,
   getNextColumnMap,
-  getImportCommitFailure,
   getImportUploadBlockReason,
   getNextColumnValidationErrors,
   getSupportedCurrencyCodes,
@@ -74,6 +72,7 @@ import { waitForMilliseconds } from '@/utils/timing'
 import { useImportAccountCreateState } from './useImportAccountCreateState'
 import { useImportMerchantMatches } from './useImportMerchantMatches'
 import { useImportReferenceData } from './useImportReferenceData'
+import { useImportRun } from './useImportRun'
 
 const FILE_ACCOUNT_MATCH_KEY = '__file_account__'
 
@@ -81,7 +80,9 @@ const FILE_ACCOUNT_MATCH_KEY = '__file_account__'
 // below keep the same identity from render to render
 const NO_CLEARED_SOURCES: Set<string> = new Set()
 const CSV_PROCESSING_MIN_MS = LOADING_ANIMATION_MIN_MS
-const IMPORT_OVERLAY_MIN_MS = LOADING_ANIMATION_MIN_MS
+
+// What the overlay calls the upload of a CSV file
+const CSV_UPLOAD_LABEL = 'Uploading the file'
 
 /**
  * Drives the generic CSV import flow: staging one file, mapping its columns to app fields, resolving
@@ -213,35 +214,59 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   // Scoped like every other answer, so a second file's payees start unanswered
   const [scopedMerchantMappings, setScopedMerchantMappings] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
   const [scopedMerchantCreateNames, setScopedMerchantCreateNames] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
-  const [importError, setImportError] = useState<string | null>(null)
-  const [importResult, setImportResult] = useState<TransactionImportResponse | null>(null)
-  const [importOverlayPhase, setImportOverlayPhase] = useState<ImportOverlayPhase>('idle')
 
-  // Read by the actions rather than the phase itself, for the same reason as the staged run below:
-  // the overlay holds a finished phase on screen while it hands over to the next one, and a button
-  // pressed in that moment carries a guard that was true when it was rendered
-  const importOverlayPhaseRef = useRef<ImportOverlayPhase>('idle')
-
-  // A commit that stopped for a reason committing again could clear leaves the file staged, and
-  // this is what the second attempt runs against
-  const [stagedRunId, setStagedRunId] = useState<string | null>(null)
-
-  // The overlay keeps its buttons on screen while it fades out, and each one carries the handler
-  // from the render before it closed, so an action reads the run from here rather than from what
-  // its own render captured. Without this, Try again pressed inside the fade commits a run that
-  // Back to import has already dropped
-  const stagedRunIdRef = useRef<string | null>(null)
-  const commitAbortRef = useRef<AbortController | null>(null)
-
-  // Whether the request can still be given up on, which stops being true the moment it settles
-  // while the overlay is still held open for the rest of its minimum
-  const [canStopImport, setCanStopImport] = useState(false)
-
-  // Tells a finished file read or commit whether the workflow it started in is still the one on
-  // screen, so a reset in between drops its result instead of writing into what replaced it
+  // Tells a finished file read whether the workflow it started in is still the one on screen, so a
+  // reset in between drops its result instead of writing into what replaced it
   const workflowRunRef = useRef(0)
   const importTransactions = useImportTransactions()
   const commitStagedImport = useCommitStagedImport()
+
+  // Every answer the import is sent with, held by the answers themselves rather than by what they
+  // resolve to. The ledger is read again after an interrupted save, which can re-resolve an
+  // auto-filled answer against what that save created, and that must not read as the user changing
+  // an answer, or Commit import would settle the kept upload instead of saving it. The fixed
+  // account is held by its id, since its object is replaced whenever the accounts list is read
+  const importAnswers = useMemo(
+    () => ({
+      files,
+      storedColumnMap,
+      fixedAccountId: fixedAccount?.id ?? null,
+      scopedAccountMappings,
+      accountCreateTypes,
+      accountCreateCurrencies,
+      accountCreateInstitutions,
+      dateFormatChoice,
+      amountFormatChoice,
+      scopedDirectionAnswers,
+      scopedCategoryMappings,
+      scopedCategoryCreateKinds,
+      scopedMerchantMappings,
+      scopedMerchantCreateNames,
+    }),
+    [
+      accountCreateCurrencies,
+      accountCreateInstitutions,
+      accountCreateTypes,
+      amountFormatChoice,
+      dateFormatChoice,
+      files,
+      fixedAccount?.id,
+      scopedAccountMappings,
+      scopedCategoryCreateKinds,
+      scopedCategoryMappings,
+      scopedDirectionAnswers,
+      scopedMerchantCreateNames,
+      scopedMerchantMappings,
+      storedColumnMap,
+    ],
+  )
+
+  const run = useImportRun<TransactionImportResponse, never>({
+    answers: importAnswers,
+    uploadLabel: CSV_UPLOAD_LABEL,
+    mutations: [importTransactions, commitStagedImport],
+    formatSummary: ({ result }) => formatImportSummary(result),
+  })
 
   const categoryMappings = useMemo(
     () => readScopedImportAnswers(scopedCategoryMappings, getCategorySourceScope),
@@ -752,10 +777,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
 
   const totalRows = files.reduce((sum, file) => sum + file.rows.length, 0)
   const mappedFieldCount = headers.length === 0 ? 0 : Object.values(columnMap).filter(Boolean).length
-  const importSummary = importResult ? formatImportSummary(importResult) : ''
-  const importOverlayOpen = importOverlayPhase !== 'idle'
-  const isImportInFlight = importTransactions.isPending || commitStagedImport.isPending
-  const canCommitImport = Boolean(importBuild.payload) && !importOverlayOpen && !isImportInFlight && !importResult
+  const canCommitImport = run.canCommit({ hasPayload: importBuild.payload !== null, isProcessingFile: isProcessingFiles })
 
   const syncAutoMatchKeys = (
     nextColumnMap: ColumnMap,
@@ -811,9 +833,6 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setColumnValidationErrors(result.errors)
     setAutoFilledColumnHeaders((current) => getNextAutoFilledColumnHeaders(current, columnMap, result.map))
     syncAutoMatchKeys(result.map, result.errors, nextFiles)
-
-    // The staged file is what the last refusal was about, so it stops being true here
-    setImportError(null)
   }
 
   const handleFileChange = async (acquiredFiles: ImportFileAcquisition) => {
@@ -899,109 +918,25 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setColumnValidationErrors(nextColumnValidationErrors)
     setStoredColumnMap(nextColumnMap)
     moveFormatChoicesTo(nextColumnMap, files)
-
-    // The mapping the last refusal was about has changed, so the message stops being true
-    setImportError(null)
-  }
-
-  /**
-   * Records the staged file a second attempt would run against, for the screen and for the actions
-   */
-  const setStagedRun = (runId: string | null) => {
-    stagedRunIdRef.current = runId
-    setStagedRunId(runId)
-  }
-
-  /**
-   * Moves the overlay to a phase, for the screen and for the actions
-   */
-  const setOverlayPhase = (phase: ImportOverlayPhase) => {
-    importOverlayPhaseRef.current = phase
-    setImportOverlayPhase(phase)
-  }
-
-  /**
-   * Reports a commit that stopped, keeping the run when committing it again could still work
-   */
-  const reportFailedCommit = (error: unknown, cancelled: boolean) => {
-    const failure = getImportCommitFailure(error, cancelled)
-
-    if (failure.discardableRunId) void discardStagedRun(failure.discardableRunId)
-    setStagedRun(failure.retryableRunId)
-    setImportError(failure.message)
-    setOverlayPhase(cancelled ? 'cancelled' : 'error')
-  }
-
-  /**
-   * Runs one attempt at writing the staged file, whether it is the first or a repeat
-   */
-  const runImportAttempt = async (attempt: (signal: AbortSignal) => Promise<TransactionImportResponse>) => {
-    const workflowRun = startWorkflowRun()
-    const controller = new AbortController()
-    commitAbortRef.current = controller
-    setImportError(null)
-    setImportResult(null)
-    setStagedRun(null)
-    setCanStopImport(true)
-    setOverlayPhase('importing')
-    const minimumOverlay = waitForMilliseconds(IMPORT_OVERLAY_MIN_MS)
-
-    try {
-      const result = await attempt(controller.signal).finally(() => setCanStopImport(false))
-      await minimumOverlay
-      if (!isCurrentWorkflowRun(workflowRun)) return
-      setImportResult(result)
-      setOverlayPhase('success')
-    } catch (error) {
-      // Stopping is a decision the user has just taken, so the overlay answers it rather than
-      // sitting out the rest of a minimum it was holding for an import nobody interrupted
-      if (!controller.signal.aborted) await minimumOverlay
-      if (!isCurrentWorkflowRun(workflowRun)) return
-      reportFailedCommit(error, controller.signal.aborted)
-    } finally {
-      if (commitAbortRef.current === controller) commitAbortRef.current = null
-    }
   }
 
   const handleCommitImport = async () => {
     const payload = importBuild.payload
-    if (!payload || importOverlayOpen || isImportInFlight) return
+    if (!payload || !canCommitImport) return
 
-    await runImportAttempt((signal) => importTransactions.mutateAsync({ payload, signal }))
-  }
-
-  const retryImportCommit = async () => {
-    const runId = stagedRunIdRef.current
-    if (!runId || importTransactions.isPending || commitStagedImport.isPending) return
-
-    await runImportAttempt((signal) => commitStagedImport.mutateAsync({ runId, signal }))
+    await run.startImport([], {
+      upload: (signal, onStaged) => importTransactions.mutateAsync({ payload, signal, onStaged }),
+      commit: (runId, signal) => commitStagedImport.mutateAsync({ runId, signal }),
+    })
   }
 
   /**
-   * Stops an import the user no longer wants, which drops the staged file when it has not been
-   * written yet, and only stops waiting once the write is under way
+   * Clears the import for a fresh start, keeping an upload an interrupted save left for the next
+   * import on this screen to settle, since dropping it could not tell whether it had landed
    */
-  const cancelImport = () => {
-    commitAbortRef.current?.abort()
-  }
-
-  const dismissImportOverlay = () => {
-    const phase = importOverlayPhaseRef.current
-    if (phase !== 'error' && phase !== 'cancelled') return
-
-    // Leaving the import behind means giving up on the staged file as well
-    if (stagedRunIdRef.current) void discardStagedRun(stagedRunIdRef.current)
-    setStagedRun(null)
-    setImportError(null)
-    setOverlayPhase('idle')
-  }
-
   const resetImportWorkflow = () => {
     startWorkflowRun()
-    commitAbortRef.current?.abort()
-    if (stagedRunIdRef.current) void discardStagedRun(stagedRunIdRef.current)
-    setStagedRun(null)
-    setCanStopImport(false)
+    run.resetImportRun()
     setFiles([])
     setIsProcessingFiles(false)
     setFileIntakeError(null)
@@ -1021,17 +956,8 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setScopedCategoryCreateKinds(emptyScopedImportAnswers)
     setScopedMerchantMappings(emptyScopedImportAnswers)
     setScopedMerchantCreateNames(emptyScopedImportAnswers)
-    setImportError(null)
-    setImportResult(null)
-    setOverlayPhase('idle')
-    importTransactions.reset()
-    commitStagedImport.reset()
     if (inputRef.current) inputRef.current.value = ''
   }
-
-  // Leaving the page abandons the import: before the commit that drops the staged file, and during
-  // it that only stops waiting, since the write is the server's to finish
-  useEffect(() => () => commitAbortRef.current?.abort(), [])
 
   return {
     inputRef,
@@ -1080,13 +1006,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     matchesLoading,
     matchesFailed,
     refetchMatches,
-    importError,
-    importResult,
-    importOverlayPhase,
-    importOverlayOpen,
-    isImportInFlight,
-    canStopImport,
-    canRetryImportCommit: stagedRunId !== null,
+    ...run.workflow,
     accountsLoading,
     currenciesLoading,
     uploadBlockReason: getImportUploadBlockReason(currencies, currenciesError),
@@ -1120,7 +1040,6 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     importBuild,
     totalRows,
     mappedFieldCount,
-    importSummary,
     canCommitImport,
     setAccountCreateTypes,
     setAccountCreateCurrencies,
@@ -1140,9 +1059,6 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     updateSourceAccount,
     updateColumnTarget,
     handleCommitImport,
-    retryImportCommit,
-    cancelImport,
-    dismissImportOverlay,
     resetImportWorkflow,
   }
 }

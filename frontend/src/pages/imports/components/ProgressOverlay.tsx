@@ -41,7 +41,7 @@ const STEP_TRAVEL_DURATION = 0.28
 /**
  * How long the strike takes to draw across a finished stage
  *
- * PROVIDER_IMPORT_STAGE_CROSS_OFF_MS is how long the stage is held struck off,
+ * IMPORT_RUN_STAGE_CROSS_OFF_MS is how long the stage is held struck off,
  * so it has to stay clear of this or the line would leave part drawn
  */
 const STEP_STRIKE_DURATION = 0.42
@@ -150,17 +150,16 @@ interface ImportProgressOverlayProps {
   onReview?: () => void
   phase: ImportOverlayPhase
 
-  /** Stages of a multi-stage import, listed while it runs; single-stage flows leave this unset */
-  steps?: ImportProgressStep[]
+  /** The import's stages, listed while it runs */
+  steps: ImportProgressStep[] | undefined
   summary: string
 }
 
 /**
  * Full-screen overlay shown while an import is running, and after it finishes, fails or is stopped
  *
- * The title and message read off the phase and, when supplied, the multi-stage step list rather than
- * a fixed set of copy, so a single-stage commit collapses to a plain spinner while a multi-stage one
- * shows the stage wheel underneath it
+ * The title and message read off the phase rather than a fixed set of copy, and while the import runs
+ * the stage list underneath says what is in flight
  */
 export function ImportProgressOverlay({
   error,
@@ -208,8 +207,7 @@ export function ImportProgressOverlay({
   const stopped = phase === 'cancelled'
   const ended = failed || stopped
 
-  // The stage list already says what is in flight, so the title stops
-  // repeating the first stage when a flow supplies one
+  // The stage list already says what is in flight, so the title doesn't repeat it
   const title = ended && endedTitle
     ? endedTitle
     : stopped
@@ -218,9 +216,7 @@ export function ImportProgressOverlay({
         ? 'Import failed'
         : complete
           ? 'Import complete'
-          : steps
-            ? 'Importing'
-            : 'Importing transactions'
+          : 'Importing'
   const message = ended
     ? error ?? (stopped ? 'Import stopped.' : GENERIC_IMPORT_FAILURE)
     : complete
@@ -254,7 +250,7 @@ export function ImportProgressOverlay({
         >
           <h2 id={titleId} className="sr-only">Import progress</h2>
           <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
-            {title}. {steps?.find((step) => step.status === 'active')?.label ?? ''} {message}{ended && note ? ` ${note}` : ''}
+            {title}. {complete || ended ? '' : steps?.find((step) => step.status === 'active')?.label ?? ''} {message}{ended && note ? ` ${note}` : ''}
           </p>
           <motion.div
             className="relative flex w-full max-w-[30rem] flex-col items-center px-4 py-8 text-center"
@@ -308,8 +304,9 @@ export function ImportProgressOverlay({
                 <motion.p className="text-xl font-semibold" variants={itemVariants}>
                   {title}
                 </motion.p>
+                {/* Balanced, so a summary or message one word over a line doesn't leave it alone below */}
                 <motion.p
-                  className="mt-3 max-w-sm text-sm leading-6"
+                  className="mt-3 max-w-sm text-balance text-sm leading-6"
                   style={messageStyle}
                   variants={itemVariants}
                 >

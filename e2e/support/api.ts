@@ -401,3 +401,28 @@ export async function createMonthlyBudget(
   const body = (await response.json()) as { id: string }
   return body.id
 }
+
+/**
+ * Counts every transaction in a user's ledger, reading the list a page at a time
+ *
+ * @param request - Playwright request context
+ * @param user - Ledger owner
+ * @returns How many transactions the ledger holds
+ * @throws When a page of the list does not answer 200
+ */
+export async function countLedgerTransactions(request: APIRequestContext, user: TestUser): Promise<number> {
+  let count = 0
+  for (let offset = 0; ; offset += 50) {
+    const response = await request.get(`${API_BASE_URL}/transactions`, {
+      headers: asUser(user),
+      params: { limit: 50, offset },
+    })
+    if (response.status() !== 200) {
+      throw new Error(`listing transactions answered ${response.status()}: ${await response.text()}`)
+    }
+
+    const page = (await response.json()) as unknown[]
+    count += page.length
+    if (page.length < 50) return count
+  }
+}
