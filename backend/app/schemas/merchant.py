@@ -7,8 +7,8 @@ from typing import Annotated
 from pydantic import BaseModel, Field, field_validator
 from pydantic.json_schema import SkipJsonSchema
 
+from app.schemas.import_run import MAX_IMPORT_MAPPINGS
 from app.schemas.names import TrimmedName
-from app.schemas.transaction import MAX_IMPORT_MAPPINGS
 
 # One payee value asked about, bounded by the column merchants are stored in. A lookup asks about at
 # most what one import may declare mappings for, since the import page is what asks it

@@ -8,7 +8,7 @@ name before a request carrying either shape reaches the route.
 import pytest
 from fastapi import HTTPException
 
-from app.schemas.transaction import TransactionImportAccountMapping
+from app.schemas.import_run import TransactionImportAccountMapping
 from app.services.importers.shared.accounts import resolve_import_account_sources
 from app.services.importers.shared.stats import ImportStats
 from tests.conftest import TestSession

@@ -12,7 +12,7 @@ from app.models.category import Category
 from app.models.merchant import Merchant
 from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
-from app.schemas.transaction import TransactionImportMerchantMapping, TransactionImportRow
+from app.schemas.import_run import TransactionImportMerchantMapping, TransactionImportRow
 from app.services.importers.generic.amounts import parse_import_amount_to_minor_units
 from app.services.importers.generic.lookup_helpers import TransactionImportLookups
 from app.services.importers.shared.merchants import (

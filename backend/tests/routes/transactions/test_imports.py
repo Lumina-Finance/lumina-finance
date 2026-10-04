@@ -4,7 +4,7 @@ import uuid
 import pytest
 from sqlalchemy import text
 
-from app.schemas.transaction import (
+from app.schemas.import_run import (
     MAX_IMPORT_NOTES_LENGTH,
     MAX_IMPORT_TAG_NAME_LENGTH,
     MAX_IMPORT_TAGS_PER_ROW,

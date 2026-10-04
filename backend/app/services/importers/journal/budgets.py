@@ -13,7 +13,7 @@ from app.models.base import RecurrenceFreq
 from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
 from app.models.currency import Currency
 from app.models.user import User
-from app.schemas.journal_import import (
+from app.schemas.import_run import (
     JournalBudgetImportResult,
     JournalBudgetLimit,
     JournalBudgetRecurrence,

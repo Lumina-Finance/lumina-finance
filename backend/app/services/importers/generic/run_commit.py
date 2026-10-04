@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.import_run import ImportRun, ImportRunSource, ImportStagedRow
 from app.models.user import User
-from app.schemas.transaction import (
+from app.schemas.import_run import (
     TransactionImportAccountMapping,
     TransactionImportCategoryMapping,
     TransactionImportMerchantMapping,

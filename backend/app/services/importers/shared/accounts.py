@@ -10,7 +10,7 @@ from app.models.base import PermissionLevel
 from app.models.user import User
 from app.permissions import check_account_access
 from app.permissions.accounts import AccountAccessLookup, load_account_access_lookup
-from app.schemas.transaction import TransactionImportAccountMapping
+from app.schemas.import_run import TransactionImportAccountMapping
 from app.services.importers.shared.account_creation_helpers import create_import_account, load_import_account_references
 from app.services.importers.shared.stats import ImportStats
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise

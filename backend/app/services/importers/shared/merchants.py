@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.merchant import Merchant
-from app.schemas.transaction import MAX_IMPORT_MERCHANT_NAME_LENGTH, TransactionImportMerchantMapping
+from app.schemas.import_run import MAX_IMPORT_MERCHANT_NAME_LENGTH, TransactionImportMerchantMapping
 from app.services.importers.shared.insertion_helpers import insert_import_records_if_absent
 from app.services.importers.shared.stats import ImportStats
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise

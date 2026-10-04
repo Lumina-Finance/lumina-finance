@@ -3,7 +3,7 @@
 import uuid
 from datetime import date
 
-from app.schemas.transaction import TransactionImportRequest, TransactionImportResponse
+from app.schemas.import_run import TransactionImportRequest, TransactionImportResponse
 from app.services.importers.generic.lookup_helpers import TransactionImportLookups
 from app.services.importers.shared.stats import ImportStats
 

@@ -6,7 +6,7 @@ stands for both
 
 import pytest
 
-from app.schemas.transaction import MAX_IMPORT_BATCH_ROWS, MAX_IMPORT_MAPPINGS
+from app.schemas.import_run import MAX_IMPORT_BATCH_ROWS, MAX_IMPORT_MAPPINGS
 from tests.routes.support import _create_user, _get_auth_header
 from tests.routes.transactions._import_helpers import _csv_batch, _firefly_batch, _open_run, _stage_batch
 

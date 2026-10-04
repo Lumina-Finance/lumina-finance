@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.import_run import ImportRunSource
 from app.models.user import User
-from app.schemas.transaction import TransactionImportMerchantMapping, TransactionImportStageRequest
+from app.schemas.import_run import TransactionImportMerchantMapping, TransactionImportStageRequest
 from app.services.importers.shared.merchants import require_usable_import_merchant
 from app.services.importers.shared.run_staging import (
     StagingReferences,

@@ -3,53 +3,17 @@
 import enum
 import uuid
 from datetime import date, datetime
-from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 from app.models.base import TransferCounterpartyScope
 from app.schemas.fx import FxStatus
-from app.schemas.names import TrimmedName
+from app.schemas.import_run import MAX_IMPORT_NOTES_LENGTH, MAX_IMPORT_TAGS_PER_ROW
 
-# Rows one import may carry, matching the cap the file reader applies before a file is staged. A
-# run is refused past it here as well, since the reader runs in the browser
-MAX_IMPORT_ROWS = 100_000
-
-# One batch becomes a single insert carrying five bind parameters per row, and a statement may
-# carry 65535 of them, so a batch past about 13000 rows fails inside the driver rather than being
-# refused. The browser closes a batch on its byte budget long before this, at roughly 4000 rows.
-# The journal import reuses the figure, where a row carries more fields and a batch of them
-# reaches roughly 2000 rows against the same byte budget
-MAX_IMPORT_BATCH_ROWS = 5_000
-
-# Account or category mappings one import may carry, applied both to a single batch and to the total
-# a run accumulates across its batches. Staging checks every mapping against the database, one query
-# for an existing account and two for one being created, so the count decides the work a single
-# request costs. No statement file has more than a handful of accounts or more than dozens of
-# categories
-MAX_IMPORT_MAPPINGS = 1_000
-
-# Characters of notes one row may carry, against a column that would otherwise take a megabyte a
-# row. Long enough for a full statement memo line and the reference numbers banks append to it
-MAX_IMPORT_NOTES_LENGTH = 10_000
-
-# Tags one row may carry, and characters one tag name may carry. The length matches the column tags
-# are stored in, so a name too long is refused as the batch carrying it is staged rather than at the
-# commit, once the rows are already parked
-MAX_IMPORT_TAGS_PER_ROW = 32
-MAX_IMPORT_TAG_NAME_LENGTH = 64
-
-# Characters a payee may carry, matching the column merchants are stored in
-MAX_IMPORT_MERCHANT_NAME_LENGTH = 256
-
-# Transactions one bulk edit may carry, matching the mapping cap above, since both bound an id list
+# Transactions one bulk edit may carry, matching the import mapping cap, since both bound an id list
 # a single request checks row by row against the database. The list loads 15 rows at a time and a
 # selection is built from rows already loaded, so reaching this takes roughly 67 pages of scrolling
 MAX_BULK_UPDATE_TRANSACTIONS = 1_000
-
-# One imported tag name, bounded so that the count and the length are stated in one place for both
-# importers
-ImportTagName = Annotated[str, Field(max_length=MAX_IMPORT_TAG_NAME_LENGTH)]
 
 
 class TopCategorySpend(BaseModel):
@@ -210,8 +174,14 @@ class BulkDirectionChange(enum.StrEnum):
 # every row either of them reaches outward. Either transfer end is the same: a null end still
 # counts as asked for and has no account or scope of its own to resolve
 _BULK_UPDATE_NON_NULLABLE_FIELDS = (
-    "account_id", "dt", "category_id", "merchant_id", "direction", "transfer_direction",
-    "transfer_from", "transfer_to",
+    "account_id",
+    "dt",
+    "category_id",
+    "merchant_id",
+    "direction",
+    "transfer_direction",
+    "transfer_from",
+    "transfer_to",
 )
 
 
@@ -325,150 +295,3 @@ class BulkUpdateTransactionsResponse(BaseModel):
 
     transactions_updated: int
     affected_account_ids: list[uuid.UUID]
-
-
-class TransactionImportCreateAccount(BaseModel):
-    """New personal account to create during a transaction import."""
-
-    name: str = Field(min_length=1, max_length=256)
-    account_type: str
-    currency: str = Field(min_length=3, max_length=3)
-    institution_id: uuid.UUID | None = None
-
-
-class TransactionImportAccountMapping(BaseModel):
-    """Resolve one imported account source to an account, or to the accounts this app does not keep."""
-
-    source: str = Field(min_length=1, max_length=256)
-    account_id: uuid.UUID | None = None
-    create: TransactionImportCreateAccount | None = None
-
-    # A source appearing only as a transfer counterparty can be answered as money that left
-    # the tracked accounts, which no account row expresses. Rows are never written to such a source
-    outside: bool = False
-
-
-class TransactionImportCreateCategory(BaseModel):
-    """New personal category to create during a transaction import."""
-
-    name: str = Field(min_length=1, max_length=256)
-    kind: str
-    icon: str | None = None
-
-
-class TransactionImportCategoryMapping(BaseModel):
-    """Resolve one imported category source to an existing or new category."""
-
-    source: str = Field(min_length=1, max_length=256)
-    category_id: uuid.UUID | None = None
-    create: TransactionImportCreateCategory | None = None
-
-
-class TransactionImportCreateMerchant(BaseModel):
-    """New personal merchant to create during a transaction import."""
-
-    name: TrimmedName = Field(min_length=1, max_length=MAX_IMPORT_MERCHANT_NAME_LENGTH)
-
-
-class TransactionImportMerchantMapping(BaseModel):
-    """Resolve one payee value found in the file to a merchant, to a new one, or to none.
-
-    Only the values the user answered by hand are declared. A payee left alone keeps what the
-    importer does without being asked, matching an existing merchant by name and creating one where
-    nothing matches, so a file carrying thousands of distinct descriptors is not refused for
-    declaring more mappings than an import may carry.
-    """
-
-    source: str = Field(min_length=1, max_length=MAX_IMPORT_MERCHANT_NAME_LENGTH)
-    merchant_id: uuid.UUID | None = None
-    create: TransactionImportCreateMerchant | None = None
-
-    # Answered skip, so the rows carrying this payee are filed under the merchant the app stamps on
-    # a row stating no payee at all
-    skip: bool = False
-
-
-class TransactionImportRow(BaseModel):
-    """One frontend-compiled import row.
-
-    Amount carries the cell's own digits rather than minor units. Its sign is the frontend's where
-    the file states direction by which column a value sits in, and the cell's own otherwise.
-    """
-
-    account_source: str = Field(min_length=1, max_length=256)
-    category_source: str = Field(min_length=1, max_length=256)
-    dt: date
-    amount: str = Field(min_length=1, max_length=64)
-    merchant_name: str | None = Field(None, max_length=MAX_IMPORT_MERCHANT_NAME_LENGTH)
-    notes: str | None = Field(None, max_length=MAX_IMPORT_NOTES_LENGTH)
-    tag_names: list[ImportTagName] = Field(default=[], max_length=MAX_IMPORT_TAGS_PER_ROW)
-
-    # Counterparty account source, meaning the account the money moved to or from. A transfer row
-    # that leaves it unset records that the money left the tracked accounts
-    counterparty_account_source: str | None = Field(None, min_length=1, max_length=256)
-
-
-class TransactionImportRequest(BaseModel):
-    """A whole staged file, rebuilt from its run at commit time and handed to the import service."""
-
-    accounts: list[TransactionImportAccountMapping] = Field(min_length=1)
-    categories: list[TransactionImportCategoryMapping] = Field(min_length=1)
-
-    # Only the payee values the user answered by hand, so this is empty for a file whose merchants
-    # were all left to match or be created by name
-    merchants: list[TransactionImportMerchantMapping] = Field(default=[])
-    rows: list[TransactionImportRow] = Field(min_length=1)
-
-
-class TransactionImportRunRequest(BaseModel):
-    """Open a run for a file about to be staged."""
-
-    expected_transaction_count: int = Field(gt=0, le=MAX_IMPORT_ROWS)
-
-    # Which importer's rows the run stages, so each importer's commit reads only its own. Firefly III
-    # and Actual Budget runs both stage journal rows, and the source decides how a refusal names a row
-    source: Literal["generic", "firefly", "actual_budget"] = "generic"
-
-
-class TransactionImportRunResponse(BaseModel):
-    """The opened run, which every later call for this file quotes."""
-
-    id: uuid.UUID
-
-
-class TransactionImportStageRequest(BaseModel):
-    """One batch of a staged file: the mappings its rows reference, and the rows themselves."""
-
-    accounts: list[TransactionImportAccountMapping] = Field(min_length=1, max_length=MAX_IMPORT_MAPPINGS)
-    categories: list[TransactionImportCategoryMapping] = Field(min_length=1, max_length=MAX_IMPORT_MAPPINGS)
-
-    # Carries no minimum, unlike the other two, because a batch whose payees were all left alone
-    # declares none of them
-    merchants: list[TransactionImportMerchantMapping] = Field(default=[], max_length=MAX_IMPORT_MAPPINGS)
-    rows: list[TransactionImportRow] = Field(min_length=1, max_length=MAX_IMPORT_BATCH_ROWS)
-
-    # Where this batch starts in the file, so a batch sent twice stages the same positions and the
-    # unique constraint on them absorbs the second copy. A position already staged keeps what it
-    # was first given, so a caller wanting different rows there opens a new run
-    start_row_index: int = Field(ge=0)
-
-
-class TransactionImportResponse(BaseModel):
-    """Summary of records created or reused by a transaction import."""
-
-    transactions_created: int
-    accounts_created: int
-    accounts_reused: int
-    categories_created: int
-    categories_reused: int
-    merchants_created: int
-    merchants_reused: int
-    tags_created: int
-    tags_reused: int
-    affected_account_ids: list[uuid.UUID]
-    account_source_ids: dict[str, uuid.UUID]
-    category_source_ids: dict[str, uuid.UUID]
-    created_account_ids: list[uuid.UUID]
-    created_category_ids: list[uuid.UUID]
-    created_merchant_ids: list[uuid.UUID]
-    created_tag_ids: list[uuid.UUID]

@@ -15,8 +15,7 @@ from app.models.import_run import ImportRunSource
 from app.models.tag import TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.schemas.journal_import import JournalTransactionRow
-from app.schemas.transaction import TransactionImportAccountMapping, TransactionImportCategoryMapping
+from app.schemas.import_run import JournalTransactionRow, TransactionImportAccountMapping, TransactionImportCategoryMapping
 from app.services.accounts.snapshots import recompute_account_snapshots
 from app.services.cache_state import mark_cache_changed_for_scope, mark_user_cache_changed
 from app.services.categories.transfer_rules import does_category_record_counterparty_account

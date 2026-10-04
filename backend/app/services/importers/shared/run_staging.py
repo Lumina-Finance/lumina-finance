@@ -19,9 +19,10 @@ from app.models.merchant import Merchant
 from app.models.user import User
 from app.permissions import check_account_access
 from app.permissions.accounts import AccountAccessLookup, load_account_access_lookup
-from app.schemas.import_run import ImportRunArchiveRequest, ImportRunBudgetsRequest
-from app.schemas.transaction import (
+from app.schemas.import_run import (
     MAX_IMPORT_MAPPINGS,
+    ImportRunArchiveRequest,
+    ImportRunBudgetsRequest,
     TransactionImportAccountMapping,
     TransactionImportCategoryMapping,
     TransactionImportMerchantMapping,

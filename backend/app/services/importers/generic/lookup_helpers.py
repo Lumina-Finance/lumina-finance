@@ -9,7 +9,7 @@ from app.models.category import Category
 from app.models.currency import Currency
 from app.models.tag import Tag
 from app.models.user import User
-from app.schemas.transaction import TransactionImportRequest
+from app.schemas.import_run import TransactionImportRequest
 from app.services.importers.shared.accounts import resolve_import_account_sources
 from app.services.importers.shared.categories import get_or_create_import_categories_by_source
 from app.services.importers.shared.currencies import get_import_currencies_by_code

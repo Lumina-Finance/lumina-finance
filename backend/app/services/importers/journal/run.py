@@ -12,14 +12,15 @@ from app.models.category import Category
 from app.models.import_run import ImportRun, ImportRunSource
 from app.models.user import User
 from app.permissions import check_account_access
-from app.schemas.import_run import ImportBudgetDraft
-from app.schemas.journal_import import (
+from app.schemas.import_run import (
+    ImportBudgetDraft,
     JournalBudgetImportResult,
     JournalImportRunResponse,
     JournalImportStageRequest,
     JournalTransactionRow,
+    TransactionImportAccountMapping,
+    TransactionImportCategoryMapping,
 )
-from app.schemas.transaction import TransactionImportAccountMapping, TransactionImportCategoryMapping
 from app.services.accounts.balance_adjustments import (
     validate_no_transactions_after_archive_date,
     zero_account_balance_for_archive,

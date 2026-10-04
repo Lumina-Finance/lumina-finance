@@ -12,7 +12,7 @@ from fastapi import HTTPException
 
 from app.models.base import CategoryKind
 from app.models.category import Category
-from app.schemas.transaction import TransactionImportCategoryMapping
+from app.schemas.import_run import TransactionImportCategoryMapping
 from app.services.importers.shared.categories import (
     get_or_create_import_categories_by_source,
     get_visible_import_category,

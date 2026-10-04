@@ -7,7 +7,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.tag import Tag
-from app.schemas.transaction import MAX_IMPORT_TAG_NAME_LENGTH
+from app.schemas.import_run import MAX_IMPORT_TAG_NAME_LENGTH
 from app.services.importers.shared.insertion_helpers import insert_import_records_if_absent
 from app.services.importers.shared.stats import ImportStats
 

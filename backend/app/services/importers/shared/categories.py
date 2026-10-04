@@ -10,7 +10,7 @@ from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.group import GroupMember
 from app.models.user import User
-from app.schemas.transaction import TransactionImportCategoryMapping, TransactionImportCreateCategory
+from app.schemas.import_run import TransactionImportCategoryMapping, TransactionImportCreateCategory
 from app.services.importers.shared.insertion_helpers import insert_import_records_if_absent
 from app.services.importers.shared.stats import ImportStats
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
