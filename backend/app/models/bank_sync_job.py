@@ -20,7 +20,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base
+from app.models.base import Base, check_values
 
 
 class BankSyncJobKind(enum.StrEnum):
@@ -51,11 +51,6 @@ class BankSyncErrorKind(enum.StrEnum):
     UNKNOWN = "unknown"
 
 
-def _check_values(values: type[enum.StrEnum]) -> str:
-    """Return an enum's values as a SQL list for a check constraint"""
-    return ", ".join(f"'{value}'" for value in values)
-
-
 # The heartbeat table holds one row, and this is its id
 HEARTBEAT_ID = 1
 
@@ -72,10 +67,10 @@ class BankSyncJob(Base):
 
     __tablename__ = "bank_sync_jobs"
     __table_args__ = (
-        CheckConstraint(f"kind IN ({_check_values(BankSyncJobKind)})", name="ck_bank_sync_jobs_kind"),
-        CheckConstraint(f"status IN ({_check_values(BankSyncJobStatus)})", name="ck_bank_sync_jobs_status"),
+        CheckConstraint(f"kind IN ({check_values(BankSyncJobKind)})", name="ck_bank_sync_jobs_kind"),
+        CheckConstraint(f"status IN ({check_values(BankSyncJobStatus)})", name="ck_bank_sync_jobs_status"),
         CheckConstraint(
-            f"last_error_kind IN ({_check_values(BankSyncErrorKind)})",
+            f"last_error_kind IN ({check_values(BankSyncErrorKind)})",
             name="ck_bank_sync_jobs_last_error_kind",
         ),
         CheckConstraint(

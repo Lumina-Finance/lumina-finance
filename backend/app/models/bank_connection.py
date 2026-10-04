@@ -21,7 +21,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base
+from app.models.base import Base, check_values
 from app.models.types import EncryptedText
 
 
@@ -80,11 +80,6 @@ class OpeningAdjustmentState(enum.StrEnum):
     NONE = "none"
 
 
-def _check_values(values: type[enum.StrEnum]) -> str:
-    """Return an enum's values as a SQL list for a check constraint"""
-    return ", ".join(f"'{value}'" for value in values)
-
-
 # Only rows that aren't unlinked count towards the one-link rules, so an unlinked row keeps its
 # "Previously linked to" details without blocking a new link
 _LIVE_LINK = "state <> 'unlinked'"
@@ -100,7 +95,7 @@ class BankConnection(Base):
     """
 
     __tablename__ = "bank_connections"
-    __table_args__ = (CheckConstraint(f"provider IN ({_check_values(BankProvider)})", name="ck_bank_connections_provider"),)
+    __table_args__ = (CheckConstraint(f"provider IN ({check_values(BankProvider)})", name="ck_bank_connections_provider"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
@@ -136,7 +131,7 @@ class BankProviderRequest(Base):
     __tablename__ = "bank_provider_requests"
     __table_args__ = (
         CheckConstraint(
-            f"purpose IN ({_check_values(ProviderRequestPurpose)})",
+            f"purpose IN ({check_values(ProviderRequestPurpose)})",
             name="ck_bank_provider_requests_purpose",
         ),
         # Serves counting and pruning one connection's requests within the window
@@ -200,11 +195,11 @@ class BankAccountLink(Base):
 
     __tablename__ = "bank_account_links"
     __table_args__ = (
-        CheckConstraint(f"provider IN ({_check_values(BankProvider)})", name="ck_bank_account_links_provider"),
-        CheckConstraint(f"state IN ({_check_values(BankLinkState)})", name="ck_bank_account_links_state"),
-        CheckConstraint(f"import_kind IN ({_check_values(BankImportKind)})", name="ck_bank_account_links_import_kind"),
+        CheckConstraint(f"provider IN ({check_values(BankProvider)})", name="ck_bank_account_links_provider"),
+        CheckConstraint(f"state IN ({check_values(BankLinkState)})", name="ck_bank_account_links_state"),
+        CheckConstraint(f"import_kind IN ({check_values(BankImportKind)})", name="ck_bank_account_links_import_kind"),
         CheckConstraint(
-            f"opening_adjustment_state IN ({_check_values(OpeningAdjustmentState)})",
+            f"opening_adjustment_state IN ({check_values(OpeningAdjustmentState)})",
             name="ck_bank_account_links_opening_adjustment_state",
         ),
         CheckConstraint("(state = 'unlinked') = (unlinked_at IS NOT NULL)", name="ck_bank_account_links_unlinked_at"),

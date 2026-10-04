@@ -6,7 +6,7 @@ import uuid
 from sqlalchemy import VARCHAR, CheckConstraint, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base
+from app.models.base import Base, check_values
 
 
 class ReviewDecision(enum.StrEnum):
@@ -16,7 +16,7 @@ class ReviewDecision(enum.StrEnum):
     TRUST = "trust"
 
 
-_DECISIONS = ", ".join(f"'{decision}'" for decision in ReviewDecision)
+_DECISIONS = check_values(ReviewDecision)
 
 
 class AccountReviewPreference(Base):

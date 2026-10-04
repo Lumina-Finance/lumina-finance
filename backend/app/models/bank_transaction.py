@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.bank_connection import BankProvider
-from app.models.base import Base
+from app.models.base import Base, check_values
 
 
 class BankTransactionDisposition(enum.StrEnum):
@@ -31,11 +31,6 @@ class OpenReviewKind(enum.StrEnum):
 # The bank fields a ledger row can differ from. The ledger has no description column, so the raw
 # bank description is always shown read-only and can't be edited
 EditableBankField = Literal["date", "amount"]
-
-
-def _check_values(values: type[enum.StrEnum]) -> str:
-    """Return an enum's values as a SQL list for a check constraint"""
-    return ", ".join(f"'{value}'" for value in values)
 
 
 # Every column a provider observation fills, which a dismissed record keeps none of
@@ -72,12 +67,12 @@ class BankTransaction(Base):
         ),
         # A ledger row comes from at most one bank transaction
         UniqueConstraint("transaction_id", name="uq_bank_transactions_transaction_id"),
-        CheckConstraint(f"provider IN ({_check_values(BankProvider)})", name="ck_bank_transactions_provider"),
+        CheckConstraint(f"provider IN ({check_values(BankProvider)})", name="ck_bank_transactions_provider"),
         CheckConstraint(
-            f"disposition IN ({_check_values(BankTransactionDisposition)})",
+            f"disposition IN ({check_values(BankTransactionDisposition)})",
             name="ck_bank_transactions_disposition",
         ),
-        CheckConstraint(f"open_kind IN ({_check_values(OpenReviewKind)})", name="ck_bank_transactions_open_kind"),
+        CheckConstraint(f"open_kind IN ({check_values(OpenReviewKind)})", name="ck_bank_transactions_open_kind"),
         # Accepted means exactly one ledger row, aligned with a bank date
         CheckConstraint(
             "(disposition = 'accepted') = (transaction_id IS NOT NULL) AND (disposition = 'accepted') = (aligned_date IS NOT NULL)",
