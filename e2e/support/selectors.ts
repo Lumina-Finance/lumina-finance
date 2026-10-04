@@ -94,6 +94,29 @@ export function getTransactionRowButton(row: Locator): Locator {
 }
 
 /**
+ * Assert keyboard focus on a control stretched over its row rings the row in the app's accent focus
+ * outline, read from the layer the control lays over the row, which is what draws it
+ */
+export async function expectStretchedFocusRing(control: Locator): Promise<void> {
+  await control.focus()
+
+  // Back a step and forward again, so the focus arrives from the keyboard as a user's would
+  await control.page().keyboard.press('Shift+Tab')
+  await control.page().keyboard.press('Tab')
+  await expect(control).toBeFocused()
+  const ring = await control.evaluate((element) => {
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--app-accent)'
+    element.append(probe)
+    const accent = getComputedStyle(probe).color
+    probe.remove()
+    const layer = getComputedStyle(element, '::after')
+    return { position: layer.position, style: layer.outlineStyle, width: layer.outlineWidth, color: layer.outlineColor, accent }
+  })
+  expect(ring).toEqual({ position: 'absolute', style: 'solid', width: '2px', color: ring.accent, accent: ring.accent })
+}
+
+/**
  * Assert a scoped row opens from a button named by its title alone, and has exactly one rendered
  * responsive amount
  *

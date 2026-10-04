@@ -102,7 +102,8 @@ export default function AccountRow({
   // The link sits on the name and stretches over the whole row, rather than wrapping it, because the
   // row holds a control of its own, the FX badge, and a link cannot contain one. The badge is raised
   // above the stretched link so a tap on it opens its tooltip rather than the account. Keyboard focus
-  // on the link lights the row as a hover does
+  // on the link lights the row as a hover does and rings it in the app's accent focus outline, inset
+  // so the row beside it cannot cover it, since the light alone is too faint to find the focus by
   return (
     <div
       className={`group/row app-focus-inset relative flex min-w-0 items-stretch rounded-xl hover:bg-[var(--app-accent-soft)] has-[a:focus-visible]:bg-transparent! has-[a:focus-visible]:[outline:var(--app-focus-outline)] ${
@@ -149,7 +150,7 @@ export default function AccountRow({
               <p className="inline font-medium [overflow-wrap:anywhere] min-[750px]:block min-[750px]:min-w-0 min-[750px]:truncate">
                 <Link
                   to={`/accounts/${account.id}`}
-                  className="after:absolute after:inset-0 after:rounded-xl after:content-[''] focus-visible:outline-none"
+                  className="after:absolute after:inset-0 after:rounded-xl after:content-[''] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-[var(--app-accent)]"
                 >
                   {account.name}
                 </Link>
