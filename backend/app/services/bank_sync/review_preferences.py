@@ -40,18 +40,7 @@ async def get_review_preferences(db: AsyncSession, user_id: uuid.UUID, account_i
         HTTPException: The account doesn't exist or isn't the user's own
     """
     await _require_own_account(db, user_id, account_id)
-    stored = (
-        await db.execute(
-            select(
-                AccountReviewPreference.new_transactions,
-                AccountReviewPreference.corrections,
-                AccountReviewPreference.removals,
-            ).where(AccountReviewPreference.account_id == account_id)
-        )
-    ).one_or_none()
-    if stored is None:
-        return REVIEW_ALL
-    return ReviewPreferences(*(ReviewDecision(choice) for choice in stored))
+    return await _read_preferences(db, account_id)
 
 
 async def update_review_preferences(
@@ -96,7 +85,23 @@ async def update_review_preferences(
             .values(account_id=account_id, owner_id=user_id, **changed)
             .on_conflict_do_update(index_elements=[AccountReviewPreference.account_id], set_=changed)
         )
-    return await get_review_preferences(db, user_id, account_id)
+    return await _read_preferences(db, account_id)
+
+
+async def _read_preferences(db: AsyncSession, account_id: uuid.UUID) -> ReviewPreferences:
+    """Return an account's stored choices, or Review all when none are stored"""
+    stored = (
+        await db.execute(
+            select(
+                AccountReviewPreference.new_transactions,
+                AccountReviewPreference.corrections,
+                AccountReviewPreference.removals,
+            ).where(AccountReviewPreference.account_id == account_id)
+        )
+    ).one_or_none()
+    if stored is None:
+        return REVIEW_ALL
+    return ReviewPreferences(*(ReviewDecision(choice) for choice in stored))
 
 
 async def _require_own_account(db: AsyncSession, user_id: uuid.UUID, account_id: uuid.UUID) -> None:
