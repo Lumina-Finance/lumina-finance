@@ -2,35 +2,33 @@ import { useId, useState, type MouseEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { ModalContentPanel } from '@/components/modal/ContentPanel'
 import InstitutionModal from '@/components/reference-modals/InstitutionModal'
-import { useInstitutionModal } from '@/hooks/useInstitutionModal'
 import {
-  ACCOUNTS_LOAD_FAILURE_EXPLANATION,
-  ACCOUNTS_LOAD_FAILURE_TITLE,
   ACCOUNT_TYPE_OPTIONS,
   ARCHIVED_ACCOUNT_MATCH_EXPLANATION,
   CLEARED_ACCOUNT_SOURCES_EXPLANATION,
   CLEARED_ACCOUNT_SOURCES_TITLE,
   COUNTERPARTY_ONLY_EXPLANATION,
   COUNTERPARTY_ONLY_TABLE_TITLE,
-  CREATED_ACCOUNT_BALANCE_NOTE,
-  CREATED_ACCOUNT_CREDIT_LIMIT_NOTE,
-  CREATED_ACCOUNT_EXPLANATION,
-  CREATED_ACCOUNT_TITLE,
   FIXED_ACCOUNT_WARNING_LINK_LABEL,
   FIXED_ACCOUNT_WARNING_TITLE,
   UNSET_BATCH_INSTITUTION,
   getFixedAccountWarning,
 } from '@/pages/imports/constants'
 import type { ImportAccountSource } from '@/pages/imports/types'
-import { isCreatingImportAccount, isImportableAccount } from '@/pages/imports/utils'
-import { ImportAccountMappingTable, EmptyState, ImportLoadFailure, ImportNotice, ImportStep } from '@/pages/imports/components'
-import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
+import { buildImportAccountMappingRows, isCreatingImportAccount } from '@/pages/imports/utils'
+import {
+  EmptyState,
+  ImportAccountMappingTable,
+  ImportAccountStepBody,
+  ImportCreatedAccountsNotice,
+  ImportNotice,
+  ImportStep,
+} from '@/pages/imports/components'
+import { useImportInstitutionModal, type TransactionImportWorkflow } from '@/pages/imports/hooks'
 
 // Which batch bar asked for a new institution, since each table has one and a row id can be neither
 const IMPORTED_BATCH_TARGET = '__imported_batch__'
 const COUNTERPARTY_BATCH_TARGET = '__counterparty_batch__'
-type BatchTarget = typeof IMPORTED_BATCH_TARGET | typeof COUNTERPARTY_BATCH_TARGET
-
 type ImportAccountMappingStepProps = Pick<
   TransactionImportWorkflow,
   | 'accountMappingSources'
@@ -111,11 +109,7 @@ export function ImportAccountMappingStep({
 }: ImportAccountMappingStepProps) {
   const navigate = useNavigate()
   const leaveImportTitleId = useId()
-  const institutionModal = useInstitutionModal()
   const [pendingAccountDestination, setPendingAccountDestination] = useState<string | null>(null)
-
-  // Which field asked for a new institution, so the one it creates comes back to that field
-  const [institutionModalTarget, setInstitutionModalTarget] = useState<BatchTarget | string>('')
 
   // The counterparty table carries its own batch bar, so typing into one bar leaves the other alone
   const [counterpartyBatchType, setCounterpartyBatchType] = useState('')
@@ -150,58 +144,34 @@ export function ImportAccountMappingStep({
     navigate(destination, { state: { editAccount: true } })
   }
 
-  const openInstitutionModal = (query: string, target: BatchTarget | string) => {
-    setInstitutionModalTarget(target)
-    institutionModal.openForCreate(query)
-  }
-
-  const closeInstitutionModal = () => {
-    setInstitutionModalTarget('')
-    institutionModal.close()
-  }
-
-  const handleInstitutionSaved = (institution: { id: string }) => {
-
-    // A correction changes an institution rather than which one a field answers with, so it
-    // comes back to no field and leaves every answer as it was
-    if (institutionModalTarget === IMPORTED_BATCH_TARGET) {
-      setBatchAccountInstitution(institution.id)
-    } else if (institutionModalTarget === COUNTERPARTY_BATCH_TARGET) {
-      setCounterpartyBatchInstitution(institution.id)
-    } else if (institutionModalTarget) {
-      setAccountCreateInstitutions((current) => ({ ...current, [institutionModalTarget]: institution.id }))
+  const { openInstitutionModal, institutionModalKey, institutionModalProps } = useImportInstitutionModal((target, institutionId) => {
+    if (target === IMPORTED_BATCH_TARGET) {
+      setBatchAccountInstitution(institutionId)
+    } else if (target === COUNTERPARTY_BATCH_TARGET) {
+      setCounterpartyBatchInstitution(institutionId)
+    } else {
+      setAccountCreateInstitutions((current) => ({ ...current, [target]: institutionId }))
     }
-    closeInstitutionModal()
-  }
+  })
 
   /**
    * Builds the table rows for a set of sources, keeping both tables identical apart from the
    * outside answer that only a counterparty source is offered
    */
-  const buildRows = (sources: ImportAccountSource[]) => sources.map((sourceAccount) => {
-    const value = accountMappings[sourceAccount.id] ?? ''
-    const account = accountById.get(value)
-
-    return {
-      id: sourceAccount.id,
-      source: sourceAccount.label,
-      value,
-      selectedOption: account ? { value, label: account.name } : undefined,
-      autoFilled: autoFilledAccountSources.has(sourceAccount.id),
-      isCounterpartyOnly: sourceAccount.isCounterpartyOnly,
-      isReadOnlyAccount: account ? !isImportableAccount(account) : false,
-      isHandAnswered: handAnsweredAccountSources.has(sourceAccount.id),
-      accountType: account?.account_type ?? '',
-      accountCurrency: account?.currency ?? '',
-      accountInstitution: account?.institution?.id ?? '',
-      createType: accountCreateTypes[sourceAccount.id] ?? '',
-      createCurrency: accountCreateCurrencies[sourceAccount.id] ?? '',
-      createInstitution: accountCreateInstitutions[sourceAccount.id] ?? '',
-      onChange: (nextValue: string) => updateSourceAccount(sourceAccount.id, nextValue),
-      onCreateTypeChange: (nextValue: string) => setAccountCreateTypes((current) => ({ ...current, [sourceAccount.id]: nextValue })),
-      onCreateCurrencyChange: (nextValue: string) => setAccountCreateCurrencies((current) => ({ ...current, [sourceAccount.id]: nextValue })),
-      onCreateInstitutionChange: (nextValue: string) => setAccountCreateInstitutions((current) => ({ ...current, [sourceAccount.id]: nextValue })),
-    }
+  const buildRows = (sources: ImportAccountSource[]) => buildImportAccountMappingRows(sources, {
+    accountMappings,
+    accountById,
+    autoFilledAccountSources,
+    handAnsweredAccountSources,
+    getCreateDetails: (source) => ({
+      accountType: accountCreateTypes[source],
+      currency: accountCreateCurrencies[source],
+      institutionId: accountCreateInstitutions[source],
+    }),
+    onAccountMappingChange: updateSourceAccount,
+    setAccountCreateTypes,
+    setAccountCreateCurrencies,
+    setAccountCreateInstitutions,
   })
 
   const sharedTableProps = {
@@ -242,22 +212,20 @@ export function ImportAccountMappingStep({
           </Link>
         </ImportNotice>
       )}
-      {accountsFailed ? (
-        <ImportLoadFailure
-          title={ACCOUNTS_LOAD_FAILURE_TITLE}
-          description={ACCOUNTS_LOAD_FAILURE_EXPLANATION}
-          onRetry={refetchAccounts}
-        />
-      ) : accountMappingSources.length === 0 ? (
+      <ImportAccountStepBody
+        accountsFailed={accountsFailed}
+        refetchAccounts={refetchAccounts}
+        isEmpty={accountMappingSources.length === 0}
+
         // A fixed account has already been told what will happen, by the notice above, so nothing
         // asks it for a file a second time
-        fixedAccount ? null : (
+        empty={fixedAccount ? null : (
           <EmptyState
             title="No accounts yet"
             description="Upload a file, or check which column is mapped as the account."
           />
-        )
-      ) : (
+        )}
+      >
         <>
           {clearedAccountSourceLabels.length > 0 && (
             <ImportNotice title={CLEARED_ACCOUNT_SOURCES_TITLE} items={clearedAccountSourceLabels}>
@@ -286,14 +254,7 @@ export function ImportAccountMappingStep({
               {ARCHIVED_ACCOUNT_MATCH_EXPLANATION}
             </ImportNotice>
           )}
-          {isCreatingAccount && (
-            <ImportNotice
-              title={CREATED_ACCOUNT_TITLE}
-              items={[CREATED_ACCOUNT_BALANCE_NOTE, CREATED_ACCOUNT_CREDIT_LIMIT_NOTE]}
-            >
-              {CREATED_ACCOUNT_EXPLANATION}
-            </ImportNotice>
-          )}
+          {isCreatingAccount && <ImportCreatedAccountsNotice />}
           {/* The scope answers every source rows are written to, so there is no table to show for
               them. The counterparty table below still asks about a transfer's other side */}
           {fixedAccount ? null : (
@@ -333,15 +294,8 @@ export function ImportAccountMappingStep({
             </div>
           )}
         </>
-      )}
-      <InstitutionModal
-        key={institutionModal.key}
-        open={institutionModal.open}
-        initialName={institutionModal.name}
-        institution={institutionModal.institution}
-        onClose={closeInstitutionModal}
-        onSaved={handleInstitutionSaved}
-      />
+      </ImportAccountStepBody>
+      <InstitutionModal key={institutionModalKey} {...institutionModalProps} />
       <ModalContentPanel
         open={pendingAccountDestination !== null}
         onClose={cancelLeaveImport}

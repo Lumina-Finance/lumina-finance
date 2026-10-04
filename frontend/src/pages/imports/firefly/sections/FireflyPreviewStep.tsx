@@ -1,7 +1,6 @@
-import { ImportRowProblemsTable } from '@/pages/imports/components'
+import { ImportRowProblemsTable, ImportRowWarningsTable } from '@/pages/imports/components'
 import { ImportProviderPreviewStep } from '@/pages/imports/sections'
 import { getProviderSkippedRowsDisplay } from '@/pages/imports/utils'
-import { FireflySkippedRowsTable } from '@/pages/imports/firefly/components'
 import { IMPORT_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/constants'
 import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
 
@@ -59,26 +58,15 @@ export function FireflyPreviewStep({
       onCommit={handleCommitImport}
     >
       {skipped.totalCount > 0 && (
-        <FireflySkippedRowsTable
+        <ImportRowProblemsTable
           title={skipped.title}
-          rows={skipped.rows}
-          totalCount={skipped.totalCount}
+          rowProblems={skipped.rows}
           headers={fireflyHeaders}
+          toggleLabel="skipped rows"
         />
       )}
 
-      {predictedRowWarnings.length > 0 && (
-        <div className="mb-4">
-          <ImportRowProblemsTable
-            title={`${predictedRowWarnings.length} row${predictedRowWarnings.length === 1 ? '' : 's'} worth a look`}
-            rowProblems={predictedRowWarnings}
-            headers={fireflyHeaders}
-            toggleLabel="rows worth a look"
-            tone="warning"
-            reasonHeader="Note"
-          />
-        </div>
-      )}
+      <ImportRowWarningsTable rowWarnings={predictedRowWarnings} headers={fireflyHeaders} />
     </ImportProviderPreviewStep>
   )
 }

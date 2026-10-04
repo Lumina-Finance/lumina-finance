@@ -1,7 +1,8 @@
 import type { AccountsOverview } from '@/api/accounts'
 import { CREATE_ACCOUNT_VALUE } from '@/pages/imports/constants'
-import type { ImportAccountSource, ImportFileDraft } from '@/pages/imports/types'
+import type { ImportAccountCreateDetails, ImportAccountSource, ImportFileDraft } from '@/pages/imports/types'
 import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
+import { isImportableAccount } from './accountScope'
 
 /** Which of the three states a mapping row is in, as the line above the table counts them */
 export type ImportAccountRowState = 'mapped' | 'new' | 'review'
@@ -547,4 +548,67 @@ function removeAccountNoise(value: string) {
     .split(' ')
     .filter((part) => part && !noise.has(part))
     .join(' ')
+}
+
+type AccountCreateSetter = (update: (current: Record<string, string>) => Record<string, string>) => void
+
+/**
+ * Builds the account step's table rows from its sources and the answers given for them, the same
+ * way for every import
+ *
+ * @param getCreateDetails - What the user chose for a new account from the source, read whatever the answer
+ */
+export function buildImportAccountMappingRows(
+  sources: Array<{ id: string; label: string; isCounterpartyOnly?: boolean }>,
+  {
+    accountMappings,
+    accountById,
+    autoFilledAccountSources,
+    handAnsweredAccountSources,
+    getCreateDetails,
+    onAccountMappingChange,
+    setAccountCreateTypes,
+    setAccountCreateCurrencies,
+    setAccountCreateInstitutions,
+  }: {
+    accountMappings: Record<string, string>
+    accountById: Map<string, AccountsOverview>
+    autoFilledAccountSources: ReadonlySet<string>
+    handAnsweredAccountSources: ReadonlySet<string>
+    getCreateDetails: (source: string) => Partial<ImportAccountCreateDetails> | undefined
+    onAccountMappingChange: (source: string, value: string) => void
+    setAccountCreateTypes: AccountCreateSetter
+    setAccountCreateCurrencies: AccountCreateSetter
+    setAccountCreateInstitutions: AccountCreateSetter
+  },
+) {
+  return sources.map(({ id, label, isCounterpartyOnly = false }) => {
+    const value = accountMappings[id] ?? ''
+    const account = accountById.get(value)
+    const createDetails = getCreateDetails(id)
+
+    return {
+      id,
+      source: label,
+      value,
+
+      // Keeps an account the dropdown has stopped offering, such as one archived or made read-only
+      // since it was chosen, visible on its row rather than reading as unanswered
+      selectedOption: account ? { value, label: account.name } : undefined,
+      autoFilled: autoFilledAccountSources.has(id),
+      isCounterpartyOnly,
+      isReadOnlyAccount: account ? !isImportableAccount(account) : false,
+      isHandAnswered: handAnsweredAccountSources.has(id),
+      accountType: account?.account_type ?? '',
+      accountCurrency: account?.currency ?? '',
+      accountInstitution: account?.institution?.id ?? '',
+      createType: createDetails?.accountType ?? '',
+      createCurrency: createDetails?.currency ?? '',
+      createInstitution: createDetails?.institutionId ?? '',
+      onChange: (nextValue: string) => onAccountMappingChange(id, nextValue),
+      onCreateTypeChange: (nextValue: string) => setAccountCreateTypes((current) => ({ ...current, [id]: nextValue })),
+      onCreateCurrencyChange: (nextValue: string) => setAccountCreateCurrencies((current) => ({ ...current, [id]: nextValue })),
+      onCreateInstitutionChange: (nextValue: string) => setAccountCreateInstitutions((current) => ({ ...current, [id]: nextValue })),
+    }
+  })
 }

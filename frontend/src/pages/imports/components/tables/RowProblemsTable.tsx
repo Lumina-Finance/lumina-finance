@@ -62,3 +62,28 @@ export function ImportRowProblemsTable({
     />
   )
 }
+
+/**
+ * Lists the rows that import as they are but are worth a second look, each with its note, and
+ * shows nothing while there are none
+ *
+ * The heading offers a look rather than stating a fault, since nothing is wrong with these rows.
+ * That they are taken is left to the note against each one, which the heading cannot also carry
+ * without reading like the refusal heading above it
+ */
+export function ImportRowWarningsTable({ rowWarnings, headers }: { rowWarnings: ImportRowProblem[]; headers: string[] }) {
+  if (rowWarnings.length === 0) return null
+
+  return (
+    <div className="mb-4">
+      <ImportRowProblemsTable
+        title={`${rowWarnings.length} row${rowWarnings.length === 1 ? '' : 's'} worth a look`}
+        rowProblems={rowWarnings}
+        headers={headers}
+        toggleLabel="rows worth a look"
+        tone="warning"
+        reasonHeader="Note"
+      />
+    </div>
+  )
+}

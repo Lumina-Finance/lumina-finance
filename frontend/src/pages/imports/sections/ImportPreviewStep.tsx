@@ -1,4 +1,4 @@
-import { EmptyState, ImportNotice, ImportPreviewList, ImportRowProblemsTable, ImportStep } from '@/pages/imports/components'
+import { EmptyState, ImportNotice, ImportPreviewList, ImportRowProblemsTable, ImportRowWarningsTable, ImportStep } from '@/pages/imports/components'
 import { IMPORT_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/constants'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 
@@ -29,17 +29,6 @@ const VISIBLE_ERROR_LIMIT = 10
  */
 function getRowProblemsTitle(count: number) {
   return `${count} row${count === 1 ? '' : 's'} must be fixed before importing`
-}
-
-/**
- * Builds the heading over the rows that import as they are but are worth a second look
- *
- * It offers a look rather than stating a fault, since nothing is wrong with these rows. That they
- * are taken is left to the note against each one, which the heading cannot also carry without
- * reading like the refusal heading above it
- */
-function getRowWarningsTitle(count: number) {
-  return `${count} row${count === 1 ? '' : 's'} worth a look`
 }
 
 /**
@@ -91,18 +80,7 @@ export function ImportPreviewStep({
           />
         </div>
       )}
-      {importBuild.rowWarnings.length > 0 && (
-        <div className="mb-4">
-          <ImportRowProblemsTable
-            title={getRowWarningsTitle(importBuild.rowWarnings.length)}
-            rowProblems={importBuild.rowWarnings}
-            headers={headers}
-            toggleLabel="rows worth a look"
-            tone="warning"
-            reasonHeader="Note"
-          />
-        </div>
-      )}
+      <ImportRowWarningsTable rowWarnings={importBuild.rowWarnings} headers={headers} />
       {/* Last of the three notices about the data, which run refusals first and then the things that
           hold nothing up. What follows is the preview itself rather than a fourth notice, so a red
           error list below this amber one is the body starting rather than the order breaking */}

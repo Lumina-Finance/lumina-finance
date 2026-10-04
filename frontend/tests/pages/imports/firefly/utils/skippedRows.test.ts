@@ -147,6 +147,7 @@ function createSkippedDetail(
   overrides: Partial<FireflySkippedRowDetail> = {},
 ): FireflySkippedRowDetail {
   return {
+    id: `file-1-${index}`,
     journalId: `journal-${index}`,
     rowNumber: index + 2,
     cells: { marker: `row-${index}` },
@@ -344,6 +345,7 @@ describe('forecastFireflyImport', () => {
     const { skippedRows: skipped } = forecastFireflyImport([row], createOptions())
 
     expect(skipped).toEqual([{
+      id: 'transactions-file-0',
       journalId: '1',
       rowNumber: 2,
       cells: row,

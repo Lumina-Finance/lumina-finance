@@ -16,7 +16,7 @@ import {
 } from '@/pages/imports/utils'
 
 const RESULT = { rows_imported: 3 } as JournalImportRunResponse
-const SKIPPED_AT_START: FireflySkippedRowDetail[] = [{ journalId: '7', rowNumber: 8, cells: {}, reason: 'Left out' }]
+const SKIPPED_AT_START: FireflySkippedRowDetail[] = [{ id: 'file-1-6', journalId: '7', rowNumber: 8, cells: {}, reason: 'Left out' }]
 
 function deferred<T>() {
   let resolve!: (value: T) => void
