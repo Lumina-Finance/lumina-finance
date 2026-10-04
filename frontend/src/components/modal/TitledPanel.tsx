@@ -51,6 +51,8 @@ interface ModalTitledPanelProps {
   /** Runs once the exit animation has finished, for work that must wait until the modal is fully gone */
   onExitComplete?: () => void
   footer: ReactNode
+  /** Shown beside the panel on wide screens, see ModalShell */
+  aside?: ReactNode
   children: ReactNode
 }
 
@@ -76,6 +78,7 @@ export function ModalTitledPanel({
   closeDisabled = false,
   onExitComplete,
   footer,
+  aside,
   children,
 }: ModalTitledPanelProps) {
   const chrome = CHROME[level]
@@ -136,6 +139,7 @@ export function ModalTitledPanel({
       level={level}
       closeDisabled={closeDisabled}
       onExitComplete={onExitComplete}
+      aside={aside}
     >
       {RailIcon && railLabel && <ModalRail level={level} Icon={RailIcon} label={railLabel} insetClassName="pl-4" />}
 

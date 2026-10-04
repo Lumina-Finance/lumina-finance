@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useSyncExternalStore, type MouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { useDialogFocus } from '@/components/modal/focus'
@@ -50,6 +50,14 @@ interface ModalShellProps {
   onExitComplete?: () => void
   /** Keeps tooltips opened inside the panel within its edges, for one whose content would otherwise push them off */
   boundsTooltips?: boolean
+  /**
+   * Shown beside the panel rather than inside it, as part of the same dialog
+   *
+   * The panel stays centred and this hangs off its right edge, so it is hidden below 1320px wide, where
+   * there is no room for it, and whatever it holds needs another place in the panel there. It is for
+   * reading only: focus is kept inside the panel, so Tab never reaches a control placed here.
+   */
+  aside?: ReactNode
   children: ReactNode
 }
 
@@ -68,9 +76,11 @@ export function ModalShell({
   closeDisabled = false,
   onExitComplete,
   boundsTooltips = false,
+  aside,
   children,
 }: ModalShellProps) {
   const token = useId()
+  const asideId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
   const appearance = LEVELS[level]
 
@@ -87,6 +97,30 @@ export function ModalShell({
 
   useDialogFocus(open, panelRef, token, onClose, closeDisabled)
 
+  const dialogAttributes = {
+    role: 'dialog',
+    'aria-modal': true,
+    'aria-labelledby': titleId,
+    tabIndex: -1,
+    inert: covered,
+    'data-tooltip-bounds': boundsTooltips ? true : undefined,
+    className: `app-modal-panel ${covered ? 'app-modal-panel-covered' : ''} ${panelClassName}`,
+    onClick: (event: MouseEvent) => event.stopPropagation(),
+  } as const
+
+  // No layout animation, and nothing else may put a settled transform or a filter on the panel either.
+  // Motion animates a layout change by scaling the element, and a scaled or filtered box becomes what its
+  // `position: fixed` descendants measure themselves from, which throws the open dropdown box hundreds of
+  // pixels out of place and clips it to the panel for as long as the animation runs. The panel is sized
+  // by its content, so it follows anything inside it that animates its own height, which is how a form
+  // that reveals whole rows grows
+  const entrance = {
+    initial: appearance.panelOffset,
+    animate: { opacity: 1, scale: 1, y: 0 },
+    exit: appearance.panelOffset,
+    transition: appearance.panelTransition,
+  }
+
   return createPortal(
     <AnimatePresence onExitComplete={onExitComplete}>
       {open && (
@@ -98,31 +132,35 @@ export function ModalShell({
           exit={{ opacity: 0 }}
           transition={{ duration: appearance.backdropDuration }}
         >
-          <motion.div
-            ref={panelRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={titleId}
-            aria-describedby={descriptionId}
-            tabIndex={-1}
-            inert={covered}
-            data-tooltip-bounds={boundsTooltips ? true : undefined}
-            className={`app-modal-panel ${covered ? 'app-modal-panel-covered' : ''} ${panelClassName}`}
-            onClick={(event) => event.stopPropagation()}
-            // No layout animation, and nothing else may put a settled transform or a filter on this
-            // panel either. Motion animates a layout change by scaling the element, and a scaled or
-            // filtered box becomes what its `position: fixed` descendants measure themselves from,
-            // which throws the open dropdown box hundreds of pixels out of place and clips it to
-            // the panel for as long as the animation runs. The panel is sized by its content, so it
-            // follows anything inside it that animates its own height, which is how a form that
-            // reveals whole rows grows
-            initial={appearance.panelOffset}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={appearance.panelOffset}
-            transition={appearance.panelTransition}
-          >
-            {children}
-          </motion.div>
+          {aside ? (
+            // The frame is the panel's size and carries its entrance, so the panel keeps its centred place
+            // and the aside hangs off the frame's edge. The dialog itself stays the panel, which is what
+            // the full-screen rules for narrow viewports and the scroll lock look for
+            <motion.div
+              className={`app-modal-frame relative ${panelClassName.replace('overflow-hidden', '')}`}
+              {...entrance}
+            >
+              <div
+                ref={panelRef}
+                aria-describedby={descriptionId ? `${descriptionId} ${asideId}` : asideId}
+                {...dialogAttributes}
+              >
+                {children}
+              </div>
+              <div
+                id={asideId}
+                inert={covered}
+                className={`absolute left-full top-0 ml-6 hidden min-[1320px]:block ${covered ? 'app-modal-panel-covered' : ''}`}
+                onClick={(event) => event.stopPropagation()}
+              >
+                {aside}
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div ref={panelRef} aria-describedby={descriptionId} {...dialogAttributes} {...entrance}>
+              {children}
+            </motion.div>
+          )}
         </motion.div>
       )}
     </AnimatePresence>,

@@ -3444,10 +3444,19 @@
   }
 
   @media (max-width: 1049.98px) {
-    body :has(> .app-modal-panel[role="dialog"][aria-modal="true"]) {
+    body :has(> .app-modal-panel[role="dialog"][aria-modal="true"]),
+    body :has(> .app-modal-frame > .app-modal-panel[role="dialog"][aria-modal="true"]) {
       align-items: stretch !important;
       justify-content: stretch !important;
       padding: 0 !important;
+    }
+
+    /* A modal with an aside wraps its panel in a frame, which takes the whole screen as the panel does */
+    .app-modal-frame {
+      width: 100dvw !important;
+      max-width: none !important;
+      height: 100dvh !important;
+      max-height: none !important;
     }
 
     .app-modal-panel[role="dialog"][aria-modal="true"] {
