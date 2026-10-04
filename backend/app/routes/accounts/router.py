@@ -17,12 +17,14 @@ from app.routes.accounts.permissions import router as permissions_router
 from app.routes.accounts.response_loading_helpers import get_account_response_for_user
 from app.routes.accounts.snapshots import router as snapshots_router
 from app.routes.accounts.spending_breakdown_helpers import get_account_spending_breakdown_for_user
+from app.routes.accounts.starting_balance_helpers import record_starting_balance_for_user
 from app.routes.accounts.update_helpers import update_account_for_user
 from app.schemas.account import (
     AccountResponse,
     AccountsOverview,
     AccountSpendingBreakdown,
     CreateAccountRequest,
+    RecordStartingBalanceRequest,
     UpdateAccountRequest,
 )
 from app.schemas.dashboard import MonthlyIncomeExpense, RangeKind
@@ -160,6 +162,33 @@ async def create_account(
         HTTPException: Account details, ownership, or linked tax-advantaged category are invalid, or the stored timezone does not resolve
     """
     account = await create_account_for_user(db, user, data)
+    return account
+
+
+@router.post("/{account_id}/starting-balance", response_model=AccountResponse)
+async def record_starting_balance(
+    account_id: uuid.UUID,
+    data: RecordStartingBalanceRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Record the starting balance of a personal account that has no transactions yet
+
+    Args:
+        account_id: Account identifier from the route path
+        data: Starting balance as the user states it
+        user: Authenticated user recording the starting balance
+        db: Active database session
+
+    Returns:
+        Account with derived balance fields
+
+    Raises:
+        HTTPException: User lacks admin access, the account is a group or archived account or already
+            has transactions, or the stored timezone does not resolve
+    """
+    today = datetime.now(resolve_timezone(user.tz)).date()
+    account = await record_starting_balance_for_user(db, account_id, data, user, today)
     return account
 
 

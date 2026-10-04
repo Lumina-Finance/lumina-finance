@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.base import CategoryKind
+from app.models.base import AccountKind, CategoryKind
 from app.models.category import Category
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction
@@ -19,10 +19,66 @@ from app.services.accounts.snapshots import (
     refuse_unstorable_balance,
 )
 from app.services.merchants.defaults import SELF_MERCHANT_NAME
+from app.services.transactions.accounts import validate_transaction_account_is_not_archived
 
 _BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
 _STARTING_BALANCE_NOTE = "Starting balance"
 _ARCHIVE_BALANCE_ADJUSTMENT_NOTE = "Account archived"
+
+
+async def record_account_starting_balance(
+    db: AsyncSession,
+    account: Account,
+    *,
+    user_id: uuid.UUID,
+    amount: int,
+    adjustment_date: date,
+) -> None:
+    """Record the starting balance of a personal account that has no transactions yet
+
+    The amount is the balance as the user states it, so a liability's, which is what is owed, is
+    saved negated. The account row is locked before its transactions are looked for, so a
+    transaction still being saved, or a repeat of this request, is seen once it commits and this
+    one is refused rather than adding a second opening balance
+
+    Args:
+        db: Active database session
+        account: Account receiving the starting balance, already checked for access
+        user_id: User recording the starting balance
+        amount: Starting balance in minor units, above zero
+        adjustment_date: The user's today, which dates the adjustment
+
+    Raises:
+        HTTPException: The account is a group account, is archived, already has transactions, or the
+            Balance Adjustment category or the Myself merchant is not configured
+    """
+    # Group accounts are left out, as every new flow leaves them out until grouped resources are built
+    if account.group_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="A starting balance can only be recorded on a personal account",
+        )
+    validate_transaction_account_is_not_archived(account)
+
+    # The row lock conflicts with the key share lock a transaction insert takes on its account
+    await db.execute(select(Account.id).where(Account.id == account.id).with_for_update())
+    first_transaction_id = await db.scalar(
+        select(Transaction.id).where(Transaction.account_id == account.id).limit(1),
+    )
+    if first_transaction_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="This account already has transactions, so a starting balance can't be recorded",
+        )
+
+    signed_amount = amount if account.account_kind == AccountKind.ASSET else -amount
+    await add_account_starting_balance_adjustment(
+        db,
+        account,
+        user_id=user_id,
+        amount=signed_amount,
+        adjustment_date=adjustment_date,
+    )
 
 
 async def add_account_starting_balance_adjustment(

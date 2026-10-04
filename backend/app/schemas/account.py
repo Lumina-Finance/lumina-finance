@@ -86,6 +86,14 @@ class CreateAccountRequest(BaseModel):
     group_id: uuid.UUID | None = None
 
 
+class RecordStartingBalanceRequest(BaseModel):
+    """Record the starting balance of an account that has no transactions yet"""
+
+    # Minor units as the user states the balance, so a liability's is the amount owed, which is
+    # saved negated. A zero balance needs no adjustment, so it isn't sent
+    amount: int = Field(gt=0)
+
+
 class UpdateAccountRequest(BaseModel):
     """Partial update for an account. Only provided fields are changed."""
 
