@@ -6,6 +6,7 @@ exits 0 while the worker's heartbeat is fresh and 1 otherwise, for the container
 
 import asyncio
 import logging
+import os
 import sys
 import time
 
@@ -51,7 +52,7 @@ def main(arguments: list[str]) -> int:
         return 0 if asyncio.run(check_worker_health()) else 1
     if arguments:
         logger.error("Usage: python -m app.worker [check-health]")
-        return 64
+        return os.EX_USAGE
 
     _wait_for_app_role_password()
     from app.services.bank_sync.worker import run_worker
