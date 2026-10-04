@@ -297,13 +297,10 @@ export function useUnlinkBankAccount() {
 }
 
 /**
- * Asks for a sync now. The link it answers with already shows the sync in progress, which goes
- * straight into the list so the poll switches to its fast pace at once. A refusal means the status
- * shown is out of date, so the list is read again instead
- */
-/**
- * How Sync now runs: the link the server answers with goes into the cached list at once, so the
- * status shows Syncing and the poll takes its fast pace without waiting to read the list again
+ * How Sync now runs. The link the server answers with already shows the sync in progress, which goes
+ * straight into the cached list, so the status shows Syncing and the poll takes its fast pace without
+ * waiting to read the list again. A refusal means the status shown is out of date, so the list is
+ * read again instead
  */
 export function syncBankAccountMutationOptions(queryClient: QueryClient) {
   return mutationOptions({

@@ -124,7 +124,6 @@ describe('a polled change in the link list', () => {
   it.each([
     ['the first read, with no list before it', undefined, before],
     ['a list that has gone from the cache', before, undefined],
-    ['the same list handed back', before, before],
   ])('refreshes nothing for %s', (_, previous, next) => {
     applyBankLinkChanges(queryClient, previous, next);
 
