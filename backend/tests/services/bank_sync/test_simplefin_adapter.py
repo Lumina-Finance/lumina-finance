@@ -230,6 +230,30 @@ async def test_window_of_exactly_90_days_across_a_clock_change_is_served(scenari
     assert [account.external_id for account in result.accounts] == ["ACT-chequing", "ACT-visa"]
 
 
+async def test_account_in_a_currency_lumina_doesnt_hold_stores_no_amounts(scenario: FakeBridgeScenario):
+    """With no exponent for KWD, its balances and amounts are kept as sent and never read at a guessed precision"""
+    await scenario.change("POST", "/connections", {"conn_id": "CON-gulf", "name": "Gulf Bank", "org_id": "ORG-gulf"})
+    account = {
+        "id": "ACT-chequing",
+        "name": "Dinar Current",
+        "conn_id": "CON-gulf",
+        "currency": "KWD",
+        "balance": "125.500",
+        "available_balance": "100.250",
+        "balance_date": 1791115200,
+    }
+    await scenario.change("POST", "/accounts", account)
+    transaction = {"id": "TRN-dinar", "posted": "2026-09-15", "amount": "-1.250", "description": "TALABAT"}
+    await scenario.change("POST", "/accounts/ACT-chequing/transactions", {"transactions": [transaction]})
+    adapter = _fake_adapter()
+
+    result = await _fetch(adapter, _WINDOW_START, _WINDOW_END, access_url=await adapter.claim(scenario.setup_token))
+
+    [dinar] = result.accounts
+    assert (dinar.currency, dinar.balance, dinar.available_balance) == ("KWD", None, None)
+    assert [(record.amount, record.raw_amount) for record in dinar.records] == [(None, "-1.250")]
+
+
 @pytest.mark.parametrize(
     ("booked", "pending", "cut_off"),
     [(999, 0, False), (1000, 0, True), (999, 1, True)],
