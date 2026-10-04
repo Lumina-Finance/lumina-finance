@@ -68,7 +68,6 @@ export function validateCreateAccountForm(form: CreateAccountForm): CreateAccoun
   if (!form.currency) errors.currency = 'Select a currency'
 
   if (!isValidMoneyInput(form.credit_limit)) errors.credit_limit = 'Must be a positive number'
-  if (!isValidMoneyInput(form.starting_balance)) errors.starting_balance = 'Must be zero or higher'
   if (form.notes.trim().length > ACCOUNT_NOTES_MAX_LENGTH) {
     errors.notes = ACCOUNT_NOTES_TOO_LONG_MESSAGE
   }
@@ -82,24 +81,21 @@ export function validateCreateAccountForm(form: CreateAccountForm): CreateAccoun
 export function buildCreateAccountViewModel(form: CreateAccountForm, currencies: Currency[]): CreateAccountViewModel {
   const accountKind = form.account_type ? ACCOUNT_KIND_BY_TYPE[form.account_type] : undefined
   const isRevolving = accountKind === 'revolving'
-  const isLiability = accountKind === 'revolving' || accountKind === 'amortizing'
   const canLinkTaxPlan = accountKind === 'asset' && !!form.currency
 
   return {
     accountKind,
     conditionalAccountField: canLinkTaxPlan ? 'tax-plan' : isRevolving ? 'credit-limit' : null,
-    isLiability,
     isRevolving,
     selectedAccountTypeLabel: CREATE_ACCOUNT_TYPE_OPTIONS.find((option) => option.value === form.account_type)?.label,
     selectedCurrencySymbol: currencies.some((currency) => currency.id === form.currency)
       ? formatCurrencySymbol(form.currency)
       : '',
-    startingBalanceLabel: isLiability ? 'Starting amount owed' : 'Starting balance',
   }
 }
 
 /**
- * Converts a validated create-account form into the backend payload while keeping liability balances signed
+ * Converts a validated create-account form into the backend payload in minor units
  */
 export function buildCreateAccountPayload(form: CreateAccountForm, currencies: Currency[]): CreateAccountPayload {
   if (!form.account_type) {
@@ -109,8 +105,6 @@ export function buildCreateAccountPayload(form: CreateAccountForm, currencies: C
   const accountKind = ACCOUNT_KIND_BY_TYPE[form.account_type]
   const selectedCurrency = currencies.find((currency) => currency.id === form.currency)
   const minorUnitExponent = selectedCurrency?.minor_unit_exponent ?? 2
-  const startingBalance = optionalAccountMoneyInputToMinorUnits(form.starting_balance, minorUnitExponent)
-  const isLiability = accountKind === 'revolving' || accountKind === 'amortizing'
 
   return {
     account_kind: accountKind,
@@ -121,7 +115,6 @@ export function buildCreateAccountPayload(form: CreateAccountForm, currencies: C
     currency: form.currency,
     credit_limit:
       accountKind === 'revolving' ? optionalAccountMoneyInputToMinorUnits(form.credit_limit, minorUnitExponent) : null,
-    starting_balance: startingBalance === null ? null : isLiability ? -startingBalance : startingBalance,
     notes: form.notes.trim() || null,
     is_archived: false,
   }

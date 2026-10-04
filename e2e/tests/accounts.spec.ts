@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { createAccount, createTransaction, signUpUser } from '../support/api'
 import { openPage, chooseFromDropdown, logInViaApi, openModal } from '../support/app'
@@ -8,7 +8,27 @@ import { expectPendingAction, whileApiRequestHeld } from '../support/selectors'
 
 const ACCOUNT_NAME = 'Everyday Chequing'
 
-test('starts a new user with no accounts and creates one through the modal', async ({ page, request }) => {
+/**
+ * Create a chequing account through the modal on the accounts page.
+ *
+ * @param page - Page already showing the accounts page
+ * @returns The prompt for the starting balance that saving the account opens
+ */
+async function createChequingThroughModal(page: Page): Promise<Locator> {
+  const dialog = await openModal(page, ['Add account'], 'Add account')
+  await chooseFromDropdown(dialog, 'Account type', 'Checking')
+  await dialog.getByLabel('Account name').fill(ACCOUNT_NAME)
+
+  // Currency is left alone: it already holds the base currency chosen at signup
+  await dialog.getByRole('button', { name: 'Create account' }).click()
+
+  await expect(dialog).toBeHidden()
+  const prompt = page.getByRole('dialog', { name: 'Add a starting balance' })
+  await expect(prompt).toBeVisible()
+  return prompt
+}
+
+test('starts a new user with no accounts and creates one with its starting balance', async ({ page, request }) => {
   const user = await signUpUser(request)
 
   await logInViaApi(page, user)
@@ -25,15 +45,32 @@ test('starts a new user with no accounts and creates one through the modal', asy
   // assertion also fails if row-level security ever stops separating one user from another
   await expect(page.getByText('No accounts yet')).toBeVisible()
 
-  const dialog = await openModal(page, ['Add account'], 'Add account')
-  await chooseFromDropdown(dialog, 'Account type', 'Checking')
-  await dialog.getByLabel('Account name').fill(ACCOUNT_NAME)
+  const prompt = await createChequingThroughModal(page)
+  await prompt.getByLabel('Starting balance', { exact: true }).fill('1250.00')
+  await prompt.getByRole('button', { name: 'Continue' }).click()
 
-  // Currency is left alone: it already holds the base currency chosen at signup
-  await dialog.getByRole('button', { name: 'Create account' }).click()
+  await expect(prompt).toBeHidden()
+  await expect(page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) })).toContainText('$1,250.00')
+})
 
-  await expect(dialog).toBeHidden()
-  await expect(page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) })).toBeVisible()
+test('answers a minus typed into the starting balance rather than dropping it', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/accounts')
+
+  const prompt = await createChequingThroughModal(page)
+  const balance = prompt.getByLabel('Starting balance', { exact: true })
+  const error = prompt.getByRole('alert').filter({ hasText: 'Must be zero or higher' })
+  await balance.pressSequentially('-')
+
+  await expect(balance).toHaveValue('')
+  await expect(balance).toHaveAttribute('aria-invalid', 'true')
+  await expect(error).toBeVisible()
+
+  await balance.pressSequentially('5')
+  await expect(balance).toHaveValue('5')
+  await expect(balance).not.toHaveAttribute('aria-invalid', 'true')
+  await expect(error).toBeHidden()
 })
 
 test('refuses over-long notes in Add account and scrolls long notes by keyboard', async ({ page, request }) => {

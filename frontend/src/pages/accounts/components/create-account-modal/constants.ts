@@ -10,7 +10,6 @@ export const CREATE_ACCOUNT_MODAL_FIELD_IDS = {
   accountType: 'account-type',
   name: 'account-name',
   currency: 'account-currency',
-  startingBalance: 'starting-balance',
   creditLimit: 'credit-limit',
   institution: 'account-institution',
   taxAdvantagedCategory: 'account-tax-advantaged-category',
@@ -37,7 +36,6 @@ export const INITIAL_CREATE_ACCOUNT_FORM: CreateAccountForm = {
   institution_id: '',
   tax_advantaged_category_id: '',
   credit_limit: '',
-  starting_balance: '',
   notes: '',
 }
 
@@ -46,7 +44,6 @@ export const CREATE_ACCOUNT_VALIDATED_FIELDS: readonly CreateAccountValidatedFie
   'account_type',
   'name',
   'currency',
-  'starting_balance',
   'credit_limit',
   'notes',
 ]
@@ -56,7 +53,6 @@ export const CREATE_ACCOUNT_CONTROL_IDS: Record<CreateAccountValidatedField, str
   account_type: CREATE_ACCOUNT_MODAL_FIELD_IDS.accountType,
   name: CREATE_ACCOUNT_MODAL_FIELD_IDS.name,
   currency: CREATE_ACCOUNT_MODAL_FIELD_IDS.currency,
-  starting_balance: CREATE_ACCOUNT_MODAL_FIELD_IDS.startingBalance,
   credit_limit: CREATE_ACCOUNT_MODAL_FIELD_IDS.creditLimit,
   notes: CREATE_ACCOUNT_MODAL_FIELD_IDS.notes,
 }
@@ -66,7 +62,6 @@ export const CREATE_ACCOUNT_ERROR_IDS: Record<CreateAccountValidatedField, strin
   account_type: 'account-type-error',
   name: 'account-name-error',
   currency: 'account-currency-error',
-  starting_balance: 'starting-balance-error',
   credit_limit: 'credit-limit-error',
   notes: 'account-notes-error',
 }

@@ -8,6 +8,7 @@ import type {
   AccountSpendingBreakdown,
   AccountsOverview,
   CreateAccountPayload,
+  RecordStartingBalancePayload,
   SpendingRange,
   UpdateAccountPayload,
 } from '@/api/accounts/types';
@@ -34,6 +35,22 @@ export function updateAccount({
 }) {
   return authenticatedFetch<Account>(`/accounts/${accountId}`, {
     method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Records the starting balance of an account that has no transactions yet
+ */
+export function recordStartingBalance({
+  accountId,
+  payload,
+}: {
+  accountId: string;
+  payload: RecordStartingBalancePayload;
+}) {
+  return authenticatedFetch<Account>(`/accounts/${accountId}/starting-balance`, {
+    method: 'POST',
     body: JSON.stringify(payload),
   });
 }

@@ -28,6 +28,9 @@ interface ModalFormFooterProps {
   level?: ModalLevel
   onCancel: () => void
 
+  /** Names the dismissing action where Cancel would read as undoing something already saved */
+  cancelLabel?: string
+
   /** Runs the primary action directly and renders it as a plain button, for a panel with nothing to submit */
   onPrimary?: () => void
 
@@ -54,6 +57,7 @@ export function ModalFormFooter({
   errorId,
   level = 'page',
   onCancel,
+  cancelLabel = 'Cancel',
   onPrimary,
   primaryOnLeft = false,
   tone = 'primary',
@@ -87,7 +91,7 @@ export function ModalFormFooter({
       disabled={submitDisabled}
       data-modal-initial-focus={primaryOnLeft ? 'true' : undefined}
     >
-      Cancel
+      {cancelLabel}
     </button>
   )
   const primaryButton = (

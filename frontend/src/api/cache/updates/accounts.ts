@@ -128,26 +128,35 @@ export function invalidateAccountAggregateData(
 }
 
 /**
- * Invalidates balances and rollups affected by an account created with a starting balance
+ * Invalidates the rollups a newly created account joins, which starts at a zero balance
  */
 export function invalidateCreatedAccountData(
   queryClient: QueryClient,
   account: AccountsOverview,
   payload: CreateAccountPayload,
 ) {
-  if (!account.is_archived && account.current_balance !== 0) {
-    invalidateAccountBalances(queryClient, [account.id]);
-    invalidateTransactions(queryClient);
-    invalidateTransactionOverview(queryClient);
-    invalidateDashboardBalance(queryClient);
-    invalidateDashboardRecent(queryClient);
-    invalidateInsightsBalance(queryClient);
-    invalidateRunway(queryClient);
-  }
   if (!account.is_archived && payload.credit_limit !== null) {
     invalidateAccountCreditData(queryClient, account);
   }
   if (account.tax_advantaged_category_id) {
     invalidateAccountTaxAdvantagedCategoryData(queryClient, [account.tax_advantaged_category_id]);
   }
+}
+
+/**
+ * Shows the balance an account's starting balance gave it, and refreshes the transaction lists that
+ * now hold its opening adjustment and every view built on balances. The adjustment is never cash
+ * flow, so income, expense and budget views are left alone
+ */
+export function applyRecordedStartingBalance(queryClient: QueryClient, account: Account) {
+  queryClient.setQueryData(accountKeys.detail(account.id), account);
+  updateCachedAccountList(queryClient, account);
+  invalidateAccountBalances(queryClient, [account.id]);
+  invalidateTransactions(queryClient);
+  invalidateTransactionOverview(queryClient);
+  invalidateDashboardBalance(queryClient);
+  invalidateDashboardRecent(queryClient);
+  invalidateInsightsBalance(queryClient);
+  invalidateRunway(queryClient);
+  invalidateAccountCreditData(queryClient, account);
 }

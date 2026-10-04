@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  applyRecordedStartingBalance,
   getCachedAccount,
   invalidateAccountAggregateData,
   invalidateAccountCreditData,
@@ -17,6 +18,7 @@ import {
   fetchAccountSnapshots,
   fetchAccountSpendingBreakdown,
   fetchAccounts,
+  recordStartingBalance,
   updateAccount,
 } from '@/api/accounts/requests';
 import type {
@@ -44,6 +46,18 @@ export function useCreateAccount() {
       updateCachedAccountList(queryClient, account);
       invalidateCreatedAccountData(queryClient, account, payload);
     },
+  });
+}
+
+/**
+ * Records a new account's starting balance and refreshes the views built on its balance
+ */
+export function useRecordStartingBalance() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: Parameters<typeof recordStartingBalance>[0]) =>
+      runWithMinimumPendingTime(LOADING_ANIMATION_MIN_MS, () => recordStartingBalance(variables)),
+    onSuccess: (account) => applyRecordedStartingBalance(queryClient, account),
   });
 }
 
