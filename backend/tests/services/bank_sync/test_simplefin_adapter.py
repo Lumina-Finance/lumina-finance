@@ -8,6 +8,7 @@ real Bridge
 """
 
 import base64
+import logging
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -138,17 +139,22 @@ async def test_setup_token_for_a_server_not_added_names_its_host():
     assert bridge.requests == []
 
 
-async def test_setup_token_for_a_host_resolving_privately_is_refused():
-    """An allowed host whose name resolves to a private address is refused like one not added"""
+async def test_setup_token_for_a_host_resolving_privately_is_refused_and_logged_by_host(caplog):
+    """An allowed host resolving to a private address is refused like one not added, with a warning naming only the host"""
+    caplog.set_level(logging.DEBUG)
     bridge = RecordingBridge()
+    claim_url = "https://beta-bridge.simplefin.org/simplefin/claim/CLAIM-PATH-5e1d"
 
     with pytest.raises(ClaimRefused) as refusal:
-        await simplefin_adapter(bridge.transport, "10.0.4.2").claim(_setup_token(_CLAIM_URL))
+        await simplefin_adapter(bridge.transport, "10.0.4.2").claim(_setup_token(claim_url))
 
     assert str(refusal.value) == (
         "This setup token points to beta-bridge.simplefin.org, which this Lumina Finance server is not set up to contact"
     )
     assert bridge.requests == []
+    [warning] = [record for record in caplog.records if record.levelno == logging.WARNING]
+    assert "beta-bridge.simplefin.org" in warning.getMessage()
+    assert "CLAIM-PATH-5e1d" not in caplog.text
 
 
 @pytest.mark.parametrize(
