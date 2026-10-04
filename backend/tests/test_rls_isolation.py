@@ -28,6 +28,7 @@ from app.models.bank_connection import (
     BankSigninNotice,
     ProviderRequestPurpose,
 )
+from app.models.bank_transaction import BankTransaction
 from app.models.base import AccountKind, AccountType, CategoryKind, RecurrenceFreq
 from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
 from app.models.cache_state import UserCacheState
@@ -40,7 +41,9 @@ from tests.conftest import ScopedSession, TestSession
 from tests.routes.support.bank_sync_helpers import (
     _build_bank_connection,
     _build_bank_link,
+    _build_bank_transaction,
     _build_external_account,
+    _build_ledger_transaction,
     _build_signin_notice,
 )
 
@@ -513,6 +516,7 @@ _BANK_MODELS = [
     BankAccountLink,
     BankSigninNotice,
     AccountReviewPreference,
+    BankTransaction,
 ]
 
 
@@ -534,6 +538,7 @@ async def _create_bank_records(session, owner_id) -> tuple[Account, BankConnecti
             _build_bank_link(account, connection),
             _build_signin_notice(connection),
             AccountReviewPreference(account_id=account.id, owner_id=owner_id),
+            _build_bank_transaction(account),
         ]
     )
     await session.flush()
@@ -613,11 +618,12 @@ async def test_bank_record_naming_another_users_connection_is_refused(users, ban
     [
         lambda account, connection, owner_id: _owned_by(_build_bank_link(account, connection, "ACT-B"), owner_id),
         lambda account, _, owner_id: AccountReviewPreference(account_id=account.id, owner_id=owner_id),
+        lambda account, _, owner_id: _owned_by(_build_bank_transaction(account, "TRN-B"), owner_id),
     ],
-    ids=["account_link", "review_preferences"],
+    ids=["account_link", "review_preferences", "bank_transaction"],
 )
 async def test_bank_record_on_another_users_account_is_refused(users, bank_records, build):
-    """A user can't link or set preferences on someone else's Lumina account, even as the row's owner"""
+    """A user can't put bank records on someone else's Lumina account, even as the row's owner"""
     user_a, user_b = users
     async with TestSession() as session:
         account_a = (await session.scalars(select(Account).where(Account.owner_id == user_a.id))).one()
@@ -627,5 +633,24 @@ async def test_bank_record_on_another_users_account_is_refused(users, bank_recor
 
     async with _act_as(user_b.id) as session:
         session.add(build(account_a, connection_b, user_b.id))
+        with pytest.raises(ProgrammingError, match="row-level security"):
+            await session.flush()
+
+
+async def test_bank_transaction_naming_another_users_ledger_row_is_refused(users):
+    """A user can't claim someone else's ledger transaction as bank-sourced on their own account"""
+    user_a, user_b = users
+    async with TestSession() as session:
+        system_category_id = await session.scalar(select(Category.id).where(Category.is_system).limit(1))
+        account_a = _build_account(user_a.id, "A Everyday")
+        account_b = _build_account(user_b.id, "B Everyday")
+        session.add_all([account_a, account_b])
+        await session.flush()
+        ledger_row_a = _build_ledger_transaction(account_a, system_category_id)
+        session.add(ledger_row_a)
+        await session.commit()
+
+    async with _act_as(user_b.id) as session:
+        session.add(_build_bank_transaction(account_b, transaction=ledger_row_a))
         with pytest.raises(ProgrammingError, match="row-level security"):
             await session.flush()

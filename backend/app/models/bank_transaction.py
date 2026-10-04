@@ -1,0 +1,140 @@
+"""Booked bank transactions and their review state"""
+
+import enum
+import uuid
+from datetime import date, datetime
+from typing import Any, ClassVar
+
+from sqlalchemy import VARCHAR, BigInteger, CheckConstraint, Date, DateTime, ForeignKey, Integer, Text, UniqueConstraint, func
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.bank_connection import BankProvider
+from app.models.base import Base
+
+
+class BankTransactionDisposition(enum.StrEnum):
+    """What the user decided about a booked bank transaction"""
+
+    AWAITING_REVIEW = "awaiting_review"
+    ACCEPTED = "accepted"
+    DISMISSED = "dismissed"
+
+
+class OpenReviewKind(enum.StrEnum):
+    """A review item opened on an accepted bank transaction by a later provider observation"""
+
+    CORRECTION = "correction"
+    REMOVAL = "removal"
+
+
+def _check_values(values: type[enum.StrEnum]) -> str:
+    """Return an enum's values as a SQL list for a check constraint"""
+    return ", ".join(f"'{value}'" for value in values)
+
+
+# Every column a provider observation fills, which a dismissed record keeps none of
+_OBSERVATION_COLUMNS = (
+    "observed_date",
+    "observed_amount",
+    "raw_amount",
+    "description",
+    "merchant_name",
+    "category_hint",
+    "extras",
+    "observed_at",
+)
+
+
+class BankTransaction(Base):
+    """One distinct booked transaction a provider reported for a Lumina account
+
+    The identity namespaces the provider's transaction ID by the Lumina account, the provider and
+    the bank account, so imports never duplicate and decisions survive unlinking and disconnecting.
+    The record's ID is also its review item's, so it has at most one open item: a new item while it
+    awaits review, or a correction or removal once accepted. An item the provider withdraws before
+    the user decides is deleted, so the same transaction can return later as a new import
+    """
+
+    __tablename__ = "bank_transactions"
+    __table_args__ = (
+        UniqueConstraint(
+            "account_id",
+            "provider",
+            "external_account_id",
+            "external_transaction_id",
+            name="uq_bank_transactions_identity",
+        ),
+        # A ledger row comes from at most one bank transaction
+        UniqueConstraint("transaction_id", name="uq_bank_transactions_transaction_id"),
+        CheckConstraint(f"provider IN ({_check_values(BankProvider)})", name="ck_bank_transactions_provider"),
+        CheckConstraint(
+            f"disposition IN ({_check_values(BankTransactionDisposition)})",
+            name="ck_bank_transactions_disposition",
+        ),
+        CheckConstraint(f"open_kind IN ({_check_values(OpenReviewKind)})", name="ck_bank_transactions_open_kind"),
+        # Accepted means exactly one ledger row, aligned with a bank date
+        CheckConstraint(
+            "(disposition = 'accepted') = (transaction_id IS NOT NULL) AND (disposition = 'accepted') = (aligned_date IS NOT NULL)",
+            name="ck_bank_transactions_accepted",
+        ),
+        # Only an accepted record has ledger values to align with or a correction or removal to review
+        CheckConstraint(
+            "disposition = 'accepted' OR (aligned_amount IS NULL AND open_kind IS NULL "
+            "AND proposed_fields IS NULL AND declined_observation IS NULL)",
+            name="ck_bank_transactions_review_state",
+        ),
+        # A record still in play holds the bank's values, with an amount stored either exactly or as sent
+        CheckConstraint(
+            "disposition = 'dismissed' OR (observed_date IS NOT NULL AND description IS NOT NULL "
+            "AND observed_at IS NOT NULL AND (observed_amount IS NULL) <> (raw_amount IS NULL))",
+            name="ck_bank_transactions_observation",
+        ),
+        # A dismissed record keeps only its identity, enough to stay dismissed when the bank resends it
+        CheckConstraint(
+            "disposition <> 'dismissed' OR (" + " AND ".join(f"{column} IS NULL" for column in _OBSERVATION_COLUMNS) + ")",
+            name="ck_bank_transactions_dismissed",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    account_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
+    provider: Mapped[str] = mapped_column(VARCHAR(32), nullable=False)
+    external_account_id: Mapped[str] = mapped_column(Text, nullable=False)
+    external_transaction_id: Mapped[str] = mapped_column(Text, nullable=False)
+    disposition: Mapped[str] = mapped_column(VARCHAR(16), nullable=False)
+
+    # Deleting the ledger row deletes the record, leaving no marker of its bank identity
+    transaction_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("transactions.id", ondelete="CASCADE"))
+
+    # The provider's latest observation. The amount is in the account currency's minor units, or
+    # null with the amount exactly as the bank sent it when that can't be stored exactly
+    observed_date: Mapped[date | None] = mapped_column(Date)
+    observed_amount: Mapped[int | None] = mapped_column(BigInteger)
+    raw_amount: Mapped[str | None] = mapped_column(Text)
+    description: Mapped[str | None] = mapped_column(Text)
+    merchant_name: Mapped[str | None] = mapped_column(Text)
+    category_hint: Mapped[str | None] = mapped_column(Text)
+    extras: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # The bank date and amount the ledger row was last aligned with, as the ledger holds them. A
+    # field is edited while the ledger differs from these. The amount is null when the bank's
+    # couldn't be stored and the user entered one, which counts as edited
+    aligned_date: Mapped[date | None] = mapped_column(Date)
+    aligned_amount: Mapped[int | None] = mapped_column(BigInteger)
+
+    # An open correction or removal and the fields it proposes, and the observation the user last
+    # declined with Keep current value, so the same proposal delivered again doesn't reopen review
+    open_kind: Mapped[str | None] = mapped_column(VARCHAR(16))
+    proposed_fields: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    declined_observation: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    # Moves on every ORM update, so a bulk approval can skip an item that changed after its preview.
+    # A Core update has to move it itself
+    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+
+    __mapper_args__: ClassVar[dict[str, Any]] = {"version_id_col": version}

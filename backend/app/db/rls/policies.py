@@ -22,6 +22,9 @@ APP_TABLE_PRIVILEGES = "SELECT, INSERT, UPDATE, DELETE"
 # Whether the bank connection a row names is one the current user can see
 _SEES_CONNECTION = "EXISTS (SELECT 1 FROM public.bank_connections c WHERE c.id = connection_id)"
 
+# Whether the ledger transaction a row names is one the current user can see
+_SEES_LEDGER_ROW = "EXISTS (SELECT 1 FROM public.transactions t WHERE t.id = transaction_id)"
+
 # (table, USING, WITH CHECK) for tables secured by a single policy. Where a table's read
 # helper resolves access by reading the table itself, the USING clause also lists the
 # direct owner and group-admin predicates so a creator can read back the row it just
@@ -70,6 +73,11 @@ SECURED_TABLES = (
         "account_review_preferences",
         f"owner_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)",
         f"owner_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)",
+    ),
+    (
+        "bank_transactions",
+        f"owner_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)",
+        f"owner_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id) AND (transaction_id IS NULL OR {_SEES_LEDGER_ROW})",
     ),
     ("users", f"id = {CURRENT_USER_ID}()", f"id = {CURRENT_USER_ID}()"),
     (

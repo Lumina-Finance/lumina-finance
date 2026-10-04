@@ -52,6 +52,17 @@ _ROLLBACKS = [
         "the review preferences",
         id="review_preferences",
     ),
+    pytest.param(
+        "c1f4a7e3d926",
+        (
+            "INSERT INTO bank_transactions "
+            "(id, owner_id, account_id, provider, external_account_id, external_transaction_id, disposition) "
+            "VALUES (gen_random_uuid(), :user_id, :account_id, 'simplefin', 'ACT-1', 'TRN-1001', 'dismissed')",
+        ),
+        "bank_transactions",
+        "bank transaction records",
+        id="bank_transactions",
+    ),
 ]
 
 

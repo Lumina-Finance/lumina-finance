@@ -18,11 +18,16 @@ from app.models.bank_connection import (
     BankProvider,
     BankSigninNotice,
 )
-from app.models.base import AccountKind, AccountType
+from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
+from app.models.base import AccountKind, AccountType, CategoryKind
+from app.models.category import Category
+from app.models.transaction import Transaction
 from app.models.user import User
 
 BANK_ACCOUNT_ID = "ACT-1"
 LINK_START = date(2026, 9, 1)
+BANK_DATE = date(2026, 10, 3)
+BANK_DESCRIPTION = "HARBOUR COFFEE 0412"
 
 
 def _build_user(email: str) -> User:
@@ -99,4 +104,54 @@ def _build_signin_notice(connection: BankConnection, login_key: str = "login-1")
         connection_id=connection.id,
         login_key=login_key,
         since=datetime(2026, 10, 1, tzinfo=UTC),
+    )
+
+
+def _build_category(owner_id: uuid.UUID) -> Category:
+    """Return an unsaved personal expense category"""
+    return Category(id=uuid.uuid4(), owner_id=owner_id, name="Coffee", kind=CategoryKind.EXPENSE)
+
+
+def _build_ledger_transaction(account: Account, category_id: uuid.UUID, amount: int = -1250) -> Transaction:
+    """Return an unsaved ledger transaction on the bank's date, in the account's currency"""
+    return Transaction(
+        id=uuid.uuid4(),
+        created_by_user_id=account.owner_id,
+        account_id=account.id,
+        dt=BANK_DATE,
+        category_id=category_id,
+        amount=amount,
+        currency=account.currency,
+    )
+
+
+def _build_bank_transaction(
+    account: Account,
+    external_transaction_id: str = "TRN-1001",
+    *,
+    external_account_id: str = BANK_ACCOUNT_ID,
+    amount: int = -1250,
+    transaction: Transaction | None = None,
+) -> BankTransaction:
+    """Return an unsaved bank transaction the bank sent for an account
+
+    Given its ledger row, the record is accepted and aligned with the bank's date and amount;
+    otherwise it awaits review
+    """
+    accepted = transaction is not None
+    return BankTransaction(
+        id=uuid.uuid4(),
+        owner_id=account.owner_id,
+        account_id=account.id,
+        provider=BankProvider.SIMPLEFIN,
+        external_account_id=external_account_id,
+        external_transaction_id=external_transaction_id,
+        disposition=BankTransactionDisposition.ACCEPTED if accepted else BankTransactionDisposition.AWAITING_REVIEW,
+        transaction_id=transaction.id if accepted else None,
+        observed_date=BANK_DATE,
+        observed_amount=amount,
+        description=BANK_DESCRIPTION,
+        observed_at=datetime(2026, 10, 4, 9, 0, tzinfo=UTC),
+        aligned_date=BANK_DATE if accepted else None,
+        aligned_amount=amount if accepted else None,
     )
