@@ -29,6 +29,15 @@ interface IconTooltipProps {
   // What limits the room above and below the trigger when picking a side: the nearest ancestor marked
   // with `data-tooltip-bounds`, or only the viewport, for a panel meant to rise over the edge of its box
   sideBoundary?: IconTooltipSideBoundary
+
+  // Fills the icon on hover and while open, which suits the round info and help icons. An outline
+  // icon such as a building would lose its strokes to the fill, so it opts out
+  hoverFill?: boolean
+
+  // For a tooltip inside another control, such as a row that is itself a button, where a nested button
+  // is invalid. The trigger becomes a focusable span acting as a button, and its clicks stay with the
+  // tooltip rather than reaching the control around it
+  insideControl?: boolean
 }
 
 type IconTooltipSideBoundary = 'bounds' | 'viewport'
@@ -180,13 +189,16 @@ function getTooltipPosition(
  * keeps that side, and it is placed again with the trigger on any scroll or resize, and whenever the
  * trigger moves on its own, as it does during a dialog's entrance. It hides while its trigger is
  * scrolled out of view, and it closes on any pointer down outside the trigger
+ *
+ * The panel is as wide as its content up to 13rem, so a short note sits in a small panel rather than
+ * one with a ragged gap beside it. A caller passing its own width takes that width instead
  */
 export default function IconTooltip({
   label,
   children,
   level = 'info',
   placement = 'top',
-  widthClassName = 'w-52',
+  widthClassName = 'w-max max-w-52',
   icon: IconOverride,
   iconColor,
   fxTone = 'blue',
@@ -195,6 +207,8 @@ export default function IconTooltip({
   modalFieldTabStop = false,
   interactive = false,
   sideBoundary = 'bounds',
+  hoverFill = true,
+  insideControl = false,
 }: IconTooltipProps) {
   const { Icon: DefaultIcon, color } = levelConfig[level]
   const isFxIcon = IconOverride === 'fx'
@@ -205,7 +219,7 @@ export default function IconTooltip({
   const isShown = isOpen || isKeyboardFocused
   const [position, setPosition] = useState<TooltipPosition>({ left: 0, top: 0 })
   const rootRef = useRef<HTMLSpanElement>(null)
-  const triggerRef = useRef<HTMLButtonElement>(null)
+  const triggerRef = useRef<HTMLElement | null>(null)
   const tooltipRef = useRef<HTMLSpanElement>(null)
 
   // The side is picked once as the panel shows and kept until it hides, so a panel that opened above its
@@ -288,7 +302,27 @@ export default function IconTooltip({
   const triggerClassName = isFxIcon
     ? joinClassNames(FX_TRIGGER_CLASS, isShown ? fxToneClass.active : fxToneClass.idle)
     : ICON_TRIGGER_CLASS
-  const iconClassName = joinClassNames(ICON_CLASS, ICON_HOVER_CLASS, isShown && ICON_ACTIVE_CLASS)
+  const iconClassName = joinClassNames(ICON_CLASS, hoverFill && ICON_HOVER_CLASS, hoverFill && isShown && ICON_ACTIVE_CLASS)
+  const setTrigger = (node: HTMLElement | null) => {
+    triggerRef.current = node
+  }
+  const toggle = () => {
+    updatePlacement()
+    setIsOpen((open) => !open)
+  }
+  const triggerProps = {
+    'aria-label': label,
+    'aria-expanded': isOpen,
+    'data-modal-field-tab-stop': modalFieldTabStop ? 'true' : undefined,
+    'data-fx-tone': isFxIcon ? fxTone : undefined,
+    className: triggerClassName,
+    style: isFxIcon ? undefined : { color: iconColor ?? color },
+    onFocus: updatePlacement,
+    onMouseEnter: updatePlacement,
+  }
+  const triggerContent = isFxIcon
+    ? 'FX'
+    : <Icon size={size} strokeWidth={strokeWidth} aria-hidden className={iconClassName} />
   const tooltipWrapperClassName = joinClassNames(
     TOOLTIP_WRAPPER_CLASS,
     isShown ? TOOLTIP_OPEN_CLASS : TOOLTIP_CLOSED_CLASS,
@@ -306,24 +340,30 @@ export default function IconTooltip({
         if (!rootRef.current?.contains(event.relatedTarget as Node | null)) setIsKeyboardFocused(false)
       }}
     >
-      <button
-        ref={triggerRef}
-        type="button"
-        aria-label={label}
-        aria-expanded={isOpen}
-        data-modal-field-tab-stop={modalFieldTabStop ? 'true' : undefined}
-        data-fx-tone={isFxIcon ? fxTone : undefined}
-        className={triggerClassName}
-        style={isFxIcon ? undefined : { color: iconColor ?? color }}
-        onClick={() => {
-          updatePlacement()
-          setIsOpen((open) => !open)
-        }}
-        onFocus={updatePlacement}
-        onMouseEnter={updatePlacement}
-      >
-        {isFxIcon ? 'FX' : <Icon size={size} strokeWidth={strokeWidth} aria-hidden className={iconClassName} />}
-      </button>
+      {insideControl ? (
+        <span
+          ref={setTrigger}
+          role="button"
+          tabIndex={0}
+          {...triggerProps}
+          onClick={(event) => {
+            event.stopPropagation()
+            toggle()
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return
+            event.preventDefault()
+            event.stopPropagation()
+            toggle()
+          }}
+        >
+          {triggerContent}
+        </span>
+      ) : (
+        <button ref={setTrigger} type="button" {...triggerProps} onClick={toggle}>
+          {triggerContent}
+        </button>
+      )}
       <span
         ref={tooltipRef}
         role={interactive ? undefined : 'tooltip'}
