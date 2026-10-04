@@ -159,8 +159,8 @@ async def test_setup_token_for_a_host_resolving_privately_is_refused_and_logged_
 
 @pytest.mark.parametrize(
     "fault",
-    [{"kind": "html_error"}, {"kind": "payment_required"}, {"kind": "rate_limited"}, {"kind": "timeout"}],
-    ids=["html-403", "402", "429", "timeout"],
+    [{"kind": "html_error"}, {"kind": "rate_limited"}, {"kind": "timeout"}],
+    ids=["html-403", "429", "timeout"],
 )
 async def test_claim_meeting_a_bridge_fault_reports_the_bridge_unreachable(scenario: FakeBridgeScenario, monkeypatch, fault):
     """An edge error page, a refusal that isn't about the token, or no answer in time leaves nothing claimed"""
@@ -170,6 +170,16 @@ async def test_claim_meeting_a_bridge_fault_reports_the_bridge_unreachable(scena
 
     with pytest.raises(ProviderUnreachable):
         await _fake_adapter().claim(scenario.setup_token)
+
+
+async def test_claim_meeting_a_payment_problem_names_it(scenario: FakeBridgeScenario):
+    """A 402 is something the user can settle with SimpleFIN Bridge, so the claim says so"""
+    await scenario.change("PUT", "/fault", {"kind": "payment_required"})
+
+    with pytest.raises(ClaimRefused) as refusal:
+        await _fake_adapter().claim(scenario.setup_token)
+
+    assert str(refusal.value) == "SimpleFIN Bridge reports a payment problem"
 
 
 @pytest.mark.parametrize(

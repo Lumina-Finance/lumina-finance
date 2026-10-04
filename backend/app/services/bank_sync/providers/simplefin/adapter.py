@@ -92,6 +92,11 @@ class SimpleFinAdapter(ProviderAdapter):
         # answers its own failures with an HTML page
         if response.status_code == 403 and not _is_html(response):
             raise ClaimRefused(_SETUP_ALREADY_USED_MESSAGE)
+
+        # A payment problem is the user's to settle with SimpleFIN Bridge, so it is named rather
+        # than passed off as the Bridge being unreachable
+        if response.status_code == 402:
+            raise ClaimRefused(_PAYMENT_MESSAGE)
         if response.status_code != 200:
             raise ProviderUnreachable(_UNREACHABLE_MESSAGE)
 
