@@ -21,7 +21,22 @@ from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, check_values
-from app.services.bank_sync.providers.contract import ProviderErrorKind
+
+
+class ProviderErrorKind(enum.StrEnum):
+    """What a provider failure means for sync, which decides whether trying again can help
+
+    Provider adapters report these, and a job stores the last one it met
+    """
+
+    # The stored credential no longer works, so automatic sync stops until the user reconnects
+    CREDENTIAL_REJECTED = "credential_rejected"
+
+    # The bank needs the user to sign in again at the provider, which retrying can't fix
+    BANK_LOGIN_NEEDED = "bank_login_needed"
+    RATE_LIMITED = "rate_limited"
+    TEMPORARY = "temporary"
+    UNKNOWN = "unknown"
 
 
 class BankSyncJobKind(enum.StrEnum):

@@ -16,6 +16,7 @@ import httpx
 from app.config.bank_sync import BANK_SYNC_SIMPLEFIN_ORIGINS, BANK_SYNC_SIMPLEFIN_TEST_ORIGIN
 from app.config.runtime import APP_VERSION
 from app.http_client import ResponseTooLargeError
+from app.models.bank_connection import BankProvider
 from app.services.bank_sync.outbound import AddressRefused, OriginRefused, OutboundGuard
 from app.services.bank_sync.providers.contract import (
     ClaimRefused,
@@ -56,7 +57,7 @@ _SERVER_NOT_ALLOWED_MESSAGE = "This Lumina Finance server is not set up to conta
 class SimpleFinAdapter(ProviderAdapter):
     """SimpleFIN, reached through SimpleFIN Bridge or an operator's own SimpleFIN server"""
 
-    provider_id = "simplefin"
+    provider_id = BankProvider.SIMPLEFIN
     provider_name = "SimpleFIN"
     history_limit_months = 12
     advertises_history = False

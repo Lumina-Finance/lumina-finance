@@ -13,18 +13,8 @@ from enum import StrEnum
 from typing import Any, ClassVar
 from zoneinfo import ZoneInfo
 
-
-class ProviderErrorKind(StrEnum):
-    """What a provider failure means for sync, which decides whether trying again can help"""
-
-    # The stored credential no longer works, so automatic sync stops until the user reconnects
-    CREDENTIAL_REJECTED = "credential_rejected"
-
-    # The bank needs the user to sign in again at the provider, which retrying can't fix
-    BANK_LOGIN_NEEDED = "bank_login_needed"
-    RATE_LIMITED = "rate_limited"
-    TEMPORARY = "temporary"
-    UNKNOWN = "unknown"
+from app.models.bank_connection import BankProvider
+from app.models.bank_sync_job import ProviderErrorKind
 
 
 class ConnectsFrom(StrEnum):
@@ -150,7 +140,7 @@ class ProviderAdapter(ABC):
     provider's request budget before calling it
     """
 
-    provider_id: ClassVar[str]
+    provider_id: ClassVar[BankProvider]
     provider_name: ClassVar[str]
 
     # How many calendar months back an import may start
