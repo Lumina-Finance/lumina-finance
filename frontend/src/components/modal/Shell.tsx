@@ -33,6 +33,22 @@ const LEVELS = {
 
 export type ModalLevel = keyof typeof LEVELS
 
+// Where an aside has room beside the panel. The panel stays centred, so the aside needs its own width
+// and gap free on both sides: 18rem and 1.5rem either side of the widest titled panel, 42rem, comes to
+// 1296px, and the rest keeps it off the screen's edge. The app's two breakpoints sit far below that,
+// so this one is the aside's own
+const ASIDE_ROOM_QUERY = '(min-width: 1320px)'
+
+function subscribeToAsideRoom(onChange: () => void): () => void {
+  const query = window.matchMedia(ASIDE_ROOM_QUERY)
+  query.addEventListener('change', onChange)
+  return () => query.removeEventListener('change', onChange)
+}
+
+function hasAsideRoom(): boolean {
+  return window.matchMedia(ASIDE_ROOM_QUERY).matches
+}
+
 interface ModalShellProps {
   open: boolean
   onClose: () => void
@@ -53,9 +69,10 @@ interface ModalShellProps {
   /**
    * Shown beside the panel rather than inside it, as part of the same dialog
    *
-   * The panel stays centred and this hangs off its right edge, so it is hidden below 1320px wide, where
-   * there is no room for it, and whatever it holds needs another place in the panel there. It is for
-   * reading only: focus is kept inside the panel, so Tab never reaches a control placed here.
+   * The panel stays centred and this hangs off its right edge, 18rem wide. It is left out below 1320px
+   * wide, where there is no room for it, so whatever it holds needs another place in the panel there.
+   * While shown it describes the dialog, so a screen reader reads it with the title. It is for reading
+   * only: focus is kept inside the panel, so Tab never reaches a control placed here
    */
   aside?: ReactNode
   children: ReactNode
@@ -87,6 +104,7 @@ export function ModalShell({
   useBodyScrollLock(open)
 
   const covered = useSyncExternalStore(subscribeToModalStack, () => isModalCovered(token))
+  const asideHasRoom = useSyncExternalStore(subscribeToAsideRoom, hasAsideRoom)
 
   useEffect(() => {
     if (!open) return
@@ -134,27 +152,27 @@ export function ModalShell({
         >
           {aside ? (
             // The frame is the panel's size and carries its entrance, so the panel keeps its centred place
-            // and the aside hangs off the frame's edge. The dialog itself stays the panel, which is what
+            // and the aside hangs off the frame's edge. It takes the panel's size classes but never their
+            // clipping, which would cut the aside off. The dialog itself stays the panel, which is what
             // the full-screen rules for narrow viewports and the scroll lock look for
-            <motion.div
-              className={`app-modal-frame relative ${panelClassName.replace('overflow-hidden', '')}`}
-              {...entrance}
-            >
+            <motion.div className={`app-modal-frame relative ${panelClassName} !overflow-visible`} {...entrance}>
               <div
                 ref={panelRef}
-                aria-describedby={descriptionId ? `${descriptionId} ${asideId}` : asideId}
+                aria-describedby={[descriptionId, asideHasRoom ? asideId : undefined].filter(Boolean).join(' ') || undefined}
                 {...dialogAttributes}
               >
                 {children}
               </div>
-              <div
-                id={asideId}
-                inert={covered}
-                className={`absolute left-full top-0 ml-6 hidden min-[1320px]:block ${covered ? 'app-modal-panel-covered' : ''}`}
-                onClick={(event) => event.stopPropagation()}
-              >
-                {aside}
-              </div>
+              {asideHasRoom && (
+                <div
+                  id={asideId}
+                  inert={covered}
+                  className={`absolute left-full top-0 ml-6 w-72 ${covered ? 'app-modal-panel-covered' : ''}`}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {aside}
+                </div>
+              )}
             </motion.div>
           ) : (
             <motion.div ref={panelRef} aria-describedby={descriptionId} {...dialogAttributes} {...entrance}>
