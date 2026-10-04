@@ -37,12 +37,14 @@ NOT_OWN_ACCOUNT = "Starting balances can only be recorded on your own accounts"
 async def _account_transactions(account_id: str):
     """Return an account's transactions with their categories, oldest first"""
     async with TestSession() as session:
-        return (await session.execute(
-            select(Transaction, Category)
-            .join(Category, Transaction.category_id == Category.id)
-            .where(Transaction.account_id == UUID(account_id))
-            .order_by(Transaction.dt, Transaction.created_at),
-        )).all()
+        return (
+            await session.execute(
+                select(Transaction, Category)
+                .join(Category, Transaction.category_id == Category.id)
+                .where(Transaction.account_id == UUID(account_id))
+                .order_by(Transaction.dt, Transaction.created_at),
+            )
+        ).all()
 
 
 async def _wait_until_waiting_on(blocker_pid: int, request: asyncio.Task):
@@ -90,9 +92,15 @@ async def test_record_starting_balance_writes_it_once_on_the_users_day(client, m
 async def test_record_starting_balance_saves_a_liabilitys_amount_owed_negated(client, account_kind, account_type):
     """A liability owing 400.00 shows a balance of -400.00."""
     headers = _get_auth_header(await _create_user(client))
-    account_id = (await _create_account(
-        client, headers, account_kind=account_kind, account_type=account_type, name="Owed",
-    )).json()["id"]
+    account_id = (
+        await _create_account(
+            client,
+            headers,
+            account_kind=account_kind,
+            account_type=account_type,
+            name="Owed",
+        )
+    ).json()["id"]
 
     resp = await _record_starting_balance(client, headers, account_id, 400_00)
 
@@ -260,15 +268,17 @@ async def test_record_starting_balance_waits_for_a_transaction_still_saving_and_
 
     async with TestSession() as saving:
         category_id = await saving.scalar(select(Category.id).where(Category.is_system.is_(True)).limit(1))
-        saving.add(Transaction(
-            created_by_user_id=UUID(signup_resp.json()["user"]["id"]),
-            account_id=UUID(account_data["id"]),
-            dt=_created_at_in_tz(account_data, USER_TZ),
-            category_id=category_id,
-            merchant_id=merchant_id,
-            amount=-5000,
-            currency="CAD",
-        ))
+        saving.add(
+            Transaction(
+                created_by_user_id=UUID(signup_resp.json()["user"]["id"]),
+                account_id=UUID(account_data["id"]),
+                dt=_created_at_in_tz(account_data, USER_TZ),
+                category_id=category_id,
+                merchant_id=merchant_id,
+                amount=-5000,
+                currency="CAD",
+            )
+        )
         await saving.flush()
         saving_pid = await saving.scalar(text("SELECT pg_backend_pid()"))
         request = asyncio.create_task(_record_starting_balance(client, headers, account_data["id"], 100_00))

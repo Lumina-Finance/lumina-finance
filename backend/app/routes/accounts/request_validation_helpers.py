@@ -1,4 +1,5 @@
 """Account request validation helpers"""
+
 from collections.abc import Mapping
 from typing import Any
 

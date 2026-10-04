@@ -1,4 +1,5 @@
 """Account route handlers"""
+
 import uuid
 from datetime import datetime
 from typing import Annotated

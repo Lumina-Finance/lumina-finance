@@ -1,4 +1,5 @@
 """Account starting balance helpers"""
+
 import uuid
 from datetime import date
 
