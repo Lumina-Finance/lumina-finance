@@ -145,7 +145,7 @@ export function invalidateCreatedAccountData(
 
 /**
  * Shows the balance an account's starting balance gave it, and refreshes the transaction lists that
- * now hold its opening adjustment and every view built on balances. The adjustment is never cash
+ * now hold the starting balance and every view built on balances. A starting balance is never cash
  * flow, so income, expense and budget views are left alone
  */
 export function applyRecordedStartingBalance(queryClient: QueryClient, account: Account) {

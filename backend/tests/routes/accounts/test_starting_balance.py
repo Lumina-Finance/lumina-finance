@@ -60,7 +60,7 @@ async def _wait_until_waiting_on(blocker_pid: int, request: asyncio.Task):
 # --- POST /accounts/{account_id}/starting-balance ---
 
 
-async def test_record_starting_balance_writes_one_opening_adjustment_on_the_users_day(client, monkeypatch):
+async def test_record_starting_balance_writes_it_once_on_the_users_day(client, monkeypatch):
     """1,250.00 recorded late in the user's evening is one Balance Adjustment dated their day, not UTC's."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)

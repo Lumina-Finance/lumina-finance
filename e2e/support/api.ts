@@ -297,7 +297,7 @@ export interface CreateAccountOptions {
   institutionId?: string
 
   /**
-   * Opening balance in minor units above zero, recorded after the account is created. A liability's
+   * Starting balance in minor units above zero, recorded after the account is created. A liability's
    * is the amount owed, which the API saves negated
    */
   startingBalance?: number

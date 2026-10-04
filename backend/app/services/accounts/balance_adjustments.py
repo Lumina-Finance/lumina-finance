@@ -38,7 +38,7 @@ async def record_account_starting_balance(
     The amount is the balance as the user states it, so a liability's, which is what is owed, is
     saved negated. The account row is locked before its transactions are looked for, so a
     transaction still being saved, or a repeat of this request, is seen once it commits and this
-    one is refused rather than adding a second opening balance. An archived account is not refused,
+    one is refused rather than adding a second starting balance. An archived account is not refused,
     since an account can be created archived and still needs its starting balance
 
     Args:
