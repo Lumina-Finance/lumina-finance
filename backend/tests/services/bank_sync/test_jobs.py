@@ -1,8 +1,9 @@
 """Bank sync jobs: queueing, claiming across users, the due scan and the heartbeat
 
 The claim and the due scan run as the worker, the app role with no request identity, through the
-definer functions, so these tests call them the same way. A job claimed twice would sync a
-connection twice at once, and a queued job started beside a running one would race it
+definer functions, and queueing runs as the connection's owner under row-level security, so these
+tests call each the same way. A job claimed twice would sync a connection twice at once, and a
+queued job started beside a running one would race it
 """
 
 from datetime import UTC, datetime, timedelta
@@ -16,6 +17,7 @@ from app.models.currency import Currency
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
 from tests.conftest import ScopedSession, TestSession
 from tests.routes.support.bank_sync_helpers import _build_bank_connection, _build_user
+from tests.routes.support.identity_helpers import _act_as
 
 _CLAIM = text("SELECT job_id, owner_id, connection_id, kind, discover, attempt FROM public.claim_bank_sync_jobs(:limit)")
 
@@ -77,9 +79,12 @@ async def test_claim_by_two_workers_at_once_gives_each_a_different_job(connectio
     first_job = await _seed_job(connections[0], BankSyncJobKind.SCHEDULED)
     second_job = await _seed_job(connections[1], BankSyncJobKind.SCHEDULED)
 
-    # The first worker holds its claim open while the second claims, as overlapping workers would
+    # The first worker holds its claim open while the second claims, as overlapping workers would.
+    # Were the claim to wait on the first worker's lock instead of skipping it, the lock timeout
+    # fails the test rather than leaving it hanging
     async with ScopedSession() as first_worker, ScopedSession() as second_worker:
         first = (await first_worker.execute(_CLAIM, {"limit": 1})).all()
+        await second_worker.execute(text("SET LOCAL lock_timeout = '2s'"))
         second = (await second_worker.execute(_CLAIM, {"limit": 1})).all()
         await first_worker.commit()
         await second_worker.commit()
@@ -131,62 +136,82 @@ async def test_claim_returns_only_what_the_worker_needs_and_leaves_jobs_not_yet_
     assert (await _job_states())[later.id] == ("queued", 0)
 
 
-async def _queued_jobs(session) -> list:
-    """Return the kind, discovery flag and status of every job, read in the given session"""
-    return (await session.execute(select(BankSyncJob.kind, BankSyncJob.discover, BankSyncJob.status).order_by(BankSyncJob.status))).all()
+async def _enqueue_as_owner(connection: BankConnection, *requests: dict) -> tuple[list, datetime | None]:
+    """Queue each request for a connection as its owner, under row-level security
+
+    Returns:
+        The kind, discovery flag and status of every job the owner then sees, and the queued
+        job's run-after time
+    """
+    async with _act_as(connection.owner_id) as session:
+        for request in requests:
+            await enqueue_bank_sync_job(session, owner_id=connection.owner_id, connection_id=connection.id, **request)
+        jobs = (await session.execute(select(BankSyncJob.kind, BankSyncJob.discover, BankSyncJob.status).order_by(BankSyncJob.status))).all()
+        run_after = await session.scalar(select(BankSyncJob.run_after).where(BankSyncJob.status == BankSyncJobStatus.QUEUED))
+        await session.commit()
+    return [tuple(job) for job in jobs], run_after
 
 
-async def test_enqueue_onto_a_queued_scheduled_job_makes_it_manual(db, connections):
+async def test_enqueue_onto_a_queued_scheduled_job_makes_it_manual(connections):
     """Pressing Sync now while a scheduled job waits leaves one queued job, now manual"""
-    connection = connections[0]
-    await enqueue_bank_sync_job(db, owner_id=connection.owner_id, connection_id=connection.id, kind=BankSyncJobKind.SCHEDULED)
-    await enqueue_bank_sync_job(db, owner_id=connection.owner_id, connection_id=connection.id, kind=BankSyncJobKind.MANUAL)
-    await enqueue_bank_sync_job(db, owner_id=connection.owner_id, connection_id=connection.id, kind=BankSyncJobKind.SCHEDULED)
-
-    assert [tuple(row) for row in await _queued_jobs(db)] == [("manual", False, "queued")]
-
-
-async def test_enqueue_of_a_plain_retry_keeps_the_queued_rediscovery(db, connections):
-    """A retry arriving before a queued rediscovery runs doesn't drop the rediscovery"""
-    connection = connections[0]
-    await enqueue_bank_sync_job(
-        db,
-        owner_id=connection.owner_id,
-        connection_id=connection.id,
-        kind=BankSyncJobKind.SCHEDULED,
-        discover=True,
+    jobs, _ = await _enqueue_as_owner(
+        connections[0],
+        {"kind": BankSyncJobKind.SCHEDULED},
+        {"kind": BankSyncJobKind.MANUAL},
+        {"kind": BankSyncJobKind.SCHEDULED},
     )
-    await enqueue_bank_sync_job(db, owner_id=connection.owner_id, connection_id=connection.id, kind=BankSyncJobKind.RETRY)
 
-    assert [tuple(row) for row in await _queued_jobs(db)] == [("retry", True, "queued")]
+    assert jobs == [("manual", False, "queued")]
 
 
-async def test_enqueue_runs_a_merged_job_at_the_earlier_time(db, connections):
-    """Sync now merged into tomorrow's scheduled job makes it due now"""
-    connection = connections[0]
+@pytest.mark.parametrize(
+    ("requests", "kind"),
+    [
+        (({"kind": BankSyncJobKind.SCHEDULED, "discover": True}, {"kind": BankSyncJobKind.RETRY}), "retry"),
+        (({"kind": BankSyncJobKind.SCHEDULED}, {"kind": BankSyncJobKind.MANUAL, "discover": True}), "manual"),
+    ],
+    ids=["queued_rediscovery_then_retry", "scheduled_then_sync_now_with_rediscovery"],
+)
+async def test_enqueue_keeps_a_rediscovery_whichever_request_asked(connections, requests, kind):
+    """A rediscovery survives a merge whether the queued job or the new request asked for it"""
+    jobs, _ = await _enqueue_as_owner(connections[0], *requests)
+
+    assert jobs == [(kind, True, "queued")]
+
+
+@pytest.mark.parametrize("scheduled_first", [True, False], ids=["sync_now_onto_tomorrows_job", "tomorrows_job_onto_sync_now"])
+async def test_enqueue_runs_a_merged_job_at_the_earlier_time(connections, scheduled_first):
+    """Sync now and tomorrow's scheduled sync, merged in either order, run now as a manual job"""
     tomorrow = datetime.now(UTC) + timedelta(days=1)
-    await enqueue_bank_sync_job(
-        db,
-        owner_id=connection.owner_id,
-        connection_id=connection.id,
-        kind=BankSyncJobKind.SCHEDULED,
-        run_after=tomorrow,
-    )
-    await enqueue_bank_sync_job(db, owner_id=connection.owner_id, connection_id=connection.id, kind=BankSyncJobKind.MANUAL)
+    requests = [{"kind": BankSyncJobKind.SCHEDULED, "run_after": tomorrow}, {"kind": BankSyncJobKind.MANUAL}]
 
-    assert await db.scalar(select(BankSyncJob.run_after)) < tomorrow
+    jobs, run_after = await _enqueue_as_owner(connections[0], *(requests if scheduled_first else reversed(requests)))
+
+    assert jobs == [("manual", False, "queued")]
+    assert run_after < tomorrow - timedelta(hours=23)
 
 
-async def test_enqueue_while_a_job_runs_queues_one_job_behind_it(db, connections):
+@pytest.mark.parametrize(
+    "kinds",
+    [(BankSyncJobKind.INITIAL, BankSyncJobKind.MANUAL), (BankSyncJobKind.MANUAL, BankSyncJobKind.INITIAL)],
+    ids=["initial_then_manual", "manual_then_initial"],
+)
+async def test_enqueue_initial_import_outranks_sync_now_in_either_order(connections, kinds):
+    """Sync now pressed during a first import's wait leaves the job an initial one"""
+    jobs, _ = await _enqueue_as_owner(connections[0], *({"kind": kind} for kind in kinds))
+
+    assert jobs == [("initial", False, "queued")]
+
+
+async def test_enqueue_while_a_job_runs_queues_one_job_behind_it(connections):
     """A connection holds one running and one queued job, however much work arrives"""
     connection = connections[0]
     lease = datetime.now(UTC) + timedelta(minutes=5)
     await _seed_job(connection, BankSyncJobKind.SCHEDULED, status=BankSyncJobStatus.RUNNING, attempt=1, lease_expires_at=lease)
 
-    for kind in (BankSyncJobKind.MANUAL, BankSyncJobKind.RETRY):
-        await enqueue_bank_sync_job(db, owner_id=connection.owner_id, connection_id=connection.id, kind=kind)
+    jobs, _ = await _enqueue_as_owner(connection, {"kind": BankSyncJobKind.MANUAL}, {"kind": BankSyncJobKind.RETRY})
 
-    assert [tuple(row) for row in await _queued_jobs(db)] == [("manual", False, "queued"), ("scheduled", False, "running")]
+    assert jobs == [("manual", False, "queued"), ("scheduled", False, "running")]
 
 
 async def test_list_due_bank_connections_returns_due_ones_across_owners_by_id(connections):
