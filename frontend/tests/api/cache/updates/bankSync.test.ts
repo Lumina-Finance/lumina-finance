@@ -1,8 +1,9 @@
 /**
- * Covers the cache writes behind bank sync: the polled link list, a Sync now answer, review decisions,
- * a link made or removed, and account deletion
+ * Covers the cache writes behind bank sync: the polled link list, review decisions, a link made or
+ * removed, and account deletion. A Sync now answer is covered with the link list read
  *
- * These tests catch a polled link list that changed nothing refetching every bank view, a sync that
+ * These tests catch a polled link list that changed nothing refetching every bank view, a first read
+ * taken for every link appearing at once, a sync that
  * brought in data leaving the review inbox, pending rows, transaction lists or the account's balance
  * stale, a decided item staying in a later page or its count, an item leaving the inbox before its
  * transaction shows in the list, a decision that left the ledger alone reloading it, a link change
@@ -11,9 +12,7 @@
  */
 import { QueryClient, QueryObserver, type InfiniteData, type QueryKey } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { BANK_LINKS_ACTIVE_POLL_MS } from '@/api/bank-sync/constants';
-import { getBankLinksPollInterval } from '@/api/bank-sync/polling';
-import type { BankLink, BankReviewPage } from '@/api/bank-sync/types';
+import type { BankReviewPage } from '@/api/bank-sync/types';
 import { accountKeys, bankSyncKeys, transactionKeys } from '@/api/cache/queryKeys';
 import {
   applyBankLinkChanges,
@@ -22,7 +21,6 @@ import {
   clearDeletedAccountBankData,
   refreshBankLinkState,
   removeReviewItemsFromPages,
-  replaceCachedBankLink,
 } from '@/api/cache/updates/bankSync';
 import type { Transaction } from '@/api/transactions/types';
 import { createBankLink, createBankTransaction, createReviewItem } from './fixtures';
@@ -123,6 +121,16 @@ describe('a polled change in the link list', () => {
     expectInvalidated([...statusKeys, ...reviewKeys, ...ledgerKeys], false);
   });
 
+  it.each([
+    ['the first read, with no list before it', undefined, before],
+    ['a list that has gone from the cache', before, undefined],
+    ['the same list handed back', before, before],
+  ])('refreshes nothing for %s', (_, previous, next) => {
+    applyBankLinkChanges(queryClient, previous, next);
+
+    expectInvalidated([...statusKeys, ...reviewKeys, ...ledgerKeys], false);
+  });
+
   it('refreshes only the status when a sync fails', () => {
     const after = [
       createBankLink({ last_attempt: { at: '2026-10-01T00:00:00Z', outcome: 'failure', reason: 'Bank unavailable' } }),
@@ -167,18 +175,6 @@ describe('a polled change in the link list', () => {
 
     expectInvalidated(statusKeys, true);
     expectInvalidated([...reviewKeys, ...ledgerKeys], false);
-  });
-});
-
-describe('a Sync now answer', () => {
-  it('replaces its link in the list, which switches the poll to its fast pace at once', () => {
-    queryClient.setQueryData(bankSyncKeys.links(), [createBankLink(), createBankLink({ account_id: 'account-2' })]);
-
-    replaceCachedBankLink(queryClient, createBankLink({ sync_in_progress: true }));
-
-    const links = queryClient.getQueryData<BankLink[]>(bankSyncKeys.links());
-    expect(links?.map((link) => [link.account_id, link.sync_in_progress])).toEqual([['account-1', true], ['account-2', false]]);
-    expect(getBankLinksPollInterval(links, null)).toBe(BANK_LINKS_ACTIVE_POLL_MS);
   });
 });
 
@@ -262,14 +258,16 @@ describe('a review decision that left the ledger alone', () => {
 });
 
 describe('a link made or removed', () => {
-  it('settles once the links, the account status, the connections and the providers have refetched', async () => {
+  const reads: Array<{ name: string; key: QueryKey; data: unknown }> = [
+    { name: 'links', key: bankSyncKeys.links(), data: [] },
+    { name: 'account status', key: bankSyncKeys.accountStatus('account-1'), data: {} },
+    { name: 'connections', key: bankSyncKeys.connections(), data: [] },
+    { name: 'providers', key: bankSyncKeys.providers(), data: {} },
+  ];
+
+  it.each(reads.map(({ name }, held) => ({ name, held })))('settles only once the $name have refetched', async ({ held }) => {
     queryClient.setQueryData(reviewKey, {});
-    const answers = [
-      observeWithHeldRead(bankSyncKeys.links(), []),
-      observeWithHeldRead(bankSyncKeys.accountStatus('account-1'), {}),
-      observeWithHeldRead(bankSyncKeys.connections(), []),
-      observeWithHeldRead(bankSyncKeys.providers(), {}),
-    ];
+    const answers = reads.map(({ key, data }) => observeWithHeldRead(key, data));
     let settled = false;
 
     const done = refreshBankLinkState(queryClient).then(() => {
@@ -278,11 +276,13 @@ describe('a link made or removed', () => {
     await settle();
 
     expectInvalidated([reviewKey], true);
-    for (const answer of answers.slice(0, -1)) answer();
+    for (const [index, answer] of answers.entries()) {
+      if (index !== held) answer();
+    }
     await settle();
     expect(settled).toBe(false);
 
-    answers[answers.length - 1]();
+    answers[held]();
     await done;
     expect(settled).toBe(true);
   });

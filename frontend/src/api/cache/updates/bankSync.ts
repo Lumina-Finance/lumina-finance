@@ -98,8 +98,18 @@ function hasNewBankData(previous: BankLink, link: BankLink): boolean {
  * Any change to a link refreshes the status shown for it. A link that brought in data refreshes the
  * review inbox, the pending strip, the transaction lists and the account's figures, which no other
  * request would, since the worker writes them outside any request this window made
+ *
+ * Nothing is compared until there is a list on both sides, so the first read is never taken as every
+ * link appearing at once, and a list read again unchanged, which the cache hands back as the same
+ * array, costs no comparison
  */
-export function applyBankLinkChanges(queryClient: QueryClient, before: BankLink[], after: BankLink[]): void {
+export function applyBankLinkChanges(
+  queryClient: QueryClient,
+  before: BankLink[] | undefined,
+  after: BankLink[] | undefined,
+): void {
+  if (!before || !after || before === after) return;
+
   const previousByAccount = new Map(before.map((link) => [link.account_id, link]));
   const withNewData: string[] = [];
   let changed = before.length !== after.length;
