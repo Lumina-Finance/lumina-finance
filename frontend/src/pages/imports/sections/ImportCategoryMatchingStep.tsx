@@ -28,7 +28,7 @@ type ImportCategoryMatchingStepProps = Pick<
 
 /**
  * Category matching step of the generic CSV import flow, showing every category value found in the
- * mapped column
+ * mapped column, and (no category) for the rows with none
  */
 export function ImportCategoryMatchingStep({
   importedCategories,
@@ -52,7 +52,7 @@ export function ImportCategoryMatchingStep({
       index="04"
       description="Match each category in the file to one of yours, or queue a new one."
       sourceLabel="Category From File"
-      empty={{ title: 'No categories yet', description: 'Map the column holding the category first.' }}
+      empty={{ title: 'No categories yet', description: 'Upload a file to list the categories its rows are filed under.' }}
       rows={importedCategories.map((category) => {
         const value = categoryMappings[category] ?? ''
         const detailKind = getCategoryMatchKind(

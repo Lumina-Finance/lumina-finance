@@ -210,12 +210,6 @@ export function isFireflyJournalType(type: string): type is FireflyJournalType {
 }
 
 /**
- * Seeded system category the no-category placeholder matches to, since
- * Firefly III lets a transaction carry no category and Lumina requires one
- */
-export const FIREFLY_MISCELLANEOUS_CATEGORY_NAME = 'Miscellaneous'
-
-/**
  * Seeded system category the import assigns to transfer legs
  */
 export const FIREFLY_TRANSFER_CATEGORY_NAME = 'Transfer'

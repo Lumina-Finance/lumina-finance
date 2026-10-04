@@ -38,7 +38,7 @@ export const COLUMN_TARGETS: Array<{
     group: 'optional',
   },
   { id: 'dt', label: 'Date', hint: 'Transaction date.', group: 'required' },
-  { id: 'category_id', label: 'Category', hint: 'Resolved from imported category text.', group: 'required' },
+  { id: 'category_id', label: 'Category', hint: 'Resolved from imported category text. Rows with a blank cell, or every row when no column is mapped, are listed together as (no category) and matched to Miscellaneous.', group: 'optional' },
 
   // The three ways a file can carry the amount, one arrangement of which every import needs. The two
   // sides follow the single column they are an alternative to
@@ -360,6 +360,10 @@ export const SKIPPED_TABLE_VISIBLE_LIMIT = 20
 // step description that states it, so the two cannot disagree about what is on screen
 export const IMPORT_SAMPLE_PREVIEW_LIMIT = 5
 
+// The seeded system category rows with no category are matched to, in every import, since a
+// transaction here always carries one
+export const IMPORT_MISCELLANEOUS_CATEGORY_NAME = 'Miscellaneous'
+
 // Why one row cannot be converted, listed against that row in the preview step. They read as one
 // family: what is wrong with this row, then what to do about it where there is a choice about that.
 // Each speaks of the row itself, since the entry carries the row number and the row's own cells, and
@@ -367,7 +371,6 @@ export const IMPORT_SAMPLE_PREVIEW_LIMIT = 5
 // a column holds. A blank cell is told apart from an unreadable one, because filling it in and
 // correcting the whole column's format are different jobs
 export const ROW_ACCOUNT_BLANK_REASON = 'The account cell is blank.'
-export const ROW_CATEGORY_BLANK_REASON = 'The category cell is blank.'
 export const ROW_DATE_BLANK_REASON = 'The date cell is blank.'
 export const ROW_DATE_UNREADABLE_REASON = 'The date does not match the date format chosen above.'
 export const ROW_AMOUNT_BLANK_REASON = 'The amount cell is blank.'

@@ -7,6 +7,7 @@ import {
   getRowTooManyTagsReason,
   MAX_IMPORT_NOTES_LENGTH,
   MAX_IMPORT_TAGS_PER_ROW,
+  IMPORT_MISCELLANEOUS_CATEGORY_NAME,
   IMPORT_TAG_NAME_MAX_LENGTH,
   JOURNAL_ROW_FIELD_MAX_LENGTHS,
 } from '@/pages/imports/constants'
@@ -18,7 +19,6 @@ import {
   FIREFLY_FALLBACK_ACCOUNT_TYPE,
   FIREFLY_LIABILITY_ACCOUNT_TYPES,
   FIREFLY_LISTED_ACCOUNT_ID_PREFIX,
-  FIREFLY_MISCELLANEOUS_CATEGORY_NAME,
   FIREFLY_ROLE_ACCOUNT_TYPES,
   FIREFLY_TRANSFER_ENDPOINT_UNTRACKED_REASON,
   FIREFLY_TYPE_DEPOSIT,
@@ -602,7 +602,7 @@ export function inferFireflyCategoryMappings(
   // Rows without a category have no name to match on, so they fall to the
   // seeded catch-all rather than inventing a category of their own
   const miscellaneous = categories.find((category) => (
-    category.is_system && category.name === FIREFLY_MISCELLANEOUS_CATEGORY_NAME
+    category.is_system && category.name === IMPORT_MISCELLANEOUS_CATEGORY_NAME
   ))
 
   const next: Record<string, string> = {}

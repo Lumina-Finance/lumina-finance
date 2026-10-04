@@ -78,6 +78,10 @@ import { useImportRun } from './useImportRun'
 
 const FILE_ACCOUNT_MATCH_KEY = '__file_account__'
 
+// Stands for no column mapped as the category, where every row is filed under (no category) and that
+// one value is still matched automatically
+const NO_CATEGORY_COLUMN_MATCH_KEY = '__no_category_column__'
+
 // Stands in while a reference list has not arrived, so nothing is treated as cleared and the memos
 // below keep the same identity from render to render
 const NO_CLEARED_SOURCES: Set<string> = new Set()
@@ -663,8 +667,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     [columnMap.tag_ids, files],
   )
 
-  const canInferCategoryMappings = Boolean(columnMap.category_id)
-    && categoryAutoMatchKey === columnMap.category_id
+  const canInferCategoryMappings = categoryAutoMatchKey === (columnMap.category_id || NO_CATEGORY_COLUMN_MATCH_KEY)
 
   const { mappings: liveCategoryMappings, clearedSources: clearedCategorySources } = useMemo(
     () => (categoriesResolved
@@ -833,7 +836,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     }
 
     setAccountAutoMatchKey(nextColumnMap.account_id || FILE_ACCOUNT_MATCH_KEY)
-    setCategoryAutoMatchKey(nextColumnMap.category_id)
+    setCategoryAutoMatchKey(nextColumnMap.category_id || NO_CATEGORY_COLUMN_MATCH_KEY)
   }
 
   /** Moves both format answers to the file and relevant columns being applied */

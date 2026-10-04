@@ -1,3 +1,4 @@
+import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import {
   COLUMN_TARGETS,
   EMPTY_COLUMN_MAP,
@@ -59,9 +60,9 @@ const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
     requiredValues: true,
     accepts: isValidDateValue,
   },
+  // A blank cell is a row with no category, which is filed under (no category) rather than refused
   category_id: {
-    expected: 'category names; every row must have a value',
-    requiredValues: true,
+    expected: 'category names',
     accepts: acceptsAnyValue,
     refusesColumn: refuseColumnOfOnlyNumbersOrDates,
   },
@@ -340,6 +341,14 @@ function getNumberedColumnValues(files: ImportFileDraft[], header: string) {
  */
 export function getMappedValue(row: CsvRow, header: string) {
   return header ? row[header]?.trim() ?? '' : ''
+}
+
+/**
+ * Reads the category a row is filed under, which is (no category) where its cell is blank or no
+ * column is mapped as the category, as it is in the provider imports
+ */
+export function getImportRowCategorySource(row: CsvRow, categoryHeader: string) {
+  return getMappedValue(row, categoryHeader) || JOURNAL_NO_CATEGORY_SOURCE
 }
 
 /**

@@ -656,7 +656,7 @@ describe('guessing the column that specifies money in or money out', () => {
   // A Type column of Payment and Deposit used to fall to the category field, which scores a column
   // of short repeated text and counts Payment as a category word, so the import created categories
   // called Payment and Deposit out of a column stating direction. It now goes to the field that
-  // reads it, and the file arrives asking for a category column instead of inventing one
+  // reads it, and the Category column is left unmapped rather than invented
   it('takes a direction column the category field used to score on its values', () => {
     const files = [createFile(
       ['Date', 'Description', 'Amount', 'Type'],

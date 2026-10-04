@@ -256,8 +256,7 @@ export function buildTransactionImportPayload({
   }
 
   // Judging rows before every mapping they depend on is answered blames them for the answer being
-  // missing: with no category column mapped, every row reads as one with a blank category, and with
-  // no date format settled, every row reads as one whose date does not fit
+  // missing: with no date format settled, every row reads as one whose date does not fit
   //
   // An unusable Direction column is the same case reached without an entry in `errors`, since what
   // is wrong with it is reported against the column instead. Judging rows against it would list

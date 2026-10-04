@@ -1,4 +1,5 @@
 import type { AccountsOverview } from '@/api/accounts'
+import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
@@ -31,6 +32,7 @@ import type {
   ImportUploadBlock,
 } from '@/pages/imports/types'
 import { getImportAccountName } from './accountMapping'
+import { getMappedValue } from './columnMapping'
 import { splitImportedValues } from './categoryMatching'
 import { unique } from './common'
 
@@ -265,11 +267,19 @@ export function buildImportAccountMappingSources(
 }
 
 /**
- * Gets sorted imported category names from the mapped category column
+ * Gets the categories the rows are filed under, sorted, with (no category) last where any row has
+ * none, as the provider imports list it
+ *
+ * A row has no category where its cell is blank or no column is mapped as the category, so with no
+ * column every row is listed under (no category)
  */
 export function getImportedCategories(files: ImportFileDraft[], categoryHeader: string): string[] {
-  if (!categoryHeader) return []
-  return getUniqueColumnValues(files, categoryHeader).sort((a, b) => a.localeCompare(b))
+  const named = categoryHeader ? getUniqueColumnValues(files, categoryHeader).sort((a, b) => a.localeCompare(b)) : []
+  const hasRowWithNoCategory = files.some((file) => file.rows.some((row) => !getMappedValue(row, categoryHeader)))
+
+  // A file that states (no category) itself already lists it, so it isn't listed twice
+  if (!hasRowWithNoCategory || named.includes(JOURNAL_NO_CATEGORY_SOURCE)) return named
+  return [...named, JOURNAL_NO_CATEGORY_SOURCE]
 }
 
 /**
