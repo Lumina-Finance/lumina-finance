@@ -157,7 +157,7 @@ export function applyRecordedStartingBalance(queryClient: QueryClient, account: 
 
 /**
  * Reads an account and every view a starting balance changes again after a save that ended with no
- * answer, since it may have landed, so a user told to check the balance sees it as it is
+ * answer and couldn't be settled, since it may have landed, so they show it once the user is back online
  */
 export function refreshAfterInterruptedStartingBalance(queryClient: QueryClient, accountId: string) {
   invalidateAccountData(queryClient, [accountId]);

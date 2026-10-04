@@ -1,0 +1,74 @@
+import { ApiError } from '@/api/auth/errors';
+import { fetchAccount, recordStartingBalance } from '@/api/accounts/requests';
+import type { Account } from '@/api/accounts/types';
+
+// A proxy answering with one of these may have passed the save on before giving up, so the answer
+// says no more about whether it landed than a dropped connection does
+const UNANSWERED_STATUSES = new Set([502, 503, 504]);
+
+// The refusal a second save meets once the first has landed, which is how a save sent again after
+// an unanswered one finds out it had been saved after all
+const ALREADY_HAS_TRANSACTIONS_STATUS = 422;
+const ALREADY_HAS_TRANSACTIONS_DETAIL = 'This account already has transactions, so a starting balance can\'t be recorded';
+
+/** A save ended with no answer and the account shows it didn't land, so it can be sent again as it is */
+export class StartingBalanceNotSavedError extends Error {
+  constructor() {
+    super('The starting balance was not saved');
+    this.name = 'StartingBalanceNotSavedError';
+  }
+}
+
+/** A save ended with no answer and the account couldn't be read either, so whether it landed is unknown */
+export class StartingBalanceUnsettledError extends Error {
+  constructor() {
+    super('Whether the starting balance was saved is unknown');
+    this.name = 'StartingBalanceUnsettledError';
+  }
+}
+
+function isUnanswered(error: unknown): boolean {
+  return !(error instanceof ApiError) || UNANSWERED_STATUSES.has(error.status);
+}
+
+function isAlreadyHasTransactions(error: unknown): boolean {
+  return error instanceof ApiError
+    && error.status === ALREADY_HAS_TRANSACTIONS_STATUS
+    && error.detail === ALREADY_HAS_TRANSACTIONS_DETAIL;
+}
+
+/**
+ * Records a starting balance and settles a save that ended with no answer by reading the account
+ *
+ * The account is new and the balance its only entry, so the account holding exactly that balance
+ * means the save landed, which is then answered as a save. A save sent again after one that did
+ * land is refused for the transactions the account now has, and is settled the same way
+ *
+ * @param variables - The account and the balance as the user states it
+ * @returns The account with the starting balance, whether this save or an earlier one recorded it
+ * @throws StartingBalanceNotSavedError when the save ended with no answer and didn't land
+ * @throws StartingBalanceUnsettledError when the account couldn't be read to tell
+ */
+export async function recordStartingBalanceSettled(
+  variables: Parameters<typeof recordStartingBalance>[0],
+): Promise<Account> {
+  try {
+    return await recordStartingBalance(variables);
+  } catch (error) {
+    const unanswered = isUnanswered(error);
+    if (!unanswered && !isAlreadyHasTransactions(error)) throw error;
+
+    let account: Account;
+    try {
+      account = await fetchAccount(variables.accountId);
+    } catch {
+      if (unanswered) throw new StartingBalanceUnsettledError();
+      throw error;
+    }
+
+    const { amount } = variables.payload;
+    if (account.current_balance === (account.account_kind === 'asset' ? amount : -amount)) return account;
+    if (unanswered) throw new StartingBalanceNotSavedError();
+    throw error;
+  }
+}

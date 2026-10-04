@@ -184,7 +184,7 @@ test('keeps the notes written for an account, shows them on its page and clears 
   await expect(page.getByText('Notes', { exact: true })).toHaveCount(0)
 })
 
-test('sends the user to check the balance when its save lands but the answer is lost', async ({ page, request }) => {
+test('closes the prompt as saved when the save lands but its answer is lost', async ({ page, request }) => {
   const user = await signUpUser(request)
   await logInViaApi(page, user)
   await openPage(page, '/accounts')
@@ -199,13 +199,8 @@ test('sends the user to check the balance when its save lands but the answer is 
   await prompt.getByLabel('Starting balance', { exact: true }).fill('1250.00')
   await prompt.getByRole('button', { name: 'Continue' }).click()
 
-  await expect(prompt.getByRole('alert')).toHaveText(
-    "The connection was lost before the balance was confirmed. Check the account's balance before trying again.",
-  )
-  await prompt.getByRole('button', { name: 'Skip' }).click()
+  // The account is read after the lost answer, and holding the balance means the save landed
   await expect(prompt).toBeHidden()
-
-  // The list is read again after the lost answer, so it shows the balance that was saved
   await expect(page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) })).toContainText('$1,250.00')
 })
 

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Landmark } from 'lucide-react'
-import { useRecordStartingBalance, type AccountsOverview } from '@/api/accounts'
+import { StartingBalanceNotSavedError, useRecordStartingBalance, type AccountsOverview } from '@/api/accounts'
 import { ApiError } from '@/api/auth'
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
@@ -15,9 +15,12 @@ const STARTING_BALANCE_INPUT_ID = 'new-account-starting-balance'
 // is answered with a message rather than dropped without a word
 const MINUS_SIGN = /[-−]/
 
-// A save that ended with no answer may have landed. The account is read again behind the prompt, and
-// a second save is refused once one has landed, so checking the balance first tells the user which
-const INTERRUPTED_SAVE_MESSAGE = 'The connection was lost before the balance was confirmed. Check the account\'s balance before trying again.'
+// A save that ended with no answer is settled by reading the account, and closes as saved when it
+// landed. These answer the other two outcomes, keeping the prompt and the typed balance, since the
+// page behind is out of reach and nothing records a starting balance once the prompt is gone. A
+// save sent again after one that landed unseen also closes as saved
+const NOT_SAVED_MESSAGE = 'Your starting balance wasn\'t saved. Continue again to save it.'
+const UNSETTLED_SAVE_MESSAGE = 'The connection was lost. Continue again once you\'re back online, and you\'ll be told if your starting balance was already saved.'
 
 type NewAccountPromptModalProps = {
   open: boolean
@@ -69,7 +72,8 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
       {
         onSuccess: onClose,
         onError: (error) => {
-          setSubmitError(error instanceof ApiError ? error.message : INTERRUPTED_SAVE_MESSAGE)
+          if (error instanceof StartingBalanceNotSavedError) setSubmitError(NOT_SAVED_MESSAGE)
+          else setSubmitError(error instanceof ApiError ? error.message : UNSETTLED_SAVE_MESSAGE)
         },
       },
     )

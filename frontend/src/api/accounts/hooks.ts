@@ -19,7 +19,6 @@ import {
   fetchAccountSnapshots,
   fetchAccountSpendingBreakdown,
   fetchAccounts,
-  recordStartingBalance,
   updateAccount,
 } from '@/api/accounts/requests';
 import type {
@@ -27,7 +26,7 @@ import type {
   AccountsOverview,
   SpendingRange,
 } from '@/api/accounts/types';
-import { ApiError } from '@/api/auth/errors';
+import { recordStartingBalanceSettled, StartingBalanceUnsettledError } from '@/api/accounts/startingBalance';
 import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing';
 import { accountKeys } from '@/api/cache/queryKeys';
@@ -52,17 +51,18 @@ export function useCreateAccount() {
 }
 
 /**
- * Records a new account's starting balance and refreshes the views built on its balance, reading
- * them again too when the save ends with no answer, as it may have landed
+ * Records a new account's starting balance and refreshes the views built on its balance. A save
+ * that ended with no answer is settled by reading the account, and when even that fails the views
+ * are read again, as the save may have landed
  */
 export function useRecordStartingBalance() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (variables: Parameters<typeof recordStartingBalance>[0]) =>
-      runWithMinimumPendingTime(LOADING_ANIMATION_MIN_MS, () => recordStartingBalance(variables)),
+    mutationFn: (variables: Parameters<typeof recordStartingBalanceSettled>[0]) =>
+      runWithMinimumPendingTime(LOADING_ANIMATION_MIN_MS, () => recordStartingBalanceSettled(variables)),
     onSuccess: (account) => applyRecordedStartingBalance(queryClient, account),
     onError: (error, { accountId }) => {
-      if (!(error instanceof ApiError)) refreshAfterInterruptedStartingBalance(queryClient, accountId);
+      if (error instanceof StartingBalanceUnsettledError) refreshAfterInterruptedStartingBalance(queryClient, accountId);
     },
   });
 }

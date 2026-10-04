@@ -37,3 +37,5 @@ export {
   useRecordStartingBalance,
   useUpdateAccount,
 } from '@/api/accounts/hooks'
+
+export { StartingBalanceNotSavedError, StartingBalanceUnsettledError } from '@/api/accounts/startingBalance'
