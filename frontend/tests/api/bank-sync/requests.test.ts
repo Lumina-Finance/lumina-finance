@@ -2,7 +2,7 @@
  * Covers the bank sync request functions, the contract the backend routes implement
  *
  * These tests catch a request reaching the wrong path, method or query string, and a body losing the
- * field names the backend reads, such as the version bulk approval checks
+ * field names the backend reads, such as the setup token a reconnect sends
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -103,7 +103,7 @@ describe('bank sync writes', () => {
     ]);
   });
 
-  it('applies bulk approval with the version of each previewed item', async () => {
+  it('posts bulk approval to its route with the previewed items as given', async () => {
     await applyBulkApproval({ items: [{ id: 'item-1', version: 3 }, { id: 'item-2', version: 1 }] });
 
     expect(authenticatedFetchMock).toHaveBeenCalledWith('/bank-review/bulk-approve', {
