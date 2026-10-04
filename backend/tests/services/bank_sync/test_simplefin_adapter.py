@@ -14,7 +14,6 @@ from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
-from freezegun import freeze_time
 
 from app.services.bank_sync import outbound
 from app.services.bank_sync.providers.contract import ClaimRefused, FetchResult, ProviderUnreachable
@@ -33,9 +32,6 @@ _TORONTO = ZoneInfo("America/Toronto")
 # Exactly 90 days, from 1 July to 29 September 2026
 _WINDOW_START = datetime(2026, 7, 1, tzinfo=UTC)
 _WINDOW_END = datetime(2026, 9, 29, tzinfo=UTC)
-
-# What the clock is frozen at where a test depends on today: 3 pm on 4 October in Los Angeles
-_NOW = datetime(2026, 10, 4, 22, tzinfo=UTC)
 
 _SETUP_UNREADABLE_MESSAGE = "That doesn't look like a SimpleFIN setup token. Copy the whole token from SimpleFIN Bridge and try again"
 _SETUP_ALREADY_USED_MESSAGE = "This setup token has already been used. Create a new one in SimpleFIN Bridge"
@@ -208,6 +204,7 @@ async def test_access_url_for_a_server_not_added_is_refused():
     assert str(refusal.value) == "This setup token points to intranet.example, which this Lumina Finance server is not set up to contact"
 
 
+@pytest.mark.usefixtures("frozen_now")
 async def test_fetch_returns_only_the_chosen_accounts_records_in_the_window(scenario: FakeBridgeScenario):
     """The Bridge gets one request naming the chosen accounts and the window, and a past window brings no pending records"""
     await scenario.add_harbour_accounts()
@@ -275,7 +272,7 @@ async def test_account_in_a_currency_lumina_doesnt_hold_stores_no_amounts(scenar
     [(999, 0, False), (1000, 0, True), (999, 1, True)],
     ids=["999-booked", "1000-booked", "999-booked-and-1-pending"],
 )
-async def test_fetch_holding_1000_transactions_may_be_cut_off(scenario: FakeBridgeScenario, booked, pending, cut_off):
+async def test_fetch_holding_1000_transactions_may_be_cut_off(scenario: FakeBridgeScenario, frozen_now: datetime, booked, pending, cut_off):
     """SimpleFIN has no paging, so a fetch holding 1,000 transactions, pending ones included, can't be taken as complete"""
     await scenario.add_harbour_accounts()
     transactions = [{"posted": "2026-09-15", "amount": "-1.00", "description": "COFFEE"}] * booked
@@ -284,8 +281,7 @@ async def test_fetch_holding_1000_transactions_may_be_cut_off(scenario: FakeBrid
     adapter = _fake_adapter()
 
     # A window reaching today, so pending transactions come back
-    with freeze_time(_NOW, real_asyncio=True):
-        result = await _fetch(adapter, _NOW - timedelta(days=30), _NOW, access_url=await adapter.claim(scenario.setup_token))
+    result = await _fetch(adapter, frozen_now - timedelta(days=30), frozen_now, access_url=await adapter.claim(scenario.setup_token))
 
     assert sum(len(account.records) for account in result.accounts) == booked + pending
     assert result.possibly_cut_off is cut_off
@@ -364,8 +360,8 @@ async def test_requests_ask_for_balances_only_or_for_the_window_in_epoch_seconds
     ]
 
 
-# Midnight starting the frozen day for a user in Los Angeles
-_TODAY_STARTS = datetime(2026, 10, 4, tzinfo=_LOS_ANGELES)
+# Midnight starting the frozen day for a user in Los Angeles, a day behind UTC's
+_TODAY_STARTS = datetime(2026, 10, 3, tzinfo=_LOS_ANGELES)
 
 
 @pytest.mark.parametrize(
@@ -377,27 +373,25 @@ _TODAY_STARTS = datetime(2026, 10, 4, tzinfo=_LOS_ANGELES)
     ],
     ids=["reaches-today", "reaches-today-without-pending-wanted", "ends-at-local-midnight"],
 )
+@pytest.mark.usefixtures("frozen_now")
 async def test_only_a_window_reaching_today_asks_for_pending_records(end, include_pending, asks_for_pending):
     """pending=1 goes only with a window reaching into the user's today, and only when the sync wants pending records"""
     bridge = RecordingBridge()
 
-    with freeze_time(_NOW, real_asyncio=True):
-        await _fetch(simplefin_adapter(bridge.transport), end - timedelta(days=30), end, include_pending=include_pending)
+    await _fetch(simplefin_adapter(bridge.transport), end - timedelta(days=30), end, include_pending=include_pending)
 
     [request] = bridge.requests
     assert (("pending", "1") in request.url.params.multi_items()) is asks_for_pending
 
 
-async def test_pending_record_without_a_time_is_dated_the_users_today(scenario: FakeBridgeScenario):
+async def test_pending_record_without_a_time_is_dated_the_users_today(scenario: FakeBridgeScenario, frozen_now: datetime):
     """At 8 pm on 3 October in Los Angeles it is already 4 October in UTC, and the record takes the user's 3 October"""
     await scenario.add_harbour_accounts()
     hold = {"id": "TRN-hold", "pending": True, "amount": "-23.10", "description": "GROCER"}
     await scenario.change("POST", "/accounts/ACT-chequing/transactions", {"transactions": [hold]})
     adapter = _fake_adapter()
-    now = datetime(2026, 10, 4, 3, tzinfo=UTC)
 
-    with freeze_time(now, real_asyncio=True):
-        result = await _fetch(adapter, now - timedelta(days=30), now, access_url=await adapter.claim(scenario.setup_token))
+    result = await _fetch(adapter, frozen_now - timedelta(days=30), frozen_now, access_url=await adapter.claim(scenario.setup_token))
 
     [record] = result.accounts[0].records
     assert (record.external_id, record.pending, record.date) == ("TRN-hold", True, date(2026, 10, 3))

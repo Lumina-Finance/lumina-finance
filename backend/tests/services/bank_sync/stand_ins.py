@@ -6,6 +6,7 @@ body that isn't JSON, and records each request so a test can check what went ove
 """
 
 from collections.abc import Callable
+from datetime import UTC, datetime
 from ipaddress import ip_address
 from typing import Any, Self
 
@@ -18,6 +19,10 @@ from app.services.bank_sync.providers.simplefin.adapter import SimpleFinAdapter
 PUBLIC_ADDRESS = "93.184.215.14"
 
 SIMPLEFIN_BRIDGE_ORIGIN = "https://beta-bridge.simplefin.org"
+
+# What the frozen_now fixture freezes the clock at: 8 pm on 3 October in Los Angeles, already
+# 4 October in UTC, so a date taken in the wrong timezone shows
+FROZEN_NOW = datetime(2026, 10, 4, 3, tzinfo=UTC)
 
 # Builds the answer to a request, or raises a transport error instead
 type Responder = Callable[[httpx.Request], httpx.Response]
