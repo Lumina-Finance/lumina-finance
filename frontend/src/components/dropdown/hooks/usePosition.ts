@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import {
-  clampDropdownViewportToPanel,
   DEFAULT_DROPDOWN_BOX_POSITION,
   getDropdownBoxPosition,
   isSameDropdownBoxPosition,
@@ -27,15 +26,11 @@ interface UseDropdownPositionResult {
   updateBoxPosition: () => void
 }
 
-/**
- * Reads the visual viewport when available so mobile browser chrome does not push the box off-screen,
- * narrowed to the modal panel the field sits in, if any
- */
-function getViewport(wrapper: HTMLElement): DropdownViewport {
+/** Reads the visual viewport when available so mobile browser chrome does not push the box off-screen */
+function getViewport(): DropdownViewport {
   const visualViewport = window.visualViewport
-  const panel = wrapper.closest('[role="dialog"]')?.getBoundingClientRect() ?? null
 
-  return clampDropdownViewportToPanel({
+  return {
     height: visualViewport?.height ?? window.innerHeight,
     layoutHeight: window.innerHeight,
     // The page's own width rather than the window's, which counts the scrollbar gutter this app
@@ -45,7 +40,7 @@ function getViewport(wrapper: HTMLElement): DropdownViewport {
     offsetLeft: visualViewport?.offsetLeft ?? 0,
     offsetTop: visualViewport?.offsetTop ?? 0,
     width: visualViewport?.width ?? window.innerWidth,
-  }, panel)
+  }
 }
 
 /**
@@ -81,8 +76,9 @@ export function useDropdownPosition({
       headHeight: rect.height,
       held: heldDirection.current,
       matchFieldWidth,
+      panel: wrapper.closest('[role="dialog"]')?.getBoundingClientRect() ?? null,
       searchable,
-      viewport: getViewport(wrapper),
+      viewport: getViewport(),
     })
 
     heldDirection.current = { openAbove: next.openAbove, openLeftward: next.openLeftward }

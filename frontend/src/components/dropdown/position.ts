@@ -84,9 +84,9 @@ export type DropdownPanelEdges = {
  *
  * Inside a modal the room is the panel's own wherever it sits within the screen, so a box opened from
  * a field near one of the panel's edges grows the other way, or shorter or narrower, rather than out
- * over the backdrop. A field near the foot of a short panel opens upward for that reason, and the list
- * scrolls within whatever height the panel leaves it. Within the panel, the box also keeps to the
- * dialog body's own bounds while they leave the list a few options. The layout sizes stay the
+ * over the backdrop. A field near the foot of a short panel opens upward for that reason, and the
+ * list scrolls within whatever height the panel leaves it, which reaches up over the modal's title
+ * once the dialog body's own bounds leave the list too few options. The layout sizes stay the
  * screen's, since the box's pinned edges are still placed against the screen
  */
 export function clampDropdownViewportToPanel(
@@ -167,6 +167,14 @@ interface DropdownBoxPositionParams {
 
   /** Keeps the open box as wide as its slot instead of widening it into the room beside it */
   matchFieldWidth?: boolean
+  /**
+   * The modal panel the field sits in, or null outside a modal
+   *
+   * The box keeps to the panel's room while that leaves the list enough rows to read. Otherwise it
+   * grows past the panel's upper or lower edge into the screen's room, still keeping to its sides
+   */
+  panel?: DropdownPanelEdges | null
+
   searchable: boolean
   viewport: DropdownViewport
 }
@@ -213,14 +221,39 @@ const DROPDOWN_VIEWPORT_PADDING = 12
 // box takes the room its modal panel has instead, over the dialog's title or buttons
 const DROPDOWN_MIN_BOUNDED_LIST_HEIGHT = 108
 
+// The fewest option rows a list kept inside a modal panel shows before the box grows past the
+// panel instead, and the height of one. Mirrors the 8px padding above and below .app-dropdown-row in
+// tailwind.css around the 20px line of its text-sm label
+const DROPDOWN_MIN_PANEL_ROWS = 5
+const DROPDOWN_ROW_HEIGHT = 36
+
 /**
  * Places the whole control and works out how much of it the option list may take
  *
  * The control is one box holding the head and the list, so it is pinned by whichever of the head's
  * own edges the list grows away from, and it never leaves the visible viewport, nor its bounds while
- * they leave the list room for a few options.
+ * they leave the list room for a few options. Inside a modal it keeps to the panel, unless neither
+ * side of the field there leaves the list five rows, when it grows toward whichever side of the
+ * screen has more room, past the panel's edge and over whatever lies beyond it, the modal's title
+ * included
  */
 export function getDropdownBoxPosition({
+  panel = null,
+  viewport,
+  ...params
+}: DropdownBoxPositionParams): DropdownBoxPosition {
+  const inPanel = placeDropdownBox({ ...params, viewport: clampDropdownViewportToPanel(viewport, panel) })
+  if (!panel || inPanel.listMaxHeight >= DROPDOWN_MIN_PANEL_ROWS * DROPDOWN_ROW_HEIGHT) return inPanel
+
+  // The box picks the roomier side wherever the side it prefers is short, so a list short here is
+  // short on both sides of the field, or on the side an open box is held to
+  return placeDropdownBox({
+    ...params,
+    viewport: clampDropdownViewportToPanel(viewport, { ...panel, top: -Infinity, bottom: Infinity }),
+  })
+}
+
+function placeDropdownBox({
   anchorRect,
   bounds,
   headHeight,
@@ -228,7 +261,7 @@ export function getDropdownBoxPosition({
   matchFieldWidth = false,
   searchable,
   viewport,
-}: DropdownBoxPositionParams): DropdownBoxPosition {
+}: Omit<DropdownBoxPositionParams, 'panel'>): DropdownBoxPosition {
   const viewportBottom = viewport.offsetTop + viewport.height
   const viewportRight = viewport.offsetLeft + viewport.width
 
