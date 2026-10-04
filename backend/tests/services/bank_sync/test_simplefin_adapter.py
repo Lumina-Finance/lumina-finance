@@ -223,11 +223,25 @@ async def test_discovery_asks_for_balances_only():
     ]
 
 
-async def test_window_longer_than_90_days_is_refused_before_sending():
-    """SimpleFIN Bridge refuses a longer window, so the adapter never asks for one"""
+_TORONTO = ZoneInfo("America/Toronto")
+
+
+@pytest.mark.parametrize(
+    ("start", "end"),
+    [
+        (_WINDOW_START, _WINDOW_END + timedelta(seconds=1)),
+        # 90 days on the clock, but clocks go back on 1 November, so 90 days and an hour elapse
+        (datetime(2026, 9, 1, tzinfo=_TORONTO), datetime(2026, 11, 30, tzinfo=_TORONTO)),
+        (_WINDOW_START, _WINDOW_START),
+        (datetime(2026, 7, 1), datetime(2026, 7, 31)),
+    ],
+    ids=["over-90-days", "over-90-days-across-a-clock-change", "empty", "naive"],
+)
+async def test_window_the_bridge_would_refuse_is_refused_before_sending(start, end):
+    """SimpleFIN Bridge refuses more than 90 days of elapsed time, so the adapter never asks for it"""
     bridge = RecordingBridge()
 
-    with pytest.raises(ValueError, match="90 days"):
-        await _fetch_window(bridge, _WINDOW_START, _WINDOW_END + timedelta(seconds=1))
+    with pytest.raises(ValueError, match="SimpleFIN window"):
+        await _fetch_window(bridge, start, end)
 
     assert bridge.requests == []

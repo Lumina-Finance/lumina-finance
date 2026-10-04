@@ -7,7 +7,7 @@ neither appears in a request URL, a log, an exception or a reason. Only the host
 import base64
 import logging
 from collections.abc import Mapping, Sequence
-from datetime import datetime, time, timedelta
+from datetime import UTC, datetime, time, timedelta
 from typing import override
 from zoneinfo import ZoneInfo
 
@@ -123,7 +123,13 @@ class SimpleFinAdapter(ProviderAdapter):
         timezone: ZoneInfo,
         currency_exponents: Mapping[str, int],
     ) -> FetchResult:
-        if not start < end <= start + timedelta(days=self.max_window_days):
+        if start.utcoffset() is None or end.utcoffset() is None:
+            raise ValueError("A SimpleFIN window needs timezone-aware start and end times")
+
+        # Elapsed time, as SimpleFIN Bridge measures it, so a window crossing a clock change can't
+        # run an hour past the limit and be refused on every retry
+        elapsed = end.astimezone(UTC) - start.astimezone(UTC)
+        if not timedelta(0) < elapsed <= timedelta(days=self.max_window_days):
             raise ValueError(f"A SimpleFIN window must end after it starts and span at most {self.max_window_days} days")
 
         # start-date is inclusive and end-date exclusive, both in epoch seconds
