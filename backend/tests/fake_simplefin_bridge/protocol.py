@@ -23,7 +23,8 @@ MAX_RANGE_SECONDS = 90 * 86_400
 
 # The reported Bridge cap, with no paging: a response holds at most this many booked transactions
 # and leaves the rest out without saying so. Assumed to count booked transactions across the whole
-# response, the reading the app's truncation check relies on
+# response. The app flags a response as possibly cut off once booked and pending transactions
+# together reach this many, so it never misses one the cap cut short
 MAX_BOOKED_TRANSACTIONS = 1_000
 
 # The longest a timeout fault holds a request whose client is still waiting, long enough for a
