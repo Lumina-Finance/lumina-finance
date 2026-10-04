@@ -8,7 +8,7 @@ real Bridge
 """
 
 import base64
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -348,15 +348,40 @@ async def test_requests_ask_for_balances_only_or_for_the_window_in_epoch_seconds
     ]
 
 
-@pytest.mark.parametrize(("include_pending", "asks_for_pending"), [(True, True), (False, False)])
-async def test_window_reaching_today_asks_for_pending_records_when_wanted(include_pending, asks_for_pending):
-    """Only the window that ends today sends pending=1, and only when the sync wants pending records"""
+# Midnight starting the frozen day for a user in Los Angeles
+_TODAY_STARTS = datetime(2026, 10, 4, tzinfo=_LOS_ANGELES)
+
+
+@pytest.mark.parametrize(
+    ("end", "include_pending", "asks_for_pending"),
+    [
+        (_TODAY_STARTS + timedelta(seconds=1), True, True),
+        (_TODAY_STARTS + timedelta(seconds=1), False, False),
+        (_TODAY_STARTS, True, False),
+    ],
+    ids=["reaches-today", "reaches-today-without-pending-wanted", "ends-at-local-midnight"],
+)
+async def test_only_a_window_reaching_today_asks_for_pending_records(end, include_pending, asks_for_pending):
+    """pending=1 goes only with a window reaching into the user's today, and only when the sync wants pending records"""
     bridge = RecordingBridge()
 
-    # Ending a minute ahead keeps the window reaching today even if midnight passes mid-test
-    end = datetime.now(UTC) + timedelta(minutes=1)
-
-    await _fetch(simplefin_adapter(bridge.transport), end - timedelta(days=30), end, include_pending=include_pending)
+    with freeze_time(_NOW, real_asyncio=True):
+        await _fetch(simplefin_adapter(bridge.transport), end - timedelta(days=30), end, include_pending=include_pending)
 
     [request] = bridge.requests
     assert (("pending", "1") in request.url.params.multi_items()) is asks_for_pending
+
+
+async def test_pending_record_without_a_time_is_dated_the_users_today(scenario: FakeBridgeScenario):
+    """At 8 pm on 3 October in Los Angeles it is already 4 October in UTC, and the record takes the user's 3 October"""
+    await scenario.add_harbour_accounts()
+    hold = {"id": "TRN-hold", "pending": True, "amount": "-23.10", "description": "GROCER"}
+    await scenario.change("POST", "/accounts/ACT-chequing/transactions", {"transactions": [hold]})
+    adapter = _fake_adapter()
+    now = datetime(2026, 10, 4, 3, tzinfo=UTC)
+
+    with freeze_time(now, real_asyncio=True):
+        result = await _fetch(adapter, now - timedelta(days=30), now, access_url=await adapter.claim(scenario.setup_token))
+
+    [record] = result.accounts[0].records
+    assert (record.external_id, record.pending, record.date) == ("TRN-hold", True, date(2026, 10, 3))

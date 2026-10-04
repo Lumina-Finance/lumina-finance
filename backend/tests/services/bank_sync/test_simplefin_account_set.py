@@ -54,14 +54,19 @@ def test_pending_flag_or_unposted_stamp_marks_a_record_pending():
 
 @pytest.mark.parametrize(
     ("record_id", "timezone", "expected"),
-    [("TRN-coffee", "Pacific/Auckland", date(2026, 10, 4)), ("TRN-fx-fee", "America/Los_Angeles", date(2026, 10, 3))],
-    ids=["noon-utc-keeps-its-utc-date", "other-time-in-the-profile-timezone"],
+    [
+        ("TRN-coffee", "Pacific/Auckland", date(2026, 10, 4)),
+        ("TRN-fx-fee", "America/Los_Angeles", date(2026, 10, 3)),
+        ("TRN-coffee", "America/Los_Angeles", date(2026, 10, 4)),
+    ],
+    ids=["noon-utc-keeps-its-utc-date", "other-time-in-the-profile-timezone", "booked-uses-posted-not-transacted-at"],
 )
 def test_booked_record_is_dated_by_the_stamp_rule(record_id, timezone, expected):
     """Noon UTC stands for the bank's date, and any other time is dated where the user lives
 
     1791115200 is noon UTC on 4 October, already 5 October in Auckland. 1791083700 is 03:15 UTC on
-    4 October, still 3 October in Los Angeles
+    4 October, still 3 October in Los Angeles. TRN-coffee was posted at the first and transacted
+    at the second, and a booked record takes its posted date
     """
     assert _records(timezone)[record_id].date == expected
 
