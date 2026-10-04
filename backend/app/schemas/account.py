@@ -84,7 +84,14 @@ class CreateAccountRequest(BaseModel):
 
     # A starting balance has its own request once the account exists, but a page loaded before that
     # still sends the one typed into its form, which is refused rather than dropped without a word
-    starting_balance: int | None = None
+    starting_balance: int | None = Field(
+        default=None,
+        deprecated=True,
+        description=(
+            "Only accepted as null or zero, as out-of-date pages send it; "
+            "record a starting balance with POST /accounts/{account_id}/starting-balance"
+        ),
+    )
     is_archived: bool = False
     group_id: uuid.UUID | None = None
 

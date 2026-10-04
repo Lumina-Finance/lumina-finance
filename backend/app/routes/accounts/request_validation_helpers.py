@@ -28,7 +28,8 @@ async def validate_create_account_request(db: AsyncSession, data: CreateAccountR
         HTTPException: The request comes from an out-of-date page with a starting balance, or account
             kind, type, currency, institution, or credit limit is invalid
     """
-    _raise_for_starting_balance_from_out_of_date_page(data.starting_balance)
+    # Read through a dump, since reading the deprecated attribute warns on every create
+    _raise_for_starting_balance_from_out_of_date_page(data.model_dump(include={"starting_balance"})["starting_balance"])
     account_kind = _get_valid_account_kind(data.account_kind)
     account_type = _get_valid_account_type(data.account_type)
     _raise_for_mismatched_account_kind_and_type(account_kind, account_type)

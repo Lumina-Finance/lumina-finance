@@ -411,6 +411,15 @@ async def test_create_account_refuses_a_starting_balance_from_an_out_of_date_pag
     assert (await client.get("/accounts", headers=headers)).json() == []
 
 
+async def test_create_account_schema_marks_the_starting_balance_deprecated(client):
+    """The API schema tells clients the field is only accepted as null or zero, from out-of-date pages."""
+    resp = await client.get("/openapi.json")
+
+    field = resp.json()["components"]["schemas"]["CreateAccountRequest"]["properties"]["starting_balance"]
+    assert field["deprecated"] is True
+    assert field["description"].startswith("Only accepted as null or zero, as out-of-date pages send it")
+
+
 @pytest.mark.parametrize("starting_balance", [None, 0])
 async def test_create_account_writes_only_the_zero_anchor_for_a_blank_starting_balance(client, starting_balance):
     """The null or zero an out-of-date page sends for a blank field loses nothing, so it's accepted."""
