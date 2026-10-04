@@ -8,10 +8,11 @@ import { expect, test } from '@playwright/test'
 
 import { signUpUser } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
+import { checkExpected } from '../support/import-check/compare.ts'
+import { readLumina } from '../support/import-check/lumina.ts'
 import { API_BASE_URL } from '../support/target'
-import { checkExpected, compareImport } from './compare.ts'
+import { compareImport } from './compare.ts'
 import { EXPECTED_DIFFERENCES } from './expected-differences.ts'
-import { readLumina } from './lumina.ts'
 import { buildUploadFixture, type CapturedUpload } from './upload-fixture.ts'
 import type { FireflyManifest, FireflyRunInfo } from './manifest.ts'
 

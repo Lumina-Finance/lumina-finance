@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { checkExpected, compareImport } from '../firefly-check/compare.ts'
+import { compareImport } from '../firefly-check/compare.ts'
 
 const endpoint = (name, amount) => ({ name, type: 'Asset account', imported: true, amount })
 const outside = (name) => ({ name, type: 'Expense account', imported: false, amount: null })
@@ -200,13 +200,4 @@ test('rows on an extra account are not counted as rows of the account it shares 
     'row-missing: 2025-03-06 Book from the US = absent',
     'transfer-category-dropped: Savings plan = Transfer',
   ])
-})
-
-test('an expected difference matches only while Lumina holds the value it names', () => {
-  const differences = [{ kind: 'account-type', subject: 'Savings', firefly: 'savings', lumina: 'cash' }]
-  const expected = [
-    { kind: 'account-type', subject: 'Savings', lumina: 'checking', reason: 'guessed' },
-    { kind: 'row-tags', subject: '2025-06-10 Tagged', lumina: 'a | b', reason: 'fixed since' },
-  ]
-  assert.deepEqual(checkExpected(differences, expected), { unexpected: differences, stale: expected })
 })

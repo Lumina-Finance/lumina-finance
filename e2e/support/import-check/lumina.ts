@@ -1,9 +1,9 @@
 /**
- * Reads back everything the comparison needs from Lumina's API, as the user who ran the import
+ * Reads back everything the import checks compare from Lumina's API, as the user who imported
  */
 import type { APIRequestContext } from '@playwright/test'
-import type { TestUser } from '../support/api'
-import { API_BASE_URL } from '../support/target'
+import type { TestUser } from '../api'
+import { API_BASE_URL } from '../target'
 import type { LuminaSnapshot, LuminaTransaction } from './compare.ts'
 
 // The most the transaction list returns at once
