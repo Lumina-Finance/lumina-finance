@@ -4,8 +4,8 @@ import { IMPORT_INSET_STYLE } from '@/pages/imports/constants'
 import type { ImportExpectations } from '@/pages/imports/types'
 
 /**
- * Concept mapping shown at the top of a provider import flow so users know which of their data
- * is imported in a different form, since the source app models transactions differently
+ * Concept mapping shown at the top of every import flow so users know which of their data is
+ * imported in a different form and what stays behind, before anything is staged
  *
  * The three groups are ordered by what it costs to not know: the one thing
  * whose totals will not match leads, then data imported in a different form,
@@ -44,7 +44,7 @@ export function ImportExpectationsCard({ expectations }: { expectations: ImportE
           </ConceptGroup>
 
           <CollapsedConceptGroup title="Imported in a different form" toggleLabel="data imported in a different form" railColour="var(--app-accent)">
-            <ul className="mt-1.5 flex flex-col gap-1.5 text-sm leading-5" style={{ color: 'var(--app-text)' }}>
+            <ul className="mt-1.5 flex flex-col gap-1.5 text-sm leading-5 text-pretty" style={{ color: 'var(--app-text)' }}>
               {expectations.changes.map((mapping) => (
                 <li key={mapping.source}>
                   {mapping.source}
@@ -63,7 +63,7 @@ export function ImportExpectationsCard({ expectations }: { expectations: ImportE
 
           <ConceptGroup title="Left behind" railColour="var(--app-text-subtle)">
             <ul
-              className="flex list-disc flex-col gap-1.5 pl-4 text-sm leading-5"
+              className="flex list-disc flex-col gap-1.5 pl-4 text-sm leading-5 text-pretty"
               style={{ color: 'var(--app-text-subtle)' }}
             >
               {expectations.leftBehind.map(({ group, items }) => (

@@ -12,7 +12,7 @@ import {
   IMPORT_SCOPE_FAILURE_TITLE,
 } from './constants'
 import { ImportExpectationsCard, ImportLoadFailure, ImportProgressOverlay } from './components'
-import { ACTUAL_EXPECTATIONS } from './actual/expectations'
+import { getImportExpectations } from './expectations'
 import { useActualImportWorkflow } from './actual/hooks'
 import {
   ActualAccountMappingStep,
@@ -21,7 +21,6 @@ import {
   ActualFilesStep,
   ActualPreviewStep,
 } from './actual/sections'
-import { FIREFLY_EXPECTATIONS } from './firefly/expectations'
 import { useFireflyImportWorkflow } from './firefly/hooks'
 import {
   FireflyAccountMappingStep,
@@ -283,9 +282,11 @@ export default function ImportsPage() {
 
               <div className="min-w-0 xl:h-full xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1">
                 <div className="space-y-8">
+                  {/* Shown whether or not a file is staged, since what the import does with one is worth
+                      knowing before choosing it. Keyed by flow so each source opens with its card collapsed */}
+                  <ImportExpectationsCard key={activeFlow} expectations={getImportExpectations(activeFlow, workflow.fixedAccount?.name ?? null)} />
                   {activeFlow === 'actual' && (
                     <>
-                      <ImportExpectationsCard expectations={ACTUAL_EXPECTATIONS} />
                       <ActualAccountMappingStep {...actualWorkflow} />
                       <ActualCategoryMatchingStep {...actualWorkflow} />
                       <ActualBudgetImportStep {...actualWorkflow} />
@@ -294,7 +295,6 @@ export default function ImportsPage() {
                   )}
                   {activeFlow === 'firefly' && (
                     <>
-                      <ImportExpectationsCard expectations={FIREFLY_EXPECTATIONS} />
                       <FireflyAccountMappingStep {...fireflyWorkflow} />
                       <FireflyCategoryMatchingStep {...fireflyWorkflow} />
                       <FireflyBudgetImportStep {...fireflyWorkflow} />
