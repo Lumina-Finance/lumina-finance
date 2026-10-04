@@ -346,7 +346,7 @@ async def test_every_accounts_request_carries_the_version_a_user_agent_and_basic
 
 
 async def test_requests_ask_for_balances_only_or_for_the_window_in_epoch_seconds():
-    """Discovery asks for balances only, and a fetch for its window with the end left out"""
+    """Discovery asks for balances only, and a fetch for the chosen accounts between its start and end in epoch seconds"""
     bridge = RecordingBridge()
     adapter = simplefin_adapter(bridge.transport)
 
