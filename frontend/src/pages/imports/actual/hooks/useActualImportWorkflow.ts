@@ -1,13 +1,15 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { getTodayYmd, resolveTimeZone } from '@/utils/date'
 import { findCurrencyExponent } from '@/utils/moneyInput'
-import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, IMPORT_MAX_BUDGETS, IMPORT_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/constants'
 import {
   useImportAccountCreateState,
   useImportBudgetSelection,
   useProviderAccountAnswers,
+  useProviderCategoryAnswers,
+  useProviderCategoryAnswerState,
+  useProviderFileIntake,
   useProviderImportReferenceData,
   useProviderImportRun,
 } from '@/pages/imports/hooks'
@@ -15,13 +17,10 @@ import type { ImportAccountCreateDetails, ImportCategoryKind } from '@/pages/imp
 import {
   buildProviderRunBudgets,
   countCreatedImportSources,
-  dropVanishedCategoryMappings,
-  getImportCategoryRenames,
   getImportUploadBlockReason,
   getProviderBudgetSelectionError,
   getSupportedCurrencyCodes,
   groupPreviewRowsByDate,
-  processImportFileIntake,
   type ImportFileAcquisition,
 } from '@/pages/imports/utils'
 import {
@@ -58,6 +57,9 @@ export interface ActualStagedFile {
 // Staging a different export resets every answer, so one fixed scope holds for every source
 const getActualAccountSourceScope = () => 'actual'
 
+// An Actual Budget import reads one file, so its one refusal is kept under one kind
+const ACTUAL_FILE_KINDS = ['budget'] as const
+
 const EMPTY_JOURNAL: ActualJournal = { accounts: [], categories: [], entries: [], skippedRows: [] }
 
 const EMPTY_BUILD: ActualImportBuild = {
@@ -85,8 +87,9 @@ export function useActualImportWorkflow() {
   const today = getTodayYmd(resolveTimeZone(user?.tz))
   const [stagedFile, setStagedFile] = useState<ActualStagedFile | null>(null)
   const [budget, setBudget] = useState<ActualBudgetFile | null>(null)
-  const [isProcessingFile, setIsProcessingFile] = useState(false)
-  const [fileIntakeError, setFileIntakeError] = useState<string | null>(null)
+  const fileIntake = useProviderFileIntake(ACTUAL_FILE_KINDS)
+  const isProcessingFile = fileIntake.processingKind !== null
+  const fileIntakeError = fileIntake.intakeErrors.budget
   const [accountMappings, setAccountMappings] = useState<Record<string, string>>({})
   const {
     accountCreateTypes,
@@ -106,9 +109,8 @@ export function useActualImportWorkflow() {
     updateAccountMapping: updateActualAccountMapping,
     resetAccountCreateState,
   } = useImportAccountCreateState(setAccountMappings, getActualAccountSourceScope)
-  const [categoryMappings, setCategoryMappings] = useState<Record<string, string>>({})
-  const [categoryCreateKinds, setCategoryCreateKinds] = useState<Record<string, ImportCategoryKind>>({})
-  const [categoryCreateNames, setCategoryCreateNames] = useState<Record<string, string>>({})
+  const categoryAnswers = useProviderCategoryAnswerState()
+  const { categoryMappings, categoryCreateKinds, categoryCreateNames } = categoryAnswers
   const [paymentModes, setPaymentModes] = useState<Record<string, ActualPaymentMode>>({})
   const [selectedBudgetIds, setSelectedBudgetIds] = useState<Set<string> | null>(null)
 
@@ -236,48 +238,36 @@ export function useActualImportWorkflow() {
     [creditJournal, resolvedPaymentModes],
   )
 
-  // Same reason as the accounts above: a match pointing at a deleted category would reach the commit
-  const liveCategoryMappings = useMemo(
-    () => (categoriesResolved ? dropVanishedCategoryMappings(categoryMappings, categoryById).mappings : categoryMappings),
-    [categoriesResolved, categoryById, categoryMappings],
+  const inferCategoryMappings = useCallback(
+    (liveMappings: Record<string, string>) => inferActualCategoryMappings(categorySources, liveMappings, categories ?? []),
+    [categories, categorySources],
   )
 
-  const resolvedCategoryMappings = useMemo(
-    () => inferActualCategoryMappings(categorySources, liveCategoryMappings, categories ?? []),
-    [categories, categorySources, liveCategoryMappings],
+  const categoryNameSources = useMemo(
+    () => categorySources.map((source) => ({ id: source.id, name: source.createName })),
+    [categorySources],
   )
 
-  const autoFilledCategories = useMemo(
-    () => new Set(categorySources.map((source) => source.id).filter((source) => (
-      !liveCategoryMappings[source] && resolvedCategoryMappings[source] !== CREATE_CATEGORY_VALUE
-    ))),
-    [categorySources, liveCategoryMappings, resolvedCategoryMappings],
+  const proposedCategoryKinds = useMemo(
+    () => Object.fromEntries(categorySources.map((source) => [source.id, getActualCategoryKind(source)])) as Record<string, ImportCategoryKind>,
+    [categorySources],
   )
 
   // A transfer source can only be created as a transfer, whatever was chosen for it before
-  const resolvedCategoryKinds = useMemo(
-    () => {
-      const kinds: Record<string, ImportCategoryKind> = {}
-      for (const source of categorySources) {
-        const proposed = getActualCategoryKind(source)
-        kinds[source.id] = source.role === 'transfer' ? proposed : categoryCreateKinds[source.id] ?? proposed
-      }
-      return kinds
-    },
-    [categoryCreateKinds, categorySources],
+  const fixedKindCategorySources = useMemo(
+    () => new Set(categorySources.filter((source) => source.role === 'transfer').map((source) => source.id)),
+    [categorySources],
   )
 
-  const categoryRenames = useMemo(
-    () => getImportCategoryRenames({
-      sources: categorySources.map((source) => ({ id: source.id, name: source.createName })),
-      mappings: resolvedCategoryMappings,
-      kinds: resolvedCategoryKinds,
-      typedNames: categoryCreateNames,
-      categoryById,
-      appName: ACTUAL_CATEGORY_RENAME_APP_NAME,
-    }),
-    [categoryById, categoryCreateNames, categorySources, resolvedCategoryKinds, resolvedCategoryMappings],
-  )
+  const { resolvedCategoryMappings, autoFilledCategories, resolvedCategoryKinds, categoryRenames } = useProviderCategoryAnswers({
+    sources: categoryNameSources,
+    answers: categoryAnswers,
+    inferMappings: inferCategoryMappings,
+    proposedKinds: proposedCategoryKinds,
+    fixedKindSources: fixedKindCategorySources,
+    appName: ACTUAL_CATEGORY_RENAME_APP_NAME,
+    reference: { categoriesResolved, categoryById },
+  })
 
   const currentMonth = today.slice(0, 7)
   const budgetDrafts = useMemo(
@@ -484,45 +474,29 @@ export function useActualImportWorkflow() {
   const resetAnswers = () => {
     setAccountMappings({})
     resetAccountCreateState()
-    setCategoryMappings({})
-    setCategoryCreateKinds({})
-    setCategoryCreateNames({})
+    categoryAnswers.resetCategoryAnswers()
     setPaymentModes({})
     setSelectedBudgetIds(null)
     run.resetImportRun()
   }
 
   const handleActualFileChange = async (acquiredFiles: ImportFileAcquisition) => {
-    const intake = await processImportFileIntake({
+    const intake = await fileIntake.readImportFile('budget', {
       files: acquiredFiles,
-      processing: isProcessingFile,
       unavailableReason: getImportUploadBlockReason(currencies, currenciesError)?.message ?? null,
       fileType: ACTUAL_IMPORT_FILE_TYPE,
-      readFile: async (file) => {
-        setFileIntakeError(null)
-        setIsProcessingFile(true)
-        try {
-          const [read] = await Promise.all([readActualBudgetFile(file), waitForMilliseconds(LOADING_ANIMATION_MIN_MS)])
-          return { file, read }
-        } finally {
-          setIsProcessingFile(false)
-        }
-      },
+      read: async (file) => ({ file, read: await readActualBudgetFile(file) }),
     })
 
-    if (intake.status === 'refused') {
-      setFileIntakeError(intake.reason)
-      return
-    }
     if (intake.status !== 'accepted') return
 
     const { file, read } = intake.result
     if (read.status === 'refused') {
-      setFileIntakeError(read.reason)
+      fileIntake.setIntakeError('budget', read.reason)
       return
     }
     if (read.budget.currencyCode && !supportedCurrencyCodes.has(read.budget.currencyCode)) {
-      setFileIntakeError(getActualUnsupportedCurrencyError(read.budget.currencyCode))
+      fileIntake.setIntakeError('budget', getActualUnsupportedCurrencyError(read.budget.currencyCode))
       return
     }
 
@@ -540,7 +514,7 @@ export function useActualImportWorkflow() {
   const removeActualFile = () => {
     setBudget(null)
     setStagedFile(null)
-    setFileIntakeError(null)
+    fileIntake.setIntakeError('budget', null)
     resetAnswers()
   }
 
@@ -561,7 +535,7 @@ export function useActualImportWorkflow() {
 
   const resetActualWorkflow = () => {
     removeActualFile()
-    setIsProcessingFile(false)
+    fileIntake.resetFileIntake()
   }
 
   return {
@@ -625,9 +599,9 @@ export function useActualImportWorkflow() {
     setBatchAccountType,
     setBatchAccountCurrency,
     setBatchAccountInstitution,
-    setCategoryMappings,
-    setCategoryCreateKinds,
-    setCategoryCreateNames,
+    setCategoryMappings: categoryAnswers.setCategoryMappings,
+    setCategoryCreateKinds: categoryAnswers.setCategoryCreateKinds,
+    setCategoryCreateNames: categoryAnswers.setCategoryCreateNames,
     setPaymentMode,
     handleActualFileChange,
     removeActualFile,

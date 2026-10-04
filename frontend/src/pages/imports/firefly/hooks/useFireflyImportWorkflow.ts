@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react'
-import { waitForMilliseconds } from '@/utils/timing'
+import { useCallback, useMemo, useState } from 'react'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, IMPORT_MAX_BUDGETS, IMPORT_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/constants'
 import {
   useImportAccountCreateState,
   useImportBudgetSelection,
   useProviderAccountAnswers,
+  useProviderCategoryAnswers,
+  useProviderCategoryAnswerState,
+  useProviderFileIntake,
   useProviderImportReferenceData,
   useProviderImportRun,
 } from '@/pages/imports/hooks'
@@ -12,18 +14,14 @@ import type { ImportAccountCreateDetails, ImportCategoryKind, ImportFileDraft } 
 import {
   buildProviderRunBudgets,
   countCreatedImportSources,
-  dropVanishedCategoryMappings,
-  getImportCategoryRenames,
   getImportUploadBlockReason,
   getProviderBudgetSelectionError,
   getSupportedCurrencyCodes,
   groupPreviewRowsByDate,
-  processImportFileIntake,
   type ImportFileAcquisition,
 } from '@/pages/imports/utils'
 import {
   FIREFLY_CATEGORY_RENAME_APP_NAME,
-  FIREFLY_CSV_PROCESSING_MIN_MS,
   FIREFLY_TRANSFER_CATEGORY_NAME,
 } from '@/pages/imports/firefly/constants'
 import type { FireflyFileKind } from '@/pages/imports/firefly/types'
@@ -52,6 +50,8 @@ import {
 // set of sources they were not given for and one fixed scope holds for every source
 const getFireflyAccountSourceScope = () => 'firefly'
 
+const FIREFLY_FILE_KINDS: readonly FireflyFileKind[] = ['transactions', 'budgets', 'accounts']
+
 /**
  * Drives the whole Firefly III import flow: reading the transactions, budgets and accounts exports,
  * resolving their accounts and categories against the user's existing ones, building the import,
@@ -66,12 +66,8 @@ export function useFireflyImportWorkflow() {
   const [transactionsFile, setTransactionsFile] = useState<ImportFileDraft | null>(null)
   const [budgetsFile, setBudgetsFile] = useState<ImportFileDraft | null>(null)
   const [accountsFile, setAccountsFile] = useState<ImportFileDraft | null>(null)
-  const [processingFileKind, setProcessingFileKind] = useState<FireflyFileKind | null>(null)
-  const [fileIntakeErrors, setFileIntakeErrors] = useState<Record<FireflyFileKind, string | null>>({
-    transactions: null,
-    budgets: null,
-    accounts: null,
-  })
+  const fileIntake = useProviderFileIntake(FIREFLY_FILE_KINDS)
+  const { processingKind: processingFileKind, intakeErrors: fileIntakeErrors } = fileIntake
   const [accountMappings, setAccountMappings] = useState<Record<string, string>>({})
   const {
     accountCreateTypes,
@@ -91,9 +87,8 @@ export function useFireflyImportWorkflow() {
     updateAccountMapping: updateFireflyAccountMapping,
     resetAccountCreateState,
   } = useImportAccountCreateState(setAccountMappings, getFireflyAccountSourceScope)
-  const [categoryMappings, setCategoryMappings] = useState<Record<string, string>>({})
-  const [categoryCreateKinds, setCategoryCreateKinds] = useState<Record<string, ImportCategoryKind>>({})
-  const [categoryCreateNames, setCategoryCreateNames] = useState<Record<string, string>>({})
+  const categoryAnswers = useProviderCategoryAnswerState()
+  const { categoryMappings, categoryCreateKinds, categoryCreateNames } = categoryAnswers
   const [selectedBudgetNames, setSelectedBudgetNames] = useState<Set<string> | null>(null)
 
   // Every answer the user gives about the import, as one value that changes only when one of them does
@@ -236,52 +231,28 @@ export function useFireflyImportWorkflow() {
     [fireflyRows],
   )
 
-  // Same reason as the accounts above: a match pointing at a deleted category would reach the commit
-  const liveCategoryMappings = useMemo(
-    () => (categoriesResolved
-      ? dropVanishedCategoryMappings(categoryMappings, categoryById).mappings
-      : categoryMappings),
-    [categoriesResolved, categoryById, categoryMappings],
+  const inferCategoryMappings = useCallback(
+    (liveMappings: Record<string, string>) => inferFireflyCategoryMappings(importedCategories, liveMappings, categories ?? [], inferredCategoryKinds),
+    [categories, importedCategories, inferredCategoryKinds],
   )
 
-  const resolvedCategoryMappings = useMemo(
-    () => inferFireflyCategoryMappings(importedCategories, liveCategoryMappings, categories ?? [], inferredCategoryKinds),
-    [categories, liveCategoryMappings, importedCategories, inferredCategoryKinds],
-  )
-
-  const autoFilledCategories = useMemo(
-    () => new Set(
-      importedCategories.filter((source) => (
-        !liveCategoryMappings[source] && resolvedCategoryMappings[source] !== CREATE_CATEGORY_VALUE
-      )),
-    ),
-    [liveCategoryMappings, importedCategories, resolvedCategoryMappings],
-  )
+  const categorySources = useMemo(() => importedCategories.map((source) => ({ id: source, name: source })), [importedCategories])
 
   // Category creates always carry a kind because unresolved sources default to
   // the majority journal-type kind, with expense as the final fallback
-  const resolvedCategoryKinds = useMemo(
-    () => {
-      const kinds: Record<string, ImportCategoryKind> = {}
-      for (const source of importedCategories) {
-        kinds[source] = categoryCreateKinds[source] ?? inferredCategoryKinds[source] ?? 'expense'
-      }
-      return kinds
-    },
-    [categoryCreateKinds, importedCategories, inferredCategoryKinds],
+  const proposedCategoryKinds = useMemo(
+    () => Object.fromEntries(importedCategories.map((source) => [source, inferredCategoryKinds[source] ?? 'expense'])) as Record<string, ImportCategoryKind>,
+    [importedCategories, inferredCategoryKinds],
   )
 
-  const categoryRenames = useMemo(
-    () => getImportCategoryRenames({
-      sources: importedCategories.map((source) => ({ id: source, name: source })),
-      mappings: resolvedCategoryMappings,
-      kinds: resolvedCategoryKinds,
-      typedNames: categoryCreateNames,
-      categoryById,
-      appName: FIREFLY_CATEGORY_RENAME_APP_NAME,
-    }),
-    [categoryById, categoryCreateNames, importedCategories, resolvedCategoryKinds, resolvedCategoryMappings],
-  )
+  const { resolvedCategoryMappings, autoFilledCategories, resolvedCategoryKinds, categoryRenames } = useProviderCategoryAnswers({
+    sources: categorySources,
+    answers: categoryAnswers,
+    inferMappings: inferCategoryMappings,
+    proposedKinds: proposedCategoryKinds,
+    appName: FIREFLY_CATEGORY_RENAME_APP_NAME,
+    reference: { categoriesResolved, categoryById },
+  })
 
   const previewRows = useMemo(
     () => buildFireflyPreviewRows({
@@ -491,9 +462,7 @@ export function useFireflyImportWorkflow() {
   const resetMappingState = () => {
     setAccountMappings({})
     resetAccountCreateState()
-    setCategoryMappings({})
-    setCategoryCreateKinds({})
-    setCategoryCreateNames({})
+    categoryAnswers.resetCategoryAnswers()
   }
 
   const resetCommitState = () => {
@@ -505,7 +474,7 @@ export function useFireflyImportWorkflow() {
   }
 
   const assignFireflyFile = (kind: FireflyFileKind, draft: ImportFileDraft | null) => {
-    setFileIntakeErrors((current) => ({ ...current, [kind]: null }))
+    fileIntake.setIntakeError(kind, null)
 
     if (kind === 'transactions') {
       setTransactionsFile(draft)
@@ -537,29 +506,13 @@ export function useFireflyImportWorkflow() {
     kind: FireflyFileKind,
     acquiredFiles: ImportFileAcquisition,
   ) => {
-    const intake = await processImportFileIntake({
+    const intake = await fileIntake.readImportFile(kind, {
       files: acquiredFiles,
-      processing: processingFileKind !== null,
       unavailableReason: getImportUploadBlockReason(currencies, currenciesError)?.message ?? null,
-      readFile: async (selectedFile) => {
-        setFileIntakeErrors((current) => ({ ...current, [kind]: null }))
-        setProcessingFileKind(kind)
-
-        try {
-          const [draft] = await Promise.all([
-            readFireflyCsvFile(selectedFile, kind, supportedCurrencyCodes),
-            waitForMilliseconds(FIREFLY_CSV_PROCESSING_MIN_MS),
-          ])
-          assignFireflyFile(kind, draft)
-        } finally {
-          setProcessingFileKind(null)
-        }
-      },
+      read: (selectedFile) => readFireflyCsvFile(selectedFile, kind, supportedCurrencyCodes),
     })
 
-    if (intake.status === 'refused') {
-      setFileIntakeErrors((current) => ({ ...current, [kind]: intake.reason }))
-    }
+    if (intake.status === 'accepted') assignFireflyFile(kind, intake.result)
   }
 
   const removeFireflyFile = (kind: FireflyFileKind) => {
@@ -581,8 +534,7 @@ export function useFireflyImportWorkflow() {
     setTransactionsFile(null)
     setBudgetsFile(null)
     setAccountsFile(null)
-    setProcessingFileKind(null)
-    setFileIntakeErrors({ transactions: null, budgets: null, accounts: null })
+    fileIntake.resetFileIntake()
     resetMappingState()
     resetCommitState()
     resetBudgetPanelState()
@@ -647,9 +599,9 @@ export function useFireflyImportWorkflow() {
     setBatchAccountType,
     setBatchAccountCurrency,
     setBatchAccountInstitution,
-    setCategoryMappings,
-    setCategoryCreateKinds,
-    setCategoryCreateNames,
+    setCategoryMappings: categoryAnswers.setCategoryMappings,
+    setCategoryCreateKinds: categoryAnswers.setCategoryCreateKinds,
+    setCategoryCreateNames: categoryAnswers.setCategoryCreateNames,
     handleFireflyFileChange,
     removeFireflyFile,
     updateFireflyAccountMapping,

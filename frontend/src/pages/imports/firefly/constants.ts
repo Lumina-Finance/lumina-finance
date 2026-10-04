@@ -1,5 +1,4 @@
 import type { AccountType } from '@/api/accounts'
-import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 
 /**
  * Columns the transactions export must contain before the flow can compile rows
@@ -253,8 +252,6 @@ export function getFireflyUnsupportedTypeReason(type: string) {
 export function getFireflySplitTitleLine(groupTitle: string) {
   return `Split transaction: ${groupTitle}`
 }
-
-export const FIREFLY_CSV_PROCESSING_MIN_MS = LOADING_ANIMATION_MIN_MS
 
 // Marks a new category renamed because an existing one holds its name for another kind
 export const FIREFLY_CATEGORY_RENAME_APP_NAME = 'Firefly III'
