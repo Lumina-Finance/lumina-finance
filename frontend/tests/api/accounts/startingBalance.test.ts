@@ -71,11 +71,18 @@ describe('recordStartingBalanceSettled', () => {
     expect(authenticatedFetchMock).toHaveBeenLastCalledWith('/accounts/chequing');
   });
 
-  it('answers as saved when a gateway timed out after the balance landed', async () => {
+  it.each([502, 503, 504])('answers as saved when a gateway answered %i after the balance landed', async (status) => {
     const saved = createChequing(125000);
-    failSaveThenRead(new ApiError('Gateway Timeout', 504), saved);
+    failSaveThenRead(new ApiError('Gateway error', status), saved);
 
     await expect(recordStartingBalanceSettled(SAVE)).resolves.toEqual(saved);
+  });
+
+  it('answers as saved when a card owing 400.00 reads as a balance of -400.00', async () => {
+    const saved = { ...createChequing(-40000), id: 'card', account_kind: 'revolving', account_type: 'credit_card' } as const;
+    failSaveThenRead(new TypeError('Failed to fetch'), saved);
+
+    await expect(recordStartingBalanceSettled({ accountId: 'card', payload: { amount: 40000 } })).resolves.toEqual(saved);
   });
 
   it('says the outcome is unknown when the account cannot be read either', async () => {
