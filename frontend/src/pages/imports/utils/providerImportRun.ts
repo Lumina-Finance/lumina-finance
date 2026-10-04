@@ -1,6 +1,6 @@
 import type { ImportRunBudgets, JournalImportRunResponse } from '@/api/provider-imports'
 import { getJsonByteSize } from '@/api/shared/importBatchSize'
-import { TransactionImportRunError, type StagedRunSettlement } from '@/api/transaction-imports'
+import { ImportRunError, type StagedRunSettlement } from '@/api/import-runs'
 import { STEP_DOT_WAVE_MS } from '@/pages/imports/components/ProgressOverlay'
 import type { ImportOverlayPhase } from '@/pages/imports/types'
 import { getImportCommitFailure } from '@/pages/imports/utils/commitFailure'
@@ -295,7 +295,7 @@ export function createProviderImportRunController<TSkipped>({
       } else {
         const settlement = keptRunId ? await settleStagedRun(keptRunId) : 'discarded'
         if (settlement === 'unsettled') {
-          throw new TransactionImportRunError(PROVIDER_IMPORT_UNSETTLED_REASON, 'commit', keptRunId)
+          throw new ImportRunError(PROVIDER_IMPORT_UNSETTLED_REASON, 'commit', keptRunId)
         }
         if (keptRunId && settlement === 'saved') {
           // Saving a run that was committed only answers with what that commit wrote

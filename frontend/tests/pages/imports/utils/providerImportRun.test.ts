@@ -4,7 +4,7 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 import type { JournalImportRunResponse } from '@/api/provider-imports'
-import { TransactionImportRunError, type StagedRunSettlement } from '@/api/transaction-imports'
+import { ImportRunError, type StagedRunSettlement } from '@/api/import-runs'
 import type { FireflySkippedRowDetail } from '@/pages/imports/firefly/utils'
 import {
   canStartProviderImport,
@@ -88,7 +88,7 @@ async function failWhileSaving(controller: ReturnType<typeof createHarness>['con
   const requests = createRequests()
   requests.upload.mockImplementation(async (_signal, onStaged) => {
     await onStaged()
-    throw new TransactionImportRunError('The server went away', 'commit', 'run-1')
+    throw new ImportRunError('The server went away', 'commit', 'run-1')
   })
   await controller.start(SKIPPED_AT_START, answers, requests)
   return requests
@@ -128,7 +128,7 @@ describe('provider import run', () => {
 
     const running = controller.start(SKIPPED_AT_START, {}, {
       upload: (signal) => new Promise((_resolve, reject) => {
-        signal.addEventListener('abort', () => reject(new TransactionImportRunError('Aborted', 'staging', null)))
+        signal.addEventListener('abort', () => reject(new ImportRunError('Aborted', 'staging', null)))
       }),
       commit: vi.fn(),
     })
@@ -166,7 +166,7 @@ describe('provider import run', () => {
     const running = controller.start(SKIPPED_AT_START, {}, { upload: () => upload.promise, commit: vi.fn() })
     controller.close()
     expect(controller.getState().overlayPhase).toBe('importing')
-    upload.reject(new TransactionImportRunError('The server went away', 'commit', 'run-1'))
+    upload.reject(new ImportRunError('The server went away', 'commit', 'run-1'))
     await running
 
     controller.close()
@@ -215,7 +215,7 @@ describe('provider import run', () => {
     const requests = createRequests()
     requests.upload.mockImplementation(async (_signal, onStaged) => {
       await onStaged()
-      throw new TransactionImportRunError('The server went away', 'commit', 'run-2')
+      throw new ImportRunError('The server went away', 'commit', 'run-2')
     })
 
     await controller.start([], { changed: true }, requests)

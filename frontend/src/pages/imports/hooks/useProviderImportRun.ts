@@ -5,7 +5,7 @@ import {
   type JournalImportRequest,
   type JournalImportSource,
 } from '@/api/provider-imports'
-import { discardStagedRun, settleStagedRun } from '@/api/transaction-imports'
+import { discardStagedRun, settleStagedRun } from '@/api/import-runs'
 import { waitForMilliseconds } from '@/utils/timing'
 import type { ImportProgressStep } from '@/pages/imports/types'
 import {

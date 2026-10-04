@@ -23,7 +23,7 @@ vi.mock('@/api/client', () => ({
 }));
 
 import { runJournalImport } from '@/api/provider-imports';
-import { TransactionImportRunError } from '@/api/transaction-imports';
+import { ImportRunError } from '@/api/import-runs';
 
 const RUN_ID = 'run_1';
 const RUN_PATH = `/transactions/import/runs/${RUN_ID}`;
@@ -112,7 +112,7 @@ describe('runJournalImport', () => {
 
     const error = await runJournalImport({ source: 'firefly', payload: PAYLOAD, budgets: BUDGETS, archiveAccountSources: [] }).catch((caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(TransactionImportRunError);
+    expect(error).toBeInstanceOf(ImportRunError);
     expect(error).toMatchObject({ phase: 'staging', runId: null, message: 'Category not found' });
     expect(getRequests().at(-1)).toBe(`DELETE ${RUN_PATH}`);
   });

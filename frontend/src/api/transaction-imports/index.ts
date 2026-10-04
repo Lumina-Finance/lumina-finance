@@ -8,18 +8,9 @@ export type {
   TransactionImportPayload,
   TransactionImportResponse,
   TransactionImportRow,
-  TransactionImportRun,
   TransactionImportStageBatch,
 } from '@/api/transaction-imports/types';
 
 export { buildStagedImportBatches } from '@/api/transaction-imports/batching';
-export {
-  TransactionImportRunError,
-  commitStagedImportRun,
-  discardStagedRun,
-  isImportCommitWorthRepeating,
-  runTransactionImport,
-  settleStagedRun,
-} from '@/api/transaction-imports/run';
-export type { StagedRunSettlement, TransactionImportPhase } from '@/api/transaction-imports/run';
+export { commitStagedImportRun, runTransactionImport } from '@/api/transaction-imports/run';
 export { useCommitStagedImport, useImportTransactions } from '@/api/transaction-imports/hooks';

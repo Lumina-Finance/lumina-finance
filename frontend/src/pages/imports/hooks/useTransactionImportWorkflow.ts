@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
+import { discardStagedRun } from '@/api/import-runs'
 import {
-  discardStagedRun,
   useCommitStagedImport,
   useImportTransactions,
   type TransactionImportResponse,
