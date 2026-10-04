@@ -6,9 +6,13 @@ or hold back ones they chose to trust
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy import func, select
 
-from app.models.account_review_preference import ReviewDecision
+from app.models.account import Account
+from app.models.account_review_preference import AccountReviewPreference, ReviewDecision
+from app.models.base import AccountKind, AccountType
 from app.models.currency import Currency
+from app.models.group import Group, GroupMember
 from app.services.bank_sync.review_preferences import (
     REVIEW_ALL,
     ReviewPreferences,
@@ -64,3 +68,24 @@ async def test_review_preferences_another_users_account_is_not_found(db, everyda
     assert (reading.value.status_code, reading.value.detail) == (404, "Account not found")
     assert (changing.value.status_code, changing.value.detail) == (404, "Account not found")
     assert await get_review_preferences(db, everyday.owner_id, everyday.id) == REVIEW_ALL
+
+
+async def test_review_preferences_group_account_the_user_administers_is_refused(db, everyday):
+    """A joint account the user can see isn't theirs alone, so it has no preferences for them"""
+    group = Group(owner_id=everyday.owner_id, name="Family")
+    db.add(group)
+    await db.flush()
+    db.add(GroupMember(group_id=group.id, user_id=everyday.owner_id, is_admin=True))
+    joint = Account(group_id=group.id, account_kind=AccountKind.ASSET, account_type=AccountType.CHECKING, name="Joint", currency="CAD")
+    db.add(joint)
+    await db.flush()
+
+    with pytest.raises(HTTPException) as reading:
+        await get_review_preferences(db, everyday.owner_id, joint.id)
+    with pytest.raises(HTTPException) as changing:
+        await update_review_preferences(db, everyday.owner_id, joint.id, removals=_TRUST)
+
+    refusal = (403, "Review preferences are only available on your own accounts")
+    assert (reading.value.status_code, reading.value.detail) == refusal
+    assert (changing.value.status_code, changing.value.detail) == refusal
+    assert await db.scalar(select(func.count()).select_from(AccountReviewPreference)) == 0

@@ -3,13 +3,16 @@
 import uuid
 from dataclasses import dataclass
 
-from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.account import Account
 from app.models.account_review_preference import AccountReviewPreference, ReviewDecision
+from app.services.accounts.access import get_own_personal_account
+
+# Why an account the user can see but doesn't own alone, such as a group account, has no
+# preferences for them
+NOT_OWN_ACCOUNT_DETAIL = "Review preferences are only available on your own accounts"
 
 
 @dataclass(frozen=True)
@@ -37,9 +40,10 @@ async def get_review_preferences(db: AsyncSession, user_id: uuid.UUID, account_i
         The stored choices, or Review all when none are stored
 
     Raises:
-        HTTPException: The account doesn't exist or isn't the user's own
+        HTTPException: Not found when the user can't see the account, or forbidden when it isn't
+            their own personal account
     """
-    await _require_own_account(db, user_id, account_id)
+    await get_own_personal_account(db, account_id, user_id, not_own_detail=NOT_OWN_ACCOUNT_DETAIL)
     return await _read_preferences(db, account_id)
 
 
@@ -69,9 +73,10 @@ async def update_review_preferences(
         The account's choices after the change
 
     Raises:
-        HTTPException: The account doesn't exist or isn't the user's own
+        HTTPException: Not found when the user can't see the account, or forbidden when it isn't
+            their own personal account
     """
-    await _require_own_account(db, user_id, account_id)
+    await get_own_personal_account(db, account_id, user_id, not_own_detail=NOT_OWN_ACCOUNT_DETAIL)
     changed = {
         name: choice
         for name, choice in (("new_transactions", new_transactions), ("corrections", corrections), ("removals", removals))
@@ -102,14 +107,3 @@ async def _read_preferences(db: AsyncSession, account_id: uuid.UUID) -> ReviewPr
     if stored is None:
         return REVIEW_ALL
     return ReviewPreferences(*(ReviewDecision(choice) for choice in stored))
-
-
-async def _require_own_account(db: AsyncSession, user_id: uuid.UUID, account_id: uuid.UUID) -> None:
-    """Raise not found unless the account exists and the user owns it personally
-
-    Raises:
-        HTTPException: The account doesn't exist or isn't the user's own
-    """
-    owned = await db.scalar(select(Account.id).where(Account.id == account_id, Account.owner_id == user_id))
-    if owned is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
