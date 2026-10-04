@@ -6,7 +6,6 @@ The sample response is written by hand from the protocol, plus the Bridge's undo
 memo, and its conventions are assumed until checked against real Bridge data
 """
 
-import json
 from datetime import UTC, date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -143,6 +142,17 @@ def test_record_without_optional_fields_leaves_them_empty():
     assert record.extras == {}
 
 
+@pytest.mark.parametrize(("first", "second", "cut_off"), [(500, 499, False), (500, 500, True)], ids=["999-in-all", "1000-in-all"])
+def test_response_may_be_cut_off_by_its_transactions_in_all_not_in_one_account(first, second, cut_off):
+    """SimpleFIN's cap is on the response, so 500 transactions in each of two accounts reach it though neither account does"""
+    transaction = {"id": "TRN-1", "posted": 1791115200, "amount": "-1.00", "description": "COFFEE"}
+    account = {"name": "Chequing", "conn_id": "CON-1", "currency": "USD", "balance": "1.00", "balance-date": 1791115200}
+    accounts = [account | {"id": f"ACT-{count}", "transactions": [transaction] * count} for count in (first, second)]
+    body = {"connections": [{"conn_id": "CON-1", "name": "Harbour", "org_id": "ORG-1"}], "accounts": accounts}
+
+    assert is_possibly_cut_off(read_account_set(json.dumps(body).encode())) is cut_off
+
+
 def test_institution_is_the_bank_logins_institution():
     """Two logins at one bank share one institution while keeping their own login keys"""
     accounts = _accounts()
@@ -177,30 +187,3 @@ def test_custom_currency_marks_the_account_and_keeps_its_figures_as_sent(account
     assert account.currency_raw == currency_raw
     assert account.balance is None
     assert all(record.amount is None for record in account.records)
-
-
-@pytest.mark.parametrize(("count", "cut_off"), [(999, False), (1000, True)])
-def test_response_reaching_1000_transactions_may_be_cut_off(count, cut_off):
-    """SimpleFIN has no paging, so a response holding 1,000 transactions can't be taken as complete"""
-    transactions = [{"id": f"TRN-{index}", "posted": 1791115200, "amount": "-1.00", "description": "COFFEE"} for index in range(count)]
-    body = json.dumps(
-        {
-            "errlist": [],
-            "connections": [
-                {"conn_id": "CON-1", "name": "Harbour Bank", "org_id": "ORG-1", "sfin_url": "https://beta-bridge.simplefin.org/simplefin"}
-            ],
-            "accounts": [
-                {
-                    "id": "ACT-1",
-                    "name": "Everyday Chequing",
-                    "conn_id": "CON-1",
-                    "currency": "USD",
-                    "balance": "0.00",
-                    "balance-date": 1791115200,
-                    "transactions": transactions,
-                }
-            ],
-        }
-    ).encode()
-
-    assert is_possibly_cut_off(read_account_set(body)) is cut_off

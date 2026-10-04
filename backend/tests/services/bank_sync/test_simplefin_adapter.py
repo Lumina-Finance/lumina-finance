@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
+from freezegun import freeze_time
 
 from app.services.bank_sync import outbound
 from app.services.bank_sync.providers.contract import ClaimRefused, FetchResult, ProviderUnreachable
@@ -31,6 +32,9 @@ _TORONTO = ZoneInfo("America/Toronto")
 # Exactly 90 days, from 1 July to 29 September 2026
 _WINDOW_START = datetime(2026, 7, 1, tzinfo=UTC)
 _WINDOW_END = datetime(2026, 9, 29, tzinfo=UTC)
+
+# What the clock is frozen at where a test depends on today: 3 pm on 4 October in Los Angeles
+_NOW = datetime(2026, 10, 4, 22, tzinfo=UTC)
 
 _SETUP_UNREADABLE_MESSAGE = "That doesn't look like a SimpleFIN setup token. Copy the whole token from SimpleFIN Bridge and try again"
 _SETUP_ALREADY_USED_MESSAGE = "This setup token has already been used. Create a new one in SimpleFIN Bridge"
@@ -224,6 +228,27 @@ async def test_window_of_exactly_90_days_across_a_clock_change_is_served(scenari
 
     assert result.request_error is None
     assert [account.external_id for account in result.accounts] == ["ACT-chequing", "ACT-visa"]
+
+
+@pytest.mark.parametrize(
+    ("booked", "pending", "cut_off"),
+    [(999, 0, False), (1000, 0, True), (999, 1, True)],
+    ids=["999-booked", "1000-booked", "999-booked-and-1-pending"],
+)
+async def test_fetch_holding_1000_transactions_may_be_cut_off(scenario: FakeBridgeScenario, booked, pending, cut_off):
+    """SimpleFIN has no paging, so a fetch holding 1,000 transactions, pending ones included, can't be taken as complete"""
+    await scenario.add_harbour_accounts()
+    transactions = [{"posted": "2026-09-15", "amount": "-1.00", "description": "COFFEE"}] * booked
+    transactions += [{"pending": True, "amount": "-5.00", "description": "HOLD"}] * pending
+    await scenario.change("POST", "/accounts/ACT-chequing/transactions", {"transactions": transactions})
+    adapter = _fake_adapter()
+
+    # A window reaching today, so pending transactions come back
+    with freeze_time(_NOW, real_asyncio=True):
+        result = await _fetch(adapter, _NOW - timedelta(days=30), _NOW, access_url=await adapter.claim(scenario.setup_token))
+
+    assert sum(len(account.records) for account in result.accounts) == booked + pending
+    assert result.possibly_cut_off is cut_off
 
 
 @pytest.mark.parametrize(
