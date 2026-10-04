@@ -57,9 +57,6 @@ async def _wait_until_waiting_on(blocker_pid: int, request: asyncio.Task):
             await asyncio.sleep(0.01)
 
 
-# --- POST /accounts/{account_id}/starting-balance ---
-
-
 async def test_record_starting_balance_writes_it_once_on_the_users_day(client, monkeypatch):
     """1,250.00 recorded late in the user's evening is one Balance Adjustment dated their day, not UTC's."""
     signup_resp = await _create_user(client)
@@ -117,17 +114,77 @@ async def test_record_starting_balance_refuses_an_account_with_a_transaction(cli
     assert [txn.amount for txn, _ in await _account_transactions(account_id)] == [-5000]
 
 
-@pytest.mark.parametrize("amount", [0, -100_00])
-async def test_record_starting_balance_refuses_an_amount_below_one_minor_unit(client, amount):
-    """A negative or zero balance writes nothing, since a starting balance is stated as zero or higher."""
+async def test_record_starting_balance_accepts_an_overdrawn_asset(client):
+    """An asset account that starts 100.00 overdrawn shows -100.00."""
     headers = _get_auth_header(await _create_user(client))
     account_id = (await _create_account(client, headers)).json()["id"]
 
-    resp = await _record_starting_balance(client, headers, account_id, amount)
+    resp = await _record_starting_balance(client, headers, account_id, -100_00)
 
-    assert resp.status_code == 422
-    assert resp.json()["detail"][0]["loc"] == ["body", "amount"]
-    assert await _account_transactions(account_id) == []
+    assert resp.status_code == 200
+    assert resp.json()["current_balance"] == -100_00
+    assert [txn.amount for txn, _ in await _account_transactions(account_id)] == [-100_00]
+
+
+async def test_record_starting_balance_saves_a_liabilitys_credit_balance_positive(client):
+    """A credit card holding 25.00 of credit, stated as owing -25.00, shows a balance of 25.00."""
+    headers = _get_auth_header(await _create_user(client))
+    account_id = (
+        await _create_account(client, headers, account_kind="revolving", account_type="credit_card", name="Visa")
+    ).json()["id"]
+
+    resp = await _record_starting_balance(client, headers, account_id, -25_00)
+
+    assert resp.status_code == 200
+    assert resp.json()["current_balance"] == 25_00
+    assert [txn.amount for txn, _ in await _account_transactions(account_id)] == [25_00]
+
+
+async def test_record_starting_balance_of_zero_writes_no_transaction_and_leaves_the_account_open(client):
+    """A zero balance needs no adjustment, so the account stays empty and can still take a real one."""
+    headers = _get_auth_header(await _create_user(client))
+    account_id = (await _create_account(client, headers)).json()["id"]
+
+    zero = await _record_starting_balance(client, headers, account_id, 0)
+    real = await _record_starting_balance(client, headers, account_id, 40_00)
+
+    assert zero.status_code == 200
+    assert zero.json()["current_balance"] == 0
+    assert real.status_code == 200
+    assert [txn.amount for txn, _ in await _account_transactions(account_id)] == [40_00]
+
+
+async def test_record_starting_balance_of_zero_on_another_users_account_returns_404(client):
+    """A zero balance still checks the account is the user's before answering."""
+    owner_headers = _get_auth_header(await _create_user(client))
+    account_id = (await _create_account(client, owner_headers)).json()["id"]
+    other_headers = _get_auth_header(await _create_second_user(client))
+
+    resp = await _record_starting_balance(client, other_headers, account_id, 0)
+
+    assert resp.status_code == 404
+
+
+async def test_record_starting_balance_writes_nothing_if_balance_adjustment_category_missing(client):
+    """Missing Balance Adjustment configuration leaves the account at zero with no transaction."""
+    headers = _get_auth_header(await _create_user(client))
+    account_id = (await _create_account(client, headers)).json()["id"]
+    async with TestSession() as session:
+        await session.execute(delete(Category).where(Category.name == "Balance Adjustment", Category.is_system.is_(True)))
+        await session.commit()
+
+    resp = await _record_starting_balance(client, headers, account_id, 100_00)
+
+    assert resp.status_code == 500
+    assert resp.json()["detail"] == "Balance adjustment category is not configured"
+    async with TestSession() as session:
+        transaction_count = await session.scalar(select(func.count(Transaction.id)))
+        snapshot = await session.scalar(
+            select(AccountBalanceSnapshot).where(AccountBalanceSnapshot.account_id == UUID(account_id)),
+        )
+    assert transaction_count == 0
+    assert snapshot is not None
+    assert snapshot.balance == 0
 
 
 async def test_record_starting_balance_on_another_users_account_returns_404(client):
@@ -191,28 +248,6 @@ async def test_record_starting_balance_on_an_account_created_archived(client):
     assert resp.status_code == 200
     assert (resp.json()["is_archived"], resp.json()["current_balance"]) == (True, 100_00)
     assert [txn.amount for txn, _ in await _account_transactions(account_id)] == [100_00]
-
-
-async def test_record_starting_balance_writes_nothing_if_balance_adjustment_category_missing(client):
-    """Missing Balance Adjustment configuration leaves the account at zero with no transaction."""
-    headers = _get_auth_header(await _create_user(client))
-    account_id = (await _create_account(client, headers)).json()["id"]
-    async with TestSession() as session:
-        await session.execute(delete(Category).where(Category.name == "Balance Adjustment", Category.is_system.is_(True)))
-        await session.commit()
-
-    resp = await _record_starting_balance(client, headers, account_id, 100_00)
-
-    assert resp.status_code == 500
-    assert resp.json()["detail"] == "Balance adjustment category is not configured"
-    async with TestSession() as session:
-        transaction_count = await session.scalar(select(func.count(Transaction.id)))
-        snapshot = await session.scalar(
-            select(AccountBalanceSnapshot).where(AccountBalanceSnapshot.account_id == UUID(account_id)),
-        )
-    assert transaction_count == 0
-    assert snapshot is not None
-    assert snapshot.balance == 0
 
 
 async def test_record_starting_balance_waits_for_a_transaction_still_saving_and_refuses(client):
