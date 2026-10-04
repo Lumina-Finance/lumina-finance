@@ -113,8 +113,9 @@ class FetchResult:
 
     An account synced only when it is in accounts, has no entry in account_errors, and its login
     has none in login_errors. A request_error fails every account in the request, and accounts is
-    then empty. Warnings arrived alongside data that was kept: a rate-limited one means the
-    provider's request quota is spent even though this response was usable
+    then empty. Warnings arrived alongside account data, which is kept unless a request_error
+    fails the request: a rate-limited one means the provider's request quota is spent even when
+    the response was usable
     """
 
     accounts: tuple[ExternalAccount, ...] = ()
