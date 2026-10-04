@@ -19,7 +19,6 @@ from app.services.accounts.snapshots import (
     refuse_unstorable_balance,
 )
 from app.services.merchants.defaults import SELF_MERCHANT_NAME
-from app.services.transactions.accounts import validate_transaction_account_is_not_archived
 
 _BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
 _STARTING_BALANCE_NOTE = "Starting balance"
@@ -39,7 +38,8 @@ async def record_account_starting_balance(
     The amount is the balance as the user states it, so a liability's, which is what is owed, is
     saved negated. The account row is locked before its transactions are looked for, so a
     transaction still being saved, or a repeat of this request, is seen once it commits and this
-    one is refused rather than adding a second opening balance
+    one is refused rather than adding a second opening balance. An archived account is not refused,
+    since an account can be created archived and still needs its starting balance
 
     Args:
         db: Active database session
@@ -49,9 +49,9 @@ async def record_account_starting_balance(
         adjustment_date: The user's today, which dates the adjustment
 
     Raises:
-        HTTPException: The account is a group account, is archived, already has transactions, the amount
-            is outside the range an account balance can hold, or the Balance Adjustment category or the
-            Myself merchant is not configured
+        HTTPException: The account is a group account, already has transactions, the amount is outside the
+            range an account balance can hold, or the Balance Adjustment category or the Myself merchant is
+            not configured
     """
     # Group accounts are left out, as every new flow leaves them out until grouped resources are built
     if account.group_id is not None:
@@ -59,7 +59,6 @@ async def record_account_starting_balance(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="A starting balance can only be recorded on a personal account",
         )
-    validate_transaction_account_is_not_archived(account)
 
     # The row lock conflicts with the key share lock a transaction insert takes on its account
     await db.execute(select(Account.id).where(Account.id == account.id).with_for_update())

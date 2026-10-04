@@ -184,8 +184,8 @@ async def record_starting_balance(
         Account with derived balance fields
 
     Raises:
-        HTTPException: User lacks admin access, the account is a group or archived account or already
-            has transactions, or the stored timezone does not resolve
+        HTTPException: User lacks admin access, the account is a group account or already has
+            transactions, or the stored timezone does not resolve
     """
     today = datetime.now(resolve_timezone(user.tz)).date()
     account = await record_starting_balance_for_user(db, account_id, data, user, today)

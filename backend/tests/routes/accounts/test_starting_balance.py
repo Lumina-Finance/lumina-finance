@@ -151,16 +151,16 @@ async def test_record_starting_balance_refuses_a_group_account(client):
     assert await _account_transactions(account_id) == []
 
 
-async def test_record_starting_balance_refuses_an_archived_account(client):
-    """An archived account stays at zero, as archiving left it."""
+async def test_record_starting_balance_on_an_account_created_archived(client):
+    """An account created archived still takes its starting balance, as transactions can't be added to it."""
     headers = _get_auth_header(await _create_user(client))
     account_id = (await _create_account(client, headers, is_archived=True)).json()["id"]
 
     resp = await _record_starting_balance(client, headers, account_id, 100_00)
 
-    assert resp.status_code == 422
-    assert resp.json()["detail"] == "Account is archived"
-    assert await _account_transactions(account_id) == []
+    assert resp.status_code == 200
+    assert (resp.json()["is_archived"], resp.json()["current_balance"]) == (True, 100_00)
+    assert [txn.amount for txn, _ in await _account_transactions(account_id)] == [100_00]
 
 
 async def test_record_starting_balance_writes_nothing_if_balance_adjustment_category_missing(client):
