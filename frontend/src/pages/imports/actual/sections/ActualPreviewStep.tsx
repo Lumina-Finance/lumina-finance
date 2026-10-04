@@ -1,5 +1,5 @@
 import { ImportPreviewLayout } from '@/pages/imports/sections'
-import { getProviderSkippedRowsDisplay } from '@/pages/imports/utils'
+import { getSkippedRowsDisplay } from '@/pages/imports/utils'
 import { ActualSkippedRowsTable } from '@/pages/imports/actual/components'
 import { ACTUAL_TRANSACTION_DECIMALS } from '@/pages/imports/actual/constants'
 import type { ActualImportWorkflow } from '@/pages/imports/actual/hooks'
@@ -37,7 +37,7 @@ export function ActualPreviewStep({
   canCommitImport,
   handleCommitImport,
 }: ActualPreviewStepProps) {
-  const skipped = getProviderSkippedRowsDisplay({ liveForecastRows: predictedSkippedRows, completedImport })
+  const skipped = getSkippedRowsDisplay({ liveForecastRows: predictedSkippedRows, completedImport })
 
   return (
     <ImportPreviewLayout

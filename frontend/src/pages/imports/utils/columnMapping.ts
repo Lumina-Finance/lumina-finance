@@ -50,13 +50,13 @@ const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
   refusesColumn?: (values: string[]) => string | null
 }> = {
   account_id: {
-    expected: 'account names or source account labels; every row must have a value',
+    expected: 'account names or source account labels',
     requiredValues: true,
     accepts: acceptsAnyValue,
     refusesColumn: refuseColumnOfOnlyNumbersOrDates,
   },
   dt: {
-    expected: 'valid dates in one format across the whole file; every row must have a value',
+    expected: 'valid dates in one format across the whole file',
     requiredValues: true,
     accepts: isValidDateValue,
   },
@@ -154,8 +154,11 @@ export function validateColumnMap(
 
 /**
  * Checks a column's values against the target field's expected format, returning why the column
- * failed when it has no readable values, has blanks in a field where every row is required, or
- * contains a value that does not match what the field accepts
+ * failed when it has no readable values, is blank throughout in a field every row needs, reads as
+ * the wrong kind of column, or holds no value the field accepts
+ *
+ * `fittingShare` is the share of rows a valid column fits, for the automatic mapping, which should
+ * not claim a column most of whose rows the user would then lose
  */
 export function validateColumnValues(
   files: ImportFileDraft[],
@@ -184,19 +187,30 @@ export function validateColumnValues(
         ? readImportAmount(value, formatOptions.amountFormat) !== null
         : isValidMappedImportAmount(value)
       : (value: string) => rule.accepts(value, supportedCurrencyCodes)
+  // A value another format reads says the chosen format is wrong for the file, rather than that the
+  // row is, since the rows that format happens to read may be reading as something else
+  const isReadByAnotherFormat = isDateColumnInChosenFormat
+    ? isValidDateValue
+    : isAmountColumn && formatOptions.amountFormat
+      ? isValidMappedImportAmount
+      : () => false
 
   if (values.length === 0) {
     return {
       valid: false,
       message: `Expected ${expected}. This column has no readable values.`,
+      fittingShare: 0,
     }
   }
 
+  // Some blank or unreadable values fail only their rows, which the import leaves out and lists, so
+  // the column itself is refused only for what all of it says
   const blankCount = values.filter((value) => value.length === 0).length
-  if (rule.requiredValues && blankCount > 0) {
+  if (rule.requiredValues && blankCount === values.length) {
     return {
       valid: false,
       message: `Expected ${expected}. ${blankCount} row${blankCount === 1 ? ' is' : 's are'} blank.`,
+      fittingShare: 0,
     }
   }
 
@@ -205,18 +219,25 @@ export function validateColumnValues(
     return {
       valid: false,
       message: `Expected ${expected}. ${columnRefusal}`,
+      fittingShare: 0,
     }
   }
 
-  const invalid = numberedValues.find((entry) => entry.value && !accepts(entry.value))
-  if (invalid) {
+  // A column none of whose values fit is the wrong column, and one with a value only another format
+  // reads is in the wrong format. A value no format reads fails only its row
+  const filled = numberedValues.filter((entry) => entry.value)
+  const misfits = filled.filter((entry) => !accepts(entry.value))
+  const invalid = misfits.find((entry) => isReadByAnotherFormat(entry.value)) ?? misfits[0]
+  if (invalid && (misfits.length === filled.length || isReadByAnotherFormat(invalid.value))) {
     return {
       valid: false,
       message: `Expected ${expected}. Row ${invalid.rowNumber} has "${truncateValue(invalid.value)}", which ${getMismatchReason(target)}.`,
+      fittingShare: 0,
     }
   }
 
-  return { valid: true, message: '' }
+  const unfitCount = misfits.length + (rule.requiredValues ? blankCount : 0)
+  return { valid: true, message: '', fittingShare: 1 - unfitCount / values.length }
 }
 
 export interface ImportColumnFormatOptions {
@@ -280,7 +301,7 @@ function getDateFormatExpectation(
 
   // The label is title case because it names a dropdown entry, and reads as a proper noun mid
   // sentence unless it is lowered
-  return `valid dates in the ${label.toLowerCase()} format, such as ${example}; every row must have a value`
+  return `valid dates in the ${label.toLowerCase()} format, such as ${example}`
 }
 
 /** Describes the amount format a mapped column must use */

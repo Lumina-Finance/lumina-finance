@@ -244,7 +244,7 @@ export function ImportSkippedTable({
                       className="py-1.5 pr-4 align-top"
                       style={{ ...frozenReasonCellStyle, ...BODY_CELL_BORDER_STYLE, color: 'var(--app-accent)' }}
                     >
-                      <div className="whitespace-normal break-words" style={reasonContentStyle}>
+                      <div className="whitespace-normal break-words text-pretty" style={reasonContentStyle}>
                         {row.reason}
                       </div>
                     </td>

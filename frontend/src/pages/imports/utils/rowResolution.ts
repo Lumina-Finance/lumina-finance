@@ -4,6 +4,7 @@ import {
   CREATE_ACCOUNT_VALUE,
   getRowAmountTooPreciseReason,
   getRowCurrencyMismatchReason,
+  getRowCurrencyUnsupportedReason,
   getRowNotesTooLongReason,
   getRowTooManyTagsReason,
   MAX_IMPORT_NOTES_LENGTH,
@@ -195,6 +196,9 @@ export function getImportRowProblem(row: ResolvedImportRow, judgement: ImportRow
 
   // Asked before the amount is judged, because the decimal places an amount is held to are the
   // account currency's, and a row stating another currency is one whose amount means something else
+  if (row.importedCurrency && findCurrencyExponent(judgement.currencies, row.importedCurrency) === null) {
+    return getRowCurrencyUnsupportedReason(row.importedCurrency)
+  }
   if (row.importedCurrency && row.currency && row.importedCurrency !== row.currency) {
     return getRowCurrencyMismatchReason(row.importedCurrency, row.currency)
   }

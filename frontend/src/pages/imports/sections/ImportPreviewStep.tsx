@@ -1,5 +1,6 @@
 import { ImportNotice, ImportRowProblemsTable, ImportRowWarningsTable } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
+import { getSkippedRowsDisplay } from '@/pages/imports/utils'
 import { ImportPreviewLayout } from './ImportPreviewLayout'
 
 /**
@@ -23,6 +24,7 @@ type ImportPreviewStepProps = Pick<
   | 'handleCommitImport'
   | 'canCommitImport'
   | 'importResult'
+  | 'completedImport'
 >
 
 // How many reasons the step spells out before counting the rest. A file of unmatched categories
@@ -30,14 +32,6 @@ type ImportPreviewStepProps = Pick<
 // to, so a full list would bury the preview to repeat what those steps show. The build puts column
 // problems first, which is what the cap keeps
 const VISIBLE_ERROR_LIMIT = 10
-
-/**
- * Builds the heading over the rows that cannot be converted, which says what has to happen rather
- * than only how many there are
- */
-function getRowProblemsTitle(count: number) {
-  return `${count} row${count === 1 ? '' : 's'} must be fixed before importing`
-}
 
 /**
  * Says how many reasons were left off the list
@@ -55,9 +49,9 @@ function getHiddenErrorSummary(count: number) {
  * shows, then a sample of the compiled transactions or, while anything still stands between the
  * mappings and a commit, the reasons instead
  *
- * Rows that cannot be converted are listed above the sample with the reason each was refused, and
- * the import stays refused until every one of them is gone. Rows that will import but are probably
- * not what the user meant are listed under them, and hold nothing up
+ * Rows that can't be converted are listed above the sample with the reason each is left out, as the
+ * imports from other apps list theirs, and the rest import without them. Rows that will import but
+ * are probably not what the user meant are listed under them, and hold nothing up
  *
  * The reasons take the place of the sample rather than sitting over it, since a half-built preview
  * shown beside a list of reasons it is wrong invites reading it as the real result. They wait for a
@@ -73,7 +67,9 @@ export function ImportPreviewStep({
   handleCommitImport,
   canCommitImport,
   importResult,
+  completedImport,
 }: ImportPreviewStepProps) {
+  const skipped = getSkippedRowsDisplay({ liveForecastRows: importBuild.rowProblems, completedImport })
   const visibleErrors = importBuild.errors.slice(0, VISIBLE_ERROR_LIMIT)
   const hiddenErrorCount = importBuild.errors.length - visibleErrors.length
   const hasBlockingErrors = files.length > 0 && importBuild.errors.length > 0
@@ -96,12 +92,13 @@ export function ImportPreviewStep({
       canCommit={canCommitImport}
       onCommit={handleCommitImport}
     >
-      {importBuild.rowProblems.length > 0 && (
+      {skipped.totalCount > 0 && (
         <div className="mb-4">
           <ImportRowProblemsTable
-            title={getRowProblemsTitle(importBuild.rowProblems.length)}
-            rowProblems={importBuild.rowProblems}
+            title={skipped.title}
+            rowProblems={skipped.rows}
             headers={headers}
+            toggleLabel="skipped rows"
           />
         </div>
       )}

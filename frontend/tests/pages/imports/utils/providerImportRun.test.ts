@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { JournalImportRunResponse } from '@/api/provider-imports'
-import { countCreatedImportSources, formatProviderImportSummary } from '@/pages/imports/utils'
+import { formatProviderImportSummary } from '@/pages/imports/utils'
 import { withPlainSpaces } from './fixtures'
 
 /** Creates a complete import result with empty counters and mappings unless overridden */
@@ -34,14 +34,6 @@ function createImportResult(overrides: Partial<JournalImportRunResponse> = {}): 
     ...overrides,
   }
 }
-
-describe('counting the sources an import creates', () => {
-  it('leaves out a source answered create whose rows are all left out of the upload', () => {
-    const mappings = { Checking: 'create', Savings: 'create', Wallet: 'account-1' }
-
-    expect(countCreatedImportSources(['Checking', 'Savings', 'Wallet'], mappings, 'create', new Set(['Checking', 'Wallet']))).toBe(1)
-  })
-})
 
 describe('the completed provider import summary', () => {
   it('counts the rows the browser left out as skipped', () => {

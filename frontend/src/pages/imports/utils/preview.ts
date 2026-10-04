@@ -21,7 +21,7 @@ import type {
   PreviewTransactionRow,
 } from '@/pages/imports/types'
 import { getImportAccountName } from './accountMapping'
-import { getImportRowId } from './common'
+import { countCreatedImportSources, getImportRowId } from './common'
 import { getCategoryMatchKind } from './categoryMatching'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import { getCurrencyByAccountSource, type ImportRowContext, resolveImportRow } from './rowResolution'
@@ -303,7 +303,8 @@ export function getPreviewCategory(
  * Every row becomes one transaction, so a built import creates one per row it sends. Until it can
  * be built, the rows already refused are left out and the rest are counted, since answering the
  * questions still open changes which accounts and categories they land in, not whether they import.
- * A source answered create-new counts as one new account or category
+ * A source answered create-new counts as one new account or category, and once the import is built
+ * only when a row it sends names that source, since the commit creates nothing for the others
  *
  * @param rowCount - Every data row in the staged files
  */
@@ -322,10 +323,21 @@ export function getCsvImportStats({
   importedCategories: string[]
   categoryMappings: Record<string, string>
 }) {
+  const rows = importBuild.payload?.rows
+  const writtenAccounts = new Set(rows
+    ? rows.flatMap((row) => [row.account_source, row.counterparty_account_source ?? ''])
+    : accountSources.map((source) => source.id))
+  const writtenCategories = new Set(rows ? rows.map((row) => row.category_source) : importedCategories)
+
   return {
     rowCount,
-    transactionEstimate: importBuild.payload?.rows.length ?? Math.max(rowCount - importBuild.rowProblems.length, 0),
-    newAccountCount: accountSources.filter((source) => accountMappings[source.id] === CREATE_ACCOUNT_VALUE).length,
-    newCategoryCount: importedCategories.filter((source) => categoryMappings[source] === CREATE_CATEGORY_VALUE).length,
+    transactionEstimate: rows?.length ?? Math.max(rowCount - importBuild.rowProblems.length, 0),
+    newAccountCount: countCreatedImportSources(
+      accountSources.map((source) => source.id),
+      accountMappings,
+      CREATE_ACCOUNT_VALUE,
+      writtenAccounts,
+    ),
+    newCategoryCount: countCreatedImportSources(importedCategories, categoryMappings, CREATE_CATEGORY_VALUE, writtenCategories),
   }
 }

@@ -16,7 +16,7 @@ import {
   IMPORT_SAMPLE_PREVIEW_LIMIT,
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportRowProblem } from '@/pages/imports/types'
-import { getProviderSkippedRowsDisplay } from '@/pages/imports/utils'
+import { getSkippedRowsDisplay } from '@/pages/imports/utils'
 import {
   forecastFireflyImport,
   isFireflyRowUploadable,
@@ -141,21 +141,6 @@ function getForecastRowWarnings(forecast: ReturnType<typeof forecastFireflyImpor
   return forecast.rowWarnings as ImportRowProblem[]
 }
 
-/** Creates one predicted skipped-row detail at a distinct source position */
-function createSkippedDetail(
-  index: number,
-  overrides: Partial<FireflySkippedRowDetail> = {},
-): FireflySkippedRowDetail {
-  return {
-    id: `file-1-${index}`,
-    journalId: `journal-${index}`,
-    rowNumber: index + 2,
-    cells: { marker: `row-${index}` },
-    reason: `Reason ${index}`,
-    ...overrides,
-  }
-}
-
 /** Creates a complete committed result with empty counters and mappings unless overridden */
 function createImportResult(overrides: Partial<JournalImportRunResponse> = {}): JournalImportRunResponse {
   return {
@@ -184,19 +169,7 @@ function createImportResult(overrides: Partial<JournalImportRunResponse> = {}): 
   }
 }
 
-describe('getProviderSkippedRowsDisplay before commit', () => {
-  it('shows the forecast rows under a future-tense title', () => {
-    const forecastRows = [createSkippedDetail(0), createSkippedDetail(1)]
-
-    expect(getProviderSkippedRowsDisplay({ liveForecastRows: forecastRows, completedImport: null })).toEqual({
-      rows: forecastRows,
-      totalCount: 2,
-      title: '2 rows will not be imported',
-    })
-  })
-})
-
-describe('getProviderSkippedRowsDisplay after commit', () => {
+describe('getSkippedRowsDisplay after a Firefly III commit', () => {
   it('retains the commit-time source row after live account mappings move the same skip pair', () => {
     const sameAccountReason = 'Transfer source and destination resolve to the same account'
     const firstRow = createFireflyRow({
@@ -251,7 +224,7 @@ describe('getProviderSkippedRowsDisplay after commit', () => {
       skippedRows: [{ rowNumber: 3, cells: secondRow, reason: sameAccountReason }],
     })
 
-    expect(getProviderSkippedRowsDisplay({
+    expect(getSkippedRowsDisplay({
       liveForecastRows: livePrediction.skippedRows,
       completedImport: {
         result: importResult,
@@ -264,7 +237,6 @@ describe('getProviderSkippedRowsDisplay after commit', () => {
       title: '1 row was not imported',
     })
   })
-
 })
 
 describe('forecastFireflyImport', () => {

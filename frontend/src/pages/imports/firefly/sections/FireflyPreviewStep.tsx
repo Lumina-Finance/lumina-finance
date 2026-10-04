@@ -1,6 +1,6 @@
 import { ImportRowProblemsTable, ImportRowWarningsTable } from '@/pages/imports/components'
 import { ImportPreviewLayout } from '@/pages/imports/sections'
-import { getProviderSkippedRowsDisplay } from '@/pages/imports/utils'
+import { getSkippedRowsDisplay } from '@/pages/imports/utils'
 import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
 
 type FireflyPreviewStepProps = Pick<
@@ -41,7 +41,7 @@ export function FireflyPreviewStep({
   canCommitImport,
   handleCommitImport,
 }: FireflyPreviewStepProps) {
-  const skipped = getProviderSkippedRowsDisplay({ liveForecastRows: predictedSkippedRows, completedImport })
+  const skipped = getSkippedRowsDisplay({ liveForecastRows: predictedSkippedRows, completedImport })
 
   return (
     <ImportPreviewLayout

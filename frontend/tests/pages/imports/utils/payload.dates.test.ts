@@ -96,9 +96,9 @@ describe('import payload dates', () => {
     expect(result.payload?.rows.map((row) => row.dt)).toEqual(dates)
   })
 
-  it('blocks the payload when one ISO timestamp is invalid', () => {
+  it('leaves out an invalid ISO timestamp and imports the rest', () => {
     const result = build(['2024-03-15T00:30:00Z', '2024-03-16T24:00:00Z'], 'iso', {}, 'automatic', 'UTC')
-    expect(result.payload).toBeNull()
+    expect(result.payload?.rows.map((row) => row.dt)).toEqual(['2024-03-15'])
     expect(result.rowProblems.map((problem) => ({ rowNumber: problem.rowNumber, reason: problem.reason })))
       .toEqual([{ rowNumber: 2, reason: ROW_DATE_UNREADABLE_REASON }])
     expect(build(['2024-03-15T00:30:00Z'], 'yearFirst', {}, 'automatic', 'UTC').payload).toBeNull()
@@ -142,17 +142,8 @@ describe('import payload dates', () => {
     expect(result.rowProblems).toEqual([])
   })
 
-  it('refuses a row the chosen format cannot read, listing which row it is', () => {
-    const result = build(['15/03/2024', '2024-03-16'], 'dayFirst')
-
-    expect(result.payload).toBeNull()
-    expect(result.rowProblems.map((problem) => ({ rowNumber: problem.rowNumber, reason: problem.reason }))).toEqual([
-      { rowNumber: 2, reason: ROW_DATE_UNREADABLE_REASON },
-    ])
-  })
-
   it('lists the rows behind a column the values do not fit, alongside the column error', () => {
-    const columnError = 'Expected valid dates in the day-first format, such as 15/03/2024; every row must have a value. "2024-03-16" is not a valid date.'
+    const columnError = 'Expected valid dates in the day-first format, such as 15/03/2024. "2024-03-16" is not a valid date.'
     const result = build(['15/03/2024', '2024-03-16'], 'dayFirst', { Date: columnError })
 
     // A column whose values do not fit is a statement about rows, so it reports the column and the

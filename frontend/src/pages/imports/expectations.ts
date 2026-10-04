@@ -6,7 +6,7 @@ import type { ImportDataSource, ImportExpectations } from '@/pages/imports/types
  * What a CSV import does with a file and what it leaves out, shown before anything is staged
  *
  * Every claim is one the import enforces: each row is written as one transaction in its own
- * account and nothing is written to a transfer's other account, a currency column only refuses a
+ * account and nothing is written to a transfer's other account, a currency column only leaves out a
  * row whose account is kept in another currency, new accounts start at a zero balance with no
  * credit limit, and the payload carries transaction rows and their mappings only
  *
@@ -24,8 +24,8 @@ export function getCsvExpectations(fixedAccountName: string | null): ImportExpec
     changes: [
       {
         source: 'A currency column',
-        lumina: "A check against the account's currency, with nothing converted. A row in another currency is refused "
-          + 'until you write it to an account in that currency or stop importing the column',
+        lumina: "A check against the account's currency, with nothing converted. A row in another currency is left "
+          + 'out and listed, unless you write it to an account in that currency or stop importing the column',
       },
       {
         source: 'An account the import creates',

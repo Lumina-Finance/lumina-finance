@@ -78,6 +78,29 @@ describe('the payee answers a staged batch carries', () => {
   });
 });
 
+// The preview counts a new account or category only when a row it sends names it, so a source only
+// the rows it leaves out name must not travel either, or the commit would create it anyway
+describe('the answers a staged batch carries for sources no row it sends names', () => {
+  it('leaves out a new category and a new account no row names', async () => {
+    const payload: TransactionImportPayload = {
+      ...buildPayload(['G']),
+      accounts: [
+        { source: 'C', account_id: 'acc_1' },
+        { source: 'Unused', create: { name: 'Unused', account_type: 'checking', currency: 'CAD' } },
+      ],
+      categories: [
+        { source: 'G', category_id: 'cat_1' },
+        { source: 'Dining', create: { name: 'Dining', kind: 'expense' } },
+      ],
+    };
+
+    const batches = await buildStagedImportBatches(payload);
+
+    expect(batches.flatMap((batch) => batch.categories.map((mapping) => mapping.source))).toEqual(['G']);
+    expect(batches.flatMap((batch) => batch.accounts.map((mapping) => mapping.source))).toEqual(['C']);
+  });
+});
+
 describe('the limits a staged batch is built against', () => {
   it('closes a batch on the mapping count, not only on its bytes', async () => {
     // Every row introduces a category of its own, so the mappings fill up long before the bytes do

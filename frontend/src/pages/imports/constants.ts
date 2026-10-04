@@ -369,10 +369,11 @@ export const IMPORT_MISCELLANEOUS_CATEGORY_NAME = 'Miscellaneous'
 // Each speaks of the row itself, since the entry carries the row number and the row's own cells, and
 // each speaks of a cell rather than a source, which is the word the mapping step uses for the values
 // a column holds. A blank cell is told apart from an unreadable one, because filling it in and
-// correcting the whole column's format are different jobs
+// correcting what it says are different jobs. A date another format reads stops the whole column
+// instead, so the unreadable date reason never sends the user to change the format
 export const ROW_ACCOUNT_BLANK_REASON = 'The account cell is blank.'
 export const ROW_DATE_BLANK_REASON = 'The date cell is blank.'
-export const ROW_DATE_UNREADABLE_REASON = 'The date does not match the date format chosen above.'
+export const ROW_DATE_UNREADABLE_REASON = 'The date is not a real date in the format chosen above.'
 export const ROW_AMOUNT_BLANK_REASON = 'The amount cell is blank.'
 export const ROW_AMOUNT_UNREADABLE_REASON = 'The amount is not a number.'
 export const ROW_AMOUNT_TOO_LARGE_REASON = 'The amount is larger than this app can store.'
@@ -430,6 +431,16 @@ function getImportGroupingDescription(grouping: ImportAmountFormat['groupingSepa
 // their cells it was about
 export const ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON = 'This row states a counterparty account but is not filed under a transfer category. Only a transfer records where the money went, so clear that cell or change the category.'
 export const ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON = 'This row states its own account as the counterparty, so the transfer would go nowhere. That cell holds the account on the other side of the transfer.'
+
+/**
+ * Says a row states a currency code this app does not keep accounts in
+ *
+ * Kept apart from the mismatch reason, which offers moving the row to an account in its currency, a
+ * fix no account can give for a code the app does not support
+ */
+export function getRowCurrencyUnsupportedReason(rowCurrency: string) {
+  return `This row is in ${rowCurrency}, which is not a currency this app supports. Correct the code, or set the Currency column to Do not import to bring every row in as its account's currency.`
+}
 
 /**
  * Says a row states a currency its account is not kept in
@@ -545,11 +556,10 @@ export const CURRENCY_HANDLING_NOTE = 'Imported amounts use the file format sele
  *
  * Replaces the ordinary currency note, which speaks of the account each source is mapped to and of
  * changing a currency on a row, neither of which a scoped import has. A row stating another currency
- * stops the whole import rather than being dropped from it, since one unimportable row leaves the
- * commit with no payload at all
+ * is left out and listed, as every row the import can't bring in is
  */
 export function getFixedAccountCurrencyNote(accountName: string, currency: string) {
-  return `Imported amounts use the file format selected below. Every row will be assigned ${currency}, the currency ${accountName} is kept in, and a row stating a different currency stops the import until the file is corrected or its currency column is set to Do not import.`
+  return `Imported amounts use the file format selected below. Every row will be assigned ${currency}, the currency ${accountName} is kept in, and a row stating a different currency is left out and listed unless its currency column is set to Do not import.`
 }
 
 // The file cannot be checked for covering more than one account, since the column that would say so

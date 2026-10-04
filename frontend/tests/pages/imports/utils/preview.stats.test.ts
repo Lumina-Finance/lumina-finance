@@ -132,18 +132,21 @@ describe('the CSV import summary', () => {
     expect(stats).toEqual({ rowCount: 12, transactionEstimate: 12, newAccountCount: 0, newCategoryCount: 0 })
   })
 
-  // The commit stays unavailable while a row is refused, since nothing is built to send. The rows
-  // that would import are still counted, so fixing the refused ones is what changes the figure
-  it('leaves the refused rows out of what it creates and builds nothing to commit', () => {
+  // The upload sends only the answers its rows name, so a category only a left-out row names is never
+  // sent and never created
+  it('leaves the rows it can\'t import out of what it creates, including a category only they name', () => {
     const rows = [
       ...createRows(8, ['Chequing'], ['Groceries']),
-      ...createRows(2, ['Chequing'], ['Groceries'], 'forty'),
+      ...createRows(2, ['Chequing'], ['Dining'], 'forty'),
     ]
 
-    const { importBuild, stats } = summarize(rows, { Chequing: CHEQUING.id }, { Groceries: GROCERIES.id })
+    const { importBuild, stats } = summarize(
+      rows,
+      { Chequing: CHEQUING.id },
+      { Groceries: GROCERIES.id, Dining: CREATE_CATEGORY_VALUE },
+    )
 
     expect(importBuild.rowProblems).toHaveLength(2)
-    expect(importBuild.payload).toBeNull()
     expect(stats).toEqual({ rowCount: 10, transactionEstimate: 8, newAccountCount: 0, newCategoryCount: 0 })
   })
 })

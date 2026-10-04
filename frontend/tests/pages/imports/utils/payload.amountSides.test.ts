@@ -216,7 +216,7 @@ describe('refusing a row the two sides cannot be read from', () => {
     const result = build([['45.00', ''], ['12.00', '9.00'], ['', '30.00']])
 
     expect(refusals(result)).toEqual([[2, ROW_AMOUNT_BOTH_SIDES_REASON]])
-    expect(result.payload).toBeNull()
+    expect(result.payload?.rows).toHaveLength(2)
   })
 
   // One bad cell beside one good one is a row with a cell to go and fix, not a row stating two

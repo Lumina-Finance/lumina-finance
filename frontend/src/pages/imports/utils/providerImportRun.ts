@@ -1,7 +1,6 @@
 import type { ImportRunBudgets, JournalImportRunResponse } from '@/api/provider-imports'
 import { getJsonByteSize } from '@/api/shared/importBatchSize'
 import { joinImportSummaryParts } from '@/pages/imports/utils/common'
-import type { CompletedImport } from '@/pages/imports/utils/importRun'
 
 /** What the overlay calls the upload of an export from another app */
 export const PROVIDER_IMPORT_UPLOAD_LABEL = 'Uploading the export'
@@ -38,44 +37,6 @@ export function getProviderBudgetSelectionError(selectedCount: number, maxBudget
   return selectedCount > maxBudgets
     ? `Select at most ${maxBudgets.toLocaleString()} budgets to import, since the importer takes up to that many at once.`
     : buildError
-}
-
-/**
- * Selects the skipped rows the preview shows, with its title. Once the import has run, they are the
- * rows it was started with, since later answers no longer change what it wrote
- *
- * The weekly checks read the title after the import, so its wording is theirs to match
- */
-export function getProviderSkippedRowsDisplay<TSkipped>({
-  liveForecastRows,
-  completedImport,
-}: {
-  liveForecastRows: TSkipped[]
-  completedImport: CompletedImport<JournalImportRunResponse, TSkipped> | null
-}) {
-  const rows = completedImport?.skippedRowsAtCommit ?? liveForecastRows
-  const totalCount = rows.length
-  const plural = totalCount === 1 ? '' : 's'
-  return {
-    rows,
-    totalCount,
-    title: completedImport
-      ? `${totalCount} row${plural} ${totalCount === 1 ? 'was' : 'were'} not imported`
-      : `${totalCount} row${plural} will not be imported`,
-  }
-}
-
-/**
- * Counts the sources answered create-new that the import sends, since the commit creates nothing
- * for a source it leaves out
- */
-export function countCreatedImportSources(
-  sources: string[],
-  mappings: Record<string, string>,
-  createValue: string,
-  writtenSources: ReadonlySet<string>,
-) {
-  return sources.filter((source) => mappings[source] === createValue && writtenSources.has(source)).length
 }
 
 /**

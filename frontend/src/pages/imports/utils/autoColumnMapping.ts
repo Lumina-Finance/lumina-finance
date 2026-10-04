@@ -376,8 +376,10 @@ function getBestHeaderMatch(
       : Math.max(headerScore, scoreValuesForTarget(files, header, target, supportedCurrencyCodes))
     if (score <= 0) continue
 
+    // Held to most of its rows as well as to the column, since a column claimed for its heading that
+    // leaves most rows out is a guess the user did not make. A few rows left out are listed instead
     const validation = validateColumnValues(files, header, target, supportedCurrencyCodes)
-    if (!validation.valid) continue
+    if (!validation.valid || validation.fittingShare <= 0.5) continue
 
     if (!bestMatch || score > bestMatch.score) {
       bestMatch = { header, score }

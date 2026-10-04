@@ -98,14 +98,14 @@ describe('refusing a column of numbers mapped to a field of names', () => {
 
 describe('saying where the problem is', () => {
   it('agrees in number when one row is blank', () => {
-    const files = createColumn('Account', ['Chequing', '', 'Savings'])
+    const files = createColumn('Account', [''])
 
     expect(validateColumnValues(files, 'Account', 'account_id', SUPPORTED_CURRENCY_CODES).message)
       .toContain('1 row is blank.')
   })
 
   it('agrees in number when several rows are blank', () => {
-    const files = createColumn('Account', ['Chequing', '', ''])
+    const files = createColumn('Account', ['', ''])
 
     expect(validateColumnValues(files, 'Account', 'account_id', SUPPORTED_CURRENCY_CODES).message)
       .toContain('2 rows are blank.')
@@ -114,7 +114,7 @@ describe('saying where the problem is', () => {
   // The message quoted the offending value with no way to find it, which in a file of thousands of
   // rows leaves the user searching
   it('gives the row the offending value sits on', () => {
-    const files = createColumn('Currency', ['CAD', 'USD', 'ZZZ'])
+    const files = createColumn('Currency', ['', '', 'ZZZ'])
 
     expect(validateColumnValues(files, 'Currency', 'currency', SUPPORTED_CURRENCY_CODES).message)
       .toContain('Row 3 has "ZZZ", which does not match.')
@@ -155,19 +155,24 @@ describe('checking one side of a file that writes money out and money in separat
     expect(validateColumnValues(files, 'Debit', 'amount_out', SUPPORTED_CURRENCY_CODES).valid).toBe(true)
   })
 
-  // Refused here, before any row is judged, which is why the row rule only ever sees blanks and
-  // numbers
-  it('refuses a value that is not a number, and gives the row it sits on', () => {
+  // One value that isn't a number fails only its row, which the import leaves out and lists
+  it('takes a column with one value that is not a number, leaving that row to be judged on its own', () => {
     const files = createColumn('Debit', ['45.00', 'pending', '12.00'])
+
+    expect(validateColumnValues(files, 'Debit', 'amount_out', SUPPORTED_CURRENCY_CODES).valid).toBe(true)
+  })
+
+  it('refuses a column with no number in it, giving the first row', () => {
+    const files = createColumn('Debit', ['pending', 'cleared'])
     const result = validateColumnValues(files, 'Debit', 'amount_out', SUPPORTED_CURRENCY_CODES)
 
     expect(result.valid).toBe(false)
-    expect(result.message).toContain('Row 2')
+    expect(result.message).toContain('Row 1')
     expect(result.message).toContain('pending')
   })
 
-  // The single Amount field says every row must have a value, and repeating that against a side
-  // would describe the opposite of what the field takes
+  // A side of the amount is blank on every row the other side carries, so its expectation never
+  // promises a value in each row
   it('does not promise a value in every row', () => {
     const message = validateColumnValues(
       [createFile(['Debit'], [])],
@@ -327,12 +332,11 @@ describe('answering what one word in the Direction column means', () => {
 })
 
 describe('checking a column mapped to the single amount field', () => {
-  it('refuses a column with a blank row, giving the count', () => {
+  // A blank amount fails only its row, which the import leaves out and lists
+  it('takes a column with a blank row, leaving that row to be judged on its own', () => {
     const files = createColumn('Amount', ['12.34', '', '5.00'])
-    const result = validateColumnValues(files, 'Amount', 'amount', SUPPORTED_CURRENCY_CODES)
 
-    expect(result.valid).toBe(false)
-    expect(result.message).toContain('1 row is blank.')
+    expect(validateColumnValues(files, 'Amount', 'amount', SUPPORTED_CURRENCY_CODES).valid).toBe(true)
   })
 
   it('refuses a column holding a value that is not a number', () => {

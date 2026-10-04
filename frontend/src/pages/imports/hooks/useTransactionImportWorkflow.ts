@@ -9,7 +9,7 @@ import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import { useAuth } from '@/hooks/useAuth'
 import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
-import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportAmountDirection, ImportCategoryKind, ImportFileDraft, PreviewTransactionRow } from '@/pages/imports/types'
+import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportAmountDirection, ImportCategoryKind, ImportFileDraft, ImportRowProblem, PreviewTransactionRow } from '@/pages/imports/types'
 import {
   buildColumnTargetOptions,
   buildImportAnswerScope,
@@ -272,11 +272,11 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     ],
   )
 
-  const run = useImportRun<TransactionImportResponse, never>({
+  const run = useImportRun<TransactionImportResponse, ImportRowProblem>({
     answers: importAnswers,
     uploadLabel: CSV_UPLOAD_LABEL,
     mutations: [importTransactions, commitStagedImport],
-    formatSummary: ({ result }) => formatImportSummary(result),
+    formatSummary: ({ result, skippedRowsAtCommit }) => formatImportSummary(result, skippedRowsAtCommit.length),
   })
 
   const categoryMappings = useMemo(
@@ -969,7 +969,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     const payload = importBuild.payload
     if (!payload || !canCommitImport) return
 
-    await run.startImport([], {
+    await run.startImport(importBuild.rowProblems, {
       upload: (signal, onStaged) => importTransactions.mutateAsync({ payload, signal, onStaged }),
       commit: (runId, signal) => commitStagedImport.mutateAsync({ runId, signal }),
     })

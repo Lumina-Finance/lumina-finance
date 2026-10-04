@@ -12,6 +12,7 @@ import {
   createImportRunController,
   describeImportRunFailure,
   getImportRunError,
+  getSkippedRowsDisplay,
   type ImportRunState,
 } from '@/pages/imports/utils'
 
@@ -310,5 +311,30 @@ describe('starting an import', () => {
   it('waits for a file still being read, which the payload does not hold yet', () => {
     expect(canStartImport(ready)).toBe(true)
     expect(canStartImport({ ...ready, isProcessingFile: true })).toBe(false)
+  })
+})
+
+describe('the rows an import leaves out', () => {
+  it('shows the rows it would leave out under a future-tense title before it runs', () => {
+    expect(getSkippedRowsDisplay({ liveForecastRows: SKIPPED_AT_START, completedImport: null })).toEqual({
+      rows: SKIPPED_AT_START,
+      totalCount: 1,
+      title: '1 row will not be imported',
+    })
+  })
+
+  // Answers changed after the import no longer change what it wrote, so the list stays the one it
+  // started with
+  it('shows the rows the import started without, under a past-tense title, once it has run', () => {
+    const liveRows = [{ ...SKIPPED_AT_START[0], id: 'file-1-9', rowNumber: 10 }]
+
+    expect(getSkippedRowsDisplay({
+      liveForecastRows: liveRows,
+      completedImport: { result: RESULT, skippedRowsAtCommit: SKIPPED_AT_START, savedEarlier: false },
+    })).toEqual({
+      rows: SKIPPED_AT_START,
+      totalCount: 1,
+      title: '1 row was not imported',
+    })
   })
 })

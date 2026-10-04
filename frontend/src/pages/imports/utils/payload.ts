@@ -50,8 +50,10 @@ import { type ImportDateFormat, type ImportDateSeparator } from './valueParsers'
  * choice made so far, collecting every validation problem along the way instead of stopping at the
  * first one
  *
- * Returns the built payload only when no error was collected. A mapping or data problem instead
- * returns every accumulated error with a null payload, so the caller can show them all at once
+ * Returns the built payload only when no error was collected. A mapping or column problem instead
+ * returns every accumulated error with a null payload, so the caller can show them all at once. A row
+ * that can't be converted is left out of the payload and listed in `rowProblems` with its reason, as
+ * the imports from other apps leave out and list theirs
  */
 export function buildTransactionImportPayload({
   accountById,
@@ -326,18 +328,18 @@ export function buildTransactionImportPayload({
     }
   }
 
-  // A file whose every row has a problem is described by the list of problems, so the empty-file
-  // message is kept for the case it was written for
-  if (rows.length === 0 && rowProblems.length === 0) addError(getImportNoRowsError('file'))
+  // Importing nothing isn't an import, so a file whose every row is left out says so beside Commit
+  // import as well as listing each row
+  if (rows.length === 0) addError(getImportNoRowsError('file'))
 
   const warnings = getImportWarnings(rows, columnMap)
   const allErrors = [...columnErrors, ...errors]
-  if (allErrors.length > 0 || rowProblems.length > 0) {
+  if (allErrors.length > 0) {
     return { errors: allErrors, rowProblems, warnings, rowWarnings, payload: null }
   }
   return {
     errors: [],
-    rowProblems: [],
+    rowProblems,
     warnings,
     rowWarnings,
     payload: { accounts, categories, merchants, rows },
@@ -437,13 +439,19 @@ function getImportWarnings(rows: TransactionImportPayload['rows'], columnMap: Co
 
 /**
  * Formats a completed import's created counts into the summary for the progress overlay
+ *
+ * The rows it left out join the line only when there were some, so a file that imported whole reads
+ * as it always has
+ *
+ * @param skippedCount - Rows the import was started without, because they can't be converted
  */
-export function formatImportSummary(result: TransactionImportResponse) {
+export function formatImportSummary(result: TransactionImportResponse, skippedCount: number) {
   const parts = [
     `${result.transactions_created} transaction${result.transactions_created === 1 ? '' : 's'} imported`,
     `${result.accounts_created} account${result.accounts_created === 1 ? '' : 's'} created`,
     `${result.categories_created} categor${result.categories_created === 1 ? 'y' : 'ies'} created`,
   ]
+  if (skippedCount > 0) parts.push(`${skippedCount} skipped`)
 
   return joinImportSummaryParts(parts)
 }

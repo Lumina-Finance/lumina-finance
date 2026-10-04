@@ -10,14 +10,15 @@ const ROW_NUMBER_COLUMN_WIDTH = '3.5rem'
  * Collapsible panel listing the rows the import has something to say about, freezing which row each
  * one is and what was found on the left while every column of the uploaded file scrolls beside them
  *
- * Used for both kinds of row, so the three presentation props default to the refusal this was
- * written for and the list of rows that import as they are passes all three
+ * Used for both kinds of row, so the tone and reason heading default to the rows left out and the
+ * list of rows that import as they are passes both. What the collapse control calls the rows is
+ * always given, since every list names its own
  */
 export function ImportRowProblemsTable({
   title,
   rowProblems,
   headers,
-  toggleLabel = 'rows to fix',
+  toggleLabel,
   tone = 'danger',
   reasonHeader = 'Reason',
 }: {
@@ -25,11 +26,8 @@ export function ImportRowProblemsTable({
   rowProblems: ImportRowProblem[]
   headers: string[]
 
-  /**
-   * What the collapse control calls the rows, for the tables holding rows that need no fixing.
-   * Defaults to the refused rows this table was written for
-   */
-  toggleLabel?: string
+  /** What the collapse control calls the rows, such as skipped rows */
+  toggleLabel: string
 
   /** Whether these rows are refused or merely worth a look, which is the icon's colour */
   tone?: 'warning' | 'danger'
