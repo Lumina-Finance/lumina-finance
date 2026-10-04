@@ -42,6 +42,21 @@ async function skipStartingBalancePrompt(page: Page): Promise<void> {
   await expect(prompt).toBeHidden()
 }
 
+/**
+ * Collect every starting balance request the page sends from now on, so a prompt that closes
+ * without recording can be shown to have sent none, not even one answered after it closed.
+ *
+ * @param page - Page to watch
+ * @returns The URLs sent so far, kept current as the page sends more
+ */
+function watchStartingBalanceRequests(page: Page): string[] {
+  const urls: string[] = []
+  page.on('request', (sent) => {
+    if (sent.url().endsWith('/starting-balance')) urls.push(sent.url())
+  })
+  return urls
+}
+
 test('starts a new user with no accounts and creates one with its starting balance', async ({ page, request }) => {
   const user = await signUpUser(request)
 
@@ -81,28 +96,32 @@ test('records a new credit card\'s amount owed as a balance below zero', async (
   await expect(page.getByRole('link', { name: /Rewards Card/ })).toContainText('($400.00)')
 })
 
-test('leaves a new account at zero when its starting balance is left blank or skipped', async ({ page, request }) => {
+test('leaves a new account at zero when its starting balance is left blank', async ({ page, request }) => {
   const user = await signUpUser(request)
   await logInViaApi(page, user)
   await openPage(page, '/accounts')
+  const startingBalanceRequests = watchStartingBalanceRequests(page)
 
-  // Neither way records anything, so no request is sent, not even one answered later
-  const startingBalanceRequests: string[] = []
-  page.on('request', (sent) => {
-    if (sent.url().endsWith('/starting-balance')) startingBalanceRequests.push(sent.url())
-  })
+  const prompt = await createAccountThroughModal(page)
+  await prompt.getByRole('button', { name: 'Continue' }).click()
 
-  const blank = await createAccountThroughModal(page)
-  await blank.getByRole('button', { name: 'Continue' }).click()
-  await expect(blank).toBeHidden()
+  await expect(prompt).toBeHidden()
   await expect(page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) })).toContainText('$0.00')
+  expect(startingBalanceRequests).toEqual([])
+})
 
-  const skipped = await createAccountThroughModal(page, 'Savings', 'Rainy Day Savings')
-  await skipped.getByLabel('Starting balance', { exact: true }).fill('300.00')
-  await skipped.getByRole('button', { name: 'Skip' }).click()
-  await expect(skipped).toBeHidden()
-  await expect(page.getByRole('link', { name: /Rainy Day Savings/ })).toContainText('$0.00')
+test('leaves a new account at zero when its starting balance is skipped', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/accounts')
+  const startingBalanceRequests = watchStartingBalanceRequests(page)
 
+  const prompt = await createAccountThroughModal(page)
+  await prompt.getByLabel('Starting balance', { exact: true }).fill('300.00')
+  await prompt.getByRole('button', { name: 'Skip' }).click()
+
+  await expect(prompt).toBeHidden()
+  await expect(page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) })).toContainText('$0.00')
   expect(startingBalanceRequests).toEqual([])
 })
 
