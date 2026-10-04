@@ -1,6 +1,5 @@
 """Reading a SimpleFIN protocol version 2 account set into the provider contract"""
 
-import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
@@ -9,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from app.services.bank_sync.providers.contract import ExternalAccount, ProviderRecord
+from app.services.bank_sync.providers.contract import ExternalAccount, ProviderRecord, is_iso_currency_code
 from app.utils.money import parse_decimal_amount_to_minor_units
 
 # SimpleFIN has no paging, and a response is reported to stop at 1,000 transactions, so one that
@@ -22,9 +21,6 @@ CUT_OFF_RECORD_COUNT = 1000
 # 43,200. Unverified against real SimpleFIN Bridge data
 _BANK_DATE_SECONDS_INTO_DAY = (0, 12 * 60 * 60)
 _SECONDS_PER_DAY = 24 * 60 * 60
-
-# An ISO 4217 code. A URL or nothing in its place is a custom currency
-_ISO_CURRENCY_CODE = re.compile(r"[A-Z]{3}")
 
 
 class UnreadableAccountSet(Exception):
@@ -168,7 +164,7 @@ def _read_account(
 ) -> ExternalAccount:
     """Normalize one account and, when dated, its records"""
     connection = connections[account.conn_id]
-    currency = account.currency if _ISO_CURRENCY_CODE.fullmatch(account.currency) else None
+    currency = account.currency if is_iso_currency_code(account.currency) else None
     exponent = currency_exponents.get(currency) if currency else None
 
     return ExternalAccount(

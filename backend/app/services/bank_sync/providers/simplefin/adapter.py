@@ -13,14 +13,18 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
-from app.config.bank_sync import BANK_SYNC_SIMPLEFIN_ORIGINS, BANK_SYNC_SIMPLEFIN_TEST_ORIGIN
+from app.config.bank_sync import (
+    BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS,
+    BANK_SYNC_SIMPLEFIN_HISTORY_MONTHS,
+    BANK_SYNC_SIMPLEFIN_ORIGINS,
+    BANK_SYNC_SIMPLEFIN_TEST_ORIGIN,
+)
 from app.config.runtime import APP_VERSION
 from app.http_client import ResponseTooLargeError
-from app.models.bank_connection import BankProvider
+from app.models.bank_connection import BankProvider, ConnectsFrom
 from app.services.bank_sync.outbound import AddressRefused, OriginRefused, OutboundGuard
 from app.services.bank_sync.providers.contract import (
     ClaimRefused,
-    ConnectsFrom,
     FetchResult,
     ProviderAdapter,
     ProviderError,
@@ -59,15 +63,14 @@ class SimpleFinAdapter(ProviderAdapter):
 
     provider_id = BankProvider.SIMPLEFIN
     provider_name = "SimpleFIN"
-    history_limit_months = 12
+    provider_description = "One setup token reaches every bank you add in SimpleFIN Bridge."
+    history_limit_months = BANK_SYNC_SIMPLEFIN_HISTORY_MONTHS
     advertises_history = False
     revisit_overlap_days = 14
 
     # SimpleFIN Bridge refuses an accounts request spanning more
     max_window_days = 90
-
-    # Below the 24 a day SimpleFIN Bridge expects, so setup and retries never earn a warning
-    daily_request_budget = 20
+    daily_request_budget = BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS
     connects_from = ConnectsFrom.SETTINGS
 
     def __init__(self, guard: OutboundGuard | None = None) -> None:

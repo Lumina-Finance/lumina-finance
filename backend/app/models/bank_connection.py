@@ -31,6 +31,16 @@ class BankProvider(enum.StrEnum):
     SIMPLEFIN = "simplefin"
 
 
+class ConnectsFrom(enum.StrEnum):
+    """Where the user connects a provider"""
+
+    # One connection in settings reaches many bank accounts, each then linked from its account
+    SETTINGS = "settings"
+
+    # Each account's link flow signs in to the bank itself
+    LINK_FLOW = "link_flow"
+
+
 class ProviderRequestPurpose(enum.StrEnum):
     """Why a request was sent to a provider, for the rolling request budget"""
 

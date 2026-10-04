@@ -10,9 +10,9 @@ from datetime import datetime
 from typing import override
 from zoneinfo import ZoneInfo
 
+from app.models.bank_connection import ConnectsFrom
 from app.services.bank_sync.providers.contract import (
     ClaimRefused,
-    ConnectsFrom,
     FetchResult,
     ProviderAdapter,
 )

@@ -4,7 +4,7 @@ import os
 
 import httpx
 
-from app.config.env import optional_csv_env
+from app.config.env import optional_bool_env, optional_csv_env
 
 # SimpleFIN Bridge's two servers, always allowed. A self-hosted operator adds their own SimpleFIN
 # servers beside them, so connections already made through the Bridge keep working
@@ -97,3 +97,18 @@ BANK_SYNC_SIMPLEFIN_TEST_ORIGIN = read_simplefin_test_origin()
 
 # How many jobs the self-hosted worker runs at once, each on a different connection
 BANK_SYNC_WORKER_CONCURRENCY = read_worker_concurrency()
+
+# Whether SimpleFIN is available at all. Self-hosted deployments enable every provider by default
+BANK_SYNC_SIMPLEFIN_ENABLED = optional_bool_env("BANK_SYNC_SIMPLEFIN_ENABLED", True)
+
+# Whether new SimpleFIN connections may be made. Withdrawing the offer leaves existing connections
+# syncing, linking, reconnecting and disconnecting as before
+BANK_SYNC_SIMPLEFIN_OFFERED = optional_bool_env("BANK_SYNC_SIMPLEFIN_OFFERED", True)
+
+# How many calendar months back a SimpleFIN import may start. A change applies only to start
+# dates chosen afterwards
+BANK_SYNC_SIMPLEFIN_HISTORY_MONTHS = int(os.getenv("BANK_SYNC_SIMPLEFIN_HISTORY_MONTHS", "12"))
+
+# Requests each SimpleFIN connection may send in a rolling 24 hours, below the 24 a day SimpleFIN
+# Bridge expects, so setup and retries never earn a warning that could get the token disabled
+BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS = int(os.getenv("BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS", "20"))

@@ -5,26 +5,25 @@ and hands the engine only these types, so the engine never reads a provider's wi
 contract serves the self-hosted worker and a hosted transport
 """
 
+import re
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from enum import StrEnum
 from typing import Any, ClassVar
 from zoneinfo import ZoneInfo
 
-from app.models.bank_connection import BankProvider
+from app.models.bank_connection import BankProvider, ConnectsFrom
 from app.models.bank_sync_job import ProviderErrorKind
 
+# An ISO 4217 code. Anything else in its place, such as a URL or nothing, is a currency of the
+# provider's own, which no Lumina account can hold
+_ISO_CURRENCY_CODE = re.compile(r"[A-Z]{3}")
 
-class ConnectsFrom(StrEnum):
-    """Where the user connects the provider"""
 
-    # One connection in settings reaches many bank accounts, each then linked from its account
-    SETTINGS = "settings"
-
-    # Each account's link flow signs in to the bank itself
-    LINK_FLOW = "link_flow"
+def is_iso_currency_code(currency: str) -> bool:
+    """Return whether a provider's currency is an ISO 4217 code rather than one of its own"""
+    return _ISO_CURRENCY_CODE.fullmatch(currency) is not None
 
 
 @dataclass(frozen=True)
@@ -142,6 +141,9 @@ class ProviderAdapter(ABC):
 
     provider_id: ClassVar[BankProvider]
     provider_name: ClassVar[str]
+
+    # One sentence on what connecting it reaches, shown where the user chooses a provider
+    provider_description: ClassVar[str]
 
     # How many calendar months back an import may start
     history_limit_months: ClassVar[int]

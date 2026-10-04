@@ -14,11 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.bank_transaction import BankTransaction
 from app.models.transaction import Transaction
 from app.schemas.bank_sync import BankValues, TransactionBankSource
-from app.services.bank_sync.providers.simplefin.adapter import SimpleFinAdapter
+from app.services.bank_sync.availability import PROVIDER_ADAPTERS
 from app.services.bank_sync.review_state import edited_fields
-
-# Each provider's name, as its adapter gives it
-_PROVIDER_NAMES = {adapter.provider_id: adapter.provider_name for adapter in (SimpleFinAdapter,)}
 
 
 def build_bank_source(record: BankTransaction, txn: Transaction) -> TransactionBankSource:
@@ -34,7 +31,7 @@ def build_bank_source(record: BankTransaction, txn: Transaction) -> TransactionB
     """
     return TransactionBankSource(
         provider=record.provider,
-        provider_name=_PROVIDER_NAMES[record.provider],
+        provider_name=PROVIDER_ADAPTERS[record.provider].provider_name,
         bank_values=BankValues(
             date=record.observed_date,
             amount=record.observed_amount,
