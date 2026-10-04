@@ -20,7 +20,7 @@ const MINUS_SIGN = /[-−]/
 // page behind is out of reach and nothing records a starting balance once the prompt is gone. A
 // save sent again after one that landed unseen also closes as saved
 const NOT_SAVED_MESSAGE = 'Your starting balance wasn\'t saved. Continue again to save it.'
-const UNSETTLED_SAVE_MESSAGE = 'The connection was lost. Continue again once you\'re back online, and you\'ll be told if your starting balance was already saved.'
+const UNSETTLED_SAVE_MESSAGE = 'The connection was lost. Continue again once you\'re back online, and your starting balance won\'t be saved twice.'
 
 type NewAccountPromptModalProps = {
   open: boolean
