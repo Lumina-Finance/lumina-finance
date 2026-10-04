@@ -2,7 +2,8 @@
  * Guards the bank marker on a transaction row: a bank-imported row names its provider and adds the
  * edited note and the Needs review marker only when they apply, a manual row carries no marker, the
  * marker's controls are never nested inside the row's own button, nor open the row when pressed, and
- * the row's button is its title, so a screen reader does not read the row and its provider twice
+ * the row's button is its title, so a screen reader does not read the row and its provider twice,
+ * described by the amount and date that tabbing from row to row would otherwise not say
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -33,6 +34,11 @@ function renderRow(bankMarker?: Parameters<typeof BankMarker>[0]) {
   )
 }
 
+/** The text of the element carrying the given id, which holds no markup of its own */
+function textOf(markup: string, id: string): string | undefined {
+  return markup.split(`id="${id}"`)[1]?.match(/^[^>]*>([^<]*)</)?.[1]
+}
+
 /** Whether any button opens before the button around it has closed */
 function hasNestedButton(markup: string): boolean {
   let depth = 0
@@ -60,12 +66,27 @@ describe('bank marker', () => {
     expect(hasNestedButton(markup)).toBe(false)
   })
 
+  it('says the value was edited in the marker\'s own name, since its closed panel is not read', () => {
+    const markup = renderRow({ providerName: 'SimpleFIN', isEdited: true, needsReview: false })
+
+    expect(markup.split('aria-label="From SimpleFIN, edited"')).toHaveLength(LAYOUTS + 1)
+  })
+
   it('makes the title the row\'s button, so the row is read once with the provider named once', () => {
     const markup = renderRow({ providerName: 'SimpleFIN', isEdited: false, needsReview: true, onShowReview: () => {} })
 
-    expect(markup.match(/<button [^>]*>Corner Grocer<\/button>/g)).toHaveLength(LAYOUTS)
+    expect(markup.match(/<button [^>]*><span [^>]*>Corner Grocer<\/span><\/button>/g)).toHaveLength(LAYOUTS)
     expect(markup).not.toContain('aria-labelledby')
     expect(markup.match(/aria-hidden="true"[^>]*><span class="app-tooltip-panel[^>]*>From SimpleFIN</g)).toHaveLength(LAYOUTS)
+  })
+
+  it('describes each title by the amount in its own layout and the date its day shows', () => {
+    const markup = renderRow()
+    const descriptions = [...markup.matchAll(/<button [^>]*aria-describedby="([^"]+)"[^>]*><span [^>]*>Corner Grocer</g)]
+      .map(([, ids]) => ids.split(' ').map((id) => textOf(markup, id)))
+
+    expect(descriptions).toEqual(Array.from({ length: LAYOUTS }, () => ['+CA$42.50', 'October 4, 2026']))
+    expect(new Set([...markup.matchAll(/aria-describedby="([^" ]+) /g)].map(([, id]) => id)).size).toBe(LAYOUTS)
   })
 
   it('keeps a press on the marker from reaching the row', () => {

@@ -87,6 +87,11 @@ function amountNodes(markup: string) {
   return Array.from(markup.matchAll(/<span[^>]*data-testid="transaction-amount"[^>]*>(.*?)<\/span>/g), (match) => match[1])
 }
 
+/** Reads the opening tag of each of the row's two responsive title buttons, the ones a description names */
+function titleButtons(markup: string): string[] {
+  return markup.match(/<button type="button"[^>]*aria-describedby="[^"]*"[^>]*>/g) ?? []
+}
+
 describe('exact generic import presentation', () => {
   it.each([
     ['JPY', '9007199254740993', 9007199254740993n, '+¥9,007,199,254,740,993'],
@@ -174,7 +179,7 @@ describe('exact generic import presentation', () => {
     captured.rows.at(-1)!.onClick({ shiftKey: false })
     expect(onOpen).toHaveBeenCalledWith(transaction)
     expect(onOpen.mock.calls[0][0]).toBe(transaction)
-    expect(markup.match(/<button type="button" class="[^"]*">/g)).toHaveLength(2)
+    expect(titleButtons(markup).map((tag) => tag.includes('tabindex'))).toEqual([false, false])
 
     const onToggle = vi.fn()
     const selectingMarkup = renderToStaticMarkup(createElement(TransactionRow, {
@@ -182,7 +187,7 @@ describe('exact generic import presentation', () => {
       selection: { mark: 'selected', isSelectable: true, onToggle, onPointerEnter: () => {} },
     }))
     const selected = captured.rows.at(-1)!
-    expect(selectingMarkup.match(/<button type="button" tabindex="-1"/g)).toHaveLength(2)
+    expect(titleButtons(selectingMarkup).map((tag) => tag.includes('tabindex="-1"'))).toEqual([true, true])
     selected.onClick({ shiftKey: false })
     selected.onClick({ shiftKey: true })
     expect(onToggle.mock.calls).toEqual([[false], [true]])

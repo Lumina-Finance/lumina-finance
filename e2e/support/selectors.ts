@@ -117,19 +117,22 @@ export async function expectStretchedFocusRing(control: Locator): Promise<void> 
 }
 
 /**
- * Assert a scoped row opens from a button named by its title alone, and has exactly one rendered
- * responsive amount
+ * Assert a scoped row opens from a button named by its title alone and described by its amount, and
+ * has exactly one rendered responsive amount
  *
  * A name holding the amount would mean the button is named by the whole row, which a screen reader
- * then reads twice, once as the button and once as the content
+ * then reads twice, once as the button and once as the content. The description is what tabbing from
+ * row to row hears of the amount
  */
 export async function expectTransactionRow(page: Page, id: string, amount: string): Promise<void> {
   const row = page.getByTestId(`transaction-row-${id}`)
   await expect(row).toBeVisible()
   const button = getTransactionRowButton(row)
+  const amountPattern = new RegExp(amount.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
   await expect(button).toBeVisible()
   await expect(button).toHaveAccessibleName(/\S/)
-  await expect(button).not.toHaveAccessibleName(new RegExp(amount.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  await expect(button).not.toHaveAccessibleName(amountPattern)
+  await expect(button).toHaveAccessibleDescription(amountPattern)
   const amounts = row.getByTestId('transaction-amount')
   await expect(amounts).toHaveCount(2)
   const visibleAmount = amounts.filter({ visible: true })

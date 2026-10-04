@@ -4,6 +4,17 @@ import type { TransactionDateGroup, TransactionListAccount } from '@/components/
 import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
 
 /**
+ * Writes a transaction's date the way its day's heading shows it
+ *
+ * A date the calendar does not have keeps its raw value, so the transaction still appears in the
+ * list with its amount rather than disappearing behind a broken label
+ */
+export function formatTransactionDateLabel(ymd: string): string {
+  const date = parseYmd(ymd)
+  return date ? formatDate(date, DATE_FORMATS.longDate) : ymd
+}
+
+/**
  * Groups already-sorted transactions under browser-local calendar date labels
  */
 export function groupTransactionsByDate(transactions: Transaction[]): TransactionDateGroup[] {
@@ -12,10 +23,7 @@ export function groupTransactionsByDate(transactions: Transaction[]): Transactio
 
   // Transactions arrive sorted by date, so one pass preserves backend ordering without building an intermediate map
   for (const transaction of transactions) {
-    // A date the calendar does not have keeps its raw value as the heading, so the transaction
-    // still appears in the list with its amount rather than disappearing behind a broken label
-    const dt = parseYmd(transaction.dt)
-    const label = dt ? formatDate(dt, DATE_FORMATS.longDate) : transaction.dt
+    const label = formatTransactionDateLabel(transaction.dt)
     if (label !== currentLabel) {
       groups.push({ dateLabel: label, transactions: [] })
       currentLabel = label

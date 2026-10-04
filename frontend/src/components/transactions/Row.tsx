@@ -1,4 +1,4 @@
-import { useContext, useState, type MouseEvent } from 'react'
+import { useContext, useId, useState, type MouseEvent } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Link2, StickyNote, Tag as TagIcon } from 'lucide-react'
 import type { Institution } from '@/api/institutions'
@@ -17,6 +17,7 @@ import {
   TRANSACTION_CHECKBOX_RAIL_WIDTH,
   TRANSACTION_ROW_SCROLL_MARGIN,
 } from '@/components/transactions/constants/transactionList'
+import { formatTransactionDateLabel } from '@/components/transactions/utils/transactionDateGroups'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { FADED_ROW_COLOURS, FadedRowsContext } from '@/contexts/FadedRowsContext'
 import { getRefundLinkLabel } from '@/components/transactions/utils/refundLink'
@@ -123,6 +124,9 @@ interface TransactionRowViewProps extends Omit<TransactionRowProps, 'transaction
   amountPresentation: TransactionAmountPresentation
   onOpen: () => void
 }
+
+// The row's two layouts, the grid from 750px wide and the stacked one on a phone
+type RowLayout = 'wide' | 'narrow'
 
 // How far a faded row dims its category icon. Icons carry no text, so the contrast every text
 // needs doesn't bound it, but a pale icon such as the white plate all but vanished on the light rows below this
@@ -387,23 +391,32 @@ export function TransactionRowView({
   // way an account row stretches its name. The controls inside the row, such as the bank marker and
   // the tags, are positioned and so sit above that layer, which keeps them hoverable and pressable
   // and keeps one button from holding another. A screen reader reads the row once, in order, with
-  // the title as the button. Each layout has its own title, and only the one on screen is rendered.
-  // The press and the pointer are taken by the content the layer stretches across, so the title
-  // carries only the rest of the reason: its description, its focus and the blocked key press. The
-  // row draws the shared focus ring around itself while the title has keyboard focus
+  // the title as the button. Both layouts render, each with its own title, and the one not on screen
+  // is hidden with display: none, which keeps its title out of the tab order and away from a screen
+  // reader. The press and the pointer are taken by the content the layer stretches across, so a title
+  // carries only the rest of the reason: its focus and the blocked key press, and its description,
+  // which follows the amount and the date. The row draws the shared focus ring around itself while
+  // a title has keyboard focus
+  //
+  // Tabbing from row to row hears only the button's name and description, so each title is
+  // described by the amount beside it in its own layout and by the date its day's heading shows
+  const descriptionId = useId()
+  const dateId = `${descriptionId}-date`
+  const amountId = (layout: RowLayout) => `${descriptionId}-amount-${layout}`
   const { onClick: handleContentClick, onMouseEnter, onMouseMove, onMouseLeave, ...titleReasonProps } = reasonProps
-  const titleButton = (
+  const renderTitleButton = (layout: RowLayout) => (
     <button
       type="button"
       // In selection mode the checkbox is the row's single stop, so the same row does not offer two
       // controls doing the same thing
       tabIndex={selection ? -1 : undefined}
       {...titleReasonProps}
+      aria-describedby={[amountId(layout), dateId, titleReasonProps['aria-describedby']].filter(Boolean).join(' ')}
       aria-pressed={pressed}
-      className={`min-w-0 ${isHeldOff ? 'cursor-not-allowed' : 'cursor-pointer'} truncate text-left after:absolute after:inset-0 after:content-[''] focus-visible:outline-none`}
+      className={`min-w-0 ${isHeldOff ? 'cursor-not-allowed' : 'cursor-pointer'} text-left after:absolute after:inset-0 after:content-[''] focus-visible:outline-none`}
       style={{ scrollMarginTop: TRANSACTION_ROW_SCROLL_MARGIN }}
     >
-      {title}
+      <span className="block truncate">{title}</span>
     </button>
   )
 
@@ -517,7 +530,7 @@ export function TransactionRowView({
                 className="mt-0.5 flex min-w-0 items-center gap-1.5 text-sm"
                 style={{ color: 'var(--app-text-muted)' }}
               >
-                {titleButton}
+                {renderTitleButton('wide')}
                 {marker}
               </span>
             </span>
@@ -598,6 +611,7 @@ export function TransactionRowView({
             </span>
 
             <span
+              id={amountId('wide')}
               className="hidden min-w-0 text-right font-financial text-base font-semibold tabular-nums min-[750px]:block"
               data-testid="transaction-amount"
               style={{ color: transactionAmountColor }}
@@ -623,11 +637,12 @@ export function TransactionRowView({
           </span>
 
           <span className="col-start-2 row-start-1 flex min-w-0 items-center gap-1.5 text-[0.9375rem] font-medium leading-5">
-            {titleButton}
+            {renderTitleButton('narrow')}
             {marker}
           </span>
 
           <span
+            id={amountId('narrow')}
             className="col-start-3 row-start-1 ml-2 justify-self-end font-financial text-[0.9375rem] font-semibold leading-5 tabular-nums"
             data-testid="transaction-amount"
             style={{ color: transactionAmountColor }}
@@ -673,6 +688,11 @@ export function TransactionRowView({
               )}
             </span>
           )}
+        </span>
+
+        {/* The date the titles are described by, which the day's heading above the row shows */}
+        <span id={dateId} hidden>
+          {formatTransactionDateLabel(transaction.dt)}
         </span>
       </div>
     </motion.div>

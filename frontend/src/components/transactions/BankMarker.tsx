@@ -29,8 +29,9 @@ export function BankMarker({ providerName, isEdited, needsReview, onShowReview }
   return (
     <span className="relative inline-flex shrink-0 items-center gap-1.5" onClick={(event) => event.stopPropagation()}>
       <span className="relative inline-flex">
+        {/* The panel is hidden from a screen reader while closed, so the name says what the dot does */}
         <IconTooltip
-          label={`From ${providerName}`}
+          label={isEdited ? `From ${providerName}, edited` : `From ${providerName}`}
           icon={Landmark}
           iconColor="var(--app-text-subtle)"
           size={13}
