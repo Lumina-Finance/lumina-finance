@@ -84,14 +84,16 @@ def build_http_client(
     timeout: float | httpx.Timeout,
     *,
     transport: httpx.AsyncBaseTransport | None = None,
+    trust_env: bool = True,
 ) -> httpx.AsyncClient:
     """Return an async HTTP client that refuses a response body past the cap
 
     Args:
         timeout: Per-request timeout in seconds, or separate connect and read timeouts
         transport: Transport to send through in place of httpx's own, which tests substitute
+        trust_env: Whether proxies and certificate settings in the environment apply
 
     Returns:
         An async client enforcing the response size cap
     """
-    return _CappedResponseClient(timeout=timeout, transport=transport)
+    return _CappedResponseClient(timeout=timeout, transport=transport, trust_env=trust_env)

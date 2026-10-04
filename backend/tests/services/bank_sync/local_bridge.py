@@ -1,7 +1,8 @@
-"""A local HTTPS server standing in for SimpleFIN Bridge, under a certificate naming its host
+"""A local server standing in for SimpleFIN Bridge, over HTTPS under a certificate naming its host
 
 It listens on loopback while its certificate names only the host, so a client reaches it only by
-connecting to the address it was given and verifying TLS against the host name
+connecting to the address it was given and verifying TLS against the host name. Served over plain
+HTTP instead, it lets a test see where a client's connection really went
 """
 
 import asyncio
@@ -31,8 +32,8 @@ class LocalBridge:
     host: str
     port: int
 
-    # A client context trusting only the server's certificate authority
-    client_tls: ssl.SSLContext
+    # A client context trusting only the server's certificate authority, or None over plain HTTP
+    client_tls: ssl.SSLContext | None
     request_heads: list[bytes] = field(default_factory=list)
 
     # The TLS server name each client presented
@@ -41,7 +42,7 @@ class LocalBridge:
     @property
     def origin(self) -> str:
         """The server's origin under its host name"""
-        return f"https://{self.host}:{self.port}"
+        return f"{'https' if self.client_tls else 'http'}://{self.host}:{self.port}"
 
 
 def _key_usage(*, signs_certificates: bool) -> x509.KeyUsage:
@@ -120,20 +121,22 @@ def _issue_tls(directory: Path, host: str) -> tuple[ssl.SSLContext, ssl.SSLConte
 
 
 @asynccontextmanager
-async def serve_local_bridge(directory: Path, host: str, respond: Responder) -> AsyncIterator[LocalBridge]:
+async def serve_local_bridge(directory: Path, host: str, respond: Responder, *, tls: bool = True) -> AsyncIterator[LocalBridge]:
     """Serve HTTPS on loopback under a certificate naming the host, one request per connection
 
     Args:
         directory: Where the certificate and key are written
         host: The name the certificate covers
         respond: Answers each request
+        tls: False serves plain HTTP with no certificate
 
     Yields:
         The running server
     """
-    server_tls, client_tls = _issue_tls(directory, host)
+    server_tls, client_tls = _issue_tls(directory, host) if tls else (None, None)
     bridge = LocalBridge(host=host, port=0, client_tls=client_tls)
-    server_tls.sni_callback = lambda _connection, server_name, _context: bridge.server_names.append(server_name)
+    if server_tls:
+        server_tls.sni_callback = lambda _connection, server_name, _context: bridge.server_names.append(server_name)
 
     async def answer(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         """Read one request head and send the response, then close"""

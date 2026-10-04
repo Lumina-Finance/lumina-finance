@@ -175,7 +175,9 @@ class OutboundGuard:
 
         guarded = _guarded_request_running.set(True)
         try:
-            async with build_http_client(REQUEST_TIMEOUT, transport=self._transport) as client:
+            # A proxy from the environment would make the connection itself, to whatever address it
+            # resolved, so none is used
+            async with build_http_client(REQUEST_TIMEOUT, transport=self._transport, trust_env=False) as client:
                 return await client.request(
                     method,
                     pinned_url,

@@ -130,6 +130,26 @@ async def test_fake_bridge_is_refused_without_the_test_origin():
     assert bridge.requests == []
 
 
+async def test_proxy_named_in_the_environment_is_not_used(tmp_path, monkeypatch):
+    """A proxy would connect to whatever address it resolved, so the request goes straight to the checked one
+
+    Nothing listens at the proxy's address, so the request succeeds only by bypassing it
+    """
+    for name in ("HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"):
+        monkeypatch.setenv(name, "http://127.0.0.1:9")
+    for name in ("NO_PROXY", "no_proxy"):
+        monkeypatch.delenv(name, raising=False)
+
+    async with serve_local_bridge(tmp_path, "bridge.test", lambda _head: (200, "application/json", b"{}"), tls=False) as bridge:
+        # No transport, so the client is built as in production
+        guard = OutboundGuard([], bridge.origin, resolve=FixedResolver(LOOPBACK))
+
+        response = await guard.send("GET", httpx.URL(f"{bridge.origin}/simplefin/accounts"))
+
+    assert response.status_code == 200
+    assert len(bridge.request_heads) == 1
+
+
 async def test_tls_connects_to_the_checked_address_and_verifies_the_host_name(tmp_path):
     """A real TLS request reaches a loopback server whose certificate names only the host
 
