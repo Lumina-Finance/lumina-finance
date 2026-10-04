@@ -38,7 +38,7 @@ export const COLUMN_TARGETS: Array<{
     group: 'optional',
   },
   { id: 'dt', label: 'Date', hint: 'Transaction date.', group: 'required' },
-  { id: 'category_id', label: 'Category', hint: 'Resolved from imported category text.', group: 'required' },
+  { id: 'category_id', label: 'Category', hint: 'Resolved from imported category text. Rows with a blank cell, or every row when no column is mapped, are listed together as (no category) and matched to Miscellaneous, or as (transfer, no category) and matched to Transfer where the row names a transfer account.', group: 'optional' },
 
   // The three ways a file can carry the amount, one arrangement of which every import needs. The two
   // sides follow the single column they are an alternative to
@@ -164,6 +164,31 @@ export const SKIP_MERCHANT_VALUE = '__skip_merchant__'
 export const MAX_IMPORT_NOTES_LENGTH = 10_000
 export const MAX_IMPORT_TAGS_PER_ROW = 32
 
+// The longest names the API takes for what an import creates. A source app can hold longer ones,
+// so each import refuses or leaves out an overlong name before upload, naming it
+export const IMPORT_ACCOUNT_NAME_MAX_LENGTH = 256
+export const IMPORT_CATEGORY_NAME_MAX_LENGTH = 256
+export const IMPORT_TAG_NAME_MAX_LENGTH = 64
+export const IMPORT_BUDGET_NAME_MAX_LENGTH = 256
+
+// Most budgets one import takes, mirroring the backend schema
+export const IMPORT_MAX_BUDGETS = 1000
+
+/**
+ * Longest value the journal import endpoint takes in each row field, mirroring the backend schema
+ *
+ * An export can still hold a longer value, from the source app's longer text fields or a
+ * hand-edited file, and one such row would fail the whole import, so it is left out before upload
+ * with the field named instead
+ */
+export const JOURNAL_ROW_FIELD_MAX_LENGTHS = {
+  journalId: 64,
+  amount: 64,
+  description: 1024,
+  category: 256,
+  payee: 256,
+} as const
+
 // Distinct account or category values one import may declare, matching what the API accepts across
 // a whole run rather than per request, so splitting the batches differently cannot get past it
 export const MAX_IMPORT_MAPPINGS = 1_000
@@ -196,6 +221,9 @@ export function getCategoryDirectionClashError(source: string, existingName: str
 export function getImportCategoryRenameProposal(name: string, appName: string) {
   return `${name} (${appName})`
 }
+
+// Marks a new category from a CSV file renamed because an existing one holds its name for another kind
+export const CSV_CATEGORY_RENAME_APP_NAME = 'CSV'
 
 /** Names the field holding the name a new category is created under in place of its own */
 export function getImportCategoryRenameLabel(label: string) {
@@ -332,16 +360,27 @@ export const SKIPPED_TABLE_VISIBLE_LIMIT = 20
 // step description that states it, so the two cannot disagree about what is on screen
 export const IMPORT_SAMPLE_PREVIEW_LIMIT = 5
 
+// The seeded system category rows with no category are matched to, in every import, since a
+// transaction here always carries one
+export const IMPORT_MISCELLANEOUS_CATEGORY_NAME = 'Miscellaneous'
+
+// The seeded system category a transfer with no category of its own is matched to, in every import
+export const IMPORT_TRANSFER_CATEGORY_NAME = 'Transfer'
+
+// The category source of a CSV row with no category that names a transfer account. It is listed
+// apart from (no category), because Miscellaneous is an expense category and can't hold a transfer
+export const IMPORT_NO_CATEGORY_TRANSFER_SOURCE = '(transfer, no category)'
+
 // Why one row cannot be converted, listed against that row in the preview step. They read as one
 // family: what is wrong with this row, then what to do about it where there is a choice about that.
 // Each speaks of the row itself, since the entry carries the row number and the row's own cells, and
 // each speaks of a cell rather than a source, which is the word the mapping step uses for the values
 // a column holds. A blank cell is told apart from an unreadable one, because filling it in and
-// correcting the whole column's format are different jobs
+// correcting what it says are different jobs. A date another format reads stops the whole column
+// instead, so the unreadable date reason never sends the user to change the format
 export const ROW_ACCOUNT_BLANK_REASON = 'The account cell is blank.'
-export const ROW_CATEGORY_BLANK_REASON = 'The category cell is blank.'
 export const ROW_DATE_BLANK_REASON = 'The date cell is blank.'
-export const ROW_DATE_UNREADABLE_REASON = 'The date does not match the date format chosen above.'
+export const ROW_DATE_UNREADABLE_REASON = 'The date is not a real date in the format chosen above.'
 export const ROW_AMOUNT_BLANK_REASON = 'The amount cell is blank.'
 export const ROW_AMOUNT_UNREADABLE_REASON = 'The amount is not a number.'
 export const ROW_AMOUNT_TOO_LARGE_REASON = 'The amount is larger than this app can store.'
@@ -399,6 +438,16 @@ function getImportGroupingDescription(grouping: ImportAmountFormat['groupingSepa
 // their cells it was about
 export const ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON = 'This row states a counterparty account but is not filed under a transfer category. Only a transfer records where the money went, so clear that cell or change the category.'
 export const ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON = 'This row states its own account as the counterparty, so the transfer would go nowhere. That cell holds the account on the other side of the transfer.'
+
+/**
+ * Says a row states a currency code this app does not keep accounts in
+ *
+ * Kept apart from the mismatch reason, which offers moving the row to an account in its currency, a
+ * fix no account can give for a code the app does not support
+ */
+export function getRowCurrencyUnsupportedReason(rowCurrency: string) {
+  return `This row is in ${rowCurrency}, which is not a currency this app supports. Correct the code, or set the Currency column to Do not import to bring every row in as its account's currency.`
+}
 
 /**
  * Says a row states a currency its account is not kept in
@@ -514,11 +563,10 @@ export const CURRENCY_HANDLING_NOTE = 'Imported amounts use the file format sele
  *
  * Replaces the ordinary currency note, which speaks of the account each source is mapped to and of
  * changing a currency on a row, neither of which a scoped import has. A row stating another currency
- * stops the whole import rather than being dropped from it, since one unimportable row leaves the
- * commit with no payload at all
+ * is left out and listed, as every row the import can't bring in is
  */
 export function getFixedAccountCurrencyNote(accountName: string, currency: string) {
-  return `Imported amounts use the file format selected below. Every row will be assigned ${currency}, the currency ${accountName} is kept in, and a row stating a different currency stops the import until the file is corrected or its currency column is set to Do not import.`
+  return `Imported amounts use the file format selected below. Every row will be assigned ${currency}, the currency ${accountName} is kept in, and a row stating a different currency is left out and listed unless its currency column is set to Do not import.`
 }
 
 // The file cannot be checked for covering more than one account, since the column that would say so

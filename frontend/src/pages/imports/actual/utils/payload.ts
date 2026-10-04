@@ -4,9 +4,6 @@ import type { Currency } from '@/api/currency'
 import type { JournalImportPayload, JournalImportRow } from '@/api/provider-imports'
 import type { TransactionImportCategoryMapping } from '@/api/transaction-imports'
 import {
-  ACTUAL_ACCOUNT_NAME_MAX_LENGTH,
-  ACTUAL_CATEGORY_NAME_MAX_LENGTH,
-  ACTUAL_JOURNAL_ID_MAX_LENGTH,
   ACTUAL_TRANSACTION_DECIMALS,
   getActualAccountNameTooLongError,
   getActualAmountPrecisionReason,
@@ -18,43 +15,24 @@ import {
   getActualTransferCategoryError,
 } from '@/pages/imports/actual/constants'
 import type { ActualAccountSource, ActualCategorySource, ActualJournal, ActualJournalEntry, ActualSkippedRow } from '@/pages/imports/actual/types'
-import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import {
   CREATE_ACCOUNT_VALUE,
-  CREATE_CATEGORY_VALUE,
-  DEFAULT_CATEGORY_ICON,
   MAX_IMPORT_MAPPINGS,
-  getImportAccountCurrencyRequiredError,
-  getImportAccountMappingError,
-  getImportAccountTypeRequiredError,
-  getImportAccountTypeUnsupportedError,
-  getImportCategoryMappingError,
-  getImportCategoryTypeRequiredError,
-  getImportGroupAccountError,
-  getImportGroupCategoryError,
   getImportNoRowsError,
-  getImportReadOnlyAccountMappingError,
   getTooManyMappingsError,
+  IMPORT_CATEGORY_NAME_MAX_LENGTH,
+  JOURNAL_ROW_FIELD_MAX_LENGTHS,
 } from '@/pages/imports/constants'
-import type { ImportCategoryKind, ImportCategoryRename } from '@/pages/imports/types'
-import { isImportableAccount } from '@/pages/imports/utils/accountScope'
-import { checkImportCategoryCreate } from '@/pages/imports/utils/categoryMatching'
+import type { ImportAccountCreateDetails, ImportCategoryKind, ImportCategoryRename } from '@/pages/imports/types'
+import { buildImportAccountMapping, buildImportCategoryMapping } from '@/pages/imports/utils/importMappings'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import { formatScaledAmount } from './amounts'
-import { isGroupResource } from '@/pages/imports/utils/resourceScope'
 import { canCarryActualTransfer } from './categories'
 import { formatHundredths } from './normalise'
 
-/** Create-new answers for one Actual account after the proposals are applied */
-export interface ActualAccountCreateDetails {
-  accountType: string
-  currency: string
-  institutionId: string
-}
-
 export interface ActualImportAnswers {
   accountMappings: Record<string, string>
-  accountCreateDetails: Record<string, ActualAccountCreateDetails>
+  accountCreateDetails: Record<string, ImportAccountCreateDetails>
   accountById: Map<string, AccountsOverview>
   categoryMappings: Record<string, string>
   categoryCreateKinds: Record<string, ImportCategoryKind>
@@ -162,56 +140,32 @@ function buildAccountMappings(
   const labelsByLinkedAccount = new Map<string, string[]>()
 
   for (const source of journal.accounts) {
-    const choice = accountMappings[source.id]
-    if (!choice) {
-      addError(getImportAccountMappingError(source.label))
-      continue
-    }
+    const choice = accountMappings[source.id] ?? ''
+    const isCreate = choice === CREATE_ACCOUNT_VALUE
 
-    if (choice !== CREATE_ACCOUNT_VALUE) {
-      // An existing account without rows from the file takes nothing, so its answer is kept but not sent
-      if (source.rowCount === 0) continue
-      const account = accountById.get(choice)
-      if (account && !isImportableAccount(account)) {
-        addError(getImportReadOnlyAccountMappingError(source.label, account))
-        continue
-      }
-      if (account && isGroupResource(account)) {
-        addError(getImportGroupAccountError(source.label))
-        continue
-      }
-      labelsByLinkedAccount.set(choice, [...(labelsByLinkedAccount.get(choice) ?? []), source.label])
-      if (account) accountCurrencies.set(source.id, account.currency.toUpperCase())
-      accounts.push({ source: source.id, account_id: choice })
-      continue
-    }
+    // An existing account without rows from the file takes nothing, so its answer is kept but neither
+    // judged nor sent
+    if (choice && !isCreate && source.rowCount === 0) continue
 
-    if ([...source.name].length > ACTUAL_ACCOUNT_NAME_MAX_LENGTH) {
-      addError(getActualAccountNameTooLongError(source.label))
-      continue
-    }
-
-    const details = accountCreateDetails[source.id]
-    if (!details?.accountType) addError(getImportAccountTypeRequiredError(source.label))
-    if (!details?.currency) addError(getImportAccountCurrencyRequiredError(source.label))
-    if (!details?.accountType || !details.currency) continue
-    if (!isImportAccountType(details.accountType)) {
-      addError(getImportAccountTypeUnsupportedError(source.label))
-      continue
-    }
-
-    const currency = details.currency.toUpperCase()
-    accountCurrencies.set(source.id, currency)
-    if (isArchivedWhenCreated(source)) archiveAccountSources.push(source.id)
-    accounts.push({
+    const built = buildImportAccountMapping({
       source: source.id,
-      create: {
-        name: source.name,
-        account_type: details.accountType,
-        currency,
-        institution_id: details.institutionId || null,
-      },
-    })
+      label: source.label,
+      name: source.name,
+      choice,
+      createDetails: accountCreateDetails[source.id],
+      accountById,
+      takesRows: source.rowCount > 0,
+      refusesGroupAccount: true,
+      getNameTooLongError: getActualAccountNameTooLongError,
+    }, addError)
+
+    if (!built) continue
+
+    const currency = built.mapping.create?.currency ?? built.account?.currency.toUpperCase()
+    if (currency) accountCurrencies.set(source.id, currency)
+    if (isCreate && isArchivedWhenCreated(source)) archiveAccountSources.push(source.id)
+    if (!isCreate) labelsByLinkedAccount.set(choice, [...(labelsByLinkedAccount.get(choice) ?? []), source.label])
+    accounts.push(built.mapping)
   }
 
   // Two Actual accounts on one Lumina account would turn each transfer between them into two
@@ -239,65 +193,29 @@ function buildCategoryMappings(
   const createdByKey = new Map<string, { label: string; kind: ImportCategoryKind }>()
 
   for (const source of sources) {
-    const choice = categoryMappings[source.id]
-    if (!choice) {
-      addError(getImportCategoryMappingError(source.label))
-      continue
-    }
-
-    if (choice !== CREATE_CATEGORY_VALUE) {
-      const category = categoryById.get(choice)
-      if (category && isGroupResource(category)) {
-        addError(getImportGroupCategoryError(source.label))
-        continue
-      }
-      if (source.role === 'transfer' && category && !canCarryActualTransfer(category)) {
-        addError(getActualTransferCategoryError(source.label))
-        continue
-      }
-      if (categoryLegSources.has(source.id) && category && category.kind === 'transfer' && !canCarryActualTransfer(category)) {
-        addError(getActualPaymentCategoryError(source.label, category.name))
-        continue
-      }
-      categories.push({ source: source.id, category_id: choice })
-      continue
-    }
-
-    const kind = categoryCreateKinds[source.id]
-    if (!kind) {
-      addError(getImportCategoryTypeRequiredError(source.label))
-      continue
-    }
-
-    const rename = categoryRenames[source.id]
-    const name = rename?.name.trim() ?? source.createName
-    if (source.role === 'transfer' && !canCarryActualTransfer({ kind, name })) {
-      addError(getActualTransferCategoryError(source.label))
-      continue
-    }
-    if (categoryLegSources.has(source.id) && kind === 'transfer' && !canCarryActualTransfer({ kind, name })) {
-      addError(getActualPaymentCategoryError(source.label, name))
-      continue
-    }
-    if (name.length > ACTUAL_CATEGORY_NAME_MAX_LENGTH) {
-      addError(getActualCategoryNameTooLongError(source.label))
-      continue
-    }
-
-    const createError = checkImportCategoryCreate({
+    const built = buildImportCategoryMapping({
+      source: source.id,
       label: source.label,
-      name,
-      isRenamed: rename !== undefined,
-      kind,
+      createName: source.createName,
+      choice: categoryMappings[source.id] ?? '',
+      createKind: categoryCreateKinds[source.id],
+      rename: categoryRenames[source.id],
       categoryById,
       createdByKey,
-    })
-    if (createError) {
-      addError(createError)
-      continue
-    }
+      refusesGroupCategory: true,
+      checkCategory: (category, isNew) => {
+        // A transfer stays a transfer only under a category that records the other account, and a
+        // payment's budget-side leg under a transfer category has to record it too
+        if (source.role === 'transfer' && !canCarryActualTransfer(category)) return getActualTransferCategoryError(source.label)
+        if (categoryLegSources.has(source.id) && category.kind === 'transfer' && !canCarryActualTransfer(category)) {
+          return getActualPaymentCategoryError(source.label, category.name)
+        }
 
-    categories.push({ source: source.id, create: { name, kind, icon: DEFAULT_CATEGORY_ICON } })
+        // An Actual category name can be longer than a Lumina one
+        return isNew && category.name.length > IMPORT_CATEGORY_NAME_MAX_LENGTH ? getActualCategoryNameTooLongError(source.label) : null
+      },
+    }, addError)
+    if (built) categories.push(built.mapping)
   }
 
   return categories
@@ -328,8 +246,10 @@ function buildRows(journal: ActualJournal, accountCurrencies: Map<string, string
     if (entry.categorySourceId) writtenCategorySources.add(entry.categorySourceId)
     const isDeposit = entry.type === 'deposit'
     rows.push({
-      // The row id only names a row in an error, and the end of a long one is the part's own id
-      journal_id: entry.transactionId.slice(-ACTUAL_JOURNAL_ID_MAX_LENGTH),
+      // The row id only names a row in an error, and the end of a long one is the part's own id. Actual ids
+      // are 36 characters, but a split part written by an early Actual version keeps the id
+      // `<parent id>/<part id>` it was given then
+      journal_id: entry.transactionId.slice(-JOURNAL_ROW_FIELD_MAX_LENGTHS.journalId),
       type: entry.type,
       dt: entry.date,
       amount,

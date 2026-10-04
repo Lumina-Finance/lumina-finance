@@ -217,8 +217,6 @@ describe('guidance for CSV rows filed under system Debt Payment', () => {
     const row = createRow('twelve')
     const result = build({ rows: [row] })
 
-    expect(result.errors).toEqual([])
-    expect(result.payload).toBeNull()
     expect(result.rowProblems).toEqual([{
       id: 'file-1-0',
       rowNumber: 1,

@@ -9,16 +9,10 @@ import { expect, test, type APIRequestContext, type Page, type TestInfo } from '
 
 import { TEST_CURRENCY, TEST_TIMEZONE, signUpUser, todayInTestTimezone, type TestUser } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
+import { checkExpected } from '../support/import-check/compare.ts'
+import { readLumina } from '../support/import-check/lumina.ts'
 import { API_BASE_URL } from '../support/target'
-import { readLumina } from '../firefly-check/lumina.ts'
-import {
-  checkExpected,
-  compareImport,
-  compareSkippedRows,
-  type ActualLuminaSnapshot,
-  type Difference,
-  type SkippedRowCells,
-} from './compare.ts'
+import { compareImport, compareSkippedRows, type ActualDifference, type SkippedRowCells } from './compare.ts'
 import { getExpectedDifferences } from './expected-differences.ts'
 import { readImportMappings, type CapturedUpload } from './lumina.ts'
 import type { ActualManifest, ActualRunInfo } from './manifest.ts'
@@ -164,7 +158,7 @@ async function importAndCompare(
   const skippedRows = await readSkippedRows(page)
   await progress.getByRole('button', { name: 'Done', exact: true }).click()
 
-  const lumina = await readLumina(request, user) as ActualLuminaSnapshot
+  const lumina = await readLumina(request, user)
   const differences = [
     ...compareImport(manifest, lumina, readImportMappings(uploads), currency),
     ...compareSkippedRows(manifest, skippedRows),
@@ -193,7 +187,7 @@ async function readSkippedRows(page: Page): Promise<SkippedRowCells[]> {
 async function writeReport(
   testInfo: TestInfo,
   manifest: ActualManifest,
-  result: { outcome: string; skipped: unknown; differences: Difference[]; unexpected: Difference[]; stale: unknown[] },
+  result: { outcome: string; skipped: unknown; differences: ActualDifference[]; unexpected: ActualDifference[]; stale: unknown[] },
 ) {
   const report = {
     budget: manifest.budget,

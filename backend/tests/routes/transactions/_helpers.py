@@ -1,29 +1,10 @@
-from datetime import timedelta
-
-from sqlalchemy import text
-
 from app.models.base import InstitutionStatus
 from app.models.currency import Currency
 from app.models.institution import Institution
-from app.services.importers.shared.run_staging import ABANDONED_RUN_AGE
 from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
-
-# Just either side of the age at which a run left uncommitted counts as abandoned
-_PAST_ABANDONMENT = ABANDONED_RUN_AGE + timedelta(minutes=1)
-_SHORT_OF_ABANDONMENT = ABANDONED_RUN_AGE - timedelta(minutes=1)
-
-
-async def _age_run(run_id, age):
-    """Move a run's opening back, as if it had been left that long"""
-    async with TestSession() as session:
-        await session.execute(
-            text("UPDATE import_runs SET created_at = created_at - CAST(:age AS interval) WHERE id = :id"),
-            {"age": age, "id": run_id},
-        )
-        await session.commit()
 
 
 async def _seed_usd_currency():
@@ -195,78 +176,3 @@ async def _setup_user_with_deps(client, email="test@example.com", name_prefix="M
     account_resp = await _create_account(client, headers, name=f"{name_prefix} Chequing")
     category_resp = await _create_category(client, headers, name=f"{name_prefix} Groceries")
     return headers, account_resp.json()["id"], category_resp.json()["id"]
-
-
-async def _import_transactions(client, headers, payload):
-    """Stage a whole payload as one batch and commit it
-
-    The importer stages a file over as many batches as its size needs, and only the commit
-    writes anything, so a test importing a handful of rows opens a run, stages them all at
-    once and commits
-
-    Args:
-        client: The async test client
-        headers: Auth headers for the importing user
-        payload: Account mappings, category mappings and rows, as the flow builds them
-
-    Returns:
-        The commit response, or the first of the three calls that refused the import
-    """
-    run_resp = await client.post(
-        "/transactions/import/runs",
-        json={"expected_transaction_count": len(payload["rows"])},
-        headers=headers,
-    )
-    if run_resp.status_code != 201:
-        return run_resp
-
-    run_id = run_resp.json()["id"]
-    stage_resp = await client.post(
-        f"/transactions/import/runs/{run_id}/rows",
-        json={**payload, "start_row_index": 0},
-        headers=headers,
-    )
-    if stage_resp.status_code != 204:
-        return stage_resp
-
-    return await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
-
-
-async def _import_journal(client, headers, payload, budgets=None, source="firefly", archive=None):
-    """Stage a whole journal payload as one batch of a journal run, with any budgets and archiving, and commit it
-
-    Args:
-        client: The async test client
-        headers: Auth headers for the importing user
-        payload: Account mappings, category mappings and journal rows, as the import screen builds them
-        budgets: The budgets request, left unsent when None
-        archive: The accounts to archive request, left unsent when None
-        source: Importer the run is opened for, firefly or actual_budget
-
-    Returns:
-        The commit response, or the first call that refused the import
-    """
-    run_resp = await client.post(
-        "/transactions/import/runs",
-        json={"expected_transaction_count": len(payload["rows"]), "source": source},
-        headers=headers,
-    )
-    if run_resp.status_code != 201:
-        return run_resp
-
-    run_path = f"/transactions/import/runs/{run_resp.json()['id']}"
-    stage_resp = await client.post(f"{run_path}/journal/rows", json={**payload, "start_row_index": 0}, headers=headers)
-    if stage_resp.status_code != 204:
-        return stage_resp
-
-    if budgets is not None:
-        budgets_resp = await client.put(f"{run_path}/budgets", json=budgets, headers=headers)
-        if budgets_resp.status_code != 204:
-            return budgets_resp
-
-    if archive is not None:
-        archive_resp = await client.put(f"{run_path}/archive", json=archive, headers=headers)
-        if archive_resp.status_code != 204:
-            return archive_resp
-
-    return await client.post(f"{run_path}/journal/commit", headers=headers)

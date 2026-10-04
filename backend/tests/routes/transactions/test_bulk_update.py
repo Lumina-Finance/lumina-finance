@@ -25,11 +25,10 @@ from tests.routes.transactions._helpers import (
     _create_tag,
     _create_transaction,
     _get_system_category_id,
-    _import_journal,
-    _import_transactions,
     _seed_usd_currency,
     _setup_user_with_deps,
 )
+from tests.routes.transactions._import_helpers import _import_run
 
 # --- PATCH /transactions/bulk ---
 
@@ -2200,7 +2199,7 @@ async def test_concurrent_generic_import_waits_for_bulk_rebuild_and_preserves_to
 
     async def import_other_transaction():
         """Import the second transaction through the real staged-import route."""
-        return await _import_transactions(client, headers, {
+        return await _import_run(client, headers, {
             "accounts": [{"source": "Main Chequing", "account_id": account_id}],
             "categories": [{"source": "Groceries", "category_id": category_id}],
             "rows": [{
@@ -2239,7 +2238,7 @@ async def test_concurrent_firefly_import_waits_for_bulk_rebuild_and_preserves_to
 
     async def import_other_transaction():
         """Import the second transaction through the real Firefly III run."""
-        return await _import_journal(client, headers, {
+        return await _import_run(client, headers, {
             "accounts": [{"source": "Main Chequing", "account_id": account_id}],
             "categories": [{"source": "Groceries", "category_id": category_id}],
             "rows": [{
@@ -2254,7 +2253,7 @@ async def test_concurrent_firefly_import_waits_for_bulk_rebuild_and_preserves_to
                 "category": "Groceries",
                 "tag_names": [],
             }],
-        })
+        }, source="firefly")
 
     bulk_response, import_response = await _run_bulk_with_blocked_writer(
         client,

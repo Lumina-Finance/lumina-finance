@@ -3,12 +3,14 @@ import {
   IMPORT_AMOUNT_FORMATS,
   type ImportAmountFormat,
   type ImportAmountReading,
+  isValidMappedImportAmount,
   readImportAmount,
 } from './amountFormats'
 import {
   IMPORT_DATE_FORMATS,
   type ImportDateFormat,
   type ImportDateSeparator,
+  isValidDateValue,
   readImportDate,
 } from './valueParsers'
 
@@ -85,7 +87,10 @@ export function getImportAmountFormatValues(columnMap: ColumnMap, files: ImportF
  * @param values - Every cell governed by the shared amount choice, including blanks
  */
 export function scanImportAmountFormatChoices(values: string[]): ImportAmountFormatScan {
-  const filled = values.map((value) => value.trim()).filter(Boolean)
+  const filled = keepTellingValues(
+    values.map((value) => value.trim()).filter(Boolean),
+    isValidMappedImportAmount,
+  )
   const readable: ImportAmountFormat[] = []
   const rejectedBy: Partial<Record<string, string>> = {}
   const readings: ImportAmountReading[][] = []
@@ -126,7 +131,9 @@ export function scanImportDateFormatChoices(
   separator: ImportDateSeparator = 'automatic',
   timeZone?: string,
 ): ImportDateChoiceScan {
-  const filled = values.map((value) => value.trim()).filter(Boolean)
+  // Told apart under any separator, as the column check does, so a value written with a separator
+  // other than the chosen one still rules formats out rather than being left to its row
+  const filled = keepTellingValues(values.map((value) => value.trim()).filter(Boolean), isValidDateValue)
   const readable: ImportDateFormat[] = []
   const rejectedBy: Partial<Record<ImportDateFormat, string>> = {}
   const readings: string[][] = []
@@ -185,4 +192,14 @@ function canonicalizeImportDecimal(value: string) {
   const fraction = rawFraction.replace(/0+$/, '')
   if (!/[1-9]/.test(`${whole}${fraction}`)) return '0'
   return `${negative ? '-' : ''}${whole}${fraction ? `.${fraction}` : ''}`
+}
+
+/**
+ * Leaves out the values no format reads, since they say nothing about which format the file uses and
+ * their rows are left out of the import as unreadable. A column none of whose values any format reads
+ * is scanned whole, so every format is refused as before
+ */
+function keepTellingValues(filled: string[], isReadableBySomeFormat: (value: string) => boolean) {
+  const telling = filled.filter(isReadableBySomeFormat)
+  return telling.length > 0 ? telling : filled
 }

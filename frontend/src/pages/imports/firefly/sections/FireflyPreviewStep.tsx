@@ -1,8 +1,6 @@
-import { ImportRowProblemsTable } from '@/pages/imports/components'
-import { ImportProviderPreviewStep } from '@/pages/imports/sections'
-import { getProviderSkippedRowsDisplay } from '@/pages/imports/utils'
-import { FireflySkippedRowsTable } from '@/pages/imports/firefly/components'
-import { FIREFLY_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/firefly/constants'
+import { ImportRowProblemsTable, ImportRowWarningsTable } from '@/pages/imports/components'
+import { ImportPreviewLayout } from '@/pages/imports/sections'
+import { getSkippedRowsDisplay } from '@/pages/imports/utils'
 import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
 
 type FireflyPreviewStepProps = Pick<
@@ -43,15 +41,15 @@ export function FireflyPreviewStep({
   canCommitImport,
   handleCommitImport,
 }: FireflyPreviewStepProps) {
-  const skipped = getProviderSkippedRowsDisplay({ liveForecastRows: predictedSkippedRows, completedImport })
+  const skipped = getSkippedRowsDisplay({ liveForecastRows: predictedSkippedRows, completedImport })
 
   return (
-    <ImportProviderPreviewStep
+    <ImportPreviewLayout
       // The budget step only exists when a budgets export is staged
-      hasBudgetStep={Boolean(budgetsFile)}
-      sampleLimit={FIREFLY_SAMPLE_PREVIEW_LIMIT}
+      index={budgetsFile ? '05' : '04'}
       stats={{ ...importEstimate, newAccountCount, newCategoryCount }}
       previewGroups={previewGroups}
+      emptyDescription="Transactions compiled from the export will appear here."
       buildError={importBuild.errors[0] ?? null}
       importError={importError}
       imported={Boolean(importResult)}
@@ -59,26 +57,15 @@ export function FireflyPreviewStep({
       onCommit={handleCommitImport}
     >
       {skipped.totalCount > 0 && (
-        <FireflySkippedRowsTable
+        <ImportRowProblemsTable
           title={skipped.title}
-          rows={skipped.rows}
-          totalCount={skipped.totalCount}
+          rowProblems={skipped.rows}
           headers={fireflyHeaders}
+          toggleLabel="skipped rows"
         />
       )}
 
-      {predictedRowWarnings.length > 0 && (
-        <div className="mb-4">
-          <ImportRowProblemsTable
-            title={`${predictedRowWarnings.length} row${predictedRowWarnings.length === 1 ? '' : 's'} worth a look`}
-            rowProblems={predictedRowWarnings}
-            headers={fireflyHeaders}
-            toggleLabel="rows worth a look"
-            tone="warning"
-            reasonHeader="Note"
-          />
-        </div>
-      )}
-    </ImportProviderPreviewStep>
+      <ImportRowWarningsTable rowWarnings={predictedRowWarnings} headers={fireflyHeaders} />
+    </ImportPreviewLayout>
   )
 }

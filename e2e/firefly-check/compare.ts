@@ -4,59 +4,18 @@
  * Pure, so the contract tests can feed it changed values without a browser. Every difference is
  * reported once per kind, subject and Lumina value, with a count where several records share one
  */
+import {
+  createMinorUnitsFormatter,
+  DifferenceList,
+  type Difference,
+  type LuminaAccount,
+  type LuminaBaseBudget,
+  type LuminaSnapshot,
+  type LuminaTransaction,
+} from '../support/import-check/compare.ts'
 import { getAccountKey, type FireflyManifest, type FireflyRunInfo, type ManifestAccount, type ManifestEndpoint, type ManifestRow } from './manifest.ts'
 import { CURRENCY_EXPONENTS } from './seed/dataset.ts'
-import { formatMinorUnits as formatBigMinorUnits, toMinorUnits as toBigMinorUnits } from './seed/record.ts'
-
-export interface LuminaAccount {
-  id: string
-  name: string
-  account_type: string
-  currency: string
-  current_balance: number
-  is_archived: boolean
-}
-
-export interface LuminaTransaction {
-  account_id: string
-  dt: string
-
-  /** In the account's currency, as the balance counts it */
-  amount: number
-
-  /** As recorded, in the transaction's own currency */
-  original_amount: number
-  currency: string
-  merchant_name: string | null
-  category_id: string
-  notes: string | null
-  tags: { name: string }[]
-  counterparty_account_id: string | null
-}
-
-export interface LuminaBaseBudget {
-  id: string
-  name: string
-  currency: string
-  is_archived: boolean
-  category_ids: string[]
-}
-
-export interface LuminaBudgetPeriod {
-  base_budget_id: string
-  period_start: string
-  period_end: string
-  overall_limit: number
-}
-
-/** Everything the comparison reads back from Lumina's API */
-export interface LuminaSnapshot {
-  accounts: LuminaAccount[]
-  transactions: LuminaTransaction[]
-  categories: { id: string; name: string }[]
-  baseBudgets: LuminaBaseBudget[]
-  budgetPeriods: LuminaBudgetPeriod[]
-}
+import { toMinorUnits as toBigMinorUnits } from './seed/record.ts'
 
 /** Lumina's accounts paired with the Firefly III accounts they were imported from */
 interface AccountPairing {
@@ -65,21 +24,6 @@ interface AccountPairing {
 
   /** How differences name each Lumina account, as its Firefly III account where it pairs */
   labelById: Map<string, string>
-}
-
-export interface Difference {
-  kind: string
-  subject: string
-  firefly: string
-  lumina: string
-}
-
-/** A known difference, which matches only while Lumina still holds the value it names */
-export interface ExpectedDifference {
-  kind: string
-  subject: string
-  lumina: string
-  reason: string
 }
 
 // The category rows with no category go to, and the ones Lumina files transfers and balance rows
@@ -109,12 +53,15 @@ const LUMINA_TYPE_BY_LIABILITY: Record<string, string> = {
 }
 const LUMINA_LIABILITY_TYPES = new Set(Object.values(LUMINA_TYPE_BY_LIABILITY))
 
+// Writes Lumina's amounts the way the manifest writes Firefly III's, so the two compare as text
+const formatMinorUnits = createMinorUnitsFormatter(CURRENCY_EXPONENTS)
+
 export function compareImport(
   manifest: FireflyManifest,
   runInfo: FireflyRunInfo,
   lumina: LuminaSnapshot,
-): Difference[] {
-  const differences = new DifferenceList()
+): Difference<'firefly'>[] {
+  const differences = new DifferenceList('firefly')
   const accountById = new Map(lumina.accounts.map((account) => [account.id, account]))
   const categoryNameById = new Map(lumina.categories.map((category) => [category.id, category.name]))
 
@@ -133,20 +80,6 @@ export function compareImport(
 }
 
 /**
- * Splits the differences into those not on the expected list, and expected ones that no longer
- * occur, so a fixed gap has to be taken off the list
- */
-export function checkExpected(differences: Difference[], expected: ExpectedDifference[]) {
-  const matches = (difference: Difference, entry: ExpectedDifference) => (
-    entry.kind === difference.kind && entry.subject === difference.subject && entry.lumina === difference.lumina
-  )
-  return {
-    unexpected: differences.filter((difference) => !expected.some((entry) => matches(difference, entry))),
-    stale: expected.filter((entry) => !differences.some((difference) => matches(difference, entry))),
-  }
-}
-
-/**
  * Pairs Lumina's accounts with Firefly III's and compares them both ways
  *
  * An account pairs with Lumina's account of the same name. Where either side has more than one
@@ -157,7 +90,7 @@ export function checkExpected(differences: Difference[], expected: ExpectedDiffe
 function compareAccounts(
   manifest: FireflyManifest,
   lumina: LuminaSnapshot,
-  differences: DifferenceList,
+  differences: DifferenceList<'firefly'>,
 ): AccountPairing {
   const labelByKey = getAccountLabels(manifest.accounts)
   const pairing: AccountPairing = { byKey: new Map(), labelById: new Map() }
@@ -228,7 +161,7 @@ function compareAccountMonths(
   manifest: FireflyManifest,
   lumina: LuminaSnapshot,
   accounts: AccountPairing,
-  differences: DifferenceList,
+  differences: DifferenceList<'firefly'>,
 ) {
   const labelByKey = getAccountLabels(manifest.accounts)
   const luminaMonths = new Map<string, { count: number; total: number }>()
@@ -266,7 +199,7 @@ function compareCategoryMonths(
   lumina: LuminaSnapshot,
   accountById: Map<string, LuminaAccount>,
   categoryNameById: Map<string, string>,
-  differences: DifferenceList,
+  differences: DifferenceList<'firefly'>,
 ) {
   // Only rows with a payee of their own carry a category, so transfer legs and balance rows are out
   const luminaTotals = new Map<string, number>()
@@ -305,7 +238,7 @@ function compareRows(
   lumina: LuminaSnapshot,
   accounts: AccountPairing,
   categoryNameById: Map<string, string>,
-  differences: DifferenceList,
+  differences: DifferenceList<'firefly'>,
 ) {
   const findAccount = (endpoint: ManifestEndpoint) => accounts.byKey.get(getAccountKey(endpoint.name, endpoint.type)) ?? null
   const unmatched = new Set(lumina.transactions)
@@ -403,7 +336,7 @@ function compareBudgets(
   rows: ManifestRow[],
   lumina: LuminaSnapshot,
   categoryNameById: Map<string, string>,
-  differences: DifferenceList,
+  differences: DifferenceList<'firefly'>,
 ) {
   const baseBudgetByName = new Map<string, LuminaBaseBudget>()
   for (const budget of lumina.baseBudgets) {
@@ -478,32 +411,4 @@ function requireFireflyCurrency(accounts: ManifestAccount[], key: string) {
 
 function toMinorUnits(amount: string, currency: string) {
   return Number(toBigMinorUnits(amount, currency))
-}
-
-// Lumina can hold an amount in a currency the dataset never uses, which is itself a difference, so
-// it is shown as it is stored rather than stopping the comparison
-function formatMinorUnits(minorUnits: number, currency: string) {
-  if (!(currency in CURRENCY_EXPONENTS)) return `${minorUnits} minor units of ${currency}`
-  return formatBigMinorUnits(BigInt(minorUnits), currency)
-}
-
-/** Keeps one difference per kind, subject and Lumina value, counting repeats */
-class DifferenceList {
-  private readonly entries = new Map<string, Difference & { count: number }>()
-
-  add(kind: string, subject: string, firefly: string, lumina: string) {
-    const key = JSON.stringify([kind, subject, lumina])
-    const entry = this.entries.get(key)
-    if (entry) {
-      entry.count += 1
-    } else {
-      this.entries.set(key, { kind, subject, firefly, lumina, count: 1 })
-    }
-  }
-
-  list(): Difference[] {
-    return [...this.entries.values()].map(({ count, ...difference }) => (
-      count > 1 ? { ...difference, firefly: `${difference.firefly} (${count} times)` } : difference
-    ))
-  }
 }

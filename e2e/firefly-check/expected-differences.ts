@@ -4,7 +4,7 @@
  * known one that now holds another value, and on an entry that no longer occurs, so a fixed gap
  * comes off the list rather than hiding a later regression
  */
-import type { ExpectedDifference } from './compare.ts'
+import type { ExpectedDifference } from '../support/import-check/compare.ts'
 
 // Lumina records a move between two of the person's own accounts under its Transfer category
 const TRANSFER_CATEGORY = 'A transfer between imported accounts is filed under Transfer, so its Firefly III category is dropped'

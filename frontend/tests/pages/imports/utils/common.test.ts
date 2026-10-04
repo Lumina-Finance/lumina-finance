@@ -1,10 +1,10 @@
 /**
  * Covers which staged files count as one the import can go ahead with, since that is what decides
- * whether the file step keeps offering an upload
+ * whether the file step keeps offering an upload, and which new sources an import counts as created
  */
 import { describe, expect, it } from 'vitest'
 import type { ImportFileDraft } from '@/pages/imports/types'
-import { formatBytes, hasAcceptedFile, removeRecordKey, removeSetValue } from '@/pages/imports/utils'
+import { countCreatedImportSources, formatBytes, hasAcceptedFile, removeRecordKey, removeSetValue } from '@/pages/imports/utils'
 
 /**
  * Builds a staged draft, taking the error and notice the reader would have recorded on it
@@ -91,5 +91,13 @@ describe('rendering a file size', () => {
 
   it('renders the size the refusal message quotes', () => {
     expect(formatBytes(26214400)).toBe('25.0 MB')
+  })
+})
+
+describe('counting the sources an import creates', () => {
+  it('leaves out a source answered create whose rows are all left out of the upload', () => {
+    const mappings = { Checking: 'create', Savings: 'create', Wallet: 'account-1' }
+
+    expect(countCreatedImportSources(['Checking', 'Savings', 'Wallet'], mappings, 'create', new Set(['Checking', 'Wallet']))).toBe(1)
   })
 })

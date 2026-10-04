@@ -656,7 +656,7 @@ describe('guessing the column that specifies money in or money out', () => {
   // A Type column of Payment and Deposit used to fall to the category field, which scores a column
   // of short repeated text and counts Payment as a category word, so the import created categories
   // called Payment and Deposit out of a column stating direction. It now goes to the field that
-  // reads it, and the file arrives asking for a category column instead of inventing one
+  // reads it, and the Category column is left unmapped rather than invented
   it('takes a direction column the category field used to score on its values', () => {
     const files = [createFile(
       ['Date', 'Description', 'Amount', 'Type'],
@@ -691,13 +691,36 @@ describe('guessing the column that specifies money in or money out', () => {
 })
 
 describe('reaching the branches only an unusual arrangement of columns exercises', () => {
-  it('skips a column whose values fail its own rule rather than mapping it with an error', () => {
+  // One impossible date in a short file is a row to leave out, not a reason to stop reading the column
+  it('maps a date column with one day the calendar does not have', () => {
+    const files = [createFile(
+      ['Date'],
+      [
+        { Date: '2024-03-15' },
+        { Date: '2024-02-31' },
+        { Date: '2024-03-17' },
+      ],
+    )]
+
+    expect(inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES).map.dt).toBe('Date')
+  })
+
+  // Half the rows fitting is not most of them, so a column of half unreadable dates is left to the user
+  it('skips a column only half of whose rows hold a real date', () => {
+    const files = [createFile(['Date'], [{ Date: '2024-03-15' }, { Date: 'Pending' }])]
+
+    expect(inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES).map.dt).toBe('')
+  })
+
+  // A few rows the column doesn't fit are left out and listed, but a column most rows don't fit is not
+  // the one the file meant, so it is left for the user to map
+  it('skips a column most of whose rows its own rule refuses, rather than mapping it', () => {
     const files = [createFile(
       ['Date'],
       [
         { Date: '2026-01-01' },
         { Date: '' },
-        { Date: '2026-01-03' },
+        { Date: '' },
       ],
     )]
 

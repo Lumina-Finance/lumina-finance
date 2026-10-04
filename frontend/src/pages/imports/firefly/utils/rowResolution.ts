@@ -2,10 +2,16 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import type { Institution } from '@/api/institutions'
-import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
+import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import type { Currency } from '@/api/currency'
-import type { CsvRow, ImportCategoryKind, ImportCategoryRename } from '@/pages/imports/types'
-import { MAX_IMPORT_MINOR_UNITS, toImportMinorUnits } from '@/pages/imports/utils'
+import type { CsvRow, ImportAccountCreateDetails, ImportCategoryKind, ImportCategoryRename } from '@/pages/imports/types'
+import {
+  buildPreviewCategory,
+  MAX_IMPORT_MINOR_UNITS,
+  type PreviewAccount,
+  resolvePreviewAccount,
+  toImportMinorUnits,
+} from '@/pages/imports/utils'
 import { findReusedImportCategory } from '@/pages/imports/utils/categoryMatching'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import {
@@ -23,7 +29,6 @@ import {
 } from '@/pages/imports/firefly/constants'
 import type { FireflyAccountSource, FireflyAccountSources } from '@/pages/imports/firefly/types'
 import { getFireflyRowAmounts } from './derivation'
-import type { FireflyAccountCreateDetails } from './payload'
 
 /**
  * Mapping lookups needed to resolve journal rows the same way the commit will
@@ -33,7 +38,7 @@ export interface FireflyRowResolutionOptions {
   accountSources: FireflyAccountSources
   accountById: Map<string, AccountsOverview>
   accountMappings: Record<string, string>
-  accountCreateDetails: Record<string, FireflyAccountCreateDetails>
+  accountCreateDetails: Record<string, ImportAccountCreateDetails>
   institutionById: Map<string, Institution>
   categoryById: Map<string, Category>
   categoryMappings: Record<string, string>
@@ -49,27 +54,16 @@ export interface FireflyRowResolutionOptions {
 }
 
 /**
- * Ledger account details one tracked journal endpoint resolves to after the
- * user's mapping choices are applied
- */
-export interface FireflyResolvedAccount {
-  id: string
-  name: string
-  currency: string
-  institution: Institution | null
-}
-
-/**
  * One ledger transaction a journal row produces
  */
 export interface FireflyResolvedLeg {
-  account: FireflyResolvedAccount
+  account: PreviewAccount
   amount: number
   category: Category | undefined
   merchantName: string | null
 
   /** Account the money moved to or from, held only by the two legs of a transfer */
-  counterpartyAccount: FireflyResolvedAccount | null
+  counterpartyAccount: PreviewAccount | null
 }
 
 /**
@@ -240,24 +234,18 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
 function resolveFireflyMappedAccount(
   accountSource: FireflyAccountSource | null,
   options: FireflyRowResolutionOptions,
-): FireflyResolvedAccount | null {
+): PreviewAccount | null {
   if (!accountSource) return null
 
   const choice = options.accountMappings[accountSource.id]
   if (!choice) throw new FireflyAccountUnansweredError()
-  if (choice === CREATE_ACCOUNT_VALUE) {
-    const details = options.accountCreateDetails[accountSource.id]
-    return {
-      id: CREATE_ACCOUNT_VALUE,
-      name: accountSource.name,
-      currency: (details?.currency ?? '').trim().toUpperCase(),
-      institution: options.institutionById.get(details?.institutionId ?? '') ?? null,
-    }
-  }
-
-  const account = options.accountById.get(choice)
-  if (!account) return null
-  return { id: account.id, name: account.name, currency: account.currency, institution: account.institution }
+  return resolvePreviewAccount(
+    choice,
+    accountSource.name,
+    options.accountCreateDetails[accountSource.id],
+    options.accountById,
+    options.institutionById,
+  )
 }
 
 /**
@@ -318,16 +306,7 @@ function getFireflyMappedCategory(
   const choice = options.categoryMappings[source]
 
   if (choice === CREATE_CATEGORY_VALUE) {
-    return {
-      id: `firefly-preview-category-${source}`,
-      group_id: null,
-      owner_id: null,
-      name: options.categoryRenames[source]?.name ?? source,
-      kind: options.categoryCreateKinds[source] ?? 'expense',
-      icon: DEFAULT_CATEGORY_ICON,
-      is_system: false,
-      created_at: '',
-    }
+    return buildPreviewCategory(source, options.categoryRenames[source]?.name ?? source, options.categoryCreateKinds[source] ?? 'expense')
   }
 
   return choice ? options.categoryById.get(choice) : undefined

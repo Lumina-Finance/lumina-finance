@@ -58,14 +58,14 @@ for (const { profileZone, browserZone, dates } of DATE_CASES) {
       await page.getByRole('option', { name: /^Year first \(2026-04-30\)/ }).click()
       await expect(commit).toBeDisabled()
       await expect(info).toHaveCount(0)
-      await expect(page.getByText('The date does not match the date format chosen above.', { exact: true }).first()).toBeVisible()
+      await expect(page.getByText('The date is not a real date in the format chosen above.', { exact: true }).first()).toBeVisible()
       await dateFormat.click()
       await page.getByRole('option', { name: /^ISO date\/time \(2026-04-30T12:00:00Z\)/ }).click()
       await expect(commit).toBeEnabled()
 
       // ImportStep renders its title in a paragraph directly inside the enclosing section
       const preview = page.locator('section').filter({
-        has: page.getByText('Imported Data Preview', { exact: true }),
+        has: page.getByText('Preview and Commit', { exact: true }),
       })
       await expect(preview).toBeVisible()
       for (const day of new Set(dates.map((date) => Number(date.slice(-2))))) {

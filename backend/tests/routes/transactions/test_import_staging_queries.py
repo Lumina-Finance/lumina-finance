@@ -9,10 +9,8 @@ from sqlalchemy.exc import MultipleResultsFound
 
 from app.database import current_user_id_ctx
 from app.models.account import Account, AccountPermission
-from app.models.base import AccountKind, AccountType, CategoryKind, PermissionLevel
-from app.models.category import Category
+from app.models.base import PermissionLevel
 from app.models.import_run import ImportRun, ImportStagedRow
-from app.models.merchant import Merchant
 from app.permissions.accounts import check_account_access, load_account_access_lookup
 from tests.conftest import ScopedSession, TestSession, scoped_engine
 from tests.routes.groups.test_transactions import (
@@ -24,10 +22,9 @@ from tests.routes.transactions._helpers import (
     _create_category,
     _create_merchant,
     _get_system_category_id,
-    _seed_institution,
     _setup_user_with_deps,
 )
-from tests.routes.transactions.test_imports import _open_run
+from tests.routes.transactions._import_helpers import _build_reference_batch, _open_run
 
 # Includes authentication and the run read, while remaining independent of declaration count
 STAGING_SELECT_LIMIT = 16
@@ -48,45 +45,6 @@ async def _stage_with_select_count(client, headers, run_id, batch):
     finally:
         event.remove(scoped_engine.sync_engine, "before_cursor_execute", record)
     return response, len(statements)
-
-
-async def _build_reference_batch(client, count, mode):
-    """Seed real distinct destinations or source aliases outside the measured request"""
-    headers, account_id, _category_id = await _setup_user_with_deps(client)
-    institution = await _seed_institution()
-    size = count if mode == "distinct" else 1
-    async with TestSession() as session:
-
-        # Reuse the synthetic dependency account's owner for isolated reference fixtures
-        owner_id = (await session.execute(select(Account.owner_id).where(Account.id == uuid.UUID(account_id)))).scalar_one()
-        accounts = [Account(
-            id=uuid.uuid4(), owner_id=owner_id, account_kind=AccountKind.ASSET,
-            account_type=AccountType.CHECKING, name=f"Reference account {i}",
-            currency="CAD", institution_id=institution.id, is_archived=False,
-        ) for i in range(size)]
-        categories = [Category(
-            id=uuid.uuid4(), owner_id=owner_id, name=f"Reference category {i}", kind=CategoryKind.EXPENSE,
-        ) for i in range(size)]
-        merchants = [Merchant(id=uuid.uuid4(), owner_id=owner_id, name=f"Reference merchant {i}") for i in range(size)]
-        session.add_all([*accounts, *categories, *merchants])
-        await session.commit()
-
-    account_mappings = [{"source": f"Account {i}", "account_id": str(accounts[i % size].id)} for i in range(count)]
-    category_mappings = [{"source": f"Category {i}", "category_id": str(categories[i % size].id)} for i in range(count)]
-    merchant_mappings = [{"source": f"Payee {i}", "merchant_id": str(merchants[i % size].id)} for i in range(count)]
-    if mode == "create":
-        account_mappings = [{
-            "source": f"Account {i}",
-            "create": {"name": f"Created account {i}", "account_type": "checking", "currency": "cad",
-                       "institution_id": str(institution.id)},
-        } for i in range(count)]
-    return headers, {
-        "start_row_index": 0, "accounts": account_mappings, "categories": category_mappings,
-        "merchants": merchant_mappings,
-        "rows": [{"account_source": f"Account {i}", "category_source": f"Category {i}",
-                  "merchant_name": f"Payee {i}", "dt": "2026-04-10", "amount": "-1.23",
-                  "notes": f"Reference row {i}", "tag_names": [], "counterparty_account_source": None} for i in range(count)],
-    }
 
 
 @pytest.mark.parametrize("count", [1, 10, 1000])

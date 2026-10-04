@@ -98,6 +98,13 @@ export interface ImportCategoryRename {
   isProposed: boolean
 }
 
+/** What the user chose for an account the import creates, after the proposals are applied */
+export interface ImportAccountCreateDetails {
+  accountType: string
+  currency: string
+  institutionId: string
+}
+
 export interface ImportAccountSource {
   id: string
   label: string

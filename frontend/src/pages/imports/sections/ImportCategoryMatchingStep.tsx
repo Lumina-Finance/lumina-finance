@@ -4,7 +4,7 @@ import {
 } from '@/pages/imports/constants'
 import { ImportNotice } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
-import { getCategoryMatchKind, isExistingCategoryMatch } from '@/pages/imports/utils'
+import { getCategoryMatchKind, getImportCategoryRenameField, isExistingCategoryMatch } from '@/pages/imports/utils'
 import { ImportCategoryMatchingLayout } from './ImportCategoryMatchingLayout'
 
 type ImportCategoryMatchingStepProps = Pick<
@@ -14,8 +14,10 @@ type ImportCategoryMatchingStepProps = Pick<
   | 'autoFilledCategories'
   | 'categoryCreateKinds'
   | 'categoryTypesBySource'
+  | 'categoryRenames'
   | 'categoryById'
   | 'setCategoryCreateKinds'
+  | 'setCategoryCreateNames'
   | 'setCategoryMappings'
   | 'categoryMatchOptions'
   | 'categoriesLoading'
@@ -26,7 +28,7 @@ type ImportCategoryMatchingStepProps = Pick<
 
 /**
  * Category matching step of the generic CSV import flow, showing every category value found in the
- * mapped column
+ * mapped column, and (no category) and (transfer, no category) for the rows with none
  */
 export function ImportCategoryMatchingStep({
   importedCategories,
@@ -34,8 +36,10 @@ export function ImportCategoryMatchingStep({
   autoFilledCategories,
   categoryCreateKinds,
   categoryTypesBySource,
+  categoryRenames,
   categoryById,
   setCategoryCreateKinds,
+  setCategoryCreateNames,
   setCategoryMappings,
   categoryMatchOptions,
   categoriesLoading,
@@ -48,7 +52,7 @@ export function ImportCategoryMatchingStep({
       index="04"
       description="Match each category in the file to one of yours, or queue a new one."
       sourceLabel="Category From File"
-      empty={{ title: 'No categories yet', description: 'Map the column holding the category first.' }}
+      empty={{ title: 'No categories yet', description: 'Upload a file to list the categories its rows are filed under.' }}
       rows={importedCategories.map((category) => {
         const value = categoryMappings[category] ?? ''
         const detailKind = getCategoryMatchKind(
@@ -69,6 +73,11 @@ export function ImportCategoryMatchingStep({
           onDetailKindChange: (kind) => setCategoryCreateKinds((current) => ({ ...current, [category]: kind })),
           value,
           onChange: (nextValue) => setCategoryMappings((current) => ({ ...current, [category]: nextValue })),
+          rename: getImportCategoryRenameField(
+            category,
+            categoryRenames[category],
+            (name) => setCategoryCreateNames((current) => ({ ...current, [category]: name })),
+          ),
         }
       })}
       options={categoryMatchOptions}

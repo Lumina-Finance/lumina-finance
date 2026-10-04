@@ -4,6 +4,7 @@ import {
   CREATE_ACCOUNT_VALUE,
   getRowAmountTooPreciseReason,
   getRowCurrencyMismatchReason,
+  getRowCurrencyUnsupportedReason,
   getRowNotesTooLongReason,
   getRowTooManyTagsReason,
   MAX_IMPORT_NOTES_LENGTH,
@@ -17,7 +18,6 @@ import {
   ROW_AMOUNT_SIDE_STATES_ZERO_REASON,
   ROW_AMOUNT_TOO_LARGE_REASON,
   ROW_AMOUNT_UNREADABLE_REASON,
-  ROW_CATEGORY_BLANK_REASON,
   ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON,
   ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON,
   ROW_DATE_BLANK_REASON,
@@ -28,7 +28,7 @@ import {
 import type { ColumnMap, CsvRow, ImportAmountDirection, ImportAmountProblem } from '@/pages/imports/types'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import { splitImportedValues } from './categoryMatching'
-import { getMappedValue, resolveImportAmount } from './columnMapping'
+import { getImportRowCategorySource, getMappedValue, resolveImportAmount } from './columnMapping'
 import { unique } from './common'
 import {
   DEFAULT_IMPORT_AMOUNT_FORMAT,
@@ -154,7 +154,7 @@ export function resolveImportRow(row: CsvRow, fileId: string, context: ImportRow
   )
   return {
     accountSource,
-    categorySource: getMappedValue(row, columnMap.category_id),
+    categorySource: getImportRowCategorySource(row, columnMap),
     importedDate,
     dt: dateFormat ? readImportDate(importedDate, dateFormat, context.dateSeparator, context.timeZone) : '',
     amount,
@@ -182,7 +182,6 @@ export function resolveImportRow(row: CsvRow, fileId: string, context: ImportRow
  */
 export function getImportRowProblem(row: ResolvedImportRow, judgement: ImportRowJudgement) {
   if (!row.accountSource) return ROW_ACCOUNT_BLANK_REASON
-  if (!row.categorySource) return ROW_CATEGORY_BLANK_REASON
 
   // A cell nobody filled in and a cell the chosen format cannot read send the user to different
   // jobs, and both parsers answer the same way for an empty string, so the raw cell is asked first
@@ -197,6 +196,9 @@ export function getImportRowProblem(row: ResolvedImportRow, judgement: ImportRow
 
   // Asked before the amount is judged, because the decimal places an amount is held to are the
   // account currency's, and a row stating another currency is one whose amount means something else
+  if (row.importedCurrency && findCurrencyExponent(judgement.currencies, row.importedCurrency) === null) {
+    return getRowCurrencyUnsupportedReason(row.importedCurrency)
+  }
   if (row.importedCurrency && row.currency && row.importedCurrency !== row.currency) {
     return getRowCurrencyMismatchReason(row.importedCurrency, row.currency)
   }

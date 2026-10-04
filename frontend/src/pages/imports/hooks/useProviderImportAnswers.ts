@@ -1,7 +1,14 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME } from '@/utils/transfers'
-import type { ImportAccountSource } from '@/pages/imports/types'
-import { buildImportAccountOptions, dropVanishedAccountMappings, isAutoFilledAccountSource } from '@/pages/imports/utils'
+import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
+import type { ImportAccountSource, ImportCategoryKind } from '@/pages/imports/types'
+import {
+  buildImportAccountOptions,
+  dropVanishedAccountMappings,
+  dropVanishedCategoryMappings,
+  getImportCategoryRenames,
+  isAutoFilledAccountSource,
+} from '@/pages/imports/utils'
 import { getPersonalAccounts, getPersonalCategoryOptions, resolveProviderAccountMappings } from '@/pages/imports/utils/resourceScope'
 import { useImportReferenceData } from './useImportReferenceData'
 
@@ -84,4 +91,98 @@ export function useProviderAccountAnswers({
   )
 
   return { resolvedAccountMappings, autoFilledAccountSources, handAnsweredAccountSources }
+}
+
+/**
+ * The user's category answers in a provider import: the category each source is matched to, and
+ * the type and name of one created for it
+ */
+export function useProviderCategoryAnswerState() {
+  const [categoryMappings, setCategoryMappings] = useState<Record<string, string>>({})
+  const [categoryCreateKinds, setCategoryCreateKinds] = useState<Record<string, ImportCategoryKind>>({})
+  const [categoryCreateNames, setCategoryCreateNames] = useState<Record<string, string>>({})
+
+  const resetCategoryAnswers = () => {
+    setCategoryMappings({})
+    setCategoryCreateKinds({})
+    setCategoryCreateNames({})
+  }
+
+  return {
+    categoryMappings,
+    categoryCreateKinds,
+    categoryCreateNames,
+    setCategoryMappings,
+    setCategoryCreateKinds,
+    setCategoryCreateNames,
+    resetCategoryAnswers,
+  }
+}
+
+/**
+ * Settles the category each source of a provider import is written to, from the answers the user
+ * gave and the import's own match, with the type and name each new category is created under
+ *
+ * @param sources - Each category source with the name a new category takes from it
+ * @param inferMappings - The import's own match, filling in the sources the user left unanswered
+ * @param proposedKinds - The type each new category is proposed with until the user picks one
+ * @param fixedKindSources - Sources whose new category can only take its proposed type
+ * @param appName - The app the import comes from, which a proposed new name carries
+ */
+export function useProviderCategoryAnswers({
+  sources,
+  answers: { categoryMappings, categoryCreateKinds, categoryCreateNames },
+  inferMappings,
+  proposedKinds,
+  fixedKindSources,
+  appName,
+  reference: { categoriesResolved, categoryById },
+}: {
+  sources: Array<{ id: string; name: string }>
+  answers: Pick<ReturnType<typeof useProviderCategoryAnswerState>, 'categoryMappings' | 'categoryCreateKinds' | 'categoryCreateNames'>
+  inferMappings: (liveMappings: Record<string, string>) => Record<string, string>
+  proposedKinds: Record<string, ImportCategoryKind>
+  fixedKindSources?: ReadonlySet<string>
+  appName: string
+  reference: Pick<ReturnType<typeof useImportReferenceData>, 'categoriesResolved' | 'categoryById'>
+}) {
+  // Same reason as the accounts: a match pointing at a deleted category would reach the commit
+  const liveCategoryMappings = useMemo(
+    () => (categoriesResolved ? dropVanishedCategoryMappings(categoryMappings, categoryById).mappings : categoryMappings),
+    [categoriesResolved, categoryById, categoryMappings],
+  )
+
+  const resolvedCategoryMappings = useMemo(() => inferMappings(liveCategoryMappings), [inferMappings, liveCategoryMappings])
+
+  const autoFilledCategories = useMemo(
+    () => new Set(sources.map((source) => source.id).filter((source) => (
+      !liveCategoryMappings[source] && resolvedCategoryMappings[source] !== CREATE_CATEGORY_VALUE
+    ))),
+    [liveCategoryMappings, resolvedCategoryMappings, sources],
+  )
+
+  const resolvedCategoryKinds = useMemo(
+    () => {
+      const kinds: Record<string, ImportCategoryKind> = {}
+      for (const { id } of sources) {
+        kinds[id] = fixedKindSources?.has(id) ? proposedKinds[id] : categoryCreateKinds[id] ?? proposedKinds[id]
+      }
+      return kinds
+    },
+    [categoryCreateKinds, fixedKindSources, proposedKinds, sources],
+  )
+
+  const categoryRenames = useMemo(
+    () => getImportCategoryRenames({
+      sources,
+      mappings: resolvedCategoryMappings,
+      kinds: resolvedCategoryKinds,
+      typedNames: categoryCreateNames,
+      categoryById,
+      appName,
+    }),
+    [appName, categoryById, categoryCreateNames, resolvedCategoryKinds, resolvedCategoryMappings, sources],
+  )
+
+  return { resolvedCategoryMappings, autoFilledCategories, resolvedCategoryKinds, categoryRenames }
 }

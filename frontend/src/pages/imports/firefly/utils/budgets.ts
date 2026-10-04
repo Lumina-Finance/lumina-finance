@@ -13,7 +13,6 @@ import {
   FIREFLY_BUDGET_MAX_INSTANCE_LENGTH,
   FIREFLY_BUDGET_MAX_LIMIT_PERIODS,
   FIREFLY_BUDGET_MIXED_CURRENCIES_REASON,
-  FIREFLY_BUDGET_NAME_MAX_LENGTH,
   FIREFLY_BUDGET_NO_CATEGORIES_REASON,
   FIREFLY_BUDGET_NO_LIMITS_REASON,
   FIREFLY_BUDGET_NO_TRANSACTIONS_REASON,
@@ -21,7 +20,6 @@ import {
   FIREFLY_BUDGET_PERIOD_ENDS_BEFORE_START_REASON,
   FIREFLY_BUDGET_UNREADABLE_DATES_REASON,
   FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON,
-  FIREFLY_ROW_FIELD_MAX_LENGTHS,
   FIREFLY_TYPE_WITHDRAWAL,
   getFireflyBudgetAmountReason,
   getFireflyBudgetGroupCategoryReason,
@@ -33,7 +31,7 @@ import { toImportMinorUnits } from '@/pages/imports/utils/valueParsers'
 import { parseYmd } from '@/utils/date'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
-import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
+import { CREATE_CATEGORY_VALUE, IMPORT_BUDGET_NAME_MAX_LENGTH, JOURNAL_ROW_FIELD_MAX_LENGTHS } from '@/pages/imports/constants'
 import { findReusedImportCategory, getCategoryNameKey } from '@/pages/imports/utils/categoryMatching'
 import {
   countCharacters,
@@ -485,8 +483,8 @@ function getRefusalReason(
   if (schedule.hasOverlap) return FIREFLY_BUDGET_OVERLAPPING_PERIODS_REASON
 
   const nameLength = countCharacters(name)
-  if (nameLength > FIREFLY_BUDGET_NAME_MAX_LENGTH) {
-    return getFireflyBudgetOverLimitReason('name length', nameLength, FIREFLY_BUDGET_NAME_MAX_LENGTH)
+  if (nameLength > IMPORT_BUDGET_NAME_MAX_LENGTH) {
+    return getFireflyBudgetOverLimitReason('name length', nameLength, IMPORT_BUDGET_NAME_MAX_LENGTH)
   }
   if (schedule.limits.length > FIREFLY_BUDGET_MAX_LIMIT_PERIODS) {
     return getFireflyBudgetOverLimitReason('limit period count', schedule.limits.length, FIREFLY_BUDGET_MAX_LIMIT_PERIODS)
@@ -502,7 +500,7 @@ function getRefusalReason(
  * when the backend would store it
  */
 function getLimitAmountProblem(amount: string, exponent: number): string | null {
-  if (amount.length > FIREFLY_ROW_FIELD_MAX_LENGTHS.amount) return 'is too long to read'
+  if (amount.length > JOURNAL_ROW_FIELD_MAX_LENGTHS.amount) return 'is too long to read'
 
   const minorUnits = toImportMinorUnits(amount, exponent)
   if (minorUnits === 'unreadable') return 'is not a number'

@@ -2,17 +2,22 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
-import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
-import type { ImportCategoryKind, ImportCategoryRename, PreviewTransactionRow } from '@/pages/imports/types'
-import { getPreviewDateLabel } from '@/pages/imports/utils'
+import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
+import type { ImportAccountCreateDetails, ImportCategoryKind, ImportCategoryRename, PreviewTransactionRow } from '@/pages/imports/types'
+import {
+  buildPreviewCategory,
+  buildPreviewTransactionRow,
+  getPreviewCounterpartyScope,
+  type PreviewAccount,
+  resolvePreviewAccount,
+} from '@/pages/imports/utils'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import type { ActualAccountSource, ActualJournal, ActualJournalEntry } from '@/pages/imports/actual/types'
-import type { ActualAccountCreateDetails } from './payload'
 import { canCarryActualTransfer } from './categories'
 
 export interface ActualPreviewOptions {
   accountMappings: Record<string, string>
-  accountCreateDetails: Record<string, ActualAccountCreateDetails>
+  accountCreateDetails: Record<string, ImportAccountCreateDetails>
   accountById: Map<string, AccountsOverview>
   institutionById: Map<string, Institution>
   categoryMappings: Record<string, string>
@@ -29,12 +34,8 @@ export interface ActualPreviewOptions {
   skippedTransactionIds: ReadonlySet<string>
 }
 
-interface ActualPreviewAccount {
-  id: string
-  name: string
-  currency: string
+interface ActualPreviewAccount extends PreviewAccount {
   exponent: number
-  institution: Institution | null
 }
 
 interface ActualPreviewLeg {
@@ -139,42 +140,21 @@ function resolveLegs(
 
 function resolveAccount(source: ActualAccountSource | undefined, options: ActualPreviewOptions): ActualPreviewAccount | null {
   if (!source) return null
-  const choice = options.accountMappings[source.id]
-  if (!choice) return null
-
-  if (choice === CREATE_ACCOUNT_VALUE) {
-    const details = options.accountCreateDetails[source.id]
-    const currency = (details?.currency ?? '').toUpperCase()
-    const exponent = findCurrencyExponent(options.currencies, currency)
-    if (exponent === null) return null
-    return {
-      id: CREATE_ACCOUNT_VALUE,
-      name: source.name,
-      currency,
-      exponent,
-      institution: options.institutionById.get(details?.institutionId ?? '') ?? null,
-    }
-  }
-
-  const account = options.accountById.get(choice)
+  const account = resolvePreviewAccount(
+    options.accountMappings[source.id] ?? '',
+    source.name,
+    options.accountCreateDetails[source.id],
+    options.accountById,
+    options.institutionById,
+  )
   const exponent = account ? findCurrencyExponent(options.currencies, account.currency.toUpperCase()) : null
-  if (!account || exponent === null) return null
-  return { id: account.id, name: account.name, currency: account.currency, exponent, institution: account.institution }
+  return account && exponent !== null ? { ...account, exponent } : null
 }
 
 function resolveCategory(sourceId: string, createName: string, options: ActualPreviewOptions): Category | undefined {
   const choice = options.categoryMappings[sourceId]
   if (choice !== CREATE_CATEGORY_VALUE) return choice ? options.categoryById.get(choice) : undefined
-  return {
-    id: `actual-preview-category-${sourceId}`,
-    group_id: null,
-    owner_id: null,
-    name: options.categoryRenames[sourceId]?.name ?? createName,
-    kind: options.categoryCreateKinds[sourceId] ?? 'expense',
-    icon: DEFAULT_CATEGORY_ICON,
-    is_system: false,
-    created_at: '',
-  }
+  return buildPreviewCategory(sourceId, options.categoryRenames[sourceId]?.name ?? createName, options.categoryCreateKinds[sourceId] ?? 'expense')
 }
 
 /** Converts hundredths into the minor units of a currency, or null when that currency can't hold them */
@@ -184,43 +164,18 @@ function toMinorUnits(hundredths: number, exponent: number) {
   return hundredths % divisor === 0 ? hundredths / divisor : null
 }
 
-function getCounterpartyScope(leg: ActualPreviewLeg) {
-  if (leg.counterpartyAccount) return 'tracked'
-  return leg.category && canCarryActualTransfer(leg.category) ? 'outside' : null
-}
-
 function buildPreviewRow(entry: ActualJournalEntry, leg: ActualPreviewLeg, legIndex: number, timestamp: string): PreviewTransactionRow {
-  const id = `actual-preview-${entry.transactionId}-${legIndex}`
-  const tagIds = entry.tags.map((tag, tagIndex) => `${id}-tag-${tagIndex}-${tag}`)
-
-  return {
-    id,
-    accountInstitution: leg.account.institution,
-    accountName: leg.account.name,
+  return buildPreviewTransactionRow({
+    id: `actual-preview-${entry.transactionId}-${legIndex}`,
+    account: leg.account,
     category: leg.category,
-    currency: leg.account.currency,
-    dateLabel: getPreviewDateLabel(entry.date),
-    counterpartyAccountName: leg.counterpartyAccount?.name,
-    transaction: {
-      id,
-      created_by_user_id: 'import-preview',
-      account_id: leg.account.id,
-      dt: entry.date,
-      merchant_id: leg.merchantName ? `${id}-merchant` : null,
-      merchant_name: leg.merchantName,
-      category_id: leg.category?.id ?? '',
-      amount: leg.minorUnits,
-      account_amount: leg.minorUnits,
-      base_currency_amount: leg.minorUnits,
-      currency: leg.account.currency,
-      fx_rate: null,
-      notes: entry.notes,
-      counterparty_account_id: leg.counterpartyAccount?.id ?? null,
-      counterparty_account_scope: getCounterpartyScope(leg),
-      created_at: timestamp,
-      updated_at: timestamp,
-      tag_ids: tagIds,
-      tags: entry.tags.map((tag, tagIndex) => ({ id: tagIds[tagIndex], group_id: null, name: tag })),
-    },
-  }
+    dt: entry.date,
+    amount: leg.minorUnits,
+    merchantName: leg.merchantName,
+    notes: entry.notes,
+    counterpartyAccount: leg.counterpartyAccount,
+    counterpartyScope: getPreviewCounterpartyScope(leg.category, leg.counterpartyAccount),
+    tagNames: entry.tags,
+    timestamp,
+  })
 }

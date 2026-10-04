@@ -6,7 +6,7 @@
  *
  * The datasets date everything from the run date, so a subject naming a month is worked out from it
  */
-import type { ExpectedDifference } from './compare.ts'
+import type { ExpectedDifference } from '../support/import-check/compare.ts'
 import { shiftMonth } from './manifest.ts'
 
 // Actual files an opening balance under its Starting Balances income category, and Lumina writes it

@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
-import { asUser, createCategory, signUpUser, type TestUser } from '../support/api'
+import { asUser, countLedgerTransactions, createCategory, signUpUser, type TestUser } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
@@ -313,20 +313,6 @@ test('saves a kept upload again after its first save failed', async ({ page, req
   const result = await response.json() as { transactions_created: number }
   expect(result.transactions_created).toBe(YEN_MANIFEST.rows.length)
 })
-
-async function countLedgerTransactions(request: APIRequestContext, user: TestUser) {
-  let count = 0
-  for (let offset = 0; ; offset += 50) {
-    const response = await request.get(`${API_BASE_URL}/transactions`, {
-      headers: asUser(user),
-      params: { limit: 50, offset },
-    })
-    expect(response.status()).toBe(200)
-    const page = await response.json() as unknown[]
-    count += page.length
-    if (page.length < 50) return count
-  }
-}
 
 // A save whose answer was lost may have landed. Importing again from the same screen, even with an
 // answer changed, finds out first and writes nothing twice

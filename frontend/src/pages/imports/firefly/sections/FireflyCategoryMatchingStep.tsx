@@ -1,12 +1,11 @@
 import {
   CREATE_CATEGORY_VALUE,
-  getImportCategoryRenameHelp,
-  getImportCategoryRenameLabel,
   TRANSFERS_AND_DEBT_PAYMENTS_TITLE,
   TRANSFERS_EXPLANATION,
 } from '@/pages/imports/constants'
 import { ImportInfoCard } from '@/pages/imports/components'
 import { ImportCategoryMatchingLayout } from '@/pages/imports/sections'
+import { getImportCategoryRenameField } from '@/pages/imports/utils'
 import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
 
 type FireflyCategoryMatchingStepProps = Pick<
@@ -64,7 +63,6 @@ export function FireflyCategoryMatchingStep({
         const detailKind = existingMatch
           ? categoryById.get(value)?.kind ?? ''
           : resolvedCategoryKinds[source] ?? ''
-        const rename = categoryRenames[source]
 
         return {
           id: source,
@@ -75,13 +73,11 @@ export function FireflyCategoryMatchingStep({
           onDetailKindChange: (kind) => setCategoryCreateKinds((current) => ({ ...current, [source]: kind })),
           value,
           onChange: (nextValue) => setCategoryMappings((current) => ({ ...current, [source]: nextValue })),
-          rename: rename === undefined ? undefined : {
-            label: getImportCategoryRenameLabel(source),
-            help: getImportCategoryRenameHelp(rename),
-            value: rename.name,
-            isProposed: rename.isProposed,
-            onChange: (name: string) => setCategoryCreateNames((current) => ({ ...current, [source]: name })),
-          },
+          rename: getImportCategoryRenameField(
+            source,
+            categoryRenames[source],
+            (name) => setCategoryCreateNames((current) => ({ ...current, [source]: name })),
+          ),
         }
       })}
       options={categoryMatchOptions}

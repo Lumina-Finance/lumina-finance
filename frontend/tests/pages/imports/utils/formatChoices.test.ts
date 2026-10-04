@@ -75,6 +75,12 @@ describe('automatic date format choices', () => {
     expect(scanImportDateFormatChoices(['2026/08/30', '2026-08-31'], '.').readable).toEqual([])
   })
 
+  // A day the calendar does not have reads under no order, so it says nothing about which one the file
+  // uses and its row is left out instead
+  it('still chooses year first when one value is a day the calendar does not have', () => {
+    expect(scanImportDateFormatChoices(['2024-03-15', '2024-02-31', '2024-03-17']).automatic).toBe('yearFirst')
+  })
+
   it('refuses a year-first value whose separators differ', () => {
     expect(scanImportDateFormatChoices(['2026.08/31']).readable).toEqual([])
   })
@@ -101,6 +107,13 @@ describe('automatic amount format choices', () => {
 
     expect(scan.automatic).toEqual({ decimalSeparator: '.', groupingSeparator: ',' })
     expect(scan.ambiguous).toBe(false)
+  })
+
+  // A word in an amount cell reads under no format, so it says nothing about which one the file uses
+  // and its row is left out instead
+  it('still chooses a format when one value is not a number', () => {
+    expect(scanImportAmountFormatChoices(['12.34', 'pending', '5.00']).automatic)
+      .toEqual({ decimalSeparator: '.', groupingSeparator: ',' })
   })
 
   it('compares signed zeroes and leading zeroes exactly', () => {

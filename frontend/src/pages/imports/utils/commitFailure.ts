@@ -1,4 +1,4 @@
-import { TransactionImportRunError, isImportCommitWorthRepeating } from '@/api/transaction-imports'
+import { ImportRunError, isImportCommitWorthRepeating } from '@/api/import-runs'
 import { getImportFailureMessage } from '@/utils/importFailure'
 
 // What the user is told after stopping an import themselves, which reads differently either side of
@@ -28,9 +28,9 @@ export interface ImportCommitFailure {
  * @param cancelled - Whether the user stopped it rather than it failing on its own
  */
 export function getImportCommitFailure(error: unknown, cancelled: boolean): ImportCommitFailure {
-  const runId = error instanceof TransactionImportRunError ? error.runId : null
+  const runId = error instanceof ImportRunError ? error.runId : null
   const worthRepeating = runId !== null && isImportCommitWorthRepeating(error)
-  const stoppedDuringCommit = error instanceof TransactionImportRunError && error.phase === 'commit'
+  const stoppedDuringCommit = error instanceof ImportRunError && error.phase === 'commit'
 
   return {
     message: cancelled

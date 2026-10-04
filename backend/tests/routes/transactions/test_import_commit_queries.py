@@ -14,8 +14,7 @@ from app.models.transaction import Transaction
 from app.services.importers.shared import categories as import_categories
 from tests.conftest import TestSession, scoped_engine
 from tests.routes.groups.test_transactions import _grant_account_permission, _setup_group_with_shared_account
-from tests.routes.transactions.test_import_staging_queries import _build_reference_batch
-from tests.routes.transactions.test_imports import _open_run
+from tests.routes.transactions._import_helpers import _build_reference_batch, _open_run
 
 # Reference acquisition must remain bounded independently of necessary snapshot and write work
 COMMIT_REFERENCE_SELECT_LIMIT = 16

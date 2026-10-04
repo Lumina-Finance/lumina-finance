@@ -13,6 +13,7 @@ const restrictedApiIndexImports = [
   '@/api/categories',
   '@/api/currency',
   '@/api/dashboard',
+  '@/api/import-runs',
   '@/api/insights',
   '@/api/institutions',
   '@/api/merchants',

@@ -12,7 +12,7 @@ import {
   IMPORT_SCOPE_FAILURE_TITLE,
 } from './constants'
 import { ImportExpectationsCard, ImportLoadFailure, ImportProgressOverlay } from './components'
-import { ACTUAL_EXPECTATIONS } from './actual/expectations'
+import { getImportExpectations } from './expectations'
 import { useActualImportWorkflow } from './actual/hooks'
 import {
   ActualAccountMappingStep,
@@ -21,7 +21,6 @@ import {
   ActualFilesStep,
   ActualPreviewStep,
 } from './actual/sections'
-import { FIREFLY_EXPECTATIONS } from './firefly/expectations'
 import { useFireflyImportWorkflow } from './firefly/hooks'
 import {
   FireflyAccountMappingStep,
@@ -37,7 +36,6 @@ import {
   ImportMerchantMatchingStep,
   ImportCategoryMatchingStep,
   ImportColumnMappingStep,
-  ImportCommitPanel,
   ImportFilesStep,
   ImportPreviewStep,
   ImportSourceStep,
@@ -97,9 +95,10 @@ export default function ImportsPage() {
         ? 'generic'
         : dataSource
 
-  // Both provider flows run the same staged import, so the overlay reads either one the same way
-  const providerWorkflow = activeFlow === 'actual' ? actualWorkflow : fireflyWorkflow
-  const importOverlayOpen = activeFlow === 'generic' ? workflow.importOverlayOpen : providerWorkflow.importOverlayOpen
+  // Every flow saves through the same import run, so the overlay reads whichever one is on screen
+  // the same way
+  const overlayWorkflow = activeFlow === 'actual' ? actualWorkflow : activeFlow === 'firefly' ? fireflyWorkflow : workflow
+  const importOverlayOpen = overlayWorkflow.importOverlayOpen
 
   // Where the page came from, which is also where its two exits go while the scope holds
   const scopedAccountPath = accountScope.accountId ? `/accounts/${accountScope.accountId}` : null
@@ -283,9 +282,11 @@ export default function ImportsPage() {
 
               <div className="min-w-0 xl:h-full xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1">
                 <div className="space-y-8">
+                  {/* Shown whether or not a file is staged, since what the import does with one is worth
+                      knowing before choosing it. Keyed by flow so each source opens with its card collapsed */}
+                  <ImportExpectationsCard key={activeFlow} expectations={getImportExpectations(activeFlow, workflow.fixedAccount?.name ?? null)} />
                   {activeFlow === 'actual' && (
                     <>
-                      <ImportExpectationsCard expectations={ACTUAL_EXPECTATIONS} />
                       <ActualAccountMappingStep {...actualWorkflow} />
                       <ActualCategoryMatchingStep {...actualWorkflow} />
                       <ActualBudgetImportStep {...actualWorkflow} />
@@ -294,7 +295,6 @@ export default function ImportsPage() {
                   )}
                   {activeFlow === 'firefly' && (
                     <>
-                      <ImportExpectationsCard expectations={FIREFLY_EXPECTATIONS} />
                       <FireflyAccountMappingStep {...fireflyWorkflow} />
                       <FireflyCategoryMatchingStep {...fireflyWorkflow} />
                       <FireflyBudgetImportStep {...fireflyWorkflow} />
@@ -321,7 +321,6 @@ export default function ImportsPage() {
                         onToggle={() => workflow.setTagHandlingOpen((current) => !current)}
                       />
                       <ImportPreviewStep {...workflow} />
-                      <ImportCommitPanel {...workflow} />
                     </>
                   )}
                 </div>
@@ -331,43 +330,27 @@ export default function ImportsPage() {
         </div>
       </div>
 
-      {activeFlow !== 'generic' ? (
-        <ImportProgressOverlay
-          onScreen={overlayOnScreen}
-          returnFocusTo={overlayOpener}
-          returnFocusFallbackRef={pageRef}
-          phase={providerWorkflow.importOverlayPhase}
-          steps={providerWorkflow.importOverlaySteps}
-          summary={providerWorkflow.importSummary}
-          error={providerWorkflow.importOverlayError}
-          errorEmphasis={providerWorkflow.importOverlayErrorEmphasis}
-          title={providerWorkflow.importOverlayTitle}
-          note={providerWorkflow.importOverlayNote}
-          onDone={handleDone}
-          onReturnToImport={providerWorkflow.closeImportOverlay}
-          onReview={providerWorkflow.importOverlayPhase === 'success'
-            && providerWorkflow.completedSkippedCount > 0
-            ? providerWorkflow.closeImportOverlay
-            : undefined}
-          onClosed={() => setOverlayOnScreen(false)}
-          onCancel={providerWorkflow.canStopImport ? providerWorkflow.cancelImport : undefined}
-          onRetry={providerWorkflow.canRetryImportCommit ? providerWorkflow.retryImportCommit : undefined}
-        />
-      ) : (
-        <ImportProgressOverlay
-          onScreen={overlayOnScreen}
-          returnFocusTo={overlayOpener}
-          returnFocusFallbackRef={pageRef}
-          phase={workflow.importOverlayPhase}
-          summary={workflow.importSummary}
-          error={workflow.importError}
-          onDone={handleDone}
-          onReturnToImport={workflow.dismissImportOverlay}
-          onClosed={() => setOverlayOnScreen(false)}
-          onCancel={workflow.canStopImport ? workflow.cancelImport : undefined}
-          onRetry={workflow.canRetryImportCommit ? workflow.retryImportCommit : undefined}
-        />
-      )}
+      <ImportProgressOverlay
+        onScreen={overlayOnScreen}
+        returnFocusTo={overlayOpener}
+        returnFocusFallbackRef={pageRef}
+        phase={overlayWorkflow.importOverlayPhase}
+        steps={overlayWorkflow.importOverlaySteps}
+        summary={overlayWorkflow.importSummary}
+        error={overlayWorkflow.importOverlayError}
+        errorEmphasis={overlayWorkflow.importOverlayErrorEmphasis}
+        title={overlayWorkflow.importOverlayTitle}
+        note={overlayWorkflow.importOverlayNote}
+        onDone={handleDone}
+        onReturnToImport={overlayWorkflow.closeImportOverlay}
+        onReview={overlayWorkflow.importOverlayPhase === 'success'
+          && overlayWorkflow.completedSkippedCount > 0
+          ? overlayWorkflow.closeImportOverlay
+          : undefined}
+        onClosed={() => setOverlayOnScreen(false)}
+        onCancel={overlayWorkflow.canStopImport ? overlayWorkflow.cancelImport : undefined}
+        onRetry={overlayWorkflow.canRetryImportCommit ? overlayWorkflow.retryImportCommit : undefined}
+      />
     </div>
   )
 }

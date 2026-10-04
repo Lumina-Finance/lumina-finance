@@ -5,31 +5,38 @@ import type { Institution } from '@/api/institutions'
 import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
-  DEFAULT_CATEGORY_ICON,
   IMPORT_SAMPLE_PREVIEW_LIMIT,
   SELF_MERCHANT_NAME,
   UNKNOWN_MERCHANT_NAME,
 } from '@/pages/imports/constants'
-import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
+import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type {
   ColumnMap,
   ImportAmountDirection,
   ImportCategoryKind,
+  ImportCategoryRename,
+  ImportBuildResult,
   ImportFileDraft,
   ImportRowProblem,
   PreviewTransactionRow,
 } from '@/pages/imports/types'
 import { getImportAccountName } from './accountMapping'
-import { getImportRowId } from './common'
+import { countCreatedImportSources, getImportRowId } from './common'
 import { getCategoryMatchKind } from './categoryMatching'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import { getCurrencyByAccountSource, type ImportRowContext, resolveImportRow } from './rowResolution'
 import { getAmountArrangementClashError, getSupportedCurrencyCodes } from './workflowOptions'
 import { DEFAULT_IMPORT_AMOUNT_FORMAT, type ImportAmountFormat } from './amountFormats'
 import {
+  buildPreviewCategory,
+  buildPreviewTransactionRow,
+  doesPreviewCategoryRecordCounterparty,
+  getPreviewCounterpartyScope,
+  resolvePreviewAccount,
+} from './previewTransaction'
+import {
   type ImportDateFormat,
   type ImportDateSeparator,
-  getPreviewDateLabel,
   isSupportedCurrency,
   toImportMinorUnits,
 } from './valueParsers'
@@ -49,6 +56,9 @@ interface BuildImportPreviewRowsOptions {
   accountCreateInstitutions: Record<string, string>
   categoryById: Map<string, Category>
   categoryCreateKinds: Record<string, ImportCategoryKind>
+
+  /** New categories created under another name, because an existing category holds their own */
+  categoryRenames?: Record<string, ImportCategoryRename>
   categoryTypesBySource: Record<string, string>
   institutionById: Map<string, Institution>
   resolvedAccountMappings: Record<string, string>
@@ -93,6 +103,7 @@ export function buildImportPreviewRows({
   accountCreateInstitutions,
   categoryById,
   categoryCreateKinds,
+  categoryRenames = {},
   categoryTypesBySource,
   institutionById,
   resolvedAccountMappings,
@@ -136,14 +147,12 @@ export function buildImportPreviewRows({
       const resolved = resolveImportRow(row, file.id, rowContext)
       const accountLabel = columnMap.account_id ? resolved.accountSource : getImportAccountName(file.name)
       const accountChoice = resolvedAccountMappings[resolved.accountSource] ?? ''
-      const account = accountChoice === CREATE_ACCOUNT_VALUE ? undefined : accountById.get(accountChoice)
-      const createAccountCurrency = accountChoice === CREATE_ACCOUNT_VALUE
-        ? accountCreateCurrencies[resolved.accountSource] ?? ''
-        : ''
-      const createAccountInstitution = accountChoice === CREATE_ACCOUNT_VALUE
-        ? institutionById.get(accountCreateInstitutions[resolved.accountSource] ?? '')
-        : undefined
-      const dt = resolved.dt
+      const createDetails = {
+        currency: accountCreateCurrencies[resolved.accountSource] ?? '',
+        institutionId: accountCreateInstitutions[resolved.accountSource] ?? '',
+      }
+      const accountName = accountLabel || 'Unmapped account'
+      const account = resolvePreviewAccount(accountChoice, accountName, createDetails, accountById, institutionById)
 
       // The currency the commit will store the row in, and the display fallback only where the
       // account step has not been answered yet. Rows are still built in that state and the preview
@@ -152,7 +161,6 @@ export function buildImportPreviewRows({
       const currency = getPreviewCurrency(
         resolved.currency,
         account?.currency,
-        createAccountCurrency,
         fallbackCurrency,
         supportedCurrencyCodes,
       )
@@ -166,90 +174,53 @@ export function buildImportPreviewRows({
       // table and there are no decimal places to convert against
       if (typeof minorUnits !== 'bigint') continue
 
-      // Keep the exact minor units through presentation, just as the commit keeps the cell's digits
-      const amount = minorUnits
-      const importedTagValues = resolved.tagNames
       const category = getPreviewCategory(
         resolved.categorySource,
         resolvedCategoryMappings,
         categoryById,
         categoryCreateKinds,
+        categoryRenames,
         categoryTypesBySource,
       )
-      const tagIds = importedTagValues.map((tag, tagIndex) => `${file.id}-${rowIndex}-tag-${tagIndex}-${tag}`)
 
       // A row states its counterparty only where the file has a column for it and the row's category
       // can hold one, and the answer is whatever that source was mapped to, which can be an account
-      // or money leaving the app
-      const recordsCounterparty = doesPreviewCategoryRecordCounterparty(category)
-      const counterpartySource = recordsCounterparty ? resolved.counterpartySource ?? '' : ''
+      // or money leaving the app. A counterparty queued for creation shows under the source it came from
+      const counterpartySource = doesPreviewCategoryRecordCounterparty(category) ? resolved.counterpartySource ?? '' : ''
       const counterpartyChoice = counterpartySource ? resolvedAccountMappings[counterpartySource] ?? '' : ''
-      const counterpartyAccount = counterpartyChoice === CREATE_ACCOUNT_VALUE || counterpartyChoice === OUTSIDE_ACCOUNT_VALUE
-        ? undefined
-        : accountById.get(counterpartyChoice)
+      const counterpartyAccount = counterpartyChoice === OUTSIDE_ACCOUNT_VALUE
+        ? null
+        : resolvePreviewAccount(counterpartyChoice, counterpartySource, undefined, accountById, institutionById)
 
-      // An account queued for creation has no id or row of its own yet, so it stands in with the
-      // same sentinel the row's own account uses and shows under the source it came from
-      const counterpartyName = counterpartyChoice === CREATE_ACCOUNT_VALUE
-        ? counterpartySource
-        : counterpartyAccount?.name
+      // A source with no answer says nothing yet about where the money went. A file stating no
+      // counterparty at all is a different case, and is read as the money leaving
+      const isCounterpartyAnswered = !counterpartySource || Boolean(counterpartyChoice)
 
-      rows.push({
-        id: getImportRowId(file.id, rowIndex),
-        accountInstitution: account?.institution ?? createAccountInstitution ?? null,
-        accountName: account?.name ?? (accountLabel || 'Unmapped account'),
+      rows.push(buildPreviewTransactionRow({
+        // Prefixed like the other imports' previews, which is how a previewed row is told apart from a
+        // ledger transaction by its id
+        id: `import-preview-${getImportRowId(file.id, rowIndex)}`,
+
+        // The row shows in the currency settled above, which holds even before the account step is answered
+        account: { ...(account ?? { id: accountChoice, name: accountName, institution: null }), currency },
         category,
-        currency,
-        dateLabel: getPreviewDateLabel(dt),
-        counterpartyAccountName: counterpartyName,
-        transaction: {
-          id: `import-preview-${file.id}-${rowIndex}`,
-          created_by_user_id: 'import-preview',
-          account_id: account?.id ?? accountChoice,
-          dt,
-          merchant_id: `import-preview-merchant-${file.id}-${rowIndex}`,
-          merchant_name: resolved.merchantName ?? getStampedPreviewMerchantName(category),
-          category_id: category?.id ?? '',
-          amount,
-          account_amount: amount,
-          base_currency_amount: amount,
-          currency,
-          fx_rate: null,
-          notes: resolved.notes,
+        dt: resolved.dt,
 
-          counterparty_account_id: counterpartyAccount?.id ?? (counterpartyChoice === CREATE_ACCOUNT_VALUE ? CREATE_ACCOUNT_VALUE : null),
-          counterparty_account_scope: getPreviewCounterpartyScope(
-            recordsCounterparty,
-            counterpartyChoice,
-            !counterpartySource || Boolean(counterpartyChoice),
-          ),
-          created_at: timestamp,
-          updated_at: timestamp,
-          tag_ids: tagIds,
-          tags: importedTagValues.map((tag, tagIndex) => ({
-            id: tagIds[tagIndex],
-            group_id: null,
-            name: tag,
-          })),
-        },
-      })
+        // Keep the exact minor units through presentation, just as the commit keeps the cell's digits
+        amount: minorUnits,
+        merchantName: resolved.merchantName ?? getStampedPreviewMerchantName(category),
+        notes: resolved.notes,
+        counterpartyAccount,
+        counterpartyScope: isCounterpartyAnswered ? getPreviewCounterpartyScope(category, counterpartyAccount) : null,
+        tagNames: resolved.tagNames,
+        timestamp,
+      }))
 
       if (rows.length >= IMPORT_SAMPLE_PREVIEW_LIMIT) return rows
     }
   }
 
   return rows
-}
-
-/**
- * Reports whether a previewed row's category can record where the money went
- *
- * The backend matches Balance Adjustment by name alone, so this does too, and a row the API would
- * refuse a counterparty account for is previewed without one
- */
-function doesPreviewCategoryRecordCounterparty(category: Category | undefined) {
-  if (!category) return false
-  return doesTransferRecordCounterpartyAccount(category.kind, category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
 }
 
 /**
@@ -262,31 +233,6 @@ function doesPreviewCategoryRecordCounterparty(category: Category | undefined) {
  */
 function getStampedPreviewMerchantName(category: Category | undefined) {
   return category?.kind === 'transfer' ? SELF_MERCHANT_NAME : UNKNOWN_MERCHANT_NAME
-}
-
-/**
- * Resolves what a previewed transfer will record about where the money went
- *
- * A transfer that states no counterparty records that the money left the app, which is what the
- * import writes for it, and a category that records neither leaves both fields empty
- *
- * @param recordsCounterparty - Whether this row's category records where the money went at all
- * @param counterpartyChoice - What the counterparty source is mapped to
- * @param isCounterpartyAnswered - Whether that source has an answer at all, which covers a source
- *   still waiting on one and a source whose account was deleted after it was chosen
- */
-function getPreviewCounterpartyScope(
-  recordsCounterparty: boolean,
-  counterpartyChoice: string,
-  isCounterpartyAnswered: boolean,
-) {
-  if (!recordsCounterparty) return null
-
-  // A source with no answer says nothing yet about where the money went. A file stating no
-  // counterparty at all is the separate case above, and is read as the money leaving
-  if (!isCounterpartyAnswered) return null
-
-  return counterpartyChoice && counterpartyChoice !== OUTSIDE_ACCOUNT_VALUE ? 'tracked' : 'outside'
 }
 
 /**
@@ -304,11 +250,10 @@ function getPreviewCounterpartyScope(
 export function getPreviewCurrency(
   rowCurrency: string,
   accountCurrency: string | undefined,
-  createAccountCurrency: string,
   fallbackCurrency: string,
   supportedCurrencyCodes: Set<string>,
 ) {
-  for (const currency of [rowCurrency, accountCurrency, createAccountCurrency, fallbackCurrency]) {
+  for (const currency of [rowCurrency, accountCurrency, fallbackCurrency]) {
     const normalized = currency?.trim().toUpperCase()
     if (normalized && isSupportedCurrency(normalized, supportedCurrencyCodes)) return normalized
   }
@@ -330,6 +275,7 @@ export function getPreviewCategory(
   categoryMappings: Record<string, string>,
   categoryById: Map<string, Category>,
   categoryCreateKinds: Record<string, ImportCategoryKind>,
+  categoryRenames: Record<string, ImportCategoryRename>,
   categoryTypesBySource: Record<string, string>,
 ) {
   if (!importedCategory) return undefined
@@ -344,18 +290,54 @@ export function getPreviewCategory(
     )
     if (!kind) return undefined
 
-    return {
-      id: `import-preview-category-${importedCategory}`,
-      group_id: null,
-      owner_id: null,
-      name: importedCategory,
-      kind,
-      icon: DEFAULT_CATEGORY_ICON,
-      is_system: false,
-      created_at: '',
-    }
+    return buildPreviewCategory(importedCategory, categoryRenames[importedCategory]?.name ?? importedCategory, kind)
   }
 
   if (mapped) return categoryById.get(mapped)
   return undefined
+}
+
+/**
+ * Works out the CSV import's summary figures, the same four every import's preview opens with
+ *
+ * Every row becomes one transaction, so a built import creates one per row it sends. Until it can
+ * be built, the rows already refused are left out and the rest are counted, since answering the
+ * questions still open changes which accounts and categories they land in, not whether they import.
+ * A source answered create-new counts as one new account or category, and once the import is built
+ * only when a row it sends names that source, since the commit creates nothing for the others
+ *
+ * @param rowCount - Every data row in the staged files
+ */
+export function getCsvImportStats({
+  rowCount,
+  importBuild,
+  accountSources,
+  accountMappings,
+  importedCategories,
+  categoryMappings,
+}: {
+  rowCount: number
+  importBuild: Pick<ImportBuildResult, 'payload' | 'rowProblems'>
+  accountSources: Array<{ id: string }>
+  accountMappings: Record<string, string>
+  importedCategories: string[]
+  categoryMappings: Record<string, string>
+}) {
+  const rows = importBuild.payload?.rows
+  const writtenAccounts = new Set(rows
+    ? rows.flatMap((row) => [row.account_source, row.counterparty_account_source ?? ''])
+    : accountSources.map((source) => source.id))
+  const writtenCategories = new Set(rows ? rows.map((row) => row.category_source) : importedCategories)
+
+  return {
+    rowCount,
+    transactionEstimate: rows?.length ?? Math.max(rowCount - importBuild.rowProblems.length, 0),
+    newAccountCount: countCreatedImportSources(
+      accountSources.map((source) => source.id),
+      accountMappings,
+      CREATE_ACCOUNT_VALUE,
+      writtenAccounts,
+    ),
+    newCategoryCount: countCreatedImportSources(importedCategories, categoryMappings, CREATE_CATEGORY_VALUE, writtenCategories),
+  }
 }

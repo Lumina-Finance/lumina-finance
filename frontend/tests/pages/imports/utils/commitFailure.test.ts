@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { ApiError } from '@/api/auth/errors'
-import { TransactionImportRunError } from '@/api/transaction-imports'
+import { ImportRunError } from '@/api/import-runs'
 import { getImportCommitFailure } from '@/pages/imports/utils'
 
 const RUN_ID = 'run_1'
@@ -13,7 +13,7 @@ const RUN_ID = 'run_1'
  * Builds the error a stopped commit throws, wrapping the status the server answered with
  */
 function commitError(status: number, message = 'Import failed.') {
-  return new TransactionImportRunError(message, 'commit', RUN_ID, {
+  return new ImportRunError(message, 'commit', RUN_ID, {
     cause: new ApiError(message, status),
   })
 }
@@ -53,7 +53,7 @@ describe('what is left after an import stops', () => {
 
   it('keeps the staged file when the connection dropped rather than the server answering', () => {
     const failure = getImportCommitFailure(
-      new TransactionImportRunError('Failed to fetch', 'commit', RUN_ID, { cause: new TypeError('Failed to fetch') }),
+      new ImportRunError('Failed to fetch', 'commit', RUN_ID, { cause: new TypeError('Failed to fetch') }),
       false,
     )
 
@@ -62,7 +62,7 @@ describe('what is left after an import stops', () => {
 
   it('has nothing to keep or drop when staging stopped, since the run is already gone', () => {
     const failure = getImportCommitFailure(
-      new TransactionImportRunError('Account is archived', 'staging', null, { cause: new ApiError('Account is archived', 422) }),
+      new ImportRunError('Account is archived', 'staging', null, { cause: new ApiError('Account is archived', 422) }),
       false,
     )
 
@@ -74,7 +74,7 @@ describe('what is left after an import stops', () => {
 describe('what the user is told after stopping an import', () => {
   it('says nothing was written when they stopped it before the commit', () => {
     const failure = getImportCommitFailure(
-      new TransactionImportRunError('The operation was aborted', 'staging', null),
+      new ImportRunError('The operation was aborted', 'staging', null),
       true,
     )
 
@@ -83,7 +83,7 @@ describe('what the user is told after stopping an import', () => {
 
   it('says the write may have finished when they stopped it during the commit', () => {
     const failure = getImportCommitFailure(
-      new TransactionImportRunError('The operation was aborted', 'commit', RUN_ID),
+      new ImportRunError('The operation was aborted', 'commit', RUN_ID),
       true,
     )
 

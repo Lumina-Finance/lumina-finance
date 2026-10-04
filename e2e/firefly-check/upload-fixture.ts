@@ -2,7 +2,7 @@
  * Turns the upload the import screen sent into the fixture the backend test replays, with every
  * id replaced by the name it stood for, since the ids belong to the user this run signed up
  */
-import type { LuminaSnapshot } from './compare.ts'
+import type { LuminaSnapshot } from '../support/import-check/compare.ts'
 import type { FireflyManifest, FireflyRunInfo, ManifestRow } from './manifest.ts'
 
 export interface CapturedUpload {

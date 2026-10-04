@@ -1,5 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { invalidateAppData } from '@/api/cache/invalidation';
+import { useImportRunMutation } from '@/api/import-runs/hooks';
 import { commitStagedImportRun, runTransactionImport } from '@/api/transaction-imports/run';
 import type { TransactionImportPayload } from '@/api/transaction-imports/types';
 
@@ -7,14 +6,11 @@ import type { TransactionImportPayload } from '@/api/transaction-imports/types';
  * Provides the mutation boundary for staging a prepared import and committing it
  */
 export function useImportTransactions() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ payload, signal }: { payload: TransactionImportPayload; signal?: AbortSignal }) =>
-      runTransactionImport(payload, signal),
-    onSuccess: () => {
-      invalidateAppData(queryClient);
-    },
-  });
+  return useImportRunMutation(({ payload, signal, onStaged }: {
+    payload: TransactionImportPayload;
+    signal?: AbortSignal;
+    onStaged?: () => Promise<void>;
+  }) => runTransactionImport(payload, signal, onStaged));
 }
 
 /**
@@ -24,12 +20,6 @@ export function useImportTransactions() {
  * is what runs when the user asks for that second attempt
  */
 export function useCommitStagedImport() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ runId, signal }: { runId: string; signal?: AbortSignal }) =>
-      commitStagedImportRun(runId, signal),
-    onSuccess: () => {
-      invalidateAppData(queryClient);
-    },
-  });
+  return useImportRunMutation(({ runId, signal }: { runId: string; signal?: AbortSignal }) =>
+    commitStagedImportRun(runId, signal));
 }

@@ -324,6 +324,13 @@ describe('validating a date column', () => {
     expect(result.message).toContain('30/04/2026')
   })
 
+  // A day no format reads says nothing about which format the file is in, so only its row is left out
+  it('takes a column holding a day the calendar does not have, leaving that row to be judged on its own', () => {
+    const files = [createDateFile(['2024-03-15', '2024-02-31'])]
+
+    expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'yearFirst').valid).toBe(true)
+  })
+
   it('accepts a column that reads all the way through in the chosen format', () => {
     const files = [createDateFile(['15/03/2024', '02/04/2024'])]
 
@@ -340,7 +347,7 @@ describe('validating a date column', () => {
     const files = [createDateFile(['July 4th, 2024'])]
 
     expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'written').message)
-      .toBe('Expected valid dates in the written format, such as April 30, 2026; every row must have a value. Row 1 has "July 4th, 2024", which is not a valid date.')
+      .toBe('Expected valid dates in the written format, such as April 30, 2026. Row 1 has "July 4th, 2024", which is not a valid date.')
   })
 
   it('names every format in sentence case', () => {

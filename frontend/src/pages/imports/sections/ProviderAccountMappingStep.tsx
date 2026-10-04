@@ -1,30 +1,23 @@
-import { useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
+import type { Dispatch, ReactNode, SetStateAction } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import InstitutionModal from '@/components/reference-modals/InstitutionModal'
-import { useInstitutionModal } from '@/hooks/useInstitutionModal'
+import { ACCOUNT_TYPE_OPTIONS } from '@/pages/imports/constants'
+import { useImportInstitutionModal } from '@/pages/imports/hooks'
+import type { ImportAccountCreateDetails } from '@/pages/imports/types'
+import { buildImportAccountMappingRows, isCreatingImportAccount } from '@/pages/imports/utils'
 import {
-  ACCOUNTS_LOAD_FAILURE_EXPLANATION,
-  ACCOUNTS_LOAD_FAILURE_TITLE,
-  ACCOUNT_TYPE_OPTIONS,
-  CREATED_ACCOUNT_BALANCE_NOTE,
-  CREATED_ACCOUNT_CREDIT_LIMIT_NOTE,
-  CREATED_ACCOUNT_EXPLANATION,
-  CREATED_ACCOUNT_TITLE,
-} from '@/pages/imports/constants'
-import { isCreatingImportAccount, isImportableAccount } from '@/pages/imports/utils'
-import { ImportAccountMappingTable, EmptyState, ImportLoadFailure, ImportNotice, ImportStep } from '@/pages/imports/components'
+  EmptyState,
+  ImportAccountMappingTable,
+  ImportAccountStepBody,
+  ImportCreatedAccountsNotice,
+  ImportStep,
+} from '@/pages/imports/components'
 
-type InstitutionModalTarget = { kind: 'batch' } | { kind: 'account'; source: string }
+// Names the batch bar as the field asking for a new institution, since a row is named by its source
+const BATCH_INSTITUTION_TARGET = '__batch__'
 
 type RecordSetter = Dispatch<SetStateAction<Record<string, string>>>
-
-/** Create-new answers for one source account */
-interface ProviderAccountCreateDetails {
-  accountType: string
-  currency: string
-  institutionId: string
-}
 
 export interface ProviderAccountMappingStepProps {
   index: string
@@ -44,7 +37,7 @@ export interface ProviderAccountMappingStepProps {
   autoFilledAccountSources: ReadonlySet<string>
   handAnsweredAccountSources: ReadonlySet<string>
   accountById: Map<string, AccountsOverview>
-  accountCreateDetails: Record<string, ProviderAccountCreateDetails>
+  accountCreateDetails: Record<string, ImportAccountCreateDetails>
   onAccountMappingChange: (source: string, value: string) => void
   setAccountCreateTypes: RecordSetter
   setAccountCreateCurrencies: RecordSetter
@@ -77,7 +70,7 @@ export function ProviderAccountMappingStep({
   description,
   notice,
   createNotice,
-  createdAccountNotice = { explanation: CREATED_ACCOUNT_EXPLANATION, items: [CREATED_ACCOUNT_BALANCE_NOTE, CREATED_ACCOUNT_CREDIT_LIMIT_NOTE] },
+  createdAccountNotice,
   emptyState,
   sources,
   accountMappings,
@@ -106,65 +99,25 @@ export function ProviderAccountMappingStep({
   setBatchAccountInstitution,
   setSelectedAccountRows,
 }: ProviderAccountMappingStepProps) {
-  const institutionModal = useInstitutionModal()
-
-  // Which field asked for a new institution, so the one it creates comes back to that field
-  const [institutionModalTarget, setInstitutionModalTarget] = useState<InstitutionModalTarget | null>(null)
-
-  /** Opens institution creation for the batch controls or one account row */
-  const openInstitutionModal = (query: string, target: InstitutionModalTarget) => {
-    setInstitutionModalTarget(target)
-    institutionModal.openForCreate(query)
-  }
-
-  /** Clears the requesting field when institution creation closes */
-  const closeInstitutionModal = () => {
-    setInstitutionModalTarget(null)
-    institutionModal.close()
-  }
-
-  /** Assigns the created institution only to the field that opened the modal */
-  const handleInstitutionSaved = (institution: { id: string }) => {
-    if (institutionModalTarget?.kind === 'batch') {
-      setBatchAccountInstitution(institution.id)
-    } else if (institutionModalTarget) {
-      setAccountCreateInstitutions((current) => ({ ...current, [institutionModalTarget.source]: institution.id }))
+  const { openInstitutionModal, institutionModalKey, institutionModalProps } = useImportInstitutionModal((target, institutionId) => {
+    if (target === BATCH_INSTITUTION_TARGET) {
+      setBatchAccountInstitution(institutionId)
+    } else {
+      setAccountCreateInstitutions((current) => ({ ...current, [target]: institutionId }))
     }
-    closeInstitutionModal()
-  }
+  })
 
-  const accountRows = sources.map(({ id: sourceAccount, label }) => {
-    const value = accountMappings[sourceAccount] ?? ''
-    const account = accountById.get(value)
-    const createDetails = accountCreateDetails[sourceAccount]
-
-    return {
-      id: sourceAccount,
-      source: label,
-      value,
-
-      // Keeps an account the dropdown has stopped offering, which here means one archived or made
-      // read-only since it was chosen, visible on its row rather than reading as unanswered
-      selectedOption: account ? { value, label: account.name } : undefined,
-
-      autoFilled: autoFilledAccountSources.has(sourceAccount),
-
-      // Every account in the export takes rows, so no source here is counterparty-only
-      isCounterpartyOnly: false,
-
-      isReadOnlyAccount: account ? !isImportableAccount(account) : false,
-      isHandAnswered: handAnsweredAccountSources.has(sourceAccount),
-      accountType: account?.account_type ?? '',
-      accountCurrency: account?.currency ?? '',
-      accountInstitution: account?.institution?.id ?? '',
-      createType: createDetails?.accountType ?? '',
-      createCurrency: createDetails?.currency ?? '',
-      createInstitution: createDetails?.institutionId ?? '',
-      onChange: (nextValue: string) => onAccountMappingChange(sourceAccount, nextValue),
-      onCreateTypeChange: (nextValue: string) => setAccountCreateTypes((current) => ({ ...current, [sourceAccount]: nextValue })),
-      onCreateCurrencyChange: (nextValue: string) => setAccountCreateCurrencies((current) => ({ ...current, [sourceAccount]: nextValue })),
-      onCreateInstitutionChange: (nextValue: string) => setAccountCreateInstitutions((current) => ({ ...current, [sourceAccount]: nextValue })),
-    }
+  // Every account in the export takes rows, so no source here is counterparty-only
+  const accountRows = buildImportAccountMappingRows(sources, {
+    accountMappings,
+    accountById,
+    autoFilledAccountSources,
+    handAnsweredAccountSources,
+    getCreateDetails: (source) => accountCreateDetails[source],
+    onAccountMappingChange,
+    setAccountCreateTypes,
+    setAccountCreateCurrencies,
+    setAccountCreateInstitutions,
   })
 
   // Held back until the account list has landed, since every tracked name resolves to create until
@@ -174,24 +127,14 @@ export function ProviderAccountMappingStep({
   return (
     <ImportStep index={index} title="Account Mapping" description={description}>
       {!accountsFailed && notice}
-      {accountsFailed ? (
-        <ImportLoadFailure
-          title={ACCOUNTS_LOAD_FAILURE_TITLE}
-          description={ACCOUNTS_LOAD_FAILURE_EXPLANATION}
-          onRetry={refetchAccounts}
-        />
-      ) : sources.length === 0 ? (
-        <EmptyState title={emptyState.title} description={emptyState.description} />
-      ) : (
+      <ImportAccountStepBody
+        accountsFailed={accountsFailed}
+        refetchAccounts={refetchAccounts}
+        isEmpty={sources.length === 0}
+        empty={<EmptyState title={emptyState.title} description={emptyState.description} />}
+      >
         <>
-          {isCreatingAccount && (
-            <ImportNotice
-              title={CREATED_ACCOUNT_TITLE}
-              items={createdAccountNotice.items}
-            >
-              {createdAccountNotice.explanation}
-            </ImportNotice>
-          )}
+          {isCreatingAccount && <ImportCreatedAccountsNotice {...createdAccountNotice} />}
           {createNotice}
           <ImportAccountMappingTable
             rows={accountRows}
@@ -210,19 +153,12 @@ export function ProviderAccountMappingStep({
             onBatchAccountCurrencyChange={setBatchAccountCurrency}
             onBatchAccountInstitutionChange={setBatchAccountInstitution}
             onSelectedRowsChange={setSelectedAccountRows}
-            onCreateInstitution={(query, rowId) => openInstitutionModal(query, { kind: 'account', source: rowId })}
-            onBatchCreateInstitution={(query) => openInstitutionModal(query, { kind: 'batch' })}
+            onCreateInstitution={(query, rowId) => openInstitutionModal(query, rowId)}
+            onBatchCreateInstitution={(query) => openInstitutionModal(query, BATCH_INSTITUTION_TARGET)}
           />
         </>
-      )}
-      <InstitutionModal
-        key={institutionModal.key}
-        open={institutionModal.open}
-        initialName={institutionModal.name}
-        institution={institutionModal.institution}
-        onClose={closeInstitutionModal}
-        onSaved={handleInstitutionSaved}
-      />
+      </ImportAccountStepBody>
+      <InstitutionModal key={institutionModalKey} {...institutionModalProps} />
     </ImportStep>
   )
 }

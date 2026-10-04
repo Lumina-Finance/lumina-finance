@@ -13,9 +13,10 @@ import {
   getRowTooManyTagsReason,
   MAX_IMPORT_NOTES_LENGTH,
   MAX_IMPORT_TAGS_PER_ROW,
+  IMPORT_SAMPLE_PREVIEW_LIMIT,
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportRowProblem } from '@/pages/imports/types'
-import { getProviderSkippedRowsDisplay } from '@/pages/imports/utils'
+import { getSkippedRowsDisplay } from '@/pages/imports/utils'
 import {
   forecastFireflyImport,
   isFireflyRowUploadable,
@@ -26,7 +27,6 @@ import {
 import {
   FIREFLY_GENERIC_SKIP_REASON,
   FIREFLY_MISSING_REQUIRED_VALUES_REASON,
-  FIREFLY_SAMPLE_PREVIEW_LIMIT,
 } from '@/pages/imports/firefly/constants'
 import { createNameKeyedAccountSources } from './fixtures'
 
@@ -141,20 +141,6 @@ function getForecastRowWarnings(forecast: ReturnType<typeof forecastFireflyImpor
   return forecast.rowWarnings as ImportRowProblem[]
 }
 
-/** Creates one predicted skipped-row detail at a distinct source position */
-function createSkippedDetail(
-  index: number,
-  overrides: Partial<FireflySkippedRowDetail> = {},
-): FireflySkippedRowDetail {
-  return {
-    journalId: `journal-${index}`,
-    rowNumber: index + 2,
-    cells: { marker: `row-${index}` },
-    reason: `Reason ${index}`,
-    ...overrides,
-  }
-}
-
 /** Creates a complete committed result with empty counters and mappings unless overridden */
 function createImportResult(overrides: Partial<JournalImportRunResponse> = {}): JournalImportRunResponse {
   return {
@@ -183,19 +169,7 @@ function createImportResult(overrides: Partial<JournalImportRunResponse> = {}): 
   }
 }
 
-describe('getProviderSkippedRowsDisplay before commit', () => {
-  it('shows the forecast rows under a future-tense title', () => {
-    const forecastRows = [createSkippedDetail(0), createSkippedDetail(1)]
-
-    expect(getProviderSkippedRowsDisplay({ liveForecastRows: forecastRows, completedImport: null })).toEqual({
-      rows: forecastRows,
-      totalCount: 2,
-      title: '2 rows will not be imported',
-    })
-  })
-})
-
-describe('getProviderSkippedRowsDisplay after commit', () => {
+describe('getSkippedRowsDisplay after a Firefly III commit', () => {
   it('retains the commit-time source row after live account mappings move the same skip pair', () => {
     const sameAccountReason = 'Transfer source and destination resolve to the same account'
     const firstRow = createFireflyRow({
@@ -250,7 +224,7 @@ describe('getProviderSkippedRowsDisplay after commit', () => {
       skippedRows: [{ rowNumber: 3, cells: secondRow, reason: sameAccountReason }],
     })
 
-    expect(getProviderSkippedRowsDisplay({
+    expect(getSkippedRowsDisplay({
       liveForecastRows: livePrediction.skippedRows,
       completedImport: {
         result: importResult,
@@ -263,7 +237,6 @@ describe('getProviderSkippedRowsDisplay after commit', () => {
       title: '1 row was not imported',
     })
   })
-
 })
 
 describe('forecastFireflyImport', () => {
@@ -344,6 +317,7 @@ describe('forecastFireflyImport', () => {
     const { skippedRows: skipped } = forecastFireflyImport([row], createOptions())
 
     expect(skipped).toEqual([{
+      id: 'transactions-file-0',
       journalId: '1',
       rowNumber: 2,
       cells: row,
@@ -802,10 +776,10 @@ describe('forecastFireflyImport', () => {
       name: 'Debt Payment',
       is_system: true,
     })
-    const rows = Array.from({ length: FIREFLY_SAMPLE_PREVIEW_LIMIT + 2 }, (_, index) => createFireflyRow({
-      journal_id: index >= FIREFLY_SAMPLE_PREVIEW_LIMIT ? 'shared-journal' : String(index + 1),
+    const rows = Array.from({ length: IMPORT_SAMPLE_PREVIEW_LIMIT + 2 }, (_, index) => createFireflyRow({
+      journal_id: index >= IMPORT_SAMPLE_PREVIEW_LIMIT ? 'shared-journal' : String(index + 1),
       date: `2026-06-${String(index + 1).padStart(2, '0')} 00:00:00`,
-      category: index >= FIREFLY_SAMPLE_PREVIEW_LIMIT ? 'Debt Payment' : 'Groceries',
+      category: index >= IMPORT_SAMPLE_PREVIEW_LIMIT ? 'Debt Payment' : 'Groceries',
     }))
     const forecast = forecastFireflyImport(
       rows,
@@ -822,20 +796,20 @@ describe('forecastFireflyImport', () => {
     )
 
     expect(forecast).toMatchObject({
-      rowCount: FIREFLY_SAMPLE_PREVIEW_LIMIT + 2,
-      transactionEstimate: FIREFLY_SAMPLE_PREVIEW_LIMIT + 2,
+      rowCount: IMPORT_SAMPLE_PREVIEW_LIMIT + 2,
+      transactionEstimate: IMPORT_SAMPLE_PREVIEW_LIMIT + 2,
       skippedRows: [],
       rowWarnings: [
         {
-          id: `transactions-file-${FIREFLY_SAMPLE_PREVIEW_LIMIT}`,
-          rowNumber: FIREFLY_SAMPLE_PREVIEW_LIMIT + 2,
-          cells: rows[FIREFLY_SAMPLE_PREVIEW_LIMIT],
+          id: `transactions-file-${IMPORT_SAMPLE_PREVIEW_LIMIT}`,
+          rowNumber: IMPORT_SAMPLE_PREVIEW_LIMIT + 2,
+          cells: rows[IMPORT_SAMPLE_PREVIEW_LIMIT],
           reason: EXPECTED_DEBT_PAYMENT_NOTE,
         },
         {
-          id: `transactions-file-${FIREFLY_SAMPLE_PREVIEW_LIMIT + 1}`,
-          rowNumber: FIREFLY_SAMPLE_PREVIEW_LIMIT + 3,
-          cells: rows[FIREFLY_SAMPLE_PREVIEW_LIMIT + 1],
+          id: `transactions-file-${IMPORT_SAMPLE_PREVIEW_LIMIT + 1}`,
+          rowNumber: IMPORT_SAMPLE_PREVIEW_LIMIT + 3,
+          cells: rows[IMPORT_SAMPLE_PREVIEW_LIMIT + 1],
           reason: EXPECTED_DEBT_PAYMENT_NOTE,
         },
       ],

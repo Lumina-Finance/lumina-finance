@@ -6,7 +6,12 @@
  * Actual lets two categories share one. Every difference is reported once per kind, subject and
  * Lumina value, with a count where several records share one
  */
-import type { LuminaBaseBudget, LuminaSnapshot } from '../firefly-check/compare.ts'
+import {
+  createMinorUnitsFormatter,
+  DifferenceList,
+  type Difference,
+  type LuminaSnapshot,
+} from '../support/import-check/compare.ts'
 import {
   ACTUAL_TRANSACTION_DECIMALS,
   formatStored,
@@ -17,11 +22,7 @@ import {
   type ManifestRow,
 } from './manifest.ts'
 
-/**
- * Lumina's records as the Firefly III check reads them back. The base budget list also sends each
- * budget's recurs flag, which that check's type leaves out
- */
-export type ActualLuminaSnapshot = Omit<LuminaSnapshot, 'baseBudgets'> & { baseBudgets: (LuminaBaseBudget & { recurs: boolean })[] }
+export type ActualDifference = Difference<'actual'>
 
 /** Lumina's records for Actual's, as the import run reported creating or matching them */
 export interface ImportMappings {
@@ -33,21 +34,6 @@ export interface ImportMappings {
 
   /** Lumina base budget id for each Actual category id a budget was imported for */
   budgets: Map<string, string>
-}
-
-export interface Difference {
-  kind: string
-  subject: string
-  actual: string
-  lumina: string
-}
-
-/** A known difference, which matches only while Lumina still holds the value it names */
-export interface ExpectedDifference {
-  kind: string
-  subject: string
-  lumina: string
-  reason: string
 }
 
 /** One row of the import screen's table of rows it left out, as the screen shows it */
@@ -65,16 +51,20 @@ const BALANCE_ADJUSTMENT = 'Balance Adjustment'
 // Decimal places Lumina keeps for the currencies the check's budgets are imported in
 const CURRENCY_EXPONENTS: Record<string, number> = { CAD: 2, JPY: 0 }
 
+// Writes Lumina's amounts the way the check writes Actual's in those currencies, so the two compare
+// as text
+const formatMinorUnits = createMinorUnitsFormatter(CURRENCY_EXPONENTS)
+
 // The start of the reason the import screen gives for a split whose parts no longer add up
 const UNBALANCED_SPLIT_REASON = 'Its split parts add up to'
 
 export function compareImport(
   manifest: ActualManifest,
-  lumina: ActualLuminaSnapshot,
+  lumina: LuminaSnapshot,
   mappings: ImportMappings,
   currency: string,
-): Difference[] {
-  const differences = new DifferenceList()
+): ActualDifference[] {
+  const differences = new DifferenceList('actual')
   const categoryById = new Map(manifest.categories.map((category) => [category.id, category]))
 
   // Actual's figures are as of the run date, so rows dated after it are compared on their own
@@ -89,25 +79,11 @@ export function compareImport(
 }
 
 /**
- * Splits the differences into those not on the expected list, and expected ones that no longer
- * occur, so a fixed gap has to be taken off the list
- */
-export function checkExpected(differences: Difference[], expected: ExpectedDifference[]) {
-  const matches = (difference: Difference, entry: ExpectedDifference) => (
-    entry.kind === difference.kind && entry.subject === difference.subject && entry.lumina === difference.lumina
-  )
-  return {
-    unexpected: differences.filter((difference) => !expected.some((entry) => matches(difference, entry))),
-    stale: expected.filter((entry) => !differences.some((difference) => matches(difference, entry))),
-  }
-}
-
-/**
  * Compares the import screen's table of rows it left out, row by row, with the splits Actual flags
  * as unbalanced
  */
-export function compareSkippedRows(manifest: ActualManifest, shown: SkippedRowCells[]): Difference[] {
-  const differences = new DifferenceList()
+export function compareSkippedRows(manifest: ActualManifest, shown: SkippedRowCells[]): ActualDifference[] {
+  const differences = new DifferenceList('actual')
   const expected = manifest.unbalancedSplits.map((row) => ({ row, reason: UNBALANCED_SPLIT_REASON }))
   const unmatched = new Set(shown)
   for (const { row, reason } of expected) {
@@ -136,10 +112,10 @@ function isSameRow(cells: SkippedRowCells, row: ManifestRow) {
 
 function compareAccounts(
   manifest: ActualManifest,
-  lumina: ActualLuminaSnapshot,
+  lumina: LuminaSnapshot,
   mappings: ImportMappings,
   currency: string,
-  differences: DifferenceList,
+  differences: DifferenceList<'actual'>,
 ) {
   const accountById = new Map(lumina.accounts.map((account) => [account.id, account]))
   const adjustmentCategoryIds = new Set(lumina.categories.filter((category) => category.name === BALANCE_ADJUSTMENT).map((category) => category.id))
@@ -194,7 +170,7 @@ function compareLaterRows(
   transactions: LuminaSnapshot['transactions'],
   mappings: ImportMappings,
   currency: string,
-  differences: DifferenceList,
+  differences: DifferenceList<'actual'>,
 ) {
   const unmatched = new Set(transactions.filter((transaction) => transaction.dt.slice(0, 10) > manifest.asOf))
   for (const row of manifest.afterAsOf) {
@@ -232,7 +208,7 @@ function compareTransfers(
   transactions: LuminaSnapshot['transactions'],
   mappings: ImportMappings,
   currency: string,
-  differences: DifferenceList,
+  differences: DifferenceList<'actual'>,
 ) {
   const getLuminaAccountId = (name: string) => findLuminaAccountId(manifest, mappings, name)
 
@@ -281,7 +257,7 @@ function compareCategoryMonths(
   mappings: ImportMappings,
   categoryById: Map<string, ManifestCategory>,
   currency: string,
-  differences: DifferenceList,
+  differences: DifferenceList<'actual'>,
 ) {
   const actualTotals = new Map<string, Map<string, string>>()
   for (const month of manifest.categoryMonths) {
@@ -314,11 +290,11 @@ function compareCategoryMonths(
 
 function compareBudgets(
   manifest: ActualManifest,
-  lumina: ActualLuminaSnapshot,
+  lumina: LuminaSnapshot,
   mappings: ImportMappings,
   categoryById: Map<string, ManifestCategory>,
   currency: string,
-  differences: DifferenceList,
+  differences: DifferenceList<'actual'>,
 ) {
   const baseBudgetById = new Map(lumina.baseBudgets.map((budget) => [budget.id, budget]))
   const categoryNameById = new Map(lumina.categories.map((category) => [category.id, category.name]))
@@ -405,36 +381,8 @@ function negate(amount: string) {
   return formatStored(-readStored(amount, ACTUAL_TRANSACTION_DECIMALS), ACTUAL_TRANSACTION_DECIMALS)
 }
 
-// Lumina can hold an amount in a currency the dataset never uses, which is itself a difference, so
-// it is shown as it is stored rather than stopping the comparison
-function formatMinorUnits(minorUnits: number, currency: string) {
-  if (!(currency in CURRENCY_EXPONENTS)) return `${minorUnits} minor units of ${currency}`
-  return formatStored(minorUnits, CURRENCY_EXPONENTS[currency])
-}
-
 function requireExponent(currency: string) {
   const exponent = CURRENCY_EXPONENTS[currency]
   if (exponent === undefined) throw new Error(`No decimal places recorded for ${currency}`)
   return exponent
-}
-
-/** Keeps one difference per kind, subject and Lumina value, counting repeats */
-class DifferenceList {
-  private readonly entries = new Map<string, Difference & { count: number }>()
-
-  add(kind: string, subject: string, actual: string, lumina: string) {
-    const key = JSON.stringify([kind, subject, lumina])
-    const entry = this.entries.get(key)
-    if (entry) {
-      entry.count += 1
-    } else {
-      this.entries.set(key, { kind, subject, actual, lumina, count: 1 })
-    }
-  }
-
-  list(): Difference[] {
-    return [...this.entries.values()].map(({ count, ...difference }) => (
-      count > 1 ? { ...difference, actual: `${difference.actual} (${count} times)` } : difference
-    ))
-  }
 }

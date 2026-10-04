@@ -22,12 +22,8 @@ vi.mock('@/api/client', () => ({
   authenticatedFetch: authenticatedFetchMock,
 }));
 
-import {
-  TransactionImportRunError,
-  isImportCommitWorthRepeating,
-  runTransactionImport,
-  settleStagedRun,
-} from '@/api/transaction-imports';
+import { ImportRunError, isImportCommitWorthRepeating } from '@/api/import-runs';
+import { runTransactionImport } from '@/api/transaction-imports';
 
 const RUN_ID = 'run_1';
 
@@ -198,7 +194,7 @@ describe('staging a transaction import', () => {
       .mockRejectedValueOnce(new ApiError('Account is archived', 422))
       .mockResolvedValueOnce(undefined);
 
-    await expect(runTransactionImport(payload)).rejects.toBeInstanceOf(TransactionImportRunError);
+    await expect(runTransactionImport(payload)).rejects.toBeInstanceOf(ImportRunError);
 
     expect(calledPaths()).toEqual([
       '/transactions/import/runs',
@@ -216,7 +212,7 @@ describe('staging a transaction import', () => {
 
     const error = await runTransactionImport(payload).catch((thrown: unknown) => thrown);
 
-    expect((error as TransactionImportRunError).message).toBe('Import failed.');
+    expect((error as ImportRunError).message).toBe('Import failed.');
   });
 
   it('keeps the message a rejected commit carries', async () => {
@@ -225,7 +221,7 @@ describe('staging a transaction import', () => {
 
     const error = await runTransactionImport(payload).catch((thrown: unknown) => thrown);
 
-    expect((error as TransactionImportRunError).message).toBe('Invalid amount: $2.00');
+    expect((error as ImportRunError).message).toBe('Invalid amount: $2.00');
   });
 
   it('keeps the run when the commit fails, so it can be committed again', async () => {
@@ -234,9 +230,9 @@ describe('staging a transaction import', () => {
 
     const error = await runTransactionImport(payload).catch((thrown: unknown) => thrown);
 
-    expect(error).toBeInstanceOf(TransactionImportRunError);
-    expect((error as TransactionImportRunError).phase).toBe('commit');
-    expect((error as TransactionImportRunError).runId).toBe(RUN_ID);
+    expect(error).toBeInstanceOf(ImportRunError);
+    expect((error as ImportRunError).phase).toBe('commit');
+    expect((error as ImportRunError).runId).toBe(RUN_ID);
     expect(isImportCommitWorthRepeating(error)).toBe(true);
     expect(calledPaths()).not.toContain(`/transactions/import/runs/${RUN_ID}`);
   });
@@ -248,20 +244,5 @@ describe('staging a transaction import', () => {
     const error = await runTransactionImport(payload).catch((thrown: unknown) => thrown);
 
     expect(isImportCommitWorthRepeating(error)).toBe(false);
-  });
-});
-
-describe('settling a kept run before importing afresh', () => {
-  it.each([
-    ['dropped', undefined, 'discarded'],
-    ['already gone', new ApiError('Import run not found', 404, { detail: 'Import run not found' }), 'discarded'],
-    ['committed after all', new ApiError('This import has already been committed', 409, { detail: 'This import has already been committed' }), 'saved'],
-    ['held by a commit still running', new ApiError('This import is already being worked on', 409, { detail: 'This import is already being worked on' }), 'unsettled'],
-    ['unanswered', new TypeError('Failed to fetch'), 'unsettled'],
-  ])('reads a run that is %s', async (_case, failure, settlement) => {
-    if (failure) authenticatedFetchMock.mockRejectedValueOnce(failure);
-    else authenticatedFetchMock.mockResolvedValueOnce(undefined);
-
-    expect(await settleStagedRun(RUN_ID)).toBe(settlement);
   });
 });

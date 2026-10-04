@@ -7,7 +7,6 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import {
   ACTUAL_CATEGORY_RENAME_APP_NAME,
-  ACTUAL_JOURNAL_ID_MAX_LENGTH,
   getActualAmountPrecisionReason,
   getActualCategoryNameTooLongError,
   getActualFileCurrencyError,
@@ -31,6 +30,7 @@ import {
   getImportGroupAccountError,
   getImportGroupCategoryError,
   getImportReadOnlyAccountMappingError,
+  JOURNAL_ROW_FIELD_MAX_LENGTHS,
 } from '@/pages/imports/constants'
 import type { ImportCategoryKind } from '@/pages/imports/types'
 import { getImportCategoryRenames } from '@/pages/imports/utils'
@@ -378,6 +378,22 @@ describe('Actual Budget import payload', () => {
     ])
   })
 
+  it('leaves a stale group account answer alone on an account with no rows, since nothing is written to it', async () => {
+    const { journal } = await normaliseActualFixture('edges')
+    const checking = journal.accounts.find((account) => account.rowCount > 0)!
+    const rowless = { ...checking, id: 'rowless', label: 'Old savings', rowCount: 0 }
+    const withRowless = { ...journal, accounts: [...journal.accounts, rowless] }
+    const answers = createAnswers(withRowless)
+    const familyChequing = { ...CHEQUING, id: 'family-chequing', group_id: 'family' } as AccountsOverview
+    answers.accountById.set(familyChequing.id, familyChequing)
+    answers.accountMappings[rowless.id] = familyChequing.id
+
+    const build = buildActualImportPayload(withRowless, answers)
+
+    expect(build.errors).toEqual([])
+    expect(build.payload!.accounts.map((mapping) => mapping.source)).not.toContain(rowless.id)
+  })
+
   it('sends a split part an early Actual version gave a long id by the end of that id', async () => {
     const { journal } = await normaliseActualFixture('edges')
     const partId = '0c6a2f4e-9b1d-4e7a-8c3f-5d2e1b0a5e6f'
@@ -387,7 +403,7 @@ describe('Actual Budget import payload', () => {
 
     expect(build.errors).toEqual([])
     const sent = build.payload!.rows[0].journal_id
-    expect(sent).toHaveLength(ACTUAL_JOURNAL_ID_MAX_LENGTH)
+    expect(sent).toHaveLength(JOURNAL_ROW_FIELD_MAX_LENGTHS.journalId)
     expect(sent.endsWith(partId)).toBe(true)
   })
 

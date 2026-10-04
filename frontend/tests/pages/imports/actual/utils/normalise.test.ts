@@ -5,14 +5,19 @@
 import { describe, expect, it } from 'vitest'
 import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import {
-  ACTUAL_PAYEE_NAME_MAX_LENGTH,
-  ACTUAL_TAG_NAME_MAX_LENGTH,
   ACTUAL_TRANSFER_SIDE_LEFT_OUT_REASON,
   getActualPayeeTooLongReason,
   getActualTagTooLongReason,
   getActualUnbalancedSplitReason,
 } from '@/pages/imports/actual/constants'
-import { MAX_IMPORT_NOTES_LENGTH, MAX_IMPORT_TAGS_PER_ROW, getRowNotesTooLongReason, getRowTooManyTagsReason } from '@/pages/imports/constants'
+import {
+  IMPORT_TAG_NAME_MAX_LENGTH,
+  JOURNAL_ROW_FIELD_MAX_LENGTHS,
+  MAX_IMPORT_NOTES_LENGTH,
+  MAX_IMPORT_TAGS_PER_ROW,
+  getRowNotesTooLongReason,
+  getRowTooManyTagsReason,
+} from '@/pages/imports/constants'
 import type { ActualJournal } from '@/pages/imports/actual/types'
 import { formatHundredths, normaliseActualBudget, readActualTags } from '@/pages/imports/actual/utils/normalise'
 import { buildActualBudget, normaliseActualFixture as normalise } from './fixtures'
@@ -276,8 +281,8 @@ describe('pairing Actual Budget transfers', () => {
 
 describe('Actual Budget rows over the import limits', () => {
   it('leaves out and lists rows whose notes, tags or payee the import cannot take', () => {
-    const longPayee = 'P'.repeat(ACTUAL_PAYEE_NAME_MAX_LENGTH + 1)
-    const longTag = 't'.repeat(ACTUAL_TAG_NAME_MAX_LENGTH + 1)
+    const longPayee = 'P'.repeat(JOURNAL_ROW_FIELD_MAX_LENGTHS.payee + 1)
+    const longTag = 't'.repeat(IMPORT_TAG_NAME_MAX_LENGTH + 1)
     const manyTags = Array.from({ length: MAX_IMPORT_TAGS_PER_ROW + 1 }, (_, index) => `#tag${index}`).join(' ')
     const budget = buildActualBudget([
       { id: 'notes', accountId: 'checking', date: '2026-09-01', amount: -100, notes: 'n'.repeat(MAX_IMPORT_NOTES_LENGTH + 1) },
@@ -294,7 +299,7 @@ describe('Actual Budget rows over the import limits', () => {
       ['notes', getRowNotesTooLongReason(MAX_IMPORT_NOTES_LENGTH + 1)],
       ['tags', getRowTooManyTagsReason(MAX_IMPORT_TAGS_PER_ROW + 1)],
       ['tag', getActualTagTooLongReason(longTag)],
-      ['payee', getActualPayeeTooLongReason(ACTUAL_PAYEE_NAME_MAX_LENGTH + 1)],
+      ['payee', getActualPayeeTooLongReason(JOURNAL_ROW_FIELD_MAX_LENGTHS.payee + 1)],
     ])
   })
 

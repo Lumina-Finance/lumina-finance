@@ -9,7 +9,7 @@ from app.models.account import Account
 from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.currency import Currency
-from app.schemas.journal_import import JournalTransactionRow
+from app.schemas.import_run import JournalTransactionRow
 from app.services.categories.transfer_rules import does_category_record_counterparty_account
 from app.services.importers.journal.constants import (
     JOURNAL_NO_CATEGORY_SOURCE,

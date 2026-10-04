@@ -12,6 +12,7 @@ import {
   EMPTY_COLUMN_MAP,
   getRowAmountTooPreciseReason,
   getRowCurrencyMismatchReason,
+  getRowCurrencyUnsupportedReason,
   ROW_AMOUNT_TOO_LARGE_REASON,
   ROW_AMOUNT_UNREADABLE_REASON,
 } from '@/pages/imports/constants'
@@ -28,6 +29,8 @@ const CURRENCIES: Currency[] = [
   { id: 'PKR', name: 'Pakistani Rupee', symbol: '₨', minor_unit_exponent: 2 },
   { id: 'JPY', name: 'Japanese Yen', symbol: '¥', minor_unit_exponent: 0 },
   { id: 'BHD', name: 'Bahraini Dinar', symbol: 'BD', minor_unit_exponent: 3 },
+  { id: 'USD', name: 'US Dollar', symbol: '$', minor_unit_exponent: 2 },
+  { id: 'EUR', name: 'Euro', symbol: '€', minor_unit_exponent: 2 },
 ]
 
 const SUPPORTED_CURRENCY_CODES = new Set(CURRENCIES.map((currency) => currency.id))
@@ -441,6 +444,12 @@ describe('checking a row against the currency its account is kept in', () => {
     const result = buildPayload('CHF100,99', 'CAD', 'EUR', DECIMAL_COMMA)
 
     expect(firstProblem(result)).toBe(getRowCurrencyMismatchReason('EUR', 'CAD'))
+  })
+
+  // Moving the row to an account in its currency, which the mismatch reason offers, can't be done for
+  // a code the app has no accounts in
+  it('says a row states a currency the app does not support, rather than offering an account in it', () => {
+    expect(firstProblem(buildPayload('12.34', 'CAD', 'XYZ'))).toBe(getRowCurrencyUnsupportedReason('XYZ'))
   })
 
   it('imports a row stating the currency its account is kept in', () => {

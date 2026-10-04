@@ -1,6 +1,7 @@
-import { EmptyState, ImportNotice, ImportPreviewList, ImportRowProblemsTable, ImportStep } from '@/pages/imports/components'
-import { IMPORT_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/constants'
+import { ImportNotice, ImportRowProblemsTable, ImportRowWarningsTable } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
+import { getSkippedRowsDisplay } from '@/pages/imports/utils'
+import { ImportPreviewLayout } from './ImportPreviewLayout'
 
 /**
  * Heads the reasons the import cannot go ahead
@@ -14,7 +15,16 @@ function getBlockingErrorsTitle(count: number) {
 
 type ImportPreviewStepProps = Pick<
   TransactionImportWorkflow,
-  'files' | 'previewRows' | 'previewGroups' | 'importBuild' | 'headers'
+  | 'files'
+  | 'previewGroups'
+  | 'importStats'
+  | 'importBuild'
+  | 'headers'
+  | 'importError'
+  | 'handleCommitImport'
+  | 'canCommitImport'
+  | 'importResult'
+  | 'completedImport'
 >
 
 // How many reasons the step spells out before counting the rest. A file of unmatched categories
@@ -22,25 +32,6 @@ type ImportPreviewStepProps = Pick<
 // to, so a full list would bury the preview to repeat what those steps show. The build puts column
 // problems first, which is what the cap keeps
 const VISIBLE_ERROR_LIMIT = 10
-
-/**
- * Builds the heading over the rows that cannot be converted, which says what has to happen rather
- * than only how many there are
- */
-function getRowProblemsTitle(count: number) {
-  return `${count} row${count === 1 ? '' : 's'} must be fixed before importing`
-}
-
-/**
- * Builds the heading over the rows that import as they are but are worth a second look
- *
- * It offers a look rather than stating a fault, since nothing is wrong with these rows. That they
- * are taken is left to the note against each one, which the heading cannot also carry without
- * reading like the refusal heading above it
- */
-function getRowWarningsTitle(count: number) {
-  return `${count} row${count === 1 ? '' : 's'} worth a look`
-}
 
 /**
  * Says how many reasons were left off the list
@@ -54,12 +45,13 @@ function getHiddenErrorSummary(count: number) {
 }
 
 /**
- * Preview step of the generic CSV import flow, showing a sample of the compiled transactions or,
- * while anything still stands between the mappings and a commit, the reasons instead
+ * Preview and commit step of the generic CSV import flow, opening with the summary every import
+ * shows, then a sample of the compiled transactions or, while anything still stands between the
+ * mappings and a commit, the reasons instead
  *
- * Rows that cannot be converted are listed above the sample with the reason each was refused, and
- * the import stays refused until every one of them is gone. Rows that will import but are probably
- * not what the user meant are listed under them, and hold nothing up
+ * Rows that can't be converted are listed above the sample with the reason each is left out, as the
+ * imports from other apps list theirs, and the rest import without them. Rows that will import but
+ * are probably not what the user meant are listed under them, and hold nothing up
  *
  * The reasons take the place of the sample rather than sitting over it, since a half-built preview
  * shown beside a list of reasons it is wrong invites reading it as the real result. They wait for a
@@ -67,42 +59,50 @@ function getHiddenErrorSummary(count: number) {
  */
 export function ImportPreviewStep({
   files,
-  previewRows,
   previewGroups,
+  importStats,
   importBuild,
   headers,
+  importError,
+  handleCommitImport,
+  canCommitImport,
+  importResult,
+  completedImport,
 }: ImportPreviewStepProps) {
+  const skipped = getSkippedRowsDisplay({ liveForecastRows: importBuild.rowProblems, completedImport })
   const visibleErrors = importBuild.errors.slice(0, VISIBLE_ERROR_LIMIT)
   const hiddenErrorCount = importBuild.errors.length - visibleErrors.length
   const hasBlockingErrors = files.length > 0 && importBuild.errors.length > 0
 
   return (
-    <ImportStep
+    <ImportPreviewLayout
       index="07"
-      title="Imported Data Preview"
-      description={`The first ${IMPORT_SAMPLE_PREVIEW_LIMIT} transactions as they will appear in your ledger.`}
+      stats={importStats}
+      blocked={hasBlockingErrors ? (
+        <ImportNotice
+          tone="danger"
+          title={getBlockingErrorsTitle(importBuild.errors.length)}
+          items={hiddenErrorCount > 0 ? [...visibleErrors, getHiddenErrorSummary(hiddenErrorCount)] : visibleErrors}
+        />
+      ) : undefined}
+      previewGroups={previewGroups}
+      emptyDescription="Mapped rows will appear here."
+      importError={importError}
+      imported={Boolean(importResult)}
+      canCommit={canCommitImport}
+      onCommit={handleCommitImport}
     >
-      {importBuild.rowProblems.length > 0 && (
+      {skipped.totalCount > 0 && (
         <div className="mb-4">
           <ImportRowProblemsTable
-            title={getRowProblemsTitle(importBuild.rowProblems.length)}
-            rowProblems={importBuild.rowProblems}
+            title={skipped.title}
+            rowProblems={skipped.rows}
             headers={headers}
+            toggleLabel="skipped rows"
           />
         </div>
       )}
-      {importBuild.rowWarnings.length > 0 && (
-        <div className="mb-4">
-          <ImportRowProblemsTable
-            title={getRowWarningsTitle(importBuild.rowWarnings.length)}
-            rowProblems={importBuild.rowWarnings}
-            headers={headers}
-            toggleLabel="rows worth a look"
-            tone="warning"
-            reasonHeader="Note"
-          />
-        </div>
-      )}
+      <ImportRowWarningsTable rowWarnings={importBuild.rowWarnings} headers={headers} />
       {/* Last of the three notices about the data, which run refusals first and then the things that
           hold nothing up. What follows is the preview itself rather than a fourth notice, so a red
           error list below this amber one is the body starting rather than the order breaking */}
@@ -111,20 +111,6 @@ export function ImportPreviewStep({
           {warning}
         </p>
       ))}
-      {hasBlockingErrors ? (
-        <ImportNotice
-          tone="danger"
-          title={getBlockingErrorsTitle(importBuild.errors.length)}
-          items={hiddenErrorCount > 0 ? [...visibleErrors, getHiddenErrorSummary(hiddenErrorCount)] : visibleErrors}
-        />
-      ) : previewRows.length === 0 ? (
-        <EmptyState
-          title="No preview rows"
-          description="Mapped rows will appear here."
-        />
-      ) : (
-        <ImportPreviewList groups={previewGroups} />
-      )}
-    </ImportStep>
+    </ImportPreviewLayout>
   )
 }

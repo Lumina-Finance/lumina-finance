@@ -69,3 +69,16 @@ export function formatBytes(bytes: number) {
 export function joinImportSummaryParts(parts: string[]) {
   return parts.map((part) => part.replaceAll(' ', ' ')).join(' · ')
 }
+
+/**
+ * Counts the sources answered create-new that the import sends, since the commit creates nothing
+ * for a source it leaves out
+ */
+export function countCreatedImportSources(
+  sources: string[],
+  mappings: Record<string, string>,
+  createValue: string,
+  writtenSources: ReadonlySet<string>,
+) {
+  return sources.filter((source) => mappings[source] === createValue && writtenSources.has(source)).length
+}

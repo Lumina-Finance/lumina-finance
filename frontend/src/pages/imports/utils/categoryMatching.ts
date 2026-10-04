@@ -1,9 +1,16 @@
 import type { Category } from '@/api/categories'
+import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import {
   CREATE_CATEGORY_VALUE,
+  CSV_CATEGORY_RENAME_APP_NAME,
+  IMPORT_MISCELLANEOUS_CATEGORY_NAME,
+  IMPORT_NO_CATEGORY_TRANSFER_SOURCE,
+  IMPORT_TRANSFER_CATEGORY_NAME,
   DEBT_PAYMENT_IMPORT_NOTE,
   getCategoryCreateClashError,
   getCategoryDirectionClashError,
+  getImportCategoryRenameHelp,
+  getImportCategoryRenameLabel,
   getImportCategoryRenameProposal,
   getImportCategoryRenameRequiredError,
 } from '@/pages/imports/constants'
@@ -16,7 +23,14 @@ import type {
 } from '@/pages/imports/types'
 import { DEBT_PAYMENT_CATEGORY_NAME } from '@/utils/transfers'
 import { DEFAULT_IMPORT_AMOUNT_FORMAT, type ImportAmountFormat } from './amountFormats'
-import { resolveImportAmount } from './columnMapping'
+import { getImportRowCategorySource, resolveImportAmount } from './columnMapping'
+
+// The seeded category each source standing for rows with no category is matched to, since such rows
+// have no name to match on, in the order the category step lists them after every named one
+export const SYSTEM_CATEGORY_NAME_BY_UNNAMED_SOURCE: Record<string, string> = {
+  [JOURNAL_NO_CATEGORY_SOURCE]: IMPORT_MISCELLANEOUS_CATEGORY_NAME,
+  [IMPORT_NO_CATEGORY_TRANSFER_SOURCE]: IMPORT_TRANSFER_CATEGORY_NAME,
+}
 
 /**
  * Breaks a cell holding several values into the individual ones, accepting semicolons, commas or
@@ -34,8 +48,9 @@ export function splitImportedValues(value: string) {
  * filed against it, labelling a name Mixed when both signs appear
  *
  * Rows with an amount of zero or an amount that cannot be read are ignored, since neither says
- * anything about direction, and every name is left blank until both the category column and an
- * arrangement carrying the amount have been mapped
+ * anything about direction, and every name is left blank until an arrangement carrying the amount
+ * has been mapped. A row with no category is read under (no category), or (transfer, no category)
+ * where it names a transfer account, the way the commit files it
  *
  * Each row's amount is read the same way the commit reads it, so a file stating its direction
  * outside the amount, in separate columns or in a column of words, is judged on the direction it
@@ -53,20 +68,17 @@ export function getImportedCategoryTypes(
   amountFormat: ImportAmountFormat | null = DEFAULT_IMPORT_AMOUNT_FORMAT,
 ) {
   const signsByCategory = new Map<string, Set<'expense' | 'income'>>()
-  const categoryHeader = columnMap.category_id
   const amountHeaders = [columnMap.amount, columnMap.amount_out, columnMap.amount_in].filter(Boolean)
 
-  if (!categoryHeader || amountHeaders.length === 0) {
+  if (amountHeaders.length === 0) {
     return Object.fromEntries(importedCategories.map((category) => [category, '']))
   }
 
   for (const file of files) {
-    if (!file.headers.includes(categoryHeader)) continue
     if (!amountHeaders.some((header) => file.headers.includes(header))) continue
 
     for (const row of file.rows) {
-      const category = row[categoryHeader]?.trim()
-      if (!category) continue
+      const category = getImportRowCategorySource(row, columnMap)
 
       const amount = resolveImportAmount(row, columnMap, directionAnswers, amountFormat).amountReading
       if (!amount || amount.isZero) continue
@@ -145,6 +157,9 @@ export function keepCurrentMatchMap(
  * in an expense category and a clawback in an income one. Where several categories score equally,
  * the user's own wins over a group's and a group's over one that ships with the app, and a name
  * still tied after that is left unmatched rather than settled by chance
+ *
+ * Rows with no category have no name to match on, so (no category) goes to the seeded Miscellaneous
+ * and (transfer, no category) to the seeded Transfer, as they do in the provider imports
  */
 export function inferCategoryMappings(
   importedCategories: string[],
@@ -155,6 +170,13 @@ export function inferCategoryMappings(
 
   for (const source of importedCategories) {
     if (next[source]) continue
+
+    const systemName = SYSTEM_CATEGORY_NAME_BY_UNNAMED_SOURCE[source]
+    if (systemName) {
+      const system = categories.find((category) => category.is_system && category.name === systemName)
+      if (system) next[source] = system.id
+      continue
+    }
 
     const match = findBestCategoryNameMatch(source, categories)
     if (match) next[source] = match.id
@@ -274,7 +296,66 @@ export function getImportCategoryRenames({
 }
 
 /**
- * Checks the name a provider import creates a category under against the user's categories and the
+ * Settles another name for each new category from a CSV file whose own name an existing category
+ * holds for another type
+ *
+ * A value's type is the one chosen for it, or else the one its amounts read as. A value whose amounts
+ * leave its type open has no type to clash yet, so it is offered no new name
+ */
+export function getCsvCategoryRenames({
+  importedCategories,
+  mappings,
+  createKinds,
+  typesBySource,
+  typedNames,
+  categoryById,
+}: {
+  importedCategories: string[]
+  mappings: Record<string, string>
+  createKinds: Record<string, ImportCategoryKind>
+  typesBySource: Record<string, string>
+  typedNames: Record<string, string>
+  categoryById: Map<string, Category>
+}) {
+  const kinds: Record<string, ImportCategoryKind> = {}
+  for (const category of importedCategories) {
+    const kind = getCategoryMatchKind('', createKinds[category], typesBySource[category], categoryById)
+    if (kind) kinds[category] = kind
+  }
+
+  return getImportCategoryRenames({
+    sources: Object.keys(kinds).map((category) => ({ id: category, name: category })),
+    mappings,
+    kinds,
+    typedNames,
+    categoryById,
+    appName: CSV_CATEGORY_RENAME_APP_NAME,
+  })
+}
+
+/**
+ * The field a category row shows in place of its name while a new category needs another name,
+ * or nothing while it keeps its own
+ *
+ * @param label - The source as the row names it
+ */
+export function getImportCategoryRenameField(
+  label: string,
+  rename: ImportCategoryRename | undefined,
+  onChange: (name: string) => void,
+) {
+  if (rename === undefined) return undefined
+  return {
+    label: getImportCategoryRenameLabel(label),
+    help: getImportCategoryRenameHelp(rename),
+    value: rename.name,
+    isProposed: rename.isProposed,
+    onChange,
+  }
+}
+
+/**
+ * Checks the name an import creates a category under against the user's categories and the
  * ones the same import creates before it, returning what to tell the user, or null when the commit
  * will take it
  *

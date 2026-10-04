@@ -14,17 +14,20 @@ from sqlalchemy import text
 from app.routes.auth import token_helpers
 from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header
-from tests.routes.transactions._helpers import (
+from tests.routes.transactions._helpers import _create_account, _seed_usd_currency, _setup_user_with_deps
+from tests.routes.transactions._import_helpers import (
+    _GROCERIES,
     _PAST_ABANDONMENT,
     _SHORT_OF_ABANDONMENT,
     _age_run,
-    _create_account,
-    _seed_usd_currency,
-    _setup_user_with_deps,
+    _chequing_mapping,
+    _firefly_batch,
+    _firefly_row,
+    _open_run,
+    _open_staged_run,
+    _stage_batch,
 )
-from tests.routes.transactions.test_firefly_imports import _chequing_mapping, _firefly_row
 
-_GROCERIES = {"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}
 _US_SAVINGS = {
     "source": "US Dollar Savings",
     "create": {"name": "US Dollar Savings", "account_type": "savings", "currency": "USD"},
@@ -42,28 +45,19 @@ def _budget(name="Food", category_sources=("Groceries",)):
     }
 
 
-async def _open_run(client, headers, expected_transaction_count, source="firefly"):
-    """Open a run and return its id"""
-    resp = await client.post(
-        "/transactions/import/runs",
-        json={"expected_transaction_count": expected_transaction_count, "source": source},
-        headers=headers,
-    )
-    assert resp.status_code == 201, resp.text
-    return resp.json()["id"]
-
-
 async def _stage(client, headers, run_id, start_row_index, rows, accounts=None, categories=None):
-    """Stage one batch of Firefly III rows"""
-    resp = await client.post(
-        f"/transactions/import/runs/{run_id}/journal/rows",
-        json={
+    """Stage one batch of Firefly III rows, mapping the chequing account and Groceries unless told otherwise"""
+    resp = await _stage_batch(
+        client,
+        headers,
+        run_id,
+        {
             "accounts": accounts or [_chequing_mapping()],
             "categories": [_GROCERIES] if categories is None else categories,
             "rows": rows,
             "start_row_index": start_row_index,
         },
-        headers=headers,
+        "firefly",
     )
     assert resp.status_code == 204, resp.text
 
@@ -88,7 +82,7 @@ async def test_a_firefly_run_commits_rows_budgets_and_archiving_from_every_batch
     """Mappings a later batch or the budgets declare are all in place when the one commit writes."""
     await _seed_usd_currency()
     headers = _get_auth_header(await _create_user(client))
-    run_id = await _open_run(client, headers, 3)
+    run_id = await _open_run(client, headers, 3, "firefly")
 
     await _stage(
         client,
@@ -206,7 +200,7 @@ async def test_a_firefly_run_commits_rows_budgets_and_archiving_from_every_batch
 async def test_a_firefly_run_commits_more_rows_than_one_batch_carries(client):
     """The commit writes every staged row in one write, past the most one request may carry."""
     headers = _get_auth_header(await _create_user(client))
-    run_id = await _open_run(client, headers, 5001)
+    run_id = await _open_run(client, headers, 5001, "firefly")
 
     await _stage(client, headers, run_id, 0, [_firefly_row(journal_id=str(index)) for index in range(5000)])
     await _stage(client, headers, run_id, 5000, [_firefly_row(journal_id="5000")])
@@ -248,7 +242,7 @@ async def test_a_firefly_run_failing_at_any_stage_saves_nothing(client, case, de
         rows.append(_firefly_row(journal_id="2", category="Dining"))
     if case == "archive-future":
         rows.append(_firefly_row(journal_id="2", dt=_future_date()))
-    run_id = await _open_run(client, headers, len(rows))
+    run_id = await _open_run(client, headers, len(rows), "firefly")
     await _stage(
         client,
         headers,
@@ -282,45 +276,11 @@ async def test_a_firefly_run_failing_at_any_stage_saves_nothing(client, case, de
     assert (again.status_code, again.json()["detail"]) == (422, resp.json()["detail"])
 
 
-_GENERIC_BATCH = {
-    "accounts": [{"source": "Main Chequing", "create": {"name": "Main Chequing", "account_type": "checking", "currency": "CAD"}}],
-    "categories": [_GROCERIES],
-    "rows": [{"account_source": "Main Chequing", "category_source": "Groceries", "dt": "2026-04-10", "amount": "-1.00"}],
-    "start_row_index": 0,
-}
-
-
-@pytest.mark.parametrize(
-    ("source", "method", "path", "body", "detail"),
-    [
-        (
-            "generic",
-            "post",
-            "journal/rows",
-            {"accounts": [_chequing_mapping()], "rows": [_firefly_row()], "start_row_index": 0},
-            "This import run is a CSV import",
-        ),
-        ("firefly", "post", "rows", _GENERIC_BATCH, "This import run is a Firefly III import"),
-        ("firefly", "post", "commit", None, "This import run is a Firefly III import"),
-        ("generic", "post", "journal/commit", None, "This import run is a CSV import"),
-        ("generic", "put", "budgets", {"budgets": [_budget()]}, "A CSV import has no budgets"),
-        ("generic", "put", "archive", {"account_sources": ["Main Chequing"]}, "A CSV import archives no accounts"),
-    ],
-)
-async def test_a_run_takes_requests_only_from_the_importer_that_opened_it(client, source, method, path, body, detail):
-    """Each importer's rows are read by its own commit, so another importer's requests are refused."""
-    headers = _get_auth_header(await _create_user(client))
-    run_id = await _open_run(client, headers, 1, source=source)
-
-    resp = await client.request(method, f"/transactions/import/runs/{run_id}/{path}", json=body, headers=headers)
-    assert (resp.status_code, resp.json()["detail"]) == (422, detail)
-
-
 async def test_another_users_firefly_run_is_out_of_reach(client):
     """Every Firefly III run endpoint answers another user as if the run did not exist."""
     owner_headers, _, _ = await _setup_user_with_deps(client)
     other_headers, _, _ = await _setup_user_with_deps(client, email="other@example.com", name_prefix="Other")
-    run_id = await _open_run(client, owner_headers, 1)
+    run_id = await _open_run(client, owner_headers, 1, "firefly")
     base = f"/transactions/import/runs/{run_id}"
 
     responses = [
@@ -345,7 +305,7 @@ async def test_another_users_firefly_run_is_out_of_reach(client):
 async def test_a_firefly_run_refuses_an_outside_account_when_staged_and_takes_the_corrected_answer(client):
     """An outside answer is refused before it is kept, so the same run commits once the answer is fixed."""
     headers = _get_auth_header(await _create_user(client))
-    run_id = await _open_run(client, headers, 1)
+    run_id = await _open_run(client, headers, 1, "firefly")
     brokerage_row = _firefly_row(source_account="Brokerage elsewhere")
 
     refused = await client.post(
@@ -398,19 +358,12 @@ async def test_a_firefly_run_refuses_an_outside_account_when_staged_and_takes_th
 async def test_a_firefly_run_refuses_budgets_or_archiving_the_import_screen_would_have_cleaned(client, part, body):
     """Budgets and accounts to archive arrive in their one canonical form, so any other form is refused."""
     headers = _get_auth_header(await _create_user(client))
-    run_id = await _open_run(client, headers, 1)
+    run_id = await _open_run(client, headers, 1, "firefly")
 
     # Request validation answers with a list of field errors, where a refusal later on names a reason
     resp = await client.put(f"/transactions/import/runs/{run_id}/{part}", json=body, headers=headers)
     assert resp.status_code == 422
     assert isinstance(resp.json()["detail"], list)
-
-
-async def _open_staged_run(client, headers):
-    """Open a one-row run and stage its row, leaving it ready to commit"""
-    run_id = await _open_run(client, headers, 1)
-    await _stage(client, headers, run_id, 0, [_firefly_row()])
-    return run_id
 
 
 async def _count_run_rows(run_id):
@@ -430,18 +383,18 @@ async def test_opening_a_run_deletes_the_users_abandoned_runs_and_keeps_committe
     """A run left uncommitted goes once the user imports again, and a committed one still answers its commit."""
     headers = _get_auth_header(await _create_user(client))
     other_headers, _, _ = await _setup_user_with_deps(client, email="other@example.com", name_prefix="Other")
-    others = await _open_staged_run(client, other_headers)
+    others = await _open_staged_run(client, other_headers, _firefly_batch(1), "firefly")
     await _age_run(others, _PAST_ABANDONMENT)
-    committed = await _open_staged_run(client, headers)
+    committed = await _open_staged_run(client, headers, _firefly_batch(1), "firefly")
     summary = (await client.post(f"/transactions/import/runs/{committed}/journal/commit", headers=headers)).json()
-    abandoned = await _open_staged_run(client, headers)
-    recent = await _open_staged_run(client, headers)
+    abandoned = await _open_staged_run(client, headers, _firefly_batch(1), "firefly")
+    recent = await _open_staged_run(client, headers, _firefly_batch(1), "firefly")
     await _age_run(committed, _PAST_ABANDONMENT)
     await _age_run(abandoned, _PAST_ABANDONMENT)
     # Just short of the cutoff, so a cutoff set too short would delete it
     await _age_run(recent, _SHORT_OF_ABANDONMENT)
 
-    await _open_run(client, headers, 1)
+    await _open_run(client, headers, 1, "firefly")
 
     replayed, gone, fresh = [
         await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers) for run_id in (committed, abandoned, recent)
@@ -458,14 +411,14 @@ async def test_opening_a_run_deletes_the_users_abandoned_runs_and_keeps_committe
 async def test_opening_a_run_passes_over_an_abandoned_run_another_request_holds(client):
     """A run a commit still holds is left for that commit to settle, rather than waited on or deleted."""
     headers = _get_auth_header(await _create_user(client))
-    held = await _open_staged_run(client, headers)
+    held = await _open_staged_run(client, headers, _firefly_batch(1), "firefly")
     await _age_run(held, _PAST_ABANDONMENT)
 
     # Bounded so that waiting on the held run fails this test rather than hanging it
     async with TestSession() as holder:
         await holder.execute(text("SELECT id FROM import_runs WHERE id = :id FOR UPDATE"), {"id": held})
         async with asyncio.timeout(5):
-            await _open_run(client, headers, 1)
+            await _open_run(client, headers, 1, "firefly")
         await holder.rollback()
 
     assert await _count_run_rows(held) == (1, 1)
@@ -475,7 +428,7 @@ async def test_an_abandoned_run_is_refused_rather_than_saved(client):
     """A run left uncommitted past the cutoff never lands, so an import brought in again since cannot double."""
     headers = _get_auth_header(await _create_user(client))
     before = await _snapshot(client, headers)
-    run_id = await _open_staged_run(client, headers)
+    run_id = await _open_staged_run(client, headers, _firefly_batch(1), "firefly")
     await _age_run(run_id, _PAST_ABANDONMENT)
 
     resp = await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers)
@@ -487,7 +440,7 @@ async def test_an_abandoned_run_is_refused_rather_than_saved(client):
 async def test_renewing_a_sign_in_deletes_the_users_abandoned_runs(client):
     """A run left uncommitted goes even when its user never imports again, so nothing is kept for good."""
     signup = await _create_user(client)
-    abandoned = await _open_staged_run(client, _get_auth_header(signup))
+    abandoned = await _open_staged_run(client, _get_auth_header(signup), _firefly_batch(1), "firefly")
     await _age_run(abandoned, _PAST_ABANDONMENT)
     client.cookies.set("refresh_token", signup.cookies["refresh_token"])
 

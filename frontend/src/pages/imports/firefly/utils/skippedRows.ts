@@ -30,11 +30,8 @@ const FIRST_DATA_ROW_LINE_NUMBER = 2
  * The server refuses a row it cannot write rather than skipping it, so every row predicted here is
  * left out of the upload by the browser
  */
-export interface FireflySkippedRowDetail {
+export interface FireflySkippedRowDetail extends ImportRowProblem {
   journalId: string
-  rowNumber: number
-  cells: CsvRow
-  reason: string
 }
 
 /**
@@ -66,6 +63,9 @@ export function forecastFireflyImport(
   let transactionEstimate = 0
   const groupSizes = getFireflySplitGroupSizes(rows)
 
+  // The id only has to tell the skipped rows apart, which the row index does before a file is staged too
+  const rowFileId = options.fileId ?? ''
+
   for (const [index, row] of rows.entries()) {
     rowCount += 1
 
@@ -74,6 +74,7 @@ export function forecastFireflyImport(
     const missingFields = getFireflyMissingRequiredFields(row)
     if (missingFields.length > 0) {
       skippedRows.push(buildFireflySkippedRowDetail(
+        rowFileId,
         row,
         index,
         `${FIREFLY_MISSING_REQUIRED_VALUES_REASON}: ${missingFields.join(', ')}`,
@@ -84,7 +85,7 @@ export function forecastFireflyImport(
     // A row whose endpoints leave it nothing to write is skipped whatever the mappings
     const shapeSkipReason = getFireflyRowShapeSkipReason(row)
     if (shapeSkipReason !== null) {
-      skippedRows.push(buildFireflySkippedRowDetail(row, index, shapeSkipReason))
+      skippedRows.push(buildFireflySkippedRowDetail(rowFileId, row, index, shapeSkipReason))
       continue
     }
 
@@ -93,6 +94,7 @@ export function forecastFireflyImport(
     const overlongTag = getFireflyOverlongTag(row)
     if (overlongTag !== null) {
       skippedRows.push(buildFireflySkippedRowDetail(
+        rowFileId,
         row,
         index,
         `${FIREFLY_TAG_TOO_LONG_REASON}: ${overlongTag.slice(0, OVERLONG_TAG_PREVIEW_LENGTH)}`,
@@ -104,7 +106,7 @@ export function forecastFireflyImport(
     // with the value named
     const overLimitReason = getFireflyRowOverLimitReason(row, groupSizes)
     if (overLimitReason !== null) {
-      skippedRows.push(buildFireflySkippedRowDetail(row, index, overLimitReason))
+      skippedRows.push(buildFireflySkippedRowDetail(rowFileId, row, index, overLimitReason))
       continue
     }
 
@@ -112,7 +114,7 @@ export function forecastFireflyImport(
     // are left out too, with the reason the server would give
     const resolution = resolveFireflyRowLegs(row, options)
     if (resolution.skipReason !== null) {
-      skippedRows.push(buildFireflySkippedRowDetail(row, index, resolution.skipReason))
+      skippedRows.push(buildFireflySkippedRowDetail(rowFileId, row, index, resolution.skipReason))
     } else if (resolution.legs) {
       transactionEstimate += resolution.legs.length
 
@@ -135,8 +137,9 @@ export function forecastFireflyImport(
 /**
  * Shapes one parsed export row into the skipped-row detail the table renders
  */
-function buildFireflySkippedRowDetail(row: CsvRow, index: number, reason: string): FireflySkippedRowDetail {
+function buildFireflySkippedRowDetail(fileId: string, row: CsvRow, index: number, reason: string): FireflySkippedRowDetail {
   return {
+    id: getImportRowId(fileId, index),
     journalId: row.journal_id?.trim() ?? '',
     rowNumber: index + FIRST_DATA_ROW_LINE_NUMBER,
     cells: row,

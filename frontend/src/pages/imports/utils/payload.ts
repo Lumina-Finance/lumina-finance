@@ -3,18 +3,7 @@ import type { Category } from '@/api/categories'
 import type { Merchant } from '@/api/merchants'
 import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transaction-imports'
 import {
-  CREATE_ACCOUNT_VALUE,
-  CREATE_CATEGORY_VALUE,
-  DEFAULT_CATEGORY_ICON,
-  getCategoryDirectionClashError,
   getDirectionValuesAgreeError,
-  getImportAccountCurrencyRequiredError,
-  getImportAccountMappingError,
-  getImportAccountTypeRequiredError,
-  getImportAccountTypeUnsupportedError,
-  getImportReadOnlyAccountMappingError,
-  getImportCategoryMappingError,
-  getImportCategoryTypeRequiredError,
   getImportNoRowsError,
   getTooManyMappingsError,
   getRowSignDisagreesWithCategoryReason,
@@ -30,10 +19,10 @@ import type {
   ImportAmountDirection,
   ImportBuildResult,
   ImportCategoryKind,
+  ImportCategoryRename,
   ImportFileDraft,
   ImportRowProblem,
 } from '@/pages/imports/types'
-import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import type { Currency } from '@/api/currency'
 import {
   DEFAULT_IMPORT_AMOUNT_FORMAT,
@@ -41,10 +30,10 @@ import {
   type ImportAmountReading,
   readNormalizedImportAmount,
 } from './amountFormats'
-import { findReusedImportCategory, getCategoryMatchKind, getDebtPaymentImportNote } from './categoryMatching'
+import { getCategoryMatchKind, getDebtPaymentImportNote } from './categoryMatching'
+import { buildImportAccountMapping, buildImportCategoryMapping } from './importMappings'
 import { buildImportMerchantMappings } from './merchantMatching'
 import { getImportDirectionValues } from './columnMapping'
-import { isImportableAccount } from './accountScope'
 import { getImportRowId, joinImportSummaryParts } from './common'
 import { getAmountArrangementClashError, getMissingRequiredColumnLabels } from './workflowOptions'
 import {
@@ -61,8 +50,10 @@ import { type ImportDateFormat, type ImportDateSeparator } from './valueParsers'
  * choice made so far, collecting every validation problem along the way instead of stopping at the
  * first one
  *
- * Returns the built payload only when no error was collected. A mapping or data problem instead
- * returns every accumulated error with a null payload, so the caller can show them all at once
+ * Returns the built payload only when no error was collected. A mapping or column problem instead
+ * returns every accumulated error with a null payload, so the caller can show them all at once. A row
+ * that can't be converted is left out of the payload and listed in `rowProblems` with its reason, as
+ * the imports from other apps leave out and list theirs
  */
 export function buildTransactionImportPayload({
   accountById,
@@ -74,6 +65,7 @@ export function buildTransactionImportPayload({
   categoryById,
   categoryCreateKinds,
   categoryMappings,
+  categoryRenames = {},
   categoryTypesBySource,
   columnMap,
   columnValidationErrors,
@@ -96,6 +88,9 @@ export function buildTransactionImportPayload({
   categoryById: Map<string, Category>
   categoryCreateKinds: Record<string, ImportCategoryKind>
   categoryMappings: Record<string, string>
+
+  /** New categories created under another name, because an existing category holds their own */
+  categoryRenames?: Record<string, ImportCategoryRename>
   categoryTypesBySource: Record<string, string>
   columnMap: ColumnMap
   columnValidationErrors: ColumnValidationErrors
@@ -182,19 +177,36 @@ export function buildTransactionImportPayload({
   const accounts: TransactionImportPayload['accounts'] = []
   for (const source of accountSources) {
     const choice = accountMappings[source.id] ?? ''
-    appendAccountMapping(
-      accounts,
-      errors,
-      source,
+    if (choice === OUTSIDE_ACCOUNT_VALUE) {
+      // The dropdown only offers this answer where no row is written to the source, so it survives
+      // here when a file added later carries rows for a name that was answered this way
+      if (source.isCounterpartyOnly) accounts.push({ source: source.id, outside: true })
+      else addError(`Map to one of your accounts: ${source.label} has rows of its own, so it cannot be answered as outside.`)
+      continue
+    }
+
+    // Only a counterparty source is offered an archived or read-only account, and pointing the
+    // account column at that same column afterwards turns it into a source rows are written to while
+    // its answer stands, which the dropdown no longer offers and the API refuses
+    const built = buildImportAccountMapping({
+      source: source.id,
+      label: source.label,
+      name: source.label,
       choice,
-      accountCreateTypes[source.id],
-      accountCreateCurrencies[source.id],
-      accountCreateInstitutions[source.id],
+      createDetails: {
+        accountType: accountCreateTypes[source.id],
+        currency: accountCreateCurrencies[source.id],
+        institutionId: accountCreateInstitutions[source.id],
+      },
       accountById,
-    )
+      takesRows: !source.isCounterpartyOnly,
+      refusesGroupAccount: false,
+    }, addError)
+    if (built) accounts.push(built.mapping)
   }
 
   const categories: TransactionImportPayload['categories'] = []
+  const createdByKey = new Map<string, { label: string; kind: ImportCategoryKind }>()
 
   // Only a transfer category records where the money went, so the rule is settled per category
   // source once and read back for every row using it
@@ -208,60 +220,32 @@ export function buildTransactionImportPayload({
   // reuses, read back only after a row passes its blocking validation
   const categoryBySource: Record<string, Category | undefined> = {}
   for (const source of importedCategories) {
-    const choice = categoryMappings[source] ?? ''
-    if (!choice) {
-      addError(getImportCategoryMappingError(source))
-      continue
-    }
-
-    if (choice === CREATE_CATEGORY_VALUE) {
-      const kind = getCategoryMatchKind('', categoryCreateKinds[source], categoryTypesBySource[source], categoryById)
-      if (!kind) {
-        addError(getImportCategoryTypeRequiredError(source))
-        continue
-      }
-
-      // A create mapping reuses a category of the same name where one exists, compared with
-      // capitals folded, so the row is judged against the category it will actually land on rather
-      // than against the name the file spells. That is what puts a source called BALANCE ADJUSTMENT
-      // on the system category recording no counterparty account, as Balance Adjustment already is
-      const reused = findReusedImportCategory(source, categoryById.values())
-
-      // One name records one direction, so reusing it under the other is what the commit refuses.
-      // Caught here instead, where the step can say which value to go and answer differently
-      if (reused && reused.kind !== kind) {
-        addError(getCategoryDirectionClashError(source, reused.name, reused.kind))
-        continue
-      }
-
-      recordsCounterpartyBySource[source] = doesTransferRecordCounterpartyAccount(
-        kind,
-        (reused?.name ?? source) === BALANCE_ADJUSTMENT_CATEGORY_NAME,
-      )
-      kindByCategorySource[source] = kind
-      categoryBySource[source] = reused
-      categories.push({
-        source,
-        create: {
-          name: source,
-          kind,
-          icon: DEFAULT_CATEGORY_ICON,
-        },
-      })
-      continue
-    }
+    // A create answer reuses a category of the same name where one exists, compared with capitals
+    // folded, so the row is judged against the category it will actually land on rather than against
+    // the name the file spells. That is what puts a source called BALANCE ADJUSTMENT on the system
+    // category recording no counterparty account, as Balance Adjustment already is
+    const built = buildImportCategoryMapping({
+      source,
+      label: source,
+      createName: source,
+      choice: categoryMappings[source] ?? '',
+      createKind: getCategoryMatchKind('', categoryCreateKinds[source], categoryTypesBySource[source], categoryById),
+      rename: categoryRenames[source],
+      categoryById,
+      createdByKey,
+      refusesGroupCategory: false,
+    }, addError)
+    if (!built) continue
 
     // The backend matches Balance Adjustment by name alone, so a personal category sharing that
-    // name is refused there too and has to be refused here
-    const category = categoryById.get(choice)
-    recordsCounterpartyBySource[source] = category
-      ? doesTransferRecordCounterpartyAccount(category.kind, category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
-      : false
-    if (category) {
-      kindByCategorySource[source] = category.kind
-      categoryBySource[source] = category
-    }
-    categories.push({ source, category_id: choice })
+    // name records no counterparty here either
+    recordsCounterpartyBySource[source] = built.kind !== null && doesTransferRecordCounterpartyAccount(
+      built.kind,
+      (built.category?.name ?? built.name) === BALANCE_ADJUSTMENT_CATEGORY_NAME,
+    )
+    if (built.kind) kindByCategorySource[source] = built.kind
+    categoryBySource[source] = built.category
+    categories.push(built.mapping)
   }
 
   // Only the payee values answered differently from what the commit would do unasked are carried,
@@ -274,8 +258,7 @@ export function buildTransactionImportPayload({
   }
 
   // Judging rows before every mapping they depend on is answered blames them for the answer being
-  // missing: with no category column mapped, every row reads as one with a blank category, and with
-  // no date format settled, every row reads as one whose date does not fit
+  // missing: with no date format settled, every row reads as one whose date does not fit
   //
   // An unusable Direction column is the same case reached without an entry in `errors`, since what
   // is wrong with it is reported against the column instead. Judging rows against it would list
@@ -345,18 +328,18 @@ export function buildTransactionImportPayload({
     }
   }
 
-  // A file whose every row has a problem is described by the list of problems, so the empty-file
-  // message is kept for the case it was written for
-  if (rows.length === 0 && rowProblems.length === 0) addError(getImportNoRowsError('file'))
+  // Importing nothing isn't an import, so a file whose every row is left out says so beside Commit
+  // import as well as listing each row
+  if (rows.length === 0) addError(getImportNoRowsError('file'))
 
   const warnings = getImportWarnings(rows, columnMap)
   const allErrors = [...columnErrors, ...errors]
-  if (allErrors.length > 0 || rowProblems.length > 0) {
+  if (allErrors.length > 0) {
     return { errors: allErrors, rowProblems, warnings, rowWarnings, payload: null }
   }
   return {
     errors: [],
-    rowProblems: [],
+    rowProblems,
     warnings,
     rowWarnings,
     payload: { accounts, categories, merchants, rows },
@@ -454,83 +437,21 @@ function getImportWarnings(rows: TransactionImportPayload['rows'], columnMap: Co
   return hasOutflow ? [] : [NO_OUTFLOWS_WARNING]
 }
 
-function appendAccountMapping(
-  accounts: TransactionImportPayload['accounts'],
-  errors: string[],
-  accountSource: ImportAccountSource,
-  choice: string,
-  createType: string | undefined,
-  createCurrency: string | undefined,
-  createInstitution: string | undefined,
-  accountById: Map<string, AccountsOverview>,
-) {
-  const source = accountSource.id
-  const createName = accountSource.label
-  const addError = (message: string) => {
-    if (!errors.includes(message)) errors.push(message)
-  }
-
-  if (!choice) {
-    addError(getImportAccountMappingError(createName))
-    return
-  }
-
-  if (choice === OUTSIDE_ACCOUNT_VALUE) {
-    // The dropdown only offers this answer where no row is written to the source, so it survives
-    // here when a file added later carries rows for a name that was answered this way
-    if (!accountSource.isCounterpartyOnly) {
-      addError(`Map to one of your accounts: ${createName} has rows of its own, so it cannot be answered as outside.`)
-      return
-    }
-
-    accounts.push({ source, outside: true })
-    return
-  }
-
-  if (choice !== CREATE_ACCOUNT_VALUE) {
-    // Only a counterparty source is offered an archived or read-only account, and pointing the
-    // account column at that same column afterwards turns it into a source rows are written to while
-    // its answer stands, which the dropdown no longer offers and the API refuses. The same refusal
-    // covers an account archived or made read-only after it was chosen
-    const account = accountById.get(choice)
-    if (!accountSource.isCounterpartyOnly && account && !isImportableAccount(account)) {
-      addError(getImportReadOnlyAccountMappingError(createName, account))
-      return
-    }
-
-    accounts.push({ source, account_id: choice })
-    return
-  }
-
-  if (!createType) addError(getImportAccountTypeRequiredError(createName))
-  if (!createCurrency) addError(getImportAccountCurrencyRequiredError(createName))
-  if (!createType || !createCurrency) return
-
-  if (!isImportAccountType(createType)) {
-    addError(getImportAccountTypeUnsupportedError(createName))
-    return
-  }
-
-  accounts.push({
-    source,
-    create: {
-      name: createName,
-      account_type: createType,
-      currency: createCurrency.toUpperCase(),
-      institution_id: createInstitution || null,
-    },
-  })
-}
-
 /**
  * Formats a completed import's created counts into the summary for the progress overlay
+ *
+ * The rows it left out join the line only when there were some, so a file that imported whole reads
+ * as it always has
+ *
+ * @param skippedCount - Rows the import was started without, because they can't be converted
  */
-export function formatImportSummary(result: TransactionImportResponse) {
+export function formatImportSummary(result: TransactionImportResponse, skippedCount: number) {
   const parts = [
     `${result.transactions_created} transaction${result.transactions_created === 1 ? '' : 's'} imported`,
     `${result.accounts_created} account${result.accounts_created === 1 ? '' : 's'} created`,
     `${result.categories_created} categor${result.categories_created === 1 ? 'y' : 'ies'} created`,
   ]
+  if (skippedCount > 0) parts.push(`${skippedCount} skipped`)
 
   return joinImportSummaryParts(parts)
 }

@@ -78,11 +78,6 @@ export interface TransactionImportStageBatch {
   start_row_index: number;
 }
 
-/** The run a staged file is uploaded and committed under */
-export interface TransactionImportRun {
-  id: string;
-}
-
 export interface TransactionImportResponse {
   transactions_created: number;
   accounts_created: number;

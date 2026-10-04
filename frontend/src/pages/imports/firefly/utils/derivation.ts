@@ -7,6 +7,9 @@ import {
   getRowTooManyTagsReason,
   MAX_IMPORT_NOTES_LENGTH,
   MAX_IMPORT_TAGS_PER_ROW,
+  IMPORT_MISCELLANEOUS_CATEGORY_NAME,
+  IMPORT_TAG_NAME_MAX_LENGTH,
+  JOURNAL_ROW_FIELD_MAX_LENGTHS,
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportCategoryKind } from '@/pages/imports/types'
 import { isGroupResource } from '@/pages/imports/utils/resourceScope'
@@ -16,10 +19,7 @@ import {
   FIREFLY_FALLBACK_ACCOUNT_TYPE,
   FIREFLY_LIABILITY_ACCOUNT_TYPES,
   FIREFLY_LISTED_ACCOUNT_ID_PREFIX,
-  FIREFLY_MISCELLANEOUS_CATEGORY_NAME,
   FIREFLY_ROLE_ACCOUNT_TYPES,
-  FIREFLY_ROW_FIELD_MAX_LENGTHS,
-  FIREFLY_TAG_NAME_MAX_LENGTH,
   FIREFLY_TRANSFER_ENDPOINT_UNTRACKED_REASON,
   FIREFLY_TYPE_DEPOSIT,
   FIREFLY_TYPE_OPENING_BALANCE,
@@ -233,7 +233,7 @@ export function getFireflyRowPayeeName(row: CsvRow): string | null {
  * Returns the first tag on a row that is too long for a Lumina tag, or null
  */
 export function getFireflyOverlongTag(row: CsvRow): string | null {
-  return splitFireflyTags(row.tags ?? '').find((tag) => countCharacters(tag) > FIREFLY_TAG_NAME_MAX_LENGTH) ?? null
+  return splitFireflyTags(row.tags ?? '').find((tag) => countCharacters(tag) > IMPORT_TAG_NAME_MAX_LENGTH) ?? null
 }
 
 /**
@@ -262,7 +262,7 @@ export function getFireflyRowOverLimitReason(row: CsvRow, groupSizes: FireflySpl
   // Only the amounts the row is sent with are checked, since an amount in a code Lumina cannot
   // hold is left out of the upload
   const { main, foreign } = getFireflyRowAmounts(row)
-  const limits = FIREFLY_ROW_FIELD_MAX_LENGTHS
+  const limits = JOURNAL_ROW_FIELD_MAX_LENGTHS
   const fields: [string, string | null | undefined, number][] = [
     ['journal id', row.journal_id, limits.journalId],
     ['amount', main?.amount, limits.amount],
@@ -602,7 +602,7 @@ export function inferFireflyCategoryMappings(
   // Rows without a category have no name to match on, so they fall to the
   // seeded catch-all rather than inventing a category of their own
   const miscellaneous = categories.find((category) => (
-    category.is_system && category.name === FIREFLY_MISCELLANEOUS_CATEGORY_NAME
+    category.is_system && category.name === IMPORT_MISCELLANEOUS_CATEGORY_NAME
   ))
 
   const next: Record<string, string> = {}

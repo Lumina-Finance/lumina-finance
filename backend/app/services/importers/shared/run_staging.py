@@ -19,8 +19,7 @@ from app.models.merchant import Merchant
 from app.models.user import User
 from app.permissions import check_account_access
 from app.permissions.accounts import AccountAccessLookup, load_account_access_lookup
-from app.schemas.import_run import ImportRunArchiveRequest, ImportRunBudgetsRequest
-from app.schemas.transaction import (
+from app.schemas.import_run import (
     MAX_IMPORT_MAPPINGS,
     TransactionImportAccountMapping,
     TransactionImportCategoryMapping,
@@ -37,7 +36,11 @@ from app.services.importers.shared.categories import (
     load_visible_import_categories,
     parse_import_category_kind,
 )
-from app.services.importers.shared.merchants import load_import_merchant_keys, load_usable_import_merchants
+from app.services.importers.shared.merchants import (
+    load_import_merchant_keys,
+    load_usable_import_merchants,
+    require_usable_import_merchant,
+)
 from app.services.importers.shared.run_locking import load_locked_run
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
 
@@ -194,62 +197,78 @@ async def delete_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> 
     await db.commit()
 
 
-async def stage_import_budgets(db: AsyncSession, user: User, run_id: uuid.UUID, data: ImportRunBudgetsRequest) -> None:
-    """Replace the budgets a provider run creates once its transactions are written
-
-    Replacing rather than adding is what lets a request whose response was lost be sent again.
-    The category mappings the budgets name are merged like a batch's, since a budget can track a
-    category no staged row uses. Whether every named source has a mapping is checked at the
-    commit, which is the first point that has every batch
+async def stage_run_batch(
+    db: AsyncSession,
+    user: User,
+    run_id: uuid.UUID,
+    sources: Collection[ImportRunSource],
+    *,
+    accounts: Sequence[TransactionImportAccountMapping],
+    categories: Sequence[TransactionImportCategoryMapping],
+    rows: Sequence[BaseModel],
+    start_row_index: int,
+    allows_outside_accounts: bool,
+    merchants: Sequence[TransactionImportMerchantMapping] = (),
+) -> None:
+    """Park one batch of a file against its run, after checking the mappings it declares
 
     Args:
         db: Active database session
         user: Authenticated user running the import
-        run_id: Run the budgets belong to
-        data: Budget drafts and the category mappings they need
+        run_id: Run the batch belongs to
+        sources: Importers whose runs take this kind of batch
+        accounts: Account mappings this batch's rows reference
+        categories: Category mappings this batch's rows reference
+        rows: The batch's rows, in the shape the run's importer stages
+        start_row_index: Where the batch starts in the file
+        allows_outside_accounts: Whether the importer can answer an account source as outside the
+            tracked accounts
+        merchants: Payee answers the batch declares, which only the CSV import has
 
     Returns:
         None
 
     Raises:
-        HTTPException: Raised with 404 for a run that is not the caller's, 409 for a run already
-            committed or one another request is working on, and 422 for a generic CSV run, which
-            has no budgets, or a category mapping staging can already tell is unusable
+        HTTPException: Raised with 404 for a run that is not the caller's or a mapped account they
+            cannot reach, 409 for a run already committed or one another request is working on, and
+            422 for a run an importer outside the sources opened, a batch reaching past the file's
+            row count, an outside answer the importer cannot take, re-declaring a source
+            differently, or declaring a mapping staging can already tell is unusable
     """
-    run = await load_uncommitted_run(db, run_id)
-    if run.source == ImportRunSource.GENERIC:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="A CSV import has no budgets")
+    run = await load_uncommitted_run(db, run_id, sources)
+    require_batch_within_run(run, start_row_index, len(rows))
 
-    references = await load_staging_references(db, user, [], data.categories)
-    for category_mapping in data.categories:
+    references = await load_staging_references(db, user, accounts, categories, merchants)
+    for account_mapping in accounts:
+        # Refused here rather than at the commit, which keeps the run open for the corrected answer
+        if account_mapping.outside and not allows_outside_accounts:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Account source cannot be outside the tracked accounts: {account_mapping.source}",
+            )
+        await validate_account_mapping(db, user, account_mapping, references)
+    for category_mapping in categories:
         await validate_category_mapping(db, user, category_mapping, references)
+    for merchant_mapping in merchants:
+        await _validate_merchant_mapping(db, user, merchant_mapping, references)
 
-    run.category_mappings = merge_import_mappings(run.category_mappings, data.categories, "Category source")
-    run.budget_drafts = [budget.model_dump(mode="json") for budget in data.budgets]
-    await db.commit()
+    # Reassigned rather than mutated, since SQLAlchemy tracks a JSONB column by identity and would
+    # not see a change made inside the dictionary it already holds
+    run.account_mappings = merge_import_mappings(run.account_mappings, accounts, "Account source")
+    run.category_mappings = merge_import_mappings(run.category_mappings, categories, "Category source")
 
+    # Keyed by what matches a payee rather than by the spelling, since two spellings of one payee
+    # resolve to one merchant. Held apart this way, a batch answering "Amazon" and a later one
+    # answering "AMAZON" differently are refused here rather than at the commit, where the run would
+    # already hold both and every retry would answer the same
+    run.merchant_mappings = merge_import_mappings(
+        run.merchant_mappings,
+        merchants,
+        "Merchant source",
+        get_key=references.merchant_keys.__getitem__,
+    )
 
-async def stage_import_archive(db: AsyncSession, run_id: uuid.UUID, data: ImportRunArchiveRequest) -> None:
-    """Replace the accounts a provider run archives once everything else is written
-
-    Args:
-        db: Active database session
-        run_id: Run the list belongs to
-        data: Account mapping sources to archive
-
-    Returns:
-        None
-
-    Raises:
-        HTTPException: Raised with 404 for a run that is not the caller's, 409 for a run already
-            committed or one another request is working on, and 422 for a generic CSV run, which
-            archives nothing
-    """
-    run = await load_uncommitted_run(db, run_id)
-    if run.source == ImportRunSource.GENERIC:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="A CSV import archives no accounts")
-
-    run.archive_account_sources = data.account_sources
+    await insert_staged_rows(db, run, user.id, start_row_index, rows)
     await db.commit()
 
 
@@ -507,3 +526,37 @@ async def validate_category_mapping(
         return
 
     parse_import_category_kind(mapping.create.kind)
+
+
+async def _validate_merchant_mapping(
+    db: AsyncSession,
+    user: User,
+    mapping: TransactionImportMerchantMapping,
+    references: StagingReferences,
+) -> None:
+    """Check one merchant mapping as far as staging can, without creating anything
+
+    Args:
+        db: Active database session
+        user: Authenticated user running the import
+        mapping: Payee value answered in the batch
+        references: Complete caller-local reference facts for this staging request
+
+    Returns:
+        None
+
+    Raises:
+        HTTPException: Raised with 422 when the mapping states no single merchant action, and when
+            it points at a merchant this import cannot use
+    """
+    source = strip_import_text_or_raise(mapping.source, "Merchant source")
+
+    stated_actions = (mapping.merchant_id is not None) + (mapping.create is not None) + mapping.skip
+    if stated_actions != 1:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Merchant source must map to exactly one merchant action: {source}",
+        )
+
+    if mapping.merchant_id is not None:
+        await require_usable_import_merchant(db, mapping.merchant_id, user.id, merchants_by_id=references.merchants)
