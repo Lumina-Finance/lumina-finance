@@ -26,7 +26,11 @@ import type {
   AccountsOverview,
   SpendingRange,
 } from '@/api/accounts/types';
-import { recordStartingBalanceSettled, StartingBalanceUnsettledError } from '@/api/accounts/startingBalance';
+import {
+  recordStartingBalanceSettled,
+  StartingBalanceNotSavedError,
+  StartingBalanceUnsettledError,
+} from '@/api/accounts/startingBalance';
 import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing';
 import { accountKeys } from '@/api/cache/queryKeys';
@@ -52,8 +56,8 @@ export function useCreateAccount() {
 
 /**
  * Records a new account's starting balance and refreshes the views built on its balance. A save
- * that ended with no answer is settled by reading the account, and when even that fails the views
- * are read again, as the save may have landed
+ * that ended with no answer is settled by reading the account, and when it isn't settled as saved
+ * the views are read again, as the save may still land
  */
 export function useRecordStartingBalance() {
   const queryClient = useQueryClient();
@@ -62,7 +66,11 @@ export function useRecordStartingBalance() {
       runWithMinimumPendingTime(LOADING_ANIMATION_MIN_MS, () => recordStartingBalanceSettled(variables)),
     onSuccess: (account) => applyRecordedStartingBalance(queryClient, account),
     onError: (error, { accountId }) => {
-      if (error instanceof StartingBalanceUnsettledError) refreshAfterInterruptedStartingBalance(queryClient, accountId);
+      // A save read as not landed may still land after the read, as a gateway can give up on one
+      // still running, so the views are read again either way rather than left at zero after Skip
+      if (error instanceof StartingBalanceNotSavedError || error instanceof StartingBalanceUnsettledError) {
+        refreshAfterInterruptedStartingBalance(queryClient, accountId);
+      }
     },
   });
 }
