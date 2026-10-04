@@ -16,7 +16,7 @@ from app.models.bank_connection import BankConnection, ProviderRequestPurpose
 from app.models.bank_sync_job import BankSyncJobKind
 from app.models.user import User
 from app.schemas.bank_sync import BankConnectionResponse, CreateBankConnectionRequest
-from app.services.bank_sync.availability import get_enabled_adapter, is_offered, may_link_bank_accounts
+from app.services.bank_sync.availability import ENABLED_ADAPTERS, is_offered, may_link_bank_accounts
 from app.services.bank_sync.connections import build_connection_responses, read_nickname
 from app.services.bank_sync.discovery import run_discovery
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
@@ -47,7 +47,7 @@ async def claim_connection(db: AsyncSession, user: User, request: CreateBankConn
         HTTPException 502: The provider couldn't be reached or gave no usable answer, so nothing
             is saved and the credential can be tried again
     """
-    adapter = get_enabled_adapter(request.provider)
+    adapter = ENABLED_ADAPTERS.get(request.provider)
     if adapter is None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Choose a bank provider this server supports")
     if not may_link_bank_accounts(user.id):
@@ -62,7 +62,7 @@ async def claim_connection(db: AsyncSession, user: User, request: CreateBankConn
     # The refusals are written for the user and never repeat the credential, and nothing is
     # chained to them that could
     try:
-        credential = await adapter.claim(request.setup_token)
+        credential = await adapter.claim(request.setup_token.get_secret_value())
     except ClaimRefused as refused:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(refused)) from None
     except ProviderUnreachable as unreachable:
@@ -84,7 +84,7 @@ async def claim_connection(db: AsyncSession, user: User, request: CreateBankConn
     await mark_user_cache_changed(db, user.id)
 
     if not await run_discovery(db, connection, adapter, now=now):
-        await enqueue_bank_sync_job(db, owner_id=user.id, connection_id=connection.id, kind=BankSyncJobKind.MANUAL, discover=True)
+        await enqueue_bank_sync_job(db, owner_id=user.id, connection_id=connection.id, kind=BankSyncJobKind.RETRY, discover=True)
     await db.commit()
 
     # Loads the times the database set, which the response states

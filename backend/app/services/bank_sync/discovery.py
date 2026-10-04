@@ -1,9 +1,9 @@
 """Discovering the bank accounts a connection reaches
 
 Discovery is a balances-only read of every bank account the connection's credential reaches. The
-claim runs it within its request through run_discovery, and a sync job runs it as its first step
-through apply_discovery, so a bank added at the provider appears, and a linked bank account that
-vanished or changed currency stops syncing until it returns or the user chooses again
+claim runs it within its request through run_discovery, which counts and sends it and then stores
+what it read through apply_discovery. A bank added at the provider appears, and a linked bank
+account that vanished or changed currency stops syncing until it returns or the user chooses again
 """
 
 import uuid
@@ -80,8 +80,8 @@ async def run_discovery(db: AsyncSession, connection: BankConnection, adapter: P
 async def apply_discovery(db: AsyncSession, connection: BankConnection, result: FetchResult, *, now: datetime) -> None:
     """Store what a discovery read and move the links it affects
 
-    A sync job calls this with the result of the discovery it counted and sent. A failed discovery
-    changes no bank account or link. A linked bank account no longer listed moves its link to
+    It takes the result of a discovery already counted and sent. A failed discovery changes no
+    bank account or link. A linked bank account no longer listed moves its link to
     Choose bank account only when nothing in the response could explain the gap, and one listed in
     a currency other than its account's moves too, since its amounts would be read at the wrong
     precision. A link waiting there returns to active when its bank account is listed again in

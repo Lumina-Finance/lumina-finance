@@ -75,18 +75,13 @@ class InstitutionAllowance:
     in_use: Mapping[str, str]
 
 
-def get_enabled_adapter(provider: BankProvider) -> ProviderAdapter | None:
-    """Return the adapter for a provider the deployment enables, or None when it is disabled"""
-    return ENABLED_ADAPTERS.get(provider)
-
-
 def is_offered(provider: BankProvider) -> bool:
     """Return whether new connections may be made with a provider"""
     return provider in OFFERED_PROVIDERS
 
 
 def may_link_bank_accounts(user_id: uuid.UUID) -> bool:
-    """Return whether a user may link bank accounts, the one check every link and connection request makes
+    """Return whether a user may link bank accounts, which the provider list and the claim check
 
     Always true on self-hosted deployments. Hosted plans that leave bank linking out answer here
     once a plans project builds them

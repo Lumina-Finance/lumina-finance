@@ -4,7 +4,7 @@ import uuid
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, SecretStr, model_validator
 
 from app.models.bank_connection import BankProvider, ConnectsFrom
 from app.models.bank_transaction import EditableBankField
@@ -14,20 +14,41 @@ from app.schemas.names import TrimmedName
 class CreateBankConnectionRequest(BaseModel):
     """A setup token to claim as a new connection"""
 
+    # Printing a validation error leaves out the body it refused
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     provider: BankProvider
 
-    # A secret: it is claimed once and never stored, logged or echoed back, so nothing here
-    # constrains it in a way that would repeat it in a validation error
-    setup_token: str
+    # A secret: it is claimed once and never stored, logged or shown, so printing the request masks it
+    setup_token: SecretStr
 
     # Blank means none. The length is checked where the refusal can say it in a sentence
     nickname: TrimmedName | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _mask_setup_token(cls, value: object) -> object:
+        """Mask the setup token before the fields are checked
+
+        A refused body is repeated in the 422 response, such as for a missing provider, so the token
+        in it is masked first
+
+        Args:
+            value: The request body as sent
+
+        Returns:
+            The body with its setup token masked
+        """
+        if isinstance(value, dict) and isinstance(value.get("setup_token"), str):
+            return {**value, "setup_token": SecretStr(value["setup_token"])}
+        return value
+
 
 class UpdateBankConnectionRequest(BaseModel):
-    """A connection's new nickname, where blank brings back the provider's name"""
+    """A connection's new nickname, where blank or null brings back the provider's name"""
 
-    nickname: TrimmedName | None = None
+    # Required, so an empty body can't clear it by accident
+    nickname: TrimmedName | None
 
 
 class BankRequestBudgetResponse(BaseModel):

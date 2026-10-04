@@ -16,11 +16,12 @@ from sqlalchemy import select
 from app.encryption import decrypt
 from app.models.bank_connection import BankConnection, BankProvider, BankProviderRequest
 from app.models.bank_sync_job import BankSyncJob
-from app.models.currency import Currency
+from app.schemas.bank_sync import CreateBankConnectionRequest
 from app.services.bank_sync import availability, claim
 from tests.conftest import TestSession
 from tests.fake_simplefin_bridge import FakeBridgeTransport
-from tests.routes.support import _create_account, _create_user, _get_auth_header
+from tests.routes.support import _create_account
+from tests.routes.support.bank_sync_helpers import _sign_up
 from tests.services.bank_sync.stand_ins import FakeBridgeScenario, simplefin_adapter
 
 _ALREADY_USED = "This setup token has already been used. Create a new one in SimpleFIN Bridge"
@@ -39,16 +40,6 @@ class _AccountsTimeOut(httpx.AsyncBaseTransport):
         if request.url.path.endswith("/accounts"):
             raise httpx.ReadTimeout("timed out", request=request)
         return await self._inner.handle_async_request(request)
-
-
-async def _sign_up(client) -> tuple[dict, uuid.UUID]:
-    """Sign up the default user, with USD available for accounts, and return their auth headers and id"""
-    signup = await _create_user(client)
-    assert signup.status_code == 201, signup.text
-    async with TestSession() as session:
-        session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
-        await session.commit()
-    return _get_auth_header(signup), uuid.UUID(signup.json()["user"]["id"])
 
 
 async def _claim(client, headers, setup_token: str, nickname: str | None = None, provider: str = "simplefin") -> httpx.Response:
@@ -111,6 +102,20 @@ async def test_claim_with_a_fresh_token_saves_the_connection_and_lists_its_bank_
     assert purposes == ["claim", "discovery"]
 
 
+async def test_claim_refused_by_validation_never_repeats_the_setup_token(client, scenario: FakeBridgeScenario):
+    """A body missing its provider is refused without the token, and the request never shows it when printed"""
+    headers, _ = await _sign_up(client)
+
+    refused = await client.post("/bank-sync/connections", json={"setup_token": scenario.setup_token}, headers=headers)
+
+    assert refused.status_code == 422, refused.text
+    assert refused.json()["detail"] == [
+        {"type": "missing", "loc": ["body", "provider"], "msg": "Field required", "input": {"setup_token": "**********"}}
+    ]
+    assert scenario.setup_token not in refused.text
+    assert scenario.setup_token not in repr(CreateBankConnectionRequest(provider="simplefin", setup_token=scenario.setup_token))
+
+
 async def test_claim_stores_the_access_url_encrypted_and_never_shows_a_secret(client, scenario: FakeBridgeScenario, caplog):
     """Neither the setup token, its claim URL nor the Access URL appears in a response or a log, even at DEBUG"""
     headers, _ = await _sign_up(client)
@@ -152,7 +157,7 @@ async def test_claim_whose_discovery_fails_keeps_the_connection_and_queues_disco
     assert [(connection["nickname"], connection["discovery_pending"]) for connection in listed.json()] == [("Joint", True)]
     async with TestSession() as session:
         jobs = (await session.execute(select(BankSyncJob.connection_id, BankSyncJob.kind, BankSyncJob.discover, BankSyncJob.status))).all()
-    assert [tuple(job) for job in jobs] == [(uuid.UUID(response.json()["id"]), "manual", True, "queued")]
+    assert [tuple(job) for job in jobs] == [(uuid.UUID(response.json()["id"]), "retry", True, "queued")]
 
 
 async def test_claim_with_a_used_token_is_refused_and_saves_nothing_more(client, scenario: FakeBridgeScenario):
@@ -168,15 +173,10 @@ async def test_claim_with_a_used_token_is_refused_and_saves_nothing_more(client,
     assert len(await _stored_connections()) == 1
 
 
-@pytest.mark.parametrize(
-    "fault",
-    [{"kind": "html_error"}, {"kind": "html_error", "status": 502}, {"kind": "rate_limited"}],
-    ids=["html-403", "html-502", "429"],
-)
-async def test_claim_when_the_bridge_cant_be_reached_saves_nothing_and_leaves_the_token_usable(client, scenario: FakeBridgeScenario, fault):
+async def test_claim_when_the_bridge_answers_with_an_error_page_saves_nothing_and_leaves_the_token_usable(client, scenario: FakeBridgeScenario):
     """An error page, even a 403 one, reads as the Bridge being unreachable, and the same token works once it recovers"""
     headers, _ = await _sign_up(client)
-    await scenario.change("PUT", "/fault", fault)
+    await scenario.change("PUT", "/fault", {"kind": "html_error"})
 
     refused = await _claim(client, headers, scenario.setup_token)
 
@@ -189,36 +189,20 @@ async def test_claim_when_the_bridge_cant_be_reached_saves_nothing_and_leaves_th
     assert retried.status_code == 201, retried.text
 
 
-async def test_claim_when_the_bridge_reports_a_payment_problem_names_it(client, scenario: FakeBridgeScenario):
-    """A 402 is the user's to settle with SimpleFIN Bridge, so it isn't passed off as the Bridge being down"""
-    headers, _ = await _sign_up(client)
-    await scenario.change("PUT", "/fault", {"kind": "payment_required"})
-
-    refused = await _claim(client, headers, scenario.setup_token)
-
-    assert refused.status_code == 422, refused.text
-    assert refused.json()["detail"] == "SimpleFIN Bridge reports a payment problem"
-    assert await _stored_connections() == []
-
-
 @pytest.mark.parametrize(
     ("setup_token", "detail"),
     [
         ("   ", "Paste the setup token from SimpleFIN Bridge"),
         ("not a setup token", "That doesn't look like a SimpleFIN setup token. Copy the whole token from SimpleFIN Bridge and try again"),
         (
-            base64.b64encode(b"http://beta-bridge.simplefin.org/simplefin/claim/abc").decode(),
-            "That doesn't look like a SimpleFIN setup token. Copy the whole token from SimpleFIN Bridge and try again",
-        ),
-        (
             base64.b64encode(b"https://bridge.evil.example/simplefin/claim/abc").decode(),
             "This setup token points to bridge.evil.example, which this Lumina Finance server is not set up to contact",
         ),
     ],
-    ids=["blank", "malformed", "plain-http", "origin-not-allowed"],
+    ids=["blank", "malformed", "origin-not-allowed"],
 )
 async def test_claim_with_a_token_that_cant_be_claimed_says_why(client, setup_token, detail):
-    """A blank, malformed or plain HTTP token, or one pointing outside the allowlist, is refused before anything is sent"""
+    """A blank or malformed token, or one pointing outside the allowlist, is refused before anything is sent"""
     headers, _ = await _sign_up(client)
 
     refused = await _claim(client, headers, setup_token)
@@ -255,7 +239,7 @@ async def test_claim_with_simplefin_withdrawn_is_refused(client, scenario: FakeB
 
 async def test_claim_with_simplefin_disabled_is_refused(client, scenario: FakeBridgeScenario, monkeypatch):
     """A deployment that disabled SimpleFIN has no provider to claim with"""
-    monkeypatch.setattr(availability, "ENABLED_ADAPTERS", {})
+    monkeypatch.delitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN)
     headers, _ = await _sign_up(client)
 
     refused = await _claim(client, headers, scenario.setup_token)

@@ -1,11 +1,11 @@
 """Shared bank sync test builders
 
-Bank sync records have no routes yet that create them, so tests build them directly. Each builder
+Tests build bank sync records directly, so each starts from exactly the state it needs. Each builder
 returns an unsaved row with the fields every test needs, for the caller to add to whichever session
 it is testing through. Rows other rows point at get their id up front, so a dependent row can be
 built before the first is flushed, though each level still has to be flushed before the next.
-Route tests record a bank source on a transaction they created through the API, and jobs are
-committed, since the worker reaches them through sessions of its own
+Route tests sign up through the API, and record a bank source on a transaction they created there.
+Jobs are committed, since the worker reaches them through sessions of its own
 """
 
 import uuid
@@ -27,9 +27,11 @@ from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
 from app.models.base import AccountKind, AccountType, CategoryKind
 from app.models.category import Category
+from app.models.currency import Currency
 from app.models.transaction import Transaction
 from app.models.user import User
 from tests.conftest import TestSession
+from tests.routes.support.auth_helpers import _create_user, _get_auth_header
 
 BANK_ACCOUNT_ID = "ACT-1"
 LINK_START = date(2026, 9, 1)
@@ -38,6 +40,16 @@ BANK_DESCRIPTION = "HARBOUR COFFEE 0412"
 
 # When the app received the record of a bank-sourced transaction, which a test pins where it reads it back
 BANK_RECEIVED_AT = datetime(2026, 10, 4, 9, 5, tzinfo=UTC)
+
+
+async def _sign_up(client) -> tuple[dict, uuid.UUID]:
+    """Sign up the default user, with USD available for accounts, and return their auth headers and id"""
+    signup = await _create_user(client)
+    assert signup.status_code == 201, signup.text
+    async with TestSession() as session:
+        session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
+        await session.commit()
+    return _get_auth_header(signup), uuid.UUID(signup.json()["user"]["id"])
 
 
 def _build_user(email: str) -> User:
@@ -66,6 +78,25 @@ def _build_bank_connection(owner_id: uuid.UUID) -> BankConnection:
         credential_encrypted="not-a-real-token",
         server_host="bridge.example",
     )
+
+
+async def _commit_bank_connection(
+    owner_id: uuid.UUID,
+    *,
+    created_at: datetime,
+    nickname: str | None = None,
+    rejected: bool = False,
+) -> BankConnection:
+    """Commit a SimpleFIN connection for the owner, rejected a day after it was made when asked"""
+    async with TestSession() as session:
+        connection = _build_bank_connection(owner_id)
+        connection.created_at = created_at
+        connection.nickname = nickname
+        if rejected:
+            connection.credential_rejected_at = created_at + timedelta(days=1)
+        session.add(connection)
+        await session.commit()
+    return connection
 
 
 def _build_external_account(connection: BankConnection, external_id: str = BANK_ACCOUNT_ID) -> BankExternalAccount:

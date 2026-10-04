@@ -2,25 +2,24 @@
 
 The app offers only what this list returns, so a disabled or withdrawn provider, a user who may not
 link bank accounts and a stopped worker all have to show here. The routes can't run under a frozen
-clock, so the heartbeat is set against the real one, minutes clear of the 15-minute boundary
+clock, so the heartbeat is set against the real one, well inside 15 minutes, and the service tests
+own the boundary
 """
 
 import uuid
 from datetime import UTC, datetime, timedelta
 
-import pytest
-
-from app.models.bank_connection import BankLinkState
+from app.models.bank_connection import BankLinkState, BankProvider
 from app.models.bank_sync_job import BankSyncHeartbeat
 from app.services.bank_sync import availability
 from tests.conftest import TestSession
-from tests.routes.support import _create_user, _get_auth_header
 from tests.routes.support.bank_sync_helpers import (
     _build_account,
     _build_bank_connection,
     _build_bank_link,
     _build_external_account,
     _build_user,
+    _sign_up,
 )
 
 _SIMPLEFIN = {
@@ -34,13 +33,6 @@ _SIMPLEFIN = {
     "institution_limit": None,
     "institutions_in_use": [],
 }
-
-
-async def _sign_up(client) -> tuple[dict, uuid.UUID]:
-    """Sign up the default user and return their auth headers and id"""
-    signup = await _create_user(client)
-    assert signup.status_code == 201, signup.text
-    return _get_auth_header(signup), uuid.UUID(signup.json()["user"]["id"])
 
 
 async def _record_heartbeat(minutes_ago: int) -> None:
@@ -94,7 +86,7 @@ async def test_providers_report_a_withdrawn_provider_as_not_offered(client, monk
 
 async def test_providers_leave_out_a_disabled_provider(client, monkeypatch):
     """A deployment with SimpleFIN disabled has no provider to offer"""
-    monkeypatch.setattr(availability, "ENABLED_ADAPTERS", {})
+    monkeypatch.delitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN)
     headers, _ = await _sign_up(client)
     await _record_heartbeat(minutes_ago=0)
 
@@ -114,22 +106,6 @@ async def test_providers_offer_nothing_to_a_user_who_may_not_link_bank_accounts(
 
     assert response.status_code == 200, response.text
     assert response.json() == {"may_link": False, "sync_running": True, "providers": []}
-
-
-@pytest.mark.parametrize(
-    ("minutes_ago", "sync_running"),
-    [(14, True), (16, False), (20, False)],
-    ids=["14-minutes", "16-minutes", "20-minutes"],
-)
-async def test_providers_say_sync_isnt_running_once_the_heartbeat_is_over_15_minutes_old(client, minutes_ago, sync_running):
-    """The worker scans every 5 minutes, so a heartbeat past 15 minutes means it has stopped"""
-    headers, _ = await _sign_up(client)
-    await _record_heartbeat(minutes_ago=minutes_ago)
-
-    response = await client.get("/bank-sync/providers", headers=headers)
-
-    assert response.status_code == 200, response.text
-    assert response.json()["sync_running"] is sync_running
 
 
 async def test_providers_say_sync_isnt_running_before_the_worker_ever_scans(client):
