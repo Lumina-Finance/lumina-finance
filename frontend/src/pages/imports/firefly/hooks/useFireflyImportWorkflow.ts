@@ -1,5 +1,11 @@
 import { useCallback, useMemo, useState } from 'react'
-import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, IMPORT_MAX_BUDGETS, IMPORT_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/constants'
+import {
+  CREATE_ACCOUNT_VALUE,
+  CREATE_CATEGORY_VALUE,
+  IMPORT_MAX_BUDGETS,
+  IMPORT_SAMPLE_PREVIEW_LIMIT,
+  IMPORT_TRANSFER_CATEGORY_NAME,
+} from '@/pages/imports/constants'
 import {
   useImportAccountCreateState,
   useImportBudgetSelection,
@@ -20,10 +26,7 @@ import {
   groupPreviewRowsByDate,
   type ImportFileAcquisition,
 } from '@/pages/imports/utils'
-import {
-  FIREFLY_CATEGORY_RENAME_APP_NAME,
-  FIREFLY_TRANSFER_CATEGORY_NAME,
-} from '@/pages/imports/firefly/constants'
+import { FIREFLY_CATEGORY_RENAME_APP_NAME } from '@/pages/imports/firefly/constants'
 import type { FireflyFileKind } from '@/pages/imports/firefly/types'
 import {
   buildFireflyAccountPrefills,
@@ -147,7 +150,7 @@ export function useFireflyImportWorkflow() {
     // The commit assigns these seeded system categories to transfer legs and balance rows
     transferCategory,
     balanceAdjustmentCategory,
-  } = useProviderImportReferenceData({ transferCategoryName: FIREFLY_TRANSFER_CATEGORY_NAME })
+  } = useProviderImportReferenceData({ transferCategoryName: IMPORT_TRANSFER_CATEGORY_NAME })
 
   const fireflyRows = useMemo(
     () => getFireflyFileRows(transactionsFile),

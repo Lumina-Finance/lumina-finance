@@ -38,7 +38,7 @@ export const COLUMN_TARGETS: Array<{
     group: 'optional',
   },
   { id: 'dt', label: 'Date', hint: 'Transaction date.', group: 'required' },
-  { id: 'category_id', label: 'Category', hint: 'Resolved from imported category text. Rows with a blank cell, or every row when no column is mapped, are listed together as (no category) and matched to Miscellaneous.', group: 'optional' },
+  { id: 'category_id', label: 'Category', hint: 'Resolved from imported category text. Rows with a blank cell, or every row when no column is mapped, are listed together as (no category) and matched to Miscellaneous, or as (transfer, no category) and matched to Transfer where the row names a transfer account.', group: 'optional' },
 
   // The three ways a file can carry the amount, one arrangement of which every import needs. The two
   // sides follow the single column they are an alternative to
@@ -363,6 +363,13 @@ export const IMPORT_SAMPLE_PREVIEW_LIMIT = 5
 // The seeded system category rows with no category are matched to, in every import, since a
 // transaction here always carries one
 export const IMPORT_MISCELLANEOUS_CATEGORY_NAME = 'Miscellaneous'
+
+// The seeded system category a transfer with no category of its own is matched to, in every import
+export const IMPORT_TRANSFER_CATEGORY_NAME = 'Transfer'
+
+// The category source of a CSV row with no category that names a transfer account. It is listed
+// apart from (no category), because Miscellaneous is an expense category and can't hold a transfer
+export const IMPORT_NO_CATEGORY_TRANSFER_SOURCE = '(transfer, no category)'
 
 // Why one row cannot be converted, listed against that row in the preview step. They read as one
 // family: what is wrong with this row, then what to do about it where there is a choice about that.

@@ -154,7 +154,7 @@ export function resolveImportRow(row: CsvRow, fileId: string, context: ImportRow
   )
   return {
     accountSource,
-    categorySource: getImportRowCategorySource(row, columnMap.category_id),
+    categorySource: getImportRowCategorySource(row, columnMap),
     importedDate,
     dt: dateFormat ? readImportDate(importedDate, dateFormat, context.dateSeparator, context.timeZone) : '',
     amount,

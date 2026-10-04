@@ -1,12 +1,13 @@
 /**
  * Tests CSV rows with no category, which are listed together as (no category), matched to
- * Miscellaneous and imported there unless the user matches them elsewhere, as the provider imports do
+ * Miscellaneous and imported there unless the user matches them elsewhere, as the provider imports do.
+ * Those naming a transfer account are listed as (transfer, no category) and matched to Transfer
  */
 import { describe, expect, it } from 'vitest'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
-import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
+import { EMPTY_COLUMN_MAP, IMPORT_NO_CATEGORY_TRANSFER_SOURCE } from '@/pages/imports/constants'
 import type { ColumnMap, CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import {
   buildTransactionImportPayload,
@@ -41,18 +42,32 @@ const GROCERIES: Category = {
   is_system: false,
 }
 
-const CATEGORIES = [MISCELLANEOUS, GROCERIES]
+const TRANSFER: Category = {
+  ...MISCELLANEOUS,
+  id: 'transfer',
+  name: 'Transfer',
+  kind: 'transfer',
+}
+
+const CATEGORIES = [MISCELLANEOUS, GROCERIES, TRANSFER]
 
 const WITH_CATEGORY: ColumnMap = { ...EMPTY_COLUMN_MAP, dt: 'Date', category_id: 'Category', amount: 'Amount' }
 const WITHOUT_CATEGORY: ColumnMap = { ...EMPTY_COLUMN_MAP, dt: 'Date', amount: 'Amount' }
+const WITH_TRANSFER_ACCOUNT: ColumnMap = { ...WITH_CATEGORY, counterparty_account_id: 'Transfer Account' }
 
 /**
  * Creates a one-file import of rows filed under the given categories, a blank one standing for a
- * row with no category
+ * row with no category, and naming the transfer accounts given beside them
  */
-function createFile(categories: string[]): ImportFileDraft {
-  const rows: CsvRow[] = categories.map((category) => ({ Date: '2026-04-11', Category: category, Amount: '-40.00' }))
-  return { id: 'file-1', name: 'Chequing.csv', size: 512, headers: ['Date', 'Category', 'Amount'], hasHeaderRow: true, rows, error: null }
+function createFile(categories: string[], transferAccounts: string[] = []): ImportFileDraft {
+  const rows: CsvRow[] = categories.map((category, index) => ({
+    Date: '2026-04-11',
+    Category: category,
+    Amount: '-40.00',
+    'Transfer Account': transferAccounts[index] ?? '',
+  }))
+  const headers = ['Date', 'Category', 'Amount', 'Transfer Account']
+  return { id: 'file-1', name: 'Chequing.csv', size: 512, headers, hasHeaderRow: true, rows, error: null }
 }
 
 /**
@@ -60,15 +75,18 @@ function createFile(categories: string[]): ImportFileDraft {
  * user's own answers laid over the match
  */
 function importFile(file: ImportFileDraft, columnMap: ColumnMap, answers: Record<string, string> = {}) {
-  const importedCategories = getImportedCategories([file], columnMap.category_id)
+  const importedCategories = getImportedCategories([file], columnMap)
   const categoryMappings = inferCategoryMappings(importedCategories, answers, CATEGORIES)
   const build = buildTransactionImportPayload({
     accountById: new Map(),
     accountCreateCurrencies: {},
     accountCreateInstitutions: {},
     accountCreateTypes: {},
-    accountMappings: { 'file-1': 'account-1' },
-    accountSources: [{ id: 'file-1', label: 'Chequing.csv', matchText: 'Chequing.csv', isCounterpartyOnly: false }],
+    accountMappings: { 'file-1': 'account-1', Savings: 'account-2' },
+    accountSources: [
+      { id: 'file-1', label: 'Chequing.csv', matchText: 'Chequing.csv', isCounterpartyOnly: false },
+      { id: 'Savings', label: 'Savings', matchText: 'Savings', isCounterpartyOnly: true },
+    ],
     categoryById: new Map(CATEGORIES.map((category) => [category.id, category])),
     categoryCreateKinds: {},
     categoryMappings,
@@ -153,6 +171,38 @@ describe('a CSV file where every row has a category', () => {
   it('lists no (no category) entry', () => {
     const file = createFile(['Groceries', 'Dining'])
 
-    expect(getImportedCategories([file], 'Category')).toEqual(['Dining', 'Groceries'])
+    expect(getImportedCategories([file], WITH_CATEGORY)).toEqual(['Dining', 'Groceries'])
+  })
+})
+
+describe('CSV rows with no category that name a transfer account', () => {
+  // A transfer account cell holding only spaces names no account, so its row stays under (no category)
+  it('lists them as (transfer, no category), matched to Transfer, and imports them as transfers', () => {
+    const file = createFile(['Groceries', '', '', ''], ['', 'Savings', '', ' '])
+
+    const { importedCategories, categoryMappings, build } = importFile(file, WITH_TRANSFER_ACCOUNT)
+
+    expect(importedCategories).toEqual(['Groceries', JOURNAL_NO_CATEGORY_SOURCE, IMPORT_NO_CATEGORY_TRANSFER_SOURCE])
+    expect(categoryMappings[IMPORT_NO_CATEGORY_TRANSFER_SOURCE]).toBe(TRANSFER.id)
+    expect(getImportedCategoryTypes([file], WITH_TRANSFER_ACCOUNT, importedCategories, {})).toEqual({
+      Groceries: 'Expense',
+      [JOURNAL_NO_CATEGORY_SOURCE]: 'Expense',
+      [IMPORT_NO_CATEGORY_TRANSFER_SOURCE]: 'Expense',
+    })
+    expect(build.errors).toEqual([])
+    expect(build.rowProblems).toEqual([])
+    expect(countRowsBySource(build)).toEqual({ Groceries: 1, [JOURNAL_NO_CATEGORY_SOURCE]: 2, [IMPORT_NO_CATEGORY_TRANSFER_SOURCE]: 1 })
+    expect(build.payload?.rows.find((row) => row.category_source === IMPORT_NO_CATEGORY_TRANSFER_SOURCE)?.counterparty_account_source)
+      .toBe('Savings')
+  })
+
+  it('files them under (transfer, no category) when no column is mapped as the category', () => {
+    const file = createFile(['Groceries', ''], ['', 'Savings'])
+
+    const { importedCategories, build } = importFile(file, { ...WITHOUT_CATEGORY, counterparty_account_id: 'Transfer Account' })
+
+    expect(importedCategories).toEqual([JOURNAL_NO_CATEGORY_SOURCE, IMPORT_NO_CATEGORY_TRANSFER_SOURCE])
+    expect(build.rowProblems).toEqual([])
+    expect(countRowsBySource(build)).toEqual({ [JOURNAL_NO_CATEGORY_SOURCE]: 1, [IMPORT_NO_CATEGORY_TRANSFER_SOURCE]: 1 })
   })
 })

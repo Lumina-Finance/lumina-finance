@@ -78,8 +78,8 @@ import { useImportRun } from './useImportRun'
 
 const FILE_ACCOUNT_MATCH_KEY = '__file_account__'
 
-// Stands for no column mapped as the category, where every row is filed under (no category) and that
-// one value is still matched automatically
+// Stands for no column mapped as the category, where every row is filed under (no category) or
+// (transfer, no category) and those values are still matched automatically
 const NO_CATEGORY_COLUMN_MATCH_KEY = '__no_category_column__'
 
 // Stands in while a reference list has not arrived, so nothing is treated as cleared and the memos
@@ -634,8 +634,8 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   )
 
   const importedCategories = useMemo(
-    () => getImportedCategories(files, columnMap.category_id),
-    [columnMap.category_id, files],
+    () => getImportedCategories(files, columnMap),
+    [columnMap, files],
   )
 
   const importedMerchants = useMemo(

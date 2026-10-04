@@ -1,7 +1,12 @@
 import { ACCOUNT_KIND_BY_TYPE, type AccountsOverview, type AccountType } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
-import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, IMPORT_MISCELLANEOUS_CATEGORY_NAME } from '@/pages/imports/constants'
+import {
+  CREATE_ACCOUNT_VALUE,
+  CREATE_CATEGORY_VALUE,
+  IMPORT_MISCELLANEOUS_CATEGORY_NAME,
+  IMPORT_TRANSFER_CATEGORY_NAME,
+} from '@/pages/imports/constants'
 import type { ImportAccountCreateDetails, ImportCategoryKind } from '@/pages/imports/types'
 import { getCategoryNameKey } from '@/pages/imports/utils/categoryMatching'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, CREDIT_CARD_PAYMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
@@ -9,7 +14,6 @@ import {
   ACTUAL_CREDIT_PAYMENT_CATEGORY_SOURCE,
   ACTUAL_CREDIT_PAYMENT_LABEL,
   ACTUAL_DEFAULT_PAYMENT_MODE,
-  ACTUAL_TRANSFER_CATEGORY_NAME,
 } from '@/pages/imports/actual/constants'
 import type { ActualCategorySource, ActualJournal, ActualPaymentMode } from '@/pages/imports/actual/types'
 import { isGroupResource } from '@/pages/imports/utils/resourceScope'
@@ -42,7 +46,7 @@ export function inferActualCategoryMappings(
 ): Record<string, string> {
   const systemCategory = (name: string) => categories.find((category) => category.is_system && category.name === name)
   const miscellaneous = systemCategory(IMPORT_MISCELLANEOUS_CATEGORY_NAME)
-  const transfer = systemCategory(ACTUAL_TRANSFER_CATEGORY_NAME)
+  const transfer = systemCategory(IMPORT_TRANSFER_CATEGORY_NAME)
   const spendingLabelByCategory = new Map(sources.flatMap((source) => (
     source.role === 'spending' && source.categoryId ? [[source.categoryId, source.label] as const] : []
   )))

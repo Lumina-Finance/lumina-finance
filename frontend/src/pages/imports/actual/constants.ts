@@ -191,10 +191,6 @@ export function getActualUnsupportedCurrencyError(currencyCode: string) {
   return `This budget is in ${currencyCode}, which Lumina Finance does not support yet.`
 }
 
-// The seeded category Lumina files transfer legs and one-sided transfers under. Rows without a category
-// go to the shared IMPORT_MISCELLANEOUS_CATEGORY_NAME
-export const ACTUAL_TRANSFER_CATEGORY_NAME = 'Transfer'
-
 // An account created from Actual opens with the starting balance Actual recorded for it, written as
 // a balance adjustment, so the shared note about adding one does not apply
 export const ACTUAL_CREATED_ACCOUNT_EXPLANATION = 'These will be created as new accounts, each opening with the starting balance Actual recorded and no credit limit:'

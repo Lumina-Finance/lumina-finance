@@ -210,11 +210,6 @@ export function isFireflyJournalType(type: string): type is FireflyJournalType {
 }
 
 /**
- * Seeded system category the import assigns to transfer legs
- */
-export const FIREFLY_TRANSFER_CATEGORY_NAME = 'Transfer'
-
-/**
  * Reason prefix for rows the payload builder drops before upload, followed
  * by the names of the identity fields the row is missing
  */

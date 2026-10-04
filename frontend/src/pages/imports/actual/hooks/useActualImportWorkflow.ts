@@ -2,7 +2,13 @@ import { useCallback, useMemo, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { getTodayYmd, resolveTimeZone } from '@/utils/date'
 import { findCurrencyExponent } from '@/utils/moneyInput'
-import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, IMPORT_MAX_BUDGETS, IMPORT_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/constants'
+import {
+  CREATE_ACCOUNT_VALUE,
+  CREATE_CATEGORY_VALUE,
+  IMPORT_MAX_BUDGETS,
+  IMPORT_SAMPLE_PREVIEW_LIMIT,
+  IMPORT_TRANSFER_CATEGORY_NAME,
+} from '@/pages/imports/constants'
 import {
   useImportAccountCreateState,
   useImportBudgetSelection,
@@ -26,7 +32,6 @@ import {
 import {
   ACTUAL_CATEGORY_RENAME_APP_NAME,
   ACTUAL_IMPORT_FILE_TYPE,
-  ACTUAL_TRANSFER_CATEGORY_NAME,
   getActualUnsupportedCurrencyError,
 } from '@/pages/imports/actual/constants'
 import type { ActualBudgetFile, ActualJournal, ActualPaymentMode, ActualSkippedRow } from '@/pages/imports/actual/types'
@@ -168,7 +173,7 @@ export function useActualImportWorkflow() {
     // The commit files transfer legs and opening balances under these seeded categories
     transferCategory,
     balanceAdjustmentCategory,
-  } = useProviderImportReferenceData({ transferCategoryName: ACTUAL_TRANSFER_CATEGORY_NAME })
+  } = useProviderImportReferenceData({ transferCategoryName: IMPORT_TRANSFER_CATEGORY_NAME })
 
   const journal = useMemo(
     () => (budget ? normaliseActualBudget(budget, today) : EMPTY_JOURNAL),

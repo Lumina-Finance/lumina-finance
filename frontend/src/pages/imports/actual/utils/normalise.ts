@@ -1,6 +1,7 @@
 import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import {
   IMPORT_TAG_NAME_MAX_LENGTH,
+  IMPORT_TRANSFER_CATEGORY_NAME,
   JOURNAL_ROW_FIELD_MAX_LENGTHS,
   MAX_IMPORT_NOTES_LENGTH,
   MAX_IMPORT_TAGS_PER_ROW,
@@ -13,7 +14,6 @@ import {
   ACTUAL_ACCOUNT_TYPES,
   ACTUAL_OFF_BUDGET_CATEGORY_SOURCE_PREFIX,
   ACTUAL_TRANSACTION_DECIMALS,
-  ACTUAL_TRANSFER_CATEGORY_NAME,
   ACTUAL_TRANSFER_SIDE_LEFT_OUT_REASON,
   ACTUAL_TRANSFER_CATEGORY_SOURCE_PREFIX,
   getActualPayeeTooLongReason,
@@ -41,7 +41,7 @@ const ACTUAL_TAG_PATTERN = /(?<!#)#([^#\s]+)/g
 
 // Built-in transfer categories a new spending category can't share a name with, since it would reuse
 // one that can't carry spending
-const ACTUAL_RESERVED_PAYMENT_NAMES = [ACTUAL_TRANSFER_CATEGORY_NAME, BALANCE_ADJUSTMENT_CATEGORY_NAME].map((name) => name.toLowerCase())
+const ACTUAL_RESERVED_PAYMENT_NAMES = [IMPORT_TRANSFER_CATEGORY_NAME, BALANCE_ADJUSTMENT_CATEGORY_NAME].map((name) => name.toLowerCase())
 
 /**
  * Turns a read Actual budget into the rows the import uploads, and the ones it leaves out

@@ -28,7 +28,7 @@ type ImportCategoryMatchingStepProps = Pick<
 
 /**
  * Category matching step of the generic CSV import flow, showing every category value found in the
- * mapped column, and (no category) for the rows with none
+ * mapped column, and (no category) and (transfer, no category) for the rows with none
  */
 export function ImportCategoryMatchingStep({
   importedCategories,

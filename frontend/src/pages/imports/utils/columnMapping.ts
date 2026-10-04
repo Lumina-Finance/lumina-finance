@@ -4,6 +4,7 @@ import {
   EMPTY_COLUMN_MAP,
   getTooManyDirectionValuesError,
   IMPORT_DATE_FORMAT_LABELS,
+  IMPORT_NO_CATEGORY_TRANSFER_SOURCE,
   MAX_DIRECTION_COLUMN_VALUES,
 } from '@/pages/imports/constants'
 import type {
@@ -366,10 +367,13 @@ export function getMappedValue(row: CsvRow, header: string) {
 
 /**
  * Reads the category a row is filed under, which is (no category) where its cell is blank or no
- * column is mapped as the category, as it is in the provider imports
+ * column is mapped as the category, as it is in the provider imports. Such a row that names a
+ * transfer account is a transfer, so it is filed under (transfer, no category) instead
  */
-export function getImportRowCategorySource(row: CsvRow, categoryHeader: string) {
-  return getMappedValue(row, categoryHeader) || JOURNAL_NO_CATEGORY_SOURCE
+export function getImportRowCategorySource(row: CsvRow, columnMap: ColumnMap) {
+  const category = getMappedValue(row, columnMap.category_id)
+  if (category) return category
+  return getMappedValue(row, columnMap.counterparty_account_id) ? IMPORT_NO_CATEGORY_TRANSFER_SOURCE : JOURNAL_NO_CATEGORY_SOURCE
 }
 
 /**
