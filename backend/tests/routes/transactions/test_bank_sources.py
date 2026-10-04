@@ -27,7 +27,13 @@ from tests.routes.support.bank_sync_helpers import (
 from tests.routes.transactions._helpers import _create_transaction, _setup_user_with_deps
 
 
-def _bank_source(*, amount: int = -1250, edited_fields: list[str] | None = None, review_item_id: UUID | None = None) -> dict:
+def _bank_source(
+    *,
+    amount: int | None = -1250,
+    raw_amount: str | None = None,
+    edited_fields: list[str] | None = None,
+    review_item_id: UUID | None = None,
+) -> dict:
     """Return the bank source a SimpleFIN coffee purchase on the bank's date carries"""
     return {
         "provider": "simplefin",
@@ -35,7 +41,7 @@ def _bank_source(*, amount: int = -1250, edited_fields: list[str] | None = None,
         "bank_values": {
             "date": BANK_DATE.isoformat(),
             "amount": amount,
-            "raw_amount": None,
+            "raw_amount": raw_amount,
             "description": BANK_DESCRIPTION,
             "merchant_name": None,
             "category_hint": None,
@@ -82,6 +88,28 @@ async def test_bank_source_marks_the_amount_edited_while_the_ledger_differs_from
     assert listed.status_code == 200, listed.text
     assert detail.json()["bank_source"] == _bank_source(edited_fields=["amount"])
     assert [row["bank_source"] for row in listed.json()] == [_bank_source(edited_fields=["amount"])]
+
+
+async def test_bank_source_with_an_amount_cad_cannot_hold_shows_it_as_sent_and_edited(client):
+    """The bank sent -12.505, which cents can't hold, so the user entered the ledger amount"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    transaction_id = await _create_on_bank_date(client, headers, account_id, category_id, -1251)
+    record_id = await _record_bank_source(transaction_id)
+    async with TestSession() as session:
+        record = await session.get(BankTransaction, record_id)
+        record.observed_amount = None
+        record.raw_amount = "-12.505"
+        record.aligned_amount = None
+        await session.commit()
+
+    detail = await client.get(f"/transactions/{transaction_id}", headers=headers)
+    listed = await client.get("/transactions", headers=headers)
+
+    expected = _bank_source(amount=None, raw_amount="-12.505", edited_fields=["amount"])
+    assert detail.status_code == 200, detail.text
+    assert listed.status_code == 200, listed.text
+    assert detail.json()["bank_source"] == expected
+    assert [row["bank_source"] for row in listed.json()] == [expected]
 
 
 async def test_editing_the_date_keeps_the_source_and_marks_the_date_edited(client):
