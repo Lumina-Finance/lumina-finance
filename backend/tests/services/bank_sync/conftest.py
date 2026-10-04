@@ -1,16 +1,14 @@
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import Iterator
 from datetime import datetime
 
-import httpx
 import pytest
 from freezegun import freeze_time
 
 from app.models.bank_connection import BankConnection
 from app.models.currency import Currency
 from tests.conftest import TestSession
-from tests.fake_simplefin_bridge import FakeBridgeTransport
 from tests.routes.support.bank_sync_helpers import _build_bank_connection, _build_user
-from tests.services.bank_sync.stand_ins import FROZEN_NOW, SIMPLEFIN_BRIDGE_ORIGIN, FakeBridgeScenario
+from tests.services.bank_sync.stand_ins import FROZEN_NOW
 
 
 @pytest.fixture
@@ -26,13 +24,6 @@ async def connections() -> list[BankConnection]:
         session.add_all(built)
         await session.commit()
     return built
-
-
-@pytest.fixture
-async def scenario() -> AsyncIterator[FakeBridgeScenario]:
-    """An empty scenario on the in-process fake SimpleFIN Bridge, reached at SimpleFIN Bridge's own origin"""
-    async with httpx.AsyncClient(transport=FakeBridgeTransport(), base_url=SIMPLEFIN_BRIDGE_ORIGIN) as control:
-        yield await FakeBridgeScenario.create(control)
 
 
 @pytest.fixture

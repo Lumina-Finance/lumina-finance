@@ -48,7 +48,14 @@ _HEADERS = {"User-Agent": f"LuminaFinance/{APP_VERSION}" if APP_VERSION else "Lu
 # answers version 1 to a client that doesn't ask
 _PROTOCOL_VERSION = ("version", "2")
 
+# A setup token is the base64 of one claim URL, about 100 characters, so this leaves room to spare.
+# The Connect dialog holds the same limit (SETUP_TOKEN_MAX_LENGTH in the frontend)
+MAX_SETUP_TOKEN_LENGTH = 2048
+
+_SETUP_BLANK_MESSAGE = "Paste the setup token from SimpleFIN Bridge"
 _SETUP_UNREADABLE_MESSAGE = "That doesn't look like a SimpleFIN setup token. Copy the whole token from SimpleFIN Bridge and try again"
+_SETUP_TOO_LONG_MESSAGE = "That setup token is too long. Copy only the token from SimpleFIN Bridge and try again"
+_CLAIM_UNREACHABLE_MESSAGE ="SimpleFIN Bridge couldn't be reached. Try again in a few minutes"
 _SETUP_HOST_NOT_ALLOWED_MESSAGE = "This setup token points to {host}, which this Lumina Finance server is not set up to contact"
 _SETUP_ALREADY_USED_MESSAGE = "This setup token has already been used. Create a new one in SimpleFIN Bridge"
 _UNREACHABLE_MESSAGE = "SimpleFIN Bridge couldn't be reached"
@@ -83,6 +90,10 @@ class SimpleFinAdapter(ProviderAdapter):
 
     @override
     async def claim(self, supplied_credential: str) -> str:
+        if not supplied_credential.strip():
+            raise ClaimRefused(_SETUP_BLANK_MESSAGE)
+        if len(supplied_credential) > MAX_SETUP_TOKEN_LENGTH:
+            raise ClaimRefused(_SETUP_TOO_LONG_MESSAGE)
         claim_url = self._decode_setup_token(supplied_credential)
         try:
             response = await self._guard.send("POST", claim_url, headers=_HEADERS, content=b"")
@@ -90,7 +101,7 @@ class SimpleFinAdapter(ProviderAdapter):
             logger.warning("Refused to claim a SimpleFIN setup token from %s, which resolves to an address that isn't public", claim_url.host)
             raise ClaimRefused(_SETUP_HOST_NOT_ALLOWED_MESSAGE.format(host=claim_url.host)) from None
         except httpx.RequestError:
-            raise ProviderUnreachable(_UNREACHABLE_MESSAGE) from None
+            raise ProviderUnreachable(_CLAIM_UNREACHABLE_MESSAGE) from None
 
         # SimpleFIN answers a used or unknown token with a 403, while the edge in front of it
         # answers its own failures with an HTML page
@@ -102,18 +113,23 @@ class SimpleFinAdapter(ProviderAdapter):
         if response.status_code == 402:
             raise ClaimRefused(_PAYMENT_MESSAGE)
         if response.status_code != 200:
-            raise ProviderUnreachable(_UNREACHABLE_MESSAGE)
+            raise ProviderUnreachable(_CLAIM_UNREACHABLE_MESSAGE)
 
         access_url = response.text.strip()
         try:
             base_url, _ = _split_access_url(access_url)
         except ValueError:
-            raise ProviderUnreachable(_UNREACHABLE_MESSAGE) from None
+            raise ProviderUnreachable(_CLAIM_UNREACHABLE_MESSAGE) from None
         try:
             self._guard.check_origin(base_url)
         except OriginRefused:
             raise ClaimRefused(_SETUP_HOST_NOT_ALLOWED_MESSAGE.format(host=base_url.host)) from None
         return access_url
+
+    @override
+    def server_host(self, credential: str) -> str:
+        base_url, _ = _split_access_url(credential)
+        return base_url.host
 
     @override
     async def discover(self, credential: str, *, currency_exponents: Mapping[str, int]) -> FetchResult:

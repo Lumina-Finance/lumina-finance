@@ -61,6 +61,10 @@ class FakeProviderAdapter(ProviderAdapter):
         return outcome
 
     @override
+    def server_host(self, credential: str) -> str:
+        return "fake-bank.example"
+
+    @override
     async def discover(self, credential: str, *, currency_exponents: Mapping[str, int]) -> FetchResult:
         self.discoveries.append(credential)
         return self.outcomes.pop(0)

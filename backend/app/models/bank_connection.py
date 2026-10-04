@@ -38,7 +38,7 @@ class ConnectsFrom(enum.StrEnum):
     SETTINGS = "settings"
 
     # Each account's link flow signs in to the bank itself
-    LINK_FLOW = "link_flow"
+    ACCOUNT = "account"
 
 
 class ProviderRequestPurpose(enum.StrEnum):

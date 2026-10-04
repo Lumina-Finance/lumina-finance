@@ -129,7 +129,10 @@ class ClaimRefused(Exception):
 
 
 class ProviderUnreachable(Exception):
-    """The provider couldn't be reached, or gave no usable answer, while claiming"""
+    """The provider couldn't be reached, or gave no usable answer, while claiming
+
+    The message says so for the user, and names at most the provider's host
+    """
 
 
 class ProviderAdapter(ABC):
@@ -173,6 +176,10 @@ class ProviderAdapter(ABC):
             ClaimRefused: The supplied credential can't be used, such as one already claimed
             ProviderUnreachable: The provider couldn't be reached or gave no usable answer
         """
+
+    @abstractmethod
+    def server_host(self, credential: str) -> str:
+        """Return the host a stored credential reaches, the only part of it ever shown or logged ("Server")"""
 
     @abstractmethod
     async def discover(self, credential: str, *, currency_exponents: Mapping[str, int]) -> FetchResult:

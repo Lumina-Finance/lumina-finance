@@ -5,6 +5,7 @@ from datetime import datetime
 from types import ModuleType
 from uuid import uuid4
 
+import httpx
 import pytest
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -23,6 +24,8 @@ from app.request_hook import RequestRecord, observe_requests
 from app.services.categories.defaults import seed_system_categories
 from app.services.merchants.defaults import seed_system_merchants
 from app.valkey_store import ValkeyStore, use_valkey
+from tests.fake_simplefin_bridge import FakeBridgeTransport
+from tests.services.bank_sync.stand_ins import SIMPLEFIN_BRIDGE_ORIGIN, FakeBridgeScenario
 
 # Import all models so Base.metadata has the full schema
 import_all_models()
@@ -209,3 +212,10 @@ def abuse_log_lines() -> Iterator[list[str]]:
         yield lines
     finally:
         abuse_log.removeHandler(collector)
+
+
+@pytest.fixture
+async def scenario() -> AsyncIterator[FakeBridgeScenario]:
+    """An empty scenario on the in-process fake SimpleFIN Bridge, reached at SimpleFIN Bridge's own origin"""
+    async with httpx.AsyncClient(transport=FakeBridgeTransport(), base_url=SIMPLEFIN_BRIDGE_ORIGIN) as control:
+        yield await FakeBridgeScenario.create(control)
