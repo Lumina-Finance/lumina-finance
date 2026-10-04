@@ -12,19 +12,13 @@ import {
   CREATED_ACCOUNT_EXPLANATION,
   CREATED_ACCOUNT_TITLE,
 } from '@/pages/imports/constants'
+import type { ImportAccountCreateDetails } from '@/pages/imports/types'
 import { isCreatingImportAccount, isImportableAccount } from '@/pages/imports/utils'
 import { ImportAccountMappingTable, EmptyState, ImportLoadFailure, ImportNotice, ImportStep } from '@/pages/imports/components'
 
 type InstitutionModalTarget = { kind: 'batch' } | { kind: 'account'; source: string }
 
 type RecordSetter = Dispatch<SetStateAction<Record<string, string>>>
-
-/** Create-new answers for one source account */
-interface ProviderAccountCreateDetails {
-  accountType: string
-  currency: string
-  institutionId: string
-}
 
 export interface ProviderAccountMappingStepProps {
   index: string
@@ -44,7 +38,7 @@ export interface ProviderAccountMappingStepProps {
   autoFilledAccountSources: ReadonlySet<string>
   handAnsweredAccountSources: ReadonlySet<string>
   accountById: Map<string, AccountsOverview>
-  accountCreateDetails: Record<string, ProviderAccountCreateDetails>
+  accountCreateDetails: Record<string, ImportAccountCreateDetails>
   onAccountMappingChange: (source: string, value: string) => void
   setAccountCreateTypes: RecordSetter
   setAccountCreateCurrencies: RecordSetter

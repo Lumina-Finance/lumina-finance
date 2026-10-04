@@ -3,18 +3,7 @@ import type { Category } from '@/api/categories'
 import type { Merchant } from '@/api/merchants'
 import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transaction-imports'
 import {
-  CREATE_ACCOUNT_VALUE,
-  CREATE_CATEGORY_VALUE,
-  DEFAULT_CATEGORY_ICON,
-  getCategoryDirectionClashError,
   getDirectionValuesAgreeError,
-  getImportAccountCurrencyRequiredError,
-  getImportAccountMappingError,
-  getImportAccountTypeRequiredError,
-  getImportAccountTypeUnsupportedError,
-  getImportReadOnlyAccountMappingError,
-  getImportCategoryMappingError,
-  getImportCategoryTypeRequiredError,
   getImportNoRowsError,
   getTooManyMappingsError,
   getRowSignDisagreesWithCategoryReason,
@@ -33,7 +22,6 @@ import type {
   ImportFileDraft,
   ImportRowProblem,
 } from '@/pages/imports/types'
-import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import type { Currency } from '@/api/currency'
 import {
   DEFAULT_IMPORT_AMOUNT_FORMAT,
@@ -41,10 +29,10 @@ import {
   type ImportAmountReading,
   readNormalizedImportAmount,
 } from './amountFormats'
-import { findReusedImportCategory, getCategoryMatchKind, getDebtPaymentImportNote } from './categoryMatching'
+import { getCategoryMatchKind, getDebtPaymentImportNote } from './categoryMatching'
+import { buildImportAccountMapping, buildImportCategoryMapping } from './importMappings'
 import { buildImportMerchantMappings } from './merchantMatching'
 import { getImportDirectionValues } from './columnMapping'
-import { isImportableAccount } from './accountScope'
 import { getImportRowId, joinImportSummaryParts } from './common'
 import { getAmountArrangementClashError, getMissingRequiredColumnLabels } from './workflowOptions'
 import {
@@ -182,19 +170,36 @@ export function buildTransactionImportPayload({
   const accounts: TransactionImportPayload['accounts'] = []
   for (const source of accountSources) {
     const choice = accountMappings[source.id] ?? ''
-    appendAccountMapping(
-      accounts,
-      errors,
-      source,
+    if (choice === OUTSIDE_ACCOUNT_VALUE) {
+      // The dropdown only offers this answer where no row is written to the source, so it survives
+      // here when a file added later carries rows for a name that was answered this way
+      if (source.isCounterpartyOnly) accounts.push({ source: source.id, outside: true })
+      else addError(`Map to one of your accounts: ${source.label} has rows of its own, so it cannot be answered as outside.`)
+      continue
+    }
+
+    // Only a counterparty source is offered an archived or read-only account, and pointing the
+    // account column at that same column afterwards turns it into a source rows are written to while
+    // its answer stands, which the dropdown no longer offers and the API refuses
+    const built = buildImportAccountMapping({
+      source: source.id,
+      label: source.label,
+      name: source.label,
       choice,
-      accountCreateTypes[source.id],
-      accountCreateCurrencies[source.id],
-      accountCreateInstitutions[source.id],
+      createDetails: {
+        accountType: accountCreateTypes[source.id],
+        currency: accountCreateCurrencies[source.id],
+        institutionId: accountCreateInstitutions[source.id],
+      },
       accountById,
-    )
+      takesRows: !source.isCounterpartyOnly,
+      refusesGroupAccount: false,
+    }, addError)
+    if (built) accounts.push(built.mapping)
   }
 
   const categories: TransactionImportPayload['categories'] = []
+  const createdByKey = new Map<string, { label: string; kind: ImportCategoryKind }>()
 
   // Only a transfer category records where the money went, so the rule is settled per category
   // source once and read back for every row using it
@@ -208,60 +213,32 @@ export function buildTransactionImportPayload({
   // reuses, read back only after a row passes its blocking validation
   const categoryBySource: Record<string, Category | undefined> = {}
   for (const source of importedCategories) {
-    const choice = categoryMappings[source] ?? ''
-    if (!choice) {
-      addError(getImportCategoryMappingError(source))
-      continue
-    }
-
-    if (choice === CREATE_CATEGORY_VALUE) {
-      const kind = getCategoryMatchKind('', categoryCreateKinds[source], categoryTypesBySource[source], categoryById)
-      if (!kind) {
-        addError(getImportCategoryTypeRequiredError(source))
-        continue
-      }
-
-      // A create mapping reuses a category of the same name where one exists, compared with
-      // capitals folded, so the row is judged against the category it will actually land on rather
-      // than against the name the file spells. That is what puts a source called BALANCE ADJUSTMENT
-      // on the system category recording no counterparty account, as Balance Adjustment already is
-      const reused = findReusedImportCategory(source, categoryById.values())
-
-      // One name records one direction, so reusing it under the other is what the commit refuses.
-      // Caught here instead, where the step can say which value to go and answer differently
-      if (reused && reused.kind !== kind) {
-        addError(getCategoryDirectionClashError(source, reused.name, reused.kind))
-        continue
-      }
-
-      recordsCounterpartyBySource[source] = doesTransferRecordCounterpartyAccount(
-        kind,
-        (reused?.name ?? source) === BALANCE_ADJUSTMENT_CATEGORY_NAME,
-      )
-      kindByCategorySource[source] = kind
-      categoryBySource[source] = reused
-      categories.push({
-        source,
-        create: {
-          name: source,
-          kind,
-          icon: DEFAULT_CATEGORY_ICON,
-        },
-      })
-      continue
-    }
+    // A create answer reuses a category of the same name where one exists, compared with capitals
+    // folded, so the row is judged against the category it will actually land on rather than against
+    // the name the file spells. That is what puts a source called BALANCE ADJUSTMENT on the system
+    // category recording no counterparty account, as Balance Adjustment already is
+    const built = buildImportCategoryMapping({
+      source,
+      label: source,
+      createName: source,
+      choice: categoryMappings[source] ?? '',
+      createKind: getCategoryMatchKind('', categoryCreateKinds[source], categoryTypesBySource[source], categoryById),
+      rename: undefined,
+      categoryById,
+      createdByKey,
+      refusesGroupCategory: false,
+    }, addError)
+    if (!built) continue
 
     // The backend matches Balance Adjustment by name alone, so a personal category sharing that
-    // name is refused there too and has to be refused here
-    const category = categoryById.get(choice)
-    recordsCounterpartyBySource[source] = category
-      ? doesTransferRecordCounterpartyAccount(category.kind, category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
-      : false
-    if (category) {
-      kindByCategorySource[source] = category.kind
-      categoryBySource[source] = category
-    }
-    categories.push({ source, category_id: choice })
+    // name records no counterparty here either
+    recordsCounterpartyBySource[source] = built.kind !== null && doesTransferRecordCounterpartyAccount(
+      built.kind,
+      (built.category?.name ?? built.name) === BALANCE_ADJUSTMENT_CATEGORY_NAME,
+    )
+    if (built.kind) kindByCategorySource[source] = built.kind
+    categoryBySource[source] = built.category
+    categories.push(built.mapping)
   }
 
   // Only the payee values answered differently from what the commit would do unasked are carried,
@@ -452,74 +429,6 @@ function getImportWarnings(rows: TransactionImportPayload['rows'], columnMap: Co
     return amount !== null && !amount.isZero && amount.sign === 'negative'
   })
   return hasOutflow ? [] : [NO_OUTFLOWS_WARNING]
-}
-
-function appendAccountMapping(
-  accounts: TransactionImportPayload['accounts'],
-  errors: string[],
-  accountSource: ImportAccountSource,
-  choice: string,
-  createType: string | undefined,
-  createCurrency: string | undefined,
-  createInstitution: string | undefined,
-  accountById: Map<string, AccountsOverview>,
-) {
-  const source = accountSource.id
-  const createName = accountSource.label
-  const addError = (message: string) => {
-    if (!errors.includes(message)) errors.push(message)
-  }
-
-  if (!choice) {
-    addError(getImportAccountMappingError(createName))
-    return
-  }
-
-  if (choice === OUTSIDE_ACCOUNT_VALUE) {
-    // The dropdown only offers this answer where no row is written to the source, so it survives
-    // here when a file added later carries rows for a name that was answered this way
-    if (!accountSource.isCounterpartyOnly) {
-      addError(`Map to one of your accounts: ${createName} has rows of its own, so it cannot be answered as outside.`)
-      return
-    }
-
-    accounts.push({ source, outside: true })
-    return
-  }
-
-  if (choice !== CREATE_ACCOUNT_VALUE) {
-    // Only a counterparty source is offered an archived or read-only account, and pointing the
-    // account column at that same column afterwards turns it into a source rows are written to while
-    // its answer stands, which the dropdown no longer offers and the API refuses. The same refusal
-    // covers an account archived or made read-only after it was chosen
-    const account = accountById.get(choice)
-    if (!accountSource.isCounterpartyOnly && account && !isImportableAccount(account)) {
-      addError(getImportReadOnlyAccountMappingError(createName, account))
-      return
-    }
-
-    accounts.push({ source, account_id: choice })
-    return
-  }
-
-  if (!createType) addError(getImportAccountTypeRequiredError(createName))
-  if (!createCurrency) addError(getImportAccountCurrencyRequiredError(createName))
-  if (!createType || !createCurrency) return
-
-  if (!isImportAccountType(createType)) {
-    addError(getImportAccountTypeUnsupportedError(createName))
-    return
-  }
-
-  accounts.push({
-    source,
-    create: {
-      name: createName,
-      account_type: createType,
-      currency: createCurrency.toUpperCase(),
-      institution_id: createInstitution || null,
-    },
-  })
 }
 
 /**

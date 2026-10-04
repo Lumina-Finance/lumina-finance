@@ -2,7 +2,7 @@ import { ACCOUNT_KIND_BY_TYPE, type AccountsOverview, type AccountType } from '@
 import type { Category } from '@/api/categories'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
-import type { ImportCategoryKind } from '@/pages/imports/types'
+import type { ImportAccountCreateDetails, ImportCategoryKind } from '@/pages/imports/types'
 import { getCategoryNameKey } from '@/pages/imports/utils/categoryMatching'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, CREDIT_CARD_PAYMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
 import {
@@ -13,7 +13,6 @@ import {
   ACTUAL_TRANSFER_CATEGORY_NAME,
 } from '@/pages/imports/actual/constants'
 import type { ActualCategorySource, ActualJournal, ActualPaymentMode } from '@/pages/imports/actual/types'
-import type { ActualAccountCreateDetails } from './payload'
 import { isGroupResource } from '@/pages/imports/utils/resourceScope'
 
 /**
@@ -206,7 +205,7 @@ export function applyActualCreditPayments(journal: ActualJournal, revolvingAccou
 export function getActualRevolvingAccountIds(
   accountIds: string[],
   accountMappings: Record<string, string>,
-  accountCreateDetails: Record<string, Pick<ActualAccountCreateDetails, 'accountType'>>,
+  accountCreateDetails: Record<string, Pick<ImportAccountCreateDetails, 'accountType'>>,
   accountById: ReadonlyMap<string, Pick<AccountsOverview, 'account_kind'>>,
 ): Set<string> {
   return new Set(accountIds.filter((id) => {

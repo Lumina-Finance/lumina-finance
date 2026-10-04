@@ -8,7 +8,7 @@ import {
   useProviderImportReferenceData,
   useProviderImportRun,
 } from '@/pages/imports/hooks'
-import type { ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
+import type { ImportAccountCreateDetails, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
 import {
   buildProviderRunBudgets,
   countCreatedImportSources,
@@ -43,7 +43,6 @@ import {
   inferFireflyCategoryMappings,
   readFireflyAccountDetails,
   readFireflyCsvFile,
-  type FireflyAccountCreateDetails,
   type FireflyRowResolutionOptions,
   type FireflySkippedRowDetail,
 } from '@/pages/imports/firefly/utils'
@@ -210,7 +209,7 @@ export function useFireflyImportWorkflow() {
 
   const resolvedAccountCreateDetails = useMemo(
     () => {
-      const details: Record<string, FireflyAccountCreateDetails> = {}
+      const details: Record<string, ImportAccountCreateDetails> = {}
       for (const { id: source } of trackedAccounts) {
         details[source] = {
           accountType: accountCreateTypes[source] ?? accountPrefills[source]?.accountType ?? '',

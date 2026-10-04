@@ -11,7 +11,7 @@ import {
   useProviderImportReferenceData,
   useProviderImportRun,
 } from '@/pages/imports/hooks'
-import type { ImportCategoryKind } from '@/pages/imports/types'
+import type { ImportAccountCreateDetails, ImportCategoryKind } from '@/pages/imports/types'
 import {
   buildProviderRunBudgets,
   countCreatedImportSources,
@@ -42,7 +42,7 @@ import {
   inferActualCategoryMappings,
 } from '@/pages/imports/actual/utils/categories'
 import { getActualTransferSourceId, normaliseActualBudget } from '@/pages/imports/actual/utils/normalise'
-import { buildActualImportPayload, isArchivedWhenCreated, type ActualAccountCreateDetails, type ActualImportBuild } from '@/pages/imports/actual/utils/payload'
+import { buildActualImportPayload, isArchivedWhenCreated, type ActualImportBuild } from '@/pages/imports/actual/utils/payload'
 import { buildActualPreviewRows } from '@/pages/imports/actual/utils/preview'
 import { readActualBudgetFile } from '@/pages/imports/actual/utils/readFile'
 
@@ -194,7 +194,7 @@ export function useActualImportWorkflow() {
 
   const resolvedAccountCreateDetails = useMemo(
     () => {
-      const details: Record<string, ActualAccountCreateDetails> = {}
+      const details: Record<string, ImportAccountCreateDetails> = {}
       for (const source of accountSources) {
         details[source.id] = {
           accountType: accountCreateTypes[source.id] ?? source.proposedType,

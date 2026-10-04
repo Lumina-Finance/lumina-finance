@@ -3,7 +3,7 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
 import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
-import type { ImportCategoryKind, ImportCategoryRename, PreviewTransactionRow } from '@/pages/imports/types'
+import type { ImportAccountCreateDetails, ImportCategoryKind, ImportCategoryRename, PreviewTransactionRow } from '@/pages/imports/types'
 import {
   buildPreviewCategory,
   buildPreviewTransactionRow,
@@ -13,12 +13,11 @@ import {
 } from '@/pages/imports/utils'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import type { ActualAccountSource, ActualJournal, ActualJournalEntry } from '@/pages/imports/actual/types'
-import type { ActualAccountCreateDetails } from './payload'
 import { canCarryActualTransfer } from './categories'
 
 export interface ActualPreviewOptions {
   accountMappings: Record<string, string>
-  accountCreateDetails: Record<string, ActualAccountCreateDetails>
+  accountCreateDetails: Record<string, ImportAccountCreateDetails>
   accountById: Map<string, AccountsOverview>
   institutionById: Map<string, Institution>
   categoryMappings: Record<string, string>

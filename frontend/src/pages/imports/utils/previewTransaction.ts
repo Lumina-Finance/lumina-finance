@@ -3,7 +3,7 @@ import type { Category } from '@/api/categories'
 import type { Institution } from '@/api/institutions'
 import type { TransferCounterpartyScope } from '@/api/transactions'
 import { CREATE_ACCOUNT_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
-import type { ImportCategoryKind, PreviewTransactionRow } from '@/pages/imports/types'
+import type { ImportAccountCreateDetails, ImportCategoryKind, PreviewTransactionRow } from '@/pages/imports/types'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
 import { getPreviewDateLabel } from './valueParsers'
 
@@ -115,7 +115,7 @@ export function buildPreviewCategory(source: string, name: string, kind: ImportC
 export function resolvePreviewAccount(
   choice: string,
   sourceName: string,
-  createDetails: { currency: string; institutionId: string } | undefined,
+  createDetails: Pick<ImportAccountCreateDetails, 'currency' | 'institutionId'> | undefined,
   accountById: Map<string, AccountsOverview>,
   institutionById: Map<string, Institution>,
 ): PreviewAccount | null {

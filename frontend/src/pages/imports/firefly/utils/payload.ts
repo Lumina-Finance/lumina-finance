@@ -3,31 +3,16 @@ import type { Category } from '@/api/categories'
 import { JOURNAL_NO_CATEGORY_SOURCE, type JournalImportPayload } from '@/api/provider-imports'
 import {
   CREATE_ACCOUNT_VALUE,
-  CREATE_CATEGORY_VALUE,
-  DEFAULT_CATEGORY_ICON,
-  getImportAccountCurrencyRequiredError,
-  getImportAccountMappingError,
-  getImportAccountTypeRequiredError,
-  getImportAccountTypeUnsupportedError,
-  getImportReadOnlyAccountMappingError,
-  getImportCategoryMappingError,
-  getImportCategoryTypeRequiredError,
-  getImportGroupAccountError,
-  getImportGroupCategoryError,
   getImportNoRowsError,
   getTooManyMappingsError,
   MAX_IMPORT_MAPPINGS,
   IMPORT_ACCOUNT_NAME_MAX_LENGTH,
 } from '@/pages/imports/constants'
-import type { CsvRow, ImportCategoryKind, ImportCategoryRename, ImportFileDraft } from '@/pages/imports/types'
+import type { CsvRow, ImportAccountCreateDetails, ImportCategoryKind, ImportCategoryRename, ImportFileDraft } from '@/pages/imports/types'
 import { FIREFLY_TYPE_DEPOSIT } from '@/pages/imports/firefly/constants'
 import type { FireflyAccountSources, FireflyImportBuildResult } from '@/pages/imports/firefly/types'
-import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
-import { isImportableAccount } from '@/pages/imports/utils/accountScope'
-import { checkImportCategoryCreate } from '@/pages/imports/utils/categoryMatching'
-import { isGroupResource } from '@/pages/imports/utils/resourceScope'
+import { buildImportAccountMapping, buildImportCategoryMapping } from '@/pages/imports/utils/importMappings'
 import {
-  countCharacters,
   getFireflyRowAmounts,
   getFireflyRowDate,
   getFireflyRowPayeeName,
@@ -38,15 +23,6 @@ import {
   splitFireflyTags,
   toFireflyUnsignedAmount,
 } from './derivation'
-
-/**
- * Create-new selections for one tracked account after prefills are applied
- */
-export interface FireflyAccountCreateDetails {
-  accountType: string
-  currency: string
-  institutionId: string
-}
 
 /**
  * Compiles the staged Firefly III import into the backend payload, returning
@@ -77,7 +53,7 @@ export function buildFireflyImportPayload({
   accountSources: FireflyAccountSources
   accountMappings: Record<string, string>
   accountById: Map<string, AccountsOverview>
-  accountCreateDetails: Record<string, FireflyAccountCreateDetails>
+  accountCreateDetails: Record<string, ImportAccountCreateDetails>
   importedCategories: string[]
   categoryMappings: Record<string, string>
   categoryCreateKinds: Record<string, ImportCategoryKind>
@@ -111,128 +87,54 @@ export function buildFireflyImportPayload({
     accountSources,
   )
 
-  // Only accounts the rows use are sent, plus those from the accounts export the import creates
-  // empty. A source only skipped rows use is still answered, but the commit creates nothing for it
+  // A source only skipped rows use is still answered, but the commit creates nothing for it
   const accounts: JournalImportPayload['accounts'] = []
   const sentAccountSources = new Set<string>()
   const archiveAccountSources: string[] = []
   for (const { id: source, name, label, details } of accountSources.list) {
-    const choice = accountMappings[source]
-    if (!choice) {
-      addError(getImportAccountMappingError(label))
-      continue
-    }
-
+    const choice = accountMappings[source] ?? ''
     const hasRows = rowAccountSources.has(source)
     const isCreate = choice === CREATE_ACCOUNT_VALUE
 
-    // No group account is offered, so one still chosen is a stale answer, refused wherever it
-    // points. Imports write only the user's own records
-    const existing = isCreate ? undefined : accountById.get(choice)
-    if (existing && isGroupResource(existing)) {
-      addError(getImportGroupAccountError(label))
-      continue
-    }
-
-    // An existing account only the accounts export lists takes nothing, so its answer is kept but
-    // otherwise neither checked nor sent
-    if (!isCreate && !hasRows && details) continue
-
-    // Only an account the import creates is archived, so one the user already has is left as it is
+    // Only accounts the rows use are sent, plus the empty accounts the import creates from the
+    // accounts export. An existing account only that export lists takes nothing, so its answer is
+    // kept but not sent, and only an account the import creates is archived
     const isSent = hasRows || (isCreate && details !== null)
-    if (isSent) sentAccountSources.add(source)
-    if (isCreate && details && !details.isActive) archiveAccountSources.push(source)
-
-    if (!isCreate) {
-      // Every source still here takes rows, and an archived or read-only account takes none, so an
-      // account archived or made read-only after it was chosen is refused here rather than by the
-      // server part way through the import
-      if (existing && !isImportableAccount(existing)) {
-        addError(getImportReadOnlyAccountMappingError(label, existing))
-        continue
-      }
-
-      if (isSent) accounts.push({ source, account_id: choice })
-      continue
-    }
-
-    // Firefly III takes longer account names than Lumina does, and the name is the only thing a
-    // new account could carry over, so such an account can only be mapped to an existing one
-    if (countCharacters(name) > IMPORT_ACCOUNT_NAME_MAX_LENGTH) {
-      addError(getFireflyAccountNameTooLongError(label))
-      continue
-    }
-
-    const createDetails = accountCreateDetails[source]
-    if (!createDetails?.accountType) addError(getImportAccountTypeRequiredError(label))
-    if (!createDetails?.currency) addError(getImportAccountCurrencyRequiredError(label))
-    if (!createDetails?.accountType || !createDetails.currency) continue
-
-    if (!isImportAccountType(createDetails.accountType)) {
-      addError(getImportAccountTypeUnsupportedError(label))
-      continue
-    }
-
-    if (!isSent) continue
-    accounts.push({
+    const built = buildImportAccountMapping({
       source,
-      create: {
-        name,
-        account_type: createDetails.accountType,
-        currency: createDetails.currency.toUpperCase(),
-        institution_id: createDetails.institutionId || null,
-      },
-    })
+      label,
+      name,
+      choice,
+      createDetails: accountCreateDetails[source],
+      accountById,
+      // An existing account only the accounts export lists takes no rows, so its state is not checked
+      takesRows: hasRows || details === null,
+      refusesGroupAccount: true,
+      getNameTooLongError: getFireflyAccountNameTooLongError,
+    }, addError)
+    if (!choice || !isSent) continue
+
+    // Counted while its answer is still incomplete too, so the preview counts what the import creates
+    sentAccountSources.add(source)
+    if (isCreate && details && !details.isActive) archiveAccountSources.push(source)
+    if (built) accounts.push(built.mapping)
   }
 
   const categories: JournalImportPayload['categories'] = []
-  const createdCategoryByKey = new Map<string, { label: string; kind: ImportCategoryKind }>()
+  const createdByKey = new Map<string, { label: string; kind: ImportCategoryKind }>()
   for (const source of importedCategories) {
-    const choice = categoryMappings[source]
-    if (!choice) {
-      addError(getImportCategoryMappingError(source))
-      continue
-    }
-
-    if (choice !== CREATE_CATEGORY_VALUE) {
-      const category = categoryById.get(choice)
-      if (category && isGroupResource(category)) {
-        addError(getImportGroupCategoryError(source))
-        continue
-      }
-      categories.push({ source, category_id: choice })
-      continue
-    }
-
-    const kind = categoryCreateKinds[source]
-    if (!kind) {
-      addError(getImportCategoryTypeRequiredError(source))
-      continue
-    }
-
-    const rename = categoryRenames[source]
-    const name = rename?.name.trim() ?? source
-    const createError = checkImportCategoryCreate({
-      label: source,
-      name,
-      isRenamed: rename !== undefined,
-      kind,
-      categoryById,
-      createdByKey: createdCategoryByKey,
-    })
-    if (createError) {
-      addError(createError)
-      continue
-    }
-
-    categories.push({
+    const built = buildImportCategoryMapping({
       source,
-      create: {
-        name,
-        kind,
-        icon: DEFAULT_CATEGORY_ICON,
-      },
-    })
+      label: source,
+      createName: source,
+      choice: categoryMappings[source] ?? '',
+      createKind: categoryCreateKinds[source],
+      rename: categoryRenames[source],
+      categoryById,
+      createdByKey,
+      refusesGroupCategory: true,
+    }, addError)
+    if (built) categories.push(built.mapping)
   }
 
   if (payloadRows.length === 0) addError(getImportNoRowsError('export'))

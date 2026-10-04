@@ -4,7 +4,7 @@ import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import type { Institution } from '@/api/institutions'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import type { Currency } from '@/api/currency'
-import type { CsvRow, ImportCategoryKind, ImportCategoryRename } from '@/pages/imports/types'
+import type { CsvRow, ImportAccountCreateDetails, ImportCategoryKind, ImportCategoryRename } from '@/pages/imports/types'
 import {
   buildPreviewCategory,
   MAX_IMPORT_MINOR_UNITS,
@@ -29,7 +29,6 @@ import {
 } from '@/pages/imports/firefly/constants'
 import type { FireflyAccountSource, FireflyAccountSources } from '@/pages/imports/firefly/types'
 import { getFireflyRowAmounts } from './derivation'
-import type { FireflyAccountCreateDetails } from './payload'
 
 /**
  * Mapping lookups needed to resolve journal rows the same way the commit will
@@ -39,7 +38,7 @@ export interface FireflyRowResolutionOptions {
   accountSources: FireflyAccountSources
   accountById: Map<string, AccountsOverview>
   accountMappings: Record<string, string>
-  accountCreateDetails: Record<string, FireflyAccountCreateDetails>
+  accountCreateDetails: Record<string, ImportAccountCreateDetails>
   institutionById: Map<string, Institution>
   categoryById: Map<string, Category>
   categoryMappings: Record<string, string>
