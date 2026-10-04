@@ -29,15 +29,6 @@ class BankObservation:
     raw_amount: str | None
     description: str
 
-    def to_json(self) -> dict[str, Any]:
-        """Return the observation as stored in a record's JSON columns"""
-        return {
-            "date": self.date.isoformat(),
-            "amount": self.amount,
-            "raw_amount": self.raw_amount,
-            "description": self.description,
-        }
-
     @classmethod
     def from_json(cls, stored: dict[str, Any]) -> BankObservation:
         """Read an observation back from a record's JSON column"""
@@ -53,15 +44,13 @@ def edited_fields(record: BankTransaction, ledger_date: date, ledger_amount: int
     """Return the fields the ledger row holds differently from the bank values it was last aligned with
 
     Args:
-        record: The bank transaction the ledger row came from
+        record: The accepted bank transaction the ledger row came from
         ledger_date: The ledger row's date
         ledger_amount: The ledger row's amount in minor units
 
     Returns:
-        The edited fields, in display order, or none for a record that isn't accepted
+        The edited fields, in display order
     """
-    if record.disposition != BankTransactionDisposition.ACCEPTED:
-        return []
     edited: list[EditableBankField] = []
     if ledger_date != record.aligned_date:
         edited.append("date")

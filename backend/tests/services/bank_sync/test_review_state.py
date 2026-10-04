@@ -30,6 +30,10 @@ def _observation(**changes) -> BankObservation:
     return BankObservation(**{**values, **changes})
 
 
+# The proposal to move the helper's record from 3 to 4 October, as the user declined it
+_DECLINED_MOVE_TO_4_OCTOBER = {"date": "2026-10-04", "amount": -1250, "raw_amount": None, "description": BANK_DESCRIPTION}
+
+
 def test_edited_fields_amount_added_differently_is_edited():
     """A $12.50 debit added as $10.00 reads amount as edited and date as not"""
     assert edited_fields(_accepted(-1250), BANK_DATE, -1000) == ["amount"]
@@ -55,17 +59,10 @@ def test_edited_fields_amount_the_bank_could_not_give_is_edited():
     assert edited_fields(record, BANK_DATE, -1251) == ["amount"]
 
 
-def test_edited_fields_record_not_accepted_reads_nothing_edited():
-    """A record still waiting has no ledger row to differ from the bank"""
-    record = _build_bank_transaction(_build_account(uuid.uuid4()))
-
-    assert edited_fields(record, BANK_DATE, -1000) == []
-
-
 def test_changed_fields_repeat_of_a_declined_proposal_changes_nothing():
     """Keep current value on a move from 3 to 4 October, then the bank sends 4 October again"""
     record = _accepted()
-    record.declined_observation = _observation(date=date(2026, 10, 4)).to_json()
+    record.declined_observation = _DECLINED_MOVE_TO_4_OCTOBER
     record.aligned_date = date(2026, 10, 4)
 
     assert changed_fields(record, _observation(date=date(2026, 10, 4))) == []
@@ -74,7 +71,7 @@ def test_changed_fields_repeat_of_a_declined_proposal_changes_nothing():
 def test_changed_fields_new_proposal_after_a_declined_one_reopens_review():
     """A date the user hasn't declined yet is a change again"""
     record = _accepted()
-    record.declined_observation = _observation(date=date(2026, 10, 4)).to_json()
+    record.declined_observation = _DECLINED_MOVE_TO_4_OCTOBER
 
     assert changed_fields(record, _observation(date=date(2026, 10, 5))) == ["date"]
 
