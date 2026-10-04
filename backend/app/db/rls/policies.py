@@ -66,6 +66,11 @@ SECURED_TABLES = (
         f"owner_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id) AND (connection_id IS NULL OR {_SEES_CONNECTION})",
     ),
     ("bank_signin_notices", f"owner_id = {CURRENT_USER_ID}()", f"owner_id = {CURRENT_USER_ID}() AND {_SEES_CONNECTION}"),
+    (
+        "account_review_preferences",
+        f"owner_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)",
+        f"owner_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)",
+    ),
     ("users", f"id = {CURRENT_USER_ID}()", f"id = {CURRENT_USER_ID}()"),
     (
         "tags",

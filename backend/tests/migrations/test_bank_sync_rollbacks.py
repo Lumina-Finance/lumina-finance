@@ -45,6 +45,13 @@ _CONNECTION = (
 # names what the row is
 _ROLLBACKS = [
     pytest.param("5b8e2d4f7a13", (_CONNECTION,), "bank_connections", "bank connections", id="connections"),
+    pytest.param(
+        "9d2c6e1a4b58",
+        ("INSERT INTO account_review_preferences (account_id, owner_id) VALUES (:account_id, :user_id)",),
+        "account_review_preferences",
+        "the review preferences",
+        id="review_preferences",
+    ),
 ]
 
 

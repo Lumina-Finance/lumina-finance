@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
+from app.models.account_review_preference import AccountReviewPreference
 from app.models.bank_connection import (
     BankAccountLink,
     BankConnection,
@@ -225,3 +226,28 @@ async def test_bank_signin_notice_is_recorded_once_per_bank_login(session):
 
     await _refused(session, _build_signin_notice(connection, "login-1"), "uq_bank_signin_notices_connection_login")
     await _add(session, _build_signin_notice(connection, "login-2"))
+
+
+async def test_account_review_preferences_start_on_review_and_go_with_the_account(session):
+    """A row stored without choices reads Review all, and deleting the account deletes it"""
+    user = await _owner(session)
+    everyday = _build_account(user.id)
+    await _add(session, everyday)
+    await session.execute(
+        text("INSERT INTO account_review_preferences (account_id, owner_id) VALUES (:account_id, :owner_id)"),
+        {"account_id": everyday.id, "owner_id": user.id},
+    )
+
+    stored = (
+        await session.execute(
+            select(
+                AccountReviewPreference.new_transactions,
+                AccountReviewPreference.corrections,
+                AccountReviewPreference.removals,
+            )
+        )
+    ).one()
+    await session.execute(delete(Account).where(Account.id == everyday.id))
+
+    assert tuple(stored) == ("review", "review", "review")
+    assert await session.scalar(select(func.count()).select_from(AccountReviewPreference)) == 0

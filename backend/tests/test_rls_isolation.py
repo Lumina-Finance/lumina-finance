@@ -12,13 +12,14 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.exc import ProgrammingError
 
 from app.database import current_user_id_ctx
 from app.models.account import Account
 from app.models.account_import_layout import AccountImportLayout
 from app.models.account_import_source import AccountImportSource
+from app.models.account_review_preference import AccountReviewPreference
 from app.models.bank_connection import (
     BankAccountLink,
     BankConnection,
@@ -505,7 +506,19 @@ async def test_cache_bump_is_refused_for_a_null_target():
             await session.execute(_BUMP_MEMBER_CACHE, {"user_id": None, "group_id": uuid.uuid4()})
 
 
-_BANK_MODELS = [BankConnection, BankProviderRequest, BankExternalAccount, BankAccountLink, BankSigninNotice]
+_BANK_MODELS = [
+    BankConnection,
+    BankProviderRequest,
+    BankExternalAccount,
+    BankAccountLink,
+    BankSigninNotice,
+    AccountReviewPreference,
+]
+
+
+async def _count_visible(session, model) -> int:
+    """Return how many rows of a model the session's user can see"""
+    return await session.scalar(select(func.count()).select_from(model))
 
 
 async def _create_bank_records(session, owner_id) -> tuple[Account, BankConnection]:
@@ -520,6 +533,7 @@ async def _create_bank_records(session, owner_id) -> tuple[Account, BankConnecti
             _build_external_account(connection),
             _build_bank_link(account, connection),
             _build_signin_notice(connection),
+            AccountReviewPreference(account_id=account.id, owner_id=owner_id),
         ]
     )
     await session.flush()
@@ -549,7 +563,7 @@ async def test_bank_records_owner_can_create_and_read_back(users):
         await _create_bank_records(session, user_a.id)
 
         for model in _BANK_MODELS:
-            assert len((await session.scalars(select(model.id))).all()) == 1
+            assert await _count_visible(session, model) == 1
 
 
 @pytest.mark.parametrize("model", _BANK_MODELS, ids=lambda model: model.__tablename__)
@@ -557,10 +571,10 @@ async def test_bank_records_are_invisible_to_other_users(users, bank_records, mo
     """Another user sees none of a user's bank sync records"""
     user_a, user_b = users
     async with _act_as(user_b.id) as session:
-        assert (await session.scalars(select(model.id))).all() == []
+        assert await _count_visible(session, model) == 0
 
     async with _act_as(user_a.id) as session:
-        assert len((await session.scalars(select(model.id))).all()) == 1
+        assert await _count_visible(session, model) == 1
 
 
 @pytest.mark.parametrize(
@@ -594,8 +608,16 @@ async def test_bank_record_naming_another_users_connection_is_refused(users, ban
             await session.flush()
 
 
-async def test_bank_link_on_another_users_account_is_refused(users, bank_records):
-    """A user can't link someone else's Lumina account, even through their own connection"""
+@pytest.mark.parametrize(
+    "build",
+    [
+        lambda account, connection, owner_id: _owned_by(_build_bank_link(account, connection, "ACT-B"), owner_id),
+        lambda account, _, owner_id: AccountReviewPreference(account_id=account.id, owner_id=owner_id),
+    ],
+    ids=["account_link", "review_preferences"],
+)
+async def test_bank_record_on_another_users_account_is_refused(users, bank_records, build):
+    """A user can't link or set preferences on someone else's Lumina account, even as the row's owner"""
     user_a, user_b = users
     async with TestSession() as session:
         account_a = (await session.scalars(select(Account).where(Account.owner_id == user_a.id))).one()
@@ -603,9 +625,7 @@ async def test_bank_link_on_another_users_account_is_refused(users, bank_records
         session.add(connection_b)
         await session.commit()
 
-    link = _build_bank_link(account_a, connection_b, "ACT-B")
-    link.owner_id = user_b.id
     async with _act_as(user_b.id) as session:
-        session.add(link)
+        session.add(build(account_a, connection_b, user_b.id))
         with pytest.raises(ProgrammingError, match="row-level security"):
             await session.flush()
