@@ -91,7 +91,7 @@ def _reasons(result: FetchResult) -> list[str]:
 @pytest.mark.parametrize(
     ("status", "content_type", "body"),
     [
-        (200, "application/json", (_FIXTURES / "balances.json").read_bytes()),
+        (200, "application/json", (_FIXTURES / "accounts.json").read_bytes()),
         (403, "text/plain", b"Forbidden"),
         (500, "text/plain", b"Internal Server Error"),
         (200, "text/html", b"<html><body>Maintenance</body></html>"),

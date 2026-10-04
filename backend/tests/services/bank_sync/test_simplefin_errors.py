@@ -2,24 +2,26 @@
 
 Guards which accounts stop, retry or carry on when SimpleFIN Bridge reports a problem. A wrong
 mapping either stops a working connection or keeps sending requests Bridge has refused, which can
-get the user's token disabled
+get the user's token disabled. The fake SimpleFIN Bridge produces each problem it can; a recording
+stand-in answers the rest
 """
 
 import json
 import logging
 from datetime import UTC, datetime
-from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
 
 from app.http_client import MAX_RESPONSE_BYTES
+from app.services.bank_sync import outbound
 from app.services.bank_sync.providers.contract import FetchResult, ProviderError, ProviderErrorKind
 from app.services.bank_sync.providers.simplefin.adapter import SimpleFinAdapter
-from tests.services.bank_sync.stand_ins import RecordingBridge, Responder, answer_with, fail_with, simplefin_adapter
+from tests.fake_simplefin_bridge import FakeBridgeTransport
+from tests.services.bank_sync.stand_ins import FakeBridgeScenario, RecordingBridge, answer_with, fail_with, simplefin_adapter
 
-_RECORDED = json.loads((Path(__file__).resolve().parents[2] / "fixtures" / "simplefin" / "errors.json").read_text())
 _ACCESS_URL = "https://demo-user:demo-password@beta-bridge.simplefin.org/simplefin"
 _ALL_ACCOUNTS = ("ACT-chequing", "ACT-savings", "ACT-visa")
 
@@ -32,19 +34,12 @@ _UNKNOWN = ProviderErrorKind.UNKNOWN
 _UNREACHABLE = "SimpleFIN Bridge couldn't be reached"
 _UNREADABLE = "SimpleFIN Bridge sent a response Lumina Finance couldn't read"
 
-
-def _recorded(case: str) -> Responder:
-    """Return a responder answering with one of the recorded error responses"""
-    return answer_with(200, json.dumps(_RECORDED[case]).encode(), "application/json")
+# The fake Bridge's quota warning, which it repeats in the older errors list
+_FAKE_QUOTA_WARNING = "You are making too many requests. Make fewer requests or this access token may be disabled"
 
 
-async def _fetch(respond: Responder) -> FetchResult:
-    """Fetch every account once from a stand-in answering with the responder"""
-    return await _fetch_with(simplefin_adapter(RecordingBridge(respond)))
-
-
-async def _fetch_with(adapter: SimpleFinAdapter, access_url: str = _ACCESS_URL) -> FetchResult:
-    """Fetch every account once through the adapter"""
+async def _fetch(adapter: SimpleFinAdapter, access_url: str = _ACCESS_URL) -> FetchResult:
+    """Fetch every Harbour account once through the adapter"""
     return await adapter.fetch(
         access_url,
         account_ids=_ALL_ACCOUNTS,
@@ -56,41 +51,67 @@ async def _fetch_with(adapter: SimpleFinAdapter, access_url: str = _ACCESS_URL) 
     )
 
 
+async def _fetch_from(scenario: FakeBridgeScenario, *problems: dict[str, Any], fault: str | None = None) -> FetchResult:
+    """Claim the scenario, give every response the problems and fault, and fetch every Harbour account once"""
+    adapter = simplefin_adapter(FakeBridgeTransport())
+    access_url = await adapter.claim(scenario.setup_token)
+    for problem in problems:
+        await scenario.change("POST", "/errors", problem)
+    if fault:
+        await scenario.change("PUT", "/fault", {"kind": fault})
+    return await _fetch(adapter, access_url)
+
+
+@pytest.mark.parametrize(
+    ("fault", "error"),
+    [
+        ("html_error", ProviderError(_TEMPORARY, _UNREACHABLE)),
+        ("timeout", ProviderError(_TEMPORARY, "SimpleFIN Bridge did not respond in time")),
+        ("rate_limited", ProviderError(_RATE_LIMITED, "SimpleFIN Bridge asked Lumina Finance to make fewer requests")),
+        ("payment_required", ProviderError(ProviderErrorKind.PAYMENT_REQUIRED, "SimpleFIN Bridge reports a payment problem")),
+    ],
+    ids=["403-html", "timeout", "429", "402"],
+)
+async def test_bridge_fault_fails_every_account_with_its_typed_error(scenario: FakeBridgeScenario, monkeypatch, fault, error):
+    """An edge error page, no answer in time, a 429 or a 402 fails the whole request, keeping nothing from it"""
+    # Short enough that the timeout fault doesn't hold the test for the full read timeout
+    monkeypatch.setattr(outbound, "REQUEST_TIMEOUT", httpx.Timeout(1.0, connect=5.0))
+    await scenario.add_harbour_accounts()
+
+    result = await _fetch_from(scenario, fault=fault)
+
+    assert result.request_error == error
+    assert result.accounts == ()
+
+
+async def test_revoked_access_needs_reconnecting(scenario: FakeBridgeScenario):
+    """The Bridge's plain 403 for a revoked Access URL means only a new connection can sync"""
+    await scenario.add_harbour_accounts()
+    adapter = simplefin_adapter(FakeBridgeTransport())
+    access_url = await adapter.claim(scenario.setup_token)
+    await scenario.change("POST", "/revoke")
+
+    result = await _fetch(adapter, access_url)
+
+    assert result.request_error == ProviderError(_CREDENTIAL_REJECTED, "SimpleFIN Bridge rejected the stored access credential")
+    assert result.accounts == ()
+
+
 @pytest.mark.parametrize(
     ("respond", "error"),
     [
-        (answer_with(403, b"Forbidden"), ProviderError(_CREDENTIAL_REJECTED, "SimpleFIN Bridge rejected the stored access credential")),
-        (answer_with(403, b"<!DOCTYPE html><title>Access denied</title>", "text/html"), ProviderError(_TEMPORARY, _UNREACHABLE)),
         (answer_with(503, b"Service Unavailable"), ProviderError(_TEMPORARY, _UNREACHABLE)),
-        (fail_with(httpx.ReadTimeout), ProviderError(_TEMPORARY, "SimpleFIN Bridge did not respond in time")),
         (fail_with(httpx.ConnectError), ProviderError(_TEMPORARY, _UNREACHABLE)),
         (answer_with(200, b"Service temporarily unavailable"), ProviderError(_TEMPORARY, _UNREADABLE)),
         (answer_with(200, b"x" * (MAX_RESPONSE_BYTES + 1)), ProviderError(_TEMPORARY, _UNREADABLE)),
-        (
-            answer_with(429, json.dumps(_RECORDED["account-missing"]).encode(), "application/json"),
-            ProviderError(_RATE_LIMITED, "SimpleFIN Bridge asked Lumina Finance to make fewer requests"),
-        ),
-        (answer_with(402, b"Payment Required"), ProviderError(_TEMPORARY, "SimpleFIN Bridge reports a payment problem")),
         (answer_with(404, b"Not Found"), ProviderError(_UNKNOWN, _UNREADABLE)),
         (answer_with(302, b""), ProviderError(_UNKNOWN, _UNREADABLE)),
     ],
-    ids=[
-        "403-text",
-        "403-html",
-        "5xx",
-        "timeout",
-        "connection-failed",
-        "not-json",
-        "too-large",
-        "429",
-        "402",
-        "other-status",
-        "redirect",
-    ],
+    ids=["5xx", "connection-failed", "not-json", "too-large", "other-status", "redirect"],
 )
 async def test_failed_request_fails_every_account_with_its_typed_error(respond, error):
-    """A status, a transport failure or an unusable body fails the whole request, keeping nothing from it"""
-    result = await _fetch(respond)
+    """A server error, a transport failure, an unusable body or an unexpected status keeps nothing from the response"""
+    result = await _fetch(simplefin_adapter(RecordingBridge(respond).transport))
 
     assert result.request_error == error
     assert result.accounts == ()
@@ -100,7 +121,7 @@ async def test_access_url_on_a_server_no_longer_allowed_needs_reconnecting():
     """Once the operator stops allowing the connection's server, only a new connection can sync"""
     bridge = RecordingBridge()
 
-    result = await _fetch_with(simplefin_adapter(bridge), "https://user:pass@intranet.example/simplefin")
+    result = await _fetch(simplefin_adapter(bridge.transport), "https://user:pass@intranet.example/simplefin")
 
     assert result.request_error == ProviderError(_CREDENTIAL_REJECTED, "This Lumina Finance server is not set up to contact intranet.example")
     assert bridge.requests == []
@@ -110,7 +131,7 @@ async def test_bridge_resolving_privately_is_a_temporary_failure_logged_by_host(
     """A private DNS answer is refused and retried later, with a warning naming only the host"""
     bridge = RecordingBridge()
 
-    result = await _fetch_with(simplefin_adapter(bridge, "10.0.4.2"))
+    result = await _fetch(simplefin_adapter(bridge.transport, "10.0.4.2"))
 
     assert result.request_error == ProviderError(_TEMPORARY, _UNREACHABLE)
     assert bridge.requests == []
@@ -119,30 +140,58 @@ async def test_bridge_resolving_privately_is_a_temporary_failure_logged_by_host(
 
 
 @pytest.mark.parametrize(
-    ("case", "error"),
+    ("problem", "error"),
     [
         (
-            "credential-rejected",
+            {"code": "gen.auth", "msg": "Your access token is no longer valid. Create a new setup token to reconnect."},
             ProviderError(_CREDENTIAL_REJECTED, "Your access token is no longer valid. Create a new setup token to reconnect."),
         ),
-        ("bridge-api-error", ProviderError(_TEMPORARY, "SimpleFIN Bridge is having trouble right now. Try again later.")),
-        ("bank-login-needed-naming-no-login", ProviderError(_BANK_LOGIN_NEEDED, "SimpleFIN Bridge says your bank needs you to sign in again")),
-        ("unknown-general-code-without-data", ProviderError(_UNKNOWN, "SimpleFIN Bridge is down for maintenance until 02:00 UTC.")),
-        ("unknown-prefix", ProviderError(_UNKNOWN, "Harbour Bank is no longer supported.")),
-        ("quota-warning-without-data", ProviderError(_RATE_LIMITED, "Too many requests today. Please make fewer requests.")),
+        (
+            {"code": "gen.api", "msg": "SimpleFIN Bridge is having trouble right now. Try again later."},
+            ProviderError(_TEMPORARY, "SimpleFIN Bridge is having trouble right now. Try again later."),
+        ),
+        ({"code": "con.auth", "msg": ""}, ProviderError(_BANK_LOGIN_NEEDED, "SimpleFIN Bridge says your bank needs you to sign in again")),
+        (
+            {"code": "org.unsupported", "msg": "Harbour Bank is no longer supported."},
+            ProviderError(_UNKNOWN, "Harbour Bank is no longer supported."),
+        ),
     ],
+    ids=["gen-auth", "gen-api", "con-naming-no-login", "unknown-prefix"],
 )
-async def test_problem_affecting_the_whole_request_fails_every_account(case, error):
+async def test_problem_affecting_the_whole_request_fails_every_account(scenario: FakeBridgeScenario, problem, error):
     """Bridge's own message becomes the reason, or a general one when it sends none"""
-    result = await _fetch(_recorded(case))
+    await scenario.add_harbour_accounts()
+
+    result = await _fetch_from(scenario, problem)
 
     assert result.request_error == error
     assert result.accounts == ()
 
 
-async def test_bank_login_problem_stops_only_that_logins_accounts():
+async def test_problem_without_account_data_fails_every_account(scenario: FakeBridgeScenario):
+    """An unknown general code with no accounts beside it is an unknown failure"""
+    result = await _fetch_from(scenario, {"code": "gen.maintenance", "msg": "SimpleFIN Bridge is down for maintenance until 02:00 UTC."})
+
+    assert result.request_error == ProviderError(_UNKNOWN, "SimpleFIN Bridge is down for maintenance until 02:00 UTC.")
+
+
+async def test_quota_warning_without_account_data_is_rate_limited(scenario: FakeBridgeScenario):
+    """A quota warning that comes back alone keeps nothing, and the day's requests count as spent"""
+    await scenario.add_harbour_accounts()
+
+    result = await _fetch_from(scenario, fault="quota_warning_without_data")
+
+    assert result.request_error == ProviderError(_RATE_LIMITED, _FAKE_QUOTA_WARNING)
+    assert result.accounts == ()
+
+
+async def test_bank_login_problem_stops_only_that_logins_accounts(scenario: FakeBridgeScenario):
     """con.auth for the Harbour Bank login stops Everyday Chequing and Online Savings, while Rewards Visa syncs"""
-    result = await _fetch(_recorded("bank-login-needed"))
+    await scenario.add_harbour_accounts()
+    visa = {"id": "TRN-streaming", "posted": "2026-09-15", "amount": "-15.99", "description": "STREAMFLIX.COM"}
+    await scenario.change("POST", "/accounts/ACT-visa/transactions", {"transactions": [visa]})
+
+    result = await _fetch_from(scenario, {"code": "con.auth", "msg": "Harbour Bank needs you to sign in again.", "conn_id": "CON-harbour"})
 
     assert result.request_error is None
     assert result.login_errors == {"CON-harbour": ProviderError(_BANK_LOGIN_NEEDED, "Harbour Bank needs you to sign in again.")}
@@ -155,9 +204,12 @@ async def test_bank_login_problem_stops_only_that_logins_accounts():
     assert [record.external_id for record in result.accounts[2].records] == ["TRN-streaming"]
 
 
-async def test_account_problem_fails_only_that_account():
+async def test_account_problem_fails_only_that_account(scenario: FakeBridgeScenario):
     """An act error for Rewards Visa fails it, and the other accounts sync"""
-    result = await _fetch(_recorded("account-failed"))
+    await scenario.add_harbour_accounts()
+    problem = {"code": "act.sync", "msg": "Rewards Visa couldn't be updated.", "conn_id": "CON-harbourline", "account_id": "ACT-visa"}
+
+    result = await _fetch_from(scenario, problem)
 
     assert result.request_error is None
     assert result.account_errors == {"ACT-visa": ProviderError(_TEMPORARY, "Rewards Visa couldn't be updated.")}
@@ -165,27 +217,43 @@ async def test_account_problem_fails_only_that_account():
     assert len(result.accounts) == 3
 
 
-async def test_unknown_subcode_takes_its_prefixs_meaning():
+async def test_unknown_subcode_takes_its_prefixs_meaning(scenario: FakeBridgeScenario):
     """An unfamiliar con code still needs the bank sign-in, and an unfamiliar act code still fails its account"""
-    result = await _fetch(_recorded("unknown-subcodes"))
+    await scenario.add_harbour_accounts()
+
+    result = await _fetch_from(
+        scenario,
+        {"code": "con.security_code", "msg": "Harbour Bank wants a security code.", "conn_id": "CON-harbour"},
+        {"code": "act.closing", "msg": "Rewards Visa is being closed.", "conn_id": "CON-harbourline", "account_id": "ACT-visa"},
+    )
 
     assert result.login_errors == {"CON-harbour": ProviderError(_BANK_LOGIN_NEEDED, "Harbour Bank wants a security code.")}
     assert result.account_errors == {"ACT-visa": ProviderError(_TEMPORARY, "Rewards Visa is being closed.")}
 
 
 @pytest.mark.parametrize(
-    ("case", "warning"),
+    ("problem", "fault", "warning"),
     [
-        ("unknown-general-code-with-data", ProviderError(_UNKNOWN, "Some banks may be slow to update tonight.")),
         (
-            "quota-warning-with-data",
-            ProviderError(_RATE_LIMITED, "You've reached today's refresh limit. Make fewer requests or this token may be disabled."),
+            {"code": "gen.maintenance", "msg": "Some banks may be slow to update tonight."},
+            None,
+            ProviderError(_UNKNOWN, "Some banks may be slow to update tonight."),
         ),
+        # SimpleFIN's own demo Bridge answers a request over 45 days with the whole history and this note
+        (
+            {"code": "gen.api", "msg": "Requested date range exceeds recommended range of 45 days. In the future, this may be capped."},
+            None,
+            ProviderError(_TEMPORARY, "Requested date range exceeds recommended range of 45 days. In the future, this may be capped."),
+        ),
+        (None, "quota_warning", ProviderError(_RATE_LIMITED, _FAKE_QUOTA_WARNING)),
     ],
+    ids=["unknown-general-code", "range-over-recommended", "quota-warning"],
 )
-async def test_general_warning_beside_data_keeps_the_data(case, warning):
-    """An unknown general code or a quota warning that arrives with accounts is recorded once, and they sync"""
-    result = await _fetch(_recorded(case))
+async def test_general_warning_beside_data_keeps_the_data(scenario: FakeBridgeScenario, problem, fault, warning):
+    """An unknown general code, a note about the date range or a quota warning that arrives with accounts is recorded once, and they sync"""
+    await scenario.add_harbour_accounts()
+
+    result = await _fetch_from(scenario, *([problem] if problem else []), fault=fault)
 
     assert result.request_error is None
     assert result.warnings == (warning,)
@@ -194,10 +262,58 @@ async def test_general_warning_beside_data_keeps_the_data(case, warning):
     assert [account.external_id for account in result.accounts] == list(_ALL_ACCOUNTS)
 
 
-async def test_account_left_out_of_the_response_fails():
+@pytest.mark.parametrize(
+    "message",
+    ["You have hit today's refresh limit for this token", "Rate limit reached. Please wait before refreshing"],
+    ids=["refresh-limit", "rate-limit"],
+)
+async def test_quota_warning_only_in_the_older_errors_list_is_recognised(message):
+    """Bridge versions that send only plain messages still have their quota warnings kept beside the data"""
+    body = {
+        "errors": [message],
+        "connections": [{"conn_id": "CON-harbour", "name": "Harbour Bank", "org_id": "ORG-harbour"}],
+        "accounts": [
+            {
+                "id": "ACT-chequing",
+                "name": "Everyday Chequing",
+                "conn_id": "CON-harbour",
+                "currency": "USD",
+                "balance": "2510.75",
+                "balance-date": 1791115200,
+            }
+        ],
+    }
+
+    result = await _fetch(simplefin_adapter(RecordingBridge(answer_with(200, json.dumps(body).encode(), "application/json")).transport))
+
+    assert result.warnings == (ProviderError(_RATE_LIMITED, message),)
+    assert [account.external_id for account in result.accounts] == ["ACT-chequing"]
+
+
+async def test_account_left_out_of_the_response_fails(scenario: FakeBridgeScenario):
     """A requested account the response leaves out fails for this sync, while the others proceed"""
-    result = await _fetch(_recorded("account-missing"))
+    await scenario.add_harbour_accounts()
+    await scenario.change("PATCH", "/accounts/ACT-visa", {"hidden": True})
+
+    result = await _fetch_from(scenario)
 
     assert result.request_error is None
     assert result.account_errors == {"ACT-visa": ProviderError(_TEMPORARY, "SimpleFIN Bridge didn't return this account")}
     assert [account.external_id for account in result.accounts] == ["ACT-chequing", "ACT-savings"]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"errlist": [{"code": "gen.auth", "msg": "x" * 100_000}], "connections": [], "accounts": []},
+        {"errors": ["Too many requests. " + "x" * 100_000], "connections": [], "accounts": []},
+    ],
+    ids=["errlist", "older-errors-list"],
+)
+async def test_message_longer_than_the_reason_cap_is_cut_short_in_the_failure(body):
+    """A bank's 100,000-character message is kept as a reason of 500 characters ending in an ellipsis."""
+    result = await _fetch(simplefin_adapter(RecordingBridge(answer_with(200, json.dumps(body).encode(), "application/json")).transport))
+
+    assert result.request_error is not None
+    assert len(result.request_error.reason) == 500
+    assert result.request_error.reason.endswith("…")

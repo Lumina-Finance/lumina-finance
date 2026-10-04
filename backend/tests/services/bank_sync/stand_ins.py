@@ -1,7 +1,13 @@
-"""Stand-ins for DNS and a provider's server, so outbound requests never leave the test"""
+"""Stand-ins for DNS and a provider's server, so outbound requests never leave the test
+
+The fake SimpleFIN Bridge answers as the Bridge does, for claims, account sets and their faults.
+RecordingBridge answers whatever a test needs that the fake can't produce, such as a redirect or a
+body that isn't JSON, and records each request so a test can check what went over the wire
+"""
 
 from collections.abc import Callable
 from ipaddress import ip_address
+from typing import Any, Self
 
 import httpx
 
@@ -65,12 +71,60 @@ def fail_with(error: type[httpx.TransportError]) -> Responder:
     return fail
 
 
-def simplefin_adapter(bridge: RecordingBridge, *addresses: str) -> SimpleFinAdapter:
-    """Return a SimpleFIN adapter allowed to reach SimpleFIN Bridge, whose requests reach only the stand-in
+def simplefin_adapter(transport: httpx.AsyncBaseTransport, *addresses: str) -> SimpleFinAdapter:
+    """Return a SimpleFIN adapter allowed to reach SimpleFIN Bridge, whose requests reach only the transport
 
     Args:
-        bridge: Where every request goes
+        transport: Where every request goes
         addresses: What every host resolves to, a public address by default
     """
     resolver = FixedResolver(*(addresses or (PUBLIC_ADDRESS,)))
-    return SimpleFinAdapter(OutboundGuard([SIMPLEFIN_BRIDGE_ORIGIN], resolve=resolver, transport=bridge.transport))
+    return SimpleFinAdapter(OutboundGuard([SIMPLEFIN_BRIDGE_ORIGIN], resolve=resolver, transport=transport))
+
+
+class FakeBridgeScenario:
+    """One test's scenario on the in-process fake SimpleFIN Bridge, changed through its control API"""
+
+    def __init__(self, control: httpx.AsyncClient, scenario_id: str, setup_token: str) -> None:
+        """Wrap a scenario the fake has created
+
+        Args:
+            control: A client on the fake's control API
+            scenario_id: The scenario's id
+            setup_token: A setup token claiming access to the scenario
+        """
+        self._control = control
+        self._path = f"/control/scenarios/{scenario_id}"
+        self.setup_token = setup_token
+
+    @classmethod
+    async def create(cls, control: httpx.AsyncClient) -> Self:
+        """Create an empty scenario"""
+        response = await control.post("/control/scenarios")
+        assert response.status_code == 201
+        return cls(control, response.json()["id"], response.json()["setup_token"])
+
+    async def change(self, method: str, path: str, body: dict[str, Any] | None = None) -> None:
+        """Send one control call for the scenario, such as adding an account or setting a fault
+
+        Args:
+            method: HTTP method of the control call
+            path: Path under the scenario, such as /accounts
+            body: The call's JSON body
+        """
+        response = await self._control.request(method, f"{self._path}{path}", json=body)
+        assert response.is_success, response.text
+
+    async def add_harbour_accounts(self) -> None:
+        """Add Everyday Chequing and Online Savings under one Harbour Bank login, and Rewards Visa under another bank's"""
+        await self.change("POST", "/connections", {"conn_id": "CON-harbour", "name": "Harbour Bank", "org_id": "ORG-harbour"})
+        await self.change(
+            "POST", "/connections", {"conn_id": "CON-harbourline", "name": "Harbourline Card Services", "org_id": "ORG-harbourline"}
+        )
+        for account_id, name, conn_id, balance in [
+            ("ACT-chequing", "Everyday Chequing", "CON-harbour", "2510.75"),
+            ("ACT-savings", "Online Savings", "CON-harbour", "8200.00"),
+            ("ACT-visa", "Rewards Visa", "CON-harbourline", "-640.12"),
+        ]:
+            account = {"id": account_id, "name": name, "conn_id": conn_id, "currency": "USD", "balance": balance, "balance_date": 1791115200}
+            await self.change("POST", "/accounts", account)
