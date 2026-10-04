@@ -15,6 +15,10 @@ const STARTING_BALANCE_INPUT_ID = 'new-account-starting-balance'
 // is answered with a message rather than dropped without a word
 const MINUS_SIGN = /[-−]/
 
+// A save that ended with no answer may have landed. The account is read again behind the prompt, and
+// a second save is refused once one has landed, so checking the balance first tells the user which
+const INTERRUPTED_SAVE_MESSAGE = 'The connection was lost before the balance was confirmed. Check the account\'s balance before trying again.'
+
 type NewAccountPromptModalProps = {
   open: boolean
   account: AccountsOverview
@@ -65,7 +69,7 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
       {
         onSuccess: onClose,
         onError: (error) => {
-          setSubmitError(error instanceof ApiError ? error.message : 'The starting balance could not be recorded. Please try again.')
+          setSubmitError(error instanceof ApiError ? error.message : INTERRUPTED_SAVE_MESSAGE)
         },
       },
     )

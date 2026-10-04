@@ -8,6 +8,7 @@ import {
   invalidateAccountCreditPicker,
   invalidateAccountTaxAdvantagedCategoryData,
   invalidateCreatedAccountData,
+  refreshAfterInterruptedStartingBalance,
   updateCachedAccountList,
 } from '@/api/cache/updates/accounts';
 import {
@@ -26,6 +27,7 @@ import type {
   AccountsOverview,
   SpendingRange,
 } from '@/api/accounts/types';
+import { ApiError } from '@/api/auth/errors';
 import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing';
 import { accountKeys } from '@/api/cache/queryKeys';
@@ -50,7 +52,8 @@ export function useCreateAccount() {
 }
 
 /**
- * Records a new account's starting balance and refreshes the views built on its balance
+ * Records a new account's starting balance and refreshes the views built on its balance, reading
+ * them again too when the save ends with no answer, as it may have landed
  */
 export function useRecordStartingBalance() {
   const queryClient = useQueryClient();
@@ -58,6 +61,9 @@ export function useRecordStartingBalance() {
     mutationFn: (variables: Parameters<typeof recordStartingBalance>[0]) =>
       runWithMinimumPendingTime(LOADING_ANIMATION_MIN_MS, () => recordStartingBalance(variables)),
     onSuccess: (account) => applyRecordedStartingBalance(queryClient, account),
+    onError: (error, { accountId }) => {
+      if (!(error instanceof ApiError)) refreshAfterInterruptedStartingBalance(queryClient, accountId);
+    },
   });
 }
 

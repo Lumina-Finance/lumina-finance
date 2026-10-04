@@ -152,6 +152,22 @@ export function applyRecordedStartingBalance(queryClient: QueryClient, account: 
   queryClient.setQueryData(accountKeys.detail(account.id), account);
   updateCachedAccountList(queryClient, account);
   invalidateAccountBalances(queryClient, [account.id]);
+  invalidateViewsBuiltOnStartingBalance(queryClient, account);
+}
+
+/**
+ * Reads an account and every view a starting balance changes again after a save that ended with no
+ * answer, since it may have landed, so a user told to check the balance sees it as it is
+ */
+export function refreshAfterInterruptedStartingBalance(queryClient: QueryClient, accountId: string) {
+  invalidateAccountData(queryClient, [accountId]);
+  invalidateViewsBuiltOnStartingBalance(queryClient, getCachedAccount(queryClient, accountId));
+}
+
+function invalidateViewsBuiltOnStartingBalance(
+  queryClient: QueryClient,
+  account: Pick<AccountsOverview, 'account_kind'> | undefined,
+) {
   invalidateTransactions(queryClient);
   invalidateTransactionOverview(queryClient);
   invalidateDashboardBalance(queryClient);

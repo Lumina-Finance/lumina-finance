@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { createAccount, createTransaction, signUpUser } from '../support/api'
 import { openPage, chooseFromDropdown, logInViaApi, openModal } from '../support/app'
 import { expectPendingAction, whileApiRequestHeld } from '../support/selectors'
+import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: creating, recording and editing accounts give the same result at every size
 
@@ -26,6 +27,17 @@ async function createChequingThroughModal(page: Page): Promise<Locator> {
   const prompt = page.getByRole('dialog', { name: 'Add a starting balance' })
   await expect(prompt).toBeVisible()
   return prompt
+}
+
+/**
+ * Skip the starting balance prompt that saving a new account opens, for a test about something else.
+ *
+ * @param page - Page whose prompt has just opened
+ */
+async function skipStartingBalancePrompt(page: Page): Promise<void> {
+  const prompt = page.getByRole('dialog', { name: 'Add a starting balance' })
+  await prompt.getByRole('button', { name: 'Skip' }).click()
+  await expect(prompt).toBeHidden()
 }
 
 test('starts a new user with no accounts and creates one with its starting balance', async ({ page, request }) => {
@@ -87,6 +99,7 @@ test('refuses over-long notes in Add account and scrolls long notes by keyboard'
   await createDialog.getByLabel('Notes').fill(Array.from({ length: 40 }, (_, line) => `Line ${line + 1}`).join('\n'))
   await createDialog.getByRole('button', { name: 'Create account' }).click()
   await expect(createDialog).toBeHidden()
+  await skipStartingBalancePrompt(page)
 
   await page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) }).click()
   const notes = page.getByRole('region', { name: 'Notes' })
@@ -108,6 +121,7 @@ test('keeps the notes written for an account, shows them on its page and clears 
   await createDialog.getByLabel('Notes').fill('Account 123-456\nCustomer 42')
   await createDialog.getByRole('button', { name: 'Create account' }).click()
   await expect(createDialog).toBeHidden()
+  await skipStartingBalancePrompt(page)
 
   await page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) }).click()
   const notes = page.getByText('Customer 42')
@@ -127,6 +141,31 @@ test('keeps the notes written for an account, shows them on its page and clears 
   await expect(editDialog).toBeHidden()
   await expect(notes).toHaveCount(0)
   await expect(page.getByText('Notes', { exact: true })).toHaveCount(0)
+})
+
+test('sends the user to check the balance when its save lands but the answer is lost', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/accounts')
+
+  const prompt = await createChequingThroughModal(page)
+
+  // The balance reaches the server and is saved, then the browser is told the connection failed
+  await page.route(`${API_BASE_URL}/accounts/*/starting-balance`, async (route) => {
+    await route.fetch()
+    await route.abort('failed')
+  })
+  await prompt.getByLabel('Starting balance', { exact: true }).fill('1250.00')
+  await prompt.getByRole('button', { name: 'Continue' }).click()
+
+  await expect(prompt.getByRole('alert')).toHaveText(
+    "The connection was lost before the balance was confirmed. Check the account's balance before trying again.",
+  )
+  await prompt.getByRole('button', { name: 'Skip' }).click()
+  await expect(prompt).toBeHidden()
+
+  // The list is read again after the lost answer, so it shows the balance that was saved
+  await expect(page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) })).toContainText('$1,250.00')
 })
 
 test('records an expense through the modal and shows it as money out', async ({ page, request }) => {
