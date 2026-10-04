@@ -20,7 +20,7 @@ from app.services.bank_sync import outbound
 from app.services.bank_sync.providers.contract import FetchResult, ProviderError, ProviderErrorKind
 from app.services.bank_sync.providers.simplefin.adapter import SimpleFinAdapter
 from tests.fake_simplefin_bridge import FakeBridgeTransport
-from tests.services.bank_sync.stand_ins import FakeBridgeScenario, RecordingBridge, answer_with, fail_with, simplefin_adapter
+from tests.services.bank_sync.stand_ins import FakeBridgeScenario, RecordingBridge, Responder, answer_with, fail_with, simplefin_adapter
 
 _ACCESS_URL = "https://demo-user:demo-password@beta-bridge.simplefin.org/simplefin"
 _ALL_ACCOUNTS = ("ACT-chequing", "ACT-savings", "ACT-visa")
@@ -97,6 +97,20 @@ async def test_revoked_access_needs_reconnecting(scenario: FakeBridgeScenario):
     assert result.accounts == ()
 
 
+def _account_set_answer(*, conn_id: str = "CON-harbour", balance_date: int = 1791115200) -> Responder:
+    """Return a responder answering with Everyday Chequing under a login that may not be listed, at a balance time"""
+    account = {
+        "id": "ACT-chequing",
+        "name": "Everyday Chequing",
+        "conn_id": conn_id,
+        "currency": "USD",
+        "balance": "2510.75",
+        "balance-date": balance_date,
+    }
+    body = {"errlist": [], "connections": [{"conn_id": "CON-harbour", "name": "Harbour Bank", "org_id": "ORG-harbour"}], "accounts": [account]}
+    return answer_with(200, json.dumps(body).encode(), "application/json")
+
+
 @pytest.mark.parametrize(
     ("respond", "error"),
     [
@@ -106,8 +120,10 @@ async def test_revoked_access_needs_reconnecting(scenario: FakeBridgeScenario):
         (answer_with(200, b"x" * (MAX_RESPONSE_BYTES + 1)), ProviderError(_TEMPORARY, _UNREADABLE)),
         (answer_with(404, b"Not Found"), ProviderError(_UNKNOWN, _UNREADABLE)),
         (answer_with(302, b""), ProviderError(_UNKNOWN, _UNREADABLE)),
+        (_account_set_answer(conn_id="CON-not-listed"), ProviderError(_TEMPORARY, _UNREADABLE)),
+        (_account_set_answer(balance_date=10**20), ProviderError(_TEMPORARY, _UNREADABLE)),
     ],
-    ids=["5xx", "connection-failed", "not-json", "too-large", "other-status", "redirect"],
+    ids=["5xx", "connection-failed", "not-json", "too-large", "other-status", "redirect", "unlisted-login", "stamp-out-of-range"],
 )
 async def test_failed_request_fails_every_account_with_its_typed_error(respond, error):
     """A server error, a transport failure, an unusable body or an unexpected status keeps nothing from the response"""
@@ -151,12 +167,13 @@ async def test_bridge_resolving_privately_is_a_temporary_failure_logged_by_host(
             ProviderError(_TEMPORARY, "SimpleFIN Bridge is having trouble right now. Try again later."),
         ),
         ({"code": "con.auth", "msg": ""}, ProviderError(_BANK_LOGIN_NEEDED, "SimpleFIN Bridge says your bank needs you to sign in again")),
+        ({"code": "act.sync", "msg": "An account couldn't be updated."}, ProviderError(_TEMPORARY, "An account couldn't be updated.")),
         (
             {"code": "org.unsupported", "msg": "Harbour Bank is no longer supported."},
             ProviderError(_UNKNOWN, "Harbour Bank is no longer supported."),
         ),
     ],
-    ids=["gen-auth", "gen-api", "con-naming-no-login", "unknown-prefix"],
+    ids=["gen-auth", "gen-api", "con-naming-no-login", "act-naming-no-account", "unknown-prefix"],
 )
 async def test_problem_affecting_the_whole_request_fails_every_account(scenario: FakeBridgeScenario, problem, error):
     """Bridge's own message becomes the reason, or a general one when it sends none"""
@@ -166,6 +183,21 @@ async def test_problem_affecting_the_whole_request_fails_every_account(scenario:
 
     assert result.request_error == error
     assert result.accounts == ()
+
+
+async def test_most_serious_of_competing_problems_fails_the_request(scenario: FakeBridgeScenario):
+    """A rejected credential outranks a Bridge error that came first, since retrying can't fix it"""
+    await scenario.add_harbour_accounts()
+
+    result = await _fetch_from(
+        scenario,
+        {"code": "gen.api", "msg": "SimpleFIN Bridge is having trouble right now. Try again later."},
+        {"code": "gen.auth", "msg": "Your access token is no longer valid. Create a new setup token to reconnect."},
+    )
+
+    assert result.request_error == ProviderError(
+        _CREDENTIAL_REJECTED, "Your access token is no longer valid. Create a new setup token to reconnect."
+    )
 
 
 async def test_problem_without_account_data_fails_every_account(scenario: FakeBridgeScenario):
@@ -185,13 +217,15 @@ async def test_quota_warning_without_account_data_is_rate_limited(scenario: Fake
     assert result.accounts == ()
 
 
-async def test_bank_login_problem_stops_only_that_logins_accounts(scenario: FakeBridgeScenario):
-    """con.auth for the Harbour Bank login stops Everyday Chequing and Online Savings, while Rewards Visa syncs"""
+@pytest.mark.parametrize("names_an_account", [False, True], ids=["naming-the-login", "naming-the-login-and-an-account"])
+async def test_bank_login_problem_stops_only_that_logins_accounts(scenario: FakeBridgeScenario, names_an_account):
+    """con.auth for the Harbour Bank login stops Everyday Chequing and Online Savings, even when it names one, while Rewards Visa syncs"""
     await scenario.add_harbour_accounts()
     visa = {"id": "TRN-streaming", "posted": "2026-09-15", "amount": "-15.99", "description": "STREAMFLIX.COM"}
     await scenario.change("POST", "/accounts/ACT-visa/transactions", {"transactions": [visa]})
+    problem = {"code": "con.auth", "msg": "Harbour Bank needs you to sign in again.", "conn_id": "CON-harbour"}
 
-    result = await _fetch_from(scenario, {"code": "con.auth", "msg": "Harbour Bank needs you to sign in again.", "conn_id": "CON-harbour"})
+    result = await _fetch_from(scenario, problem | ({"account_id": "ACT-chequing"} if names_an_account else {}))
 
     assert result.request_error is None
     assert result.login_errors == {"CON-harbour": ProviderError(_BANK_LOGIN_NEEDED, "Harbour Bank needs you to sign in again.")}
