@@ -40,16 +40,80 @@ _CONNECTION = (
     "INSERT INTO bank_connections (id, owner_id, provider, credential_encrypted, server_host) "
     "VALUES (:connection_id, :user_id, 'simplefin', 'not-a-real-token', 'bridge.example')"
 )
+_CONNECTIONS_REVISION = "5b8e2d4f7a13"
 
-# Each revision, a row in one of its tables, the table to empty afterwards, and how the refusal
-# names what the row is
+# The functions the sync jobs migration adds for the worker, which its rollback drops
+_WORKER_FUNCTIONS = ("claim_bank_sync_jobs", "list_due_bank_connections", "record_bank_sync_scan", "migration_revisions")
+
+# Each revision, the rows seeded into it, the tables to empty afterwards with the one under test
+# first, how the refusal names what that table holds, and the functions the rollback drops
 _ROLLBACKS = [
-    pytest.param("5b8e2d4f7a13", (_CONNECTION,), "bank_connections", "bank connections", id="connections"),
+    pytest.param(
+        _CONNECTIONS_REVISION,
+        (_CONNECTION,),
+        ("bank_connections",),
+        "bank connections and their stored credentials",
+        (),
+        id="connections",
+    ),
+    pytest.param(
+        _CONNECTIONS_REVISION,
+        (
+            _CONNECTION,
+            "INSERT INTO bank_external_accounts "
+            "(id, owner_id, connection_id, external_id, name, institution_key, institution_name, login_key, currency, last_seen_at) "
+            "VALUES (gen_random_uuid(), :user_id, :connection_id, 'ACT-1', 'Everyday Chequing', 'harbour', 'Harbour Bank', "
+            "'login-1', 'CAD', now())",
+        ),
+        ("bank_external_accounts", "bank_connections"),
+        "the bank accounts connections list",
+        (),
+        id="external_accounts",
+    ),
+    pytest.param(
+        _CONNECTIONS_REVISION,
+        (
+            _CONNECTION,
+            "INSERT INTO bank_provider_requests (id, owner_id, connection_id, purpose) "
+            "VALUES (gen_random_uuid(), :user_id, :connection_id, 'sync')",
+        ),
+        ("bank_provider_requests", "bank_connections"),
+        "the record of provider requests the daily request budget counts",
+        (),
+        id="provider_requests",
+    ),
+    pytest.param(
+        _CONNECTIONS_REVISION,
+        (
+            _CONNECTION,
+            "INSERT INTO bank_signin_notices (id, owner_id, connection_id, login_key, since) "
+            "VALUES (gen_random_uuid(), :user_id, :connection_id, 'login-1', now())",
+        ),
+        ("bank_signin_notices", "bank_connections"),
+        "bank logins waiting for the user to sign in again",
+        (),
+        id="signin_notices",
+    ),
+    # A link outlives its disconnected connection to keep its "Previously linked to" details
+    pytest.param(
+        _CONNECTIONS_REVISION,
+        (
+            "INSERT INTO bank_account_links (id, owner_id, account_id, provider, external_account_id, external_account_name, "
+            "institution_name, state, import_kind, import_start, checkpoint, unlinked_at) "
+            "VALUES (gen_random_uuid(), :user_id, :account_id, 'simplefin', 'ACT-1', 'Everyday Chequing', 'Harbour Bank', "
+            "'unlinked', 'initial', '2026-09-01', '2026-10-01', now())",
+        ),
+        ("bank_account_links",),
+        "links between Lumina accounts and bank accounts",
+        (),
+        id="link_without_connection",
+    ),
     pytest.param(
         "9d2c6e1a4b58",
         ("INSERT INTO account_review_preferences (account_id, owner_id) VALUES (:account_id, :user_id)",),
-        "account_review_preferences",
+        ("account_review_preferences",),
         "the review preferences",
+        (),
         id="review_preferences",
     ),
     pytest.param(
@@ -59,8 +123,9 @@ _ROLLBACKS = [
             "(id, owner_id, account_id, provider, external_account_id, external_transaction_id, disposition) "
             "VALUES (gen_random_uuid(), :user_id, :account_id, 'simplefin', 'ACT-1', 'TRN-1001', 'dismissed')",
         ),
-        "bank_transactions",
+        ("bank_transactions",),
         "bank transaction records",
+        (),
         id="bank_transactions",
     ),
     pytest.param(
@@ -70,8 +135,9 @@ _ROLLBACKS = [
             "(id, owner_id, account_id, external_transaction_id, transaction_date, amount, description, observed_at) "
             "VALUES (gen_random_uuid(), :user_id, :account_id, 'P-1', '2026-10-04', -2500, 'HOLD', now())",
         ),
-        "bank_pending_transactions",
+        ("bank_pending_transactions",),
         "the pending bank transactions",
+        (),
         id="pending_transactions",
     ),
     pytest.param(
@@ -80,8 +146,9 @@ _ROLLBACKS = [
             _CONNECTION,
             "INSERT INTO bank_sync_jobs (id, owner_id, connection_id, kind) VALUES (gen_random_uuid(), :user_id, :connection_id, 'scheduled')",
         ),
-        "bank_sync_jobs",
+        ("bank_sync_jobs",),
         "bank sync jobs",
+        _WORKER_FUNCTIONS,
         id="sync_jobs",
     ),
 ]
@@ -103,8 +170,22 @@ async def _execute(database_name: str, statements: tuple[str, ...]) -> int:
         await engine.dispose()
 
 
-@pytest.mark.parametrize(("revision", "seed", "table", "loss"), _ROLLBACKS)
-async def test_bank_sync_rollback_while_its_tables_hold_rows_is_refused(revision, seed, table, loss):
+async def _functions_present(database_name: str, names: tuple[str, ...]) -> set[str]:
+    """Return which of the named functions a generated database's public schema holds"""
+    engine = _create_engine_for_database(database_name)
+    try:
+        async with engine.connect() as connection:
+            found = await connection.scalars(
+                text("SELECT proname FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname = ANY(:names)"),
+                {"names": list(names)},
+            )
+            return set(found)
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.parametrize(("revision", "seed", "tables", "loss", "functions"), _ROLLBACKS)
+async def test_bank_sync_rollback_while_its_tables_hold_rows_is_refused(revision, seed, tables, loss, functions):
     """The downgrade names what it would delete and keeps it, then succeeds once emptied"""
     await _recreate_database(_DATABASE_NAME)
     try:
@@ -114,14 +195,19 @@ async def test_bank_sync_rollback_while_its_tables_hold_rows_is_refused(revision
         refused = _run_alembic(_DATABASE_NAME, "downgrade", "-1")
 
         assert refused.returncode != 0
-        assert f"Refusing to roll back: it would delete {loss}" in refused.stderr
+        assert "Refusing to roll back: it would delete " in refused.stderr
+        assert loss in refused.stderr
 
         # The seeded row is still there to delete, so the refusal kept it
-        assert await _execute(_DATABASE_NAME, (f"DELETE FROM {table}",)) == 1  # noqa: S608
+        assert await _execute(_DATABASE_NAME, (f"DELETE FROM {tables[0]}",)) == 1  # noqa: S608
+        for table in tables[1:]:
+            await _execute(_DATABASE_NAME, (f"DELETE FROM {table}",))  # noqa: S608
         emptied = _run_alembic(_DATABASE_NAME, "downgrade", "-1")
         assert emptied.returncode == 0, emptied.stdout + emptied.stderr
+        assert await _functions_present(_DATABASE_NAME, functions) == set()
 
-        # The tables come back the way they went, so the rollback is a true inverse
+        # The tables and functions come back the way they went, so the rollback is a true inverse
         _run_alembic_upgrade(_DATABASE_NAME, revision=revision)
+        assert await _functions_present(_DATABASE_NAME, functions) == set(functions)
     finally:
         await _drop_database(_DATABASE_NAME)
