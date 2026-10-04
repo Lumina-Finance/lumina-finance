@@ -14,6 +14,7 @@ from app.db.credentials import resolve_role_password
 # Named rather than taken from __name__, which is __main__ when run as a module
 logger = logging.getLogger("app.worker")
 
+# How often to look for the password while waiting, the same as the database retries that follow
 _PASSWORD_RETRY_SECONDS = 5
 
 

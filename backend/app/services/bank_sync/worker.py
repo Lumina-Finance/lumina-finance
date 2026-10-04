@@ -249,6 +249,8 @@ async def _scan_for_due_work() -> None:
         try:
             await enqueue_due_work()
         except Exception:
+            # Best effort: the next scan finds the same connections due, and a worker that keeps
+            # failing shows as sync not running once the heartbeat goes stale
             logger.exception("Scanning for due bank syncs failed")
         await asyncio.sleep(_SCAN_INTERVAL.total_seconds())
 
@@ -259,6 +261,8 @@ async def _run_jobs_in_turn() -> None:
         try:
             ran = await run_jobs(1)
         except Exception:
+            # Best effort: a job whose failure couldn't be recorded is claimed again once its
+            # lease runs out, so the runner carries on rather than stopping the worker
             logger.exception("Claiming a bank sync job failed")
             ran = 0
         if not ran:

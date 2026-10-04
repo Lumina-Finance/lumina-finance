@@ -10,6 +10,10 @@ from app.config.env import optional_csv_env
 # servers beside them, so connections already made through the Bridge keep working
 _SIMPLEFIN_BRIDGE_ORIGINS = ["https://beta-bridge.simplefin.org", "https://bridge.simplefin.org"]
 
+# Jobs the self-hosted worker runs at once unless the operator sets another number, so one slow
+# bank doesn't hold up every other connection's sync
+_DEFAULT_WORKER_CONCURRENCY = 2
+
 
 def _read_origin(key: str, value: str, *, schemes: tuple[str, ...]) -> str:
     """Return a configured origin after refusing anything beyond a scheme, host and port
@@ -77,7 +81,7 @@ def read_worker_concurrency() -> int:
     """
     value = os.getenv("BANK_SYNC_WORKER_CONCURRENCY", "").strip()
     if not value:
-        return 2
+        return _DEFAULT_WORKER_CONCURRENCY
     if not value.isdecimal() or int(value) < 1:
         raise RuntimeError(f"Invalid BANK_SYNC_WORKER_CONCURRENCY {value!r}. It must be a whole number of at least 1")
     return int(value)
