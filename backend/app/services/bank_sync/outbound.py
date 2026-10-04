@@ -154,14 +154,19 @@ class OutboundGuard:
         Raises:
             OriginRefused: The URL's origin is not allowed
             AddressRefused: The host resolves to an address that isn't public
-            httpx.RequestError: The host couldn't be resolved or the request failed
+            httpx.RequestError: The host couldn't be resolved in time or the request failed
         """
         self.check_origin(url)
 
         host = url.raw_host.decode("ascii")
         is_test_origin = _origin_of(url) == self._test_origin
+        # The lookup counts toward the connect timeout, since a resolver that never answers would
+        # otherwise hold the request with no limit at all
         try:
-            addresses = await self._resolve(host, url.port or _DEFAULT_PORTS[url.scheme])
+            async with asyncio.timeout(REQUEST_TIMEOUT.connect):
+                addresses = await self._resolve(host, url.port or _DEFAULT_PORTS[url.scheme])
+        except TimeoutError:
+            raise httpx.ConnectTimeout(f"Couldn't resolve {host} in time") from None
         except OSError:
             raise httpx.ConnectError(f"Couldn't resolve {host}") from None
 

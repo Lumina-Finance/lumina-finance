@@ -5,12 +5,14 @@ or a hostile DNS answer making the server reach an internal address, and against
 reaching a log
 """
 
+import asyncio
 import logging
 import socket
 
 import httpx
 import pytest
 
+from app.services.bank_sync import outbound
 from app.services.bank_sync.outbound import AddressRefused, IpAddress, OriginRefused, OutboundGuard
 from tests.services.bank_sync.local_bridge import LOOPBACK, serve_local_bridge
 from tests.services.bank_sync.stand_ins import PUBLIC_ADDRESS, FixedResolver, RecordingBridge
@@ -105,6 +107,24 @@ async def test_host_that_does_not_resolve_fails_as_a_connection_error():
 
     with pytest.raises(httpx.ConnectError):
         await guard.send("GET", _ACCOUNTS_URL)
+
+
+async def test_host_lookup_that_never_answers_times_out_as_connecting(monkeypatch):
+    """A resolver that hangs is held to the connect timeout, so a sync can't wait on it forever"""
+    monkeypatch.setattr(outbound, "REQUEST_TIMEOUT", httpx.Timeout(30.0, connect=0.05))
+
+    async def hang(host: str, port: int) -> list[IpAddress]:
+        """Never answer, as a resolver whose server has gone quiet"""
+        await asyncio.Event().wait()
+        return []
+
+    bridge = RecordingBridge()
+    guard = OutboundGuard([_BRIDGE_ORIGIN], resolve=hang, transport=bridge.transport)
+
+    with pytest.raises(httpx.ConnectTimeout):
+        await guard.send("GET", _ACCOUNTS_URL)
+
+    assert bridge.requests == []
 
 
 async def test_test_origin_reaches_a_private_address_over_http():
