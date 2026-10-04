@@ -178,6 +178,27 @@ async def test_test_origin_reaches_a_private_address_over_http():
     assert request.headers["host"] == "fake-bridge:8080"
 
 
+@pytest.mark.parametrize(
+    ("url", "refusal"),
+    [
+        ("http://fake-bridge:8081/simplefin/accounts", OriginRefused),
+        ("https://fake-bridge:8080/simplefin/accounts", OriginRefused),
+        ("http://other-bridge:8080/simplefin/accounts", OriginRefused),
+        ("https://bridge.simplefin.org/simplefin/accounts", AddressRefused),
+    ],
+    ids=["other-port", "other-scheme", "other-private-host", "allowed-origin-resolving-privately"],
+)
+async def test_test_origin_exempts_only_itself(url, refusal):
+    """The testing-only setting exempts exactly one origin, so nothing beside it reaches a private address"""
+    bridge = RecordingBridge()
+    guard = OutboundGuard([_BRIDGE_ORIGIN], "http://fake-bridge:8080", resolve=FixedResolver("172.18.0.5"), transport=bridge.transport)
+
+    with pytest.raises(refusal):
+        await guard.send("GET", httpx.URL(url))
+
+    assert bridge.requests == []
+
+
 async def test_fake_bridge_is_refused_without_the_test_origin():
     """With the testing-only setting unset, the same fake Bridge origin is refused"""
     bridge = RecordingBridge()
