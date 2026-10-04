@@ -231,14 +231,14 @@ async def test_fetch_returns_only_the_chosen_accounts_records_in_the_window(scen
 
 
 async def test_window_of_exactly_90_days_across_a_clock_change_is_served(scenario: FakeBridgeScenario):
-    """90 days of elapsed time is within the Bridge's limit, though the clock shows an hour less"""
+    """90 days of elapsed time is within the Bridge's limit, though clocks going forward on 8 March show an hour more"""
     await scenario.add_harbour_accounts()
     adapter = _fake_adapter()
 
     result = await _fetch(
         adapter,
-        datetime(2026, 9, 1, tzinfo=_TORONTO),
-        datetime(2026, 11, 29, 23, tzinfo=_TORONTO),
+        datetime(2026, 3, 1, tzinfo=_TORONTO),
+        datetime(2026, 5, 30, 1, tzinfo=_TORONTO),
         access_url=await adapter.claim(scenario.setup_token),
     )
 
