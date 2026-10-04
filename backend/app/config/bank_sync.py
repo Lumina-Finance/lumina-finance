@@ -69,6 +69,20 @@ def read_simplefin_test_origin() -> str | None:
     return _read_origin("BANK_SYNC_SIMPLEFIN_TEST_ORIGIN", value, schemes=("http", "https")) if value else None
 
 
+def read_worker_concurrency() -> int:
+    """Return how many jobs the self-hosted worker runs at once, 2 unless the operator sets it
+
+    Raises:
+        RuntimeError: The value is not a whole number of at least 1
+    """
+    value = os.getenv("BANK_SYNC_WORKER_CONCURRENCY", "").strip()
+    if not value:
+        return 2
+    if not value.isdecimal() or int(value) < 1:
+        raise RuntimeError(f"Invalid BANK_SYNC_WORKER_CONCURRENCY {value!r}. It must be a whole number of at least 1")
+    return int(value)
+
+
 # Origins SimpleFIN requests may reach, always over HTTPS and only at public addresses
 BANK_SYNC_SIMPLEFIN_ORIGINS = read_simplefin_origins()
 
@@ -76,3 +90,6 @@ BANK_SYNC_SIMPLEFIN_ORIGINS = read_simplefin_origins()
 # instances and browser tests can reach a fake SimpleFIN Bridge on a private network. Unset by
 # default and kept out of the self-hosting docs, and the app warns at start while it is set
 BANK_SYNC_SIMPLEFIN_TEST_ORIGIN = read_simplefin_test_origin()
+
+# How many jobs the self-hosted worker runs at once, each on a different connection
+BANK_SYNC_WORKER_CONCURRENCY = read_worker_concurrency()

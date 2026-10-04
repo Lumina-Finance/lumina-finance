@@ -6,11 +6,21 @@ export JWT_ACCESS_PRIVATE_KEY_PATH="${JWT_ACCESS_PRIVATE_KEY_PATH:-/data/keys/ac
 export JWT_REFRESH_PRIVATE_KEY_PATH="${JWT_REFRESH_PRIVATE_KEY_PATH:-/data/keys/refresh_private.pem}"
 
 # Maintenance commands an operator runs against a stopped stack, as
-# `docker compose run --rm app <command>`. Matched against a fixed list rather than run as
-# given, since this container holds the admin database credentials and the data volume, and
-# passing arbitrary arguments through would make it a shell on both
+# `docker compose run --rm app <command>`, and the bank sync worker, which Compose runs as its
+# own service. Matched against a fixed list rather than run as given, since this container holds
+# the admin database credentials and the data volume, and passing arbitrary arguments through
+# would make it a shell on both
 if [ "$#" -gt 0 ]; then
 	case "$1" in
+	worker)
+		# Skips the app's start-up below: the worker needs no token signing keys, and waits
+		# for the app to create the database roles and migrate before it claims any job
+		if [ "$#" -gt 1 ]; then
+			echo "worker takes no arguments" >&2
+			exit 64
+		fi
+		exec python -m app.worker
+		;;
 	generate-app-encryption-key)
 		# Rejects anything after the command name rather than dropping it, so a mistyped
 		# invocation does not print a fresh key and exit as though it had worked
@@ -44,7 +54,7 @@ if [ "$#" -gt 0 ]; then
 		;;
 	*)
 		echo "Unknown command: $1" >&2
-		echo "Available: generate-app-encryption-key, rotate-app-encryption-key, reset-bank-transaction-hash-key" >&2
+		echo "Available: generate-app-encryption-key, rotate-app-encryption-key, reset-bank-transaction-hash-key, worker" >&2
 		exit 64
 		;;
 	esac

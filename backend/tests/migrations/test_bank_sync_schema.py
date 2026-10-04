@@ -34,6 +34,7 @@ from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobSt
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
 from app.models.transaction import Transaction
 from app.models.user import User
+from app.services.bank_sync.worker import is_database_migrated
 from tests.conftest import DB_HOST, DB_PORT, WORKER_DB_NAME
 from tests.migrations.support import _create_engine_for_database, _drop_database, _recreate_database, _run_alembic_upgrade
 from tests.routes.support.bank_sync_helpers import (
@@ -458,6 +459,7 @@ async def test_migration_revisions_tell_the_app_role_the_database_is_at_head(mig
     try:
         async with engine.connect() as connection:
             assert (await connection.scalars(text("SELECT public.migration_revisions()"))).all() == [head]
+            assert await is_database_migrated(connection)
             with pytest.raises(ProgrammingError, match="permission denied"):
                 await connection.execute(text("SELECT version_num FROM alembic_version"))
     finally:

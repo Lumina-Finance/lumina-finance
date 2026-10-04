@@ -1,4 +1,4 @@
-"""Running bank sync jobs: the two operations every runner calls
+"""Running bank sync jobs: the two operations every runner calls, and the self-hosted worker's loop
 
 Enqueueing due work and running jobs are each callable on their own and keep nothing between
 calls, so the self-hosted worker's loop and a hosted runner on its own schedule share them. Each
@@ -8,16 +8,23 @@ owning user under row-level security
 
 import asyncio
 import contextlib
+import functools
 import logging
 import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import DBAPIError
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
-from app.database import async_session, current_user_id_ctx
-from app.db.rls.functions import LIST_DUE_BANK_CONNECTIONS, RECORD_BANK_SYNC_SCAN
+from app.config.bank_sync import BANK_SYNC_WORKER_CONCURRENCY
+from app.database import async_session, current_user_id_ctx, engine, verify_app_role_is_unprivileged
+from app.db.encryption_key import verify_key_matches_data
+from app.db.rls.functions import LIST_DUE_BANK_CONNECTIONS, MIGRATION_REVISIONS, RECORD_BANK_SYNC_SCAN
 from app.models.bank_sync_job import BankSyncHeartbeat, BankSyncJobKind, ProviderErrorKind
 from app.services.bank_sync.jobs import (
     ClaimedJob,
@@ -47,6 +54,15 @@ MAX_JOB_ATTEMPTS = 3
 # Sync counts as not running once the heartbeat every due scan stamps is older than this, the
 # time three scans take
 SYNC_STOPPED_AFTER = timedelta(minutes=15)
+
+# The self-hosted worker's fixed cadence: how often it scans for due work, how often it checks
+# for a queued job while it has none to run, and how often it tries the database while waiting
+# to start
+_SCAN_INTERVAL = timedelta(minutes=5)
+_CLAIM_INTERVAL = timedelta(seconds=5)
+_START_RETRY_INTERVAL = timedelta(seconds=5)
+
+_ALEMBIC_INI = Path(__file__).resolve().parents[3] / "alembic.ini"
 
 _TIMED_OUT = ProviderError(ProviderErrorKind.TEMPORARY, f"The sync took longer than {JOB_TIME_LIMIT.seconds // 60} minutes")
 _STOPPED_BY_AN_ERROR = ProviderError(ProviderErrorKind.UNKNOWN, "The sync stopped because of an unexpected error")
@@ -152,3 +168,98 @@ async def is_sync_worker_running(db: AsyncSession, now: datetime) -> bool:
     """
     last_scan_at = await db.scalar(select(BankSyncHeartbeat.last_scan_at))
     return last_scan_at is not None and now - last_scan_at <= SYNC_STOPPED_AFTER
+
+
+async def check_worker_health() -> bool:
+    """Return whether the heartbeat shows a worker scanning on time, for the worker container's health check
+
+    The check runs as a process of its own, so this closes the database connections it opened
+    """
+    try:
+        async with async_session() as db:
+            return await is_sync_worker_running(db, datetime.now(UTC))
+    finally:
+        await engine.dispose()
+
+
+async def run_worker() -> None:
+    """Run the self-hosted worker until it is stopped
+
+    Waits until the database is reachable and migrated, then scans for due work every 5 minutes
+    while BANK_SYNC_WORKER_CONCURRENCY runners claim and run jobs. The claim never hands two
+    runners jobs for one connection
+
+    Raises:
+        RuntimeError: Jobs would run as a role row-level security doesn't constrain, or the
+            encryption key isn't the one the stored secrets are under
+    """
+    await _wait_for_database()
+    await verify_app_role_is_unprivileged()
+    async with engine.connect() as connection:
+        await verify_key_matches_data(connection)
+
+    logger.info("Bank sync worker started, running up to %d jobs at once", BANK_SYNC_WORKER_CONCURRENCY)
+    async with asyncio.TaskGroup() as runners:
+        runners.create_task(_scan_for_due_work())
+        for _ in range(BANK_SYNC_WORKER_CONCURRENCY):
+            runners.create_task(_run_jobs_in_turn())
+
+
+async def is_database_migrated(connection: AsyncConnection) -> bool:
+    """Return whether the database is migrated to exactly the revisions this release ships
+
+    Args:
+        connection: Connection as the app role, which reads the revisions through a definer function
+    """
+    revisions = await connection.scalars(text(f"SELECT {MIGRATION_REVISIONS}()"))
+    return set(revisions) == _shipped_heads()
+
+
+@functools.cache
+def _shipped_heads() -> frozenset[str]:
+    """Return the migration heads this release ships, read from its migration scripts"""
+    return frozenset(ScriptDirectory.from_config(Config(str(_ALEMBIC_INI))).get_heads())
+
+
+async def _wait_for_database() -> None:
+    """Return once the database is reachable as the app role and migrated to this release
+
+    On a fresh install the app's container creates the database roles and migrates while this
+    waits, and after an upgrade it migrates before this release's worker claims anything. Each
+    new reason for waiting is logged once
+    """
+    logged_reason = None
+    while True:
+        try:
+            async with engine.connect() as connection:
+                if await is_database_migrated(connection):
+                    return
+            reason = "the database isn't migrated to this release yet"
+        except (OSError, DBAPIError) as error:
+            reason = f"the database can't be used yet: {getattr(error, 'orig', error)}"
+        if reason != logged_reason:
+            logger.info("Bank sync worker waiting to start: %s", reason)
+            logged_reason = reason
+        await asyncio.sleep(_START_RETRY_INTERVAL.total_seconds())
+
+
+async def _scan_for_due_work() -> None:
+    """Scan for due work now and every 5 minutes after, carrying on past a scan that fails"""
+    while True:
+        try:
+            await enqueue_due_work()
+        except Exception:
+            logger.exception("Scanning for due bank syncs failed")
+        await asyncio.sleep(_SCAN_INTERVAL.total_seconds())
+
+
+async def _run_jobs_in_turn() -> None:
+    """Run due jobs one after another, checking again every 5 seconds while none is due"""
+    while True:
+        try:
+            ran = await run_jobs(1)
+        except Exception:
+            logger.exception("Claiming a bank sync job failed")
+            ran = 0
+        if not ran:
+            await asyncio.sleep(_CLAIM_INTERVAL.total_seconds())

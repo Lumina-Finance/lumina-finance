@@ -4,13 +4,18 @@ Each is called on its own here, the way a hosted runner calls them, against jobs
 worker's own sessions see them. A runner stand-in takes the place of the sync itself where a test
 needs a job to wait as though fetching, or to write what it found inside the job's fence. Without
 the fence a job that lost its lease would overwrite the next attempt's results, and an account
-unlinked mid-fetch would still get pending items
+unlinked mid-fetch would still get pending items. The heartbeat and what the self-hosted worker
+needs before it starts are covered last
 """
 
 import asyncio
+import os
+import subprocess
+import sys
 import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 from sqlalchemy import select, update
@@ -23,7 +28,14 @@ from app.services.bank_sync import sync, worker
 from app.services.bank_sync.jobs import ClaimedJob, finish_job, lock_job_for_finish
 from app.services.bank_sync.pending import replace_pending_transactions
 from app.services.bank_sync.sync import run_sync_job
-from app.services.bank_sync.worker import JOB_TIME_LIMIT, MAX_JOB_ATTEMPTS, enqueue_due_work, is_sync_worker_running, run_jobs
+from app.services.bank_sync.worker import (
+    JOB_TIME_LIMIT,
+    MAX_JOB_ATTEMPTS,
+    enqueue_due_work,
+    is_database_migrated,
+    is_sync_worker_running,
+    run_jobs,
+)
 from tests.conftest import ScopedSession, TestSession
 from tests.routes.support.bank_sync_helpers import (
     _build_account,
@@ -36,6 +48,8 @@ from tests.routes.support.bank_sync_helpers import (
 
 # Long enough for any step here to finish, so a missing protection fails the test rather than hanging it
 _WAIT_SECONDS = 10
+
+_BACKEND_DIR = Path(__file__).resolve().parents[3]
 
 
 @pytest.fixture(autouse=True)
@@ -329,3 +343,28 @@ async def test_is_sync_worker_running_until_its_heartbeat_is_over_15_minutes_old
 
     async with ScopedSession() as session:
         assert await is_sync_worker_running(session, now) is running
+
+
+async def test_is_database_migrated_is_false_for_a_database_never_migrated():
+    """The worker waits rather than claim jobs from a database the migrations haven't brought to this release"""
+    async with ScopedSession() as session:
+        assert await is_database_migrated(await session.connection()) is False
+
+
+def test_worker_imports_without_the_token_signing_keys():
+    """The worker container is never given the app's sign-in keys, so nothing a job runs may load them
+
+    Cache change records are what a job's writes will reach the app's caches through, so their
+    module is imported too. A clean interpreter is what makes this meaningful, since this process
+    loaded the keys long ago
+    """
+    missing_keys = {"JWT_ACCESS_PRIVATE_KEY_PATH": "/nonexistent/access.pem", "JWT_REFRESH_PRIVATE_KEY_PATH": "/nonexistent/refresh.pem"}
+    completed = subprocess.run(
+        [sys.executable, "-c", "import app.worker, app.services.bank_sync.worker, app.services.cache_state"],
+        cwd=_BACKEND_DIR,
+        env={**os.environ, **missing_keys},
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stderr
