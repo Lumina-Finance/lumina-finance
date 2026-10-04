@@ -186,7 +186,9 @@ function getTooltipPosition(
  * scrolled out of view, and it closes on any pointer down outside the trigger
  *
  * The panel is as wide as its content up to 13rem, so a short note sits in a small panel rather than
- * one with a ragged gap beside it. A caller passing its own width takes that width instead
+ * one with a ragged gap beside it. A caller passing its own width takes that width instead. A note
+ * that wraps avoids leaving one word alone on its last line, where the browser supports it, rather
+ * than balancing its lines, which would leave the panel wider than the text it fits
  */
 export default function IconTooltip({
   label,
@@ -353,7 +355,7 @@ export default function IconTooltip({
         }}
       >
         <span
-          className={`app-tooltip-panel block rounded-md px-2.5 py-1.5 text-left text-sm font-medium shadow-sm ${widthClassName}`}
+          className={`app-tooltip-panel block rounded-md px-2.5 py-1.5 text-left text-sm font-medium text-pretty shadow-sm ${widthClassName}`}
           style={{ border: '1px solid var(--app-border-strong)' }}
         >
           {children}
