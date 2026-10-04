@@ -160,8 +160,10 @@ async def test_host_lookup_that_never_answers_times_out_as_connecting(monkeypatc
     bridge = RecordingBridge()
     guard = OutboundGuard([_BRIDGE_ORIGIN], resolve=hang, transport=bridge.transport)
 
-    with pytest.raises(httpx.ConnectTimeout):
-        await guard.send("GET", _ACCOUNTS_URL)
+    # Bounded, so a lookup left unlimited fails the test rather than hanging it
+    async with asyncio.timeout(5):
+        with pytest.raises(httpx.ConnectTimeout):
+            await guard.send("GET", _ACCOUNTS_URL)
 
     assert bridge.requests == []
 
