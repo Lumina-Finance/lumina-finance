@@ -7,54 +7,22 @@ reaching a log
 
 import logging
 import socket
-from ipaddress import ip_address
 
 import httpx
 import pytest
 
 from app.services.bank_sync.outbound import AddressRefused, IpAddress, OriginRefused, OutboundGuard
 from tests.services.bank_sync.local_bridge import LOOPBACK, serve_local_bridge
+from tests.services.bank_sync.stand_ins import PUBLIC_ADDRESS, FixedResolver, RecordingBridge
 
 _BRIDGE_ORIGIN = "https://bridge.simplefin.org"
 _ACCOUNTS_URL = httpx.URL("https://bridge.simplefin.org/simplefin/accounts")
 
-# Globally routable. Nothing connects to it, since these tests send through a stand-in transport
-_PUBLIC_ADDRESS = "93.184.215.14"
-
-
-class _Resolver:
-    """Resolves every host to fixed addresses and records each lookup"""
-
-    def __init__(self, *addresses: str) -> None:
-        """Answer every lookup with these addresses"""
-        self.addresses = [ip_address(address) for address in addresses]
-        self.lookups: list[tuple[str, int]] = []
-
-    async def __call__(self, host: str, port: int) -> list[IpAddress]:
-        """Record the lookup and answer it"""
-        self.lookups.append((host, port))
-        return self.addresses
-
-
-class _Bridge:
-    """A stand-in transport for the provider's server, recording each request that reaches it"""
-
-    def __init__(self, response: httpx.Response | None = None) -> None:
-        """Answer every request with the given response, or an empty JSON one"""
-        self.requests: list[httpx.Request] = []
-        self._response = response or httpx.Response(200, json={})
-        self.transport = httpx.MockTransport(self._answer)
-
-    def _answer(self, request: httpx.Request) -> httpx.Response:
-        """Record the request and answer it"""
-        self.requests.append(request)
-        return self._response
-
 
 async def test_allowed_origin_is_reached_at_the_checked_address_under_its_own_name():
     """The connection goes to the address that was checked, while the server still sees its host name"""
-    resolver = _Resolver(_PUBLIC_ADDRESS)
-    bridge = _Bridge()
+    resolver = FixedResolver(PUBLIC_ADDRESS)
+    bridge = RecordingBridge()
     guard = OutboundGuard([_BRIDGE_ORIGIN], resolve=resolver, transport=bridge.transport)
 
     response = await guard.send("GET", _ACCOUNTS_URL)
@@ -62,7 +30,7 @@ async def test_allowed_origin_is_reached_at_the_checked_address_under_its_own_na
     assert response.status_code == 200
     assert resolver.lookups == [("bridge.simplefin.org", 443)]
     [request] = bridge.requests
-    assert request.url.host == _PUBLIC_ADDRESS
+    assert request.url.host == PUBLIC_ADDRESS
     assert request.url.path == "/simplefin/accounts"
     assert request.headers["host"] == "bridge.simplefin.org"
     assert request.extensions["sni_hostname"] == "bridge.simplefin.org"
@@ -80,8 +48,8 @@ async def test_allowed_origin_is_reached_at_the_checked_address_under_its_own_na
 )
 async def test_url_outside_the_allowlist_is_refused_before_anything_is_sent(url):
     """Nothing is resolved or sent for a URL the allowlist doesn't cover"""
-    resolver = _Resolver(_PUBLIC_ADDRESS)
-    bridge = _Bridge()
+    resolver = FixedResolver(PUBLIC_ADDRESS)
+    bridge = RecordingBridge()
     guard = OutboundGuard([_BRIDGE_ORIGIN], resolve=resolver, transport=bridge.transport)
 
     with pytest.raises(OriginRefused):
@@ -100,14 +68,14 @@ async def test_url_outside_the_allowlist_is_refused_before_anything_is_sent(url)
         ("127.0.0.1",),
         ("::1",),
         ("::ffff:10.0.4.2",),
-        (_PUBLIC_ADDRESS, "10.0.4.2"),
+        (PUBLIC_ADDRESS, "10.0.4.2"),
     ],
     ids=["private", "shared", "metadata", "loopback", "ipv6-loopback", "ipv6-mapped-private", "public-and-private"],
 )
 async def test_host_resolving_to_a_non_public_address_is_refused(addresses):
     """An allowed host is refused once DNS points it, even partly, at an address that isn't public"""
-    bridge = _Bridge()
-    guard = OutboundGuard([_BRIDGE_ORIGIN], resolve=_Resolver(*addresses), transport=bridge.transport)
+    bridge = RecordingBridge()
+    guard = OutboundGuard([_BRIDGE_ORIGIN], resolve=FixedResolver(*addresses), transport=bridge.transport)
 
     with pytest.raises(AddressRefused):
         await guard.send("GET", _ACCOUNTS_URL)
@@ -117,8 +85,8 @@ async def test_host_resolving_to_a_non_public_address_is_refused(addresses):
 
 async def test_redirect_is_not_followed():
     """A redirect, here towards a metadata endpoint, comes back as the answer and is never requested"""
-    bridge = _Bridge(httpx.Response(302, headers={"Location": "http://169.254.169.254/latest/meta-data"}))
-    guard = OutboundGuard([_BRIDGE_ORIGIN], resolve=_Resolver(_PUBLIC_ADDRESS), transport=bridge.transport)
+    bridge = RecordingBridge(lambda _request: httpx.Response(302, headers={"Location": "http://169.254.169.254/latest/meta-data"}))
+    guard = OutboundGuard([_BRIDGE_ORIGIN], resolve=FixedResolver(PUBLIC_ADDRESS), transport=bridge.transport)
 
     response = await guard.send("GET", _ACCOUNTS_URL)
 
@@ -133,7 +101,7 @@ async def test_host_that_does_not_resolve_fails_as_a_connection_error():
         """Fail the way the system resolver does for an unknown name"""
         raise socket.gaierror(socket.EAI_NONAME, "Name or service not known")
 
-    guard = OutboundGuard([_BRIDGE_ORIGIN], resolve=fail_lookup, transport=_Bridge().transport)
+    guard = OutboundGuard([_BRIDGE_ORIGIN], resolve=fail_lookup, transport=RecordingBridge().transport)
 
     with pytest.raises(httpx.ConnectError):
         await guard.send("GET", _ACCOUNTS_URL)
@@ -141,8 +109,8 @@ async def test_host_that_does_not_resolve_fails_as_a_connection_error():
 
 async def test_test_origin_reaches_a_private_address_over_http():
     """The testing-only origin lets a development instance reach a fake Bridge on its private network"""
-    bridge = _Bridge()
-    guard = OutboundGuard([_BRIDGE_ORIGIN], "http://fake-bridge:8080", resolve=_Resolver("172.18.0.5"), transport=bridge.transport)
+    bridge = RecordingBridge()
+    guard = OutboundGuard([_BRIDGE_ORIGIN], "http://fake-bridge:8080", resolve=FixedResolver("172.18.0.5"), transport=bridge.transport)
 
     await guard.send("GET", httpx.URL("http://fake-bridge:8080/simplefin/accounts"))
 
@@ -153,8 +121,8 @@ async def test_test_origin_reaches_a_private_address_over_http():
 
 async def test_fake_bridge_is_refused_without_the_test_origin():
     """With the testing-only setting unset, the same fake Bridge origin is refused"""
-    bridge = _Bridge()
-    guard = OutboundGuard([_BRIDGE_ORIGIN], resolve=_Resolver("172.18.0.5"), transport=bridge.transport)
+    bridge = RecordingBridge()
+    guard = OutboundGuard([_BRIDGE_ORIGIN], resolve=FixedResolver("172.18.0.5"), transport=bridge.transport)
 
     with pytest.raises(OriginRefused):
         await guard.send("GET", httpx.URL("http://fake-bridge:8080/simplefin/accounts"))
@@ -175,7 +143,7 @@ async def test_tls_connects_to_the_checked_address_and_verifies_the_host_name(tm
         return 200, "application/json", b"{}"
 
     async with serve_local_bridge(tmp_path, "bridge.test", answer) as bridge:
-        resolver = _Resolver(LOOPBACK)
+        resolver = FixedResolver(LOOPBACK)
         guard = OutboundGuard([], bridge.origin, resolve=resolver, transport=httpx.AsyncHTTPTransport(verify=bridge.client_tls))
 
         response = await guard.send("GET", httpx.URL(f"{bridge.origin}/simplefin/accounts"))
@@ -196,7 +164,7 @@ async def test_guarded_request_keeps_its_url_out_of_every_log(tmp_path, caplog):
         return 200, "text/plain", b"https://user:pass@bridge.test/simplefin"
 
     async with serve_local_bridge(tmp_path, "bridge.test", answer) as bridge:
-        guard = OutboundGuard([], bridge.origin, resolve=_Resolver(LOOPBACK), transport=httpx.AsyncHTTPTransport(verify=bridge.client_tls))
+        guard = OutboundGuard([], bridge.origin, resolve=FixedResolver(LOOPBACK), transport=httpx.AsyncHTTPTransport(verify=bridge.client_tls))
 
         await guard.send("POST", httpx.URL(f"{bridge.origin}/simplefin/claim/SECRET-CLAIM-PATH"), content=b"")
 

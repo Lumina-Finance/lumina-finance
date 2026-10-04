@@ -1,0 +1,205 @@
+"""SimpleFIN account set reading tests
+
+Guards how recorded SimpleFIN Bridge responses become records bound for the ledger: a wrong date
+moves a transaction across the import boundary, and a rounded amount silently changes the user's
+money
+"""
+
+import json
+from datetime import UTC, date, datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+import pytest
+
+from app.services.bank_sync.providers.contract import ExternalAccount, ProviderRecord
+from app.services.bank_sync.providers.simplefin.account_set import (
+    RecordDating,
+    is_possibly_cut_off,
+    read_account_set,
+    read_external_accounts,
+)
+
+_FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "simplefin"
+_EXPONENTS = {"USD": 2, "JPY": 0, "BHD": 3}
+
+# The day the recorded response was requested, after every stamp in it, so a record dated by the
+# request can't pass for one dated by its stamp
+_REQUESTED_ON = date(2026, 10, 6)
+
+
+def _accounts(timezone: str = "America/Los_Angeles") -> dict[str, ExternalAccount]:
+    """Read the recorded accounts response for a user in the timezone, by account id"""
+    account_set = read_account_set((_FIXTURES / "accounts.json").read_bytes())
+    dating = RecordDating(timezone=ZoneInfo(timezone), requested_on=_REQUESTED_ON)
+    accounts = read_external_accounts(account_set, currency_exponents=_EXPONENTS, dating=dating)
+    return {account.external_id: account for account in accounts}
+
+
+def _records(timezone: str = "America/Los_Angeles") -> dict[str, ProviderRecord]:
+    """Read every record in the recorded accounts response, by transaction id"""
+    return {record.external_id: record for account in _accounts(timezone).values() for record in account.records}
+
+
+def test_pending_flag_or_unposted_stamp_marks_a_record_pending():
+    """A record is pending when SimpleFIN flags it or hasn't given it a posted time"""
+    records = _records()
+
+    assert {record_id for record_id, record in records.items() if record.pending} == {
+        "TRN-grocer",
+        "TRN-parking",
+        "TRN-streaming",
+    }
+
+
+@pytest.mark.parametrize(
+    ("record_id", "timezone", "expected"),
+    [("TRN-coffee", "Pacific/Auckland", date(2026, 10, 4)), ("TRN-fx-fee", "America/Los_Angeles", date(2026, 10, 3))],
+    ids=["noon-utc-keeps-its-utc-date", "other-time-in-the-profile-timezone"],
+)
+def test_booked_record_is_dated_by_the_stamp_rule(record_id, timezone, expected):
+    """Noon UTC stands for the bank's date, and any other time is dated where the user lives
+
+    1791115200 is noon UTC on 4 October, already 5 October in Auckland. 1791083700 is 03:15 UTC on
+    4 October, still 3 October in Los Angeles
+    """
+    assert _records(timezone)[record_id].date == expected
+
+
+@pytest.mark.parametrize(
+    ("posted", "timezone", "expected"),
+    [
+        (1791072000, "America/Toronto", date(2026, 10, 4)),
+        (1791072000, "Pacific/Auckland", date(2026, 10, 4)),
+        (1791072001, "America/Toronto", date(2026, 10, 3)),
+    ],
+    ids=["midnight-utc-toronto", "midnight-utc-auckland", "one-second-past-midnight-utc"],
+)
+def test_booked_record_stamped_at_midnight_utc_keeps_its_utc_date(posted, timezone, expected):
+    """Midnight UTC on 4 October, how a bank that sends only a date may stamp it, is 4 October for a user in Toronto
+
+    Toronto is still 3 October at that instant, so dating it there would put the transaction a day
+    early, across a statement boundary. One second later is a real time and is dated where the user lives
+    """
+    transaction = {"id": "TRN-1", "posted": posted, "amount": "-4.50", "description": "COFFEE"}
+    account = {"id": "ACT-1", "name": "Chequing", "conn_id": "CON-1", "currency": "USD", "balance": "1.00", "balance-date": posted}
+    body = {"connections": [{"conn_id": "CON-1", "name": "Harbour", "org_id": "ORG-1"}], "accounts": [account | {"transactions": [transaction]}]}
+    dating = RecordDating(timezone=ZoneInfo(timezone), requested_on=_REQUESTED_ON)
+
+    accounts = read_external_accounts(read_account_set(json.dumps(body).encode()), currency_exponents=_EXPONENTS, dating=dating)
+
+    assert accounts[0].records[0].date == expected
+
+
+@pytest.mark.parametrize(
+    ("record_id", "expected"),
+    [("TRN-grocer", date(2026, 10, 3)), ("TRN-parking", _REQUESTED_ON), ("TRN-streaming", _REQUESTED_ON)],
+    ids=["transacted-at", "unposted-without-transacted-at", "flagged-without-transacted-at"],
+)
+def test_pending_record_is_dated_by_when_it_happened_or_else_the_request_day(record_id, expected):
+    """A pending record takes its transaction time under the same rule, or the day it was fetched"""
+    assert _records()[record_id].date == expected
+
+
+@pytest.mark.parametrize(
+    ("record_id", "raw_amount", "amount"),
+    [("TRN-konbini", "-1500", -1500), ("TRN-refund", "12.340", 12340), ("TRN-coffee", "-4.500", -450)],
+    ids=["jpy", "bhd", "usd-with-a-trailing-zero"],
+)
+def test_amount_becomes_minor_units_at_its_currency_precision(record_id, raw_amount, amount):
+    """Each currency's own exponent applies, signs are kept, and extra trailing zeros are fine"""
+    record = _records()[record_id]
+
+    assert record.amount == amount
+    assert record.raw_amount == raw_amount
+
+
+def test_amount_with_more_decimals_than_its_currency_keeps_only_its_text():
+    """-12.345 in USD is kept as sent with no amount, never rounded to -12.35"""
+    record = _records()["TRN-fx-fee"]
+
+    assert record.amount is None
+    assert record.raw_amount == "-12.345"
+
+
+def test_payee_is_the_merchant_name_and_the_other_fields_stay_in_extras():
+    """The undocumented payee becomes the merchant hint, leaving the bank's description untouched"""
+    record = _records()["TRN-coffee"]
+
+    assert record.merchant_name == "Blue Bottle Coffee"
+    assert record.description == "POS 4411 BLUE BOTTLE SF"
+    assert record.extras == {"transacted_at": 1791083700, "memo": "Card ending 4411", "extra": {"category": "Dining"}}
+    assert record.category_hint is None
+    assert record.removed is False
+
+
+def test_record_without_optional_fields_leaves_them_empty():
+    """A record with only the protocol's required fields reads with no merchant, hint or extras"""
+    record = _records()["TRN-konbini"]
+
+    assert record.merchant_name is None
+    assert record.category_hint is None
+    assert record.extras == {}
+
+
+def test_institution_is_the_bank_logins_institution():
+    """Two logins at one bank share one institution while keeping their own login keys"""
+    accounts = _accounts()
+    chequing, savings = accounts["ACT-chequing"], accounts["ACT-savings"]
+
+    assert (chequing.institution_key, chequing.institution_name) == ("ORG-harbour", "Harbour Bank")
+    assert (savings.institution_key, savings.institution_name) == ("ORG-harbour", "Harbour Bank")
+    assert (chequing.login_key, savings.login_key) == ("CON-harbour-jim", "CON-harbour-ann")
+
+
+def test_balances_are_read_with_their_time_and_an_unstorable_one_is_unavailable():
+    """Balances read at the currency's precision, while one with too many decimals reads as unavailable"""
+    accounts = _accounts()
+    chequing, savings, visa = accounts["ACT-chequing"], accounts["ACT-savings"], accounts["ACT-visa"]
+
+    assert (chequing.balance, chequing.available_balance) == (251075, 241075)
+    assert chequing.balance_at == datetime(2026, 10, 4, 12, tzinfo=UTC)
+    assert savings.available_balance is None
+    assert visa.balance is None
+
+
+@pytest.mark.parametrize(
+    ("account_id", "currency_raw"),
+    [("ACT-points", "https://harbourbank.example/currencies/points"), ("ACT-unnamed-currency", "")],
+    ids=["url", "empty"],
+)
+def test_custom_currency_marks_the_account_and_keeps_its_figures_as_sent(account_id, currency_raw):
+    """A URL or nothing in place of an ISO code is a custom currency, whose amounts have no precision to read"""
+    account = _accounts()[account_id]
+
+    assert account.currency is None
+    assert account.currency_raw == currency_raw
+    assert account.balance is None
+    assert all(record.amount is None for record in account.records)
+
+
+@pytest.mark.parametrize(("count", "cut_off"), [(999, False), (1000, True)])
+def test_response_reaching_1000_transactions_may_be_cut_off(count, cut_off):
+    """SimpleFIN has no paging, so a response holding 1,000 transactions can't be taken as complete"""
+    transactions = [{"id": f"TRN-{index}", "posted": 1791115200, "amount": "-1.00", "description": "COFFEE"} for index in range(count)]
+    body = json.dumps(
+        {
+            "errlist": [],
+            "connections": [
+                {"conn_id": "CON-1", "name": "Harbour Bank", "org_id": "ORG-1", "sfin_url": "https://beta-bridge.simplefin.org/simplefin"}
+            ],
+            "accounts": [
+                {
+                    "id": "ACT-1",
+                    "name": "Everyday Chequing",
+                    "conn_id": "CON-1",
+                    "currency": "USD",
+                    "balance": "0.00",
+                    "balance-date": 1791115200,
+                    "transactions": transactions,
+                }
+            ],
+        }
+    ).encode()
+
+    assert is_possibly_cut_off(read_account_set(body)) is cut_off

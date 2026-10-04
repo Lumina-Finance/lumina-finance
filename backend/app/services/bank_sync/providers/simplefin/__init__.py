@@ -1,0 +1,1 @@
+"""SimpleFIN provider adapter"""
