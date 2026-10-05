@@ -47,6 +47,7 @@ from app.models.bank_connection import (
     BankLinkState,
     BankProvider,
     BankProviderRequest,
+    BankSigninNotice,
     ProviderRequestPurpose,
 )
 from app.models.bank_pending_transaction import BankPendingTransaction
@@ -84,6 +85,7 @@ from tests.routes.support.bank_sync_helpers import (
     _build_external_account,
     _build_ledger_transaction,
     _build_pending_transaction,
+    _build_signin_notice,
     _commit_accepted_items,
     _commit_waiting_items,
     _dismiss_items,
@@ -943,10 +945,10 @@ async def _rejection(connection: BankConnection) -> tuple[datetime | None, datet
 _FAMILY_BANKS_REJECTED = (
     "owner0@example.com",
     "Reconnect SimpleFIN to resume syncing",
-    "SimpleFIN rejected your Family banks connection, so these accounts have stopped syncing:\n\n"
+    "SimpleFIN rejected your Family banks connection, so syncing has stopped for:\n\n"
     "- ACT-card\n"
     "- ACT-everyday\n\n"
-    "Reconnect it in Settings with a new setup token to pick up where they left off.",
+    "Reconnect it in Settings with a new setup token to pick up where it left off.",
 )
 
 
@@ -1121,9 +1123,9 @@ async def test_job_on_the_logging_email_backend_writes_the_reconnect_email_to_th
         "Email not sent (logging backend)\n"
         "To: owner0@example.com\n"
         "Subject: Reconnect SimpleFIN to resume syncing\n\n"
-        "SimpleFIN rejected your connection, so these accounts have stopped syncing:\n\n"
+        "SimpleFIN rejected your connection, so syncing has stopped for:\n\n"
         "- ACT-everyday\n\n"
-        "Reconnect it in Settings with a new setup token to pick up where they left off."
+        "Reconnect it in Settings with a new setup token to pick up where it left off."
     ]
 
 
@@ -1153,6 +1155,235 @@ async def test_job_whose_email_fails_to_send_keeps_everything_it_recorded(connec
     assert [(status, error) for _, status, error, _ in await _jobs()] == [("failed", "credential_rejected")]
     assert await _rejection(connection) == (frozen_now, frozen_now)
     assert [attempt[2:] for attempt in await _attempts(everyday)] == [("SimpleFIN Bridge rejected the stored access credential", 0, None)]
+
+
+_SIGNIN_REASON = "SimpleFIN Bridge says your bank needs you to sign in again"
+
+
+def _signin_needed() -> ProviderError:
+    """Return SimpleFIN Bridge saying a bank needs the user to sign in again"""
+    return ProviderError(ProviderErrorKind.BANK_LOGIN_NEEDED, _SIGNIN_REASON)
+
+
+def _signin_email(institution: str, *accounts: str) -> tuple[str, str, str]:
+    """Return the Bank sign-in needed email to the first owner for a login at the institution, naming its accounts"""
+    listed = "".join(f"- {account}\n" for account in accounts)
+    return (
+        "owner0@example.com",
+        "Sign in to your bank again in SimpleFIN Bridge",
+        f"Sign in to {institution} again in SimpleFIN Bridge. Until you do, syncing has stopped for:\n\n{listed}\n"
+        "Lumina Finance checks daily and picks up where it left off once you have.",
+    )
+
+
+async def _list_under(connection: BankConnection, login_key: str, institution: str, *external_ids: str) -> None:
+    """Commit the bank accounts as the connection's last listing showed them, under one bank login at the institution"""
+    async with TestSession() as session:
+        for external_id in external_ids:
+            listed = _build_external_account(connection, external_id)
+            listed.login_key = login_key
+            listed.institution_name = institution
+            session.add(listed)
+        await session.commit()
+
+
+async def _notify_signin(connection: BankConnection, login_key: str, since: datetime) -> None:
+    """Commit the notice that a bank login on the connection needed a sign-in from then, its email sent then"""
+    async with TestSession() as session:
+        notice = _build_signin_notice(connection, login_key)
+        notice.since = since
+        notice.emailed_at = since
+        session.add(notice)
+        await session.commit()
+
+
+async def _signin_marks(*links: BankAccountLink) -> list[datetime | None]:
+    """Return when each link was marked as waiting on a bank sign-in, or None for one that isn't"""
+    async with TestSession() as session:
+        return [await session.scalar(select(BankAccountLink.signin_needed_since).where(BankAccountLink.id == link.id)) for link in links]
+
+
+async def _signin_notices(connection: BankConnection) -> list[tuple[str, datetime, datetime | None]]:
+    """Return each sign-in notice on the connection, as its bank login, when its state started and when its email was recorded as sent"""
+    async with TestSession() as session:
+        notices = await session.execute(
+            select(BankSigninNotice.login_key, BankSigninNotice.since, BankSigninNotice.emailed_at)
+            .where(BankSigninNotice.connection_id == connection.id)
+            .order_by(BankSigninNotice.login_key)
+        )
+        return [tuple(notice) for notice in notices]
+
+
+async def test_job_finding_a_bank_login_needs_a_sign_in_marks_its_accounts_and_emails_once_while_the_others_sync(
+    connection, provider, frozen_now, sent_action_emails
+):
+    """SimpleFIN Bridge says the Chase login needs a sign-in, on a connection that also holds an Amex login
+
+    Chase Checking and Chase Card are marked from when the request went out, and one email names
+    both. Amex syncs, and no retry is queued for the Chase accounts, which wait for the next daily sync
+    """
+    await _list_under(connection, "CON-chase", "Chase", "ACT-chase-checking", "ACT-chase-card")
+    await _list_under(connection, "CON-amex", "American Express", "ACT-amex")
+    checking = await _link(connection, "ACT-chase-checking", **_synced_through_yesterday())
+    card = await _link(connection, "ACT-chase-card", **_synced_through_yesterday())
+    amex = await _link(connection, "ACT-amex", **_synced_through_yesterday())
+    provider.outcomes = [FetchResult(accounts=(_bank_account("ACT-amex", login_key="CON-amex"),), login_errors={"CON-chase": _signin_needed()})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _signin_marks(checking, card, amex) == [frozen_now, frozen_now, None]
+    assert await _signin_notices(connection) == [("CON-chase", frozen_now, frozen_now)]
+    assert sent_action_emails == [_signin_email("Chase", "ACT-chase-card", "ACT-chase-checking")]
+    assert [attempt[1:] for attempt in await _attempts(checking, card, amex)] == [
+        (frozen_now, _SIGNIN_REASON, 0, None),
+        (frozen_now, _SIGNIN_REASON, 0, None),
+        (frozen_now, None, 0, None),
+    ]
+    assert await _queued_jobs() == []
+
+
+async def test_job_finding_a_bank_login_still_needs_a_sign_in_emails_nothing_more(connection, provider, frozen_now, sent_action_emails):
+    """Chase Checking has waited on a Chase sign-in since yesterday, and Chase Card, linked since, meets it too
+
+    The login's state started yesterday and was emailed then, so nothing more is sent: Checking keeps
+    when it was marked, and Card is marked from now
+    """
+    yesterday = frozen_now - timedelta(days=1)
+    await _list_under(connection, "CON-chase", "Chase", "ACT-chase-checking", "ACT-chase-card")
+    checking = await _link(connection, "ACT-chase-checking", **_synced_through_yesterday(signin_needed_since=yesterday))
+    card = await _link(connection, "ACT-chase-card", import_start=date(2026, 9, 1), checkpoint=date(2026, 8, 31))
+    await _notify_signin(connection, "CON-chase", yesterday)
+    provider.outcomes = [FetchResult(login_errors={"CON-chase": _signin_needed()})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert len(provider.fetches) == 1
+    assert await _signin_marks(checking, card) == [yesterday, frozen_now]
+    assert await _signin_notices(connection) == [("CON-chase", yesterday, yesterday)]
+    assert sent_action_emails == []
+
+
+async def test_job_marks_no_bank_sign_in_for_an_account_failing_for_another_reason(connection, provider, sent_action_emails):
+    """SimpleFIN Bridge reports a problem with Everyday alone, which a retry can fix, so nothing asks the user to act"""
+    await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-everyday")
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    provider.outcomes = [FetchResult(account_errors={"ACT-everyday": _reported_a_problem()})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _signin_marks(everyday) == [None]
+    assert await _signin_notices(connection) == []
+    assert sent_action_emails == []
+
+
+async def test_job_whose_request_needs_a_bank_sign_in_marks_every_account_in_it_and_emails_once_per_login(
+    connection, provider, frozen_now, sent_action_emails
+):
+    """SimpleFIN Bridge reports a bank sign-in problem naming no login, which applies to every account in the request
+
+    Chase Checking, under the Chase login, and Amex, under the Amex one, are both marked, and each
+    login gets an email of its own
+    """
+    await _list_under(connection, "CON-chase", "Chase", "ACT-chase-checking")
+    await _list_under(connection, "CON-amex", "American Express", "ACT-amex")
+    checking = await _link(connection, "ACT-chase-checking", **_synced_through_yesterday())
+    amex = await _link(connection, "ACT-amex", **_synced_through_yesterday())
+    provider.outcomes = [FetchResult(request_error=_signin_needed())]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _signin_marks(checking, amex) == [frozen_now, frozen_now]
+    assert await _signin_notices(connection) == [("CON-amex", frozen_now, frozen_now), ("CON-chase", frozen_now, frozen_now)]
+    assert sent_action_emails == [_signin_email("American Express", "ACT-amex"), _signin_email("Chase", "ACT-chase-checking")]
+    assert await _queued_jobs() == []
+
+
+async def test_job_bringing_a_bank_login_back_clears_its_sign_in_and_emails_again_when_the_bank_next_asks(
+    connection, provider, frozen_now, sent_action_emails
+):
+    """The user signed in to Chase again in SimpleFIN Bridge, and the next daily sync brings Chase Checking back whole
+
+    The daily sync tries Checking with no retry queued for it, clears its mark and ends the login's
+    notice, which Chase Savings, unlinked while it waited on the same sign-in, doesn't keep. When a
+    later sync finds the login needing a sign-in again, a new email goes out
+    """
+    yesterday = frozen_now - timedelta(days=1)
+    await _list_under(connection, "CON-chase", "Chase", "ACT-chase-checking", "ACT-chase-savings")
+    await _link(connection, "ACT-chase-savings", state=BankLinkState.UNLINKED, unlinked_at=yesterday, signin_needed_since=yesterday)
+    checking = await _link(
+        connection,
+        "ACT-chase-checking",
+        **_synced_through_yesterday(signin_needed_since=yesterday, last_attempt_at=yesterday, last_failure_reason=_SIGNIN_REASON),
+    )
+    await _notify_signin(connection, "CON-chase", yesterday)
+    provider.outcomes = [_returned("ACT-chase-checking")]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [_window(date(2026, 9, 19), _TODAY, ["ACT-chase-checking"], pending=True)]
+    assert await _signin_marks(checking) == [None]
+    assert await _signin_notices(connection) == []
+    assert [attempt[1:] for attempt in await _attempts(checking)] == [(frozen_now, None, 0, None)]
+
+    provider.outcomes = [FetchResult(login_errors={"CON-chase": _signin_needed()})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+    await _run_jobs_until_none_is_due()
+
+    assert await _signin_marks(checking) == [frozen_now]
+    assert await _signin_notices(connection) == [("CON-chase", frozen_now, frozen_now)]
+    assert sent_action_emails == [_signin_email("Chase", "ACT-chase-checking")]
+
+
+async def test_job_emails_a_bank_login_whose_notice_outlived_the_account_that_needed_the_sign_in(
+    connection, provider, frozen_now, sent_action_emails
+):
+    """Chase Checking was unlinked while it waited on a Chase sign-in, leaving the login's notice, and Chase Card, linked since, now meets one
+
+    No active account on the login was waiting on a sign-in, so its state starts again: the notice is
+    renewed and the owner emailed
+    """
+    last_month = frozen_now - timedelta(days=30)
+    await _list_under(connection, "CON-chase", "Chase", "ACT-chase-checking", "ACT-chase-card")
+    await _link(connection, "ACT-chase-checking", state=BankLinkState.UNLINKED, unlinked_at=last_month, signin_needed_since=last_month)
+    card = await _link(connection, "ACT-chase-card", **_synced_through_yesterday())
+    await _notify_signin(connection, "CON-chase", last_month)
+    provider.outcomes = [FetchResult(login_errors={"CON-chase": _signin_needed()})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _signin_marks(card) == [frozen_now]
+    assert await _signin_notices(connection) == [("CON-chase", frozen_now, frozen_now)]
+    assert sent_action_emails == [_signin_email("Chase", "ACT-chase-card")]
+
+
+async def test_job_stopped_by_an_error_still_sends_the_email_an_earlier_step_saved(connection, provider, frozen_now, sent_action_emails):
+    """The first window of Everyday's and Chase Card's imports may be cut short, so the job fetches it again in halves
+
+    The earlier half finds the Chase login needing a sign-in, and the later half stops the job on an
+    error. The step that marked Chase Card had saved, so its email still goes out as the job ends
+    """
+    await _list_under(connection, "CON-chase", "Chase", "ACT-chase-card")
+    card = await _link(connection, "ACT-chase-card", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    await _link(connection, "ACT-everyday", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    provider.outcomes = [
+        _cut_off("ACT-chase-card", "ACT-everyday"),
+        FetchResult(accounts=(_bank_account("ACT-everyday"),), login_errors={"CON-chase": _signin_needed()}),
+        RuntimeError("Unexpected bank data"),
+    ]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert len(provider.fetches) == 3
+    assert [(kind, status, error) for kind, status, error, _ in await _jobs()] == [("initial", "failed", "unknown"), ("retry", "queued", None)]
+    assert await _signin_marks(card) == [frozen_now]
+    assert sent_action_emails == [_signin_email("Chase", "ACT-chase-card")]
 
 
 async def test_job_the_worker_stops_on_an_error_fails_each_link_once(connection, provider, frozen_now):

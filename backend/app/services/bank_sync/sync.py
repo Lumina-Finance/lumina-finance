@@ -32,9 +32,11 @@ since they record requests already sent, whoever holds the job. An answer to a r
 credential the connection no longer holds is dropped whole, budget-spent mark included, and the job
 ends without it
 
-A job ending on a rejected credential marks the connection Reconnect needed as it ends, which emails
-its owner once, as the action_needed module describes. The emails a job's saves record go out once
-its last save is done, so a send that hangs can't hold up the sync or see it fail
+A job ending on a rejected credential marks the connection Reconnect needed as it ends, and a link
+an attempt fails on a bank sign-in is marked Bank sign-in needed until one succeeds, each emailing
+the owner once as the action_needed module describes. The sign-in notices recording those emails are
+written after any pending items and before any job queued. The emails a job's saves record go out
+once its last save is done, so a send that hangs can't hold up the sync or see it fail
 """
 
 import logging
@@ -52,7 +54,13 @@ from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankExternalAccount, BankLinkState, ProviderRequestPurpose
 from app.models.bank_sync_job import BankSyncJob, ProviderErrorKind
 from app.models.user import User
-from app.services.bank_sync.action_needed import ActionEmail, flag_rejected_credential, send_action_emails
+from app.services.bank_sync.action_needed import (
+    ActionEmail,
+    clear_signin_needed,
+    flag_rejected_credential,
+    flag_signin_needed,
+    send_action_emails,
+)
 from app.services.bank_sync.availability import ENABLED_ADAPTERS, PROVIDER_ADAPTERS
 from app.services.bank_sync.discovery import apply_discovery
 from app.services.bank_sync.ingestion import store_booked_records
@@ -442,9 +450,13 @@ class _JobRun:
 
         A part ending today also replaces the pending items of those links' accounts with what it
         found pending, whatever their checkpoints, since what is pending now doesn't depend on the
-        days a link still lacks. Last, an import the part brought through today ends, and each link
-        no import is running on pauses or resumes by its account's review backlog, the whole part
-        counted
+        days a link still lacks
+
+        A link whose attempt succeeded is no longer waiting on a bank sign-in, and one that failed on
+        a bank sign-in is marked as waiting on one, its bank login's email recorded when that starts it.
+        Last, an import the part brought through today ends, and each link no import is running on
+        pauses or resumes by its account's review backlog, the whole part counted. A link that failed
+        wasn't brought back whole, so its import keeps running and the pause leaves it as it was
 
         Args:
             part: The days fetched, and the links they were fetched for
@@ -457,9 +469,9 @@ class _JobRun:
             Whether a checkpoint moved
         """
         moved = False
-        stamped = False
+        succeeded = []
         async with async_session() as db:
-            _, held = await _hold_for_finish(db, self.job, [need.link for need in part.needs], sent_with=sent_with)
+            connection, held = await _hold_for_finish(db, self.job, [need.link for need in part.needs], sent_with=sent_with)
             whole = [link for link in held if link.external_account_id in synced]
             deliveries = [(link, synced[link.external_account_id].records) for link in whole]
             stored = await store_booked_records(db, deliveries, observed_at=sent_at)
@@ -477,14 +489,18 @@ class _JobRun:
                 if advanced or part.last_day == self.today:
                     link.last_success_at = self.now
                     record_successful_attempt(link, at=sent_at)
-                    stamped = True
+                    succeeded.append(link)
             failed = [link for link in held if link.id in failures]
             for link in failed:
                 record_failed_attempt(link, failures[link.id], at=sent_at)
+            await clear_signin_needed(db, connection, succeeded)
+            signin_needed = [link for link in failed if failures[link.id].kind == ProviderErrorKind.BANK_LOGIN_NEEDED]
+            emails = await flag_signin_needed(db, connection, signin_needed, at=sent_at, now=datetime.now(UTC))
             paused_or_imported = await apply_review_pauses(db, whole, today=self.today)
-            if stored or stamped or failed or paused_or_imported:
+            if stored or succeeded or failed or paused_or_imported:
                 await mark_user_cache_changed(db, self.job.owner_id)
             await db.commit()
+        self.outbox += emails
         return moved
 
     async def _count_request(self, purpose: ProviderRequestPurpose) -> tuple[datetime, str]:
@@ -709,6 +725,8 @@ async def _end_job(
         emails = []
         if error is not None and error.kind == ProviderErrorKind.CREDENTIAL_REJECTED:
             emails = await flag_rejected_credential(db, connection, at=attempted_at or now, now=now)
+        elif error is not None and error.kind == ProviderErrorKind.BANK_LOGIN_NEEDED:
+            emails = await flag_signin_needed(db, connection, held, at=attempted_at or now, now=now)
         if again:
             await enqueue_bank_sync_job(
                 db,

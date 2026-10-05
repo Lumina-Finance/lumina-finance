@@ -325,17 +325,17 @@ def test_render_action_needed_email_lists_the_accounts_in_both_parts_escaping_th
     """Account and connection names are the user's own, so the HTML part escapes them while the text part keeps them as typed"""
     message = render_action_needed_email(
         "Reconnect SimpleFIN to resume syncing",
-        "SimpleFIN rejected your <Home> connection, so these accounts have stopped syncing:",
+        "SimpleFIN rejected your <Home> connection, so syncing has stopped for:",
         ["Bills & <Savings>", "Everyday"],
-        "Reconnect it in Settings with a new setup token to pick up where they left off.",
+        "Reconnect it in Settings with a new setup token to pick up where it left off.",
     )
 
     assert message.subject == "Reconnect SimpleFIN to resume syncing"
     assert message.text_body == (
-        "SimpleFIN rejected your <Home> connection, so these accounts have stopped syncing:\n\n"
+        "SimpleFIN rejected your <Home> connection, so syncing has stopped for:\n\n"
         "- Bills & <Savings>\n"
         "- Everyday\n\n"
-        "Reconnect it in Settings with a new setup token to pick up where they left off."
+        "Reconnect it in Settings with a new setup token to pick up where it left off."
     )
     assert "your &lt;Home&gt; connection" in message.html_body
     assert "<li>Bills &amp; &lt;Savings&gt;</li><li>Everyday</li>" in message.html_body

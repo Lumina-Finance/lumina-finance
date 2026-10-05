@@ -70,6 +70,7 @@ class SimpleFinAdapter(ProviderAdapter):
 
     provider_id = BankProvider.SIMPLEFIN
     provider_name = "SimpleFIN"
+    provider_site = "SimpleFIN Bridge"
     provider_description = "One setup token reaches every bank you add in SimpleFIN Bridge."
     history_limit_months = BANK_SYNC_SIMPLEFIN_HISTORY_MONTHS
     advertises_history = False

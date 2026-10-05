@@ -153,6 +153,9 @@ class ProviderAdapter(ABC):
     provider_id: ClassVar[BankProvider]
     provider_name: ClassVar[str]
 
+    # The provider's own site, where the user signs in to a bank again when it asks
+    provider_site: ClassVar[str]
+
     # One sentence on what connecting it reaches, shown where the user chooses a provider
     provider_description: ClassVar[str]
 
