@@ -1,9 +1,10 @@
-"""Running a bank sync job: the windows it fetches, the checkpoints it moves and the job it queues next
+"""Running a bank sync job: the listing it reads first, the windows it fetches, the checkpoints it moves and the job it queues next
 
 Jobs run through the worker's run_jobs, as their owner under row-level security, against a scripted
 provider. A checkpoint moved for days a response didn't bring back whole hides that gap for good, a
 long import that stops after its first window leaves months missing, a job that keeps sending once
-the request budget is spent can get the user's SimpleFIN token disabled, and a job that writes after
+the request budget is spent can get the user's SimpleFIN token disabled, a job that skips its
+listing leaves new bank accounts unlisted and vanished ones syncing, and a job that writes after
 losing its lease or for a link unlinked mid-fetch overwrites what the user or a later attempt did
 """
 
@@ -14,17 +15,25 @@ from typing import override
 from zoneinfo import ZoneInfo
 
 import pytest
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 
 from app.encryption import encrypt
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState, BankProvider, BankProviderRequest, ProviderRequestPurpose
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, ProviderErrorKind
 from app.models.user import User
 from app.services.bank_sync import availability
+from app.services.bank_sync.connections import build_connection_responses
 from app.services.bank_sync.providers.contract import ExternalAccount, FetchResult, ProviderError
 from app.services.bank_sync.worker import run_jobs
 from tests.conftest import TestSession
-from tests.routes.support.bank_sync_helpers import _build_account, _build_bank_link, _expire_lease, _job_states, _seed_job
+from tests.routes.support.bank_sync_helpers import (
+    _build_account,
+    _build_bank_link,
+    _build_external_account,
+    _expire_lease,
+    _job_states,
+    _seed_job,
+)
 from tests.services.bank_sync.fake_provider import FakeProviderAdapter
 
 # Without clock changes, so the examples' windows are whole runs of 90 calendar days. The frozen
@@ -128,6 +137,53 @@ async def _checkpoints(*links: BankAccountLink) -> list[date]:
     """Return each link's committed checkpoint"""
     async with TestSession() as session:
         return [await session.scalar(select(BankAccountLink.checkpoint).where(BankAccountLink.id == link.id)) for link in links]
+
+
+async def _link_states(*links: BankAccountLink) -> list[str]:
+    """Return each link's committed state"""
+    async with TestSession() as session:
+        return [await session.scalar(select(BankAccountLink.state).where(BankAccountLink.id == link.id)) for link in links]
+
+
+async def _set_discovered_at(connection: BankConnection, discovered_at: datetime) -> None:
+    """Commit when the connection's bank accounts were last listed"""
+    async with TestSession() as session:
+        await session.execute(update(BankConnection).where(BankConnection.id == connection.id).values(discovered_at=discovered_at))
+        await session.commit()
+
+
+async def _spend_requests(connection: BankConnection, count: int, oldest: datetime) -> None:
+    """Commit requests sent a minute apart from the oldest, as the connection's budget counts them"""
+    async with TestSession() as session:
+        session.add_all(
+            BankProviderRequest(
+                owner_id=connection.owner_id,
+                connection_id=connection.id,
+                purpose=ProviderRequestPurpose.SYNC,
+                requested_at=oldest + timedelta(minutes=minute),
+            )
+            for minute in range(count)
+        )
+        await session.commit()
+
+
+async def _free_requests(connection: BankConnection) -> None:
+    """Let a day pass for the budget: the connection's requests leave it, and its queued job is due"""
+    async with TestSession() as session:
+        await session.execute(delete(BankProviderRequest).where(BankProviderRequest.connection_id == connection.id))
+        await session.execute(update(BankConnection).where(BankConnection.id == connection.id).values(request_budget_spent_until=None))
+        await session.execute(
+            update(BankSyncJob).where(BankSyncJob.status == "queued").values(run_after=datetime.now(UTC) - timedelta(minutes=1))
+        )
+        await session.commit()
+
+
+async def _listing(connection: BankConnection) -> tuple[bool, list[str]]:
+    """Return whether the connection shows a listing pending, and the bank accounts it lists, as its owner sees them"""
+    async with TestSession() as session:
+        stored = await session.get(BankConnection, connection.id)
+        [response] = await build_connection_responses(session, connection.owner_id, [stored])
+    return response.discovery_pending, [account.external_id for account in response.accounts]
 
 
 async def _jobs() -> list[tuple]:
@@ -234,13 +290,7 @@ async def test_job_without_a_request_to_spend_queues_itself_for_when_one_frees(c
     """
     link = await _link(connection, "ACT-1", import_start=date(2026, 9, 1), checkpoint=date(2026, 8, 31))
     oldest = frozen_now - timedelta(hours=20)
-    sent = [oldest + timedelta(minutes=minute) for minute in range(20 if cause == "budget_spent" else 1)]
-    async with TestSession() as session:
-        session.add_all(
-            BankProviderRequest(owner_id=connection.owner_id, connection_id=connection.id, purpose=ProviderRequestPurpose.SYNC, requested_at=at)
-            for at in sent
-        )
-        await session.commit()
+    await _spend_requests(connection, 20 if cause == "budget_spent" else 1, oldest)
     provider.outcomes = [FetchResult(request_error=ProviderError(ProviderErrorKind.RATE_LIMITED, "SimpleFIN Bridge asked for fewer requests"))]
     await _seed_job(connection, BankSyncJobKind.INITIAL)
 
@@ -286,20 +336,130 @@ async def test_job_for_a_provider_turned_off_records_why_and_sends_nothing(conne
         )
 
 
+async def test_job_flagged_to_discover_lists_the_bank_accounts_a_claim_couldnt(connection, provider):
+    """The claim's own listing failed, so it queued a job flagged to list them: the job does, and the listing stops showing as pending
+
+    The connection was listed an hour ago, so only the flag sends this listing
+    """
+    provider.outcomes = [_returned("ACT-everyday", "ACT-savings")]
+    await _seed_job(connection, BankSyncJobKind.RETRY, discover=True)
+    assert await _listing(connection) == (True, [])
+
+    await _run_jobs_until_none_is_due()
+
+    assert (len(provider.discoveries), provider.fetches) == (1, [])
+    assert await _listing(connection) == (False, ["ACT-everyday", "ACT-savings"])
+
+
+@pytest.mark.parametrize("cause", ["budget_spent", "provider_asked_to_slow_down"])
+async def test_job_flagged_to_discover_keeps_the_listing_pending_until_a_request_frees(connection, provider, frozen_now, cause):
+    """With no request to spend, the flagged job queues itself still flagged, and lists the bank accounts once a request frees"""
+    oldest = frozen_now - timedelta(hours=20)
+    await _spend_requests(connection, 20 if cause == "budget_spent" else 1, oldest)
+    if cause == "provider_asked_to_slow_down":
+        provider.outcomes.append(
+            FetchResult(request_error=ProviderError(ProviderErrorKind.RATE_LIMITED, "SimpleFIN Bridge asked for fewer requests"))
+        )
+    provider.outcomes.append(_returned("ACT-everyday"))
+    await _seed_job(connection, BankSyncJobKind.RETRY, discover=True)
+
+    assert await run_jobs(1) == 1
+
+    assert await _listing(connection) == (True, [])
+    async with TestSession() as session:
+        queued = (await session.execute(select(BankSyncJob.discover, BankSyncJob.run_after).where(BankSyncJob.status == "queued"))).one()
+    assert queued == (True, oldest + timedelta(hours=24))
+
+    await _free_requests(connection)
+    assert await run_jobs(1) == 1
+
+    assert await _listing(connection) == (False, ["ACT-everyday"])
+    assert len(provider.discoveries) == (1 if cause == "budget_spent" else 2)
+
+
+@pytest.mark.parametrize(
+    ("listed_ago", "values", "requests"),
+    [
+        (timedelta(hours=24), {}, (0, 1)),
+        (timedelta(hours=24, minutes=1), {}, (1, 1)),
+        (timedelta(hours=24, minutes=1), {"state": BankLinkState.CHOOSE_ACCOUNT}, (1, 1)),
+        (timedelta(hours=24, minutes=1), {"state": BankLinkState.UNLINKED, "unlinked_at": datetime(2026, 10, 1, tzinfo=UTC)}, (0, 0)),
+    ],
+    ids=["listed_24_hours_ago", "listed_over_24_hours_ago", "link_waiting_for_its_bank_account", "link_unlinked"],
+)
+async def test_job_lists_the_bank_accounts_first_once_the_last_listing_is_over_a_day_old(
+    connection, provider, frozen_now, listed_ago, values, requests
+):
+    """A daily sync rediscovers its connection, so a bank added at SimpleFIN Bridge appears within a day
+
+    A link waiting for its bank account to return goes back to active when the listing shows it, and
+    syncs in the same job. A connection whose only link was unlinked has nothing a listing could change
+    """
+    await _link(connection, "ACT-1", **_synced_through_yesterday(**values))
+    await _set_discovered_at(connection, frozen_now - listed_ago)
+    provider.outcomes = [_returned("ACT-1"), _returned("ACT-1")]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert (len(provider.discoveries), len(provider.fetches)) == requests
+
+
+async def test_job_fetches_nothing_for_a_linked_bank_account_its_listing_no_longer_shows(connection, provider, frozen_now):
+    """Everyday's bank account is gone from a stale listing, so Everyday waits for it to be chosen again and only Savings syncs"""
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    savings = await _link(connection, "ACT-savings", **_synced_through_yesterday())
+    async with TestSession() as session:
+        session.add_all([_build_external_account(connection, "ACT-everyday"), _build_external_account(connection, "ACT-savings")])
+        await session.commit()
+    await _set_discovered_at(connection, frozen_now - timedelta(days=2))
+    provider.outcomes = [_returned("ACT-savings"), _returned("ACT-savings")]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [_window(date(2026, 9, 19), _TODAY, ["ACT-savings"], pending=True)]
+    assert await _link_states(everyday, savings) == ["choose_account", "active"]
+    assert await _checkpoints(everyday, savings) == [date(2026, 10, 3), _TODAY]
+
+
+async def test_job_whose_listing_fails_records_it_and_fetches_nothing(connection, provider, frozen_now):
+    """SimpleFIN Bridge couldn't be reached for a stale listing, so the connection and the job record it, and no window is sent"""
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    await _set_discovered_at(connection, frozen_now - timedelta(days=2))
+    provider.outcomes = [FetchResult(request_error=ProviderError(ProviderErrorKind.TEMPORARY, "SimpleFIN Bridge couldn't be reached"))]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert provider.fetches == []
+    async with TestSession() as session:
+        assert await session.scalar(select(BankConnection.discovery_failed_at).where(BankConnection.id == connection.id)) == frozen_now
+    assert [(status, error) for _, status, error, _ in await _jobs()] == [("failed", "temporary")]
+    assert await _checkpoints(link) == [date(2026, 10, 3)]
+
+
 class _HeldProvider(FakeProviderAdapter):
-    """Waits in its first fetch, after the answer is decided, until the test releases it, as a slow provider would"""
+    """Waits in its first request, after the answer is decided, until the test releases it, as a slow provider would"""
 
     def __init__(self) -> None:
-        """Start with the first fetch not yet reached"""
+        """Start with the first request not yet sent"""
         super().__init__()
-        self.fetching = asyncio.Event()
+        self.sending = asyncio.Event()
         self.release = asyncio.Event()
 
     @override
+    async def discover(self, credential: str, **options) -> FetchResult:
+        return await self._answer(await super().discover(credential, **options))
+
+    @override
     async def fetch(self, credential: str, **window) -> FetchResult:
-        result = await super().fetch(credential, **window)
-        if not self.fetching.is_set():
-            self.fetching.set()
+        return await self._answer(await super().fetch(credential, **window))
+
+    async def _answer(self, result: FetchResult) -> FetchResult:
+        """Return the answer, holding the first until released"""
+        if not self.sending.is_set():
+            self.sending.set()
             await self.release.wait()
         return result
 
@@ -315,7 +475,7 @@ async def test_job_moves_no_checkpoint_for_a_link_unlinked_while_it_fetched(conn
 
     async with asyncio.timeout(_WAIT_SECONDS):
         running = asyncio.create_task(run_jobs(1))
-        await provider.fetching.wait()
+        await provider.sending.wait()
         async with TestSession() as session:
             await session.execute(
                 update(BankAccountLink)
@@ -342,11 +502,35 @@ async def test_job_attempt_that_lost_its_lease_while_fetching_writes_nothing(con
 
     async with asyncio.timeout(_WAIT_SECONDS):
         first_attempt = asyncio.create_task(run_jobs(1))
-        await provider.fetching.wait()
+        await provider.sending.wait()
         await _expire_lease(job)
         assert await run_jobs(1) == 1
         provider.release.set()
         assert await first_attempt == 1
 
     assert await _checkpoints(link) == [date(2026, 10, 3)]
+    assert await _job_states() == {job.id: ("succeeded", 2)}
+
+
+async def test_job_attempt_that_lost_its_lease_while_listing_stores_nothing(connection, monkeypatch):
+    """Attempt 1's listing leaves Everyday out but stalls past the lease, attempt 2's lists it, and attempt 1's late answer moves nothing"""
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    async with TestSession() as session:
+        session.add(_build_external_account(connection, "ACT-1"))
+        await session.commit()
+    provider = _HeldProvider()
+    provider.outcomes = [FetchResult(), _returned("ACT-1"), _returned("ACT-1")]
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
+    job = await _seed_job(connection, BankSyncJobKind.RETRY, discover=True)
+
+    async with asyncio.timeout(_WAIT_SECONDS):
+        first_attempt = asyncio.create_task(run_jobs(1))
+        await provider.sending.wait()
+        await _expire_lease(job)
+        assert await run_jobs(1) == 1
+        provider.release.set()
+        assert await first_attempt == 1
+
+    assert await _link_states(link) == ["active"]
+    assert await _listing(connection) == (False, ["ACT-1"])
     assert await _job_states() == {job.id: ("succeeded", 2)}
