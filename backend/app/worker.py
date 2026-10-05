@@ -10,6 +10,9 @@ import os
 import sys
 import time
 
+# Loads backend/.env, which is where a checkout run outside Docker, such as a development
+# instance, keeps the database role passwords the wait below looks for
+import app.config  # noqa: F401
 from app.db.credentials import resolve_role_password
 
 # Named rather than taken from __name__, which is __main__ when run as a module
