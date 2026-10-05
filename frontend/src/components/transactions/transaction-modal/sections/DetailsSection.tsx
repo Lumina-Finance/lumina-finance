@@ -132,7 +132,9 @@ export default function TransactionDetailsSection({
 
   return (
     <CreateModalSectionFrame step="03" title="Details">
-      <div className="grid gap-3 sm:grid-cols-[11rem_8.5rem_minmax(0,1fr)]">
+      {/* The rows carry their own spacing rather than a row gap, which the grid would hold open for the
+          message from its first frame. Stacked on a phone, Currency and Amount keep the space above them */}
+      <div className="grid gap-x-3 sm:grid-cols-[11rem_8.5rem_minmax(0,1fr)]">
         <div>
           <CreateModalFieldLabelRow
             htmlFor={ids.date}
@@ -165,13 +167,12 @@ export default function TransactionDetailsSection({
         </div>
         <AnimatePresence initial={false}>
           {suppliedDaysError && (
-            // The grid's gap above is taken back and given again inside, so the space opens and
-            // closes with the message rather than appearing and vanishing at either end
+            // Its space above sits inside the collapsing element, so it opens and closes with the text
             <motion.p
               key="supplied-days-error"
               id={ids.suppliedDaysError}
               role="alert"
-              className="-mt-3 overflow-hidden text-xs font-medium leading-5 sm:order-last sm:col-span-3"
+              className="overflow-hidden text-xs font-medium leading-5 sm:order-last sm:col-span-3"
               style={{ color: 'var(--app-negative)' }}
               initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
@@ -182,7 +183,7 @@ export default function TransactionDetailsSection({
             </motion.p>
           )}
         </AnimatePresence>
-        <div>
+        <div className="mt-3 sm:mt-0">
           <div className="mb-1.5 flex items-center gap-2">
             <label htmlFor={ids.currency} className="app-label block text-[0.9375rem] leading-5">
               Currency
@@ -210,7 +211,7 @@ export default function TransactionDetailsSection({
             disabledReason="Locked to the selected account's currency"
           />
         </div>
-        <div>
+        <div className="mt-3 sm:mt-0">
           <CreateModalFieldLabelRow
             htmlFor={ids.amount}
             label={
