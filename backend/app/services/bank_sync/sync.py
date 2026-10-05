@@ -2,13 +2,15 @@
 
 A job lists the connection's bank accounts first when it was flagged to, or when the last listing
 is over a day old, so a bank added at the provider appears and a linked bank account that vanished
-stops syncing before the window is planned. Each request is counted against the connection's budget
-in a transaction of its own before it is sent, and a job that finds the budget spent queues itself
-again for when a request frees. A job holds no database connection while it waits on the provider,
-and everything it writes goes through lock_job_for_finish, so a runner that lost its lease writes
-nothing and a link that changed while the job fetched gets none of its results
+stops syncing before the window is planned. A window whose response may have been cut short is
+fetched again in halves. Each request is counted against the connection's budget in a transaction
+of its own before it is sent, and a job that finds the budget spent queues itself again for when a
+request frees. A job holds no database connection while it waits on the provider, and everything it
+writes goes through lock_job_for_finish, so a runner that lost its lease writes nothing and a link
+that changed while the job fetched gets none of its results
 """
 
+import logging
 from collections.abc import Mapping
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -35,6 +37,8 @@ from app.services.bank_sync.windows import SyncWindow, find_due_links, plan_wind
 from app.services.cache_state.updates import mark_user_cache_changed
 from app.services.fx.currency_exponent_helpers import get_all_currency_exponents
 from app.utils.dates import resolve_timezone
+
+logger = logging.getLogger(__name__)
 
 _ONE_DAY = timedelta(days=1)
 
@@ -173,20 +177,51 @@ class _JobRun:
             await db.commit()
 
     async def _fetch(self, window: SyncWindow) -> None:
-        """Fetch the window and write what it found, queueing the next window at once while a link is still behind"""
+        """Fetch the window and write what it found, queueing the next window at once while a link is still behind
+
+        SimpleFIN has no paging, so a response that may have been cut short is set aside and its days
+        fetched again in halves, down to a single day, which is kept however long. Parts are written
+        as they come back, earliest first, so those fetched before the budget ran out or a request
+        failed keep their progress
+        """
+        parts = [window]
+        moved = False
+        while parts:
+            part = parts.pop()
+            result = await self._fetch_part(part)
+            if result is None:
+                return
+            if result.possibly_cut_off and part.first_day < part.last_day:
+                earlier, later = part.halves()
+                parts += [later, earlier]
+                continue
+            if result.possibly_cut_off:
+                logger.warning("Bank sync job %s kept %s whole, though its response may have been cut short", self.job.id, part.first_day)
+            moved = await self._write(part, result)
+
+        # The last part written ends where the window does, so a link it moved is synced through the window
+        await _end_job(self.job, again=moved and window.last_day < self.today)
+
+    async def _fetch_part(self, part: SyncWindow) -> FetchResult | None:
+        """Count and send one request for a part of the window
+
+        Returns:
+            What came back, or None when the job ended instead: queued again for when the budget
+            frees, or failed with the request's error
+        """
         try:
             await self._count_request(ProviderRequestPurpose.SYNC)
         except RequestBudgetSpent as spent:
             await _end_job(self.job, again=True, run_after=spent.available_again_at)
-            return
+            return None
 
-        start, end = window.bounds(self.timezone)
+        start, end = part.bounds(self.timezone)
         result = await self.adapter.fetch(
             decrypt(self.connection.credential_encrypted),
-            account_ids=[need.link.external_account_id for need in window.needs],
+            account_ids=[need.link.external_account_id for need in part.needs],
             start=start,
             end=end,
-            include_pending=window.last_day == self.today,
+            include_pending=part.last_day == self.today,
             timezone=self.timezone,
             currency_exponents=self.currency_exponents,
         )
@@ -194,32 +229,30 @@ class _JobRun:
             await self._mark_budget_spent()
         if result.request_error is not None:
             await self._stop_for(result.request_error)
-            return
+            return None
+        return result
 
-        behind = await self._write(window, result)
-        await _end_job(self.job, again=behind)
-
-    async def _write(self, window: SyncWindow, result: FetchResult) -> bool:
+    async def _write(self, part: SyncWindow, result: FetchResult) -> bool:
         """Move the checkpoint of each link the response brought back whole, if the job still holds it
 
-        A checkpoint moves only over days the link's data is complete for, so the window has to start
-        no later than the day after it. The last successful sync is stamped with the job's start, the
+        A checkpoint moves only over days the link's data is complete for, so the part has to start no
+        later than the day after it. The last successful sync is stamped with the job's start, the
         moment today was read, so the day it falls on is the day the checkpoint was set
 
         Returns:
-            Whether a link moved on but is still short of today
+            Whether a checkpoint moved
         """
         synced = _synced_bank_accounts(result)
-        behind = False
+        moved = False
         async with async_session() as db:
-            for link in await lock_job_for_finish(db, self.job, [need.link for need in window.needs]):
-                if link.external_account_id in synced and link.checkpoint + _ONE_DAY >= window.first_day and window.last_day > link.checkpoint:
-                    link.checkpoint = window.last_day
+            for link in await lock_job_for_finish(db, self.job, [need.link for need in part.needs]):
+                if link.external_account_id in synced and link.checkpoint + _ONE_DAY >= part.first_day and part.last_day > link.checkpoint:
+                    link.checkpoint = part.last_day
                     link.last_success_at = self.now
-                    behind |= link.checkpoint < self.today
+                    moved = True
             await mark_user_cache_changed(db, self.job.owner_id)
             await db.commit()
-        return behind
+        return moved
 
     async def _count_request(self, purpose: ProviderRequestPurpose) -> datetime:
         """Count a request against the connection's budget and commit it, before it is sent

@@ -2,8 +2,9 @@
 
 A link left out of a sync it was due for waits a day, one paused or waiting for its bank account to
 be chosen again must send nothing, a re-read too short misses late postings and corrections, one
-reaching before the import start brings in days the ledger already covers, and a window longer than
-SimpleFIN Bridge allows is refused on every retry
+reaching before the import start brings in days the ledger already covers, a window longer than
+SimpleFIN Bridge allows is refused on every retry, and halves that don't meet exactly skip or
+repeat a day
 """
 
 import uuid
@@ -13,7 +14,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from app.models.bank_connection import BankAccountLink, BankLinkState
-from app.services.bank_sync.windows import LinkNeed, find_due_links, plan_window
+from app.services.bank_sync.windows import LinkNeed, SyncWindow, find_due_links, plan_window
 from tests.routes.support.bank_sync_helpers import _build_account, _build_bank_link
 
 # Without clock changes, so the examples' windows are whole runs of 90 calendar days
@@ -86,3 +87,14 @@ def test_plan_window_spans_at_most_90_days_of_elapsed_time_across_a_clock_change
     start, end = window.bounds(_TORONTO)
     assert (window.first_day, window.last_day) == (first_day, last_day)
     assert end.astimezone(UTC) - start.astimezone(UTC) <= timedelta(days=90)
+
+
+def test_halves_of_a_90_day_window_meet_and_the_earlier_leaves_out_links_whose_need_starts_later():
+    """1 January to 31 March splits at 14 February with no day missed or repeated, and Savings, needed from 1 March, is only in the later"""
+    everyday = LinkNeed(_link(import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31)), date(2026, 1, 1))
+    savings = LinkNeed(_link(import_start=date(2026, 3, 1), checkpoint=date(2026, 2, 28)), date(2026, 3, 1))
+
+    earlier, later = SyncWindow(date(2026, 1, 1), date(2026, 3, 31), (everyday, savings)).halves()
+
+    assert earlier == SyncWindow(date(2026, 1, 1), date(2026, 2, 14), (everyday,))
+    assert later == SyncWindow(date(2026, 2, 15), date(2026, 3, 31), (everyday, savings))

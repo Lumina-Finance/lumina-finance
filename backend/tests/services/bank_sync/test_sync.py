@@ -22,6 +22,7 @@ from app.models.bank_connection import BankAccountLink, BankConnection, BankLink
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, ProviderErrorKind
 from app.models.user import User
 from app.services.bank_sync import availability
+from app.services.bank_sync.availability import PROVIDER_ADAPTERS
 from app.services.bank_sync.connections import build_connection_responses
 from app.services.bank_sync.providers.contract import ExternalAccount, FetchResult, ProviderError
 from app.services.bank_sync.worker import run_jobs
@@ -49,6 +50,9 @@ _MOST_JOBS = 10
 
 # Long enough for any step here to finish, so a missing protection fails the test rather than hanging it
 _WAIT_SECONDS = 10
+
+# Requests a SimpleFIN connection may send in 24 hours
+_DAILY_REQUESTS = PROVIDER_ADAPTERS[BankProvider.SIMPLEFIN].daily_request_budget
 
 pytestmark = pytest.mark.usefixtures("worker_sessions")
 
@@ -111,6 +115,11 @@ def _bank_account(external_id: str, login_key: str = "CON-harbour") -> ExternalA
 def _returned(*external_ids: str) -> FetchResult:
     """Return a response bringing back each bank account whole"""
     return FetchResult(accounts=tuple(_bank_account(external_id) for external_id in external_ids))
+
+
+def _cut_off(*external_ids: str) -> FetchResult:
+    """Return a response with 1,000 transactions or more, which SimpleFIN may have cut short"""
+    return FetchResult(accounts=tuple(_bank_account(external_id) for external_id in external_ids), possibly_cut_off=True)
 
 
 def _window(first_day: date, last_day: date, accounts: Sequence[str] = ("ACT-1",), *, pending: bool = False) -> tuple:
@@ -290,7 +299,7 @@ async def test_job_without_a_request_to_spend_queues_itself_for_when_one_frees(c
     """
     link = await _link(connection, "ACT-1", import_start=date(2026, 9, 1), checkpoint=date(2026, 8, 31))
     oldest = frozen_now - timedelta(hours=20)
-    await _spend_requests(connection, 20 if cause == "budget_spent" else 1, oldest)
+    await _spend_requests(connection, _DAILY_REQUESTS if cause == "budget_spent" else 1, oldest)
     provider.outcomes = [FetchResult(request_error=ProviderError(ProviderErrorKind.RATE_LIMITED, "SimpleFIN Bridge asked for fewer requests"))]
     await _seed_job(connection, BankSyncJobKind.INITIAL)
 
@@ -301,6 +310,78 @@ async def test_job_without_a_request_to_spend_queues_itself_for_when_one_frees(c
     async with TestSession() as session:
         assert await session.scalar(select(BankSyncJob.run_after).where(BankSyncJob.status == "queued")) == oldest + timedelta(hours=24)
     assert await _checkpoints(link) == [date(2026, 8, 31)]
+
+
+async def test_job_fetches_a_window_whose_response_may_be_cut_short_again_in_two_halves(connection, provider):
+    """1 January to 31 March brings back 1,000 transactions, so it is fetched again as two 45-day halves, and the import carries on"""
+    link = await _link(connection, "ACT-1", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    provider.outcomes = [_cut_off("ACT-1"), _returned("ACT-1"), _returned("ACT-1")]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    assert await run_jobs(1) == 1
+
+    assert _fetched(provider) == [
+        _window(date(2026, 1, 1), date(2026, 3, 31)),
+        _window(date(2026, 1, 1), date(2026, 2, 14)),
+        _window(date(2026, 2, 15), date(2026, 3, 31)),
+    ]
+    assert await _checkpoints(link) == [date(2026, 3, 31)]
+    assert [(kind, status) for kind, status, *_ in await _jobs()] == [("initial", "succeeded"), ("initial", "queued")]
+
+
+@pytest.mark.parametrize(
+    ("requests_left", "checkpoint"),
+    [(1, date(2025, 12, 31)), (2, date(2026, 2, 14))],
+    ids=["only_for_the_whole_window", "for_the_whole_window_and_one_half"],
+)
+async def test_job_keeps_nothing_from_a_response_that_may_be_cut_short_but_keeps_each_half(
+    connection, provider, frozen_now, requests_left, checkpoint
+):
+    """The budget runs out among the halves: the whole window moved nothing, a half fetched before moved the checkpoint, and the job waits"""
+    link = await _link(connection, "ACT-1", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    oldest = frozen_now - timedelta(hours=20)
+    await _spend_requests(connection, _DAILY_REQUESTS - requests_left, oldest)
+    provider.outcomes = [_cut_off("ACT-1"), _returned("ACT-1")]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    assert await run_jobs(1) == 1
+
+    assert len(provider.fetches) == requests_left
+    assert await _checkpoints(link) == [checkpoint]
+    async with TestSession() as session:
+        assert await session.scalar(select(BankSyncJob.run_after).where(BankSyncJob.status == "queued")) == oldest + timedelta(hours=24)
+
+
+async def test_job_moves_no_checkpoint_past_a_half_that_failed_for_the_link(connection, provider):
+    """Everyday has an error of its own in the earlier half, so the later half coming back whole can't move it past the days it lacks"""
+    link = await _link(connection, "ACT-1", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    provider.outcomes = [
+        _cut_off("ACT-1"),
+        FetchResult(account_errors={"ACT-1": ProviderError(ProviderErrorKind.TEMPORARY, "SimpleFIN Bridge reported a problem")}),
+        _returned("ACT-1"),
+    ]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert len(provider.fetches) == 3
+    assert await _checkpoints(link) == [date(2025, 12, 31)]
+
+
+async def test_job_keeps_a_single_day_whose_response_may_still_be_cut_short(connection, provider):
+    """3 to 4 October comes back cut short, and so does each day alone, so each day is kept rather than split any further"""
+    link = await _link(connection, "ACT-1", import_start=date(2026, 10, 3), checkpoint=date(2026, 10, 2))
+    provider.outcomes = [_cut_off("ACT-1") for _ in range(3)]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [
+        _window(date(2026, 10, 3), _TODAY, pending=True),
+        _window(date(2026, 10, 3), date(2026, 10, 3)),
+        _window(_TODAY, _TODAY, pending=True),
+    ]
+    assert await _checkpoints(link) == [_TODAY]
 
 
 async def test_job_sends_nothing_for_a_rejected_connection(connection, provider):
@@ -355,7 +436,7 @@ async def test_job_flagged_to_discover_lists_the_bank_accounts_a_claim_couldnt(c
 async def test_job_flagged_to_discover_keeps_the_listing_pending_until_a_request_frees(connection, provider, frozen_now, cause):
     """With no request to spend, the flagged job queues itself still flagged, and lists the bank accounts once a request frees"""
     oldest = frozen_now - timedelta(hours=20)
-    await _spend_requests(connection, 20 if cause == "budget_spent" else 1, oldest)
+    await _spend_requests(connection, _DAILY_REQUESTS if cause == "budget_spent" else 1, oldest)
     if cause == "provider_asked_to_slow_down":
         provider.outcomes.append(
             FetchResult(request_error=ProviderError(ProviderErrorKind.RATE_LIMITED, "SimpleFIN Bridge asked for fewer requests"))

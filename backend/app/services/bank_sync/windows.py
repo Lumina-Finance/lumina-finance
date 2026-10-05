@@ -45,6 +45,15 @@ class SyncWindow:
         """Return the instant the window starts and the instant it ends before, each a midnight in the timezone"""
         return _midnight(self.first_day, timezone), _midnight(self.last_day + _ONE_DAY, timezone)
 
+    def halves(self) -> tuple[SyncWindow, SyncWindow]:
+        """Split a window of two days or more into its earlier and later halves, each for the links that need it
+
+        Together the halves cover each day once, and the earlier one is the longer when the days are odd
+        """
+        middle = self.first_day + timedelta(days=(self.last_day - self.first_day).days // 2)
+        earlier = SyncWindow(self.first_day, middle, tuple(need for need in self.needs if need.start <= middle))
+        return earlier, SyncWindow(middle + _ONE_DAY, self.last_day, self.needs)
+
 
 def find_due_links(links: Iterable[BankAccountLink], *, now: datetime, timezone: ZoneInfo, overlap_days: int) -> list[LinkNeed]:
     """Return the links to sync now, each with the first day it needs
