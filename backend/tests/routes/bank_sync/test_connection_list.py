@@ -168,6 +168,7 @@ async def test_connections_list_flags_a_bank_sign_in_and_a_link_to_choose_again_
     savings_id = await _create_usd_account(client, headers, "Savings")
     travel_id = await _create_usd_account(client, headers, "Travel")
     joint_id = await _create_usd_account(client, headers, "Joint")
+    cards_id = await _create_usd_account(client, headers, "Cards")
 
     now = datetime.now(UTC)
     harbour = await _commit_bank_connection(user_id, created_at=now - timedelta(days=3))
@@ -186,11 +187,14 @@ async def test_connections_list_flags_a_bank_sign_in_and_a_link_to_choose_again_
             bank_account.currency = "USD"
             session.add(bank_account)
         await session.flush()
-        everyday, savings, travel, joint = [
-            await session.get(Account, account_id) for account_id in (everyday_id, savings_id, travel_id, joint_id)
+        everyday, savings, travel, joint, cards = [
+            await session.get(Account, account_id) for account_id in (everyday_id, savings_id, travel_id, joint_id, cards_id)
         ]
         choose_again = _build_bank_link(travel, harbour, "ACT-old-visa", state=BankLinkState.CHOOSE_ACCOUNT)
         choose_again.external_account_name = "Old Visa"
+        # Added after the Visa's, but listed first by its bank account's name
+        choose_again_later = _build_bank_link(cards, harbour, "ACT-old-mastercard", state=BankLinkState.CHOOSE_ACCOUNT)
+        choose_again_later.external_account_name = "Old Mastercard"
         session.add_all(
             [
                 # Everyday once followed the Visa, and its sign-in now belongs to the chequing account it follows
@@ -198,6 +202,7 @@ async def test_connections_list_flags_a_bank_sign_in_and_a_link_to_choose_again_
                 _build_bank_link(everyday, harbour, "ACT-chequing", signin_needed_since=now - timedelta(hours=2)),
                 _build_bank_link(savings, harbour, "ACT-savings"),
                 choose_again,
+                choose_again_later,
                 _build_bank_link(joint, rejected, "ACT-joint", signin_needed_since=now - timedelta(days=3)),
             ]
         )
@@ -212,7 +217,10 @@ async def test_connections_list_flags_a_bank_sign_in_and_a_link_to_choose_again_
     ] == [
         (
             [("ACT-chequing", True), ("ACT-savings", False), ("ACT-visa", False)],
-            [{"account_id": str(travel_id), "external_account_name": "Old Visa"}],
+            [
+                {"account_id": str(cards_id), "external_account_name": "Old Mastercard"},
+                {"account_id": str(travel_id), "external_account_name": "Old Visa"},
+            ],
         ),
         ([("ACT-chequing", False)], []),
         ([("ACT-joint", False)], []),
