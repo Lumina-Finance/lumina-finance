@@ -44,6 +44,10 @@ interface IconTooltipProps {
   // target, for an icon in a surface that does something else on a press, where a near miss would
   // do that instead. The icon keeps its size and place
   widensHitArea?: boolean
+
+  // Rings the trigger under keyboard focus with the app's 2px accent outline, which the controls
+  // beside it take, rather than the browser's own
+  accentFocusRing?: boolean
 }
 
 type IconTooltipSideBoundary = 'bounds' | 'viewport'
@@ -67,6 +71,7 @@ const levelConfig: Record<IconTooltipLevel, { Icon: LucideIcon; color: string }>
 // no ring of its own
 const ICON_TRIGGER_CLASS = 'inline-flex cursor-pointer appearance-none border-0 bg-transparent p-0 focus-visible:outline-none'
 const ICON_HIT_AREA_CLASS = "relative before:absolute before:-inset-1.5 before:content-['']"
+const ICON_FOCUS_RING_CLASS = 'rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)]'
 const ICON_CLASS = 'transition-colors [&>*:first-child]:transition-colors [&>*:not(:first-child)]:transition-colors'
 const ICON_HOVER_CLASS = 'group-hover:[&>*:first-child]:fill-current group-hover:[&>*:not(:first-child)]:stroke-[var(--app-bg)]'
 const ICON_ACTIVE_CLASS = '[&>*:first-child]:fill-current [&>*:not(:first-child)]:stroke-[var(--app-bg)]'
@@ -219,6 +224,7 @@ export default function IconTooltip({
   hoverFill = true,
   opensOnFocus = false,
   widensHitArea = false,
+  accentFocusRing = false,
 }: IconTooltipProps) {
   const { Icon: DefaultIcon, color } = levelConfig[level]
   const isFxIcon = IconOverride === 'fx'
@@ -311,6 +317,7 @@ export default function IconTooltip({
     isFxIcon ? FX_TRIGGER_CLASS : ICON_TRIGGER_CLASS,
     isFxIcon && (isShown ? fxToneClass.active : fxToneClass.idle),
     !isFxIcon && widensHitArea && ICON_HIT_AREA_CLASS,
+    !isFxIcon && accentFocusRing && ICON_FOCUS_RING_CLASS,
     opensOnFocus && 'peer',
   )
   const iconClassName = joinClassNames(ICON_CLASS, hoverFill && ICON_HOVER_CLASS, hoverFill && isShown && ICON_ACTIVE_CLASS)

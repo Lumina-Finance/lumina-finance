@@ -513,10 +513,27 @@ test('goes to the item from Needs review, right up to its edge by the bank icon,
   await expect(block.getByRole('button', { name: 'Show all 6' })).toHaveAttribute('aria-expanded', 'false')
 
   // The keyboard goes on from the icon to Needs review, ringed the way the app rings a focused control
+  const ringReach = (control: Locator) => control.evaluate((node) => {
+    const style = getComputedStyle(node)
+    return parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth)
+  })
   await page.keyboard.press('Tab')
   await expect(needsReview).toBeFocused()
   await expect(needsReview).toHaveCSS('outline-style', 'solid')
   await expect(needsReview).toHaveCSS('outline-width', '2px')
+  const pillReach = await ringReach(needsReview)
+
+  // and back to the icon, ringed the same way. Only one has focus at a time, and each ring stops
+  // short of the other control
+  const icon = row.getByRole('button', { name: 'From SimpleFIN', exact: true })
+  await page.keyboard.press('Shift+Tab')
+  await expect(icon).toBeFocused()
+  await expect(icon).toHaveCSS('outline-style', 'solid')
+  await expect(icon).toHaveCSS('outline-width', '2px')
+  const [iconBox, pillBox] = [(await icon.boundingBox())!, (await needsReview.boundingBox())!]
+  const gap = pillBox.x - (iconBox.x + iconBox.width)
+  expect(gap).toBeGreaterThan(await ringReach(icon))
+  expect(gap).toBeGreaterThan(pillReach)
 
   // The icon takes presses a few pixels around it, which stop short of Needs review beside it
   const { height } = (await needsReview.boundingBox())!
