@@ -29,6 +29,9 @@ interface ModalFormFooterProps {
   submitReason?: string | null
   /** Width classes for the submit button, so a short label does not stretch the whole way across */
   submitWidthClassName: string
+
+  /** Draws the submit button in the danger colour, for a submission that removes something */
+  danger?: boolean
   /** Shown beside the actions when the submission failed, rather than against any one field */
   error?: string | null
   /** Id for the message, so a field the failure is about can point to it as its description */
@@ -65,6 +68,7 @@ export function ModalFormFooter({
   submitUnavailable = false,
   submitReason = null,
   submitWidthClassName,
+  danger = false,
   error,
   errorId,
   level = 'page',
@@ -118,7 +122,7 @@ export function ModalFormFooter({
       disabled={submitDisabled || (submitUnavailable && !submitReason)}
       disabledReason={submitDisabled ? undefined : (submitReason ?? submitBlockedReason)}
       aria-busy={submitDisabled}
-      className={`${tone === 'danger' ? 'app-danger-button' : 'app-primary-button'} shrink-0${submitDisabled ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : ` ${submitWidthClassName}`}`}
+      className={`${danger || tone === 'danger' ? 'app-danger-button' : 'app-primary-button'} shrink-0${submitDisabled ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : ` ${submitWidthClassName}`}`}
     >
       {/* The spinner replaces the label, so it carries the label as its own name and a screen reader still
           says which action is in flight */}

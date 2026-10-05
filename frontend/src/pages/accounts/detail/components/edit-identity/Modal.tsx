@@ -1,10 +1,10 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useReducedMotion } from 'motion/react'
 import {
   useDeleteAccount,
   useUpdateAccount,
   type Account,
 } from '@/api/accounts'
-import { useBankLinksByAccount } from '@/api/bank-sync'
 import { useCurrencies } from '@/api/currency'
 import { FormError } from '@/components/forms/FormError'
 import { useCurrencyListState } from '@/hooks/useCurrencyListState'
@@ -32,6 +32,8 @@ import {
   EDIT_ACCOUNT_IDENTITY_FIELDS,
   getArchiveBlockedByLinkReason,
 } from '@/pages/accounts/detail/constants/accountDetail'
+import { BankLinkSection } from '@/pages/accounts/detail/components/bank-link/Section'
+import { useAccountBankLink } from '@/pages/accounts/detail/components/bank-link/useAccountBankLink'
 import {
   createIdentityFormValues,
   getIdentityFieldErrors,
@@ -56,10 +58,18 @@ type EditAccountIdentityModalProps = {
   onDeleteStarted: (account: Account) => void
   onDeleted: (account: Account) => void
   onDeleteFailed: () => void
+
+  /** Brings the Bank link section into view on opening, for an opening from the card's Bank sync fact */
+  showBankLink?: boolean
 }
 
 // Set on the heading inside the header component, which the dialog is labelled by
 const EDIT_ACCOUNT_IDENTITY_TITLE_ID = 'edit-account-identity-title'
+
+// The Bank link section is scrolled to once the panel has finished coming in, since a scroll measured
+// while the panel still moves lands short. The gap leaves the section's heading clear of the header
+const BANK_LINK_SCROLL_DELAY_MS = 260
+const BANK_LINK_SCROLL_GAP_PX = 16
 
 /**
  * Coordinates account identity edits, archive changes, and destructive deletion from one modal workflow
@@ -76,6 +86,7 @@ export default function EditAccountIdentityModal({
   onDeleteStarted,
   onDeleted,
   onDeleteFailed,
+  showBankLink = false,
 }: EditAccountIdentityModalProps) {
   const { data: currencies = [] } = useCurrencies()
   const currencyState = useCurrencyListState()
@@ -96,7 +107,24 @@ export default function EditAccountIdentityModal({
   const [deleteNameInput, setDeleteNameInput] = useState('')
   const [saveDelayPending, setSaveDelayPending] = useState(false)
   const institutionModal = useInstitutionModal(institutions)
-  const bankLink = useBankLinksByAccount().get(account.id)
+  const { shown: showsBankLinkSection, status: bankStatus } = useAccountBankLink(account)
+  const bankLink = bankStatus?.link ?? null
+  const prefersReducedMotion = useReducedMotion()
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const bankLinkSectionRef = useRef<HTMLDivElement>(null)
+
+  // Scrolled by hand inside the modal's own scroll area, since scrollIntoView also scrolls the page behind
+  useEffect(() => {
+    if (!open || !showBankLink) return undefined
+    const timer = window.setTimeout(() => {
+      const area = scrollAreaRef.current
+      const section = bankLinkSectionRef.current
+      if (!area || !section) return
+      const offset = section.getBoundingClientRect().top - area.getBoundingClientRect().top
+      area.scrollTo({ top: area.scrollTop + offset - BANK_LINK_SCROLL_GAP_PX, behavior: prefersReducedMotion ? 'auto' : 'smooth' })
+    }, BANK_LINK_SCROLL_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [open, showBankLink, prefersReducedMotion])
 
   const isRevolving = account.account_kind === 'revolving'
   const canLinkTaxAdvantagedCategory = account.account_kind === 'asset' && account.group_id === null && !account.is_archived
@@ -276,7 +304,10 @@ export default function EditAccountIdentityModal({
   const saveLoading = (updateAccount.isPending && deleteStage === 'idle') || saveDelayPending
   const isBusy = updateAccount.isPending || saveDelayPending || deleteLoading
   const hasEditableAccountContext = canLinkTaxAdvantagedCategory || isRevolving
-  const visibilitySectionNumber = hasEditableAccountContext ? '03' : '02'
+  // Sections number in order, so each one after a section the account leaves out moves up
+  const bankLinkSectionIndex = hasEditableAccountContext ? 3 : 2
+  const bankLinkSectionNumber = String(bankLinkSectionIndex).padStart(2, '0')
+  const visibilitySectionNumber = String(bankLinkSectionIndex + (showsBankLinkSection ? 1 : 0)).padStart(2, '0')
   const isArchiving = !account.is_archived && form.is_archived
 
   const archiveLinkedReason = bankLink && !account.is_archived
@@ -321,7 +352,7 @@ export default function EditAccountIdentityModal({
             onClose={requestClose}
           />
 
-          <div className="min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-7" data-dropdown-bounds>
+          <div ref={scrollAreaRef} className="min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-7" data-dropdown-bounds>
             <div className="space-y-5">
               <AccountIdentitySection
                 form={form}
@@ -347,6 +378,12 @@ export default function EditAccountIdentityModal({
                   taxAdvantagedCategoriesFailed={taxAdvantagedCategoriesFailed}
                   setField={setField}
                 />
+              )}
+
+              {showsBankLinkSection && (
+                <div ref={bankLinkSectionRef}>
+                  <BankLinkSection account={account} sectionNumber={bankLinkSectionNumber} />
+                </div>
               )}
 
               <AccountArchiveSection

@@ -9,6 +9,15 @@ export const ACCOUNT_KIND_LABEL: Record<string, string> = {
 
 export const EASE = [0.25, 0.1, 0.25, 1] as const
 
+/**
+ * What another page asks the account page to open on arrival, through router state: the edit modal,
+ * or the bank link flow over the page
+ */
+export type AccountDetailArrivalState = {
+  editAccount?: boolean
+  linkBank?: boolean
+}
+
 // An account already in the cache resolves in a few milliseconds, so the loading skeleton waits
 // this long before appearing rather than flickering through a load nobody perceives as slow
 export const ACCOUNT_SKELETON_DELAY_MS = 150

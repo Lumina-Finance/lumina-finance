@@ -3,6 +3,7 @@ import type { Account } from '@/api/accounts'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { InstitutionLogo } from '@/pages/accounts/components/InstitutionLogo'
+import { BankSyncFact } from '@/pages/accounts/detail/components/bank-link/BankSyncFact'
 import { ACCOUNT_KIND_LABEL } from '@/pages/accounts/detail/constants/accountDetail'
 import { humanizeAccountType } from '@/utils/formatAccountType'
 import { IdentityFacts } from './Facts'
@@ -18,11 +19,15 @@ export default function AccountIdentityCard({
   linkedTaxAdvantagedCategory,
   linkedTaxAdvantagedCategoryError,
   onEdit,
+  onOpenBankSync,
 }: {
   account: Account
   linkedTaxAdvantagedCategory: TaxAdvantagedCategory | undefined
   linkedTaxAdvantagedCategoryError: unknown
   onEdit: () => void
+
+  /** Opens the edit modal at its Bank link section */
+  onOpenBankSync: () => void
 }) {
   const { formatCurrency } = useMoneyFormatters()
   const linkedTaxAdvantagedCategoryId = account.group_id === null ? account.tax_advantaged_category_id : null
@@ -55,7 +60,9 @@ export default function AccountIdentityCard({
         {account.institution?.name ?? 'No institution'}
       </p>
 
-      <IdentityFacts facts={identityFacts} />
+      <IdentityFacts facts={identityFacts}>
+        <BankSyncFact account={account} onOpen={onOpenBankSync} />
+      </IdentityFacts>
       {account.notes && <IdentityNotes notes={account.notes} />}
 
       {linkedTaxAdvantagedCategoryId ? (

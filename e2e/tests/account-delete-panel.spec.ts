@@ -19,7 +19,8 @@ const ACCOUNT_NAME = 'Everyday'
 // on a phone those sections fill it, so the panel opens below what it shows. The last size is the one
 // the typed-name step is checked at
 const DIALOG_SIZES = [
-  { width: 768, height: 1024, hasRoom: true },
+  // Taller than a 1024px tablet, since the dialogue's bank link section takes the room the panel had there
+  { width: 768, height: 1180, hasRoom: true },
   { width: 390, height: 844, hasRoom: false },
   { width: 390, height: 667, hasRoom: false },
 ]
