@@ -188,6 +188,34 @@ async def accept_bank_change(db: AsyncSession, user: User, item_id: uuid.UUID) -
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_REMOVAL_WAITING_DETAIL)
     if record.open_kind != OpenReviewKind.CORRECTION:
         return await get_transaction_response(db, await db.get_one(Transaction, record.transaction_id))
+
+    txn = await write_bank_change(db, user, record, account)
+    await mark_user_cache_changed(db, user.id)
+    await db.commit()
+    await db.refresh(txn)
+    return await get_transaction_response(db, txn)
+
+
+async def write_bank_change(db: AsyncSession, user: User, record: BankTransaction, account: Account) -> Transaction:
+    """Write the bank's values for the fields an open correction changes to its ledger transaction and close it, without committing
+
+    The caller locked the bank transaction, after its account's links, then marks the cache and
+    commits, so accepting one correction and approving many write the same way
+
+    Args:
+        db: Active database session
+        user: The user reviewing
+        record: The bank transaction, locked, with a correction open
+        account: The account it belongs to
+
+    Returns:
+        The ledger transaction, written
+
+    Raises:
+        HTTPException 409: Another change held the transaction too long
+        HTTPException 422: The bank's amount can't be stored exactly, or a value fails the checks an
+            edit passes
+    """
     changed = [field for field in EDITABLE_COLUMNS if field in record.previous_values]
     if "amount" in changed and record.observed_amount is None:
         raise HTTPException(
@@ -201,11 +229,7 @@ async def accept_bank_change(db: AsyncSession, user: User, item_id: uuid.UUID) -
     record.open_kind = None
     record.previous_values = None
     await db.flush()
-
-    await mark_user_cache_changed(db, user.id)
-    await db.commit()
-    await db.refresh(txn)
-    return await get_transaction_response(db, txn)
+    return txn
 
 
 async def keep_current_value(db: AsyncSession, user: User, item_id: uuid.UUID) -> TransactionResponse:
@@ -270,10 +294,24 @@ async def remove_from_ledger(db: AsyncSession, user: User, item_id: uuid.UUID) -
     if record.open_kind != OpenReviewKind.REMOVAL:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_NO_REMOVAL_DETAIL)
 
-    txn = await check_transaction_access(db, record.transaction_id, user.id, PermissionLevel.WRITE, lock_for_update=True)
-    await delete_transaction(db, txn)
+    await delete_removed_transaction(db, user, record)
     await mark_user_cache_changed(db, user.id)
     await db.commit()
+
+
+async def delete_removed_transaction(db: AsyncSession, user: User, record: BankTransaction) -> None:
+    """Delete the ledger transaction an open removal names, its bank transaction with it, and rebuild its balances, without committing
+
+    The caller locked the bank transaction, after its account's links, then marks the cache and
+    commits, so removing one transaction and approving many removals write the same way. The bank
+    transaction is gone once this returns, so the caller reads nothing more from it
+
+    Raises:
+        HTTPException 409: Another change held the transaction too long
+        HTTPException 422: The account is archived
+    """
+    txn = await check_transaction_access(db, record.transaction_id, user.id, PermissionLevel.WRITE, lock_for_update=True)
+    await delete_transaction(db, txn)
 
 
 async def keep_transaction(db: AsyncSession, user: User, item_id: uuid.UUID) -> TransactionResponse:
@@ -385,13 +423,7 @@ async def _lock_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) ->
 async def _lock_bank_transaction(
     db: AsyncSession, user: User, which: ColumnElement[bool], not_found_detail: str
 ) -> tuple[BankTransaction, Account, list[BankAccountLink]]:
-    """Lock one of the user's bank transactions on their own personal accounts, after its account's connection and links
-
-    The connection and links come first, as every writer takes them, since adding or dismissing may
-    lift the account's review pause and queue its sync. A bank transaction's account never changes,
-    so it is read before anything is locked. A request that waited on a lock reads the bank
-    transaction as the write before it left it. The account itself isn't locked, so it stays free
-    for the requests that lock it
+    """Lock the one bank transaction of the user's own that meets a condition, as lock_bank_transactions does
 
     Args:
         db: Active database session
@@ -405,26 +437,47 @@ async def _lock_bank_transaction(
     Raises:
         HTTPException 404: No bank transaction of the user's own meets the condition
     """
-    account_id = await db.scalar(
-        select(BankTransaction.account_id)
-        .join(Account, Account.id == BankTransaction.account_id)
-        .where(which, own_personal_account_condition(user.id))
-    )
-    if account_id is None:
+    rows, links = await lock_bank_transactions(db, user, which)
+    if not rows:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=not_found_detail)
-    links = await lock_account_links(db, [account_id])
-
-    # Read again under its own lock, since it may have changed or gone while the links were locked
-    row = (
-        await db.execute(
-            select(BankTransaction, Account)
-            .join(Account, Account.id == BankTransaction.account_id)
-            .where(which, own_personal_account_condition(user.id))
-            .with_for_update(of=BankTransaction)
-            .execution_options(populate_existing=True)
-        )
-    ).one_or_none()
-    if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=not_found_detail)
-    record, account = row.tuple()
+    record, account = rows[0]
     return record, account, links
+
+
+async def lock_bank_transactions(
+    db: AsyncSession, user: User, which: ColumnElement[bool]
+) -> tuple[list[tuple[BankTransaction, Account]], list[BankAccountLink]]:
+    """Lock the user's bank transactions on their own personal accounts that meet a condition, in id order, after their links
+
+    The connections and links come first, as every writer takes them, since adding or dismissing may
+    lift an account's review pause and queue its sync. A bank transaction's account never changes,
+    so the accounts are read before anything is locked. A request that waited on a lock reads each
+    bank transaction as the write before it left it, and one that write deleted is left out. The
+    accounts themselves aren't locked, so they stay free for the requests that lock them
+
+    Args:
+        db: Active database session
+        user: The user acting
+        which: The condition picking out the bank transactions
+
+    Returns:
+        Each bank transaction with its account, in id order, and the accounts' links, which a lift takes
+    """
+    own = [which, own_personal_account_condition(user.id)]
+    account_ids = list(
+        await db.scalars(select(BankTransaction.account_id).join(Account, Account.id == BankTransaction.account_id).where(*own).distinct())
+    )
+    if not account_ids:
+        return [], []
+    links = await lock_account_links(db, account_ids)
+
+    # Read again under their own locks, since they may have changed or gone while the links were locked
+    rows = await db.execute(
+        select(BankTransaction, Account)
+        .join(Account, Account.id == BankTransaction.account_id)
+        .where(*own)
+        .order_by(BankTransaction.id)
+        .with_for_update(of=BankTransaction)
+        .execution_options(populate_existing=True)
+    )
+    return [(record, account) for record, account in rows], links
