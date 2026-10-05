@@ -36,3 +36,19 @@ async def _record_starting_balance(client, headers, account_id, amount):
         API response from recording the starting balance
     """
     return await client.post(f"/accounts/{account_id}/starting-balance", json={"amount": amount}, headers=headers)
+
+
+async def _current_balance(client, headers, account_id) -> int:
+    """Return an account's current balance, read through the route
+
+    Args:
+        client: Async test client
+        headers: Auth headers for the requesting user
+        account_id: Account whose balance to read
+
+    Returns:
+        The balance in minor units
+    """
+    account = await client.get(f"/accounts/{account_id}", headers=headers)
+    assert account.status_code == 200, account.text
+    return account.json()["current_balance"]

@@ -35,7 +35,7 @@ from app.services.bank_sync.links import (
     list_bank_accounts_for_account,
     unlink_account,
 )
-from app.services.bank_sync.review_decisions import add_review_item_to_ledger, dismiss_review_item
+from app.services.bank_sync.review_decisions import accept_bank_change, add_review_item_to_ledger, dismiss_review_item, keep_current_value
 from app.services.bank_sync.review_items import REVIEW_PAGE_SIZE, list_review_items
 
 router = APIRouter(prefix="/bank-sync", tags=["bank-sync"])
@@ -301,3 +301,41 @@ async def dismiss_bank_review_item(
         db: Active database session
     """
     await dismiss_review_item(db, user, item_id)
+
+
+@review_router.post("/items/{item_id}/accept-change", response_model=TransactionResponse)
+async def accept_bank_review_change(
+    item_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Write the bank's corrected values to the ledger transaction and close the correction
+
+    Args:
+        item_id: The correction to accept
+        user: Authenticated user reviewing
+        db: Active database session
+
+    Returns:
+        The ledger transaction, with its bank source
+    """
+    return await accept_bank_change(db, user, item_id)
+
+
+@review_router.post("/items/{item_id}/keep-current", response_model=TransactionResponse)
+async def keep_bank_review_current_value(
+    item_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Close a correction leaving the ledger transaction as it is
+
+    Args:
+        item_id: The correction to decline
+        user: Authenticated user reviewing
+        db: Active database session
+
+    Returns:
+        The ledger transaction, with its bank source
+    """
+    return await keep_current_value(db, user, item_id)

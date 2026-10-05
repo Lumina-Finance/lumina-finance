@@ -1,12 +1,14 @@
-"""Adding a new bank item to the ledger or dismissing it
+"""Deciding bank items: adding a new one to the ledger or dismissing it, and accepting or declining a correction
 
 Adding writes the ledger transaction and accepts the bank transaction in one save, so neither
-exists without the other. Each action locks the bank transaction before deciding, so a double
-submission or any other write to the item queues behind it and then finds the item as that write
-left it. A repeated action answers as the first did without writing again. A decision that leaves
-50 or fewer new items waiting lifts the account's review pause and queues its sync, so each action
-first locks the connection that sync would need, then the account's links, the order every writer
-takes connections, links and bank transactions in
+exists without the other, and accepting a correction writes the bank's values to the same ledger
+transaction and closes it in one save. Each action locks the bank transaction before deciding, then
+any ledger transaction it writes, so a double submission or any other write to the item, a sync's
+included, queues behind it and then finds the item as that write left it. A repeated action answers
+as the first did without writing again. A decision that leaves 50 or fewer new items waiting lifts
+the account's review pause and queues its sync, so each action first locks the connection that
+sync would need, then the account's links, the order every writer takes connections, links, bank
+transactions and their ledger transactions in
 """
 
 import uuid
@@ -17,21 +19,33 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
 from app.models.bank_connection import BankAccountLink
-from app.models.bank_transaction import OBSERVATION_COLUMNS, BankTransaction, BankTransactionDisposition
+from app.models.bank_transaction import OBSERVATION_COLUMNS, BankTransaction, BankTransactionDisposition, OpenReviewKind
+from app.models.base import PermissionLevel
 from app.models.transaction import Transaction
 from app.models.user import User
+from app.permissions import check_transaction_access
 from app.schemas.bank_review import AddReviewItemRequest
-from app.schemas.transaction import CreateTransactionRequest, TransactionResponse
+from app.schemas.transaction import CreateTransactionRequest, TransactionResponse, UpdateTransactionRequest
 from app.services.accounts.access import get_own_personal_account, own_personal_account_condition
 from app.services.bank_sync.review_pause import lift_review_pauses, lock_account_links
+from app.services.bank_sync.review_state import EDITABLE_COLUMNS, align_with_bank, bank_values
 from app.services.cache_state import mark_user_cache_changed
 from app.services.transactions.creation import insert_transaction
 from app.services.transactions.response_helpers import get_transaction_response
+from app.services.transactions.update import apply_transaction_update
 
 REVIEW_ITEM_NOT_FOUND = "Review item not found"
 
 # Why an added item refuses a transfer counterparty the user can see but doesn't own alone
 _COUNTERPARTY_NOT_OWN_DETAIL = "Transfers from a bank item can't go to an account shared with a group"
+
+# Why a correction's decisions refuse an item that never reached the ledger
+_NOT_IN_LEDGER_DETAIL = "This item isn't in the ledger, so it has no bank change to decide"
+
+# Why accepting refuses a bank amount the account's currency can't hold without rounding
+_UNSTORABLE_AMOUNT_DETAIL = (
+    "The bank's amount has more decimal places than {currency} allows. Keep your current value and edit the amount instead"
+)
 
 
 async def add_review_item_to_ledger(db: AsyncSession, user: User, item_id: uuid.UUID, request: AddReviewItemRequest) -> TransactionResponse:
@@ -115,6 +129,98 @@ async def dismiss_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) 
     await lift_review_pauses(db, user.id, links)
     await mark_user_cache_changed(db, user.id)
     await db.commit()
+
+
+async def accept_bank_change(db: AsyncSession, user: User, item_id: uuid.UUID) -> TransactionResponse:
+    """Write the bank's values for the fields a correction changes to its ledger transaction and close it, in one save
+
+    The ledger transaction keeps its id and bank source and passes the checks an edit does, and its
+    balances are rebuilt from the earlier of its old and new dates. Fields the correction doesn't
+    change keep the ledger's values. Each field written is aligned with the bank, so a value the user
+    had edited is replaced and no longer counts as edited. The bank's description has no ledger
+    field, so accepting it only closes the correction. A correction already decided answers with
+    the transaction as it stands, so a double submission accepts it once
+
+    Args:
+        db: Active database session
+        user: The user reviewing
+        item_id: The correction, which is its bank transaction's id
+
+    Returns:
+        The ledger transaction, with its bank source
+
+    Raises:
+        HTTPException 404: The item isn't one of the user's
+        HTTPException 409: The item isn't in the ledger, or another change held the transaction too long
+        HTTPException 422: The bank's amount can't be stored exactly, or a value fails the checks an
+            edit passes
+    """
+    record, account, _ = await _lock_review_item(db, user, item_id)
+    _refuse_unless_in_ledger(record)
+    if record.open_kind != OpenReviewKind.CORRECTION:
+        return await get_transaction_response(db, await db.get_one(Transaction, record.transaction_id))
+    changed = [field for field in EDITABLE_COLUMNS if field in record.previous_values]
+    if "amount" in changed and record.observed_amount is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=_UNSTORABLE_AMOUNT_DETAIL.format(currency=account.currency)
+        )
+
+    txn = await check_transaction_access(db, record.transaction_id, user.id, PermissionLevel.WRITE, lock_for_update=True)
+    bank = {EDITABLE_COLUMNS[field].ledger: getattr(record, EDITABLE_COLUMNS[field].observed) for field in changed}
+    await apply_transaction_update(db, user, txn, UpdateTransactionRequest(**bank))
+    align_with_bank(record, changed)
+    record.open_kind = None
+    record.previous_values = None
+    await db.flush()
+
+    await mark_user_cache_changed(db, user.id)
+    await db.commit()
+    await db.refresh(txn)
+    return await get_transaction_response(db, txn)
+
+
+async def keep_current_value(db: AsyncSession, user: User, item_id: uuid.UUID) -> TransactionResponse:
+    """Close a correction leaving the ledger transaction as it is, so the bank's values it proposed don't come back
+
+    The bank's values stay stored as its latest, and the changed date and amount are aligned with
+    them, so the ledger's own count as edited and a trusted correction later leaves them alone. The
+    values declined are remembered, so the bank sending them again opens nothing. A correction
+    already decided answers with the transaction as it stands, so a double submission keeps it once
+
+    Args:
+        db: Active database session
+        user: The user reviewing
+        item_id: The correction, which is its bank transaction's id
+
+    Returns:
+        The ledger transaction, with its bank source
+
+    Raises:
+        HTTPException 404: The item isn't one of the user's
+        HTTPException 409: The item isn't in the ledger
+    """
+    record, _, _ = await _lock_review_item(db, user, item_id)
+    _refuse_unless_in_ledger(record)
+    if record.open_kind == OpenReviewKind.CORRECTION:
+        align_with_bank(record, record.previous_values)
+        record.declined_observation = bank_values(record)
+        record.open_kind = None
+        record.previous_values = None
+        await db.flush()
+
+        await mark_user_cache_changed(db, user.id)
+        await db.commit()
+    return await get_transaction_response(db, await db.get_one(Transaction, record.transaction_id))
+
+
+def _refuse_unless_in_ledger(record: BankTransaction) -> None:
+    """Refuse a correction's decision on an item still waiting to be added, or dismissed
+
+    Raises:
+        HTTPException 409: The item isn't in the ledger
+    """
+    if record.disposition != BankTransactionDisposition.ACCEPTED:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_NOT_IN_LEDGER_DETAIL)
 
 
 async def _lock_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) -> tuple[BankTransaction, Account, list[BankAccountLink]]:

@@ -22,6 +22,7 @@ from app.models.bank_transaction import BankTransaction, BankTransactionDisposit
 from app.models.transaction import Transaction
 from app.services.bank_sync import manual_entries, review_decisions, review_pause
 from tests.conftest import TestSession
+from tests.routes.support.account_helpers import _current_balance
 from tests.routes.support.bank_sync_helpers import (
     BANK_DATE,
     EMPTY_REVIEW_PAGE,
@@ -30,6 +31,7 @@ from tests.routes.support.bank_sync_helpers import (
     _commit_paused_link,
     _commit_review_item,
     _commit_waiting_items,
+    _ledger_rows,
     _new_account,
     _new_group_account,
     _pause_state,
@@ -100,20 +102,6 @@ def _tesco_source(*, amount: int | None = -2340, raw_amount: str | None = None, 
     }
 
 
-async def _ledger_rows(account_id: str) -> list[tuple[date, int]]:
-    """Return the date and amount of each of the account's ledger transactions, read as the table owner"""
-    async with TestSession() as session:
-        rows = await session.execute(select(Transaction.dt, Transaction.amount).where(Transaction.account_id == uuid.UUID(account_id)))
-        return [tuple(row) for row in rows]
-
-
-async def _balance(client, inbox: _Inbox) -> int:
-    """Return Everyday's current balance"""
-    account = await client.get(f"/accounts/{inbox.account_id}", headers=inbox.headers)
-    assert account.status_code == 200, account.text
-    return account.json()["current_balance"]
-
-
 async def test_adding_tesco_writes_one_bank_sourced_transaction_and_empties_the_inbox(client):
     """Added as Tesco and Groceries, the -23.40 is in the ledger from SimpleFIN, the balance moves and the cache mark is the last write"""
     inbox = await _tesco_waiting(client)
@@ -136,7 +124,7 @@ async def test_adding_tesco_writes_one_bank_sourced_transaction_and_empties_the_
         -2340,
     )
     assert await _review_page(client, inbox.headers) == EMPTY_REVIEW_PAGE
-    assert await _balance(client, inbox) == -2340
+    assert await _current_balance(client, inbox.headers, inbox.account_id) == -2340
     assert await _changed_at(client, inbox.headers) != before
     assert "user_cache_states" in _writes(statements)[-1]
 
@@ -330,7 +318,7 @@ async def test_a_double_submitted_add_adds_the_item_once(client):
     assert first.json()["id"] == second.json()["id"]
     assert first.json()["bank_source"] == second.json()["bank_source"] == _tesco_source()
     assert await _ledger_rows(inbox.account_id) == [(BANK_DATE, -2340)]
-    assert await _balance(client, inbox) == -2340
+    assert await _current_balance(client, inbox.headers, inbox.account_id) == -2340
 
 
 async def test_an_add_waiting_on_a_sync_aligns_with_the_amount_the_sync_stored(client):

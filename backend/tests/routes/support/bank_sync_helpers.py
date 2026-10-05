@@ -383,6 +383,13 @@ async def _stored_item(item_id: uuid.UUID) -> BankTransaction:
         return await session.get_one(BankTransaction, item_id)
 
 
+async def _ledger_rows(account_id: str | uuid.UUID) -> list[tuple[date, int]]:
+    """Return the date and amount of each of the account's ledger transactions, read as the table owner"""
+    async with TestSession() as session:
+        rows = await session.execute(select(Transaction.dt, Transaction.amount).where(Transaction.account_id == uuid.UUID(str(account_id))))
+        return [tuple(row) for row in rows]
+
+
 async def _commit_other_users_account() -> Account:
     """Commit another user with a personal account of their own, named Theirs"""
     async with TestSession() as session:
