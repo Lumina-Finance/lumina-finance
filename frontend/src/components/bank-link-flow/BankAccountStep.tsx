@@ -118,9 +118,10 @@ export function BankAccountStep({
                   >
                     <span className="flex flex-wrap items-baseline justify-between gap-x-3">
                       <span className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>{entry.name}</span>
-                      {/* A currency of the provider's own has no format to show its balance in */}
+                      {/* A currency of the provider's own has no format to show its balance in. Pushed right,
+                          so a long name wrapping it onto its own line leaves it at the edge */}
                       {entry.balance !== null && entry.unavailable_reason !== 'custom_currency' && (
-                        <span className="text-sm tabular-nums" style={{ color: 'var(--app-text)' }}>{formatCurrency(entry.balance, entry.currency)}</span>
+                        <span className="ml-auto text-sm tabular-nums" style={{ color: 'var(--app-text)' }}>{formatCurrency(entry.balance, entry.currency)}</span>
                       )}
                     </span>
                     <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
