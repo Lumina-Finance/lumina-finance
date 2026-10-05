@@ -2,16 +2,19 @@
 
 A dismissed item keeps only its identity and the dismissal, enough to stay dismissed when the bank
 sends it again, so the bank's values are cleared. A double-clicked Dismiss dismisses it once, and
-only the user's own items on their own personal accounts can be dismissed
+only the user's own items on their own personal accounts can be dismissed. A dismissal that leaves
+50 or fewer new items waiting resumes the account's paused sync at once, and one that took the item
+before the link could deadlock with a sync storing it
 """
 
 import asyncio
 import uuid
 
+import pytest
 from sqlalchemy import func, select
 
 from app.models.account import Account
-from app.models.bank_connection import BankProvider
+from app.models.bank_connection import BankAccountLink, BankProvider
 from app.models.bank_transaction import OBSERVATION_COLUMNS, BankTransaction, BankTransactionDisposition, OpenReviewKind
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
@@ -21,9 +24,12 @@ from tests.routes.support.bank_sync_helpers import (
     _build_ledger_transaction,
     _changed_at,
     _commit_other_users_account,
+    _commit_paused_link,
     _commit_review_item,
+    _commit_waiting_items,
     _new_account,
     _new_group_account,
+    _pause_state,
     _review_page,
     _sign_up,
     _stored_item,
@@ -130,3 +136,51 @@ async def test_dismissing_another_users_item_or_one_on_a_group_account_is_not_fo
     assert [(await _stored_item(item_id)).disposition for item_id in (their_item, joint_item)] == [
         BankTransactionDisposition.AWAITING_REVIEW
     ] * 2
+
+
+@pytest.mark.parametrize(
+    ("waiting", "pause_state"),
+    [(52, (True, False, [])), (51, (False, True, ["scheduled"]))],
+    ids=["leaves_51", "leaves_50"],
+)
+async def test_a_dismissal_leaving_50_new_items_waiting_resumes_the_paused_sync_at_once(client, waiting, pause_state):
+    """Everyday is paused for review with HARBOUR COFFEE 0412 among its new items waiting
+
+    Dismissing it leaves 51, which stays paused, or 50, which lifts the pause, makes Everyday due now
+    and queues its connection's sync, with the cache mark still the last write
+    """
+    headers, _ = await _sign_up(client)
+    account_id = await _new_account(client, headers, "Everyday")
+    link = await _commit_paused_link(account_id)
+    item_id = await _commit_review_item(account_id)
+    await _commit_waiting_items(link, waiting - 1)
+
+    with _recorded_statements() as statements:
+        dismissed = await _dismiss(client, headers, item_id)
+
+    assert dismissed.status_code == 204, dismissed.text
+    assert await _pause_state(link) == pause_state
+    assert "user_cache_states" in _writes(statements)[-1]
+
+
+async def test_a_dismissal_waits_for_a_sync_holding_the_link_before_locking_the_item(client):
+    """A sync holds Everyday's link, as it does while storing the bank's values: the dismissal waits for it without holding the item
+
+    So the sync can still lock the item, as storing it does, rather than the two waiting on each other
+    """
+    headers, _ = await _sign_up(client)
+    account_id = await _new_account(client, headers, "Everyday")
+    link = await _commit_paused_link(account_id)
+    item_id = await _commit_review_item(account_id)
+
+    async with asyncio.timeout(10), TestSession() as syncing:
+        await syncing.execute(select(BankAccountLink.id).where(BankAccountLink.id == link.id).with_for_update())
+        syncing_pid = await syncing.scalar(select(func.pg_backend_pid()))
+        dismissing = asyncio.create_task(_dismiss(client, headers, item_id))
+        await _wait_until_waiting_on(syncing_pid, dismissing)
+        await syncing.execute(select(BankTransaction.id).where(BankTransaction.id == item_id).with_for_update(nowait=True))
+        await syncing.commit()
+        dismissed = await dismissing
+
+    assert dismissed.status_code == 204, dismissed.text
+    assert (await _stored_item(item_id)).disposition == BankTransactionDisposition.DISMISSED

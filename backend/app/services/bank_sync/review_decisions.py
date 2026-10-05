@@ -1,10 +1,11 @@
 """Adding a new bank item to the ledger or dismissing it
 
 Adding writes the ledger transaction and accepts the bank transaction in one save, so neither
-exists without the other. Each action locks the bank transaction first, so a double submission or
-any other write to the item queues behind it and then finds the item as that write left it. A
-repeated action answers as the first did without writing again. Neither action writes the link, so
-neither locks it
+exists without the other. Each action locks the bank transaction before deciding, so a double
+submission or any other write to the item queues behind it and then finds the item as that write
+left it. A repeated action answers as the first did without writing again. A decision that leaves
+50 or fewer new items waiting lifts the account's review pause and queues its sync, so each action
+locks the account's links first, the order every writer takes links and bank transactions in
 """
 
 import uuid
@@ -20,6 +21,7 @@ from app.models.user import User
 from app.schemas.bank_review import AddReviewItemRequest
 from app.schemas.transaction import CreateTransactionRequest, TransactionResponse
 from app.services.accounts.access import get_own_personal_account, own_personal_account_condition
+from app.services.bank_sync.review_pause import lift_review_pauses, lock_account_links
 from app.services.cache_state import mark_user_cache_changed
 from app.services.transactions.creation import insert_transaction
 from app.services.transactions.response_helpers import get_transaction_response
@@ -76,6 +78,7 @@ async def add_review_item_to_ledger(db: AsyncSession, user: User, item_id: uuid.
     record.aligned_amount = record.observed_amount
     await db.flush()
 
+    await lift_review_pauses(db, user.id, [account.id])
     await mark_user_cache_changed(db, user.id)
     await db.commit()
     await db.refresh(txn)
@@ -96,7 +99,7 @@ async def dismiss_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) 
         HTTPException 404: The item isn't one of the user's, or was withdrawn by the bank
         HTTPException 409: The item is already in the ledger
     """
-    record, _ = await _lock_review_item(db, user, item_id)
+    record, account = await _lock_review_item(db, user, item_id)
     if record.disposition == BankTransactionDisposition.DISMISSED:
         return
     if record.disposition == BankTransactionDisposition.ACCEPTED:
@@ -107,19 +110,32 @@ async def dismiss_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) 
         setattr(record, column, None)
     await db.flush()
 
+    await lift_review_pauses(db, user.id, [account.id])
     await mark_user_cache_changed(db, user.id)
     await db.commit()
 
 
 async def _lock_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) -> tuple[BankTransaction, Account]:
-    """Lock one of the user's bank transactions on their own personal accounts and return it with its account
+    """Lock one of the user's bank transactions on their own personal accounts, after its account's links, and return it with its account
 
-    A request that waited on the lock reads the item as the write before it left it. Only the
-    bank transaction is locked, so the account stays free for the requests that lock it
+    The links come first, as every writer takes them, since the decision may lift the account's
+    review pause. An item's account never changes, so it is read before anything is locked. A
+    request that waited on a lock reads the item as the write before it left it. The account itself
+    isn't locked, so it stays free for the requests that lock it
 
     Raises:
         HTTPException 404: The item isn't one of the user's, or was withdrawn by the bank
     """
+    account_id = await db.scalar(
+        select(BankTransaction.account_id)
+        .join(Account, Account.id == BankTransaction.account_id)
+        .where(BankTransaction.id == item_id, own_personal_account_condition(user.id))
+    )
+    if account_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=REVIEW_ITEM_NOT_FOUND)
+    await lock_account_links(db, [account_id])
+
+    # Read again under its own lock, since the item may have changed or gone while the links were locked
     row = (
         await db.execute(
             select(BankTransaction, Account)

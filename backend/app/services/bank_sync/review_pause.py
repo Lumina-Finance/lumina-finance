@@ -91,6 +91,25 @@ async def apply_review_pauses(db: AsyncSession, links: Sequence[BankAccountLink]
     return changed
 
 
+async def lock_account_links(db: AsyncSession, account_ids: Collection[uuid.UUID]) -> list[BankAccountLink]:
+    """Lock every link of these accounts in id order, the order every writer takes links in, before any bank transaction row
+
+    Every link, not only paused ones, since one a sync is pausing doesn't read as paused until its
+    lock is granted. Each is read again once locked
+
+    Returns:
+        The links, as the writes before this left them
+    """
+    links = await db.scalars(
+        select(BankAccountLink)
+        .where(BankAccountLink.account_id.in_(account_ids))
+        .order_by(BankAccountLink.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return list(links)
+
+
 async def lift_review_pauses(db: AsyncSession, owner_id: uuid.UUID, account_ids: Collection[uuid.UUID]) -> None:
     """Lift the pause on each of these accounts once 50 or fewer new items wait, and queue its connection's sync at once
 
@@ -99,25 +118,16 @@ async def lift_review_pauses(db: AsyncSession, owner_id: uuid.UUID, account_ids:
     waiting in Choose bank account, only loses the pause, since it has nothing to sync. The owner's
     open pages are told of any pause lifted.
 
-    The links are locked in id order, so a sync writing one finishes first and is counted. A review
-    action has to lock the accounts' links the same way before its bank transaction rows, as
-    every writer does, or it can deadlock with a sync storing those rows. Locking them here again
-    then costs nothing
+    The links are locked, so a sync writing one finishes first and is counted. A review action has
+    to take them with lock_account_links before its bank transaction rows, as every writer does, or
+    it can deadlock with a sync storing those rows. Locking them here again then costs nothing
 
     Args:
         db: The owner's session
         owner_id: The user who made the decisions, who owns the accounts
         account_ids: The accounts whose items the review action decided
     """
-    # Every link, since one a sync is pausing doesn't read as paused until the lock is granted
-    links = await db.scalars(
-        select(BankAccountLink)
-        .where(BankAccountLink.account_id.in_(account_ids))
-        .order_by(BankAccountLink.id)
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    )
-    paused = [link for link in links if link.paused]
+    paused = [link for link in await lock_account_links(db, account_ids) if link.paused]
     waiting = await _count_waiting_new(db, [link.account_id for link in paused])
     lifted = [link for link in paused if not _stays_paused(True, waiting.get(link.account_id, 0))]
     if not lifted:

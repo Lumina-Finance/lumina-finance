@@ -4,7 +4,8 @@ The ledger transaction and the accepted bank transaction are written in one save
 without the other, and the transaction passes the checks a hand-entered one does except the days a
 linked account's bank supplies, since it is the bank's own. A date or amount the user changed counts
 as edited. A double submission or a sync writing the item at the same moment adds it once, with the
-bank values the sync left, and only the user's own items on their own personal accounts can be added
+bank values the sync left, and only the user's own items on their own personal accounts can be added.
+An add that leaves 50 or fewer new items waiting resumes the account's paused sync at once
 """
 
 import asyncio
@@ -26,9 +27,12 @@ from tests.routes.support.bank_sync_helpers import (
     EMPTY_REVIEW_PAGE,
     _changed_at,
     _commit_other_users_account,
+    _commit_paused_link,
     _commit_review_item,
+    _commit_waiting_items,
     _new_account,
     _new_group_account,
+    _pause_state,
     _review_page,
     _stored_item,
 )
@@ -401,3 +405,26 @@ async def test_adding_to_an_archived_account_is_refused_as_for_a_hand_entered_tr
     assert refused.json()["detail"] == "Account is archived"
     assert (await _stored_item(inbox.item_id)).disposition == BankTransactionDisposition.AWAITING_REVIEW
     assert await _ledger_rows(inbox.account_id) == []
+
+
+@pytest.mark.parametrize(
+    ("waiting", "pause_state"),
+    [(52, (True, False, [])), (51, (False, True, ["scheduled"]))],
+    ids=["leaves_51", "leaves_50"],
+)
+async def test_adding_the_item_that_leaves_50_new_items_waiting_resumes_the_paused_sync_at_once(client, waiting, pause_state):
+    """Everyday is paused for review with the Tesco item among its new items waiting
+
+    Adding it leaves 51, which stays paused, or 50, which lifts the pause, makes Everyday due now and
+    queues its connection's sync, with the cache mark still the last write
+    """
+    inbox = await _tesco_waiting(client)
+    link = await _commit_paused_link(inbox.account_id)
+    await _commit_waiting_items(link, waiting - 1)
+
+    with _recorded_statements() as statements:
+        added = await _add(client, inbox)
+
+    assert added.status_code == 201, added.text
+    assert await _pause_state(link) == pause_state
+    assert "user_cache_states" in _writes(statements)[-1]
