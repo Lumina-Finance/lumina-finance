@@ -8,12 +8,10 @@ outlives the link and connection it came through
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import event
-
 from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
 from app.models.bank_transaction import BankTransaction, OpenReviewKind
-from tests.conftest import TestSession, scoped_engine
+from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     BANK_DATE,
     BANK_DESCRIPTION,
@@ -24,6 +22,7 @@ from tests.routes.support.bank_sync_helpers import (
     _build_ledger_transaction,
     _record_bank_source,
 )
+from tests.routes.support.query_helpers import _get_with_selects
 from tests.routes.transactions._helpers import _create_transaction, _setup_user_with_deps
 
 
@@ -169,24 +168,6 @@ async def test_bank_source_stays_readable_after_unlinking_and_disconnecting(clie
     assert detail.json()["bank_source"] == _bank_source()
 
 
-async def _list_page_selects(client, headers) -> tuple[list[dict], list[str]]:
-    """List a page of 50 transactions, returning it with the SELECT statements the request ran"""
-    selects: list[str] = []
-
-    def record(conn, cursor, statement, parameters, context, executemany):
-        """Keep each SELECT's text, leaving its parameters and result alone"""
-        if statement.lstrip().upper().startswith("SELECT"):
-            selects.append(statement)
-
-    event.listen(scoped_engine.sync_engine, "before_cursor_execute", record)
-    try:
-        response = await client.get("/transactions", params={"limit": 50}, headers=headers)
-    finally:
-        event.remove(scoped_engine.sync_engine, "before_cursor_execute", record)
-    assert response.status_code == 200, response.text
-    return response.json(), selects
-
-
 async def _seed_bank_sourced(account_id: str, category_id: str, count: int, first: int) -> None:
     """Commit ledger rows, each with the bank transaction it came from"""
     async with TestSession() as session:
@@ -205,10 +186,10 @@ async def test_listing_loads_a_pages_bank_sources_in_a_fixed_number_of_queries(c
     """A page of 50 bank-sourced transactions runs the same SELECTs as a page of one"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     await _seed_bank_sourced(account_id, category_id, 1, first=0)
-    one_page, one_selects = await _list_page_selects(client, headers)
+    one_page, one_selects = await _get_with_selects(client, "/transactions", headers, limit=50)
     await _seed_bank_sourced(account_id, category_id, 49, first=1)
 
-    full_page, full_selects = await _list_page_selects(client, headers)
+    full_page, full_selects = await _get_with_selects(client, "/transactions", headers, limit=50)
 
     assert [row["bank_source"]["provider"] for row in one_page] == ["simplefin"]
     assert len(full_page) == 50

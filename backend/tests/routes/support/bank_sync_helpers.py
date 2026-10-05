@@ -4,7 +4,7 @@ Tests build bank sync records directly, so each starts from exactly the state it
 returns an unsaved row with the fields every test needs, for the caller to add to whichever session
 it is testing through. Rows other rows point at get their id up front, so a dependent row can be
 built before the first is flushed, though each level still has to be flushed before the next.
-Route tests sign up and link accounts through the API, and record a bank source on a transaction they created there.
+Route tests sign up, link accounts and read the review list through the API, and record a bank source on a transaction they created there.
 Jobs are committed, since the worker reaches them through sessions of its own
 """
 
@@ -261,6 +261,29 @@ async def _record_bank_source(
         session.add(record)
         await session.commit()
     return record.id
+
+
+async def _commit_review_item(account_id: str | uuid.UUID, external_transaction_id: str = "TRN-1001", **values) -> uuid.UUID:
+    """Commit a bank item waiting for its first review on an account, with any of its values replaced
+
+    Returns:
+        The item's id
+    """
+    async with TestSession() as session:
+        account = await session.get_one(Account, uuid.UUID(str(account_id)))
+        record = _build_bank_transaction(account, external_transaction_id)
+        for field, value in values.items():
+            setattr(record, field, value)
+        session.add(record)
+        await session.commit()
+    return record.id
+
+
+async def _review_page(client, headers, **params) -> dict:
+    """Return a page of the review list, read through the route"""
+    page = await client.get("/bank-review/items", params=params, headers=headers)
+    assert page.status_code == 200, page.text
+    return page.json()
 
 
 def _build_pending_transaction(account: Account, external_transaction_id: str, amount: int = -2500) -> BankPendingTransaction:

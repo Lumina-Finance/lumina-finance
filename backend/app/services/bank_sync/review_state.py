@@ -7,13 +7,9 @@ the review actions all apply the same rule
 
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, Literal
+from typing import Any
 
-from app.models.bank_transaction import BankTransaction, BankTransactionDisposition, EditableBankField
-
-# The fields whose change opens a correction on an accepted record. A change to only the merchant
-# name or category hint updates the stored observation without one
-ReviewedBankField = Literal["date", "amount", "description"]
+from app.models.bank_transaction import BankTransaction, BankTransactionDisposition, EditableBankField, ReviewedBankField
 
 
 @dataclass(frozen=True)

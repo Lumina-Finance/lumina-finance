@@ -9,12 +9,12 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import event, update
+from sqlalchemy import update
 
 from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankLinkState, BankProviderRequest
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobStatus
-from tests.conftest import TestSession, scoped_engine
+from tests.conftest import TestSession
 from tests.routes.support import _create_account
 from tests.routes.support.bank_sync_helpers import (
     _build_bank_link,
@@ -23,6 +23,7 @@ from tests.routes.support.bank_sync_helpers import (
     _commit_bank_connection,
     _sign_up,
 )
+from tests.routes.support.query_helpers import _get_with_selects
 
 _BUDGET_FREE = {"limit": 20, "used": 0, "available_again_at": None}
 
@@ -32,24 +33,6 @@ async def _create_usd_account(client, headers, name: str) -> uuid.UUID:
     created = await _create_account(client, headers, name=name, currency="USD")
     assert created.status_code == 201, created.text
     return uuid.UUID(created.json()["id"])
-
-
-async def _list_selects(client, headers) -> tuple[list[dict], list[str]]:
-    """List the connections, returning them with the SELECT statements the request ran"""
-    selects: list[str] = []
-
-    def record(conn, cursor, statement, parameters, context, executemany):
-        """Keep each SELECT's text, leaving its parameters and result alone"""
-        if statement.lstrip().upper().startswith("SELECT"):
-            selects.append(statement)
-
-    event.listen(scoped_engine.sync_engine, "before_cursor_execute", record)
-    try:
-        response = await client.get("/bank-sync/connections", headers=headers)
-    finally:
-        event.remove(scoped_engine.sync_engine, "before_cursor_execute", record)
-    assert response.status_code == 200, response.text
-    return response.json(), selects
 
 
 async def test_connections_list_describes_each_connection_and_its_bank_accounts(client):
@@ -198,7 +181,7 @@ async def test_connections_list_runs_the_same_queries_however_many_connections_t
     everyday_id = await _create_usd_account(client, headers, "Everyday")
     now = datetime.now(UTC)
     await _commit_bank_connection(user_id, created_at=now - timedelta(days=3))
-    one_listed, one_selects = await _list_selects(client, headers)
+    one_listed, one_selects = await _get_with_selects(client, "/bank-sync/connections", headers)
     for days in (2, 1):
         connection = await _commit_bank_connection(user_id, created_at=now - timedelta(days=days))
         async with TestSession() as session:
@@ -210,7 +193,7 @@ async def test_connections_list_runs_the_same_queries_however_many_connections_t
                 session.add(_build_bank_link(await session.get(Account, everyday_id), connection, "ACT-1-0"))
             await session.commit()
 
-    three_listed, three_selects = await _list_selects(client, headers)
+    three_listed, three_selects = await _get_with_selects(client, "/bank-sync/connections", headers)
 
     assert len(one_listed) == 1
     assert [(len(connection["accounts"]), connection["discovery_pending"]) for connection in three_listed] == [(0, False), (3, True), (3, True)]

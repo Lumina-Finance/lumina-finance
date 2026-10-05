@@ -32,9 +32,13 @@ class OpenReviewKind(enum.StrEnum):
 # bank description is always shown read-only and can't be edited
 EditableBankField = Literal["date", "amount"]
 
+# The fields whose change opens a correction on an accepted record. A change to only the merchant
+# name or category hint updates the stored observation without one
+ReviewedBankField = Literal["date", "amount", "description"]
+
 
 # Every column a provider observation fills, which a dismissed record keeps none of
-_OBSERVATION_COLUMNS = (
+OBSERVATION_COLUMNS = (
     "observed_date",
     "observed_amount",
     "raw_amount",
@@ -92,7 +96,7 @@ class BankTransaction(Base):
         ),
         # A dismissed record keeps only its identity, enough to stay dismissed when the bank resends it
         CheckConstraint(
-            "disposition <> 'dismissed' OR (" + " AND ".join(f"{column} IS NULL" for column in _OBSERVATION_COLUMNS) + ")",
+            "disposition <> 'dismissed' OR (" + " AND ".join(f"{column} IS NULL" for column in OBSERVATION_COLUMNS) + ")",
             name="ck_bank_transactions_dismissed",
         ),
     )
@@ -126,7 +130,10 @@ class BankTransaction(Base):
     aligned_amount: Mapped[int | None] = mapped_column(BigInteger)
 
     # An open correction or removal and the fields it proposes, and the observation the user last
-    # declined with Keep current value, so the same proposal delivered again doesn't reopen review
+    # declined with Keep current value, so the same proposal delivered again doesn't reopen review.
+    # The proposed fields map each ReviewedBankField a correction changes to the bank's value
+    # before the change. The observation itself holds the proposal, and the ledger has no
+    # description column, so this is where the approved description is read from
     open_kind: Mapped[str | None] = mapped_column(VARCHAR(16))
     proposed_fields: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     declined_observation: Mapped[dict[str, Any] | None] = mapped_column(JSONB)

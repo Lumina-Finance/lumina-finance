@@ -3,13 +3,14 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.bank_connection import BankProvider
 from app.models.user import User
+from app.schemas.bank_review import BankReviewPageResponse
 from app.schemas.bank_sync import (
     BankAccountLinkResponse,
     BankConnectionResponse,
@@ -33,11 +34,15 @@ from app.services.bank_sync.links import (
     list_bank_accounts_for_account,
     unlink_account,
 )
+from app.services.bank_sync.review_items import REVIEW_PAGE_SIZE, list_review_items
 
 router = APIRouter(prefix="/bank-sync", tags=["bank-sync"])
 
 # An account's own link to a bank account, kept with the rest of bank sync rather than the account routes
 bank_link_router = APIRouter(prefix="/accounts/{account_id}/bank-link", tags=["bank-sync"])
+
+# The bank items waiting for the user to add, dismiss or decide
+review_router = APIRouter(prefix="/bank-review", tags=["bank-sync"])
 
 
 @router.get("/providers", response_model=BankProvidersResponse)
@@ -234,3 +239,26 @@ async def get_bank_import_range(
         The allowed range, its suggestions and the facts the start step shows beside them
     """
     return await get_import_range(db, user, account_id, provider)
+
+
+@review_router.get("/items", response_model=BankReviewPageResponse)
+async def list_bank_review_items(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    account_id: Annotated[uuid.UUID | None, Query()] = None,
+    cursor: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=REVIEW_PAGE_SIZE)] = REVIEW_PAGE_SIZE,
+):
+    """Return a page of the items waiting for review, newest first, with counts by kind
+
+    Args:
+        user: Authenticated user reviewing
+        db: Active database session
+        account_id: The one account whose items to list, or every account when left out
+        cursor: The cursor the previous page returned, left out for the first page
+        limit: The most items the page holds
+
+    Returns:
+        The page, the counts of every waiting item in scope, and the next page's cursor
+    """
+    return await list_review_items(db, user, account_id=account_id, cursor=cursor, limit=limit)
