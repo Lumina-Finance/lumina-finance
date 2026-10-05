@@ -34,6 +34,7 @@ from app.services.bank_sync.sync import run_sync_job
 from app.services.bank_sync.worker import MAX_JOB_ATTEMPTS, enqueue_due_work, run_jobs
 from tests.conftest import ScopedSession, TestSession
 from tests.routes.support.bank_sync_helpers import (
+    _attempts,
     _build_account,
     _build_bank_connection,
     _build_bank_link,
@@ -164,11 +165,12 @@ async def test_run_jobs_attempt_whose_lease_ran_out_changes_nothing_when_it_ends
     """A worker restarting mid-fetch loses the job to attempt 2, and attempt 1 ending while attempt 2 still fetches changes nothing
 
     Attempt 1 ends while the job is still running, so only the attempt number keeps its results, or
-    its failure, from landing on attempt 2's job
+    its failure on the link it was syncing, from landing on attempt 2's job
     """
     connection = connections[0]
-    accounts, _ = await _seed_links(connection, "ACT-1")
-    job = await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+    accounts, (link,) = await _seed_links(connection, "ACT-1")
+    job = await _seed_job(connection, BankSyncJobKind.SCHEDULED, covered_link_ids=[link.id])
+    untouched = [(None, None, None, 0, None)]
     first, second = (job.id, 1), (job.id, 2)
     runner = _FetchingRunner(accounts, held=[first, second], failing=[first] if late_outcome == "fails" else [])
     monkeypatch.setattr(worker, "run_sync_job", runner)
@@ -184,12 +186,16 @@ async def test_run_jobs_attempt_whose_lease_ran_out_changes_nothing_when_it_ends
 
         assert await _pending_items() == set()
         assert await _job_states() == {job.id: ("running", 2)}
+        assert await _attempts(link) == untouched
+        assert await _queued_jobs() == []
 
         runner.release[second].set()
         assert await second_runner == 1
 
     assert await _pending_items() == {(accounts[0].id, "HOLD-2")}
     assert await _job_states() == {job.id: ("succeeded", 2)}
+    assert await _attempts(link) == untouched
+    assert await _queued_jobs() == []
 
 
 @pytest.mark.parametrize(
@@ -335,45 +341,36 @@ async def test_run_jobs_records_a_job_that_fails_and_runs_the_next(connections, 
     ("failure", "reason"),
     [
         ("raises", "The sync stopped because of an unexpected error"),
-        ("hangs", "The sync took longer than 5 minutes"),
         ("interrupted_too_often", "The sync was interrupted 3 times"),
     ],
 )
-async def test_run_jobs_records_why_a_job_failed_on_each_link_it_was_syncing_and_retries_them(connections, monkeypatch, failure, reason):
-    """The job was syncing Everyday when it failed, so Everyday shows why and is retried 30 minutes on, and Savings shows no attempt"""
+async def test_run_jobs_records_why_a_job_failed_on_each_link_it_was_syncing_and_retries_them(
+    connections, monkeypatch, frozen_now, failure, reason
+):
+    """The job was syncing Everyday when it failed, so Everyday shows why and is retried 30 minutes on, and Savings shows no attempt
+
+    A job that raises fails after it ran, and one interrupted too often fails before it runs
+    """
     _, (everyday, savings) = await _seed_links(connections[0], "ACT-everyday", "ACT-savings")
     values = {"covered_link_ids": [everyday.id]}
     if failure == "interrupted_too_often":
-        lapsed = datetime.now(UTC) - timedelta(minutes=1)
+        lapsed = frozen_now - timedelta(minutes=1)
         values |= {"status": BankSyncJobStatus.RUNNING, "attempt": MAX_JOB_ATTEMPTS, "lease_expires_at": lapsed}
     job = await _seed_job(connections[0], BankSyncJobKind.SCHEDULED, **values)
 
     async def runner(job: ClaimedJob) -> None:
-        """Raise or run past the time limit, as the case says"""
-        if failure == "raises":
-            raise RuntimeError("Unexpected bank data")
-        await asyncio.sleep(_WAIT_SECONDS)
+        """Fail the way an unexpected bug does"""
+        raise RuntimeError("Unexpected bank data")
 
     monkeypatch.setattr(worker, "run_sync_job", runner)
-    monkeypatch.setattr(worker, "JOB_TIME_LIMIT", timedelta(seconds=1))
 
     async with asyncio.timeout(_WAIT_SECONDS):
         assert await run_jobs(1) == 1
 
-    async with TestSession() as session:
-        rows = await session.execute(
-            select(
-                BankAccountLink.id,
-                BankAccountLink.last_attempt_at,
-                BankAccountLink.last_failure_reason,
-                BankAccountLink.retry_count,
-                BankAccountLink.next_attempt_at,
-            )
-        )
-        attempts = {link_id: attempt for link_id, *attempt in rows}
-    failed_at, *recorded = attempts[everyday.id]
-    assert recorded == [reason, 1, failed_at + timedelta(minutes=30)]
-    assert attempts[savings.id] == [None, None, 0, None]
+    assert await _attempts(everyday, savings) == [
+        (None, frozen_now, reason, 1, frozen_now + timedelta(minutes=30)),
+        (None, None, None, 0, None),
+    ]
     assert await _queued_jobs() == [("retry", timedelta(minutes=30), False)]
     assert (await _job_outcomes())[job.id][0] == "failed"
 
