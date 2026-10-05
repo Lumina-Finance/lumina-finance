@@ -197,11 +197,14 @@ async def _pending_transactions(*columns) -> list[tuple]:
         return [tuple(row) for row in rows]
 
 
-async def _store_pending(link: BankAccountLink, external_transaction_id: str) -> None:
-    """Commit a pending item an earlier sync found for the link's account"""
+async def _store_pending(link: BankAccountLink, external_transaction_id: str, **values) -> None:
+    """Commit a pending item an earlier sync found for the link's account, as the shared builder makes it unless told otherwise"""
     async with TestSession() as session:
         account = await session.get(Account, link.account_id)
-        session.add(_build_pending_transaction(account, external_transaction_id))
+        item = _build_pending_transaction(account, external_transaction_id)
+        for field, value in values.items():
+            setattr(item, field, value)
+        session.add(item)
         await session.commit()
 
 
@@ -1429,27 +1432,37 @@ async def test_job_puts_no_pending_or_removed_record_in_the_review_inbox(connect
     assert await _bank_transactions(BankTransaction.external_transaction_id) == [("TRN-coffee",)]
 
 
-async def test_job_replaces_an_accounts_pending_items_with_those_still_pending_at_the_bank(connection, provider):
-    """By Tuesday's sync, a coffee pending at Everyday on Monday posted under a new ID and a hotel hold was dropped
+async def test_job_replaces_each_accounts_pending_items_with_those_still_pending_at_the_bank(connection, provider):
+    """A sync finds COFFEE, SHELL and a hotel hold pending at Everyday and a refund pending at Card, each kept for its own account
 
-    Only the fuel pending beside them on Monday is still pending, the coffee waits for review as a
-    booked item, and the hold leaves no review item behind
+    By the next sync the coffee posted under a new ID, the hotel hold was dropped and Card has nothing
+    pending any more. Only SHELL is still pending, the coffee waits for review as a booked item, and
+    neither the hold nor the refund leaves a review item behind
     """
-    await _link(connection, "ACT-everyday", **_synced_through_yesterday())
-    fuel = _pending_record("P-fuel", amount=-60_00, raw_amount="-60.00", description="SHELL 0412")
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    card = await _link(connection, "ACT-card", **_synced_through_yesterday())
+    shell = _pending_record("P-shell", amount=-60_00, raw_amount="-60.00", description="SHELL")
     hotel = _pending_record("P-hotel", amount=-200_00, raw_amount="-200.00", description="HARBOUR HOTEL")
+    refund = _pending_record("P-refund", amount=25_00, raw_amount="25.00", description="REFUND")
     provider.outcomes = [
-        _returned_with({"ACT-everyday": [_pending_record("P-coffee"), fuel, hotel]}),
-        _returned_with({"ACT-everyday": [fuel, _record("TRN-coffee", _TODAY)]}),
+        _returned_with({"ACT-everyday": [_pending_record("P-coffee", description="COFFEE"), shell, hotel], "ACT-card": [refund]}),
+        _returned_with({"ACT-everyday": [shell, _record("TRN-coffee", _TODAY, description="COFFEE")], "ACT-card": []}),
     ]
+    columns = (BankPendingTransaction.account_id, BankPendingTransaction.external_transaction_id, BankPendingTransaction.amount)
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
     await _run_jobs_until_none_is_due()
-    assert await _pending_transactions(BankPendingTransaction.external_transaction_id) == [("P-coffee",), ("P-fuel",), ("P-hotel",)]
+    after_the_first_sync = await _pending_transactions(*columns)
 
     await _seed_job(connection, BankSyncJobKind.MANUAL)
     await _run_jobs_until_none_is_due()
 
-    assert await _pending_transactions(BankPendingTransaction.external_transaction_id, BankPendingTransaction.amount) == [("P-fuel", -60_00)]
+    assert after_the_first_sync == [
+        (everyday.account_id, "P-coffee", -4_50),
+        (everyday.account_id, "P-hotel", -200_00),
+        (card.account_id, "P-refund", 25_00),
+        (everyday.account_id, "P-shell", -60_00),
+    ]
+    assert await _pending_transactions(*columns) == [(everyday.account_id, "P-shell", -60_00)]
     assert await _bank_transactions(BankTransaction.external_transaction_id, BankTransaction.disposition) == [
         ("TRN-coffee", BankTransactionDisposition.AWAITING_REVIEW)
     ]
@@ -1458,11 +1471,12 @@ async def test_job_replaces_an_accounts_pending_items_with_those_still_pending_a
 async def test_job_keeps_each_pending_record_from_the_import_start_on_once_as_the_bank_sent_it(connection, provider, frozen_now):
     """Everyday, imported from 3 October, keeps pending a fuel stop, a fee as the bank sent it and a coffee sent twice at its later amount
 
-    A hold from 2 October, before the import start, and a record the provider reports removed are left out
+    The fuel stop dates from 3 October itself, while a hold from 2 October, before the import start,
+    and a record the provider reports removed are left out
     """
     link = await _link(connection, "ACT-everyday", import_start=date(2026, 10, 3), checkpoint=date(2026, 10, 2))
     pending = [
-        _pending_record("P-fuel", amount=-72_10, raw_amount="-72.10", description="NORTHERN FUEL STOP"),
+        _pending_record("P-fuel", date(2026, 10, 3), amount=-72_10, raw_amount="-72.10", description="NORTHERN FUEL STOP"),
         _pending_record("P-fee", amount=None, raw_amount="-12.345", description="FX FEE"),
         _pending_record("P-coffee"),
         _pending_record("P-coffee", amount=-5_40, raw_amount="-5.40"),
@@ -1485,25 +1499,25 @@ async def test_job_keeps_each_pending_record_from_the_import_start_on_once_as_th
     ) == [
         (link.account_id, "P-coffee", _TODAY, -5_40, None, "POS 4411 COFFEE", frozen_now),
         (link.account_id, "P-fee", _TODAY, None, "-12.345", "FX FEE", frozen_now),
-        (link.account_id, "P-fuel", _TODAY, -72_10, None, "NORTHERN FUEL STOP", frozen_now),
+        (link.account_id, "P-fuel", date(2026, 10, 3), -72_10, None, "NORTHERN FUEL STOP", frozen_now),
     ]
 
 
 async def test_job_leaves_the_pending_items_of_bank_accounts_the_response_didnt_bring_back_whole(connection, provider):
-    """Savings has an error of its own, Card's bank login needs a sign-in and Travel didn't come back, so each keeps Monday's pending items
+    """Savings has an error of its own, Card's bank login needs a sign-in and Travel didn't come back, so each keeps the pending item it had
 
-    Everyday came back whole in the same response, so its items are replaced
+    Everyday came back whole in the same response, so its item is replaced
     """
     names = ("everyday", "savings", "card", "travel")
     links = {name: await _link(connection, f"ACT-{name}", **_synced_through_yesterday()) for name in names}
     for name, link in links.items():
-        await _store_pending(link, f"P-{name}-monday")
+        await _store_pending(link, f"P-{name}-before")
     provider.outcomes = [
         FetchResult(
             accounts=(
-                _bank_account("ACT-everyday", records=[_pending_record("P-everyday-tuesday")]),
-                _bank_account("ACT-savings", records=[_pending_record("P-savings-tuesday")]),
-                _bank_account("ACT-card", login_key="CON-card", records=[_pending_record("P-card-tuesday")]),
+                _bank_account("ACT-everyday", records=[_pending_record("P-everyday-now")]),
+                _bank_account("ACT-savings", records=[_pending_record("P-savings-now")]),
+                _bank_account("ACT-card", login_key="CON-card", records=[_pending_record("P-card-now")]),
             ),
             account_errors={"ACT-savings": ProviderError(ProviderErrorKind.TEMPORARY, "SimpleFIN Bridge reported a problem")},
             login_errors={"CON-card": ProviderError(ProviderErrorKind.BANK_LOGIN_NEEDED, "Sign in to your bank again")},
@@ -1514,10 +1528,10 @@ async def test_job_leaves_the_pending_items_of_bank_accounts_the_response_didnt_
     await _run_jobs_until_none_is_due()
 
     assert await _pending_transactions(BankPendingTransaction.account_id, BankPendingTransaction.external_transaction_id) == [
-        (links["card"].account_id, "P-card-monday"),
-        (links["everyday"].account_id, "P-everyday-tuesday"),
-        (links["savings"].account_id, "P-savings-monday"),
-        (links["travel"].account_id, "P-travel-monday"),
+        (links["card"].account_id, "P-card-before"),
+        (links["everyday"].account_id, "P-everyday-now"),
+        (links["savings"].account_id, "P-savings-before"),
+        (links["travel"].account_id, "P-travel-before"),
     ]
 
 
@@ -1534,7 +1548,7 @@ async def test_job_leaves_pending_items_alone_until_its_window_reaches_today(con
         "ACT-1",
         **_synced_through_yesterday(checkpoint=date(2026, 3, 31), last_success_at=datetime(2026, 3, 31, 9, tzinfo=_PHOENIX)),
     )
-    await _store_pending(link, "P-march")
+    await _store_pending(link, "P-march", transaction_date=date(2026, 3, 31), observed_at=datetime(2026, 3, 31, 9, tzinfo=_PHOENIX))
     # The provider holds the same pending record throughout, and sends it only to a fetch that asks for it
     provider.outcomes = [_returned_with({"ACT-1": [_pending_record("P-now", date(2026, 10, 3))]}) for _ in range(3)]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
