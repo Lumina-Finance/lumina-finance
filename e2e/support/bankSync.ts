@@ -5,7 +5,7 @@
  * reads that the instance can't yet produce, such as a transaction imported from a bank.
  */
 
-import { expect, type APIRequestContext, type Page } from '@playwright/test'
+import { expect, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import { asUser, todayInTestTimezone, type TestUser } from './api'
 import { API_BASE_URL, FAKE_SIMPLEFIN_BRIDGE_URL } from './target'
@@ -88,6 +88,29 @@ export function reviewItem(
 export function pageOf(items: ReviewItem[]): ReviewPage {
   const count = (kind: ReviewItemKind) => items.filter((item) => item.kind === kind).length
   return { items, counts: { new: count('new'), correction: count('correction'), removal: count('removal') }, next_cursor: null }
+}
+
+/**
+ * Answers the review list with what `answer` returns for the accounts and cursor asked for, all
+ * accounts being none, or fails it with the status returned. Nothing links an account on the server
+ * for a sync to bring items in
+ */
+export async function answerReviewItems(
+  page: Page,
+  answer: (accountIds: string[], cursor: string | null) => ReviewPage | number,
+): Promise<void> {
+  await page.route(isRead('/bank-review/items'), (route) => {
+    const url = new URL(route.request().url())
+    const answered = answer(url.searchParams.getAll('account_id'), url.searchParams.get('cursor'))
+    return typeof answered === 'number'
+      ? route.fulfill({ status: answered, json: { detail: 'Something went wrong' } })
+      : route.fulfill({ json: answered })
+  })
+}
+
+/** The block of bank items waiting for review above the transaction list */
+export function reviewBlock(page: Page): Locator {
+  return page.getByRole('region', { name: 'Waiting for review' })
 }
 
 /** A SimpleFIN transaction whose ledger values are still the bank's own */

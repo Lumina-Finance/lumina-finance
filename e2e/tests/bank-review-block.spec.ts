@@ -12,12 +12,13 @@ import { filterTransactions, logInViaApi, openPage } from '../support/app'
 import {
   answerAsBankImported,
   answerLinksWith,
+  answerReviewItems,
   BANK_SOURCE,
   isRead,
   pageOf,
+  reviewBlock,
   reviewItem,
   SEP_21,
-  type ReviewPage,
 } from '../support/bankSync'
 import { contrastOf, MIN_TEXT_CONTRAST, MINUS } from '../support/selectors'
 
@@ -31,20 +32,6 @@ import { contrastOf, MIN_TEXT_CONTRAST, MINUS } from '../support/selectors'
 type Backlog = { account_id: string; waiting_new_count: number; paused: boolean; review_warning: boolean }
 
 type Accounts = { user: TestUser; everyday: SeededAccount; visa: SeededAccount; savings: SeededAccount }
-
-/**
- * Answers the review list with what `answer` returns for the accounts and cursor asked for, all
- * accounts being none, or fails it with the status returned
- */
-async function answerReviewItems(page: Page, answer: (accountIds: string[], cursor: string | null) => ReviewPage | number): Promise<void> {
-  await page.route(isRead('/bank-review/items'), (route) => {
-    const url = new URL(route.request().url())
-    const answered = answer(url.searchParams.getAll('account_id'), url.searchParams.get('cursor'))
-    return typeof answered === 'number'
-      ? route.fulfill({ status: answered, json: { detail: 'Something went wrong' } })
-      : route.fulfill({ json: answered })
-  })
-}
 
 /** Answers the backlogs with what `answer` returns for the accounts asked for, all accounts being none */
 async function answerBacklogs(page: Page, answer: (accountIds: string[]) => Backlog[]): Promise<void> {
@@ -98,10 +85,6 @@ async function addUberTripAwaiting(page: Page, request: APIRequestContext, accou
 /** Follows a ledger row's Needs review marker to its waiting item */
 async function showWaitingItem(page: Page, transactionId: string): Promise<void> {
   await page.getByTestId(`transaction-row-${transactionId}`).getByRole('button', { name: 'Needs review. Show the waiting item' }).click()
-}
-
-function reviewBlock(page: Page): Locator {
-  return page.getByRole('region', { name: 'Waiting for review' })
 }
 
 test('shows each kind of item for the accounts the list shows, and only its own on an account page', async ({ page, request }) => {
