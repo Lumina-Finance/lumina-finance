@@ -73,6 +73,11 @@ function rowWith(markup: string, text: string): string {
   return rows[0]
 }
 
+/** The text a reader sees, without the markup that keeps parts of it together */
+function textOf(markup: string): string {
+  return markup.replace(/<[^>]+>/g, '')
+}
+
 describe('the closed strip', () => {
   it('counts the pending transactions and says they are outside the balance, listing none', () => {
     const markup = renderStrip([UBER, REFUND])
@@ -90,10 +95,10 @@ describe('the opened strip', () => {
     const markup = renderStrip([UBER, REFUND, HOTEL], { open: true })
 
     expect(markup).toMatch(/<button[^>]*aria-expanded="true"[^>]*aria-controls="[^"]+"/)
-    expect(rowWith(markup, 'UBER TRIP')).toContain('Sep 23 · Everyday · Pending · Checked 3 hours ago')
+    expect(textOf(rowWith(markup, 'UBER TRIP'))).toContain('Sep 23 · Everyday · Pending · Checked 3 hours ago')
     expect(rowWith(markup, 'UBER TRIP')).toContain(`>${MINUS}$18.00<`)
     expect(rowWith(markup, 'HARBOUR REFUND')).toContain('>+$42.50<')
-    expect(rowWith(markup, 'HOTEL HOLD')).toContain('Sep 20 · Visa · Pending · Checked 3 days ago')
+    expect(textOf(rowWith(markup, 'HOTEL HOLD'))).toContain('Sep 20 · Visa · Pending · Checked 3 days ago')
   })
 
   it('says inside the strip that they are outside the balance', () => {
@@ -111,6 +116,6 @@ describe('the opened strip', () => {
   })
 
   it("leaves the account's name off each row on its own page", () => {
-    expect(renderStrip([UBER], { open: true, showAccountNames: false })).toContain('Sep 23 · Pending · Checked 3 hours ago')
+    expect(textOf(renderStrip([UBER], { open: true, showAccountNames: false }))).toContain('Sep 23 · Pending · Checked 3 hours ago')
   })
 })

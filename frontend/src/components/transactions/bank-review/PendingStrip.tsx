@@ -127,7 +127,6 @@ export function BankPendingStrip({
                         formatReviewDate(transaction.date, today),
                         showAccountNames && account.name,
                         'Pending',
-                        `Checked ${formatRelativeTime(transaction.observed_at)}`,
                       ]
                       return (
                         <li key={transaction.id} className="px-4 sm:px-5">
@@ -139,6 +138,9 @@ export function BankPendingStrip({
                               </p>
                               <p className="mt-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
                                 {details.filter(Boolean).join(' · ')}
+                                {' · '}
+                                {/* The relative time stays whole, so a narrow row wraps before it rather than inside it */}
+                                <span className="whitespace-nowrap">Checked {formatRelativeTime(transaction.observed_at)}</span>
                               </p>
                             </div>
                             <span className="shrink-0 font-financial text-sm tabular-nums" style={{ color: 'var(--app-text-muted)' }}>
