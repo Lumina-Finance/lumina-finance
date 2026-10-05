@@ -140,7 +140,7 @@ async def lift_review_pauses(db: AsyncSession, owner_id: uuid.UUID, links: Seque
             link.next_attempt_at = now
             due.add(link.connection_id)
     for connection_id in sorted(due):
-        await enqueue_bank_sync_job(db, owner_id=owner_id, connection_id=connection_id, kind=BankSyncJobKind.SCHEDULED, run_after=now)
+        await enqueue_bank_sync_job(db, owner_id=owner_id, connection_id=connection_id, kind=BankSyncJobKind.SCHEDULED)
 
 
 async def read_review_backlogs(db: AsyncSession, account_ids: Collection[uuid.UUID]) -> dict[uuid.UUID, ReviewBacklog]:

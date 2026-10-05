@@ -16,7 +16,6 @@ from sqlalchemy import select, text, update
 
 from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
-from app.models.bank_sync_job import BankSyncJob
 from app.services.bank_sync.review_pause import ReviewBacklog, lift_review_pauses, lock_account_links, read_review_backlogs
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
@@ -26,6 +25,7 @@ from tests.routes.support.bank_sync_helpers import (
     _commit_waiting_items,
     _dismiss_items,
     _owner_session,
+    _queued_jobs,
 )
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
 from tests.services.bank_sync.stand_ins import FROZEN_NOW
@@ -66,15 +66,9 @@ async def _link_state(link: BankAccountLink) -> tuple[bool, datetime | None]:
         )
 
 
-async def _queued_jobs() -> list[tuple]:
-    """Return every job's kind, status and the time it may run from"""
-    async with TestSession() as session:
-        return [tuple(row) for row in await session.execute(select(BankSyncJob.kind, BankSyncJob.status, BankSyncJob.run_after))]
-
-
 @pytest.mark.parametrize(
     ("waiting", "paused", "next_attempt_at", "queued"),
-    [(51, True, _TOMORROW, []), (50, False, FROZEN_NOW, [("scheduled", "queued", FROZEN_NOW)])],
+    [(51, True, _TOMORROW, []), (50, False, FROZEN_NOW, [("scheduled", timedelta(0), False)])],
     ids=["51_waiting", "50_waiting"],
 )
 async def test_lift_review_pauses_lifts_at_50_new_items_waiting_and_queues_the_connections_sync_at_once(
@@ -146,7 +140,7 @@ async def test_lift_review_pauses_counts_once_a_sync_pausing_the_link_has_commit
         await reviewing
 
     assert await _link_state(link) == (False, FROZEN_NOW)
-    assert await _queued_jobs() == [("scheduled", "queued", FROZEN_NOW)]
+    assert await _queued_jobs() == [("scheduled", timedelta(0), False)]
 
 
 async def _backlog(link: BankAccountLink) -> ReviewBacklog:
