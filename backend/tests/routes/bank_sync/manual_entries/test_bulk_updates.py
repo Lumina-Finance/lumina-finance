@@ -10,6 +10,7 @@ from datetime import date
 from tests.routes.support.bank_sync_helpers import _record_bank_source
 from tests.routes.support.manual_entry_helpers import (
     IMPORT_START,
+    MOVE_REFUSED,
     SUPPLIED_IN_EVERYDAY,
     TODAY,
     _added_id,
@@ -19,8 +20,6 @@ from tests.routes.support.manual_entry_helpers import (
     _ledger,
     _unlink,
 )
-
-_MOVE_REFUSED_FROM_EVERYDAY = "Transactions from SimpleFIN can't move to another account while Everyday is linked"
 
 
 async def _bulk_edit(client, ledger: _Ledger, transaction_ids: list[str], **fields):
@@ -99,7 +98,7 @@ async def test_a_bulk_edit_may_redate_bank_imported_transactions_but_not_move_th
 
     assert redated.status_code == 200, redated.text
     assert moved.status_code == 422, moved.text
-    assert moved.json()["detail"] == _MOVE_REFUSED_FROM_EVERYDAY
+    assert moved.json()["detail"] == MOVE_REFUSED
     assert with_manual.status_code == 422, with_manual.text
     assert with_manual.json()["detail"] == SUPPLIED_IN_EVERYDAY
     assert await _dates_in(ledger.everyday_id) == [date(2026, 5, 1), date(2026, 8, 1), date(2026, 8, 1)]

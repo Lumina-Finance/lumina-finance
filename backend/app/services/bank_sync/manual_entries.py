@@ -88,14 +88,15 @@ async def refuse_edits_a_bank_supplies(db: AsyncSession, user: User, edits: Sequ
     Only a changed date or account is checked, so an edit leaving both alone saves wherever the
     transaction sits. A bank-imported transaction's date is the bank's to correct, so it is not
     checked while the transaction stays in its account. Moved out of an account no longer linked, it
-    is checked like any other transaction arriving in the account it moves to
+    is checked like any other transaction arriving in the account it moves to. A move out of a
+    linked account is refused naming that account, since the edit is about to leave it
 
     Args:
         db: Active database session
         user: The user editing, whose profile timezone sets today
         edits: Each edited transaction's account and date before the edit and once it applies
-        name_accounts: Whether a refusal names the account, for an edit that can cover more than
-            one, where "this account" wouldn't say which
+        name_accounts: Whether a refused date names the account, for an edit that can cover more
+            than one, where "this account" wouldn't say which
 
     Raises:
         HTTPException 422: A bank-imported transaction would leave its linked account, an edit
@@ -120,10 +121,9 @@ async def refuse_edits_a_bank_supplies(db: AsyncSession, user: User, edits: Sequ
             source_link = links.get(edit.account_id)
             if moved and source_link is not None:
                 provider_name = PROVIDER_ADAPTERS[source_link.provider].provider_name
-                account = source_link.account_name if name_accounts else "this account"
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=f"Transactions from {provider_name} can't move to another account while {account} is linked",
+                    detail=f"Transactions from {provider_name} can't move out of {source_link.account_name} while it's linked",
                 )
             if not moved:
                 continue

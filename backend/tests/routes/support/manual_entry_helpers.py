@@ -27,7 +27,9 @@ SUPPLIED = "SimpleFIN supplies this account's transactions from Jun 1, 2026 to t
 
 # A write that can cover several accounts names the one refused
 SUPPLIED_IN_EVERYDAY = "SimpleFIN supplies the transactions in Everyday from Jun 1, 2026 to today"
-MOVE_REFUSED = "Transactions from SimpleFIN can't move to another account while this account is linked"
+
+# A move is refused naming the account it would leave, for one transaction or several
+MOVE_REFUSED = "Transactions from SimpleFIN can't move out of Everyday while it's linked"
 
 # Either end of the range the bank supplies, and a day inside it
 INSIDE = [IMPORT_START, date(2026, 7, 12), TODAY]
