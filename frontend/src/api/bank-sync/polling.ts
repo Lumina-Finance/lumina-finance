@@ -44,10 +44,10 @@ export function getBankLinksStaleTime(links: BankLink[] | undefined): number {
 
 /**
  * How often an account's link is read while its page is open: quickly while its import runs, slowly
- * while the import waits on the request budget, and not at all otherwise
+ * while the import waits, and not at all otherwise
  */
 export function getAccountBankStatusPollInterval(status: AccountBankStatus | undefined): number | false {
   const state = status?.link?.import?.state;
   if (state === 'running') return BANK_LINKS_ACTIVE_POLL_MS;
-  return state === 'waiting_on_budget' ? BANK_LINKS_IDLE_POLL_MS : false;
+  return state === 'waiting' || state === 'waiting_on_budget' ? BANK_LINKS_IDLE_POLL_MS : false;
 }

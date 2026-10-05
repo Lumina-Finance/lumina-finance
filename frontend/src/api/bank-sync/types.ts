@@ -258,10 +258,12 @@ export type BankActionNeeded = {
 export type BankImportKind = 'initial' | 'relink' | 'choose_again' | 'reconnect';
 
 /**
- * Where an import stands. One waiting on the connection's request budget is not running, and its
- * link's `next_attempt_at` says when its next part can
+ * Where an import stands. It runs only while its next part can be fetched now. It waits while a
+ * failed attempt waits to retry, the bank needs a sign-in, or the provider refused the connection's
+ * credential, and waits on the budget until the connection's request budget frees a request, when
+ * its link's `next_attempt_at` says when its next part can
  */
-export type BankImportState = 'running' | 'waiting_on_budget' | 'complete';
+export type BankImportState = 'running' | 'waiting' | 'waiting_on_budget' | 'complete';
 
 /**
  * Progress of the import that runs when an account is linked or reconnected, which always

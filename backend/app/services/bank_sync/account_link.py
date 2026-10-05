@@ -18,11 +18,13 @@ from app.schemas.bank_sync import (
     AccountBankLinkResponse,
     AccountBankStatusResponse,
     BankImportProgressResponse,
+    BankImportState,
     PreviousBankLinkResponse,
 )
 from app.services.accounts.access import get_own_personal_account
 from app.services.bank_sync.availability import LINK_NOT_OWN_DETAIL, LIVE_LINK, PROVIDER_ADAPTERS
 from app.services.bank_sync.provider_requests import read_request_budget
+from app.services.bank_sync.retries import is_waiting_to_retry
 from app.services.bank_sync.windows import LinkNeed, plan_window
 from app.utils.dates import resolve_timezone
 
@@ -103,16 +105,27 @@ async def _read_import_progress(db: AsyncSession, user: User, link: BankAccountL
         select(func.count()).where(BankTransaction.account_id == link.account_id, BankTransaction.received_at >= link.linked_at)
     )
     connection = await db.get_one(BankConnection, link.connection_id)
-    budget = await read_request_budget(db, connection, now=now)
     return BankImportProgressResponse(
         kind=link.import_kind,
-        state="running" if budget.available_again_at is None else "waiting_on_budget",
+        state=await _read_import_state(db, link, connection, now=now),
         requested_start=link.import_start,
         windows_total=windows_total,
         windows_done=windows_done,
         items_found=items_found,
         earliest_returned_date=link.earliest_booked_date,
     )
+
+
+async def _read_import_state(db: AsyncSession, link: BankAccountLink, connection: BankConnection, *, now: datetime) -> BankImportState:
+    """Return whether a link's import can fetch its next part now, or what holds it back
+
+    A failed attempt waiting to retry, a bank that needs a sign-in and a refused credential each hold
+    it until something changes, and a spent budget until a request frees up
+    """
+    if is_waiting_to_retry(link) or link.signin_needed_since is not None or connection.credential_rejected_at is not None:
+        return "waiting"
+    budget = await read_request_budget(db, connection, now=now)
+    return "running" if budget.available_again_at is None else "waiting_on_budget"
 
 
 def _count_windows(link: BankAccountLink, *, today: date, timezone: ZoneInfo, max_days: int) -> tuple[int, int]:

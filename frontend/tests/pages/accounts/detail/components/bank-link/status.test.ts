@@ -35,8 +35,10 @@ describe('describeBankSync', () => {
     const running = createStatus({ link: createLink({ import: createImport() }) })
     expect(describeBankSync(true, running, false)).toEqual({ label: 'Importing · 1 of 2', tone: 'working', pulse: true })
 
-    const waiting = createStatus({ link: createLink({ import: createImport({ state: 'waiting_on_budget' }) }) })
-    expect(describeBankSync(true, waiting, false)).toEqual({ label: 'Importing · 1 of 2', tone: 'working', pulse: false })
+    for (const state of ['waiting', 'waiting_on_budget'] as const) {
+      const waiting = createStatus({ link: createLink({ import: createImport({ state }) }) })
+      expect(describeBankSync(true, waiting, false)).toEqual({ label: 'Importing · 1 of 2', tone: 'working', pulse: false })
+    }
   })
 
   it('labels a link with no import running as linked', () => {

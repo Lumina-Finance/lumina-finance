@@ -68,8 +68,9 @@ describe('bank link freshness', () => {
 });
 
 describe("an account's link polling interval", () => {
-  it('polls quickly while its import runs and slowly while the import waits on the request budget', () => {
+  it('polls quickly while its import runs and slowly while the import waits', () => {
     expect(getAccountBankStatusPollInterval(createImportingAccountStatus('running'))).toBe(BANK_LINKS_ACTIVE_POLL_MS);
+    expect(getAccountBankStatusPollInterval(createImportingAccountStatus('waiting'))).toBe(BANK_LINKS_IDLE_POLL_MS);
     expect(getAccountBankStatusPollInterval(createImportingAccountStatus('waiting_on_budget'))).toBe(BANK_LINKS_IDLE_POLL_MS);
   });
 

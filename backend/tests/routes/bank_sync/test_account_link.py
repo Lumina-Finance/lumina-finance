@@ -5,21 +5,21 @@ to, and only for the user's own personal accounts, as linking does
 """
 
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy import select, update
 
 from app.models.account import Account
-from app.models.bank_connection import BankAccountLink, BankImportKind, BankLinkState
+from app.models.bank_connection import BankAccountLink, BankConnection, BankImportKind, BankLinkState
 from app.services.bank_sync import account_link, import_range, links
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     _build_bank_link,
-    _build_bank_transaction,
     _commit_listed_connection,
     _commit_other_users_account,
+    _commit_review_item,
     _link,
     _new_account,
     _new_group_account,
@@ -41,11 +41,18 @@ async def _read_status(client, headers, account_id):
     return await client.get(f"/accounts/{account_id}/bank-link", headers=headers)
 
 
-async def _commit_bank_transactions(account_id: str, *external_ids: str) -> None:
-    """Commit a bank transaction waiting for review on the account under each id, received now"""
+async def _commit_link(account_id: str, connection: BankConnection, external_account_id: str = "ACT-1", **values) -> None:
+    """Commit an active link from the account to a bank account on the connection, with any of its values replaced"""
     async with TestSession() as session:
         account = await session.get_one(Account, uuid.UUID(account_id))
-        session.add_all([_build_bank_transaction(account, external_id) for external_id in external_ids])
+        session.add(_build_bank_link(account, connection, external_account_id, **values))
+        await session.commit()
+
+
+async def _update_connection(connection: BankConnection, **values) -> None:
+    """Commit new values on the connection"""
+    async with TestSession() as session:
+        await session.execute(update(BankConnection).where(BankConnection.id == connection.id).values(**values))
         await session.commit()
 
 
@@ -57,10 +64,11 @@ async def test_account_bank_link_shows_its_imports_progress(client):
     headers, user_id = await _sign_up(client)
     account_id = await _new_account(client, headers, "Everyday")
     connection = await _commit_listed_connection(user_id, discovered_at=_NOW)
-    await _commit_bank_transactions(account_id, "TRN-before")
+    await _commit_review_item(account_id, "TRN-before")
     linked = await _link(client, headers, account_id, connection.id, start_date=date(2026, 6, 1))
     assert linked.status_code == 201, linked.text
-    await _commit_bank_transactions(account_id, "TRN-1", "TRN-2")
+    await _commit_review_item(account_id, "TRN-1")
+    await _commit_review_item(account_id, "TRN-2")
     async with TestSession() as session:
         await session.execute(
             update(BankAccountLink)
@@ -98,6 +106,79 @@ async def test_account_bank_link_shows_its_imports_progress(client):
         },
         "previous_link": None,
     }
+
+
+async def test_account_bank_link_counts_only_its_own_accounts_items(client):
+    """Two accounts importing from one connection each count the items received for them alone"""
+    headers, user_id = await _sign_up(client)
+    everyday_id = await _new_account(client, headers, "Everyday")
+    savings_id = await _new_account(client, headers, "Savings")
+    connection = await _commit_listed_connection(user_id, "ACT-1", "ACT-2", discovered_at=_NOW)
+    assert (await _link(client, headers, everyday_id, connection.id, "ACT-1")).status_code == 201
+    assert (await _link(client, headers, savings_id, connection.id, "ACT-2")).status_code == 201
+    await _commit_review_item(everyday_id, "TRN-1")
+    await _commit_review_item(savings_id, "TRN-2")
+    await _commit_review_item(savings_id, "TRN-3")
+
+    everyday = await _read_status(client, headers, everyday_id)
+    savings = await _read_status(client, headers, savings_id)
+
+    assert everyday.status_code == 200, everyday.text
+    assert everyday.json()["link"]["import"]["items_found"] == 1
+    assert savings.status_code == 200, savings.text
+    assert savings.json()["link"]["import"]["items_found"] == 2
+
+
+@pytest.mark.parametrize(
+    ("link_values", "connection_values", "state"),
+    [
+        pytest.param({"retry_count": 1, "next_attempt_at": _NOW + timedelta(minutes=30)}, {}, "waiting", id="retry-pending"),
+        pytest.param({"signin_needed_since": _NOW}, {}, "waiting", id="signin-needed"),
+        pytest.param({}, {"credential_rejected_at": _NOW}, "waiting", id="credential-rejected"),
+        pytest.param({}, {"request_budget_spent_until": _NOW + timedelta(hours=1)}, "waiting_on_budget", id="budget-spent"),
+    ],
+)
+async def test_account_bank_link_import_reads_as_waiting_while_it_cant_fetch_now(client, link_values, connection_values, state):
+    """An import only runs while its next part can be fetched now, so a stall reads as waiting rather than running"""
+    headers, user_id = await _sign_up(client)
+    account_id = await _new_account(client, headers, "Everyday")
+    connection = await _commit_listed_connection(user_id, discovered_at=_NOW)
+    await _commit_link(account_id, connection, **link_values)
+    if connection_values:
+        await _update_connection(connection, **connection_values)
+
+    response = await _read_status(client, headers, account_id)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["link"]["import"]["state"] == state
+
+
+async def test_account_bank_link_shows_no_progress_once_its_import_ends(client):
+    """A first link whose import reached today has nothing left to show progress for"""
+    headers, user_id = await _sign_up(client)
+    account_id = await _new_account(client, headers, "Everyday")
+    connection = await _commit_listed_connection(user_id, discovered_at=_NOW)
+    await _commit_link(account_id, connection, importing=False)
+
+    response = await _read_status(client, headers, account_id)
+
+    assert response.status_code == 200, response.text
+    link = response.json()["link"]
+    assert (link["state"], link["import"]) == ("active", None)
+
+
+async def test_account_bank_link_names_the_latest_of_its_previous_links(client):
+    """An account unlinked twice names the bank account it followed last"""
+    headers, user_id = await _sign_up(client)
+    account_id = await _new_account(client, headers, "Everyday")
+    connection = await _commit_listed_connection(user_id, "ACT-1", "ACT-2", discovered_at=_NOW)
+    await _commit_link(account_id, connection, "ACT-1", state=BankLinkState.UNLINKED, unlinked_at=_NOW - timedelta(days=9))
+    await _commit_link(account_id, connection, "ACT-2", state=BankLinkState.UNLINKED, unlinked_at=_NOW - timedelta(days=1))
+
+    response = await _read_status(client, headers, account_id)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["previous_link"]["external_account_id"] == "ACT-2"
 
 
 async def test_account_bank_link_after_an_unlink_shows_what_it_was_linked_to(client):

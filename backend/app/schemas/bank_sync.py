@@ -10,6 +10,11 @@ from app.models.bank_connection import BankImportKind, BankLinkState, BankProvid
 from app.models.bank_transaction import EditableBankField
 from app.schemas.names import TrimmedName
 
+# Running only while an import's next part can be fetched now. Waiting while a failed attempt waits
+# to retry, the bank needs a sign-in, or the provider refused the connection's credential, and
+# waiting on the budget until the connection's daily request budget frees a request
+BankImportState = Literal["running", "waiting", "waiting_on_budget"]
+
 
 class SetupTokenRequest(BaseModel):
     """A request body carrying a setup token, which no refusal of the body may repeat"""
@@ -263,8 +268,7 @@ class BankImportProgressResponse(BaseModel):
 
     kind: BankImportKind
 
-    # Waiting on the budget until the connection's daily request budget frees a request for its next part
-    state: Literal["running", "waiting_on_budget"]
+    state: BankImportState
     requested_start: date
 
     # The windows a fetch of the days from the requested start through today splits into, and how
