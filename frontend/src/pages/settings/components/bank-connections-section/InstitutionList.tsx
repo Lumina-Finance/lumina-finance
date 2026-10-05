@@ -55,6 +55,13 @@ interface BankAccountRowProps {
   bankAccount: ConnectionBankAccount
   canLink: boolean
 
+  /**
+   * Set when its institution would go over the limit. The server then offers no account for it, so the
+   * row keeps its disabled dropdown, which the institution's note explains, rather than saying no
+   * account could take it
+   */
+  overLimit: boolean
+
   /** Holds the dropdown with the reason while bank sync is down */
   linkingPaused: boolean
 
@@ -70,7 +77,7 @@ interface BankAccountRowProps {
  * where it goes, or offers the accounts the server says could take it in a dropdown. Choosing one
  * opens the link flow at its start step
  */
-function BankAccountRow({ bankAccount, canLink, linkingPaused, linking, accountNameFor, onLink }: BankAccountRowProps) {
+function BankAccountRow({ bankAccount, canLink, overLimit, linkingPaused, linking, accountNameFor, onLink }: BankAccountRowProps) {
   const prefersReducedMotion = useReducedMotion()
   const nameId = useId()
   const linkedId = bankAccount.linked_account_id
@@ -118,7 +125,7 @@ function BankAccountRow({ bankAccount, canLink, linkingPaused, linking, accountN
                     <span className="app-spinner h-4 w-4 shrink-0" aria-hidden />
                     Linking…
                   </span>
-                ) : targets.length === 0 ? (
+                ) : targets.length === 0 && !overLimit ? (
                   // Plain text rather than an empty, disabled dropdown, whose faded text would be unreadable
                   <span className={`${TILE_CLASS} border`} style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}>
                     No account can take it
@@ -305,6 +312,7 @@ export function InstitutionList({
         <BankAccountRow
           bankAccount={bankAccount}
           canLink={isActive && !group.overLimit}
+          overLimit={group.overLimit}
           linkingPaused={linkingPaused}
           linking={linkingExternalId === bankAccount.external_id}
           accountNameFor={accountNameFor}

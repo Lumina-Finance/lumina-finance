@@ -76,16 +76,20 @@ function toast(page: Page, text: string): Locator {
 }
 
 /**
- * Answers the app's read of the bank providers with the server's own answer, changed as a test needs
+ * Answers the app's read of a bank sync route with the server's own answer, changed as a test needs
  * to stand for a deployment set up otherwise
  */
-async function changeProviders(page: Page, change: (body: { may_link: boolean; sync_running: boolean; providers: Record<string, unknown>[] }) => void): Promise<void> {
-  await page.route(`${API_BASE_URL}/bank-sync/providers`, async (route) => {
+async function changeAnswer<T>(page: Page, path: string, change: (body: T) => void): Promise<void> {
+  await page.route(`${API_BASE_URL}${path}`, async (route) => {
     const response = await route.fetch()
     const body = await response.json()
     change(body)
     await route.fulfill({ response, json: body })
   })
+}
+
+async function changeProviders(page: Page, change: (body: { may_link: boolean; sync_running: boolean; providers: Record<string, unknown>[] }) => void): Promise<void> {
+  await changeAnswer(page, '/bank-sync/providers', change)
 }
 
 test('adds a connection with a nickname and lists it with its bank accounts', async ({ page, request }) => {
@@ -463,6 +467,10 @@ test('counts institutions against a limit and stops linking a new one once it is
     body.providers[0].institution_limit = 1
     body.providers[0].institutions_in_use = ['Northshore Bank']
   })
+  // With the limit reached, the server offers no account for a bank account at a new institution
+  await changeAnswer<{ accounts: { eligible_account_ids: string[] }[] }[]>(page, '/bank-sync/connections', (connections) => {
+    for (const bankAccount of connections.flatMap((connection) => connection.accounts)) bankAccount.eligible_account_ids = []
+  })
   const section = await openBankConnections(page, user)
   const dialog = await openConnection(page, section, 'SimpleFIN')
 
@@ -470,6 +478,7 @@ test('counts institutions against a limit and stops linking a new one once it is
   const harbour = dialog.getByRole('region', { name: SAMPLE_BANK })
   await expect(harbour).toContainText('Linking here would go over your limit of 1 institution.')
   await expect(harbour.getByRole('combobox', { name: SAMPLE_CHEQUING })).toBeDisabled()
+  await expect(harbour.getByText('No account can take it')).toHaveCount(0)
 })
 
 test("holds adding and linking back with the reason while bank sync isn't running, leaving the other actions", async ({ page, request }) => {
