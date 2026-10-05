@@ -17,12 +17,8 @@ import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { WarningCallout } from '@/components/WarningCallout'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
-import {
-  connectionName,
-  describeConnected,
-  describeReconnected,
-  providerSite,
-} from '@/pages/settings/components/bank-connections-section/utils'
+import { describeConnected, describeReconnected } from '@/pages/settings/components/bank-connections-section/utils'
+import { connectionName, providerSite } from '@/utils/bankSync'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
 
 const FIELD_IDS = {

@@ -10,7 +10,8 @@ import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
 import { useBankItemScope } from '@/components/transactions/hooks/useBankItemScope'
 import { useInfiniteScrollTrigger } from '@/components/transactions/hooks/useInfiniteScrollTrigger'
 import { useSkipAppendedEnter } from '@/components/transactions/hooks/useSkipAppendedEnter'
-import { describeBacklogNotice, findNextNewItem, isOwnPersonalAccount } from '@/components/transactions/utils/bankReview'
+import { describeBacklogNotice, findNextNewItem } from '@/components/transactions/utils/bankReview'
+import { isOwnPersonalAccount } from '@/utils/bankSync'
 
 // How long a row stays ringed after a Needs review marker went to it
 const JUMP_HIGHLIGHT_MS = 1800

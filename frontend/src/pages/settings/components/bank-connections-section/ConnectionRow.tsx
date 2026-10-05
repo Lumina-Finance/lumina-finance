@@ -11,7 +11,8 @@ import {
   CONNECTION_ROW_INITIAL,
   CONNECTION_ROW_TRANSITION,
 } from '@/pages/settings/components/bank-connections-section/constants'
-import { connectionName, countLinkedBankAccounts, describeConnectionStatus } from '@/pages/settings/components/bank-connections-section/utils'
+import { countLinkedBankAccounts, describeConnectionStatus } from '@/pages/settings/components/bank-connections-section/utils'
+import { connectionName } from '@/utils/bankSync'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
 
 interface ConnectionRowProps {

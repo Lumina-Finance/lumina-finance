@@ -5,7 +5,7 @@ import { ApiError } from '@/api/auth'
 import { CONNECTION_NICKNAME_MAX_LENGTH, useRenameBankConnection, type BankConnection } from '@/api/bank-sync'
 import { useToast } from '@/hooks/useToast'
 import { EASE } from '@/pages/settings/components/bank-connections-section/constants'
-import { connectionName } from '@/pages/settings/components/bank-connections-section/utils'
+import { connectionName } from '@/utils/bankSync'
 
 // Crossfades the title and its field so neither snaps in, as a passkey's rename does
 const FIELD_TRANSITION = { duration: 0.18, ease: EASE }

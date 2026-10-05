@@ -10,13 +10,12 @@ import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { EASE } from '@/pages/settings/components/bank-connections-section/constants'
 import {
-  countNoun,
   describeMismatch,
   groupInstitutions,
   matchesInstitutionSearch,
-  providerSite,
   type AccountNameLookup,
 } from '@/pages/settings/components/bank-connections-section/utils'
+import { countNoun, providerSite } from '@/utils/bankSync'
 
 // Stacked on phones, bank account then account; side by side with an arrow between them from tablets up
 const MAPPING_ROW_CLASS = 'flex flex-col gap-2 py-2.5 min-[750px]:grid min-[750px]:grid-cols-[minmax(0,1fr)_1rem_minmax(0,1fr)] min-[750px]:items-center min-[750px]:gap-3'

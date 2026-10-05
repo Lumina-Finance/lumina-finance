@@ -7,6 +7,7 @@ import {
   type BankReviewItemKind,
   type CorrectableBankField,
 } from '@/api/bank-sync'
+import { isOwnPersonalAccount } from '@/utils/bankSync'
 import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
 import { formatExactMovedAmount } from '@/utils/formatCurrency'
 
@@ -144,14 +145,6 @@ export function describeBacklogNotice(backlogs: BankReviewBacklog[], accounts: R
     return { tone: 'warning', text: `${list(warned)}. Sync pauses at ${REVIEW_PAUSE_COUNT}.` }
   }
   return null
-}
-
-/**
- * Whether an account is the user's own personal account, the only kind bank items are listed for. A
- * group account, even for its admin, and one shared with the user aren't
- */
-export function isOwnPersonalAccount(account: Pick<AccountsOverview, 'owner_id' | 'group_id'>, userId: string): boolean {
-  return account.owner_id === userId && account.group_id === null
 }
 
 /**

@@ -12,7 +12,7 @@ import { formatCurrencySymbol } from '@/utils/formatCurrency'
 import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent } from '@/utils/moneyInput'
 import { useAuth } from '@/hooks/useAuth'
 import { getTodayYmd } from '@/utils/date'
-import { isOwnPersonalAccount } from '@/components/transactions/utils/bankReview'
+import { isOwnPersonalAccount } from '@/utils/bankSync'
 import {
   APP_EASE_OUT,
   KIND_LABELS,

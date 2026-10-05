@@ -10,7 +10,6 @@ import {
   countLinkedBankAccounts,
   describeConnected,
   describeConnectionStatus,
-  describeDisconnected,
   describeInstitutionAllowance,
   describeMismatch,
   describeReconnected,
@@ -20,6 +19,7 @@ import {
   matchesConnectionSearch,
   matchesInstitutionSearch,
 } from '@/pages/settings/components/bank-connections-section/utils'
+import { describeDisconnected } from '@/utils/bankSync'
 
 function bankAccount(overrides: Partial<ConnectionBankAccount>): ConnectionBankAccount {
   return {

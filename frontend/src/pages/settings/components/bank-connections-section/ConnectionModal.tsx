@@ -16,14 +16,13 @@ import { InstitutionList, InstitutionRow } from '@/pages/settings/components/ban
 import { NicknameTitle } from '@/pages/settings/components/bank-connections-section/NicknameTitle'
 import {
   countLinkedBankAccounts,
-  countNoun,
   describeConnectionStatus,
-  describeDisconnected,
   describeInstitutionAllowance,
   describeRequestBudget,
   describeSignInDetail,
   type AccountNameLookup,
 } from '@/pages/settings/components/bank-connections-section/utils'
+import { countNoun, describeDisconnected } from '@/utils/bankSync'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
 
 /**
