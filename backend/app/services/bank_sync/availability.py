@@ -9,7 +9,6 @@ import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from enum import StrEnum
 
 from fastapi import HTTPException, status
 from sqlalchemy import exists, func, select
@@ -17,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.bank_sync import BANK_SYNC_SIMPLEFIN_ENABLED, BANK_SYNC_SIMPLEFIN_OFFERED
 from app.models.account import Account
-from app.models.bank_connection import BankAccountLink, BankExternalAccount, BankLinkState, BankProvider
+from app.models.bank_connection import BankAccountLink, BankExternalAccount, BankLinkState, BankProvider, UnavailableReason
 from app.models.user import User
 from app.schemas.bank_sync import BankProviderResponse, BankProvidersResponse
 from app.services.accounts.access import own_personal_account_condition
@@ -46,15 +45,6 @@ _LIVE_LINK = BankAccountLink.state != BankLinkState.UNLINKED
 
 # Why a visible account the user doesn't own alone, such as a group account, can't be linked
 LINK_NOT_OWN_DETAIL = "Accounts shared with a group can't be linked to a bank yet"
-
-
-class UnavailableReason(StrEnum):
-    """Why a bank account can't be linked to a given Lumina account"""
-
-    ALREADY_LINKED = "already_linked"
-    CURRENCY_MISMATCH = "currency_mismatch"
-    CUSTOM_CURRENCY = "custom_currency"
-    INSTITUTION_LIMIT = "institution_limit"
 
 
 @dataclass(frozen=True)
@@ -147,6 +137,26 @@ async def get_institution_allowance(db: AsyncSession, user_id: uuid.UUID, provid
         .group_by(BankExternalAccount.institution_key)
     )
     return InstitutionAllowance(limit=get_institution_limit(user_id, provider), in_use=dict(in_use.all()))
+
+
+async def read_linked_bank_accounts(db: AsyncSession, user_id: uuid.UUID) -> dict[tuple[str, str], tuple[uuid.UUID, str]]:
+    """Return the account each of the user's linked bank accounts feeds
+
+    A bank account feeds one ledger per user, so a link made through any connection counts
+
+    Args:
+        db: Active database session
+        user_id: User linking bank accounts
+
+    Returns:
+        The linked account's id and name, by the bank account's provider and external id
+    """
+    links = await db.execute(
+        select(BankAccountLink.provider, BankAccountLink.external_account_id, Account.id, Account.name)
+        .join(Account, Account.id == BankAccountLink.account_id)
+        .where(BankAccountLink.owner_id == user_id, _LIVE_LINK)
+    )
+    return {(provider, external_id): (account_id, name) for provider, external_id, account_id, name in links}
 
 
 async def list_link_candidates(db: AsyncSession, user_id: uuid.UUID) -> list[Account]:

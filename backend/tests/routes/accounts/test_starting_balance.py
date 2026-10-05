@@ -26,6 +26,7 @@ from tests.routes.support import (
     _get_system_merchant_id,
     _record_starting_balance,
 )
+from tests.routes.support.lock_helpers import _wait_until_waiting_on
 
 # The zone every test signup stores, whose evening is already the next day in UTC
 USER_TZ = "America/Toronto"
@@ -45,19 +46,6 @@ async def _account_transactions(account_id: str):
                 .order_by(Transaction.dt, Transaction.created_at),
             )
         ).all()
-
-
-async def _wait_until_waiting_on(blocker_pid: int, request: asyncio.Task):
-    """Wait until a backend waits on a lock the blocker holds, or the request has already answered"""
-    async with asyncio.timeout(5), TestSession() as observer:
-        while not request.done():
-            is_waiting = await observer.scalar(
-                text("SELECT EXISTS (SELECT 1 FROM pg_locks WHERE NOT granted AND :pid = ANY(pg_blocking_pids(pid)))"),
-                {"pid": blocker_pid},
-            )
-            if is_waiting:
-                return
-            await asyncio.sleep(0.01)
 
 
 async def test_record_starting_balance_writes_it_once_on_the_users_day(client, monkeypatch):

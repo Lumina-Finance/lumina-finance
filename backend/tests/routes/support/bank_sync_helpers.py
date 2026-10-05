@@ -4,12 +4,13 @@ Tests build bank sync records directly, so each starts from exactly the state it
 returns an unsaved row with the fields every test needs, for the caller to add to whichever session
 it is testing through. Rows other rows point at get their id up front, so a dependent row can be
 built before the first is flushed, though each level still has to be flushed before the next.
-Route tests sign up through the API, and record a bank source on a transaction they created there.
+Route tests sign up and link accounts through the API, and record a bank source on a transaction they created there.
 Jobs are committed, since the worker reaches them through sessions of its own
 """
 
 import uuid
 from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, update
 
@@ -31,7 +32,8 @@ from app.models.currency import Currency
 from app.models.transaction import Transaction
 from app.models.user import User
 from tests.conftest import TestSession
-from tests.routes.support.auth_helpers import _create_user, _get_auth_header
+from tests.routes.support.account_helpers import _create_account
+from tests.routes.support.auth_helpers import SIGNUP_PAYLOAD, _create_user, _get_auth_header
 
 BANK_ACCOUNT_ID = "ACT-1"
 LINK_START = date(2026, 9, 1)
@@ -97,6 +99,39 @@ async def _commit_bank_connection(
         session.add(connection)
         await session.commit()
     return connection
+
+
+async def _commit_listed_connection(owner_id: uuid.UUID, *external_ids: str, discovered_at: datetime | None = None) -> BankConnection:
+    """Commit a SimpleFIN connection listing a CAD chequing account at Harbour Bank under each external id
+
+    It lists BANK_ACCOUNT_ID when given no id, and was never discovered unless told when
+    """
+    async with TestSession() as session:
+        connection = _build_bank_connection(owner_id)
+        connection.discovered_at = discovered_at
+        session.add(connection)
+        await session.flush()
+        session.add_all([_build_external_account(connection, external_id) for external_id in external_ids or (BANK_ACCOUNT_ID,)])
+        await session.commit()
+    return connection
+
+
+async def _new_account(client, headers, name: str, **fields) -> str:
+    """Create a CAD account through the API and return its id"""
+    created = await _create_account(client, headers, name=name, **fields)
+    assert created.status_code == 201, created.text
+    return created.json()["id"]
+
+
+async def _link(client, headers, account_id, connection_id, external_account_id: str = BANK_ACCOUNT_ID, *, start_date: date | None = None):
+    """Link an account to a bank account through the route, from 30 days before the user's today unless told otherwise"""
+    if start_date is None:
+        start_date = datetime.now(ZoneInfo(SIGNUP_PAYLOAD["tz"])).date() - timedelta(days=30)
+    return await client.post(
+        f"/accounts/{account_id}/bank-link",
+        json={"connection_id": str(connection_id), "external_account_id": external_account_id, "start_date": start_date.isoformat()},
+        headers=headers,
+    )
 
 
 def _build_external_account(connection: BankConnection, external_id: str = BANK_ACCOUNT_ID) -> BankExternalAccount:

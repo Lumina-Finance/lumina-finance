@@ -14,12 +14,12 @@ from app.models.bank_connection import BankProvider
 from app.services.bank_sync import availability
 from app.services.bank_sync.import_range import calculate_import_range
 from tests.conftest import TestSession
-from tests.routes.support import _create_account
 from tests.routes.support.bank_sync_helpers import (
     _build_account,
     _build_category,
     _build_ledger_transaction,
     _build_user,
+    _new_account,
     _sign_up,
 )
 
@@ -32,17 +32,10 @@ async def _read_range(client, headers, account_id, provider: str = "simplefin"):
     return await client.get(f"/accounts/{account_id}/bank-link/import-range", params={"provider": provider}, headers=headers)
 
 
-async def _own_account(client, headers) -> str:
-    """Create a personal account through the API and return its id"""
-    created = await _create_account(client, headers, currency="USD")
-    assert created.status_code == 201, created.text
-    return created.json()["id"]
-
-
 async def test_import_range_route_answers_in_the_users_timezone(client):
     """An account whose latest transaction is 40 days old gets SimpleFIN's 12-month range, floored the day after it"""
     headers, user_id = await _sign_up(client)
-    account_id = await _own_account(client, headers)
+    account_id = await _new_account(client, headers, "Everyday")
     before = datetime.now(_USER_TZ).date()
     latest = before - timedelta(days=40)
     async with TestSession() as session:
@@ -68,10 +61,9 @@ async def test_import_range_of_a_group_account_is_refused_to_its_admin(client):
     headers, _ = await _sign_up(client)
     group = await client.post("/groups", json={"name": "Smith Family"}, headers=headers)
     assert group.status_code == 201, group.text
-    created = await _create_account(client, headers, currency="USD", group_id=group.json()["id"])
-    assert created.status_code == 201, created.text
+    account_id = await _new_account(client, headers, "Joint", group_id=group.json()["id"])
 
-    refused = await _read_range(client, headers, created.json()["id"])
+    refused = await _read_range(client, headers, account_id)
 
     assert refused.status_code == 403, refused.text
     assert refused.json()["detail"] == "Accounts shared with a group can't be linked to a bank yet"
@@ -101,7 +93,7 @@ async def test_import_range_through_a_disabled_provider_is_refused(client, monke
     """A deployment that disabled SimpleFIN has no history limit to offer"""
     monkeypatch.delitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN)
     headers, _ = await _sign_up(client)
-    account_id = await _own_account(client, headers)
+    account_id = await _new_account(client, headers, "Everyday")
 
     refused = await _read_range(client, headers, account_id)
 
@@ -113,7 +105,7 @@ async def test_import_range_for_a_user_who_may_not_link_bank_accounts_is_refused
     """The bank-linking check is enforced on the start step's range, not only in the interface"""
     monkeypatch.setattr(availability, "may_link_bank_accounts", lambda _user_id: False)
     headers, _ = await _sign_up(client)
-    account_id = await _own_account(client, headers)
+    account_id = await _new_account(client, headers, "Everyday")
 
     refused = await _read_range(client, headers, account_id)
 

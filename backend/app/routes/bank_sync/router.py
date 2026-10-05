@@ -11,16 +11,20 @@ from app.dependencies import get_current_user
 from app.models.bank_connection import BankProvider
 from app.models.user import User
 from app.schemas.bank_sync import (
+    BankAccountLinkResponse,
     BankConnectionResponse,
     BankImportRangeResponse,
     BankProvidersResponse,
     CreateBankConnectionRequest,
+    DiscoveredBankAccountsResponse,
+    LinkBankAccountRequest,
     UpdateBankConnectionRequest,
 )
 from app.services.bank_sync.availability import list_providers
 from app.services.bank_sync.claim import claim_connection
 from app.services.bank_sync.connections import list_connections, rename_connection
 from app.services.bank_sync.import_range import get_import_range
+from app.services.bank_sync.links import link_bank_account, list_bank_accounts_for_account
 
 router = APIRouter(prefix="/bank-sync", tags=["bank-sync"])
 
@@ -100,6 +104,48 @@ async def update_bank_connection(
         The renamed connection
     """
     return await rename_connection(db, user, connection_id, request)
+
+
+@router.get("/connections/{connection_id}/accounts", response_model=DiscoveredBankAccountsResponse)
+async def list_connection_bank_accounts(
+    connection_id: uuid.UUID,
+    for_account_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return a connection's bank accounts for the account being linked, asking for a fresh discovery when due
+
+    Args:
+        connection_id: The connection whose bank accounts to list
+        for_account_id: The account being linked
+        user: Authenticated user linking the account
+        db: Active database session
+
+    Returns:
+        Each bank account, linkable or unavailable with its reason, and whether a discovery is on its way
+    """
+    return await list_bank_accounts_for_account(db, user, connection_id, for_account_id)
+
+
+@bank_link_router.post("", response_model=BankAccountLinkResponse, status_code=status.HTTP_201_CREATED)
+async def create_bank_link(
+    account_id: uuid.UUID,
+    request: LinkBankAccountRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Link one of the user's accounts to a bank account and queue its import
+
+    Args:
+        account_id: The account to link
+        request: The connection, the bank account it lists and the import's first day
+        user: Authenticated user linking the account
+        db: Active database session
+
+    Returns:
+        The new link
+    """
+    return await link_bank_account(db, user, account_id, request)
 
 
 @bank_link_router.get("/import-range", response_model=BankImportRangeResponse)

@@ -12,13 +12,12 @@ from datetime import UTC, datetime
 import pytest
 
 from app.models.account import Account
-from app.models.bank_connection import BankExternalAccount, BankLinkState
+from app.models.bank_connection import BankExternalAccount, BankLinkState, UnavailableReason
 from app.models.base import AccountKind, AccountType
 from app.models.currency import Currency
 from app.models.group import Group, GroupMember
 from app.services.bank_sync.availability import (
     InstitutionAllowance,
-    UnavailableReason,
     find_unavailability,
     list_link_candidates,
 )

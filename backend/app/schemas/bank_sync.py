@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, SecretStr, model_validator
 
-from app.models.bank_connection import BankProvider, ConnectsFrom
+from app.models.bank_connection import BankProvider, ConnectsFrom, UnavailableReason
 from app.models.bank_transaction import EditableBankField
 from app.schemas.names import TrimmedName
 
@@ -161,6 +161,65 @@ class BankImportRangeResponse(BaseModel):
     provider_limit_date: date
     provider_history_months: int
     latest_ledger_date: date | None
+
+
+class DiscoveredBankAccountResponse(BaseModel):
+    """A bank account a connection lists, described for the account being linked"""
+
+    external_id: str
+    name: str
+    institution_name: str
+
+    # The ISO 4217 code, or the provider's own currency exactly as sent
+    currency: str
+
+    # In minor units of the bank account's currency, null when the bank gave no usable balance
+    balance: int | None
+
+    # When the provider gives the balance as of
+    balance_date: datetime | None
+    linkable: bool
+
+    # Why it can't be linked to the account, as a code and as the sentence the list shows
+    unavailable_reason: UnavailableReason | None
+    unavailable_message: str | None
+
+    # True when its institution looks different from the one the account names, so the flow asks
+    # the user to double-check
+    institution_differs: bool
+
+
+class DiscoveredBankAccountsResponse(BaseModel):
+    """A connection's bank accounts for the account being linked, unavailable ones included"""
+
+    accounts: list[DiscoveredBankAccountResponse]
+
+    # True while a discovery is queued or running, after which the list can change
+    discovery_pending: bool
+
+
+class LinkBankAccountRequest(BaseModel):
+    """A bank account on one of the user's connections to link, and where its import starts"""
+
+    connection_id: uuid.UUID
+    external_account_id: str
+
+    # A calendar day in the user's profile timezone, inside the account's import range
+    start_date: date
+
+
+class BankAccountLinkResponse(BaseModel):
+    """An account's link to a bank account"""
+
+    account_id: uuid.UUID
+    connection_id: uuid.UUID
+    provider: BankProvider
+    provider_name: str
+    external_account_id: str
+    external_account_name: str
+    institution_name: str
+    import_start: date
+    linked_at: datetime
 
 
 class BankValues(BaseModel):

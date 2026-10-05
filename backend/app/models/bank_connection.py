@@ -78,6 +78,15 @@ class BankImportKind(enum.StrEnum):
     RECONNECT = "reconnect"
 
 
+class UnavailableReason(enum.StrEnum):
+    """Why a bank account can't be linked to a given Lumina account"""
+
+    ALREADY_LINKED = "already_linked"
+    CURRENCY_MISMATCH = "currency_mismatch"
+    CUSTOM_CURRENCY = "custom_currency"
+    INSTITUTION_LIMIT = "institution_limit"
+
+
 class OpeningAdjustmentState(enum.StrEnum):
     """Where a link's one-time opening adjustment offer stands"""
 

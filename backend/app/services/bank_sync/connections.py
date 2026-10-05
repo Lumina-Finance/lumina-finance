@@ -14,8 +14,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.account import Account
-from app.models.bank_connection import BankAccountLink, BankConnection, BankExternalAccount, BankLinkState, BankProviderRequest
+from app.models.bank_connection import BankConnection, BankExternalAccount, BankProviderRequest
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobStatus
 from app.models.user import User
 from app.schemas.bank_sync import (
@@ -29,6 +28,7 @@ from app.services.bank_sync.availability import (
     find_unavailability,
     get_institution_allowance,
     list_link_candidates,
+    read_linked_bank_accounts,
 )
 from app.services.bank_sync.provider_requests import REQUEST_BUDGET_WINDOW, summarize_request_budget
 from app.services.bank_sync.providers.contract import is_iso_currency_code
@@ -52,6 +52,18 @@ def read_nickname(nickname: str | None) -> str | None:
             detail=f"Keep the nickname to {NICKNAME_MAX_LENGTH} characters or fewer",
         )
     return nickname or None
+
+
+async def read_discovering_connections(db: AsyncSession, connection_ids: Sequence[uuid.UUID]) -> set[uuid.UUID]:
+    """Return which of the connections have a discovery queued or running"""
+    discovering = await db.scalars(
+        select(BankSyncJob.connection_id).where(
+            BankSyncJob.connection_id.in_(connection_ids),
+            BankSyncJob.discover.is_(True),
+            BankSyncJob.status.in_((BankSyncJobStatus.QUEUED, BankSyncJobStatus.RUNNING)),
+        )
+    )
+    return set(discovering)
 
 
 async def build_connection_responses(
@@ -84,23 +96,8 @@ async def build_connection_responses(
     for bank_account in listed:
         bank_accounts[bank_account.connection_id].append(bank_account)
 
-    # A bank account feeds one ledger per user, so a link made through any connection counts
-    links = await db.execute(
-        select(BankAccountLink.provider, BankAccountLink.external_account_id, Account.id, Account.name)
-        .join(Account, Account.id == BankAccountLink.account_id)
-        .where(BankAccountLink.owner_id == user_id, BankAccountLink.state != BankLinkState.UNLINKED)
-    )
-    linked_to = {(provider, external_id): (account_id, name) for provider, external_id, account_id, name in links}
-
-    discovering = set(
-        await db.scalars(
-            select(BankSyncJob.connection_id).where(
-                BankSyncJob.connection_id.in_(connection_ids),
-                BankSyncJob.discover.is_(True),
-                BankSyncJob.status.in_((BankSyncJobStatus.QUEUED, BankSyncJobStatus.RUNNING)),
-            )
-        )
-    )
+    linked_to = await read_linked_bank_accounts(db, user_id)
+    discovering = await read_discovering_connections(db, connection_ids)
 
     counted: dict[uuid.UUID, list[datetime]] = defaultdict(list)
     requests = await db.execute(
