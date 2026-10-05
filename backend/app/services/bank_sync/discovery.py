@@ -84,11 +84,14 @@ async def run_discovery(db: AsyncSession, connection: BankConnection, adapter: P
     # A disconnect sent while the provider answered has either deleted the connection, so nothing is
     # stored, or waits until this request commits
     await get_own_connection(db, connection.owner_id, connection.id, lock={"key_share": True})
+
+    # The user is in the app choosing as a claim or reconnect lists the bank accounts, so the links
+    # it moves to Choose bank account are shown there rather than emailed
     await apply_discovery(db, connection, result, now=now)
     return result.request_error is None
 
 
-async def apply_discovery(db: AsyncSession, connection: BankConnection, result: FetchResult, *, now: datetime) -> None:
+async def apply_discovery(db: AsyncSession, connection: BankConnection, result: FetchResult, *, now: datetime) -> list[BankAccountLink]:
     """Store what a discovery read and move the links it affects
 
     It takes the result of a discovery already counted and sent. A failed discovery changes no
@@ -105,19 +108,24 @@ async def apply_discovery(db: AsyncSession, connection: BankConnection, result: 
         connection: The connection discovered
         result: What the discovery returned
         now: When the discovery was sent
+
+    Returns:
+        The links it moved from active to Choose bank account, as locked, which a sync emails their owner about
     """
     # A quota warning beside usable data still means nothing more should be sent for now
     if is_quota_spent(result):
         await mark_request_budget_spent(db, connection, now=now)
 
+    moved = []
     if result.request_error is not None:
         connection.discovery_failed_at = now
     else:
         await _store_bank_accounts(db, connection, result.accounts, now=now)
         vanished = await _mark_vanished(db, connection, result)
-        await _move_links(db, connection, result.accounts, vanished)
+        moved = await _move_links(db, connection, result.accounts, vanished)
         connection.discovered_at = now
     await db.flush()
+    return moved
 
 
 async def _store_bank_accounts(db: AsyncSession, connection: BankConnection, accounts: Sequence[ExternalAccount], *, now: datetime) -> None:
@@ -188,13 +196,18 @@ async def _mark_vanished(db: AsyncSession, connection: BankConnection, result: F
     return vanished
 
 
-async def _move_links(db: AsyncSession, connection: BankConnection, accounts: Sequence[ExternalAccount], vanished: set[str]) -> None:
+async def _move_links(
+    db: AsyncSession, connection: BankConnection, accounts: Sequence[ExternalAccount], vanished: set[str]
+) -> list[BankAccountLink]:
     """Move the connection's live links between active and Choose bank account as the discovery found them
 
     The links are locked in id order and read again, so a link unlinked meanwhile is left alone.
     They are locked after the bank accounts, the order a link being made takes them in. A link
     waiting for its bank account has its account's pending items cleared, since nothing refreshes
     them meanwhile, and one that returns gets them back from its next sync
+
+    Returns:
+        The links moved from active to Choose bank account
     """
     listed = {account.external_id: account for account in accounts}
     links = await db.execute(
@@ -208,10 +221,14 @@ async def _move_links(db: AsyncSession, connection: BankConnection, accounts: Se
         .with_for_update(of=BankAccountLink)
         .execution_options(populate_existing=True)
     )
+    moved = []
     for link, account_currency in links:
         bank_account = listed.get(link.external_account_id)
         if link.external_account_id in vanished or (bank_account is not None and bank_account.currency != account_currency):
+            if link.state == BankLinkState.ACTIVE:
+                moved.append(link)
             link.state = BankLinkState.CHOOSE_ACCOUNT
             await replace_pending_transactions(db, link.account_id, [])
         elif bank_account is not None and link.state == BankLinkState.CHOOSE_ACCOUNT:
             link.state = BankLinkState.ACTIVE
+    return moved

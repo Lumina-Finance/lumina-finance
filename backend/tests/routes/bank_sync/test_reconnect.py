@@ -183,8 +183,13 @@ async def test_reconnect_with_both_bank_accounts_unchanged_resumes_both_and_clea
     assert await _request_purposes() == ["claim", "claim", "discovery", "discovery"]
 
 
-async def test_reconnect_with_a_bank_account_listed_under_a_new_id_waits_for_it_to_be_chosen_again(client, scenario: FakeBridgeScenario):
-    """Everyday's bank account comes back under a new id: Everyday waits to choose it, its sign-in and 4 waiting items aside"""
+async def test_reconnect_with_a_bank_account_listed_under_a_new_id_waits_for_it_to_be_chosen_again(
+    client, scenario: FakeBridgeScenario, sent_action_emails
+):
+    """Everyday's bank account comes back under a new id: Everyday waits to choose it, its sign-in and 4 waiting items aside
+
+    The user is in the app choosing, so nothing is emailed
+    """
     headers, everyday_id, savings_id, connection_id = await _rejected_with_two_links(client, scenario)
     await _wait_on_signin(everyday_id)
     async with TestSession() as session:
@@ -211,6 +216,7 @@ async def test_reconnect_with_a_bank_account_listed_under_a_new_id_waits_for_it_
         )
     assert waiting == 4
     assert await _jobs() == [("initial", False, "queued")]
+    assert sent_action_emails == []
 
 
 async def test_reconnect_leaves_a_link_unlinked_before_as_it_was(client, scenario: FakeBridgeScenario):

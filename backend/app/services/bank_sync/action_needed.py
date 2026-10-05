@@ -10,6 +10,11 @@ than retrying, so the mark clears once an attempt brings the account back whole.
 for a login when the first of its active links is marked, and a notice per login records when, with
 its email as sent, until none of them is marked
 
+Choose bank account: a sync's listing found a linked bank account gone or in another currency, so its
+account stops syncing until the user chooses its bank account again or the provider lists it as
+before. Moving the link records the state, so a job run again finds it moved and emails nothing. A
+reconnect's listing moves links while the user is in the app choosing, so it emails nothing
+
 Each state is recorded with its email as sent, in the save that records the state, and the email
 goes out only once that save has committed, so a job run again or cut off after the save sends
 nothing twice, and one cut off before it sends nothing. A send that fails is logged and never undoes
@@ -54,6 +59,15 @@ _RECONNECT_CLOSING_UNLINKED = "Reconnect it in Settings with a new setup token b
 _SIGNIN_SUBJECT = "Sign in to your bank again in {site}"
 _SIGNIN_LEAD = "Sign in to {institution} again in {site}. Until you do, syncing has stopped for:"
 _SIGNIN_CLOSING = "Lumina Finance checks daily and picks up where it left off once you have."
+
+# The Choose bank account email, one per account a sync's listing moved there, worded as the
+# settings section explains it. The subject leaves out the names, which come from the user and the provider
+_CHOOSE_SUBJECT = "Choose a bank account again to resume syncing"
+_CHOOSE_LEAD = (
+    "{provider} now lists {bank_account} differently, so Lumina Finance can't tell whether it's the same account. "
+    "{account} won't sync until you choose its bank account again."
+)
+_CHOOSE_CLOSING = "If {provider} goes back to listing it as before, {account} resumes syncing by itself."
 
 
 @dataclass(frozen=True)
@@ -215,6 +229,31 @@ async def clear_signin_needed(db: AsyncSession, connection: BankConnection, link
     )
     await db.flush()
     await db.execute(delete(BankSigninNotice).where(BankSigninNotice.connection_id == connection.id, ~still_marked.exists()))
+
+
+async def choose_account_emails(db: AsyncSession, connection: BankConnection, links: Sequence[BankAccountLink]) -> list[ActionEmail]:
+    """Return the emails telling the owner of each link a sync's listing just moved to Choose bank account
+
+    Args:
+        db: The owner's session, in which the listing moved the links
+        connection: The connection listed
+        links: The links the listing moved from active to Choose bank account
+
+    Returns:
+        One email per link, to send once the save moving them commits
+    """
+    if not links:
+        return []
+    accounts = await db.execute(select(Account.id, Account.name).where(Account.id.in_([link.account_id for link in links])))
+    names = {account_id: name for account_id, name in accounts}
+    provider = PROVIDER_ADAPTERS[connection.provider].provider_name
+    recipient = await _owner_email(db, connection)
+    emails = []
+    for link in links:
+        named = {"provider": provider, "bank_account": link.external_account_name, "account": names[link.account_id]}
+        message = render_action_needed_email(_CHOOSE_SUBJECT, _CHOOSE_LEAD.format(**named), [], _CHOOSE_CLOSING.format(**named))
+        emails.append(ActionEmail(recipient, message, connection.id))
+    return emails
 
 
 async def send_action_emails(emails: Sequence[ActionEmail]) -> None:

@@ -32,9 +32,10 @@ since they record requests already sent, whoever holds the job. An answer to a r
 credential the connection no longer holds is dropped whole, budget-spent mark included, and the job
 ends without it
 
-A job ending on a rejected credential marks the connection Reconnect needed as it ends, and a link
-an attempt fails on a bank sign-in is marked Bank sign-in needed until one succeeds, each emailing
-the owner once as the action_needed module describes. The sign-in notices recording those emails are
+A job ending on a rejected credential marks the connection Reconnect needed as it ends, a link an
+attempt fails on a bank sign-in is marked Bank sign-in needed until one succeeds, and a link the
+job's listing moves to Choose bank account waits there, each emailing the owner once as the
+action_needed module describes. The sign-in notices recording those emails are
 written after any pending items and before any job queued. The emails a job's saves record go out
 once its last save is done, so a send that hangs can't hold up the sync or see it fail
 """
@@ -56,6 +57,7 @@ from app.models.bank_sync_job import BankSyncJob, ProviderErrorKind
 from app.models.user import User
 from app.services.bank_sync.action_needed import (
     ActionEmail,
+    choose_account_emails,
     clear_signin_needed,
     flag_rejected_credential,
     flag_signin_needed,
@@ -311,7 +313,7 @@ class _JobRun:
         A discovery waiting on the budget passes on the job's own flag, so a connection whose listing
         was asked for still shows one pending while one merely rediscovered daily doesn't. One that
         failed is recorded on the connection and fails the job, and with it the attempt of each link
-        the job was to sync
+        the job was to sync. Each link one moves to Choose bank account gets an email to its owner
 
         Args:
             links: Every link on the connection, as the job read them before listing
@@ -328,11 +330,13 @@ class _JobRun:
         result = await self.adapter.discover(credential, currency_exponents=self.currency_exponents)
         async with async_session() as db:
             connection, _ = await _hold_for_finish(db, self.job, sent_with=credential)
-            await apply_discovery(db, connection, result, now=sent_at)
+            moved = await apply_discovery(db, connection, result, now=sent_at)
+            emails = await choose_account_emails(db, connection, moved)
 
             # After the discovery's links, the order an unlink takes them in, so the two can't deadlock
             await mark_user_cache_changed(db, self.job.owner_id)
             await db.commit()
+        self.outbox += emails
         if result.request_error is not None:
             due = [need.link for need in self._due(links)]
             await self._stop_for(result.request_error, sent_with=credential, discover=self.job.discover, attempted=due, sent_at=sent_at)

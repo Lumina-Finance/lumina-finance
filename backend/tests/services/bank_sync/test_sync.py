@@ -1386,6 +1386,80 @@ async def test_job_stopped_by_an_error_still_sends_the_email_an_earlier_step_sav
     assert sent_action_emails == [_signin_email("Chase", "ACT-chase-card")]
 
 
+# The Choose bank account email for Everyday, linked to the bank account listed as Everyday Chequing
+_CHOOSE_EVERYDAY = (
+    "owner0@example.com",
+    "Choose a bank account again to resume syncing",
+    "SimpleFIN now lists Everyday Chequing differently, so Lumina Finance can't tell whether it's the same account. "
+    "ACT-everyday won't sync until you choose its bank account again.\n\n"
+    "If SimpleFIN goes back to listing it as before, ACT-everyday resumes syncing by itself.",
+)
+
+
+@pytest.mark.parametrize("listed", ["not_at_all", "in_another_currency"])
+async def test_job_whose_listing_moves_a_link_to_choose_bank_account_emails_once_naming_its_account(
+    connection, provider, sent_action_emails, listed
+):
+    """The listing no longer shows Everyday's bank account, or shows it in US dollars, so Everyday waits for its bank account to be chosen again
+
+    The owner gets one email naming Everyday and its bank account, and the next listing, which still
+    doesn't show it as before, sends nothing more
+    """
+    await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-everyday")
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    listing = FetchResult(accounts=(_bank_account("ACT-everyday", currency="USD"),)) if listed == "in_another_currency" else FetchResult()
+    provider.outcomes = [listing, listing]
+
+    for _ in range(2):
+        await _seed_job(connection, BankSyncJobKind.MANUAL, discover=True)
+        await _run_jobs_until_none_is_due()
+
+    assert (len(provider.discoveries), provider.fetches) == (2, [])
+    assert await _link_states(everyday) == ["choose_account"]
+    assert sent_action_emails == [_CHOOSE_EVERYDAY]
+
+
+async def test_job_whose_listing_shows_a_bank_account_again_resumes_its_link_unannounced_and_emails_when_it_next_goes(
+    connection, provider, sent_action_emails
+):
+    """Everyday's bank account leaves the listing, comes back before the user chooses one, and then leaves again
+
+    Everyday returns to active with nothing sent as its bank account comes back, and leaving again
+    starts the state again, which emails again
+    """
+    await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-everyday")
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    provider.outcomes = [FetchResult(), _returned("ACT-everyday"), _returned("ACT-everyday"), FetchResult()]
+    states = []
+    for _ in range(3):
+        await _seed_job(connection, BankSyncJobKind.MANUAL, discover=True)
+        await _run_jobs_until_none_is_due()
+        states += await _link_states(everyday)
+
+    assert states == ["choose_account", "active", "choose_account"]
+    assert len(provider.fetches) == 1
+    assert sent_action_emails == [_CHOOSE_EVERYDAY, _CHOOSE_EVERYDAY]
+
+
+async def test_job_whose_listing_still_misses_a_bank_account_a_reconnect_left_to_choose_emails_nothing(
+    connection, provider, sent_action_emails
+):
+    """A reconnect left Everyday waiting for its bank account to be chosen again, and the next listing still misses it
+
+    Everyday was already waiting, which the user saw in the app as they reconnected, so no email goes out
+    """
+    await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-everyday")
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday(state=BankLinkState.CHOOSE_ACCOUNT))
+    provider.outcomes = [FetchResult()]
+    await _seed_job(connection, BankSyncJobKind.INITIAL, discover=True)
+
+    await _run_jobs_until_none_is_due()
+
+    assert len(provider.discoveries) == 1
+    assert await _link_states(everyday) == ["choose_account"]
+    assert sent_action_emails == []
+
+
 async def test_job_the_worker_stops_on_an_error_fails_each_link_once(connection, provider, frozen_now):
     """Card's third retry fails in the job's first window, and the job then stops on an error while fetching Everyday
 
