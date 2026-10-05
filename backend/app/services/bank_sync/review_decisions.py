@@ -138,7 +138,8 @@ async def accept_bank_change(db: AsyncSession, user: User, item_id: uuid.UUID) -
     balances are rebuilt from the earlier of its old and new dates. Fields the correction doesn't
     change keep the ledger's values. Each field written is aligned with the bank, so a value the user
     had edited is replaced and no longer counts as edited. The bank's description has no ledger
-    field, so accepting it only closes the correction. A correction already decided answers with
+    field, so accepting it only closes the correction. Values the user declined before no longer
+    stand, so the bank sending them again asks again. A correction already decided answers with
     the transaction as it stands, so a double submission accepts it once
 
     Args:
@@ -184,7 +185,8 @@ async def keep_current_value(db: AsyncSession, user: User, item_id: uuid.UUID) -
 
     The bank's values stay stored as its latest, and the changed date and amount are aligned with
     them, so the ledger's own count as edited and a trusted correction later leaves them alone. The
-    values declined are remembered, so the bank sending them again opens nothing. A correction
+    values declined are remembered, so the bank sending them again opens nothing until a later
+    decision or the bank matching the ledger replaces them. A correction
     already decided answers with the transaction as it stands, so a double submission keeps it once
 
     Args:

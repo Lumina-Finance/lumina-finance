@@ -61,7 +61,12 @@ def bank_values(record: BankTransaction) -> dict[CorrectableBankField, Any]:
 
 
 def align_with_bank(record: BankTransaction, fields: Collection[str]) -> None:
-    """Align the named editable fields with the bank's latest values, so each counts as edited only while the ledger differs from them"""
+    """Align the named editable fields with the bank's latest values, so each counts as edited only while the ledger differs from them
+
+    Aligning decides the ledger row against the bank's latest values, so the values the user
+    declined before no longer stand, and the bank sending them again is a change like any other
+    """
     for field, columns in EDITABLE_COLUMNS.items():
         if field in fields:
             setattr(record, columns.aligned, getattr(record, columns.observed))
+    record.declined_observation = None

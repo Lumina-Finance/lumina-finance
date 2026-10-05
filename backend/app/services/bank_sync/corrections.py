@@ -14,7 +14,8 @@ the ledger has no description and a changed description never changes the mercha
 An amount that can't be stored exactly can't be applied, so it opens a correction even when trusted.
 An open correction keeps waiting whatever the preference says, so a change while it is open joins
 it. A date or amount the bank changes to the value the ledger already holds needs no decision, and
-the field is aligned with the bank again
+the field is aligned with the bank again. Aligning a field, here or by accepting a change, ends what
+the user declined before, so the bank sending those values again asks again
 """
 
 import uuid

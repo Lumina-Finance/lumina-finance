@@ -2744,3 +2744,27 @@ async def test_job_storing_while_the_user_keeps_the_current_value_compares_with_
         (item_id, OpenReviewKind.CORRECTION, {"amount": -4_75}, -5_00)
     ]
     assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_50)]
+
+
+async def test_job_asks_about_a_declined_value_again_once_the_bank_has_since_matched_the_ledger(connection, provider):
+    """The user kept $4.50 over the bank's $4.75, the bank then agreed on $4.50, and now says $4.75 again
+
+    The bank agreeing with the ledger ended what the user declined, so $4.75 is a new change and a correction opens for it
+    """
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    item_id = await _accept_coffee(link, observed_amount=-4_75, aligned_amount=-4_75, declined_observation=_DECLINED_AT_4_75)
+    provider.outcomes = [
+        _returned_with({"ACT-1": [_record("TRN-coffee")]}),
+        _returned_with({"ACT-1": [_record("TRN-coffee", amount=-4_75, raw_amount="-4.75")]}),
+    ]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+    await _run_jobs_until_none_is_due()
+
+    await _seed_job(connection, BankSyncJobKind.MANUAL)
+    await _run_jobs_until_none_is_due()
+
+    assert len(provider.fetches) == 2
+    assert await _bank_transactions(BankTransaction.id, *_CORRECTION, BankTransaction.declined_observation) == [
+        (item_id, OpenReviewKind.CORRECTION, {"amount": -4_50}, None)
+    ]
+    assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_50)]

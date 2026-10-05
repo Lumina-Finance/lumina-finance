@@ -11,7 +11,7 @@ one reaching another user's item changes their ledger
 import asyncio
 import uuid
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 
 import pytest
 from sqlalchemy import func, select
@@ -19,6 +19,7 @@ from sqlalchemy import func, select
 from app.models.bank_connection import BankAccountLink
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition, OpenReviewKind
 from app.services.bank_sync import review_decisions
+from app.services.bank_sync.corrections import store_accepted_observations
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     BANK_DATE,
@@ -200,6 +201,30 @@ async def test_keeping_the_current_value_leaves_the_ledger_and_remembers_the_val
     assert await _balances(correction.account_id) == [(BANK_DATE, -450)]
     assert await _changed_at(client, correction.headers) != before
     assert "user_cache_states" in _writes(statements)[-1]
+
+
+async def test_accepting_after_keeping_an_earlier_value_lets_the_declined_value_come_back_as_a_change(client):
+    """The user kept -4.50 over the bank's -4.75 and now accepts its -5.00, and the bank then goes back to -4.75
+
+    Accepting replaced what the user declined, so -4.75 opens a correction against the -5.00 now
+    in the ledger rather than leaving the ledger quietly differing from the bank
+    """
+    declined = {"date": BANK_DATE.isoformat(), "amount": -475, "description": _BLUE_BOTTLE}
+    correction = await _correction_waiting(
+        client, observed_amount=-500, aligned_amount=-475, previous_values={"amount": -475}, declined_observation=declined
+    )
+
+    accepted = await _decide(client, correction, "accept-change")
+    async with TestSession() as syncing:
+        record = await syncing.get_one(BankTransaction, correction.item_id)
+        await store_accepted_observations(syncing, [(record, {"observed_amount": -475})], observed_at=datetime.now(UTC))
+        await syncing.commit()
+
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()["amount"] == -500
+    stored = await _stored_item(correction.item_id)
+    assert (stored.open_kind, stored.previous_values, stored.declined_observation) == (OpenReviewKind.CORRECTION, {"amount": -500}, None)
+    assert await _ledger_rows(correction.account_id) == [(BANK_DATE, -500)]
 
 
 @pytest.mark.parametrize(("decision", "amount"), [("accept-change", -475), ("keep-current", -450)])
