@@ -42,6 +42,9 @@ vi.mock('@/api/accounts', async (importOriginal) => ({
 vi.mock('@/hooks/useMoneyFormatters', () => ({
   useMoneyFormatters: () => ({ currencies: [{ id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 }] }),
 }))
+vi.mock('@/hooks/useAuth', () => ({
+  useAuth: () => ({ user: { id: 'user-1' } }),
+}))
 vi.mock('react-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('react-router')>()),
   useNavigate: () => () => {},

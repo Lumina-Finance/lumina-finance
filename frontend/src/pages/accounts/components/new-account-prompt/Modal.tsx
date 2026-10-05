@@ -11,9 +11,11 @@ import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import { Unfold } from '@/components/display/Unfold'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
+import { useAuth } from '@/hooks/useAuth'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import type { AccountDetailArrivalState } from '@/pages/accounts/detail/constants/accountDetail'
+import { isOwnPersonalAccount } from '@/utils/bankSync'
 import { getCurrencyExponent, toMinorUnits } from '@/utils/moneyInput'
 
 type KeepUpToDate = 'bank' | 'manual'
@@ -52,6 +54,7 @@ type NewAccountPromptModalProps = {
  */
 export default function NewAccountPromptModal({ open, account, onClose, onExitComplete }: NewAccountPromptModalProps) {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const { currencies } = useMoneyFormatters()
   const recordStartingBalance = useRecordStartingBalance()
   const { data: providers, isPending: providersPending } = useBankProviders()
@@ -83,7 +86,7 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
   // the prompt back
   const offersLink = providers !== undefined && providers.may_link && providers.providers.length > 0
   const hasWorkingConnection = connections?.some((connection) => connection.status === 'active') ?? false
-  const linkReason = account.group_id !== null
+  const linkReason = !(user !== null && isOwnPersonalAccount(account, user.id))
     ? GROUP_ACCOUNT_LINK_REASON
     : !hasWorkingConnection && !providers?.providers.some((provider) => provider.offered)
       ? NOTHING_TO_LINK_REASON
