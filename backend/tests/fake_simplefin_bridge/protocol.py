@@ -1,7 +1,8 @@
 """The SimpleFIN protocol version 2 endpoints, answered the way SimpleFIN Bridge answers them
 
-Where the Bridge's behaviour isn't published (the 90-day refusal, the 1,000-transaction cap, its
-warning and error bodies), the fake makes the assumption the app is built on, noted beside each one
+Where the Bridge's behaviour isn't published (the 90-day refusal, the 1,000-transaction cap, which
+pending transactions it returns, its warning and error bodies), the fake makes the assumption the
+app is built on, noted beside each one
 """
 
 import asyncio
@@ -194,7 +195,7 @@ def _wire_connection(connection: Connection, sfin_url: str) -> dict:
 
 
 def _wire_accounts(accounts: list[Account], start: int, end: int, *, include_pending: bool, balances_only: bool) -> list[dict]:
-    """Return the accounts with their transactions in the window, holding back booked ones past the cap"""
+    """Return the accounts with their booked transactions in the window, past the cap held back, and when asked every pending one"""
     remaining = MAX_BOOKED_TRANSACTIONS
     wired = []
     for account in accounts:
@@ -219,6 +220,9 @@ def _wire_accounts(accounts: list[Account], start: int, end: int, *, include_pen
                 key=lambda item: item.posted,
             )[:remaining]
             remaining -= len(booked)
+            # Every pending transaction, whatever the window, since one has no posted date to place it
+            # by. Assumed, not yet checked against the Bridge, which may leave out pending items it
+            # dates before the window's start
             pending = [item for item in account.transactions if item.pending] if include_pending else []
             wire["transactions"] = [_wire_transaction(item) for item in booked + pending]
         wired.append(wire)
