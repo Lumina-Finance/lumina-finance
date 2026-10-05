@@ -254,7 +254,7 @@ async def get_bank_import_range(
 async def list_bank_review_items(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    account_id: Annotated[uuid.UUID | None, Query()] = None,
+    account_id: Annotated[list[uuid.UUID] | None, Query()] = None,
     cursor: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=REVIEW_PAGE_SIZE)] = REVIEW_PAGE_SIZE,
 ):
@@ -263,14 +263,14 @@ async def list_bank_review_items(
     Args:
         user: Authenticated user reviewing
         db: Active database session
-        account_id: The one account whose items to list, or every account when left out
+        account_id: The accounts whose items to list, repeated for each, or every account when left out
         cursor: The cursor the previous page returned, left out for the first page
         limit: The most items the page holds
 
     Returns:
         The page, the counts of every waiting item in scope, and the next page's cursor
     """
-    return await list_review_items(db, user, account_id=account_id, cursor=cursor, limit=limit)
+    return await list_review_items(db, user, account_ids=account_id, cursor=cursor, limit=limit)
 
 
 @review_router.post("/items/{item_id}/add", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)

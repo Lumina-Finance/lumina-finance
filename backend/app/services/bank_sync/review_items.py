@@ -4,10 +4,12 @@ An item is a bank transaction awaiting its first review, or an accepted one with
 removal open, so a bank transaction is at most one item and shares its id. Pages run newest first
 by the bank's date and pick up after the last item the previous page returned rather than at a
 position, so items decided between two pages are neither repeated nor skipped. Only the user's own
-personal accounts have items
+personal accounts have items. The list covers the accounts the transaction list is filtered to, or
+every such account when it isn't
 """
 
 import uuid
+from collections.abc import Sequence
 from datetime import date
 from typing import get_args
 
@@ -46,16 +48,16 @@ async def list_review_items(
     db: AsyncSession,
     user: User,
     *,
-    account_id: uuid.UUID | None,
+    account_ids: Sequence[uuid.UUID] | None,
     cursor: str | None,
     limit: int,
 ) -> BankReviewPageResponse:
-    """Return a page of the items waiting for review, for one of the user's accounts or all of them, with counts by kind
+    """Return a page of the items waiting for review, for some of the user's accounts or all of them, with counts by kind
 
     Args:
         db: Active database session
         user: The user reviewing
-        account_id: The account whose items to list, or None for every account
+        account_ids: The accounts whose items to list, or None for every account
         cursor: The cursor the previous page returned, or None for the first page
         limit: The most items the page holds
 
@@ -64,14 +66,14 @@ async def list_review_items(
         next page when one follows
 
     Raises:
-        HTTPException 403: The account is visible but isn't the user's own personal account
-        HTTPException 404: The account isn't visible to the user
+        HTTPException 403: An account is visible but isn't the user's own personal account
+        HTTPException 404: An account isn't visible to the user
         HTTPException 422: The cursor isn't one a page returned
     """
     scope = [_IS_REVIEW_ITEM, own_personal_account_condition(user.id)]
-    if account_id is not None:
-        await get_own_personal_account(db, account_id, user.id, not_own_detail=_NOT_OWN_DETAIL)
-        scope.append(BankTransaction.account_id == account_id)
+    if account_ids is not None:
+        await _check_own_accounts(db, user, account_ids)
+        scope.append(BankTransaction.account_id.in_(account_ids))
 
     # One row past the page says whether another page follows
     page_query = (
@@ -103,6 +105,17 @@ async def list_review_items(
         counts=BankReviewCountsResponse(new=counts.get("new", 0), correction=counts.get("correction", 0), removal=counts.get("removal", 0)),
         next_cursor=_write_cursor(page[-1][0]) if len(rows) > limit else None,
     )
+
+
+async def _check_own_accounts(db: AsyncSession, user: User, account_ids: Sequence[uuid.UUID]) -> None:
+    """Refuse the first account named that isn't one of the user's own personal accounts
+
+    Raises:
+        HTTPException 403: The account is visible but isn't the user's own personal account
+        HTTPException 404: The account isn't visible to the user
+    """
+    for account_id in account_ids:
+        await get_own_personal_account(db, account_id, user.id, not_own_detail=_NOT_OWN_DETAIL)
 
 
 def _build_item(record: BankTransaction, ledger_date: date | None, ledger_amount: int | None) -> BankReviewItemResponse:

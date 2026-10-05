@@ -330,6 +330,38 @@ async def test_review_list_for_one_account_leaves_out_the_others(client):
     assert every_account["counts"] == {"new": 3, "correction": 0, "removal": 0}
 
 
+async def test_review_list_for_several_accounts_counts_only_theirs(client):
+    """A list filtered to Everyday and Savings shows and counts their items without Travel's"""
+    headers, _, everyday_id = await _everyday(client)
+    savings_id = await _new_account(client, headers, "Savings")
+    travel_id = await _new_account(client, headers, "Travel")
+    listed = [await _commit_review_item(everyday_id, "TRN-1"), await _commit_review_item(savings_id, "TRN-1")]
+    await _commit_review_item(travel_id, "TRN-1")
+
+    page = await _review_page(client, headers, account_id=[everyday_id, savings_id])
+
+    assert sorted(item["id"] for item in page["items"]) == sorted(str(item_id) for item_id in listed)
+    assert page["counts"] == {"new": 2, "correction": 0, "removal": 0}
+
+
+@pytest.mark.parametrize(
+    ("second", "status_code", "detail"),
+    [
+        ("group", 403, "Bank items aren't listed for accounts shared with a group"),
+        ("theirs", 404, "Account not found"),
+    ],
+)
+async def test_review_list_refuses_several_accounts_when_any_isnt_the_users_own(client, second, status_code, detail):
+    """Everyday listed with the Joint group account is refused, and with another user's account is not found"""
+    headers, _, everyday_id = await _everyday(client)
+    second_id = await _new_group_account(client, headers) if second == "group" else str((await _commit_other_users_account()).id)
+
+    response = await client.get("/bank-review/items", params={"account_id": [everyday_id, second_id]}, headers=headers)
+
+    assert response.status_code == status_code, response.text
+    assert response.json()["detail"] == detail
+
+
 async def test_review_list_never_shows_another_users_items(client):
     """Another user's waiting item is in neither list, and their account reads as not found"""
     headers, _, _ = await _everyday(client)
