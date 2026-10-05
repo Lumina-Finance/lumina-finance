@@ -28,7 +28,9 @@ come last. A link synced through today that is fetched again before tomorrow spe
 nothing, one whose next sync is never set stops syncing, and a schedule that counts a paused or
 unchosen link, or queues a sync before a request frees, sends what the review pause or the budget
 holds back. One that counts a link before the first day it needs has started queues syncs that find
-nothing to fetch, and one that passes over a retry no job was queued for leaves the account stale
+nothing to fetch, and one that passes over a retry no job was queued for leaves the account stale.
+A scan that queues syncs for a rejected credential or a turned-off provider spends requests or jobs
+on failures, and one that drops a bank sign-in's daily sync misses the user signing in again
 """
 
 import asyncio
@@ -4467,6 +4469,44 @@ async def test_scan_queues_nothing_while_the_provider_is_turned_off_and_queues_t
     await enqueue_due_work()
 
     assert queued_while_off == []
+    assert await _queued_jobs() == [("scheduled", timedelta(0), False)]
+
+
+async def test_scan_queues_nothing_after_a_job_finds_the_credential_rejected(connection, provider, frozen_now):
+    """SimpleFIN Bridge rejects the credential in Everyday's daily sync, so automatic sync stops until the user reconnects
+
+    The job leaves Everyday with no next attempt set, which would make it due at once, but marks the
+    connection Reconnect needed, so the scan after it queues nothing
+    """
+    await _link(connection, "ACT-everyday", **_synced_through_yesterday(next_attempt_at=frozen_now))
+    provider.outcomes = [FetchResult(request_error=_rejected())]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+    await _run_jobs_until_none_is_due()
+
+    await enqueue_due_work()
+
+    assert await _rejection(connection) == frozen_now
+    assert await _queued_jobs() == []
+
+
+async def test_scan_queues_a_link_whose_bank_needs_a_sign_in_at_its_next_daily_time(connection, provider, frozen_now, day_later):
+    """SimpleFIN Bridge says Everyday's bank needs a sign-in, which retrying can't fix but the user may fix at the bank at any time
+
+    Everyday keeps its daily time: the scan straight after the job queues nothing, and the first
+    scan a day on queues its daily sync
+    """
+    await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-everyday")
+    await _link(connection, "ACT-everyday", **_synced_through_yesterday(next_attempt_at=frozen_now))
+    provider.outcomes = [FetchResult(login_errors={"CON-harbour": _signin_needed()})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+    await _run_jobs_until_none_is_due()
+
+    await enqueue_due_work()
+    queued_straight_after = await _queued_jobs()
+    with freeze_time(frozen_now + day_later, real_asyncio=True):
+        await enqueue_due_work()
+
+    assert queued_straight_after == []
     assert await _queued_jobs() == [("scheduled", timedelta(0), False)]
 
 
