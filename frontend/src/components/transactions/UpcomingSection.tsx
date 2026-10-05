@@ -1,10 +1,13 @@
 import { useRef, type CSSProperties, type ReactNode } from 'react'
 import { CalendarClock } from 'lucide-react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { CollapsibleSection, CollapsibleSectionCount } from '@/components/collapsible-section/Section'
+import { AppSlotMachineText } from '@/components/display/SlotMachineText'
 import { FadedRowsContext } from '@/contexts/FadedRowsContext'
 import {
   REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
   TRANSACTION_CHECKBOX_RAIL,
+  TRANSACTION_LIST_EASE,
 } from '@/pages/transactions/constants/transactionList'
 import { formatShortDateRangeLabel } from '@/utils/date'
 
@@ -78,6 +81,18 @@ const EXPLANATION_ACROSS_THE_LIST: CSSProperties = {
   paddingRight: '0.75rem',
 }
 
+// The section grows in and shrinks out the way a day group does, so the list below slides to make room. Its
+// gap to the first day group grows and shrinks with it, since a gap left behind would snap shut at the end
+const SECTION_GAP_BELOW = '0.75rem'
+const SECTION_APPEAR_SECONDS = 0.28
+const SECTION_DISAPPEAR_SECONDS = 0.26
+
+// Clips only the height, and only while it changes, since clipping across would cut off the box's shading
+// where it reaches over the checkbox rail. Clip rather than hidden, because a hidden overflow makes the
+// section a scroll container, which the header would then stick inside instead of under the page's bar
+const CLIPPED_WHILE_RESIZING = { overflowY: 'clip' } as const
+const UNCLIPPED_AT_REST = { overflowY: 'visible' } as const
+
 /**
  * Describes when the upcoming transactions fall, as one date or as the range from the first to the last,
  * short enough to sit beside the count on one line on a phone
@@ -91,7 +106,8 @@ function describeUpcomingDates(transactionDates: string[], today: string): strin
  * Gathers a list's transactions dated after today under one collapsible section, faded, with a line
  * saying why they don't count yet
  *
- * Renders nothing when there are none. The owner decides which transactions go in and whether the
+ * Renders nothing when there are none. It grows in when the first arrives and shrinks out when the last goes,
+ * though not on its owner's first render. The owner decides which transactions go in and whether the
  * section is open, since a list may change what else it offers while the rows are hidden
  *
  * @param transactionDates - Each upcoming transaction's "YYYY-MM-DD" date, one per transaction
@@ -119,7 +135,7 @@ export function UpcomingSection({
   children: ReactNode
 }) {
   const sectionRef = useRef<HTMLDivElement>(null)
-  if (transactionDates.length === 0) return null
+  const prefersReducedMotion = useReducedMotion()
 
   // Closing from inside a long open section would leave the header above the screen once the rows go,
   // so the page first comes back to where the section starts, which is where the stuck header already is
@@ -131,54 +147,82 @@ export function UpcomingSection({
   }
 
   return (
-    // Never a scroll anchor, so the browser doesn't move the page to hold a row in place while the section
-    // closes, which pushed the header back under the toolbar
-    <div ref={sectionRef} className={`${gridClassName} relative isolate mb-3 pb-2`} style={{ scrollMarginTop: stickyTop, overflowAnchor: 'none', ...DAY_TOTAL_MIX }}>
-      <span aria-hidden className="pointer-events-none absolute inset-y-0 -z-10 rounded-lg" style={BOX_SHADING} />
-      <span aria-hidden className="pointer-events-none absolute bottom-0 z-20 rounded-b-lg" style={BOX_EDGE} />
-      <div
-        aria-hidden
-        className={`${stickyTop === undefined ? '' : 'sticky'} pointer-events-none z-20 col-span-full rounded-t-lg`}
-        style={{ ...BOX_TOP, top: stickyTop }}
-      />
-      <CollapsibleSection
-        icon={CalendarClock}
-        label="Upcoming"
-        summary={
-          // The count as a pill and the dates in short form, like the archived sections' headers, so the
-          // header holds one line on a phone. The dates wrap under the count only when a range names years
-          <span className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-2">
-            <CollapsibleSectionCount count={transactionDates.length} />
-            <span className="whitespace-nowrap text-sm">
-              {describeUpcomingDates(transactionDates, today)}
-            </span>
-          </span>
-        }
-        expanded={expanded}
-        onToggle={handleToggle}
-        className={gridClassName}
-        bodyClassName={gridClassName}
-        iconSlotWidth={UPCOMING_ICON_SLOT_WIDTH}
-        headerStyle={{
-          ...HEADER_ACROSS_THE_LIST,
-          borderTop: 'none',
-          ...(stickyTop === undefined
-            ? {}
-            : { top: `calc(${stickyTop}px + ${BOX_TOP_HEIGHT})`, background: 'var(--app-surface-soft)' }),
-        }}
-      >
-        {/* Inside a list that scrolls sideways, the explanation wraps to the visible width and stays in view.
-            Its lines are balanced so the narrower box selection leaves never strands the last words */}
-        <p
-          className="sticky left-0 col-span-full max-w-[100cqw] pb-2 text-sm text-balance italic"
-          style={{ color: 'var(--app-text-muted)', ...EXPLANATION_ACROSS_THE_LIST }}
+    <AnimatePresence initial={false}>
+      {transactionDates.length > 0 && (
+        // Never a scroll anchor, so the browser doesn't move the page to hold a row in place while the section
+        // closes, which pushed the header back under the toolbar
+        <motion.div
+          ref={sectionRef}
+          className={`${gridClassName} relative isolate`}
+          style={{ scrollMarginTop: stickyTop, overflowAnchor: 'none', ...DAY_TOTAL_MIX }}
+          initial={
+            prefersReducedMotion
+              ? { opacity: 0, marginBottom: SECTION_GAP_BELOW }
+              : { opacity: 0, height: 0, marginBottom: 0, ...CLIPPED_WHILE_RESIZING }
+          }
+          animate={{ opacity: 1, height: 'auto', marginBottom: SECTION_GAP_BELOW, transitionEnd: UNCLIPPED_AT_REST }}
+          exit={
+            prefersReducedMotion
+              ? { opacity: 0, transition: { duration: 0 } }
+              : {
+                  opacity: 0,
+                  height: 0,
+                  marginBottom: 0,
+                  ...CLIPPED_WHILE_RESIZING,
+                  transition: { duration: SECTION_DISAPPEAR_SECONDS, ease: TRANSACTION_LIST_EASE },
+                }
+          }
+          transition={{ duration: prefersReducedMotion ? 0 : SECTION_APPEAR_SECONDS, ease: TRANSACTION_LIST_EASE }}
         >
-          {UPCOMING_EXPLANATION}
-        </p>
-        <div className={gridClassName} style={UPCOMING_ROW_COLOURS}>
-          <FadedRowsContext.Provider value>{children}</FadedRowsContext.Provider>
-        </div>
-      </CollapsibleSection>
-    </div>
+          <span aria-hidden className="pointer-events-none absolute inset-y-0 -z-10 rounded-lg" style={BOX_SHADING} />
+          <span aria-hidden className="pointer-events-none absolute bottom-0 z-20 rounded-b-lg" style={BOX_EDGE} />
+          <div
+            aria-hidden
+            className={`${stickyTop === undefined ? '' : 'sticky'} pointer-events-none z-20 col-span-full rounded-t-lg`}
+            style={{ ...BOX_TOP, top: stickyTop }}
+          />
+          <CollapsibleSection
+            icon={CalendarClock}
+            label="Upcoming"
+            summary={
+              // The count as a pill and the dates in short form, like the archived sections' headers, so the
+              // header holds one line on a phone. The dates wrap under the count only when a range names years.
+              // Both roll to a new value when a transaction comes, goes or moves to another date
+              <span className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-2">
+                <CollapsibleSectionCount count={transactionDates.length} />
+                <AppSlotMachineText className="text-sm" text={describeUpcomingDates(transactionDates, today)} />
+              </span>
+            }
+            expanded={expanded}
+            onToggle={handleToggle}
+            className={gridClassName}
+            bodyClassName={gridClassName}
+            iconSlotWidth={UPCOMING_ICON_SLOT_WIDTH}
+            headerStyle={{
+              ...HEADER_ACROSS_THE_LIST,
+              borderTop: 'none',
+              ...(stickyTop === undefined
+                ? {}
+                : { top: `calc(${stickyTop}px + ${BOX_TOP_HEIGHT})`, background: 'var(--app-surface-soft)' }),
+            }}
+          >
+            {/* Inside a list that scrolls sideways, the explanation wraps to the visible width and stays in view.
+                Its lines are balanced so the narrower box selection leaves never strands the last words */}
+            <p
+              className="sticky left-0 col-span-full max-w-[100cqw] pb-2 text-sm text-balance italic"
+              style={{ color: 'var(--app-text-muted)', ...EXPLANATION_ACROSS_THE_LIST }}
+            >
+              {UPCOMING_EXPLANATION}
+            </p>
+            <div className={gridClassName} style={UPCOMING_ROW_COLOURS}>
+              <FadedRowsContext.Provider value>{children}</FadedRowsContext.Provider>
+            </div>
+          </CollapsibleSection>
+          {/* The room between the last row and the box's bottom edge. A spacer rather than padding on the
+              section, since its height animates and padding would stay behind at either end */}
+          <div aria-hidden className="col-span-full h-2" />
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

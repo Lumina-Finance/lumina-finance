@@ -70,7 +70,7 @@ async function openListWithUpcomingAndToday(page: Page, request: APIRequestConte
 test('keeps future-dated transactions in a collapsed Upcoming section until it is opened', async ({ page, request }) => {
   const { upcomingId, upcoming } = await openListWithUpcomingAndToday(page, request)
   await expect(upcoming).toHaveAttribute('aria-expanded', 'false')
-  await expect(upcoming).toHaveText(/^Upcoming1\D/)
+  await expect(upcoming).toHaveAccessibleName(/^Upcoming\s*1\D/)
   await expect(page.getByText("These haven't happened yet")).toHaveCount(0)
   await expect(page.getByTestId(`transaction-row-${upcomingId}`)).toHaveCount(0)
 
@@ -183,14 +183,16 @@ test('moves an upcoming transaction into the list when its day comes while the p
     date: tomorrow,
   })
 
-  // A minute before tomorrow begins, so the day turns over with the page still open
+  // A minute before tomorrow begins, so the day turns over with the page still open. Motion is reduced
+  // because the fake clock holds the browser's own fades, which would keep the emptied section on screen
+  await page.emulateMedia({ reducedMotion: 'reduce' })
   await logInViaApi(page, user)
   await page.clock.install({ time: startOfDayInTestTimezone(tomorrow).getTime() - 60_000 })
   await openPage(page, '/transactions')
 
   // With only an upcoming transaction loaded, the list is not empty
   const upcoming = page.getByRole('button', { name: /Upcoming/ })
-  await expect(upcoming).toHaveText(/^Upcoming1\D/)
+  await expect(upcoming).toHaveAccessibleName(/^Upcoming\s*1\D/)
   await expect(page.getByText('No transactions yet.')).toHaveCount(0)
   await expect(page.getByTestId(`transaction-row-${id}`)).toHaveCount(0)
 
@@ -219,7 +221,7 @@ test.describe('with the browser in Tokyo and the profile in Toronto', () => {
     await page.clock.install({ time: startOfDayInTestTimezone(tomorrow).getTime() - 3_600_000 })
     await openPage(page, '/transactions')
 
-    await expect(page.getByRole('button', { name: /Upcoming/ })).toHaveText(/^Upcoming1\D/)
+    await expect(page.getByRole('button', { name: /Upcoming/ })).toHaveAccessibleName(/^Upcoming\s*1\D/)
     await expect(page.getByTestId(`transaction-row-${id}`)).toHaveCount(0)
   })
 })
