@@ -136,7 +136,7 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
 
   return (
     <EditModalSection number={sectionNumber} title="Bank link">
-      <div ref={contentRef}>
+      <div ref={contentRef} data-tooltip-bounds>
       {ownPersonal && statusError && !status
         ? <LoadFailure error={statusError} subject="Bank link" />
         : (
