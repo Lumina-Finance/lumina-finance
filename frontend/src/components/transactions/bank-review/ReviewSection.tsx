@@ -227,6 +227,7 @@ export const BankReviewSection = memo(function BankReviewSection({
   const [reviewItem, setReviewItem] = useState<BankReviewItem | null>(null)
   const [isReviewOpen, setIsReviewOpen] = useState(false)
   const [reviewOpening, setReviewOpening] = useState(0)
+  const reviewAccount = reviewItem ? accountById.get(reviewItem.account_id) : undefined
   const openItem = useCallback((item: BankReviewItem) => {
     setReviewItem(item)
     setReviewOpening((opening) => opening + 1)
@@ -313,13 +314,14 @@ export const BankReviewSection = memo(function BankReviewSection({
           onReviewDecided={(openNext) => void settleReview(openNext)}
         />
       )}
-      {reviewItem && reviewItem.kind !== 'new' && (
+      {/* The decided or closed item stays in state, so its account may since have been deleted */}
+      {reviewItem && reviewItem.kind !== 'new' && reviewAccount && (
         <BankComparisonModal
           key={reviewOpening}
           open={isReviewOpen}
           onClose={() => setIsReviewOpen(false)}
           item={reviewItem}
-          currency={accountFor(reviewItem.account_id).currency}
+          currency={reviewAccount.currency}
         />
       )}
     </>

@@ -267,6 +267,27 @@ test('says why a decision failed in the comparison, leaving the item waiting', a
   await expect(needsReview(page.getByTestId(`transaction-row-${id}`))).toBeVisible()
 })
 
+test('goes on to the accounts once the account whose item was reviewed on its page is deleted', async ({ page, request }) => {
+  const setup = await start(page, request)
+  await addWaiting(page, request, setup, 'removal', 'UBER TRIP', { ledger: -1800, bank: -1800 })
+  await openPage(page, `/accounts/${setup.everyday.id}`)
+  const comparison = await openComparison(page, 'UBER TRIP', 'Review bank removal')
+  await comparison.getByRole('button', { name: 'Close' }).click()
+  await expect(comparison).toBeHidden()
+
+  await page.getByRole('button', { name: 'Edit account', exact: true }).click()
+  const editor = page.getByRole('dialog')
+  await editor.getByRole('button', { name: 'Delete account', exact: true }).click()
+  await editor.getByRole('button', { name: 'Continue', exact: true }).click()
+  const typedName = editor.getByRole('textbox', { name: 'Type "Everyday" to delete.' })
+  await typedName.fill('Everyday')
+  await typedName.press('Enter')
+
+  await expect(page).toHaveURL(/\/accounts$/)
+  await expect(page.getByRole('heading', { name: 'Accounts', level: 1 })).toBeVisible()
+  await expect(getAccountRow(page, 'Everyday')).toHaveCount(0)
+})
+
 for (const colorScheme of ['light', 'dark'] as const) {
   test(`compares an edited correction readably in the ${colorScheme} theme, without scrolling sideways`, async ({ page, request }) => {
     const setup = await start(page, request)
