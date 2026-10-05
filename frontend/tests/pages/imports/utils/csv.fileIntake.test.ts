@@ -142,10 +142,11 @@ describe('deciding a file is not a readable table', () => {
     expect(draft.rows).toHaveLength(2)
   })
 
+  // The Firefly III flow shares the reader and offers no Separator dropdown, so it isn't pointed to one
   it('refuses a file of one column', async () => {
     const draft = await stage('Amount\n5.00\n6.00\n')
 
-    expect(draft.error).toContain('Only one column')
+    expect(draft.error).toBe('Only one column was found. Check this is a CSV whose fields are separated by a comma, semicolon, tab or pipe.')
   })
 
   it('refuses a heading row with nothing under it', async () => {
@@ -369,5 +370,6 @@ describe('reading a file with the separator the user chose', () => {
 
     expect(draft.error).toBe('Only one column was found. Choose the separator your file uses from the Separator dropdown.')
     expect(draft.delimiter).toEqual(';')
+    expect((await read('Amount\n5.00\n6.00\n')).delimiter).toBe(',')
   })
 })

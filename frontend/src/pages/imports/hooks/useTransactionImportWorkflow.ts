@@ -923,6 +923,9 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   }
 
   const removeFile = (fileId: string) => {
+    // A re-read still running belongs to the file being removed, so it must not stage it again
+    startWorkflowRun()
+    setIsProcessingFiles(false)
     sourceFileRef.current = null
     applyStagedFiles(files.filter((file) => file.id !== fileId))
   }
@@ -932,7 +935,8 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
    */
   const changeDelimiter = async (delimiter: ImportDelimiter) => {
     const sourceFile = sourceFileRef.current
-    if (!sourceFile || isProcessingFiles) return
+    // Choosing the separator already shown, which is how the dropdown is closed, keeps the answers
+    if (!sourceFile || isProcessingFiles || delimiter === files[0]?.delimiter) return
 
     const workflowRun = startWorkflowRun()
     setIsProcessingFiles(true)

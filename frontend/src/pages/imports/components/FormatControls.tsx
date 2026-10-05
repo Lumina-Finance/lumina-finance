@@ -125,11 +125,13 @@ function getAmountFormatExample(format: ImportAmountFormat) {
  */
 export function ImportDelimiterControl({
   delimiter,
-  disabled,
+  hasError,
   onChange,
 }: {
   delimiter: ImportDelimiter
-  disabled: boolean
+
+  /** Whether the file was refused, which a separator choice is often what fixes */
+  hasError: boolean
   onChange: (delimiter: ImportDelimiter) => void
 }) {
   const labelId = useId()
@@ -151,7 +153,7 @@ export function ImportDelimiterControl({
           value={delimiter}
           onChange={(value) => onChange(value as ImportDelimiter)}
           labelledBy={labelId}
-          disabled={disabled}
+          hasError={hasError}
           size="field"
         />
       </div>

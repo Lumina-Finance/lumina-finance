@@ -128,7 +128,7 @@ export function ImportFilesStep({
           {stagedDelimiter && (
             <ImportDelimiterControl
               delimiter={stagedDelimiter}
-              disabled={isProcessingFiles}
+              hasError={Boolean(files[0]?.error)}
               onChange={(delimiter) => void changeDelimiter(delimiter)}
             />
           )}
