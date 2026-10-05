@@ -5,6 +5,7 @@ import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import type { ColumnMap, ColumnTarget, ColumnTargetGroup, ImportAmountDirection, ImportCategoryKind, ImportCategoryRename } from './types'
 import type { ImportDateFormat } from './utils/valueParsers'
 import type { ImportAmountFormat } from './utils/amountFormats'
+import type { ImportDelimiter } from './utils/csv'
 
 export const EMPTY_COLUMN_MAP: ColumnMap = {
   account_id: '',
@@ -605,6 +606,12 @@ export const IMPORT_DATE_FORMAT_LABELS: Record<ImportDateFormat, { label: string
   monthFirst: { label: 'Month first', example: '04/30/2026' },
   written: { label: 'Written', example: 'April 30, 2026' },
   iso: { label: 'ISO date/time', example: '2026-04-30T12:00:00Z' },
+}
+
+// Keyed by separator so each has a label, with the order taken from IMPORT_DELIMITERS
+export const IMPORT_DELIMITER_LABELS: Record<ImportDelimiter, string> = {
+  ',': 'Comma',
+  ';': 'Semicolon',
 }
 
 export const KIND_LABELS: Record<Category['kind'], string> = {

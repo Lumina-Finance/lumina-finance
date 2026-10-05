@@ -68,6 +68,7 @@ import {
   validateColumnValues,
   writeScopedImportAnswers,
   emptyScopedImportAnswers,
+  type ImportDelimiter,
   type ScopedImportAnswers,
 } from '@/pages/imports/utils'
 import { waitForMilliseconds } from '@/utils/timing'
@@ -227,6 +228,9 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   // Tells a finished file read whether the workflow it started in is still the one on screen, so a
   // reset in between drops its result instead of writing into what replaced it
   const workflowRunRef = useRef(0)
+
+  // The file the staged draft was read from, kept so it can be read again with another separator
+  const sourceFileRef = useRef<File | null>(null)
   const importTransactions = useImportTransactions()
   const commitStagedImport = useCommitStagedImport()
 
@@ -867,16 +871,24 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
    * Every setter is called with a value worked out here rather than from inside another setter, so
    * none of them has to be re-run to reach the same state
    */
-  const applyStagedFiles = (nextFiles: ImportFileDraft[]) => {
-    const result = inferColumnMap(columnMap, nextFiles, supportedCurrencyCodes, decidedColumnHeaders, {
+  const applyStagedFiles = (nextFiles: ImportFileDraft[], { startFresh = false } = {}) => {
+    // A file read again with another separator has other columns, so its mapping and format answers
+    // start over rather than carry across to headings that only share a name
+    const baseColumnMap = startFresh ? EMPTY_COLUMN_MAP : columnMap
+    const result = inferColumnMap(baseColumnMap, nextFiles, supportedCurrencyCodes, startFresh ? new Set() : decidedColumnHeaders, {
       omitAccountColumn: isAccountFixed,
     })
 
     setFiles(nextFiles)
     setStoredColumnMap(result.map)
+    if (startFresh) {
+      setDecidedColumnHeaders(new Set())
+      setDateFormatChoice(createImportFormatChoiceState(''))
+      setAmountFormatChoice(createImportFormatChoiceState(''))
+    }
     moveFormatChoicesTo(result.map, nextFiles)
     setColumnValidationErrors(result.errors)
-    setAutoFilledColumnHeaders((current) => getNextAutoFilledColumnHeaders(current, columnMap, result.map))
+    setAutoFilledColumnHeaders((current) => getNextAutoFilledColumnHeaders(startFresh ? new Set() : current, baseColumnMap, result.map))
     syncAutoMatchKeys(result.map, result.errors, nextFiles)
   }
 
@@ -892,13 +904,14 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
 
         try {
           const [draft] = await Promise.all([
-            readCsvFile(selectedFile, supportedCurrencyCodes, { requireDataRows: true }),
+            readCsvFile(selectedFile, supportedCurrencyCodes, { requireDataRows: true, offersDelimiterChoice: true }),
             waitForMilliseconds(CSV_PROCESSING_MIN_MS),
           ])
 
           // The workflow can be reset while the file is being read, and a file staged into the flow
           // that replaced it is one the user believes they discarded
           if (!isCurrentWorkflowRun(workflowRun)) return
+          sourceFileRef.current = selectedFile
           applyStagedFiles([draft])
         } finally {
           if (isCurrentWorkflowRun(workflowRun)) setIsProcessingFiles(false)
@@ -910,7 +923,34 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   }
 
   const removeFile = (fileId: string) => {
+    // A re-read still running belongs to the file being removed, so it must not stage it again
+    startWorkflowRun()
+    setIsProcessingFiles(false)
+    sourceFileRef.current = null
     applyStagedFiles(files.filter((file) => file.id !== fileId))
+  }
+
+  /**
+   * Reads the staged file again with the separator the user chose, starting the column mapping over
+   */
+  const changeDelimiter = async (delimiter: ImportDelimiter) => {
+    const sourceFile = sourceFileRef.current
+    // Choosing the separator already in use keeps the answers
+    if (!sourceFile || isProcessingFiles || delimiter === files[0]?.delimiter) return
+
+    const workflowRun = startWorkflowRun()
+    setIsProcessingFiles(true)
+    try {
+      const draft = await readCsvFile(sourceFile, supportedCurrencyCodes, {
+        requireDataRows: true,
+        offersDelimiterChoice: true,
+        delimiter,
+      })
+      if (!isCurrentWorkflowRun(workflowRun)) return
+      applyStagedFiles([draft], { startFresh: true })
+    } finally {
+      if (isCurrentWorkflowRun(workflowRun)) setIsProcessingFiles(false)
+    }
   }
 
   const updateColumnTarget = (header: string, targetValue: string) => {
@@ -983,6 +1023,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     startWorkflowRun()
     run.resetImportRun()
     setFiles([])
+    sourceFileRef.current = null
     setIsProcessingFiles(false)
     setFileIntakeError(null)
     setAutoFilledColumnHeaders(new Set())
@@ -1104,6 +1145,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setMerchantSearch,
     setTagHandlingOpen,
     handleFileChange,
+    changeDelimiter,
     removeFile,
     updateSourceAccount,
     updateColumnTarget,

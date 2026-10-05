@@ -44,7 +44,9 @@ const MIN_IMPORT_COLUMNS = 2
 // and it reports an undetectable delimiter for every single-column file
 const FATAL_PARSE_ERROR_CODE = 'MissingQuotes'
 
-const IMPORT_DELIMITERS = [',', ';', '\t', '|'] as const
+// The separators the reader tells apart, and the only ones the user can choose in their place
+export const IMPORT_DELIMITERS = [',', ';'] as const
+export type ImportDelimiter = typeof IMPORT_DELIMITERS[number]
 
 const HEADER_ALIASES = new Set([
   'account',
@@ -99,7 +101,8 @@ const HEADER_ALIASES = new Set([
 
 const NO_READABLE_ROWS_ERROR = 'No readable rows detected'
 const NO_DATA_ROWS_ERROR = 'This file has a heading row and no transactions under it.'
-const SINGLE_COLUMN_ERROR = 'Only one column was found. Check this is a CSV whose fields are separated by a comma, semicolon, tab or pipe.'
+const SINGLE_COLUMN_ERROR = 'Only one column was found. Check this is a CSV whose fields are separated by a comma or semicolon.'
+export const SINGLE_COLUMN_SEPARATOR_ERROR = 'Only one column was found. Choose the separator your file uses under Separator.'
 const UNREADABLE_TEXT_ERROR = 'This file is not readable as text. Export it as a CSV encoded in UTF-8 and upload it again.'
 
 /**
@@ -110,6 +113,9 @@ interface ParsedCsv {
   hasHeaderRow: boolean
   rows: CsvRow[]
   error: string | null
+
+  /** The separator the general parser read the file with, absent for a tool-specific reader */
+  delimiter?: ImportDelimiter
 }
 
 /**
@@ -134,6 +140,9 @@ interface ParsedCsv {
  * from the doubled quotes the general parser expects, receiving the text with line endings already
  * rewritten as newlines. It returns null for text the tool did not write as it stands, such as its
  * export saved again by a spreadsheet, which the general parser then reads with its delimiter guessing
+ * @param delimiter - The separator the user chose, which the general parser reads with in place of guessing
+ * @param offersDelimiterChoice - Whether the flow offers the Separator choice, which a file read as a
+ * single column is then pointed to
  */
 export async function readCsvFile(
   file: File,
@@ -142,19 +151,24 @@ export async function readCsvFile(
     requireDataRows,
     unescapeCell = (value) => value,
     readRecords,
+    delimiter,
+    offersDelimiterChoice = false,
   }: {
     requireDataRows: boolean
     unescapeCell?: (value: string) => string
     readRecords?: (text: string) => string[][] | null
+    delimiter?: ImportDelimiter
+    offersDelimiterChoice?: boolean
   },
 ): Promise<ImportFileDraft> {
   const staged = { id: createFileId(file), name: file.name, size: file.size }
-  const refuse = (error: string): ImportFileDraft => ({
+  const refuse = (error: string, read: Pick<ImportFileDraft, 'delimiter'> = {}): ImportFileDraft => ({
     ...staged,
     headers: [],
     hasHeaderRow: false,
     rows: [],
     error,
+    ...read,
   })
 
   if (file.size > MAX_IMPORT_FILE_BYTES) return refuse(getFileTooLargeError(file.size))
@@ -171,8 +185,12 @@ export async function readCsvFile(
     if (replacementCount > replacementLimit || text.includes(NULL_CHARACTER)) return refuse(UNREADABLE_TEXT_ERROR)
 
     const parsed = parseKnownCsvText(text, supportedCurrencyCodes, requireDataRows, unescapeCell, readRecords)
-      ?? await parseCsvText(text, supportedCurrencyCodes, requireDataRows, unescapeCell)
-    if (parsed.error) return refuse(parsed.error)
+      ?? await parseCsvText(text, supportedCurrencyCodes, requireDataRows, unescapeCell, delimiter)
+    const read = parsed.delimiter ? { delimiter: parsed.delimiter } : {}
+    if (parsed.error) {
+      const error = offersDelimiterChoice && parsed.error === SINGLE_COLUMN_ERROR ? SINGLE_COLUMN_SEPARATOR_ERROR : parsed.error
+      return refuse(error, read)
+    }
 
     const draft: ImportFileDraft = {
       ...staged,
@@ -180,6 +198,7 @@ export async function readCsvFile(
       hasHeaderRow: parsed.hasHeaderRow,
       rows: parsed.rows,
       error: null,
+      ...read,
     }
     if (replacementCount > 0) draft.notice = getUnreadableCharacterNotice(replacementCount)
 
@@ -201,6 +220,7 @@ async function parseCsvText(
   supportedCurrencyCodes: Set<string>,
   requireDataRows: boolean,
   unescapeCell: (value: string) => string,
+  chosenDelimiter: ImportDelimiter | undefined,
 ): Promise<ParsedCsv> {
   // Pull the CSV parser on demand so papaparse only ships with the import flow
   const { parse } = await import('papaparse')
@@ -211,7 +231,7 @@ async function parseCsvText(
   let result = parse<string[]>(normalizedText, {
     header: false,
     skipEmptyLines: 'greedy',
-    delimitersToGuess: [...IMPORT_DELIMITERS],
+    ...(chosenDelimiter ? { delimiter: chosenDelimiter } : { delimitersToGuess: [...IMPORT_DELIMITERS] }),
 
     // Stated rather than guessed by majority. A file mixing both endings is guessed as the more
     // common one, and every line ending the other way is then read as part of the cell before it,
@@ -223,8 +243,9 @@ async function parseCsvText(
   // A headerless file with decimal-comma amounts can give the guesser the same number of commas and
   // field delimiters on every row. If it chooses comma, the real delimiter remains embedded in a
   // cell and every amount loses its fractional digits. Retry only delimiters still visible in the
-  // guessed cells, retaining Papa's choice unless a stable reading recovers stronger strict evidence
-  for (const delimiter of IMPORT_DELIMITERS) {
+  // guessed cells, retaining Papa's choice unless a stable reading recovers stronger strict evidence.
+  // A separator the user chose is read as it is
+  for (const delimiter of chosenDelimiter ? [] : IMPORT_DELIMITERS) {
     if (delimiter === result.meta.delimiter) continue
     if (!result.data.some((row) => row.some((cell) => cell.includes(delimiter)))) continue
 
@@ -242,8 +263,10 @@ async function parseCsvText(
     }
   }
 
+  // Papa reads a file it found no separator in with a comma, so every reading names one of these
+  const delimiter = IMPORT_DELIMITERS.find((candidate) => candidate === result.meta.delimiter) ?? IMPORT_DELIMITERS[0]
   const malformed = result.errors.find((error) => error.code === FATAL_PARSE_ERROR_CODE)
-  if (malformed) return refuseParsedCsv(getMalformedQuoteError(malformed.row))
+  if (malformed) return { ...refuseParsedCsv(getMalformedQuoteError(malformed.row)), delimiter }
 
   const records: string[][] = []
   for (const row of result.data) {
@@ -251,7 +274,7 @@ async function parseCsvText(
     if (record.some(Boolean)) records.push(record)
   }
 
-  return buildParsedCsv(records, supportedCurrencyCodes, requireDataRows)
+  return { ...buildParsedCsv(records, supportedCurrencyCodes, requireDataRows), delimiter }
 }
 
 /**

@@ -142,10 +142,18 @@ describe('deciding a file is not a readable table', () => {
     expect(draft.rows).toHaveLength(2)
   })
 
+  // The Firefly III flow shares the reader and offers no Separator choice, so it isn't pointed to one
   it('refuses a file of one column', async () => {
     const draft = await stage('Amount\n5.00\n6.00\n')
 
-    expect(draft.error).toContain('Only one column')
+    expect(draft.error).toBe('Only one column was found. Check this is a CSV whose fields are separated by a comma or semicolon.')
+  })
+
+  // The reader takes only commas and semicolons, so a file split by tabs or pipes reads as one column
+  it.each(['\t', '|'])('refuses a file separated by %j', async (delimiter) => {
+    const draft = await stage(`Date${delimiter}Amount\n2026-01-01${delimiter}-5.00\n2026-01-02${delimiter}-6.00\n`)
+
+    expect(draft.error).toBe('Only one column was found. Check this is a CSV whose fields are separated by a comma or semicolon.')
   })
 
   it('refuses a heading row with nothing under it', async () => {
@@ -313,17 +321,14 @@ describe('carrying header detection onto a file actually read', () => {
     expect(draft.headers).toEqual(['Column 1', 'Column 2'])
   })
 
-  it.each([';', '\t', '|'])(
-    'keeps the first transaction in a headerless localized file using %j',
-    async (delimiter) => {
-      const draft = await stage(`31.08.2026${delimiter}CHF100,99\n01.09.2026${delimiter}CHF200,00\n`)
+  it('keeps the first transaction in a headerless localized semicolon file', async () => {
+    const draft = await stage('31.08.2026;CHF100,99\n01.09.2026;CHF200,00\n')
 
-      expect(draft.error).toBeNull()
-      expect(draft.hasHeaderRow).toBe(false)
-      expect(draft.rows).toHaveLength(2)
-      expect(draft.rows[0]).toEqual({ 'Column 1': '31.08.2026', 'Column 2': 'CHF100,99' })
-    },
-  )
+    expect(draft.error).toBeNull()
+    expect(draft.hasHeaderRow).toBe(false)
+    expect(draft.rows).toHaveLength(2)
+    expect(draft.rows[0]).toEqual({ 'Column 1': '31.08.2026', 'Column 2': 'CHF100,99' })
+  })
 })
 
 describe('creating a fresh id for each read', () => {
@@ -336,5 +341,39 @@ describe('creating a fresh id for each read', () => {
     expect(first.id).not.toBe(second.id)
     expect(first.name).toBe('statement.csv')
     expect(first.size).toBe(file.size)
+  })
+})
+
+describe('reading a file with the separator the user chose', () => {
+  const read = (csv: string, options: Partial<Parameters<typeof readCsvFile>[2]> = {}) => (
+    readCsvFile(new File([csv], 'statement.csv'), SUPPORTED_CURRENCY_CODES, { requireDataRows: true, offersDelimiterChoice: true, ...options })
+  )
+
+  it('reports the separator it detected', async () => {
+    const draft = await read('Date;Amount\n2026-01-01;-5.00\n2026-01-02;-6.00\n')
+
+    expect(draft.delimiter).toEqual(';')
+    expect(draft.headers).toEqual(['Date', 'Amount'])
+  })
+
+  // Every line holds one of each, so only the choice decides which splits the columns
+  it('reads with the chosen separator in place of the detected one', async () => {
+    const csv = 'Date,Amount;Ref\n2026-01-01,-5.00;A1\n2026-01-02,-6.00;B2\n'
+
+    const bySemicolon = await read(csv, { delimiter: ';' })
+    const byComma = await read(csv, { delimiter: ',' })
+
+    expect([Object.values(bySemicolon.rows.at(-1)!), bySemicolon.delimiter]).toEqual([['2026-01-02,-6.00', 'B2'], ';'])
+    expect([Object.values(byComma.rows.at(-1)!), byComma.delimiter]).toEqual([['2026-01-02', '-6.00;B2'], ','])
+  })
+
+  // A file read as one column is pointed at the Separator choice, and keeps the separator it was read
+  // with so the choice can show it
+  it('points a file read as one column to the Separator choice', async () => {
+    const draft = await read('Date;Amount\n2026-01-01;-5.00\n', { delimiter: ',' })
+
+    expect(draft.error).toBe('Only one column was found. Choose the separator your file uses under Separator.')
+    expect(draft.delimiter).toEqual(',')
+    expect((await read('Amount\n5.00\n6.00\n')).delimiter).toBe(',')
   })
 })

@@ -284,7 +284,8 @@ export function ImportStagedFileTable<TFile extends { id: string; name: string }
                 <FileText size={17} className="shrink-0" style={{ color: 'var(--app-text-muted)' }} aria-hidden />
                 <div className="min-w-0">
                   <p className="truncate text-[0.9375rem] font-medium">{file.name}</p>
-                  <p className="truncate text-xs" style={{ color: SUMMARY_TONE_COLORS[summary.tone] }}>
+                  {/* A refusal wraps rather than truncating, since its end says how to fix the file */}
+                  <p className={`text-xs ${summary.tone === 'error' ? 'break-words' : 'truncate'}`} style={{ color: SUMMARY_TONE_COLORS[summary.tone] }}>
                     {summary.detail}
                   </p>
                 </div>

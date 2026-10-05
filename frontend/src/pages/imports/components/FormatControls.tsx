@@ -1,14 +1,17 @@
 import { useId } from 'react'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
-import { IMPORT_DATE_FORMAT_LABELS } from '@/pages/imports/constants'
+import { IMPORT_DATE_FORMAT_LABELS, IMPORT_DELIMITER_LABELS } from '@/pages/imports/constants'
 import {
   IMPORT_DATE_FORMATS,
+  IMPORT_DELIMITERS,
   getImportAmountFormatKey,
+  type ImportDelimiter,
   type ImportAmountFormat,
   type ImportAmountFormatScan,
   type ImportDateChoiceScan,
   type ImportDateFormat,
 } from '@/pages/imports/utils'
+import { ImportSegmentedToggle } from './tables/SegmentedToggle'
 
 const UNREADABLE_FORMAT_BADGE = 'Does not fit'
 
@@ -115,4 +118,36 @@ function getAmountFormatExample(format: ImportAmountFormat) {
       ? '1 234'
       : `1${format.groupingSeparator}234`
   return `${grouped}${format.decimalSeparator}56`
+}
+
+/**
+ * Picks the separator the staged CSV file is read with, showing the one the reader detected until the
+ * user chooses another, which reads the file again
+ */
+export function ImportDelimiterControl({
+  delimiter,
+  hasError,
+  onChange,
+}: {
+  delimiter: ImportDelimiter
+
+  /** Whether the file was refused, which a separator choice is often what fixes */
+  hasError: boolean
+  onChange: (delimiter: ImportDelimiter) => void
+}) {
+  // Every choice is shown with the character it stands for, so it can be matched against the file
+  const options = IMPORT_DELIMITERS.map((candidate) => ({
+    value: candidate,
+    label: IMPORT_DELIMITER_LABELS[candidate],
+    symbol: candidate,
+  }))
+
+  return (
+    <div className="flex flex-col gap-1.5 px-3">
+      <p aria-hidden className="text-sm font-medium">
+        Separator
+      </p>
+      <ImportSegmentedToggle options={options} value={delimiter} label="Separator" onChange={onChange} hasError={hasError} />
+    </div>
+  )
 }
