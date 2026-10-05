@@ -63,6 +63,8 @@ export function ConnectionRow({ connection, layoutKey, isLast, prefersReducedMot
       className="app-marquee-trigger"
       style={{ borderBottom: isLast ? 'none' : '1px solid var(--app-border)' }}
     >
+      {/* Off the named type tiers on purpose: text-[0.9375rem] matches the tag, merchant and category lists
+          this list is laid out like. Moving every list onto a named tier is a separate standards change */}
       <button
         type="button"
         className="w-full py-3 text-left text-[0.9375rem] transition-[background-color,box-shadow] duration-150 focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--app-accent)] min-[750px]:py-3.5 min-[750px]:pl-4 min-[750px]:pr-3 min-[750px]:hover:bg-[var(--app-accent-soft)]"
