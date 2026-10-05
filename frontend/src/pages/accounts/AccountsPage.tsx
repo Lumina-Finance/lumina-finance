@@ -28,8 +28,8 @@ import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
  *
  * Archived accounts are held out of the grouped lists, the totals and the filter toolbar, and
  * appear only in their own section. The create-account modal is remounted each time it opens so
- * it always starts from an empty form, and an account it saves is followed by a prompt for its
- * starting balance once the modal has finished closing
+ * it always starts from an empty form, and an account it saves is followed by a prompt asking how it
+ * stays up to date once the modal has finished closing
  */
 export default function AccountsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)

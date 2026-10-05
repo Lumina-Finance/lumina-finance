@@ -1,15 +1,28 @@
 import { useState, type FormEvent, type KeyboardEvent } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Landmark } from 'lucide-react'
+import { useNavigate } from 'react-router'
 import { StartingBalanceNotSavedError, useRecordStartingBalance, type AccountsOverview } from '@/api/accounts'
 import { ApiError } from '@/api/auth'
+import { useBankConnections, useBankProviders } from '@/api/bank-sync'
+import { ChoiceCard } from '@/components/bank-link-flow/ChoiceCard'
+import { GROUP_ACCOUNT_LINK_REASON, NOTHING_TO_LINK_REASON } from '@/components/bank-link-flow/constants'
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
+import type { AccountDetailArrivalState } from '@/pages/accounts/detail/constants/accountDetail'
 import { getCurrencyExponent, toMinorUnits } from '@/utils/moneyInput'
 
+type KeepUpToDate = 'bank' | 'manual'
+
 const STARTING_BALANCE_INPUT_ID = 'new-account-starting-balance'
+
+// Arriving on the account's page with this opens the link flow there
+const LINK_BANK_ARRIVAL: AccountDetailArrivalState = { linkBank: true }
+
+const UNFOLD_EASE = [0.22, 1, 0.36, 1] as const
 
 // A starting balance is zero or higher, so a hyphen or a true minus typed or pasted into the field
 // is answered with a message rather than dropped without a word
@@ -30,12 +43,22 @@ type NewAccountPromptModalProps = {
 }
 
 /**
- * Follows a new account's creation with its optional starting balance, recorded as a balance
- * adjustment dated today. The account is already saved, so skipping leaves it at a zero balance
+ * Follows a new account's creation by asking how it stays up to date: linked to a bank account, which
+ * continues on the account's page with the link flow open, or kept manual with an optional starting
+ * balance, recorded as a balance adjustment dated today. The account is already saved, so deciding
+ * later leaves it manual at a zero balance
+ *
+ * A user the deployment lets link nothing is asked only for the starting balance. The prompt waits
+ * for the bank reads before it opens, so its choices never change under the user
  */
 export default function NewAccountPromptModal({ open, account, onClose, onExitComplete }: NewAccountPromptModalProps) {
+  const navigate = useNavigate()
+  const prefersReducedMotion = useReducedMotion()
   const { currencies } = useMoneyFormatters()
   const recordStartingBalance = useRecordStartingBalance()
+  const { data: providers, isPending: providersPending } = useBankProviders()
+  const { data: connections, isPending: connectionsPending } = useBankConnections()
+  const [chosen, setChosen] = useState<KeepUpToDate | null>(null)
   const [startingBalance, setStartingBalance] = useState('')
 
   // The field refuses text holding a minus and keeps its value, so the refused text is read to say why
@@ -56,6 +79,20 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
   })
   const balanceError = typedMinus ? 'Must be zero or higher' : undefined
 
+  // Linking is offered to a user the bank-linking check allows, on a deployment with a provider. It is
+  // refused, saying why, for a group account, and when there is no working connection to link through
+  // and no provider open to a new one. A failed read leaves the account manual rather than holding
+  // the prompt back
+  const offersLink = providers !== undefined && providers.may_link && providers.providers.length > 0
+  const hasWorkingConnection = connections?.some((connection) => connection.status === 'active') ?? false
+  const linkReason = account.group_id !== null
+    ? GROUP_ACCOUNT_LINK_REASON
+    : !hasWorkingConnection && !providers?.providers.some((provider) => provider.offered)
+      ? NOTHING_TO_LINK_REASON
+      : null
+  const choice: KeepUpToDate = !offersLink ? 'manual' : chosen ?? (linkReason ? 'manual' : 'bank')
+  const ready = !providersPending && (!offersLink || !connectionsPending)
+
   // Deleting in a field the refused text left empty changes no text, so no change arrives to clear
   // the message, yet it is still the person taking the minus back
   const handleBalanceKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -66,6 +103,12 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
   // blank one as blank whether or not the message still shows
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+
+    if (choice === 'bank') {
+      onClose()
+      navigate(`/accounts/${account.id}`, { state: LINK_BANK_ARRIVAL })
+      return
+    }
 
     // A blank or zero balance is the balance the account already has, so there is nothing to record
     const amount = toMinorUnits(startingBalance, exponent)
@@ -86,14 +129,47 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
     )
   }
 
+  const startingBalanceField = (
+    <>
+      <CreateModalFieldLabelRow
+        htmlFor={STARTING_BALANCE_INPUT_ID}
+        label={isLiability ? 'Starting amount owed' : 'Starting balance'}
+        error={balanceError}
+      />
+      <div className="relative">
+        {symbol && (
+          <span
+            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
+            style={{ color: 'var(--app-text-subtle)' }}
+            aria-hidden
+          >
+            {symbol}
+          </span>
+        )}
+        <input
+          id={STARTING_BALANCE_INPUT_ID}
+          className={`app-input ${symbol ? 'pl-8' : ''} ${balanceError ? 'app-input-error' : ''}`}
+          aria-invalid={balanceError ? true : undefined}
+          placeholder="Optional"
+          disabled={recordStartingBalance.isPending}
+          {...balanceInput}
+          onKeyDown={handleBalanceKeyDown}
+        />
+      </div>
+      <p className="mt-1.5 text-xs italic" style={{ color: 'var(--app-text-muted)' }}>
+        Your starting balance is recorded as a balance adjustment dated today.
+      </p>
+    </>
+  )
+
   return (
     <ModalTitledPanel
-      open={open}
+      open={open && ready}
       onClose={onClose}
       onExitComplete={onExitComplete}
       onSubmit={handleSubmit}
       titleId="new-account-prompt-title"
-      title="Add a starting balance"
+      title={offersLink ? 'Keep it up to date' : 'Add a starting balance'}
       eyebrow={`${account.name} created`}
       RailIcon={Landmark}
       railLabel="Account"
@@ -105,40 +181,48 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
           submitWidthClassName="w-full sm:w-32"
           error={submitError}
           onCancel={onClose}
-          cancelLabel="Skip"
+          cancelLabel={offersLink ? 'Decide later' : 'Skip'}
         />
       )}
     >
-      <div className="pb-2">
-        <CreateModalFieldLabelRow
-          htmlFor={STARTING_BALANCE_INPUT_ID}
-          label={isLiability ? 'Starting amount owed' : 'Starting balance'}
-          error={balanceError}
-        />
-        <div className="relative">
-          {symbol && (
-            <span
-              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
-              style={{ color: 'var(--app-text-subtle)' }}
-              aria-hidden
-            >
-              {symbol}
-            </span>
-          )}
-          <input
-            id={STARTING_BALANCE_INPUT_ID}
-            className={`app-input ${symbol ? 'pl-8' : ''} ${balanceError ? 'app-input-error' : ''}`}
-            aria-invalid={balanceError ? true : undefined}
-            placeholder="Optional"
-            disabled={recordStartingBalance.isPending}
-            {...balanceInput}
-            onKeyDown={handleBalanceKeyDown}
-          />
-        </div>
-        <p className="mt-1.5 text-xs italic" style={{ color: 'var(--app-text-muted)' }}>
-          Recorded as a balance adjustment dated today.
-        </p>
-      </div>
+      {offersLink
+        ? (
+            <div className="pb-2">
+              <div className="space-y-3" role="radiogroup" aria-label="How this account stays up to date">
+                <ChoiceCard
+                  selected={choice === 'bank'}
+                  disabled={linkReason !== null || recordStartingBalance.isPending}
+                  onSelect={() => setChosen('bank')}
+                >
+                  <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>Link a bank account</span>
+                  <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                    {linkReason ?? 'Choose one of the bank accounts on your connections. Transactions arrive from the bank and wait for your review, and once the import is reviewed the app offers to line up the opening balance.'}
+                  </span>
+                </ChoiceCard>
+                <ChoiceCard selected={choice === 'manual'} disabled={recordStartingBalance.isPending} onSelect={() => setChosen('manual')}>
+                  <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>Keep it manual</span>
+                  <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                    Add transactions yourself or import files. You can link a bank later.
+                  </span>
+                </ChoiceCard>
+              </div>
+              <AnimatePresence initial={false}>
+                {choice === 'manual' && (
+                  <motion.div
+                    key="starting-balance"
+                    className="overflow-hidden"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: UNFOLD_EASE }}
+                  >
+                    <div className="pt-4">{startingBalanceField}</div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )
+        : <div className="pb-2">{startingBalanceField}</div>}
     </ModalTitledPanel>
   )
 }

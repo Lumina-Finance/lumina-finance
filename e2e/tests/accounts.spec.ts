@@ -22,7 +22,8 @@ const ACCOUNT_NAME = 'Everyday Chequing'
  * @param page - Page already showing the accounts page
  * @param accountType - Label of the type to choose, a chequing account unless given
  * @param name - Name to give the account
- * @returns The prompt for the starting balance that saving the account opens
+ * @returns The prompt that saving the account opens, with the account kept manual so its starting
+ * balance shows
  */
 async function createAccountThroughModal(page: Page, accountType = 'Checking', name = ACCOUNT_NAME): Promise<Locator> {
   const dialog = await openModal(page, ['Add account'], 'Add account')
@@ -33,8 +34,9 @@ async function createAccountThroughModal(page: Page, accountType = 'Checking', n
   await dialog.getByRole('button', { name: 'Create account' }).click()
 
   await expect(dialog).toBeHidden()
-  const prompt = page.getByRole('dialog', { name: 'Add a starting balance' })
+  const prompt = page.getByRole('dialog', { name: 'Keep it up to date' })
   await expect(prompt).toBeVisible()
+  await prompt.getByRole('radio', { name: /^Keep it manual/ }).click()
   return prompt
 }
 
@@ -44,8 +46,13 @@ async function createAccountThroughModal(page: Page, accountType = 'Checking', n
  * @param page - Page whose prompt has just opened
  */
 async function skipStartingBalancePrompt(page: Page): Promise<void> {
-  const prompt = page.getByRole('dialog', { name: 'Add a starting balance' })
-  await prompt.getByRole('button', { name: 'Skip' }).click()
+  // With a bank provider on offer the prompt asks how the account stays up to date first, and it
+  // holds the starting balance once the account is kept manual
+  const prompt = page.getByRole('dialog', { name: /^(Keep it up to date|Add a starting balance)$/ })
+  await expect(prompt).toBeVisible()
+  const manual = prompt.getByRole('radio', { name: /^Keep it manual/ })
+  if (await manual.count()) await manual.click()
+  await prompt.getByRole('button', { name: /^(Skip|Decide later)$/ }).click()
   await expect(prompt).toBeHidden()
 }
 
@@ -122,7 +129,7 @@ test('leaves a new account at zero when its starting balance is left blank', asy
   expect(startingBalanceRequests).toEqual([])
 })
 
-test('leaves a new account at zero when its starting balance is skipped', async ({ page, request }) => {
+test('leaves a new account at zero when its starting balance is left for later', async ({ page, request }) => {
   const user = await signUpUser(request)
   await logInViaApi(page, user)
   await openPage(page, '/accounts')
@@ -130,7 +137,7 @@ test('leaves a new account at zero when its starting balance is skipped', async 
 
   const prompt = await createAccountThroughModal(page)
   await prompt.getByLabel('Starting balance', { exact: true }).fill('300.00')
-  await prompt.getByRole('button', { name: 'Skip' }).click()
+  await prompt.getByRole('button', { name: 'Decide later' }).click()
 
   await expect(prompt).toBeHidden()
   await expect(getAccountRow(page, ACCOUNT_NAME)).toContainText('$0.00')
@@ -271,7 +278,7 @@ test('keeps the prompt and the typed balance when a save is lost before it lands
 
   const prompt = await createAccountThroughModal(page)
   const balance = prompt.getByLabel('Starting balance', { exact: true })
-  const buttons = [prompt.getByRole('button', { name: 'Skip' }), prompt.getByRole('button', { name: 'Continue' })]
+  const buttons = [prompt.getByRole('button', { name: 'Decide later' }), prompt.getByRole('button', { name: 'Continue' })]
   const buttonWidths = () => Promise.all(buttons.map(async (button) => (await button.boundingBox())?.width))
   const widthsBeforeMessage = await buttonWidths()
 
