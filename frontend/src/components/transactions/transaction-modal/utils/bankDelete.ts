@@ -13,8 +13,9 @@ type GetBankDeleteRefusalOptions = {
 /**
  * Says why a bank-imported transaction can't be deleted, or null when it can
  *
- * Mirrors the backend's refusal in the same words, so Delete is greyed out with the reason rather
- * than refused by the server. While its account stays linked, only a bank removal the user approves
+ * Mirrors the backend's refusal word for word, adding the full stop a sentence on screen ends with and
+ * the server's messages leave off, so Delete is greyed out with the reason rather than refused by the
+ * server. While its account stays linked, only a bank removal the user approves
  * takes a bank-imported transaction out of the ledger. A manual transaction, or a bank one whose
  * account has since been unlinked, deletes as usual. Without the account's name the check is left to
  * the delete, whose refusal the modal shows like any other
