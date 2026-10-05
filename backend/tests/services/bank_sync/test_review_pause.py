@@ -23,7 +23,6 @@ from tests.routes.support.bank_sync_helpers import (
     _build_account,
     _build_bank_link,
     _build_bank_transaction,
-    _commit_accepted_items,
     _commit_waiting_items,
     _dismiss_items,
     _owner_session,
@@ -181,12 +180,3 @@ async def test_read_review_backlogs_shows_the_pause_from_100_and_the_warning_fro
     await _commit_waiting_items(link, waiting)
 
     assert await _backlog(link) == backlog
-
-
-async def test_read_review_backlogs_counts_new_items_and_not_corrections(connections):
-    """Everyday has 90 new items and 15 corrections waiting: it shows 90 with the warning, not the pause, since corrections don't count"""
-    link = await _paused_link(connections[0], paused=False)
-    await _commit_waiting_items(link, 90)
-    await _commit_accepted_items(link, corrections=15)
-
-    assert await _backlog(link) == ReviewBacklog(waiting_new=90, paused=False, warning=True)

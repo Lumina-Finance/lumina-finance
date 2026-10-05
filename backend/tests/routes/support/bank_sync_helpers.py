@@ -252,13 +252,7 @@ def _build_bank_transaction(
     )
 
 
-async def _commit_waiting_items(
-    link: BankAccountLink,
-    count: int,
-    prefix: str = "TRN-waiting",
-    *,
-    external_account_id: str | None = None,
-) -> list[uuid.UUID]:
+async def _commit_waiting_items(link: BankAccountLink, count: int, *, external_account_id: str | None = None) -> list[uuid.UUID]:
     """Commit this many new items for the link's account, each awaiting its first review, sent by the link's bank account unless told otherwise
 
     Returns:
@@ -267,7 +261,7 @@ async def _commit_waiting_items(
     sent_by = external_account_id or link.external_account_id
     async with TestSession() as session:
         account = await session.get_one(Account, link.account_id)
-        items = [_build_bank_transaction(account, f"{prefix}-{number}", external_account_id=sent_by) for number in range(count)]
+        items = [_build_bank_transaction(account, f"TRN-waiting-{number}", external_account_id=sent_by) for number in range(count)]
         session.add_all(items)
         await session.commit()
     return [item.id for item in items]

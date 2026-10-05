@@ -83,6 +83,16 @@ async def _queued_jobs() -> list[tuple]:
         return [tuple(row) for row in rows]
 
 
+async def _importing(account_id: str) -> bool:
+    """Return whether an import runs on the account's live link, which holds back its review pause"""
+    async with TestSession() as session:
+        return await session.scalar(
+            select(BankAccountLink.importing).where(
+                BankAccountLink.account_id == uuid.UUID(account_id), BankAccountLink.state != BankLinkState.UNLINKED
+            )
+        )
+
+
 async def test_link_creates_the_link_and_queues_its_first_import(client):
     """Linking empty Everyday from 30 days ago starts an initial import there, queued at once"""
     headers, _, account_id, connection = await _linkable(client)
@@ -110,6 +120,7 @@ async def test_link_creates_the_link_and_queues_its_first_import(client):
     assert await _stored_links() == [
         (uuid.UUID(account_id), connection.id, BANK_ACCOUNT_ID, "active", "initial", start, start - timedelta(days=1))
     ]
+    assert await _importing(account_id) is True
     assert await _queued_jobs() == [(connection.id, "initial", False, "queued")]
     assert after.status_code == 200, after.text
     assert after.json()["personal"]["changed_at"] != before.json()["personal"]["changed_at"]
@@ -129,6 +140,7 @@ async def test_link_of_an_account_unlinked_before_is_a_relink(client):
 
     assert linked.status_code == 201, linked.text
     assert [(state, kind) for *_, state, kind, _, _ in await _stored_links()] == [("unlinked", "initial"), ("active", "relink")]
+    assert await _importing(account_id) is True
     assert await _queued_jobs() == [(connection.id, "initial", False, "queued")]
 
 
