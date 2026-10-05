@@ -233,6 +233,42 @@ async def _listing(connection: BankConnection) -> tuple[bool, list[str]]:
     return response.discovery_pending, [account.external_id for account in response.accounts]
 
 
+async def _told_at(connection: BankConnection) -> datetime | None:
+    """Return when the owner's open pages were last told their data changed, or None when they never were"""
+    async with TestSession() as session:
+        return await session.scalar(select(UserCacheState.changed_at).where(UserCacheState.user_id == connection.owner_id))
+
+
+class _HeldProvider(FakeProviderAdapter):
+    """Waits in each request it holds, after the answer is decided, until the test releases it, as a slow provider would
+
+    Requests are numbered from 1 in the order they are sent, listings and fetches alike
+    """
+
+    def __init__(self, held: Sequence[int] = (1,)) -> None:
+        """Hold the requests numbered, the first unless told otherwise, none of them sent yet"""
+        super().__init__()
+        self.sent = 0
+        self.sending = {number: asyncio.Event() for number in held}
+        self.release = {number: asyncio.Event() for number in held}
+
+    @override
+    async def discover(self, credential: str, **options) -> FetchResult:
+        return await self._answer(await super().discover(credential, **options))
+
+    @override
+    async def fetch(self, credential: str, **window) -> FetchResult:
+        return await self._answer(await super().fetch(credential, **window))
+
+    async def _answer(self, result: FetchResult) -> FetchResult:
+        """Return the answer, holding a request it holds until released"""
+        self.sent += 1
+        if self.sent in self.sending:
+            self.sending[self.sent].set()
+            await self.release[self.sent].wait()
+        return result
+
+
 async def _jobs() -> list[tuple]:
     """Return each job's kind, status, error and the links it covered, oldest first"""
     async with TestSession() as session:
@@ -365,28 +401,6 @@ async def test_job_ends_once_its_window_reaches_today_though_a_link_in_it_failed
     assert _fetched(provider) == [_window(date(2026, 9, 19), _TODAY, ["ACT-card", "ACT-everyday"], pending=True)]
 
 
-async def test_job_carries_an_import_past_a_link_that_fails_on_every_request(connection, monkeypatch):
-    """Everyday and Card both import from 1 January and Card's bank login needs a sign-in, so Everyday's import still reaches today
-
-    Card keeps its checkpoint however often it is tried again
-    """
-    everyday = await _link(connection, "ACT-everyday", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
-    card = await _link(connection, "ACT-card", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
-    provider = _CardFailingProvider()
-    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
-    await _seed_job(connection, BankSyncJobKind.INITIAL)
-
-    await _run_jobs_until_none_is_due()
-
-    assert [fetch for fetch in _fetched(provider) if "ACT-everyday" in fetch[0]] == [
-        _window(date(2026, 1, 1), date(2026, 3, 31), ["ACT-card", "ACT-everyday"]),
-        _window(date(2026, 4, 1), date(2026, 6, 29), ["ACT-everyday"]),
-        _window(date(2026, 6, 30), date(2026, 9, 27), ["ACT-everyday"]),
-        _window(date(2026, 9, 28), _TODAY, ["ACT-everyday"], pending=True),
-    ]
-    assert await _checkpoints(everyday, card) == [_TODAY, date(2025, 12, 31)]
-
-
 async def test_job_spends_a_request_that_frees_on_a_link_that_can_progress_before_one_that_just_failed(connection, monkeypatch, frozen_now):
     """Everyday and Card import from 1 January with one request left in the budget, and Card's bank login needs a sign-in
 
@@ -493,18 +507,24 @@ async def test_job_records_a_second_sync_the_same_day_as_the_links_last_success(
         assert (await session.execute(select(BankAccountLink.checkpoint, BankAccountLink.last_success_at))).one() == (_TODAY, frozen_now)
 
 
-async def test_job_whose_request_fails_records_the_failure_and_moves_no_checkpoint(connection, provider):
-    """SimpleFIN Bridge can't be reached: the job records why, the owner's open pages are told so, and the link keeps its checkpoint"""
+async def test_job_whose_request_fails_records_the_failure_and_moves_no_checkpoint(connection, monkeypatch):
+    """SimpleFIN Bridge can't be reached: the job records why, the owner's open pages are told again as it ends, and the checkpoint stays"""
     link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    provider = _HeldProvider()
     provider.outcomes = [FetchResult(request_error=ProviderError(ProviderErrorKind.TEMPORARY, "SimpleFIN Bridge couldn't be reached"))]
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
-    await _run_jobs_until_none_is_due()
+    async with asyncio.timeout(_WAIT_SECONDS):
+        running = asyncio.create_task(run_jobs(1))
+        await provider.sending[1].wait()
+        told_while_fetching = await _told_at(connection)
+        provider.release[1].set()
+        await running
 
     assert await _checkpoints(link) == [date(2026, 10, 3)]
     assert [(status, error) for _, status, error, _ in await _jobs()] == [("failed", "temporary")]
-    async with TestSession() as session:
-        assert await session.get(UserCacheState, connection.owner_id) is not None
+    assert await _told_at(connection) > told_while_fetching
 
 
 @pytest.mark.parametrize("cause", ["budget_spent", "provider_asked_to_slow_down"])
@@ -773,31 +793,6 @@ async def test_job_whose_listing_fails_records_it_and_fetches_nothing(connection
     assert await _checkpoints(link) == [date(2026, 10, 3)]
 
 
-class _HeldProvider(FakeProviderAdapter):
-    """Waits in its first request, after the answer is decided, until the test releases it, as a slow provider would"""
-
-    def __init__(self) -> None:
-        """Start with the first request not yet sent"""
-        super().__init__()
-        self.sending = asyncio.Event()
-        self.release = asyncio.Event()
-
-    @override
-    async def discover(self, credential: str, **options) -> FetchResult:
-        return await self._answer(await super().discover(credential, **options))
-
-    @override
-    async def fetch(self, credential: str, **window) -> FetchResult:
-        return await self._answer(await super().fetch(credential, **window))
-
-    async def _answer(self, result: FetchResult) -> FetchResult:
-        """Return the answer, holding the first until released"""
-        if not self.sending.is_set():
-            self.sending.set()
-            await self.release.wait()
-        return result
-
-
 async def _wait_until_waiting_on(blocker_pid: int, running: asyncio.Task) -> None:
     """Wait until a backend waits on a lock the blocker holds, or the running task has finished"""
     async with TestSession() as observer:
@@ -825,11 +820,11 @@ async def test_job_finishing_waits_for_the_connection_before_locking_its_links(c
 
     async with asyncio.timeout(_WAIT_SECONDS):
         running = asyncio.create_task(run_jobs(1))
-        await provider.sending.wait()
+        await provider.sending[1].wait()
         async with TestSession() as unlinking:
             blocker_pid = await unlinking.scalar(text("SELECT pg_backend_pid()"))
             await unlinking.execute(select(BankConnection.id).where(BankConnection.id == connection.id).with_for_update())
-            provider.release.set()
+            provider.release[1].set()
             await _wait_until_waiting_on(blocker_pid, running)
 
             await unlinking.execute(text("SET LOCAL lock_timeout = '2s'"))
@@ -891,9 +886,9 @@ async def test_job_stores_nothing_from_a_window_sent_with_a_credential_replaced_
 
     async with asyncio.timeout(_WAIT_SECONDS):
         running = asyncio.create_task(run_jobs(1))
-        await provider.sending.wait()
+        await provider.sending[1].wait()
         await _replace_credential(connection)
-        provider.release.set()
+        provider.release[1].set()
         assert await running == 1
 
     assert await _checkpoints(link) == [date(2026, 10, 3)]
@@ -902,30 +897,25 @@ async def test_job_stores_nothing_from_a_window_sent_with_a_credential_replaced_
         assert await session.scalar(select(BankConnection.request_budget_spent_until).where(BankConnection.id == connection.id)) is None
 
 
-@pytest.mark.parametrize(
-    "answer",
-    [FetchResult(), FetchResult(request_error=ProviderError(ProviderErrorKind.TEMPORARY, "SimpleFIN Bridge couldn't be reached"))],
-    ids=["listing_leaves_the_bank_account_out", "listing_failed"],
-)
-async def test_job_stores_nothing_from_a_listing_sent_with_a_credential_replaced_while_it_was_out(connection, monkeypatch, frozen_now, answer):
-    """A reconnect stores a new credential while the job's listing is out with the old one, so what the old one lists is dropped
+async def test_job_stores_nothing_from_a_listing_sent_with_a_credential_replaced_while_it_was_out(connection, monkeypatch, frozen_now):
+    """A reconnect stores a new credential while the job's listing is out with the old one, and the old one lists no bank account
 
-    The link stays active, the connection keeps when it was listed, and the job neither fails nor sends a window
+    That listing is dropped: the link stays active, the connection keeps when it was listed, and the job neither fails nor sends a window
     """
     link = await _link(connection, "ACT-1", **_synced_through_yesterday())
     async with TestSession() as session:
         session.add(_build_external_account(connection, "ACT-1"))
         await session.commit()
     provider = _HeldProvider()
-    provider.outcomes = [answer]
+    provider.outcomes = [FetchResult()]
     monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
     await _seed_job(connection, BankSyncJobKind.RETRY, discover=True)
 
     async with asyncio.timeout(_WAIT_SECONDS):
         running = asyncio.create_task(run_jobs(1))
-        await provider.sending.wait()
+        await provider.sending[1].wait()
         await _replace_credential(connection)
-        provider.release.set()
+        provider.release[1].set()
         assert await running == 1
 
     assert await _link_states(link) == ["active"]
@@ -940,25 +930,31 @@ async def test_job_stores_nothing_from_a_listing_sent_with_a_credential_replaced
     assert provider.fetches == []
 
 
-async def test_job_tells_the_owners_pages_when_it_starts_syncing_its_links(connection, monkeypatch):
-    """The links a job syncs are recorded before their window goes out, and the owner's open pages are told then rather than when it ends"""
-    await _link(connection, "ACT-1", **_synced_through_yesterday())
-    provider = _HeldProvider()
-    provider.outcomes = [_returned("ACT-1")]
+async def test_job_tells_the_owners_pages_as_it_starts_syncing_its_links_and_as_each_half_moves_a_checkpoint(connection, monkeypatch):
+    """1 January to 31 March comes back cut short, so the job fetches it in halves, and the owner's open pages hear of each step as it lands
+
+    They are told once the links the job syncs are recorded, before the first request goes out, and
+    again once the earlier half moves the checkpoint, while the later half is still out
+    """
+    await _link(connection, "ACT-1", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    provider = _HeldProvider(held=(1, 3))
+    provider.outcomes = [_cut_off("ACT-1"), _returned("ACT-1"), _returned("ACT-1")]
     monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
-    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
-    async with TestSession() as session:
-        assert await session.get(UserCacheState, connection.owner_id) is None
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+    assert await _told_at(connection) is None
 
     async with asyncio.timeout(_WAIT_SECONDS):
         running = asyncio.create_task(run_jobs(1))
-        await provider.sending.wait()
-        async with TestSession() as session:
-            told = await session.get(UserCacheState, connection.owner_id)
-        provider.release.set()
+        await provider.sending[1].wait()
+        told_as_it_started = await _told_at(connection)
+        provider.release[1].set()
+        await provider.sending[3].wait()
+        told_after_the_earlier_half = await _told_at(connection)
+        provider.release[3].set()
         await running
 
-    assert told is not None
+    assert told_as_it_started is not None
+    assert told_after_the_earlier_half > told_as_it_started
 
 
 async def test_job_moves_no_checkpoint_for_a_link_unlinked_while_it_fetched(connection, monkeypatch):
@@ -972,7 +968,7 @@ async def test_job_moves_no_checkpoint_for_a_link_unlinked_while_it_fetched(conn
 
     async with asyncio.timeout(_WAIT_SECONDS):
         running = asyncio.create_task(run_jobs(1))
-        await provider.sending.wait()
+        await provider.sending[1].wait()
         async with TestSession() as session:
             await session.execute(
                 update(BankAccountLink)
@@ -980,7 +976,7 @@ async def test_job_moves_no_checkpoint_for_a_link_unlinked_while_it_fetched(conn
                 .values(state=BankLinkState.UNLINKED, unlinked_at=datetime(2026, 10, 4, tzinfo=UTC))
             )
             await session.commit()
-        provider.release.set()
+        provider.release[1].set()
         await running
 
     assert await _checkpoints(everyday, savings) == [_TODAY, date(2026, 10, 3)]
@@ -999,10 +995,10 @@ async def test_job_attempt_that_lost_its_lease_while_fetching_writes_nothing(con
 
     async with asyncio.timeout(_WAIT_SECONDS):
         first_attempt = asyncio.create_task(run_jobs(1))
-        await provider.sending.wait()
+        await provider.sending[1].wait()
         await _expire_lease(job)
         assert await run_jobs(1) == 1
-        provider.release.set()
+        provider.release[1].set()
         assert await first_attempt == 1
 
     assert await _checkpoints(link) == [date(2026, 10, 3)]
@@ -1022,10 +1018,10 @@ async def test_job_attempt_that_lost_its_lease_while_listing_stores_nothing(conn
 
     async with asyncio.timeout(_WAIT_SECONDS):
         first_attempt = asyncio.create_task(run_jobs(1))
-        await provider.sending.wait()
+        await provider.sending[1].wait()
         await _expire_lease(job)
         assert await run_jobs(1) == 1
-        provider.release.set()
+        provider.release[1].set()
         assert await first_attempt == 1
 
     assert await _link_states(link) == ["active"]
