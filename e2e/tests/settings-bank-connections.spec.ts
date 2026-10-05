@@ -461,6 +461,30 @@ test('shows a bank that needs signing in to on the connection and its institutio
   await expect(dialog.getByRole('region', { name: SAMPLE_BANK })).toContainText('Sign in again in SimpleFIN Bridge')
 })
 
+test("lists the connection's facts one to a row beside its institutions from 1050px, and two to a row below", async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const scenario = await createSampleBridgeScenario(request)
+  await claimSetupToken(request, user, scenario.setupToken)
+  // The narrowest width that sets the connection's own pane beside its institutions
+  await page.setViewportSize({ width: 1050, height: page.viewportSize()!.height })
+  const section = await openBankConnections(page, user)
+  const dialog = await openConnection(page, section, 'SimpleFIN')
+  const status = fact(dialog, 'Status')
+  const server = fact(dialog, 'Server')
+  // Polled, since the modal is still settling in as it opens
+  const layout = async () => {
+    const [first, second] = await Promise.all([status.boundingBox(), server.boundingBox()])
+    if (!first || !second) return 'hidden'
+    if (Math.abs(first.x - second.x) < 1 && second.y > first.y) return 'one to a row'
+    if (Math.abs(first.y - second.y) < 1 && second.x > first.x) return 'two to a row'
+    return 'neither'
+  }
+
+  await expect.poll(layout).toBe('one to a row')
+  await page.setViewportSize({ width: 1049, height: page.viewportSize()!.height })
+  await expect.poll(layout).toBe('two to a row')
+})
+
 test('searches the institutions of a connection with more than 5, and Escape clears the search first', async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createEmptyBridgeScenario(request)

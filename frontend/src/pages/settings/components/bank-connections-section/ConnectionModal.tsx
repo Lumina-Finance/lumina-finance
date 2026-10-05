@@ -31,7 +31,7 @@ import { DATE_FORMATS, formatDate } from '@/utils/date'
  */
 function ConnectionFact({ label, hint, wide = false, children }: { label: string; hint?: ReactNode; wide?: boolean; children: ReactNode }) {
   return (
-    <div className={`min-w-0 ${wide ? 'sm:col-span-2 min-[1050px]:col-span-1' : ''}`}>
+    <div className={`min-w-0 ${wide ? 'sm:max-[1050px]:col-span-2' : ''}`}>
       <dt className="flex items-center gap-1 text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
         {label}
         {hint && (
@@ -166,8 +166,11 @@ export function ConnectionModal({ open, connection, accountNameFor, onReconnect,
     })
   }
 
+  // Two to a row only between 640px and 1050px, where the pane spans the full-screen modal. From 1050px it
+  // is a narrow column beside the institutions. The range is bounded both ways so neither width depends on
+  // the order Tailwind writes its breakpoints in
   const facts = (
-    <dl className="grid grid-cols-1 gap-x-5 gap-y-3.5 sm:grid-cols-2 min-[1050px]:grid-cols-1">
+    <dl className="grid grid-cols-1 gap-x-5 gap-y-3.5 sm:max-[1050px]:grid-cols-2">
       <ConnectionFact label="Status">
         <span className="flex items-center gap-2">
           <SyncStatusDot tone={status.tone} />
