@@ -5,10 +5,10 @@ exists without the other, and accepting a correction writes the bank's values to
 transaction and closes it in one save. Each action locks the bank transaction before deciding, then
 any ledger transaction it writes, so a double submission or any other write to the item, a sync's
 included, queues behind it and then finds the item as that write left it. A repeated action answers
-as the first did without writing again. A decision that leaves 50 or fewer new items waiting lifts
-the account's review pause and queues its sync, so each action first locks the connection that
-sync would need, then the account's links, the order every writer takes connections, links, bank
-transactions and their ledger transactions in
+as the first did without writing again. Adding or dismissing can leave 50 or fewer new items
+waiting, which lifts the account's review pause and queues its sync, so every action first locks
+the connection that sync would need, then the account's links, the order every writer takes
+connections, links, bank transactions and their ledger transactions in
 """
 
 import uuid
@@ -229,8 +229,8 @@ def _refuse_unless_in_ledger(record: BankTransaction) -> None:
 async def _lock_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) -> tuple[BankTransaction, Account, list[BankAccountLink]]:
     """Lock one of the user's bank transactions on their own personal accounts, after its account's connection and links
 
-    The connection and links come first, as every writer takes them, since the decision may lift
-    the account's review pause and queue its sync. An item's account never changes, so it is read
+    The connection and links come first, as every writer takes them, since adding or dismissing may
+    lift the account's review pause and queue its sync. An item's account never changes, so it is read
     before anything is locked. A request that waited on a lock reads the item as the write before it
     left it. The account itself isn't locked, so it stays free for the requests that lock it
 
