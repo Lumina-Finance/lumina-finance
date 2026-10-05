@@ -6,11 +6,12 @@ hour, as SimpleFIN Bridge asks. A sync takes in every link due within the next 1
 of one connection converge on one daily request. A link whose bank needs a sign-in keeps the daily
 schedule, since retrying can't fix it but the user may fix it at the provider at any time
 
-A connection's next scheduled sync is the earliest time any of its links on the daily schedule is
-due: active, not held back by the review pause, and not waiting to retry, since a retry series
-queues its own syncs. Each is due when the window planner would take it in: at its next attempt, or
-at once when none is set, such as while it imports, but not before the first day it needs has
-started in the owner's timezone, so no sync is queued that would find no day to fetch for it.
+A connection's next scheduled sync is the earliest time any of its links is due, among those active
+and not held back by the review pause. Each is due when the window planner would take it in: at its
+next attempt, or at once when none is set, such as while it imports, but not before the first day it
+needs has started in the owner's timezone, so no sync is queued that would find no day to fetch for
+it. A link waiting to retry is due at its retry, so the scan merges into the retry queued for it, or
+queues one when the job that should have queued it stopped first.
 A link waiting for its bank account to be chosen again syncs nothing, but keeps the connection's
 bank accounts listed a day after the last listing was sent, so the link resumes by itself once the
 provider lists its bank account as before. Every job works it out again as it ends, so a link that
@@ -38,7 +39,6 @@ from app.models.user import User
 from app.services.bank_sync.availability import PROVIDER_ADAPTERS
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
 from app.services.bank_sync.provider_requests import read_request_budget
-from app.services.bank_sync.retries import is_waiting_to_retry
 from app.services.bank_sync.windows import next_due_at
 from app.services.cache_state.updates import mark_user_cache_changed
 from app.utils.dates import resolve_timezone
@@ -65,12 +65,12 @@ def next_daily_sync(started_at: datetime) -> datetime:
 
 
 async def schedule_next_sync(db: AsyncSession, connection: BankConnection, *, now: datetime) -> None:
-    """Set the connection's next scheduled sync to the earliest time any of its links on the daily schedule is due
+    """Set the connection's next scheduled sync to the earliest time any of its links is due
 
     A link waiting for its bank account to be chosen again is due the connection's next daily
     listing, a day after the last one was sent, whether it worked or failed. A connection with no
-    link on the schedule has no next scheduled sync, so the due scan passes it by until a link joins
-    the schedule again through a sync of its own, such as the one a lifted review pause queues
+    link due has no next scheduled sync, so the due scan passes it by until a link is due again
+    through a sync of its own, such as the one a lifted review pause queues
 
     Args:
         db: The connection owner's session, which the caller commits
@@ -85,11 +85,7 @@ async def schedule_next_sync(db: AsyncSession, connection: BankConnection, *, no
     ).all()
     timezone = resolve_timezone(await db.scalar(select(User.tz).where(User.id == connection.owner_id)))
     overlap_days = PROVIDER_ADAPTERS[connection.provider].revisit_overlap_days
-    due = [
-        due_at
-        for link in links
-        if not is_waiting_to_retry(link) and (due_at := next_due_at(link, now=now, timezone=timezone, overlap_days=overlap_days)) is not None
-    ]
+    due = [due_at for link in links if (due_at := next_due_at(link, now=now, timezone=timezone, overlap_days=overlap_days)) is not None]
     if any(link.state == BankLinkState.CHOOSE_ACCOUNT for link in links):
         listed = [at for at in (connection.discovered_at, connection.discovery_failed_at) if at is not None]
         due.append(next_daily_sync(max(listed, default=now)))
