@@ -33,14 +33,12 @@ from app.services.bank_sync.provider_requests import (
     reserve_provider_request,
 )
 from app.services.bank_sync.providers.contract import FetchResult, ProviderAdapter, ProviderError
-from app.services.bank_sync.windows import SyncWindow, find_due_links, plan_window
+from app.services.bank_sync.windows import SyncWindow, find_due_links, first_missing_day, plan_window
 from app.services.cache_state.updates import mark_user_cache_changed
 from app.services.fx.currency_exponent_helpers import get_all_currency_exponents
 from app.utils.dates import resolve_timezone
 
 logger = logging.getLogger(__name__)
-
-_ONE_DAY = timedelta(days=1)
 
 # A job lists the connection's bank accounts again once the last listing is older than this
 DISCOVERY_MAX_AGE = timedelta(hours=24)
@@ -236,7 +234,7 @@ class _JobRun:
         """Move the checkpoint of each link the response brought back whole, if the job still holds it
 
         A checkpoint moves only over days the link's data is complete for, so the part has to start no
-        later than the day after it. The last successful sync is stamped with the job's start, the
+        later than the first day the link lacks. The last successful sync is stamped with the job's start, the
         moment today was read, so the day it falls on is the day the checkpoint was set
 
         Returns:
@@ -246,7 +244,7 @@ class _JobRun:
         moved = False
         async with async_session() as db:
             for link in await lock_job_for_finish(db, self.job, [need.link for need in part.needs]):
-                if link.external_account_id in synced and link.checkpoint + _ONE_DAY >= part.first_day and part.last_day > link.checkpoint:
+                if link.external_account_id in synced and first_missing_day(link) >= part.first_day and part.last_day > link.checkpoint:
                     link.checkpoint = part.last_day
                     link.last_success_at = self.now
                     moved = True

@@ -112,14 +112,20 @@ def _need_start(link: BankAccountLink, timezone: ZoneInfo, overlap_days: int) ->
 
     The checkpoint is the last day the link's data is complete through, and its last successful sync
     is when the checkpoint last moved. A checkpoint short of the day it was set, or one never set,
-    means the link is importing or catching up, so it carries on from the day after. Otherwise the
-    link re-reads the overlap before its checkpoint
+    means the link is importing or catching up, so it carries on from the first day it lacks.
+    Otherwise the link re-reads the overlap before its checkpoint
     """
     if link.last_success_at is None or link.checkpoint < link.last_success_at.astimezone(timezone).date():
-        start = link.checkpoint + _ONE_DAY
-    else:
-        start = link.checkpoint - timedelta(days=overlap_days)
-    return max(start, link.import_start)
+        return first_missing_day(link)
+    return max(link.checkpoint - timedelta(days=overlap_days), link.import_start)
+
+
+def first_missing_day(link: BankAccountLink) -> date:
+    """Return the first day a link lacks: the day after its checkpoint, or its import start when that is later
+
+    A sync moves a link's checkpoint only over days that start no later than this, so no day is skipped
+    """
+    return max(link.checkpoint + _ONE_DAY, link.import_start)
 
 
 def _midnight(day: date, timezone: ZoneInfo) -> datetime:

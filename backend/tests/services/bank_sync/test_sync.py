@@ -279,6 +279,18 @@ async def test_job_moves_only_the_checkpoints_of_bank_accounts_the_response_brou
     assert [status for _, status, *_ in await _jobs()] == ["succeeded"]
 
 
+async def test_job_brings_up_to_date_a_link_whose_checkpoint_is_long_before_its_import_start(connection, provider):
+    """Everyday's checkpoint is a month before its import start, so it needs nothing before 1 September and the window from then moves it"""
+    link = await _link(connection, "ACT-1", import_start=date(2026, 9, 1), checkpoint=date(2026, 8, 1))
+    provider.outcomes = [_returned("ACT-1")]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [_window(date(2026, 9, 1), _TODAY, pending=True)]
+    assert await _checkpoints(link) == [_TODAY]
+
+
 async def test_job_whose_request_fails_records_the_failure_and_moves_no_checkpoint(connection, provider):
     """SimpleFIN Bridge can't be reached: the job records why, and the link keeps its checkpoint"""
     link = await _link(connection, "ACT-1", **_synced_through_yesterday())
