@@ -1,9 +1,11 @@
 import { useId } from 'react'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
-import { IMPORT_DATE_FORMAT_LABELS } from '@/pages/imports/constants'
+import { IMPORT_DATE_FORMAT_LABELS, IMPORT_DELIMITER_LABELS } from '@/pages/imports/constants'
 import {
   IMPORT_DATE_FORMATS,
+  IMPORT_DELIMITERS,
   getImportAmountFormatKey,
+  type ImportDelimiter,
   type ImportAmountFormat,
   type ImportAmountFormatScan,
   type ImportDateChoiceScan,
@@ -115,4 +117,44 @@ function getAmountFormatExample(format: ImportAmountFormat) {
       ? '1 234'
       : `1${format.groupingSeparator}234`
   return `${grouped}${format.decimalSeparator}56`
+}
+
+/**
+ * Picks the separator the staged CSV file is read with, showing the one the reader detected until the
+ * user chooses another, which reads the file again
+ */
+export function ImportDelimiterControl({
+  delimiter,
+  disabled,
+  onChange,
+}: {
+  delimiter: ImportDelimiter
+  disabled: boolean
+  onChange: (delimiter: ImportDelimiter) => void
+}) {
+  const labelId = useId()
+  const options: DropdownOption[] = IMPORT_DELIMITERS.map((candidate) => ({
+    value: candidate,
+    label: IMPORT_DELIMITER_LABELS[candidate],
+  }))
+
+  return (
+    <div className="flex items-center justify-between gap-3 px-3">
+      <p id={labelId} className="text-sm font-medium">
+        Separator
+      </p>
+
+      {/* Fixed wide enough for the longest name, so the row does not shift as the choice changes */}
+      <div className="w-36 shrink-0">
+        <Dropdown
+          options={options}
+          value={delimiter}
+          onChange={(value) => onChange(value as ImportDelimiter)}
+          labelledBy={labelId}
+          disabled={disabled}
+          size="field"
+        />
+      </div>
+    </div>
+  )
 }

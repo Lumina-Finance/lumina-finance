@@ -2,6 +2,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Transaction } from '@/api/transactions'
 import type { TransactionImportPayload } from '@/api/transaction-imports'
+import type { ImportDelimiter } from './utils/csv'
 
 export type ColumnTarget =
   | 'account_id'
@@ -131,6 +132,12 @@ export interface ImportFileDraft {
    * built has nothing to say
    */
   notice?: string
+
+  /**
+   * The separator the general reader read the file with, detected or chosen by the user. Absent where
+   * a tool-specific reader read the file or reading stopped before the parser
+   */
+  delimiter?: ImportDelimiter
 }
 
 /**

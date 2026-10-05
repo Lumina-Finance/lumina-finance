@@ -338,3 +338,36 @@ describe('creating a fresh id for each read', () => {
     expect(first.size).toBe(file.size)
   })
 })
+
+describe('reading a file with the separator the user chose', () => {
+  const read = (csv: string, options: Partial<Parameters<typeof readCsvFile>[2]> = {}) => (
+    readCsvFile(new File([csv], 'statement.csv'), SUPPORTED_CURRENCY_CODES, { requireDataRows: true, offersDelimiterChoice: true, ...options })
+  )
+
+  it('reports the separator it detected', async () => {
+    const draft = await read('Date;Amount\n2026-01-01;-5.00\n2026-01-02;-6.00\n')
+
+    expect(draft.delimiter).toEqual(';')
+    expect(draft.headers).toEqual(['Date', 'Amount'])
+  })
+
+  // Every line holds one of each, so only the choice decides which splits the columns
+  it('reads with the chosen separator in place of the detected one', async () => {
+    const csv = 'Date,Amount;Ref\n2026-01-01,-5.00;A1\n2026-01-02,-6.00;B2\n'
+
+    const bySemicolon = await read(csv, { delimiter: ';' })
+    const byComma = await read(csv, { delimiter: ',' })
+
+    expect([Object.values(bySemicolon.rows.at(-1)!), bySemicolon.delimiter]).toEqual([['2026-01-02,-6.00', 'B2'], ';'])
+    expect([Object.values(byComma.rows.at(-1)!), byComma.delimiter]).toEqual([['2026-01-02', '-6.00;B2'], ','])
+  })
+
+  // A file read as one column is pointed at the dropdown, and keeps the separator it was read with
+  // so the dropdown can show it
+  it('points a file read as one column to the Separator dropdown', async () => {
+    const draft = await read('Date|Amount\n2026-01-01|-5.00\n', { delimiter: ';' })
+
+    expect(draft.error).toBe('Only one column was found. Choose the separator your file uses from the Separator dropdown.')
+    expect(draft.delimiter).toEqual(';')
+  })
+})

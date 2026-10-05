@@ -1,5 +1,12 @@
 import { useEffect, useRef } from 'react'
-import { EmptyState, ImportFilesStepLayout, ImportInfoCard, ImportStagedFileList, ImportUploadCard } from '@/pages/imports/components'
+import {
+  EmptyState,
+  ImportDelimiterControl,
+  ImportFilesStepLayout,
+  ImportInfoCard,
+  ImportStagedFileList,
+  ImportUploadCard,
+} from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 import { hasAcceptedFile } from '@/pages/imports/utils'
 
@@ -12,13 +19,14 @@ type ImportFilesStepProps = Pick<
   | 'totalRows'
   | 'mappedFieldCount'
   | 'handleFileChange'
+  | 'changeDelimiter'
   | 'removeFile'
   | 'uploadBlockReason'
 >
 
 /**
  * Files step of the generic CSV import flow, taking a single upload and showing the staged file's
- * row and mapped-field counts
+ * row and mapped-field counts, with the separator it was read with, which the user can change
  *
  * The upload control and the guidance above it are taken away once a usable file is staged, since
  * this flow carries one file and uploading another would only replace it. A file the reader refused
@@ -32,6 +40,7 @@ export function ImportFilesStep({
   totalRows,
   mappedFieldCount,
   handleFileChange,
+  changeDelimiter,
   removeFile,
   uploadBlockReason,
 }: ImportFilesStepProps) {
@@ -41,6 +50,7 @@ export function ImportFilesStep({
   const isFileAccepted = hasAcceptedFile(files)
   const stagedListRef = useRef<HTMLDivElement>(null)
   const wasFileAcceptedRef = useRef(isFileAccepted)
+  const stagedDelimiter = files[0]?.delimiter
 
   // The upload card is what the keyboard user pressed to get here, so taking it away leaves them on
   // the page body with the next tab starting from the top. The staged row's Remove button is the
@@ -110,9 +120,19 @@ export function ImportFilesStep({
           description="The uploaded file will appear here."
         />
       ) : (
-        <div ref={stagedListRef}>
-          <ImportStagedFileList files={files} onRemove={(file) => removeFile(file.id)} />
-        </div>
+        <>
+          <div ref={stagedListRef}>
+            <ImportStagedFileList files={files} onRemove={(file) => removeFile(file.id)} />
+          </div>
+          {/* Shown for a refused file too, since a file read as one column is fixed here */}
+          {stagedDelimiter && (
+            <ImportDelimiterControl
+              delimiter={stagedDelimiter}
+              disabled={isProcessingFiles}
+              onChange={(delimiter) => void changeDelimiter(delimiter)}
+            />
+          )}
+        </>
       )}
     </ImportFilesStepLayout>
   )
