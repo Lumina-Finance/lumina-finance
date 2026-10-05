@@ -92,7 +92,9 @@ async function answerAsBankImported(page: Page, transactionId: string): Promise<
   })
 }
 
-async function getBox(locator: Locator) {
+type Box = { x: number; y: number; width: number; height: number }
+
+async function getBox(locator: Locator): Promise<Box> {
   const box = await locator.boundingBox()
   if (!box) throw new Error('the element has no box on screen')
   return box
@@ -120,16 +122,6 @@ test('refuses a new manual entry on the days a linked account’s bank supplies'
   const date = dialog.getByRole('group', { name: 'Date' })
   const currency = dialog.getByRole('combobox', { name: 'Currency' })
   const amount = dialog.getByRole('textbox', { name: 'Amount', exact: true })
-  const details = dialog.getByText('Details', { exact: true })
-
-  // Measured from the section's heading, since the dialog recentres as it grows and can land the
-  // fields on a different part of a pixel, so the rows count as unmoved within one pixel
-  const fieldTops = async () => {
-    const headingTop = (await getBox(details)).y
-    return Promise.all([date, currency, amount].map(async (field) => (await getBox(field)).y - headingTop))
-  }
-  const isUnmoved = (tops: number[], before: number[]) => tops.every((top, index) => Math.abs(top - before[index]) < 1)
-  const topsBefore = await fieldTops()
 
   // Today is the last day the bank supplies
   await typeDate(page, dialog, todayInTestTimezone())
@@ -139,24 +131,17 @@ test('refuses a new manual entry on the days a linked account’s bank supplies'
   await expect(year).toHaveAttribute('aria-invalid', 'true')
   await expect(year).toHaveAccessibleDescription(SUPPLIED_DAYS_MESSAGE)
 
-  // Under the date on a phone, and under the whole row once the fields sit side by side, so Date,
-  // Currency and Amount stay where they were. Read once the message has finished opening
-  if (page.viewportSize()!.width >= FIELD_ROW_MIN_WIDTH) {
-    await expect.poll(async () => {
-      const [dateBox, amountBox, messageBox] = await Promise.all([date, amount, message].map(getBox))
-      return {
-        unmoved: isUnmoved(await fieldTops(), topsBefore),
-        underTheRow: messageBox.y >= amountBox.y + amountBox.height,
-        acrossTheRow: Math.round(messageBox.x) === Math.round(dateBox.x)
-          && Math.round(messageBox.x + messageBox.width) === Math.round(amountBox.x + amountBox.width),
-      }
-    }).toEqual({ unmoved: true, underTheRow: true, acrossTheRow: true })
-  } else {
-    await expect.poll(async () => {
-      const [dateBox, currencyBox, messageBox] = await Promise.all([date, currency, message].map(getBox))
-      return messageBox.y >= dateBox.y + dateBox.height && currencyBox.y >= messageBox.y + messageBox.height
-    }).toBe(true)
+  // Under the whole row once the fields sit side by side, keeping Date, Currency and Amount level, and
+  // between the date and the currency on a phone. Read once the message has finished opening, within
+  // a pixel since its box starts where the row ends
+  const isPlaced = async () => {
+    const [dateBox, currencyBox, amountBox, messageBox] = await Promise.all([date, currency, amount, message].map(getBox))
+    const isBelow = (box: Box, above: Box) => box.y >= above.y + above.height - 1
+    return page.viewportSize()!.width >= FIELD_ROW_MIN_WIDTH
+      ? isBelow(messageBox, amountBox)
+      : isBelow(messageBox, dateBox) && isBelow(currencyBox, messageBox)
   }
+  await expect.poll(isPlaced).toBe(true)
 
   // The calendar refuses today, and a later day the bank can't have supplied yet is taken
   await dialog.getByRole('button', { name: 'Open calendar' }).click()

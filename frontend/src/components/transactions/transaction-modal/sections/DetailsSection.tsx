@@ -165,18 +165,20 @@ export default function TransactionDetailsSection({
         </div>
         <AnimatePresence initial={false}>
           {suppliedDaysError && (
+            // The grid's gap above is taken back and given again inside, so the space opens and
+            // closes with the message rather than appearing and vanishing at either end
             <motion.p
               key="supplied-days-error"
               id={ids.suppliedDaysError}
               role="alert"
-              className="overflow-hidden text-xs font-medium leading-5 sm:order-last sm:col-span-3"
+              className="-mt-3 overflow-hidden text-xs font-medium leading-5 sm:order-last sm:col-span-3"
               style={{ color: 'var(--app-negative)' }}
               initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
               transition={SUPPLIED_DAYS_ERROR_TRANSITION}
             >
-              {suppliedDaysError}
+              <span className="block pt-3">{suppliedDaysError}</span>
             </motion.p>
           )}
         </AnimatePresence>
