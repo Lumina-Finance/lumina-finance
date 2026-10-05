@@ -1349,7 +1349,7 @@ async def test_job_stopped_by_an_error_still_sends_the_email_an_earlier_step_sav
     await _run_jobs_until_none_is_due()
 
     assert len(provider.fetches) == 3
-    assert [(kind, status, error) for kind, status, error, _ in await _jobs()] == [("initial", "failed", "unknown"), ("retry", "queued", None)]
+    assert [(kind, status, error) for kind, status, error, _ in await _jobs()] == [("initial", "failed", "unknown")]
     assert await _signin_marks(card) == [frozen_now]
     assert _emailed(sent_action_emails, "ACT-chase-card", "ACT-everyday") == [_email(_SIGNIN_SUBJECT, "ACT-chase-card")]
 
@@ -1458,7 +1458,7 @@ async def test_job_whose_listing_still_misses_a_bank_account_a_reconnect_left_to
 async def test_job_whose_save_starting_a_state_fails_emails_nothing_and_the_next_job_emails_once(
     connection, provider, frozen_now, monkeypatch, sent_action_emails, listed_hours_ago, answer, failing_call, marked, email
 ):
-    """The save that would start a state fails as it tells the owner's pages, after recording the state, so the save rolls back
+    """The commit of the save that would start a state fails, after the save recorded the state and told the owner's pages
 
     The state is Reconnect needed as the job ends, Bank sign-in needed as a part is written, or
     Choose bank account as the listing is stored. None started, so nothing is marked and no email
@@ -1472,19 +1472,23 @@ async def test_job_whose_save_starting_a_state_fails_emails_nothing_and_the_next
     mark_user_cache_changed = sync.mark_user_cache_changed
     calls = 0
 
-    async def fail_in_the_save(*args, **kwargs) -> None:
-        """Fail as the first job tells the owner's pages in the save starting the state, after it recorded the state"""
+    async def fail_to_commit() -> None:
+        """Fail as a database that drops the connection mid-commit does, leaving the save uncommitted"""
+        raise RuntimeError("The database dropped the connection while committing")
+
+    async def fail_the_saves_commit(db, *args, **kwargs) -> None:
+        """Tell the owner's pages, and in the first job's save starting the state, have that save's commit fail next"""
         nonlocal calls
         calls += 1
+        await mark_user_cache_changed(db, *args, **kwargs)
         if calls == failing_call:
-            raise RuntimeError("The cache row couldn't be updated")
-        return await mark_user_cache_changed(*args, **kwargs)
+            monkeypatch.setattr(db, "commit", fail_to_commit)
 
     async def states() -> tuple:
         """Return when the connection was marked rejected, when Everyday was marked as waiting on a sign-in, and its state"""
         return await _rejection(connection), await _signin_marks(everyday), await _link_states(everyday)
 
-    monkeypatch.setattr(sync, "mark_user_cache_changed", fail_in_the_save)
+    monkeypatch.setattr(sync, "mark_user_cache_changed", fail_the_saves_commit)
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
     with freeze_time(frozen_now, real_asyncio=True) as clock:
@@ -1578,6 +1582,62 @@ async def test_job_stopped_by_its_time_limit_has_already_sent_the_email_its_list
     assert [(kind, status, error) for kind, status, error, _ in await _jobs()] == [("manual", "failed", "temporary"), ("retry", "queued", None)]
 
 
+async def test_job_stopped_by_its_time_limit_has_already_sent_the_email_a_part_saved(
+    connection, frozen_now, monkeypatch, caplog, sent_action_emails
+):
+    """The first window of Everyday's and Chase Card's imports may be cut short, so the job fetches it again in halves
+
+    The earlier half finds the Chase login needing a sign-in, and the later half then outlasts the
+    job's time limit. The email went out as the earlier half's save committed, so the owner is told
+    though the job then fails as timed out
+    """
+    await _list_under(connection, "CON-chase", "Chase", "ACT-chase-card")
+    card = await _link(connection, "ACT-chase-card", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    await _link(connection, "ACT-everyday", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    provider = _HeldProvider(held=(3,))
+    provider.outcomes = [
+        _cut_off("ACT-chase-card", "ACT-everyday"),
+        FetchResult(accounts=(_bank_account("ACT-everyday"),), login_errors={"CON-chase": _signin_needed()}),
+        _returned("ACT-everyday"),
+    ]
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
+    monkeypatch.setattr(worker, "JOB_TIME_LIMIT", timedelta(seconds=3))
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    with caplog.at_level(logging.WARNING, logger=action_needed.__name__):
+        async with asyncio.timeout(_WAIT_SECONDS):
+            assert await run_jobs(1) == 1
+
+    assert provider.sent == 3
+    assert await _signin_marks(card) == [frozen_now]
+    assert _emailed(sent_action_emails, "ACT-chase-card", "ACT-everyday") == [_email(_SIGNIN_SUBJECT, "ACT-chase-card")]
+    assert _unsent(caplog) == []
+    assert [(kind, status, error) for kind, status, error, _ in await _jobs()] == [("initial", "failed", "temporary")]
+
+
+async def test_job_stopped_by_its_time_limit_keeps_the_success_a_link_already_recorded(connection, monkeypatch, frozen_now, job_time_limits):
+    """The first window of Everyday's and Savings's imports is cut short, and the earlier half brings Everyday back whole and not Savings
+
+    The later half outlasts the job's time limit. Savings fails as timed out, while Everyday keeps
+    the success it recorded, with no failure for days it already brought in
+    """
+    everyday = await _link(connection, "ACT-everyday", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    savings = await _link(connection, "ACT-savings", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    provider = _HeldProvider(held=(3,))
+    provider.outcomes = [_cut_off("ACT-everyday", "ACT-savings"), _returned("ACT-everyday"), _returned("ACT-everyday")]
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    async with asyncio.timeout(_WAIT_SECONDS):
+        running = asyncio.create_task(run_jobs(1))
+        await provider.sending[3].wait()
+        job_time_limits.end_running()
+        assert await running == 1
+
+    assert [attempt[2:4] for attempt in await _attempts(everyday)] == [(None, 0)]
+    assert [attempt[2:4] for attempt in await _attempts(savings)] == [("Fake Bank didn't return this account", 1)]
+
+
 async def test_job_the_worker_stops_on_an_error_fails_each_link_once(connection, provider, frozen_now):
     """Card's third retry fails in the job's first window, and the job then stops on an error while fetching Everyday
 
@@ -1600,11 +1660,13 @@ async def test_job_the_worker_stops_on_an_error_fails_each_link_once(connection,
     ]
 
 
-async def test_job_the_worker_stops_on_an_error_fails_a_link_whatever_it_did_earlier(connection, provider, frozen_now):
+async def test_job_the_worker_stops_on_an_error_fails_only_the_links_this_attempt_did_not_bring_back(connection, provider, frozen_now):
     """Card failed for the second time in an earlier job, and Everyday's import came back whole for 1 January to 14 February in this one
 
     The job stops on an error fetching both for 15 February to 31 March, so Card's series moves on to
-    its third failure and a retry 90 minutes on, and Everyday fails too, though it synced earlier
+    its third failure and a retry 90 minutes on, while Everyday keeps the success it recorded, since
+    a failure would start a retry series for days it already brought in. Its import carries on at
+    the next scheduled sync
     """
     card = await _link(
         connection,
@@ -1628,13 +1690,12 @@ async def test_job_the_worker_stops_on_an_error_fails_a_link_whatever_it_did_ear
         _window(date(2026, 1, 1), date(2026, 2, 14), ["ACT-everyday"]),
         _window(date(2026, 2, 15), date(2026, 3, 31), ["ACT-card", "ACT-everyday"]),
     ]
-    reason = "The sync stopped because of an unexpected error"
     assert await _attempts(card, everyday) == [
-        (_YESTERDAYS_SYNC, frozen_now, reason, 3, frozen_now + timedelta(minutes=90)),
-        (frozen_now, frozen_now, reason, 1, frozen_now + timedelta(minutes=30)),
+        (_YESTERDAYS_SYNC, frozen_now, "The sync stopped because of an unexpected error", 3, frozen_now + timedelta(minutes=90)),
+        (frozen_now, frozen_now, None, 0, None),
     ]
     assert await _checkpoints(everyday) == [date(2026, 2, 14)]
-    assert await _queued_jobs() == [("retry", timedelta(minutes=30), False)]
+    assert await _queued_jobs() == [("retry", timedelta(minutes=90), False)]
 
 
 async def test_job_queues_a_retry_that_fell_due_while_it_ran_to_run_at_once(connection, monkeypatch, frozen_now):
