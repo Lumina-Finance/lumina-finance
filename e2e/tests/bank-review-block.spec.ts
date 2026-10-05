@@ -9,6 +9,7 @@ import {
   type TestUser,
 } from '../support/api'
 import { filterTransactions, logInViaApi, openPage } from '../support/app'
+import { answerAsBankImported, answerLinksWith, BANK_SOURCE } from '../support/bankSync'
 import { MINUS } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 
@@ -120,22 +121,24 @@ async function start(page: Page, request: APIRequestContext): Promise<Accounts> 
 }
 
 /**
- * Answers the app's reads of the transaction list with these transactions imported from the bank,
- * each with its source, since nothing links an account on the server for a sync to import one
+ * Adds an $18.00 Uber trip today to Everyday, read as imported from SimpleFIN with this item waiting
+ * on it, so its row carries a Needs review marker. Returns the transaction's id
  */
-async function answerAsBankImported(page: Page, sources: Record<string, object>): Promise<void> {
-  await page.route((url) => url.href.startsWith(`${API_BASE_URL}/transactions?`), async (route) => {
-    if (route.request().method() !== 'GET') return route.fallback()
-
-    // Retried, since the instance now and then drops a reused connection, which the browser would retry
-    const response = await route.fetch({ maxRetries: 2 })
-    const transactions = await response.json() as { id: string }[]
-    await route.fulfill({
-      response,
-      json: transactions.map((transaction) =>
-        Object.hasOwn(sources, transaction.id) ? { ...transaction, bank_source: sources[transaction.id] } : transaction),
-    })
+async function addUberTripAwaiting(page: Page, request: APIRequestContext, accounts: Accounts, reviewItemId: string): Promise<string> {
+  const uberId = await createTransaction(request, accounts.user, { accountId: accounts.everyday.id, categoryName: 'Groceries', amount: -1800 })
+  await answerAsBankImported(page, {
+    [uberId]: {
+      ...BANK_SOURCE,
+      bank_values: { ...BANK_SOURCE.bank_values, date: todayInTestTimezone(), amount: -1800, description: 'UBER TRIP' },
+      review_item_id: reviewItemId,
+    },
   })
+  return uberId
+}
+
+/** Follows a ledger row's Needs review marker to its waiting item */
+async function showWaitingItem(page: Page, transactionId: string): Promise<void> {
+  await page.getByTestId(`transaction-row-${transactionId}`).getByRole('button', { name: 'Needs review. Show the waiting item' }).click()
 }
 
 function reviewBlock(page: Page): Locator {
@@ -255,6 +258,14 @@ test('shows the first 4 of a 1,500 item backlog, and loads the rest a page at a 
     }
   })
 
+  // The second page is held until the block has said it is loading
+  let releaseSecondPage = () => {}
+  const secondPageReleased = new Promise<void>((resolve) => { releaseSecondPage = resolve })
+  await page.route((url) => isRead('/bank-review/items')(url) && url.searchParams.get('cursor') === 'page-1', async (route) => {
+    await secondPageReleased
+    await route.fallback()
+  })
+
   await openPage(page, '/transactions')
 
   const block = reviewBlock(page)
@@ -268,26 +279,47 @@ test('shows the first 4 of a 1,500 item backlog, and loads the rest a page at a 
   expect(cursors).toEqual([null])
 
   await rows.last().scrollIntoViewIfNeeded()
+  const loading = block.getByRole('status')
+  await expect(loading).toHaveText('Loading more items…')
+  releaseSecondPage()
   await expect(rows).toHaveCount(100)
   expect(cursors).toEqual([null, 'page-1'])
   await expect(count).toBeVisible()
 
   await block.getByRole('button', { name: 'Show fewer' }).click()
   await expect(rows).toHaveCount(4)
+  await expect(loading).toBeHidden()
+})
+
+test('closes once four or fewer items wait, so it shows only the first four when more come back', async ({ page, request }) => {
+  const { everyday, visa } = await start(page, request)
+  const items = [
+    ...Array.from({ length: 3 }, (_, index) => reviewItem(`visa-${index}`, 'new', visa.id)),
+    ...Array.from({ length: 3 }, (_, index) => reviewItem(`everyday-${index}`, 'new', everyday.id)),
+  ]
+  await answerReviewItems(page, (accountIds) =>
+    pageOf(items.filter((item) => accountIds.length === 0 || accountIds.includes(item.account_id))))
+
+  await openPage(page, '/transactions')
+
+  const block = reviewBlock(page)
+  const rows = block.getByRole('listitem')
+  await block.getByRole('button', { name: 'Show all 6' }).click()
+  await expect(rows).toHaveCount(6)
+
+  // Visa alone has 3, which needs no toggle, and every account's 6 come back as the first four again
+  await filterTransactions(page, 'Accounts', 'Visa')
+  await expect(rows).toHaveCount(3)
+  await expect(block.getByRole('button', { name: /^Show / })).toBeHidden()
+  await filterTransactions(page, 'Accounts', 'Visa')
+  await expect(rows).toHaveCount(4)
+  await expect(block.getByRole('button', { name: 'Show all 6' })).toHaveAttribute('aria-expanded', 'false')
 })
 
 test("goes from a ledger row's Needs review marker to its item, loading the page it's on", async ({ page, request }) => {
-  const { user, everyday } = await start(page, request)
-  const uberId = await createTransaction(request, user, { accountId: everyday.id, categoryName: 'Groceries', amount: -1800 })
-  await answerAsBankImported(page, {
-    [uberId]: {
-      provider: 'simplefin',
-      provider_name: 'SimpleFIN',
-      bank_values: { date: todayInTestTimezone(), amount: -1800, raw_amount: null, description: 'UBER TRIP', merchant_name: null, category_hint: null },
-      edited_fields: [],
-      review_item_id: 'item-59',
-    },
-  })
+  const accounts = await start(page, request)
+  const { everyday } = accounts
+  const uberId = await addUberTripAwaiting(page, request, accounts, 'item-59')
 
   // The Uber removal is the 60th item, on the second page of two
   const cursors: (string | null)[] = []
@@ -307,18 +339,66 @@ test("goes from a ledger row's Needs review marker to its item, loading the page
 
   const block = reviewBlock(page)
   await expect(block.getByRole('listitem')).toHaveCount(4)
-  await page.getByTestId(`transaction-row-${uberId}`).getByRole('button', { name: 'Needs review. Show the waiting item' }).click()
+  await showWaitingItem(page, uberId)
 
+  // Ringed for a moment once it is reached, then left as the other rows are
   const item = block.getByRole('listitem').filter({ hasText: 'UBER TRIP' })
+  await expect(item).toHaveCSS('box-shadow', /inset/)
   await expect(item).toBeFocused()
   await expect(item).toBeInViewport()
   expect(cursors).toEqual([null, 'page-1'])
   await expect(item.getByText(`${MINUS}$18.00`)).toHaveCSS('text-decoration-line', 'line-through')
+  await expect(item).toHaveCSS('box-shadow', 'none')
+})
 
-  // Ringed for a moment, then left as the other rows are
-  const ring = item.locator('div').first()
-  await expect(ring).toHaveCSS('box-shadow', /inset/)
-  await expect(ring).toHaveCSS('box-shadow', 'none')
+test('opens the block for a marker whose item is the fifth, the first one it hides', async ({ page, request }) => {
+  const accounts = await start(page, request)
+  const uberId = await addUberTripAwaiting(page, request, accounts, 'item-4')
+  await answerReviewItems(page, () => pageOf(Array.from({ length: 6 }, (_, index) => index === 4
+    ? reviewItem('item-4', 'removal', accounts.everyday.id, { description: 'UBER TRIP' })
+    : reviewItem(`item-${index}`, 'new', accounts.everyday.id))))
+
+  await openPage(page, '/transactions')
+
+  const block = reviewBlock(page)
+  await expect(block.getByRole('listitem')).toHaveCount(4)
+  await showWaitingItem(page, uberId)
+
+  await expect(block.getByRole('listitem').filter({ hasText: 'UBER TRIP' })).toBeFocused()
+  await expect(block.getByRole('button', { name: 'Show fewer' })).toHaveAttribute('aria-expanded', 'true')
+})
+
+test("stops going to a marker's item once the page it would be on fails to load", async ({ page, request }) => {
+  const accounts = await start(page, request)
+  const uberId = await addUberTripAwaiting(page, request, accounts, 'item-6')
+
+  // The Uber removal would be the 7th item, on a second page that never loads
+  let secondPageFailures = 0
+  await answerReviewItems(page, (_, cursor) => {
+    if (!cursor) {
+      const items = Array.from({ length: 6 }, (_, index) => reviewItem(`item-${index}`, 'new', accounts.everyday.id))
+      return { items, counts: { new: 6, correction: 0, removal: 1 }, next_cursor: 'page-1' }
+    }
+    secondPageFailures += 1
+    return 500
+  })
+
+  await openPage(page, '/transactions')
+
+  const block = reviewBlock(page)
+  const toggle = block.getByRole('button', { name: /^Show (fewer|all 7)$/ })
+  await expect(block.getByRole('listitem')).toHaveCount(4)
+  await showWaitingItem(page, uberId)
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+
+  // The app tries a failed read twice. A search still under way opens the block again as soon as it
+  // closes, so it is closed until the search has ended, which it must
+  await expect.poll(() => secondPageFailures).toBeGreaterThanOrEqual(2)
+  await expect(async () => {
+    if (await toggle.getAttribute('aria-expanded') === 'true') await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false', { timeout: 1000 })
+  }).toPass({ timeout: 15_000 })
+  await expect(block.getByRole('listitem')).toHaveCount(4)
 })
 
 test('says an account is paused for its backlog, or close to pausing', async ({ page, request }) => {
@@ -348,32 +428,12 @@ test('says an account is paused for its backlog, or close to pausing', async ({ 
 test('refreshes when a linked account finishes a sync', async ({ page, request }) => {
   const { everyday } = await start(page, request)
   let synced = false
-  await page.route(`${API_BASE_URL}/bank-sync/links`, (route) => route.fulfill({
-    json: [{
-      account_id: everyday.id,
-      connection_id: 'connection',
-      provider: 'simplefin',
-      provider_name: 'SimpleFIN',
-      external_account_id: 'bank-account',
-      external_account_name: 'Chequing',
-      institution_name: 'Example Bank',
-      import_start: `${THIS_YEAR}-01-01`,
-      linked_at: `${THIS_YEAR}-01-01T12:00:00Z`,
-      import: null,
-      history_reminder: null,
 
-      // Read every couple of seconds while it syncs, the sync ending with a later success
-      last_success_at: synced ? `${SEP_21}T12:00:00Z` : `${SEP_21}T08:00:00Z`,
-      last_attempt: null,
-      next_attempt_at: null,
-      waiting_on_budget: false,
-      sync_in_progress: !synced,
-      action_needed: null,
-      waiting_new_count: synced ? 2 : 1,
-      review_warning: false,
-      paused: false,
-      balance: null,
-    }],
+  // Read every couple of seconds while it syncs, the sync ending with a later success
+  await answerLinksWith(page, () => [everyday.id], () => ({
+    last_success_at: synced ? `${SEP_21}T12:00:00Z` : `${SEP_21}T08:00:00Z`,
+    sync_in_progress: !synced,
+    waiting_new_count: synced ? 2 : 1,
   }))
   const items = [reviewItem('everyday-1', 'new', everyday.id), reviewItem('everyday-2', 'new', everyday.id)]
   await answerReviewItems(page, () => pageOf(synced ? items : items.slice(0, 1)))
@@ -420,7 +480,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
 
     // Each amount sits beside its text rather than over it, a long description wrapping instead
     for (const row of await rows.all()) {
-      const [text, amount] = [await row.locator('p').first().boundingBox(), await row.locator('span.font-financial').boundingBox()]
+      const [text, amount] = [await row.getByTestId('review-item-text').boundingBox(), await row.getByTestId('review-item-amount').boundingBox()]
       expect(amount!.x).toBeGreaterThanOrEqual(text!.x + text!.width)
       expect(amount!.x + amount!.width).toBeLessThanOrEqual(blockBox!.x + blockBox!.width)
     }
@@ -431,7 +491,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
       block.getByText('6', { exact: true }),
       block.getByText('From your bank, and left out of every balance until you act on them.'),
       block.getByText('Paused · 105 new to review in Everyday. Sync resumes at 50 or fewer.'),
-      rows.nth(0).locator('p').first(),
+      rows.nth(0).getByText('COUNTDOWN 123 WITH A LONGER BANK DESCRIPTION THAN MOST'),
       rows.nth(0).getByText('Correction', { exact: true }),
       rows.nth(0).getByText('Sep 21 · Visa · The bank changed the amount'),
       rows.nth(0).getByText(`${MINUS}$23.10`),
