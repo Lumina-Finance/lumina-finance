@@ -30,6 +30,7 @@ import {
   EDIT_ACCOUNT_IDENTITY_CONTROL_IDS,
   EDIT_ACCOUNT_IDENTITY_FIELD_IDS,
   EDIT_ACCOUNT_IDENTITY_FIELDS,
+  getArchiveBlockedByLinkReason,
 } from '@/pages/accounts/detail/constants/accountDetail'
 import {
   createIdentityFormValues,
@@ -278,10 +279,8 @@ export default function EditAccountIdentityModal({
   const visibilitySectionNumber = hasEditableAccountContext ? '03' : '02'
   const isArchiving = !account.is_archived && form.is_archived
 
-  // Archiving writes a balance adjustment dated today, a day a linked account's bank supplies, so a
-  // linked account is unlinked first. The server refuses it with the same wording
   const archiveLinkedReason = bankLink && !account.is_archived
-    ? `This account can't be archived while it's linked to ${bankLink.provider_name}. Unlink it first`
+    ? getArchiveBlockedByLinkReason(bankLink.provider_name)
     : null
 
   // Left until the account is unlinked, so the switch gives one reason at a time

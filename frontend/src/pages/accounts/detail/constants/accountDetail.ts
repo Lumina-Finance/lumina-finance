@@ -59,6 +59,12 @@ export const DELETE_ACCOUNT_NAME_MISMATCH_MESSAGE = "Type the account's name to 
 export const ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON =
   "This account can't be archived because it has future dated transactions. Please delete them or adjust date before archiving the account."
 
+// Archiving writes a balance adjustment dated today, a day a linked account's bank supplies, so a
+// linked account is unlinked first. The server refuses the archive in the same words
+export function getArchiveBlockedByLinkReason(providerName: string): string {
+  return `This account can't be archived while it's linked to ${providerName}. Unlink it first.`
+}
+
 export type BalanceRange = '7D' | '30D' | '90D' | '1Y'
 export type BalanceChartMode = 'balance' | 'change'
 export const BALANCE_RANGES: BalanceRange[] = ['7D', '30D', '90D', '1Y']

@@ -1,6 +1,13 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser, todayInTestTimezone } from '../support/api'
+import {
+  asUser,
+  createAccount,
+  createTransaction,
+  daysFromTodayInTestTimezone,
+  signUpUser,
+  todayInTestTimezone,
+} from '../support/api'
 import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
@@ -14,7 +21,7 @@ import { API_BASE_URL } from '../support/target'
 const IMPORT_START = '2026-01-01'
 const SUPPLIED_DAYS_MESSAGE = "SimpleFIN supplies this account's transactions from Jan 1, 2026 to today"
 const MOVE_REFUSAL = "Transactions from SimpleFIN can't move out of Everyday while it's linked"
-const ARCHIVE_LINKED_REASON = "This account can't be archived while it's linked to SimpleFIN. Unlink it first"
+const ARCHIVE_LINKED_REASON = "This account can't be archived while it's linked to SimpleFIN. Unlink it first."
 
 // Where a bank transaction came from, as the app reads it alongside the transaction
 const BANK_SOURCE = {
@@ -283,6 +290,12 @@ test('keeps a bank transaction in its linked account, refusing the move on the a
 test('greys out Archive with its reason while the account is linked, and offers it again once unlinked', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
+  const laterId = await createTransaction(request, user, {
+    accountId: account.id,
+    categoryName: 'Groceries',
+    amount: -4250,
+    date: daysFromTodayInTestTimezone(3),
+  })
   let linkedAccountIds = [account.id]
   await answerLinksWith(page, () => linkedAccountIds)
   await logInViaApi(page, user)
@@ -294,6 +307,9 @@ test('greys out Archive with its reason while the account is linked, and offers 
   await page.getByRole('button', { name: 'Edit account', exact: true }).click()
   await expect(archive).toHaveAttribute('aria-disabled', 'true')
   await expect(archive).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
+
+  // A later-dated transaction would block archiving too, but the switch gives one reason at a time
+  await expect(dialog.getByText(/future dated transactions/)).toHaveCount(0)
 
   // Pointing at the row shows the reason beside it, and pressing it leaves the account as it is
   const row = dialog.getByText('Archive account', { exact: true })
@@ -310,6 +326,10 @@ test('greys out Archive with its reason while the account is linked, and offers 
   const archiveInstead = dialog.getByRole('button', { name: 'Archive instead', exact: true })
   await expect(archiveInstead).toHaveAttribute('aria-disabled', 'true')
   await expect(archiveInstead).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
+
+  // Without the later-dated transaction, unlinking is all archiving waits on
+  const deleted = await request.delete(`${API_BASE_URL}/transactions/${laterId}`, { headers: asUser(user) })
+  expect(deleted.ok()).toBe(true)
 
   // The app keeps what it last read across a reload, so this load starts without that copy and reads
   // the list afresh, as it does once unlinking refreshes it
