@@ -21,7 +21,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from app.config.bank_sync import BANK_SYNC_WORKER_CONCURRENCY
+from app.config.bank_sync import BANK_SYNC_WORKER_CONCURRENCY, warn_if_test_origin_set
 from app.database import async_session, current_user_id_ctx, engine, verify_app_role_is_unprivileged
 from app.db.encryption_key import verify_key_matches_data
 from app.db.rls.functions import LIST_DUE_BANK_CONNECTIONS, MIGRATION_REVISIONS, RECORD_BANK_SYNC_SCAN
@@ -179,6 +179,7 @@ async def run_worker() -> None:
         RuntimeError: Jobs would run as a role row-level security doesn't constrain, or the
             encryption key isn't the one the stored secrets are under
     """
+    warn_if_test_origin_set()
     await _wait_for_database()
     await verify_app_role_is_unprivileged()
     async with engine.connect() as connection:

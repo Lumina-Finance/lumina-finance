@@ -1,10 +1,13 @@
 """Bank sync settings"""
 
+import logging
 import os
 
 import httpx
 
 from app.config.env import optional_bool_env, optional_csv_env
+
+logger = logging.getLogger(__name__)
 
 # SimpleFIN Bridge's two servers, always allowed. A self-hosted operator adds their own SimpleFIN
 # servers beside them, so connections already made through the Bridge keep working
@@ -91,6 +94,16 @@ def read_simplefin_test_origin() -> str | None:
     """
     value = os.getenv("BANK_SYNC_SIMPLEFIN_TEST_ORIGIN", "").strip()
     return _read_origin("BANK_SYNC_SIMPLEFIN_TEST_ORIGIN", value, schemes=("http", "https")) if value else None
+
+
+def warn_if_test_origin_set() -> None:
+    """Warn while the testing-only origin is set, which the app and the bank sync worker each do as they start"""
+    if BANK_SYNC_SIMPLEFIN_TEST_ORIGIN:
+        logger.warning(
+            "BANK_SYNC_SIMPLEFIN_TEST_ORIGIN lets SimpleFIN requests reach %s without HTTPS or the public address check. "
+            "It is for testing only",
+            BANK_SYNC_SIMPLEFIN_TEST_ORIGIN,
+        )
 
 
 # Origins SimpleFIN requests may reach, always over HTTPS and only at public addresses
