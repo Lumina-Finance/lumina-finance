@@ -1,9 +1,8 @@
 """What the user has to do for each account's sync to resume: the emails that tell them, and the account's sync status
 
 An account left out shows a sync that silently stopped, and one shown needing a bank sign-in while
-its connection needs reconnecting, or shown waiting for its bank account to be chosen while it also
-needs a bank sign-in, sends the user to the wrong fix first. One no longer linked that still asks for
-a bank sign-in nags about an account that isn't syncing. An email that doesn't say what stopped and what to do leaves
+its connection needs reconnecting sends the user to the wrong fix first. One no longer linked that
+still asks for a bank sign-in nags about an account that isn't syncing. An email that doesn't say what stopped and what to do leaves
 the user guessing, and one carrying the credential or transactions leaks them. A failed send that
 stops the ones after it leaves those users untold, and one logged by its recipient leaks their address
 """
@@ -83,10 +82,9 @@ async def test_read_actions_needed_shows_reconnect_needed_for_every_account_stil
     }
 
 
-async def test_read_actions_needed_shows_bank_sign_in_needed_for_each_linked_account_waiting_on_one(connections):
-    """On a working connection, Everyday and Card wait on a bank sign-in from when each was marked, and nothing else needs one
+async def test_read_actions_needed_shows_bank_sign_in_needed_only_for_a_linked_account_waiting_on_one(connections):
+    """On a working connection, Everyday waits on a bank sign-in from when it was marked, and nothing else needs one
 
-    Card also waits for its bank account to be chosen again, which the bank sign-in comes before.
     Savings syncs, and Old was unlinked, still carrying a sign-in mark from before
     """
     connection = connections[0]
@@ -94,14 +92,10 @@ async def test_read_actions_needed_shows_bank_sign_in_needed_for_each_linked_acc
         connection,
         everyday={"signin_needed_since": _SIGNIN_SINCE},
         savings={},
-        card={"state": BankLinkState.CHOOSE_ACCOUNT, "signin_needed_since": _SIGNIN_SINCE},
         old={"state": BankLinkState.UNLINKED, "unlinked_at": _UNLINKED_AT, "signin_needed_since": _SIGNIN_SINCE},
     )
 
-    assert await _read_as_owner(connection, ids.values()) == {
-        ids["everyday"]: ActionNeeded(ActionNeededKind.BANK_LOGIN, _SIGNIN_SINCE),
-        ids["card"]: ActionNeeded(ActionNeededKind.BANK_LOGIN, _SIGNIN_SINCE),
-    }
+    assert await _read_as_owner(connection, ids.values()) == {ids["everyday"]: ActionNeeded(ActionNeededKind.BANK_LOGIN, _SIGNIN_SINCE)}
 
 
 async def test_action_emails_say_what_stopped_syncing_and_how_to_resume_it(connections):
