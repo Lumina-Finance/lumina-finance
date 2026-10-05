@@ -21,7 +21,7 @@ async def store_pending_records(
     deliveries: Sequence[tuple[BankAccountLink, Sequence[ProviderRecord]]],
     *,
     observed_at: datetime,
-) -> bool:
+) -> None:
     """Replace each link's account's pending items with the pending records its bank account came back with
 
     An item that posted comes back as a booked record, often under a new ID, and one the bank
@@ -35,9 +35,6 @@ async def store_pending_records(
         deliveries: Each link to store for, with the records its bank account came back with whole
             from a fetch that asked for pending records
         observed_at: When the request that brought the records was sent
-
-    Returns:
-        Whether an account's set was replaced, so the caller tells the owner's open pages
     """
     for link, records in deliveries:
         # An ID sent twice in one response is one transaction, so the later record of it stands
@@ -47,7 +44,6 @@ async def store_pending_records(
         await replace_pending_transactions(
             db, link.account_id, [_pending_transaction(link, record, observed_at) for record in pending.values()]
         )
-    return bool(deliveries)
 
 
 async def replace_pending_transactions(

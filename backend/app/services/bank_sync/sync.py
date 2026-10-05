@@ -335,7 +335,7 @@ class _JobRun:
         return result, credential, sent_at
 
     async def _write(self, part: SyncWindow, synced: Mapping[str, ExternalAccount], *, sent_with: str, sent_at: datetime) -> bool:
-        """Store the booked records of each link the response brought back whole, and move its checkpoint, if the job still holds it
+        """Store the records and pending items of each link brought back whole, and move its checkpoint, if the job still holds it
 
         Records are stored whatever the checkpoint does, since each is kept by its identity and a
         later sync reading it again changes nothing. A checkpoint moves only over days the link's data
@@ -364,8 +364,10 @@ class _JobRun:
             whole = [link for link in held if link.external_account_id in synced]
             deliveries = [(link, synced[link.external_account_id].records) for link in whole]
             stored = await store_booked_records(db, deliveries, observed_at=sent_at)
+
+            # A part ending today is the job's last write, so the job's end tells the owner's pages of it
             if self._asks_for_pending(part):
-                stored |= await store_pending_records(db, deliveries, observed_at=sent_at)
+                await store_pending_records(db, deliveries, observed_at=sent_at)
             for link in whole:
                 if first_missing_day(link) < part.first_day:
                     continue

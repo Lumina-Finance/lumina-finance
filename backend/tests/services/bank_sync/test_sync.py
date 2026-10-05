@@ -1548,45 +1548,6 @@ async def test_job_leaves_pending_items_alone_until_its_window_reaches_today(con
     assert len(provider.fetches) == 3
 
 
-async def test_job_tells_the_owners_pages_as_it_replaces_pending_items_without_moving_a_checkpoint(connection, monkeypatch):
-    """An import from 21 September comes back cut short, and only its later half, ending today, brings the bank account back whole
-
-    The checkpoint can't move past the days the earlier half failed for, but the pending items are
-    replaced, so the owner's open pages hear of it before the job ends
-    """
-    await _link(connection, "ACT-1", import_start=date(2026, 9, 21), checkpoint=date(2026, 9, 20))
-    provider = _HeldProvider(held=(3,))
-    provider.outcomes = [
-        _cut_off("ACT-1"),
-        FetchResult(account_errors={"ACT-1": ProviderError(ProviderErrorKind.TEMPORARY, "SimpleFIN Bridge reported a problem")}),
-        _returned_with({"ACT-1": [_pending_record("P-fuel")]}),
-    ]
-    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
-    told_as_it_ends = []
-    end_job = sync._end_job
-
-    async def end_job_noting_what_the_pages_heard(*args, **kwargs) -> None:
-        """Note when the owner's pages were last told, then end the job as the runner does"""
-        told_as_it_ends.append(await _told_at(connection))
-        await end_job(*args, **kwargs)
-
-    monkeypatch.setattr(sync, "_end_job", end_job_noting_what_the_pages_heard)
-    await _seed_job(connection, BankSyncJobKind.INITIAL)
-
-    async with asyncio.timeout(_WAIT_SECONDS):
-        running = asyncio.create_task(run_jobs(1))
-        await provider.sending[3].wait()
-        told_before_the_later_half = await _told_at(connection)
-        provider.release[3].set()
-        await running
-
-    assert await _pending_transactions(BankPendingTransaction.external_transaction_id) == [("P-fuel",)]
-    async with TestSession() as session:
-        assert (await session.execute(select(BankAccountLink.checkpoint, BankAccountLink.last_success_at))).one() == (date(2026, 9, 20), None)
-    [told_as_the_job_ends] = told_as_it_ends
-    assert told_as_the_job_ends > told_before_the_later_half
-
-
 async def test_job_keeps_one_item_with_the_later_values_for_an_id_sent_twice_in_one_response(connection, provider):
     """The coffee comes back twice in one response, at $4.50 and then at $5.40
 
