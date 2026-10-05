@@ -88,11 +88,12 @@ async def test_listing_marks_each_bank_account_linkable_or_unavailable_with_its_
     assert listed.json()["discovery_pending"] is False
 
 
-async def test_listing_says_which_institutions_look_different_from_the_accounts(client):
-    """Everyday names Harbour, so Harbour Bank reads as the same institution and Lakeshore Credit Union as a different one"""
+@pytest.mark.parametrize("named", ["Harbour", "Harbour Bank Canada"], ids=["shorter-name", "longer-name"])
+async def test_listing_says_which_institutions_look_different_from_the_accounts(client, named):
+    """Whether Everyday names Harbour or Harbour Bank Canada, Harbour Bank reads as the same institution and Lakeshore Credit Union as a different one"""
     headers, user_id = await _sign_up(client)
     async with TestSession() as session:
-        institution = Institution(status=InstitutionStatus.CANONICAL, name="Harbour", country_code="CA", website="https://harbour.example")
+        institution = Institution(status=InstitutionStatus.CANONICAL, name=named, country_code="CA", website="https://harbour.example")
         session.add(institution)
         await session.commit()
     everyday_id = await _new_account(client, headers, "Everyday", institution_id=str(institution.id))

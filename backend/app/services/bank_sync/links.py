@@ -458,12 +458,13 @@ async def _read_institution_name(db: AsyncSession, account: Account) -> str | No
 def _institution_differs(bank_institution: str, account_institution: str | None) -> bool:
     """Return whether a bank account's institution looks different from the one the account names
 
-    Names are compared loosely, so "Harbour" and "Harbour Bank" read as the same institution. An
-    account naming none differs from nothing
+    Names are compared loosely, so "Harbour" and "Harbour Bank" read as the same institution
+    whichever of them the account names. An account naming none differs from nothing, since an
+    empty name is part of every name
     """
     named = (account_institution or "").strip().casefold()
     listed = bank_institution.strip().casefold()
-    return bool(named) and named not in listed and listed not in named
+    return named not in listed and listed not in named
 
 
 def _refuse_unavailable(unavailable: Unavailability, bank_account: BankExternalAccount, account: Account) -> HTTPException:
