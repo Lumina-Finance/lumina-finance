@@ -10,10 +10,10 @@ import asyncio
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from app.models.account import Account
-from app.models.bank_connection import BankAccountLink, BankConnection
+from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
 from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncJob
 from app.models.bank_transaction import BankTransaction
@@ -103,6 +103,18 @@ async def _links_by_account() -> dict[uuid.UUID, tuple]:
             )
         )
         return {account_id: (state, connection_id, unlinked_at is not None) for account_id, state, connection_id, unlinked_at in rows}
+
+
+async def _unlinked_at(account_id: str) -> datetime | None:
+    """Return when the account's only link was unlinked"""
+    async with TestSession() as session:
+        return await session.scalar(select(BankAccountLink.unlinked_at).where(BankAccountLink.account_id == uuid.UUID(account_id)))
+
+
+async def _unlink(client, headers, account_id: str) -> None:
+    """Unlink an account through the route"""
+    unlinked = await client.delete(f"/accounts/{account_id}/bank-link", headers=headers)
+    assert unlinked.status_code == 200, unlinked.text
 
 
 async def _changed_at(client, headers) -> str | None:
@@ -210,6 +222,52 @@ async def test_disconnect_with_no_account_linked_unlinks_none(client):
     assert disconnected.json() == {"unlinked_account_ids": []}
     async with TestSession() as session:
         assert await session.get(BankConnection, connection.id) is None
+
+
+async def test_unlink_of_an_account_already_unlinked_is_not_found(client):
+    """Everyday's link ended at the first unlink, so a second finds nothing to end and Everyday keeps when it was unlinked"""
+    headers, _, everyday_id, _, _ = await _two_linked(client)
+    await _unlink(client, headers, everyday_id)
+    ended_at = await _unlinked_at(everyday_id)
+
+    again = await client.delete(f"/accounts/{everyday_id}/bank-link", headers=headers)
+
+    assert again.status_code == 404, again.text
+    assert again.json()["detail"] == _NOT_LINKED
+    assert await _unlinked_at(everyday_id) == ended_at
+
+
+async def test_disconnect_leaves_a_link_unlinked_before_as_it_was(client):
+    """Everyday was unlinked before its connection was disconnected, so only Savings is reported and Everyday keeps when it was unlinked"""
+    headers, _, everyday_id, savings_id, connection = await _two_linked(client)
+    await _unlink(client, headers, everyday_id)
+    ended_at = await _unlinked_at(everyday_id)
+
+    disconnected = await client.delete(f"/bank-sync/connections/{connection.id}", headers=headers)
+
+    assert disconnected.status_code == 200, disconnected.text
+    assert disconnected.json() == {"unlinked_account_ids": [savings_id]}
+    assert await _unlinked_at(everyday_id) == ended_at
+
+
+async def test_disconnect_unlinks_a_link_waiting_for_its_bank_account_to_be_chosen_again(client):
+    """Everyday waits in Choose bank account and Savings was unlinked before: the disconnect unlinks Everyday and reports it alone"""
+    headers, _, everyday_id, savings_id, connection = await _two_linked(client)
+    await _unlink(client, headers, savings_id)
+    async with TestSession() as session:
+        await session.execute(
+            update(BankAccountLink).where(BankAccountLink.account_id == uuid.UUID(everyday_id)).values(state=BankLinkState.CHOOSE_ACCOUNT)
+        )
+        await session.commit()
+
+    disconnected = await client.delete(f"/bank-sync/connections/{connection.id}", headers=headers)
+
+    assert disconnected.status_code == 200, disconnected.text
+    assert disconnected.json() == {"unlinked_account_ids": [everyday_id]}
+    assert await _links_by_account() == {
+        uuid.UUID(everyday_id): ("unlinked", None, True),
+        uuid.UUID(savings_id): ("unlinked", None, True),
+    }
 
 
 async def test_unlink_and_disconnect_of_another_users_account_or_connection_are_not_found(client):
