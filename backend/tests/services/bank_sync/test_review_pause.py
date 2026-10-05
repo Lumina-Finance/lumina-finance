@@ -1,14 +1,15 @@
-"""Lifting an account's review pause once a review decision leaves 50 or fewer new items waiting
+"""Lifting an account's review pause once a review decision leaves 50 or fewer new items waiting, and reading the backlog it shows
 
 A paused account never syncs, so a pause that stays on after the user has brought the backlog down
 leaves it stale with nothing left to review, and one lifted at 51 lets the pile grow straight back.
 A sync queued for an account waiting to have its bank account chosen again has nothing to fetch, and
 a lift that counts before a sync pausing the link has finished leaves on a pause the user's decisions
-already cleared
+already cleared. A backlog shown wrong tells the user an account is paused while it syncs, or hides
+a pause or the warning before one
 """
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import select, text, update
@@ -17,12 +18,13 @@ from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
 from app.models.bank_sync_job import BankSyncJob
 from app.models.cache_state import UserCacheState
-from app.services.bank_sync.review_pause import lift_review_pauses
+from app.services.bank_sync.review_pause import ReviewBacklog, lift_review_pauses, read_review_backlogs
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     _build_account,
     _build_bank_link,
     _build_bank_transaction,
+    _commit_accepted_items,
     _commit_waiting_items,
     _dismiss_items,
     _owner_session,
@@ -157,3 +159,45 @@ async def test_lift_review_pauses_counts_once_a_sync_pausing_the_link_has_commit
 
     assert await _link_state(link) == (False, FROZEN_NOW)
     assert await _queued_jobs() == [("scheduled", "queued", FROZEN_NOW)]
+
+
+async def _backlog(link: BankAccountLink) -> ReviewBacklog:
+    """Return the backlog the link's account shows its owner"""
+    async with _owner_session(link.owner_id) as session:
+        return (await read_review_backlogs(session, [link.account_id]))[link.account_id]
+
+
+@pytest.mark.parametrize(
+    ("values", "waiting", "backlog"),
+    [
+        ({"paused": False}, 79, ReviewBacklog(waiting_new=79, paused=False, warning=False)),
+        ({"paused": False}, 80, ReviewBacklog(waiting_new=80, paused=False, warning=True)),
+        ({}, 105, ReviewBacklog(waiting_new=105, paused=True, warning=False)),
+        ({"importing": True}, 120, ReviewBacklog(waiting_new=120, paused=False, warning=False)),
+        (
+            {"state": BankLinkState.UNLINKED, "unlinked_at": datetime(2026, 9, 1, tzinfo=UTC)},
+            105,
+            ReviewBacklog(waiting_new=105, paused=False, warning=False),
+        ),
+    ],
+    ids=["79_waiting", "80_waiting", "paused_with_105", "importing_with_120_and_a_pause_kept", "unlinked_while_paused"],
+)
+async def test_read_review_backlogs_shows_the_pause_from_100_and_the_warning_from_80(connections, values, waiting, backlog):
+    """Everyday warns from 80 new items waiting, and shows the pause once paused with 105
+
+    An import shows instead of either, though the link keeps a pause for when it ends, and an account
+    no longer linked shows neither
+    """
+    link = await _paused_link(connections[0], **values)
+    await _commit_waiting_items(link, waiting)
+
+    assert await _backlog(link) == backlog
+
+
+async def test_read_review_backlogs_counts_new_items_and_not_corrections(connections):
+    """Everyday has 90 new items and 15 corrections waiting: it shows 90 with the warning, not the pause, since corrections don't count"""
+    link = await _paused_link(connections[0], paused=False)
+    await _commit_waiting_items(link, 90)
+    await _commit_accepted_items(link, corrections=15)
+
+    assert await _backlog(link) == ReviewBacklog(waiting_new=90, paused=False, warning=True)

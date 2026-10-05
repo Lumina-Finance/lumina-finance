@@ -14,11 +14,13 @@ catch-up after a reconnect, runs to today whatever the count, since stopping one
 leave a gap in the history. The thresholds apply once it ends.
 
 A review decision that leaves 50 or fewer lifts the pause at once and queues the connection's sync,
-so the account catches up from where it stopped rather than at the next daily sync
+so the account catches up from where it stopped rather than at the next daily sync. From 80 waiting,
+an account neither paused nor importing shows a warning that the pause is near
 """
 
 import uuid
 from collections.abc import Collection, Sequence
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
 from sqlalchemy import func, select
@@ -27,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.bank_connection import BankAccountLink, BankLinkState
 from app.models.bank_sync_job import BankSyncJobKind
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
+from app.services.bank_sync.availability import LIVE_LINK
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
 from app.services.cache_state.updates import mark_user_cache_changed
 
@@ -35,6 +38,22 @@ PAUSE_AT = 100
 
 # A paused account resumes once this many or fewer are left
 RESUME_AT = 50
+
+# From this many waiting, an account not yet paused warns that the pause is near
+WARN_AT = 80
+
+
+@dataclass(frozen=True)
+class ReviewBacklog:
+    """An account's new items waiting for review, as its sync status and the review block show them"""
+
+    waiting_new: int
+
+    # The account's sync is held for review, which never shows while an import runs
+    paused: bool
+
+    # 80 or more wait on an account neither paused nor importing
+    warning: bool
 
 
 def is_paused_for_review(link: BankAccountLink) -> bool:
@@ -114,6 +133,33 @@ async def lift_review_pauses(db: AsyncSession, owner_id: uuid.UUID, account_ids:
     for connection_id in sorted(due):
         await enqueue_bank_sync_job(db, owner_id=owner_id, connection_id=connection_id, kind=BankSyncJobKind.SCHEDULED, run_after=now)
     await mark_user_cache_changed(db, owner_id)
+
+
+async def read_review_backlogs(db: AsyncSession, account_ids: Collection[uuid.UUID]) -> dict[uuid.UUID, ReviewBacklog]:
+    """Return each account's review backlog: how many new items wait, and whether it shows the pause or the warning
+
+    While an import runs the account shows the import instead, so neither the pause it may keep for
+    when the import ends nor the warning. An account no longer linked shows neither, since it doesn't
+    sync
+
+    Args:
+        db: The owner's session
+        account_ids: The accounts to read
+
+    Returns:
+        Each account's backlog, by account id
+    """
+    waiting = await _count_waiting_new(db, account_ids)
+    links = await db.scalars(select(BankAccountLink).where(BankAccountLink.account_id.in_(account_ids), LIVE_LINK))
+    live = {link.account_id: link for link in links}
+    backlogs = {}
+    for account_id in account_ids:
+        count = waiting.get(account_id, 0)
+        link = live.get(account_id)
+        paused = link is not None and is_paused_for_review(link)
+        warning = link is not None and not link.importing and not paused and count >= WARN_AT
+        backlogs[account_id] = ReviewBacklog(waiting_new=count, paused=paused, warning=warning)
+    return backlogs
 
 
 def _stays_paused(paused: bool, waiting: int) -> bool:
