@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useCategories } from '@/api/categories'
 import { ApiError } from '@/api/auth'
@@ -36,10 +36,12 @@ import { getTransactionReadOnlyReason } from '@/components/transactions/utils/ro
 import { getImportBlockReason, isImportableAccount } from '@/utils/importableAccount'
 import { TRANSACTION_FILTER_KEYS, TRANSACTION_LIST_EASE } from '@/components/transactions/constants/transactionList'
 import TransactionDateGroupList from '@/components/transactions/DateGroupList'
+import BankReviewSection from '@/components/transactions/bank-review/ReviewSection'
 import TransactionFilterLoadingOverlay from '@/components/transactions/FilterLoadingOverlay'
 import TransactionListToolbar from '@/components/transactions/toolbar/ListToolbar'
 import { useTransactionFilterLoadingState } from '@/components/transactions/hooks/useTransactionFilterLoadingState'
 import { useInfiniteScrollTrigger } from '@/components/transactions/hooks/useInfiniteScrollTrigger'
+import { useSkipAppendedEnter } from '@/components/transactions/hooks/useSkipAppendedEnter'
 import { useTransactionSearch } from '@/components/transactions/hooks/useTransactionSearch'
 import type { TransactionListAccount, TransactionListFilters } from '@/components/transactions/types/transactionList'
 import { groupTransactionsByDate } from '@/components/transactions/utils/transactionDateGroups'
@@ -484,22 +486,8 @@ export default function TransactionListSection({
     },
   })
 
-  // A finished page load appends a whole batch of older rows at once, which looks chaotic if each grows
-  // in. Arming this the moment a page fetch starts means it is still set when that page's rows mount, so
-  // they appear without animating. Arming happens during render so it is in place before the rows commit
-  const [skipAppendedEnter, setSkipAppendedEnter] = useState(false)
-  const [wasFetchingNextPage, setWasFetchingNextPage] = useState(isFetchingNextPage)
-  if (wasFetchingNextPage !== isFetchingNextPage) {
-    setWasFetchingNextPage(isFetchingNextPage)
-    if (isFetchingNextPage) setSkipAppendedEnter(true)
-  }
-
-  // Disarm once the fetch has resolved and its rows have mounted, so a later single create still animates
-  useEffect(() => {
-    if (isFetchingNextPage || !skipAppendedEnter) return
-    const timer = window.setTimeout(() => setSkipAppendedEnter(false), 0)
-    return () => window.clearTimeout(timer)
-  }, [isFetchingNextPage, skipAppendedEnter])
+  // A page of older rows appears at once rather than each row growing in
+  const skipAppendedEnter = useSkipAppendedEnter(isFetchingNextPage)
 
   return (
     <section>
@@ -545,6 +533,12 @@ export default function TransactionListSection({
           setDeleteCount(selection.selectedIds.length)
         }}
         onToggleSelecting={() => (isSelecting ? stopSelecting() : setIsSelecting(true))}
+      />
+
+      <BankReviewSection
+        listAccountIds={fixedAccount ? [fixedAccount.id] : filters.account_id}
+        isFixedAccount={Boolean(fixedAccount)}
+        prefersReducedMotion={prefersReducedMotion}
       />
 
       <div className="relative" aria-busy={filterListLoading} onMouseLeave={selection.handlePointerLeaveList}>

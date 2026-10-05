@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser, startOfDayInTestTimezone } from '../support/api'
-import { openPage, chooseFromDropdown, filterByCategory, loadEveryTransaction, logInViaApi, openModal } from '../support/app'
+import { openPage, chooseFromDropdown, filterTransactions, loadEveryTransaction, logInViaApi, openModal } from '../support/app'
 import {
   expectPendingAction,
   expectStretchedFocusRing,
@@ -41,7 +41,7 @@ test('filters the list down to one category', AT_EVERY_SIZE, async ({ page, requ
     await expectTransactionRow(page, ids[index], amount)
   }
 
-  await filterByCategory(page, 'Groceries')
+  await filterTransactions(page, 'Category', 'Groceries')
 
   // The list holds the rows it had before Apply for a second, so anything asserted first would
   // be reading the unfiltered list. Waiting for the Dining row to go is what says the filtered

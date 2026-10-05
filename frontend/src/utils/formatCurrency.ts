@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 import type { Currency } from '@/api/currency'
 import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent } from '@/utils/moneyInput'
-import { getNegativeAffixes, getShownAmountSign, signMovedAmount } from '@/utils/negativeAmount'
+import { getAmountSign, getNegativeAffixes, getShownAmountSign, signMovedAmount } from '@/utils/negativeAmount'
 
 // The amount starts this far past the end of the symbol
 const SYMBOL_TO_AMOUNT_PX = 10
@@ -206,4 +206,25 @@ export function formatCurrency(minorUnits: number, currency: string, currencies:
 export function formatMovedCurrency(minorUnits: number, currency: string, currencies: Currency[]): string {
   const magnitude = Math.round(Math.abs(minorUnits))
   return signMovedAmount(getShownAmountSign(minorUnits), formatCurrency(magnitude, currency, currencies))
+}
+
+/**
+ * Formats an exact amount that moved, counted in units of `decimalPlaces` decimal places, without
+ * narrowing its digits to a floating-point number, signed as `formatMovedCurrency` signs
+ *
+ * Intl supplies grouping, currency placement and localized digits for the bigint whole units. The
+ * separately formatted remainder replaces their zero fraction, keeping every decimal place, so an
+ * amount with more places than its currency holds shows them all
+ */
+export function formatExactMovedAmount(amount: bigint, currency: string, decimalPlaces: number): string {
+  const divisor = 10n ** BigInt(decimalPlaces)
+  const absolute = amount < 0n ? -amount : amount
+  const whole = absolute / divisor
+  const remainder = absolute % divisor
+  const fraction = new Intl.NumberFormat(undefined, {
+    useGrouping: false, minimumIntegerDigits: Math.max(1, decimalPlaces), maximumFractionDigits: 0,
+  }).format(remainder)
+  const magnitude = createMoneyFormatter(currency, decimalPlaces).formatToParts(whole)
+    .map((part) => part.type === 'fraction' ? fraction : part.value).join('')
+  return signMovedAmount(getAmountSign(amount), magnitude)
 }

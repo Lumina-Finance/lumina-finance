@@ -389,30 +389,45 @@ export async function expectSignedIn(page: Page): Promise<void> {
 }
 
 /**
- * Filter the transaction list down to one category, and apply it.
+ * Tick or untick one value of a transaction list filter, and apply it.
  *
  * Two different control sets do this job. Above the toolbar breakpoint it is a pill that opens
  * a panel of tabs; below it a sheet whose first control is a dropdown rather than tabs, and
  * that dropdown is named by the sheet's Filters heading
  *
  * @param page - Page showing the transaction list
- * @param categoryName - Exact name of the category to keep
+ * @param facet - The filter's tab, as in 'Category' or 'Accounts'
+ * @param valueName - Exact name of the value to tick, or to untick when it is ticked
+ * @param appliedCount - How many filters are already applied when the call starts. Below the toolbar
+ *   breakpoint the sheet's button then carries that count in its name, and with none it is exactly
+ *   "Filters", so an unfiltered list that wrongly showed a count would fail to find it
  */
-export async function filterByCategory(page: Page, categoryName: string): Promise<void> {
+export async function filterTransactions(
+  page: Page,
+  facet: 'Accounts' | 'Category',
+  valueName: string,
+  appliedCount = 0,
+): Promise<void> {
   if (await isAtLeast(page, TOOLBAR_BREAKPOINT_PX)) {
     await page.getByRole('button', { name: 'Transaction filters' }).click()
-    await page.getByRole('tab', { name: 'Category' }).click()
-    await page.getByRole('checkbox', { name: categoryName }).click()
+    await page.getByRole('tab', { name: facet }).click()
+    await page.getByRole('checkbox', { name: valueName }).click()
     await page.getByRole('button', { name: 'Apply filters' }).click()
     return
   }
 
-  await page.getByRole('button', { name: 'Filters', exact: true }).click()
+  // With filters applied the button's name ends in their count, read from the badge beside its label,
+  // or as "Filters, 1 active" in selection mode
+  const filtersButton =
+    appliedCount === 0
+      ? page.getByRole('button', { name: 'Filters', exact: true })
+      : page.getByRole('button', { name: new RegExp(`^Filters\\s*(${appliedCount}|, ${appliedCount} active)$`) })
+  await filtersButton.click()
 
   const sheet = page.getByRole('dialog', { name: 'Transaction filters' })
   await sheet.getByRole('combobox', { name: 'Filters', exact: true }).click()
-  await sheet.getByRole('option', { name: 'Category' }).click()
-  await sheet.getByRole('checkbox', { name: categoryName }).click()
+  await sheet.getByRole('option', { name: facet }).click()
+  await sheet.getByRole('checkbox', { name: valueName }).click()
   await sheet.getByRole('button', { name: 'Apply filters' }).click()
 }
 
