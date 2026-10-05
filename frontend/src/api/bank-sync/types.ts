@@ -133,7 +133,9 @@ export type DiscoveredBankAccount = {
 
   /** Provider balance in minor units of the bank account's currency, null when it can't be stored exactly */
   balance: number | null;
-  balance_date: string;
+
+  /** ISO timestamp the provider gives the balance as of, null when the bank gave no usable balance */
+  balance_date: string | null;
   linkable: boolean;
   unavailable_reason: UnavailableBankAccountReason | null;
   unavailable_message: string | null;
@@ -173,6 +175,12 @@ export type ReconnectConnectionResult = {
 
   /** Accounts whose bank account came back under a new identity, which must be chosen again */
   choose_again_account_ids: string[];
+
+  /**
+   * True when the reconnect couldn't list the connection's bank accounts, so both lists are empty
+   * and the accounts are sorted out once a sync lists them
+   */
+  accounts_pending: boolean;
 };
 
 /**
@@ -224,10 +232,11 @@ export type BankActionNeeded = {
 };
 
 /**
- * Why an import runs: a first link, a relink after the account was unlinked, or a bank account
- * chosen again after the provider stopped recognizing the linked one
+ * Why an import runs: a first link, a link made again after the account was unlinked, or a bank
+ * account chosen again after the provider stopped recognizing the linked one, each from a new import
+ * start, or the catch-up after a rejected credential was replaced, which resumes where syncing stopped
  */
-export type BankImportKind = 'initial' | 'reconnect' | 'choose_again';
+export type BankImportKind = 'initial' | 'relink' | 'choose_again' | 'reconnect';
 
 /**
  * Where an import stands. One waiting on the connection's request budget is not running, and its
@@ -268,9 +277,9 @@ export type BankBalance = {
 };
 
 /**
- * The link between one account and one bank account, with everything its status shows
+ * The link between one account and one bank account, as linking answers it, without its status
  */
-export type BankLink = {
+export type BankAccountLink = {
   account_id: string;
   connection_id: string;
   provider: BankProviderId;
@@ -278,8 +287,16 @@ export type BankLink = {
   external_account_id: string;
   external_account_name: string;
   institution_name: string;
+
+  /** The calendar day, in the user's profile timezone, from which the bank supplies the account's transactions */
   import_start: string;
   linked_at: string;
+};
+
+/**
+ * The link between one account and one bank account, with everything its status shows
+ */
+export type BankLink = BankAccountLink & {
   import: BankImportProgress | null;
   history_reminder: BankHistoryReminder | null;
   last_success_at: string | null;

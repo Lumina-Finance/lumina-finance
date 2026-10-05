@@ -3,9 +3,11 @@ import { REVIEW_PAGE_SIZE } from '@/api/bank-sync/constants';
 import type {
   AccountBankStatus,
   AddReviewItemPayload,
+  BankAccountLink,
   BankConnection,
   BankImportRange,
   BankLink,
+  BankProviderId,
   BankProvidersResponse,
   BankReviewPage,
   BulkApprovalPayload,
@@ -97,15 +99,19 @@ export function fetchAccountBankStatus(accountId: string) {
   return authenticatedFetch<AccountBankStatus>(`/accounts/${accountId}/bank-link`);
 }
 
-export function fetchImportRange(accountId: string) {
-  return authenticatedFetch<BankImportRange>(`/accounts/${accountId}/bank-link/import-range`);
+/**
+ * Fetches where an import into the account may start, which depends on how much history the provider
+ * the import would come from allows
+ */
+export function fetchImportRange(accountId: string, provider: BankProviderId) {
+  return authenticatedFetch<BankImportRange>(`/accounts/${accountId}/bank-link/import-range` + buildQueryString({ provider }));
 }
 
 /**
  * Links, or relinks, an account to one bank account and starts its import
  */
 export function createBankLink({ account_id: accountId, ...payload }: LinkBankAccountPayload) {
-  return post<BankLink>(`/accounts/${accountId}/bank-link`, payload);
+  return post<BankAccountLink>(`/accounts/${accountId}/bank-link`, payload);
 }
 
 export function deleteBankLink(accountId: string) {

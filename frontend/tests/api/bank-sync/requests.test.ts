@@ -19,6 +19,7 @@ import {
   createBankLink,
   fetchBulkApprovalPreview,
   fetchDiscoveredBankAccounts,
+  fetchImportRange,
   fetchPendingBankTransactions,
   fetchReviewPage,
   reconnectBankConnection,
@@ -52,6 +53,12 @@ describe('bank sync reads', () => {
     expect(authenticatedFetchMock).toHaveBeenCalledWith(
       '/bank-sync/connections/connection-1/accounts?for_account_id=account-1',
     );
+  });
+
+  it('reads the import range for the provider the import would come from', async () => {
+    await fetchImportRange('account-1', 'simplefin');
+
+    expect(authenticatedFetchMock).toHaveBeenCalledWith('/accounts/account-1/bank-link/import-range?provider=simplefin');
   });
 
   it('reads pending rows for every account when no account is given', async () => {

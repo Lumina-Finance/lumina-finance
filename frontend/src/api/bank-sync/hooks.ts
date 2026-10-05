@@ -39,7 +39,7 @@ import {
   updateReviewPreferences,
   type ReviewResolution,
 } from '@/api/bank-sync/requests';
-import type { BankLink, BulkApprovalPayload } from '@/api/bank-sync/types';
+import type { BankLink, BankProviderId, BulkApprovalPayload } from '@/api/bank-sync/types';
 import {
   invalidateBankLinks,
   invalidateBankReview,
@@ -179,11 +179,11 @@ export function useAccountBankStatus(accountId: string | undefined) {
   });
 }
 
-export function useImportRange(accountId: string, enabled: boolean) {
+export function useImportRange(accountId: string, provider: BankProviderId, enabled: boolean) {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: bankSyncKeys.importRange(accountId),
-    queryFn: () => fetchImportRange(accountId),
+    queryKey: bankSyncKeys.importRange(accountId, provider),
+    queryFn: () => fetchImportRange(accountId, provider),
     enabled: !!accessToken && enabled,
     staleTime: BANK_DATA_STALE_TIME_MS,
   });
