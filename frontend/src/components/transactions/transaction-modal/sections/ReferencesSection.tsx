@@ -18,6 +18,9 @@ import type { TransactionDirection, TransactionModalKind } from '@/components/tr
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { getFieldLabelId } from '@/utils/fieldLabel'
 
+// Why a bank item's account can't be changed
+const LOCKED_ACCOUNT_REASON = 'A bank item stays in the account whose bank sent it'
+
 type SelectedTransactionTag = {
   id: string
   name: string
@@ -259,7 +262,8 @@ export default function TransactionReferencesSection({
           placeholder={accountPlaceholder}
           searchable
           searchPlaceholder="Search accounts..."
-          disabled={readOnly || isAccountLocked}
+          disabled={readOnly}
+          disabledReason={isAccountLocked ? LOCKED_ACCOUNT_REASON : undefined}
         />
         <RunningBalanceRow runningBalance={runningBalance} />
 

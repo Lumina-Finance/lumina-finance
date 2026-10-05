@@ -191,7 +191,8 @@ test('opens a new item as the bank sent it beside its filing card, and adds noth
   await expect(form.month).toHaveValue('09')
   await expect(form.day).toHaveValue('21')
   await expect(form.account).toContainText('Everyday')
-  await expect(form.account).toBeDisabled()
+  await expect(form.account).toHaveAttribute('aria-disabled', 'true')
+  await expect(form.account).toHaveAccessibleDescription(/A bank item stays in the account whose bank sent it/)
   await expectMerchantAndCategoryEmpty(dialog)
 
   // Closing leaves the item waiting, so the header's Close is the only way out besides a decision
