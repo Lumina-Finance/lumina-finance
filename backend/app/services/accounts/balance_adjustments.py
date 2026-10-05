@@ -18,6 +18,7 @@ from app.services.accounts.snapshots import (
     recompute_account_snapshots,
     refuse_unstorable_balance,
 )
+from app.services.bank_sync.manual_entries import refuse_days_a_bank_supplies
 from app.services.merchants.defaults import SELF_MERCHANT_NAME
 
 _BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
@@ -29,7 +30,7 @@ async def record_account_starting_balance(
     db: AsyncSession,
     account: Account,
     *,
-    user_id: uuid.UUID,
+    user: User,
     amount: int,
     adjustment_date: date,
 ) -> None:
@@ -39,18 +40,20 @@ async def record_account_starting_balance(
     saved negated. The account row is locked before its transactions are looked for, so a
     transaction still being saved, or a repeat of this request, is seen once it commits and this
     one is refused rather than adding a second starting balance. An archived account is not refused,
-    since an account can be created archived and still needs its starting balance
+    since an account can be created archived and still needs its starting balance. A linked account
+    whose import has started is, since its bank supplies today
 
     Args:
         db: Active database session
         account: The user's own personal account, which receives the starting balance
-        user_id: User recording the starting balance
+        user: User recording the starting balance
         amount: Starting balance in minor units, above zero
         adjustment_date: The user's today, which dates the adjustment
 
     Raises:
-        HTTPException: The account already has transactions, the amount is outside the range an account
-            balance can hold, or the Balance Adjustment category or the Myself merchant is not configured
+        HTTPException: The account already has transactions, its bank supplies today, the amount is outside
+            the range an account balance can hold, or the Balance Adjustment category or the Myself merchant
+            is not configured
     """
     # The row lock conflicts with the key share lock a transaction insert takes on its account
     await db.execute(select(Account.id).where(Account.id == account.id).with_for_update())
@@ -63,13 +66,16 @@ async def record_account_starting_balance(
             detail="This account already has transactions, so a starting balance can't be recorded",
         )
 
+    # Taken after the row lock above, which already holds back a link request
+    await refuse_days_a_bank_supplies(db, user, {account.id: [adjustment_date]})
+
     signed_amount = amount if account.account_kind == AccountKind.ASSET else -amount
 
     # The account holds nothing else yet, so the amount is its whole balance
     refuse_unstorable_balance(account.name, signed_amount)
     db.add(
         Transaction(
-            created_by_user_id=user_id,
+            created_by_user_id=user.id,
             account_id=account.id,
             dt=adjustment_date,
             category_id=await _get_system_balance_adjustment_category_id(db),

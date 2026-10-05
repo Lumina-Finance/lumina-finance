@@ -14,6 +14,7 @@ from app.models.user import User
 from app.permissions import check_account_access, check_transaction_access
 from app.schemas.transaction import TransactionResponse, UpdateTransactionRequest
 from app.services.accounts.snapshots import refuse_unstorable_balance
+from app.services.bank_sync.manual_entries import LedgerEdit, refuse_edits_a_bank_supplies
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.categories.transfer_rules import does_category_record_counterparty_account
 from app.services.transactions.accounts import (
@@ -46,7 +47,8 @@ async def update_transaction_and_get_response(
     The service checks write access, validates account and related entity
     changes, applies requested field updates, replaces tag assignments when
     supplied, recalculates affected snapshots, marks changed cache scopes, and returns
-    the enriched transaction response
+    the enriched transaction response. A changed date or account a linked account's bank
+    supplies is refused, and so is moving a bank-imported transaction out of its linked account
 
     Args:
         db: Active database session
@@ -101,6 +103,15 @@ async def update_transaction_and_get_response(
     # The amount lands on the account the transaction ends up in
     if changed_fields.get("amount") is not None:
         refuse_unstorable_balance((new_account or current_account).name, changed_fields["amount"])
+    # A date sent as null is refused when the row is written, so here it leaves the date unchanged
+    edit = LedgerEdit(
+        transaction_id=txn.id,
+        account_id=txn.account_id,
+        dt=txn.dt,
+        new_account_id=new_account.id if new_account is not None else txn.account_id,
+        new_dt=changed_fields.get("dt") or txn.dt,
+    )
+    await refuse_edits_a_bank_supplies(db, user, [edit])
 
     # Confirm changed category and merchant records belong to the selected account group
     if "category_id" in changed_fields:

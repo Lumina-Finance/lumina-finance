@@ -9,6 +9,7 @@ from app.models.user import User
 from app.permissions import check_account_access
 from app.schemas.transaction import CreateTransactionRequest, TransactionResponse
 from app.services.accounts.snapshots import recompute_account_snapshots, refuse_unstorable_balance
+from app.services.bank_sync.manual_entries import refuse_days_a_bank_supplies
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.transactions.accounts import (
     validate_transaction_account_is_not_archived,
@@ -35,7 +36,8 @@ async def create_transaction_and_get_response(
 
     The service validates account write access, related transaction entities,
     and currency requirements before inserting the transaction, updating tag
-    associations, recalculating snapshots, and marking the affected cache scope
+    associations, recalculating snapshots, and marking the affected cache scope. A date
+    a linked account's bank supplies is refused
 
     Args:
         db: Active database session
@@ -55,6 +57,7 @@ async def create_transaction_and_get_response(
     )
     validate_transaction_account_is_not_archived(account)
     refuse_unstorable_balance(account.name, data.amount)
+    await refuse_days_a_bank_supplies(db, user, {account.id: [data.dt]})
 
     # Check currency and account currency inputs before any transaction row is inserted
     await validate_transaction_currency_exists(db, data.currency)

@@ -43,7 +43,7 @@ async def record_starting_balance_for_user(
     await record_account_starting_balance(
         db,
         account,
-        user_id=user.id,
+        user=user,
         amount=data.amount,
         adjustment_date=today,
     )
