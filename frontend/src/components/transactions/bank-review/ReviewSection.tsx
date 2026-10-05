@@ -107,7 +107,7 @@ export const BankReviewSection = memo(function BankReviewSection({
   const isInScope = accountIds === undefined || accountIds.length > 0
   const {
     data: pages,
-    error: itemsError,
+    errorUpdateCount: itemsErrorCount,
     hasNextPage,
     fetchNextPage,
     isFetching,
@@ -116,16 +116,18 @@ export const BankReviewSection = memo(function BankReviewSection({
   } = useReviewItems(accountIds, isInScope)
   const {
     data: backlogs,
-    error: backlogsError,
+    errorUpdateCount: backlogsErrorCount,
     isFetching: isFetchingBacklogs,
     refetch: refetchBacklogs,
   } = useReviewBacklogs(accountIds, isInScope)
 
-  // A read that has never succeeded, each retried on its own so the other is left as it is
-  const itemsFailure: ReviewReadFailure | null = isInScope && itemsError && !pages
+  // A read that has failed and never succeeded, each retried on its own so the other is left as it
+  // is. Read from the count of failures rather than the error, which a retry of a read with nothing
+  // loaded clears while it runs, so the failure stays in place, saying it is retrying, until it settles
+  const itemsFailure: ReviewReadFailure | null = isInScope && itemsErrorCount > 0 && !pages
     ? { retry: () => void refetchItems(), isRetrying: isFetching }
     : null
-  const backlogFailure: ReviewReadFailure | null = backlogsError && !backlogs
+  const backlogFailure: ReviewReadFailure | null = backlogsErrorCount > 0 && !backlogs
     ? { retry: () => void refetchBacklogs(), isRetrying: isFetchingBacklogs }
     : null
 

@@ -5,9 +5,10 @@
  *
  * These tests catch the section reading items the list doesn't show, or a group account's that the
  * server refuses, an account's page naming its own account on every row, an amount written in
- * another account's currency, a failed read leaving no trace, the header counting only the loaded
- * page of a large backlog, a marker's request opening a block of four or fewer, which closes itself
- * again on every render, and the notice missing or worded unlike the status labels. Following a
+ * another account's currency, a failed read leaving no trace or vanishing while it is read again,
+ * the header counting only the loaded page of a large backlog, a marker's request opening a block of
+ * four or fewer, which closes itself again on every render, and the notice missing or worded unlike
+ * the status labels. Following a
  * Needs review marker to an item and loading more as the open block scrolls run in the browser,
  * since they need effects and a layout
  */
@@ -119,9 +120,22 @@ describe('the block for every account', () => {
     client.getQueryCache().build(client, { queryKey: bankSyncKeys.reviewItems(undefined) }).setState({
       status: 'error',
       error: new ApiError('Request failed', 500),
+      errorUpdateCount: 1,
     })
 
     expect(renderSection()).toMatch(/Waiting for review<\/h2>.*Bank items to review could not load\.<\/span><button[^>]*>Try again</)
+  })
+
+  // A retry of a read with nothing loaded clears its error while it runs
+  it('keeps saying the items could not load while they are read again', () => {
+    client.getQueryCache().build(client, { queryKey: bankSyncKeys.reviewItems(undefined) }).setState({
+      status: 'pending',
+      fetchStatus: 'fetching',
+      error: null,
+      errorUpdateCount: 1,
+    })
+
+    expect(renderSection()).toMatch(/Bank items to review could not load\.<\/span><button[^>]*aria-busy="true"[^>]*>Retrying…</)
   })
 })
 
@@ -195,8 +209,20 @@ describe('the backlog notice', () => {
     client.getQueryCache().build(client, { queryKey: bankSyncKeys.reviewBacklogs(undefined) }).setState({
       status: 'error',
       error: new ApiError('Request failed', 500),
+      errorUpdateCount: 1,
     })
 
     expect(renderSection()).toContain('Sync pause status could not load')
+  })
+
+  it('keeps saying the pause status could not load while it is read again', () => {
+    client.getQueryCache().build(client, { queryKey: bankSyncKeys.reviewBacklogs(undefined) }).setState({
+      status: 'pending',
+      fetchStatus: 'fetching',
+      error: null,
+      errorUpdateCount: 1,
+    })
+
+    expect(renderSection()).toMatch(/Sync pause status could not load\.<\/span><button[^>]*aria-busy="true"[^>]*>Retrying…</)
   })
 })

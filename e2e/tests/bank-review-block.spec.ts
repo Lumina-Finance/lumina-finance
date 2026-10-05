@@ -109,6 +109,22 @@ async function answerBacklogs(page: Page, answer: (accountIds: string[]) => Back
     route.fulfill({ json: answer(new URL(route.request().url()).searchParams.getAll('account_id')) }))
 }
 
+/**
+ * Holds reads that wait on it while closed, so a test can look at a read in flight, and lets them
+ * through once opened. Open until first closed
+ */
+function readGate(): { close: () => void; open: () => void; passed: () => Promise<void> } {
+  let gate = Promise.resolve()
+  let open = () => {}
+  return {
+    close: () => {
+      gate = new Promise<void>((resolve) => { open = resolve })
+    },
+    open: () => open(),
+    passed: () => gate,
+  }
+}
+
 /** Signs up with Everyday, a Visa card and Savings, Everyday holding a $42.50 grocery spend today */
 async function start(page: Page, request: APIRequestContext): Promise<Accounts> {
   const user = await signUpUser(request)
@@ -228,9 +244,13 @@ test('says in the block that the waiting items could not load, sends Needs revie
   const uberId = await addUberTripAwaiting(page, request, accounts, 'item-0')
   const reads = { items: 0, backlogs: 0 }
   let itemsFail = true
-  await answerReviewItems(page, () => {
+  const gate = readGate()
+  await page.route(isRead('/bank-review/items'), async (route) => {
     reads.items += 1
-    return itemsFail ? 500 : pageOf([reviewItem('item-0', 'removal', accounts.everyday.id, { description: 'UBER TRIP' })])
+    await gate.passed()
+    return itemsFail
+      ? route.fulfill({ status: 500, json: { detail: 'Something went wrong' } })
+      : route.fulfill({ json: pageOf([reviewItem('item-0', 'removal', accounts.everyday.id, { description: 'UBER TRIP' })]) })
   })
   await answerBacklogs(page, () => {
     reads.backlogs += 1
@@ -254,9 +274,21 @@ test('says in the block that the waiting items could not load, sends Needs revie
   await expect(retry).toBeFocused()
   await expect(failure).toBeInViewport()
 
-  // Trying again from there reads the items alone, without reloading the page
+  // While the read is made again the strip holds its place, its button saying so and keeping focus,
+  // and a read that fails again leaves it ready to try once more
   await page.evaluate(() => Object.assign(window, { notReloaded: true }))
   const backlogReads = reads.backlogs
+  const button = failure.getByRole('button')
+  gate.close()
+  await page.keyboard.press('Enter')
+  await expect(button).toHaveText('Retrying…')
+  await expect(button).toHaveAttribute('aria-busy', 'true')
+  await expect(button).toBeFocused()
+  gate.open()
+  await expect(button).toHaveText('Try again')
+  await expect(button).toBeFocused()
+
+  // Trying again from there reads the items alone, without reloading the page
   itemsFail = false
   await page.keyboard.press('Enter')
   await expect(block.getByRole('listitem').filter({ hasText: 'UBER TRIP' })).toBeVisible()
@@ -270,12 +302,14 @@ test('says the pause status could not load while still showing the items, and re
   const { everyday } = await start(page, request)
   const reads = { items: 0, backlogs: 0 }
   let backlogsFail = true
+  const gate = readGate()
   await answerReviewItems(page, () => {
     reads.items += 1
     return pageOf([reviewItem('everyday-1', 'new', everyday.id)])
   })
-  await page.route(isRead('/bank-review/backlogs'), (route) => {
+  await page.route(isRead('/bank-review/backlogs'), async (route) => {
     reads.backlogs += 1
+    await gate.passed()
     return backlogsFail
       ? route.fulfill({ status: 500, json: { detail: 'Something went wrong' } })
       : route.fulfill({ json: [{ account_id: everyday.id, waiting_new_count: 105, paused: true, review_warning: false }] })
@@ -288,9 +322,15 @@ test('says the pause status could not load while still showing the items, and re
   await expect(failure).toBeVisible()
   await expect(block.getByRole('listitem')).toHaveCount(1)
 
+  // Held in place while the read is made again, then giving way to the notice
   const itemReads = reads.items
+  const button = failure.getByRole('button')
   backlogsFail = false
-  await failure.getByRole('button', { name: 'Try again' }).click()
+  gate.close()
+  await button.click()
+  await expect(button).toHaveText('Retrying…')
+  await expect(button).toBeFocused()
+  gate.open()
   await expect(block.getByText('Paused · 105 new to review in Everyday. Sync resumes at 50 or fewer.')).toBeVisible()
   await expect(failure).toBeHidden()
   await expect(block.getByRole('listitem')).toHaveCount(1)
