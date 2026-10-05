@@ -119,7 +119,7 @@ async def test_a_bank_imported_transaction_moving_into_a_linked_account_is_check
 
 
 async def test_edits_the_link_refused_save_after_unlinking(client):
-    """Once Everyday is unlinked, a May Coffee moves to 12 July, a Savings one moves in, and a bank-imported one moves out"""
+    """Once Everyday is unlinked, a May Coffee moves to 12 July, a Savings one moves in, and a bank-imported one moves out, leaving the bank"""
     ledger = await _ledger(client)
     may_id = await _added_id(client, ledger, ledger.everyday_id, date(2026, 5, 1))
     savings_id = await _added_id(client, ledger, ledger.savings_id, date(2026, 7, 13))
@@ -135,5 +135,6 @@ async def test_edits_the_link_refused_save_after_unlinking(client):
     assert redated.status_code == 200, redated.text
     assert moved_in.status_code == 200, moved_in.text
     assert moved_out.status_code == 200, moved_out.text
+    assert moved_out.json()["bank_source"] is None
     assert await _dates_in(ledger.everyday_id) == [date(2026, 7, 12), date(2026, 7, 13)]
     assert await _dates_in(ledger.savings_id) == [date(2026, 7, 20)]

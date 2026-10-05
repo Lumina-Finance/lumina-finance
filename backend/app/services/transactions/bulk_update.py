@@ -32,7 +32,7 @@ from app.schemas.transaction import (
     TransferEnd,
 )
 from app.services.accounts.snapshots import recompute_account_snapshots
-from app.services.bank_sync.manual_entries import LedgerEdit, refuse_edits_a_bank_supplies
+from app.services.bank_sync.manual_entries import LedgerEdit, detach_moved_bank_imports, refuse_edits_a_bank_supplies
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.categories.transfer_rules import does_category_record_counterparty_account
 from app.services.transactions.access_helpers import accessible_account_ids_subquery
@@ -153,6 +153,7 @@ async def bulk_update_transactions(
         for transaction in transactions
     ]
     await refuse_edits_a_bank_supplies(db, user, edits, name_accounts=True)
+    await detach_moved_bank_imports(db, edits)
 
     # Collected before the update, because SQLAlchemy writes the new values back onto the loaded
     # rows and a date or a counterparty read afterwards is the new one

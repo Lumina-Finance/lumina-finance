@@ -14,7 +14,7 @@ from app.models.user import User
 from app.permissions import check_account_access, check_transaction_access
 from app.schemas.transaction import TransactionResponse, UpdateTransactionRequest
 from app.services.accounts.snapshots import refuse_unstorable_balance
-from app.services.bank_sync.manual_entries import LedgerEdit, refuse_edits_a_bank_supplies
+from app.services.bank_sync.manual_entries import LedgerEdit, detach_moved_bank_imports, refuse_edits_a_bank_supplies
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.categories.transfer_rules import does_category_record_counterparty_account
 from app.services.transactions.accounts import (
@@ -91,7 +91,8 @@ async def apply_transaction_update(
 
     The caller marks the cache of each account returned, last, and commits, so the write can be one
     step of a larger save. A changed date or account a linked account's bank supplies is refused,
-    and so is moving a bank-imported transaction out of its linked account
+    and so is moving a bank-imported transaction out of its linked account. Moved out of an account
+    no longer linked, it loses its bank transaction
 
     Args:
         db: Active database session
@@ -145,6 +146,7 @@ async def apply_transaction_update(
         new_dt=changed_fields.get("dt") or txn.dt,
     )
     await refuse_edits_a_bank_supplies(db, user, [edit])
+    await detach_moved_bank_imports(db, [edit])
 
     # Confirm changed category and merchant records belong to the selected account group
     if "category_id" in changed_fields:

@@ -7,7 +7,9 @@ creating one, an edit that changes its date or account, a bulk edit, both import
 starting balance. Earlier days and future days stay open, and none of it applies once the account is
 unlinked. A bank-imported transaction keeps an editable date, but can't leave its account while the
 account is linked, and a linked account can't be archived, since archiving writes an adjustment
-dated today.
+dated today. Moved out once the account is unlinked, a bank-imported transaction leaves the bank as
+a deleted one does: its bank transaction is deleted, so nothing the bank later says about it reaches
+the account it moved to, and the bank sending it again brings it in as a new item.
 
 A link counts from the moment it exists, whether its bank account is active or waiting to be chosen
 again. Every check locks the accounts it reads the links of, in a mode a link request's own lock on
@@ -22,7 +24,7 @@ from datetime import date, datetime
 from typing import NamedTuple
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
@@ -130,6 +132,21 @@ async def refuse_edits_a_bank_supplies(db: AsyncSession, user: User, edits: Sequ
         target_link = links.get(edit.new_account_id)
         if target_link is not None:
             _refuse_supplied_days(target_link, [edit.new_dt], today=today, name_account=name_accounts)
+
+
+async def detach_moved_bank_imports(db: AsyncSession, edits: Sequence[LedgerEdit]) -> None:
+    """Delete the bank transaction of each bank-imported transaction these edits move to another account, with any review item open on it
+
+    Called after refuse_edits_a_bank_supplies, which refused a move out of a linked account and
+    holds the accounts against a new link, so no sync writes these bank transactions meanwhile
+
+    Args:
+        db: Active database session
+        edits: Each edited transaction's account and date before the edit and once it applies
+    """
+    moved = [edit.transaction_id for edit in edits if edit.new_account_id != edit.account_id]
+    if moved:
+        await db.execute(delete(BankTransaction).where(BankTransaction.transaction_id.in_(moved)))
 
 
 async def refuse_archiving_a_linked_account(db: AsyncSession, account: Account) -> None:
