@@ -78,9 +78,12 @@ describe('the bank marker a row builds', () => {
   it('leaves Needs review out where nothing waits, or where the list has no block to go to', () => {
     const untouched = renderRow(SOURCE, () => {})
 
+    const withoutBlock = renderRow({ ...SOURCE, review_item_id: 'item-60' })
+
     expect(untouched).toContain('aria-label="From SimpleFIN"')
     expect(untouched).not.toContain(NEEDS_REVIEW)
-    expect(renderRow({ ...SOURCE, review_item_id: 'item-60' })).not.toContain(NEEDS_REVIEW)
+    expect(withoutBlock).toContain('aria-label="From SimpleFIN"')
+    expect(withoutBlock).not.toContain(NEEDS_REVIEW)
   })
 
   it('says a bank value was edited once one of them is', () => {

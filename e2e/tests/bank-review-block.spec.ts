@@ -375,6 +375,32 @@ test('opens the block for a marker whose item is the fifth, the first one it hid
   await expect(block.getByRole('button', { name: 'Show fewer' })).toHaveAttribute('aria-expanded', 'true')
 })
 
+test('goes to the item from Needs review, right up to its edge by the bank icon, and never from the icon', async ({ page, request }) => {
+  const accounts = await start(page, request)
+  const uberId = await addUberTripAwaiting(page, request, accounts, 'item-4')
+  await answerReviewItems(page, () => pageOf(Array.from({ length: 6 }, (_, index) => index === 4
+    ? reviewItem('item-4', 'removal', accounts.everyday.id, { description: 'UBER TRIP' })
+    : reviewItem(`item-${index}`, 'new', accounts.everyday.id))))
+
+  await openPage(page, '/transactions')
+
+  const block = reviewBlock(page)
+  const row = page.getByTestId(`transaction-row-${uberId}`)
+  const needsReview = row.getByRole('button', { name: 'Needs review. Show the waiting item' })
+  await expect(block.getByRole('listitem')).toHaveCount(4)
+
+  // The icon opens its tooltip and leaves the block as it was
+  await row.getByRole('button', { name: 'From SimpleFIN', exact: true }).click()
+  const tooltip = row.getByText('From SimpleFIN', { exact: true }).filter({ visible: true })
+  await expect.poll(() => tooltip.evaluate((node) => node.checkVisibility({ opacityProperty: true, visibilityProperty: true }))).toBe(true)
+  await expect(block.getByRole('button', { name: 'Show all 6' })).toHaveAttribute('aria-expanded', 'false')
+
+  // The icon takes presses a few pixels around it, which stop short of Needs review beside it
+  const { height } = (await needsReview.boundingBox())!
+  await needsReview.click({ position: { x: 1, y: height / 2 } })
+  await expect(block.getByRole('listitem').filter({ hasText: 'UBER TRIP' })).toBeFocused()
+})
+
 test("lets the block close after a marker whose item no page holds, once every page has loaded", async ({ page, request }) => {
   const accounts = await start(page, request)
 
