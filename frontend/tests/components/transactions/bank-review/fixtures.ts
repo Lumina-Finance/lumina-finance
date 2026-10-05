@@ -1,0 +1,82 @@
+import type { InfiniteData } from '@tanstack/react-query'
+import type { AccountsOverview } from '@/api/accounts/types'
+import type { BankReviewItem, BankReviewItemKind, BankReviewPage } from '@/api/bank-sync/types'
+import type { Currency } from '@/api/currency'
+
+export const MINUS = String.fromCodePoint(0x2212)
+
+/** US dollars and yen, which have no minor unit */
+export const TEST_CURRENCIES: Currency[] = [
+  { id: 'USD', name: 'US Dollar', symbol: '$', minor_unit_exponent: 2 },
+  { id: 'JPY', name: 'Japanese Yen', symbol: '¥', minor_unit_exponent: 0 },
+]
+
+/** Builds one of user-1's own US dollar accounts, unless told otherwise */
+export function createAccount(id: string, name: string, overrides: Partial<AccountsOverview> = {}): AccountsOverview {
+  return {
+    id,
+    owner_id: 'user-1',
+    group_id: null,
+    account_kind: 'asset',
+    account_type: 'checking',
+    tax_advantaged_category_id: null,
+    name,
+    institution: null,
+    currency: 'USD',
+    current_balance: 0,
+    base_currency_current_balance: 0,
+    current_balance_fx_status: 'ok',
+    credit_limit: null,
+    can_write: true,
+    is_archived: false,
+    ...overrides,
+  } as AccountsOverview
+}
+
+/** Builds an item of the given kind on an account, for 1250 minor units out on Sep 21 unless told otherwise */
+export function createReviewItem(
+  id: string,
+  kind: BankReviewItemKind,
+  accountId: string,
+  overrides: Partial<BankReviewItem> = {},
+): BankReviewItem {
+  const bank = { date: '2026-09-21', amount: -1250, raw_amount: null, description: `GROCER ${id}`, merchant_name: null, category_hint: null }
+  return {
+    id,
+    kind,
+    account_id: accountId,
+    provider: 'simplefin',
+    provider_name: 'SimpleFIN',
+    external_transaction_id: `TRN-${id}`,
+    received_at: '2026-09-22T12:00:00Z',
+    version: 1,
+    bank,
+    transaction_id: kind === 'new' ? null : `transaction-${id}`,
+    current: kind === 'new' ? null : { ...bank, amount: -1800 },
+    changed_fields: kind === 'correction' ? ['amount'] : [],
+    protected_fields: [],
+    ...overrides,
+  }
+}
+
+/** The review list as one loaded page of these items, counted by kind unless told otherwise */
+export function toPages(
+  items: BankReviewItem[],
+  counts: BankReviewPage['counts'] = countOf(items),
+  nextCursor: string | null = null,
+): InfiniteData<BankReviewPage, string | null> {
+  return { pages: [{ items, counts, next_cursor: nextCursor }], pageParams: [null] }
+}
+
+function countOf(items: BankReviewItem[]): BankReviewPage['counts'] {
+  return {
+    new: items.filter((item) => item.kind === 'new').length,
+    correction: items.filter((item) => item.kind === 'correction').length,
+    removal: items.filter((item) => item.kind === 'removal').length,
+  }
+}
+
+/** How many item rows a rendered block holds */
+export function rowCount(markup: string): number {
+  return markup.split('role="listitem"').length - 1
+}

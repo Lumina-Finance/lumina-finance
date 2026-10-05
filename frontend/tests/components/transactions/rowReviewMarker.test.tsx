@@ -1,11 +1,13 @@
 /**
- * Guards the Needs review marker a transaction row builds from the bank source it carries: shown for
- * a waiting correction or removal only where the list can go to its item, and going to that item
+ * Guards the bank marker a transaction row builds from the bank source it carries: the provider it
+ * names, the edited note when a bank value was changed, and the Needs review marker for a waiting
+ * correction or removal only where the list can go to its item
  *
  * These tests catch the marker missing from a row whose source names a waiting item, showing on a
- * row with nothing waiting, or showing where nothing could follow it, such as the import preview
+ * row with nothing waiting, showing where nothing could follow it, such as the import preview, and a
+ * row with an edited bank value not saying so. That pressing the marker goes to its item runs in the
+ * browser, since it needs a click
  */
-import type { ReactElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { TransactionBankSource } from '@/api/bank-sync/types'
@@ -23,7 +25,9 @@ vi.mock('@/hooks/useMoneyFormatters', () => ({
   }),
 }))
 
-import TransactionRow, { TransactionRowView } from '@/components/transactions/Row'
+import TransactionRow from '@/components/transactions/Row'
+
+const NEEDS_REVIEW = 'aria-label="Needs review. Show the waiting item"'
 
 const SOURCE: TransactionBankSource = {
   provider: 'simplefin',
@@ -60,37 +64,30 @@ function createTransaction(source: TransactionBankSource | null): Transaction {
   }
 }
 
-/** The props the row hands its view, read off the element it renders rather than its markup */
-function viewProps(source: TransactionBankSource | null, onShowReview?: (reviewItemId: string) => void) {
-  const element = TransactionRow({
-    category: undefined,
-    currency: 'USD',
-    transaction: createTransaction(source),
-    onShowReview,
-    onOpen: () => {},
-  }) as ReactElement<Parameters<typeof TransactionRowView>[0]>
-  return element.props
+function renderRow(source: TransactionBankSource | null, onShowReview?: (reviewItemId: string) => void): string {
+  return renderToStaticMarkup(
+    <TransactionRow category={undefined} currency="USD" transaction={createTransaction(source)} onShowReview={onShowReview} onOpen={() => {}} />,
+  )
 }
 
-describe('the Needs review marker', () => {
-  it('shows on a row whose waiting item the list can go to, and goes to that item', () => {
-    const onShowReview = vi.fn()
-    const { bankMarker } = viewProps({ ...SOURCE, review_item_id: 'item-60' }, onShowReview)
-
-    expect(bankMarker?.needsReview).toBe(true)
-    bankMarker?.onShowReview?.()
-    expect(onShowReview).toHaveBeenCalledWith('item-60')
+describe('the bank marker a row builds', () => {
+  it('shows Needs review on a row whose waiting item the list can go to', () => {
+    expect(renderRow({ ...SOURCE, review_item_id: 'item-60' }, () => {})).toContain(NEEDS_REVIEW)
   })
 
-  it('is left out where nothing waits, or where the list has no block to go to', () => {
-    expect(viewProps(SOURCE, vi.fn()).bankMarker).toMatchObject({ providerName: 'SimpleFIN', needsReview: false })
-    expect(viewProps({ ...SOURCE, review_item_id: 'item-60' }).bankMarker?.needsReview).toBe(false)
-    expect(viewProps(null, vi.fn()).bankMarker).toBeUndefined()
+  it('leaves Needs review out where nothing waits, or where the list has no block to go to', () => {
+    const untouched = renderRow(SOURCE, () => {})
+
+    expect(untouched).toContain('aria-label="From SimpleFIN"')
+    expect(untouched).not.toContain(NEEDS_REVIEW)
+    expect(renderRow({ ...SOURCE, review_item_id: 'item-60' })).not.toContain(NEEDS_REVIEW)
   })
 
-  it('reads as a button that goes to the waiting item', () => {
-    const markup = renderToStaticMarkup(<TransactionRowView {...viewProps({ ...SOURCE, review_item_id: 'item-60' }, () => {})} />)
+  it('says a bank value was edited once one of them is', () => {
+    expect(renderRow({ ...SOURCE, edited_fields: ['amount'] }, () => {})).toContain('aria-label="From SimpleFIN, edited"')
+  })
 
-    expect(markup).toContain('aria-label="Needs review. Show the waiting item"')
+  it('names no provider on a row entered by hand', () => {
+    expect(renderRow(null, () => {})).not.toContain('From SimpleFIN')
   })
 })
