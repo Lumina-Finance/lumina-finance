@@ -97,9 +97,16 @@ export function BankAccountStep({
           />
         </div>
       )}
+      {/* A connection's first listing can still be running, and polls until it arrives */}
       {discoveredError && !discovered
         ? <LoadFailure error={discoveredError} subject="Bank accounts" />
-        : (
+        : discovered?.accounts.length === 0
+          ? (
+              <p className="py-6 text-center text-sm" role={discovered.discovery_pending ? 'status' : undefined} style={{ color: 'var(--app-text-muted)' }}>
+                {discovered.discovery_pending ? 'Listing the bank accounts…' : `${providerSite(connection)} returned no bank accounts for this connection.`}
+              </p>
+            )
+          : (
             <LoadingRegion loading={!discovered} label="Loading bank accounts" animateLoadingHeight overlayClassName={LOADING_OVERLAY_CLASS}>
               <div className={`space-y-3 ${discovered ? '' : 'min-h-32'}`} role="radiogroup" aria-label="Bank account">
                 {discovered?.accounts.map((entry) => (
