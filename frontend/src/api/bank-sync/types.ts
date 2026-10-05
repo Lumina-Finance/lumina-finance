@@ -324,7 +324,7 @@ export type BankLink = BankAccountLink & {
 };
 
 /**
- * What an account last linked to, kept after unlinking so a later link reads as a reconnect and can
+ * What an account last linked to, kept after unlinking so a later link reads as a relink and can
  * be checked against the bank account the provider returns this time
  */
 export type PreviousBankLink = {
