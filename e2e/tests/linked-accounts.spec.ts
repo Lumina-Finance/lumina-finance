@@ -5,30 +5,29 @@ import {
   createAccount,
   createTransaction,
   daysFromTodayInTestTimezone,
+  formatToday,
   signUpUser,
   startOfDayInTestTimezone,
   todayInTestTimezone,
 } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support/app'
-import {
-  answerAsBankImported,
-  answerLinksWith,
-  BANK_SOURCE,
-  claimSetupToken,
-  createSampleBridgeScenario,
-  linkBankAccount,
-} from '../support/bankSync'
+import { addImportedItem, answerLinksWith, linkToSampleBankAccount } from '../support/bankSync'
 import { API_BASE_URL } from '../support/target'
 
 // A linked account's bank supplies its transactions from the import start through today, so the
 // transaction modal refuses those days, a bank transaction can't leave the account or be deleted, and
 // the account can't be archived until it is unlinked.
 //
-// The list of links the transaction modal reads is not served yet, so each of its tests answers it with
-// the link it needs, importing from Jan 1, 2026. Nothing links the account on the server in those
-// tests, which accepts every save, so a refusal seen there is the browser's own and a save that goes
-// through is one the browser let through
-const SUPPLIED_DAYS_MESSAGE = "SimpleFIN supplies this account's transactions from Jan 1, 2026 to today"
+// Each test links its account on the server through the fake SimpleFIN Bridge, so the server refuses
+// what the browser should, and the requests sent show which refusals were the browser's own
+const SAMPLE_CHEQUING = 'Everyday Chequing'
+
+// A sample item dated 9 days before the Bridge's today, which an import from 10 days back brings in
+// even when the Bridge's UTC day has moved on from the test timezone's
+const SAMPLE_COFFEE = 'EFTPOS BEAN THERE CAFE'
+const IMPORT_START_DAYS_AGO = 10
+
+const MESSAGE_FROM_TODAY = `SimpleFIN supplies this account's transactions from ${formatToday()} to today`
 const MOVE_REFUSAL = "Transactions from SimpleFIN can't move out of Everyday while it's linked"
 const ARCHIVE_LINKED_REASON = "This account can't be archived while it's linked to SimpleFIN. Unlink it first."
 const DELETE_LINKED_REASON = 'Imported from SimpleFIN. While Everyday is linked, edit it rather than deleting it.'
@@ -92,7 +91,7 @@ test.afterEach(async ({ page }) => {
 test('refuses a new manual entry on the days a linked account’s bank supplies', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
-  await answerLinksWith(page, () => [account.id])
+  await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${account.id}`)
 
@@ -100,7 +99,7 @@ test('refuses a new manual entry on the days a linked account’s bank supplies'
   const date = dialog.getByRole('group', { name: 'Date' })
   const currency = dialog.getByRole('combobox', { name: 'Currency' })
   const amount = dialog.getByRole('textbox', { name: 'Amount', exact: true })
-  const message = dialog.getByRole('alert').filter({ hasText: SUPPLIED_DAYS_MESSAGE })
+  const message = dialog.getByRole('alert').filter({ hasText: MESSAGE_FROM_TODAY })
 
   // Every create sent, so one the browser refused would show up ahead of the one it let through
   const sentDates: unknown[] = []
@@ -117,7 +116,7 @@ test('refuses a new manual entry on the days a linked account’s bank supplies'
   await expect(message).toBeVisible()
   const year = date.getByRole('textbox', { name: 'Year' })
   await expect(year).toHaveAttribute('aria-invalid', 'true')
-  await expect(year).toHaveAccessibleDescription(SUPPLIED_DAYS_MESSAGE)
+  await expect(year).toHaveAccessibleDescription(MESSAGE_FROM_TODAY)
 
   // Under the whole row once the fields sit side by side, keeping Date, Currency and Amount level, and
   // between the date and the currency on a phone. Read once the message has finished opening, within
@@ -170,7 +169,7 @@ test('refuses the days the other account’s bank supplies once a new transfer i
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   const visa = await createAccount(request, user, { name: 'Visa' })
-  await answerLinksWith(page, () => [visa.id])
+  await linkToSampleBankAccount(request, user, { accountId: visa.id, bankAccountName: 'Rewards Visa' })
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${account.id}`)
 
@@ -183,7 +182,7 @@ test('refuses the days the other account’s bank supplies once a new transfer i
   // Recorded in both, the transfer writes a transaction into Visa too, so Visa's days count
   const recordInBoth = dialog.getByRole('checkbox', { name: /Record in both accounts/ })
   const message = dialog.getByRole('alert').filter({
-    hasText: 'SimpleFIN supplies the transactions in Visa from Jan 1, 2026 to today',
+    hasText: `SimpleFIN supplies the transactions in Visa from ${formatToday()} to today`,
   })
   await recordInBoth.check()
   await expect(message).toBeVisible()
@@ -201,7 +200,7 @@ test.describe('with the browser in Tokyo and the profile in Toronto', () => {
     const account = await createAccount(request, user, { name: 'Everyday' })
     const today = todayInTestTimezone()
     const tomorrow = daysFromTodayInTestTimezone(1)
-    await answerLinksWith(page, () => [account.id])
+    await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
     await logInViaApi(page, user)
 
     // An hour before tomorrow begins in Toronto, when it is already tomorrow afternoon in Tokyo
@@ -217,6 +216,10 @@ test.describe('with the browser in Tokyo and the profile in Toronto', () => {
   })
 })
 
+// A manual entry on a day the bank supplies can't be seeded on the server, since an import starts after
+// the account's latest transaction and every write onto those days is refused, so this test answers the
+// list of links with one importing from Jan 1, 2026 instead. The server then accepts every save, so a
+// refusal seen here is the browser's own
 test('lets an edit keep a date the linked account’s bank supplies, and refuses moving it to another such day', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
@@ -231,7 +234,7 @@ test('lets an edit keep a date the linked account’s bank supplies, and refuses
   await openPage(page, `/accounts/${account.id}`)
   const row = page.getByTestId(`transaction-row-${id}`)
   const dialog = page.getByRole('dialog', { name: 'Edit Transaction', exact: true })
-  const message = dialog.getByRole('alert').filter({ hasText: SUPPLIED_DAYS_MESSAGE })
+  const message = dialog.getByRole('alert').filter({ hasText: "SimpleFIN supplies this account's transactions from Jan 1, 2026 to today" })
 
   // Changing only the notes dates nothing anew, so it saves where the transaction already sits
   await row.click()
@@ -269,14 +272,13 @@ test('keeps a bank transaction in its linked account, refusing the move on the a
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await createAccount(request, user, { name: 'Savings' })
-  const id = await createTransaction(request, user, {
+  await linkToSampleBankAccount(request, user, {
     accountId: account.id,
-    categoryName: 'Groceries',
-    amount: -4250,
-    date: '2026-01-15',
+    bankAccountName: SAMPLE_CHEQUING,
+    startDate: daysFromTodayInTestTimezone(-IMPORT_START_DAYS_AGO),
   })
-  await answerLinksWith(page, () => [account.id])
-  await answerAsBankImported(page, { [id]: BANK_SOURCE })
+  const { id } = await addImportedItem(request, user, account.id, SAMPLE_COFFEE)
+  const correctedDate = daysFromTodayInTestTimezone(-3)
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${account.id}`)
   const dialog = page.getByRole('dialog', { name: 'Edit Transaction', exact: true })
@@ -289,7 +291,7 @@ test('keeps a bank transaction in its linked account, refusing the move on the a
 
   // The bank's own date is the bank's to correct, so another day it supplies is taken
   await page.getByTestId(`transaction-row-${id}`).click()
-  await typeDate(page, dialog, '2026-01-16')
+  await typeDate(page, dialog, correctedDate)
 
   // Leaving the account is refused on its field, and a save sends nothing
   await chooseFromDropdown(dialog, 'Account', 'Savings')
@@ -312,30 +314,19 @@ test('keeps a bank transaction in its linked account, refusing the move on the a
   await dialog.getByTestId('transaction-submit').click()
   expect((await saved).status()).toBe(200)
   await expect(dialog).toBeHidden()
-  expect(sentDates).toEqual(['2026-01-16'])
+  expect(sentDates).toEqual([correctedDate])
 })
 
-// The edit modal reads the account's own link, which is served, so this test links the account on the
-// server through the fake SimpleFIN Bridge rather than answering the list of links
 test('greys out Archive with its reason while the account is linked, and offers it again once unlinked', async ({ page, request }) => {
   const user = await signUpUser(request)
-  const [account, scenario] = await Promise.all([
-    createAccount(request, user, { name: 'Everyday' }),
-    createSampleBridgeScenario(request),
-  ])
+  const account = await createAccount(request, user, { name: 'Everyday' })
   const laterId = await createTransaction(request, user, {
     accountId: account.id,
     categoryName: 'Groceries',
     amount: -4250,
     date: daysFromTodayInTestTimezone(3),
   })
-  const connection = await claimSetupToken(request, user, scenario.setupToken)
-  await linkBankAccount(request, user, {
-    accountId: account.id,
-    connectionId: connection.id,
-    externalAccountId: connection.accounts.find((bankAccount) => bankAccount.name === 'Everyday Chequing')!.external_id,
-    startDate: todayInTestTimezone(),
-  })
+  await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${account.id}`)
 
@@ -389,15 +380,12 @@ test('greys out Archive with its reason while the account is linked, and offers 
 test('greys out Delete on a bank transaction with its reason while the account is linked, and deletes it once unlinked', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
-  const id = await createTransaction(request, user, {
+  await linkToSampleBankAccount(request, user, {
     accountId: account.id,
-    categoryName: 'Groceries',
-    amount: -4250,
-    date: '2026-01-15',
+    bankAccountName: SAMPLE_CHEQUING,
+    startDate: daysFromTodayInTestTimezone(-IMPORT_START_DAYS_AGO),
   })
-  let linkedAccountIds = [account.id]
-  await answerLinksWith(page, () => linkedAccountIds)
-  await answerAsBankImported(page, { [id]: BANK_SOURCE })
+  const { id } = await addImportedItem(request, user, account.id, SAMPLE_COFFEE)
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${account.id}`)
   const dialog = page.getByRole('dialog', { name: 'Edit Transaction', exact: true })
@@ -433,7 +421,8 @@ test('greys out Delete on a bank transaction with its reason while the account i
 
   // The app keeps what it last read across a reload, so this load starts without that copy and reads
   // the list afresh, as it does once unlinking refreshes it
-  linkedAccountIds = []
+  const unlinked = await request.delete(`${API_BASE_URL}/accounts/${account.id}/bank-link`, { headers: asUser(user) })
+  expect(unlinked.ok()).toBe(true)
   await page.addInitScript(() => localStorage.removeItem('lumina:query-cache'))
   await openPage(page, `/accounts/${account.id}`)
   await page.getByTestId(`transaction-row-${id}`).click()
