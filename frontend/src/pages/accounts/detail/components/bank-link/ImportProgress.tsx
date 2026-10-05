@@ -4,10 +4,11 @@ import { describeImportHeading } from '@/pages/accounts/detail/components/bank-l
 
 // The bar never draws empty, so an import that has only started still shows where it will fill
 const MIN_FILL_PERCENT = 4
+const FILL_TRANSITION = { duration: 0.45, ease: [0.22, 1, 0.36, 1] } as const
 
 /**
  * How far an import has got: what it has found and how many of its windows are stored, as a bar that
- * fills on a spring. A finished import reads as done
+ * eases out as it fills. A finished import reads as done
  */
 export function ImportProgress({ progress }: { progress: BankImportProgress }) {
   const prefersReducedMotion = useReducedMotion()
@@ -36,7 +37,7 @@ export function ImportProgress({ progress }: { progress: BankImportProgress }) {
           style={{ background: 'var(--app-bank)' }}
           initial={false}
           animate={{ width: `${Math.max(fraction * 100, MIN_FILL_PERCENT)}%` }}
-          transition={prefersReducedMotion ? { duration: 0 } : { type: 'spring', visualDuration: 0.45, bounce: 0.15 }}
+          transition={prefersReducedMotion ? { duration: 0 } : FILL_TRANSITION}
         />
       </div>
       <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
