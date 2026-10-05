@@ -113,7 +113,7 @@ async def test_review_list_shows_each_kind_with_the_values_its_review_compares(c
         correction.aligned_amount = -450
         correction.description = "BLUE BOTTLE COFFEE"
         correction.open_kind = OpenReviewKind.CORRECTION
-        correction.proposed_fields = {"amount": -450, "description": "SQ *BLUE BOTTLE"}
+        correction.previous_values = {"amount": -450, "description": "SQ *BLUE BOTTLE"}
 
         removal = _build_bank_transaction(account, "TRN-REMOVED", transaction=removed)
         removal.observed_date = removal.aligned_date = date(2026, 10, 1)
@@ -237,7 +237,7 @@ async def test_review_list_reads_a_page_of_50_in_as_many_queries_as_a_page_of_on
         accepted = [_build_bank_transaction(account, f"TRN-ACCEPTED-{index}", transaction=txn) for index, txn in enumerate(ledger)]
         for index, record in enumerate(accepted):
             record.open_kind = OpenReviewKind.CORRECTION if index % 2 else OpenReviewKind.REMOVAL
-            record.proposed_fields = {"amount": -1000} if index % 2 else None
+            record.previous_values = {"amount": -1000} if index % 2 else None
         session.add_all([*accepted, *(_build_bank_transaction(account, f"TRN-{index}") for index in range(1, 20))])
         await session.commit()
 

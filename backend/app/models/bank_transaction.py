@@ -85,7 +85,7 @@ class BankTransaction(Base):
         # Only an accepted record has ledger values to align with or a correction or removal to review
         CheckConstraint(
             "disposition = 'accepted' OR (aligned_amount IS NULL AND open_kind IS NULL "
-            "AND proposed_fields IS NULL AND declined_observation IS NULL)",
+            "AND previous_values IS NULL AND declined_observation IS NULL)",
             name="ck_bank_transactions_review_state",
         ),
         # A record still in play holds the bank's values, with an amount stored either exactly or as sent
@@ -129,13 +129,13 @@ class BankTransaction(Base):
     aligned_date: Mapped[date | None] = mapped_column(Date)
     aligned_amount: Mapped[int | None] = mapped_column(BigInteger)
 
-    # An open correction or removal and the fields it proposes, and the observation the user last
-    # declined with Keep current value, so the same proposal delivered again doesn't reopen review.
-    # The proposed fields map each ReviewedBankField a correction changes to the bank's value
-    # before the change. The observation itself holds the proposal, and the ledger has no
-    # description column, so this is where the approved description is read from
+    # An open correction or removal, the bank's values before a correction's change, and the
+    # observation the user last declined with Keep current value, so the same proposal delivered
+    # again doesn't reopen review. The previous values map each ReviewedBankField the correction
+    # changes to the bank's value before it, while the observation holds the proposal. The ledger
+    # has no description column, so the approved description is read from here
     open_kind: Mapped[str | None] = mapped_column(VARCHAR(16))
-    proposed_fields: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    previous_values: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     declined_observation: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
 
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

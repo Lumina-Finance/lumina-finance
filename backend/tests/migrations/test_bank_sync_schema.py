@@ -31,7 +31,7 @@ from app.models.bank_connection import (
 )
 from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobStatus
-from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
+from app.models.bank_transaction import BankTransaction, BankTransactionDisposition, OpenReviewKind
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.services.bank_sync.worker import is_database_migrated
@@ -351,6 +351,19 @@ async def test_bank_transaction_accepted_needs_its_ledger_row_and_aligned_date(s
 
     await _refused(session, without_ledger_row, "ck_bank_transactions_accepted")
     await _refused(session, waiting_with_ledger_row, "ck_bank_transactions_accepted")
+
+
+async def test_bank_transaction_previous_values_belong_to_an_accepted_record(session):
+    """The bank's values before a correction are kept on an accepted record, never on one still waiting"""
+    everyday, ledger_row = await _everyday_with_ledger_row(session)
+    waiting = _build_bank_transaction(everyday, "TRN-1")
+    waiting.previous_values = {"amount": -1000}
+    corrected = _build_bank_transaction(everyday, "TRN-2", amount=-1050, transaction=ledger_row)
+    corrected.open_kind = OpenReviewKind.CORRECTION
+    corrected.previous_values = {"amount": -1000}
+
+    await _refused(session, waiting, "ck_bank_transactions_review_state")
+    await _add(session, corrected)
 
 
 async def test_bank_transaction_version_moves_with_every_update(session):

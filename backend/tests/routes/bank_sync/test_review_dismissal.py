@@ -106,7 +106,7 @@ async def test_dismissing_an_item_already_in_the_ledger_is_refused(client):
         aligned_amount=txn.amount,
         observed_amount=-1300,
         open_kind=OpenReviewKind.CORRECTION,
-        proposed_fields={"amount": -1250},
+        previous_values={"amount": -1250},
     )
 
     refused = await _dismiss(client, headers, item_id)

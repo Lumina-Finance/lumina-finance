@@ -138,14 +138,14 @@ def _build_item(record: BankTransaction, ledger_date: date | None, ledger_amount
 
     # The ledger holds the approved date and amount, and a correction keeps the description the
     # bank sent before it
-    proposed = record.proposed_fields or {}
-    changed = [field for field in get_args(ReviewedBankField) if field in proposed]
+    previous = record.previous_values or {}
+    changed = [field for field in get_args(ReviewedBankField) if field in previous]
     current = bank.model_copy(
         update={
             "date": ledger_date,
             "amount": ledger_amount,
             "raw_amount": None,
-            "description": proposed.get("description", record.description),
+            "description": previous.get("description", record.description),
         }
     )
     return BankReviewItemResponse(
