@@ -9,7 +9,7 @@ pages neither repeats nor skips one, and only the user's own personal accounts h
 import uuid
 from datetime import UTC, date, datetime
 
-from sqlalchemy import delete, null
+from sqlalchemy import delete
 
 from app.models.account import Account
 from app.models.bank_transaction import OBSERVATION_COLUMNS, BankTransaction, BankTransactionDisposition, OpenReviewKind
@@ -122,7 +122,7 @@ async def test_review_list_shows_each_kind_with_the_values_its_review_compares(c
         dismissed = _build_bank_transaction(account, "TRN-DISMISSED")
         dismissed.disposition = BankTransactionDisposition.DISMISSED
         for column in OBSERVATION_COLUMNS:
-            setattr(dismissed, column, null())
+            setattr(dismissed, column, None)
         records = [new, correction, removal, dismissed, _build_bank_transaction(account, "TRN-SETTLED", transaction=settled)]
         for record in records:
             record.received_at = _RECEIVED_AT

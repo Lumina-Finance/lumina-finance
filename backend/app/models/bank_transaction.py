@@ -36,6 +36,10 @@ EditableBankField = Literal["date", "amount"]
 # name or category hint updates the stored observation without one
 CorrectableBankField = Literal["date", "amount", "description"]
 
+# The JSON columns store None as SQL NULL rather than a JSON null, since the checks below read a
+# missing value as NULL
+_JSON = JSONB(none_as_null=True)
+
 
 # Every column a provider observation fills, which a dismissed record keeps none of
 OBSERVATION_COLUMNS = (
@@ -120,7 +124,7 @@ class BankTransaction(Base):
     description: Mapped[str | None] = mapped_column(Text)
     merchant_name: Mapped[str | None] = mapped_column(Text)
     category_hint: Mapped[str | None] = mapped_column(Text)
-    extras: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    extras: Mapped[dict[str, Any] | None] = mapped_column(_JSON)
     observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # The bank date and amount the ledger row was last aligned with, as the ledger holds them. A
@@ -135,8 +139,8 @@ class BankTransaction(Base):
     # changes to the bank's value before it, while the observation holds the proposal. The ledger
     # has no description column, so the approved description is read from here
     open_kind: Mapped[str | None] = mapped_column(VARCHAR(16))
-    previous_values: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
-    declined_observation: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    previous_values: Mapped[dict[str, Any] | None] = mapped_column(_JSON)
+    declined_observation: Mapped[dict[str, Any] | None] = mapped_column(_JSON)
 
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 

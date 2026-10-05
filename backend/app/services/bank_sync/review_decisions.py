@@ -10,7 +10,7 @@ neither locks it
 import uuid
 
 from fastapi import HTTPException, status
-from sqlalchemy import null, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
@@ -103,10 +103,8 @@ async def dismiss_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) 
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This item is already in the ledger, so it can't be dismissed")
 
     record.disposition = BankTransactionDisposition.DISMISSED
-
-    # SQL NULL rather than None, which the JSONB extras column would store as a JSON null
     for column in OBSERVATION_COLUMNS:
-        setattr(record, column, null())
+        setattr(record, column, None)
     await db.flush()
 
     await mark_user_cache_changed(db, user.id)
