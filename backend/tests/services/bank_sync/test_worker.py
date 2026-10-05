@@ -21,12 +21,13 @@ import pytest
 from sqlalchemy import select, update
 
 from app.models.account import Account
-from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
+from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState, BankProvider
 from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncHeartbeat, BankSyncJob, BankSyncJobKind, BankSyncJobStatus
-from app.services.bank_sync import worker
+from app.services.bank_sync import availability, worker
 from app.services.bank_sync.jobs import ClaimedJob, finish_job, lock_job_for_finish
 from app.services.bank_sync.pending import replace_pending_transactions
+from app.services.bank_sync.providers.simplefin.adapter import SimpleFinAdapter
 from app.services.bank_sync.sync import run_sync_job
 from app.services.bank_sync.worker import MAX_JOB_ATTEMPTS, enqueue_due_work, run_jobs
 from tests.conftest import ScopedSession, TestSession
@@ -45,7 +46,13 @@ _WAIT_SECONDS = 10
 
 _BACKEND_DIR = Path(__file__).resolve().parents[3]
 
-pytestmark = pytest.mark.usefixtures("worker_sessions")
+pytestmark = pytest.mark.usefixtures("worker_sessions", "simplefin_enabled")
+
+
+@pytest.fixture
+def simplefin_enabled(monkeypatch) -> None:
+    """Serve SimpleFIN whatever this deployment's setting, since the jobs here run the real job runner on SimpleFIN connections"""
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, SimpleFinAdapter())
 
 
 class _FetchingRunner:

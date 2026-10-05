@@ -36,18 +36,13 @@ def _link(**values) -> BankAccountLink:
     return link
 
 
-@pytest.mark.parametrize(
-    ("import_start", "first_day"),
-    [(date(2026, 1, 1), date(2026, 9, 19)), (date(2026, 9, 25), date(2026, 9, 25))],
-    ids=["rereads_14_days", "import_start_inside_them"],
-)
-def test_plan_window_for_a_daily_sync_rereads_14_days_but_never_before_the_import_start(import_start, first_day):
-    """Everyday synced yesterday through 3 October fetches from 19 September to today, or from its import start if later"""
-    link = _link(import_start=import_start, checkpoint=date(2026, 10, 3), last_success_at=datetime(2026, 10, 3, 9, 0, tzinfo=_BRISBANE))
+def test_plan_window_for_a_daily_sync_never_rereads_before_the_import_start():
+    """Everyday, imported from 25 September and synced yesterday through 3 October, re-reads from 25 September rather than 19 September"""
+    link = _link(import_start=date(2026, 9, 25), checkpoint=date(2026, 10, 3), last_success_at=datetime(2026, 10, 3, 9, 0, tzinfo=_BRISBANE))
 
     window = plan_window(find_due_links([link], now=_NOW, timezone=_BRISBANE, overlap_days=14), today=_TODAY, timezone=_BRISBANE, max_days=90)
 
-    assert (window.first_day, window.last_day) == (first_day, _TODAY)
+    assert (window.first_day, window.last_day) == (date(2026, 9, 25), _TODAY)
 
 
 @pytest.mark.parametrize(
@@ -58,16 +53,37 @@ def test_plan_window_for_a_daily_sync_rereads_14_days_but_never_before_the_impor
         ({"next_attempt_at": _NOW + timedelta(hours=12, minutes=1)}, False),
         ({"paused": True}, False),
         ({"state": BankLinkState.CHOOSE_ACCOUNT}, False),
+        ({"import_start": _TODAY, "checkpoint": _TODAY - timedelta(days=1)}, True),
     ],
-    ids=["no_next_attempt", "due_in_12_hours", "due_in_12_hours_and_a_minute", "paused_for_review", "waiting_to_choose_its_bank_account"],
+    ids=[
+        "no_next_attempt",
+        "due_in_12_hours",
+        "due_in_12_hours_and_a_minute",
+        "paused_for_review",
+        "waiting_to_choose_its_bank_account",
+        "import_starting_today",
+    ],
 )
 def test_find_due_links_takes_in_active_links_due_within_12_hours_unless_paused(values, is_due):
     """A link due later today joins the sync now, so the connection's links share one request a day"""
-    link = _link(import_start=date(2026, 9, 1), checkpoint=date(2026, 8, 31), **values)
+    link = _link(**{"import_start": date(2026, 9, 1), "checkpoint": date(2026, 8, 31)} | values)
 
     due = find_due_links([link], now=_NOW, timezone=_BRISBANE, overlap_days=14)
 
     assert [need.link for need in due] == ([link] if is_due else [])
+
+
+def test_find_due_links_leaves_out_an_import_starting_tomorrow_in_the_profile_timezone():
+    """It's 8 pm on 3 October in Phoenix, already 4 October in UTC, so a link imported from 4 October has nothing to fetch yet
+
+    An import start can run ahead of the profile's date after the user moves west, and a window for
+    it would end before it starts, which the provider refuses
+    """
+    link = _link(import_start=date(2026, 10, 4), checkpoint=date(2026, 10, 3))
+
+    due = find_due_links([link], now=datetime(2026, 10, 4, 3, tzinfo=UTC), timezone=ZoneInfo("America/Phoenix"), overlap_days=14)
+
+    assert due == []
 
 
 @pytest.mark.parametrize(

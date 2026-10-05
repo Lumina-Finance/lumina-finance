@@ -123,10 +123,17 @@ def _cut_off(*external_ids: str) -> FetchResult:
     return FetchResult(accounts=tuple(_bank_account(external_id) for external_id in external_ids), possibly_cut_off=True)
 
 
-def _window(first_day: date, last_day: date, accounts: Sequence[str] = ("ACT-1",), *, pending: bool = False) -> tuple:
-    """Return a fetch of the bank accounts from midnight on the first day to midnight after the last, in Brisbane"""
-    start = datetime(first_day.year, first_day.month, first_day.day, tzinfo=_BRISBANE)
-    end = datetime(last_day.year, last_day.month, last_day.day, tzinfo=_BRISBANE) + timedelta(days=1)
+def _window(
+    first_day: date,
+    last_day: date,
+    accounts: Sequence[str] = ("ACT-1",),
+    *,
+    pending: bool = False,
+    timezone: ZoneInfo = _BRISBANE,
+) -> tuple:
+    """Return a fetch of the bank accounts from midnight on the first day to midnight after the last, in Brisbane unless told otherwise"""
+    start = datetime(first_day.year, first_day.month, first_day.day, tzinfo=timezone)
+    end = datetime(last_day.year, last_day.month, last_day.day, tzinfo=timezone) + timedelta(days=1)
     return tuple(sorted(accounts)), start, end, pending
 
 
@@ -242,7 +249,7 @@ async def test_job_fetches_windows_of_at_most_90_days_one_job_after_another_unti
 
 
 async def test_job_fetches_a_new_links_import_alone_until_its_window_reaches_the_other_links_reread(connection, provider, frozen_now):
-    """Savings, linked from 1 June, imports alone until its window reaches Everyday, due within the hour, then both share it"""
+    """Savings, linked from 1 June, imports alone until its window reaches Everyday, due in 70 minutes, then both share it"""
     everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday(next_attempt_at=frozen_now + timedelta(minutes=70)))
     savings = await _link(connection, "ACT-savings", import_start=date(2026, 6, 1), checkpoint=date(2026, 5, 31))
     provider.outcomes = [_returned("ACT-savings"), _returned("ACT-savings", "ACT-everyday")]
@@ -259,10 +266,7 @@ async def test_job_fetches_a_new_links_import_alone_until_its_window_reaches_the
 
 
 async def test_job_moves_only_the_checkpoints_of_bank_accounts_the_response_brought_back_whole(connection, provider):
-    """Savings has an error of its own, Card's bank login needs a sign-in and Travel didn't come back, so only Everyday moves
-
-    Their days are fetched again on their next sync, rather than at once, which would spend the budget on the same failure
-    """
+    """Savings has an error of its own, Card's bank login needs a sign-in and Travel didn't come back, so only Everyday's checkpoint moves"""
     names = ("ACT-everyday", "ACT-savings", "ACT-card", "ACT-travel")
     links = [await _link(connection, name, **_synced_through_yesterday()) for name in names]
     provider.outcomes = [
@@ -350,7 +354,7 @@ async def test_job_carries_an_import_past_a_link_that_fails_on_every_request(con
 
 
 async def test_job_brings_up_to_date_a_link_whose_checkpoint_is_long_before_its_import_start(connection, provider):
-    """Everyday's checkpoint is a month before its import start, so it needs nothing before 1 September and the window from then moves it"""
+    """The link's checkpoint is a month before its import start, so it needs nothing before 1 September and the window from then moves it"""
     link = await _link(connection, "ACT-1", import_start=date(2026, 9, 1), checkpoint=date(2026, 8, 1))
     provider.outcomes = [_returned("ACT-1")]
     await _seed_job(connection, BankSyncJobKind.INITIAL)
@@ -361,8 +365,43 @@ async def test_job_brings_up_to_date_a_link_whose_checkpoint_is_long_before_its_
     assert await _checkpoints(link) == [_TODAY]
 
 
+async def test_job_takes_days_in_the_profile_timezone_west_of_utc(connection, provider):
+    """In Phoenix it's 8 pm on 3 October, already 4 October in UTC, and the link last synced at 7 pm on 2 October through that day
+
+    So it re-reads from 18 September to 3 October, where dates taken in UTC would carry on from 3 October to 4 October
+    """
+    phoenix = ZoneInfo("America/Phoenix")
+    async with TestSession() as session:
+        (await session.get(User, connection.owner_id)).tz = "America/Phoenix"
+        await session.commit()
+    link = await _link(
+        connection,
+        "ACT-1",
+        **_synced_through_yesterday(checkpoint=date(2026, 10, 2), last_success_at=datetime(2026, 10, 2, 19, tzinfo=phoenix)),
+    )
+    provider.outcomes = [_returned("ACT-1")]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [_window(date(2026, 9, 18), date(2026, 10, 3), pending=True, timezone=phoenix)]
+    assert await _checkpoints(link) == [date(2026, 10, 3)]
+
+
+async def test_job_imports_a_link_whose_import_starts_today(connection, provider):
+    """A link imported from today needs one window of today, which asks for pending transactions and brings it up to date"""
+    link = await _link(connection, "ACT-1", import_start=_TODAY, checkpoint=date(2026, 10, 3))
+    provider.outcomes = [_returned("ACT-1")]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [_window(_TODAY, _TODAY, pending=True)]
+    assert await _checkpoints(link) == [_TODAY]
+
+
 async def test_job_records_a_second_sync_the_same_day_as_the_links_last_success(connection, provider, frozen_now):
-    """Everyday synced through today at 8 am and again at 1 pm, so it reads as synced at 1 pm though its checkpoint stays today"""
+    """The link synced through today at 8 am and again at 1 pm, so it reads as synced at 1 pm though its checkpoint stays today"""
     await _link(connection, "ACT-1", **_synced_through_yesterday(checkpoint=_TODAY, last_success_at=datetime(2026, 10, 4, 8, tzinfo=_BRISBANE)))
     provider.outcomes = [_returned("ACT-1")]
     await _seed_job(connection, BankSyncJobKind.MANUAL)
@@ -450,7 +489,7 @@ async def test_job_keeps_nothing_from_a_response_that_may_be_cut_short_but_keeps
 
 
 async def test_job_moves_no_checkpoint_past_a_half_that_failed_for_the_link(connection, provider):
-    """Everyday has an error of its own in the earlier half, so the later half coming back whole can't move it past the days it lacks"""
+    """The bank account has an error of its own in the earlier half, so the later half coming back whole can't move it past the days it lacks"""
     link = await _link(connection, "ACT-1", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
     provider.outcomes = [
         _cut_off("ACT-1"),
@@ -463,6 +502,22 @@ async def test_job_moves_no_checkpoint_past_a_half_that_failed_for_the_link(conn
 
     assert len(provider.fetches) == 3
     assert await _checkpoints(link) == [date(2025, 12, 31)]
+
+
+async def test_job_never_moves_a_checkpoint_back_to_the_end_of_an_earlier_half(connection, frozen_now, provider):
+    """The daily re-read from 19 September comes back cut short and the budget runs out after the earlier half, which ends 26 September
+
+    That half brought the bank account back whole, but the link is complete through 3 October, so its checkpoint stays there
+    """
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    await _spend_requests(connection, _DAILY_REQUESTS - 2, frozen_now - timedelta(hours=20))
+    provider.outcomes = [_cut_off("ACT-1"), _returned("ACT-1")]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    assert await run_jobs(1) == 1
+
+    assert _fetched(provider) == [_window(date(2026, 9, 19), _TODAY, pending=True), _window(date(2026, 9, 19), date(2026, 9, 26))]
+    assert await _checkpoints(link) == [date(2026, 10, 3)]
 
 
 async def test_job_keeps_a_single_day_whose_response_may_still_be_cut_short(connection, provider):
@@ -689,7 +744,7 @@ async def test_job_moves_no_checkpoint_for_a_link_unlinked_while_it_fetched(conn
 
 
 async def test_job_attempt_that_lost_its_lease_while_fetching_writes_nothing(connection, monkeypatch):
-    """Attempt 1 stalls on the provider past its lease, attempt 2 finds Everyday failing, and attempt 1's late success changes nothing"""
+    """Attempt 1 stalls on the provider past its lease, attempt 2 finds the bank account failing, and attempt 1's late answer changes nothing"""
     link = await _link(connection, "ACT-1", **_synced_through_yesterday())
     provider = _HeldProvider()
     provider.outcomes = [
@@ -712,7 +767,7 @@ async def test_job_attempt_that_lost_its_lease_while_fetching_writes_nothing(con
 
 
 async def test_job_attempt_that_lost_its_lease_while_listing_stores_nothing(connection, monkeypatch):
-    """Attempt 1's listing leaves Everyday out but stalls past the lease, attempt 2's lists it, and attempt 1's late answer moves nothing"""
+    """Attempt 1's listing leaves the bank account out but stalls past the lease, attempt 2's lists it, and attempt 1's answer moves nothing"""
     link = await _link(connection, "ACT-1", **_synced_through_yesterday())
     async with TestSession() as session:
         session.add(_build_external_account(connection, "ACT-1"))
