@@ -1,4 +1,8 @@
-"""Shared clock helpers for tests of the future-date cutoff, and the fixed clock the routes' pin_clock fixture installs"""
+"""Shared clock helpers for tests of the future-date cutoff
+
+A route test pins the time by putting the fixed clock in place of a module's datetime, through the
+routes' pin_clock fixture
+"""
 
 import importlib
 from datetime import UTC, date, datetime

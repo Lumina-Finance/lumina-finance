@@ -68,8 +68,8 @@ def captured_email(monkeypatch):
 def pin_clock(monkeypatch):
     """Return a function pinning the time that modules read to one instant, for this test only
 
-    freezegun can't run under the routes, so each module that reads the time a route depends on
-    has its datetime replaced with a fixed clock
+    Only the modules named have their datetime replaced with a fixed clock, so every other module
+    and the database's own clock keep the real time
 
     Returns:
         A function taking the instant and the modules to pin
