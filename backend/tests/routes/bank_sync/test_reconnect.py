@@ -69,13 +69,23 @@ async def _rejected_with_two_links(client, scenario: FakeBridgeScenario) -> tupl
     headers, _ = await _sign_up(client)
     everyday_id = await _new_account(client, headers, "Everyday", currency="USD")
     savings_id = await _new_account(client, headers, "Savings", currency="USD")
+    connection_id = await _claim_harbour(client, headers, scenario)
+    assert (await _link(client, headers, everyday_id, connection_id, "ACT-chequing")).status_code == 201
+    assert (await _link(client, headers, savings_id, connection_id, "ACT-savings")).status_code == 201
+    await _reject(scenario, connection_id)
+    return headers, everyday_id, savings_id, connection_id
+
+
+async def _claim_harbour(client, headers, scenario: FakeBridgeScenario) -> str:
+    """Connect Harbour Bank's three bank accounts through the route and return the connection's id"""
     await scenario.add_harbour_accounts()
     claimed = await client.post("/bank-sync/connections", json={"provider": "simplefin", "setup_token": scenario.setup_token}, headers=headers)
     assert claimed.status_code == 201, claimed.text
-    connection_id = claimed.json()["id"]
-    assert (await _link(client, headers, everyday_id, connection_id, "ACT-chequing")).status_code == 201
-    assert (await _link(client, headers, savings_id, connection_id, "ACT-savings")).status_code == 201
+    return claimed.json()["id"]
 
+
+async def _reject(scenario: FakeBridgeScenario, connection_id: str) -> None:
+    """Have SimpleFIN reject the connection's credential 10 days ago, with only scheduled syncs queued since"""
     await scenario.change("POST", "/revoke")
     rejected_at = datetime.now(UTC) - timedelta(days=10)
     async with TestSession() as session:
@@ -86,7 +96,6 @@ async def _rejected_with_two_links(client, scenario: FakeBridgeScenario) -> tupl
         )
         await session.execute(update(BankSyncJob).values(kind="scheduled"))
         await session.commit()
-    return headers, everyday_id, savings_id, connection_id
 
 
 async def _reconnect(client, headers, connection_id: str, setup_token: str) -> httpx.Response:
@@ -196,6 +205,50 @@ async def test_reconnect_with_a_bank_account_listed_under_a_new_id_waits_for_it_
         )
     assert waiting == 4
     assert await _jobs() == [("initial", False, "queued")]
+
+
+async def test_reconnect_leaves_a_link_unlinked_before_as_it_was(client, scenario: FakeBridgeScenario):
+    """Everyday was unlinked while the connection waited, so only Savings resumes and Everyday isn't offered to choose again"""
+    headers, everyday_id, savings_id, connection_id = await _rejected_with_two_links(client, scenario)
+    unlinked = await client.delete(f"/accounts/{everyday_id}/bank-link", headers=headers)
+    assert unlinked.status_code == 200, unlinked.text
+
+    response = await _reconnect(client, headers, connection_id, await scenario.new_setup_token())
+
+    assert response.status_code == 200, response.text
+    assert (response.json()["resumed_account_ids"], response.json()["choose_again_account_ids"]) == ([savings_id], [])
+    assert (await _links())[everyday_id][1:3] == ("unlinked", "initial")
+
+
+async def test_reconnect_with_nothing_linked_whose_listing_fails_queues_a_sync_to_list_the_bank_accounts(
+    client, scenario: FakeBridgeScenario, monkeypatch
+):
+    """No account is linked through the connection, but its bank accounts still have to be listed, so the next sync lists them"""
+    headers, _ = await _sign_up(client)
+    connection_id = await _claim_harbour(client, headers, scenario)
+    await _reject(scenario, connection_id)
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, simplefin_adapter(AccountsTimeOut()))
+
+    response = await _reconnect(client, headers, connection_id, await scenario.new_setup_token())
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert (body["resumed_account_ids"], body["choose_again_account_ids"], body["accounts_pending"]) == ([], [], True)
+    assert await _jobs() == [("initial", True, "queued")]
+
+
+async def test_reconnect_with_nothing_linked_whose_listing_works_queues_nothing(client, scenario: FakeBridgeScenario):
+    """No account is linked through the connection and its bank accounts are listed, so there is nothing for a sync to do"""
+    headers, _ = await _sign_up(client)
+    connection_id = await _claim_harbour(client, headers, scenario)
+    await _reject(scenario, connection_id)
+
+    response = await _reconnect(client, headers, connection_id, await scenario.new_setup_token())
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert (body["resumed_account_ids"], body["choose_again_account_ids"], body["accounts_pending"]) == ([], [], False)
+    assert await _jobs() == []
 
 
 async def test_reconnect_keeps_a_bank_sign_in_the_bank_still_needs(client, scenario: FakeBridgeScenario):
