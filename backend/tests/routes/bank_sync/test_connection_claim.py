@@ -5,6 +5,7 @@ used token, costs the user a new token. The token, its claim URL and the Access 
 must never reach a response, a log or the database in the clear
 """
 
+import asyncio
 import base64
 import json
 import logging
@@ -21,7 +22,7 @@ from app.schemas.bank_sync import CreateBankConnectionRequest
 from app.services.bank_sync import availability
 from tests.conftest import TestSession
 from tests.routes.support import _create_account
-from tests.routes.support.bank_sync_helpers import _sign_up
+from tests.routes.support.bank_sync_helpers import _changed_at, _PausedBridge, _sign_up
 from tests.services.bank_sync.stand_ins import AccountsTimeOut, FakeBridgeScenario, simplefin_adapter
 
 # A setup token that validation refuses before anything could claim it
@@ -161,6 +162,26 @@ async def test_claim_whose_discovery_fails_keeps_the_connection_and_queues_disco
     async with TestSession() as session:
         jobs = (await session.execute(select(BankSyncJob.connection_id, BankSyncJob.kind, BankSyncJob.discover, BankSyncJob.status))).all()
     assert [tuple(job) for job in jobs] == [(uuid.UUID(response.json()["id"]), "retry", True, "queued")]
+
+
+async def test_claim_marks_the_cache_changed_again_once_it_has_stored_the_bank_accounts(client, scenario: FakeBridgeScenario, monkeypatch):
+    """The connection is committed before SimpleFIN lists its bank accounts, so storing them marks the cache again"""
+    headers, _ = await _sign_up(client)
+    await scenario.add_harbour_accounts()
+    before = await _changed_at(client, headers)
+    paused = _PausedBridge("/accounts")
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, simplefin_adapter(paused))
+
+    async with asyncio.timeout(10):
+        claiming = asyncio.create_task(_claim(client, headers, scenario.setup_token))
+        await paused.reached.wait()
+        while_listing = await _changed_at(client, headers)
+        paused.release.set()
+        response = await claiming
+
+    assert response.status_code == 201, response.text
+    assert while_listing != before
+    assert await _changed_at(client, headers) != while_listing
 
 
 async def test_claim_with_a_used_token_is_refused_and_saves_nothing_more(client, scenario: FakeBridgeScenario):

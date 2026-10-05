@@ -29,6 +29,7 @@ from tests.routes.support.bank_sync_helpers import (
     _build_ledger_transaction,
     _build_pending_transaction,
     _build_user,
+    _changed_at,
     _commit_listed_connection,
     _link,
     _new_account,
@@ -115,13 +116,6 @@ async def _unlink(client, headers, account_id: str) -> None:
     """Unlink an account through the route"""
     unlinked = await client.delete(f"/accounts/{account_id}/bank-link", headers=headers)
     assert unlinked.status_code == 200, unlinked.text
-
-
-async def _changed_at(client, headers) -> str | None:
-    """Return when the user's data last changed, as the cache status reports it"""
-    status = await client.get("/me/cache-status", headers=headers)
-    assert status.status_code == 200, status.text
-    return status.json()["personal"]["changed_at"]
 
 
 async def test_unlink_ends_one_link_clears_its_pending_and_keeps_its_history(client):

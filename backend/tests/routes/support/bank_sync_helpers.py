@@ -8,10 +8,12 @@ Route tests sign up and link accounts through the API, and record a bank source 
 Jobs are committed, since the worker reaches them through sessions of its own
 """
 
+import asyncio
 import uuid
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
+import httpx
 from sqlalchemy import select, update
 
 from app.models.account import Account
@@ -33,6 +35,7 @@ from app.models.transaction import Transaction
 from app.models.user import User
 from app.services.bank_sync import links
 from tests.conftest import TestSession
+from tests.fake_simplefin_bridge import FakeBridgeTransport
 from tests.routes.support.account_helpers import _create_account
 from tests.routes.support.auth_helpers import SIGNUP_PAYLOAD, _create_user, _get_auth_header
 
@@ -297,3 +300,28 @@ async def _job_states() -> dict:
     async with TestSession() as session:
         rows = (await session.execute(select(BankSyncJob.id, BankSyncJob.status, BankSyncJob.attempt))).all()
     return {job_id: (status, attempt) for job_id, status, attempt in rows}
+
+
+async def _changed_at(client, headers) -> str | None:
+    """Return when the user's data last changed, as the cache status reports it"""
+    status = await client.get("/me/cache-status", headers=headers)
+    assert status.status_code == 200, status.text
+    return status.json()["personal"]["changed_at"]
+
+
+class _PausedBridge(httpx.AsyncBaseTransport):
+    """Forwards to the fake SimpleFIN Bridge, holding the first request whose path has a marker until released"""
+
+    def __init__(self, marker: str) -> None:
+        """Hold the first request whose path contains the marker, such as /claim/ or /accounts"""
+        self._inner = FakeBridgeTransport()
+        self._marker = marker
+        self.reached = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        """Hold the first marked request until released, and forward every request"""
+        if self._marker in request.url.path and not self.reached.is_set():
+            self.reached.set()
+            await self.release.wait()
+        return await self._inner.handle_async_request(request)

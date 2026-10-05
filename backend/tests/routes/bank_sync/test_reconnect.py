@@ -30,14 +30,15 @@ from app.schemas.bank_sync import ReconnectBankConnectionRequest
 from app.services.bank_sync import availability
 from app.services.cache_state.updates import mark_user_cache_changed
 from tests.conftest import TestSession
-from tests.fake_simplefin_bridge import FakeBridgeTransport
 from tests.routes.support.bank_sync_helpers import (
     _build_bank_transaction,
     _build_signin_notice,
     _build_user,
+    _changed_at,
     _commit_bank_connection,
     _link,
     _new_account,
+    _PausedBridge,
     _sign_up,
 )
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
@@ -47,24 +48,6 @@ _WORKING = "This connection is working, so it needs no new setup token"
 _ALREADY_USED = "This setup token has already been used. Create a new one in SimpleFIN Bridge"
 _NOT_FOUND = "Bank connection not found"
 _SIGNIN_SINCE = datetime(2026, 9, 30, tzinfo=UTC)
-
-
-class _PausedBridge(httpx.AsyncBaseTransport):
-    """Forwards to the fake SimpleFIN Bridge, holding the first request whose path has a marker until released"""
-
-    def __init__(self, marker: str) -> None:
-        """Hold the first request whose path contains the marker, such as /claim/ or /accounts"""
-        self._inner = FakeBridgeTransport()
-        self._marker = marker
-        self.reached = asyncio.Event()
-        self.release = asyncio.Event()
-
-    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
-        """Hold the first marked request until released, and forward every request"""
-        if self._marker in request.url.path and not self.reached.is_set():
-            self.reached.set()
-            await self.release.wait()
-        return await self._inner.handle_async_request(request)
 
 
 async def _rejected_with_two_links(client, scenario: FakeBridgeScenario) -> tuple[dict, str, str, str]:
@@ -326,16 +309,23 @@ async def test_reconnect_whose_listing_fails_keeps_the_new_credential_and_leaves
     assert await _jobs() == [("initial", True, "queued")]
 
 
-async def test_reconnect_updates_cache_status(client, scenario: FakeBridgeScenario):
-    """A reconnect changes what the connection and its accounts show, so cached reads refresh"""
+async def test_reconnect_marks_the_cache_changed_again_once_it_has_stored_the_listing(client, scenario: FakeBridgeScenario, monkeypatch):
+    """The new credential is committed before SimpleFIN lists the bank accounts, so the listing and the resumed links mark the cache again"""
     headers, _, _, connection_id = await _rejected_with_two_links(client, scenario)
-    before = await client.get("/me/cache-status", headers=headers)
+    before = await _changed_at(client, headers)
+    paused = _PausedBridge("/accounts")
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, simplefin_adapter(paused))
 
-    response = await _reconnect(client, headers, connection_id, await scenario.new_setup_token())
+    async with asyncio.timeout(10):
+        reconnecting = asyncio.create_task(_reconnect(client, headers, connection_id, await scenario.new_setup_token()))
+        await paused.reached.wait()
+        while_listing = await _changed_at(client, headers)
+        paused.release.set()
+        response = await reconnecting
 
     assert response.status_code == 200, response.text
-    after = await client.get("/me/cache-status", headers=headers)
-    assert after.json()["personal"]["changed_at"] != before.json()["personal"]["changed_at"]
+    assert while_listing != before
+    assert await _changed_at(client, headers) != while_listing
 
 
 async def test_reconnect_through_a_provider_withdrawn_from_new_connections_still_reconnects(client, scenario: FakeBridgeScenario, monkeypatch):
