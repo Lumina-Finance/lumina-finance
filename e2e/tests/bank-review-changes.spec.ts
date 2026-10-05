@@ -137,6 +137,15 @@ function toast(page: Page, text: string): Locator {
   return page.getByRole('status').filter({ hasText: text })
 }
 
+/** How many lines a cell's text runs to */
+function linesOf(cell: Locator): Promise<number> {
+  return cell.evaluate((element) => {
+    const range = document.createRange()
+    range.selectNodeContents(element)
+    return new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size
+  })
+}
+
 function needsReview(row: Locator): Locator {
   return row.getByRole('button', { name: 'Needs review. Show the waiting item' })
 }
@@ -187,6 +196,12 @@ test('removes a transaction the bank no longer reports', async ({ page, request 
   await openPage(page, '/transactions')
 
   const dialog = await openComparison(page, 'UBER TRIP', 'Review bank removal')
+
+  // On one line in each row, even on a phone
+  const gone = dialog.getByRole('cell', { name: 'No longer reported' })
+  await expect(gone).toHaveCount(3)
+  for (const cell of await gone.all()) expect(await linesOf(cell)).toBe(1)
+
   await dialog.getByRole('button', { name: 'Remove from ledger' }).click()
   await expect(toast(page, 'Transaction removed from the ledger.')).toBeVisible()
   await expect(dialog).toBeHidden()
@@ -271,6 +286,18 @@ test('starts focus on keeping the current value when the comparison opens from t
   await page.keyboard.press('Enter')
   const dialog = page.getByRole('dialog', { name: 'Review bank change' })
   await expect(dialog.getByRole('button', { name: 'Keep current value' })).toBeFocused()
+})
+
+test('gives each value column room for a bank description on one line at 1440 wide', async ({ page, request }) => {
+  const setup = await start(page, request)
+  await addWaiting(page, request, setup, 'correction', COUNTDOWN, { ledger: -4210, bank: -4510 })
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await openPage(page, '/transactions')
+
+  const dialog = await openComparison(page, COUNTDOWN, 'Review bank change')
+  const values = dialog.getByTestId('comparison-description').getByRole('cell')
+  await expect(values).toHaveText([COUNTDOWN, COUNTDOWN])
+  for (const value of await values.all()) expect(await linesOf(value)).toBe(1)
 })
 
 for (const colorScheme of ['light', 'dark'] as const) {

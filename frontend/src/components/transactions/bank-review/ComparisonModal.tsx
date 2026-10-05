@@ -142,10 +142,12 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
 
         <div className="overflow-hidden rounded-xl border" style={{ borderColor: 'var(--app-border)' }}>
           <table className="w-full table-fixed border-collapse text-sm">
+            {/* The labels column fits its longest word, wrapping "Bank description", so the values have the
+                room. A removal's bank column fits "No longer reported" on one line on a phone */}
             <colgroup>
-              <col className="w-2/7" />
+              <col className="w-25" />
               <col />
-              <col />
+              <col className={isRemoval ? 'w-37' : undefined} />
             </colgroup>
             <thead style={{ background: 'var(--app-surface-soft)' }}>
               <tr className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--app-text-muted)' }}>
