@@ -1,6 +1,6 @@
 # Added to docker/compose.yml for the browser tests: a fake SimpleFIN Bridge beside the app, and the
 # testing-only setting that lets the app and the bank sync worker reach it over plain HTTP on the
-# Compose network. Compose reads relative paths in every file it merges from the first file's
+# Compose network, and nothing else. Compose reads relative paths in every file it merges from the first file's
 # directory, docker/, so the mount below is written from there
 
 x-fake-simplefin-bridge-origin: &fake-simplefin-bridge-origin http://fake-simplefin-bridge:8790
@@ -27,9 +27,7 @@ services:
       - ../backend/tests/fake_simplefin_bridge:/fake/fake_simplefin_bridge:ro
     ports:
       - "127.0.0.1:8790:8790"
-    # Replaces the image's check of the app's web server, which this container doesn't run
+    # The image's check is of the app's web server, which this container doesn't run, and nothing
+    # waits on this one's health, since the workflow asks the fake itself through the published port
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8790/docs', timeout=5)"]
-      interval: 5s
-      timeout: 10s
-      retries: 12
+      disable: true
