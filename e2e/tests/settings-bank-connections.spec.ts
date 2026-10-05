@@ -552,26 +552,42 @@ test('holds Link and import back with the reason when bank sync stops as the lin
     createSampleBridgeScenario(request),
   ])
   await claimSetupToken(request, user, scenario.setupToken)
-  // The flow reads the providers again as it opens, and finds the worker down from then on
-  await changeProviders(page, async (body) => {
-    body.sync_running = (await page.locator('#bank-link-title').count()) === 0
+  // The worker runs until the test stops it just before the flow opens, which reads the providers again
+  let workerStopped = false
+  await changeProviders(page, (body) => {
+    body.sync_running = !workerStopped
   })
-  let linkRequests = 0
-  page.on('request', (sent) => {
-    if (sent.url() === `${API_BASE_URL}/accounts/${household.id}/bank-link` && sent.method() === 'POST') linkRequests += 1
-  })
+  let providersReadsPending = 0
+  const countProvidersRead = (sent: { url: () => string }, change: number) => {
+    if (sent.url() === `${API_BASE_URL}/bank-sync/providers`) providersReadsPending += change
+  }
+  page.on('request', (sent) => countProvidersRead(sent, 1))
+  page.on('requestfinished', (sent) => countProvidersRead(sent, -1))
+  page.on('requestfailed', (sent) => countProvidersRead(sent, -1))
   const section = await openBankConnections(page, user)
   const dialog = await openConnection(page, section, 'SimpleFIN')
 
-  await chooseFromDropdown(dialog, SAMPLE_CHEQUING, 'Household')
+  await dialog.getByRole('combobox', { name: SAMPLE_CHEQUING }).click()
+  // A read still on its way when the worker stops would answer the flow as well, saying it still runs
+  await expect.poll(() => providersReadsPending).toBe(0)
+  workerStopped = true
+  await dialog.getByRole('option', { name: 'Household' }).click()
   const flow = page.getByRole('dialog', { name: 'Link bank account' })
   await flow.getByRole('radio', { name: /^3 months/ }).click()
   const submit = flow.getByRole('button', { name: 'Link and import' })
   await expect(submit).toHaveAttribute('aria-disabled', 'true')
   await expect(submit).toHaveAccessibleDescription(LINKING_PAUSED)
+
+  // Waits out the moment a press that got through would have sent the link
+  const linkSent = page
+    .waitForRequest((sent) => sent.url() === `${API_BASE_URL}/accounts/${household.id}/bank-link` && sent.method() === 'POST', { timeout: 1_500 })
+    .then(
+      () => true,
+      () => false,
+    )
   await submit.click({ force: true })
+  expect(await linkSent).toBe(false)
   await expect(flow).toBeVisible()
-  expect(linkRequests).toBe(0)
 })
 
 test('disables Add a connection when no provider is open to new connections', async ({ page, request }) => {
@@ -611,15 +627,16 @@ test('leaves the section out for a user who may not link bank accounts', async (
   await changeProviders(page, (body) => {
     body.may_link = false
   })
+  // Below 1200px the sections are listed in the compact menu, named after the section on screen, so
+  // every project runs this at a width that shows it
+  await page.setViewportSize({ width: 1000, height: page.viewportSize()!.height })
   await logInViaApi(page, user)
   await openPage(page, '/settings')
 
   await expect(page.locator('#runway')).toBeVisible()
   await expect(page.locator('#bank-connections')).toHaveCount(0)
 
-  // Narrower than the sidebar's width, the sections are listed only once the compact menu opens
-  const compactMenu = page.locator('button[aria-controls="settings-mobile-section-menu"]')
-  if (await compactMenu.isVisible()) await compactMenu.click()
+  await page.getByRole('button', { name: 'Profile', exact: true, expanded: false }).click()
   const sections = page.getByRole('navigation', { name: 'Settings sections' })
   await expect(sections.getByRole('button', { name: 'Runway' })).toBeVisible()
   await expect(sections.getByRole('button', { name: 'Bank connections' })).toHaveCount(0)
