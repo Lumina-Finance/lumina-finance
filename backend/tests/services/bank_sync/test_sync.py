@@ -2840,6 +2840,74 @@ async def test_job_queues_no_retry_for_a_link_the_review_pause_holds_back(connec
     assert await _queued_jobs() == []
 
 
+async def test_job_tries_a_paused_links_import_daily_while_its_bank_needs_a_sign_in_and_pauses_it_once_the_import_ends(
+    connection, provider, frozen_now, sent_action_emails
+):
+    """Everyday was paused for review with 70 new items waiting when its connection was reconnected, and the catch-up meets a bank sign-in
+
+    Everyday is marked and its owner emailed once, with no retry queued. The import keeps running, so
+    the pause still doesn't hold it back: the next daily sync tries it, and once the user has signed
+    in, the import reaches today, the mark clears and the pause applies
+    """
+    await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-1")
+    link = await _link(
+        connection,
+        "ACT-1",
+        import_kind=BankImportKind.RECONNECT,
+        import_start=date(2026, 1, 1),
+        checkpoint=date(2026, 9, 24),
+        last_success_at=datetime(2026, 9, 24, 9, tzinfo=_BRISBANE),
+        paused=True,
+        importing=True,
+    )
+    await _commit_waiting_items(link, 70)
+    provider.outcomes = [FetchResult(login_errors={"CON-harbour": _signin_needed()}), _returned("ACT-1")]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+    await _run_jobs_until_none_is_due()
+
+    assert await _pauses(link) == [(True, True)]
+    assert await _signin_marks(link) == [frozen_now]
+    assert await _queued_jobs() == []
+
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+    await _run_jobs_until_none_is_due()
+
+    assert len(provider.fetches) == 2
+    assert await _pauses(link) == [(True, False)]
+    assert await _signin_marks(link) == [None]
+    assert sent_action_emails == [_signin_email("Harbour Bank", "ACT-1")]
+
+
+async def test_job_marks_a_bank_sign_in_only_on_the_accounts_it_tried_leaving_one_paused_for_review_until_its_pause_lifts(
+    connection, provider, frozen_now, sent_action_emails
+):
+    """Everyday is paused for review and Savings syncs, both under the Harbour Bank login, when the bank asks for a sign-in
+
+    Only Savings is tried, so only Savings is marked and the email names it alone, since the pause,
+    not the sign-in, is what stops Everyday. Once a review lifts the pause, Everyday meets the same
+    sign-in and is marked too, with no second email for a state already under way
+    """
+    await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-everyday", "ACT-savings")
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday(paused=True))
+    savings = await _link(connection, "ACT-savings", **_synced_through_yesterday())
+    provider.outcomes = [FetchResult(login_errors={"CON-harbour": _signin_needed()})] * 2
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [_window(date(2026, 9, 19), _TODAY, ("ACT-savings",), pending=True)]
+    assert await _signin_marks(everyday, savings) == [None, frozen_now]
+    assert sent_action_emails == [_signin_email("Harbour Bank", "ACT-savings")]
+
+    async with TestSession() as session:
+        await session.execute(update(BankAccountLink).where(BankAccountLink.id == everyday.id).values(paused=False))
+        await session.commit()
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+    await _run_jobs_until_none_is_due()
+
+    assert await _signin_marks(everyday, savings) == [frozen_now, frozen_now]
+    assert len(sent_action_emails) == 1
+
+
 async def test_job_pauses_a_first_import_by_the_count_left_when_it_ends_not_by_its_peak(connection, provider):
     """Everyday's import from 1 January brings 85 new items in each of its first two windows, and the user dismisses 110 before the third
 
