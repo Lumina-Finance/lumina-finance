@@ -18,13 +18,19 @@ from app.schemas.bank_sync import (
     CreateBankConnectionRequest,
     DiscoveredBankAccountsResponse,
     LinkBankAccountRequest,
+    UnlinkResponse,
     UpdateBankConnectionRequest,
 )
 from app.services.bank_sync.availability import list_providers
 from app.services.bank_sync.claim import claim_connection
 from app.services.bank_sync.connections import list_connections, rename_connection
 from app.services.bank_sync.import_range import get_import_range
-from app.services.bank_sync.links import link_bank_account, list_bank_accounts_for_account
+from app.services.bank_sync.links import (
+    disconnect_connection,
+    link_bank_account,
+    list_bank_accounts_for_account,
+    unlink_account,
+)
 
 router = APIRouter(prefix="/bank-sync", tags=["bank-sync"])
 
@@ -106,6 +112,25 @@ async def update_bank_connection(
     return await rename_connection(db, user, connection_id, request)
 
 
+@router.delete("/connections/{connection_id}", response_model=UnlinkResponse)
+async def delete_bank_connection(
+    connection_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Unlink every account linked through a connection and delete it with its stored credential
+
+    Args:
+        connection_id: The connection to disconnect
+        user: Authenticated owner of the connection
+        db: Active database session
+
+    Returns:
+        The accounts unlinked
+    """
+    return await disconnect_connection(db, user, connection_id)
+
+
 @router.get("/connections/{connection_id}/accounts", response_model=DiscoveredBankAccountsResponse)
 async def list_connection_bank_accounts(
     connection_id: uuid.UUID,
@@ -146,6 +171,25 @@ async def create_bank_link(
         The new link
     """
     return await link_bank_account(db, user, account_id, request)
+
+
+@bank_link_router.delete("", response_model=UnlinkResponse)
+async def delete_bank_link(
+    account_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """End an account's link, keeping its connection
+
+    Args:
+        account_id: The account to unlink
+        user: Authenticated owner of the account
+        db: Active database session
+
+    Returns:
+        The account unlinked
+    """
+    return await unlink_account(db, user, account_id)
 
 
 @bank_link_router.get("/import-range", response_model=BankImportRangeResponse)

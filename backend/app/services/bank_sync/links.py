@@ -1,14 +1,20 @@
-"""Linking a Lumina account to a bank account on one of the user's connections
+"""Linking a Lumina account to a bank account on one of the user's connections, and ending links
 
 The account's link flow lists a connection's bank accounts for the account, each linkable or
 unavailable with its reason from the one eligibility check, and links one of them from a chosen
 start. Opening the flow asks for a fresh discovery when the last one is over an hour old, so a bank
 added at the provider a few minutes ago appears without waiting for the daily sync. The link
 request checks again everything the list showed, since the list can be stale, and queues the
-link's first import, which a job runs
+link's first import, which a job runs.
+
+Unlinking ends one account's link and disconnecting ends every link on a connection and deletes it.
+Either clears the accounts' pending bank transactions, which nothing can refresh any more, and
+keeps everything else: ledger transactions and their bank source, review decisions and the items
+still waiting for review. An ended link stays as a row, so the account remembers what it followed
 """
 
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
@@ -25,14 +31,17 @@ from app.models.bank_connection import (
     BankLinkState,
     UnavailableReason,
 )
-from app.models.bank_sync_job import BankSyncJobKind
+from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind
+from app.models.base import PermissionLevel
 from app.models.institution import Institution
 from app.models.user import User
+from app.permissions import check_account_access
 from app.schemas.bank_sync import (
     BankAccountLinkResponse,
     DiscoveredBankAccountResponse,
     DiscoveredBankAccountsResponse,
     LinkBankAccountRequest,
+    UnlinkResponse,
 )
 from app.services.accounts.access import get_own_personal_account
 from app.services.bank_sync.availability import (
@@ -47,6 +56,7 @@ from app.services.bank_sync.availability import (
 from app.services.bank_sync.connections import get_own_connection, read_discovering_connections
 from app.services.bank_sync.import_range import read_import_range
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
+from app.services.bank_sync.pending import replace_pending_transactions
 from app.services.bank_sync.provider_requests import read_request_budget
 from app.services.bank_sync.providers.contract import ProviderAdapter
 from app.services.cache_state.updates import mark_user_cache_changed
@@ -244,6 +254,78 @@ async def link_bank_account(
     )
 
 
+async def unlink_account(db: AsyncSession, user: User, account_id: uuid.UUID) -> UnlinkResponse:
+    """End an account's link, keeping its connection even when no account is left linked through it
+
+    The link is locked before the pending transactions are cleared, so a sync finishing at the same
+    time either writes first and has its pending items cleared, or finds the link ended and writes
+    nothing for it
+
+    Args:
+        db: Active database session
+        user: The account's owner
+        account_id: The account to unlink
+
+    Returns:
+        The account unlinked
+
+    Raises:
+        HTTPException 404: The account isn't visible to the user, or isn't linked
+    """
+    await check_account_access(db, account_id, user.id, PermissionLevel.READ)
+    link = await db.scalar(
+        select(BankAccountLink)
+        .where(BankAccountLink.account_id == account_id, BankAccountLink.owner_id == user.id, _LIVE_LINK)
+        .with_for_update()
+    )
+    if link is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="This account is not linked to a bank")
+    await _end_links(db, [link], now=datetime.now(UTC))
+    await mark_user_cache_changed(db, user.id)
+    await db.commit()
+    return UnlinkResponse(unlinked_account_ids=[link.account_id])
+
+
+async def disconnect_connection(db: AsyncSession, user: User, connection_id: uuid.UUID) -> UnlinkResponse:
+    """Unlink every account linked through a connection, and delete the connection with its stored credential
+
+    The connection is locked first, so a link being made through it finishes before and is
+    unlinked too, or waits and finds it gone. Its jobs are locked before its links, the order a
+    job's finishing step takes them in, and deleting the connection deletes its jobs, so a sync
+    still fetching writes nothing
+
+    Args:
+        db: Active database session
+        user: The connection's owner
+        connection_id: The connection to disconnect
+
+    Returns:
+        The accounts unlinked, none when nothing was linked through it
+
+    Raises:
+        HTTPException 404: The connection doesn't exist or is another user's
+    """
+    connection = await get_own_connection(db, user.id, connection_id, lock={})
+    await db.execute(select(BankSyncJob.id).where(BankSyncJob.connection_id == connection.id).order_by(BankSyncJob.id).with_for_update())
+    linked = await db.scalars(
+        select(BankAccountLink).where(BankAccountLink.connection_id == connection.id, _LIVE_LINK).order_by(BankAccountLink.id).with_for_update()
+    )
+    ended = linked.all()
+    await _end_links(db, ended, now=datetime.now(UTC))
+    await db.delete(connection)
+    await mark_user_cache_changed(db, user.id)
+    await db.commit()
+    return UnlinkResponse(unlinked_account_ids=[link.account_id for link in ended])
+
+
+async def _end_links(db: AsyncSession, ended: Sequence[BankAccountLink], *, now: datetime) -> None:
+    """Mark locked links unlinked and clear their accounts' pending bank transactions"""
+    for link in ended:
+        link.state = BankLinkState.UNLINKED
+        link.unlinked_at = now
+        await replace_pending_transactions(db, link.account_id, [])
+
+
 async def _get_account_to_link(db: AsyncSession, user: User, account_id: uuid.UUID, *, lock: bool) -> Account:
     """Return one of the user's own personal accounts that isn't archived or linked
 
@@ -282,9 +364,7 @@ async def _get_working_connection(
         HTTPException 409: The provider rejected the connection's credential
         HTTPException 422: The deployment doesn't enable the connection's provider
     """
-    connection = await get_own_connection(db, user_id, connection_id)
-    if lock:
-        await db.refresh(connection, with_for_update={"read": True, "key_share": True})
+    connection = await get_own_connection(db, user_id, connection_id, lock={"read": True, "key_share": True} if lock else None)
     adapter = get_enabled_adapter(connection.provider)
     if connection.credential_rejected_at is not None:
         raise HTTPException(

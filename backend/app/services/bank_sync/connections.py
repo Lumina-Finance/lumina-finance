@@ -7,7 +7,7 @@ the one bank-linking eligibility check
 
 import uuid
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
@@ -180,13 +180,25 @@ async def list_connections(db: AsyncSession, user: User) -> list[BankConnectionR
     return await build_connection_responses(db, user.id, connections.all())
 
 
-async def get_own_connection(db: AsyncSession, user_id: uuid.UUID, connection_id: uuid.UUID) -> BankConnection:
-    """Return one of the user's bank connections
+async def get_own_connection(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    connection_id: uuid.UUID,
+    *,
+    lock: Mapping[str, bool] | None = None,
+) -> BankConnection:
+    """Return one of the user's bank connections, locked until the caller commits when given lock flags
+
+    The flags are with_for_update's, so {} locks the row for update. A request that waited for a
+    disconnect then finds the connection gone, as any later request would
 
     Raises:
         HTTPException 404: The connection doesn't exist or is another user's
     """
-    connection = await db.scalar(select(BankConnection).where(BankConnection.id == connection_id, BankConnection.owner_id == user_id))
+    statement = select(BankConnection).where(BankConnection.id == connection_id, BankConnection.owner_id == user_id)
+    if lock is not None:
+        statement = statement.with_for_update(**lock).execution_options(populate_existing=True)
+    connection = await db.scalar(statement)
     if connection is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=CONNECTION_NOT_FOUND)
     return connection

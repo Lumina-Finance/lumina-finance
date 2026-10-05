@@ -222,6 +222,12 @@ class BankAccountLinkResponse(BaseModel):
     linked_at: datetime
 
 
+class UnlinkResponse(BaseModel):
+    """The accounts an unlink or a disconnect stopped syncing"""
+
+    unlinked_account_ids: list[uuid.UUID]
+
+
 class BankValues(BaseModel):
     """The values a bank supplied for one booked transaction"""
 

@@ -24,8 +24,10 @@ from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState, BankProvider
 from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncHeartbeat, BankSyncJob, BankSyncJobKind, BankSyncJobStatus
+from app.models.user import User
 from app.services.bank_sync import availability, worker
 from app.services.bank_sync.jobs import ClaimedJob, finish_job, lock_job_for_finish
+from app.services.bank_sync.links import disconnect_connection, unlink_account
 from app.services.bank_sync.pending import replace_pending_transactions
 from app.services.bank_sync.sync import run_sync_job
 from app.services.bank_sync.worker import MAX_JOB_ATTEMPTS, enqueue_due_work, run_jobs
@@ -39,6 +41,7 @@ from tests.routes.support.bank_sync_helpers import (
     _job_states,
     _seed_job,
 )
+from tests.routes.support.identity_helpers import _act_as
 from tests.services.bank_sync.fake_provider import FakeProviderAdapter
 
 # Long enough for any step here to finish, so a missing protection fails the test rather than hanging it
@@ -220,6 +223,34 @@ async def test_job_finishing_after_a_link_changed_mid_fetch_writes_nothing_for_t
 
     assert await _pending_items() == {(everyday.id, "HOLD-1")}
     assert await _job_states() == {job.id: ("succeeded", 1)}
+
+
+@pytest.mark.parametrize("ending", ["unlink_savings", "disconnect"])
+async def test_job_finishing_after_an_unlink_or_disconnect_mid_fetch_writes_nothing_for_those_accounts(connections, monkeypatch, ending):
+    """Savings unlinked while the job fetched gets nothing and Everyday's results are kept; disconnected, neither gets anything"""
+    connection = connections[0]
+    (everyday, savings), _ = await _seed_links(connection, "ACT-1", "ACT-2")
+    job = await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+    runner = _FetchingRunner([everyday, savings], held=[(job.id, 1)])
+    monkeypatch.setattr(worker, "run_sync_job", runner)
+    async with TestSession() as session:
+        owner = await session.get_one(User, connection.owner_id)
+
+    async with asyncio.timeout(_WAIT_SECONDS):
+        running = asyncio.create_task(run_jobs(1))
+        await runner.fetching[(job.id, 1)].wait()
+        async with _act_as(owner.id) as db:
+            if ending == "disconnect":
+                await disconnect_connection(db, owner, connection.id)
+            else:
+                await unlink_account(db, owner, savings.id)
+        runner.release[(job.id, 1)].set()
+        await running
+
+    if ending == "disconnect":
+        assert (await _pending_items(), await _job_states()) == (set(), {})
+    else:
+        assert (await _pending_items(), await _job_states()) == ({(everyday.id, "HOLD-1")}, {job.id: ("succeeded", 1)})
 
 
 @pytest.mark.parametrize(
