@@ -21,8 +21,8 @@ type BankPendingSectionProps = {
  * under the review block
  *
  * Hidden while none are pending. While they can't load, the strip says so with a retry, so an empty
- * space never reads as nothing pending. The bank sync heartbeat reads them again once a linked
- * account brings in data, so a sync that posts or drops one shows without the window regaining focus
+ * space never reads as nothing pending. The bank sync heartbeat reads them again whenever a link
+ * changes, so a sync that posts or drops one, or a link that has them cleared, shows on its own
  */
 export const BankPendingSection = memo(function BankPendingSection({
   listAccountIds,

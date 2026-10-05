@@ -105,9 +105,11 @@ function hasNewBankData(previous: BankLink, link: BankLink): boolean {
 /**
  * Refreshes what a polled change in the link list makes stale
  *
- * Any change to a link refreshes the status shown for it. A link that brought in data refreshes the
- * review inbox, the pending strip, the transaction lists and the account's figures, which no other
- * request would, since the worker writes them outside any request this window made
+ * Any change to a link refreshes the status shown for it and the pending strip, since a link moved to
+ * Choose bank account, or removed, has its pending rows cleared without bringing in data. A link that
+ * brought in data also refreshes the review inbox, the transaction lists and the account's figures.
+ * No other request would refresh any of these, since the worker writes them outside any request this
+ * window made
  *
  * Nothing is compared until there is a list on both sides, so the first read is never taken as every
  * link appearing at once, and a list read again unchanged, which the cache hands back as the same
@@ -134,10 +136,13 @@ export function applyBankLinkChanges(
     if (hasNewBankData(previous, link)) withNewData.push(link.account_id);
   }
 
-  if (changed) invalidateBankSyncStatus(queryClient);
+  if (!changed) return;
+
+  invalidateBankSyncStatus(queryClient);
+  invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.pendingAll }]);
   if (withNewData.length === 0) return;
 
-  invalidateBankReview(queryClient);
+  invalidateBankReviewItems(queryClient);
   invalidateTransactions(queryClient);
   invalidateFinancialTransactionData(queryClient, withNewData);
 }

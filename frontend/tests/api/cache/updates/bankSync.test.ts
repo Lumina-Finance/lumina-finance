@@ -6,7 +6,7 @@
  * These tests catch a polled link list that changed nothing refetching every bank view, a first read
  * taken for every link appearing at once, a sync that
  * brought in data leaving the review inbox, pending rows, transaction lists or the account's balance
- * stale, a decided item staying in a later page or its count, an item leaving the inbox before its
+ * stale, a link moved to Choose bank account or removed leaving its cleared pending rows on screen, a decided item staying in a later page or its count, an item leaving the inbox before its
  * transaction shows in the list or the backlog notice counts it out, a decision that left the ledger
  * alone reloading it or taking its item out before both the links and the backlogs have refetched, a
  * restored bank value leaving the inbox showing the ledger value it replaced, a link change settling
@@ -53,16 +53,16 @@ const backlogKey = bankSyncKeys.reviewBacklogs(undefined);
 const reviewKeys: QueryKey[] = [
   bankSyncKeys.reviewItems(undefined),
   backlogKey,
-  bankSyncKeys.pending(['account-1']),
   bankSyncKeys.bulkPreview(undefined),
 ];
+const pendingKey = bankSyncKeys.pending(['account-1']);
 const ledgerKeys: QueryKey[] = [transactionKeys.list({}), accountKeys.detail('account-1')];
 const otherAccountKey = accountKeys.detail('account-2');
 const reviewKey = bankSyncKeys.reviewItems(undefined);
 
 /** Seeds one cached query under every key the polled link list can make stale */
 function seedBankViews(): void {
-  for (const key of [...statusKeys, ...reviewKeys, ...ledgerKeys, otherAccountKey]) {
+  for (const key of [...statusKeys, ...reviewKeys, pendingKey, ...ledgerKeys, otherAccountKey]) {
     queryClient.setQueryData(key, {});
   }
 }
@@ -124,7 +124,7 @@ describe('a polled change in the link list', () => {
   it('refreshes nothing when the links read the same as before', () => {
     applyBankLinkChanges(queryClient, before, before.map((link) => ({ ...link })));
 
-    expectInvalidated([...statusKeys, ...reviewKeys, ...ledgerKeys], false);
+    expectInvalidated([...statusKeys, ...reviewKeys, pendingKey, ...ledgerKeys], false);
   });
 
   it.each([
@@ -133,27 +133,37 @@ describe('a polled change in the link list', () => {
   ])('refreshes nothing for %s', (_, previous, next) => {
     applyBankLinkChanges(queryClient, previous, next);
 
-    expectInvalidated([...statusKeys, ...reviewKeys, ...ledgerKeys], false);
+    expectInvalidated([...statusKeys, ...reviewKeys, pendingKey, ...ledgerKeys], false);
   });
 
-  it('refreshes only the status when a sync fails', () => {
-    const after = [
-      createBankLink({ last_attempt: { at: '2026-10-01T00:00:00Z', outcome: 'failure', reason: 'Bank unavailable' } }),
-      before[1],
-    ];
-
+  // A move to Choose bank account and a removal each clear the link's pending rows without bringing
+  // in data
+  it.each([
+    [
+      'a sync fails',
+      [createBankLink({ last_attempt: { at: '2026-10-01T00:00:00Z', outcome: 'failure', reason: 'Bank unavailable' } }), before[1]],
+    ],
+    [
+      'a link moves to Choose bank account',
+      [
+        createBankLink({ action_needed: { kind: 'choose_account', since: '2026-10-01T00:00:00Z', message: 'Choose the bank account again' } }),
+        before[1],
+      ],
+    ],
+    ['a link is removed elsewhere', [before[0]]],
+  ])('refreshes the status and the pending strip, leaving the inbox and the ledger, when %s', (_, after) => {
     applyBankLinkChanges(queryClient, before, after);
 
-    expectInvalidated(statusKeys, true);
+    expectInvalidated([...statusKeys, pendingKey], true);
     expectInvalidated([...reviewKeys, ...ledgerKeys], false);
   });
 
-  it('refreshes the inbox, the ledger and the synced account when a sync brings in data', () => {
+  it('refreshes the inbox, the pending strip, the ledger and the synced account when a sync brings in data', () => {
     const after = [createBankLink({ last_success_at: '2026-10-01T00:00:00Z' }), before[1]];
 
     applyBankLinkChanges(queryClient, before, after);
 
-    expectInvalidated([...statusKeys, ...reviewKeys, ...ledgerKeys], true);
+    expectInvalidated([...statusKeys, ...reviewKeys, pendingKey, ...ledgerKeys], true);
     expectInvalidated([otherAccountKey], false);
   });
 
@@ -172,14 +182,7 @@ describe('a polled change in the link list', () => {
 
     applyBankLinkChanges(queryClient, importing, advanced);
 
-    expectInvalidated(reviewKeys, true);
-  });
-
-  it('refreshes only the status when a link is removed elsewhere', () => {
-    applyBankLinkChanges(queryClient, before, [before[0]]);
-
-    expectInvalidated(statusKeys, true);
-    expectInvalidated([...reviewKeys, ...ledgerKeys], false);
+    expectInvalidated([...reviewKeys, pendingKey], true);
   });
 });
 
