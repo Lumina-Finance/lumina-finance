@@ -9,9 +9,12 @@ values refreshed in place, a dismissed one stays dismissed whatever the bank now
 already in the ledger has its bank values stored and any correction they make opened or applied
 (corrections.py).
 
-Records dated before the link's import start are left out, but never those dated before the window
-that brought them back, since a provider can date a record the day before the window it came back
-in, and the window before it, which ended at that midnight, didn't include it.
+A new record dated before the link's import start is left out, but never one dated before the
+window that brought it back, since a provider can date a record the day before the window it came
+back in, and the window before it, which ended at that midnight, didn't include it. The import start
+decides only which records come in, so one already stored that the bank now dates before it is
+stored like any other change: an item waiting keeps waiting with the new date, and one in the
+ledger has its correction opened or applied.
 
 An amount that can't be stored exactly in the account's currency is kept as the bank sent it, with
 no amount, so its item waits for the user to enter one rather than being rounded or dropped
@@ -51,7 +54,7 @@ async def store_booked_records(
     Returns:
         Whether anything stored changed, so the caller tells the owner's open pages
     """
-    wanted = [(link, _booked_records(link, records)) for link, records in deliveries]
+    wanted = [(link, _booked_records(records)) for link, records in deliveries]
     wanted = [(link, booked) for link, booked in wanted if booked]
     if not wanted:
         return False
@@ -84,6 +87,8 @@ async def store_booked_records(
             observation = _observation(record)
             row = known.get((link.account_id, link.provider, link.external_account_id, external_id))
             if row is None:
+                if record.date < link.import_start:
+                    continue
                 db.add(
                     BankTransaction(
                         owner_id=link.owner_id,
@@ -121,14 +126,14 @@ def _differs(row: BankTransaction, observation: dict[str, Any]) -> bool:
     return any(getattr(row, column) != value for column, value in observation.items())
 
 
-def _booked_records(link: BankAccountLink, records: Sequence[ProviderRecord]) -> dict[str, ProviderRecord]:
-    """Return a link's booked records dated from its import start on, by transaction ID
+def _booked_records(records: Sequence[ProviderRecord]) -> dict[str, ProviderRecord]:
+    """Return a link's booked records by transaction ID
 
     Pending records are display data kept apart from the review inbox, and a record the provider
     reports removed adds no item. An ID sent twice in one response is one transaction, so the later
     record of it stands
     """
-    return {record.external_id: record for record in records if not record.pending and not record.removed and record.date >= link.import_start}
+    return {record.external_id: record for record in records if not record.pending and not record.removed}
 
 
 def _observation(record: ProviderRecord) -> dict[str, Any]:

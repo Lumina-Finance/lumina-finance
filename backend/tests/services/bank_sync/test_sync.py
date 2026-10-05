@@ -2687,6 +2687,32 @@ async def test_job_rebuilds_balances_from_the_earliest_day_a_trusted_correction_
     assert await _balances(card.account_id) == [(date(2026, 10, 3), -4_50)]
 
 
+async def test_job_stores_a_bank_change_dating_a_stored_transaction_before_the_import_start(connection, provider):
+    """The link imports from 1 October, and the bank moves the coffee in the ledger and an item still waiting to 30 September
+
+    The import start decides only which new records come in, so the coffee's correction opens and
+    the waiting item takes the new date and keeps waiting, while a new record sent for that day
+    stays out
+    """
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday(import_start=date(2026, 10, 1)))
+    await _accept_coffee(link)
+    await _store_bank_transaction(link, "TRN-waiting")
+    redated = date(2026, 9, 30)
+    provider.outcomes = [
+        _returned_with({"ACT-1": [_record("TRN-coffee", redated), _record("TRN-new", redated), _record("TRN-waiting", redated)]})
+    ]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    columns = (BankTransaction.external_transaction_id, BankTransaction.disposition, BankTransaction.observed_date, *_CORRECTION)
+    assert await _bank_transactions(*columns) == [
+        ("TRN-coffee", BankTransactionDisposition.ACCEPTED, redated, OpenReviewKind.CORRECTION, {"date": "2026-10-02"}),
+        ("TRN-waiting", BankTransactionDisposition.AWAITING_REVIEW, redated, None, None),
+    ]
+    assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_50)]
+
+
 async def test_job_opens_nothing_when_the_bank_goes_back_to_values_the_user_declined(connection, provider):
     """The user kept $4.50 over the bank's $4.75, and while corrections were trusted the bank moved on to $5.00, which left $4.50 alone
 
