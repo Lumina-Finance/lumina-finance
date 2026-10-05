@@ -29,7 +29,7 @@ from app.schemas.bank_review import (
     BankReviewPageResponse,
 )
 from app.schemas.bank_sync import BankValues
-from app.services.accounts.access import get_own_personal_account, own_personal_account_condition
+from app.services.accounts.access import check_own_personal_accounts, own_personal_account_condition
 from app.services.bank_sync.availability import PROVIDER_ADAPTERS
 from app.services.bank_sync.review_pause import read_review_backlogs
 from app.services.bank_sync.review_state import edited_fields
@@ -79,7 +79,7 @@ async def list_review_items(
     """
     scope = [_IS_REVIEW_ITEM, own_personal_account_condition(user.id)]
     if account_ids is not None:
-        await _check_own_accounts(db, user, account_ids)
+        await check_own_personal_accounts(db, account_ids, user.id, not_own_detail=_NOT_OWN_DETAIL)
         scope.append(BankTransaction.account_id.in_(account_ids))
 
     # One row past the page says whether another page follows
@@ -137,7 +137,7 @@ async def list_review_backlogs(
     if account_ids is None:
         account_ids = list(await db.scalars(select(Account.id).where(own_personal_account_condition(user.id))))
     else:
-        await _check_own_accounts(db, user, account_ids)
+        await check_own_personal_accounts(db, account_ids, user.id, not_own_detail=_NOT_OWN_DETAIL)
     backlogs = await read_review_backlogs(db, account_ids)
     return [
         BankReviewBacklogResponse(
@@ -148,22 +148,6 @@ async def list_review_backlogs(
         )
         for account_id in account_ids
     ]
-
-
-async def _check_own_accounts(db: AsyncSession, user: User, account_ids: Sequence[uuid.UUID]) -> None:
-    """Refuse the first account named that isn't one of the user's own personal accounts
-
-    One query finds which of them are, so naming more accounts costs no more queries, and only an
-    account it leaves out is looked up again, to say whether the user can see it
-
-    Raises:
-        HTTPException 403: The account is visible but isn't the user's own personal account
-        HTTPException 404: The account isn't visible to the user
-    """
-    own = set(await db.scalars(select(Account.id).where(Account.id.in_(account_ids), own_personal_account_condition(user.id))))
-    for account_id in account_ids:
-        if account_id not in own:
-            await get_own_personal_account(db, account_id, user.id, not_own_detail=_NOT_OWN_DETAIL)
 
 
 def _build_item(record: BankTransaction, ledger_date: date | None, ledger_amount: int | None) -> BankReviewItemResponse:

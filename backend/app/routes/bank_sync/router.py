@@ -15,6 +15,7 @@ from app.schemas.bank_sync import (
     BankAccountLinkResponse,
     BankConnectionResponse,
     BankImportRangeResponse,
+    BankPendingTransactionResponse,
     BankProvidersResponse,
     CreateBankConnectionRequest,
     DiscoveredBankAccountsResponse,
@@ -36,6 +37,7 @@ from app.services.bank_sync.links import (
     list_bank_accounts_for_account,
     unlink_account,
 )
+from app.services.bank_sync.pending_items import list_pending_transactions
 from app.services.bank_sync.review_decisions import (
     accept_bank_change,
     add_review_item_to_ledger,
@@ -210,6 +212,25 @@ async def restore_transaction_bank_value(
         The ledger transaction, with its bank source
     """
     return await restore_bank_value(db, user, transaction_id, request.field)
+
+
+@router.get("/pending", response_model=list[BankPendingTransactionResponse])
+async def list_pending_bank_transactions(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    account_id: Annotated[list[uuid.UUID] | None, Query()] = None,
+):
+    """Return the transactions the bank hasn't posted yet, newest first, which stay out of the ledger
+
+    Args:
+        user: Authenticated owner of the accounts
+        db: Active database session
+        account_id: The accounts whose items to list, repeated for each, or every account when left out
+
+    Returns:
+        Each pending item, with when the bank reported it
+    """
+    return await list_pending_transactions(db, user, account_ids=account_id)
 
 
 @bank_link_router.post("", response_model=BankAccountLinkResponse, status_code=status.HTTP_201_CREATED)

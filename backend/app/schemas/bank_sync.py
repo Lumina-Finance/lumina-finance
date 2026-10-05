@@ -278,6 +278,25 @@ class BankValues(BaseModel):
     category_hint: str | None
 
 
+class BankPendingTransactionResponse(BaseModel):
+    """A transaction the bank hasn't posted yet, shown for awareness and never in the ledger, review or any total"""
+
+    id: uuid.UUID
+    account_id: uuid.UUID
+    date: date
+
+    # Signed minor units in the account's currency, money out negative. Null when the bank sent more
+    # decimal places than the currency holds, which is never rounded: raw_amount then holds the
+    # amount exactly as sent
+    amount: int | None
+    raw_amount: str | None
+    description: str
+
+    # When the request that brought it was sent. An account that can't sync keeps its earlier items,
+    # so this says how old they are
+    observed_at: datetime
+
+
 class TransactionBankSource(BaseModel):
     """Where a bank-imported ledger transaction came from, readable after unlinking or disconnecting"""
 

@@ -6,6 +6,7 @@ owned accounts share the own-account helper, so grouped resources are left out i
 """
 
 import uuid
+from collections.abc import Sequence
 
 from fastapi import HTTPException, status
 from sqlalchemy import ColumnElement, select
@@ -61,6 +62,34 @@ async def get_own_personal_account(
     # Not found for an account the user can't see, so only a visible one is refused as not their own
     await check_account_access(db, account_id, user_id, PermissionLevel.READ)
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=not_own_detail)
+
+
+async def check_own_personal_accounts(
+    db: AsyncSession,
+    account_ids: Sequence[uuid.UUID],
+    user_id: uuid.UUID,
+    *,
+    not_own_detail: str,
+) -> None:
+    """Refuse the first account named that isn't one of the user's own personal accounts
+
+    One query finds which of them are, so naming more accounts costs no more queries, and only an
+    account it leaves out is looked up again, to say whether the user can see it
+
+    Args:
+        db: Active database session
+        account_ids: Account identifiers from the request
+        user_id: User acting on the accounts
+        not_own_detail: Why the flow refuses a visible account the user doesn't own alone
+
+    Raises:
+        HTTPException: An account isn't visible to the user, or is visible but isn't their own
+            personal account
+    """
+    own = set(await db.scalars(select(Account.id).where(Account.id.in_(account_ids), own_personal_account_condition(user_id))))
+    for account_id in account_ids:
+        if account_id not in own:
+            await get_own_personal_account(db, account_id, user_id, not_own_detail=not_own_detail)
 
 
 async def get_accessible_accounts(
