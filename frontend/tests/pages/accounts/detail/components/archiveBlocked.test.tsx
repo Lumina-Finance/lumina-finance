@@ -15,6 +15,7 @@ function renderArchiveSection(isArchiveBlocked: boolean) {
       isArchived={false}
       isArchiving={false}
       isArchiveBlocked={isArchiveBlocked}
+      archiveLinkedReason={null}
       currentBalance={0}
       currency="CAD"
       onToggle={() => {}}
@@ -33,6 +34,7 @@ function renderDeletePanel(isArchiveBlocked: boolean) {
       deleteLoading={false}
       isBusy={false}
       isArchiveBlocked={isArchiveBlocked}
+      archiveLinkedReason={null}
       onArchiveInstead={() => {}}
       onContinue={() => {}}
       onDelete={() => {}}

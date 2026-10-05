@@ -4,6 +4,7 @@ import {
   useUpdateAccount,
   type Account,
 } from '@/api/accounts'
+import { useBankLinksByAccount } from '@/api/bank-sync'
 import { useCurrencies } from '@/api/currency'
 import { FormError } from '@/components/forms/FormError'
 import { useCurrencyListState } from '@/hooks/useCurrencyListState'
@@ -94,6 +95,7 @@ export default function EditAccountIdentityModal({
   const [deleteNameInput, setDeleteNameInput] = useState('')
   const [saveDelayPending, setSaveDelayPending] = useState(false)
   const institutionModal = useInstitutionModal(institutions)
+  const bankLink = useBankLinksByAccount().get(account.id)
 
   const isRevolving = account.account_kind === 'revolving'
   const canLinkTaxAdvantagedCategory = account.account_kind === 'asset' && account.group_id === null && !account.is_archived
@@ -275,7 +277,15 @@ export default function EditAccountIdentityModal({
   const hasEditableAccountContext = canLinkTaxAdvantagedCategory || isRevolving
   const visibilitySectionNumber = hasEditableAccountContext ? '03' : '02'
   const isArchiving = !account.is_archived && form.is_archived
-  const isArchiveBlocked = !account.is_archived && account.has_transactions_after_today
+
+  // Archiving writes a balance adjustment dated today, a day a linked account's bank supplies, so a
+  // linked account is unlinked first. The server refuses it with the same wording
+  const archiveLinkedReason = bankLink && !account.is_archived
+    ? `This account can't be archived while it's linked to ${bankLink.provider_name}. Unlink it first`
+    : null
+
+  // Left until the account is unlinked, so the switch gives one reason at a time
+  const isArchiveBlocked = !archiveLinkedReason && !account.is_archived && account.has_transactions_after_today
 
   /**
    * Blocks closing while a mutation is pending so user intent and network state cannot diverge
@@ -345,6 +355,7 @@ export default function EditAccountIdentityModal({
                 isArchived={form.is_archived}
                 isArchiving={isArchiving}
                 isArchiveBlocked={isArchiveBlocked}
+                archiveLinkedReason={archiveLinkedReason}
                 currentBalance={account.current_balance}
                 currency={account.currency}
                 onToggle={handleArchiveToggle}
@@ -363,6 +374,7 @@ export default function EditAccountIdentityModal({
                 nameError={deleteRefusal.errors.deleteName}
                 blockedReason={deleteRefusal.blockedReason}
                 isArchiveBlocked={isArchiveBlocked}
+                archiveLinkedReason={archiveLinkedReason}
                 onArchiveInstead={handleArchiveInstead}
                 onContinue={() => {
                   setDeleteStage('type-name')

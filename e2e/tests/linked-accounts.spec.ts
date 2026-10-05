@@ -5,13 +5,14 @@ import { logInViaApi, openModal, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 // A linked account's bank supplies its transactions from the import start through today, so the
-// transaction modal refuses those days.
+// transaction modal refuses those days and the account can't be archived until it is unlinked.
 //
 // The list of links the app reads is not served yet, so each test answers it with the link it needs.
 // Nothing links the account on the server, which accepts every save, so a refusal seen here is the
 // browser's own and a save that goes through is one the browser let through
 const IMPORT_START = '2026-01-01'
 const SUPPLIED_DAYS_MESSAGE = "SimpleFIN supplies this account's transactions from Jan 1, 2026 to today"
+const ARCHIVE_LINKED_REASON = "This account can't be archived while it's linked to SimpleFIN. Unlink it first"
 
 // The layout puts Date, Currency and Amount side by side from this width
 const FIELD_ROW_MIN_WIDTH = 640
@@ -171,4 +172,47 @@ test('lets an edit keep a date the linked account’s bank supplies, and refuses
   expect((await dateSaved).status()).toBe(200)
   await expect(dialog).toBeHidden()
   expect(sentDates).toEqual(['2025-12-31'])
+})
+
+test('greys out Archive with its reason while the account is linked, and offers it again once unlinked', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  let linkedAccountIds = [account.id]
+  await answerLinksWith(page, () => linkedAccountIds)
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+
+  const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  const archive = dialog.getByRole('switch', { name: /^Archive account/ })
+  const warning = dialog.getByText('Balance will be set to zero')
+  await page.getByRole('button', { name: 'Edit account', exact: true }).click()
+  await expect(archive).toHaveAttribute('aria-disabled', 'true')
+  await expect(archive).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
+
+  // Pointing at the row shows the reason beside it, and pressing it leaves the account as it is
+  const row = dialog.getByText('Archive account', { exact: true })
+  await row.hover()
+  await expect(page.getByText(ARCHIVE_LINKED_REASON).filter({ visible: true })).toHaveCSS('opacity', '1')
+
+  // Forced, because the switch is marked unavailable and pressing it anyway is what is checked
+  await row.click({ force: true })
+  await expect(archive).not.toBeChecked()
+  await expect(warning).toBeHidden()
+
+  // Deleting offers archiving instead, which is unavailable for the same reason
+  await dialog.getByRole('button', { name: 'Delete account', exact: true }).click()
+  const archiveInstead = dialog.getByRole('button', { name: 'Archive instead', exact: true })
+  await expect(archiveInstead).toHaveAttribute('aria-disabled', 'true')
+  await expect(archiveInstead).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
+
+  // The app keeps what it last read across a reload, so this load starts without that copy and reads
+  // the list afresh, as it does once unlinking refreshes it
+  linkedAccountIds = []
+  await page.addInitScript(() => localStorage.removeItem('lumina:query-cache'))
+  await openPage(page, `/accounts/${account.id}`)
+  await page.getByRole('button', { name: 'Edit account', exact: true }).click()
+  await expect(archive).not.toHaveAttribute('aria-disabled')
+  await dialog.getByText('Archive account', { exact: true }).click()
+  await expect(archive).toBeChecked()
+  await expect(warning).toBeVisible()
 })
