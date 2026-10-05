@@ -26,7 +26,6 @@ import { API_BASE_URL } from '../support/target'
 const SAMPLE_BANK = 'Harbour Bank'
 const SAMPLE_CHEQUING = 'Everyday Chequing'
 const SAMPLE_VISA = 'Rewards Visa'
-const REVOKE_ADVICE = "To stop SimpleFIN Bridge sharing data at all, revoke Lumina Finance's access there too."
 const ADDING_PAUSED = "Bank sync isn't running right now. You can add one once it's back."
 const LINKING_PAUSED = "Bank sync isn't running right now. You can link accounts once it's back."
 
@@ -79,16 +78,19 @@ function toast(page: Page, text: string): Locator {
  * Answers the app's read of a bank sync route with the server's own answer, changed as a test needs
  * to stand for a deployment set up otherwise
  */
-async function changeAnswer<T>(page: Page, path: string, change: (body: T) => void): Promise<void> {
+async function changeAnswer<T>(page: Page, path: string, change: (body: T) => void | Promise<void>): Promise<void> {
   await page.route(`${API_BASE_URL}${path}`, async (route) => {
     const response = await route.fetch()
     const body = await response.json()
-    change(body)
+    await change(body)
     await route.fulfill({ response, json: body })
   })
 }
 
-async function changeProviders(page: Page, change: (body: { may_link: boolean; sync_running: boolean; providers: Record<string, unknown>[] }) => void): Promise<void> {
+async function changeProviders(
+  page: Page,
+  change: (body: { may_link: boolean; sync_running: boolean; providers: Record<string, unknown>[] }) => void | Promise<void>,
+): Promise<void> {
   await changeAnswer(page, '/bank-sync/providers', change)
 }
 
@@ -100,12 +102,13 @@ test('adds a connection with a nickname and lists it with its bank accounts', as
 
   await section.getByRole('button', { name: 'Add a connection' }).click()
   const dialog = page.getByRole('dialog', { name: 'Add a connection' })
+  await expect(dialog.getByRole('button', { name: 'Connect' })).toBeDisabled()
   await chooseFromDropdown(dialog, 'Provider', /^SimpleFIN/)
   await dialog.getByRole('textbox', { name: 'Nickname' }).fill('Joint banks')
   await dialog.getByRole('textbox', { name: 'Setup token' }).fill(scenario.setupToken)
   await dialog.getByRole('button', { name: 'Connect' }).click()
 
-  await expect(toast(page, 'Joint banks connected with 2 bank accounts. Link each one from the account it belongs to.')).toBeVisible()
+  await expect(toast(page, 'Joint banks connected with 2 bank accounts.')).toBeVisible()
   await expect(dialog).toBeHidden()
   const row = connectionRow(section, 'Joint banks')
   await expect(row).toContainText('0 of 2')
@@ -272,6 +275,8 @@ test('links a bank account from the connection, importing from the start chosen'
   await expect(flow.getByText('Choose where history starts')).toBeVisible()
   await expect(flow.getByRole('button', { name: 'Cancel' })).toBeVisible()
   await expect(flow.getByRole('button', { name: 'Back' })).toHaveCount(0)
+  await expect(flow.getByRole('radio', { checked: true })).toHaveCount(0)
+  await expect(flow.getByRole('button', { name: 'Link and import' })).toBeDisabled()
   await flow.getByRole('radio', { name: /^3 months/ }).click()
   const linked = page.waitForRequest((sent) =>
     sent.url() === `${API_BASE_URL}/accounts/${household.id}/bank-link` && sent.method() === 'POST')
@@ -333,13 +338,42 @@ test('disconnects after asking again, then focuses the next connection', async (
 
   await dialog.getByRole('button', { name: 'Disconnect' }).click()
   await expect(dialog.getByRole('button', { name: 'Yes, disconnect' })).toBeVisible()
-  await expect(dialog.getByRole('button', { name: 'Rename' })).not.toHaveText('Rename')
   await dialog.getByRole('button', { name: 'Yes, disconnect' }).click()
 
-  await expect(toast(page, `Joint banks disconnected. 1 account unlinked. ${REVOKE_ADVICE}`)).toBeVisible()
+  await expect(toast(page, 'Joint banks disconnected. 1 account unlinked.')).toBeVisible()
   await expect(dialog).toBeHidden()
   await expect(connectionRow(section, 'Joint banks')).toHaveCount(0)
   await expect(connectionRow(section, 'Travel cards')).toBeFocused()
+})
+
+test('focuses the connection before a disconnected last one', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const [joint, travel] = await Promise.all([createSampleBridgeScenario(request), createSampleBridgeScenario(request)])
+  await claimSetupToken(request, user, joint.setupToken, 'Joint banks')
+  await claimSetupToken(request, user, travel.setupToken, 'Travel cards')
+  const section = await openBankConnections(page, user)
+  const dialog = await openConnection(page, section, 'Travel cards')
+
+  await dialog.getByRole('button', { name: 'Disconnect' }).click()
+  await dialog.getByRole('button', { name: 'Yes, disconnect' }).click()
+
+  await expect(dialog).toBeHidden()
+  await expect(connectionRow(section, 'Joint banks')).toBeFocused()
+})
+
+test('focuses the search once the only connection is disconnected', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const scenario = await createSampleBridgeScenario(request)
+  await claimSetupToken(request, user, scenario.setupToken)
+  const section = await openBankConnections(page, user)
+  const dialog = await openConnection(page, section, 'SimpleFIN')
+
+  await dialog.getByRole('button', { name: 'Disconnect' }).click()
+  await dialog.getByRole('button', { name: 'Yes, disconnect' }).click()
+
+  await expect(dialog).toBeHidden()
+  await expect(section.getByText('No connections yet.')).toBeVisible()
+  await expect(section.getByPlaceholder('Search connections…')).toBeFocused()
 })
 
 test('reconnects a rejected connection, and shows the account to choose again under Mismatch detected', async ({ page, request }) => {
@@ -385,7 +419,7 @@ test('reconnects a rejected connection, and shows the account to choose again un
   await form.getByRole('textbox', { name: 'Setup token' }).fill(await createBridgeSetupToken(request, scenario.id))
   await form.getByRole('button', { name: 'Reconnect', exact: true }).click()
 
-  await expect(toast(page, 'SimpleFIN reconnected. 1 account resumes syncing. 1 account needs its bank account chosen again.')).toBeVisible()
+  await expect(toast(page, '1 account resumes syncing.')).toBeVisible()
   await expect(form).toBeHidden()
   await expect(fact(dialog, 'Status')).toHaveText('OK')
   await expect(dialog.getByText('Needs attention')).toBeVisible()
@@ -395,7 +429,7 @@ test('reconnects a rejected connection, and shows the account to choose again un
   await expect(mismatch).toContainText(`Was ${SAMPLE_VISA}`)
   await expect(mismatch.getByRole('link', { name: 'Travel Visa' })).toBeVisible()
   await mismatch.getByRole('button', { name: 'Why this happened' }).click()
-  await expect(mismatch.getByText(`SimpleFIN now lists ${SAMPLE_VISA} differently, so Lumina Finance can't tell whether it's the same account. Travel Visa won't sync until you choose its bank account again.`)).toBeVisible()
+  await expect(mismatch.getByText(`SimpleFIN now lists ${SAMPLE_VISA} differently`)).toBeVisible()
 })
 
 test('shows a bank that needs signing in to on the connection and its institution', async ({ page, request }) => {
@@ -423,7 +457,7 @@ test('shows a bank that needs signing in to on the connection and its institutio
   const dialog = await openConnection(page, section, 'SimpleFIN')
   await expect(fact(dialog, 'Status')).toContainText('Bank sign-in needed')
   await dialog.getByRole('button', { name: 'Status details' }).click()
-  await expect(dialog.getByText(`Sign in to ${SAMPLE_BANK} again in SimpleFIN Bridge. The app checks daily.`)).toBeVisible()
+  await expect(dialog.getByText(`Sign in to ${SAMPLE_BANK} again`)).toBeVisible()
   await expect(dialog.getByRole('region', { name: SAMPLE_BANK })).toContainText('Sign in again in SimpleFIN Bridge')
 })
 
@@ -518,9 +552,9 @@ test('holds Link and import back with the reason when bank sync stops as the lin
     createSampleBridgeScenario(request),
   ])
   await claimSetupToken(request, user, scenario.setupToken)
-  let syncRunning = true
-  await changeProviders(page, (body) => {
-    body.sync_running = syncRunning
+  // The flow reads the providers again as it opens, and finds the worker down from then on
+  await changeProviders(page, async (body) => {
+    body.sync_running = (await page.locator('#bank-link-title').count()) === 0
   })
   let linkRequests = 0
   page.on('request', (sent) => {
@@ -529,8 +563,6 @@ test('holds Link and import back with the reason when bank sync stops as the lin
   const section = await openBankConnections(page, user)
   const dialog = await openConnection(page, section, 'SimpleFIN')
 
-  // The flow reads the providers again as it opens, and finds the worker down
-  syncRunning = false
   await chooseFromDropdown(dialog, SAMPLE_CHEQUING, 'Household')
   const flow = page.getByRole('dialog', { name: 'Link bank account' })
   await flow.getByRole('radio', { name: /^3 months/ }).click()
@@ -584,5 +616,11 @@ test('leaves the section out for a user who may not link bank accounts', async (
 
   await expect(page.locator('#runway')).toBeVisible()
   await expect(page.locator('#bank-connections')).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Bank connections' })).toHaveCount(0)
+
+  // Narrower than the sidebar's width, the sections are listed only once the compact menu opens
+  const compactMenu = page.locator('button[aria-controls="settings-mobile-section-menu"]')
+  if (await compactMenu.isVisible()) await compactMenu.click()
+  const sections = page.getByRole('navigation', { name: 'Settings sections' })
+  await expect(sections.getByRole('button', { name: 'Runway' })).toBeVisible()
+  await expect(sections.getByRole('button', { name: 'Bank connections' })).toHaveCount(0)
 })

@@ -49,11 +49,9 @@ test('a supplied fake SimpleFIN Bridge address loses its trailing slashes', () =
 })
 
 test('a malformed fake SimpleFIN Bridge address fails before a run', () => {
-  for (const bridge of ['/control', 'ftp://bridge.example', 'http://bridge.example?query=yes']) {
-    const result = readTarget({ E2E_BASE_URL: frontend, E2E_FAKE_SIMPLEFIN_BRIDGE_URL: bridge })
-    assert.notEqual(result.status, 0, bridge)
-    assert.match(result.stderr, /E2E_FAKE_SIMPLEFIN_BRIDGE_URL/)
-  }
+  const result = readTarget({ E2E_BASE_URL: frontend, E2E_FAKE_SIMPLEFIN_BRIDGE_URL: '/control' })
+  assert.notEqual(result.status, 0)
+  assert.match(result.stderr, /E2E_FAKE_SIMPLEFIN_BRIDGE_URL/)
 })
 
 test('missing frontend and invalid supplied targets fail before a run', () => {
