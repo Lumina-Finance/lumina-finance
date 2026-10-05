@@ -109,7 +109,8 @@ export function UnlinkModal({ open, account, link, connection, level = 'page', o
     >
       <div className="space-y-3 pb-2">
         <div className="space-y-3" role="radiogroup" aria-label="What to unlink">
-          <ChoiceCard selected={scope === 'account'} disabled={busy} onSelect={() => setScope('account')}>
+          {/* The dialog opens on the chosen scope, so arrow keys move between the two from there */}
+          <ChoiceCard selected={scope === 'account'} initialFocus={scope === 'account'} disabled={busy} onSelect={() => setScope('account')}>
             <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>Unlink this account</span>
             <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
               {otherCount > 0
@@ -117,7 +118,7 @@ export function UnlinkModal({ open, account, link, connection, level = 'page', o
                 : 'The connection stays in Settings, ready for this or another account to link again.'}
             </span>
           </ChoiceCard>
-          <ChoiceCard selected={scope === 'connection'} disabled={busy || !connection} onSelect={() => setScope('connection')}>
+          <ChoiceCard selected={scope === 'connection'} initialFocus={scope === 'connection'} disabled={busy || !connection} onSelect={() => setScope('connection')}>
             <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>
               Disconnect {connection ? connectionName(connection) : link.provider_name}
             </span>

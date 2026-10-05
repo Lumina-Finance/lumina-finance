@@ -30,6 +30,9 @@ interface ChoiceCardProps {
 
   /** A field of the choice's own, inside the card's frame but outside its button */
   extra?: ReactNode
+
+  /** Takes focus as its dialog opens, in place of the dialog's first field */
+  initialFocus?: boolean
 }
 
 /**
@@ -37,7 +40,7 @@ interface ChoiceCardProps {
  *
  * Anything passed as extra sits beneath the choice on phones and beside it from sm up
  */
-export function ChoiceCard({ selected, disabled, onSelect, children, extra }: ChoiceCardProps) {
+export function ChoiceCard({ selected, disabled, onSelect, children, extra, initialFocus = false }: ChoiceCardProps) {
   // An unavailable card is marked by its plain fill and faded radio rather than by fading the whole
   // card, which would take its text below readable contrast
   const frameStyle = {
@@ -52,6 +55,8 @@ export function ChoiceCard({ selected, disabled, onSelect, children, extra }: Ch
       role="radio"
       aria-checked={selected}
       disabled={disabled}
+      data-modal-field-tab-stop={initialFocus ? 'true' : undefined}
+      data-modal-initial-focus={initialFocus ? 'true' : undefined}
       onClick={onSelect}
       onKeyDown={moveWithArrows}
       className={`flex w-full items-start gap-3 p-3.5 text-left disabled:cursor-not-allowed focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--app-accent)] ${extra === undefined ? frameClass : 'rounded-xl sm:min-w-0 sm:flex-1'}`}
