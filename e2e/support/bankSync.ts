@@ -7,7 +7,7 @@
 
 import { expect, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
-import { asUser, todayInTestTimezone, type TestUser } from './api'
+import { asUser, findReferenceId, todayInTestTimezone, type TestUser } from './api'
 import { API_BASE_URL, FAKE_SIMPLEFIN_BRIDGE_URL } from './target'
 
 /** Sep 21 of today's year, a bank date the app shows without a year */
@@ -164,9 +164,11 @@ export async function answerAsBankImported(page: Page, sources: Record<string, B
   })
 }
 
-/** How a link's sync stands, as the app reads it alongside the account it links */
+/** What a test moves on in a link's sync, as the app reads it alongside the account it links */
 export type BankLinkSyncStatus = {
   last_success_at: string | null
+
+  /** Whether a sync is under way, which the app polls for every couple of seconds */
   sync_in_progress: boolean
 
   /** New items waiting for their first review */
@@ -174,9 +176,9 @@ export type BankLinkSyncStatus = {
 }
 
 /**
- * Answers the app's read of the user's links, which isn't served yet, with a link for each account
+ * Answers the app's read of the user's links in place of the server's, with a link for each account
  * `accountIds` returns, read again on every request so a test can unlink by emptying the list or move
- * a sync on through `status`
+ * a sync on through `status`, without waiting on the worker
  *
  * Each link imports from Jan 1, 2026 and has never synced, with nothing waiting, unless `status` says
  * otherwise
@@ -186,36 +188,38 @@ export async function answerLinksWith(
   accountIds: () => string[],
   status: () => Partial<BankLinkSyncStatus> = () => ({}),
 ): Promise<void> {
-  await page.route(`${API_BASE_URL}/bank-sync/links`, (route) => route.fulfill({
-    json: accountIds().map((accountId) => ({
-      account_id: accountId,
-      connection_id: 'connection',
-      provider: 'simplefin',
-      provider_name: 'SimpleFIN',
-      external_account_id: 'bank-account',
-      external_account_name: 'Chequing',
-      institution_name: 'Example Bank',
-      import_start: '2026-01-01',
-      linked_at: '2026-01-01T12:00:00Z',
-      import: null,
-      history_reminder: null,
-      last_success_at: null,
-      last_attempt: null,
-      next_attempt_at: null,
-      waiting_on_budget: false,
-      sync_in_progress: false,
-      action_needed: null,
-      waiting_new_count: 0,
-      review_warning: false,
-      paused: false,
-      balance: null,
-      ...status(),
-    })),
-  }))
+  await page.route(`${API_BASE_URL}/bank-sync/links`, (route) => {
+    const { last_success_at = null, sync_in_progress = false, waiting_new_count = 0 } = status()
+    return route.fulfill({
+      json: accountIds().map((accountId) => ({
+        account_id: accountId,
+        connection_id: 'connection',
+        provider: 'simplefin',
+        provider_name: 'SimpleFIN',
+        external_account_id: 'bank-account',
+        external_account_name: 'Chequing',
+        institution_name: 'Example Bank',
+        import_start: '2026-01-01',
+        linked_at: '2026-01-01T12:00:00Z',
+        state: 'active',
+        import: null,
+        sync: {
+          state: sync_in_progress ? 'syncing' : 'synced',
+          last_success_at,
+          last_failure: null,
+          next_attempt_at: null,
+          waiting_on_budget: false,
+          waiting_new_count,
+          paused: false,
+          review_warning: false,
+        },
+      })),
+    })
+  })
 }
 
 // Long enough for the worker, which claims queued jobs every 5 seconds, to run one and save its result
-const WORKER_RESULT_TIMEOUT_MS = 60_000
+export const WORKER_RESULT_TIMEOUT_MS = 60_000
 
 export interface BridgeScenario {
   id: string
@@ -371,6 +375,65 @@ export async function linkBankAccount(
   if (response.status() !== 201) {
     throw new Error(`linking account ${options.accountId} answered ${response.status()}: ${await response.text()}`)
   }
+}
+
+/**
+ * Link an account to one of the sample bank login's bank accounts on a connection of its own,
+ * importing from the given day, today unless told otherwise.
+ *
+ * @param bankAccountName - Everyday Chequing or Rewards Visa
+ * @returns The scenario the connection reaches, and the connection
+ */
+export async function linkToSampleBankAccount(
+  request: APIRequestContext,
+  user: TestUser,
+  options: { accountId: string; bankAccountName: string; startDate?: string },
+): Promise<{ scenario: BridgeScenario; connection: SeededConnection }> {
+  const scenario = await createSampleBridgeScenario(request)
+  const connection = await claimSetupToken(request, user, scenario.setupToken)
+  await linkBankAccount(request, user, {
+    accountId: options.accountId,
+    connectionId: connection.id,
+    externalAccountId: connection.accounts.find((bankAccount) => bankAccount.name === options.bankAccountName)!.external_id,
+    startDate: options.startDate ?? todayInTestTimezone(),
+  })
+  return { scenario, connection }
+}
+
+/**
+ * Wait for the worker to import a linked account's bank item, then add it to the ledger in Groceries
+ * with the bank's date and amount, as reviewing it does.
+ *
+ * @param description - The bank's description of the item
+ * @returns The bank-imported transaction's id and date
+ * @throws When adding it does not answer 201
+ */
+export async function addImportedItem(
+  request: APIRequestContext,
+  user: TestUser,
+  accountId: string,
+  description: string,
+): Promise<{ id: string; date: string }> {
+  let item: ReviewItem | undefined
+  await expect.poll(async () => {
+    const response = await request.get(`${API_BASE_URL}/bank-review/items?account_id=${accountId}`, { headers: asUser(user) })
+    item = ((await response.json()) as ReviewPage).items.find((entry) => entry.bank.description === description)
+    return item !== undefined
+  }, { timeout: WORKER_RESULT_TIMEOUT_MS }).toBe(true)
+
+  const { id, bank } = item!
+  const [categoryId, merchantId] = await Promise.all([
+    findReferenceId(request, user, 'categories', 'Groceries'),
+    findReferenceId(request, user, 'merchants', 'Unknown'),
+  ])
+  const response = await request.post(`${API_BASE_URL}/bank-review/items/${id}/add`, {
+    headers: asUser(user),
+    data: { dt: bank.date, amount: bank.amount, category_id: categoryId, merchant_id: merchantId },
+  })
+  if (response.status() !== 201) {
+    throw new Error(`adding the bank item ${description} answered ${response.status()}: ${await response.text()}`)
+  }
+  return { id: ((await response.json()) as { id: string }).id, date: bank.date }
 }
 
 /**

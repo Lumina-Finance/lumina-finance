@@ -100,6 +100,14 @@ async function isAtLeast(page: Page, widthPx: number): Promise<boolean> {
 }
 
 /**
+ * One of the facts a dialog or card lists as terms and their values, by its label
+ */
+export function fact(container: Locator, label: string): Locator {
+  const term = container.page().getByRole('term').filter({ hasText: new RegExp(`^${label}$`) })
+  return container.locator('dl > div').filter({ has: term }).getByRole('definition')
+}
+
+/**
  * Sign in through the login form and wait until the app leaves the login page.
  *
  * Waits for the response and route transition separately from assertions on page data

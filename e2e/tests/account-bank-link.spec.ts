@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, formatToday, signUpUser, todayInTestTimezone, type TestUser } from '../support/api'
-import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support/app'
+import { chooseFromDropdown, fact, logInViaApi, openModal, openPage } from '../support/app'
 import {
   addBridgeBankAccount,
   addBridgeBankLogin,
@@ -39,14 +39,6 @@ function externalIdOf(connection: SeededConnection, name: string): string {
 
 function toast(page: Page, text: string): Locator {
   return page.getByRole('status').filter({ hasText: text })
-}
-
-/**
- * One of the facts in the Bank link section, by its label
- */
-function fact(dialog: Locator, label: string): Locator {
-  const term = dialog.page().getByRole('term').filter({ hasText: new RegExp(`^${label}$`) })
-  return dialog.locator('dl > div').filter({ has: term }).getByRole('definition')
 }
 
 /**
@@ -150,7 +142,8 @@ test('links an account from its page, from choosing the bank account to its impo
   await expect(fact(dialog, 'Bank account')).toHaveText(SAMPLE_CHEQUING)
   await expect(fact(dialog, 'Institution')).toHaveText(SAMPLE_BANK)
   await expect(fact(dialog, 'Through')).toHaveText('SimpleFIN')
-  await expect(fact(dialog, 'Status')).toHaveText(/^(Importing|Linked)/)
+  // Importing until the worker has fetched every part, which it may already have done
+  await expect(fact(dialog, 'Status')).toHaveText(/^(Importing · \d+ of \d+|Synced just now)/)
 
   // The Link button the flow opened from has gone, so focus moves to the linked view's action
   await expect(dialog.getByRole('button', { name: 'Unlink' })).toBeFocused()
