@@ -28,8 +28,11 @@ export function ToolbarStickyShell({
     <>
       <div ref={topRowSentinelRef} aria-hidden className="h-px min-[1050px]:hidden" />
       <div ref={toolbarStuckSentinelRef} aria-hidden className="h-px max-[1050px]:hidden" />
+      {/* Marked as covering the list that scrolls under it, so a tooltip in a row just below opens
+          downwards rather than going under the bar */}
       <div
         ref={toolbarRef}
+        data-tooltip-cover
         className={getToolbarStickyRowClass(desktopInlineLayout)}
         style={{
           background: 'var(--app-bg)',

@@ -18,6 +18,18 @@ const MIN_GRAPHIC_CONTRAST = 3
 // small target to take presses across
 const NEAR_MISS_PX = 4
 
+// Older days seeded under the row scrolled up to the sticky bars, which with a heading each fill more
+// than the short window below it at every width, inside the list's first page of fifteen
+const OLDER_DAYS = 14
+const SHORT_WINDOW_HEIGHT = 600
+
+// How far below the bars a row's top may sit and still count as just under them
+const JUST_UNDER_PX = 16
+
+// How far inside the tooltip panel's edges a point is read to find what covers it, clear of the
+// border's antialiasing
+const PANEL_EDGE_INSET_PX = 2
+
 /**
  * How strongly a colour of the element stands out from the first solid background behind it, as the
  * WCAG contrast ratio
@@ -78,8 +90,8 @@ async function pressMiddleOf(page: Page, element: Locator): Promise<void> {
 
 /**
  * Assert the marker's tooltip is open with these lines, each below the one before, in a panel that
- * stays on screen, clear of the marker it explains and the first thing a press there reaches, while
- * the row the marker sits in stays closed
+ * stays on screen, clear of the marker it explains and the first thing a press anywhere on it
+ * reaches, so nothing covers any part of it, while the row the marker sits in stays closed
  */
 async function expectTooltipOpen(page: Page, marker: Locator, row: Locator, lines: string[]): Promise<void> {
   const shownLines = lines.map((line) => row.getByText(line, { exact: true }).filter({ visible: true }))
@@ -91,18 +103,33 @@ async function expectTooltipOpen(page: Page, marker: Locator, row: Locator, line
       expect(boxes[index]!.y).toBeGreaterThanOrEqual(boxes[index - 1]!.y + boxes[index - 1]!.height - 1)
     }
 
-    const placement = await shownLines[0].evaluate((line, trigger) => {
+    const placement = await shownLines[0].evaluate((line, { trigger, inset }) => {
       const panel = line.parentElement!
       const box = panel.getBoundingClientRect()
       const markerBox = trigger!.getBoundingClientRect()
-      const topmost = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+
+      // The middle of each edge, so a bar over part of the panel counts even where it misses the
+      // middle of every line, and the middle of each line
+      const points = [
+        [box.left + box.width / 2, box.top + inset],
+        [box.left + box.width / 2, box.bottom - inset],
+        [box.left + inset, box.top + box.height / 2],
+        [box.right - inset, box.top + box.height / 2],
+        ...[...panel.children].map((child) => {
+          const lineBox = child.getBoundingClientRect()
+          return [lineBox.left + lineBox.width / 2, lineBox.top + lineBox.height / 2]
+        }),
+      ]
       return {
         isOnScreen: box.left >= 0 && box.top >= 0 && box.right <= window.innerWidth && box.bottom <= window.innerHeight,
         isClearOfMarker: box.bottom <= markerBox.top || box.top >= markerBox.bottom,
-        isTopmost: topmost !== null && panel.contains(topmost),
+        isUncovered: points.every(([x, y]) => {
+          const topmost = document.elementFromPoint(x, y)
+          return topmost !== null && panel.contains(topmost)
+        }),
       }
-    }, await marker.elementHandle())
-    expect(placement).toEqual({ isOnScreen: true, isClearOfMarker: true, isTopmost: true })
+    }, { trigger: await marker.elementHandle(), inset: PANEL_EDGE_INSET_PX })
+    expect(placement).toEqual({ isOnScreen: true, isClearOfMarker: true, isUncovered: true })
   }).toPass({ timeout: 15_000 })
 
   await expect(page.getByRole('dialog')).toHaveCount(0)
@@ -210,6 +237,59 @@ test('opens the tooltip from a press just off the bank icon, leaving the row clo
   await pressAt(page, box.x + box.width / 2, box.y + box.height + NEAR_MISS_PX)
   await page.mouse.move(0, 0)
   await expectTooltipOpen(page, marker, row, ['From SimpleFIN'])
+})
+
+test('opens the tooltip below the bank icon when the row sits just under the sticky bars', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const id = await createTransaction(request, user, {
+    accountId: account.id,
+    categoryName: 'Groceries',
+    amount: -4000,
+    date: BANK_SOURCE.bank_values.date,
+  })
+
+  // A day each before it, below it in the list, so the page runs on far enough to scroll its row up
+  // to the bars in a short window
+  for (let day = 1; day <= OLDER_DAYS; day += 1) {
+    await createTransaction(request, user, {
+      accountId: account.id,
+      categoryName: 'Groceries',
+      amount: -1000,
+      date: `2026-01-${String(15 - day).padStart(2, '0')}`,
+    })
+  }
+  await page.setViewportSize({ ...page.viewportSize()!, height: SHORT_WINDOW_HEIGHT })
+  await answerAsBankImported(page, { [id]: { ...BANK_SOURCE, edited_fields: ['amount'] } })
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+
+  const row = page.getByTestId(`transaction-row-${id}`)
+  const marker = row.getByRole('button', { name: 'From SimpleFIN, edited', exact: true })
+  await expect(marker).toBeVisible()
+
+  // Scrolled until the row's day heading has just stuck under the search and filter bars, which
+  // leaves the row right under the heading. Retried while the bars settle into their stuck size
+  await expect(async () => {
+    const gap = await row.evaluate((node) => {
+      const heading = [...document.querySelectorAll<HTMLElement>('*')]
+        .filter((element) => getComputedStyle(element).position === 'sticky' && !element.contains(node)
+          && element.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING)
+        .at(-1)!
+      window.scrollBy({ top: heading.getBoundingClientRect().top - parseFloat(getComputedStyle(heading).top), behavior: 'instant' })
+      return node.getBoundingClientRect().top - heading.getBoundingClientRect().bottom
+    })
+    expect(gap).toBeGreaterThanOrEqual(-1)
+    expect(gap).toBeLessThan(JUST_UNDER_PX)
+  }).toPass()
+
+  // There is no room above the icon below the bars, so the panel opens under it, every line readable
+  await getTransactionRowButton(row).focus()
+  await page.keyboard.press('Tab')
+  await expectTooltipOpen(page, marker, row, ['From SimpleFIN', EDITED_NOTE])
+  const firstLine = (await row.getByText('From SimpleFIN', { exact: true }).filter({ visible: true }).boundingBox())!
+  const markerBox = (await marker.boundingBox())!
+  expect(firstLine.y).toBeGreaterThan(markerBox.y + markerBox.height)
 })
 
 test('adds a dot and the edited note to a bank-imported row whose bank value the user changed', async ({ page, request }) => {

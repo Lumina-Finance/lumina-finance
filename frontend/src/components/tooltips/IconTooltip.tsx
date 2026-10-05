@@ -89,14 +89,20 @@ function getAvailablePlacement({
   triggerRect,
   tooltipRect,
   boundaryRect,
+  coverBottom,
 }: {
   preferredPlacement: IconTooltipPlacement
   triggerRect: DOMRect
   tooltipRect: DOMRect
   boundaryRect?: DOMRect
+  coverBottom: number
 }): IconTooltipPlacement {
   const viewportPadding = 8
-  const boundaryTop = Math.max(viewportPadding, boundaryRect ? boundaryRect.top + viewportPadding : viewportPadding)
+  const boundaryTop = Math.max(
+    viewportPadding,
+    boundaryRect ? boundaryRect.top + viewportPadding : viewportPadding,
+    coverBottom,
+  )
   const boundaryBottom = Math.min(
     window.innerHeight - viewportPadding,
     boundaryRect ? boundaryRect.bottom - viewportPadding : window.innerHeight - viewportPadding,
@@ -109,6 +115,23 @@ function getAvailablePlacement({
   }
 
   return bottomWouldClip && !topWouldClip ? 'top' : 'bottom'
+}
+
+/**
+ * Where the lowest bar marked with `data-tooltip-cover` ends, among those starting above the trigger
+ * and reaching across it, such as a sticky toolbar a list scrolls under, or 0 when there is none. A
+ * panel opening upwards past it would be drawn under the bar. A bar holding the trigger is its own
+ * surface rather than one over it, so it is left out
+ */
+function getCoverBottom(trigger: HTMLElement, triggerRect: DOMRect): number {
+  let coverBottom = 0
+  for (const cover of document.querySelectorAll('[data-tooltip-cover]')) {
+    if (cover.contains(trigger)) continue
+    const rect = cover.getBoundingClientRect()
+    const isAcross = rect.left < triggerRect.right && rect.right > triggerRect.left
+    if (rect.top < triggerRect.top && isAcross) coverBottom = Math.max(coverBottom, rect.bottom)
+  }
+  return coverBottom
 }
 
 function getHorizontalOffset({
@@ -150,12 +173,14 @@ function getTooltipSide(
   preferredPlacement: IconTooltipPlacement,
   sideBoundary: IconTooltipSideBoundary,
 ): IconTooltipPlacement {
+  const triggerRect = trigger.getBoundingClientRect()
   const boundaryRect = sideBoundary === 'bounds' ? trigger.closest('[data-tooltip-bounds]')?.getBoundingClientRect() : undefined
   return getAvailablePlacement({
     preferredPlacement,
-    triggerRect: trigger.getBoundingClientRect(),
+    triggerRect,
     tooltipRect: tooltip.getBoundingClientRect(),
     boundaryRect,
+    coverBottom: getCoverBottom(trigger, triggerRect),
   })
 }
 
@@ -182,10 +207,11 @@ function getTooltipPosition(trigger: HTMLElement, tooltip: HTMLElement, placemen
  * Icon that opens a tooltip panel on click, showing `children` as its content
  *
  * The panel opens above or below the trigger, whichever has room within the viewport or the nearest
- * ancestor marked with `data-tooltip-bounds`, and shifts sideways to stay within them. While it shows it
- * keeps that side, and it is placed again with the trigger on any scroll or resize, and whenever the
- * trigger moves on its own, as it does during a dialog's entrance. It hides while its trigger is
- * scrolled out of view, and it closes on any pointer down outside the trigger
+ * ancestor marked with `data-tooltip-bounds` and clear of any bar above it marked with
+ * `data-tooltip-cover`, and shifts sideways to stay within them. While it shows it keeps that side, and
+ * it is placed again with the trigger on any scroll or resize, and whenever the trigger moves on its
+ * own, as it does during a dialog's entrance. It hides while its trigger is scrolled out of view, and it
+ * closes on any pointer down outside the trigger
  *
  * The panel is as wide as its content up to 13rem, so a short note sits in a small panel rather than
  * one with a ragged gap beside it. A caller passing its own width takes that width instead. A note
