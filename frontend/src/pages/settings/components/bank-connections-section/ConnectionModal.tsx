@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { AlertTriangle, Check, PencilLine, RefreshCw, Search, Unplug } from 'lucide-react'
+import { AlertTriangle, Check, PencilLine, RefreshCw, Unplug } from 'lucide-react'
 import { useAccounts } from '@/api/accounts'
 import { ApiError } from '@/api/auth'
 import { useBankProviders, useDisconnectBankConnection, type BankConnection, type ConnectionBankAccount } from '@/api/bank-sync'
 import { BankLinkFlowModal, type BankLinkTarget } from '@/components/bank-link-flow/Modal'
 import { SyncStatusDot } from '@/components/display/SyncStatusDot'
+import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import { ModalWorkspacePanel } from '@/components/modal/WorkspacePanel'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { useAuth } from '@/hooks/useAuth'
@@ -257,24 +258,18 @@ export function ConnectionModal({ open, connection, accountNameFor, onReconnect,
 
   // A rejected connection folds its institutions away, so there is nothing to search
   const search = !isRejected && institutionCount > INSTITUTION_SEARCH_AFTER && (
-    <label className="relative block">
-      <Search size={15} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--app-text-subtle)' }} />
-      <input
-        type="search"
-        className="app-input h-9 w-full pl-9 text-sm"
-        placeholder="Find an institution"
-        aria-label="Find an institution"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        onKeyDown={(event) => {
-          // Clears the field first, so Escape only closes the modal once there is nothing to clear
-          if (event.key === 'Escape' && query) {
-            event.stopPropagation()
-            setQuery('')
-          }
-        }}
-      />
-    </label>
+    <GlassSearchField
+      value={query}
+      onValueChange={setQuery}
+      placeholder="Find an institution"
+      onKeyDown={(event) => {
+        // Clears the field first, so Escape only closes the modal once there is nothing to clear
+        if (event.key === 'Escape' && query) {
+          event.stopPropagation()
+          setQuery('')
+        }
+      }}
+    />
   )
 
   return (

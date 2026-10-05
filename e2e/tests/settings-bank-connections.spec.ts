@@ -411,7 +411,7 @@ test('reconnects a rejected connection, and shows the account to choose again un
   const dialog = await openConnection(page, section, 'SimpleFIN')
   await expect(fact(dialog, 'Status')).toHaveText('Reconnect needed')
   await expect(dialog.getByText('SimpleFIN rejected this connection')).toBeVisible()
-  await expect(dialog.getByRole('searchbox', { name: 'Find an institution' })).toHaveCount(0)
+  await expect(dialog.getByRole('textbox', { name: 'Find an institution' })).toHaveCount(0)
   const folded = dialog.getByRole('region', { name: '1 institution', exact: true })
   // One line, beside the name from 640px and under it on phones, so exactly one copy shows at any width
   await expect(folded.getByText('2 of 2 linked · Linking resumes after you reconnect', { exact: true }).filter({ visible: true })).toHaveCount(1)
@@ -521,7 +521,9 @@ test('searches the institutions of a connection with more than 5, and Escape cle
   await claimSetupToken(request, user, scenario.setupToken)
   const section = await openBankConnections(page, user)
   const dialog = await openConnection(page, section, 'SimpleFIN')
-  const search = dialog.getByRole('searchbox', { name: 'Find an institution' })
+  // The app's own search field, a plain text field, so the browser draws no clear button of its own
+  // beside the modal's close
+  const search = dialog.getByRole('textbox', { name: 'Find an institution' })
 
   await search.fill('cedar')
   await expect(dialog.getByRole('region', { name: 'Cedar Trust' })).toBeVisible()
