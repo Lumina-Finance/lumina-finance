@@ -19,7 +19,10 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    """Add the links a queued job plans only once no other link is due, since an earlier job couldn't bring them back whole"""
+    """Add the links a queued job plans only once no other link is due, since an earlier job couldn't bring them back whole
+
+    Jobs already queued defer nothing, so each tries its links in the order it plans them
+    """
     op.add_column(
         "bank_sync_jobs",
         sa.Column("deferred_link_ids", postgresql.ARRAY(sa.Uuid()), nullable=False, server_default="{}"),

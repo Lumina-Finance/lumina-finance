@@ -70,7 +70,8 @@ async def run_sync_job(job: ClaimedJob) -> None:
     The worker has already set the owner's identity, so every session opened here works under
     row-level security as that user. A rejected credential can't work until the user reconnects, so
     nothing is sent with it. A job that met an answer to a credential since replaced ends there,
-    neither failed nor queued again
+    neither failed nor queued again, so whatever replaces a connection's credential has to queue the
+    connection's next sync itself
 
     Args:
         job: The job as claimed
@@ -169,7 +170,7 @@ class _JobRun:
                 return
             if window.last_day == self.today or moved:
                 # The last part written ends where the window does, so a link it moved is synced through the window
-                await self._end(again=moved and window.last_day < self.today)
+                await self._end(again=window.last_day < self.today)
                 return
             links = await self._read_links()
 
@@ -216,7 +217,7 @@ class _JobRun:
             await apply_discovery(db, connection, result, now=sent_at)
             await db.commit()
         if result.request_error is not None:
-            await self._stop_for(result.request_error, sent_with=credential, discover=self.job.discover)
+            await self._stop_for(result.request_error, discover=self.job.discover)
             return False
         return True
 
@@ -353,12 +354,15 @@ class _JobRun:
             await mark_request_budget_spent(db, connection, now=datetime.now(UTC))
             await db.commit()
 
-    async def _stop_for(self, error: ProviderError, *, sent_with: str, discover: bool = False) -> None:
+    async def _stop_for(self, error: ProviderError, *, sent_with: str | None = None, discover: bool = False) -> None:
         """End the job on a request that failed, queueing it again for when the budget frees if the provider asked to slow down
+
+        A slow-down was checked against a replaced credential as the budget was marked spent, and a
+        failed listing as it was stored, so only a fetch's other failures still need checking
 
         Args:
             error: Why the request failed
-            sent_with: The credential the request went out with
+            sent_with: The credential a fetch went out with, or None when the answer was already checked
             discover: Whether the job queued again lists the bank accounts first
         """
         if error.kind != ProviderErrorKind.RATE_LIMITED:
@@ -367,7 +371,7 @@ class _JobRun:
         async with async_session() as db:
             connection = await db.get(BankConnection, self.connection.id)
             budget = await read_request_budget(db, connection, now=datetime.now(UTC))
-        await self._end(again=True, run_after=budget.available_again_at, discover=discover, sent_with=sent_with)
+        await self._end(again=True, run_after=budget.available_again_at, discover=discover)
 
     async def _end(
         self,
