@@ -65,7 +65,8 @@ async def test_review_list_reads_100_new_items_in_two_pages_of_50_newest_first(c
 
     first = await _review_page(client, headers)
     async with TestSession() as session:
-        await session.execute(delete(BankTransaction).where(BankTransaction.id.in_([uuid.UUID(newest_first[0]), uuid.UUID(newest_first[49])])))
+        # Two items from the first page leave the inbox, but not the last one it returned
+        await session.execute(delete(BankTransaction).where(BankTransaction.id.in_([uuid.UUID(newest_first[0]), uuid.UUID(newest_first[48])])))
         await session.commit()
     second = await _review_page(client, headers, cursor=first["next_cursor"])
 
@@ -253,4 +254,7 @@ async def test_review_list_reads_a_page_of_50_in_as_many_queries_as_a_page_of_on
     assert len(one_page["items"]) == 1
     assert len(full_page["items"]) == 50
     assert full_page["counts"] == {"new": 20, "correction": 15, "removal": 15}
+
+    # Exactly a page's worth leaves no page after it
+    assert full_page["next_cursor"] is None
     assert len(full_selects) == len(one_selects)

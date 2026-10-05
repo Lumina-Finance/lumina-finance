@@ -42,7 +42,7 @@ class BankReviewItemResponse(BaseModel):
     protected_fields: list[EditableBankField]
 
     # Whether the item can't be added until the user chooses its merchant and category, true of
-    # every new item until something can suggest them
+    # every new item
     needs_merchant_or_category: bool
 
 

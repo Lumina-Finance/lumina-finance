@@ -1,8 +1,8 @@
 """Adding a new bank item to the ledger or dismissing it
 
 Adding writes the ledger transaction and accepts the bank transaction in one save, so neither
-exists without the other. Each action locks the bank transaction first, so a double submission or a
-sync writing the same item queues behind it and then finds the item as that write left it. A
+exists without the other. Each action locks the bank transaction first, so a double submission or
+any other write to the item queues behind it and then finds the item as that write left it. A
 repeated action answers as the first did without writing again. Neither action writes the link, so
 neither locks it
 """
