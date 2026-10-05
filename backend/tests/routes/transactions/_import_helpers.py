@@ -26,11 +26,11 @@ def _run_endpoint(run_id, source, action):
     return f"/transactions/import/runs/{run_id}/{prefix}{action}"
 
 
-async def _open_run(client, headers, expected_transaction_count=1, source="generic"):
+async def _open_run(client, headers, expected_transaction_count=1, source="generic", file_name=None):
     """Open a run for the given importer and return its id"""
     resp = await client.post(
         "/transactions/import/runs",
-        json={"expected_transaction_count": expected_transaction_count, "source": source},
+        json={"expected_transaction_count": expected_transaction_count, "source": source, "file_name": file_name},
         headers=headers,
     )
     assert resp.status_code == 201, resp.text
@@ -55,7 +55,7 @@ async def _open_staged_run(client, headers, payload, source="generic"):
     return run_id
 
 
-async def _import_run(client, headers, payload, source="generic", budgets=None, archive=None):
+async def _import_run(client, headers, payload, source="generic", budgets=None, archive=None, file_name=None):
     """Stage a whole payload as one batch, with any budgets and archiving, and commit it
 
     The importer stages a file over as many batches as its size needs, and only the commit writes
@@ -68,11 +68,12 @@ async def _import_run(client, headers, payload, source="generic", budgets=None, 
         source: Importer the run is opened for
         budgets: The budgets request, left unsent when None
         archive: The accounts to archive request, left unsent when None
+        file_name: Name of the file the run is opened for
 
     Returns:
         The commit response, or the first call that refused the import
     """
-    run_id = await _open_run(client, headers, len(payload["rows"]), source)
+    run_id = await _open_run(client, headers, len(payload["rows"]), source, file_name)
     staged = await _stage_batch(client, headers, run_id, {**payload, "start_row_index": 0}, source)
     if staged.status_code != 204:
         return staged

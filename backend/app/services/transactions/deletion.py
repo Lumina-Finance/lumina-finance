@@ -3,11 +3,12 @@ import uuid
 from datetime import date
 
 from fastapi import HTTPException, status
-from sqlalchemy import delete
+from sqlalchemy import ColumnElement, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
 from app.models.base import PermissionLevel
+from app.models.tag import TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.permissions import check_transaction_access
@@ -19,7 +20,7 @@ from app.services.transactions.accounts import (
     validate_transaction_account_is_not_archived,
 )
 from app.services.transactions.bulk_access import load_locked_transactions, load_writable_accounts
-from app.services.transactions.tags import clear_transaction_tag_assignments, delete_transaction_tag_assignments
+from app.services.transactions.tags import delete_transaction_tag_assignments
 
 
 async def delete_transaction_for_user(
@@ -99,15 +100,50 @@ async def bulk_delete_transactions(
     accounts = await load_writable_accounts(db, user, {t.account_id for t in transactions})
     _refuse_grouped_accounts(accounts)
 
-    # Each account is rebuilt from the earliest day a deleted row sat on
-    snapshot_starts: dict[uuid.UUID, date] = {}
-    for transaction in transactions:
-        current = snapshot_starts.get(transaction.account_id)
-        if current is None or transaction.dt < current:
-            snapshot_starts[transaction.account_id] = transaction.dt
+    await delete_locked_transactions(
+        db,
+        Transaction.id.in_(requested_ids),
+        accounts,
+        [(transaction.account_id, transaction.dt) for transaction in transactions],
+    )
+    await db.commit()
 
-    await clear_transaction_tag_assignments(db, requested_ids)
-    await db.execute(delete(Transaction).where(Transaction.id.in_(requested_ids)))
+    return BulkDeleteTransactionsResponse(
+        transactions_deleted=len(transactions),
+        affected_account_ids=[account.id for account in accounts],
+    )
+
+
+async def delete_locked_transactions(
+    db: AsyncSession,
+    condition: ColumnElement[bool],
+    accounts: list[Account],
+    deleted_days: list[tuple[uuid.UUID, date]],
+) -> None:
+    """Delete transactions the caller has already locked and checked, without committing
+
+    Their tag assignments and the rows go by the condition rather than by an id list, so a set of
+    any size is two statements. The balances are rebuilt from each account's earliest deleted day
+
+    Args:
+        db: Active database session
+        condition: Selects exactly the locked transactions
+        accounts: Every account the transactions are in, already checked for write access
+        deleted_days: The account and date of each deleted transaction
+
+    Returns:
+        None
+    """
+    snapshot_starts: dict[uuid.UUID, date] = {}
+    for account_id, dt in deleted_days:
+        current = snapshot_starts.get(account_id)
+        if current is None or dt < current:
+            snapshot_starts[account_id] = dt
+
+    await db.execute(
+        delete(TransactionTag).where(TransactionTag.transaction_id.in_(select(Transaction.id).where(condition))),
+    )
+    await db.execute(delete(Transaction).where(condition))
     await db.flush()
 
     await recompute_account_snapshots(db, snapshot_starts)
@@ -115,13 +151,6 @@ async def bulk_delete_transactions(
     # One mark per scope rather than one per transaction, since every row in a scope shares it
     for owner_id, group_id in {(account.owner_id, account.group_id) for account in accounts}:
         await mark_cache_changed_for_scope(db, user_id=owner_id, group_id=group_id)
-
-    await db.commit()
-
-    return BulkDeleteTransactionsResponse(
-        transactions_deleted=len(transactions),
-        affected_account_ids=[account.id for account in accounts],
-    )
 
 
 def _refuse_grouped_accounts(accounts: list[Account]) -> None:

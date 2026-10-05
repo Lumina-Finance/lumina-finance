@@ -459,7 +459,7 @@ async def test_renewing_a_sign_in_succeeds_when_its_import_cleanup_fails(client,
         await db.execute(text("SELECT 1"))
         raise RuntimeError("cleanup failed")
 
-    monkeypatch.setattr(token_helpers, "delete_abandoned_import_runs", fail_cleanup)
+    monkeypatch.setattr(token_helpers, "delete_expired_import_runs", fail_cleanup)
     client.cookies.set("refresh_token", signup.cookies["refresh_token"])
 
     resp = await client.post("/auth/refresh")

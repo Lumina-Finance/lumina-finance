@@ -84,6 +84,9 @@ class ImportRun(Base):
     committed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     summary: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
 
+    # The name of the file the user picked, shown with the last import
+    file_name: Mapped[str | None] = mapped_column(VARCHAR(255))
+
 
 class ImportStagedRow(Base):
     """One row of a staged file, parked until its run is committed

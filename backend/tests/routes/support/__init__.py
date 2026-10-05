@@ -9,6 +9,7 @@ from tests.routes.support.auth_helpers import (
     _seed_currency,
     _seed_reset_token,
 )
+from tests.routes.support.lock_helpers import _wait_until_blocked
 from tests.routes.support.merchant_helpers import _get_system_merchant_id
 
 __all__ = [
@@ -21,4 +22,5 @@ __all__ = [
     "_get_system_merchant_id",
     "_seed_currency",
     "_seed_reset_token",
+    "_wait_until_blocked",
 ]

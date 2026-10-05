@@ -197,6 +197,7 @@ async def _write_run(
         db,
         user,
         ImportRunSource(run.source),
+        run.id,
         [TransactionImportAccountMapping.model_validate(mapping) for mapping in run.account_mappings.values()],
         [TransactionImportCategoryMapping.model_validate(mapping) for mapping in run.category_mappings.values()],
         [JournalTransactionRow.model_validate(row.payload) for row in staged_rows],
@@ -312,7 +313,7 @@ async def _archive_accounts(
             raise HTTPException(status_code=exc.status_code, detail=f"Account source {source}: {exc.detail}") from exc
 
         account.is_archived = True
-        if await zero_account_balance_for_archive(db, account, user, archive_date):
+        if await zero_account_balance_for_archive(db, account, user, archive_date, import_run_id=run.id):
             adjustment_count += 1
         await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
 

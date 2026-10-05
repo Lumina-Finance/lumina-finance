@@ -13,8 +13,10 @@ from app.models.user import User
 from app.schemas.import_run import (
     ImportRunArchiveRequest,
     ImportRunBudgetsRequest,
+    ImportUndoResponse,
     JournalImportRunResponse,
     JournalImportStageRequest,
+    LastImportResponse,
     TransactionImportResponse,
     TransactionImportRunRequest,
     TransactionImportRunResponse,
@@ -34,11 +36,13 @@ from app.services.importers import (
     commit_import_run,
     commit_journal_run,
     delete_import_run,
+    get_last_import,
     open_import_run,
     stage_import_archive,
     stage_import_batch,
     stage_import_budgets,
     stage_journal_batch,
+    undo_import_run,
 )
 from app.services.transactions.bulk_update import bulk_update_transactions
 from app.services.transactions.creation import create_transaction_and_get_response
@@ -196,7 +200,9 @@ async def open_transaction_import_run(
     Returns:
         The opened run, which every later call for this file quotes
     """
-    run = await open_import_run(db, user, data.expected_transaction_count, ImportRunSource(data.source))
+    run = await open_import_run(
+        db, user, data.expected_transaction_count, ImportRunSource(data.source), data.file_name,
+    )
     return TransactionImportRunResponse(id=run.id)
 
 
@@ -335,6 +341,42 @@ async def delete_transaction_import_run(
         db: Active database session
     """
     await delete_import_run(db, user, run_id)
+
+
+@router.get("/import/last", response_model=LastImportResponse | None)
+async def get_last_transaction_import(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return the caller's last saved import while it can be undone, with what undoing it deletes and keeps
+
+    Args:
+        user: Authenticated user
+        db: Active database session
+
+    Returns:
+        The last import saved within the undo window, or None
+    """
+    return await get_last_import(db, user)
+
+
+@router.post("/import/runs/{run_id}/undo", response_model=ImportUndoResponse)
+async def undo_transaction_import_run(
+    run_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Delete every transaction a saved import wrote that is still there, all of them or none
+
+    Args:
+        run_id: Import to undo
+        user: Authenticated user undoing the import
+        db: Active database session
+
+    Returns:
+        How many transactions were deleted and the accounts they were in
+    """
+    return await undo_import_run(db, user, run_id)
 
 
 @router.post("", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)

@@ -56,5 +56,12 @@ class Transaction(Base):
     )
     counterparty_account_scope: Mapped[TransferCounterpartyScope | None] = mapped_column()
 
+    # The import run that wrote this transaction, which is what undoing the import deletes by. Empty
+    # on a transaction entered by hand or imported before runs recorded their transactions
+    import_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("import_runs.id", ondelete="SET NULL"),
+        index=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())

@@ -59,6 +59,7 @@ async def write_imported_transactions(
     db: AsyncSession,
     *,
     user_id: uuid.UUID,
+    import_run_id: uuid.UUID,
     transactions: list[ImportedTransaction],
     merchant_mappings: list[TransactionImportMerchantMapping],
     import_lookups: ImportLookups,
@@ -69,6 +70,8 @@ async def write_imported_transactions(
     Args:
         db: Active database session
         user_id: Identifier for the user running the import
+        import_run_id: Run being committed, which every written transaction is stamped with so
+            undoing the import can find them
         transactions: Resolved rows in file order
         merchant_mappings: The payee values the user answered by hand, which may be none of them
         import_lookups: Lookup maps the rows were resolved from, extended with created merchants and tags
@@ -128,6 +131,7 @@ async def write_imported_transactions(
                     notes=imported.notes,
                     counterparty_account_id=imported.counterparty_account_id,
                     counterparty_account_scope=imported.counterparty_account_scope,
+                    import_run_id=import_run_id,
                 ),
                 tags,
             ))
