@@ -204,7 +204,9 @@ async def _move_links(
     The links are locked in id order and read again, so a link unlinked meanwhile is left alone.
     They are locked after the bank accounts, the order a link being made takes them in. A link
     waiting for its bank account has its account's pending items cleared, since nothing refreshes
-    them meanwhile, and one that returns gets them back from its next sync
+    them meanwhile, and one that returns gets them back from its next sync. It drops a bank sign-in
+    it was waiting on too, since no sync runs for it to clear one, and its next sync once it
+    returns marks it again if its bank login still needs one
 
     Returns:
         The links moved from active to Choose bank account
@@ -228,6 +230,7 @@ async def _move_links(
             if link.state == BankLinkState.ACTIVE:
                 moved.append(link)
             link.state = BankLinkState.CHOOSE_ACCOUNT
+            link.signin_needed_since = None
             await replace_pending_transactions(db, link.account_id, [])
         elif bank_account is not None and link.state == BankLinkState.CHOOSE_ACCOUNT:
             link.state = BankLinkState.ACTIVE

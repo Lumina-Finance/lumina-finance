@@ -262,6 +262,30 @@ async def test_discovery_vanished_linked_bank_account_moves_its_link_to_choose_a
     assert [tuple(row) for row in pending] == [(visa.account_id, "P-visa")]
 
 
+async def test_discovery_moving_a_link_to_choose_account_drops_the_bank_sign_in_it_waited_on(db, scenario: FakeBridgeScenario):
+    """Everyday and Visa wait on a bank sign-in, and Everyday Chequing then goes missing from an error-free discovery
+
+    Everyday, now waiting for its bank account to be chosen, no longer shows a bank sign-in that no sync
+    would clear, and Visa, still syncing, keeps its own
+    """
+    await scenario.add_harbour_accounts()
+    connection = await _claimed_connection(db, scenario)
+    everyday = await _linked(db, connection, "Everyday", "ACT-chequing")
+    visa = await _linked(db, connection, "Visa", "ACT-visa")
+    await _discover(db, connection)
+    for link in (everyday, visa):
+        link.signin_needed_since = _NOW
+    await db.commit()
+    await scenario.change("PATCH", "/accounts/ACT-chequing", {"hidden": True})
+
+    await _discover(db, connection, _NOW + timedelta(days=1))
+
+    async with TestSession() as session:
+        rows = await session.execute(select(BankAccountLink.account_id, BankAccountLink.state, BankAccountLink.signin_needed_since))
+        links = {account_id: (state, signin_needed_since) for account_id, state, signin_needed_since in rows}
+    assert links == {everyday.account_id: (BankLinkState.CHOOSE_ACCOUNT, None), visa.account_id: (BankLinkState.ACTIVE, _NOW)}
+
+
 @pytest.mark.parametrize(
     "problem",
     [

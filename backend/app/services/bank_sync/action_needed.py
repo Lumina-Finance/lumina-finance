@@ -6,8 +6,10 @@ runs until the user reconnects it with a new one, which clears the mark
 Bank sign-in needed: the provider says a bank login behind the connection needs the user to sign in
 again on the provider's site. Each of that login's accounts is marked as an attempt fails for it,
 while the connection's other accounts keep syncing, and stays on the connection's daily sync rather
-than retrying, so the mark clears once an attempt brings the account back whole. The state starts
-for a login, and emails the owner, when the first of its active links is marked
+than retrying, so the mark clears once an attempt brings the account back whole, or once a listing
+moves its link to Choose bank account, where no sync would clear it. It outranks Choose bank
+account, as the status order has it. The state starts for a login, and emails the owner, when the
+first of its active links is marked
 
 Choose bank account: a sync's listing found a linked bank account gone or in another currency, so its
 account stops syncing until the user chooses its bank account again or the provider lists it as
@@ -40,7 +42,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankExternalAccount, BankLinkState
 from app.models.user import User
-from app.services.bank_sync.availability import LINK_LISTING, PROVIDER_ADAPTERS
+from app.services.bank_sync.availability import LINK_LISTING, LIVE_LINK, PROVIDER_ADAPTERS
 from app.services.email import RenderedEmail, get_email_sender, render_action_needed_email
 
 logger = logging.getLogger(__name__)
@@ -104,8 +106,9 @@ async def read_actions_needed(db: AsyncSession, account_ids: Collection[uuid.UUI
 
     Every account still linked through a connection whose credential was rejected needs a
     reconnect, from when the credential was rejected, which comes before any bank sign-in, since
-    reconnecting comes first. Otherwise an active link marked as waiting on a bank sign-in needs one,
-    from when it was marked. An account no longer linked needs nothing
+    reconnecting comes first. Otherwise a link marked as waiting on a bank sign-in needs one, from
+    when it was marked, which comes before choosing its bank account again, as the status order
+    has it. An account no longer linked needs nothing
 
     Args:
         db: The owner's session
@@ -115,15 +118,15 @@ async def read_actions_needed(db: AsyncSession, account_ids: Collection[uuid.UUI
         What each account that needs something needs, by account id
     """
     links = await db.execute(
-        select(BankAccountLink.account_id, BankAccountLink.state, BankAccountLink.signin_needed_since, BankConnection.credential_rejected_at)
+        select(BankAccountLink.account_id, BankAccountLink.signin_needed_since, BankConnection.credential_rejected_at)
         .join(BankConnection, BankConnection.id == BankAccountLink.connection_id)
-        .where(BankAccountLink.account_id.in_(account_ids), BankAccountLink.state != BankLinkState.UNLINKED)
+        .where(BankAccountLink.account_id.in_(account_ids), LIVE_LINK)
     )
     needed = {}
-    for account_id, state, signin_needed_since, credential_rejected_at in links:
+    for account_id, signin_needed_since, credential_rejected_at in links:
         if credential_rejected_at is not None:
             needed[account_id] = ActionNeeded(ActionNeededKind.RECONNECT, credential_rejected_at)
-        elif state == BankLinkState.ACTIVE and signin_needed_since is not None:
+        elif signin_needed_since is not None:
             needed[account_id] = ActionNeeded(ActionNeededKind.BANK_LOGIN, signin_needed_since)
     return needed
 
@@ -171,8 +174,7 @@ async def flag_signin_needed(
     """Mark links Bank sign-in needed as an attempt finds their bank login needs a sign-in, emailing once per login it starts for
 
     A link already marked keeps when its mark started. A login's state starts when none of its
-    active links was marked before, so an account unlinked or waiting in Choose bank account with
-    a mark left over doesn't keep it going
+    active links was marked before, so the mark an unlinked account was left with doesn't keep it going
 
     Args:
         db: The owner's session, which the caller commits, with the connection and the links locked
