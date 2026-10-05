@@ -1300,6 +1300,34 @@ async def test_job_bringing_a_bank_login_back_clears_its_sign_in_and_emails_agai
     assert sent_action_emails == [_signin_email("Chase", "ACT-chase-checking")]
 
 
+async def test_job_clears_a_bank_sign_in_once_its_account_comes_back_whole_though_a_later_part_fails(connection, provider, frozen_now):
+    """Chase Checking has waited on a Chase sign-in since yesterday, and the daily sync's window may be cut short, so it is fetched in halves
+
+    The earlier half brings Checking back whole, though only over days it already has, which shows
+    the login answering again, so its mark clears. The later half fails for a reason of its own,
+    which a retry handles, and the mark stays cleared, so a later sign-in problem starts afresh
+    """
+    yesterday = frozen_now - timedelta(days=1)
+    await _list_under(connection, "CON-chase", "Chase", "ACT-chase-checking")
+    checking = await _link(connection, "ACT-chase-checking", **_synced_through_yesterday(signin_needed_since=yesterday))
+    provider.outcomes = [
+        _cut_off("ACT-chase-checking"),
+        _returned("ACT-chase-checking"),
+        FetchResult(account_errors={"ACT-chase-checking": _reported_a_problem()}),
+    ]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    assert await run_jobs(1) == 1
+
+    assert _fetched(provider) == [
+        _window(date(2026, 9, 19), _TODAY, ["ACT-chase-checking"], pending=True),
+        _window(date(2026, 9, 19), date(2026, 9, 26), ["ACT-chase-checking"]),
+        _window(date(2026, 9, 27), _TODAY, ["ACT-chase-checking"], pending=True),
+    ]
+    assert await _signin_marks(checking) == [None]
+    assert [attempt[2:4] for attempt in await _attempts(checking)] == [("SimpleFIN Bridge reported a problem", 1)]
+
+
 async def test_job_stopped_by_an_error_still_sends_the_email_an_earlier_step_saved(connection, provider, frozen_now, sent_action_emails):
     """The first window of Everyday's and Chase Card's imports may be cut short, so the job fetches it again in halves
 

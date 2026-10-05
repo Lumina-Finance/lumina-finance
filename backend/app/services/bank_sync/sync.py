@@ -33,7 +33,7 @@ credential the connection no longer holds is dropped whole, budget-spent mark in
 ends without it
 
 A job ending on a rejected credential marks the connection Reconnect needed as it ends, a link an
-attempt fails on a bank sign-in is marked Bank sign-in needed until one succeeds, and a link the
+attempt fails on a bank sign-in is marked Bank sign-in needed until it comes back whole, and a link the
 job's listing moves to Choose bank account waits there, each emailing the owner once as the
 action_needed module describes. The emails a job's saves record go out once its last save is done,
 so a send that hangs can't hold up the sync or see it fail
@@ -455,8 +455,9 @@ class _JobRun:
         found pending, whatever their checkpoints, since what is pending now doesn't depend on the
         days a link still lacks
 
-        A link whose attempt succeeded is no longer waiting on a bank sign-in, and one that failed on
-        a bank sign-in is marked as waiting on one, its bank login's email recorded when that starts it.
+        A link brought back whole is no longer waiting on a bank sign-in, even when re-reading days it
+        has doesn't count as a success, since its bank login answered. One that failed on a bank
+        sign-in is marked as waiting on one, its bank login's email recorded when that starts it.
         Last, an import the part brought through today ends, and each link no import is running on
         pauses or resumes by its account's review backlog, the whole part counted. A link that failed
         wasn't brought back whole, so its import keeps running and the pause leaves it as it was
@@ -496,7 +497,7 @@ class _JobRun:
             failed = [link for link in held if link.id in failures]
             for link in failed:
                 record_failed_attempt(link, failures[link.id], at=sent_at)
-            clear_signin_needed(succeeded)
+            clear_signin_needed(whole)
             signin_needed = [link for link in failed if failures[link.id].kind == ProviderErrorKind.BANK_LOGIN_NEEDED]
             emails = await flag_signin_needed(db, connection, signin_needed, at=sent_at)
             paused_or_imported = await apply_review_pauses(db, whole, today=self.today)

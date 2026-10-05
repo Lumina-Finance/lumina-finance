@@ -235,10 +235,13 @@ async def flag_signin_needed(
 
 
 def clear_signin_needed(links: Sequence[BankAccountLink]) -> None:
-    """Clear Bank sign-in needed from links an attempt succeeded for, a login's state ending once none of its active links is marked
+    """Clear Bank sign-in needed from links a response brought back whole, a login's state ending once none of its active links is marked
+
+    A response that re-reads only days a link already has brings it back whole without the attempt
+    counting as a success, and still shows its bank login answering
 
     Args:
-        links: The links the attempt succeeded for, as the caller locked them
+        links: The links the response brought back whole, as the caller locked them
     """
     for link in links:
         link.signin_needed_since = None
