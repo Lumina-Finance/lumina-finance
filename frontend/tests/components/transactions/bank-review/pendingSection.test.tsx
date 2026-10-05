@@ -114,7 +114,7 @@ describe('the strip for a filtered list', () => {
     expect(renderSection(['visa', 'joint'])).toContain('>1 pending<')
   })
 
-  it('is hidden for an account with nothing pending, and for a group account it reads nothing for', () => {
+  it('is hidden for an account with nothing pending, and for a list filtered to group accounts alone', () => {
     expect(renderSection(['savings'])).toBe('')
     expect(renderSection(['joint'])).toBe('')
   })

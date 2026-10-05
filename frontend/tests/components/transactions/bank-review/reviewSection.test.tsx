@@ -158,7 +158,7 @@ describe('the block for a filtered list or an account page', () => {
     expect(rowCount(renderSection(['visa', 'joint']))).toBe(1)
   })
 
-  it('is hidden for an account with nothing waiting, and for a group account it reads nothing for', () => {
+  it('is hidden for an account with nothing waiting, and for a list filtered to group accounts alone', () => {
     expect(renderSection(['savings'])).toBe('')
     expect(renderSection(['joint'])).toBe('')
   })

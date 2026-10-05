@@ -4,9 +4,9 @@
  * is said inside the block
  *
  * These tests catch the block hiding the toggle a long backlog needs, offering one a short backlog
- * doesn't, a removal showing anything but the ledger amount struck through, a failed read counting
- * nothing as zero or offering no retry, and a retry that drops keyboard focus while it waits.
- * Following a Needs review marker to a failed read runs in the browser, since it needs effects
+ * doesn't, a removal showing anything but the ledger amount struck through, and a failed read
+ * counting nothing as zero or offering no retry. The notice's own retry is covered with the notice,
+ * and following a Needs review marker to a failed read runs in the browser, since it needs effects
  */
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -102,12 +102,5 @@ describe('a read that failed', () => {
     expect(markup).toMatch(/role="alert"[^>]*>.*Sync pause status could not load\.<\/span><button[^>]*>Try again<\/button>/)
     expect(markup).toMatch(/>6<\/span>/)
     expect(rowCount(markup)).toBe(4)
-  })
-
-  it('says it is trying again, with the retry busy but still focusable', () => {
-    const markup = renderBlock([], false, { itemsFailure: { ...failed, isRetrying: true } })
-
-    expect(markup).toMatch(/<button[^>]*aria-disabled="true"[^>]*aria-busy="true"[^>]*>Retrying…<\/button>/)
-    expect(markup).not.toMatch(/<button[^>]*\sdisabled=""[^>]*>Retrying…/)
   })
 })
