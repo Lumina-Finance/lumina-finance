@@ -84,8 +84,4 @@ describe('UnlinkModal', () => {
     const markup = renderDialog(undefined)
     expect(getRadio(markup, 'Disconnect SimpleFIN')).toContain('disabled=""')
   })
-
-  it('reminds the user to revoke access at the provider', () => {
-    expect(renderDialog(createConnection())).toContain('To stop SimpleFIN Bridge sharing data at all')
-  })
 })

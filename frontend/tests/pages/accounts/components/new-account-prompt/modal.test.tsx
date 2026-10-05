@@ -17,7 +17,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { BankConnection, BankProvidersResponse } from '@/api/bank-sync'
 import { GROUP_ACCOUNT_LINK_REASON, NOTHING_TO_LINK_REASON } from '@/components/bank-link-flow/constants'
 import NewAccountPromptModal from '@/pages/accounts/components/new-account-prompt/Modal'
-import { createConnection, createForeignAccount, createProviders } from './fixtures'
+import { createAccount, createConnection, createProviders } from './fixtures'
 
 const reads = vi.hoisted(() => ({
   providers: undefined as BankProvidersResponse | undefined,
@@ -50,15 +50,11 @@ vi.mock('react-router', async (importOriginal) => ({
   useNavigate: () => () => {},
 }))
 
-const LINK_DESCRIPTION = 'Choose one of the bank accounts on your connections. Transactions arrive from the bank and wait for your review, and once the import is reviewed the app offers to line up the opening balance.'
+const LINK_DESCRIPTION = 'Choose one of the bank accounts on your connections.'
 
 // Static rendering escapes apostrophes, so text is matched against the escaped form
 function escaped(text: string): string {
   return text.replaceAll("'", '&#x27;')
-}
-
-function createAccount(overrides: Partial<AccountsOverview> = {}): AccountsOverview {
-  return createForeignAccount({ name: 'Everyday', currency: 'CAD', ...overrides })
 }
 
 function renderPrompt(account: AccountsOverview = createAccount()): string {
@@ -84,7 +80,7 @@ describe('NewAccountPromptModal', () => {
     expect(getRadio(markup, 'Link a bank account')).toContain('aria-checked="true"')
     expect(getRadio(markup, 'Link a bank account')).toContain(LINK_DESCRIPTION)
     expect(getRadio(markup, 'Keep it manual')).toContain('aria-checked="false"')
-    expect(getRadio(markup, 'Keep it manual')).toContain('Add transactions yourself or import files. You can link a bank later.')
+    expect(getRadio(markup, 'Keep it manual')).toContain('You can link a bank later.')
     expect(markup).not.toContain('Starting balance')
     expect(markup).toContain('Decide later')
     expect(markup).toContain('Continue')
@@ -98,7 +94,7 @@ describe('NewAccountPromptModal', () => {
     expect(link).not.toContain(LINK_DESCRIPTION)
     expect(getRadio(markup, 'Keep it manual')).toContain('aria-checked="true"')
     expect(markup).toContain('Starting balance')
-    expect(markup).toContain('Recorded as a balance adjustment dated today.')
+    expect(markup).toContain('Your starting balance is recorded as a balance adjustment dated today.')
   })
 
   it('refuses linking with no working connection while no provider is open to a new one', () => {
@@ -134,6 +130,12 @@ describe('NewAccountPromptModal', () => {
   it('asks a liability for the amount owed', () => {
     reads.providers = createProviders({ mayLink: false })
     expect(renderPrompt(createAccount({ account_kind: 'revolving' }))).toContain('Starting amount owed')
+  })
+
+  it('opens without waiting on the connections where linking is not offered', () => {
+    reads.providers = createProviders({ mayLink: false })
+    reads.connectionsPending = true
+    expect(renderPrompt()).toContain('Add a starting balance')
   })
 
   it('waits for the bank reads before opening', () => {

@@ -90,7 +90,7 @@ describe('the bank account step', () => {
     expect(markup).toContain('Missing a bank account? Add it in SimpleFIN Bridge, or add another connection in')
   })
 
-  it("lists a bank account that can't be linked as unavailable, with the server's reason in the danger colour", () => {
+  it("lists a bank account that can't be linked as unavailable, with the server's reason", () => {
     const markup = renderStep({
       accounts: [
         createBankAccount({ external_id: 'ACT-2', name: 'Travel Card', currency: 'USD', linkable: false, unavailable_reason: 'currency_mismatch', unavailable_message: 'In USD, but Everyday is in CAD' }),

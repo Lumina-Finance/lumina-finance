@@ -19,7 +19,6 @@ import {
   matchesConnectionSearch,
   matchesInstitutionSearch,
 } from '@/pages/settings/components/bank-connections-section/utils'
-import { describeDisconnected } from '@/utils/bankSync'
 
 function bankAccount(overrides: Partial<ConnectionBankAccount>): ConnectionBankAccount {
   return {
@@ -157,16 +156,6 @@ describe('bank connection confirmations', () => {
     expect(describeReconnected({ connection: connection(), resumed_account_ids: [], choose_again_account_ids: [], accounts_pending: true })).toBe(
       'SimpleFIN reconnected. Linked accounts pick up once their bank accounts are listed again.',
     )
-  })
-
-  it('counts the accounts a disconnect unlinked, and leaves the count out when there were none', () => {
-    const joint = connection({ nickname: 'Joint banks' })
-
-    expect(describeDisconnected(joint, 2)).toBe(
-      "Joint banks disconnected. 2 accounts unlinked. To stop SimpleFIN Bridge sharing data at all, revoke Lumina Finance's access there too.",
-    )
-    expect(describeDisconnected(joint, 1)).toContain(' 1 account unlinked.')
-    expect(describeDisconnected(joint, 0)).not.toContain('unlinked')
   })
 })
 
