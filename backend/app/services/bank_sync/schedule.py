@@ -21,9 +21,11 @@ due and sends nothing
 The due scan queues a scheduled sync for each connection due one, as its owner, to run once the
 connection's request budget has a request free, merging into any sync already queued for it. A
 connection whose bank accounts were never listed, which has no link to come due, is due a sync that
-lists them once nothing is under way for it, so a claim stopped mid-listing isn't left empty. Nothing
-here fetches or stores, so another policy, such as syncing inactive users less often, can change who
-is due without touching ingestion
+lists them once nothing is under way for it, so a claim stopped mid-listing isn't left empty. A
+connection whose provider this server has turned off gets no scheduled sync, which could only fail,
+and stays due, so the first scan after the provider is allowed again queues one. Nothing here
+fetches or stores, so another policy, such as syncing inactive users less often, can change who is
+due without touching ingestion
 """
 
 import uuid
@@ -36,7 +38,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
 from app.models.bank_sync_job import BankSyncJobKind
 from app.models.user import User
-from app.services.bank_sync.availability import PROVIDER_ADAPTERS
+from app.services.bank_sync.availability import ENABLED_ADAPTERS, PROVIDER_ADAPTERS
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
 from app.services.bank_sync.provider_requests import read_request_budget
 from app.services.bank_sync.windows import next_due_at
@@ -106,8 +108,9 @@ async def queue_scheduled_sync(db: AsyncSession, connection_id: uuid.UUID, *, no
     """
     connection = await db.get(BankConnection, connection_id)
 
-    # Disconnected since the scan listed it
-    if connection is None:
+    # Disconnected since the scan listed it, or its provider is turned off on this server, which
+    # every sync would fail on until it is allowed again
+    if connection is None or connection.provider not in ENABLED_ADAPTERS:
         return
     budget = await read_request_budget(db, connection, now=now)
     discover = connection.discovered_at is None

@@ -4446,6 +4446,26 @@ async def test_scan_queues_a_scheduled_sync_due_while_no_request_is_free_for_whe
     assert provider.fetches == []
 
 
+async def test_scan_queues_nothing_while_the_provider_is_turned_off_and_queues_the_sync_once_it_is_back(
+    connection, provider, frozen_now, monkeypatch
+):
+    """Everyday's daily sync is due, but this server has turned SimpleFIN off, so no sync is queued to fail
+
+    Once SimpleFIN is allowed again the next scan queues the sync still due
+    """
+    await _link(connection, "ACT-everyday", **_synced_through_yesterday(next_attempt_at=frozen_now))
+    await _set_next_sync(connection, frozen_now)
+    monkeypatch.delitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN)
+
+    await enqueue_due_work()
+    queued_while_off = await _queued_jobs()
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
+    await enqueue_due_work()
+
+    assert queued_while_off == []
+    assert await _queued_jobs() == [("scheduled", timedelta(0), False)]
+
+
 @pytest.mark.parametrize("savings_paused", [False, True], ids=["savings_active", "both_paused"])
 async def test_daily_sync_leaves_out_an_account_paused_for_review_and_none_is_queued_once_every_one_is(
     connection, provider, frozen_now, day_later, savings_paused
