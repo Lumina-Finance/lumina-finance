@@ -2241,6 +2241,50 @@ async def test_job_runs_an_import_on_a_paused_link_to_today_and_keeps_the_pause_
     assert await _pauses(link) == [(paused, False)]
 
 
+async def test_job_retries_an_import_that_failed_on_a_paused_link_30_minutes_on(connection, provider, frozen_now):
+    """Everyday was paused for review with 70 new items waiting when its connection was reconnected, and the catch-up has an error of its own
+
+    The import runs whatever the pause, so its failed attempt is retried at 1:30 pm like any other
+    rather than waiting for a review that may never come
+    """
+    link = await _link(
+        connection,
+        "ACT-1",
+        import_kind=BankImportKind.RECONNECT,
+        import_start=date(2026, 1, 1),
+        checkpoint=date(2026, 9, 24),
+        last_success_at=datetime(2026, 9, 24, 9, tzinfo=_BRISBANE),
+        paused=True,
+        importing=True,
+    )
+    await _commit_waiting_items(link, 70)
+    provider.outcomes = [FetchResult(accounts=(_bank_account("ACT-1"),), account_errors={"ACT-1": _reported_a_problem()})]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _pauses(link) == [(True, True)]
+    assert await _queued_jobs() == [("retry", timedelta(minutes=30), False)]
+
+
+async def test_job_queues_no_retry_for_a_link_the_review_pause_holds_back(connection, provider, frozen_now):
+    """Everyday is paused for review while waiting to retry at 1:30 pm, and Savings syncs at 1 pm
+
+    Everyday syncs again only once a review lifts its pause, so the job that ends queues no retry for it
+    """
+    await _link(
+        connection, "ACT-everyday", **_synced_through_yesterday(paused=True, retry_count=1, next_attempt_at=frozen_now + timedelta(minutes=30))
+    )
+    await _link(connection, "ACT-savings", **_synced_through_yesterday())
+    provider.outcomes = [_returned("ACT-savings")]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [_window(date(2026, 9, 19), _TODAY, ("ACT-savings",), pending=True)]
+    assert await _queued_jobs() == []
+
+
 async def test_job_pauses_a_first_import_by_the_count_left_when_it_ends_not_by_its_peak(connection, provider):
     """Everyday's import from 1 January brings 85 new items in each of its first two windows, and the user dismisses 110 before the third
 

@@ -24,6 +24,7 @@ from app.models.bank_sync_job import BankSyncJobKind, ProviderErrorKind
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
 from app.services.bank_sync.provider_requests import read_request_budget
 from app.services.bank_sync.providers.contract import ProviderError
+from app.services.bank_sync.review_pause import is_paused_for_review
 
 # The wait before each retry in a series, from the attempt before it, then the rest that follows a
 # series whose every attempt failed
@@ -88,8 +89,9 @@ async def queue_next_retry(
     sooner, which runs it early or leaves it waiting, so each job that ends queues the earliest one
     again, counting one that fell due while the job ran, which runs at once. A link waiting to retry
     that a job found due but left, since links that could progress came first, is retried at once
-    too. A connection whose credential was rejected, by now or by the job's last request, retries
-    nothing
+    too. A link the review pause holds back retries nothing until the pause lifts, while one an
+    import runs on retries whatever its pause. A connection whose credential was rejected, by now or
+    by the job's last request, retries nothing
 
     Args:
         db: The connection owner's session, which the caller commits, with the connection locked so
@@ -104,13 +106,13 @@ async def queue_next_retry(
     if rejected or connection.credential_rejected_at is not None:
         return
     links = await db.scalars(
-        select(BankAccountLink).where(
-            BankAccountLink.connection_id == connection.id,
-            BankAccountLink.state == BankLinkState.ACTIVE,
-            BankAccountLink.paused.is_(False),
-        )
+        select(BankAccountLink).where(BankAccountLink.connection_id == connection.id, BankAccountLink.state == BankLinkState.ACTIVE)
     )
-    times = [link.next_attempt_at for link in links if is_waiting_to_retry(link) and link.next_attempt_at > started_at]
+    times = [
+        link.next_attempt_at
+        for link in links
+        if not is_paused_for_review(link) and is_waiting_to_retry(link) and link.next_attempt_at > started_at
+    ]
     if overdue:
         times.append(now)
     if not times:
