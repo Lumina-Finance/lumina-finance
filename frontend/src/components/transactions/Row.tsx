@@ -398,22 +398,19 @@ export function TransactionRowView({
   // is hidden with display: none, which keeps its title out of the tab order and away from a screen
   // reader. The press and the pointer are taken by the content the layer stretches across, so a title
   // carries only the rest of the reason: its focus and the blocked key press, and its description,
-  // which follows the amount and the day's heading. The row draws the shared focus ring around itself while
-  // a title has keyboard focus
+  // which follows the amount and the day's heading. The row draws the shared focus ring around itself
+  // and takes the hover shade while a title or the checkbox has keyboard focus, so the bank icon and the
+  // marker beside the title keep their own rings without a second one around the row
   //
   // Tabbing from row to row hears only the button's name and description, so each title is
   // described by the amount beside it in its own layout and by its day's heading, which names its date
-  //
-  // Keyboard focus and a hover light the row as they light an account row, in the accent's soft
-  // tint with its rounded corners, and focus rings it as well. The light is the layer's rather than
-  // the row's, since rounding the row would bend its separator up at both ends. In selection mode a
-  // ticked row already carries that tint, so a hover there keeps the plain hover shade instead
   const descriptionId = useId()
   const amountId = (layout: RowLayout) => `${descriptionId}-amount-${layout}`
   const { onClick: handleContentClick, onMouseEnter, onMouseMove, onMouseLeave, ...titleReasonProps } = reasonProps
   const renderTitleButton = (layout: RowLayout) => (
     <button
       type="button"
+      data-row-title=""
       // In selection mode the checkbox is the row's single stop, so the same row does not offer two
       // controls doing the same thing
       tabIndex={selection ? -1 : undefined}
@@ -510,6 +507,7 @@ export function TransactionRowView({
           across the rows it ranges over */}
       <div
         data-testid={`transaction-row-${transaction.id}`}
+        data-row-content=""
         onClick={handleContentClick}
         onMouseEnter={onMouseEnter}
         onMouseMove={onMouseMove}

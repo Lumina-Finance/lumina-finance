@@ -80,12 +80,15 @@ test('greys out the refunds that no longer fit and updates them as rows are pick
   await press('$37.19').hover()
   await expect(tooltip).toHaveText(OVER_THE_EXPENSE)
   await expect(tooltip).toHaveCSS('opacity', '1')
-  await expect(press('$37.19')).toHaveAccessibleDescription(OVER_THE_EXPENSE)
+  await expect(press('$37.19')).toHaveAccessibleDescription(`+$37.19 ${OVER_THE_EXPENSE}`)
   // The greyed look eases in and out rather than snapping, at the app's disabled strength
-  // Only what the row's button holds fades. The button itself, which draws the keyboard focus ring, stays at full strength
+  // The row's whole content fades, its amount and category cells with its title. The row itself, which draws the
+  // keyboard focus ring, and the title button stay at full strength
   const greyed = picker.getByTestId('link-candidate').first()
-  await expect(greyed.locator('button > *').first()).toHaveCSS('transition-property', 'opacity')
-  await expect(greyed.locator('button > *').first()).toHaveCSS('opacity', '0.5')
+  const content = greyed.locator('[data-row-content]')
+  await expect(content).toHaveCSS('transition-property', 'opacity')
+  await expect(content).toHaveCSS('opacity', '0.5')
+  await expect(content.getByText('+$37.19').first()).toBeVisible()
   await expect(greyed.locator('button')).toHaveCSS('opacity', '1')
   await expect(greyed.locator('> div')).toHaveCSS('opacity', '1')
   await press('$37.19').click({ force: true })

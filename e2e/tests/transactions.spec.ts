@@ -225,6 +225,16 @@ test('rings a transaction row in the accent outline under keyboard focus', async
   await expectStretchedFocusRing(getTransactionRowButton(content), content.locator('..'))
 })
 
+test('rings an upcoming transaction row inside the Upcoming section\'s dashed edge', async ({ page, request }) => {
+  const { upcomingId, upcoming } = await openListWithUpcomingAndToday(page, request)
+  await upcoming.click()
+  const content = page.getByTestId(`transaction-row-${upcomingId}`)
+  await expectTransactionRow(page, upcomingId, `${MINUS}$45.00`)
+
+  // The section draws its edge over the sides of the rows inside it, which the ring has to stay clear of
+  await expectStretchedFocusRing(getTransactionRowButton(content), content.locator('..'))
+})
+
 test('keeps the open Upcoming header on screen through a long run of upcoming transactions', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday Chequing' })

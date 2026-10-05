@@ -108,7 +108,8 @@ const FOCUS_RING_RADIUS = '12px'
  * The ring has to run around the row's own box, so it goes round the whole row with the row's padding
  * inside it rather than tight around the text, and every line of the row's text has to clear it. The
  * row is lit in the accent's soft tint as well, by its own background or by the layer, and the ring
- * and the light share the rounded corners of an account row
+ * and the light share the rounded corners of an account row. No border another box draws over the row
+ * may cover the ring
  */
 export async function expectStretchedFocusRing(control: Locator, row: Locator): Promise<void> {
   // The pointer is kept off the row, so the light that a hover also gives can only come from the focus
@@ -170,6 +171,25 @@ export async function expectStretchedFocusRing(control: Locator, row: Locator): 
           : line
       }
 
+      // Each side of every border another box draws across the row, such as the dashed edge the Upcoming
+      // section lays over its rows' sides. Only a positioned box outside the row can be painted over it,
+      // and one laid out but unseen is left out
+      const rowBox = edgesOf(rowElement!.getBoundingClientRect())
+      const borders: ReturnType<typeof edgesOf>[] = []
+      for (const other of document.body.querySelectorAll('*')) {
+        if (other === rowElement || other.contains(rowElement!) || rowElement!.contains(other)) continue
+        const style = getComputedStyle(other)
+        if (style.position === 'static' || !other.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue
+        const box = edgesOf(other.getBoundingClientRect())
+        if (box.right <= rowBox.left || box.left >= rowBox.right || box.bottom <= rowBox.top || box.top >= rowBox.bottom) continue
+        borders.push(
+          { ...box, right: box.left + parseFloat(style.borderLeftWidth) },
+          { ...box, left: box.right - parseFloat(style.borderRightWidth) },
+          { ...box, bottom: box.top + parseFloat(style.borderTopWidth) },
+          { ...box, top: box.bottom - parseFloat(style.borderBottomWidth) },
+        )
+      }
+
       return {
         position: layer.position,
         style: layer.outlineStyle,
@@ -179,8 +199,9 @@ export async function expectStretchedFocusRing(control: Locator, row: Locator): 
         radius: layer.borderRadius,
         litRadius: lit?.borderRadius ?? null,
         box: { left, top, right: left + parseFloat(layer.width), bottom: top + parseFloat(layer.height) },
-        rowBox: edgesOf(rowElement!.getBoundingClientRect()),
+        rowBox,
         textBox: text,
+        borders,
       }
     }, rowElement)
     expect({ position: ring.position, style: ring.style, width: ring.width, color: ring.color })
@@ -201,11 +222,26 @@ export async function expectStretchedFocusRing(control: Locator, row: Locator): 
     const ringInset = inset(ring.rowBox, ring.box)
     const textClearance = inset(ring.box, ring.textBox!)
     for (const edge of ['left', 'top', 'right', 'bottom'] as const) {
-      // On the row's own edge, or just inside its border, which on a transaction row is the separator along its foot
+      // On the row's own edge, or just inside a border along it, such as the separator along a
+      // transaction row's foot or the Upcoming section's edge over its sides
       expect(Math.round(ringInset[edge]), `the ring's ${edge} edge against the row's`).toBeGreaterThanOrEqual(0)
-      expect(Math.round(ringInset[edge]), `the ring's ${edge} edge against the row's`).toBeLessThanOrEqual(1)
+      expect(Math.round(ringInset[edge]), `the ring's ${edge} edge against the row's`).toBeLessThanOrEqual(2)
       expect(textClearance[edge], `the text's clearance from the ring's ${edge} edge`).toBeGreaterThanOrEqual(FOCUS_RING_TEXT_CLEARANCE)
     }
+
+    // The outline is inset by its own width, so the ring is the layer's outer band of that width, and no
+    // border another box draws may cross it by more than a pixel's antialiased edge
+    const stroke = parseFloat(ring.width)
+    const ringSides: Edges[] = [
+      { ...ring.box, right: ring.box.left + stroke },
+      { ...ring.box, left: ring.box.right - stroke },
+      { ...ring.box, bottom: ring.box.top + stroke },
+      { ...ring.box, top: ring.box.bottom - stroke },
+    ]
+    const crosses = (a: Edges, b: Edges) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5
+      && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5
+    expect(ring.borders.filter((border) => ringSides.some((side) => crosses(border, side))), 'borders drawn across the ring')
+      .toEqual([])
   }).toPass()
 }
 
