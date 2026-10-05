@@ -109,7 +109,8 @@ export function BankReviewBlock({
     >
       <div className="flex items-center gap-2.5 px-4 pt-3.5 sm:px-5">
         <Landmark size={17} strokeWidth={2} aria-hidden className="shrink-0" style={{ color: 'var(--app-warning-text)' }} />
-        <h2 id={titleId} className="text-base font-semibold leading-snug" style={{ color: 'var(--app-text)' }}>
+        {/* Titled like the page's other cards */}
+        <h2 id={titleId} className="app-label leading-snug">
           Waiting for review
         </h2>
         <span
