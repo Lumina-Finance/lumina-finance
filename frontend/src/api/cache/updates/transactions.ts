@@ -85,6 +85,10 @@ const MERCHANT_ACTIVITY_FIELDS = new Set<keyof UpdateTransactionPayload>([
 // Usage is ranked by decayed transaction count, excluding Balance Adjustment categories
 const MERCHANT_USAGE_FIELDS = new Set<keyof UpdateTransactionPayload>(['dt', 'category_id', 'merchant_id'])
 
+// A waiting bank item shows its transaction's ledger date and amount, and goes once the transaction
+// moves out of its account
+const REVIEW_ITEM_FIELDS = new Set<keyof UpdateTransactionPayload>(['account_id', 'dt', 'amount'])
+
 function patchTouches(patch: UpdateTransactionPayload, fields: Set<keyof UpdateTransactionPayload>): boolean {
   return Object.keys(patch).some((key) => fields.has(key as keyof UpdateTransactionPayload))
 }
@@ -285,21 +289,43 @@ function invalidateTaxAdvantagedActivity(queryClient: QueryClient, accountIds: s
   invalidateTaxAdvantagedCategories(queryClient, categoryIds)
 }
 
-/**
- * Refreshes the review inbox when an edited or deleted transaction came from the bank
- *
- * The server changes or closes the correction or removal waiting about such a transaction in the same
- * save, and drops the bank record of one moved out of its account, so the block would otherwise keep
- * showing the item as it was
- *
- * @param transactions - The transactions the change reached, as cached before it and as the server
- * answered, any of them unknown to the cache left undefined
- */
-export function invalidateReviewOfBankTransactions(
+function invalidateReviewIfFromBank(
   queryClient: QueryClient,
   transactions: ReadonlyArray<Pick<Transaction, 'bank_source'> | undefined>,
 ): void {
-  if (transactions.some((transaction) => transaction?.bank_source)) invalidateBankReviewItems(queryClient);
+  if (transactions.some((transaction) => transaction?.bank_source)) invalidateBankReviewItems(queryClient)
+}
+
+/**
+ * Refreshes the review inbox when an edit reaches what a waiting item shows of a bank-imported
+ * transaction
+ *
+ * An item shows its transaction's ledger date and amount, which the server reads from the ledger each
+ * time it lists the item, and a move out of its account drops the transaction's bank record and the
+ * item with it. Any other field, such as the category, tags or notes, leaves every item as it was
+ *
+ * @param transactions - The transactions the edit reached, as cached before it and as the server
+ * answered, any of them unknown to the cache left undefined
+ */
+export function invalidateReviewOfEditedBankTransactions(
+  queryClient: QueryClient,
+  transactions: ReadonlyArray<Pick<Transaction, 'bank_source'> | undefined>,
+  patch: UpdateTransactionPayload,
+): void {
+  if (patchTouches(patch, REVIEW_ITEM_FIELDS)) invalidateReviewIfFromBank(queryClient, transactions)
+}
+
+/**
+ * Refreshes the review inbox once a bank-imported transaction is deleted, which deletes any item
+ * waiting about it too
+ *
+ * @param transaction - The transaction as cached before the deletion, undefined when the cache never held it
+ */
+export function invalidateReviewOfDeletedBankTransaction(
+  queryClient: QueryClient,
+  transaction: Pick<Transaction, 'bank_source'> | undefined,
+): void {
+  invalidateReviewIfFromBank(queryClient, [transaction])
 }
 
 /**
@@ -387,6 +413,17 @@ export function invalidatePatchedTransactionData(
 
 /**
  * Invalidates the cached views a bulk transaction edit changed
+ */
+export function invalidateBulkUpdatedTransactionData(
+  queryClient: QueryClient,
+  payload: BulkUpdateTransactionsPayload,
+  accountIds: string[],
+) {
+  invalidatePatchedTransactionData(queryClient, readBulkEditAsPatch(payload), accountIds)
+}
+
+/**
+ * Reads a bulk edit as the single-transaction patch whose fields it could change on any row
  *
  * The field sets above are written against a single-transaction patch, so the bulk request has to
  * be read in those terms first. Its tag field is named differently and would otherwise match
@@ -394,11 +431,7 @@ export function invalidatePatchedTransactionData(
  * account activity, leaving the figures on the Accounts page wrong until something else refetched
  * them
  */
-export function invalidateBulkUpdatedTransactionData(
-  queryClient: QueryClient,
-  payload: BulkUpdateTransactionsPayload,
-  accountIds: string[],
-) {
+export function readBulkEditAsPatch(payload: BulkUpdateTransactionsPayload): UpdateTransactionPayload {
   const patch: UpdateTransactionPayload = {}
   if (payload.category_id !== undefined) patch.category_id = payload.category_id
   if (payload.merchant_id !== undefined) patch.merchant_id = payload.merchant_id
@@ -418,6 +451,5 @@ export function invalidateBulkUpdatedTransactionData(
   // Every bulk edit drops a counterparty account left recorded under a category that does not
   // record one, so the totals reading that field are refreshed whatever the request set
   patch.counterparty_account_id = null
-
-  invalidatePatchedTransactionData(queryClient, patch, accountIds)
+  return patch
 }

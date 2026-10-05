@@ -1,12 +1,14 @@
 /**
- * Covers the waiting bank items after a transaction is edited or deleted. The server changes or
- * closes the correction or removal waiting about a bank-imported transaction in the same save, and
- * drops the bank record of one moved out of its account
+ * Covers the waiting bank items after a transaction is edited or deleted. An item shows its
+ * transaction's ledger date and amount, which the server reads each time it lists the item, a move
+ * out of its account drops the transaction's bank record and its item, and deleting the transaction
+ * deletes the item too
  *
- * These tests catch the review block still listing a deleted transaction's removal, an edited
- * transaction's old struck-through amount, or the item of one moved out of its account after the
- * server changed them, whether the edit was to one transaction or several, and a manual
- * transaction's change reading the inbox again for nothing
+ * These tests catch the review block still showing a deleted transaction's removal, an edited
+ * transaction's old amount or date, or the item of one moved out of its account, whether the edit was
+ * to one transaction, to several or to one the cache never held, and a change that leaves every item
+ * as it was, to a manual transaction or to a bank one's category, reading every loaded page of the
+ * inbox again for nothing
  */
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -95,7 +97,16 @@ function isReviewStale(): boolean | undefined {
 }
 
 describe('the waiting bank items after a change to a bank-imported transaction', () => {
-  it('are read again after an edit to its amount', async () => {
+  it('are read again after an edit to the amount they show of it', async () => {
+    authenticatedFetchMock.mockResolvedValue({ ...BANK_IMPORTED, amount: -1900 })
+
+    await renderMutations().update.mutateAsync({ id: 'uber', patch: { amount: -1900 } })
+
+    expect(isReviewStale()).toBe(true)
+  })
+
+  it('are read again after an edit to it while the cache held no copy, its source read from the answer', async () => {
+    client.setQueryData(transactionKeys.list({}), [MANUAL])
     authenticatedFetchMock.mockResolvedValue({ ...BANK_IMPORTED, amount: -1900 })
 
     await renderMutations().update.mutateAsync({ id: 'uber', patch: { amount: -1900 } })
@@ -125,6 +136,17 @@ describe('the waiting bank items after a change to a bank-imported transaction',
     await renderMutations().remove.mutateAsync('uber')
 
     expect(isReviewStale()).toBe(true)
+  })
+
+  it('are left as they are after an edit to its category, alone or in bulk', async () => {
+    const { update, bulkUpdate } = renderMutations()
+
+    authenticatedFetchMock.mockResolvedValue({ ...BANK_IMPORTED, category_id: 'travel' })
+    await update.mutateAsync({ id: 'uber', patch: { category_id: 'travel' } })
+    authenticatedFetchMock.mockResolvedValue({ transactions_updated: 1, affected_account_ids: ['everyday'] })
+    await bulkUpdate.mutateAsync({ transaction_ids: ['uber'], category_id: 'travel' })
+
+    expect(isReviewStale()).toBe(false)
   })
 })
 

@@ -22,8 +22,10 @@ import {
   invalidateBulkUpdatedTransactionData,
   invalidateFinancialTransactionData,
   invalidatePatchedTransactionData,
-  invalidateReviewOfBankTransactions,
+  invalidateReviewOfDeletedBankTransaction,
+  invalidateReviewOfEditedBankTransactions,
   invalidateTransactionAccountData,
+  readBulkEditAsPatch,
   removeTransactionsFromLists,
 } from '@/api/cache/updates/transactions'
 import {
@@ -252,8 +254,9 @@ export function useUpdateTransaction({ minimumPendingMs = 0 }: { minimumPendingM
       const accountIds = uniqueIds([context?.previousTransaction?.account_id, updated.account_id])
       invalidatePatchedTransactionData(queryClient, patch, accountIds)
 
-      // The answer has no bank source once a move out of its account dropped it, so the cached copy says too
-      invalidateReviewOfBankTransactions(queryClient, [context?.previousTransaction, updated])
+      // A move out of its account drops the bank record, so the answer has no bank source and only
+      // the cached copy says where it came from, while the answer alone says so for an uncached row
+      invalidateReviewOfEditedBankTransactions(queryClient, [context?.previousTransaction, updated], patch)
     },
   })
 }
@@ -271,7 +274,11 @@ export function useBulkUpdateTransactions({ minimumPendingMs = 0 }: { minimumPen
     }),
     onSuccess: (result, payload, context) => {
       invalidateBulkUpdatedTransactionData(queryClient, payload, result.affected_account_ids)
-      invalidateReviewOfBankTransactions(queryClient, context?.editedTransactions ?? [])
+      invalidateReviewOfEditedBankTransactions(
+        queryClient,
+        context?.editedTransactions ?? [],
+        readBulkEditAsPatch(payload),
+      )
     },
   })
 }
@@ -287,7 +294,7 @@ export function applyTransactionDeletion(
   accountId: string | undefined,
 ) {
   // Read from the cache before the row is removed from it
-  invalidateReviewOfBankTransactions(queryClient, [findCachedTransaction(queryClient, transactionId)])
+  invalidateReviewOfDeletedBankTransaction(queryClient, findCachedTransaction(queryClient, transactionId))
   applyTransactionsDeletion(queryClient, [transactionId], uniqueIds([accountId]))
 }
 
