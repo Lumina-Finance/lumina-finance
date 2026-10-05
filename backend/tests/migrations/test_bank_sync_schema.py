@@ -366,6 +366,23 @@ async def test_bank_transaction_previous_values_belong_to_an_accepted_record(ses
     await _add(session, corrected)
 
 
+async def test_bank_transaction_removal_is_opened_only_once_the_provider_reported_it_on_an_accepted_record(session):
+    """A removal needs the time the provider reported it, and only an accepted record holds that time"""
+    everyday, ledger_row = await _everyday_with_ledger_row(session)
+    reported_at = datetime(2026, 10, 4, 9, tzinfo=UTC)
+    waiting = _build_bank_transaction(everyday, "TRN-1")
+    waiting.removed_at = reported_at
+    unreported = _build_bank_transaction(everyday, "TRN-2", transaction=ledger_row)
+    unreported.open_kind = OpenReviewKind.REMOVAL
+    removed = _build_bank_transaction(everyday, "TRN-3", transaction=ledger_row)
+    removed.open_kind = OpenReviewKind.REMOVAL
+    removed.removed_at = reported_at
+
+    await _refused(session, waiting, "ck_bank_transactions_review_state")
+    await _refused(session, unreported, "ck_bank_transactions_removal")
+    await _add(session, removed)
+
+
 async def test_bank_transaction_version_moves_with_every_update(session):
     """A bulk approval reads the version to skip an item that changed after its preview"""
     user = await _owner(session)

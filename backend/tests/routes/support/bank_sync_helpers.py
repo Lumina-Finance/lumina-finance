@@ -287,6 +287,8 @@ async def _commit_accepted_items(link: BankAccountLink, *, plain: int = 0, corre
                 account, f"TRN-accepted-{number}", external_account_id=link.external_account_id, transaction=transaction
             )
             record.open_kind = open_kind
+            if open_kind == OpenReviewKind.REMOVAL:
+                record.removed_at = record.observed_at
             session.add(record)
         await session.commit()
 

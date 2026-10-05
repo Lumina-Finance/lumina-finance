@@ -186,6 +186,7 @@ async def test_review_list_shows_each_kind_with_the_values_its_review_compares(c
         removal = _build_bank_transaction(account, "TRN-REMOVED", transaction=removed)
         removal.observed_date = removal.aligned_date = date(2026, 10, 1)
         removal.open_kind = OpenReviewKind.REMOVAL
+        removal.removed_at = _RECEIVED_AT
 
         dismissed = _build_bank_transaction(account, "TRN-DISMISSED")
         dismissed.disposition = BankTransactionDisposition.DISMISSED
@@ -255,7 +256,10 @@ async def test_review_list_shows_each_kind_with_the_values_its_review_compares(c
 
 
 async def test_review_list_protects_only_the_edited_fields_a_correction_changes(client):
-    """An edited amount isn't protected from a new description or a removal, and an edited date is from a new date"""
+    """An edited amount isn't protected from a new description or a removal, and an edited date is from a new date
+
+    A removal changes no field, even one taking the place of a correction to the edited amount
+    """
     headers, user_id, account_id = await _everyday(client)
     october_1, october_2, october_3 = date(2026, 10, 1), date(2026, 10, 2), date(2026, 10, 3)
     async with TestSession() as session:
@@ -275,15 +279,18 @@ async def test_review_list_protects_only_the_edited_fields_a_correction_changes(
         description="BLUE BOTTLE COFFEE",
         previous_values={"description": "SQ *BLUE BOTTLE"},
     )
-    # The same edit, and the bank withdraws the transaction
+    # The same edit, and the bank removes the transaction while its change to $4.75 waits, which
+    # the removal takes the place of
     removal = await _commit_open_item(
         account,
         category.id,
         OpenReviewKind.REMOVAL,
         ledger=(october_2, -400),
         aligned=(october_2, -450),
-        observed_amount=-450,
+        observed_amount=-475,
         observed_date=october_2,
+        previous_values={"amount": -450},
+        removed_at=_RECEIVED_AT,
     )
     # The user moved the bank's 1 October to 2 October, and the bank now says 3 October
     new_date = await _commit_open_item(
@@ -368,6 +375,7 @@ async def test_review_list_reads_a_page_of_50_in_as_many_queries_as_a_page_of_on
         for index, record in enumerate(accepted):
             record.open_kind = OpenReviewKind.CORRECTION if index % 2 else OpenReviewKind.REMOVAL
             record.previous_values = {"amount": -1000} if index % 2 else None
+            record.removed_at = None if index % 2 else _RECEIVED_AT
         session.add_all([*accepted, *(_build_bank_transaction(account, f"TRN-{index}") for index in range(1, 20))])
         await session.commit()
 

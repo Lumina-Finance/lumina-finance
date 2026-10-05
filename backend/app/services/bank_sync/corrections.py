@@ -1,4 +1,4 @@
-"""Storing what the bank now says about transactions already in the ledger
+"""Storing what the bank now says about transactions already in the ledger: changed values and removals
 
 The bank's latest values are always stored. A correction is a change to the date, amount or bank
 description, compared with the bank values the ledger row was last decided against: those from
@@ -12,10 +12,20 @@ the user last declined. Trusted, a changed date or amount the user hasn't edited
 ledger row, an edited one keeps the user's value, and a changed description is only stored, since
 the ledger has no description and a changed description never changes the merchant in this release.
 An amount that can't be stored exactly can't be applied, so it opens a correction even when trusted.
-An open correction keeps waiting whatever the preference says, so a change while it is open joins
-it. A date or amount the bank changes to the value the ledger already holds needs no decision, and
-the field is aligned with the bank again. Aligning a field, here or by accepting a change, ends what
-the user declined before, so the bank sending those values again asks again
+A correction already waiting keeps waiting whatever the preference says, so a change while it is
+open joins it. A date or amount the bank changes to the value the ledger already holds needs no
+decision, and the field is aligned with the bank again. Aligning a field, here or by accepting a
+change, ends what the user declined before, so the bank sending those values again asks again.
+
+A removal is the provider saying the transaction no longer exists. Set to review, it opens a
+removal and the ledger row keeps counting until the user decides. It takes the place of a correction
+it finds open, since there is no point deciding new values for a transaction that may go, and that
+correction's values from before are kept, so keeping the transaction brings the correction back.
+Trusted, the ledger row is deleted, and the bank transaction with it, leaving no marker, so the same
+transaction sent again later is a new import. The bank transaction remembers the removal, so the
+same removal sent again opens nothing, whichever way the user decided. The provider sending the
+transaction again means it is back: the removal closes, and what it sends is compared like any other
+change, so a correction kept under the removal opens again
 """
 
 import uuid
@@ -33,37 +43,41 @@ from app.models.transaction_link import TransactionLink
 from app.services.accounts.snapshots import recompute_account_snapshots
 from app.services.bank_sync.review_preferences import read_review_preferences
 from app.services.bank_sync.review_state import EDITABLE_COLUMNS, align_with_bank, bank_values, edited_fields
+from app.services.transactions.deletion import delete_transaction_row
 
 
 async def store_accepted_observations(
     db: AsyncSession,
     observations: Sequence[tuple[BankTransaction, Mapping[str, Any]]],
+    removals: Sequence[BankTransaction],
     *,
     observed_at: datetime,
 ) -> None:
-    """Store the bank's new values for transactions already in the ledger, opening or applying the corrections they make
+    """Store what the bank now says about transactions already in the ledger, opening or applying the corrections and removals it makes
 
     The caller has locked the bank transactions and marks the cache. Their ledger rows are locked
-    next, in id order, and then the balances of each account a trusted correction moved, rebuilt
-    from the earliest date it touched
+    next, together and in id order, and then the balances of each account a trusted correction or
+    removal changed, rebuilt in one step from the earliest date it touched
 
     Args:
         db: The owner's session
-        observations: Each accepted bank transaction, with the observation columns the bank now
-            sends, which differ from those stored
+        observations: Each accepted bank transaction the bank sent, with the observation columns it
+            now sends, which differ from those stored unless the bank had reported it removed
+        removals: Each accepted bank transaction the bank newly reports removed
         observed_at: When the request that brought them was sent
     """
+    records = [record for record, _ in observations] + list(removals)
     ledger = {
         txn.id: txn
         for txn in await db.scalars(
             select(Transaction)
-            .where(Transaction.id.in_([record.transaction_id for record, _ in observations]))
+            .where(Transaction.id.in_([record.transaction_id for record in records]))
             .order_by(Transaction.id)
             .with_for_update()
             .execution_options(populate_existing=True)
         )
     }
-    preferences = await read_review_preferences(db, {record.account_id for record, _ in observations})
+    preferences = await read_review_preferences(db, {record.account_id for record in records})
 
     # A refund link needs its amounts to stay as they are, which an edit is checked against, so a
     # bank's new amount for a linked transaction is left for the user, as an edit of it would be
@@ -76,8 +90,10 @@ async def store_accepted_observations(
         for column, value in observation.items():
             setattr(record, column, value)
         record.observed_at = observed_at
+        record.removed_at = None
 
-        trusted = record.open_kind is None and preferences[record.account_id].corrections == ReviewDecision.TRUST
+        # A correction is waiting while its values from before are kept, open or under a removal
+        trusted = record.previous_values is None and preferences[record.account_id].corrections == ReviewDecision.TRUST
         ledger_before = (txn.dt, txn.amount)
         previous = _settle(record, txn, decided, trusted=trusted, amount_is_linked=txn.id in linked)
         if bank_values(record) == record.declined_observation:
@@ -86,6 +102,17 @@ async def store_accepted_observations(
         record.open_kind = OpenReviewKind.CORRECTION if previous else None
         if (txn.dt, txn.amount) != ledger_before:
             snapshot_starts[txn.account_id] = min(ledger_before[0], txn.dt, snapshot_starts.get(txn.account_id, txn.dt))
+
+    for record in removals:
+        txn = ledger[record.transaction_id]
+        if preferences[record.account_id].removals == ReviewDecision.TRUST:
+            snapshot_starts[txn.account_id] = min(txn.dt, snapshot_starts.get(txn.account_id, txn.dt))
+
+            # The bank transaction goes with its ledger row, so it is left unwritten
+            await delete_transaction_row(db, txn)
+        else:
+            record.removed_at = observed_at
+            record.open_kind = OpenReviewKind.REMOVAL
     await recompute_account_snapshots(db, snapshot_starts)
 
 

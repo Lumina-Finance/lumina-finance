@@ -16,7 +16,7 @@ from sqlalchemy import case, func, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.bank_transaction import BankTransaction, BankTransactionDisposition, CorrectableBankField
+from app.models.bank_transaction import BankTransaction, BankTransactionDisposition, CorrectableBankField, OpenReviewKind
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.bank_review import BankReviewCountsResponse, BankReviewItemResponse, BankReviewPageResponse
@@ -137,9 +137,10 @@ def _build_item(record: BankTransaction, ledger_date: date | None, ledger_amount
         )
 
     # The ledger holds the approved date and amount, and a correction keeps the description the
-    # bank sent before it
+    # bank sent before it. A removal changes no field, though it keeps a correction it took the
+    # place of for later
     previous = record.previous_values or {}
-    changed = [field for field in get_args(CorrectableBankField) if field in previous]
+    changed = [field for field in get_args(CorrectableBankField) if field in previous and record.open_kind == OpenReviewKind.CORRECTION]
     current = bank.model_copy(
         update={
             "date": ledger_date,

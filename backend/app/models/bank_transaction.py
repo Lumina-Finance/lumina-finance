@@ -61,7 +61,8 @@ class BankTransaction(Base):
     the bank account, so imports never duplicate and decisions survive unlinking and disconnecting.
     The record's ID is also its review item's, so it has at most one open item: a new item while it
     awaits review, or a correction or removal once accepted. An item the provider withdraws before
-    the user decides is deleted, so the same transaction can return later as a new import
+    the user decides is deleted, so the same transaction can return later as a new import, and so is
+    an accepted one whose ledger row is deleted
     """
 
     __tablename__ = "bank_transactions"
@@ -86,12 +87,15 @@ class BankTransaction(Base):
             "(disposition = 'accepted') = (transaction_id IS NOT NULL) AND (disposition = 'accepted') = (aligned_date IS NOT NULL)",
             name="ck_bank_transactions_accepted",
         ),
-        # Only an accepted record has ledger values to align with or a correction or removal to review
+        # Only an accepted record has ledger values to align with, a correction or removal to review,
+        # or a removal reported
         CheckConstraint(
             "disposition = 'accepted' OR (aligned_amount IS NULL AND open_kind IS NULL "
-            "AND previous_values IS NULL AND declined_observation IS NULL)",
+            "AND previous_values IS NULL AND declined_observation IS NULL AND removed_at IS NULL)",
             name="ck_bank_transactions_review_state",
         ),
+        # A removal is reviewed only once the provider has reported it
+        CheckConstraint("open_kind <> 'removal' OR removed_at IS NOT NULL", name="ck_bank_transactions_removal"),
         # A record still in play holds the bank's values, with an amount stored either exactly or as sent
         CheckConstraint(
             "disposition = 'dismissed' OR (observed_date IS NOT NULL AND description IS NOT NULL "
@@ -137,13 +141,19 @@ class BankTransaction(Base):
     # bank's values the user last declined with Keep current value, so the same proposal delivered
     # again doesn't reopen review until accepting a change or aligning a field replaces them. The
     # previous values map each CorrectableBankField the correction changes to the bank's value
-    # before it, while the observation holds the proposal. The declined values map every
+    # before it, while the observation holds the proposal. A removal opened over a correction keeps
+    # them, since that correction is still undecided. The declined values map every
     # CorrectableBankField. Dates are ISO text, and an amount the bank sent that couldn't be stored
     # exactly is the text it sent. The ledger has no description column, so the approved
     # description is read from here
     open_kind: Mapped[str | None] = mapped_column(VARCHAR(16))
     previous_values: Mapped[dict[str, Any] | None] = mapped_column(_JSON)
     declined_observation: Mapped[dict[str, Any] | None] = mapped_column(_JSON)
+
+    # When the provider reported the transaction removed from its feed, kept after the user keeps it
+    # so the same removal delivered again opens nothing, and cleared once the provider sends the
+    # transaction again
+    removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 

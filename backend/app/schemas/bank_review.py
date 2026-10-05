@@ -29,7 +29,8 @@ class BankReviewItemResponse(BaseModel):
     # Moves on whenever the item changes, so bulk approval applies only what it previewed
     version: int
 
-    # The bank's values: the whole item for a new one, the proposal for a correction
+    # The bank's values: the whole item for a new one, the proposal for a correction, the last it
+    # sent for a removal
     bank: BankValues
 
     # The ledger transaction a correction or removal is about, and its approved values, null on a new item

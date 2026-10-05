@@ -5,7 +5,8 @@ or more new items waiting for their first review, that account's link stops sync
 fewer are left. The pause is kept on the link, so the account stays paused while the count comes
 down through 99 to 51, and it covers that account alone: the connection's other accounts keep
 syncing. Only new booked items awaiting review count. Corrections and removals are opened on
-accepted transactions, pending items are kept apart, and an item the user decided no longer waits.
+accepted transactions, pending items are kept apart, and an item the user decided or the provider
+withdrew no longer waits.
 A sync stores everything its request brought back before the pause applies, so the count can pass
 100.
 
