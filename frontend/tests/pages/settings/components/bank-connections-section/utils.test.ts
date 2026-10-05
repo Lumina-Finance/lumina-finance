@@ -7,6 +7,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BankConnection, BankProvider, ConnectionBankAccount, ReconnectConnectionResult } from '@/api/bank-sync'
 import {
+  countLinkedBankAccounts,
   describeConnected,
   describeConnectionStatus,
   describeDisconnected,
@@ -259,19 +260,24 @@ describe('an institution over a reached limit', () => {
 })
 
 describe('bank connection institution search and mismatches', () => {
+  // Rewards Visa's currency changed, so Travel's link to it waits to choose its bank account again
+  const currencyChanged = connection({
+    accounts: [
+      bankAccount({ external_id: 'ACT-visa', name: 'Rewards Visa', currency: 'USD', linked_account_id: 'travel' }),
+      bankAccount({ external_id: 'ACT-chequing', linked_account_id: 'everyday' }),
+    ],
+    choose_again_links: [{ account_id: 'travel', external_account_name: 'Rewards Visa' }],
+  })
 
   it('lists a bank account whose link waits to choose it again as not linked, leaving it to Mismatch detected', () => {
-    const currencyChanged = connection({
-      accounts: [
-        bankAccount({ external_id: 'ACT-visa', name: 'Rewards Visa', currency: 'USD', linked_account_id: 'travel' }),
-        bankAccount({ external_id: 'ACT-chequing', linked_account_id: 'everyday' }),
-      ],
-      choose_again_links: [{ account_id: 'travel', external_account_name: 'Rewards Visa' }],
-    })
     const [harbour] = groupInstitutions(currencyChanged, { institutionLimit: null, institutionsInUse: [] })
 
     expect(harbour.linked).toBe(1)
     expect(harbour.bankAccounts.map((bankAccount) => bankAccount.linked_account_id)).toEqual([null, 'everyday'])
+  })
+
+  it('counts a bank account whose link waits to choose it again as not linked, for the row and the modal', () => {
+    expect(countLinkedBankAccounts(currencyChanged)).toEqual({ linked: 1, total: 2 })
   })
 
   it('finds an institution by its name or one of its bank accounts', () => {

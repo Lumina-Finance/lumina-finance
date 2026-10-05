@@ -14,14 +14,13 @@ import { EASE, INSTITUTION_SEARCH_AFTER, LINKING_HOLD_MS } from '@/pages/setting
 import { InstitutionList, InstitutionRow } from '@/pages/settings/components/bank-connections-section/InstitutionList'
 import { NicknameTitle } from '@/pages/settings/components/bank-connections-section/NicknameTitle'
 import {
-  countLinked,
+  countLinkedBankAccounts,
   countNoun,
   describeConnectionStatus,
   describeDisconnected,
   describeInstitutionAllowance,
   describeRequestBudget,
   describeSignInDetail,
-  listShownBankAccounts,
   type AccountNameLookup,
 } from '@/pages/settings/components/bank-connections-section/utils'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
@@ -138,7 +137,7 @@ export function ConnectionModal({ open, connection, accountNameFor, onReconnect,
   const status = describeConnectionStatus(connection)
   const statusDetail = describeSignInDetail(connection)
   const institutionCount = new Set(connection.accounts.map((bankAccount) => bankAccount.institution_name)).size
-  const linkedCount = countLinked(listShownBankAccounts(connection))
+  const { linked: linkedCount, total: bankAccountCount } = countLinkedBankAccounts(connection)
   const { limit: requestLimit, used: requestsUsed } = connection.request_budget
   const institutionLimit = provider?.institution_limit ?? null
   const institutionsInUse = provider?.institutions_in_use ?? []
@@ -286,7 +285,7 @@ export function ConnectionModal({ open, connection, accountNameFor, onReconnect,
       title={<NicknameTitle connection={connection} titleId="bank-connection-title" editing={renaming} onEditingChange={setRenaming} prefersReducedMotion={prefersReducedMotion} />}
       facts={facts}
       actions={actions}
-      partsLabel={`Institutions · ${linkedCount} of ${countNoun(connection.accounts.length, 'bank account')} linked`}
+      partsLabel={`Institutions · ${linkedCount} of ${countNoun(bankAccountCount, 'bank account')} linked`}
       partsTools={search || undefined}
     >
       {isRejected ? (
@@ -313,7 +312,7 @@ export function ConnectionModal({ open, connection, accountNameFor, onReconnect,
                 name: countNoun(institutionCount, 'institution'),
                 detail: 'Linking resumes after you reconnect',
                 linked: linkedCount,
-                total: connection.accounts.length,
+                total: bankAccountCount,
                 body: institutionList,
               }}
               defaultOpen={false}

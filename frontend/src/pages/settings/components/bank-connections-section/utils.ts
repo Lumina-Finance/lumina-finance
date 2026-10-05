@@ -37,8 +37,16 @@ function joinNames(names: string[]): string {
 /**
  * Counts the bank accounts linked to an account, through this connection or another reaching them too
  */
-export function countLinked(accounts: ConnectionBankAccount[]): number {
+function countLinked(accounts: ConnectionBankAccount[]): number {
   return accounts.filter((account) => account.linked_account_id !== null).length
+}
+
+/**
+ * How many of the connection's bank accounts are linked, out of all it returns, as its row and modal
+ * say it. A bank account whose link waits under Mismatch detected doesn't count as linked
+ */
+export function countLinkedBankAccounts(connection: BankConnection): { linked: number; total: number } {
+  return { linked: countLinked(listShownBankAccounts(connection)), total: connection.accounts.length }
 }
 
 /**

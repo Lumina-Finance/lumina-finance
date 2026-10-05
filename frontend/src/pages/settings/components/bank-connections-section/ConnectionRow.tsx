@@ -11,7 +11,7 @@ import {
   CONNECTION_ROW_INITIAL,
   CONNECTION_ROW_TRANSITION,
 } from '@/pages/settings/components/bank-connections-section/constants'
-import { connectionName, countLinked, describeConnectionStatus, listShownBankAccounts } from '@/pages/settings/components/bank-connections-section/utils'
+import { connectionName, countLinkedBankAccounts, describeConnectionStatus } from '@/pages/settings/components/bank-connections-section/utils'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
 
 interface ConnectionRowProps {
@@ -38,7 +38,7 @@ interface ConnectionRowProps {
 export function ConnectionRow({ connection, layoutKey, isLast, prefersReducedMotion, onOpen }: ConnectionRowProps) {
   const { user } = useAuth()
   const status = describeConnectionStatus(connection)
-  const linkedCount = countLinked(listShownBankAccounts(connection))
+  const { linked: linkedCount, total } = countLinkedBankAccounts(connection)
   const name = connectionName(connection)
 
   // The day it was added in the user's zone. Slicing the timestamp instead would give the UTC day, a
@@ -77,13 +77,13 @@ export function ConnectionRow({ connection, layoutKey, isLast, prefersReducedMot
           </span>
           {/* Spans the row under both, so a long status beside the name never cuts the date short */}
           <span className="col-span-2 mt-0.5 block truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
-            {linkedCount} of {connection.accounts.length} linked · Added {added}
+            {linkedCount} of {total} linked · Added {added}
           </span>
         </span>
         <span className={`hidden items-center gap-x-4 min-[750px]:grid ${CONNECTION_COLUMNS_CLASS}`}>
           <MarqueeText active className="min-w-0 font-medium">{name}</MarqueeText>
           <span className="min-w-0 truncate text-sm">
-            {linkedCount} of {connection.accounts.length} <span style={{ color: 'var(--app-text-muted)' }}>linked</span>
+            {linkedCount} of {total} <span style={{ color: 'var(--app-text-muted)' }}>linked</span>
           </span>
           <span className="min-w-0 truncate text-sm">{added}</span>
           {statusLabel}
