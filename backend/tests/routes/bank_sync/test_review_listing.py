@@ -16,19 +16,19 @@ from app.models.bank_transaction import OBSERVATION_COLUMNS, BankTransaction, Ba
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     BANK_DESCRIPTION,
-    _build_account,
+    EMPTY_REVIEW_PAGE,
     _build_bank_transaction,
     _build_category,
     _build_ledger_transaction,
-    _build_user,
+    _commit_other_users_account,
     _commit_review_item,
     _new_account,
+    _new_group_account,
     _review_page,
     _sign_up,
 )
 from tests.routes.support.query_helpers import _get_with_selects
 
-_NONE_WAITING = {"new": 0, "correction": 0, "removal": 0}
 _RECEIVED_AT = datetime(2026, 10, 4, 9, 30, tzinfo=UTC)
 
 
@@ -196,19 +196,13 @@ async def test_review_list_for_one_account_leaves_out_the_others(client):
 async def test_review_list_never_shows_another_users_items(client):
     """Another user's waiting item is in neither list, and their account reads as not found"""
     headers, _, _ = await _everyday(client)
-    async with TestSession() as session:
-        other = _build_user("other@example.com")
-        session.add(other)
-        await session.flush()
-        theirs = _build_account(other.id, name="Theirs")
-        session.add(theirs)
-        await session.commit()
+    theirs = await _commit_other_users_account()
     await _commit_review_item(theirs.id)
 
     every_account = await _review_page(client, headers)
     their_account = await client.get("/bank-review/items", params={"account_id": str(theirs.id)}, headers=headers)
 
-    assert every_account == {"items": [], "counts": _NONE_WAITING, "next_cursor": None}
+    assert every_account == EMPTY_REVIEW_PAGE
     assert their_account.status_code == 404, their_account.text
     assert their_account.json()["detail"] == "Account not found"
 
@@ -216,9 +210,7 @@ async def test_review_list_never_shows_another_users_items(client):
 async def test_review_list_leaves_out_group_accounts_even_for_their_admin(client):
     """A group account's list is refused, and an item recorded on it as the admin's own isn't in theirs"""
     headers, user_id, _ = await _everyday(client)
-    group = await client.post("/groups", json={"name": "Smith Family"}, headers=headers)
-    assert group.status_code == 201, group.text
-    joint_id = await _new_account(client, headers, "Joint", group_id=group.json()["id"])
+    joint_id = await _new_group_account(client, headers)
     await _commit_review_item(joint_id, owner_id=user_id)
 
     refused = await client.get("/bank-review/items", params={"account_id": joint_id}, headers=headers)
@@ -226,7 +218,7 @@ async def test_review_list_leaves_out_group_accounts_even_for_their_admin(client
 
     assert refused.status_code == 403, refused.text
     assert refused.json()["detail"] == "Accounts shared with a group can't be linked to a bank yet"
-    assert every_account == {"items": [], "counts": _NONE_WAITING, "next_cursor": None}
+    assert every_account == EMPTY_REVIEW_PAGE
 
 
 async def test_review_list_reads_a_page_of_50_in_as_many_queries_as_a_page_of_one(client):

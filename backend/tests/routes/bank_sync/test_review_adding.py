@@ -23,21 +23,22 @@ from app.services.bank_sync import manual_entries, review_decisions
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     BANK_DATE,
-    _build_account,
-    _build_user,
+    EMPTY_REVIEW_PAGE,
     _changed_at,
+    _commit_other_users_account,
     _commit_review_item,
     _new_account,
+    _new_group_account,
     _review_page,
+    _stored_item,
 )
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
 from tests.routes.support.manual_entry_helpers import NOW, SUPPLIED, _commit_link, _Ledger, _ledger
 from tests.routes.support.merchant_helpers import _get_system_merchant_id
 from tests.routes.support.query_helpers import _recorded_statements, _writes
-from tests.routes.transactions._helpers import _create_transaction, _get_system_category_id
+from tests.routes.support.transaction_helpers import _create_transaction, _get_system_category_id
 
 _TESCO = "TESCO STORES 3297"
-_NONE_WAITING = {"new": 0, "correction": 0, "removal": 0}
 
 
 @dataclass(frozen=True)
@@ -102,12 +103,6 @@ async def _ledger_rows(account_id: str) -> list[tuple[date, int]]:
         return [tuple(row) for row in rows]
 
 
-async def _stored_item(item_id: uuid.UUID) -> BankTransaction:
-    """Return the item's bank transaction as stored, read as the table owner"""
-    async with TestSession() as session:
-        return await session.get_one(BankTransaction, item_id)
-
-
 async def _balance(client, inbox: _Inbox) -> int:
     """Return Everyday's current balance"""
     account = await client.get(f"/accounts/{inbox.account_id}", headers=inbox.headers)
@@ -136,7 +131,7 @@ async def test_adding_tesco_writes_one_bank_sourced_transaction_and_empties_the_
         BANK_DATE,
         -2340,
     )
-    assert await _review_page(client, inbox.headers) == {"items": [], "counts": _NONE_WAITING, "next_cursor": None}
+    assert await _review_page(client, inbox.headers) == EMPTY_REVIEW_PAGE
     assert await _balance(client, inbox) == -2340
     assert await _changed_at(client, inbox.headers) != before
     assert "user_cache_states" in _writes(statements)[-1]
@@ -337,17 +332,9 @@ async def test_an_add_waiting_on_a_sync_aligns_with_the_amount_the_sync_stored(c
 async def test_adding_another_users_item_or_one_on_a_group_account_is_not_found(client):
     """Neither item is the user's own on their own personal account, so both read as not found and stay"""
     inbox = await _tesco_waiting(client)
-    async with TestSession() as session:
-        other = _build_user("other@example.com")
-        session.add(other)
-        await session.flush()
-        theirs = _build_account(other.id, name="Theirs")
-        session.add(theirs)
-        await session.commit()
+    theirs = await _commit_other_users_account()
     their_item = await _commit_review_item(theirs.id)
-    group = await client.post("/groups", json={"name": "Smith Family"}, headers=inbox.headers)
-    assert group.status_code == 201, group.text
-    joint_id = await _new_account(client, inbox.headers, "Joint", group_id=group.json()["id"])
+    joint_id = await _new_group_account(client, inbox.headers)
     joint_item = await _commit_review_item(joint_id, owner_id=inbox.ledger.user_id)
 
     responses = [await _add(client, inbox, item_id) for item_id in (their_item, joint_item, uuid.uuid4())]

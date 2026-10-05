@@ -16,31 +16,25 @@ from app.models.bank_transaction import OBSERVATION_COLUMNS, BankTransaction, Ba
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     BANK_ACCOUNT_ID,
-    _build_account,
+    EMPTY_REVIEW_PAGE,
     _build_category,
     _build_ledger_transaction,
-    _build_user,
     _changed_at,
+    _commit_other_users_account,
     _commit_review_item,
     _new_account,
+    _new_group_account,
     _review_page,
     _sign_up,
+    _stored_item,
 )
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
 from tests.routes.support.query_helpers import _recorded_statements, _writes
-
-_NONE_WAITING = {"new": 0, "correction": 0, "removal": 0}
 
 
 async def _dismiss(client, headers, item_id: uuid.UUID):
     """Dismiss the item through the route"""
     return await client.post(f"/bank-review/items/{item_id}/dismiss", headers=headers)
-
-
-async def _stored_item(item_id: uuid.UUID) -> BankTransaction:
-    """Return the item's bank transaction as stored, read as the table owner"""
-    async with TestSession() as session:
-        return await session.get_one(BankTransaction, item_id)
 
 
 async def test_dismissing_keeps_only_the_items_identity_and_leaves_the_inbox(client):
@@ -65,7 +59,7 @@ async def test_dismissing_keeps_only_the_items_identity_and_leaves_the_inbox(cli
     )
     assert {column: getattr(stored, column) for column in OBSERVATION_COLUMNS} == dict.fromkeys(OBSERVATION_COLUMNS)
     assert stored.transaction_id is None
-    assert await _review_page(client, headers) == {"items": [], "counts": _NONE_WAITING, "next_cursor": None}
+    assert await _review_page(client, headers) == EMPTY_REVIEW_PAGE
     assert await _changed_at(client, headers) != before
     assert "user_cache_states" in _writes(statements)[-1]
 
@@ -125,17 +119,9 @@ async def test_dismissing_an_item_already_in_the_ledger_is_refused(client):
 async def test_dismissing_another_users_item_or_one_on_a_group_account_is_not_found(client):
     """Neither item is the user's own on their own personal account, so both read as not found and stay"""
     headers, user_id = await _sign_up(client)
-    async with TestSession() as session:
-        other = _build_user("other@example.com")
-        session.add(other)
-        await session.flush()
-        theirs = _build_account(other.id, name="Theirs")
-        session.add(theirs)
-        await session.commit()
+    theirs = await _commit_other_users_account()
     their_item = await _commit_review_item(theirs.id)
-    group = await client.post("/groups", json={"name": "Smith Family"}, headers=headers)
-    assert group.status_code == 201, group.text
-    joint_id = await _new_account(client, headers, "Joint", group_id=group.json()["id"])
+    joint_id = await _new_group_account(client, headers)
     joint_item = await _commit_review_item(joint_id, owner_id=user_id)
 
     responses = [await _dismiss(client, headers, item_id) for item_id in (their_item, joint_item)]

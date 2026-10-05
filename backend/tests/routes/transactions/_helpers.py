@@ -7,6 +7,7 @@ from tests.routes.support import _create_user, _get_auth_header, sign_up_confirm
 # Shared with the bank-sync tests, so they live in support; imported as themselves to keep this
 # package's tests importing them from here
 from tests.routes.support.transaction_helpers import _create_transaction as _create_transaction
+from tests.routes.support.transaction_helpers import _get_system_category_id as _get_system_category_id
 from tests.routes.support.transaction_helpers import _import_journal as _import_journal
 from tests.routes.support.transaction_helpers import _import_transactions as _import_transactions
 
@@ -121,12 +122,6 @@ async def _create_tag(client, headers, **overrides):
     """
     payload = {"name": "vacation", **overrides}
     return await client.post("/tags", json=payload, headers=headers)
-
-
-async def _get_system_category_id(client, headers, name="Groceries"):
-    """Return the ID for a seeded system category"""
-    resp = await client.get("/categories", headers=headers)
-    return next(category["id"] for category in resp.json() if category["name"] == name)
 
 
 async def _refund(client, headers, account_id, category_id, expense_id, **overrides):

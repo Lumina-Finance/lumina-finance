@@ -1,6 +1,12 @@
-"""Writing transactions through the routes: creating one, and importing a file or a journal export"""
+"""Writing transactions through the routes: finding a seeded system category and creating a transaction in it"""
 
 from tests.routes.support.merchant_helpers import _get_system_merchant_id
+
+
+async def _get_system_category_id(client, headers, name="Groceries"):
+    """Return the ID for a seeded system category"""
+    resp = await client.get("/categories", headers=headers)
+    return next(category["id"] for category in resp.json() if category["name"] == name)
 
 
 async def _create_transaction(client, headers, account_id, category_id, **overrides):

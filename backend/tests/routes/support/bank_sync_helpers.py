@@ -47,6 +47,9 @@ BANK_DESCRIPTION = "HARBOUR COFFEE 0412"
 # When the app received the record of a bank-sourced transaction, which a test pins where it reads it back
 BANK_RECEIVED_AT = datetime(2026, 10, 4, 9, 5, tzinfo=UTC)
 
+# The review list with nothing waiting
+EMPTY_REVIEW_PAGE = {"items": [], "counts": {"new": 0, "correction": 0, "removal": 0}, "next_cursor": None}
+
 
 async def _sign_up(client) -> tuple[dict, uuid.UUID]:
     """Sign up the default user, with USD available for accounts, and return their auth headers and id"""
@@ -284,6 +287,31 @@ async def _review_page(client, headers, **params) -> dict:
     page = await client.get("/bank-review/items", params=params, headers=headers)
     assert page.status_code == 200, page.text
     return page.json()
+
+
+async def _stored_item(item_id: uuid.UUID) -> BankTransaction:
+    """Return a review item's bank transaction as stored, read as the table owner"""
+    async with TestSession() as session:
+        return await session.get_one(BankTransaction, item_id)
+
+
+async def _commit_other_users_account() -> Account:
+    """Commit another user with a personal account of their own, named Theirs"""
+    async with TestSession() as session:
+        other = _build_user("other@example.com")
+        session.add(other)
+        await session.flush()
+        theirs = _build_account(other.id, name="Theirs")
+        session.add(theirs)
+        await session.commit()
+    return theirs
+
+
+async def _new_group_account(client, headers) -> str:
+    """Create the Smith Family group and its Joint account through the API, the user as its admin, and return the account's id"""
+    group = await client.post("/groups", json={"name": "Smith Family"}, headers=headers)
+    assert group.status_code == 201, group.text
+    return await _new_account(client, headers, "Joint", group_id=group.json()["id"])
 
 
 def _build_pending_transaction(account: Account, external_transaction_id: str, amount: int = -2500) -> BankPendingTransaction:
