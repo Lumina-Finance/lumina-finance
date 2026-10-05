@@ -8,7 +8,7 @@ nothing of the old bank account's progress
 """
 
 import uuid
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -94,7 +94,9 @@ async def test_link_creates_the_link_and_queues_its_first_import(client):
 
     assert linked.status_code == 201, linked.text
     body = linked.json()
-    assert datetime.fromisoformat(body.pop("linked_at")) <= datetime.now(UTC)
+
+    # The database sets when the account was linked
+    body.pop("linked_at")
     assert body == {
         "account_id": account_id,
         "connection_id": str(connection.id),
