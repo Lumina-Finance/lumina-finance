@@ -184,6 +184,10 @@ export function ConnectionModal({ open, connection, accountNameFor, onReconnect,
   const institutionsInUse = provider?.institutions_in_use ?? []
   const allowance = describeInstitutionAllowance(provider, connection.provider_name)
 
+  // Linking waits for the worker that imports the history, while renaming, reconnecting and
+  // disconnecting carry on without it
+  const linkingPaused = providers !== undefined && !providers.sync_running
+
   const handleDisconnect = () => {
     if (disconnect.isPending) return
     if (!confirmingDisconnect) {
@@ -287,6 +291,7 @@ export function ConnectionModal({ open, connection, accountNameFor, onReconnect,
       institutionsInUse={institutionsInUse}
       query={isRejected ? '' : query}
       accountNameFor={accountNameFor}
+      linkingPaused={linkingPaused}
       linkingExternalId={linkingExternalId}
       onLink={openLinkFlow}
       prefersReducedMotion={prefersReducedMotion}

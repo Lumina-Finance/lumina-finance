@@ -6,7 +6,7 @@ import { useBankConnections, useBankProviders, type BankConnection } from '@/api
 import LoadFailure from '@/components/errors/LoadFailure'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import LoadingRegion from '@/components/loading/Region'
-import { useDisabledReason } from '@/hooks/useDisabledReason'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { ConnectionModal } from '@/pages/settings/components/bank-connections-section/ConnectionModal'
 import { ConnectionRow } from '@/pages/settings/components/bank-connections-section/ConnectionRow'
 import { ConnectModal } from '@/pages/settings/components/bank-connections-section/ConnectModal'
@@ -23,8 +23,9 @@ import { SETTINGS_LIST_LOADING_OVERLAY_CLASS } from '@/pages/settings/components
  *
  * Only providers the server offers for new connections can be added, and only those connected here
  * rather than from an account's own link flow. A provider no longer offered stays listed for users who
- * already connected it, and while the sync worker is down new connections wait for it, since nothing
- * would list their bank accounts. Existing connections keep every action either way
+ * already connected it. While the sync worker is down, adding a connection and linking a bank account
+ * wait for it, since nothing would import or sync what they set up, and existing connections can still
+ * be renamed, reconnected and disconnected
  */
 export function BankConnectionsSection() {
   const prefersReducedMotion = useReducedMotion()
@@ -38,7 +39,6 @@ export function BankConnectionsSection() {
     : []
   const noneOffered = providers !== undefined && offeredProviders.length === 0
   const workerDown = providers !== undefined && offeredProviders.length > 0 && !providers.sync_running
-  const addUnavailable = useDisabledReason(workerDown ? "Bank sync isn't running right now. Connections can be added once it's back." : null)
 
   // Connections are few and already loaded, so the search filters them here rather than on the server
   const [search, setSearch] = useState('')
@@ -118,17 +118,16 @@ export function BankConnectionsSection() {
               placeholder="Search connections…"
               wrapperClassName="flex-1"
             />
-            <button
+            <DisabledReasonButton
               type="button"
               className="app-primary-button shrink-0"
               disabled={offeredProviders.length === 0}
+              disabledReason={workerDown ? "Bank sync isn't running right now. You can add one once it's back." : null}
               onClick={() => openConnect(null)}
-              {...addUnavailable.controlProps}
             >
               <Plus size={16} aria-hidden />
               Add a connection
-            </button>
-            {addUnavailable.tooltip}
+            </DisabledReasonButton>
           </div>
 
           {noneOffered && (

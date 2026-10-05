@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ArrowRight, ChevronRight, CircleHelp } from 'lucide-react'
 import { Link } from 'react-router'
 import type { BankConnection, ConnectionBankAccount } from '@/api/bank-sync'
+import { LINKING_PAUSED_REASON } from '@/components/bank-link-flow/constants'
 import { SyncStatusDot } from '@/components/display/SyncStatusDot'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
@@ -54,6 +55,9 @@ interface BankAccountRowProps {
   bankAccount: ConnectionBankAccount
   canLink: boolean
 
+  /** Holds the dropdown with the reason while bank sync is down */
+  linkingPaused: boolean
+
   /** Set once the link flow has linked it, until its account settles in */
   linking: boolean
   accountNameFor: AccountNameLookup
@@ -66,7 +70,7 @@ interface BankAccountRowProps {
  * where it goes, or offers the accounts the server says could take it in a dropdown. Choosing one
  * opens the link flow at its start step
  */
-function BankAccountRow({ bankAccount, canLink, linking, accountNameFor, onLink }: BankAccountRowProps) {
+function BankAccountRow({ bankAccount, canLink, linkingPaused, linking, accountNameFor, onLink }: BankAccountRowProps) {
   const prefersReducedMotion = useReducedMotion()
   const nameId = useId()
   const linkedId = bankAccount.linked_account_id
@@ -127,6 +131,7 @@ function BankAccountRow({ bankAccount, canLink, linking, accountNameFor, onLink 
                     size="field"
                     labelledBy={nameId}
                     disabled={!canLink}
+                    disabledReason={linkingPaused ? LINKING_PAUSED_REASON : undefined}
                     onChange={(accountId) => onLink(bankAccount, accountId)}
                   />
                 )}
@@ -253,6 +258,9 @@ interface InstitutionListProps {
   query: string
   accountNameFor: AccountNameLookup
 
+  /** True while bank sync is down, which holds every dropdown with the reason */
+  linkingPaused: boolean
+
   /** The bank account just linked through the flow, shown as linking until its account settles in */
   linkingExternalId: string | null
   onLink: (bankAccount: ConnectionBankAccount, accountId: string) => void
@@ -266,7 +274,7 @@ interface InstitutionListProps {
  * detected
  *
  * Nothing can be linked through a rejected connection, nor at an institution the user hasn't linked yet
- * once the institution limit is used up
+ * once the institution limit is used up, nor anywhere while bank sync is down
  */
 export function InstitutionList({
   connection,
@@ -274,6 +282,7 @@ export function InstitutionList({
   institutionsInUse,
   query,
   accountNameFor,
+  linkingPaused,
   linkingExternalId,
   onLink,
   prefersReducedMotion,
@@ -296,6 +305,7 @@ export function InstitutionList({
         <BankAccountRow
           bankAccount={bankAccount}
           canLink={isActive && !group.overLimit}
+          linkingPaused={linkingPaused}
           linking={linkingExternalId === bankAccount.external_id}
           accountNameFor={accountNameFor}
           onLink={onLink}

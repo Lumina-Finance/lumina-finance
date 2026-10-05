@@ -10,6 +10,7 @@ import {
   type ConnectionBankAccount,
 } from '@/api/bank-sync'
 import { ChoiceCard } from '@/components/bank-link-flow/ChoiceCard'
+import { LINKING_PAUSED_REASON } from '@/components/bank-link-flow/constants'
 import { findUncoveredUntil, listStartChoices } from '@/components/bank-link-flow/startChoices'
 import DateField from '@/components/date-field/DateField'
 import LoadFailure from '@/components/errors/LoadFailure'
@@ -76,8 +77,11 @@ export function BankLinkFlowModal({ open, target, level = 'page', onClose, onLin
   const uncoveredUntil = range && chosenStart ? findUncoveredUntil(range, chosenStart) : null
   const busy = link.isPending
 
+  // Linking waits for the worker that imports the history, so it pauses while the worker is down
+  const linkingPaused = providers !== undefined && !providers.sync_running
+
   const confirmLink = () => {
-    if (!chosenStart || startOutOfRange) return
+    if (!chosenStart || startOutOfRange || linkingPaused) return
     setError(null)
     link.mutate(
       { account_id: account.id, connection_id: connection.id, external_account_id: bankAccount.external_id, start_date: chosenStart },
@@ -109,6 +113,7 @@ export function BankLinkFlowModal({ open, target, level = 'page', onClose, onLin
           submitLabel="Link and import"
           submitDisabled={busy}
           submitUnavailable={!range || !chosenStart || startOutOfRange}
+          submitReason={linkingPaused ? LINKING_PAUSED_REASON : null}
           submitWidthClassName="w-full sm:w-40"
           error={error}
           level={level}

@@ -27,6 +27,8 @@ const SAMPLE_BANK = 'Harbour Bank'
 const SAMPLE_CHEQUING = 'Everyday Chequing'
 const SAMPLE_VISA = 'Rewards Visa'
 const REVOKE_ADVICE = "To stop SimpleFIN Bridge sharing data at all, revoke Lumina Finance's access there too."
+const ADDING_PAUSED = "Bank sync isn't running right now. You can add one once it's back."
+const LINKING_PAUSED = "Bank sync isn't running right now. You can link accounts once it's back."
 
 /**
  * Today as the app shows the day a connection was added, in the zone the user signed up with
@@ -470,8 +472,13 @@ test('counts institutions against a limit and stops linking a new one once it is
   await expect(harbour.getByRole('combobox', { name: SAMPLE_CHEQUING })).toBeDisabled()
 })
 
-test("holds Add a connection back with the reason while bank sync isn't running", async ({ page, request }) => {
+test("holds adding and linking back with the reason while bank sync isn't running, leaving the other actions", async ({ page, request }) => {
   const user = await signUpUser(request)
+  const [, scenario] = await Promise.all([
+    createAccount(request, user, { name: 'Household' }),
+    createSampleBridgeScenario(request),
+  ])
+  await claimSetupToken(request, user, scenario.setupToken)
   await changeProviders(page, (body) => {
     body.sync_running = false
   })
@@ -479,10 +486,50 @@ test("holds Add a connection back with the reason while bank sync isn't running"
   const add = section.getByRole('button', { name: 'Add a connection' })
 
   await expect(add).toHaveAttribute('aria-disabled', 'true')
-  await expect(add).toHaveAccessibleDescription("Bank sync isn't running right now. Connections can be added once it's back.")
+  await expect(add).toHaveAccessibleDescription(ADDING_PAUSED)
   // Forced, since Playwright waits for a control marked unavailable to become available before pressing it
   await add.click({ force: true })
   await expect(page.getByRole('dialog', { name: 'Add a connection' })).toHaveCount(0)
+
+  const dialog = await openConnection(page, section, 'SimpleFIN')
+  const chequing = dialog.getByRole('combobox', { name: SAMPLE_CHEQUING })
+  await expect(chequing).toHaveAttribute('aria-disabled', 'true')
+  await expect(chequing).toHaveAccessibleDescription(LINKING_PAUSED)
+  await chequing.click({ force: true })
+  await expect(chequing).toHaveAttribute('aria-expanded', 'false')
+  await expect(dialog.getByRole('button', { name: 'Rename' })).toBeEnabled()
+  await expect(dialog.getByRole('button', { name: 'Disconnect' })).toBeEnabled()
+})
+
+test('holds Link and import back with the reason when bank sync stops as the link flow opens', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const [household, scenario] = await Promise.all([
+    createAccount(request, user, { name: 'Household' }),
+    createSampleBridgeScenario(request),
+  ])
+  await claimSetupToken(request, user, scenario.setupToken)
+  let syncRunning = true
+  await changeProviders(page, (body) => {
+    body.sync_running = syncRunning
+  })
+  let linkRequests = 0
+  page.on('request', (sent) => {
+    if (sent.url() === `${API_BASE_URL}/accounts/${household.id}/bank-link` && sent.method() === 'POST') linkRequests += 1
+  })
+  const section = await openBankConnections(page, user)
+  const dialog = await openConnection(page, section, 'SimpleFIN')
+
+  // The flow reads the providers again as it opens, and finds the worker down
+  syncRunning = false
+  await chooseFromDropdown(dialog, SAMPLE_CHEQUING, 'Household')
+  const flow = page.getByRole('dialog', { name: 'Link bank account' })
+  await flow.getByRole('radio', { name: /^3 months/ }).click()
+  const submit = flow.getByRole('button', { name: 'Link and import' })
+  await expect(submit).toHaveAttribute('aria-disabled', 'true')
+  await expect(submit).toHaveAccessibleDescription(LINKING_PAUSED)
+  await submit.click({ force: true })
+  await expect(flow).toBeVisible()
+  expect(linkRequests).toBe(0)
 })
 
 test('disables Add a connection when no provider is open to new connections', async ({ page, request }) => {
