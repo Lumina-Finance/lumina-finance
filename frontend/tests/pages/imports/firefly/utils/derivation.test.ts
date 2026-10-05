@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { Category } from '@/api/categories'
-import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
+import { JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE, JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import type { CsvRow } from '@/pages/imports/types'
 import {
@@ -124,6 +124,24 @@ describe('getFireflyImportedCategories', () => {
 
     expect(getFireflyImportedCategories(rows)).toEqual(['Groceries', JOURNAL_NO_CATEGORY_SOURCE])
   })
+
+  // A deposit with no category is income, so it can't share Miscellaneous with the spending
+  it('lists a deposit with no category apart, as money in', () => {
+    const rows = [
+      createWithdrawal('Chequing', 'CAD', { category: '' }),
+      createWithdrawal('Chequing', 'CAD', {
+        type: 'Deposit',
+        amount: '25.00',
+        source_name: 'Sam',
+        source_type: 'Revenue account',
+        destination_name: 'Chequing',
+        destination_type: 'Asset account',
+        category: '',
+      }),
+    ]
+
+    expect(getFireflyImportedCategories(rows)).toEqual([JOURNAL_NO_CATEGORY_SOURCE, JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE])
+  })
 })
 
 describe('inferFireflyCategoryMappings', () => {
@@ -143,6 +161,20 @@ describe('inferFireflyCategoryMappings', () => {
     )
 
     expect(mappings[JOURNAL_NO_CATEGORY_SOURCE]).toBe('miscellaneous')
+  })
+
+  it('matches the money-in placeholder to the seeded Other Income category', () => {
+    const miscellaneous = createCategory({ id: 'miscellaneous', name: 'Miscellaneous', is_system: true })
+    const otherIncome = createCategory({ id: 'other-income', name: 'Other Income', kind: 'income', is_system: true })
+
+    const mappings = inferFireflyCategoryMappings(
+      [JOURNAL_NO_CATEGORY_SOURCE, JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE],
+      {},
+      [miscellaneous, otherIncome],
+      {},
+    )
+
+    expect(mappings).toEqual({ [JOURNAL_NO_CATEGORY_SOURCE]: 'miscellaneous', [JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE]: 'other-income' })
   })
 
   it('keeps an explicit choice for the placeholder over the automatic match', () => {

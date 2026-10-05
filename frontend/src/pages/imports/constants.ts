@@ -38,7 +38,7 @@ export const COLUMN_TARGETS: Array<{
     group: 'optional',
   },
   { id: 'dt', label: 'Date', hint: 'Transaction date.', group: 'required' },
-  { id: 'category_id', label: 'Category', hint: 'Resolved from imported category text. Rows with a blank cell, or every row when no column is mapped, are listed together as (no category) and matched to Miscellaneous, or as (transfer, no category) and matched to Transfer where the row names a transfer account.', group: 'optional' },
+  { id: 'category_id', label: 'Category', hint: 'Resolved from imported category text. Rows without one go to Miscellaneous for money out, Other Income for money in, or Transfer when they name a transfer account.', group: 'optional' },
 
   // The three ways a file can carry the amount, one arrangement of which every import needs. The two
   // sides follow the single column they are an alternative to
@@ -360,9 +360,14 @@ export const SKIPPED_TABLE_VISIBLE_LIMIT = 20
 // step description that states it, so the two cannot disagree about what is on screen
 export const IMPORT_SAMPLE_PREVIEW_LIMIT = 5
 
-// The seeded system category rows with no category are matched to, in every import, since a
-// transaction here always carries one
+// The seeded system category rows with no category that take money out are matched to, since a
+// transaction here always carries a category
 export const IMPORT_MISCELLANEOUS_CATEGORY_NAME = 'Miscellaneous'
+
+// The seeded system category rows with no category that bring money in are matched to, in every
+// import. They are listed apart, because Miscellaneous is an expense category and would count the
+// money as spending
+export const IMPORT_OTHER_INCOME_CATEGORY_NAME = 'Other Income'
 
 // The seeded system category a transfer with no category of its own is matched to, in every import
 export const IMPORT_TRANSFER_CATEGORY_NAME = 'Transfer'

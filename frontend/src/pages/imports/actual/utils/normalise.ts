@@ -1,5 +1,6 @@
-import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
+import { JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE, JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import {
+  IMPORT_OTHER_INCOME_CATEGORY_NAME,
   IMPORT_TAG_NAME_MAX_LENGTH,
   IMPORT_TRANSFER_CATEGORY_NAME,
   JOURNAL_ROW_FIELD_MAX_LENGTHS,
@@ -13,6 +14,7 @@ import { BALANCE_ADJUSTMENT_CATEGORY_NAME } from '@/utils/transfers'
 import {
   ACTUAL_ACCOUNT_TYPES,
   ACTUAL_OFF_BUDGET_CATEGORY_SOURCE_PREFIX,
+  ACTUAL_OFF_BUDGET_MONEY_IN_CATEGORY_SOURCE_PREFIX,
   ACTUAL_TRANSACTION_DECIMALS,
   ACTUAL_TRANSFER_SIDE_LEFT_OUT_REASON,
   ACTUAL_TRANSFER_CATEGORY_SOURCE_PREFIX,
@@ -182,12 +184,16 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
 
     const category = countedCategory(transaction, account)
     const role: ActualCategoryRole = category ? 'spending' : account.offBudget ? 'offBudgetUncategorized' : 'uncategorized'
+
+    // A row with no category that brings money in is listed apart, so its income isn't filed with
+    // the spending
+    const isUncategorizedMoneyIn = !category && transaction.amount > 0
     entries.push({
       ...base,
       ...getOneSidedAccounts(transaction, account),
       payeeName: payee?.name || null,
       counterpartAccountName: null,
-      categorySourceId: categoryUses.add(role, category, account.offBudget ? account : null),
+      categorySourceId: categoryUses.add(role, category, account.offBudget ? account : null, 1, isUncategorizedMoneyIn),
       categoryLeg: null,
     })
   }
@@ -409,11 +415,18 @@ function countBy(values: string[]) {
 
 /** Collects the category sources rows use, counting rows so the steps can say how many each files */
 class CategoryUses {
-  private readonly uses = new Map<string, { role: ActualCategoryRole; categoryId: string | null; accountId: string | null; count: number }>()
+  private readonly uses = new Map<string, {
+    role: ActualCategoryRole
+    categoryId: string | null
+    accountId: string | null
+    isMoneyIn: boolean
+    count: number
+  }>()
 
-  add(role: ActualCategoryRole, category: ActualCategory | null, account: ActualAccount | null, count = 1) {
-    const id = getCategorySourceId(role, category?.id ?? null, account?.id ?? null)
-    const use = this.uses.get(id) ?? { role, categoryId: category?.id ?? null, accountId: account?.id ?? null, count: 0 }
+  /** @param isMoneyIn - Whether an uncategorized row brings money in, which files it apart */
+  add(role: ActualCategoryRole, category: ActualCategory | null, account: ActualAccount | null, count = 1, isMoneyIn = false) {
+    const id = getCategorySourceId(role, category?.id ?? null, account?.id ?? null, isMoneyIn)
+    const use = this.uses.get(id) ?? { role, categoryId: category?.id ?? null, accountId: account?.id ?? null, isMoneyIn, count: 0 }
     use.count += count
     this.uses.set(id, use)
     return id
@@ -434,20 +447,26 @@ class CategoryUses {
       const category = use.categoryId ? categoryById.get(use.categoryId) : undefined
       const accountName = use.accountId ? accountById.get(use.accountId)?.name ?? '' : ''
       const name = category ? getActualCategoryName(category, categories) : ''
-      const labels = getSourceLabels(use.role, name, accountName)
+      const labels = getSourceLabels(use.role, name, accountName, use.isMoneyIn)
       return {
         id,
         role: use.role,
         ...labels,
         categoryId: use.categoryId,
         accountId: use.accountId,
-        isIncome: category?.isIncome ?? false,
+        isIncome: category?.isIncome ?? use.isMoneyIn,
         rowCount: use.count,
       }
     })
 
+    // Uncategorized money in follows the money out of the same role, as the other imports list it
     const roleOrder: ActualCategoryRole[] = ['spending', 'transfer', 'uncategorized', 'offBudgetUncategorized']
-    return sources.sort((a, b) => roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role) || a.label.localeCompare(b.label))
+    const isUncategorizedMoneyIn = (source: ActualCategorySource) => !source.categoryId && source.isIncome
+    return sources.sort((a, b) => (
+      roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role)
+      || Number(isUncategorizedMoneyIn(a)) - Number(isUncategorizedMoneyIn(b))
+      || a.label.localeCompare(b.label)
+    ))
   }
 }
 
@@ -463,11 +482,14 @@ export function getActualTransferSourceId(categoryId: string | null) {
   return `${ACTUAL_TRANSFER_CATEGORY_SOURCE_PREFIX}${categoryId ?? ''}`
 }
 
-function getCategorySourceId(role: ActualCategoryRole, categoryId: string | null, accountId: string | null) {
+function getCategorySourceId(role: ActualCategoryRole, categoryId: string | null, accountId: string | null, isMoneyIn = false) {
   if (role === 'spending') return categoryId ?? JOURNAL_NO_CATEGORY_SOURCE
   if (role === 'transfer') return getActualTransferSourceId(categoryId)
-  if (role === 'offBudgetUncategorized') return `${ACTUAL_OFF_BUDGET_CATEGORY_SOURCE_PREFIX}${accountId ?? ''}`
-  return JOURNAL_NO_CATEGORY_SOURCE
+  if (role === 'offBudgetUncategorized') {
+    const prefix = isMoneyIn ? ACTUAL_OFF_BUDGET_MONEY_IN_CATEGORY_SOURCE_PREFIX : ACTUAL_OFF_BUDGET_CATEGORY_SOURCE_PREFIX
+    return `${prefix}${accountId ?? ''}`
+  }
+  return isMoneyIn ? JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE : JOURNAL_NO_CATEGORY_SOURCE
 }
 
 /**
@@ -475,13 +497,17 @@ function getCategorySourceId(role: ActualCategoryRole, categoryId: string | null
  * source needs a name apart from its spending source, since one Lumina category can't be both, and a
  * spending source named after a built-in category that can't carry spending needs one of its own
  */
-function getSourceLabels(role: ActualCategoryRole, name: string, accountName: string) {
+function getSourceLabels(role: ActualCategoryRole, name: string, accountName: string, isMoneyIn: boolean) {
   if (role === 'transfer') {
     if (!name) return { label: 'Transfers whose other side is missing', createName: 'Transfer' }
     return { label: `${name} (transfers in Actual)`, createName: `${name} Transfers` }
   }
-  if (role === 'offBudgetUncategorized') return { label: `No category · ${accountName}`, createName: accountName }
-  if (role === 'uncategorized') return { label: 'No category', createName: 'Miscellaneous' }
+  if (role === 'offBudgetUncategorized') {
+    return { label: `(${isMoneyIn ? 'deposit' : 'withdrawal'}, no category) · ${accountName}`, createName: isMoneyIn ? `${accountName} Income` : accountName }
+  }
+  if (role === 'uncategorized') {
+    return { label: `(${isMoneyIn ? 'deposit' : 'withdrawal'}, no category)`, createName: isMoneyIn ? IMPORT_OTHER_INCOME_CATEGORY_NAME : 'Miscellaneous' }
+  }
   const isReserved = ACTUAL_RESERVED_PAYMENT_NAMES.includes(name.toLowerCase())
   return { label: name, createName: isReserved ? `${name} Payments` : name }
 }

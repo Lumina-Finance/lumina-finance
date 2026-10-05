@@ -1,17 +1,17 @@
 import type { AccountType } from '@/api/accounts'
 import type { Category } from '@/api/categories'
-import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
+import { JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE, JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import {
   CREATE_CATEGORY_VALUE,
   getRowNotesTooLongReason,
   getRowTooManyTagsReason,
   MAX_IMPORT_NOTES_LENGTH,
   MAX_IMPORT_TAGS_PER_ROW,
-  IMPORT_MISCELLANEOUS_CATEGORY_NAME,
   IMPORT_TAG_NAME_MAX_LENGTH,
   JOURNAL_ROW_FIELD_MAX_LENGTHS,
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportCategoryKind } from '@/pages/imports/types'
+import { findUnnamedSourceCategory, sortImportedCategorySources } from '@/pages/imports/utils/categoryMatching'
 import { isGroupResource } from '@/pages/imports/utils/resourceScope'
 import {
   FIREFLY_BALANCE_ROW_UNATTACHED_REASON,
@@ -144,6 +144,17 @@ export function isFireflyPayeeRow(row: CsvRow) {
   if (journalType === FIREFLY_TYPE_WITHDRAWAL) return isSourceTracked && !isDestinationTracked
   if (journalType === FIREFLY_TYPE_DEPOSIT) return isDestinationTracked && !isSourceTracked
   return false
+}
+
+/**
+ * Gets the category source a payee row is written with: its own category, or for a row with none,
+ * (money in, no category) on a deposit and (no category) on a withdrawal, so income isn't filed
+ * with the spending
+ */
+export function getFireflyRowCategorySource(row: CsvRow) {
+  const category = row.category?.trim()
+  if (category) return category
+  return row.type?.trim().toLowerCase() === FIREFLY_TYPE_DEPOSIT ? JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE : JOURNAL_NO_CATEGORY_SOURCE
 }
 
 /**
@@ -518,7 +529,7 @@ function getTopTallyValue(tally: Map<string, number> | undefined) {
 
 /**
  * Gets the sorted distinct category sources of the rows written with their category, including the
- * no-category placeholder the backend requires when such a row has no category
+ * no-category placeholders for money out and money in when such rows have no category
  *
  * A category carried only by transfers, balance rows or rows dropped before upload is left out,
  * since the import never writes it and every category sent is created
@@ -526,21 +537,7 @@ function getTopTallyValue(tally: Map<string, number> | undefined) {
  * @param rows - Every row of the export
  */
 export function getFireflyImportedCategories(rows: CsvRow[]): string[] {
-  const categories = new Set<string>()
-  let hasUncategorizedRows = false
-
-  for (const row of getFireflyCategoryUseRows(rows)) {
-    const category = row.category?.trim()
-    if (category) {
-      categories.add(category)
-    } else {
-      hasUncategorizedRows = true
-    }
-  }
-
-  const sorted = [...categories].sort((a, b) => a.localeCompare(b))
-  if (hasUncategorizedRows) sorted.push(JOURNAL_NO_CATEGORY_SOURCE)
-  return sorted
+  return sortImportedCategorySources(getFireflyCategoryUseRows(rows).map(getFireflyRowCategorySource))
 }
 
 /**
@@ -563,7 +560,7 @@ export function buildFireflyCategoryKinds(rows: CsvRow[]): Record<string, Import
   for (const row of getFireflyCategoryUseRows(rows)) {
     const journalType = row.type?.trim().toLowerCase() ?? ''
 
-    const source = row.category?.trim() || JOURNAL_NO_CATEGORY_SOURCE
+    const source = getFireflyRowCategorySource(row)
     const tally = votes.get(source) ?? { expense: 0, income: 0 }
     if (journalType === FIREFLY_TYPE_WITHDRAWAL) {
       tally.expense += 1
@@ -599,12 +596,6 @@ export function inferFireflyCategoryMappings(
     categoriesByName.set(key, bucket)
   }
 
-  // Rows without a category have no name to match on, so they fall to the
-  // seeded catch-all rather than inventing a category of their own
-  const miscellaneous = categories.find((category) => (
-    category.is_system && category.name === IMPORT_MISCELLANEOUS_CATEGORY_NAME
-  ))
-
   const next: Record<string, string> = {}
   for (const source of importedCategories) {
     if (explicitMappings[source]) {
@@ -612,8 +603,11 @@ export function inferFireflyCategoryMappings(
       continue
     }
 
-    if (source === JOURNAL_NO_CATEGORY_SOURCE) {
-      next[source] = miscellaneous ? miscellaneous.id : CREATE_CATEGORY_VALUE
+    // Rows without a category have no name to match on, so they fall to the seeded category for
+    // their direction rather than inventing a category of their own
+    const system = findUnnamedSourceCategory(source, categories)
+    if (system !== undefined) {
+      next[source] = system ? system.id : CREATE_CATEGORY_VALUE
       continue
     }
 

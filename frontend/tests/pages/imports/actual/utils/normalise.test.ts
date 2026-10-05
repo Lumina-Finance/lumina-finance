@@ -139,7 +139,7 @@ describe('normalising Actual Budget exports', () => {
     // Actual blanked the other side of transfers to deleted accounts, so they read as it shows them
     const toDeleted = journal.entries.filter((entry) => ['2026-07-06', '2026-07-07'].includes(entry.date))
     expect(toDeleted.map((entry) => [entry.type, entry.payeeName, label(entry)])).toEqual([
-      ['withdrawal', null, 'No category'],
+      ['withdrawal', null, '(withdrawal, no category)'],
       ['withdrawal', null, 'Car'],
     ])
 
@@ -155,8 +155,8 @@ describe('normalising Actual Budget exports', () => {
       ['spending', 'Travel (Away)', 'Travel (Away)'],
       ['spending', 'Travel (Home)', 'Travel (Home)'],
       ['transfer', 'Car (transfers in Actual)', 'Car Transfers'],
-      ['uncategorized', 'No category', 'Miscellaneous'],
-      ['offBudgetUncategorized', 'No category · Car Loan', 'Car Loan'],
+      ['uncategorized', '(withdrawal, no category)', 'Miscellaneous'],
+      ['offBudgetUncategorized', '(withdrawal, no category) · Car Loan', 'Car Loan'],
     ])
   })
 

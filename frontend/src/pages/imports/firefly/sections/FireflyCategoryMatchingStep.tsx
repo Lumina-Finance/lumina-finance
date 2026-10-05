@@ -5,7 +5,7 @@ import {
 } from '@/pages/imports/constants'
 import { ImportInfoCard } from '@/pages/imports/components'
 import { ImportCategoryMatchingLayout } from '@/pages/imports/sections'
-import { getImportCategoryRenameField } from '@/pages/imports/utils'
+import { getCategorySourceLabel, getImportCategoryRenameField } from '@/pages/imports/utils'
 import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
 
 type FireflyCategoryMatchingStepProps = Pick<
@@ -66,7 +66,7 @@ export function FireflyCategoryMatchingStep({
 
         return {
           id: source,
-          source,
+          source: getCategorySourceLabel(source),
           autoFilled: autoFilledCategories.has(source),
           detailKind,
           detailDisabled: existingMatch,

@@ -17,6 +17,7 @@ export { commitStagedJournalRun, runJournalImport } from '@/api/provider-imports
 export type { JournalImportRequest } from '@/api/provider-imports/run';
 export { useCommitStagedJournalImport, useImportJournal } from '@/api/provider-imports/hooks';
 export {
+  JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE,
   JOURNAL_NO_CATEGORY_SOURCE,
   getJournalRowAccountSources,
   getJournalRowCategorySource,

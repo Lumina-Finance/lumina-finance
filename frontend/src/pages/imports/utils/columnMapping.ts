@@ -1,4 +1,4 @@
-import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
+import { JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE, JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import {
   COLUMN_TARGETS,
   EMPTY_COLUMN_MAP,
@@ -61,7 +61,8 @@ const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
     requiredValues: true,
     accepts: isValidDateValue,
   },
-  // A blank cell is a row with no category, which is filed under (no category) rather than refused
+  // A blank cell is a row with no category, which is filed under one of the no-category sources
+  // rather than refused
   category_id: {
     expected: 'category names',
     accepts: acceptsAnyValue,
@@ -367,13 +368,19 @@ export function getMappedValue(row: CsvRow, header: string) {
 
 /**
  * Reads the category a row is filed under, which is (no category) where its cell is blank or no
- * column is mapped as the category, as it is in the provider imports. Such a row that names a
- * transfer account is a transfer, so it is filed under (transfer, no category) instead
+ * column is mapped as the category. Such a row that names a transfer account is a transfer, so it is
+ * filed under (transfer, no category) instead, and one bringing money in under
+ * (money in, no category), so its income is never filed with the spending
+ *
+ * @param amountReading - The row's amount as `resolveImportAmount` reads it. A row whose amount can't
+ * be read yet, or is zero, says nothing about direction and stays under (no category)
  */
-export function getImportRowCategorySource(row: CsvRow, columnMap: ColumnMap) {
+export function getImportRowCategorySource(row: CsvRow, columnMap: ColumnMap, amountReading: ImportAmountReading | null) {
   const category = getMappedValue(row, columnMap.category_id)
   if (category) return category
-  return getMappedValue(row, columnMap.counterparty_account_id) ? IMPORT_NO_CATEGORY_TRANSFER_SOURCE : JOURNAL_NO_CATEGORY_SOURCE
+  if (getMappedValue(row, columnMap.counterparty_account_id)) return IMPORT_NO_CATEGORY_TRANSFER_SOURCE
+  const isMoneyIn = amountReading !== null && !amountReading.isZero && amountReading.sign !== 'negative'
+  return isMoneyIn ? JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE : JOURNAL_NO_CATEGORY_SOURCE
 }
 
 /**

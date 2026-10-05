@@ -1,6 +1,6 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
-import { JOURNAL_NO_CATEGORY_SOURCE, type JournalImportPayload } from '@/api/provider-imports'
+import type { JournalImportPayload } from '@/api/provider-imports'
 import {
   CREATE_ACCOUNT_VALUE,
   getImportNoRowsError,
@@ -14,6 +14,7 @@ import type { FireflyAccountSources, FireflyImportBuildResult } from '@/pages/im
 import { buildImportAccountMapping, buildImportCategoryMapping } from '@/pages/imports/utils/importMappings'
 import {
   getFireflyRowAmounts,
+  getFireflyRowCategorySource,
   getFireflyRowDate,
   getFireflyRowPayeeName,
   getFireflyRowSentNotes,
@@ -183,13 +184,13 @@ function buildFireflyImportRows(
     // Only the payee a withdrawal pays or a deposit comes from is written, as the merchant
     const payeeName = getFireflyRowPayeeName(row) || null
     const isDeposit = row.type.trim().toLowerCase() === FIREFLY_TYPE_DEPOSIT
-    const category = isFireflyPayeeRow(row) ? cleanOptional(row.category) : null
+    // A payee row without a category is sent with the no-category source for its direction by name,
+    // since the commit would file a null category under (no category), money in included
+    const category = isFireflyPayeeRow(row) ? getFireflyRowCategorySource(row) : null
 
     if (sourceAccount) rowAccountSources.add(sourceAccount.id)
     if (destinationAccount) rowAccountSources.add(destinationAccount.id)
-
-    // The commit files a payee row without a category under the no-category source
-    if (isFireflyPayeeRow(row)) writtenCategorySources.add(category ?? JOURNAL_NO_CATEGORY_SOURCE)
+    if (category) writtenCategorySources.add(category)
 
     payloadRows.push({
       journal_id: row.journal_id.trim(),

@@ -1,10 +1,11 @@
 import type { Category } from '@/api/categories'
-import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
+import { JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE, JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import {
   CREATE_CATEGORY_VALUE,
   CSV_CATEGORY_RENAME_APP_NAME,
   IMPORT_MISCELLANEOUS_CATEGORY_NAME,
   IMPORT_NO_CATEGORY_TRANSFER_SOURCE,
+  IMPORT_OTHER_INCOME_CATEGORY_NAME,
   IMPORT_TRANSFER_CATEGORY_NAME,
   DEBT_PAYMENT_IMPORT_NOTE,
   getCategoryCreateClashError,
@@ -29,7 +30,44 @@ import { getImportRowCategorySource, resolveImportAmount } from './columnMapping
 // have no name to match on, in the order the category step lists them after every named one
 export const SYSTEM_CATEGORY_NAME_BY_UNNAMED_SOURCE: Record<string, string> = {
   [JOURNAL_NO_CATEGORY_SOURCE]: IMPORT_MISCELLANEOUS_CATEGORY_NAME,
+  [JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE]: IMPORT_OTHER_INCOME_CATEGORY_NAME,
   [IMPORT_NO_CATEGORY_TRANSFER_SOURCE]: IMPORT_TRANSFER_CATEGORY_NAME,
+}
+
+const UNNAMED_CATEGORY_SOURCES = Object.keys(SYSTEM_CATEGORY_NAME_BY_UNNAMED_SOURCE)
+
+/**
+ * Sorts the category sources an import lists by name, with those standing for rows with no category
+ * last, in the order the category step lists them
+ */
+export function sortImportedCategorySources(sources: Iterable<string>) {
+  const present = new Set(sources)
+  const named = [...present].filter((source) => !UNNAMED_CATEGORY_SOURCES.includes(source)).sort((a, b) => a.localeCompare(b))
+  return [...named, ...UNNAMED_CATEGORY_SOURCES.filter((source) => present.has(source))]
+}
+
+/**
+ * Gets the seeded category a source standing for rows with no category is matched to, null when the
+ * user's list lacks it, or undefined for a source that names a category
+ */
+export function findUnnamedSourceCategory(source: string, categories: Category[]) {
+  const systemName = SYSTEM_CATEGORY_NAME_BY_UNNAMED_SOURCE[source]
+  if (!systemName) return undefined
+  return categories.find((category) => category.is_system && category.name === systemName) ?? null
+}
+
+// How the category step names the rows with no category, by the direction read from each amount
+const UNNAMED_SOURCE_LABELS: Record<string, string> = {
+  [JOURNAL_NO_CATEGORY_SOURCE]: '(withdrawal, no category)',
+  [JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE]: '(deposit, no category)',
+}
+
+/**
+ * Names a category source in the category step, saying which way the money of rows with no category
+ * moves
+ */
+export function getCategorySourceLabel(source: string) {
+  return UNNAMED_SOURCE_LABELS[source] ?? source
 }
 
 /**
@@ -49,8 +87,8 @@ export function splitImportedValues(value: string) {
  *
  * Rows with an amount of zero or an amount that cannot be read are ignored, since neither says
  * anything about direction, and every name is left blank until an arrangement carrying the amount
- * has been mapped. A row with no category is read under (no category), or (transfer, no category)
- * where it names a transfer account, the way the commit files it
+ * has been mapped. A row with no category is read under (no category), (money in, no category) or
+ * (transfer, no category), the way the commit files it
  *
  * Each row's amount is read the same way the commit reads it, so a file stating its direction
  * outside the amount, in separate columns or in a column of words, is judged on the direction it
@@ -78,9 +116,8 @@ export function getImportedCategoryTypes(
     if (!amountHeaders.some((header) => file.headers.includes(header))) continue
 
     for (const row of file.rows) {
-      const category = getImportRowCategorySource(row, columnMap)
-
       const amount = resolveImportAmount(row, columnMap, directionAnswers, amountFormat).amountReading
+      const category = getImportRowCategorySource(row, columnMap, amount)
       if (!amount || amount.isZero) continue
 
       const signs = signsByCategory.get(category) ?? new Set<'expense' | 'income'>()
@@ -158,8 +195,9 @@ export function keepCurrentMatchMap(
  * the user's own wins over a group's and a group's over one that ships with the app, and a name
  * still tied after that is left unmatched rather than settled by chance
  *
- * Rows with no category have no name to match on, so (no category) goes to the seeded Miscellaneous
- * and (transfer, no category) to the seeded Transfer, as they do in the provider imports
+ * Rows with no category have no name to match on, so (no category) goes to the seeded Miscellaneous,
+ * (money in, no category) to the seeded Other Income and (transfer, no category) to the seeded
+ * Transfer
  */
 export function inferCategoryMappings(
   importedCategories: string[],
@@ -171,9 +209,8 @@ export function inferCategoryMappings(
   for (const source of importedCategories) {
     if (next[source]) continue
 
-    const systemName = SYSTEM_CATEGORY_NAME_BY_UNNAMED_SOURCE[source]
-    if (systemName) {
-      const system = categories.find((category) => category.is_system && category.name === systemName)
+    const system = findUnnamedSourceCategory(source, categories)
+    if (system !== undefined) {
       if (system) next[source] = system.id
       continue
     }

@@ -27,15 +27,15 @@ import type {
   ColumnMap,
   CsvRow,
   ImportAccountSource,
+  ImportAmountDirection,
   ImportFileDraft,
   ImportUploadBlock,
 } from '@/pages/imports/types'
 import { getImportAccountName } from './accountMapping'
-import { getImportRowCategorySource } from './columnMapping'
-import { splitImportedValues, SYSTEM_CATEGORY_NAME_BY_UNNAMED_SOURCE } from './categoryMatching'
+import { DEFAULT_IMPORT_AMOUNT_FORMAT, type ImportAmountFormat } from './amountFormats'
+import { getImportRowCategorySource, resolveImportAmount } from './columnMapping'
+import { sortImportedCategorySources, splitImportedValues } from './categoryMatching'
 import { unique } from './common'
-
-const UNNAMED_CATEGORY_SOURCES = Object.keys(SYSTEM_CATEGORY_NAME_BY_UNNAMED_SOURCE)
 
 // Marks an account that is hidden everywhere else in the app, kept short because it renders as a
 // pill beside the account name. Only the counterparty list offers one, since nothing is written to
@@ -268,16 +268,23 @@ export function buildImportAccountMappingSources(
 }
 
 /**
- * Gets the categories the rows are filed under, sorted, with (no category) and then
- * (transfer, no category) last where any row is filed under them, as the provider imports list them
+ * Gets the categories the rows are filed under, sorted, with (no category), (money in, no category)
+ * and then (transfer, no category) last where any row is filed under them
  *
  * A row has no category where its cell is blank or no column is mapped as the category, so with no
- * column every row is listed under one of the two
+ * column every row is listed under one of the three. Each row's amount is read the way the commit
+ * reads it, so a row is listed under the source it is sent with
  */
-export function getImportedCategories(files: ImportFileDraft[], columnMap: ColumnMap): string[] {
-  const sources = new Set(files.flatMap((file) => file.rows.map((row) => getImportRowCategorySource(row, columnMap))))
-  const named = [...sources].filter((source) => !UNNAMED_CATEGORY_SOURCES.includes(source)).sort((a, b) => a.localeCompare(b))
-  return [...named, ...UNNAMED_CATEGORY_SOURCES.filter((source) => sources.has(source))]
+export function getImportedCategories(
+  files: ImportFileDraft[],
+  columnMap: ColumnMap,
+  directionAnswers: Record<string, ImportAmountDirection>,
+  amountFormat: ImportAmountFormat | null = DEFAULT_IMPORT_AMOUNT_FORMAT,
+): string[] {
+  return sortImportedCategorySources(files.flatMap((file) => file.rows.map((row) => {
+    const { amountReading } = resolveImportAmount(row, columnMap, directionAnswers, amountFormat)
+    return getImportRowCategorySource(row, columnMap, amountReading)
+  })))
 }
 
 /**

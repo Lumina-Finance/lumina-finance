@@ -172,7 +172,7 @@ describe('import workflow option helpers', () => {
       { id: 'Main', label: 'Main', matchText: 'Main', isCounterpartyOnly: false },
       { id: 'Visa', label: 'Visa', matchText: 'Visa', isCounterpartyOnly: false },
     ])
-    expect(getImportedCategories(files, { ...EMPTY_COLUMN_MAP, category_id: 'Category' })).toEqual(['Groceries', 'Rent'])
+    expect(getImportedCategories(files, { ...EMPTY_COLUMN_MAP, category_id: 'Category' }, {})).toEqual(['Groceries', 'Rent'])
     expect(getImportedMerchants(files, 'Merchant')).toEqual(['Landlord', 'Market'])
     expect(getImportedTags(files, 'Tags')).toEqual(['essentials', 'food', 'housing'])
   })

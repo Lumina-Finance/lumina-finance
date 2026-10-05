@@ -24,6 +24,7 @@ function category(id: string, name: string, kind: Category['kind'], isSystem = f
 }
 
 const MISCELLANEOUS = category('misc', 'Miscellaneous', 'expense', true)
+const OTHER_INCOME = category('other-income', 'Other Income', 'income', true)
 const TRANSFER = category('transfer', 'Transfer', 'transfer', true)
 const BALANCE_ADJUSTMENT = category('balance', 'Balance Adjustment', 'transfer', true)
 const GROCERIES = category('groceries', 'groceries', 'expense')
@@ -45,8 +46,8 @@ describe('Actual Budget category defaults', () => {
       'Travel (Away)': CREATE_CATEGORY_VALUE,
       'Travel (Home)': CREATE_CATEGORY_VALUE,
       'Car (transfers in Actual)': CAR_TRANSFERS.id,
-      'No category': MISCELLANEOUS.id,
-      'No category · Car Loan': MISCELLANEOUS.id,
+      '(withdrawal, no category)': MISCELLANEOUS.id,
+      '(withdrawal, no category) · Car Loan': MISCELLANEOUS.id,
     })
   })
 
@@ -55,6 +56,26 @@ describe('Actual Budget category defaults', () => {
     const groceries = journal.categories.find((source) => source.label === 'Groceries')!
 
     expect(inferActualCategoryMappings(journal.categories, { [groceries.id]: MISCELLANEOUS.id }, CATEGORIES)[groceries.id]).toBe(MISCELLANEOUS.id)
+  })
+
+  // Money in with no category is income, so it can't share Miscellaneous with the spending, on the
+  // budget or in an off-budget account
+  it('lists money in with no category apart from money out, and files it under Other Income', () => {
+    const journal = normaliseActualBudget(buildActualBudget([
+      { id: 'paid', accountId: 'checking', date: '2026-09-01', amount: 50000 },
+      { id: 'spent', accountId: 'checking', date: '2026-09-02', amount: -2000, payeeId: 'shop' },
+      { id: 'refund', accountId: 'loan', date: '2026-09-03', amount: 10000 },
+      { id: 'fee', accountId: 'loan', date: '2026-09-04', amount: -2500 },
+    ]), '2026-09-26')
+    const mappings = inferActualCategoryMappings(journal.categories, {}, [...CATEGORIES, OTHER_INCOME])
+
+    expect(journal.categories.map((source) => [source.label, source.createName, mappings[source.id]])).toEqual([
+      ['(withdrawal, no category)', 'Miscellaneous', MISCELLANEOUS.id],
+      ['(deposit, no category)', 'Other Income', OTHER_INCOME.id],
+      ['(withdrawal, no category) · Loan', 'Loan', MISCELLANEOUS.id],
+      ['(deposit, no category) · Loan', 'Loan Income', OTHER_INCOME.id],
+    ])
+    expect(journal.categories.map(getActualCategoryKind)).toEqual(['expense', 'income', 'expense', 'income'])
   })
 
   it('offers a transfer row only categories that record the other account', () => {
