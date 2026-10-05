@@ -64,8 +64,7 @@ interface BankReviewBlockProps {
  * The bank items waiting for review above the transaction list: new items, corrections and removals
  * that stay outside the ledger and every balance until the user acts on them
  *
- * The rows open nothing yet. The review modal and the comparison each make a row a button that opens
- * its item, which is why a row holds its content in a single element under its divider
+ * A row shows its item and opens nothing, holding its content in a single element under its divider
  */
 export default function BankReviewBlock({
   items,
@@ -157,7 +156,7 @@ export default function BankReviewBlock({
                 role="listitem"
 
                 // Focusable from a Needs review marker, so a screen reader moves to the item too, but
-                // never a tab stop, since the row opens nothing yet
+                // never a tab stop, since the row opens nothing
                 tabIndex={-1}
                 className="overflow-hidden focus:outline-none"
                 initial={skipEnterAnimation ? false : collapsedRow}
