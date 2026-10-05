@@ -292,6 +292,17 @@ async def test_run_jobs_claims_no_more_than_its_count_and_nothing_that_could_run
     assert sorted(status for status, _ in (await _job_states()).values()) == ["queued"] * (3 - claimed) + ["succeeded"] * claimed
 
 
+async def test_run_jobs_without_an_email_sender_claims_no_job(connections, monkeypatch):
+    """A runner with no sender installed stops before claiming, rather than running jobs whose action-needed emails would all be lost"""
+    monkeypatch.setattr(email_contract, "_active_sender", None)
+    job = await _seed_job(connections[0], BankSyncJobKind.SCHEDULED)
+
+    with pytest.raises(RuntimeError, match="No email sender installed"):
+        await run_jobs(1)
+
+    assert await _job_states() == {job.id: ("queued", 0)}
+
+
 @pytest.mark.parametrize(
     ("attempts_so_far", "runs_again"),
     [(MAX_JOB_ATTEMPTS - 1, True), (MAX_JOB_ATTEMPTS, False)],

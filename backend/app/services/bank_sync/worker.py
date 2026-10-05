@@ -36,7 +36,7 @@ from app.services.bank_sync.jobs import (
 )
 from app.services.bank_sync.providers.contract import ProviderError
 from app.services.bank_sync.sync import fail_sync_job, run_sync_job
-from app.services.email import build_email_sender, set_email_sender
+from app.services.email import build_email_sender, get_email_sender, set_email_sender
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +107,12 @@ async def run_jobs(max_jobs: int, deadline: datetime | None = None) -> int:
     Args:
         max_jobs: Most jobs to claim
         deadline: When the caller must have returned, as an aware time, or None to have no limit
+
+    Raises:
+        RuntimeError: No email sender is installed, found before any job is claimed, since every
+            action-needed email the jobs started would otherwise be lost
     """
+    get_email_sender()
     claimed = 0
     while claimed < max_jobs and (deadline is None or datetime.now(UTC) + JOB_TIME_LIMIT <= deadline):
         async with async_session() as db:
