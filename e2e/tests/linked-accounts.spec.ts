@@ -10,6 +10,7 @@ import {
   todayInTestTimezone,
 } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support/app'
+import { answerAsBankImported, BANK_SOURCE } from '../support/bankSync'
 import { API_BASE_URL } from '../support/target'
 
 // A linked account's bank supplies its transactions from the import start through today, so the
@@ -23,22 +24,6 @@ const IMPORT_START = '2026-01-01'
 const SUPPLIED_DAYS_MESSAGE = "SimpleFIN supplies this account's transactions from Jan 1, 2026 to today"
 const MOVE_REFUSAL = "Transactions from SimpleFIN can't move out of Everyday while it's linked"
 const ARCHIVE_LINKED_REASON = "This account can't be archived while it's linked to SimpleFIN. Unlink it first."
-
-// Where a bank transaction came from, as the app reads it alongside the transaction
-const BANK_SOURCE = {
-  provider: 'simplefin',
-  provider_name: 'SimpleFIN',
-  bank_values: {
-    date: '2026-01-15',
-    amount: -4250,
-    raw_amount: null,
-    description: 'GROCER 123',
-    merchant_name: null,
-    category_hint: null,
-  },
-  edited_fields: [],
-  review_item_id: null,
-}
 
 // The layout puts Date, Currency and Amount side by side from this width
 const FIELD_ROW_MIN_WIDTH = 640
@@ -73,25 +58,6 @@ async function answerLinksWith(page: Page, accountIds: () => string[]): Promise<
       balance: null,
     })),
   }))
-}
-
-/**
- * Answers the app's reads of one transaction as imported from the bank, since nothing links an
- * account on the server for a sync to import one
- */
-async function answerAsBankImported(page: Page, transactionId: string): Promise<void> {
-  const isTransactionRead = (url: URL) =>
-    url.href.startsWith(`${API_BASE_URL}/transactions?`) || url.href === `${API_BASE_URL}/transactions/${transactionId}`
-  await page.route(isTransactionRead, async (route) => {
-    if (route.request().method() !== 'GET') return route.fallback()
-
-    // Retried, since the instance now and then drops a reused connection, which the browser would retry
-    const response = await route.fetch({ maxRetries: 2 })
-    const body = await response.json() as { id: string } | { id: string }[]
-    const markImported = (transaction: { id: string }) =>
-      transaction.id === transactionId ? { ...transaction, bank_source: BANK_SOURCE } : transaction
-    await route.fulfill({ response, json: Array.isArray(body) ? body.map(markImported) : markImported(body) })
-  })
 }
 
 /**
@@ -316,7 +282,7 @@ test('keeps a bank transaction in its linked account, refusing the move on the a
     date: '2026-01-15',
   })
   await answerLinksWith(page, () => [account.id])
-  await answerAsBankImported(page, id)
+  await answerAsBankImported(page, { [id]: BANK_SOURCE })
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${account.id}`)
   const dialog = page.getByRole('dialog', { name: 'Edit Transaction', exact: true })
