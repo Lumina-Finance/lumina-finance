@@ -12,10 +12,11 @@ It lives under tests/ because the production image copies only app/, alembic/ an
 Backend tests mount it in-process through FakeBridgeTransport. To run it as a server, from backend/
 with the backend's environment:
 
-    uvicorn --app-dir tests fake_simplefin_bridge:app --host 127.0.0.1 --port 8790
+    BANK_SYNC_SIMPLEFIN_TEST_ORIGIN=http://127.0.0.1:8790 uvicorn --app-dir tests fake_simplefin_bridge:app --host 127.0.0.1 --port 8790
 
 --app-dir loads it as a package of its own, so tests/__init__.py, which points the process at the
-test database, doesn't run
+test database, doesn't run. BANK_SYNC_SIMPLEFIN_TEST_ORIGIN is the origin the app is given for the
+fake, and its setup tokens point there whatever address minted them
 """
 
 import asyncio

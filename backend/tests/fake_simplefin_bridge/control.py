@@ -5,6 +5,7 @@ Every change shows in the next protocol response. Errors and the fault stay unti
 
 import base64
 import dataclasses
+import os
 import secrets
 from datetime import UTC, date, datetime, time
 from typing import Self
@@ -21,6 +22,12 @@ BANK_DATE_STAMP_TIME = time(12, tzinfo=UTC)
 
 # The status an HTML error page comes with unless the fault names another
 DEFAULT_HTML_ERROR_STATUS = status.HTTP_403_FORBIDDEN
+
+# The origin the app is told to reach the fake at, read from the app's own setting so the two can't
+# disagree. Setup tokens point there, so one minted at another address, such as the port a browser
+# test's machine reaches, still sends the app's claim somewhere the app can reach. Unset when the
+# fake is mounted in-process, and then a token points wherever its caller reached the fake
+APP_ORIGIN = os.getenv("BANK_SYNC_SIMPLEFIN_TEST_ORIGIN", "").strip().rstrip("/")
 
 
 class AddConnectionRequest(BaseModel):
@@ -256,8 +263,9 @@ async def revoke_access(scenario_id: str):
 
 
 def _setup_token(request: Request, scenario: Scenario) -> str:
-    """Return a setup token, the base64 of a claim URL on whatever address the caller reached the fake at"""
-    claim_url = f"{request.base_url}simplefin/claim/{bridge.mint_setup_token(scenario)}"
+    """Return a setup token, the base64 of a claim URL on the app's origin for the fake, or else on whatever address the caller reached it at"""
+    base_url = f"{APP_ORIGIN}/" if APP_ORIGIN else str(request.base_url)
+    claim_url = f"{base_url}simplefin/claim/{bridge.mint_setup_token(scenario)}"
     return base64.b64encode(claim_url.encode()).decode()
 
 
