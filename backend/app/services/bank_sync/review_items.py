@@ -22,11 +22,14 @@ from app.models.user import User
 from app.schemas.bank_review import BankReviewCountsResponse, BankReviewItemResponse, BankReviewPageResponse
 from app.schemas.bank_sync import BankValues
 from app.services.accounts.access import get_own_personal_account, own_personal_account_condition
-from app.services.bank_sync.availability import LINK_NOT_OWN_DETAIL, PROVIDER_ADAPTERS
+from app.services.bank_sync.availability import PROVIDER_ADAPTERS
 from app.services.bank_sync.review_state import edited_fields
 
 # The most items one page holds, so an import that leaves hundreds waiting loads a page at a time
 REVIEW_PAGE_SIZE = 50
+
+# Why the list refuses an account the user can see but doesn't own alone
+_NOT_OWN_DETAIL = "Bank items are only listed for your own accounts"
 
 # Separates the bank date and the id of the last item a page returned, which its cursor carries
 _CURSOR_SEPARATOR = "_"
@@ -67,7 +70,7 @@ async def list_review_items(
     """
     scope = [_IS_REVIEW_ITEM, own_personal_account_condition(user.id)]
     if account_id is not None:
-        await get_own_personal_account(db, account_id, user.id, not_own_detail=LINK_NOT_OWN_DETAIL)
+        await get_own_personal_account(db, account_id, user.id, not_own_detail=_NOT_OWN_DETAIL)
         scope.append(BankTransaction.account_id == account_id)
 
     # One row past the page says whether another page follows
