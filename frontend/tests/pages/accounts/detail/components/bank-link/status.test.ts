@@ -50,13 +50,13 @@ describe('describeBankSync', () => {
     expect(describeBankSync(true, status, false)).toEqual({ label: 'Choose bank account', tone: 'stopped', pulse: false })
   })
 
-  it('counts the import windows, blinking only while the import fetches', () => {
+  it('reads as importing, without the count its progress shows, blinking only while the import fetches', () => {
     const running = createStatus({ link: createLink({ import: createImport() }) })
-    expect(describeBankSync(true, running, false)).toEqual({ label: 'Importing · 1 of 2', tone: 'working', pulse: true })
+    expect(describeBankSync(true, running, false)).toEqual({ label: 'Importing', tone: 'working', pulse: true })
 
     for (const state of ['waiting', 'waiting_on_budget'] as const) {
       const waiting = createStatus({ link: createLink({ import: createImport({ state }) }) })
-      expect(describeBankSync(true, waiting, false)).toEqual({ label: 'Importing · 1 of 2', tone: 'working', pulse: false })
+      expect(describeBankSync(true, waiting, false)).toEqual({ label: 'Importing', tone: 'working', pulse: false })
     }
   })
 

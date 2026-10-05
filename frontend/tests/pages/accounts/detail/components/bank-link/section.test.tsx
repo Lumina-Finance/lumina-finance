@@ -108,7 +108,8 @@ describe('BankLinkSection', () => {
       expect(markup).toContain(fact)
     }
     expect(markup).toContain('Status')
-    expect(markup).toContain('Importing · 1 of 2')
+    // The count shows once, on the import's progress, and the status reads plainly as importing
+    expect(markup).toContain('style="opacity:1">Importing</span>')
     expect(markup).toContain('Importing from Jun 1, 2026')
     expect(markup).toContain('12 found · 1 of 2')
     expect(markup).toMatch(/role="progressbar"[^>]*aria-valuemax="2"[^>]*aria-valuenow="1"/)

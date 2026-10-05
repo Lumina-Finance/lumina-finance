@@ -38,13 +38,8 @@ export function describeBankSync(ownPersonal: boolean, status: AccountBankStatus
   const { link } = status
   if (!link) return { label: 'Not linked', tone: 'off', pulse: false }
   if (link.state === 'choose_account') return { label: 'Choose bank account', tone: 'stopped', pulse: false }
-  if (link.import) {
-    return {
-      label: `Importing · ${link.import.windows_done} of ${link.import.windows_total}`,
-      tone: 'working',
-      pulse: link.import.state === 'running',
-    }
-  }
+  // The count sits on the import's own progress beneath, so it isn't repeated here
+  if (link.import) return { label: 'Importing', tone: 'working', pulse: link.import.state === 'running' }
   return { label: 'Linked', tone: 'ok', pulse: false }
 }
 
