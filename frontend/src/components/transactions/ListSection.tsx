@@ -36,7 +36,7 @@ import { getTransactionReadOnlyReason } from '@/components/transactions/utils/ro
 import { getImportBlockReason, isImportableAccount } from '@/utils/importableAccount'
 import { TRANSACTION_FILTER_KEYS, TRANSACTION_LIST_EASE } from '@/components/transactions/constants/transactionList'
 import TransactionDateGroupList from '@/components/transactions/DateGroupList'
-import BankReviewSection, { type ReviewFocusRequest } from '@/components/transactions/bank-review/ReviewSection'
+import { BankReviewSection, type ReviewFocusRequest } from '@/components/transactions/bank-review/ReviewSection'
 import TransactionFilterLoadingOverlay from '@/components/transactions/FilterLoadingOverlay'
 import TransactionListToolbar from '@/components/transactions/toolbar/ListToolbar'
 import { useTransactionFilterLoadingState } from '@/components/transactions/hooks/useTransactionFilterLoadingState'

@@ -35,8 +35,8 @@ vi.mock('@/hooks/useAuth', () => ({
 }))
 vi.mock('@/hooks/useTodayYmd', () => ({ useTodayYmd: () => '2026-10-05' }))
 
-import BankReviewBlock from '@/components/transactions/bank-review/ReviewBlock'
-import BankReviewSection from '@/components/transactions/bank-review/ReviewSection'
+import { BankReviewBlock } from '@/components/transactions/bank-review/ReviewBlock'
+import { BankReviewSection } from '@/components/transactions/bank-review/ReviewSection'
 
 const MINUS = String.fromCodePoint(0x2212)
 

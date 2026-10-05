@@ -5,10 +5,16 @@ import { useReviewBacklogs, useReviewItems } from '@/api/bank-sync'
 import LoadFailure from '@/components/errors/LoadFailure'
 import { useAuth } from '@/hooks/useAuth'
 import { useTodayYmd } from '@/hooks/useTodayYmd'
-import BankReviewBlock, {
+import {
+  BankReviewBlock,
   COLLAPSED_ITEM_COUNT,
   type ReviewItemAccount,
 } from '@/components/transactions/bank-review/ReviewBlock'
+import {
+  TRANSACTION_LIST_EASE,
+  TRANSACTION_LIST_ENTER_DURATION_S,
+  TRANSACTION_LIST_EXIT_DURATION_S,
+} from '@/components/transactions/constants/transactionList'
 import { useInfiniteScrollTrigger } from '@/components/transactions/hooks/useInfiniteScrollTrigger'
 import { useSkipAppendedEnter } from '@/components/transactions/hooks/useSkipAppendedEnter'
 import {
@@ -16,8 +22,6 @@ import {
   getReviewAccountIds,
   isOwnPersonalAccount,
 } from '@/components/transactions/utils/bankReview'
-
-const SECTION_EASE = [0.22, 1, 0.36, 1] as const
 
 // How long a row stays ringed after a Needs review marker went to it
 const JUMP_HIGHLIGHT_MS = 1800
@@ -29,14 +33,14 @@ const SETTLED_FRAMES = 2
 /**
  * A request from a Needs review marker to go to its item
  */
-export interface ReviewFocusRequest {
+export type ReviewFocusRequest = {
   itemId: string
 
   // Changes on every request, so asking for the same item twice still goes to it
   nonce: number
 }
 
-interface BankReviewSectionProps {
+type BankReviewSectionProps = {
   /** The accounts the transaction list is filtered or fixed to, empty or absent when it shows every account */
   listAccountIds: string[] | undefined
 
@@ -77,7 +81,7 @@ function whenSettled(element: HTMLElement, onSettled: () => void): () => void {
  * item is past the first few, loads pages until the item is among them, then scrolls to it, focuses
  * it and rings it for a moment. A page that fails to load ends the request where it is
  */
-export default function BankReviewSection({
+export function BankReviewSection({
   listAccountIds,
   isFixedAccount,
   focusRequest,
@@ -184,8 +188,12 @@ export default function BankReviewSection({
   })
   const skipAppendedEnter = useSkipAppendedEnter(isFetchingNextPage)
 
-  const blockTransition = { duration: prefersReducedMotion ? 0 : 0.28, ease: SECTION_EASE }
+  const enterTransition = { duration: prefersReducedMotion ? 0 : TRANSACTION_LIST_ENTER_DURATION_S, ease: TRANSACTION_LIST_EASE }
   const collapsed = prefersReducedMotion ? { opacity: 0 } : { height: 0, opacity: 0 }
+  const leave = {
+    ...collapsed,
+    transition: { duration: prefersReducedMotion ? 0 : TRANSACTION_LIST_EXIT_DURATION_S, ease: TRANSACTION_LIST_EASE },
+  }
 
   return (
     <>
@@ -197,8 +205,8 @@ export default function BankReviewSection({
             className="overflow-hidden"
             initial={collapsed}
             animate={{ height: 'auto', opacity: 1 }}
-            exit={collapsed}
-            transition={blockTransition}
+            exit={leave}
+            transition={enterTransition}
           >
             <div className="pb-3 pt-1">
               <BankReviewBlock

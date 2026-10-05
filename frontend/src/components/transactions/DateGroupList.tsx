@@ -18,6 +18,8 @@ import {
   TRANSACTION_CHECKBOX_RAIL_VARIABLE,
   TRANSACTION_CHECKBOX_RAIL_WIDTH,
   TRANSACTION_LIST_EASE,
+  TRANSACTION_LIST_ENTER_DURATION_S,
+  TRANSACTION_LIST_EXIT_DURATION_S,
   TRANSACTION_ROW_GAP_BELOW_PINNED_BARS_PX,
   TRANSACTION_ROW_SCROLL_MARGIN_VARIABLE,
 } from '@/components/transactions/constants/transactionList'
@@ -167,10 +169,10 @@ export default function TransactionDateGroupList({
                       opacity: 0,
                       height: 0,
                       overflow: 'hidden',
-                      transition: { duration: 0.26, ease: TRANSACTION_LIST_EASE },
+                      transition: { duration: TRANSACTION_LIST_EXIT_DURATION_S, ease: TRANSACTION_LIST_EASE },
                     }
               }
-              transition={{ duration: prefersReducedMotion ? 0 : 0.28, ease: TRANSACTION_LIST_EASE }}
+              transition={{ duration: prefersReducedMotion ? 0 : TRANSACTION_LIST_ENTER_DURATION_S, ease: TRANSACTION_LIST_EASE }}
             >
             <div
               data-testid="day-heading"
