@@ -1,12 +1,13 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { createAccount, signUpUser, TEST_TIMEZONE, todayInTestTimezone, type TestUser } from '../support/api'
+import { createAccount, formatToday, signUpUser, todayInTestTimezone, type TestUser } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
 import {
   addBridgeBankAccount,
   addBridgeBankLogin,
   breakBridge,
   changeBridgeBankAccountId,
+  changeProviders,
   claimSetupToken,
   createBridgeSetupToken,
   createEmptyBridgeScenario,
@@ -28,13 +29,6 @@ const SAMPLE_CHEQUING = 'Everyday Chequing'
 const SAMPLE_VISA = 'Rewards Visa'
 const ADDING_PAUSED = "Bank sync isn't running right now. You can add one once it's back."
 const LINKING_PAUSED = "Bank sync isn't running right now. You can link accounts once it's back."
-
-/**
- * Today as the app shows the day a connection was added, in the zone the user signed up with
- */
-function formatToday(): string {
-  return new Intl.DateTimeFormat('en-CA', { month: 'short', day: 'numeric', year: 'numeric', timeZone: TEST_TIMEZONE }).format(new Date())
-}
 
 /**
  * The first day of the month a number of months before this one, as YYYY-MM-DD
@@ -85,13 +79,6 @@ async function changeAnswer<T>(page: Page, path: string, change: (body: T) => vo
     await change(body)
     await route.fulfill({ response, json: body })
   })
-}
-
-async function changeProviders(
-  page: Page,
-  change: (body: { may_link: boolean; sync_running: boolean; providers: Record<string, unknown>[] }) => void | Promise<void>,
-): Promise<void> {
-  await changeAnswer(page, '/bank-sync/providers', change)
 }
 
 // A read the page sends as a test ends can still be on its way through a changed answer when the page

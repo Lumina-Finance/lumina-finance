@@ -18,6 +18,22 @@ export function isRead(path: string): (url: URL) => boolean {
   return (url: URL) => url.href.split('?')[0] === `${API_BASE_URL}${path}`
 }
 
+/** The bank providers read, as far as a spec changes it */
+export type ProvidersAnswer = { may_link: boolean; sync_running: boolean; providers: Record<string, unknown>[] }
+
+/**
+ * Changes the server's answer to the bank providers read before the page sees it, such as whether the
+ * deployment's worker is running, which a spec can't switch on the instance itself
+ */
+export async function changeProviders(page: Page, change: (body: ProvidersAnswer) => void | Promise<void>): Promise<void> {
+  await page.route(`${API_BASE_URL}/bank-sync/providers`, async (route) => {
+    const response = await route.fetch()
+    const body = await response.json()
+    await change(body)
+    await route.fulfill({ response, json: body })
+  })
+}
+
 /** Where a bank-imported transaction came from, as the app reads it alongside the transaction */
 export type BankSource = {
   provider: 'simplefin'

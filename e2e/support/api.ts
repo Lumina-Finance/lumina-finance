@@ -152,6 +152,13 @@ export function todayInTestTimezone(): string {
 }
 
 /**
+ * Today as the app writes a day with its year, such as Oct 5, 2026, in the zone the user signed up with
+ */
+export function formatToday(): string {
+  return new Intl.DateTimeFormat('en-CA', { month: 'short', day: 'numeric', year: 'numeric', timeZone: TEST_TIMEZONE }).format(new Date())
+}
+
+/**
  * The date a number of days from today, in the timezone the browser and the seeded data share
  *
  * Steps whole calendar days in UTC, where no daylight saving change can skip or repeat one
