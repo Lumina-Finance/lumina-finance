@@ -16,14 +16,17 @@ reconnect's listing moves links while the user is in the app choosing, so it ema
 
 The save that records a state starting is what records its email as due, and the email goes out
 only once that save has committed, so a job run again or cut off after the save finds the state
-already started and sends nothing twice, and one cut off before it sends nothing. A send that fails is logged and never undoes
-the save or fails the sync. An email names what stopped syncing and what to do, and carries no
-credential, server or transaction data
+already started and sends nothing twice, and one cut off before it sends nothing. A send that
+fails is logged and never undoes the save or fails the sync. Sends run within the job's time
+limit, and one the limit cuts off, or one a job stopped before reaching, is logged as unsent by its
+state and the connection or link it is about. An email names what stopped syncing and what to do,
+and carries no credential, server or transaction data
 
 Reconnect needed and Bank sign-in needed are read back per account, with when each began, for the
 account's sync status. Choose bank account shows as the link's own state
 """
 
+import asyncio
 import enum
 import logging
 import uuid
@@ -79,8 +82,9 @@ class ActionEmail:
     recipient: str
     message: RenderedEmail
 
-    # Named when the send fails, since the recipient's address isn't logged
-    connection_id: uuid.UUID
+    # What a log line names in place of the recipient and every name when the email isn't sent: the
+    # state, and the connection's id, or for Choose bank account the link's
+    about: str
 
 
 class ActionNeededKind(enum.StrEnum):
@@ -161,7 +165,7 @@ async def flag_rejected_credential(db: AsyncSession, connection: BankConnection,
     named = {"provider": provider, "connection": f"{connection.nickname} connection" if connection.nickname else "connection"}
     lead, closing = (_RECONNECT_LEAD, _RECONNECT_CLOSING) if accounts else (_RECONNECT_LEAD_UNLINKED, _RECONNECT_CLOSING_UNLINKED)
     message = render_action_needed_email(_RECONNECT_SUBJECT.format(**named), lead.format(**named), accounts, closing)
-    return [ActionEmail(await _owner_email(db, connection), message, connection.id)]
+    return [ActionEmail(await _owner_email(db, connection), message, f"Reconnect needed on connection {connection.id}")]
 
 
 async def flag_signin_needed(
@@ -228,7 +232,7 @@ async def flag_signin_needed(
             render_action_needed_email(
                 _SIGNIN_SUBJECT.format(site=site), _SIGNIN_LEAD.format(institution=institution, site=site), accounts, _SIGNIN_CLOSING
             ),
-            connection.id,
+            f"Bank sign-in needed on connection {connection.id}",
         )
         for institution, accounts in started.values()
     ]
@@ -268,22 +272,36 @@ async def choose_account_emails(db: AsyncSession, connection: BankConnection, li
     for link in links:
         named = {"provider": provider, "bank_account": link.external_account_name, "account": names[link.account_id]}
         message = render_action_needed_email(_CHOOSE_SUBJECT, _CHOOSE_LEAD.format(**named), [], _CHOOSE_CLOSING.format(**named))
-        emails.append(ActionEmail(recipient, message, connection.id))
+        emails.append(ActionEmail(recipient, message, f"Choose bank account on link {link.id}"))
     return emails
 
 
 async def send_action_emails(emails: Sequence[ActionEmail]) -> None:
-    """Send action-needed emails whose saves have committed, through the configured sender
+    """Send action-needed emails whose saves have committed, through the configured sender, within the caller's time limit
 
     Each is sent at most once: one that fails is logged and not tried again, since its state has
-    already started and shows in the app either way
+    already started and shows in the app either way. When the caller is cancelled, as its time limit
+    ends, the email being sent and every one after it is logged as unsent
+
+    Raises:
+        CancelledError: The caller was cancelled while sending, which carries on once the unsent
+            emails are logged
     """
-    for email in emails:
-        # A failed send must never fail the sync whose state it reports
+    for index, email in enumerate(emails):
         try:
             await get_email_sender().send(email.recipient, email.message)
+        except asyncio.CancelledError:
+            log_unsent_action_emails(emails[index:])
+            raise
         except Exception:
-            logger.warning("Couldn't send an action-needed email about bank connection %s", email.connection_id, exc_info=True)
+            # A failed send must never fail the sync whose state it reports
+            logger.warning("Couldn't send the action-needed email for %s", email.about, exc_info=True)
+
+
+def log_unsent_action_emails(emails: Sequence[ActionEmail]) -> None:
+    """Log each action-needed email a stopped job leaves unsent, by its state and the connection or link it is about, naming no one"""
+    for email in emails:
+        logger.warning("The action-needed email for %s was left unsent, as its job was stopped", email.about)
 
 
 async def _owner_email(db: AsyncSession, connection: BankConnection) -> str:

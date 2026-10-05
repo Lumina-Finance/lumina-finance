@@ -25,6 +25,7 @@ a credential since replaced, or whose failed email undoes the sync, nags or misl
 """
 
 import asyncio
+import logging
 import uuid
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
@@ -59,7 +60,7 @@ from app.models.transaction_link import TransactionLink
 from app.models.user import User
 from app.schemas.transaction import UpdateTransactionRequest
 from app.services.accounts.snapshots import recompute_account_snapshots
-from app.services.bank_sync import availability, sync, worker
+from app.services.bank_sync import action_needed, availability, sync, worker
 from app.services.bank_sync.availability import PROVIDER_ADAPTERS
 from app.services.bank_sync.connections import build_connection_responses
 from app.services.bank_sync.provider_requests import reserve_provider_request
@@ -1363,6 +1364,81 @@ async def test_job_whose_listing_still_misses_a_bank_account_a_reconnect_left_to
     assert len(provider.discoveries) == 1
     assert await _link_states(everyday) == ["choose_account"]
     assert sent_action_emails == []
+
+
+def _never_answering_sender(asked: list[str]) -> SimpleNamespace:
+    """Return a sender whose mail server never answers, noting each recipient it was asked to send to"""
+
+    async def send(recipient: str, message: RenderedEmail) -> None:
+        asked.append(recipient)
+        await asyncio.Event().wait()
+
+    return SimpleNamespace(send=send)
+
+
+def _unsent(caplog: pytest.LogCaptureFixture) -> list[str]:
+    """Return what the log says of each action-needed email left unsent"""
+    return [record.getMessage() for record in caplog.records if record.name == action_needed.__name__ and "unsent" in record.getMessage()]
+
+
+async def test_job_whose_mail_server_hangs_past_the_time_limit_logs_each_email_left_unsent_naming_no_one(
+    connection, provider, frozen_now, monkeypatch, caplog
+):
+    """The Chase and Amex logins both need a sign-in, and the mail server never answers the first of the two emails
+
+    The job's time limit cuts the send off. Both emails are logged as unsent, by their state and the
+    connection, naming no address or account, and both marks stay
+    """
+    await _list_under(connection, "CON-chase", "Chase", "ACT-chase-checking")
+    await _list_under(connection, "CON-amex", "American Express", "ACT-amex")
+    checking = await _link(connection, "ACT-chase-checking", **_synced_through_yesterday())
+    amex = await _link(connection, "ACT-amex", **_synced_through_yesterday())
+    provider.outcomes = [FetchResult(request_error=_signin_needed())]
+    asked = []
+    monkeypatch.setattr(email_contract, "_active_sender", _never_answering_sender(asked))
+    monkeypatch.setattr(worker, "JOB_TIME_LIMIT", timedelta(seconds=3))
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    with caplog.at_level(logging.WARNING, logger=action_needed.__name__):
+        async with asyncio.timeout(_WAIT_SECONDS):
+            assert await run_jobs(1) == 1
+
+    assert asked == ["owner0@example.com"]
+    assert (
+        _unsent(caplog)
+        == [f"The action-needed email for Bank sign-in needed on connection {connection.id} was left unsent, as its job was stopped"] * 2
+    )
+    assert await _signin_marks(checking, amex) == [frozen_now, frozen_now]
+
+
+async def test_job_its_time_limit_stops_sends_nothing_after_it_and_logs_the_email_an_earlier_step_saved_as_unsent(
+    connection, monkeypatch, caplog
+):
+    """The listing moves Everyday to Choose bank account, and Savings's fetch then outlasts the job's time limit
+
+    The step that moved Everyday had saved, but the job is past its limit, so its email isn't sent,
+    where a mail server that never answers would hold the runner. It is logged as unsent, and the job
+    fails as timed out
+    """
+    await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-everyday", "ACT-savings")
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    await _link(connection, "ACT-savings", **_synced_through_yesterday())
+    provider = _HeldProvider(held=(2,))
+    provider.outcomes = [_returned("ACT-savings"), _returned("ACT-savings")]
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
+    asked = []
+    monkeypatch.setattr(email_contract, "_active_sender", _never_answering_sender(asked))
+    monkeypatch.setattr(worker, "JOB_TIME_LIMIT", timedelta(seconds=3))
+    await _seed_job(connection, BankSyncJobKind.MANUAL, discover=True)
+
+    with caplog.at_level(logging.WARNING, logger=action_needed.__name__):
+        async with asyncio.timeout(_WAIT_SECONDS):
+            assert await run_jobs(1) == 1
+
+    assert await _link_states(everyday) == ["choose_account"]
+    assert asked == []
+    assert _unsent(caplog) == [f"The action-needed email for Choose bank account on link {everyday.id} was left unsent, as its job was stopped"]
+    assert [(kind, status, error) for kind, status, error, _ in await _jobs()] == [("manual", "failed", "temporary"), ("retry", "queued", None)]
 
 
 async def test_job_the_worker_stops_on_an_error_fails_each_link_once(connection, provider, frozen_now):

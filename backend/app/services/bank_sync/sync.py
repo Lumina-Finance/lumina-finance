@@ -36,9 +36,12 @@ A job ending on a rejected credential marks the connection Reconnect needed as i
 attempt fails on a bank sign-in is marked Bank sign-in needed until it comes back whole, and a link the
 job's listing moves to Choose bank account waits there, each emailing the owner once as the
 action_needed module describes. The emails a job's saves record go out once its last save is done,
-so a send that hangs can't hold up the sync or see it fail
+within the job's time limit, so a send that fails can't undo the sync. One still waiting when the
+limit ends the job, and every one a job stopped by its limit never reached, is logged as unsent
+rather than sent past the limit, so a mail server that hangs can't hold the runner
 """
 
+import asyncio
 import logging
 import uuid
 from collections.abc import Collection, Mapping, Sequence
@@ -60,6 +63,7 @@ from app.services.bank_sync.action_needed import (
     clear_signin_needed,
     flag_rejected_credential,
     flag_signin_needed,
+    log_unsent_action_emails,
     send_action_emails,
 )
 from app.services.bank_sync.availability import ENABLED_ADAPTERS, PROVIDER_ADAPTERS
@@ -108,8 +112,9 @@ async def run_sync_job(job: ClaimedJob) -> None:
     row-level security as that user. A rejected credential can't work until the user reconnects, so
     nothing is sent with it. A job that met an answer to a credential since replaced ends there,
     neither failed nor queued again, so whatever replaces a connection's credential has to queue the
-    connection's next sync itself. The action-needed emails its saves recorded are sent last, even
-    when a later step raised
+    connection's next sync itself. The action-needed emails its saves recorded are sent last, within
+    the job's time limit, even when a later step raised. A job cancelled by its time limit sends none
+    of them, and logs each as unsent
 
     Args:
         job: The job as claimed
@@ -117,6 +122,7 @@ async def run_sync_job(job: ClaimedJob) -> None:
     Raises:
         JobNotHeld: A later attempt holds the job, or the connection was deleted with its jobs, so
             whatever this attempt found was discarded
+        CancelledError: The job's time limit, or the worker stopping, cancelled it
     """
     now = datetime.now(UTC)
     async with async_session() as db:
@@ -144,8 +150,15 @@ async def run_sync_job(job: ClaimedJob) -> None:
                 await run.run()
             except _CredentialReplaced:
                 outbox += await _end_job(job, started_at=now)
-    finally:
+    except asyncio.CancelledError:
+        # The time limit or the worker stopping ended the job, so nothing is sent after it, where
+        # a mail server that hangs would hold the runner
+        log_unsent_action_emails(outbox)
+        raise
+    except Exception:
         await send_action_emails(outbox)
+        raise
+    await send_action_emails(outbox)
 
 
 async def fail_sync_job(job: ClaimedJob, error: ProviderError, *, started_at: datetime) -> None:
@@ -168,9 +181,9 @@ async def fail_sync_job(job: ClaimedJob, error: ProviderError, *, started_at: da
         covered = await db.scalar(select(BankSyncJob.covered_link_ids).where(BankSyncJob.id == job.id))
         links = (await db.scalars(select(BankAccountLink).where(BankAccountLink.id.in_(covered or ())))).all()
     failed_already = {link.id for link in links if link.last_failure_reason is not None and link.last_attempt_at >= started_at}
-    await send_action_emails(
-        await _end_job(job, error, failed=[link for link in links if link.id not in failed_already], started_at=started_at)
-    )
+    # Only a time limit or an unexpected error fails a job here, and neither starts a state that
+    # emails the owner, so nothing is sent, and nothing holds the runner past the limit
+    await _end_job(job, error, failed=[link for link in links if link.id not in failed_already], started_at=started_at)
 
 
 class _JobRun:
