@@ -372,9 +372,10 @@ test('reconnects a rejected connection, and shows the account to choose again un
   await expect(fact(dialog, 'Status')).toHaveText('Reconnect needed')
   await expect(dialog.getByText('SimpleFIN rejected this connection')).toBeVisible()
   await expect(dialog.getByRole('searchbox', { name: 'Find an institution' })).toHaveCount(0)
-  const folded = dialog.getByRole('button', { name: /^1 institution/ })
-  await expect(folded).toContainText('2 of 2 linked · Linking resumes after you reconnect')
-  await folded.click()
+  const folded = dialog.getByRole('region', { name: '1 institution', exact: true })
+  await expect(folded).toContainText('Linking resumes after you reconnect')
+  await expect(folded).toContainText('2 of 2 linked')
+  await folded.getByRole('button', { name: /^1 institution/ }).click()
   await expect(dialog.getByRole('link', { name: 'Household' })).toBeVisible()
 
   await dialog.getByRole('button', { name: 'Reconnect', exact: true }).click()

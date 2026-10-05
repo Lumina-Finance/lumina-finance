@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Plus } from 'lucide-react'
 import { useAccounts } from '@/api/accounts'
@@ -15,6 +15,7 @@ import { matchesConnectionSearch } from '@/pages/settings/components/bank-connec
 import SettingsCard from '@/pages/settings/components/Card'
 import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
 import { SETTINGS_LIST_LOADING_OVERLAY_CLASS } from '@/pages/settings/components/shared/constants'
+import { useMeasuredHeight } from '@/pages/settings/components/shared/hooks/useMeasuredHeight'
 
 /**
  * Settings section listing the user's bank connections, laid out like the tag, merchant and category
@@ -45,31 +46,7 @@ export function BankConnectionsSection() {
   const shownConnections = connections?.filter((connection) => matchesConnectionSearch(connection, search, accountNameFor))
   const rowsLayoutKey = shownConnections?.map((connection) => connection.id).join(',') ?? ''
 
-  const contentRef = useRef<HTMLDivElement | null>(null)
-  const [contentHeight, setContentHeight] = useState<number | null>(null)
-
-  useLayoutEffect(() => {
-    const element = contentRef.current
-    if (!element) return undefined
-
-    let frameId: number | null = null
-    const updateHeight = () => {
-      if (frameId !== null) window.cancelAnimationFrame(frameId)
-      frameId = window.requestAnimationFrame(() => {
-        frameId = null
-        setContentHeight(element.getBoundingClientRect().height)
-      })
-    }
-
-    updateHeight()
-    const observer = new ResizeObserver(updateHeight)
-    observer.observe(element)
-
-    return () => {
-      if (frameId !== null) window.cancelAnimationFrame(frameId)
-      observer.disconnect()
-    }
-  }, [])
+  const { ref: contentRef, height: contentHeight } = useMeasuredHeight<HTMLDivElement>()
 
   const [connectOpen, setConnectOpen] = useState(false)
   const [connectKey, setConnectKey] = useState(0)

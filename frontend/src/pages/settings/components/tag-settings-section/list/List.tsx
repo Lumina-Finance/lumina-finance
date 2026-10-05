@@ -1,9 +1,10 @@
-import { useLayoutEffect, useRef, useState, type RefObject, type UIEvent } from 'react'
+import type { RefObject, UIEvent } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { Tag } from '@/api/tags'
 import LoadFailure from '@/components/errors/LoadFailure'
 import ScrollableListMoreButton from '@/components/list-controls/MoreButton'
 import TagRow from '@/pages/settings/components/tag-settings-section/list/Row'
+import { useMeasuredHeight } from '@/pages/settings/components/shared/hooks/useMeasuredHeight'
 import { TAG_LIST_HEIGHT_TRANSITION } from '@/pages/settings/components/tag-settings-section/constants'
 
 /**
@@ -56,31 +57,7 @@ export default function TagSettingsList({
   onListScroll: (event: UIEvent<HTMLDivElement>) => void
 }) {
   const shouldReduceMotion = useReducedMotion()
-  const contentRef = useRef<HTMLDivElement | null>(null)
-  const [contentHeight, setContentHeight] = useState<number | null>(null)
-
-  useLayoutEffect(() => {
-    const element = contentRef.current
-    if (!element) return undefined
-
-    let frameId: number | null = null
-    const updateHeight = () => {
-      if (frameId !== null) window.cancelAnimationFrame(frameId)
-      frameId = window.requestAnimationFrame(() => {
-        frameId = null
-        setContentHeight(element.getBoundingClientRect().height)
-      })
-    }
-
-    updateHeight()
-    const observer = new ResizeObserver(updateHeight)
-    observer.observe(element)
-
-    return () => {
-      if (frameId !== null) window.cancelAnimationFrame(frameId)
-      observer.disconnect()
-    }
-  }, [])
+  const { ref: contentRef, height: contentHeight } = useMeasuredHeight<HTMLDivElement>()
 
   // With no rows in hand nothing about the list is known, so the failure takes the place of the
   // empty text. With rows cached from an earlier session it sits above them and they stay

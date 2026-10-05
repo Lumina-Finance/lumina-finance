@@ -1,6 +1,6 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { AlertTriangle, Check, ChevronRight, PencilLine, RefreshCw, Search, Unplug } from 'lucide-react'
+import { AlertTriangle, Check, PencilLine, RefreshCw, Search, Unplug } from 'lucide-react'
 import { useAccounts } from '@/api/accounts'
 import { ApiError } from '@/api/auth'
 import { useBankProviders, useDisconnectBankConnection, type BankConnection, type ConnectionBankAccount } from '@/api/bank-sync'
@@ -11,7 +11,7 @@ import IconTooltip from '@/components/tooltips/IconTooltip'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
 import { EASE, INSTITUTION_SEARCH_AFTER, LINKING_HOLD_MS } from '@/pages/settings/components/bank-connections-section/constants'
-import { InstitutionList } from '@/pages/settings/components/bank-connections-section/InstitutionList'
+import { InstitutionList, InstitutionRow } from '@/pages/settings/components/bank-connections-section/InstitutionList'
 import { NicknameTitle } from '@/pages/settings/components/bank-connections-section/NicknameTitle'
 import {
   countLinked,
@@ -62,47 +62,6 @@ function RequestBudgetMeter({ connection, prefersReducedMotion }: { connection: 
         transition={{ duration: prefersReducedMotion ? 0 : 0.5, ease: EASE }}
       />
     </span>
-  )
-}
-
-/**
- * A rejected connection's institutions as one closed row, which still opens to show what each bank
- * account is linked to
- */
-function FoldedInstitutions({ count, summary, prefersReducedMotion, children }: { count: number; summary: string; prefersReducedMotion: boolean | null; children: ReactNode }) {
-  const [open, setOpen] = useState(false)
-  const bodyId = useId()
-
-  return (
-    <div className="border-y border-[var(--app-border)]">
-      <button
-        type="button"
-        className="group flex w-full items-center gap-2.5 rounded-lg px-1 py-3.5 text-left focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--app-accent)]"
-        aria-expanded={open}
-        aria-controls={bodyId}
-        onClick={() => setOpen((value) => !value)}
-      >
-        <ChevronRight size={15} aria-hidden className={`shrink-0 transition-transform duration-150 ${open ? 'rotate-90' : ''}`} style={{ color: 'var(--app-text-subtle)' }} />
-        <span className="min-w-0 flex-1 sm:flex sm:items-center sm:justify-between sm:gap-3">
-          <span className="block font-semibold transition-colors duration-150 group-hover:text-[var(--app-accent)]" style={{ color: 'var(--app-text)' }}>{countNoun(count, 'institution')}</span>
-          <span className="mt-0.5 block text-xs sm:mt-0" style={{ color: 'var(--app-text-muted)' }}>{summary}</span>
-        </span>
-      </button>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            id={bodyId}
-            className="overflow-hidden"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: prefersReducedMotion ? 0 : 0.2, ease: EASE }}
-          >
-            <div className="pb-3 pl-7 pr-1">{children}</div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
   )
 }
 
@@ -346,13 +305,20 @@ export function ConnectionModal({ open, connection, accountNameFor, onReconnect,
               Reconnect
             </button>
           </div>
-          <FoldedInstitutions
-            count={institutionCount}
-            summary={`${linkedCount} of ${connection.accounts.length} linked · Linking resumes after you reconnect`}
-            prefersReducedMotion={prefersReducedMotion}
-          >
-            {institutionList}
-          </FoldedInstitutions>
+          <div className="border-y border-[var(--app-border)]">
+            <InstitutionRow
+              entry={{
+                key: 'folded',
+                name: countNoun(institutionCount, 'institution'),
+                detail: 'Linking resumes after you reconnect',
+                linked: linkedCount,
+                total: connection.accounts.length,
+                body: institutionList,
+              }}
+              defaultOpen={false}
+              prefersReducedMotion={prefersReducedMotion}
+            />
+          </div>
         </div>
       ) : institutionList}
 

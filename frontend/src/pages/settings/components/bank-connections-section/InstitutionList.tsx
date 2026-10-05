@@ -163,12 +163,15 @@ function ProblemLine({ children }: { children: ReactNode }) {
   )
 }
 
-interface InstitutionEntry {
+export interface InstitutionEntry {
   key: string
   name: string
 
   /** What the user has to do here, in red under the name, which also puts the row under Needs attention */
   problem?: string
+
+  /** Why the row is as it is when that is not a problem, in plain small print under the name */
+  detail?: string
 
   /** A note that is not a problem, shown above the bank accounts, such as the institution limit */
   note?: string
@@ -178,15 +181,17 @@ interface InstitutionEntry {
   hintLabel?: string
   linked: number
   total: number
-  rows: ReactNode[]
+
+  /** What the row opens to, such as its bank accounts */
+  body: ReactNode
 }
 
 /**
- * One institution as a row between hairlines that opens to its bank accounts, indented under its name
- * with nothing boxed around them. The row says how many are linked and what to do about any problem, so a
- * long list reads at a glance while closed
+ * One institution, or several folded together, as a row between hairlines that opens to what it holds,
+ * indented under its name with nothing boxed around it. The row says how many are linked and what to do
+ * about any problem, so a long list reads at a glance while closed
  */
-function InstitutionRow({ entry, defaultOpen, prefersReducedMotion }: { entry: InstitutionEntry; defaultOpen: boolean; prefersReducedMotion: boolean | null }) {
+export function InstitutionRow({ entry, defaultOpen, prefersReducedMotion }: { entry: InstitutionEntry; defaultOpen: boolean; prefersReducedMotion: boolean | null }) {
   // Follows the default until the row is toggled, so an institution whose problem shows up after the
   // modal opens still starts open
   const [toggled, setToggled] = useState<boolean | null>(null)
@@ -214,6 +219,7 @@ function InstitutionRow({ entry, defaultOpen, prefersReducedMotion }: { entry: I
           <span className="min-w-0 flex-1">
             <span className="block truncate font-semibold transition-colors duration-150 group-hover/row:text-[var(--app-accent)]" style={{ color: 'var(--app-text)' }}>{entry.name}</span>
             {entry.problem && <ProblemLine>{entry.problem}</ProblemLine>}
+            {entry.detail && <span className="mt-0.5 block text-xs" style={{ color: 'var(--app-text-muted)' }}>{entry.detail}</span>}
           </span>
         </button>
         {entry.hint && (
@@ -239,7 +245,7 @@ function InstitutionRow({ entry, defaultOpen, prefersReducedMotion }: { entry: I
           >
             <div className="pb-3 pl-7 pr-1">
               {entry.note && <p className="pb-1 text-xs" style={{ color: 'var(--app-warning-text)' }}>{entry.note}</p>}
-              <ul>{entry.rows}</ul>
+              {entry.body}
             </div>
           </motion.div>
         )}
@@ -307,19 +313,23 @@ export function InstitutionList({
       : undefined,
     linked: group.linked,
     total: group.bankAccounts.length,
-    rows: group.bankAccounts.map((bankAccount) => (
-      <li key={bankAccount.external_id}>
-        <BankAccountRow
-          bankAccount={bankAccount}
-          canLink={isActive && !group.overLimit}
-          overLimit={group.overLimit}
-          linkingPaused={linkingPaused}
-          linking={linkingExternalId === bankAccount.external_id}
-          accountNameFor={accountNameFor}
-          onLink={onLink}
-        />
-      </li>
-    )),
+    body: (
+      <ul>
+        {group.bankAccounts.map((bankAccount) => (
+          <li key={bankAccount.external_id}>
+            <BankAccountRow
+              bankAccount={bankAccount}
+              canLink={isActive && !group.overLimit}
+              overLimit={group.overLimit}
+              linkingPaused={linkingPaused}
+              linking={linkingExternalId === bankAccount.external_id}
+              accountNameFor={accountNameFor}
+              onLink={onLink}
+            />
+          </li>
+        ))}
+      </ul>
+    ),
   }))
 
   // First, since nothing on these syncs until each account gets its bank account back
@@ -336,18 +346,22 @@ export function InstitutionList({
       hint: describeMismatch(connection, accountNameFor),
       linked: chooseAgain.length,
       total: chooseAgain.length,
-      rows: chooseAgain.map((link) => (
-        <li key={link.account_id}>
-          <div className={MAPPING_ROW_CLASS}>
-            <span className="min-w-0 text-sm">
-              <span className="block truncate" style={{ color: 'var(--app-text-muted)' }}>Was {link.external_account_name}</span>
-              <ProblemLine>Choose bank account</ProblemLine>
-            </span>
-            <MappingArrow />
-            <LinkedAccountTile accountId={link.account_id} name={accountNameFor(link.account_id) ?? ACCOUNT_FALLBACK_NAME} />
-          </div>
-        </li>
-      )),
+      body: (
+        <ul>
+          {chooseAgain.map((link) => (
+            <li key={link.account_id}>
+              <div className={MAPPING_ROW_CLASS}>
+                <span className="min-w-0 text-sm">
+                  <span className="block truncate" style={{ color: 'var(--app-text-muted)' }}>Was {link.external_account_name}</span>
+                  <ProblemLine>Choose bank account</ProblemLine>
+                </span>
+                <MappingArrow />
+                <LinkedAccountTile accountId={link.account_id} name={accountNameFor(link.account_id) ?? ACCOUNT_FALLBACK_NAME} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      ),
     })
   }
 
