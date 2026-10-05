@@ -247,9 +247,7 @@ test('says the pause status could not load while still showing the items', async
 
 test('shows the first 4 of a 1,500 item backlog, and loads the rest a page at a time once opened', async ({ page, request }) => {
   const { everyday } = await start(page, request)
-  const cursors: (string | null)[] = []
   await answerReviewItems(page, (_, cursor) => {
-    cursors.push(cursor)
     const index = cursor ? Number(cursor.replace('page-', '')) : 0
     return {
       items: Array.from({ length: 50 }, (_, offset) => reviewItem(`item-${index * 50 + offset}`, 'new', everyday.id)),
@@ -258,11 +256,14 @@ test('shows the first 4 of a 1,500 item backlog, and loads the rest a page at a 
     }
   })
 
-  // The second page is held until the block has said it is loading
+  // Each page is noted as it is asked for, and the second is held until the block has said it is loading
+  const cursors: (string | null)[] = []
   let releaseSecondPage = () => {}
   const secondPageReleased = new Promise<void>((resolve) => { releaseSecondPage = resolve })
-  await page.route((url) => isRead('/bank-review/items')(url) && url.searchParams.get('cursor') === 'page-1', async (route) => {
-    await secondPageReleased
+  await page.route(isRead('/bank-review/items'), async (route) => {
+    const cursor = new URL(route.request().url()).searchParams.get('cursor')
+    cursors.push(cursor)
+    if (cursor === 'page-1') await secondPageReleased
     await route.fallback()
   })
 
@@ -281,9 +282,9 @@ test('shows the first 4 of a 1,500 item backlog, and loads the rest a page at a 
   await rows.last().scrollIntoViewIfNeeded()
   const loading = block.getByRole('status')
   await expect(loading).toHaveText('Loading more items…')
+  await expect.poll(() => cursors).toEqual([null, 'page-1'])
   releaseSecondPage()
   await expect(rows).toHaveCount(100)
-  expect(cursors).toEqual([null, 'page-1'])
   await expect(count).toBeVisible()
 
   await block.getByRole('button', { name: 'Show fewer' }).click()
@@ -292,13 +293,15 @@ test('shows the first 4 of a 1,500 item backlog, and loads the rest a page at a 
 })
 
 test('closes once four or fewer items wait, so it shows only the first four when more come back', async ({ page, request }) => {
-  const { everyday, visa } = await start(page, request)
-  const items = [
-    ...Array.from({ length: 3 }, (_, index) => reviewItem(`visa-${index}`, 'new', visa.id)),
-    ...Array.from({ length: 3 }, (_, index) => reviewItem(`everyday-${index}`, 'new', everyday.id)),
-  ]
-  await answerReviewItems(page, (accountIds) =>
-    pageOf(items.filter((item) => accountIds.length === 0 || accountIds.includes(item.account_id))))
+  const { everyday } = await start(page, request)
+  const items = Array.from({ length: 6 }, (_, index) => reviewItem(`item-${index}`, 'new', everyday.id))
+
+  // Each sync that finishes reads the items again, which are then what `waiting` holds. The link is
+  // read every couple of seconds while it syncs, so the list is read again in place, never emptied
+  let waiting = items
+  let syncs = 0
+  await answerLinksWith(page, () => [everyday.id], () => ({ last_success_at: `${SEP_21}T0${syncs}:00:00Z`, sync_in_progress: true }))
+  await answerReviewItems(page, () => pageOf(waiting))
 
   await openPage(page, '/transactions')
 
@@ -307,13 +310,17 @@ test('closes once four or fewer items wait, so it shows only the first four when
   await block.getByRole('button', { name: 'Show all 6' }).click()
   await expect(rows).toHaveCount(6)
 
-  // Visa alone has 3, which needs no toggle, and every account's 6 come back as the first four again
-  await filterTransactions(page, 'Accounts', 'Visa')
-  await expect(rows).toHaveCount(3)
+  // Two decided on another device leave 4, the most a closed block shows
+  waiting = items.slice(0, 4)
+  syncs += 1
   await expect(block.getByRole('button', { name: /^Show / })).toBeHidden()
-  await filterTransactions(page, 'Accounts', 'Visa')
   await expect(rows).toHaveCount(4)
+
+  // Two more arriving bring back the first four of the 6
+  waiting = items
+  syncs += 1
   await expect(block.getByRole('button', { name: 'Show all 6' })).toHaveAttribute('aria-expanded', 'false')
+  await expect(rows).toHaveCount(4)
 })
 
 test("goes from a ledger row's Needs review marker to its item, loading the page it's on", async ({ page, request }) => {
@@ -366,6 +373,26 @@ test('opens the block for a marker whose item is the fifth, the first one it hid
 
   await expect(block.getByRole('listitem').filter({ hasText: 'UBER TRIP' })).toBeFocused()
   await expect(block.getByRole('button', { name: 'Show fewer' })).toHaveAttribute('aria-expanded', 'true')
+})
+
+test("lets the block close after a marker whose item no page holds, once every page has loaded", async ({ page, request }) => {
+  const accounts = await start(page, request)
+
+  // Decided on another device since the ledger was read, so the complete list lacks it
+  const uberId = await addUberTripAwaiting(page, request, accounts, 'item-decided')
+  await answerReviewItems(page, () => pageOf(Array.from({ length: 6 }, (_, index) => reviewItem(`item-${index}`, 'new', accounts.everyday.id))))
+
+  await openPage(page, '/transactions')
+
+  const block = reviewBlock(page)
+  const toggle = block.getByRole('button', { name: /^Show (fewer|all 6)$/ })
+  await expect(block.getByRole('listitem')).toHaveCount(4)
+  await showWaitingItem(page, uberId)
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(block.getByRole('listitem')).toHaveCount(4)
 })
 
 test("stops going to a marker's item once the page it would be on fails to load", async ({ page, request }) => {
