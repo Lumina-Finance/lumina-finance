@@ -996,33 +996,6 @@ async def test_job_whose_listing_meets_a_rejected_credential_marks_the_connectio
     assert _emailed(sent_action_emails) == [_email(_RECONNECT_SUBJECT)]
 
 
-async def test_job_refused_after_its_connection_was_marked_reconnect_needed_keeps_the_mark_and_emails_nothing_more(
-    connection, monkeypatch, frozen_now, sent_action_emails
-):
-    """The connection is marked Reconnect needed, its email sent, while the job's request is out, and SimpleFIN Bridge refuses that request too
-
-    The mark keeps when it started, and no second email goes out
-    """
-    await _link(connection, "ACT-everyday", **_synced_through_yesterday())
-    provider = _HeldProvider()
-    provider.outcomes = [FetchResult(request_error=_rejected())]
-    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
-    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
-    marked_at = frozen_now - timedelta(minutes=1)
-
-    async with asyncio.timeout(_WAIT_SECONDS):
-        running = asyncio.create_task(run_jobs(1))
-        await provider.sending[1].wait()
-        async with TestSession() as session:
-            await session.execute(update(BankConnection).where(BankConnection.id == connection.id).values(credential_rejected_at=marked_at))
-            await session.commit()
-        provider.release[1].set()
-        assert await running == 1
-
-    assert await _rejection(connection) == marked_at
-    assert sent_action_emails == []
-
-
 async def test_job_whose_listing_was_refused_marks_nothing_once_a_reconnect_replaced_the_credential(
     connection, provider, monkeypatch, sent_action_emails
 ):

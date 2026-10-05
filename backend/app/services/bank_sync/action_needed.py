@@ -139,7 +139,8 @@ async def flag_rejected_credential(db: AsyncSession, connection: BankConnection,
 
     The caller has locked the connection and checked that it still holds the credential the
     rejected request went out with, so a rejection of a credential a reconnect replaced marks
-    nothing. A connection already marked keeps its mark and sends nothing more
+    nothing. Only a job marks a connection, and a job claimed for a connection already marked ends
+    without a request, so the connection here is never marked yet
 
     Args:
         db: The owner's session, which the caller commits
@@ -147,10 +148,8 @@ async def flag_rejected_credential(db: AsyncSession, connection: BankConnection,
         at: When the request the provider rejected was sent, which the mark starts at
 
     Returns:
-        The email to send once the save commits, or nothing for a connection already marked
+        The email to send once the save commits
     """
-    if connection.credential_rejected_at is not None:
-        return []
     connection.credential_rejected_at = at
 
     accounts = (
