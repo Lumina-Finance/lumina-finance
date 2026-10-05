@@ -49,8 +49,8 @@ class FakeProviderAdapter(ProviderAdapter):
         # Each supplied credential claims once, giving its stored credential or raising its error
         self.claimable: dict[str, str | Exception] = {}
 
-        # Answers to discover and fetch alike, given out in order
-        self.outcomes: list[FetchResult] = []
+        # Answers to discover and fetch alike, given out in order, an error raised in place of an answer
+        self.outcomes: list[FetchResult | Exception] = []
         self.discoveries: list[str] = []
         self.fetches: list[FetchCall] = []
 
@@ -70,7 +70,7 @@ class FakeProviderAdapter(ProviderAdapter):
     @override
     async def discover(self, credential: str, *, currency_exponents: Mapping[str, int]) -> FetchResult:
         self.discoveries.append(credential)
-        return self.outcomes.pop(0)
+        return self._next_outcome()
 
     @override
     async def fetch(
@@ -85,7 +85,7 @@ class FakeProviderAdapter(ProviderAdapter):
         currency_exponents: Mapping[str, int],
     ) -> FetchResult:
         self.fetches.append(FetchCall(credential, tuple(account_ids), start, end, include_pending))
-        outcome = self.outcomes.pop(0)
+        outcome = self._next_outcome()
         if outcome.request_error is not None:
             return outcome
 
@@ -101,3 +101,10 @@ class FakeProviderAdapter(ProviderAdapter):
             account_id: left_out for account_id in account_ids if account_id not in returned and account_id not in outcome.account_errors
         }
         return replace(outcome, accounts=accounts, account_errors={**outcome.account_errors, **missing})
+
+    def _next_outcome(self) -> FetchResult:
+        """Give out the next queued answer, or raise it when it is an error"""
+        outcome = self.outcomes.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome

@@ -353,8 +353,25 @@ async def _job_states() -> dict:
     return {job_id: (status, attempt) for job_id, status, attempt in rows}
 
 
+class _QueuedWait(timedelta):
+    """How long after it was queued a job may run, as measured, equal to the wait it was queued with
+
+    The measure counts from the start of the transaction that queued the job, so it runs past that
+    wait by however long the transaction took to queue it, and never falls short of it
+    """
+
+    # Far longer than a transaction takes to queue a job, and far shorter than any two waits a test tells apart
+    _ALLOWANCE = timedelta(seconds=5)
+
+    def __eq__(self, other: object) -> bool:
+        """Return whether the wait was queued as the other, allowing for the time taken to queue it"""
+        if not isinstance(other, timedelta):
+            return NotImplemented
+        return timedelta(0) <= self - other <= self._ALLOWANCE
+
+
 async def _queued_jobs() -> list[tuple]:
-    """Return the queued job's kind, how long after it was queued it may run, to the second, and whether it lists the bank accounts first
+    """Return the queued job's kind, how long after it was queued it may run, and whether it lists the bank accounts first
 
     A job waits by the database's clock, which a test's frozen clock doesn't stop, so the wait it was
     queued with is what a test can pin
@@ -363,7 +380,7 @@ async def _queued_jobs() -> list[tuple]:
         rows = await session.execute(
             select(BankSyncJob.kind, BankSyncJob.run_after - BankSyncJob.created_at, BankSyncJob.discover).where(BankSyncJob.status == "queued")
         )
-        return [(kind, timedelta(seconds=round(wait.total_seconds())), discover) for kind, wait, discover in rows]
+        return [(kind, _QueuedWait(wait.days, wait.seconds, wait.microseconds), discover) for kind, wait, discover in rows]
 
 
 async def _attempts(*links: BankAccountLink) -> list[tuple]:

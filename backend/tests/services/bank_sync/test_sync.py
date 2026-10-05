@@ -907,7 +907,7 @@ async def test_job_the_worker_stops_on_an_error_fails_each_link_once(connection,
         connection, "ACT-card", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31), retry_count=3, next_attempt_at=frozen_now
     )
     everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
-    provider.outcomes = [FetchResult(account_errors={"ACT-card": _reported_a_problem()})]
+    provider.outcomes = [FetchResult(account_errors={"ACT-card": _reported_a_problem()}), RuntimeError("Unexpected bank data")]
     await _seed_job(connection, BankSyncJobKind.RETRY)
 
     await _run_jobs_until_none_is_due()
@@ -917,6 +917,43 @@ async def test_job_the_worker_stops_on_an_error_fails_each_link_once(connection,
         ("SimpleFIN Bridge reported a problem", 4, frozen_now + timedelta(hours=12)),
         ("The sync stopped because of an unexpected error", 1, frozen_now + timedelta(minutes=30)),
     ]
+
+
+async def test_job_the_worker_stops_on_an_error_fails_a_link_whatever_it_did_earlier(connection, provider, frozen_now):
+    """Card failed for the second time in an earlier job, and Everyday's import came back whole for 1 January to 14 February in this one
+
+    The job stops on an error fetching both for 15 February to 31 March, so Card's series moves on to
+    its third failure and a retry 90 minutes on, and Everyday fails too, though it synced earlier
+    """
+    card = await _link(
+        connection,
+        "ACT-card",
+        **_synced_through_yesterday(
+            checkpoint=date(2026, 2, 28),
+            last_attempt_at=frozen_now - timedelta(minutes=60),
+            last_failure_reason="SimpleFIN Bridge reported a problem",
+            retry_count=2,
+            next_attempt_at=frozen_now,
+        ),
+    )
+    everyday = await _link(connection, "ACT-everyday", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    provider.outcomes = [_cut_off("ACT-card", "ACT-everyday"), _returned("ACT-everyday"), RuntimeError("Unexpected bank data")]
+    await _seed_job(connection, BankSyncJobKind.RETRY)
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [
+        _window(date(2026, 1, 1), date(2026, 3, 31), ["ACT-card", "ACT-everyday"]),
+        _window(date(2026, 1, 1), date(2026, 2, 14), ["ACT-everyday"]),
+        _window(date(2026, 2, 15), date(2026, 3, 31), ["ACT-card", "ACT-everyday"]),
+    ]
+    reason = "The sync stopped because of an unexpected error"
+    assert await _attempts(card, everyday) == [
+        (_YESTERDAYS_SYNC, frozen_now, reason, 3, frozen_now + timedelta(minutes=90)),
+        (frozen_now, frozen_now, reason, 1, frozen_now + timedelta(minutes=30)),
+    ]
+    assert await _checkpoints(everyday) == [date(2026, 2, 14)]
+    assert await _queued_jobs() == [("retry", timedelta(minutes=30), False)]
 
 
 async def test_job_queues_a_retry_that_fell_due_while_it_ran_to_run_at_once(connection, monkeypatch, frozen_now):
