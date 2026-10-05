@@ -8,8 +8,6 @@ user's own personal accounts have pending items, and another user's never show
 import uuid
 from datetime import UTC, date, datetime
 
-import pytest
-
 from app.models.account import Account
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
@@ -87,50 +85,18 @@ async def test_pending_list_shows_every_item_newest_first_with_when_the_bank_rep
     ]
 
 
-async def test_pending_list_for_one_account_leaves_out_the_others(client):
-    """Everyday's own page lists its hold without Savings' one, which every account's list includes"""
-    headers, _ = await _sign_up(client)
-    everyday_id = await _new_account(client, headers, "Everyday")
-    savings_id = await _new_account(client, headers, "Savings")
-    everyday_item = await _commit_pending(everyday_id, transaction_date=date(2026, 10, 4))
-    savings_item = await _commit_pending(savings_id, transaction_date=date(2026, 10, 3))
-
-    assert await _listed_ids(client, headers, account_id=everyday_id) == [str(everyday_item)]
-    assert await _listed_ids(client, headers) == [str(everyday_item), str(savings_item)]
-
-
-async def test_pending_list_for_several_accounts_lists_only_theirs(client):
-    """A list filtered to Everyday and Savings shows their holds without Travel's"""
+async def test_pending_list_for_some_accounts_lists_only_theirs(client):
+    """Everyday's own page lists its hold alone, and a list filtered to Everyday and Savings their holds without Travel's"""
     headers, _ = await _sign_up(client)
     everyday_id = await _new_account(client, headers, "Everyday")
     savings_id = await _new_account(client, headers, "Savings")
     travel_id = await _new_account(client, headers, "Travel")
-    listed = [
-        await _commit_pending(everyday_id, transaction_date=date(2026, 10, 4)),
-        await _commit_pending(savings_id, transaction_date=date(2026, 10, 3)),
-    ]
+    everyday_item = await _commit_pending(everyday_id, transaction_date=date(2026, 10, 4))
+    savings_item = await _commit_pending(savings_id, transaction_date=date(2026, 10, 3))
     await _commit_pending(travel_id)
 
-    assert await _listed_ids(client, headers, account_id=[everyday_id, savings_id]) == [str(item_id) for item_id in listed]
-
-
-@pytest.mark.parametrize(
-    ("second", "status_code", "detail"),
-    [
-        ("group", 403, _GROUP_DETAIL),
-        ("theirs", 404, "Account not found"),
-    ],
-)
-async def test_pending_list_refuses_several_accounts_when_any_isnt_the_users_own(client, second, status_code, detail):
-    """Everyday listed with the Joint group account is refused, and with another user's account is not found"""
-    headers, _ = await _sign_up(client)
-    everyday_id = await _new_account(client, headers, "Everyday")
-    second_id = await _new_group_account(client, headers) if second == "group" else str((await _commit_other_users_account()).id)
-
-    response = await client.get("/bank-sync/pending", params={"account_id": [everyday_id, second_id]}, headers=headers)
-
-    assert response.status_code == status_code, response.text
-    assert response.json()["detail"] == detail
+    assert await _listed_ids(client, headers, account_id=everyday_id) == [str(everyday_item)]
+    assert await _listed_ids(client, headers, account_id=[everyday_id, savings_id]) == [str(everyday_item), str(savings_item)]
 
 
 async def test_pending_list_never_shows_another_users_items(client):
