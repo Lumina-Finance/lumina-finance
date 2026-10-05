@@ -1,0 +1,352 @@
+"""Running a bank sync job: the windows it fetches, the checkpoints it moves and the job it queues next
+
+Jobs run through the worker's run_jobs, as their owner under row-level security, against a scripted
+provider. A checkpoint moved for days a response didn't bring back whole hides that gap for good, a
+long import that stops after its first window leaves months missing, a job that keeps sending once
+the request budget is spent can get the user's SimpleFIN token disabled, and a job that writes after
+losing its lease or for a link unlinked mid-fetch overwrites what the user or a later attempt did
+"""
+
+import asyncio
+from collections.abc import Sequence
+from datetime import UTC, date, datetime, timedelta
+from typing import override
+from zoneinfo import ZoneInfo
+
+import pytest
+from sqlalchemy import select, update
+
+from app.encryption import encrypt
+from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState, BankProvider, BankProviderRequest, ProviderRequestPurpose
+from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, ProviderErrorKind
+from app.models.user import User
+from app.services.bank_sync import availability
+from app.services.bank_sync.providers.contract import ExternalAccount, FetchResult, ProviderError
+from app.services.bank_sync.worker import run_jobs
+from tests.conftest import TestSession
+from tests.routes.support.bank_sync_helpers import _build_account, _build_bank_link, _expire_lease, _job_states, _seed_job
+from tests.services.bank_sync.fake_provider import FakeProviderAdapter
+
+# Without clock changes, so the examples' windows are whole runs of 90 calendar days. The frozen
+# clock reads 1 pm on 4 October there
+_BRISBANE = ZoneInfo("Australia/Brisbane")
+_TODAY = date(2026, 10, 4)
+
+# Yesterday's daily sync, which left a link complete through 3 October
+_YESTERDAYS_SYNC = datetime(2026, 10, 3, 9, 0, tzinfo=_BRISBANE)
+
+# More jobs than any test here queues, so a job that keeps queueing another fails the test
+_MOST_JOBS = 10
+
+# Long enough for any step here to finish, so a missing protection fails the test rather than hanging it
+_WAIT_SECONDS = 10
+
+pytestmark = pytest.mark.usefixtures("worker_sessions")
+
+
+@pytest.fixture
+def provider(monkeypatch) -> FakeProviderAdapter:
+    """Serve the connections' provider through a scripted fake"""
+    fake = FakeProviderAdapter()
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, fake)
+    return fake
+
+
+@pytest.fixture
+async def connection(connections, frozen_now) -> BankConnection:
+    """The first owner's connection, with a credential the job can read, listed an hour ago, and its owner in Brisbane"""
+    async with TestSession() as session:
+        stored = await session.get(BankConnection, connections[0].id)
+        stored.credential_encrypted = encrypt("https://user:secret@bridge.example/simplefin")
+        stored.discovered_at = frozen_now - timedelta(hours=1)
+        (await session.get(User, stored.owner_id)).tz = "Australia/Brisbane"
+        await session.commit()
+    return stored
+
+
+async def _link(connection: BankConnection, external_id: str, **values) -> BankAccountLink:
+    """Commit an account linked to the bank account, its link's fields set as given"""
+    account = _build_account(connection.owner_id, name=external_id)
+    link = _build_bank_link(account, connection, external_id)
+    for field, value in values.items():
+        setattr(link, field, value)
+    async with TestSession() as session:
+        session.add(account)
+        await session.flush()
+        session.add(link)
+        await session.commit()
+    return link
+
+
+def _synced_through_yesterday(**values) -> dict:
+    """Return the fields of a link that yesterday's daily sync left complete through 3 October"""
+    return {"import_start": date(2026, 1, 1), "checkpoint": date(2026, 10, 3), "last_success_at": _YESTERDAYS_SYNC} | values
+
+
+def _bank_account(external_id: str, login_key: str = "CON-harbour") -> ExternalAccount:
+    """Return a bank account as the provider lists it"""
+    return ExternalAccount(
+        external_id=external_id,
+        name=external_id,
+        institution_key="ORG-harbour",
+        institution_name="Harbour Bank",
+        login_key=login_key,
+        currency="CAD",
+        currency_raw="CAD",
+        balance=100_00,
+        available_balance=None,
+        balance_at=datetime(2026, 10, 4, tzinfo=UTC),
+    )
+
+
+def _returned(*external_ids: str) -> FetchResult:
+    """Return a response bringing back each bank account whole"""
+    return FetchResult(accounts=tuple(_bank_account(external_id) for external_id in external_ids))
+
+
+def _window(first_day: date, last_day: date, accounts: Sequence[str] = ("ACT-1",), *, pending: bool = False) -> tuple:
+    """Return a fetch of the bank accounts from midnight on the first day to midnight after the last, in Brisbane"""
+    start = datetime(first_day.year, first_day.month, first_day.day, tzinfo=_BRISBANE)
+    end = datetime(last_day.year, last_day.month, last_day.day, tzinfo=_BRISBANE) + timedelta(days=1)
+    return tuple(sorted(accounts)), start, end, pending
+
+
+def _fetched(provider: FakeProviderAdapter) -> list[tuple]:
+    """Return each fetch the provider was asked for, in the shape _window builds"""
+    return [(tuple(sorted(call.account_ids)), call.start, call.end, call.include_pending) for call in provider.fetches]
+
+
+async def _run_jobs_until_none_is_due() -> None:
+    """Run jobs one at a time until none is due, failing rather than looping if jobs keep coming"""
+    for _ in range(_MOST_JOBS):
+        if not await run_jobs(1):
+            return
+    pytest.fail(f"Jobs were still queued after {_MOST_JOBS} ran")
+
+
+async def _checkpoints(*links: BankAccountLink) -> list[date]:
+    """Return each link's committed checkpoint"""
+    async with TestSession() as session:
+        return [await session.scalar(select(BankAccountLink.checkpoint).where(BankAccountLink.id == link.id)) for link in links]
+
+
+async def _jobs() -> list[tuple]:
+    """Return each job's kind, status, error and the links it covered, oldest first"""
+    async with TestSession() as session:
+        rows = await session.execute(
+            select(BankSyncJob.kind, BankSyncJob.status, BankSyncJob.last_error_kind, BankSyncJob.covered_link_ids).order_by(
+                BankSyncJob.created_at
+            )
+        )
+        return [(kind, status, error, set(covered or ())) for kind, status, error, covered in rows]
+
+
+@pytest.mark.parametrize(
+    ("values", "windows"),
+    [
+        (
+            {"import_start": date(2026, 1, 1), "checkpoint": date(2025, 12, 31)},
+            [
+                _window(date(2026, 1, 1), date(2026, 3, 31)),
+                _window(date(2026, 4, 1), date(2026, 6, 29)),
+                _window(date(2026, 6, 30), date(2026, 9, 27)),
+                _window(date(2026, 9, 28), _TODAY, pending=True),
+            ],
+        ),
+        (
+            {"import_start": date(2026, 1, 1), "checkpoint": date(2026, 4, 30), "last_success_at": datetime(2026, 4, 30, 9, tzinfo=_BRISBANE)},
+            [_window(date(2026, 4, 16), date(2026, 7, 14)), _window(date(2026, 7, 15), _TODAY, pending=True)],
+        ),
+    ],
+    ids=["import_from_1_january", "catch_up_after_the_worker_stopped_from_1_may"],
+)
+async def test_job_fetches_windows_of_at_most_90_days_one_job_after_another_until_today(connection, provider, values, windows):
+    """A 12-month import and a catch-up after a long gap each fetch window after window, and only the last asks for pending
+
+    The catch-up re-reads 14 days before its checkpoint, then carries on from the end of each window
+    """
+    link = await _link(connection, "ACT-1", **values)
+    provider.outcomes = [_returned("ACT-1") for _ in windows]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == windows
+    assert await _checkpoints(link) == [_TODAY]
+
+
+async def test_job_fetches_a_new_links_import_alone_until_its_window_reaches_the_other_links_reread(connection, provider, frozen_now):
+    """Savings, linked from 1 June, imports alone until its window reaches Everyday, due within the hour, then both share it"""
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday(next_attempt_at=frozen_now + timedelta(minutes=70)))
+    savings = await _link(connection, "ACT-savings", import_start=date(2026, 6, 1), checkpoint=date(2026, 5, 31))
+    provider.outcomes = [_returned("ACT-savings"), _returned("ACT-savings", "ACT-everyday")]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [
+        _window(date(2026, 6, 1), date(2026, 8, 29), ["ACT-savings"]),
+        _window(date(2026, 8, 30), _TODAY, ["ACT-savings", "ACT-everyday"], pending=True),
+    ]
+    assert [covered for *_, covered in await _jobs()] == [{savings.id}, {savings.id, everyday.id}]
+    assert await _checkpoints(everyday, savings) == [_TODAY, _TODAY]
+
+
+async def test_job_moves_only_the_checkpoints_of_bank_accounts_the_response_brought_back_whole(connection, provider):
+    """Savings has an error of its own, Card's bank login needs a sign-in and Travel didn't come back, so only Everyday moves
+
+    Their days are fetched again on their next sync, rather than at once, which would spend the budget on the same failure
+    """
+    names = ("ACT-everyday", "ACT-savings", "ACT-card", "ACT-travel")
+    links = [await _link(connection, name, **_synced_through_yesterday()) for name in names]
+    provider.outcomes = [
+        FetchResult(
+            accounts=(_bank_account("ACT-everyday"), _bank_account("ACT-savings"), _bank_account("ACT-card", login_key="CON-card")),
+            account_errors={"ACT-savings": ProviderError(ProviderErrorKind.TEMPORARY, "SimpleFIN Bridge reported a problem")},
+            login_errors={"CON-card": ProviderError(ProviderErrorKind.BANK_LOGIN_NEEDED, "Sign in to your bank again")},
+        )
+    ]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _checkpoints(*links) == [_TODAY, date(2026, 10, 3), date(2026, 10, 3), date(2026, 10, 3)]
+    assert [status for _, status, *_ in await _jobs()] == ["succeeded"]
+
+
+async def test_job_whose_request_fails_records_the_failure_and_moves_no_checkpoint(connection, provider):
+    """SimpleFIN Bridge can't be reached: the job records why, and the link keeps its checkpoint"""
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    provider.outcomes = [FetchResult(request_error=ProviderError(ProviderErrorKind.TEMPORARY, "SimpleFIN Bridge couldn't be reached"))]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _checkpoints(link) == [date(2026, 10, 3)]
+    assert [(status, error) for _, status, error, _ in await _jobs()] == [("failed", "temporary")]
+
+
+@pytest.mark.parametrize("cause", ["budget_spent", "provider_asked_to_slow_down"])
+async def test_job_without_a_request_to_spend_queues_itself_for_when_one_frees(connection, provider, frozen_now, cause):
+    """An import waits for the request budget rather than failing, and fetches nothing it can't count
+
+    The oldest request in the rolling day leaves it 24 hours after it was sent, so the job runs again then
+    """
+    link = await _link(connection, "ACT-1", import_start=date(2026, 9, 1), checkpoint=date(2026, 8, 31))
+    oldest = frozen_now - timedelta(hours=20)
+    sent = [oldest + timedelta(minutes=minute) for minute in range(20 if cause == "budget_spent" else 1)]
+    async with TestSession() as session:
+        session.add_all(
+            BankProviderRequest(owner_id=connection.owner_id, connection_id=connection.id, purpose=ProviderRequestPurpose.SYNC, requested_at=at)
+            for at in sent
+        )
+        await session.commit()
+    provider.outcomes = [FetchResult(request_error=ProviderError(ProviderErrorKind.RATE_LIMITED, "SimpleFIN Bridge asked for fewer requests"))]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    assert await run_jobs(1) == 1
+
+    assert len(provider.fetches) == (0 if cause == "budget_spent" else 1)
+    assert [(kind, status) for kind, status, *_ in await _jobs()] == [("initial", "succeeded"), ("initial", "queued")]
+    async with TestSession() as session:
+        assert await session.scalar(select(BankSyncJob.run_after).where(BankSyncJob.status == "queued")) == oldest + timedelta(hours=24)
+    assert await _checkpoints(link) == [date(2026, 8, 31)]
+
+
+async def test_job_sends_nothing_for_a_rejected_connection(connection, provider):
+    """A credential the provider rejected can't work until the user reconnects, so the job ends without spending a request"""
+    await _link(connection, "ACT-1", **_synced_through_yesterday())
+    async with TestSession() as session:
+        await session.execute(
+            update(BankConnection).where(BankConnection.id == connection.id).values(credential_rejected_at=datetime(2026, 10, 2, tzinfo=UTC))
+        )
+        await session.commit()
+    await _seed_job(connection, BankSyncJobKind.MANUAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert provider.fetches == []
+    async with TestSession() as session:
+        assert (await session.scalars(select(BankProviderRequest.id))).all() == []
+    assert [status for _, status, *_ in await _jobs()] == ["succeeded"]
+
+
+async def test_job_for_a_provider_turned_off_records_why_and_sends_nothing(connection, monkeypatch):
+    """An operator turned SimpleFIN off: the job fails with a reason the account's sync details can show"""
+    await _link(connection, "ACT-1", **_synced_through_yesterday())
+    monkeypatch.delitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, raising=False)
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    async with TestSession() as session:
+        assert (await session.execute(select(BankSyncJob.status, BankSyncJob.last_error_reason))).one() == (
+            "failed",
+            "SimpleFIN is turned off on this server",
+        )
+
+
+class _HeldProvider(FakeProviderAdapter):
+    """Waits in its first fetch, after the answer is decided, until the test releases it, as a slow provider would"""
+
+    def __init__(self) -> None:
+        """Start with the first fetch not yet reached"""
+        super().__init__()
+        self.fetching = asyncio.Event()
+        self.release = asyncio.Event()
+
+    @override
+    async def fetch(self, credential: str, **window) -> FetchResult:
+        result = await super().fetch(credential, **window)
+        if not self.fetching.is_set():
+            self.fetching.set()
+            await self.release.wait()
+        return result
+
+
+async def test_job_moves_no_checkpoint_for_a_link_unlinked_while_it_fetched(connection, monkeypatch):
+    """Savings is unlinked while the job waits on the provider, so only Everyday takes what came back"""
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    savings = await _link(connection, "ACT-savings", **_synced_through_yesterday())
+    provider = _HeldProvider()
+    provider.outcomes = [_returned("ACT-everyday", "ACT-savings")]
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    async with asyncio.timeout(_WAIT_SECONDS):
+        running = asyncio.create_task(run_jobs(1))
+        await provider.fetching.wait()
+        async with TestSession() as session:
+            await session.execute(
+                update(BankAccountLink)
+                .where(BankAccountLink.id == savings.id)
+                .values(state=BankLinkState.UNLINKED, unlinked_at=datetime(2026, 10, 4, tzinfo=UTC))
+            )
+            await session.commit()
+        provider.release.set()
+        await running
+
+    assert await _checkpoints(everyday, savings) == [_TODAY, date(2026, 10, 3)]
+
+
+async def test_job_attempt_that_lost_its_lease_while_fetching_writes_nothing(connection, monkeypatch):
+    """Attempt 1 stalls on the provider past its lease, attempt 2 finds Everyday failing, and attempt 1's late success changes nothing"""
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    provider = _HeldProvider()
+    provider.outcomes = [
+        _returned("ACT-1"),
+        FetchResult(account_errors={"ACT-1": ProviderError(ProviderErrorKind.TEMPORARY, "SimpleFIN Bridge reported a problem")}),
+    ]
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
+    job = await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    async with asyncio.timeout(_WAIT_SECONDS):
+        first_attempt = asyncio.create_task(run_jobs(1))
+        await provider.fetching.wait()
+        await _expire_lease(job)
+        assert await run_jobs(1) == 1
+        provider.release.set()
+        assert await first_attempt == 1
+
+    assert await _checkpoints(link) == [date(2026, 10, 3)]
+    assert await _job_states() == {job.id: ("succeeded", 2)}

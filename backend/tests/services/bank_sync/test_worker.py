@@ -24,7 +24,7 @@ from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
 from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncHeartbeat, BankSyncJob, BankSyncJobKind, BankSyncJobStatus
-from app.services.bank_sync import sync, worker
+from app.services.bank_sync import worker
 from app.services.bank_sync.jobs import ClaimedJob, finish_job, lock_job_for_finish
 from app.services.bank_sync.pending import replace_pending_transactions
 from app.services.bank_sync.sync import run_sync_job
@@ -35,6 +35,7 @@ from tests.routes.support.bank_sync_helpers import (
     _build_bank_connection,
     _build_bank_link,
     _build_pending_transaction,
+    _expire_lease,
     _job_states,
     _seed_job,
 )
@@ -44,12 +45,7 @@ _WAIT_SECONDS = 10
 
 _BACKEND_DIR = Path(__file__).resolve().parents[3]
 
-
-@pytest.fixture(autouse=True)
-def _worker_sessions(monkeypatch):
-    """Open the worker's sessions on this test run's database as the app role, as production opens them"""
-    monkeypatch.setattr(worker, "async_session", ScopedSession)
-    monkeypatch.setattr(sync, "async_session", ScopedSession)
+pytestmark = pytest.mark.usefixtures("worker_sessions")
 
 
 class _FetchingRunner:
@@ -124,15 +120,6 @@ async def _job_outcomes() -> dict:
     async with TestSession() as session:
         rows = (await session.execute(select(BankSyncJob.id, BankSyncJob.status, BankSyncJob.last_error_kind))).all()
     return {job_id: (status, kind) for job_id, status, kind in rows}
-
-
-async def _expire_lease(job: BankSyncJob) -> None:
-    """End a running job's lease a minute ago, as though its worker stopped mid-job"""
-    async with TestSession() as session:
-        await session.execute(
-            update(BankSyncJob).where(BankSyncJob.id == job.id).values(lease_expires_at=datetime.now(UTC) - timedelta(minutes=1))
-        )
-        await session.commit()
 
 
 async def test_run_jobs_called_at_once_run_each_owners_job_as_that_owner(connections, monkeypatch):

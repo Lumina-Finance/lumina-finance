@@ -95,6 +95,14 @@ class ExternalAccount:
     covered_from: date | None = None
     records: tuple[ProviderRecord, ...] = ()
 
+    @property
+    def bank_login(self) -> str:
+        """The bank login the account sits under, which login errors are keyed by
+
+        A provider without separate bank logins has one per institution
+        """
+        return self.login_key if self.login_key is not None else self.institution_key
+
 
 @dataclass(frozen=True)
 class FetchResult:

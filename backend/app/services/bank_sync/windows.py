@@ -1,0 +1,126 @@
+"""Planning the days each sync of a connection fetches, and the links it fetches them for
+
+Each link due to sync needs data from its own start. A link importing or catching up after a gap
+carries on from the day after its checkpoint, and a link already synced through the day its
+checkpoint was set re-reads the provider's revisit overlap before it, to see what posted late or was
+corrected, never before its import start. One request per connection fetches a window from the
+earliest need among the links due, at most as long as the provider allows, for every link whose need
+begins in it, so imports, routine syncs and catch-ups after any gap are one mechanism. Days are
+calendar days in the user's profile timezone
+"""
+
+from collections.abc import Iterable
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
+
+from app.models.bank_connection import BankAccountLink, BankLinkState
+
+# A sync takes in every link due within this long, so the links on one connection converge on one
+# daily request rather than each spending a request of its own
+DUE_WITHIN = timedelta(hours=12)
+
+_ONE_DAY = timedelta(days=1)
+
+
+@dataclass(frozen=True)
+class LinkNeed:
+    """A link due to sync, and the first day it needs"""
+
+    link: BankAccountLink
+    start: date
+
+
+@dataclass(frozen=True)
+class SyncWindow:
+    """The days one request fetches, first_day through last_day, and the links it fetches them for"""
+
+    first_day: date
+    last_day: date
+
+    # Each link whose need begins on or before last_day
+    needs: tuple[LinkNeed, ...]
+
+    def bounds(self, timezone: ZoneInfo) -> tuple[datetime, datetime]:
+        """Return the instant the window starts and the instant it ends before, each a midnight in the timezone"""
+        return _midnight(self.first_day, timezone), _midnight(self.last_day + _ONE_DAY, timezone)
+
+
+def find_due_links(links: Iterable[BankAccountLink], *, now: datetime, timezone: ZoneInfo, overlap_days: int) -> list[LinkNeed]:
+    """Return the links to sync now, each with the first day it needs
+
+    A link syncs while it is active and not paused for review, once its next attempt falls within
+    the next 12 hours, and a link with no next attempt set is due now. A link whose need starts after
+    today has nothing to fetch yet
+
+    Args:
+        links: The connection's links
+        now: The current time
+        timezone: The profile timezone, which days are counted in
+        overlap_days: Days before its checkpoint that a routine sync re-reads
+    """
+    today = now.astimezone(timezone).date()
+    due = []
+    for link in links:
+        if link.state != BankLinkState.ACTIVE or link.paused:
+            continue
+        if link.next_attempt_at is not None and link.next_attempt_at > now + DUE_WITHIN:
+            continue
+        start = _need_start(link, timezone, overlap_days)
+        if start <= today:
+            due.append(LinkNeed(link, start))
+    return due
+
+
+def plan_window(needs: Iterable[LinkNeed], *, today: date, timezone: ZoneInfo, max_days: int) -> SyncWindow | None:
+    """Return the window to fetch next, or None when no link needs one
+
+    The window starts at the earliest need and runs to today, or for max_days days when today is
+    further off. A clock change can make that many days longer than max_days of elapsed time, which
+    the provider refuses, so such a window ends a day sooner
+
+    Args:
+        needs: The links due, each with the first day it needs
+        today: Today in the profile timezone
+        timezone: The profile timezone
+        max_days: The most days one request may span, in elapsed time
+
+    Returns:
+        The window, for every link whose need begins inside it
+    """
+    needs = tuple(needs)
+    if not needs:
+        return None
+    first_day = min(need.start for need in needs)
+    last_day = min(first_day + timedelta(days=max_days - 1), today)
+    while _elapsed(first_day, last_day, timezone) > timedelta(days=max_days):
+        last_day -= _ONE_DAY
+    return SyncWindow(first_day, last_day, tuple(need for need in needs if need.start <= last_day))
+
+
+def _need_start(link: BankAccountLink, timezone: ZoneInfo, overlap_days: int) -> date:
+    """Return the first day a link needs, never before its import start
+
+    The checkpoint is the last day the link's data is complete through, and its last successful sync
+    is when the checkpoint last moved. A checkpoint short of the day it was set, or one never set,
+    means the link is importing or catching up, so it carries on from the day after. Otherwise the
+    link re-reads the overlap before its checkpoint
+    """
+    if link.last_success_at is None or link.checkpoint < link.last_success_at.astimezone(timezone).date():
+        start = link.checkpoint + _ONE_DAY
+    else:
+        start = link.checkpoint - timedelta(days=overlap_days)
+    return max(start, link.import_start)
+
+
+def _midnight(day: date, timezone: ZoneInfo) -> datetime:
+    """Return the instant a day starts in the timezone"""
+    return datetime.combine(day, time.min, tzinfo=timezone)
+
+
+def _elapsed(first_day: date, last_day: date, timezone: ZoneInfo) -> timedelta:
+    """Return the elapsed time from the start of the first day to the end of the last
+
+    Measured in UTC, since subtracting two times in one zone ignores a clock change between them
+    """
+    return _midnight(last_day + _ONE_DAY, timezone).astimezone(UTC) - _midnight(first_day, timezone).astimezone(UTC)

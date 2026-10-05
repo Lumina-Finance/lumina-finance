@@ -1,0 +1,88 @@
+"""Planning which days a sync fetches, and for which links
+
+A link left out of a sync it was due for waits a day, one paused or waiting for its bank account to
+be chosen again must send nothing, a re-read too short misses late postings and corrections, one
+reaching before the import start brings in days the ledger already covers, and a window longer than
+SimpleFIN Bridge allows is refused on every retry
+"""
+
+import uuid
+from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo
+
+import pytest
+
+from app.models.bank_connection import BankAccountLink, BankLinkState
+from app.services.bank_sync.windows import LinkNeed, find_due_links, plan_window
+from tests.routes.support.bank_sync_helpers import _build_account, _build_bank_link
+
+# Without clock changes, so the examples' windows are whole runs of 90 calendar days
+_BRISBANE = ZoneInfo("Australia/Brisbane")
+_TORONTO = ZoneInfo("America/Toronto")
+
+# 1 pm on 4 October in Brisbane
+_NOW = datetime(2026, 10, 4, 13, 0, tzinfo=_BRISBANE)
+_TODAY = date(2026, 10, 4)
+
+
+def _link(**values) -> BankAccountLink:
+    """Return an unsaved active link, not paused and never synced, with the fields given"""
+    link = _build_bank_link(_build_account(uuid.uuid4()), None)
+    link.state = BankLinkState.ACTIVE
+    link.paused = False
+    for field, value in values.items():
+        setattr(link, field, value)
+    return link
+
+
+@pytest.mark.parametrize(
+    ("import_start", "first_day"),
+    [(date(2026, 1, 1), date(2026, 9, 19)), (date(2026, 9, 25), date(2026, 9, 25))],
+    ids=["rereads_14_days", "import_start_inside_them"],
+)
+def test_plan_window_for_a_daily_sync_rereads_14_days_but_never_before_the_import_start(import_start, first_day):
+    """Everyday synced yesterday through 3 October fetches from 19 September to today, or from its import start if later"""
+    link = _link(import_start=import_start, checkpoint=date(2026, 10, 3), last_success_at=datetime(2026, 10, 3, 9, 0, tzinfo=_BRISBANE))
+
+    window = plan_window(find_due_links([link], now=_NOW, timezone=_BRISBANE, overlap_days=14), today=_TODAY, timezone=_BRISBANE, max_days=90)
+
+    assert (window.first_day, window.last_day) == (first_day, _TODAY)
+
+
+@pytest.mark.parametrize(
+    ("values", "is_due"),
+    [
+        ({}, True),
+        ({"next_attempt_at": _NOW + timedelta(hours=12)}, True),
+        ({"next_attempt_at": _NOW + timedelta(hours=12, minutes=1)}, False),
+        ({"paused": True}, False),
+        ({"state": BankLinkState.CHOOSE_ACCOUNT}, False),
+    ],
+    ids=["no_next_attempt", "due_in_12_hours", "due_in_12_hours_and_a_minute", "paused_for_review", "waiting_to_choose_its_bank_account"],
+)
+def test_find_due_links_takes_in_active_links_due_within_12_hours_unless_paused(values, is_due):
+    """A link due later today joins the sync now, so the connection's links share one request a day"""
+    link = _link(import_start=date(2026, 9, 1), checkpoint=date(2026, 8, 31), **values)
+
+    due = find_due_links([link], now=_NOW, timezone=_BRISBANE, overlap_days=14)
+
+    assert [need.link for need in due] == ([link] if is_due else [])
+
+
+@pytest.mark.parametrize(
+    ("first_day", "last_day"),
+    [(date(2026, 10, 1), date(2026, 12, 28)), (date(2026, 2, 1), date(2026, 5, 1))],
+    ids=["clocks_going_back_inside_it", "clocks_going_forward_inside_it"],
+)
+def test_plan_window_spans_at_most_90_days_of_elapsed_time_across_a_clock_change(first_day, last_day):
+    """Clocks going back on 1 November would make 90 days in Toronto an hour too long, so the window ends a day sooner
+
+    Clocks going forward on 8 March leave 90 days an hour short, which SimpleFIN Bridge accepts
+    """
+    need = LinkNeed(_link(import_start=first_day, checkpoint=first_day - timedelta(days=1)), first_day)
+
+    window = plan_window([need], today=date(2026, 12, 31), timezone=_TORONTO, max_days=90)
+
+    start, end = window.bounds(_TORONTO)
+    assert (window.first_day, window.last_day) == (first_day, last_day)
+    assert end.astimezone(UTC) - start.astimezone(UTC) <= timedelta(days=90)

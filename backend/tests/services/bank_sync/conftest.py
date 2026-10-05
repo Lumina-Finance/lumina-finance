@@ -6,9 +6,17 @@ from freezegun import freeze_time
 
 from app.models.bank_connection import BankConnection
 from app.models.currency import Currency
-from tests.conftest import TestSession
+from app.services.bank_sync import sync, worker
+from tests.conftest import ScopedSession, TestSession
 from tests.routes.support.bank_sync_helpers import _build_bank_connection, _build_user
 from tests.services.bank_sync.stand_ins import FROZEN_NOW
+
+
+@pytest.fixture
+def worker_sessions(monkeypatch) -> None:
+    """Open the worker's and the job runner's sessions on this test run's database as the app role, as production opens them"""
+    monkeypatch.setattr(worker, "async_session", ScopedSession)
+    monkeypatch.setattr(sync, "async_session", ScopedSession)
 
 
 @pytest.fixture

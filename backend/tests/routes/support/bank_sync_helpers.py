@@ -11,7 +11,7 @@ Jobs are committed, since the worker reaches them through sessions of its own
 import uuid
 from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.models.account import Account
 from app.models.bank_connection import (
@@ -240,6 +240,15 @@ async def _seed_job(connection: BankConnection, kind: BankSyncJobKind, **values)
         session.add(job)
         await session.commit()
     return job
+
+
+async def _expire_lease(job: BankSyncJob) -> None:
+    """End a running job's lease a minute ago, as though its worker stopped mid-job"""
+    async with TestSession() as session:
+        await session.execute(
+            update(BankSyncJob).where(BankSyncJob.id == job.id).values(lease_expires_at=datetime.now(UTC) - timedelta(minutes=1))
+        )
+        await session.commit()
 
 
 async def _job_states() -> dict:

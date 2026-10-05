@@ -124,8 +124,7 @@ async def _store_bank_accounts(db: AsyncSession, connection: BankConnection, acc
             "name": account.name,
             "institution_key": account.institution_key,
             "institution_name": account.institution_name,
-            # A provider without separate bank logins has one per institution
-            "login_key": account.login_key if account.login_key is not None else account.institution_key,
+            "login_key": account.bank_login,
             # Kept as sent, so a custom currency is still listed and explained
             "currency": account.currency_raw,
             "balance": account.balance,
