@@ -20,6 +20,7 @@ from sqlalchemy import delete, select, update
 from app.encryption import encrypt
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState, BankProvider, BankProviderRequest, ProviderRequestPurpose
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, ProviderErrorKind
+from app.models.cache_state import UserCacheState
 from app.models.user import User
 from app.services.bank_sync import availability
 from app.services.bank_sync.availability import PROVIDER_ADAPTERS
@@ -374,7 +375,7 @@ async def test_job_records_a_second_sync_the_same_day_as_the_links_last_success(
 
 
 async def test_job_whose_request_fails_records_the_failure_and_moves_no_checkpoint(connection, provider):
-    """SimpleFIN Bridge can't be reached: the job records why, and the link keeps its checkpoint"""
+    """SimpleFIN Bridge can't be reached: the job records why, the owner's open pages are told so, and the link keeps its checkpoint"""
     link = await _link(connection, "ACT-1", **_synced_through_yesterday())
     provider.outcomes = [FetchResult(request_error=ProviderError(ProviderErrorKind.TEMPORARY, "SimpleFIN Bridge couldn't be reached"))]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
@@ -383,6 +384,8 @@ async def test_job_whose_request_fails_records_the_failure_and_moves_no_checkpoi
 
     assert await _checkpoints(link) == [date(2026, 10, 3)]
     assert [(status, error) for _, status, error, _ in await _jobs()] == [("failed", "temporary")]
+    async with TestSession() as session:
+        assert await session.get(UserCacheState, connection.owner_id) is not None
 
 
 @pytest.mark.parametrize("cause", ["budget_spent", "provider_asked_to_slow_down"])

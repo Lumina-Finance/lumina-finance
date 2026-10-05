@@ -1,13 +1,16 @@
-"""Running one claimed bank sync job: a discovery when one is due, then one date window of a connection's links
+"""Running one claimed bank sync job: a discovery when one is due, then date windows of a connection's links
 
 A job lists the connection's bank accounts first when it was flagged to, or when the last listing
 is over 20 hours old, so a daily sync shows a bank added at the provider and stops a linked bank
-account that vanished before the window is planned. A window whose response may have been cut short is
-fetched again in halves. Each request is counted against the connection's budget in a transaction
-of its own before it is sent, and a job that finds the budget spent queues itself again for when a
-request frees. A job holds no database connection while it waits on the provider, and everything it
-writes goes through lock_job_for_finish, so a runner that lost its lease writes nothing and a link
-that changed while the job fetched gets none of its results
+account that vanished before the window is planned. A window whose response may have been cut short
+is fetched again in halves. Each request is counted against the connection's budget in a
+transaction of its own before it is sent, and a job that finds the budget spent queues itself again
+for when a request frees. A job holds no database connection while it waits on the provider.
+
+What a job stores, its checkpoints, discoveries and its own end, goes through lock_job_for_finish,
+so a runner that lost its lease stores nothing and a link that changed while the job fetched gets
+none of its results. The request counts and the budget-spent mark are written outside it, since
+they record requests already sent, whoever holds the job
 """
 
 import logging
@@ -288,6 +291,7 @@ class _JobRun:
             Whether a checkpoint moved
         """
         moved = False
+        stamped = False
         async with async_session() as db:
             for link in await lock_job_for_finish(db, self.job, [need.link for need in part.needs]):
                 if link.external_account_id not in synced or first_missing_day(link) < part.first_day:
@@ -298,7 +302,9 @@ class _JobRun:
                     moved = True
                 if advanced or part.last_day == self.today:
                     link.last_success_at = self.now
-            await mark_user_cache_changed(db, self.job.owner_id)
+                    stamped = True
+            if stamped:
+                await mark_user_cache_changed(db, self.job.owner_id)
             await db.commit()
         return moved
 
@@ -359,6 +365,8 @@ async def _end_job(
 ) -> None:
     """Record a job as finished, or failed with an error, and queue the connection's next job in the same step when asked
 
+    The owner's open pages are told, since the sync status changes with it
+
     Args:
         job: The job as claimed
         error: What stopped the job, or None when it did all it could
@@ -376,4 +384,5 @@ async def _end_job(
                 db, owner_id=job.owner_id, connection_id=job.connection_id, kind=job.kind, discover=discover, run_after=run_after
             )
         await finish_job(db, job, error)
+        await mark_user_cache_changed(db, job.owner_id)
         await db.commit()
