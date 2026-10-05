@@ -51,6 +51,18 @@ async function getBox(locator: Locator): Promise<Box> {
 }
 
 /**
+ * Reads how opaque the cursor tooltip showing this text is. The tooltip fades its outer box, the one
+ * hidden from assistive technology, while the text inside keeps an opacity of 1 throughout
+ */
+async function readTooltipOpacity(text: Locator): Promise<string> {
+  return text.evaluate((node) => {
+    const tooltip = node.closest('[aria-hidden="true"]')
+    if (!tooltip) throw new Error('the text is not inside a cursor tooltip')
+    return getComputedStyle(tooltip).opacity
+  })
+}
+
+/**
  * Types a date into the modal's date field and leaves the field, as a user does. The field moves on
  * by itself as each part fills, and clicking Notes leaves it, since Tab from the day stops on the
  * field's own calendar button first
@@ -320,7 +332,7 @@ test('greys out Archive with its reason while the account is linked, and offers 
   // Pointing at the row shows the reason beside it, and pressing it leaves the account as it is
   const row = dialog.getByText('Archive account', { exact: true })
   await row.hover()
-  await expect(page.getByText(ARCHIVE_LINKED_REASON).filter({ visible: true })).toHaveCSS('opacity', '1')
+  await expect.poll(() => readTooltipOpacity(page.getByText(ARCHIVE_LINKED_REASON).filter({ visible: true }))).toBe('1')
 
   // Forced, because the switch is marked unavailable and pressing it anyway is what is checked
   await row.click({ force: true })
@@ -376,14 +388,12 @@ test('greys out Delete on a bank transaction with its reason while the account i
   await expect(remove).toHaveAttribute('aria-disabled', 'true')
   await expect(remove).toHaveAccessibleDescription(DELETE_LINKED_REASON)
 
-  // Pointing at Delete shows the reason, which follows the cursor down the button. The reason's own
-  // box keeps its opacity, so the fade is read from the tooltip around it
+  // Pointing at Delete shows the reason, which follows the cursor down the button
   const reason = page.getByText(DELETE_LINKED_REASON).filter({ visible: true })
-  const reasonOpacity = () => reason.evaluate((node) => getComputedStyle(node.closest('[aria-hidden="true"]')!).opacity)
   const button = await getBox(remove)
   const pointerX = button.x + button.width / 2
   await page.mouse.move(pointerX, button.y + 10)
-  await expect.poll(reasonOpacity).toBe('1')
+  await expect.poll(() => readTooltipOpacity(reason)).toBe('1')
   const shownAt = await getBox(reason)
   await page.mouse.move(pointerX, button.y + 10 + POINTER_STEP_PX)
   await expect.poll(async () => Math.round((await getBox(reason)).y - shownAt.y)).toBe(POINTER_STEP_PX)
