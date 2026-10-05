@@ -24,7 +24,7 @@ from app.schemas.bank_sync import (
     ReconnectBankConnectionRequest,
     ReconnectBankConnectionResponse,
 )
-from app.services.bank_sync.availability import get_enabled_adapter, is_offered, require_bank_linking
+from app.services.bank_sync.availability import LIVE_LINK, get_enabled_adapter, is_offered, require_bank_linking
 from app.services.bank_sync.connections import build_connection_responses, get_own_connection, read_nickname
 from app.services.bank_sync.discovery import run_discovery
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
@@ -210,7 +210,7 @@ async def _resume_links(db: AsyncSession, connection: BankConnection) -> tuple[l
     """
     links = await db.scalars(
         select(BankAccountLink)
-        .where(BankAccountLink.connection_id == connection.id, BankAccountLink.state != BankLinkState.UNLINKED)
+        .where(BankAccountLink.connection_id == connection.id, LIVE_LINK)
         .order_by(BankAccountLink.id)
         .with_for_update()
         .execution_options(populate_existing=True)

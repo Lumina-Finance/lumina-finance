@@ -26,13 +26,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.bank_connection import BankAccountLink, BankLinkState, BankProvider
+from app.models.bank_connection import BankAccountLink, BankProvider
 from app.models.bank_transaction import BankTransaction
 from app.models.user import User
-from app.services.bank_sync.availability import PROVIDER_ADAPTERS
+from app.services.bank_sync.availability import LIVE_LINK, PROVIDER_ADAPTERS
 from app.utils.dates import format_day, resolve_timezone
-
-_LIVE_LINK = BankAccountLink.state != BankLinkState.UNLINKED
 
 
 class LedgerEdit(NamedTuple):
@@ -148,7 +146,7 @@ async def refuse_archiving_a_linked_account(db: AsyncSession, account: Account) 
         HTTPException 422: The account is linked, saying to which provider
     """
     await db.execute(select(Account.id).where(Account.id == account.id).with_for_update(key_share=True))
-    provider = await db.scalar(select(BankAccountLink.provider).where(BankAccountLink.account_id == account.id, _LIVE_LINK))
+    provider = await db.scalar(select(BankAccountLink.provider).where(BankAccountLink.account_id == account.id, LIVE_LINK))
     if provider is not None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -168,7 +166,7 @@ async def _read_live_links(db: AsyncSession, account_ids: Iterable[uuid.UUID]) -
     rows = await db.execute(
         select(BankAccountLink.account_id, Account.name, BankAccountLink.provider, BankAccountLink.import_start)
         .join(Account, Account.id == BankAccountLink.account_id)
-        .where(BankAccountLink.account_id.in_(ids), _LIVE_LINK)
+        .where(BankAccountLink.account_id.in_(ids), LIVE_LINK)
     )
     return {account_id: _LiveLink(name, provider, import_start) for account_id, name, provider, import_start in rows}
 

@@ -52,6 +52,7 @@ from app.schemas.bank_sync import (
 from app.services.accounts.access import get_own_personal_account
 from app.services.bank_sync.availability import (
     LINK_NOT_OWN_DETAIL,
+    LIVE_LINK,
     Unavailability,
     find_unavailability,
     get_enabled_adapter,
@@ -73,8 +74,6 @@ FRESH_DISCOVERY_AGE = timedelta(hours=1)
 
 ACCOUNT_ALREADY_LINKED = "This account is already linked to a bank"
 BANK_ACCOUNT_ALREADY_LINKED = "That bank account is already linked to another account"
-
-_LIVE_LINK = BankAccountLink.state != BankLinkState.UNLINKED
 
 
 async def list_bank_accounts_for_account(
@@ -224,7 +223,7 @@ async def link_bank_account(
     # unlink or a discovery that lists the old bank account again may have moved it meanwhile
     link = await db.scalar(
         select(BankAccountLink)
-        .where(BankAccountLink.account_id == account.id, _LIVE_LINK)
+        .where(BankAccountLink.account_id == account.id, LIVE_LINK)
         .with_for_update()
         .execution_options(populate_existing=True)
     )
@@ -297,7 +296,7 @@ async def unlink_account(db: AsyncSession, user: User, account_id: uuid.UUID) ->
     await check_account_access(db, account_id, user.id, PermissionLevel.READ)
     link = await db.scalar(
         select(BankAccountLink)
-        .where(BankAccountLink.account_id == account_id, BankAccountLink.owner_id == user.id, _LIVE_LINK)
+        .where(BankAccountLink.account_id == account_id, BankAccountLink.owner_id == user.id, LIVE_LINK)
         .with_for_update()
     )
     if link is None:
@@ -330,7 +329,7 @@ async def disconnect_connection(db: AsyncSession, user: User, connection_id: uui
     connection = await get_own_connection(db, user.id, connection_id, lock={})
     await db.execute(select(BankSyncJob.id).where(BankSyncJob.connection_id == connection.id).order_by(BankSyncJob.id).with_for_update())
     linked = await db.scalars(
-        select(BankAccountLink).where(BankAccountLink.connection_id == connection.id, _LIVE_LINK).order_by(BankAccountLink.id).with_for_update()
+        select(BankAccountLink).where(BankAccountLink.connection_id == connection.id, LIVE_LINK).order_by(BankAccountLink.id).with_for_update()
     )
     ended = linked.all()
     await _end_links(db, ended, now=datetime.now(UTC))

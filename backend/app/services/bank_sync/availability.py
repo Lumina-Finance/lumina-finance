@@ -41,7 +41,8 @@ ENABLED_ADAPTERS: dict[BankProvider, ProviderAdapter] = {
 # existing ones keep syncing, linking, reconnecting and disconnecting
 OFFERED_PROVIDERS: frozenset[BankProvider] = frozenset(provider for provider, (_, offered) in _PROVIDER_SWITCHES.items() if offered)
 
-_LIVE_LINK = BankAccountLink.state != BankLinkState.UNLINKED
+# A link that still feeds its account, active or waiting for its bank account to be chosen again
+LIVE_LINK = BankAccountLink.state != BankLinkState.UNLINKED
 
 # Why a visible account the user doesn't own alone, such as a group account, can't be linked
 LINK_NOT_OWN_DETAIL = "Accounts shared with a group can't be linked to a bank yet"
@@ -133,7 +134,7 @@ async def get_institution_allowance(db: AsyncSession, user_id: uuid.UUID, provid
             (BankAccountLink.connection_id == BankExternalAccount.connection_id)
             & (BankAccountLink.external_account_id == BankExternalAccount.external_id),
         )
-        .where(BankAccountLink.owner_id == user_id, BankAccountLink.provider == provider, _LIVE_LINK)
+        .where(BankAccountLink.owner_id == user_id, BankAccountLink.provider == provider, LIVE_LINK)
         .group_by(BankExternalAccount.institution_key)
     )
     return InstitutionAllowance(limit=get_institution_limit(user_id, provider), in_use=dict(in_use.all()))
@@ -154,7 +155,7 @@ async def read_linked_bank_accounts(db: AsyncSession, user_id: uuid.UUID) -> dic
     links = await db.execute(
         select(BankAccountLink.provider, BankAccountLink.external_account_id, Account.id, Account.name)
         .join(Account, Account.id == BankAccountLink.account_id)
-        .where(BankAccountLink.owner_id == user_id, _LIVE_LINK)
+        .where(BankAccountLink.owner_id == user_id, LIVE_LINK)
     )
     return {(provider, external_id): (account_id, name) for provider, external_id, account_id, name in links}
 
@@ -172,7 +173,7 @@ async def list_link_candidates(db: AsyncSession, user_id: uuid.UUID) -> list[Acc
     Returns:
         The accounts, by name
     """
-    is_linked = exists().where(BankAccountLink.account_id == Account.id, _LIVE_LINK)
+    is_linked = exists().where(BankAccountLink.account_id == Account.id, LIVE_LINK)
     result = await db.execute(
         select(Account)
         .where(own_personal_account_condition(user_id), Account.is_archived.is_(False), ~is_linked)
