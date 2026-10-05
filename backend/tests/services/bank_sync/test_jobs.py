@@ -33,6 +33,10 @@ async def _claim(limit: int) -> list:
     return claimed
 
 
+# The job a listing that failed leaves behind, finished as failed
+_LISTING_FAILED = {"status": BankSyncJobStatus.FAILED, "attempt": 1, "last_error_kind": "unknown"}
+
+
 async def _list_due(now: datetime) -> list[tuple]:
     """Return the connections the due scan finds due at this time, as the worker reads them"""
     async with ScopedSession() as worker:
@@ -300,8 +304,8 @@ async def test_list_due_bank_connections_returns_due_ones_across_owners_by_id(co
     [
         ({"created_at": timedelta(hours=1)}, None, True),
         ({"created_at": timedelta(minutes=59)}, None, False),
-        ({"discovery_failed_at": timedelta(hours=1)}, None, True),
-        ({"discovery_failed_at": timedelta(minutes=59)}, None, False),
+        ({"discovery_failed_at": timedelta(hours=1)}, _LISTING_FAILED | {"finished_at": datetime(2026, 10, 4, 11, 0, tzinfo=UTC)}, True),
+        ({"discovery_failed_at": timedelta(minutes=59)}, _LISTING_FAILED | {"finished_at": datetime(2026, 10, 4, 11, 1, tzinfo=UTC)}, False),
         ({"discovered_at": timedelta(days=2)}, None, False),
         ({"credential_rejected_at": timedelta(hours=1)}, None, False),
         ({}, {"status": BankSyncJobStatus.QUEUED}, False),
@@ -324,15 +328,20 @@ async def test_list_due_bank_connections_returns_one_never_listed_once_nothing_i
     """A connection claimed a day ago whose bank accounts were never listed, and with no next sync, is due a listing
 
     Not within an hour of its claim or of a listing that failed, while a job is queued or running for
-    it, once it was listed, or with its credential rejected
+    it, once it was listed, or with its credential rejected. The other owners' connections, claimed
+    and listed a day ago, aren't due, and a sync queued for one of them holds back none but its own
     """
     now = datetime(2026, 10, 4, 12, 0, tzinfo=UTC)
     async with TestSession() as session:
+        for other in connections[1:]:
+            stored = await session.get(BankConnection, other.id)
+            stored.created_at = stored.discovered_at = now - timedelta(days=1)
         stored = await session.get(BankConnection, connections[0].id)
         stored.created_at = now - timedelta(days=1)
         for field, ago in values.items():
             setattr(stored, field, now - ago)
         await session.commit()
+    await _seed_job(connections[1], BankSyncJobKind.SCHEDULED)
     if job is not None:
         await _seed_job(connections[0], BankSyncJobKind.RETRY, discover=True, **job)
 

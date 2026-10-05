@@ -94,6 +94,7 @@ from tests.routes.support.bank_sync_helpers import (
     _build_ledger_transaction,
     _build_pending_transaction,
     _commit_accepted_items,
+    _commit_bank_connection,
     _commit_waiting_items,
     _dismiss_items,
     _expire_lease,
@@ -4302,8 +4303,11 @@ async def test_connections_next_sync_is_the_earliest_among_links_on_the_daily_sc
     """Savings next syncs 13 hours from now and Everyday 20, so the connection next syncs in 13 hours while Savings can sync
 
     A link the review pause holds back and one that can't sync leave the schedule to Everyday. An
-    import runs whatever the pause, and a link waiting to retry is due at its retry
+    import runs whatever the pause, and a link waiting to retry is due at its retry. Travel, due in
+    an hour on the owner's other connection, counts toward that connection alone
     """
+    other = await _commit_bank_connection(connection.owner_id, created_at=frozen_now - timedelta(days=1))
+    await _link(other, "ACT-travel", **_synced_through_yesterday(next_attempt_at=frozen_now + timedelta(hours=1)))
     await _link(connection, "ACT-everyday", **_synced_through_yesterday(next_attempt_at=frozen_now + timedelta(hours=20)))
     await _link(connection, "ACT-savings", **_synced_through_yesterday(next_attempt_at=frozen_now + timedelta(hours=13)) | values)
 
