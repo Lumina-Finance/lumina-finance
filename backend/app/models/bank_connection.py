@@ -280,8 +280,9 @@ class BankAccountLink(Base):
     # day this falls on as an import or catch-up still under way, and any other as a link to re-read
     last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    # When the request of the link's last sync attempt was sent, and why the attempt failed, or
-    # None when it succeeded. A failure never moves last_success_at
+    # When the link's last sync attempt sent its request, or stopped when the sync stopped before
+    # recording it, and why the attempt failed, or None when it succeeded. A failure never moves
+    # last_success_at
     last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_failure_reason: Mapped[str | None] = mapped_column(Text)
 

@@ -128,8 +128,9 @@ async def run_sync_job(job: ClaimedJob) -> None:
 async def fail_sync_job(job: ClaimedJob, error: ProviderError, *, started_at: datetime) -> None:
     """Record a job its runner couldn't finish as failed, and the error as a failed attempt for each link it was syncing
 
-    Each link the job had started on fails, though a window it finished may already have recorded
-    the link's attempt, and its retry is queued like any job's
+    Each link the job had started on fails, though one a window brought up to date earlier in the
+    attempt fails too, and its retry is queued like any job's. A link the attempt already failed
+    keeps that one failure, so its series moves on once a job
 
     Args:
         job: The job as claimed
@@ -143,7 +144,8 @@ async def fail_sync_job(job: ClaimedJob, error: ProviderError, *, started_at: da
     async with async_session() as db:
         covered = await db.scalar(select(BankSyncJob.covered_link_ids).where(BankSyncJob.id == job.id))
         links = (await db.scalars(select(BankAccountLink).where(BankAccountLink.id.in_(covered or ())))).all()
-    await _end_job(job, error, failed=links, started_at=started_at)
+    failed_already = {link.id for link in links if link.last_failure_reason is not None and link.last_attempt_at >= started_at}
+    await _end_job(job, error, failed=[link for link in links if link.id not in failed_already], started_at=started_at)
 
 
 class _JobRun:
@@ -564,7 +566,7 @@ async def _hold_for_finish(
     Args:
         db: The job owner's session, which the step then writes in
         job: The job as claimed
-        links: The links the step writes for, as they stood when the job started
+        links: The links the step writes for, as the step read them
         sent_with: The credential the request whose answer the step stores went out with, or None
             when the step stores no answer
 
@@ -647,7 +649,7 @@ async def _end_job(
         discover: Whether that job lists the bank accounts first
         deferred: The links that job plans only once no other link is due
         sent_with: The credential of the request whose answer ends the job, or None when none does
-        failed: The links the error failed an attempt for, as they stood when the job started
+        failed: The links the error failed an attempt for, as the caller read them
         attempted_at: When the failed attempt's request was sent, or now when not given
         retry_overdue: Whether the job left a link whose retry was due
         started_at: When the job's attempt started, which it found the links due at

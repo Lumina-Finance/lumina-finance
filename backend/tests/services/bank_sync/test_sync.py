@@ -891,6 +891,28 @@ async def test_job_ending_on_a_rejected_credential_queues_no_retry_or_listing(co
     ]
 
 
+async def test_job_the_worker_stops_on_an_error_fails_each_link_once(connection, provider, frozen_now):
+    """Card's third retry fails in the job's first window, and the job then stops on an error while fetching Everyday
+
+    Card's failure is already recorded, so it rests 12 hours as its series says, rather than failing
+    again into a new series, and only Everyday takes the stopped job's failure
+    """
+    card = await _link(
+        connection, "ACT-card", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31), retry_count=3, next_attempt_at=frozen_now
+    )
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    provider.outcomes = [FetchResult(account_errors={"ACT-card": _reported_a_problem()})]
+    await _seed_job(connection, BankSyncJobKind.RETRY)
+
+    await _run_jobs_until_none_is_due()
+
+    assert len(provider.fetches) == 2
+    assert [attempt[2:] for attempt in await _attempts(card, everyday)] == [
+        ("SimpleFIN Bridge reported a problem", 4, frozen_now + timedelta(hours=12)),
+        ("The sync stopped because of an unexpected error", 1, frozen_now + timedelta(minutes=30)),
+    ]
+
+
 async def test_job_queues_a_retry_that_fell_due_while_it_ran_to_run_at_once(connection, monkeypatch, frozen_now):
     """Savings' retry is due at 1:00:05 pm, so the job starting at 1 pm syncs Everyday alone, and ends at 1:00:10 with the retry past due
 
