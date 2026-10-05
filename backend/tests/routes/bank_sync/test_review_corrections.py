@@ -12,7 +12,7 @@ import asyncio
 import re
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import date
 
 import pytest
 from sqlalchemy import func, select, update
@@ -21,7 +21,6 @@ from app.models.bank_connection import BankAccountLink
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition, OpenReviewKind
 from app.models.transaction import Transaction
 from app.services.bank_sync import review_decisions
-from app.services.bank_sync.corrections import store_accepted_observations
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     BANK_DATE,
@@ -205,11 +204,11 @@ async def test_keeping_the_current_value_leaves_the_ledger_and_remembers_the_val
     assert "user_cache_states" in _writes(statements)[-1]
 
 
-async def test_accepting_after_keeping_an_earlier_value_lets_the_declined_value_come_back_as_a_change(client):
-    """The user kept -4.50 over the bank's -4.75 and now accepts its -5.00, and the bank then goes back to -4.75
+async def test_accepting_after_keeping_an_earlier_value_forgets_the_values_declined(client):
+    """The user kept -4.50 over the bank's -4.75 and now accepts its -5.00
 
-    Accepting replaced what the user declined, so -4.75 opens a correction against the -5.00 now
-    in the ledger rather than leaving the ledger quietly differing from the bank
+    Accepting replaces what the user declined, so the bank going back to -4.75 later is a change to
+    ask about rather than one that leaves the ledger quietly differing from the bank
     """
     declined = {"date": BANK_DATE.isoformat(), "amount": -475, "description": _BLUE_BOTTLE}
     correction = await _correction_waiting(
@@ -217,15 +216,11 @@ async def test_accepting_after_keeping_an_earlier_value_lets_the_declined_value_
     )
 
     accepted = await _decide(client, correction, "accept-change")
-    async with TestSession() as syncing:
-        record = await syncing.get_one(BankTransaction, correction.item_id)
-        await store_accepted_observations(syncing, [(record, {"observed_amount": -475})], observed_at=datetime.now(UTC))
-        await syncing.commit()
 
     assert accepted.status_code == 200, accepted.text
     assert accepted.json()["amount"] == -500
     stored = await _stored_item(correction.item_id)
-    assert (stored.open_kind, stored.previous_values, stored.declined_observation) == (OpenReviewKind.CORRECTION, {"amount": -500}, None)
+    assert (stored.open_kind, stored.aligned_amount, stored.declined_observation) == (None, -500, None)
     assert await _ledger_rows(correction.account_id) == [(BANK_DATE, -500)]
 
 

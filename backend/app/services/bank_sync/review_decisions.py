@@ -185,9 +185,10 @@ async def keep_current_value(db: AsyncSession, user: User, item_id: uuid.UUID) -
 
     The bank's values stay stored as its latest, and the changed date and amount are aligned with
     them, so the ledger's own count as edited and a trusted correction later leaves them alone. The
-    values declined are remembered, so the bank sending them again opens nothing until a later
-    decision or the bank matching the ledger replaces them. A correction
-    already decided answers with the transaction as it stands, so a double submission keeps it once
+    values declined are remembered, so the bank sending them again opens nothing until accepting a
+    change, a trusted correction applying one, or the bank matching the ledger aligns a field and
+    replaces them. A correction already decided answers with the transaction as it stands, so a
+    double submission keeps it once
 
     Args:
         db: Active database session
