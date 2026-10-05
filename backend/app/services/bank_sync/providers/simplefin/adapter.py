@@ -209,9 +209,11 @@ class SimpleFinAdapter(ProviderAdapter):
         try:
             response = await self._guard.send("GET", accounts_url, headers=_HEADERS, params=params, auth=auth)
 
-        # The operator has stopped allowing the server this connection was made with
+        # The operator has stopped allowing the server this connection was made with, or a
+        # development instance allows only its fake Bridge. Neither says anything about the
+        # credential, so the connection isn't marked for reconnecting and its owner isn't emailed
         except OriginRefused:
-            return _failed(ProviderErrorKind.CREDENTIAL_REJECTED, _SERVER_NOT_ALLOWED_MESSAGE.format(host=base_url.host))
+            return _failed(ProviderErrorKind.UNKNOWN, _SERVER_NOT_ALLOWED_MESSAGE.format(host=base_url.host))
         except AddressRefused:
             logger.warning("Refused to reach SimpleFIN at %s, which resolves to an address that isn't public", base_url.host)
             return _failed(ProviderErrorKind.TEMPORARY, _UNREACHABLE_MESSAGE)
