@@ -120,9 +120,10 @@ export default function BankReviewSection({
     return { name: account.name, currency: account.currency }
   }, [accountById])
 
-  // A block that empties closes, so it comes back showing only its first items
+  // A block left with no more than its first few items closes, so it comes back showing only those
+  // once more arrive, rather than open with nothing having asked it to
   const [expanded, setExpanded] = useState(false)
-  if (total === 0 && expanded) setExpanded(false)
+  if (expanded && total <= COLLAPSED_ITEM_COUNT) setExpanded(false)
 
   // Each marker request is taken up once, and held until its row is on screen
   const [jump, setJump] = useState<ReviewFocusRequest | null>(null)
@@ -133,8 +134,10 @@ export default function BankReviewSection({
   }
   const jumpIndex = jump ? items.findIndex((item) => item.id === jump.itemId) : -1
 
-  // An item past the first few, or not loaded yet, opens the block, so there is a row to go to
-  if (jump && total > 0 && !expanded && (jumpIndex === -1 || jumpIndex >= COLLAPSED_ITEM_COUNT)) setExpanded(true)
+  // An item past the first few, or not loaded yet, opens the block, so there is a row to go to. A
+  // block with no more than the first few shows every item already
+  const isHiddenWhileCollapsed = jumpIndex === -1 || jumpIndex >= COLLAPSED_ITEM_COUNT
+  if (jump && total > COLLAPSED_ITEM_COUNT && !expanded && isHiddenWhileCollapsed) setExpanded(true)
 
   // An item no page holds once every page has loaded was decided elsewhere, leaving nothing to go to
   if (jump && jumpIndex === -1 && pages && !hasNextPage && !isFetching) setJump(null)
