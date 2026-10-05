@@ -119,12 +119,12 @@ export function formatReviewDate(ymd: string, today: string): string {
 }
 
 /**
- * Words the backlog notice for the accounts in scope, naming them in the order the accounts list does
+ * Words the backlog notice for the accounts in scope, naming them in the order they are given
  *
  * A paused account takes precedence, since its sync has stopped, and a warning shows only when none
  * is paused. Several accounts are listed together, separated by commas
  *
- * @param accounts - The accounts in scope, in the order the accounts list shows them
+ * @param accounts - The accounts in scope, in the order to name them
  */
 export function describeBacklogNotice(backlogs: BankReviewBacklog[], accounts: ReviewAccount[]): BacklogNotice | null {
   const backlogByAccount = new Map(backlogs.map((backlog) => [backlog.account_id, backlog]))

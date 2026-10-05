@@ -5,7 +5,7 @@
  * These tests catch a correction naming its changed fields in another order than "amount and date",
  * a new item with an amount its currency can't hold losing decimal places or not asking for an amount,
  * a removal showing the bank's amount rather than the ledger's, a date in this year carrying its year,
- * a warning shown over a pause, accounts named out of the accounts list's order, and a scoped list
+ * a warning shown over a pause, accounts named out of the order given, and a scoped list
  * asking for a group or shared account's items, which the server refuses
  */
 import { describe, expect, it } from 'vitest'
@@ -96,7 +96,7 @@ describe('the date an item shows', () => {
 })
 
 describe('the backlog notice', () => {
-  it('names every paused account, in the accounts list order, over any warning', () => {
+  it('names every paused account, in the order the accounts are given, over any warning', () => {
     const backlogs = [createBacklog('savings', 120, { paused: true }), createBacklog('everyday', 105, { paused: true }), createBacklog('visa', 85, { warned: true })]
 
     expect(describeBacklogNotice(backlogs, [EVERYDAY, SAVINGS, { id: 'visa', name: 'Visa' }])).toEqual({

@@ -109,7 +109,7 @@ export default function BankReviewSection({
   const counts = pages?.pages[0]?.counts
   const total = isInScope && counts ? counts.new + counts.correction + counts.removal : 0
 
-  // The notice names accounts in the order the accounts list shows them
+  // The notice names accounts in the order the server lists them, which is the order they were created
   const scopedAccounts = (accounts ?? []).filter((account) =>
     accountIds === undefined ? user !== null && isOwnPersonalAccount(account, user.id) : accountIds.includes(account.id))
   const backlogNotice = backlogs ? describeBacklogNotice(backlogs, scopedAccounts) : null
