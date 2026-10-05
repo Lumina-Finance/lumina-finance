@@ -77,6 +77,36 @@ async function expectUnder(caption: Locator, field: Locator): Promise<void> {
   expect(captionBox.x).toBeLessThan(fieldBox.x + fieldBox.width)
 }
 
+/**
+ * Assert the restore action under the date or the amount follows a dot beside the bank's value or,
+ * where the two don't fit on one line, starts a line of its own in line with the value, its dot cut off
+ * by the caption's clip. Returns whether the action has a line of its own
+ */
+async function expectActionPlacement(dialog: Locator, field: 'date' | 'amount'): Promise<boolean> {
+  const placement = await restoreAction(dialog, field).evaluate((action, valueId) => {
+    const dot = action.previousElementSibling!
+    const value = document.getElementById(valueId)!
+    let clip = action.parentElement!
+    while (getComputedStyle(clip).overflowX === 'visible') clip = clip.parentElement!
+    const [actionBox, dotBox, valueBox, clipBox] = [action, dot, value, clip].map((part) => part.getBoundingClientRect())
+    return {
+      ownLine: actionBox.top >= valueBox.bottom - 0.5,
+      dotShown: dotBox.left >= clipBox.left && dotBox.right <= clipBox.right,
+      dotBetween: dotBox.left >= valueBox.right - 0.5 && dotBox.right <= actionBox.left + 0.5,
+      indent: actionBox.left - valueBox.left,
+    }
+  }, `txn-${field}-bank-value`)
+
+  if (placement.ownLine) {
+    expect(placement.dotShown, 'the dot before an action on a line of its own').toBe(false)
+    expect(Math.abs(placement.indent)).toBeLessThanOrEqual(1)
+  } else {
+    expect(placement.dotShown, 'the dot between the bank value and the action').toBe(true)
+    expect(placement.dotBetween).toBe(true)
+  }
+  return placement.ownLine
+}
+
 // A stand-in can still be fetching for the page when a test ends, which would otherwise surface as an
 // error outside any test
 test.afterEach(async ({ page }) => {
@@ -113,6 +143,7 @@ test('restores the bank amount under an edited amount, bringing back its sign an
   const caption = dialog.locator('#txn-amount-bank-value')
   await expect(caption).toHaveText(`Bank: ${MINUS}$42.10`)
   await expectUnder(caption, amount)
+  await expectActionPlacement(dialog, 'amount')
   await expect(dialog.locator('#txn-date-bank-value')).toHaveCount(0)
   await expect(dialog.getByRole('button', { name: 'Restore bank value' })).toHaveCount(1)
   await expect(amount).toHaveValue('42.10')
@@ -258,6 +289,11 @@ test('restores the bank date under an edited date, which stays restored once the
   await expect(caption).toHaveText('Bank: Jan 15, 2026')
   await expectUnder(caption, date)
   await expect(dialog.locator('#txn-amount-bank-value')).toHaveCount(0)
+
+  // Beside the amount, the date's column is too narrow for the value and the action together, so the
+  // action takes a line of its own. Stacked on a phone, both fit on one line
+  const [dateBox, amountBox] = [(await date.boundingBox())!, (await dialog.getByRole('textbox', { name: 'Amount', exact: true }).boundingBox())!]
+  expect(await expectActionPlacement(dialog, 'date')).toBe(amountBox.x >= dateBox.x + dateBox.width)
   await expect(date.getByRole('textbox', { name: 'Day' })).toHaveValue('13')
 
   await restoreAction(dialog, 'date').click()
