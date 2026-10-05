@@ -1,4 +1,5 @@
 export type {
+  AccountBankLink,
   AccountBankStatus,
   AddReviewItemPayload,
   BankAccountLink,
@@ -14,6 +15,7 @@ export type {
   BankImportRange,
   BankImportState,
   BankLink,
+  BankLinkState,
   BankProvider,
   BankProviderConnectsFrom,
   BankProviderId,

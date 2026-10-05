@@ -355,16 +355,34 @@ export type PreviousBankLink = {
 };
 
 /**
- * Everything the account page needs to show about one account's bank link
+ * Where a live link stands: syncing, or waiting for the user to choose its bank account again after
+ * the provider started listing it differently
+ */
+export type BankLinkState = 'active' | 'choose_account';
+
+/**
+ * An account's live link as the account's page reads it
+ */
+export type AccountBankLink = BankAccountLink & {
+  state: BankLinkState;
+
+  /**
+   * Null when no import runs, while the link waits for its bank account to be chosen again, and for
+   * the catch-up after a reconnect, whose first day the server doesn't record. Never `complete`
+   */
+  import: BankImportProgress | null;
+};
+
+/**
+ * One account's bank link, read only for the user's own personal accounts. The server refuses any
+ * other account, so a group account is never read
  */
 export type AccountBankStatus = {
   account_id: string;
-  link: BankLink | null;
-  previous_link: PreviousBankLink | null;
+  link: AccountBankLink | null;
 
-  /** False for an account this release does not link, such as a group-owned one */
-  linkable: boolean;
-  unlinkable_reason: string | null;
+  /** What the account was last linked to, only when it has no live link */
+  previous_link: PreviousBankLink | null;
 };
 
 export type ReviewDecision = 'review' | 'trust';

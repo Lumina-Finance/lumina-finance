@@ -9,7 +9,12 @@ import {
   type QueryClient,
 } from '@tanstack/react-query';
 import { BANK_DISCOVERY_POLL_MS } from '@/api/bank-sync/constants';
-import { getBankLinksPollInterval, getBankLinksStaleTime, isRefusedRead } from '@/api/bank-sync/polling';
+import {
+  getAccountBankStatusPollInterval,
+  getBankLinksPollInterval,
+  getBankLinksStaleTime,
+  isRefusedRead,
+} from '@/api/bank-sync/polling';
 import {
   acceptOpeningAdjustment,
   addReviewItem,
@@ -171,13 +176,20 @@ export function useBankSyncHeartbeat(enabled: boolean) {
   }, [links, queryClient]);
 }
 
-export function useAccountBankStatus(accountId: string | undefined) {
+/**
+ * Reads one of the user's own personal accounts' link, kept moving while its import runs, in a
+ * background tab too, so the progress never sticks. Pass `enabled` false for any other account,
+ * which the server refuses
+ */
+export function useAccountBankStatus(accountId: string, enabled: boolean) {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: bankSyncKeys.accountStatus(accountId ?? ''),
-    queryFn: () => fetchAccountBankStatus(accountId ?? ''),
-    enabled: !!accessToken && !!accountId,
+    queryKey: bankSyncKeys.accountStatus(accountId),
+    queryFn: () => fetchAccountBankStatus(accountId),
+    enabled: enabled && !!accessToken,
     staleTime: BANK_DATA_STALE_TIME_MS,
+    refetchInterval: (query) => getAccountBankStatusPollInterval(query.state.data),
+    refetchIntervalInBackground: true,
   });
 }
 

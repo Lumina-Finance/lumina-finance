@@ -1,6 +1,6 @@
 import { ApiError } from '@/api/auth/errors';
 import { BANK_LINKS_ACTIVE_POLL_MS, BANK_LINKS_IDLE_POLL_MS } from '@/api/bank-sync/constants';
-import type { BankLink } from '@/api/bank-sync/types';
+import type { AccountBankStatus, BankLink } from '@/api/bank-sync/types';
 
 /**
  * Whether one of the user's jobs is working on a link right now, from a Sync now request until its
@@ -40,4 +40,14 @@ export function getBankLinksPollInterval(links: BankLink[] | undefined, error: E
  */
 export function getBankLinksStaleTime(links: BankLink[] | undefined): number {
   return getBankLinksPollInterval(links, null) || BANK_LINKS_IDLE_POLL_MS;
+}
+
+/**
+ * How often an account's link is read while its page is open: quickly while its import runs, slowly
+ * while the import waits on the request budget, and not at all otherwise
+ */
+export function getAccountBankStatusPollInterval(status: AccountBankStatus | undefined): number | false {
+  const state = status?.link?.import?.state;
+  if (state === 'running') return BANK_LINKS_ACTIVE_POLL_MS;
+  return state === 'waiting_on_budget' ? BANK_LINKS_IDLE_POLL_MS : false;
 }

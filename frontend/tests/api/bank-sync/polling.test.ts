@@ -6,13 +6,14 @@
  * pace for the hours it can wait, a refused read being asked again, a server failure taken for a
  * refusal and never asked again, either pace drifting from the two seconds and the minute the
  * feature promises, and a screen opening between polls reading the list again rather than taking
- * the polled copy
+ * the polled copy. For an account's own link read on its page, they catch an import's progress
+ * being read slowly, or a finished one being polled for as long as the page stays open
  */
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '@/api/auth/errors';
 import { BANK_LINKS_ACTIVE_POLL_MS, BANK_LINKS_IDLE_POLL_MS } from '@/api/bank-sync/constants';
-import { getBankLinksPollInterval, getBankLinksStaleTime } from '@/api/bank-sync/polling';
-import { createBankLink, createImportingBankLink } from './fixtures';
+import { getAccountBankStatusPollInterval, getBankLinksPollInterval, getBankLinksStaleTime } from '@/api/bank-sync/polling';
+import { createAccountBankLink, createBankLink, createImportingAccountStatus, createImportingBankLink } from './fixtures';
 
 describe('bank link polling interval', () => {
   it.each([
@@ -63,5 +64,20 @@ describe('bank link freshness', () => {
 
   it('keeps a read with no links fresh for as long as an idle poll would', () => {
     expect(getBankLinksStaleTime([])).toBe(BANK_LINKS_IDLE_POLL_MS);
+  });
+});
+
+describe("an account's link polling interval", () => {
+  it('polls quickly while its import runs and slowly while the import waits on the request budget', () => {
+    expect(getAccountBankStatusPollInterval(createImportingAccountStatus('running'))).toBe(BANK_LINKS_ACTIVE_POLL_MS);
+    expect(getAccountBankStatusPollInterval(createImportingAccountStatus('waiting_on_budget'))).toBe(BANK_LINKS_IDLE_POLL_MS);
+  });
+
+  it.each([
+    ['before the first read', undefined],
+    ['for an account that was never linked', { account_id: 'account-1', link: null, previous_link: null }],
+    ['for a link with no import running', { account_id: 'account-1', link: createAccountBankLink(), previous_link: null }],
+  ])('does not poll %s', (_, status) => {
+    expect(getAccountBankStatusPollInterval(status)).toBe(false);
   });
 });
