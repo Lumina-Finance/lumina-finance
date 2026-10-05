@@ -220,7 +220,7 @@ test('says a restore failed, leaving the field and its bank value to try again',
   const dialog = await openTransaction(page, id)
   const restore = restoreAction(dialog, 'amount')
   await restore.click()
-  await expect(dialog.getByText(RESTORE_FAILED, { exact: true })).toBeVisible()
+  await expect(dialog.getByRole('alert').filter({ hasText: RESTORE_FAILED })).toBeVisible()
   await expect(dialog.getByRole('textbox', { name: 'Amount', exact: true })).toHaveValue('40.00')
   await expect(dialog.locator('#txn-amount-bank-value')).toHaveText(`Bank: ${MINUS}$42.10`)
   await expect(restore).toHaveAccessibleName('Restore bank value')
