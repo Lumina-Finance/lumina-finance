@@ -5,7 +5,9 @@ transaction ID, so the same ID from another provider or bank account, or sent in
 account, is another transaction. An unknown identity becomes an item awaiting review,
 outside the ledger and every calculation, whatever the account's preference for new transactions
 says, since nothing can fill in its merchant and category yet. An item still waiting has its bank
-values refreshed in place, and a dismissed one stays dismissed whatever the bank now says.
+values refreshed in place, a dismissed one stays dismissed whatever the bank now says, and one
+already in the ledger has its bank values stored and any correction they make opened or applied
+(corrections.py).
 
 Records dated before the link's import start are left out, but never those dated before the window
 that brought them back, since a provider can date a record the day before the window it came back
@@ -24,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bank_connection import BankAccountLink
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
+from app.services.bank_sync.corrections import store_accepted_observations
 from app.services.bank_sync.providers.contract import ProviderRecord
 
 
@@ -33,11 +36,12 @@ async def store_booked_records(
     *,
     observed_at: datetime,
 ) -> bool:
-    """Store the booked records each link's bank account came back with as review items
+    """Store the booked records each link's bank account came back with as review items, or as what the bank now says about ones in the ledger
 
     The caller locked the links and commits. The stored bank transactions these records name are
-    locked in id order, after the links and before the owner's cache row, so a review decision
-    committed while the sync fetched is seen here and kept
+    locked in id order, after the links, so a review decision committed while the sync fetched is
+    seen here and kept. The ledger rows and balances a correction reaches are locked after them,
+    and the owner's cache row is left for last
 
     Args:
         db: The link owner's session
@@ -45,7 +49,7 @@ async def store_booked_records(
         observed_at: When the request that brought the records was sent
 
     Returns:
-        Whether a review item was added or refreshed, so the caller tells the owner's open pages
+        Whether anything stored changed, so the caller tells the owner's open pages
     """
     wanted = [(link, _booked_records(link, records)) for link, records in deliveries]
     wanted = [(link, booked) for link, booked in wanted if booked]
@@ -74,6 +78,7 @@ async def store_booked_records(
     known = {(row.account_id, row.provider, row.external_account_id, row.external_transaction_id): row for row in stored}
 
     changed = False
+    accepted: list[tuple[BankTransaction, dict[str, Any]]] = []
     for link, booked in wanted:
         for external_id, record in booked.items():
             observation = _observation(record)
@@ -93,17 +98,27 @@ async def store_booked_records(
                 )
                 changed = True
 
-            # Refreshing only what changed leaves an item's version alone when the bank resends it as
+            # Writing only what changed leaves a record's version alone when the bank resends it as
             # it was, so a bulk approval previewed before a routine re-read still applies to it
-            elif row.disposition == BankTransactionDisposition.AWAITING_REVIEW and any(
-                getattr(row, column) != value for column, value in observation.items()
-            ):
+            elif row.disposition == BankTransactionDisposition.DISMISSED or not _differs(row, observation):
+                continue
+            elif row.disposition == BankTransactionDisposition.ACCEPTED:
+                accepted.append((row, observation))
+                changed = True
+            else:
                 for column, value in observation.items():
                     setattr(row, column, value)
                 row.observed_at = observed_at
                 changed = True
+    if accepted:
+        await store_accepted_observations(db, accepted, observed_at=observed_at)
     await db.flush()
     return changed
+
+
+def _differs(row: BankTransaction, observation: dict[str, Any]) -> bool:
+    """Return whether an observation holds any value the stored record doesn't"""
+    return any(getattr(row, column) != value for column, value in observation.items())
 
 
 def _booked_records(link: BankAccountLink, records: Sequence[ProviderRecord]) -> dict[str, ProviderRecord]:

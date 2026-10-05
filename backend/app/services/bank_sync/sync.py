@@ -25,7 +25,8 @@ What a job stores, the booked records each part brings back, the pending items a
 brings back, its checkpoints, discoveries and its own end, goes through lock_job_for_finish, so a
 runner that lost its lease stores nothing and a link that changed while the job fetched gets none of
 its results. Each such step locks the connection first, then the job, then the links, then any bank
-transactions it stores, then any pending items it replaces, then the owner's cache row. The request
+transactions it stores, then the ledger rows and balances a correction to them reaches, then any
+pending items it replaces, then the owner's cache row. The request
 counts and the budget-spent mark lock only the connection and are written outside the job's fence,
 since they record requests already sent, whoever holds the job. An answer to a request sent with a
 credential the connection no longer holds is dropped whole, budget-spent mark included, and the job

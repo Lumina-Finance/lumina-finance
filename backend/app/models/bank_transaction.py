@@ -134,10 +134,12 @@ class BankTransaction(Base):
     aligned_amount: Mapped[int | None] = mapped_column(BigInteger)
 
     # An open correction or removal, the bank's values before a correction's change, and the
-    # observation the user last declined with Keep current value, so the same proposal delivered
+    # bank's values the user last declined with Keep current value, so the same proposal delivered
     # again doesn't reopen review. The previous values map each CorrectableBankField the correction
-    # changes to the bank's value before it, while the observation holds the proposal. The ledger
-    # has no description column, so the approved description is read from here
+    # changes to the bank's value before it, while the observation holds the proposal. The declined
+    # values map every CorrectableBankField. Dates are ISO text, and an amount the bank sent that
+    # couldn't be stored exactly is the text it sent. The ledger has no description column, so the
+    # approved description is read from here
     open_kind: Mapped[str | None] = mapped_column(VARCHAR(16))
     previous_values: Mapped[dict[str, Any] | None] = mapped_column(_JSON)
     declined_observation: Mapped[dict[str, Any] | None] = mapped_column(_JSON)

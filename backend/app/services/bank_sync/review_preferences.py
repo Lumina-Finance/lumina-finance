@@ -1,6 +1,7 @@
 """Reading and changing an account's review preferences"""
 
 import uuid
+from collections.abc import Collection
 from dataclasses import dataclass
 
 from sqlalchemy import select
@@ -44,7 +45,7 @@ async def get_review_preferences(db: AsyncSession, user_id: uuid.UUID, account_i
             their own personal account
     """
     await get_own_personal_account(db, account_id, user_id, not_own_detail=NOT_OWN_ACCOUNT_DETAIL)
-    return await _read_preferences(db, account_id)
+    return (await read_review_preferences(db, [account_id]))[account_id]
 
 
 async def update_review_preferences(
@@ -90,20 +91,18 @@ async def update_review_preferences(
             .values(account_id=account_id, owner_id=user_id, **changed)
             .on_conflict_do_update(index_elements=[AccountReviewPreference.account_id], set_=changed)
         )
-    return await _read_preferences(db, account_id)
+    return (await read_review_preferences(db, [account_id]))[account_id]
 
 
-async def _read_preferences(db: AsyncSession, account_id: uuid.UUID) -> ReviewPreferences:
-    """Return an account's stored choices, or Review all when none are stored"""
-    stored = (
-        await db.execute(
-            select(
-                AccountReviewPreference.new_transactions,
-                AccountReviewPreference.corrections,
-                AccountReviewPreference.removals,
-            ).where(AccountReviewPreference.account_id == account_id)
-        )
-    ).one_or_none()
-    if stored is None:
-        return REVIEW_ALL
-    return ReviewPreferences(*(ReviewDecision(choice) for choice in stored))
+async def read_review_preferences(db: AsyncSession, account_ids: Collection[uuid.UUID]) -> dict[uuid.UUID, ReviewPreferences]:
+    """Return each account's stored choices, or Review all for one with none stored, without checking who may read them"""
+    rows = await db.execute(
+        select(
+            AccountReviewPreference.account_id,
+            AccountReviewPreference.new_transactions,
+            AccountReviewPreference.corrections,
+            AccountReviewPreference.removals,
+        ).where(AccountReviewPreference.account_id.in_(account_ids))
+    )
+    stored = {account_id: ReviewPreferences(*(ReviewDecision(choice) for choice in choices)) for account_id, *choices in rows}
+    return {account_id: stored.get(account_id, REVIEW_ALL) for account_id in account_ids}

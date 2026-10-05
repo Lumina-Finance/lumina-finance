@@ -1,39 +1,29 @@
 """The rules that read a bank transaction's review state
 
-Which ledger fields count as edited, and whether a provider observation changes anything review
-looks at, are worked out here from the stored record, so the transaction responses, ingestion and
-the review actions all apply the same rule
+Which ledger fields count as edited, and the bank values a correction compares and stores, are
+worked out here from the stored record, so the transaction responses, ingestion and the review
+actions all apply the same rule
 """
 
-from dataclasses import dataclass
+from collections.abc import Collection
 from datetime import date
-from typing import Any
+from typing import Any, NamedTuple
 
-from app.models.bank_transaction import BankTransaction, BankTransactionDisposition, CorrectableBankField, EditableBankField
+from app.models.bank_transaction import BankTransaction, CorrectableBankField, EditableBankField
 
 
-@dataclass(frozen=True)
-class BankObservation:
-    """What a provider observation says about the fields review compares
+class EditableColumns(NamedTuple):
+    """Where an editable field's value sits on the ledger row and on its bank transaction"""
 
-    The amount is in the account currency's minor units, or None with the bank's amount exactly
-    as sent when it can't be stored exactly
-    """
+    ledger: str
+    aligned: str
+    observed: str
 
-    date: date
-    amount: int | None
-    raw_amount: str | None
-    description: str
 
-    @classmethod
-    def from_json(cls, stored: dict[str, Any]) -> BankObservation:
-        """Read an observation back from a record's JSON column"""
-        return cls(
-            date=date.fromisoformat(stored["date"]),
-            amount=stored["amount"],
-            raw_amount=stored["raw_amount"],
-            description=stored["description"],
-        )
+EDITABLE_COLUMNS: dict[EditableBankField, EditableColumns] = {
+    "date": EditableColumns("dt", "aligned_date", "observed_date"),
+    "amount": EditableColumns("amount", "aligned_amount", "observed_amount"),
+}
 
 
 def edited_fields(record: BankTransaction, ledger_date: date, ledger_amount: int) -> list[EditableBankField]:
@@ -57,29 +47,21 @@ def edited_fields(record: BankTransaction, ledger_date: date, ledger_amount: int
     return edited
 
 
-def changed_fields(record: BankTransaction, incoming: BankObservation) -> list[CorrectableBankField]:
-    """Return the correctable fields a new provider observation changes on a record
+def bank_values(record: BankTransaction) -> dict[CorrectableBankField, Any]:
+    """Return the bank's latest values of the fields a correction can change, as a correction stores them
 
-    An observation the user already declined with Keep current value changes nothing, so the same
-    proposal delivered again doesn't reopen review. A dismissed record holds nothing to compare
-    and stays dismissed
-
-    Args:
-        record: The stored bank transaction
-        incoming: What the provider reports now
-
-    Returns:
-        The changed fields, in display order
+    The date is ISO text, and an amount the bank sent that couldn't be stored exactly is the text it
+    sent, so two such amounts still compare
     """
-    if record.disposition == BankTransactionDisposition.DISMISSED:
-        return []
-    if record.declined_observation is not None and BankObservation.from_json(record.declined_observation) == incoming:
-        return []
-    changed: list[CorrectableBankField] = []
-    if incoming.date != record.observed_date:
-        changed.append("date")
-    if (incoming.amount, incoming.raw_amount) != (record.observed_amount, record.raw_amount):
-        changed.append("amount")
-    if incoming.description != record.description:
-        changed.append("description")
-    return changed
+    return {
+        "date": record.observed_date.isoformat(),
+        "amount": record.raw_amount if record.observed_amount is None else record.observed_amount,
+        "description": record.description,
+    }
+
+
+def align_with_bank(record: BankTransaction, fields: Collection[str]) -> None:
+    """Align the named editable fields with the bank's latest values, so each counts as edited only while the ledger differs from them"""
+    for field, columns in EDITABLE_COLUMNS.items():
+        if field in fields:
+            setattr(record, columns.aligned, getattr(record, columns.observed))
