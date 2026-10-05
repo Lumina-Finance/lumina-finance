@@ -5,8 +5,9 @@
  *
  * These tests catch a group account offered a link, the previous link's bank account, provider or
  * date dropped from the relink text, the relink button worded as a first link, an archived account
- * or a paused worker leaving the button live, and a linked view missing a fact, its status or the
- * running import. Opening the flow, the tooltip and unlinking run in the browser
+ * or a paused worker leaving the button live, a failed read offering a link as if there were none,
+ * and a linked view missing a fact, its status or the running import. Opening the flow, the tooltip
+ * and unlinking run in the browser
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -20,6 +21,7 @@ import { createAccount, createImport, createLink, createPreviousLink, createProv
 const read = vi.hoisted(() => ({
   ownPersonal: true,
   status: undefined as AccountBankStatus | undefined,
+  statusError: null as Error | null,
   providers: undefined as BankProvidersResponse | undefined,
 }))
 
@@ -27,10 +29,10 @@ vi.mock('@/pages/accounts/detail/components/bank-link/useAccountBankLink', () =>
   useAccountBankLink: () => ({
     ownPersonal: read.ownPersonal,
     status: read.status,
-    statusError: null,
+    statusError: read.statusError,
     providers: read.providers,
     shown: true,
-    syncLabel: describeBankSync(read.ownPersonal, read.status, false),
+    syncLabel: describeBankSync(read.ownPersonal, read.status, read.statusError !== null),
   }),
 }))
 vi.mock('@/api/bank-sync', async (importOriginal) => ({
@@ -58,6 +60,7 @@ function getButton(markup: string, label: string): string {
 beforeEach(() => {
   read.ownPersonal = true
   read.status = createStatus()
+  read.statusError = null
   read.providers = createProviders()
 })
 
@@ -110,6 +113,15 @@ describe('BankLinkSection', () => {
     expect(markup).toContain('12 found · 1 of 2')
     expect(markup).toMatch(/role="progressbar"[^>]*aria-valuemax="2"[^>]*aria-valuenow="1"/)
     expect(getButton(markup, 'Unlink')).not.toBe('')
+    expect(markup).not.toContain('Link bank account')
+  })
+
+  it('shows the failure when the link cannot load, rather than offering a link', () => {
+    read.status = undefined
+    read.statusError = new Error('Failed to fetch')
+    const markup = renderSection()
+    expect(markup).toContain('role="alert"')
+    expect(markup).toContain('Bank link could not load')
     expect(markup).not.toContain('Link bank account')
   })
 

@@ -5,9 +5,9 @@
  *
  * These tests catch an unavailable bank account hidden or offered as linkable, its reason reworded
  * or not shown in the danger colour, a balance written in a currency the provider made up, the
- * dropdown shown for a single connection, and the callout or the like-before notes missing or
- * swapped between a relink and a choice made again. Choosing, switching connections and continuing
- * run in the browser
+ * dropdown shown for a single connection, the callout or the like-before notes missing or swapped
+ * between a relink and a choice made again, and a failed listing shown as an empty one. Choosing,
+ * switching connections and continuing run in the browser
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -39,11 +39,15 @@ function renderStep({
   connections = [createConnection()],
   mode = 'link',
   previous = null,
+  listingError = null,
 }: {
   accounts?: DiscoveredBankAccount[]
   connections?: ReturnType<typeof createConnection>[]
   mode?: LinkFlowMode
   previous?: PreviousBankAccount | null
+
+  /** Leaves the bank accounts unlisted, their read having failed with this */
+  listingError?: Error | null
 } = {}): string {
   return renderToStaticMarkup(
     <BankAccountStep
@@ -53,8 +57,8 @@ function renderStep({
       connections={connections}
       connection={connections[0]}
       onConnectionChange={() => {}}
-      discovered={{ discovery_pending: false, accounts }}
-      discoveredError={null}
+      discovered={listingError ? undefined : { discovery_pending: false, accounts }}
+      discoveredError={listingError}
       chosenId={null}
       onChoose={() => {}}
       disabled={false}
@@ -133,5 +137,13 @@ describe('the bank account step', () => {
       'SimpleFIN now lists Everyday Chequing at Harbour Bank differently. Check the name and balance, then choose the bank account Everyday should follow.',
     )
     expect(markup).not.toContain('Previously linked to')
+  })
+
+  it('shows the failure when the bank accounts cannot load, rather than an empty list', () => {
+    const markup = renderStep({ listingError: new Error('Failed to fetch') })
+
+    expect(markup).toContain('role="alert"')
+    expect(markup).toContain('Bank accounts could not load')
+    expect(markup).not.toContain('role="radio"')
   })
 })
