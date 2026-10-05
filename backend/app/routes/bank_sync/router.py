@@ -10,7 +10,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.bank_connection import BankProvider
 from app.models.user import User
-from app.schemas.bank_review import BankReviewPageResponse
+from app.schemas.bank_review import AddReviewItemRequest, BankReviewPageResponse
 from app.schemas.bank_sync import (
     BankAccountLinkResponse,
     BankConnectionResponse,
@@ -24,6 +24,7 @@ from app.schemas.bank_sync import (
     UnlinkResponse,
     UpdateBankConnectionRequest,
 )
+from app.schemas.transaction import TransactionResponse
 from app.services.bank_sync.availability import list_providers
 from app.services.bank_sync.claim import claim_connection, reconnect_connection
 from app.services.bank_sync.connections import list_connections, rename_connection
@@ -34,6 +35,7 @@ from app.services.bank_sync.links import (
     list_bank_accounts_for_account,
     unlink_account,
 )
+from app.services.bank_sync.review_decisions import add_review_item_to_ledger, dismiss_review_item
 from app.services.bank_sync.review_items import REVIEW_PAGE_SIZE, list_review_items
 
 router = APIRouter(prefix="/bank-sync", tags=["bank-sync"])
@@ -262,3 +264,40 @@ async def list_bank_review_items(
         The page, the counts of every waiting item in scope, and the next page's cursor
     """
     return await list_review_items(db, user, account_id=account_id, cursor=cursor, limit=limit)
+
+
+@review_router.post("/items/{item_id}/add", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
+async def add_bank_review_item(
+    item_id: uuid.UUID,
+    data: AddReviewItemRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Add a new bank item to the ledger with the user's values, accepting it in the same save
+
+    Args:
+        item_id: The item to add
+        data: The values to add it with
+        user: Authenticated user reviewing
+        db: Active database session
+
+    Returns:
+        The ledger transaction, with its bank source
+    """
+    return await add_review_item_to_ledger(db, user, item_id, data)
+
+
+@review_router.post("/items/{item_id}/dismiss", status_code=status.HTTP_204_NO_CONTENT)
+async def dismiss_bank_review_item(
+    item_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    """Dismiss a new bank item so it never returns
+
+    Args:
+        item_id: The item to dismiss
+        user: Authenticated user reviewing
+        db: Active database session
+    """
+    await dismiss_review_item(db, user, item_id)
