@@ -331,12 +331,12 @@ test('greys out Archive with its reason while the account is linked, and offers 
   // A later-dated transaction would block archiving too, but the switch gives one reason at a time
   await expect(dialog.getByText(/future dated transactions/)).toHaveCount(0)
 
-  // Pointing at the row shows the reason beside it, and pressing it leaves the account as it is
-  const row = dialog.getByText('Archive account', { exact: true })
-  await row.hover()
-  await expect.poll(() => readTooltipOpacity(page.getByText(ARCHIVE_LINKED_REASON).filter({ visible: true }))).toBe('1')
+  // The reason shows under the row, in the layout rather than over it, so it covers nothing
+  const archiveReason = dialog.getByText(ARCHIVE_LINKED_REASON, { exact: true })
+  await expect(archiveReason).toBeVisible()
 
   // Forced, because the switch is marked unavailable and pressing it anyway is what is checked
+  const row = dialog.getByText('Archive account', { exact: true })
   await row.click({ force: true })
   await expect(archive).not.toBeChecked()
   await expect(warning).toBeHidden()
@@ -358,6 +358,7 @@ test('greys out Archive with its reason while the account is linked, and offers 
   await openPage(page, `/accounts/${account.id}`)
   await page.getByRole('button', { name: 'Edit account', exact: true }).click()
   await expect(archive).not.toHaveAttribute('aria-disabled')
+  await expect(archiveReason).toBeHidden()
   await dialog.getByText('Archive account', { exact: true }).click()
   await expect(archive).toBeChecked()
   await expect(warning).toBeVisible()

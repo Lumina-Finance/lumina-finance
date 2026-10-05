@@ -45,6 +45,7 @@ export function AccountArchiveSection({
 
   return (
     <EditModalSection number={sectionNumber} title="Archive">
+      {/* The switch's input is visually hidden, so a press lands on the row, which refuses it as well */}
       <label
         htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archive}
         className={`flex items-center justify-between gap-4 rounded-xl p-4 ${unavailableReason ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}

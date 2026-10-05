@@ -8,14 +8,16 @@ import { ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON } from '@/pages/accounts/d
 // Static rendering escapes the apostrophe in the reason, so markup is matched against the escaped text
 const RENDERED_REASON = ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON.replaceAll("'", '&#x27;')
 
-function renderArchiveSection(isArchiveBlocked: boolean) {
+const LINKED_REASON = 'Unlink it first.'
+
+function renderArchiveSection(isArchiveBlocked: boolean, archiveLinkedReason: string | null = null) {
   return renderToStaticMarkup(
     <AccountArchiveSection
       sectionNumber="02"
       isArchived={false}
       isArchiving={false}
       isArchiveBlocked={isArchiveBlocked}
-      archiveLinkedReason={null}
+      archiveLinkedReason={archiveLinkedReason}
       currentBalance={0}
       currency="CAD"
       onToggle={() => {}}
@@ -23,7 +25,7 @@ function renderArchiveSection(isArchiveBlocked: boolean) {
   )
 }
 
-function renderDeletePanel(isArchiveBlocked: boolean) {
+function renderDeletePanel(isArchiveBlocked: boolean, archiveLinkedReason: string | null = null) {
   const account = { name: 'Chequing', is_archived: false } as Account
   return renderToStaticMarkup(
     <DeleteAccountPanel
@@ -34,7 +36,7 @@ function renderDeletePanel(isArchiveBlocked: boolean) {
       deleteLoading={false}
       isBusy={false}
       isArchiveBlocked={isArchiveBlocked}
-      archiveLinkedReason={null}
+      archiveLinkedReason={archiveLinkedReason}
       onArchiveInstead={() => {}}
       onContinue={() => {}}
       onDelete={() => {}}
@@ -74,5 +76,21 @@ describe('archive blocked by later-dated transactions', () => {
     const available = getArchiveInsteadButton(renderDeletePanel(false))
     expect(available).not.toContain('aria-disabled="true"')
     expect(available).not.toContain('disabled=""')
+  })
+})
+
+describe('archive held back by a link', () => {
+  it('shows the reason under the switch row and leaves the switch focusable', () => {
+    const markup = renderArchiveSection(false, LINKED_REASON)
+    expect(markup).toMatch(/<\/label><p id="edit-account-archive-blocked-reason"[^>]*>Unlink it first\.<\/p>/)
+    expect(markup).toMatch(/<input[^>]*role="switch"[^>]*aria-disabled="true"/)
+    expect(markup).not.toMatch(/<input[^>]*role="switch"[^>]*disabled=""/)
+  })
+
+  it('points the archive shortcut at the same reason without disabling it', () => {
+    const button = getArchiveInsteadButton(renderDeletePanel(false, LINKED_REASON))
+    expect(button).toContain('aria-disabled="true"')
+    expect(button).toContain('aria-describedby="edit-account-archive-blocked-reason"')
+    expect(button).not.toContain('disabled=""')
   })
 })

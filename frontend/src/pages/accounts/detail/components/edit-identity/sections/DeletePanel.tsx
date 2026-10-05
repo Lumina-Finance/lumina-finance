@@ -30,7 +30,7 @@ type DeleteAccountPanelProps = {
   /** Disables the archive shortcut for the same reason the archive switch is locked */
   isArchiveBlocked: boolean
 
-  /** Why the account can't be archived while it is linked, shown on the archive shortcut as on the switch */
+  /** Why the account can't be archived while it is linked, which the archive switch shows under its row */
   archiveLinkedReason: string | null
   onArchiveInstead: () => void
   onContinue: () => void
