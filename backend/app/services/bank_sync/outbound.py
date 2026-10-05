@@ -94,8 +94,9 @@ class OutboundGuard:
 
         Args:
             allowed_origins: HTTPS origins requests may reach while no test origin is set
-            test_origin: Testing only, the one origin requests may reach while it is set, the
-                allowed origins included, exempt from the HTTPS and public address checks
+            test_origin: Testing only, the one origin requests may reach while it is set, every
+                other origin, the allowed ones included, being refused. It is exempt from the
+                HTTPS and public address checks
             resolve: Resolves a host name, which tests substitute
             transport: Transport to send through, which tests substitute
         """
