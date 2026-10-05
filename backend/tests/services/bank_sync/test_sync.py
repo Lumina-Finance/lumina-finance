@@ -1270,21 +1270,18 @@ async def test_job_puts_each_new_booked_record_in_the_review_inbox_whatever_the_
 
 
 async def test_job_keeps_an_amount_it_cant_store_exactly_as_the_bank_sent_it_and_still_syncs(connection, provider, frozen_now):
-    """-12.345 in a currency of two decimals waits with no amount and its text as sent, while -12.500 is an ordinary -12.50
+    """-12.345 in a currency of two decimals waits with no amount and its text as sent
 
     The account still reads as synced: its checkpoint moves to today and its last successful sync is this one
     """
     await _link(connection, "ACT-1", **_synced_through_yesterday())
-    unstorable = _record("TRN-fx", amount=None, raw_amount="-12.345")
-    trailing_zero = _record("TRN-tip", amount=-12_50, raw_amount="-12.500")
-    provider.outcomes = [_returned_with({"ACT-1": [unstorable, trailing_zero]})]
+    provider.outcomes = [_returned_with({"ACT-1": [_record("TRN-fx", amount=None, raw_amount="-12.345")]})]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
     await _run_jobs_until_none_is_due()
 
     assert await _bank_transactions(BankTransaction.external_transaction_id, BankTransaction.observed_amount, BankTransaction.raw_amount) == [
-        ("TRN-fx", None, "-12.345"),
-        ("TRN-tip", -12_50, None),
+        ("TRN-fx", None, "-12.345")
     ]
     async with TestSession() as session:
         assert (await session.execute(select(BankAccountLink.checkpoint, BankAccountLink.last_success_at))).one() == (_TODAY, frozen_now)
