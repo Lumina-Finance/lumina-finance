@@ -1,44 +1,55 @@
 import { useState } from 'react'
 import { Landmark } from 'lucide-react'
+import { useNavigate } from 'react-router'
 import type { AccountsOverview } from '@/api/accounts'
 import { ApiError } from '@/api/auth'
 import {
+  useAccountBankStatus,
+  useBankConnections,
   useBankProviders,
+  useDiscoveredBankAccounts,
   useImportRange,
   useLinkBankAccount,
   type BankConnection,
   type ConnectionBankAccount,
 } from '@/api/bank-sync'
-import { ChoiceCard } from '@/components/bank-link-flow/ChoiceCard'
-import { LINKING_PAUSED_REASON } from '@/components/bank-link-flow/constants'
-import { findUncoveredUntil, listStartChoices } from '@/components/bank-link-flow/startChoices'
-import DateField from '@/components/date-field/DateField'
+import { BankAccountStep } from '@/components/bank-link-flow/BankAccountStep'
+import { BANK_CONNECTIONS_SETTINGS_PATH, LINKING_PAUSED_REASON } from '@/components/bank-link-flow/constants'
+import { StartStep } from '@/components/bank-link-flow/StartStep'
+import { useStartChoice } from '@/components/bank-link-flow/useStartChoice'
+import {
+  LINK_FLOW_STEP_NAMES,
+  LINK_FLOW_WORDING,
+  describeConnectFirst,
+  findPreviousBankAccount,
+  getLinkFlowMode,
+  type LinkFlowStep,
+} from '@/components/bank-link-flow/wording'
 import LoadFailure from '@/components/errors/LoadFailure'
-import { InfoCallout } from '@/components/InfoCallout'
 import LoadingRegion from '@/components/loading/Region'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import type { ModalLevel } from '@/components/modal/Shell'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
+import { StepTransition } from '@/components/two-factor/StepTransition'
 import { useToast } from '@/hooks/useToast'
-import { formatDateLabel } from '@/utils/date'
 
 const LOADING_OVERLAY_CLASS = 'absolute inset-0 z-10 flex items-center justify-center bg-[var(--app-bg)]'
 
-// The start step's own date, kept apart from the preset choices' keys
-const CUSTOM_START = 'custom'
-
-const START_ERROR_ID = 'bank-link-start-error'
-
-/** A bank account and the account chosen to take it, which the flow links once a start is chosen */
-export interface BankLinkTarget {
+/** A bank account chosen in settings, and the account chosen there to take it */
+export type BankLinkTarget = {
   connection: BankConnection
   bankAccount: ConnectionBankAccount
   account: AccountsOverview
 }
 
-interface BankLinkFlowModalProps {
+type BankLinkFlowModalProps = {
   open: boolean
-  target: BankLinkTarget
+
+  /** One of the user's own personal accounts */
+  account: AccountsOverview
+
+  /** A bank account already chosen in settings, which starts the flow at where history starts */
+  chosen?: Omit<BankLinkTarget, 'account'>
 
   /** Stacked when opened over another modal, page level when opened over the page */
   level?: ModalLevel
@@ -50,44 +61,82 @@ interface BankLinkFlowModalProps {
 }
 
 /**
- * Links a bank account to the account chosen for it, starting the import from a date the user chooses
+ * Links an account to a bank account on one of the user's connections, starting its import from a
+ * date the user chooses
  *
- * Callers remount it with a key for each opening, so a choice never carries over to another bank
- * account. None of the starts is preselected, so the import never reaches back further than the user
- * meant it to
+ * Opened from the account, it chooses the bank account first, from a dropdown of connections when
+ * there are several. Opened from a bank account in settings, it starts at where history starts.
+ * Either way an account linked before relinks, and one waiting for its bank account to be chosen
+ * again chooses it here, each worded so. Connections themselves are added in settings, since one
+ * reaches every bank account the user holds with its provider. Callers remount it with a key for
+ * each opening, so a choice never carries over
  */
-export function BankLinkFlowModal({ open, target, level = 'page', onClose, onLinked, onExitComplete }: BankLinkFlowModalProps) {
-  const { connection, bankAccount, account } = target
+export function BankLinkFlowModal({ open, account, chosen, level = 'page', onClose, onLinked, onExitComplete }: BankLinkFlowModalProps) {
+  const navigate = useNavigate()
   const { showToast } = useToast()
-  const { data: providers } = useBankProviders()
-  const provider = providers?.providers.find((entry) => entry.id === connection.provider)
-  const { data: range, error: rangeError } = useImportRange(account.id, connection.provider, open)
+  const { data: status, error: statusError } = useAccountBankStatus(account.id, open)
+  const { data: providers, error: providersError } = useBankProviders()
+  const { data: connections, error: connectionsError } = useBankConnections()
   const link = useLinkBankAccount()
 
-  const [startChoice, setStartChoice] = useState<string | null>(null)
-  const [customStart, setCustomStart] = useState('')
+  const [chosenStep, setChosenStep] = useState<LinkFlowStep | null>(null)
+  const [chosenConnectionId, setChosenConnectionId] = useState<string | null>(null)
+  const [externalId, setExternalId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const choices = range ? listStartChoices(range, account.name) : []
-  const chosenStart = startChoice === CUSTOM_START
-    ? customStart
-    : choices.find((choice) => choice.key === startChoice)?.date ?? ''
-  const isDateDisabled = (iso: string) => Boolean(range && (iso < range.earliest_allowed || iso > range.latest_allowed))
-  const startOutOfRange = chosenStart !== '' && isDateDisabled(chosenStart)
-  const uncoveredUntil = range && chosenStart ? findUncoveredUntil(range, chosenStart) : null
+  const workingConnections = (connections ?? []).filter((connection) => connection.status === 'active')
+  const mode = status ? getLinkFlowMode(status) : 'link'
+  const previous = status ? findPreviousBankAccount(status) : null
+  const wording = LINK_FLOW_WORDING[mode]
+
+  // A link waiting for its bank account to be chosen again starts on the connection it came from
+  const waitingConnectionId = status?.link?.state === 'choose_account' ? status.link.connection_id : null
+  const connection = chosen?.connection ?? workingConnections.find((entry) => entry.id === chosenConnectionId)
+    ?? workingConnections.find((entry) => entry.id === waitingConnectionId)
+    ?? workingConnections[0]
+
+  // The flow waits on the account's link for its wording and, opened from the account, on the
+  // connections and providers, which decide whether there is anything to choose from
+  const ready = status !== undefined && (chosen !== undefined || (connections !== undefined && providers !== undefined))
+  const loadError = statusError ?? (chosen ? null : connectionsError ?? providersError)
+  const step: LinkFlowStep | null = !ready ? null : chosenStep ?? (chosen ? 'start' : connection ? 'account' : 'connect-first')
+  const choosesBankAccount = !chosen && (step === 'account' || step === 'start')
+
+  const { data: discovered, error: discoveredError } = useDiscoveredBankAccounts(choosesBankAccount ? connection?.id ?? null : null, account.id)
+  const bankAccountName = chosen?.bankAccount.name ?? discovered?.accounts.find((entry) => entry.external_id === externalId)?.name ?? ''
+  const chosenBankAccount = discovered?.accounts.find((entry) => entry.external_id === externalId)
+  const provider = providers?.providers.find((entry) => entry.id === connection?.provider)
+  const { data: range, error: rangeError } = useImportRange(
+    account.id,
+    connection?.provider ?? 'simplefin',
+    open && connection !== undefined && (step === 'account' || step === 'start'),
+  )
+  const startChoice = useStartChoice(range, account.name)
+
   const busy = link.isPending
 
   // Linking waits for the worker that imports the history, so it pauses while the worker is down
   const linkingPaused = providers !== undefined && !providers.sync_running
 
+  const goTo = (next: LinkFlowStep) => {
+    setError(null)
+    setChosenStep(next)
+  }
+
+  const openSettings = () => {
+    onClose()
+    navigate(BANK_CONNECTIONS_SETTINGS_PATH)
+  }
+
   const confirmLink = () => {
-    if (!chosenStart || startOutOfRange || linkingPaused) return
+    const externalAccountId = chosen?.bankAccount.external_id ?? externalId
+    if (!connection || !externalAccountId || !startChoice.start || startChoice.outOfRange || linkingPaused) return
     setError(null)
     link.mutate(
-      { account_id: account.id, connection_id: connection.id, external_account_id: bankAccount.external_id, start_date: chosenStart },
+      { account_id: account.id, connection_id: connection.id, external_account_id: externalAccountId, start_date: startChoice.start },
       {
         onSuccess: () => {
-          showToast({ status: 'success', text: 'Linked. Importing history now.' })
+          showToast({ status: 'success', text: wording.confirmation })
           onLinked?.()
           onClose()
         },
@@ -96,13 +145,21 @@ export function BankLinkFlowModal({ open, target, level = 'page', onClose, onLin
     )
   }
 
+  const connectFirst = step === 'connect-first' && connections && providers ? describeConnectFirst(connections, providers) : null
+  const primary = step === 'connect-first'
+    ? { label: connectFirst?.canOpenSettings ? 'Open settings' : 'Close', unavailable: false, onPrimary: connectFirst?.canOpenSettings ? openSettings : onClose }
+    : step === 'account'
+      ? { label: 'Continue', unavailable: !chosenBankAccount?.linkable, onPrimary: () => goTo('start') }
+      : { label: wording.submitLabel, unavailable: step === null || !range || !startChoice.start || startChoice.outOfRange, onPrimary: confirmLink }
+  const backsToAccount = step === 'start' && !chosen
+
   return (
     <ModalTitledPanel
       open={open}
       onClose={onClose}
       titleId="bank-link-title"
-      title="Link bank account"
-      eyebrow="Choose where history starts"
+      title={wording.title}
+      eyebrow={LINK_FLOW_STEP_NAMES[step ?? (chosen ? 'start' : 'account')]}
       RailIcon={Landmark}
       railLabel="Bank"
       level={level}
@@ -110,95 +167,70 @@ export function BankLinkFlowModal({ open, target, level = 'page', onClose, onLin
       onExitComplete={onExitComplete}
       footer={(
         <ModalFormFooter
-          submitLabel="Link and import"
+          submitLabel={primary.label}
           submitDisabled={busy}
-          submitUnavailable={!range || !chosenStart || startOutOfRange}
-          submitReason={linkingPaused ? LINKING_PAUSED_REASON : null}
+          submitUnavailable={primary.unavailable}
+          submitReason={step === 'start' && linkingPaused ? LINKING_PAUSED_REASON : null}
           submitWidthClassName="w-full sm:w-40"
           error={error}
           level={level}
-          onCancel={onClose}
-          onPrimary={confirmLink}
+          onCancel={backsToAccount ? () => goTo('account') : onClose}
+          cancelLabel={backsToAccount ? 'Back' : 'Cancel'}
+          onPrimary={primary.onPrimary}
         />
       )}
     >
-      {!range && rangeError
-        ? <LoadFailure error={rangeError} subject="Import start" />
+      {loadError && !ready
+        ? <LoadFailure error={loadError} subject="Bank link" />
         : (
-            <LoadingRegion loading={!range} label="Loading the import range" animateLoadingHeight overlayClassName={LOADING_OVERLAY_CLASS}>
-              {/* Room for the spinner only while loading, so the step is not padded out below */}
-              <div className={range ? 'space-y-4 pb-2' : 'min-h-32 pb-2'}>
-                {range && (
-                  <>
-                    <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                      {bankAccount.name} brings in transactions from the start you choose through today. Each one waits for your review first.
-                    </p>
-                    <div className="space-y-3" role="radiogroup" aria-label="Start">
-                      {choices.map((choice) => (
-                        <ChoiceCard key={choice.key} selected={startChoice === choice.key} disabled={busy} onSelect={() => setStartChoice(choice.key)}>
-                          <span className="flex flex-wrap items-baseline justify-between gap-x-3">
-                            <span className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>{choice.label}</span>
-                            <span className="text-sm tabular-nums" style={{ color: 'var(--app-text)' }}>From {formatDateLabel(choice.date)}</span>
-                          </span>
-                          {choice.note && <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>{choice.note}</span>}
-                        </ChoiceCard>
-                      ))}
-                      <ChoiceCard
-                        selected={startChoice === CUSTOM_START}
-                        disabled={busy}
-                        onSelect={() => setStartChoice(CUSTOM_START)}
-                        extra={(
-                          // From sm up the field sits where the other choices show their date and stays in
-                          // view, choosing Custom once it's pressed or typed in. Focus alone doesn't choose it,
-                          // since the modal focuses its first field on opening. Narrower, it opens beneath the
-                          // label once Custom is chosen, growing through its grid row rather than snapping
-                          <div
-                            className={`grid transition-[grid-template-rows,opacity,visibility] duration-200 ease-out sm:visible sm:w-[11.875rem] sm:shrink-0 sm:grid-rows-[1fr] sm:opacity-100 ${startChoice === CUSTOM_START ? 'visible grid-rows-[1fr] opacity-100' : 'invisible grid-rows-[0fr] opacity-0'}`}
-                            onPointerDownCapture={() => setStartChoice(CUSTOM_START)}
-                            onKeyDownCapture={(event) => {
-                              if (event.key !== 'Tab' && event.key !== 'Escape') setStartChoice(CUSTOM_START)
-                            }}
-                          >
-                            <div className="min-h-0 overflow-hidden sm:overflow-visible">
-                              {/* Indented to the choice's label, past the radio and its gap, on phones */}
-                              <div className="pb-3.5 pl-[2.625rem] pr-3.5 sm:py-3.5 sm:pl-0">
-                                <DateField
-                                  value={customStart}
-                                  ariaLabel="Start date"
-                                  disabled={busy}
-                                  error={startOutOfRange}
-                                  describedById={startOutOfRange ? START_ERROR_ID : undefined}
-                                  isDateDisabled={isDateDisabled}
-                                  onChange={setCustomStart}
-                                />
-                                {startOutOfRange && (
-                                  <span id={START_ERROR_ID} className="mt-1.5 block text-xs" style={{ color: 'var(--app-negative)' }}>
-                                    Outside the allowed range.
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      >
-                        <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>Custom date</span>
-                        <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                          Any day from {formatDateLabel(range.earliest_allowed)}
-                        </span>
-                      </ChoiceCard>
-                    </div>
-                    {provider && !provider.advertises_history && (
-                      <InfoCallout>
-                        You can import up to {range.provider_history_months} months from {connection.provider_name}, but it doesn't say how much history each bank keeps. Some return less.
-                      </InfoCallout>
-                    )}
-                    {uncoveredUntil && range.ledger_floor && (
-                      <InfoCallout>
-                        Nothing covers {formatDateLabel(range.ledger_floor)} to {formatDateLabel(uncoveredUntil)}. Add those days by hand if you need them.
-                      </InfoCallout>
-                    )}
-                  </>
-                )}
+            <LoadingRegion loading={step === null} label="Loading bank link" animateLoadingHeight overlayClassName={LOADING_OVERLAY_CLASS}>
+              {/* Room for the spinner only while loading, so a short step is not padded out below */}
+              <div className={step === null ? 'min-h-32 pb-2' : 'pb-2'}>
+                <StepTransition stepKey={step ?? 'loading'}>
+                  {connectFirst && (
+                    <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>{connectFirst.message}</p>
+                  )}
+                  {step === 'account' && connection && (
+                    <BankAccountStep
+                      account={account}
+                      mode={mode}
+                      previous={previous}
+                      connections={workingConnections}
+                      connection={connection}
+                      onConnectionChange={(connectionId) => {
+                        setChosenConnectionId(connectionId)
+                        setExternalId(null)
+                        startChoice.reset()
+                      }}
+                      discovered={discovered}
+                      discoveredError={discoveredError}
+                      chosenId={externalId}
+                      onChoose={setExternalId}
+                      disabled={busy}
+                      onOpenSettings={openSettings}
+                    />
+                  )}
+                  {step === 'start' && (
+                    !range && rangeError
+                      ? <LoadFailure error={rangeError} subject="Import start" />
+                      : (
+                          <LoadingRegion loading={!range} label="Loading the import range" animateLoadingHeight overlayClassName={LOADING_OVERLAY_CLASS}>
+                            {range
+                              ? (
+                                  <StartStep
+                                    range={range}
+                                    bankAccountName={bankAccountName}
+                                    providerName={connection?.provider_name ?? ''}
+                                    advertisesHistory={provider?.advertises_history ?? true}
+                                    startChoice={startChoice}
+                                    disabled={busy}
+                                  />
+                                )
+                              : <div className="min-h-32" />}
+                          </LoadingRegion>
+                        )
+                  )}
+                </StepTransition>
               </div>
             </LoadingRegion>
           )}
