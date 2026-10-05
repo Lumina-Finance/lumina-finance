@@ -1,19 +1,27 @@
-"""Reading what the user has to do for each account's sync to resume, as the account's sync status shows it
+"""What the user has to do for each account's sync to resume: the emails that tell them, and the account's sync status
 
 An account left out shows a sync that silently stopped, one shown needing a bank sign-in while its
 connection needs reconnecting sends the user to the wrong fix first, and one no longer linked, or
 waiting for its bank account to be chosen, that still asks for a bank sign-in nags about an account
-that isn't syncing for that reason
+that isn't syncing for that reason. An email that doesn't say what stopped and what to do leaves
+the user guessing, and one carrying the credential or transactions leaks them
 """
 
 from datetime import UTC, datetime
 
-from sqlalchemy import update
+from sqlalchemy import select, update
 
-from app.models.bank_connection import BankConnection, BankLinkState
-from app.services.bank_sync.action_needed import ActionNeeded, ActionNeededKind, read_actions_needed
+from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
+from app.services.bank_sync.action_needed import (
+    ActionNeeded,
+    ActionNeededKind,
+    choose_account_emails,
+    flag_rejected_credential,
+    flag_signin_needed,
+    read_actions_needed,
+)
 from tests.conftest import TestSession
-from tests.routes.support.bank_sync_helpers import _build_account, _build_bank_link
+from tests.routes.support.bank_sync_helpers import _build_account, _build_bank_link, _build_external_account
 from tests.routes.support.identity_helpers import _act_as
 
 _REJECTED_AT = datetime(2026, 10, 2, 9, tzinfo=UTC)
@@ -85,6 +93,67 @@ async def test_read_actions_needed_shows_bank_sign_in_needed_only_for_an_active_
     )
 
     assert await _read_as_owner(connection, ids.values()) == {ids["everyday"]: ActionNeeded(ActionNeededKind.BANK_LOGIN, _SIGNIN_SINCE)}
+
+
+async def test_action_emails_say_what_stopped_syncing_and_how_to_resume_it(connections):
+    """Each action-needed email as its owner reads it, naming what stopped syncing and what to do, and nothing of the credential or transactions
+
+    Reconnect needed names the connection by the nickname its owner gave it and lists the accounts
+    linked through it, or says what to do before linking any. Bank sign-in needed names the bank and
+    the site to sign in on, and Choose bank account names the account and the bank account it followed
+    """
+    family, unlinked = connections[0], connections[1]
+    ids = await _commit_links(family, Everyday={}, Card={})
+    async with TestSession() as session:
+        await session.execute(update(BankConnection).where(BankConnection.id == family.id).values(nickname="Family banks"))
+        for name in ("Everyday", "Card"):
+            listed = _build_external_account(family, f"ACT-{name}")
+            listed.login_key, listed.institution_name = "CON-chase", "Chase"
+            session.add(listed)
+        await session.commit()
+
+    async with _act_as(family.owner_id) as session:
+        connection = await session.get_one(BankConnection, family.id)
+        links = (await session.scalars(select(BankAccountLink).where(BankAccountLink.connection_id == family.id))).all()
+        everyday = [link for link in links if link.account_id == ids["Everyday"]]
+        emails = [
+            *await flag_rejected_credential(session, connection, at=_REJECTED_AT),
+            *await flag_signin_needed(session, connection, links, at=_SIGNIN_SINCE),
+            *await choose_account_emails(session, connection, everyday),
+        ]
+    async with _act_as(unlinked.owner_id) as session:
+        emails += await flag_rejected_credential(session, await session.get_one(BankConnection, unlinked.id), at=_REJECTED_AT)
+
+    assert [(email.recipient, email.message.subject, email.message.text_body) for email in emails] == [
+        (
+            "owner0@example.com",
+            "Reconnect SimpleFIN to resume syncing",
+            "SimpleFIN rejected your Family banks connection, so syncing has stopped for:\n\n"
+            "- Card\n"
+            "- Everyday\n\n"
+            "Reconnect it in Settings with a new setup token to pick up where it left off.",
+        ),
+        (
+            "owner0@example.com",
+            "Sign in to your bank again in SimpleFIN Bridge",
+            "Sign in to Chase again in SimpleFIN Bridge. Until you do, syncing has stopped for:\n\n"
+            "- Card\n"
+            "- Everyday\n\n"
+            "Lumina Finance checks daily and picks up where it left off once you have.",
+        ),
+        (
+            "owner0@example.com",
+            "Choose a bank account again to resume syncing",
+            "SimpleFIN now lists Everyday Chequing differently, so Lumina Finance can't tell whether it's the same account. "
+            "Everyday won't sync until you choose its bank account again.\n\n"
+            "If SimpleFIN goes back to listing it as before, Everyday resumes syncing by itself.",
+        ),
+        (
+            "owner1@example.com",
+            "Reconnect SimpleFIN to resume syncing",
+            "SimpleFIN rejected your connection.\n\nReconnect it in Settings with a new setup token before linking accounts to it.",
+        ),
+    ]
 
 
 async def test_read_actions_needed_reads_nothing_of_another_users_accounts(connections):

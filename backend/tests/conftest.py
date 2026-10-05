@@ -21,9 +21,9 @@ from app.db.rls import apply_rls
 from app.models import import_all_models
 from app.models.base import Base
 from app.request_hook import RequestRecord, observe_requests
-from app.services.bank_sync import action_needed
 from app.services.categories.defaults import seed_system_categories
 from app.services.email import RenderedEmail
+from app.services.email import contract as email_contract
 from app.services.merchants.defaults import seed_system_merchants
 from app.valkey_store import ValkeyStore, use_valkey
 from tests.fake_simplefin_bridge import FakeBridgeTransport
@@ -224,12 +224,12 @@ async def scenario() -> AsyncIterator[FakeBridgeScenario]:
 
 
 @pytest.fixture
-def sent_action_emails(monkeypatch) -> list[tuple[str, str, str]]:
-    """Each action-needed email bank sync sends, as its recipient, subject and text, recorded in place of the configured sender"""
+def sent_action_emails(monkeypatch) -> list[tuple[str, RenderedEmail]]:
+    """Each email sent while the test runs, as its recipient and message, recorded by a sender installed in place of the configured one"""
     sent = []
 
     async def record(recipient: str, message: RenderedEmail) -> None:
-        sent.append((recipient, message.subject, message.text_body))
+        sent.append((recipient, message))
 
-    monkeypatch.setattr(action_needed, "get_email_sender", lambda: SimpleNamespace(send=record))
+    monkeypatch.setattr(email_contract, "_active_sender", SimpleNamespace(send=record))
     return sent

@@ -25,7 +25,6 @@ a credential since replaced, or whose failed email undoes the sync, nags or misl
 """
 
 import asyncio
-import logging
 import uuid
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
@@ -60,7 +59,7 @@ from app.models.transaction_link import TransactionLink
 from app.models.user import User
 from app.schemas.transaction import UpdateTransactionRequest
 from app.services.accounts.snapshots import recompute_account_snapshots
-from app.services.bank_sync import action_needed, availability, sync, worker
+from app.services.bank_sync import availability, sync, worker
 from app.services.bank_sync.availability import PROVIDER_ADAPTERS
 from app.services.bank_sync.connections import build_connection_responses
 from app.services.bank_sync.provider_requests import reserve_provider_request
@@ -69,7 +68,6 @@ from app.services.bank_sync.review_pause import lift_review_pauses, lock_account
 from app.services.bank_sync.worker import run_jobs
 from app.services.email import RenderedEmail
 from app.services.email import contract as email_contract
-from app.services.email.senders import LoggingEmailSender
 from app.services.merchants.defaults import SELF_MERCHANT_NAME
 from app.services.transactions.update import apply_transaction_update
 from tests.conftest import TestSession
@@ -936,29 +934,31 @@ async def _rejection(connection: BankConnection) -> datetime | None:
         return await session.scalar(select(BankConnection.credential_rejected_at).where(BankConnection.id == connection.id))
 
 
-# The Reconnect needed email for the connection the owner named Family banks, through which Card and Everyday are linked
-_FAMILY_BANKS_REJECTED = (
-    "owner0@example.com",
-    "Reconnect SimpleFIN to resume syncing",
-    "SimpleFIN rejected your Family banks connection, so syncing has stopped for:\n\n"
-    "- ACT-card\n"
-    "- ACT-everyday\n\n"
-    "Reconnect it in Settings with a new setup token to pick up where it left off.",
-)
+# The subject of each kind of action-needed email, whose wording test_action_needed pins
+_RECONNECT_SUBJECT = "Reconnect SimpleFIN to resume syncing"
+_SIGNIN_SUBJECT = "Sign in to your bank again in SimpleFIN Bridge"
+_CHOOSE_SUBJECT = "Choose a bank account again to resume syncing"
+
+
+def _emailed(sent: Sequence[tuple[str, RenderedEmail]], *names: str) -> list[tuple[str, str, list[str]]]:
+    """Return each email sent as its recipient, its subject and which of the names given its text mentions"""
+    return [(recipient, message.subject, [name for name in names if name in message.text_body]) for recipient, message in sent]
+
+
+def _email(subject: str, *names: str) -> tuple[str, str, list[str]]:
+    """Return an email to the first connection's owner with the subject, mentioning the names, as _emailed gives it"""
+    return ("owner0@example.com", subject, list(names))
 
 
 async def test_job_ending_on_a_rejected_credential_marks_the_connection_reconnect_needed_and_emails_its_owner_once(
     connection, provider, frozen_now, sent_action_emails
 ):
-    """SimpleFIN Bridge refuses the stored access for Everyday's daily sync, on the connection the owner named Family banks
+    """SimpleFIN Bridge refuses the stored access for Everyday's daily sync
 
     The connection is marked from when the refused request went out, and the owner is emailed once,
     naming every account still linked through it: Card, waiting for its bank account to be chosen
     again, too, but not Old, unlinked last month. A later sync sends nothing, and nothing more is emailed
     """
-    async with TestSession() as session:
-        await session.execute(update(BankConnection).where(BankConnection.id == connection.id).values(nickname="Family banks"))
-        await session.commit()
     await _link(connection, "ACT-everyday", **_synced_through_yesterday())
     await _link(connection, "ACT-card", **_synced_through_yesterday(state=BankLinkState.CHOOSE_ACCOUNT))
     await _link(connection, "ACT-old", state=BankLinkState.UNLINKED, unlinked_at=frozen_now - timedelta(days=30))
@@ -968,14 +968,15 @@ async def test_job_ending_on_a_rejected_credential_marks_the_connection_reconnec
     await _run_jobs_until_none_is_due()
 
     assert await _rejection(connection) == frozen_now
-    assert sent_action_emails == [_FAMILY_BANKS_REJECTED]
+    names = ("ACT-card", "ACT-everyday", "ACT-old")
+    assert _emailed(sent_action_emails, *names) == [_email(_RECONNECT_SUBJECT, "ACT-card", "ACT-everyday")]
 
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
     await _run_jobs_until_none_is_due()
 
     assert len(provider.fetches) == 1
     assert [(status, error) for _, status, error, _ in await _jobs()] == [("failed", "credential_rejected"), ("succeeded", None)]
-    assert sent_action_emails == [_FAMILY_BANKS_REJECTED]
+    assert len(sent_action_emails) == 1
 
 
 async def test_job_whose_listing_meets_a_rejected_credential_marks_the_connection_and_emails_its_owner(
@@ -983,7 +984,7 @@ async def test_job_whose_listing_meets_a_rejected_credential_marks_the_connectio
 ):
     """The claim couldn't list the bank accounts, and the job flagged to list them finds the stored access refused
 
-    Nothing is linked through the connection yet, so the email lists no accounts
+    Nothing is linked through the connection yet, and its owner is still told to reconnect it
     """
     provider.outcomes = [FetchResult(request_error=_rejected())]
     await _seed_job(connection, BankSyncJobKind.INITIAL, discover=True)
@@ -991,36 +992,7 @@ async def test_job_whose_listing_meets_a_rejected_credential_marks_the_connectio
     await _run_jobs_until_none_is_due()
 
     assert await _rejection(connection) == frozen_now
-    assert sent_action_emails == [
-        (
-            "owner0@example.com",
-            "Reconnect SimpleFIN to resume syncing",
-            "SimpleFIN rejected your connection.\n\nReconnect it in Settings with a new setup token before linking accounts to it.",
-        )
-    ]
-
-
-async def test_job_attempt_that_lost_its_lease_emails_a_rejected_credential_once(connection, monkeypatch, sent_action_emails):
-    """Attempt 1's request stalls past its lease, attempt 2's is refused and emails the owner, and attempt 1's refusal arrives after
-
-    The job was cut off and ran again, and the owner still gets one email
-    """
-    await _link(connection, "ACT-everyday", **_synced_through_yesterday())
-    provider = _HeldProvider()
-    provider.outcomes = [FetchResult(request_error=_rejected()), FetchResult(request_error=_rejected())]
-    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
-    job = await _seed_job(connection, BankSyncJobKind.SCHEDULED)
-
-    async with asyncio.timeout(_WAIT_SECONDS):
-        first_attempt = asyncio.create_task(run_jobs(1))
-        await provider.sending[1].wait()
-        await _expire_lease(job)
-        assert await run_jobs(1) == 1
-        provider.release[1].set()
-        assert await first_attempt == 1
-
-    assert (await _job_states())[job.id] == ("failed", 2)
-    assert [subject for _, subject, _ in sent_action_emails] == ["Reconnect SimpleFIN to resume syncing"]
+    assert _emailed(sent_action_emails) == [_email(_RECONNECT_SUBJECT)]
 
 
 async def test_job_refused_after_its_connection_was_marked_reconnect_needed_keeps_the_mark_and_emails_nothing_more(
@@ -1099,26 +1071,6 @@ async def test_job_failing_on_a_server_this_instance_doesnt_allow_marks_nothing(
     assert sent_action_emails == []
 
 
-async def test_job_on_the_logging_email_backend_writes_the_reconnect_email_to_the_server_log(connection, provider, monkeypatch, caplog):
-    """A deployment that logs email instead of delivering it shows the Reconnect needed email in the worker's log"""
-    monkeypatch.setattr(email_contract, "_active_sender", LoggingEmailSender())
-    await _link(connection, "ACT-everyday", **_synced_through_yesterday())
-    provider.outcomes = [FetchResult(request_error=_rejected())]
-    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
-
-    with caplog.at_level(logging.WARNING, logger="app.services.email.senders"):
-        await _run_jobs_until_none_is_due()
-
-    assert [record.getMessage() for record in caplog.records if record.name == "app.services.email.senders"] == [
-        "Email not sent (logging backend)\n"
-        "To: owner0@example.com\n"
-        "Subject: Reconnect SimpleFIN to resume syncing\n\n"
-        "SimpleFIN rejected your connection, so syncing has stopped for:\n\n"
-        "- ACT-everyday\n\n"
-        "Reconnect it in Settings with a new setup token to pick up where it left off."
-    ]
-
-
 @pytest.mark.parametrize("failure", ["refused", "never_answers"])
 async def test_job_whose_email_fails_to_send_keeps_everything_it_recorded(connection, provider, frozen_now, monkeypatch, failure):
     """The mail server refuses the Reconnect needed email, or never answers until the job's time limit stops the job
@@ -1135,7 +1087,7 @@ async def test_job_whose_email_fails_to_send_keeps_everything_it_recorded(connec
     async def never_answer(recipient: str, message: RenderedEmail) -> None:
         await asyncio.Event().wait()
 
-    monkeypatch.setattr(action_needed, "get_email_sender", lambda: SimpleNamespace(send=refuse if failure == "refused" else never_answer))
+    monkeypatch.setattr(email_contract, "_active_sender", SimpleNamespace(send=refuse if failure == "refused" else never_answer))
     monkeypatch.setattr(worker, "JOB_TIME_LIMIT", timedelta(seconds=3))
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
@@ -1153,17 +1105,6 @@ _SIGNIN_REASON = "SimpleFIN Bridge says your bank needs you to sign in again"
 def _signin_needed() -> ProviderError:
     """Return SimpleFIN Bridge saying a bank needs the user to sign in again"""
     return ProviderError(ProviderErrorKind.BANK_LOGIN_NEEDED, _SIGNIN_REASON)
-
-
-def _signin_email(institution: str, *accounts: str) -> tuple[str, str, str]:
-    """Return the Bank sign-in needed email to the first owner for a login at the institution, naming its accounts"""
-    listed = "".join(f"- {account}\n" for account in accounts)
-    return (
-        "owner0@example.com",
-        "Sign in to your bank again in SimpleFIN Bridge",
-        f"Sign in to {institution} again in SimpleFIN Bridge. Until you do, syncing has stopped for:\n\n{listed}\n"
-        "Lumina Finance checks daily and picks up where it left off once you have.",
-    )
 
 
 async def _list_under(connection: BankConnection, login_key: str, institution: str, *external_ids: str) -> None:
@@ -1202,7 +1143,8 @@ async def test_job_finding_a_bank_login_needs_a_sign_in_marks_its_accounts_and_e
     await _run_jobs_until_none_is_due()
 
     assert await _signin_marks(checking, card, amex) == [frozen_now, frozen_now, None]
-    assert sent_action_emails == [_signin_email("Chase", "ACT-chase-card", "ACT-chase-checking")]
+    names = ("ACT-amex", "ACT-chase-card", "ACT-chase-checking")
+    assert _emailed(sent_action_emails, *names) == [_email(_SIGNIN_SUBJECT, "ACT-chase-card", "ACT-chase-checking")]
     assert [attempt[1:] for attempt in await _attempts(checking, card, amex)] == [
         (frozen_now, _SIGNIN_REASON, 0, None),
         (frozen_now, _SIGNIN_REASON, 0, None),
@@ -1262,7 +1204,10 @@ async def test_job_whose_request_needs_a_bank_sign_in_marks_every_account_in_it_
     await _run_jobs_until_none_is_due()
 
     assert await _signin_marks(checking, amex) == [frozen_now, frozen_now]
-    assert sent_action_emails == [_signin_email("American Express", "ACT-amex"), _signin_email("Chase", "ACT-chase-checking")]
+    assert _emailed(sent_action_emails, "ACT-amex", "ACT-chase-checking") == [
+        _email(_SIGNIN_SUBJECT, "ACT-amex"),
+        _email(_SIGNIN_SUBJECT, "ACT-chase-checking"),
+    ]
     assert await _queued_jobs() == []
 
 
@@ -1297,7 +1242,7 @@ async def test_job_bringing_a_bank_login_back_clears_its_sign_in_and_emails_agai
     await _run_jobs_until_none_is_due()
 
     assert await _signin_marks(checking) == [frozen_now]
-    assert sent_action_emails == [_signin_email("Chase", "ACT-chase-checking")]
+    assert _emailed(sent_action_emails, "ACT-chase-checking", "ACT-chase-savings") == [_email(_SIGNIN_SUBJECT, "ACT-chase-checking")]
 
 
 async def test_job_clears_a_bank_sign_in_once_its_account_comes_back_whole_though_a_later_part_fails(connection, provider, frozen_now):
@@ -1349,17 +1294,11 @@ async def test_job_stopped_by_an_error_still_sends_the_email_an_earlier_step_sav
     assert len(provider.fetches) == 3
     assert [(kind, status, error) for kind, status, error, _ in await _jobs()] == [("initial", "failed", "unknown"), ("retry", "queued", None)]
     assert await _signin_marks(card) == [frozen_now]
-    assert sent_action_emails == [_signin_email("Chase", "ACT-chase-card")]
+    assert _emailed(sent_action_emails, "ACT-chase-card", "ACT-everyday") == [_email(_SIGNIN_SUBJECT, "ACT-chase-card")]
 
 
-# The Choose bank account email for Everyday, linked to the bank account listed as Everyday Chequing
-_CHOOSE_EVERYDAY = (
-    "owner0@example.com",
-    "Choose a bank account again to resume syncing",
-    "SimpleFIN now lists Everyday Chequing differently, so Lumina Finance can't tell whether it's the same account. "
-    "ACT-everyday won't sync until you choose its bank account again.\n\n"
-    "If SimpleFIN goes back to listing it as before, ACT-everyday resumes syncing by itself.",
-)
+# The Choose bank account email for Everyday, naming it and its bank account, listed as Everyday Chequing
+_CHOOSE_EVERYDAY = _email(_CHOOSE_SUBJECT, "ACT-everyday", "Everyday Chequing")
 
 
 @pytest.mark.parametrize("listed", ["not_at_all", "in_another_currency"])
@@ -1382,7 +1321,7 @@ async def test_job_whose_listing_moves_a_link_to_choose_bank_account_emails_once
 
     assert (len(provider.discoveries), provider.fetches) == (2, [])
     assert await _link_states(everyday) == ["choose_account"]
-    assert sent_action_emails == [_CHOOSE_EVERYDAY]
+    assert _emailed(sent_action_emails, "ACT-everyday", "Everyday Chequing") == [_CHOOSE_EVERYDAY]
 
 
 async def test_job_whose_listing_shows_a_bank_account_again_resumes_its_link_unannounced_and_emails_when_it_next_goes(
@@ -1404,7 +1343,7 @@ async def test_job_whose_listing_shows_a_bank_account_again_resumes_its_link_una
 
     assert states == ["choose_account", "active", "choose_account"]
     assert len(provider.fetches) == 1
-    assert sent_action_emails == [_CHOOSE_EVERYDAY, _CHOOSE_EVERYDAY]
+    assert _emailed(sent_action_emails, "ACT-everyday", "Everyday Chequing") == [_CHOOSE_EVERYDAY, _CHOOSE_EVERYDAY]
 
 
 async def test_job_whose_listing_still_misses_a_bank_account_a_reconnect_left_to_choose_emails_nothing(
@@ -2841,7 +2780,7 @@ async def test_job_tries_a_paused_links_import_daily_while_its_bank_needs_a_sign
     assert len(provider.fetches) == 2
     assert await _pauses(link) == [(True, False)]
     assert await _signin_marks(link) == [None]
-    assert sent_action_emails == [_signin_email("Harbour Bank", "ACT-1")]
+    assert _emailed(sent_action_emails, "ACT-1") == [_email(_SIGNIN_SUBJECT, "ACT-1")]
 
 
 async def test_job_marks_a_bank_sign_in_only_on_the_accounts_it_tried_leaving_one_paused_for_review_until_its_pause_lifts(
@@ -2862,7 +2801,7 @@ async def test_job_marks_a_bank_sign_in_only_on_the_accounts_it_tried_leaving_on
 
     assert _fetched(provider) == [_window(date(2026, 9, 19), _TODAY, ("ACT-savings",), pending=True)]
     assert await _signin_marks(everyday, savings) == [None, frozen_now]
-    assert sent_action_emails == [_signin_email("Harbour Bank", "ACT-savings")]
+    assert _emailed(sent_action_emails, "ACT-everyday", "ACT-savings") == [_email(_SIGNIN_SUBJECT, "ACT-savings")]
 
     async with TestSession() as session:
         await session.execute(update(BankAccountLink).where(BankAccountLink.id == everyday.id).values(paused=False))

@@ -12,6 +12,12 @@ from tests.routes.support.bank_sync_helpers import _build_bank_connection, _buil
 from tests.services.bank_sync.stand_ins import FROZEN_NOW
 
 
+@pytest.fixture(autouse=True)
+def sent_action_emails(sent_action_emails) -> list:
+    """Record every email a bank sync test sends, so none reaches whichever sender the test process installed"""
+    return sent_action_emails
+
+
 @pytest.fixture
 def worker_sessions(monkeypatch) -> None:
     """Open the worker's and the job runner's sessions on this test run's database as the app role, as production opens them"""

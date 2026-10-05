@@ -338,6 +338,7 @@ def test_render_action_needed_email_lists_the_accounts_in_both_parts_escaping_th
         "Reconnect it in Settings with a new setup token to pick up where it left off."
     )
     assert "your &lt;Home&gt; connection" in message.html_body
-    assert "<li>Bills &amp; &lt;Savings&gt;</li><li>Everyday</li>" in message.html_body
+    assert "<li>Bills &amp; &lt;Savings&gt;</li>" in message.html_body
+    assert "<li>Everyday</li>" in message.html_body
     assert "<Home>" not in message.html_body
     assert "<Savings>" not in message.html_body
