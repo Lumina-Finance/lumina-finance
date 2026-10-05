@@ -113,9 +113,6 @@ interface TransactionRowProps {
   disabledReason?: DisabledReasonState
   selection?: TransactionRowSelection
 
-  // Present on a bank-imported transaction only, so manual rows look exactly as they always have
-  bankMarker?: TransactionRowBankMarker
-
   // The id of the day's heading above the row, which names the date the row's button is described by
   dateHeadingId?: string
   onOpen: (transaction: Transaction) => void
@@ -124,6 +121,9 @@ interface TransactionRowProps {
 interface TransactionRowViewProps extends Omit<TransactionRowProps, 'transaction' | 'currency' | 'onOpen'> {
   transaction: TransactionRowMetadata
   amountPresentation: TransactionAmountPresentation
+
+  // Present on a bank-imported transaction only, so manual rows look exactly as they always have
+  bankMarker?: TransactionRowBankMarker
   onOpen: () => void
 }
 
@@ -292,11 +292,20 @@ export default function TransactionRow({ transaction, currency, onOpen, ...props
   const { formatMovedCurrency } = useMoneyFormatters()
   const sign = getAmountSign(transaction.amount)
   const text = formatMovedCurrency(transaction.amount, currency)
+
+  // Read from the source the transaction carries, so the marker needs no request of its own and stays
+  // once the account is unlinked. The row offers no way to the waiting correction or removal a source
+  // can name, so it leaves the Needs review marker out
+  const source = transaction.bank_source
+  const bankMarker = source
+    ? { providerName: source.provider_name, isEdited: source.edited_fields.length > 0, needsReview: false }
+    : undefined
   return (
     <TransactionRowView
       {...props}
       transaction={transaction}
       amountPresentation={{ text, sign }}
+      bankMarker={bankMarker}
       onOpen={() => onOpen(transaction)}
     />
   )

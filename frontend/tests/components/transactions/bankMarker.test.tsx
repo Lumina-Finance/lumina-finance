@@ -1,6 +1,7 @@
 /**
  * Guards the bank marker on a transaction row: a bank-imported row names its provider and adds the
- * edited note and the Needs review marker only when they apply, a manual row carries no marker, the
+ * edited note, on a line of its own, and the Needs review marker only when they apply, a manual row
+ * carries no marker, the
  * marker's controls are never nested inside the row's own button, nor open the row when pressed, and
  * the row's button is its title, so a screen reader does not read the row and its provider twice,
  * described by the amount and date that tabbing from row to row would otherwise not say
@@ -58,10 +59,10 @@ describe('bank marker', () => {
     expect(markup).not.toContain('Needs review')
   })
 
-  it('adds the edited note and the Needs review marker when they apply, outside the row button', () => {
+  it('adds the edited note on its own line and the Needs review marker when they apply, outside the row button', () => {
     const markup = renderRow({ providerName: 'SimpleFIN', isEdited: true, needsReview: true, onShowReview: () => {} })
 
-    expect(markup).toContain('From SimpleFIN. You edited a value the bank supplied')
+    expect(markup.match(/>From SimpleFIN<\/span><span [^>]*>You edited a value the bank supplied</g)).toHaveLength(LAYOUTS)
     expect(markup).toContain('aria-label="Needs review. Show the waiting item"')
     expect(hasNestedButton(markup)).toBe(false)
   })
@@ -77,7 +78,7 @@ describe('bank marker', () => {
 
     expect(markup.match(/<button [^>]*><span [^>]*>Corner Grocer<\/span><\/button>/g)).toHaveLength(LAYOUTS)
     expect(markup).not.toContain('aria-labelledby')
-    expect(markup.match(/aria-hidden="true"[^>]*><span class="app-tooltip-panel[^>]*>From SimpleFIN</g)).toHaveLength(LAYOUTS)
+    expect(markup.match(/aria-hidden="true"[^>]*><span class="app-tooltip-panel[^>]*><span [^>]*>From SimpleFIN</g)).toHaveLength(LAYOUTS)
   })
 
   it('describes each title by the amount in its own layout and by the heading that names its day', () => {

@@ -33,6 +33,11 @@ interface IconTooltipProps {
   // Fills the icon on hover and while open, which suits the round info and help icons. An outline
   // icon such as a building would lose its strokes to the fill, so it opts out
   hoverFill?: boolean
+
+  // Shows the panel while the trigger has keyboard focus too, as it does on hover. Only keyboard
+  // focus counts, since a tap also focuses the trigger and then toggles the panel, which would
+  // otherwise open and close it in one press
+  opensOnFocus?: boolean
 }
 
 type IconTooltipSideBoundary = 'bounds' | 'viewport'
@@ -73,6 +78,7 @@ const TOOLTIP_WRAPPER_CLASS = 'fixed z-40 p-2 transition-opacity'
 // property are ordered by the stylesheet, not by the class list
 const TOOLTIP_CLOSED_CLASS = 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100'
 const TOOLTIP_OPEN_CLASS = 'pointer-events-auto opacity-100'
+const TOOLTIP_FOCUS_OPEN_CLASS = 'peer-focus-visible:pointer-events-auto peer-focus-visible:opacity-100'
 
 function getAvailablePlacement({
   preferredPlacement,
@@ -205,6 +211,7 @@ export default function IconTooltip({
   interactive = false,
   sideBoundary = 'bounds',
   hoverFill = true,
+  opensOnFocus = false,
 }: IconTooltipProps) {
   const { Icon: DefaultIcon, color } = levelConfig[level]
   const isFxIcon = IconOverride === 'fx'
@@ -295,13 +302,16 @@ export default function IconTooltip({
   }, [isOpen])
 
   const fxToneClass = FX_TONE_CLASS[fxTone]
-  const triggerClassName = isFxIcon
-    ? joinClassNames(FX_TRIGGER_CLASS, isShown ? fxToneClass.active : fxToneClass.idle)
-    : ICON_TRIGGER_CLASS
+  const triggerClassName = joinClassNames(
+    isFxIcon ? FX_TRIGGER_CLASS : ICON_TRIGGER_CLASS,
+    isFxIcon && (isShown ? fxToneClass.active : fxToneClass.idle),
+    opensOnFocus && 'peer',
+  )
   const iconClassName = joinClassNames(ICON_CLASS, hoverFill && ICON_HOVER_CLASS, hoverFill && isShown && ICON_ACTIVE_CLASS)
   const tooltipWrapperClassName = joinClassNames(
     TOOLTIP_WRAPPER_CLASS,
     isShown ? TOOLTIP_OPEN_CLASS : TOOLTIP_CLOSED_CLASS,
+    opensOnFocus && TOOLTIP_FOCUS_OPEN_CLASS,
   )
   const rootClassName = joinClassNames(ROOT_CLASS, isFxIcon && FX_ROOT_CLASS)
 

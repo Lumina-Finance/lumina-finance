@@ -18,12 +18,16 @@ export type TransactionRowBankMarker = {
 }
 
 /**
- * Marks a row as imported from a bank: a muted bank icon naming the provider in a tooltip, a dot once
- * the user has edited a bank value, and a Needs review marker while a proposal waits
+ * Marks a row as imported from a bank: a muted bank icon naming the provider in a tooltip that opens
+ * on hover, keyboard focus or a press, a dot once the user has edited a bank value, and a Needs
+ * review marker while a proposal waits
  *
  * Positioned, so it sits above the layer that stretches the row's title over the whole row and takes
  * its own presses. The row opens on a press anywhere on its content, so a press here stops rather
  * than opening the row as well
+ *
+ * The icon takes the muted text colour rather than the subtle one, since it is a control and its
+ * strokes need 3:1 against the page in both themes, which the subtle colour misses in the light one
  */
 export function BankMarker({ providerName, isEdited, needsReview, onShowReview }: TransactionRowBankMarker) {
   return (
@@ -33,16 +37,19 @@ export function BankMarker({ providerName, isEdited, needsReview, onShowReview }
         <IconTooltip
           label={isEdited ? `From ${providerName}, edited` : `From ${providerName}`}
           icon={Landmark}
-          iconColor="var(--app-text-subtle)"
+          iconColor="var(--app-text-muted)"
           size={13}
           strokeWidth={2}
           widthClassName="w-max max-w-60"
           hoverFill={false}
+          opensOnFocus
         >
-          From {providerName}{isEdited && '. You edited a value the bank supplied'}
+          <span className="block">From {providerName}</span>
+          {isEdited && <span className="mt-0.5 block">You edited a value the bank supplied</span>}
         </IconTooltip>
         {isEdited && (
           <span
+            data-testid="bank-edited-dot"
             className="pointer-events-none absolute -right-1 -top-0.5 h-1.5 w-1.5 rounded-full"
             style={{ background: 'var(--app-accent)' }}
           />
