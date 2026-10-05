@@ -40,6 +40,7 @@ from tests.routes.support.bank_sync_helpers import (
     _build_pending_transaction,
     _expire_lease,
     _job_states,
+    _queued_jobs,
     _seed_job,
 )
 from tests.routes.support.identity_helpers import _act_as
@@ -370,11 +371,10 @@ async def test_run_jobs_records_why_a_job_failed_on_each_link_it_was_syncing_and
             )
         )
         attempts = {link_id: attempt for link_id, *attempt in rows}
-        queued = (await session.execute(select(BankSyncJob.kind, BankSyncJob.run_after).where(BankSyncJob.status == "queued"))).all()
     failed_at, *recorded = attempts[everyday.id]
     assert recorded == [reason, 1, failed_at + timedelta(minutes=30)]
     assert attempts[savings.id] == [None, None, 0, None]
-    assert [tuple(row) for row in queued] == [(BankSyncJobKind.RETRY, failed_at + timedelta(minutes=30))]
+    assert await _queued_jobs() == [("retry", timedelta(minutes=30), False)]
     assert (await _job_outcomes())[job.id][0] == "failed"
 
 

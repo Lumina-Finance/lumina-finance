@@ -200,6 +200,20 @@ async def test_enqueue_keeps_a_rediscovery_whichever_request_asked(connections, 
     assert jobs == [(kind, True, "queued")]
 
 
+async def test_enqueue_keeps_a_job_queued_for_later_waiting_by_the_databases_clock_though_the_apps_runs_behind(connections, frozen_now):
+    """The app's clock reads 4 October here, behind the database's, and a retry it queues for 30 minutes on still waits 30 minutes
+
+    Kept as the app's time, the job would be claimed at once, before the app counts its retry due,
+    and would fetch every other link again and queue itself for the same time, claimed at once again
+    """
+    _, run_after = await _enqueue_as_owner(connections[0], {"kind": BankSyncJobKind.RETRY, "run_after": frozen_now + timedelta(minutes=30)})
+
+    assert await _claim(1) == []
+    async with TestSession() as session:
+        database_now = await session.scalar(select(func.now()))
+    assert timedelta(minutes=29) < run_after - database_now <= timedelta(minutes=30)
+
+
 @pytest.mark.parametrize("scheduled_first", [True, False], ids=["sync_now_onto_tomorrows_job", "tomorrows_job_onto_sync_now"])
 async def test_enqueue_runs_a_merged_job_at_the_earlier_time(connections, scheduled_first):
     """Sync now and tomorrow's scheduled sync, merged in either order, run now as a manual job"""

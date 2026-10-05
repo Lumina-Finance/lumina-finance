@@ -3,9 +3,9 @@
 import uuid
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 
-from sqlalchemy import case, func, literal_column, select, text, update
+from sqlalchemy import DateTime, case, func, literal_column, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -61,23 +61,30 @@ async def enqueue_bank_sync_job(
     last stays last, and the job runs at the earlier of the two times. A running job is left alone,
     so the queued one runs after it. The caller commits
 
+    A time is kept as the same wait from the database's clock, which the claim compares it with, so
+    a database clock running ahead of the app's can't have a job claimed before the app counts it
+    due, which would have it fetch every link due then and queue itself for the same time again
+
     Args:
         db: Session of the connection's owner
         owner_id: The connection's owner
         connection_id: The connection to sync
         kind: Why the sync is wanted
         discover: Whether to list the connection's bank accounts again first
-        run_after: When the job may run, or now when not given
+        run_after: When the job may run by the app's clock, or now when not given
         deferred_link_ids: The links to sync only once no other link is due, since a job just
             failed to bring them back whole
     """
+    when = func.now()
+    if run_after is not None:
+        when = func.clock_timestamp(type_=DateTime(timezone=True)) + (run_after - datetime.now(UTC))
     queued = insert(BankSyncJob).values(
         owner_id=owner_id,
         connection_id=connection_id,
         kind=kind,
         discover=discover,
         status=BankSyncJobStatus.QUEUED,
-        run_after=run_after if run_after is not None else func.now(),
+        run_after=when,
         deferred_link_ids=list(deferred_link_ids),
     )
     await db.execute(

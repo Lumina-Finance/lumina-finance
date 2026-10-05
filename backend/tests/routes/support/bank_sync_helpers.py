@@ -353,6 +353,39 @@ async def _job_states() -> dict:
     return {job_id: (status, attempt) for job_id, status, attempt in rows}
 
 
+async def _queued_jobs() -> list[tuple]:
+    """Return the queued job's kind, how long after it was queued it may run, to the second, and whether it lists the bank accounts first
+
+    A job waits by the database's clock, which a test's frozen clock doesn't stop, so the wait it was
+    queued with is what a test can pin
+    """
+    async with TestSession() as session:
+        rows = await session.execute(
+            select(BankSyncJob.kind, BankSyncJob.run_after - BankSyncJob.created_at, BankSyncJob.discover).where(BankSyncJob.status == "queued")
+        )
+        return [(kind, timedelta(seconds=round(wait.total_seconds())), discover) for kind, wait, discover in rows]
+
+
+async def _attempts(*links: BankAccountLink) -> list[tuple]:
+    """Return each link's last successful sync, last attempt, why it failed, failed attempts in its retry series and next attempt"""
+    async with TestSession() as session:
+        rows = [
+            (
+                await session.execute(
+                    select(
+                        BankAccountLink.last_success_at,
+                        BankAccountLink.last_attempt_at,
+                        BankAccountLink.last_failure_reason,
+                        BankAccountLink.retry_count,
+                        BankAccountLink.next_attempt_at,
+                    ).where(BankAccountLink.id == link.id)
+                )
+            ).one()
+            for link in links
+        ]
+    return [tuple(row) for row in rows]
+
+
 async def _changed_at(client, headers) -> str | None:
     """Return when the user's data last changed, as the cache status reports it"""
     status = await client.get("/me/cache-status", headers=headers)
