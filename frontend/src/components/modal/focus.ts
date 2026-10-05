@@ -59,14 +59,17 @@ export function getNextTabStop<T>(tabStops: readonly T[], activeElement: T | nul
 const MODAL_INITIAL_FOCUS_SELECTOR = '[data-modal-initial-focus="true"]:not([disabled])'
 
 /**
- * Moves focus into the panel once it has mounted, preferring a control the dialog names, then its first
- * field so a form opens ready to type in, and falling back to the panel itself so a dialog with no fields
- * still takes focus off the page behind
+ * Moves focus into the panel once it has mounted, preferring a control or field the dialog marks with
+ * `data-modal-initial-focus`, then its first field that can be changed, so a form opens ready to type in.
+ * A field held with its reason is passed over, since focus would open the reason over the form. Falls
+ * back to the panel itself so a dialog with no fields still takes focus off the page behind
  */
 export function requestInitialModalFocus(panel: HTMLElement) {
   return window.requestAnimationFrame(() => {
     const target =
-      panel.querySelector<HTMLElement>(MODAL_INITIAL_FOCUS_SELECTOR) ?? getModalFieldTabStops(panel)[0] ?? panel
+      panel.querySelector<HTMLElement>(MODAL_INITIAL_FOCUS_SELECTOR) ??
+      getModalFieldTabStops(panel).find((field) => field.getAttribute('aria-disabled') !== 'true') ??
+      panel
     target.focus({ preventScroll: true })
   })
 }

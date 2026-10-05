@@ -720,6 +720,7 @@ export default function CreateTransactionModal({
                 selectedCurrencySymbol={selectedCurrencySymbol}
                 currencyExponent={selectedCurrencyExponent}
                 isAmountLocked={isAmountLocked}
+                startsOnAmount={Boolean(reviewItem) && initialForm.amount === ''}
                 currencyState={currencyState}
                 amount={form.amount}
                 amountError={showError('amount')}

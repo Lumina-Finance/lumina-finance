@@ -52,6 +52,9 @@ type TransactionDetailsSectionProps = {
   // than recomputed here, so the field the form treats as locked is the field the user sees disabled
   isAmountLocked: boolean
 
+  // Whether the modal opens on the amount rather than its first field, for an amount the user must enter
+  startsOnAmount?: boolean
+
   // Which of the reasons the amount is locked for, since a list still arriving is worth waiting
   // out, one that failed is worth a reload, and one that simply does not carry the currency is
   // neither. The lock itself is decided above rather than read off this
@@ -86,6 +89,7 @@ export default function TransactionDetailsSection({
   amount,
   amountError,
   isAmountLocked,
+  startsOnAmount = false,
   currencyState,
   currencyExponent,
   notes,
@@ -272,6 +276,7 @@ export default function TransactionDetailsSection({
               aria-describedby={amountError ? ids.errors.amount : undefined}
               placeholder={isAmountLocked ? undefined : getMoneyPlaceholder(currencyExponent)}
               disabled={readOnly || isAmountLocked}
+              data-modal-initial-focus={startsOnAmount || undefined}
               {...amountInput}
             />
           </div>
