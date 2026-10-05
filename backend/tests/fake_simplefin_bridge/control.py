@@ -1,4 +1,4 @@
-"""The control API tests use to set up and change a scenario
+"""The control API tests use to set up and change a scenario, and a ready-made one for trying the app by hand
 
 Every change shows in the next protocol response. Errors and the fault stay until they are cleared
 """
@@ -7,7 +7,7 @@ import base64
 import dataclasses
 import os
 import secrets
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Self
 
 from fastapi import APIRouter, HTTPException, Request, status
@@ -28,6 +28,41 @@ DEFAULT_HTML_ERROR_STATUS = status.HTTP_403_FORBIDDEN
 # test's machine reaches, still sends the app's claim somewhere the app can reach. Unset when the
 # fake is mounted in-process, and then a token points wherever its caller reached the fake
 APP_ORIGIN = os.getenv("BANK_SYNC_SIMPLEFIN_TEST_ORIGIN", "").strip().rstrip("/")
+
+# The sample scenario: one bank login holding a chequing account and a credit card in Canadian
+# dollars, each with a few weeks of an ordinary month, so an import from any recent start finds
+# some. Each transaction is days before today, amount, description and payee
+SAMPLE_CURRENCY = "CAD"
+SAMPLE_ACCOUNTS = [
+    (
+        "Everyday Chequing",
+        "2418.36",
+        [
+            (33, "2650.00", "DIRECT CREDIT BRIGHTWORKS LTD SALARY", "Brightworks Ltd"),
+            (32, "-1950.00", "AUTOMATIC PAYMENT HARBOURVIEW RENTALS", "Harbourview Rentals"),
+            (27, "-86.42", "EFTPOS FRESHWAY MARKET 0412", "Freshway Market"),
+            (19, "2650.00", "DIRECT CREDIT BRIGHTWORKS LTD SALARY", "Brightworks Ltd"),
+            (15, "-79.99", "DIRECT DEBIT FIBRENET BROADBAND", "Fibrenet"),
+            (9, "-5.75", "EFTPOS BEAN THERE CAFE", "Bean There Cafe"),
+            (5, "2650.00", "DIRECT CREDIT BRIGHTWORKS LTD SALARY", "Brightworks Ltd"),
+            (2, "-72.10", "EFTPOS NORTHERN FUEL STOP", "Northern Fuel"),
+        ],
+    ),
+    (
+        "Rewards Visa",
+        "-612.40",
+        [
+            (24, "-17.99", "VISA PURCHASE STREAMFLIX MONTHLY", "Streamflix"),
+            (18, "-64.50", "VISA PURCHASE OSTERIA LUNA", "Osteria Luna"),
+            (11, "500.00", "PAYMENT RECEIVED THANK YOU", ""),
+            (6, "-129.95", "VISA PURCHASE PARCELPOINT ONLINE", "Parcelpoint"),
+            (1, "-20.00", "VISA PURCHASE CITYLINK TRANSIT TOPUP", "Citylink Transit"),
+        ],
+    ),
+]
+
+# Waiting on the chequing account, so the sample shows a pending transaction too
+SAMPLE_PENDING = ("-41.30", "EFTPOS GREENLEAF GROCER", "Greenleaf Grocer")
 
 
 class AddConnectionRequest(BaseModel):
@@ -137,6 +172,50 @@ class SetFaultRequest(BaseModel):
 async def create_scenario(request: Request):
     """Start an empty scenario and return its id and first setup token"""
     scenario = bridge.create_scenario()
+    return {"id": scenario.id, "setup_token": _setup_token(request, scenario)}
+
+
+@router.post("/sample", status_code=status.HTTP_201_CREATED)
+async def create_sample_scenario(request: Request):
+    """Start a scenario holding the sample bank login, dated from today, and return its id and first setup token
+
+    For trying the app by hand. Each call starts a new scenario under new ids
+    """
+    scenario = bridge.create_scenario()
+    connection = Connection(conn_id=_new_id("CON"), name="Harbour Bank", org_id="ORG-harbour-bank", org_url=None)
+    scenario.connections.append(connection)
+
+    today = datetime.now(UTC).date()
+    for name, balance, entries in SAMPLE_ACCOUNTS:
+        account = Account(
+            id=_new_id("ACT"),
+            name=name,
+            conn_id=connection.conn_id,
+            currency=SAMPLE_CURRENCY,
+            balance=balance,
+            available_balance=None,
+            balance_date=None,
+        )
+        account.transactions = [
+            Transaction(
+                id=_new_id("TRN"),
+                amount=amount,
+                description=description,
+                payee=payee,
+                memo="",
+                pending=False,
+                posted=_stamp(today - timedelta(days=days_ago)),
+                transacted_at=None,
+            )
+            for days_ago, amount, description, payee in entries
+        ]
+        scenario.accounts.append(account)
+
+    amount, description, payee = SAMPLE_PENDING
+    pending = Transaction(
+        id=_new_id("TRN"), amount=amount, description=description, payee=payee, memo="", pending=True, posted=None, transacted_at=None
+    )
+    scenario.accounts[0].transactions.append(pending)
     return {"id": scenario.id, "setup_token": _setup_token(request, scenario)}
 
 
