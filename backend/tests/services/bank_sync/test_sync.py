@@ -81,6 +81,7 @@ from app.services.bank_sync.worker import enqueue_due_work, run_jobs
 from app.services.email import RenderedEmail
 from app.services.email import contract as email_contract
 from app.services.merchants.defaults import SELF_MERCHANT_NAME
+from app.services.transactions.deletion import delete_transaction_for_user
 from app.services.transactions.update import apply_transaction_update
 from tests.conftest import TestSession
 from tests.fake_simplefin_bridge import FakeBridgeTransport
@@ -2627,6 +2628,31 @@ async def test_job_brings_in_an_id_dismissed_under_another_identity_as_a_new_ite
 
     stored = await _bank_transactions(BankTransaction.account_id, BankTransaction.external_account_id, BankTransaction.disposition)
     assert sorted(stored) == sorted([dismissed, (link.account_id, "ACT-1", BankTransactionDisposition.AWAITING_REVIEW)])
+
+
+async def test_job_brings_in_a_transaction_deleted_after_unlinking_as_a_new_item_once_linked_again(connection, provider):
+    """The user unlinked the account, deleted a coffee its bank had imported, and linked it to the same bank account again from 1 September
+
+    Deleting the coffee took its bank transaction with it, so the bank sending it again brings it in
+    as a new item waiting for review rather than back into the ledger
+    """
+    previous = await _link(connection, "ACT-1", state=BankLinkState.UNLINKED, unlinked_at=datetime(2026, 10, 3, tzinfo=UTC))
+    await _commit_accepted_items(previous, plain=1)
+    async with _owner_session(connection.owner_id) as session:
+        coffee_id = await session.scalar(select(Transaction.id).where(Transaction.account_id == previous.account_id))
+        await delete_transaction_for_user(session, await session.get_one(User, connection.owner_id), coffee_id)
+    async with TestSession() as session:
+        session.add(_build_bank_link(await session.get_one(Account, previous.account_id), connection, "ACT-1"))
+        await session.commit()
+    provider.outcomes = [_returned_with({"ACT-1": [_record("TRN-accepted-0", date(2026, 10, 3))]})]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _bank_transactions(BankTransaction.external_transaction_id, BankTransaction.disposition, BankTransaction.transaction_id) == [
+        ("TRN-accepted-0", BankTransactionDisposition.AWAITING_REVIEW, None)
+    ]
+    assert await _ledger_rows(previous.account_id) == []
 
 
 async def test_job_puts_no_pending_or_removed_record_in_the_review_inbox(connection, provider):

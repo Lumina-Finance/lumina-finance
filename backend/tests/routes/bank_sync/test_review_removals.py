@@ -36,6 +36,7 @@ from tests.routes.support.bank_sync_helpers import (
     _new_group_account,
     _record_bank_source,
     _review_page,
+    _still_stored,
     _stored_item,
 )
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
@@ -112,12 +113,6 @@ async def _commit_coffee(removal: _Removal, day: date) -> None:
         session.add(coffee)
         await recompute_account_snapshots(session, {account.id: day})
         await session.commit()
-
-
-async def _still_stored(item_id: uuid.UUID) -> bool:
-    """Return whether the item's bank transaction is still stored, read as the table owner"""
-    async with TestSession() as session:
-        return await session.get(BankTransaction, item_id) is not None
 
 
 async def _end_of_day_balances(account_id: str) -> list[int]:

@@ -779,8 +779,9 @@ async def delete_transaction(
 ):
     """Delete a transaction after checking write access
 
-    The route delegates access checks, tag removal, transaction deletion,
-    snapshot recalculation, and cache updates to the deletion service
+    The route delegates access checks, the refusal of a bank-imported transaction while its account
+    is linked, tag removal, transaction deletion, snapshot recalculation, and cache updates to the
+    deletion service
 
     Args:
         transaction_id: Transaction identifier from the route path

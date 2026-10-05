@@ -5,11 +5,12 @@ in the user's profile timezone, so a transaction written any other way on one of
 duplicate bank data. Every write that dates a transaction checks here, except a bank import itself:
 creating one, an edit that changes its date or account, a bulk edit, both import commits and the
 starting balance. Earlier days and future days stay open, and none of it applies once the account is
-unlinked. A bank-imported transaction keeps an editable date, but can't leave its account while the
-account is linked, and a linked account can't be archived, since archiving writes an adjustment
-dated today. Moved out once the account is unlinked, a bank-imported transaction leaves the bank as
-a deleted one does: its bank transaction is deleted, so nothing the bank later says about it reaches
-the account it moved to, and the bank sending it again brings it in as a new item.
+unlinked. A bank-imported transaction keeps an editable date, but can't leave its account or be
+deleted while the account is linked, since only a bank removal the user approves takes it out of the
+ledger then, and a linked account can't be archived, since archiving writes an adjustment dated
+today. Moved out or deleted once the account is unlinked, a bank-imported transaction leaves the
+bank: its bank transaction is deleted, so nothing the bank later says about it reaches the account
+it moved to, and the bank sending it again brings it in as a new item.
 
 A link counts from the moment it exists, whether its bank account is active or waiting to be chosen
 again. Every check locks the accounts it reads the links of, in a mode a link request's own lock on
@@ -30,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankProvider
 from app.models.bank_transaction import BankTransaction
+from app.models.transaction import Transaction
 from app.models.user import User
 from app.services.bank_sync.availability import LIVE_LINK, PROVIDER_ADAPTERS
 from app.utils.dates import format_day, resolve_timezone
@@ -147,6 +149,39 @@ async def detach_moved_bank_imports(db: AsyncSession, edits: Sequence[LedgerEdit
     moved = [edit.transaction_id for edit in edits if edit.new_account_id != edit.account_id]
     if moved:
         await db.execute(delete(BankTransaction).where(BankTransaction.transaction_id.in_(moved)))
+
+
+async def refuse_deleting_bank_imports(db: AsyncSession, transactions: Sequence[Transaction]) -> None:
+    """Refuse to delete a bank-imported transaction while its account is linked
+
+    Bank sync's own removals don't come through here, so a bank removal the user approves, or one
+    the account trusts, still deletes the transaction while the account stays linked
+
+    Args:
+        db: Active database session
+        transactions: The transactions about to be deleted, locked by the caller
+
+    Raises:
+        HTTPException 409: A bank-imported transaction's account is linked, naming the provider it
+            came from and the account
+    """
+    rows = await db.execute(
+        select(BankTransaction.transaction_id, BankTransaction.provider).where(
+            BankTransaction.transaction_id.in_([txn.id for txn in transactions])
+        )
+    )
+    providers = dict(rows.all())
+    if not providers:
+        return
+    links = await _read_live_links(db, {txn.account_id for txn in transactions if txn.id in providers})
+    for txn in transactions:
+        link = links.get(txn.account_id)
+        if txn.id in providers and link is not None:
+            provider_name = PROVIDER_ADAPTERS[providers[txn.id]].provider_name
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Imported from {provider_name}. While {link.account_name} is linked, edit it rather than deleting it",
+            )
 
 
 async def refuse_archiving_a_linked_account(db: AsyncSession, account: Account) -> None:

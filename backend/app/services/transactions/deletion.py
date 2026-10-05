@@ -15,6 +15,7 @@ from app.models.user import User
 from app.permissions import check_transaction_access
 from app.schemas.transaction import BulkDeleteTransactionsRequest, BulkDeleteTransactionsResponse
 from app.services.accounts.snapshots import recompute_account_snapshots
+from app.services.bank_sync.manual_entries import refuse_deleting_bank_imports
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.transactions.accounts import (
     get_parent_account_for_transaction,
@@ -31,9 +32,10 @@ async def delete_transaction_for_user(
 ) -> None:
     """Delete one transaction after checking write access
 
-    The service loads the writable transaction, deletes it, marks the cache scope changed and
-    commits. Its refund link, if any, goes with it and the transaction on the other side stays.
-    Deleting both is a bulk delete that chooses the linked ones
+    The service loads the writable transaction, refuses it while it is bank-imported into a linked
+    account, deletes it, marks the cache scope changed and commits. Its refund link, if any, goes
+    with it and the transaction on the other side stays. Deleting both is a bulk delete that
+    chooses the linked ones
 
     Args:
         db: Active database session
@@ -42,6 +44,9 @@ async def delete_transaction_for_user(
 
     Returns:
         None
+
+    Raises:
+        HTTPException 409: The transaction is bank-imported and its account is linked
     """
     # Take the same row lock before tag deletion so an edit and delete cannot interleave
     txn = await check_transaction_access(
@@ -51,6 +56,7 @@ async def delete_transaction_for_user(
         PermissionLevel.WRITE,
         lock_for_update=True,
     )
+    await refuse_deleting_bank_imports(db, [txn])
     account = await delete_transaction(db, txn)
 
     # Mark the affected user or group cache after all delete writes are flushed
@@ -64,7 +70,9 @@ async def delete_transaction(db: AsyncSession, txn: Transaction) -> Account:
     """Delete a transaction with its tag assignments and rebuild its account's balances, without committing
 
     The caller marks the returned account's cache last and commits, so the deletion can be one step
-    of a larger save
+    of a larger save. A bank-imported transaction is deleted whether or not its account is linked,
+    so a bank removal the user approves applies while the account stays linked. A delete the user
+    asks for directly refuses that first
 
     Args:
         db: Active database session

@@ -375,6 +375,12 @@ async def _stored_item(item_id: uuid.UUID) -> BankTransaction:
         return await session.get_one(BankTransaction, item_id)
 
 
+async def _still_stored(item_id: uuid.UUID) -> bool:
+    """Return whether the item's bank transaction is still stored, read as the table owner"""
+    async with TestSession() as session:
+        return await session.get(BankTransaction, item_id) is not None
+
+
 async def _ledger_rows(account_id: str | uuid.UUID) -> list[tuple[date, int]]:
     """Return the date and amount of each of the account's ledger transactions, read as the table owner"""
     async with TestSession() as session:
