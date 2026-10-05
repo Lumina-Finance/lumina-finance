@@ -89,7 +89,10 @@ async def test_listing_marks_each_bank_account_linkable_or_unavailable_with_its_
 
 @pytest.mark.parametrize("named", ["Harbour", "Harbour Bank Canada"], ids=["shorter-name", "longer-name"])
 async def test_listing_says_which_institutions_look_different_from_the_accounts(client, named):
-    """Whether Everyday names Harbour or Harbour Bank Canada, Harbour Bank reads as the same institution and Lakeshore Credit Union as a different one"""
+    """Whether Everyday names Harbour or Harbour Bank Canada, Harbour Bank reads as the same institution
+
+    Lakeshore Credit Union reads as a different one
+    """
     headers, user_id = await _sign_up(client)
     async with TestSession() as session:
         institution = Institution(status=InstitutionStatus.CANONICAL, name=named, country_code="CA", website="https://harbour.example")
