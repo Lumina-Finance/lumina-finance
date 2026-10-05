@@ -86,7 +86,12 @@ test('starts a new user with no accounts and creates one with its starting balan
   await prompt.getByRole('button', { name: 'Continue' }).click()
 
   await expect(prompt).toBeHidden()
-  await expect(getAccountRow(page, ACCOUNT_NAME)).toContainText('$1,250.00')
+  const row = getAccountRow(page, ACCOUNT_NAME)
+  await expect(row).toContainText('$1,250.00')
+
+  // Tabbing to the account hears what the row shows beside its name, the balance included. In a group
+  // by type the row's line names the bank, and an account with none says so
+  await expect(row.getByRole('link', { name: ACCOUNT_NAME, exact: true })).toHaveAccessibleDescription('No institution $1,250.00')
 })
 
 test('records a new credit card\'s amount owed as a balance below zero', async ({ page, request }) => {

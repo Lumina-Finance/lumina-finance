@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { useId, type CSSProperties } from 'react'
 import { Link } from 'react-router'
 import { EyeOff } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
@@ -99,6 +99,21 @@ export default function AccountRow({
         )
   const [setMetaLine, fittedForm] = useFittedForm(availableCreditForms ?? [])
 
+  // Tabbing from account to account hears only the link's name, so the link is described by what the
+  // row shows beside the name, in the row's order: the linked plan, the type and institution, the
+  // balance, the converted balance and the credit available. The logo is left out, since the institution
+  // line already names the bank, and so is the FX badge, which is a control of its own
+  const descriptionId = useId()
+  const describedBy = [
+    linkedPlan && `${descriptionId}-plan`,
+    `${descriptionId}-metadata`,
+    `${descriptionId}-balance`,
+    showConvertedBalance && `${descriptionId}-converted`,
+    showCreditLimit && account.credit_limit !== null && `${descriptionId}-credit`,
+  ]
+    .filter(Boolean)
+    .join(' ')
+
   // The link sits on the name and stretches over the whole row, rather than wrapping it, because the
   // row holds a control of its own, the FX badge, and a link cannot contain one. The badge is raised
   // above the stretched link so a tap on it opens its tooltip rather than the account. Keyboard focus
@@ -151,6 +166,7 @@ export default function AccountRow({
               <p className="inline font-medium [overflow-wrap:anywhere] min-[750px]:block min-[750px]:min-w-0 min-[750px]:truncate">
                 <Link
                   to={`/accounts/${account.id}`}
+                  aria-describedby={describedBy}
                   className="after:absolute after:inset-0 after:rounded-xl after:content-[''] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-[var(--app-accent)]"
                 >
                   {account.name}
@@ -158,7 +174,7 @@ export default function AccountRow({
               </p>
               {linkedPlan && (
                 <span className="ml-2 inline-flex align-[0.1em] min-[750px]:ml-0 min-[750px]:shrink-0">
-                  <TaxAdvantagedTag name={linkedPlan.name} />
+                  <TaxAdvantagedTag id={`${descriptionId}-plan`} name={linkedPlan.name} />
                 </span>
               )}
             </div>
@@ -174,7 +190,9 @@ export default function AccountRow({
               className="min-w-0 flex-1 text-sm [overflow-wrap:anywhere] min-[750px]:flex-none min-[750px]:truncate"
               style={{ color: 'var(--app-text-muted)' }}
             >
-              {metadataLabel}
+              {/* Only the type and bank describe the link from here. The credit available is read from its
+                  own line below, which keeps its full text whatever form a phone shows here */}
+              <span id={`${descriptionId}-metadata`}>{metadataLabel}</span>
               {/* On a phone the credit still available follows the type, shortened to the longest form
                   that keeps the line from wrapping, and left out when none does */}
               {availableCreditForms && (
@@ -190,6 +208,7 @@ export default function AccountRow({
         </div>
         <div className="contents text-right min-[750px]:block min-[750px]:shrink-0">
           <p
+            id={`${descriptionId}-balance`}
             className={`${isBare ? 'col-start-2' : 'col-start-3'} row-start-1 justify-self-end font-financial font-medium text-[var(--balance-text)] transition-control group-hover/row:text-[var(--balance-tinted-text)]`}
             style={balanceStyle}
           >
@@ -200,6 +219,7 @@ export default function AccountRow({
               className={`${isBare ? 'col-start-2' : 'col-start-3'} row-start-2 flex items-center justify-end gap-1.5 justify-self-end min-[750px]:mt-0.5`}
             >
               <p
+                id={`${descriptionId}-converted`}
                 className="whitespace-nowrap font-financial text-xs"
                 style={{ color: fxStatus.state === 'complete' ? 'var(--app-text-muted)' : 'var(--app-negative)' }}
               >
@@ -217,6 +237,7 @@ export default function AccountRow({
           {/* Wider screens keep the credit still available under the balance. A phone puts it beside the type */}
           {availableCreditText && (
             <p
+              id={`${descriptionId}-credit`}
               className="hidden font-financial text-xs min-[750px]:mt-0.5 min-[750px]:block"
               style={{ color: 'var(--app-text-muted)' }}
             >
