@@ -4,15 +4,13 @@ The start step shows this range before anything is linked, so it must answer onl
 personal account, through a provider the deployment enables, and only for a user who may link
 """
 
-import dataclasses
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from app.models.account import Account
 from app.models.bank_connection import BankProvider
-from app.services.bank_sync import availability
-from app.services.bank_sync.import_range import calculate_import_range
+from app.services.bank_sync import availability, import_range
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     _build_account,
@@ -32,28 +30,36 @@ async def _read_range(client, headers, account_id, provider: str = "simplefin"):
     return await client.get(f"/accounts/{account_id}/bank-link/import-range", params={"provider": provider}, headers=headers)
 
 
-async def test_import_range_route_answers_in_the_users_timezone(client):
-    """An account whose latest transaction is 40 days old gets SimpleFIN's 12-month range, floored the day after it"""
+async def test_import_range_route_answers_in_the_users_timezone(client, pin_clock):
+    """At 11pm on October 3 in Toronto, already October 4 in UTC, the range ends on October 3
+
+    Everyday's latest transaction is on August 24, so SimpleFIN's 12-month range starts the day after it
+    """
+    pin_clock(datetime(2026, 10, 3, 23, 0, tzinfo=_USER_TZ), import_range)
     headers, user_id = await _sign_up(client)
     account_id = await _new_account(client, headers, "Everyday")
-    before = datetime.now(_USER_TZ).date()
-    latest = before - timedelta(days=40)
     async with TestSession() as session:
         category = _build_category(user_id)
         session.add(category)
         await session.flush()
         transaction = _build_ledger_transaction(await session.get_one(Account, uuid.UUID(account_id)), category.id)
-        transaction.dt = latest
+        transaction.dt = date(2026, 8, 24)
         session.add(transaction)
         await session.commit()
 
     response = await _read_range(client, headers, account_id)
-    after = datetime.now(_USER_TZ).date()
 
     assert response.status_code == 200, response.text
-    # Both days are allowed in case the request crossed midnight in Toronto
-    assert response.json() in [_expected_range(today, latest) for today in {before, after}]
-    assert response.json()["ledger_floor"] == (latest + timedelta(days=1)).isoformat()
+    assert response.json() == {
+        "suggested_start": "2026-08-25",
+        "default_suggestion": "2026-07-01",
+        "earliest_allowed": "2026-08-25",
+        "latest_allowed": "2026-10-03",
+        "ledger_floor": "2026-08-25",
+        "provider_limit_date": "2025-10-01",
+        "provider_history_months": 12,
+        "latest_ledger_date": "2026-08-24",
+    }
 
 
 async def test_import_range_of_a_group_account_is_refused_to_its_admin(client):
@@ -111,9 +117,3 @@ async def test_import_range_for_a_user_who_may_not_link_bank_accounts_is_refused
 
     assert refused.status_code == 403, refused.text
     assert refused.json()["detail"] == "Bank sync isn't available for your account"
-
-
-def _expected_range(today: date, latest: date) -> dict:
-    """Return the response a first link of an account with one transaction gets on a day"""
-    expected = calculate_import_range(today=today, latest_ledger_date=latest, history_months=12, was_linked_before=False)
-    return {name: value.isoformat() if isinstance(value, date) else value for name, value in dataclasses.asdict(expected).items()}

@@ -19,8 +19,7 @@ from app.models.bank_connection import BankAccountLink, BankConnection, BankExte
 from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncJob
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
-from app.services.bank_sync import availability, links
-from app.services.bank_sync.import_range import ImportRange, calculate_import_range
+from app.services.bank_sync import availability, import_range, links
 from app.utils.dates import format_day
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
@@ -39,16 +38,24 @@ from tests.routes.support.bank_sync_helpers import (
     _sign_up,
 )
 
-_USER_TZ = ZoneInfo("America/Toronto")
+# Noon on October 4 in Toronto, the zone _sign_up stores
+_NOW = datetime(2026, 10, 4, 12, 0, tzinfo=ZoneInfo("America/Toronto"))
+_TODAY = _NOW.date()
 _ACCOUNT_ALREADY_LINKED = "This account is already linked to a bank"
 _BANK_ACCOUNT_ALREADY_LINKED = "That bank account is already linked to another account"
+
+
+@pytest.fixture(autouse=True)
+def _pinned_now(pin_clock):
+    """Pin the time the link and import range routes read"""
+    pin_clock(_NOW, links, import_range)
 
 
 async def _linkable(client, name: str = "Everyday") -> tuple[dict, uuid.UUID, str, BankConnection]:
     """Sign up with an empty CAD account and a connection listing one CAD bank account at Harbour Bank"""
     headers, user_id = await _sign_up(client)
     account_id = await _new_account(client, headers, name)
-    connection = await _commit_listed_connection(user_id, discovered_at=datetime.now(UTC))
+    connection = await _commit_listed_connection(user_id, discovered_at=_NOW)
     return headers, user_id, account_id, connection
 
 
@@ -76,15 +83,10 @@ async def _queued_jobs() -> list[tuple]:
         return [tuple(row) for row in rows]
 
 
-def _today() -> date:
-    """Return today in the zone _sign_up stores"""
-    return datetime.now(_USER_TZ).date()
-
-
 async def test_link_creates_the_link_and_queues_its_first_import(client):
     """Linking empty Everyday from 30 days ago starts an initial import there, queued at once"""
     headers, _, account_id, connection = await _linkable(client)
-    start = _today() - timedelta(days=30)
+    start = _TODAY - timedelta(days=30)
 
     before = await client.get("/me/cache-status", headers=headers)
     linked = await _link(client, headers, account_id, connection.id, start_date=start)
@@ -117,9 +119,9 @@ async def test_link_of_an_account_unlinked_before_is_a_relink(client):
     headers, _, account_id, connection = await _linkable(client)
     async with TestSession() as session:
         account = await session.get_one(Account, uuid.UUID(account_id))
-        session.add(_build_bank_link(account, None, state=BankLinkState.UNLINKED, unlinked_at=datetime.now(UTC)))
+        session.add(_build_bank_link(account, None, state=BankLinkState.UNLINKED, unlinked_at=_NOW))
         await session.commit()
-    start = _today() - timedelta(days=10)
+    start = _TODAY - timedelta(days=10)
 
     linked = await _link(client, headers, account_id, connection.id, start_date=start)
 
@@ -139,8 +141,8 @@ async def _waiting_to_choose_again(client) -> tuple[dict, str, BankConnection, u
     """
     headers, user_id = await _sign_up(client)
     account_id = await _new_account(client, headers, "Everyday")
-    connection = await _commit_listed_connection(user_id, "ACT-2", discovered_at=datetime.now(UTC))
-    latest = _today() - timedelta(days=14)
+    connection = await _commit_listed_connection(user_id, "ACT-2", discovered_at=_NOW)
+    latest = _TODAY - timedelta(days=14)
     async with TestSession() as session:
         account = await session.get_one(Account, uuid.UUID(account_id))
         category = _build_category(user_id)
@@ -152,10 +154,10 @@ async def _waiting_to_choose_again(client) -> tuple[dict, str, BankConnection, u
             account,
             connection,
             state=BankLinkState.CHOOSE_ACCOUNT,
-            last_success_at=datetime.now(UTC) - timedelta(days=12),
+            last_success_at=_NOW - timedelta(days=12),
             last_failure_reason="Harbour Bank needs you to sign in again.",
             retry_count=2,
-            signin_needed_since=datetime.now(UTC) - timedelta(days=11),
+            signin_needed_since=_NOW - timedelta(days=11),
         )
         link_id = link.id
         session.add_all(
@@ -182,7 +184,7 @@ async def test_choose_again_moves_the_link_to_the_new_bank_account_from_after_th
     assert ranged.status_code == 200, ranged.text
     assert (ranged.json()["earliest_allowed"], ranged.json()["suggested_start"]) == (floor.isoformat(), floor.isoformat())
     assert too_early.status_code == 422, too_early.text
-    assert too_early.json()["detail"].startswith(f"Choose a start date from {format_day(floor)} to ")
+    assert too_early.json()["detail"] == f"Choose a start date from {format_day(floor)} to {format_day(_TODAY)}"
     assert chosen.status_code == 201, chosen.text
     assert (chosen.json()["external_account_id"], chosen.json()["import_start"]) == ("ACT-2", floor.isoformat())
     assert await _stored_links() == [(uuid.UUID(account_id), connection.id, "ACT-2", "active", "choose_again", floor, latest)]
@@ -205,8 +207,8 @@ async def test_choose_again_can_take_the_old_bank_account_through_another_connec
         session.add(_build_bank_link(account, first, state=BankLinkState.CHOOSE_ACCOUNT))
         await session.execute(update(BankExternalAccount).values(listed=False))
         await session.commit()
-    second = await _commit_listed_connection(user_id, discovered_at=datetime.now(UTC))
-    start = _today() - timedelta(days=10)
+    second = await _commit_listed_connection(user_id, discovered_at=_NOW)
+    start = _TODAY - timedelta(days=10)
 
     listed = await client.get(f"/bank-sync/connections/{second.id}/accounts", params={"for_account_id": account_id}, headers=headers)
     chosen = await _link(client, headers, account_id, second.id, start_date=start)
@@ -238,7 +240,7 @@ def _archive_account(account_id, _connection):
 
 def _reject_connection(_account_id, connection):
     """Return a statement recording that the provider rejected the connection"""
-    return update(BankConnection).where(BankConnection.id == connection.id).values(credential_rejected_at=datetime.now(UTC))
+    return update(BankConnection).where(BankConnection.id == connection.id).values(credential_rejected_at=_NOW)
 
 
 def _unlist_bank_account(_account_id, connection):
@@ -390,28 +392,6 @@ async def test_link_to_an_institution_over_the_limit_is_refused(client, monkeypa
     assert refused.status_code == 403, refused.text
     assert refused.json()["detail"] == "Would go over your limit of 1 institution for SimpleFIN"
     assert [account for account, *_ in await _stored_links()] == [uuid.UUID(savings_id)]
-
-
-async def test_link_starting_before_the_earliest_allowed_start_is_refused_with_the_range(client):
-    """A start a month before SimpleFIN's 12-month limit is refused, naming the days that are allowed"""
-    headers, _, account_id, connection = await _linkable(client)
-    before = _today()
-
-    refused = await _link(client, headers, account_id, connection.id, start_date=_empty_range(before).earliest_allowed - timedelta(days=31))
-    after = _today()
-
-    assert refused.status_code == 422, refused.text
-    # Both days are allowed in case the request crossed midnight in Toronto
-    assert refused.json()["detail"] in {
-        f"Choose a start date from {format_day(allowed.earliest_allowed)} to {format_day(allowed.latest_allowed)}"
-        for allowed in map(_empty_range, {before, after})
-    }
-    assert await _stored_links() == []
-
-
-def _empty_range(today: date) -> ImportRange:
-    """Return SimpleFIN's import range for an empty account on a day"""
-    return calculate_import_range(today=today, latest_ledger_date=None, history_months=12, was_linked_before=False)
 
 
 async def test_link_of_another_users_account_connection_or_bank_account_is_not_found(client):
