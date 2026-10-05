@@ -14,6 +14,10 @@ const EDITED_NOTE = 'You edited a value the bank supplied'
 // A control's strokes against the page, the least WCAG asks of anything that isn't text
 const MIN_GRAPHIC_CONTRAST = 3
 
+// How far below the bank icon a press lands when it just misses, inside the 24px square WCAG asks a
+// small target to take presses across
+const NEAR_MISS_PX = 4
+
 /**
  * How strongly a colour of the element stands out from the first solid background behind it, as the
  * WCAG contrast ratio
@@ -65,8 +69,9 @@ async function pressAt(page: Page, x: number, y: number): Promise<void> {
   else await page.mouse.click(x, y)
 }
 
-/** Press the middle of what the locator finds */
+/** Press the middle of what the locator finds, scrolled into view first so the point is on screen */
 async function pressMiddleOf(page: Page, element: Locator): Promise<void> {
+  await element.scrollIntoViewIfNeeded()
   const box = (await element.boundingBox())!
   await pressAt(page, box.x + box.width / 2, box.y + box.height / 2)
 }
@@ -169,6 +174,30 @@ test('marks a bank-imported row with its provider on hover, focus or a press, le
   await pressMiddleOf(page, imported.getByText('From SimpleFIN', { exact: true }).filter({ visible: true }))
   await page.mouse.move(0, 0)
   await expectTooltipOpen(page, marker, imported, ['From SimpleFIN'])
+})
+
+test('opens the tooltip from a press just off the bank icon, leaving the row closed', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const id = await createTransaction(request, user, {
+    accountId: account.id,
+    categoryName: 'Groceries',
+    amount: BANK_SOURCE.bank_values.amount!,
+    date: BANK_SOURCE.bank_values.date,
+  })
+  await answerAsBankImported(page, { [id]: BANK_SOURCE })
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+
+  // The row opens on a press anywhere else, so a near miss on the small icon still has to open the
+  // tooltip
+  const row = page.getByTestId(`transaction-row-${id}`)
+  const marker = row.getByRole('button', { name: 'From SimpleFIN', exact: true })
+  await marker.scrollIntoViewIfNeeded()
+  const box = (await marker.boundingBox())!
+  await pressAt(page, box.x + box.width / 2, box.y + box.height + NEAR_MISS_PX)
+  await page.mouse.move(0, 0)
+  await expectTooltipOpen(page, marker, row, ['From SimpleFIN'])
 })
 
 test('adds a dot and the edited note to a bank-imported row whose bank value the user changed', async ({ page, request }) => {

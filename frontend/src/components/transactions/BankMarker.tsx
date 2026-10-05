@@ -24,7 +24,8 @@ export type TransactionRowBankMarker = {
  *
  * Positioned, so it sits above the layer that stretches the row's title over the whole row and takes
  * its own presses. The row opens on a press anywhere on its content, so a press here stops rather
- * than opening the row as well
+ * than opening the row as well, and the icon takes presses a few pixels around it, so a near miss
+ * opens the tooltip rather than the row
  *
  * The icon takes the muted text colour rather than the subtle one, since it is a control and its
  * strokes need 3:1 against the page in both themes, which the subtle colour misses in the light one
@@ -43,6 +44,7 @@ export function BankMarker({ providerName, isEdited, needsReview, onShowReview }
           widthClassName="w-max max-w-60"
           hoverFill={false}
           opensOnFocus
+          widensHitArea
         >
           <span className="block">From {providerName}</span>
           {isEdited && <span className="mt-0.5 block">You edited a value the bank supplied</span>}

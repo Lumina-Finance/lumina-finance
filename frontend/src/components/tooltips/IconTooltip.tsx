@@ -38,6 +38,11 @@ interface IconTooltipProps {
   // focus counts, since a tap also focuses the trigger and then toggles the panel, which would
   // otherwise open and close it in one press
   opensOnFocus?: boolean
+
+  // Takes presses a few pixels around the icon too, making the 24px square WCAG asks of a small
+  // target, for an icon in a surface that does something else on a press, where a near miss would
+  // do that instead. The icon keeps its size and place
+  widensHitArea?: boolean
 }
 
 type IconTooltipSideBoundary = 'bounds' | 'viewport'
@@ -59,20 +64,18 @@ const levelConfig: Record<IconTooltipLevel, { Icon: LucideIcon; color: string }>
 
 // Keyboard focus shows what hovering shows, the filled icon and the open tooltip, so the trigger draws
 // no ring of its own
-const ICON_TRIGGER_CLASS =
-  'inline-flex cursor-pointer appearance-none border-0 bg-transparent p-0 focus-visible:outline-none'
+const ICON_TRIGGER_CLASS = 'inline-flex cursor-pointer appearance-none border-0 bg-transparent p-0 focus-visible:outline-none'
+const ICON_HIT_AREA_CLASS = "relative before:absolute before:-inset-1.5 before:content-['']"
 const ICON_CLASS = 'transition-colors [&>*:first-child]:transition-colors [&>*:not(:first-child)]:transition-colors'
-const ICON_HOVER_CLASS =
-  'group-hover:[&>*:first-child]:fill-current group-hover:[&>*:not(:first-child)]:stroke-[var(--app-bg)]'
+const ICON_HOVER_CLASS = 'group-hover:[&>*:first-child]:fill-current group-hover:[&>*:not(:first-child)]:stroke-[var(--app-bg)]'
 const ICON_ACTIVE_CLASS = '[&>*:first-child]:fill-current [&>*:not(:first-child)]:stroke-[var(--app-bg)]'
 const ROOT_CLASS = 'group relative inline-flex'
 const FX_ROOT_CLASS = 'shrink-0 items-center align-middle leading-none'
-const FX_TRIGGER_CLASS =
-  'inline-flex h-4 cursor-pointer appearance-none items-center justify-center rounded-[4px] border px-[3px] text-[0.625rem] font-bold leading-none transition-colors focus-visible:outline-none'
+const FX_TRIGGER_CLASS = 'inline-flex h-4 cursor-pointer appearance-none items-center justify-center rounded-[4px] border px-[3px] text-[0.625rem] font-bold leading-none transition-colors focus-visible:outline-none'
 // Above the list toolbars, which stick at z-30 over the page as it scrolls, so a panel that opens
 // across a toolbar is drawn over it rather than under it. Fixed rather than absolute, so a scrolling
 // box around the trigger, such as a dialog's body, never cuts the panel off
-const TOOLTIP_WRAPPER_CLASS = 'fixed z-40 p-2 transition-opacity'
+const TOOLTIP_WRAPPER_CLASS = 'fixed z-40 p-2 transition-opacity duration-150'
 // Closed, the panel shows and takes pointer input only while hovered. Open, it does both whatever the
 // pointer, since a touch screen has no hover. The two are kept apart because classes setting the same
 // property are ordered by the stylesheet, not by the class list
@@ -146,8 +149,7 @@ function getTooltipSide(
   preferredPlacement: IconTooltipPlacement,
   sideBoundary: IconTooltipSideBoundary,
 ): IconTooltipPlacement {
-  const boundaryRect =
-    sideBoundary === 'bounds' ? trigger.closest('[data-tooltip-bounds]')?.getBoundingClientRect() : undefined
+  const boundaryRect = sideBoundary === 'bounds' ? trigger.closest('[data-tooltip-bounds]')?.getBoundingClientRect() : undefined
   return getAvailablePlacement({
     preferredPlacement,
     triggerRect: trigger.getBoundingClientRect(),
@@ -163,19 +165,12 @@ function getTooltipSide(
  * it measures from, as a frosted toolbar's backdrop filter does. The panel's current place on screen,
  * against the coordinates it was given, shows where that box starts, so the result is written in its terms
  */
-function getTooltipPosition(
-  trigger: HTMLElement,
-  tooltip: HTMLElement,
-  placement: IconTooltipPlacement,
-): TooltipPosition {
+function getTooltipPosition(trigger: HTMLElement, tooltip: HTMLElement, placement: IconTooltipPlacement): TooltipPosition {
   const triggerRect = trigger.getBoundingClientRect()
   const tooltipRect = tooltip.getBoundingClientRect()
   const boundaryRect = trigger.closest('[data-tooltip-bounds]')?.getBoundingClientRect()
-  const left =
-    triggerRect.left +
-    triggerRect.width / 2 -
-    tooltipRect.width / 2 +
-    getHorizontalOffset({ triggerRect, tooltipRect, boundaryRect })
+  const left = triggerRect.left + triggerRect.width / 2 - tooltipRect.width / 2
+    + getHorizontalOffset({ triggerRect, tooltipRect, boundaryRect })
   const top = placement === 'top' ? triggerRect.top - tooltipRect.height : triggerRect.bottom
   const originLeft = tooltipRect.left - (parseFloat(tooltip.style.left) || 0)
   const originTop = tooltipRect.top - (parseFloat(tooltip.style.top) || 0)
@@ -212,10 +207,11 @@ export default function IconTooltip({
   sideBoundary = 'bounds',
   hoverFill = true,
   opensOnFocus = false,
+  widensHitArea = false,
 }: IconTooltipProps) {
   const { Icon: DefaultIcon, color } = levelConfig[level]
   const isFxIcon = IconOverride === 'fx'
-  const Icon = isFxIcon ? DefaultIcon : (IconOverride ?? DefaultIcon)
+  const Icon = isFxIcon ? DefaultIcon : IconOverride ?? DefaultIcon
   const [isOpen, setIsOpen] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   const [isKeyboardFocused, setIsKeyboardFocused] = useState(false)
@@ -278,9 +274,7 @@ export default function IconTooltip({
     const trigger = triggerRef.current
     if (!isPlaced || !trigger) return undefined
 
-    const observer = new IntersectionObserver((entries) =>
-      setIsTriggerOutOfView(!entries[entries.length - 1].isIntersecting),
-    )
+    const observer = new IntersectionObserver((entries) => setIsTriggerOutOfView(!entries[entries.length - 1].isIntersecting))
     observer.observe(trigger)
     // Hidden, the panel forgets where the trigger was, so it never shows again hidden for a frame
     return () => {
@@ -305,6 +299,7 @@ export default function IconTooltip({
   const triggerClassName = joinClassNames(
     isFxIcon ? FX_TRIGGER_CLASS : ICON_TRIGGER_CLASS,
     isFxIcon && (isShown ? fxToneClass.active : fxToneClass.idle),
+    !isFxIcon && widensHitArea && ICON_HIT_AREA_CLASS,
     opensOnFocus && 'peer',
   )
   const iconClassName = joinClassNames(ICON_CLASS, hoverFill && ICON_HOVER_CLASS, hoverFill && isShown && ICON_ACTIVE_CLASS)
