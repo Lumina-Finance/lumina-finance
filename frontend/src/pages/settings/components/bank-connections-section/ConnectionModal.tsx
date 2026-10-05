@@ -33,7 +33,7 @@ import { DATE_FORMATS, formatDate } from '@/utils/date'
 function ConnectionFact({ label, hint, wide = false, children }: { label: string; hint?: ReactNode; wide?: boolean; children: ReactNode }) {
   return (
     <div className={`min-w-0 ${wide ? 'sm:max-[1050px]:col-span-2' : ''}`}>
-      <dt className="flex items-center gap-1 text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
+      <dt className="flex items-center gap-1 text-xs font-medium uppercase" style={{ color: 'var(--app-text-muted)' }}>
         {label}
         {hint && (
           <IconTooltip label={`About ${label.toLowerCase()}`} placement="bottom" size={12}>

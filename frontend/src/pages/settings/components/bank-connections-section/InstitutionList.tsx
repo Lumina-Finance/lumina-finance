@@ -94,14 +94,14 @@ function BankAccountRow({ bankAccount, canLink, overLimit, linkingPaused, linkin
         <span id={nameId} className="block truncate" style={{ color: bankAccount.custom_currency ? 'var(--app-text-muted)' : 'var(--app-text)' }}>
           {bankAccount.name}
         </span>
-        <span className="block truncate text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+        <span className="block truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
           {bankAccount.custom_currency ? 'Custom currency' : bankAccount.currency}
         </span>
       </span>
       {bankAccount.custom_currency && !linkedId ? (
         <>
           <span aria-hidden className="hidden min-[750px]:block" />
-          <span className="text-xs min-[750px]:px-3" style={{ color: 'var(--app-text-subtle)' }}>Can&apos;t be linked</span>
+          <span className="text-xs min-[750px]:px-3" style={{ color: 'var(--app-text-muted)' }}>Can&apos;t be linked</span>
         </>
       ) : (
         <>
@@ -263,7 +263,7 @@ export function InstitutionRow({ entry, defaultOpen, prefersReducedMotion }: { e
 
 function GroupLabel({ tone, children }: { tone?: 'negative'; children: ReactNode }) {
   return (
-    <h4 className={`pb-2 text-xs uppercase ${tone === 'negative' ? 'font-semibold' : 'font-medium'}`} style={{ color: tone === 'negative' ? 'var(--app-negative)' : 'var(--app-text-subtle)' }}>
+    <h4 className={`pb-2 text-xs uppercase ${tone === 'negative' ? 'font-semibold' : 'font-medium'}`} style={{ color: tone === 'negative' ? 'var(--app-negative)' : 'var(--app-text-muted)' }}>
       {children}
     </h4>
   )

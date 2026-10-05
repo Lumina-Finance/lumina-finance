@@ -157,7 +157,7 @@ export function ConnectModal({ open, providers, reconnecting, level = 'page', on
             <CreateModalFieldLabelRow
               htmlFor={FIELD_IDS.nickname}
               label="Nickname"
-              accessory={<span className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>(optional)</span>}
+              accessory={<span className="text-sm" style={{ color: 'var(--app-text-muted)' }}>(optional)</span>}
             />
             <input
               id={FIELD_IDS.nickname}

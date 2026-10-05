@@ -130,7 +130,7 @@ export function BankConnectionsSection() {
             >
               <div ref={contentRef} className={connectionsError && !connections ? undefined : 'min-h-12'}>
                 {!shownConnections ? null : shownConnections.length === 0 ? (
-                  <p className="py-3 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
+                  <p className="py-3 text-center text-sm italic" style={{ color: 'var(--app-text-muted)' }}>
                     {search.trim() ? 'No connections match your search.' : 'No connections yet.'}
                   </p>
                 ) : (

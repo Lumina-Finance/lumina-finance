@@ -109,7 +109,7 @@ export function ModalWorkspacePanel({
             <h3
               id={partsHeadingId}
               className="min-w-0 flex-1 truncate text-xs font-medium uppercase"
-              style={{ color: 'var(--app-text-subtle)' }}
+              style={{ color: 'var(--app-text-muted)' }}
             >
               {partsLabel}
             </h3>
