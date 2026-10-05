@@ -219,8 +219,7 @@ class _JobRun:
         self.now = now
         self.today: date = now.astimezone(timezone).date()
 
-        # When the links this job brings up to date through today next sync, drawn once so the links
-        # it syncs together stay together
+        # When the links this job brings up to date through today next sync
         self.next_sync = next_daily_sync(now)
 
         # The links a part of this job didn't bring back whole, left out of the rest of it
