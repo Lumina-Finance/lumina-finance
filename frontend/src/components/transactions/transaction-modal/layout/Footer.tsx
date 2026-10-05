@@ -8,8 +8,9 @@ import ShortcutHint from '@/components/transactions/transaction-modal/controls/S
 import ShortcutHints from '@/components/transactions/transaction-modal/controls/ShortcutHints'
 import { ARIA_SUBMIT_SHORTCUT } from '@/components/transactions/transaction-modal/utils/shortcuts'
 import type { ModalLevel } from '@/components/modal/Shell'
+import { useDisabledReason } from '@/hooks/useDisabledReason'
 
-interface TransactionModalFooterProps {
+type TransactionModalFooterProps = {
   level: ModalLevel
   editing: boolean
 
@@ -31,6 +32,9 @@ interface TransactionModalFooterProps {
   // Why the form can't go ahead once a press found a problem, shown in a tooltip while Add stays focusable
   submitBlockedReason?: string
   deleteLoading: boolean
+
+  /** Why Delete is unavailable, shown on it when it is pointed at, focused or tapped */
+  deleteDisabledReason: string | null
   keepOpenAfterCreate: boolean
   onKeepOpenAfterCreateChange: (value: boolean) => void
   onCancel: () => void
@@ -51,12 +55,14 @@ export default function TransactionModalFooter({
   submitLoading,
   submitBlockedReason,
   deleteLoading,
+  deleteDisabledReason,
   keepOpenAfterCreate,
   onKeepOpenAfterCreateChange,
   onCancel,
   onDelete,
 }: TransactionModalFooterProps) {
   const ids = useTransactionModalIds()
+  const { controlProps: deleteReasonProps, tooltip: deleteReasonTooltip } = useDisabledReason(deleteDisabledReason)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const deleteButtonRef = useRef<HTMLButtonElement>(null)
   const idleLabelRef = useRef<HTMLSpanElement>(null)
@@ -123,6 +129,7 @@ export default function TransactionModalFooter({
           type="button"
           onClick={handleDeleteClick}
           disabled={isPending}
+          {...deleteReasonProps}
           className={`app-danger-button overflow-hidden whitespace-nowrap ${
             deleteButtonLoading ? 'app-primary-button-loading shrink-0' : 'w-full sm:w-auto'
           }`}
@@ -192,6 +199,9 @@ export default function TransactionModalFooter({
           </label>
         </div>
       ) : null}
+
+      {/* Takes no room in the row: Delete's description is hidden and its tooltip sits on the page body */}
+      {deleteReasonTooltip}
       <div className="relative grid grid-cols-2 gap-3 sm:ml-auto sm:flex sm:items-center">
         <button
           type="button"

@@ -14,8 +14,8 @@ import { answerAsBankImported, answerLinksWith, BANK_SOURCE } from '../support/b
 import { API_BASE_URL } from '../support/target'
 
 // A linked account's bank supplies its transactions from the import start through today, so the
-// transaction modal refuses those days, a bank transaction can't leave the account, and the account
-// can't be archived until it is unlinked.
+// transaction modal refuses those days, a bank transaction can't leave the account or be deleted, and
+// the account can't be archived until it is unlinked.
 //
 // The list of links the app reads is not served yet, so each test answers it with the link it needs,
 // importing from Jan 1, 2026. Nothing links the account on the server, which accepts every save, so a
@@ -23,6 +23,11 @@ import { API_BASE_URL } from '../support/target'
 const SUPPLIED_DAYS_MESSAGE = "SimpleFIN supplies this account's transactions from Jan 1, 2026 to today"
 const MOVE_REFUSAL = "Transactions from SimpleFIN can't move out of Everyday while it's linked"
 const ARCHIVE_LINKED_REASON = "This account can't be archived while it's linked to SimpleFIN. Unlink it first."
+const DELETE_LINKED_REASON = 'Imported from SimpleFIN. While Everyday is linked, edit it rather than deleting it.'
+
+// How far the pointer moves down Delete to see its reason follow, inside the button's 40px height. A
+// move sideways can leave the reason pinned to the screen's edge, since it sits left of the cursor
+const POINTER_STEP_PX = 20
 
 // The layout puts Date, Currency and Amount side by side from this width
 const FIELD_ROW_MIN_WIDTH = 640
@@ -342,4 +347,67 @@ test('greys out Archive with its reason while the account is linked, and offers 
   await dialog.getByText('Archive account', { exact: true }).click()
   await expect(archive).toBeChecked()
   await expect(warning).toBeVisible()
+})
+
+test('greys out Delete on a bank transaction with its reason while the account is linked, and deletes it once unlinked', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const id = await createTransaction(request, user, {
+    accountId: account.id,
+    categoryName: 'Groceries',
+    amount: -4250,
+    date: '2026-01-15',
+  })
+  let linkedAccountIds = [account.id]
+  await answerLinksWith(page, () => linkedAccountIds)
+  await answerAsBankImported(page, { [id]: BANK_SOURCE })
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  const dialog = page.getByRole('dialog', { name: 'Edit Transaction', exact: true })
+  const remove = dialog.getByTestId('transaction-delete')
+
+  // Every delete sent, so one the browser should have held back shows up
+  const deletesSent: string[] = []
+  page.on('request', (sent) => {
+    if (sent.url() === `${API_BASE_URL}/transactions/${id}` && sent.method() === 'DELETE') deletesSent.push(sent.url())
+  })
+
+  await page.getByTestId(`transaction-row-${id}`).click()
+  await expect(remove).toHaveAttribute('aria-disabled', 'true')
+  await expect(remove).toHaveAccessibleDescription(DELETE_LINKED_REASON)
+
+  // Pointing at Delete shows the reason, which follows the cursor down the button. The reason's own
+  // box keeps its opacity, so the fade is read from the tooltip around it
+  const reason = page.getByText(DELETE_LINKED_REASON).filter({ visible: true })
+  const reasonOpacity = () => reason.evaluate((node) => getComputedStyle(node.closest('[aria-hidden="true"]')!).opacity)
+  const button = await getBox(remove)
+  const pointerX = button.x + button.width / 2
+  await page.mouse.move(pointerX, button.y + 10)
+  await expect.poll(reasonOpacity).toBe('1')
+  const shownAt = await getBox(reason)
+  await page.mouse.move(pointerX, button.y + 10 + POINTER_STEP_PX)
+  await expect.poll(async () => Math.round((await getBox(reason)).y - shownAt.y)).toBe(POINTER_STEP_PX)
+
+  // Pressing it neither asks to confirm nor deletes. Forced, because the button is marked unavailable
+  // and pressing it anyway is what is checked
+  await remove.click({ force: true })
+  await expect(remove).toHaveAccessibleName('Delete')
+  await expect(dialog).toBeVisible()
+  expect(deletesSent).toEqual([])
+
+  // The app keeps what it last read across a reload, so this load starts without that copy and reads
+  // the list afresh, as it does once unlinking refreshes it
+  linkedAccountIds = []
+  await page.addInitScript(() => localStorage.removeItem('lumina:query-cache'))
+  await openPage(page, `/accounts/${account.id}`)
+  await page.getByTestId(`transaction-row-${id}`).click()
+  await expect(remove).not.toHaveAttribute('aria-disabled')
+  await remove.click()
+  await expect(remove).toHaveAccessibleName('Yes, delete')
+  const deleted = page.waitForResponse((response) =>
+    response.url() === `${API_BASE_URL}/transactions/${id}` && response.request().method() === 'DELETE')
+  await remove.click()
+  expect((await deleted).status()).toBe(204)
+  await expect(dialog).toBeHidden()
+  await expect(page.getByTestId(`transaction-row-${id}`)).toBeHidden()
 })

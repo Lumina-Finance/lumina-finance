@@ -26,6 +26,7 @@ import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { usePendingLinks } from '@/components/transactions/transaction-modal/hooks/usePendingLinks'
 import { useRefundRoom } from '@/components/transactions/transaction-modal/hooks/useRefundRoom'
+import { getBankDeleteRefusal } from '@/components/transactions/transaction-modal/utils/bankDelete'
 import { getBankMoveRefusal } from '@/components/transactions/transaction-modal/utils/bankMove'
 import { getBankValueCaptions } from '@/components/transactions/transaction-modal/utils/bankValues'
 import { amountToInputString } from '@/components/transactions/transaction-modal/utils/money'
@@ -179,13 +180,19 @@ export default function CreateTransactionModal({
     today: getTodayYmd(user?.tz),
   })
 
+  // The account the stored transaction sits in, which a bank-imported one can't leave or be deleted
+  // from while it is linked
+  const sourceAccount = storedTransaction && accounts.find((account) => account.id === storedTransaction.account_id)
+
   // Shown as soon as another account is picked, since picking one is already a finished answer
   const bankMoveRefusal = getBankMoveRefusal({
     accountId: form.account_id,
     transaction: storedTransaction,
-    sourceAccount: storedTransaction && accounts.find((account) => account.id === storedTransaction.account_id),
+    sourceAccount,
     linksByAccount,
   })
+  const bankDeleteRefusal = getBankDeleteRefusal({ transaction: storedTransaction, sourceAccount, linksByAccount })
+
   const { merchantModal, categoryModal, tagModal } = useTransactionReferenceCreationModals()
 
   const categoryField = useCategoryField({
@@ -498,6 +505,7 @@ export default function CreateTransactionModal({
                 submitLoading={submitLoading}
                 submitBlockedReason={refusal.blockedReason}
                 deleteLoading={deleteLoading}
+                deleteDisabledReason={bankDeleteRefusal}
                 keepOpenAfterCreate={keepOpenAfterCreate}
                 onKeepOpenAfterCreateChange={setKeepOpenAfterCreate}
                 onCancel={closeModal}
