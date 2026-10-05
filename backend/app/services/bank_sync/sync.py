@@ -174,8 +174,9 @@ class _JobRun:
     async def _discover(self) -> bool:
         """List the connection's bank accounts and store what came back, if the job still holds itself
 
-        A discovery waiting on the budget keeps the job's flag, so the connection still shows one
-        pending, and one that failed is recorded on the connection and fails the job
+        A discovery waiting on the budget passes on the job's own flag, so a connection whose listing
+        was asked for still shows one pending while one merely rediscovered daily doesn't. One that
+        failed is recorded on the connection and fails the job
 
         Returns:
             Whether the bank accounts were listed, so the job goes on to its window
@@ -183,7 +184,7 @@ class _JobRun:
         try:
             sent_at = await self._count_request(ProviderRequestPurpose.DISCOVERY)
         except RequestBudgetSpent as spent:
-            await _end_job(self.job, again=True, run_after=spent.available_again_at, discover=True)
+            await _end_job(self.job, again=True, run_after=spent.available_again_at, discover=self.job.discover)
             return False
 
         result = await self.adapter.discover(decrypt(self.connection.credential_encrypted), currency_exponents=self.currency_exponents)
@@ -198,7 +199,7 @@ class _JobRun:
             await apply_discovery(db, connection, result, now=sent_at)
             await db.commit()
         if result.request_error is not None:
-            await self._stop_for(result.request_error, discover=True)
+            await self._stop_for(result.request_error, discover=self.job.discover)
             return False
         return True
 

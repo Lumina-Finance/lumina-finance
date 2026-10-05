@@ -552,6 +552,27 @@ async def test_job_flagged_to_discover_keeps_the_listing_pending_until_a_request
     assert len(provider.discoveries) == (1 if cause == "budget_spent" else 2)
 
 
+@pytest.mark.parametrize("cause", ["budget_spent", "provider_asked_to_slow_down"])
+async def test_job_relisting_a_stale_listing_waits_for_a_request_without_showing_one_pending(connection, provider, frozen_now, cause):
+    """A daily sync's rediscovery has no request to spend, so the job waits unflagged: the bank accounts are listed, only not lately"""
+    await _link(connection, "ACT-1", **_synced_through_yesterday())
+    async with TestSession() as session:
+        session.add(_build_external_account(connection, "ACT-1"))
+        await session.commit()
+    await _set_discovered_at(connection, frozen_now - timedelta(days=2))
+    oldest = frozen_now - timedelta(hours=20)
+    await _spend_requests(connection, _DAILY_REQUESTS if cause == "budget_spent" else 1, oldest)
+    provider.outcomes = [FetchResult(request_error=ProviderError(ProviderErrorKind.RATE_LIMITED, "SimpleFIN Bridge asked for fewer requests"))]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    assert await run_jobs(1) == 1
+
+    assert await _listing(connection) == (False, ["ACT-1"])
+    async with TestSession() as session:
+        queued = (await session.execute(select(BankSyncJob.discover, BankSyncJob.run_after).where(BankSyncJob.status == "queued"))).one()
+    assert queued == (False, oldest + timedelta(hours=24))
+
+
 @pytest.mark.parametrize(
     ("listed_ago", "values", "requests"),
     [
