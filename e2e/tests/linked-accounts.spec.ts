@@ -10,16 +10,24 @@ import {
   todayInTestTimezone,
 } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support/app'
-import { answerAsBankImported, answerLinksWith, BANK_SOURCE } from '../support/bankSync'
+import {
+  answerAsBankImported,
+  answerLinksWith,
+  BANK_SOURCE,
+  claimSetupToken,
+  createSampleBridgeScenario,
+  linkBankAccount,
+} from '../support/bankSync'
 import { API_BASE_URL } from '../support/target'
 
 // A linked account's bank supplies its transactions from the import start through today, so the
 // transaction modal refuses those days, a bank transaction can't leave the account or be deleted, and
 // the account can't be archived until it is unlinked.
 //
-// The list of links the app reads is not served yet, so each test answers it with the link it needs,
-// importing from Jan 1, 2026. Nothing links the account on the server, which accepts every save, so a
-// refusal seen here is the browser's own and a save that goes through is one the browser let through
+// The list of links the transaction modal reads is not served yet, so each of its tests answers it with
+// the link it needs, importing from Jan 1, 2026. Nothing links the account on the server in those
+// tests, which accepts every save, so a refusal seen there is the browser's own and a save that goes
+// through is one the browser let through
 const SUPPLIED_DAYS_MESSAGE = "SimpleFIN supplies this account's transactions from Jan 1, 2026 to today"
 const MOVE_REFUSAL = "Transactions from SimpleFIN can't move out of Everyday while it's linked"
 const ARCHIVE_LINKED_REASON = "This account can't be archived while it's linked to SimpleFIN. Unlink it first."
@@ -307,17 +315,27 @@ test('keeps a bank transaction in its linked account, refusing the move on the a
   expect(sentDates).toEqual(['2026-01-16'])
 })
 
+// The edit modal reads the account's own link, which is served, so this test links the account on the
+// server through the fake SimpleFIN Bridge rather than answering the list of links
 test('greys out Archive with its reason while the account is linked, and offers it again once unlinked', async ({ page, request }) => {
   const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
+  const [account, scenario] = await Promise.all([
+    createAccount(request, user, { name: 'Everyday' }),
+    createSampleBridgeScenario(request),
+  ])
   const laterId = await createTransaction(request, user, {
     accountId: account.id,
     categoryName: 'Groceries',
     amount: -4250,
     date: daysFromTodayInTestTimezone(3),
   })
-  let linkedAccountIds = [account.id]
-  await answerLinksWith(page, () => linkedAccountIds)
+  const connection = await claimSetupToken(request, user, scenario.setupToken)
+  await linkBankAccount(request, user, {
+    accountId: account.id,
+    connectionId: connection.id,
+    externalAccountId: connection.accounts.find((bankAccount) => bankAccount.name === 'Everyday Chequing')!.external_id,
+    startDate: todayInTestTimezone(),
+  })
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${account.id}`)
 
@@ -352,8 +370,9 @@ test('greys out Archive with its reason while the account is linked, and offers 
   expect(deleted.ok()).toBe(true)
 
   // The app keeps what it last read across a reload, so this load starts without that copy and reads
-  // the list afresh, as it does once unlinking refreshes it
-  linkedAccountIds = []
+  // the link afresh, as it does once unlinking refreshes it
+  const unlinked = await request.delete(`${API_BASE_URL}/accounts/${account.id}/bank-link`, { headers: asUser(user) })
+  expect(unlinked.ok()).toBe(true)
   await page.addInitScript(() => localStorage.removeItem('lumina:query-cache'))
   await openPage(page, `/accounts/${account.id}`)
   await page.getByRole('button', { name: 'Edit account', exact: true }).click()
