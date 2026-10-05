@@ -17,15 +17,16 @@ from pathlib import Path
 
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from sqlalchemy import select, text
+from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
-from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.config.bank_sync import BANK_SYNC_WORKER_CONCURRENCY
 from app.database import async_session, current_user_id_ctx, engine, verify_app_role_is_unprivileged
 from app.db.encryption_key import verify_key_matches_data
 from app.db.rls.functions import LIST_DUE_BANK_CONNECTIONS, MIGRATION_REVISIONS, RECORD_BANK_SYNC_SCAN
-from app.models.bank_sync_job import BankSyncHeartbeat, BankSyncJobKind, ProviderErrorKind
+from app.models.bank_sync_job import BankSyncJobKind, ProviderErrorKind
+from app.services.bank_sync.heartbeat import is_sync_worker_running
 from app.services.bank_sync.jobs import (
     ClaimedJob,
     JobNotHeld,
@@ -50,10 +51,6 @@ JOB_TIME_LIMIT = timedelta(minutes=5)
 # 10 minutes for good, spending a provider request each time and holding back the connection's
 # queued job, so after this many attempts it is recorded as failed instead of run
 MAX_JOB_ATTEMPTS = 3
-
-# Sync counts as not running once the heartbeat every due scan stamps is older than this, the
-# time three scans take
-SYNC_STOPPED_AFTER = timedelta(minutes=15)
 
 # The self-hosted worker's fixed cadence: how often it scans for due work, how often it checks
 # for a queued job while it has none to run, and how often it tries the database while waiting
@@ -157,17 +154,6 @@ async def _fail_job(job: ClaimedJob, error: ProviderError) -> None:
             return
         await finish_job(db, job, error)
         await db.commit()
-
-
-async def is_sync_worker_running(db: AsyncSession, now: datetime) -> bool:
-    """Return whether a worker has scanned for due work recently enough to count as running
-
-    Args:
-        db: Any session, since the heartbeat describes the deployment rather than a user
-        now: The current time
-    """
-    last_scan_at = await db.scalar(select(BankSyncHeartbeat.last_scan_at))
-    return last_scan_at is not None and now - last_scan_at <= SYNC_STOPPED_AFTER
 
 
 async def check_worker_health() -> bool:

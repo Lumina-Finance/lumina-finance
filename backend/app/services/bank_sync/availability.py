@@ -8,7 +8,7 @@ the bank-linking check and the institution limit when they are built
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from enum import StrEnum
 
 from sqlalchemy import exists, func, select
@@ -17,10 +17,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config.bank_sync import BANK_SYNC_SIMPLEFIN_ENABLED, BANK_SYNC_SIMPLEFIN_OFFERED
 from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankExternalAccount, BankLinkState, BankProvider
-from app.models.bank_sync_job import BankSyncHeartbeat
 from app.models.user import User
 from app.schemas.bank_sync import BankProviderResponse, BankProvidersResponse
 from app.services.accounts.access import own_personal_account_condition
+from app.services.bank_sync.heartbeat import is_sync_worker_running
 from app.services.bank_sync.providers.contract import ProviderAdapter, is_iso_currency_code
 from app.services.bank_sync.providers.simplefin.adapter import SimpleFinAdapter
 
@@ -40,9 +40,6 @@ ENABLED_ADAPTERS: dict[BankProvider, ProviderAdapter] = {
 # The providers new connections may be made with. Withdrawing one refuses only new connections, so
 # existing ones keep syncing, linking, reconnecting and disconnecting
 OFFERED_PROVIDERS: frozenset[BankProvider] = frozenset(provider for provider, (_, offered) in _PROVIDER_SWITCHES.items() if offered)
-
-# The worker scans for due work every 5 minutes, so a heartbeat older than this means it has stopped
-SYNC_STALE_AFTER = timedelta(minutes=15)
 
 _LIVE_LINK = BankAccountLink.state != BankLinkState.UNLINKED
 
@@ -190,19 +187,6 @@ def find_unavailability(
     return None
 
 
-async def is_sync_running(db: AsyncSession, now: datetime) -> bool:
-    """Return whether the bank sync worker has scanned for due work within the last 15 minutes
-
-    A deployment whose worker never started has no heartbeat, which reads as not running
-
-    Args:
-        db: Active database session
-        now: The current time
-    """
-    last_scan_at = await db.scalar(select(BankSyncHeartbeat.last_scan_at))
-    return last_scan_at is not None and now - last_scan_at <= SYNC_STALE_AFTER
-
-
 async def list_providers(db: AsyncSession, user: User) -> BankProvidersResponse:
     """Return the providers the deployment enables, and whether the user can link bank accounts now
 
@@ -234,6 +218,6 @@ async def list_providers(db: AsyncSession, user: User) -> BankProvidersResponse:
         )
     return BankProvidersResponse(
         may_link=may_link,
-        sync_running=await is_sync_running(db, datetime.now(UTC)),
+        sync_running=await is_sync_worker_running(db, datetime.now(UTC)),
         providers=providers,
     )

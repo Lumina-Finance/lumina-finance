@@ -7,13 +7,12 @@ institution limit
 """
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import pytest
 
 from app.models.account import Account
 from app.models.bank_connection import BankExternalAccount, BankLinkState
-from app.models.bank_sync_job import BankSyncHeartbeat
 from app.models.base import AccountKind, AccountType
 from app.models.currency import Currency
 from app.models.group import Group, GroupMember
@@ -21,7 +20,6 @@ from app.services.bank_sync.availability import (
     InstitutionAllowance,
     UnavailableReason,
     find_unavailability,
-    is_sync_running,
     list_link_candidates,
 )
 from tests.routes.support.bank_sync_helpers import (
@@ -186,16 +184,3 @@ def test_link_eligibility_without_an_institution_limit_takes_any_institution():
     )
 
     assert unavailable is None
-
-
-@pytest.mark.parametrize(
-    ("since_scan", "running"),
-    [(timedelta(minutes=15), True), (timedelta(minutes=15, microseconds=1), False)],
-    ids=["15-minutes", "just-past-15"],
-)
-async def test_sync_running_reads_the_heartbeat_up_to_15_minutes_old(db, frozen_now, since_scan, running):
-    """A heartbeat 15 minutes old still counts, and anything older means the worker has stopped"""
-    db.add(BankSyncHeartbeat(last_scan_at=frozen_now - since_scan))
-    await db.flush()
-
-    assert await is_sync_running(db, frozen_now) is running

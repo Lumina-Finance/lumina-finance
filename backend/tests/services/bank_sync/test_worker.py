@@ -25,10 +25,11 @@ from app.models.bank_connection import BankAccountLink, BankConnection, BankLink
 from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncHeartbeat, BankSyncJob, BankSyncJobKind, BankSyncJobStatus
 from app.services.bank_sync import sync, worker
+from app.services.bank_sync.heartbeat import is_sync_worker_running
 from app.services.bank_sync.jobs import ClaimedJob, finish_job, lock_job_for_finish
 from app.services.bank_sync.pending import replace_pending_transactions
 from app.services.bank_sync.sync import run_sync_job
-from app.services.bank_sync.worker import MAX_JOB_ATTEMPTS, enqueue_due_work, is_sync_worker_running, run_jobs
+from app.services.bank_sync.worker import MAX_JOB_ATTEMPTS, enqueue_due_work, run_jobs
 from tests.conftest import ScopedSession, TestSession
 from tests.routes.support.bank_sync_helpers import (
     _build_account,
