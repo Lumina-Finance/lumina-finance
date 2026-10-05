@@ -12,6 +12,7 @@ import {
   replaceCachedTransaction,
 } from '@/api/cache/updates/transactions';
 import type {
+  BankConnection,
   BankLink,
   BankReviewCounts,
   BankReviewItem,
@@ -78,6 +79,15 @@ export async function refreshBankLinkState(queryClient: QueryClient): Promise<vo
 export function replaceCachedBankLink(queryClient: QueryClient, link: BankLink): void {
   queryClient.setQueryData<BankLink[]>(bankSyncKeys.links(), (links) =>
     links?.map((cached) => (cached.account_id === link.account_id ? link : cached)),
+  );
+}
+
+/**
+ * Puts a connection the server answered with in place of the cached one
+ */
+export function replaceCachedBankConnection(queryClient: QueryClient, connection: BankConnection): void {
+  queryClient.setQueryData<BankConnection[]>(bankSyncKeys.connections(), (connections) =>
+    connections?.map((cached) => (cached.id === connection.id ? connection : cached)),
   );
 }
 

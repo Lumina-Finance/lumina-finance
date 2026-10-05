@@ -53,6 +53,7 @@ import {
   applyRestoredBankValue,
   applyReviewDecision,
   refreshBankLinkState,
+  replaceCachedBankConnection,
   replaceCachedBankLink,
 } from '@/api/cache/updates/bankSync';
 import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
@@ -293,13 +294,24 @@ export function useReconnectBankConnection() {
   return useMutation(reconnectBankConnectionMutationOptions(queryClient));
 }
 
-export function useRenameBankConnection() {
-  const queryClient = useQueryClient();
-  return useMutation({
+/**
+ * Puts the renamed connection in the list at once, so the old name never shows while the list is
+ * read again
+ */
+export function renameBankConnectionMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
     mutationFn: (payload: Parameters<typeof updateBankConnection>[0]) =>
       runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => updateBankConnection(payload)),
-    onSuccess: () => invalidateBankSyncStatus(queryClient),
+    onSuccess: (connection) => {
+      replaceCachedBankConnection(queryClient, connection);
+      invalidateBankSyncStatus(queryClient);
+    },
   });
+}
+
+export function useRenameBankConnection() {
+  const queryClient = useQueryClient();
+  return useMutation(renameBankConnectionMutationOptions(queryClient));
 }
 
 export function useDisconnectBankConnection() {

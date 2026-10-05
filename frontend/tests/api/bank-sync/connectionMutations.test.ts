@@ -2,7 +2,7 @@
  * Covers how the connection requests behave through the query cache the app runs on
  *
  * These tests catch a setup token waiting, with its form's Cancel held, for a connection the
- * browser says it lacks
+ * browser says it lacks, and a rename showing the old name until the list is read again
  */
 import { MutationObserver, onlineManager, QueryClient } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -15,9 +15,32 @@ vi.mock('@/api/client', () => ({
   authenticatedFetch: authenticatedFetchMock,
 }));
 
-import { claimSetupTokenMutationOptions, reconnectBankConnectionMutationOptions } from '@/api/bank-sync/hooks';
+import {
+  claimSetupTokenMutationOptions,
+  reconnectBankConnectionMutationOptions,
+  renameBankConnectionMutationOptions,
+} from '@/api/bank-sync/hooks';
+import type { BankConnection } from '@/api/bank-sync/types';
+import { bankSyncKeys } from '@/api/cache/queryKeys';
 
 let queryClient: QueryClient;
+
+function connection(overrides: Partial<BankConnection> = {}): BankConnection {
+  return {
+    id: 'connection-1',
+    provider: 'simplefin',
+    provider_name: 'SimpleFIN',
+    nickname: null,
+    server_label: 'bridge.simplefin.org',
+    created_at: '2026-10-01T15:00:00Z',
+    status: 'active',
+    accounts: [],
+    choose_again_links: [],
+    discovery_pending: false,
+    request_budget: { limit: 20, used: 0, available_again_at: null },
+    ...overrides,
+  };
+}
 
 beforeEach(() => {
   authenticatedFetchMock.mockReset();
@@ -55,5 +78,20 @@ describe('a setup token sent while offline', () => {
 
     expect(observer.getCurrentResult()).toMatchObject({ status: 'error', isPaused: false });
     expect(await sent).toBeInstanceOf(TypeError);
+  });
+});
+
+describe('a rename', () => {
+  it('puts the new name in the cached list before the list is read again', async () => {
+    queryClient.setQueryData(bankSyncKeys.connections(), [connection(), connection({ id: 'connection-2' })]);
+    authenticatedFetchMock.mockResolvedValue(connection({ nickname: 'Household' }));
+    const observer = new MutationObserver(queryClient, renameBankConnectionMutationOptions(queryClient));
+
+    const renamed = observer.mutate({ connectionId: 'connection-1', nickname: 'Household' });
+    await vi.runAllTimersAsync();
+    await renamed;
+
+    const cached = queryClient.getQueryData<BankConnection[]>(bankSyncKeys.connections());
+    expect(cached?.map((entry) => [entry.id, entry.nickname])).toEqual([['connection-1', 'Household'], ['connection-2', null]]);
   });
 });
