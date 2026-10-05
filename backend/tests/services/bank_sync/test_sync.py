@@ -50,9 +50,11 @@ from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, ProviderError
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition, OpenReviewKind
 from app.models.cache_state import UserCacheState
 from app.models.category import Category
+from app.models.merchant import Merchant
 from app.models.transaction import Transaction
 from app.models.transaction_link import TransactionLink
 from app.models.user import User
+from app.schemas.transaction import UpdateTransactionRequest
 from app.services.accounts.snapshots import recompute_account_snapshots
 from app.services.bank_sync import availability, sync
 from app.services.bank_sync.availability import PROVIDER_ADAPTERS
@@ -61,6 +63,8 @@ from app.services.bank_sync.provider_requests import reserve_provider_request
 from app.services.bank_sync.providers.contract import ExternalAccount, FetchResult, ProviderError, ProviderRecord
 from app.services.bank_sync.review_pause import lift_review_pauses, lock_account_links
 from app.services.bank_sync.worker import run_jobs
+from app.services.merchants.defaults import SELF_MERCHANT_NAME
+from app.services.transactions.update import apply_transaction_update
 from tests.conftest import TestSession
 from tests.fake_simplefin_bridge import FakeBridgeTransport
 from tests.routes.support.bank_sync_helpers import (
@@ -2902,11 +2906,19 @@ async def test_job_applying_a_trusted_change_waits_for_an_edit_to_the_ledger_row
     ]
 
 
-async def test_job_tells_the_owners_pages_as_a_part_before_today_opens_a_correction(connection, monkeypatch):
-    """The daily re-read comes back cut short, and its earlier half, 19 to 26 September, brings the bank's change to a coffee from 22 September
+@pytest.mark.parametrize(
+    ("sent", "opened"),
+    [
+        ({"amount": -4_75, "raw_amount": "-4.75"}, (OpenReviewKind.CORRECTION, {"amount": -4_50})),
+        ({"removed": True}, (OpenReviewKind.REMOVAL, None)),
+    ],
+    ids=["correction", "removal"],
+)
+async def test_job_tells_the_owners_pages_as_a_part_before_today_opens_a_correction_or_removal(connection, monkeypatch, sent, opened):
+    """The daily re-read comes back cut short, and its earlier half, 19 to 26 September, changes or removes a coffee from 22 September
 
-    The correction is stored with the earlier half, so the owner's open pages hear of it while the
-    later half is still out
+    The correction or removal is stored with the earlier half, so the owner's open pages hear of it
+    while the later half is still out
     """
     link = await _link(connection, "ACT-1", **_synced_through_yesterday())
     coffee_day = date(2026, 9, 22)
@@ -2914,7 +2926,7 @@ async def test_job_tells_the_owners_pages_as_a_part_before_today_opens_a_correct
     provider = _HeldProvider(held=(1, 3))
     provider.outcomes = [
         _cut_off("ACT-1"),
-        _returned_with({"ACT-1": [_record("TRN-coffee", coffee_day, amount=-4_75, raw_amount="-4.75")]}),
+        _returned_with({"ACT-1": [_record("TRN-coffee", coffee_day, **sent)]}),
         _returned("ACT-1"),
     ]
     monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
@@ -2927,11 +2939,11 @@ async def test_job_tells_the_owners_pages_as_a_part_before_today_opens_a_correct
         provider.release[1].set()
         await provider.sending[3].wait()
         told_after_the_earlier_half = await _told_at(connection)
-        correction_after_the_earlier_half = await _bank_transactions(*_CORRECTION)
+        open_after_the_earlier_half = await _bank_transactions(*_CORRECTION)
         provider.release[3].set()
         await running
 
-    assert correction_after_the_earlier_half == [(OpenReviewKind.CORRECTION, {"amount": -4_50})]
+    assert open_after_the_earlier_half == [opened]
     assert told_as_it_started is not None
     assert told_after_the_earlier_half > told_as_it_started
 
@@ -2956,6 +2968,53 @@ async def _accept_groceries(link: BankAccountLink, **values) -> uuid.UUID:
     """
     bank_values = {"observed_amount": -40_00, "aligned_amount": -40_00, "description": "FRESHCO GROCERIES"}
     return await _accept_coffee(link, "TRN-groceries", ledger=(_COFFEE_DAY, -42_00), **bank_values | values)
+
+
+async def _accept_on(link: BankAccountLink, external_id: str, day: date, amount: int) -> None:
+    """Commit a transaction the bank sent under the ID given as the user added it to the link's account, on the day and at the amount given"""
+    await _accept_coffee(
+        link, external_id, ledger=(day, amount), observed_date=day, aligned_date=day, observed_amount=amount, aligned_amount=amount
+    )
+
+
+async def _ledger_transaction_id(record_id: uuid.UUID) -> uuid.UUID:
+    """Return the ledger transaction a bank transaction was added as"""
+    async with TestSession() as session:
+        return await session.scalar(select(BankTransaction.transaction_id).where(BankTransaction.id == record_id))
+
+
+async def _move_out_while_unlinked(connection: BankConnection, link: BankAccountLink, transaction_id: uuid.UUID) -> uuid.UUID:
+    """Unlink the link's account, move the ledger transaction to a new Savings account through the edit service, then link the account again
+
+    The edit files the transaction under Groceries and Myself, which an edit needs, and the new link
+    follows the same bank account, synced through yesterday
+
+    Returns:
+        Savings' id
+    """
+    async with TestSession() as session:
+        await session.execute(
+            update(BankAccountLink).where(BankAccountLink.id == link.id).values(state=BankLinkState.UNLINKED, unlinked_at=_YESTERDAYS_SYNC)
+        )
+        savings = _build_account(link.owner_id, name="Savings")
+        session.add(savings)
+        groceries = await session.scalar(select(Category.id).where(Category.is_system.is_(True), Category.name == "Groceries"))
+        myself = await session.scalar(select(Merchant.id).where(Merchant.is_system.is_(True), Merchant.name == SELF_MERCHANT_NAME))
+        await session.commit()
+    async with _owner_session(link.owner_id) as session:
+        user = await session.get_one(User, link.owner_id)
+        txn = await session.get_one(Transaction, transaction_id)
+        await apply_transaction_update(
+            session, user, txn, UpdateTransactionRequest(account_id=savings.id, category_id=groceries, merchant_id=myself)
+        )
+        await session.commit()
+    async with TestSession() as session:
+        relinked = _build_bank_link(await session.get_one(Account, link.account_id), connection, link.external_account_id)
+        for field, value in _synced_through_yesterday().items():
+            setattr(relinked, field, value)
+        session.add(relinked)
+        await session.commit()
+    return savings.id
 
 
 async def test_job_opens_a_removal_for_a_transaction_in_the_ledger_and_leaves_the_ledger_as_it_is(connection, provider, frozen_now):
@@ -3059,23 +3118,24 @@ async def test_job_takes_out_an_item_the_provider_withdraws_and_brings_the_same_
 
 
 async def test_job_changes_nothing_for_transactions_missing_from_a_later_fetch(connection, provider):
-    """The groceries are in the ledger and a coffee waits in the inbox, and the next fetch brings back neither
+    """The groceries are in the ledger and a coffee waits in the inbox, and the next fetch brings back neither, only a new lunch
 
     A provider that reports no removals, as SimpleFIN doesn't, says nothing about what it leaves out,
-    so both stay exactly as they were, with nothing opened and the ledger and its balance unchanged
+    so while the lunch is stored as a new item, both stay exactly as they were, with nothing opened
+    and the ledger and its balance unchanged
     """
     link = await _link(connection, "ACT-1", **_synced_through_yesterday())
     await _accept_groceries(link)
     await _store_bank_transaction(link, "TRN-coffee")
     columns = (BankTransaction.external_transaction_id, BankTransaction.disposition, *_REMOVAL, BankTransaction.version)
     stored = await _bank_transactions(*columns)
-    provider.outcomes = [_returned("ACT-1")]
+    provider.outcomes = [_returned_with({"ACT-1": [_record("TRN-lunch", amount=-15_00, raw_amount="-15.00", description="LUNCH")]})]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
     await _run_jobs_until_none_is_due()
 
     assert len(provider.fetches) == 1
-    assert await _bank_transactions(*columns) == stored
+    assert await _bank_transactions(*columns) == [*stored, ("TRN-lunch", BankTransactionDisposition.AWAITING_REVIEW, None, None, None, 1)]
     assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -42_00)]
     assert await _balances(link.account_id) == [(_COFFEE_DAY, -42_00)]
 
@@ -3134,27 +3194,37 @@ async def test_job_opens_a_removal_in_place_of_an_open_correction_and_keeps_its_
 
 
 @pytest.mark.parametrize(
-    ("stored", "sent", "opened"),
+    ("trusted", "stored", "sent", "opened"),
     [
-        ({}, {}, (None, None)),
-        ({"open_kind": None}, {}, (None, None)),
-        ({}, {"amount": -41_00, "raw_amount": "-41.00"}, (OpenReviewKind.CORRECTION, {"amount": -40_00})),
+        (False, {}, {}, (None, None)),
+        (False, {"open_kind": None}, {}, (None, None)),
+        (False, {}, {"amount": -41_00, "raw_amount": "-41.00"}, (OpenReviewKind.CORRECTION, {"amount": -40_00})),
         (
+            False,
+            {"observed_amount": -41_00, "previous_values": {"amount": -40_00}},
+            {"amount": -41_00, "raw_amount": "-41.00"},
+            (OpenReviewKind.CORRECTION, {"amount": -40_00}),
+        ),
+        (
+            True,
             {"observed_amount": -41_00, "previous_values": {"amount": -40_00}},
             {"amount": -41_00, "raw_amount": "-41.00"},
             (OpenReviewKind.CORRECTION, {"amount": -40_00}),
         ),
     ],
-    ids=["removal waiting", "removal kept", "changed", "correction it took the place of"],
+    ids=["removal waiting", "removal kept", "changed", "correction it took the place of", "correction it took the place of, trusted"],
 )
-async def test_job_closes_a_removal_once_the_provider_sends_the_transaction_again(connection, provider, stored, sent, opened):
+async def test_job_closes_a_removal_once_the_provider_sends_the_transaction_again(connection, provider, trusted, stored, sent, opened):
     """A removal of the groceries waits, or was kept, and the provider sends them again as they were or at -41.00
 
     The groceries are back, so the removal is over, and what was sent is compared like any other
     change: -41.00 opens a correction against the -40.00 the ledger was decided against, whether new
-    or the correction the removal took the place of. The ledger keeps the user's -42.00
+    or the correction the removal took the place of, which keeps waiting though corrections are now
+    trusted. The ledger keeps the user's -42.00
     """
     link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    if trusted:
+        await _trust(link, "corrections")
     item_id = await _accept_groceries(link, **{"open_kind": OpenReviewKind.REMOVAL, "removed_at": _YESTERDAYS_SYNC} | stored)
     provider.outcomes = [_returned_with({"ACT-1": [_groceries(**sent)]})]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
@@ -3184,20 +3254,72 @@ async def test_job_applies_a_trusted_change_to_a_transaction_the_provider_sends_
     assert await _balances(link.account_id) == [(date(2026, 10, 3), -4_50)]
 
 
-async def test_job_counts_out_an_item_the_provider_withdraws_before_pausing(connection, provider):
-    """99 new items wait, and a sync brings 1 more as the provider removes one of the 99
+async def test_job_rebuilds_balances_from_the_earliest_day_trusted_corrections_and_removals_touch(connection, provider):
+    """Everyday and Card trust corrections and removals, and one response changes both
 
-    The withdrawn item is gone before the count, so 99 wait and the account keeps syncing
+    In Everyday the bank moves a coffee from 2 to 29 September and removes the groceries from 3
+    October, and in Card it removes a transaction from 3 October and then one from 1 October,
+    leaving a coffee on 2 October. Each account's balances are rebuilt from the earliest day any of
+    its changes touches, 29 September and 1 October, so no balance still counts what moved or went
     """
-    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
-    await _commit_waiting_items(link, 99)
-    provider.outcomes = [_returned_with({"ACT-1": [*_new_records(1), _record("TRN-waiting-0", removed=True)]})]
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    card = await _link(connection, "ACT-card", **_synced_through_yesterday())
+    for link in (everyday, card):
+        await _trust(link, "corrections", "removals")
+        await _accept_on(link, "TRN-coffee", _COFFEE_DAY, -4_50)
+    await _accept_on(everyday, "TRN-groceries", date(2026, 10, 3), -42_00)
+    await _accept_on(card, "TRN-late", date(2026, 10, 3), -10_00)
+    await _accept_on(card, "TRN-early", date(2026, 10, 1), -20_00)
+    balances_before = (await _balances(everyday.account_id), await _balances(card.account_id))
+    provider.outcomes = [
+        _returned_with(
+            {
+                "ACT-everyday": [_record("TRN-coffee", date(2026, 9, 29)), _record("TRN-groceries", removed=True)],
+                "ACT-card": [_record("TRN-late", removed=True), _record("TRN-early", removed=True)],
+            }
+        )
+    ]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
     await _run_jobs_until_none_is_due()
 
-    assert await _waiting(link) == 99
-    assert await _pauses(link) == [(False, False)]
+    assert balances_before == (
+        [(_COFFEE_DAY, -4_50), (date(2026, 10, 3), -46_50)],
+        [(date(2026, 10, 1), -20_00), (_COFFEE_DAY, -24_50), (date(2026, 10, 3), -34_50)],
+    )
+    assert await _balances(everyday.account_id) == [(date(2026, 9, 29), -4_50)]
+    assert await _balances(card.account_id) == [(_COFFEE_DAY, -4_50)]
+
+
+@pytest.mark.parametrize(
+    ("trusted", "sent", "stored"),
+    [
+        ("removals", {"removed": True}, []),
+        ("corrections", {"day": date(2026, 10, 3)}, [("TRN-groceries", BankTransactionDisposition.AWAITING_REVIEW)]),
+    ],
+    ids=["trusted removal", "trusted correction"],
+)
+async def test_job_leaves_alone_a_transaction_the_user_moved_out_of_the_account_while_it_was_unlinked(
+    connection, provider, trusted, sent, stored
+):
+    """The user unlinks Everyday, moves the groceries to Savings, links Everyday again and trusts removals or corrections
+
+    The bank then removes the groceries, or moves them to 3 October. Moving them out took them off
+    the bank, so Savings keeps them as they are: the removal finds nothing to remove, and the
+    groceries sent again arrive in Everyday as a new item
+    """
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    record_id = await _accept_groceries(everyday)
+    savings_id = await _move_out_while_unlinked(connection, everyday, await _ledger_transaction_id(record_id))
+    await _trust(everyday, trusted)
+    provider.outcomes = [_returned_with({"ACT-everyday": [_groceries(**sent)]})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _ledger_rows(savings_id) == [(_COFFEE_DAY, -42_00)]
+    assert await _balances(savings_id) == [(_COFFEE_DAY, -42_00)]
+    assert await _bank_transactions(BankTransaction.external_transaction_id, BankTransaction.disposition) == stored
 
 
 async def test_job_withdrawing_an_item_the_user_is_adding_waits_and_opens_a_removal_instead(connection, monkeypatch, frozen_now):
