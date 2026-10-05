@@ -5,7 +5,8 @@ removal open, so a bank transaction is at most one item and shares its id. Pages
 by the bank's date and pick up after the last item the previous page returned rather than at a
 position, so items decided between two pages are neither repeated nor skipped. Only the user's own
 personal accounts have items. The list covers the accounts the transaction list is filtered to, or
-every such account when it isn't
+every such account when it isn't. Each account's backlog, read for the same accounts, says how many
+new items wait there and whether its sync is paused or warned for them
 """
 
 import uuid
@@ -21,16 +22,22 @@ from app.models.account import Account
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition, CorrectableBankField, OpenReviewKind
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.schemas.bank_review import BankReviewCountsResponse, BankReviewItemResponse, BankReviewPageResponse
+from app.schemas.bank_review import (
+    BankReviewBacklogResponse,
+    BankReviewCountsResponse,
+    BankReviewItemResponse,
+    BankReviewPageResponse,
+)
 from app.schemas.bank_sync import BankValues
 from app.services.accounts.access import get_own_personal_account, own_personal_account_condition
 from app.services.bank_sync.availability import PROVIDER_ADAPTERS
+from app.services.bank_sync.review_pause import read_review_backlogs
 from app.services.bank_sync.review_state import edited_fields
 
 # The most items one page holds, so an import that leaves hundreds waiting loads a page at a time
 REVIEW_PAGE_SIZE = 50
 
-# Why the list refuses an account the user can see but doesn't own alone
+# Why both reads refuse an account the user can see but doesn't own alone
 _NOT_OWN_DETAIL = "Bank items aren't listed for accounts shared with a group"
 
 # Separates the bank date and the id of the last item a page returned, which its cursor carries
@@ -105,6 +112,43 @@ async def list_review_items(
         counts=BankReviewCountsResponse(new=counts.get("new", 0), correction=counts.get("correction", 0), removal=counts.get("removal", 0)),
         next_cursor=_write_cursor(page[-1][0]) if len(rows) > limit else None,
     )
+
+
+async def list_review_backlogs(
+    db: AsyncSession,
+    user: User,
+    *,
+    account_ids: Sequence[uuid.UUID] | None,
+) -> list[BankReviewBacklogResponse]:
+    """Return each account's review backlog, for some of the user's accounts or all of them
+
+    Args:
+        db: Active database session
+        user: The user reviewing
+        account_ids: The accounts whose backlogs to read, or None for every account
+
+    Returns:
+        One backlog for each account, in the order named, or by id for every account
+
+    Raises:
+        HTTPException 403: An account is visible but isn't the user's own personal account
+        HTTPException 404: An account isn't visible to the user
+    """
+    if account_ids is None:
+        account_ids = list(await db.scalars(select(Account.id).where(own_personal_account_condition(user.id)).order_by(Account.id)))
+    else:
+        await _check_own_accounts(db, user, account_ids)
+    backlogs = await read_review_backlogs(db, account_ids)
+    return [
+        BankReviewBacklogResponse(
+            account_id=account_id,
+            waiting_new_count=backlogs[account_id].waiting_new,
+            paused=backlogs[account_id].paused,
+            review_warning=backlogs[account_id].warning,
+        )
+        # An account named twice has one backlog
+        for account_id in dict.fromkeys(account_ids)
+    ]
 
 
 async def _check_own_accounts(db: AsyncSession, user: User, account_ids: Sequence[uuid.UUID]) -> None:

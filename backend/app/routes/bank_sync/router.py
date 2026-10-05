@@ -10,7 +10,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.bank_connection import BankProvider
 from app.models.user import User
-from app.schemas.bank_review import AddReviewItemRequest, BankReviewPageResponse
+from app.schemas.bank_review import AddReviewItemRequest, BankReviewBacklogResponse, BankReviewPageResponse
 from app.schemas.bank_sync import (
     BankAccountLinkResponse,
     BankConnectionResponse,
@@ -43,7 +43,7 @@ from app.services.bank_sync.review_decisions import (
     keep_transaction,
     remove_from_ledger,
 )
-from app.services.bank_sync.review_items import REVIEW_PAGE_SIZE, list_review_items
+from app.services.bank_sync.review_items import REVIEW_PAGE_SIZE, list_review_backlogs, list_review_items
 
 router = APIRouter(prefix="/bank-sync", tags=["bank-sync"])
 
@@ -271,6 +271,25 @@ async def list_bank_review_items(
         The page, the counts of every waiting item in scope, and the next page's cursor
     """
     return await list_review_items(db, user, account_ids=account_id, cursor=cursor, limit=limit)
+
+
+@review_router.get("/backlogs", response_model=list[BankReviewBacklogResponse])
+async def list_bank_review_backlogs(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    account_id: Annotated[list[uuid.UUID] | None, Query()] = None,
+):
+    """Return how many new items wait on each account, and whether its sync is paused or warned for them
+
+    Args:
+        user: Authenticated user reviewing
+        db: Active database session
+        account_id: The accounts whose backlogs to read, repeated for each, or every account when left out
+
+    Returns:
+        One backlog for each account
+    """
+    return await list_review_backlogs(db, user, account_ids=account_id)
 
 
 @review_router.post("/items/{item_id}/add", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)

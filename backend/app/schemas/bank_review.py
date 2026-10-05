@@ -64,6 +64,21 @@ class BankReviewPageResponse(BaseModel):
     next_cursor: str | None
 
 
+class BankReviewBacklogResponse(BaseModel):
+    """An account's new items waiting for review, and whether its sync is paused or warned for them"""
+
+    account_id: uuid.UUID
+
+    # New items awaiting their first review, the count the warning and the pause read
+    waiting_new_count: int
+
+    # The account's sync is held until enough items are reviewed, never while an import runs
+    paused: bool
+
+    # Enough items wait that the sync will soon pause, on a linked account neither paused nor importing
+    review_warning: bool
+
+
 class AddReviewItemRequest(TransactionEntry):
     """The values a new bank item goes into the ledger with, the bank's or the user's own
 
