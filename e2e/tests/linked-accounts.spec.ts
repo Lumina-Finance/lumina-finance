@@ -335,6 +335,13 @@ test('keeps a bank transaction in its linked account, refusing the move on the a
   await chooseFromDropdown(dialog, 'Account', 'Savings')
   await expect(refusal).toBeVisible()
   await expect(dialog.getByRole('combobox', { name: 'Account' })).toHaveAttribute('aria-invalid', 'true')
+
+  // Beside the label with the row's gap between them, at every width, once it has slid into place
+  const label = dialog.locator('label[for="txn-account"]')
+  await expect.poll(async () => {
+    const [labelBox, refusalBox] = await Promise.all([getBox(label), getBox(refusal)])
+    return Math.round(refusalBox.x - (labelBox.x + labelBox.width))
+  }).toBeGreaterThanOrEqual(12)
   await dialog.getByTestId('transaction-submit').click()
   await expect(dialog).toBeVisible()
 

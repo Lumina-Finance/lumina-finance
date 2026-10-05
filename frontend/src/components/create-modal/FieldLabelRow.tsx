@@ -46,7 +46,8 @@ export default function CreateModalFieldLabelRow({
         stacksOnNarrowLayouts && 'flex-col gap-1.5 sm:flex-row sm:items-end sm:gap-3',
       )}
     >
-      <div className="relative flex min-w-0 items-center gap-1.5">
+      {/* Never narrower than the label, so a long error wraps beside it with the row's gap between */}
+      <div className="relative flex shrink-0 items-center gap-1.5">
         <label
           id={htmlFor && getFieldLabelId(htmlFor)}
           htmlFor={htmlFor}
