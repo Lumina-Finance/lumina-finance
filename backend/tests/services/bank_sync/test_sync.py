@@ -1387,6 +1387,22 @@ async def test_job_puts_no_pending_or_removed_record_in_the_review_inbox(connect
     assert await _bank_transactions(BankTransaction.external_transaction_id) == [("TRN-coffee",)]
 
 
+async def test_job_keeps_one_item_with_the_later_values_for_an_id_sent_twice_in_one_response(connection, provider):
+    """The coffee comes back twice in one response, at $4.50 and then at $5.40
+
+    It is one transaction, so the sync still succeeds and one item waits for review, at $5.40
+    """
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    provider.outcomes = [_returned_with({"ACT-1": [_record("TRN-coffee"), _record("TRN-coffee", amount=-5_40, raw_amount="-5.40")]})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _bank_transactions(BankTransaction.external_transaction_id, BankTransaction.observed_amount) == [("TRN-coffee", -5_40)]
+    assert [status for _, status, *_ in await _jobs()] == ["succeeded"]
+    assert await _checkpoints(link) == [_TODAY]
+
+
 async def test_job_keeps_records_from_the_import_start_on_for_a_user_far_east_of_utc(connection, scenario: FakeBridgeScenario, monkeypatch):
     """In Tarawa, 12 hours ahead of UTC, an import from 5 July fetches 5 July to 2 October, then 3 October to today
 
