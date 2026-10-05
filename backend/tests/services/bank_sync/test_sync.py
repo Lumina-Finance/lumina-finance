@@ -2207,27 +2207,29 @@ _CHOSEN_AGAIN = {"import_kind": BankImportKind.CHOOSE_AGAIN, "import_start": dat
 _RECONNECTED = {
     "import_kind": BankImportKind.RECONNECT,
     "checkpoint": date(2026, 9, 24),
-    "last_success_at": datetime(2026, 9, 24, 9, tzinfo=_BRISBANE),
+    "last_success_at": datetime(2026, 9, 24, 9, tzinfo=_PHOENIX),
 }
 
 
 @pytest.mark.parametrize(
     ("values", "waiting", "sent_by", "window", "paused"),
     [
-        (_CHOSEN_AGAIN, 105, "ACT-before", _window(date(2026, 9, 1), _TODAY, pending=True), True),
-        (_RECONNECTED, 51, "ACT-1", _window(date(2026, 9, 10), _TODAY, pending=True), True),
-        (_RECONNECTED, 50, "ACT-1", _window(date(2026, 9, 10), _TODAY, pending=True), False),
+        (_CHOSEN_AGAIN, 105, "ACT-before", _window(date(2026, 9, 1), date(2026, 10, 3), pending=True, timezone=_PHOENIX), True),
+        (_RECONNECTED, 51, "ACT-1", _window(date(2026, 9, 10), date(2026, 10, 3), pending=True, timezone=_PHOENIX), True),
+        (_RECONNECTED, 50, "ACT-1", _window(date(2026, 9, 10), date(2026, 10, 3), pending=True, timezone=_PHOENIX), False),
     ],
     ids=["choose_again_with_105_from_the_old_bank_account", "reconnect_with_51", "reconnect_with_50"],
 )
 async def test_job_runs_an_import_on_a_paused_link_to_today_and_keeps_the_pause_until_50_or_fewer_wait(
     connection, provider, values, waiting, sent_by, window, paused
 ):
-    """Everyday was paused for review when its bank account had to be chosen again, or its connection reconnected
+    """Everyday, in Phoenix, was paused for review when its bank account had to be chosen again, or its connection reconnected
 
-    The import that follows runs to today whatever the pause. Once it ends, the pause stays while more
-    than 50 new items wait, counting those the account's old bank account sent, and lifts at 50
+    The import that follows runs to today whatever the pause, and ends on 3 October, Phoenix's today,
+    though it's already 4 October in UTC. Once it ends, the pause stays while more than 50 new items
+    wait, counting those the account's old bank account sent, and lifts at 50
     """
+    await _set_owner_timezone(connection, _PHOENIX)
     link = await _link(connection, "ACT-1", **{"import_start": date(2026, 1, 1), "paused": True, "importing": True} | values)
     await _commit_waiting_items(link, waiting, external_account_id=sent_by)
     provider.outcomes = [_returned("ACT-1")]
