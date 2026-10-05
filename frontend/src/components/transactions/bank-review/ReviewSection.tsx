@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useAccounts } from '@/api/accounts'
 import { useReviewBacklogs, useReviewItems } from '@/api/bank-sync'
@@ -72,6 +72,16 @@ function whenSettled(element: HTMLElement, onSettled: () => void): () => void {
   return () => window.cancelAnimationFrame(frame)
 }
 
+/** The items whose rows are at least partly inside the window */
+function getRowsOnScreen(rows: Map<string, HTMLDivElement>): Set<string> {
+  const onScreen = new Set<string>()
+  for (const [itemId, row] of rows) {
+    const box = row.getBoundingClientRect()
+    if (box.bottom > 0 && box.top < window.innerHeight) onScreen.add(itemId)
+  }
+  return onScreen
+}
+
 /**
  * The bank items waiting for review in the accounts a transaction list shows, read a page at a time,
  * with the notice for any of them paused or close to pausing for its backlog
@@ -80,8 +90,11 @@ function whenSettled(element: HTMLElement, onSettled: () => void): () => void {
  * empty space never reads as nothing waiting. A Needs review marker's request opens the block when its
  * item is past the first few, loads pages until the item is among them, then scrolls to it, focuses
  * it and rings it for a moment. A page that fails to load ends the request where it is
+ *
+ * Kept apart from the list's own renders, such as one for each search keystroke, since an open block
+ * can hold hundreds of rows
  */
-export function BankReviewSection({
+export const BankReviewSection = memo(function BankReviewSection({
   listAccountIds,
   isFixedAccount,
   focusRequest,
@@ -161,6 +174,11 @@ export function BankReviewSection({
     else rows.current.delete(itemId)
   }, [])
   const [highlight, setHighlight] = useState<ReviewFocusRequest | null>(null)
+  const [rowsInViewAtClose, setRowsInViewAtClose] = useState<ReadonlySet<string> | null>(null)
+  const toggleExpanded = () => {
+    if (expanded) setRowsInViewAtClose(getRowsOnScreen(rows.current))
+    setExpanded(!expanded)
+  }
   const isJumpRowShown = jumpIndex !== -1 && (expanded || jumpIndex < COLLAPSED_ITEM_COUNT)
 
   useEffect(() => {
@@ -218,7 +236,9 @@ export function BankReviewSection({
                 backlogNotice={backlogNotice}
                 backlogError={backlogsError && !backlogs ? backlogsError : null}
                 expanded={expanded}
-                onToggleExpanded={() => setExpanded((current) => !current)}
+                onToggleExpanded={toggleExpanded}
+                rowsInViewAtClose={rowsInViewAtClose}
+                onRowsLeft={() => setRowsInViewAtClose(null)}
                 hasMoreItems={hasNextPage}
                 isLoadingMore={isFetchingNextPage || Boolean(showPendingFetch)}
                 loadMoreSentinelRef={sentinelRef}
@@ -233,4 +253,4 @@ export function BankReviewSection({
       </AnimatePresence>
     </>
   )
-}
+})

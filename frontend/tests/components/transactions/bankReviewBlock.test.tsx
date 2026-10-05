@@ -240,6 +240,8 @@ describe('the rows the block shows', () => {
       backlogError: null,
       expanded,
       onToggleExpanded: () => {},
+      rowsInViewAtClose: null,
+      onRowsLeft: () => {},
       hasMoreItems: false,
       isLoadingMore: false,
       loadMoreSentinelRef: () => {},

@@ -20,6 +20,10 @@ import {
 // How many items show before the block is opened, so a long backlog doesn't push the ledger away
 export const COLLAPSED_ITEM_COUNT = 4
 
+// How a row out of view leaves as the block closes, so closing on hundreds of loaded items animates
+// only the rows anyone can see
+const LEAVE_AT_ONCE = { opacity: 0, transition: { duration: 0 } }
+
 /** The account a review item belongs to, as its row names it and writes its amount */
 export type ReviewItemAccount = {
   name: string
@@ -46,6 +50,12 @@ type BankReviewBlockProps = {
   expanded: boolean
   onToggleExpanded: () => void
 
+  /** The rows on screen as the block last closed, which collapse while the rest leave at once, or null to collapse every row that leaves */
+  rowsInViewAtClose: ReadonlySet<string> | null
+
+  /** Called once every row that was leaving has gone */
+  onRowsLeft: () => void
+
   /** More items wait to load, which happens as the open block's end comes into view */
   hasMoreItems: boolean
   isLoadingMore: boolean
@@ -66,7 +76,8 @@ type BankReviewBlockProps = {
  * The bank items waiting for review above the transaction list: new items, corrections and removals
  * that stay outside the ledger and every balance until the user acts on them
  *
- * A row shows its item and opens nothing. Rows grow in and collapse out with the list's day groups
+ * A row shows its item and opens nothing. Rows grow in and collapse out with the list's day groups,
+ * except that closing the block collapses only the rows on screen
  */
 export function BankReviewBlock({
   items,
@@ -78,6 +89,8 @@ export function BankReviewBlock({
   backlogError,
   expanded,
   onToggleExpanded,
+  rowsInViewAtClose,
+  onRowsLeft,
   hasMoreItems,
   isLoadingMore,
   loadMoreSentinelRef,
@@ -150,7 +163,9 @@ export function BankReviewBlock({
       {/* One list, so a screen reader counts every loaded item, with each row past the first few
           growing in as the block opens */}
       <div id={listId} role="list">
-        <AnimatePresence initial={false}>
+        {/* A leaving row reads which rows were on screen from here rather than from its own props,
+            which stop updating once it has left the list */}
+        <AnimatePresence initial={false} custom={rowsInViewAtClose} onExitComplete={onRowsLeft}>
           {visibleItems.map((item) => {
             const account = accountFor(item.account_id)
             const amount = getReviewItemAmount(item, account.currency, formatMovedAmount)
@@ -167,7 +182,10 @@ export function BankReviewBlock({
                 className="overflow-hidden px-4 focus:outline-none sm:px-5"
                 initial={skipEnterAnimation ? false : collapsed}
                 animate={{ height: 'auto', opacity: 1 }}
-                exit={leave}
+                variants={{
+                  leave: (inView: ReadonlySet<string> | null) => (inView === null || inView.has(item.id) ? leave : LEAVE_AT_ONCE),
+                }}
+                exit="leave"
                 transition={enterTransition}
 
                 // A ring rather than a fill, since any fill lighter than the block's own would take

@@ -192,6 +192,13 @@ export default function TransactionListSection({
     [],
   )
 
+  // Held between renders, so the review block skips the list's own renders, such as one per search keystroke
+  const fixedAccountId = fixedAccount?.id
+  const reviewAccountIds = useMemo(
+    () => (fixedAccountId ? [fixedAccountId] : filters.account_id),
+    [fixedAccountId, filters.account_id],
+  )
+
   const [isSelecting, setIsSelecting] = useState(false)
   const [pendingChange, setPendingChange] = useState<BulkEditFields | null>(null)
 
@@ -543,7 +550,7 @@ export default function TransactionListSection({
       />
 
       <BankReviewSection
-        listAccountIds={fixedAccount ? [fixedAccount.id] : filters.account_id}
+        listAccountIds={reviewAccountIds}
         isFixedAccount={Boolean(fixedAccount)}
         focusRequest={reviewFocus}
         prefersReducedMotion={prefersReducedMotion}
