@@ -31,7 +31,6 @@ from app.models.bank_sync_job import BankSyncJobKind
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
 from app.services.bank_sync.availability import LIVE_LINK
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
-from app.services.cache_state.updates import mark_user_cache_changed
 
 # A sync that leaves this many new items waiting for review pauses the account
 PAUSE_AT = 100
@@ -97,44 +96,37 @@ async def lock_account_links(db: AsyncSession, account_ids: Collection[uuid.UUID
     A lifted pause queues a sync, and a job row holds its connection for key share, so that lock is
     taken on each live link's connection first, since a sync's write holds the connection before
     the links. Then the links, in the order every writer takes them, and every link, not only paused
-    ones, since one a sync is pausing doesn't read as paused until its lock is granted. Each is read
-    again once locked
+    ones, since one a sync is pausing doesn't read as paused until its lock is granted
 
     Returns:
-        The links, as the writes before this left them
+        The links, as the writes before this left them, since the caller hasn't loaded them before
     """
     live_connections = select(BankAccountLink.connection_id).where(BankAccountLink.account_id.in_(account_ids), LIVE_LINK)
     await db.execute(
         select(BankConnection.id).where(BankConnection.id.in_(live_connections)).order_by(BankConnection.id).with_for_update(key_share=True)
     )
     links = await db.scalars(
-        select(BankAccountLink)
-        .where(BankAccountLink.account_id.in_(account_ids))
-        .order_by(BankAccountLink.id)
-        .with_for_update()
-        .execution_options(populate_existing=True)
+        select(BankAccountLink).where(BankAccountLink.account_id.in_(account_ids)).order_by(BankAccountLink.id).with_for_update()
     )
     return list(links)
 
 
-async def lift_review_pauses(db: AsyncSession, owner_id: uuid.UUID, account_ids: Collection[uuid.UUID]) -> None:
-    """Lift the pause on each of these accounts once 50 or fewer new items wait, and queue its connection's sync at once
+async def lift_review_pauses(db: AsyncSession, owner_id: uuid.UUID, links: Sequence[BankAccountLink]) -> None:
+    """Lift the pause on each of these links whose account has 50 or fewer new items waiting, and queue its connection's sync at once
 
-    A review action calls this after its write and before it marks the owner's cache row, in the
-    same transaction, so the count takes in its decisions. A link that isn't active, such as one
-    waiting in Choose bank account, only loses the pause, since it has nothing to sync. The owner's
-    open pages are told of any pause lifted.
-
-    The links are locked, so a sync writing one finishes first and is counted. A review action has
-    to take them with lock_account_links before its bank transaction rows, as every writer does, or
-    it can deadlock with a sync storing those rows. Locking them here again then costs nothing
+    A review action calls this after its write, in the same transaction, so the count takes in its
+    decisions, then marks the owner's cache row, which tells their open pages of any pause lifted.
+    A link that isn't active, such as one waiting in Choose bank account, only loses the pause,
+    since it has nothing to sync
 
     Args:
         db: The owner's session
         owner_id: The user who made the decisions, who owns the accounts
-        account_ids: The accounts whose items the review action decided
+        links: The links of the accounts the review action decided, which it locked with
+            lock_account_links before its bank transaction rows, so a sync writing one finished first
+            and is counted
     """
-    paused = [link for link in await lock_account_links(db, account_ids) if link.paused]
+    paused = [link for link in links if link.paused]
     waiting = await _count_waiting_new(db, [link.account_id for link in paused])
     lifted = [link for link in paused if not _stays_paused(True, waiting.get(link.account_id, 0))]
     if not lifted:
@@ -149,7 +141,6 @@ async def lift_review_pauses(db: AsyncSession, owner_id: uuid.UUID, account_ids:
             due.add(link.connection_id)
     for connection_id in sorted(due):
         await enqueue_bank_sync_job(db, owner_id=owner_id, connection_id=connection_id, kind=BankSyncJobKind.SCHEDULED, run_after=now)
-    await mark_user_cache_changed(db, owner_id)
 
 
 async def read_review_backlogs(db: AsyncSession, account_ids: Collection[uuid.UUID]) -> dict[uuid.UUID, ReviewBacklog]:
@@ -189,6 +180,8 @@ async def _count_waiting_new(db: AsyncSession, account_ids: Collection[uuid.UUID
 
     A correction or removal is opened on a bank transaction already accepted, so it never counts
     """
+    if not account_ids:
+        return {}
     rows = await db.execute(
         select(BankTransaction.account_id, func.count())
         .where(

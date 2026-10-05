@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
+from app.models.bank_connection import BankAccountLink
 from app.models.bank_transaction import OBSERVATION_COLUMNS, BankTransaction, BankTransactionDisposition
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -59,7 +60,7 @@ async def add_review_item_to_ledger(db: AsyncSession, user: User, item_id: uuid.
         HTTPException 409: The item was dismissed
         HTTPException 422: A value fails the checks a new transaction passes
     """
-    record, account = await _lock_review_item(db, user, item_id)
+    record, account, links = await _lock_review_item(db, user, item_id)
     if record.disposition == BankTransactionDisposition.ACCEPTED:
         return await get_transaction_response(db, await db.get_one(Transaction, record.transaction_id))
     if record.disposition == BankTransactionDisposition.DISMISSED:
@@ -79,7 +80,7 @@ async def add_review_item_to_ledger(db: AsyncSession, user: User, item_id: uuid.
     record.aligned_amount = record.observed_amount
     await db.flush()
 
-    await lift_review_pauses(db, user.id, [account.id])
+    await lift_review_pauses(db, user.id, links)
     await mark_user_cache_changed(db, user.id)
     await db.commit()
     await db.refresh(txn)
@@ -100,7 +101,7 @@ async def dismiss_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) 
         HTTPException 404: The item isn't one of the user's, or was withdrawn by the bank
         HTTPException 409: The item is already in the ledger
     """
-    record, account = await _lock_review_item(db, user, item_id)
+    record, _, links = await _lock_review_item(db, user, item_id)
     if record.disposition == BankTransactionDisposition.DISMISSED:
         return
     if record.disposition == BankTransactionDisposition.ACCEPTED:
@@ -111,18 +112,21 @@ async def dismiss_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) 
         setattr(record, column, None)
     await db.flush()
 
-    await lift_review_pauses(db, user.id, [account.id])
+    await lift_review_pauses(db, user.id, links)
     await mark_user_cache_changed(db, user.id)
     await db.commit()
 
 
-async def _lock_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) -> tuple[BankTransaction, Account]:
-    """Lock one of the user's bank transactions on their own personal accounts, after its account's connection and links, and return it with its account
+async def _lock_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) -> tuple[BankTransaction, Account, list[BankAccountLink]]:
+    """Lock one of the user's bank transactions on their own personal accounts, after its account's connection and links
 
     The connection and links come first, as every writer takes them, since the decision may lift
-    the account's review pause and queue its sync. An item's account never changes, so it is read before anything is locked. A
-    request that waited on a lock reads the item as the write before it left it. The account itself
-    isn't locked, so it stays free for the requests that lock it
+    the account's review pause and queue its sync. An item's account never changes, so it is read
+    before anything is locked. A request that waited on a lock reads the item as the write before it
+    left it. The account itself isn't locked, so it stays free for the requests that lock it
+
+    Returns:
+        The item and its account, and the account's links, which a lift takes
 
     Raises:
         HTTPException 404: The item isn't one of the user's, or was withdrawn by the bank
@@ -134,7 +138,7 @@ async def _lock_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) ->
     )
     if account_id is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=REVIEW_ITEM_NOT_FOUND)
-    await lock_account_links(db, [account_id])
+    links = await lock_account_links(db, [account_id])
 
     # Read again under its own lock, since the item may have changed or gone while the links were locked
     row = (
@@ -148,4 +152,5 @@ async def _lock_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) ->
     ).one_or_none()
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=REVIEW_ITEM_NOT_FOUND)
-    return row.tuple()
+    record, account = row.tuple()
+    return record, account, links

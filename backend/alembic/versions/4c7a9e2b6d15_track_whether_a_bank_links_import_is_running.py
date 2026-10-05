@@ -30,6 +30,8 @@ def downgrade() -> None:
     """Drop the flag
 
     Losing it means only that, once it is added back, every link counts as importing until its next
-    sync reaches today, so it doesn't hold the rollback back
+    sync reaches today, so it doesn't hold the rollback back. A link paused for review stays paused
+    after the rollback, and the earlier code never lifts a pause, so its account doesn't sync until
+    the pause is cleared by hand
     """
     op.drop_column("bank_account_links", "importing")

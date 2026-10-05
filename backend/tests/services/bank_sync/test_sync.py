@@ -53,7 +53,7 @@ from app.services.bank_sync.availability import PROVIDER_ADAPTERS
 from app.services.bank_sync.connections import build_connection_responses
 from app.services.bank_sync.provider_requests import reserve_provider_request
 from app.services.bank_sync.providers.contract import ExternalAccount, FetchResult, ProviderError, ProviderRecord
-from app.services.bank_sync.review_pause import lift_review_pauses
+from app.services.bank_sync.review_pause import lift_review_pauses, lock_account_links
 from app.services.bank_sync.worker import run_jobs
 from tests.conftest import TestSession
 from tests.fake_simplefin_bridge import FakeBridgeTransport
@@ -2347,8 +2347,9 @@ async def test_job_a_review_queues_by_lifting_the_pause_catches_the_account_up_f
     item_ids = await _commit_waiting_items(link, 80)
     provider.outcomes = [_returned("ACT-1")]
     async with _owner_session(connection.owner_id) as session:
+        links = await lock_account_links(session, [link.account_id])
         await _dismiss_items(session, item_ids[:30])
-        await lift_review_pauses(session, connection.owner_id, [link.account_id])
+        await lift_review_pauses(session, connection.owner_id, links)
         await session.commit()
 
     await _run_jobs_until_none_is_due()

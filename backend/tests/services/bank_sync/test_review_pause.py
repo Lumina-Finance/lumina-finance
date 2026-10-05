@@ -17,8 +17,7 @@ from sqlalchemy import select, text, update
 from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
 from app.models.bank_sync_job import BankSyncJob
-from app.models.cache_state import UserCacheState
-from app.services.bank_sync.review_pause import ReviewBacklog, lift_review_pauses, read_review_backlogs
+from app.services.bank_sync.review_pause import ReviewBacklog, lift_review_pauses, lock_account_links, read_review_backlogs
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     _build_account,
@@ -54,9 +53,9 @@ async def _paused_link(connection: BankConnection, **values) -> BankAccountLink:
 
 
 async def _lift(link: BankAccountLink) -> None:
-    """Lift the account's pause as a review action does after its write, as the owner"""
+    """Lock the account's links and lift its pause with them, as a review action does after its write, as the owner"""
     async with _owner_session(link.owner_id) as session:
-        await lift_review_pauses(session, link.owner_id, [link.account_id])
+        await lift_review_pauses(session, link.owner_id, await lock_account_links(session, [link.account_id]))
         await session.commit()
 
 
@@ -74,12 +73,6 @@ async def _queued_jobs() -> list[tuple]:
         return [tuple(row) for row in await session.execute(select(BankSyncJob.kind, BankSyncJob.status, BankSyncJob.run_after))]
 
 
-async def _told_at(link: BankAccountLink) -> datetime | None:
-    """Return when the owner's open pages were last told their data changed, or None when they never were"""
-    async with TestSession() as session:
-        return await session.scalar(select(UserCacheState.changed_at).where(UserCacheState.user_id == link.owner_id))
-
-
 @pytest.mark.parametrize(
     ("waiting", "paused", "next_attempt_at", "queued"),
     [(51, True, _TOMORROW, []), (50, False, FROZEN_NOW, [("scheduled", "queued", FROZEN_NOW)])],
@@ -90,8 +83,7 @@ async def test_lift_review_pauses_lifts_at_50_new_items_waiting_and_queues_the_c
 ):
     """A review decision leaves paused Everyday with 51 new items waiting, which keeps the pause, or 50, which lifts it
 
-    Lifted, Everyday is due now rather than tomorrow, its connection's sync is queued to run now, and
-    the owner's open pages are told
+    Lifted, Everyday is due now rather than tomorrow and its connection's sync is queued to run now
     """
     link = await _paused_link(connections[0])
     await _commit_waiting_items(link, waiting)
@@ -100,11 +92,10 @@ async def test_lift_review_pauses_lifts_at_50_new_items_waiting_and_queues_the_c
 
     assert await _link_state(link) == (paused, next_attempt_at)
     assert await _queued_jobs() == queued
-    assert (await _told_at(link) is None) is paused
 
 
 async def test_lift_review_pauses_queues_nothing_for_an_account_that_isnt_paused(connections):
-    """A review decision in Everyday, never paused, with 10 new items waiting, leaves its next sync where it was and tells no page"""
+    """A review decision in Everyday, never paused, with 10 new items waiting, leaves its next sync where it was"""
     link = await _paused_link(connections[0], paused=False)
     await _commit_waiting_items(link, 10)
 
@@ -112,7 +103,6 @@ async def test_lift_review_pauses_queues_nothing_for_an_account_that_isnt_paused
 
     assert await _link_state(link) == (False, _TOMORROW)
     assert await _queued_jobs() == []
-    assert await _told_at(link) is None
 
 
 async def test_lift_review_pauses_queues_no_sync_for_an_account_waiting_for_its_bank_account(connections):
@@ -124,23 +114,22 @@ async def test_lift_review_pauses_queues_no_sync_for_an_account_waiting_for_its_
 
     assert await _link_state(link) == (False, _TOMORROW)
     assert await _queued_jobs() == []
-    assert await _told_at(link) is not None
 
 
 async def test_lift_review_pauses_counts_once_a_sync_pausing_the_link_has_committed(connections):
     """A sync brings Everyday from 96 new items waiting to 100 and pauses it, while the user dismisses 60 of the 96
 
-    The review reads Everyday's link while the sync's pause is uncommitted, and its lift waits for
-    the sync to commit, then counts 40 with both writes taken in, so the pause the sync set lifts
+    The review's lock on Everyday's links waits for the sync to commit, and its lift then counts 40
+    with both writes taken in, so the pause the sync set lifts
     """
     link = await _paused_link(connections[0], paused=False)
     item_ids = await _commit_waiting_items(link, 96)
 
     async def review() -> None:
         async with _owner_session(link.owner_id) as session:
-            await session.get(BankAccountLink, link.id)
+            links = await lock_account_links(session, [link.account_id])
             await _dismiss_items(session, item_ids[:60])
-            await lift_review_pauses(session, link.owner_id, [link.account_id])
+            await lift_review_pauses(session, link.owner_id, links)
             await session.commit()
 
     async with asyncio.timeout(_WAIT_SECONDS), TestSession() as syncing:
