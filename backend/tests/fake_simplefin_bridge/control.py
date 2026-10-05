@@ -23,12 +23,6 @@ BANK_DATE_STAMP_TIME = time(12, tzinfo=UTC)
 # The status an HTML error page comes with unless the fault names another
 DEFAULT_HTML_ERROR_STATUS = status.HTTP_403_FORBIDDEN
 
-# The origin the app is told to reach the fake at, read from the app's own setting so the two can't
-# disagree. Setup tokens point there, so one minted at another address, such as the port a browser
-# test's machine reaches, still sends the app's claim somewhere the app can reach. Unset when the
-# fake is mounted in-process, and then a token points wherever its caller reached the fake
-APP_ORIGIN = os.getenv("BANK_SYNC_SIMPLEFIN_TEST_ORIGIN", "").strip().rstrip("/")
-
 # The sample scenario: one bank login holding a chequing account and a credit card in Canadian
 # dollars, each with a few weeks of an ordinary month, so an import from any recent start finds
 # some. Each transaction is days before today, amount, description and payee
@@ -342,8 +336,14 @@ async def revoke_access(scenario_id: str):
 
 
 def _setup_token(request: Request, scenario: Scenario) -> str:
-    """Return a setup token, the base64 of a claim URL on the app's origin for the fake, or else on whatever address the caller reached it at"""
-    base_url = f"{APP_ORIGIN}/" if APP_ORIGIN else str(request.base_url)
+    """Return a setup token, the base64 of a claim URL on the fake's test origin, or else on whatever address the caller reached it at"""
+    # Read from the setting the app reads, which agrees with the app's only when whoever starts the
+    # two gives both the same value, as the dev instance tooling and the browser tests' Compose
+    # file do. Then a token minted at another address, such as the port a browser test's machine
+    # reaches, still sends the app's claim somewhere the app can reach. Blank when the fake is
+    # mounted in-process, and then a token points wherever its caller reached the fake
+    test_origin = os.getenv("BANK_SYNC_SIMPLEFIN_TEST_ORIGIN", "").strip().rstrip("/")
+    base_url = f"{test_origin}/" if test_origin else str(request.base_url)
     claim_url = f"{base_url}simplefin/claim/{bridge.mint_setup_token(scenario)}"
     return base64.b64encode(claim_url.encode()).decode()
 

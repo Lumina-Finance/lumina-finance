@@ -15,8 +15,8 @@ with the backend's environment:
     BANK_SYNC_SIMPLEFIN_TEST_ORIGIN=http://127.0.0.1:8790 uvicorn --app-dir tests fake_simplefin_bridge:app --host 127.0.0.1 --port 8790
 
 --app-dir loads it as a package of its own, so tests/__init__.py, which points the process at the
-test database, doesn't run. BANK_SYNC_SIMPLEFIN_TEST_ORIGIN is the origin the app is given for the
-fake, and its setup tokens point there whatever address minted them
+test database, doesn't run. Give it the BANK_SYNC_SIMPLEFIN_TEST_ORIGIN the app is given for it, and
+its setup tokens point there whatever address minted them
 """
 
 import asyncio
