@@ -4,7 +4,9 @@ import {
   CREATE_CATEGORY_VALUE,
   CSV_CATEGORY_RENAME_APP_NAME,
   IMPORT_MISCELLANEOUS_CATEGORY_NAME,
+  IMPORT_NO_CATEGORY_MONEY_IN_SOURCE,
   IMPORT_NO_CATEGORY_TRANSFER_SOURCE,
+  IMPORT_OTHER_INCOME_CATEGORY_NAME,
   IMPORT_TRANSFER_CATEGORY_NAME,
   DEBT_PAYMENT_IMPORT_NOTE,
   getCategoryCreateClashError,
@@ -29,7 +31,22 @@ import { getImportRowCategorySource, resolveImportAmount } from './columnMapping
 // have no name to match on, in the order the category step lists them after every named one
 export const SYSTEM_CATEGORY_NAME_BY_UNNAMED_SOURCE: Record<string, string> = {
   [JOURNAL_NO_CATEGORY_SOURCE]: IMPORT_MISCELLANEOUS_CATEGORY_NAME,
+  [IMPORT_NO_CATEGORY_MONEY_IN_SOURCE]: IMPORT_OTHER_INCOME_CATEGORY_NAME,
   [IMPORT_NO_CATEGORY_TRANSFER_SOURCE]: IMPORT_TRANSFER_CATEGORY_NAME,
+}
+
+// How the category step names the rows with no category, by the direction read from each amount
+const UNNAMED_SOURCE_LABELS: Record<string, string> = {
+  [JOURNAL_NO_CATEGORY_SOURCE]: '(withdrawal, no category)',
+  [IMPORT_NO_CATEGORY_MONEY_IN_SOURCE]: '(deposit, no category)',
+}
+
+/**
+ * Names a category source in the category step, saying which way the money of rows with no category
+ * moves
+ */
+export function getCategorySourceLabel(source: string) {
+  return UNNAMED_SOURCE_LABELS[source] ?? source
 }
 
 /**
@@ -49,8 +66,8 @@ export function splitImportedValues(value: string) {
  *
  * Rows with an amount of zero or an amount that cannot be read are ignored, since neither says
  * anything about direction, and every name is left blank until an arrangement carrying the amount
- * has been mapped. A row with no category is read under (no category), or (transfer, no category)
- * where it names a transfer account, the way the commit files it
+ * has been mapped. A row with no category is read under (no category), (money in, no category) or
+ * (transfer, no category), the way the commit files it
  *
  * Each row's amount is read the same way the commit reads it, so a file stating its direction
  * outside the amount, in separate columns or in a column of words, is judged on the direction it
@@ -78,9 +95,8 @@ export function getImportedCategoryTypes(
     if (!amountHeaders.some((header) => file.headers.includes(header))) continue
 
     for (const row of file.rows) {
-      const category = getImportRowCategorySource(row, columnMap)
-
       const amount = resolveImportAmount(row, columnMap, directionAnswers, amountFormat).amountReading
+      const category = getImportRowCategorySource(row, columnMap, amount)
       if (!amount || amount.isZero) continue
 
       const signs = signsByCategory.get(category) ?? new Set<'expense' | 'income'>()
@@ -158,8 +174,9 @@ export function keepCurrentMatchMap(
  * the user's own wins over a group's and a group's over one that ships with the app, and a name
  * still tied after that is left unmatched rather than settled by chance
  *
- * Rows with no category have no name to match on, so (no category) goes to the seeded Miscellaneous
- * and (transfer, no category) to the seeded Transfer, as they do in the provider imports
+ * Rows with no category have no name to match on, so (no category) goes to the seeded Miscellaneous,
+ * (money in, no category) to the seeded Other Income and (transfer, no category) to the seeded
+ * Transfer
  */
 export function inferCategoryMappings(
   importedCategories: string[],

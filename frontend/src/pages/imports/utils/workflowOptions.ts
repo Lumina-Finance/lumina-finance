@@ -27,11 +27,13 @@ import type {
   ColumnMap,
   CsvRow,
   ImportAccountSource,
+  ImportAmountDirection,
   ImportFileDraft,
   ImportUploadBlock,
 } from '@/pages/imports/types'
 import { getImportAccountName } from './accountMapping'
-import { getImportRowCategorySource } from './columnMapping'
+import { DEFAULT_IMPORT_AMOUNT_FORMAT, type ImportAmountFormat } from './amountFormats'
+import { getImportRowCategorySource, resolveImportAmount } from './columnMapping'
 import { splitImportedValues, SYSTEM_CATEGORY_NAME_BY_UNNAMED_SOURCE } from './categoryMatching'
 import { unique } from './common'
 
@@ -268,14 +270,23 @@ export function buildImportAccountMappingSources(
 }
 
 /**
- * Gets the categories the rows are filed under, sorted, with (no category) and then
- * (transfer, no category) last where any row is filed under them, as the provider imports list them
+ * Gets the categories the rows are filed under, sorted, with (no category), (money in, no category)
+ * and then (transfer, no category) last where any row is filed under them
  *
  * A row has no category where its cell is blank or no column is mapped as the category, so with no
- * column every row is listed under one of the two
+ * column every row is listed under one of the three. Each row's amount is read the way the commit
+ * reads it, so a row is listed under the source it is sent with
  */
-export function getImportedCategories(files: ImportFileDraft[], columnMap: ColumnMap): string[] {
-  const sources = new Set(files.flatMap((file) => file.rows.map((row) => getImportRowCategorySource(row, columnMap))))
+export function getImportedCategories(
+  files: ImportFileDraft[],
+  columnMap: ColumnMap,
+  directionAnswers: Record<string, ImportAmountDirection>,
+  amountFormat: ImportAmountFormat | null = DEFAULT_IMPORT_AMOUNT_FORMAT,
+): string[] {
+  const sources = new Set(files.flatMap((file) => file.rows.map((row) => {
+    const { amountReading } = resolveImportAmount(row, columnMap, directionAnswers, amountFormat)
+    return getImportRowCategorySource(row, columnMap, amountReading)
+  })))
   const named = [...sources].filter((source) => !UNNAMED_CATEGORY_SOURCES.includes(source)).sort((a, b) => a.localeCompare(b))
   return [...named, ...UNNAMED_CATEGORY_SOURCES.filter((source) => sources.has(source))]
 }

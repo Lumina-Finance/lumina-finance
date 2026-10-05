@@ -4,7 +4,12 @@ import {
 } from '@/pages/imports/constants'
 import { ImportNotice } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
-import { getCategoryMatchKind, getImportCategoryRenameField, isExistingCategoryMatch } from '@/pages/imports/utils'
+import {
+  getCategoryMatchKind,
+  getCategorySourceLabel,
+  getImportCategoryRenameField,
+  isExistingCategoryMatch,
+} from '@/pages/imports/utils'
 import { ImportCategoryMatchingLayout } from './ImportCategoryMatchingLayout'
 
 type ImportCategoryMatchingStepProps = Pick<
@@ -28,7 +33,8 @@ type ImportCategoryMatchingStepProps = Pick<
 
 /**
  * Category matching step of the generic CSV import flow, showing every category value found in the
- * mapped column, and (no category) and (transfer, no category) for the rows with none
+ * mapped column, and (withdrawal, no category), (deposit, no category) and (transfer, no category) for
+ * the rows with none
  */
 export function ImportCategoryMatchingStep({
   importedCategories,
@@ -65,7 +71,7 @@ export function ImportCategoryMatchingStep({
 
         return {
           id: category,
-          source: category,
+          source: getCategorySourceLabel(category),
           autoFilled: autoFilledCategories.has(category),
           detailAutoFilled: !existingMatch && !categoryCreateKinds[category] && Boolean(detailKind),
           detailKind,
