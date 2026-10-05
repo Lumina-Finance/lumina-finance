@@ -56,9 +56,9 @@ function LinkedView({ link, sync, onUnlink }: { link: AccountBankLink; sync: Ban
         )}
       </AnimatePresence>
 
-      {/* Notices and the bank balance sit here, between the import and the actions */}
+      {/* Notices and the bank balance go here */}
 
-      {/* From sm up the link's actions share one row. On phones a full-width action takes a row of its own above them */}
+      {/* The link's actions, in one row that wraps */}
       <div className="flex flex-wrap items-center gap-2 pt-4">
         <button type="button" className="app-secondary-button h-9 justify-center whitespace-nowrap px-3.5 text-sm" onClick={onUnlink}>
           <Unlink size={14} aria-hidden />
