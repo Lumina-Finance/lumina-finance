@@ -108,6 +108,7 @@ test('links an account from its page, from choosing the bank account to its impo
 
   const linkButton = dialog.getByRole('button', { name: 'Link bank account' })
   await expect(linkButton).toBeInViewport()
+  await expect(linkButton).toBeFocused()
   await expect(dialog.getByText('Link this account to one of the bank accounts on your connections to bring in its transactions automatically.')).toBeVisible()
   await linkButton.click()
 
@@ -144,8 +145,10 @@ test('links an account from its page, from choosing the bank account to its impo
   await expect(fact(dialog, 'Bank account')).toHaveText(SAMPLE_CHEQUING)
   await expect(fact(dialog, 'Institution')).toHaveText(SAMPLE_BANK)
   await expect(fact(dialog, 'Through')).toHaveText('SimpleFIN')
-  await expect(fact(dialog, 'Status')).not.toHaveText('Not linked')
-  await expect(dialog.getByRole('button', { name: 'Unlink' })).toBeVisible()
+  await expect(fact(dialog, 'Status')).toHaveText(/^(Importing|Linked)/)
+
+  // The Link button the flow opened from has gone, so focus moves to the linked view's action
+  await expect(dialog.getByRole('button', { name: 'Unlink' })).toBeFocused()
 })
 
 test("lists the bank accounts that can't be linked with the reason for each", async ({ page, request }) => {
@@ -251,6 +254,7 @@ test('unlinks the account alone, then reconnects it with the relink wording', as
   await openPage(page, `/accounts/${everyday.id}`)
   await page.getByRole('button', { name: /^Bank sync: / }).click()
   const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  await expect(dialog.getByRole('button', { name: 'Unlink' })).toBeFocused()
   await dialog.getByRole('button', { name: 'Unlink' }).click()
 
   const unlink = page.getByRole('dialog', { name: 'Unlink bank account' })
@@ -271,6 +275,7 @@ test('unlinks the account alone, then reconnects it with the relink wording', as
   await expect(dialog.getByText(
     `Previously linked to ${SAMPLE_CHEQUING} at ${SAMPLE_BANK} through SimpleFIN, until ${formatToday()}. Reconnecting fetches what the bank reported since then.`,
   )).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Reconnect bank account' })).toBeFocused()
 
   await dialog.getByRole('button', { name: 'Reconnect bank account' }).click()
   const flow = page.getByRole('dialog', { name: 'Reconnect bank account' })
