@@ -92,16 +92,16 @@ export function pageOf(items: ReviewItem[]): ReviewPage {
 
 /**
  * Answers the review list with what `answer` returns for the accounts and cursor asked for, all
- * accounts being none, or fails it with the status returned. Nothing links an account on the server
- * for a sync to bring items in
+ * accounts being none, or fails it with the status returned. An answer still to settle holds the read
+ * until it does. Nothing links an account on the server for a sync to bring items in
  */
 export async function answerReviewItems(
   page: Page,
-  answer: (accountIds: string[], cursor: string | null) => ReviewPage | number,
+  answer: (accountIds: string[], cursor: string | null) => ReviewPage | number | Promise<ReviewPage | number>,
 ): Promise<void> {
-  await page.route(isRead('/bank-review/items'), (route) => {
+  await page.route(isRead('/bank-review/items'), async (route) => {
     const url = new URL(route.request().url())
-    const answered = answer(url.searchParams.getAll('account_id'), url.searchParams.get('cursor'))
+    const answered = await answer(url.searchParams.getAll('account_id'), url.searchParams.get('cursor'))
     return typeof answered === 'number'
       ? route.fulfill({ status: answered, json: { detail: 'Something went wrong' } })
       : route.fulfill({ json: answered })

@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useReviewBacklogs, useReviewItems, type BankReviewItem } from '@/api/bank-sync'
+import { useReviewBacklogs, useReviewItems, type BankReviewItem, type BankReviewPage } from '@/api/bank-sync'
 import { useAuth } from '@/hooks/useAuth'
 import { useTodayYmd } from '@/hooks/useTodayYmd'
 import type { BankReadFailure } from '@/components/transactions/bank-review/ReadFailureNotice'
@@ -59,6 +59,11 @@ function whenSettled(element: HTMLElement, onSettled: () => void): () => void {
   }
   frame = window.requestAnimationFrame(check)
   return () => window.cancelAnimationFrame(frame)
+}
+
+/** The items the loaded pages hold in the accounts in scope, in the block's order */
+function itemsOf(pages: BankReviewPage[], accountById: ReadonlyMap<string, unknown>): BankReviewItem[] {
+  return pages.flatMap((page) => page.items).filter((item) => accountById.has(item.account_id))
 }
 
 /** The items whose rows are at least partly inside the window */
@@ -122,10 +127,7 @@ export const BankReviewSection = memo(function BankReviewSection({
     ? { retry: () => void refetchBacklogs(), isRetrying: isFetchingBacklogs }
     : null
 
-  const items = useMemo(
-    () => (pages?.pages ?? []).flatMap((page) => page.items).filter((item) => accountById.has(item.account_id)),
-    [pages, accountById],
-  )
+  const items = useMemo(() => itemsOf(pages?.pages ?? [], accountById), [pages, accountById])
   const counts = pages?.pages[0]?.counts
   const total = isInScope && counts ? counts.new + counts.correction + counts.removal : 0
 
@@ -229,24 +231,31 @@ export const BankReviewSection = memo(function BankReviewSection({
   }, [])
 
   // Called back from the render the decision was made in, whose items still hold the decided one, so
-  // the next is found from its place even though it has left the list since
-  const settleReview = (openNext: boolean) => {
-    const next = openNext && reviewItem ? findNextNewItem(items, reviewItem.id) : null
+  // the next is found from its place even though it has left the list since. With no new item after it
+  // among the loaded pages, the pages after them are read until one turns up, and only once the last
+  // page has loaded does the review go back to the new items before it. A page is read once the
+  // decided item has left the cached pages, so the page doesn't bring it back
+  const settleReview = async (openNext: boolean) => {
+    if (!openNext || !reviewItem) {
+      setIsReviewOpen(false)
+      return
+    }
+    const decidedId = reviewItem.id
+    const hasNewItemAfter = (list: BankReviewItem[]) =>
+      list.slice(list.findIndex((item) => item.id === decidedId) + 1).some((item) => item.kind === 'new')
+    let list = items
+    let morePages = hasNextPage
+    while (morePages && !hasNewItemAfter(list)) {
+      const result = await fetchNextPage()
+      if (result.isError || !result.data) break
+      const listed = new Set(list.map((item) => item.id))
+      list = [...list, ...itemsOf(result.data.pages, accountById).filter((item) => !listed.has(item.id))]
+      morePages = result.hasNextPage
+    }
+    const next = findNextNewItem(list, decidedId)
     if (next) setReviewItem(next)
     else setIsReviewOpen(false)
   }
-
-  // The next item may be on a page not loaded yet, which loads while the last loaded one is open. Asked
-  // for once for each item, so a page that fails isn't asked for again and again
-  const pageAskedFor = useRef<string | null>(null)
-  const openLastNewItemId = isReviewOpen && reviewItem !== null && items.findLast((item) => item.kind === 'new')?.id === reviewItem.id
-    ? reviewItem.id
-    : null
-  useEffect(() => {
-    if (!openLastNewItemId || !hasNextPage || isFetchingNextPage || pageAskedFor.current === openLastNewItemId) return
-    pageAskedFor.current = openLastNewItemId
-    void fetchNextPage()
-  }, [openLastNewItemId, hasNextPage, isFetchingNextPage, fetchNextPage])
 
   const { collapsed, enterTransition, leave } = REVIEW_MOTION[prefersReducedMotion ? 'reduced' : 'full']
 
@@ -298,7 +307,7 @@ export const BankReviewSection = memo(function BankReviewSection({
           open={isReviewOpen}
           onClose={() => setIsReviewOpen(false)}
           reviewItem={reviewItem}
-          onReviewDecided={settleReview}
+          onReviewDecided={(openNext) => void settleReview(openNext)}
         />
       )}
     </>

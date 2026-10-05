@@ -120,7 +120,20 @@ export function useTransactionSubmit({
   const createLoading = createMutation.isPending || createDelayPending || addReviewItemMutation.isPending
   const submitLoading = editing ? updateMutation.isPending || editSaving : createLoading
   const dismissLoading = resolveReviewItemMutation.isPending
-  const isPending = createLoading || updateMutation.isPending || editSaving || deleteLoading || dismissLoading
+
+  // A decided item stays on screen while the next one is looked for, and can't be decided again
+  const isReviewItemDecided =
+    reviewItem !== undefined &&
+    [addReviewItemMutation, resolveReviewItemMutation].some(
+      (mutation) => mutation.isSuccess && mutation.variables?.itemId === reviewItem.id,
+    )
+  const isPending =
+    createLoading ||
+    updateMutation.isPending ||
+    editSaving ||
+    deleteLoading ||
+    dismissLoading ||
+    isReviewItemDecided
 
   const selectedAccountSessionDelta = selectedAccount ? (sessionAccountDeltas[selectedAccount.id] ?? 0) : 0
   const runningBalance = selectedAccount ? selectedAccount.current_balance + selectedAccountSessionDelta : 0

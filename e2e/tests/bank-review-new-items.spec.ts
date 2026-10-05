@@ -32,8 +32,11 @@ type Decision = { itemId: string; action: string; body: Record<string, unknown> 
 /** How the next decision fails: a status the server answers with, or no answer at all */
 type Refusal = { status: number; detail: string } | 'network' | null
 
-/** The items still waiting, every decision sent on them, and the transactions added */
-type Review = { waiting: ReviewItem[]; decisions: Decision[]; created: string[]; refusal: Refusal }
+/**
+ * The items still waiting, every decision sent on them, and the transactions added, with what holds
+ * every page after the first until it settles
+ */
+type Review = { waiting: ReviewItem[]; decisions: Decision[]; created: string[]; refusal: Refusal; laterPages: Promise<unknown> }
 
 const DIALOG_NAME = 'Review bank item'
 
@@ -62,13 +65,22 @@ function countdown(accountId: string, bank: Partial<BankValues> = {}): ReviewIte
 }
 
 /**
- * Answers the review list with what is still waiting and settles each decision on an item the way the
- * server would, refusing it instead while `refusal` says how. Dismiss takes the item off the list, and
- * Add to ledger creates its transaction through the manual create before taking it off
+ * Answers the review list with what is still waiting, `perPage` items to a page, and settles each
+ * decision on an item the way the server would, refusing it instead while `refusal` says how. Dismiss
+ * takes the item off the list, and Add to ledger creates its transaction through the manual create
+ * before taking it off
+ *
+ * A page's cursor is the last item it held, so the next page starts after that item even once it has
+ * been decided
  */
-async function answerReview(page: Page, items: ReviewItem[]): Promise<Review> {
-  const review: Review = { waiting: [...items], decisions: [], created: [], refusal: null }
-  await answerReviewItems(page, () => pageOf(review.waiting))
+async function answerReview(page: Page, items: ReviewItem[], perPage = items.length): Promise<Review> {
+  const review: Review = { waiting: [...items], decisions: [], created: [], refusal: null, laterPages: Promise.resolve() }
+  await answerReviewItems(page, async (_, cursor) => {
+    if (cursor !== null) await review.laterPages
+    const rest = items.slice(items.findIndex((item) => item.id === cursor) + 1).filter((item) => review.waiting.includes(item))
+    const shown = rest.slice(0, perPage)
+    return { ...pageOf(review.waiting), items: shown, next_cursor: rest.length > perPage ? shown[perPage - 1].id : null }
+  })
   await page.route((url) => url.href.startsWith(`${API_BASE_URL}/bank-review/items/`), async (route) => {
     const request = route.request()
     const [, itemId, action] = /\/bank-review\/items\/([^/]+)\/([a-z-]+)$/.exec(new URL(request.url()).pathname) ?? []
@@ -299,6 +311,31 @@ test('dismisses an item without reading the ledger again, and closes when the wi
   await expect(rows.first()).toContainText('HARBOUR COFFEE')
   expect(review.decisions).toEqual([{ itemId: 'countdown', action: 'dismiss', body: null }])
   expect(ledgerReads).toEqual([])
+})
+
+test('goes on from the last new item loaded to the first on the next page', async ({ page, request }) => {
+  const { everyday } = await start(page, request)
+  const review = await answerReview(page, [
+    reviewItem('harbour', 'new', everyday.id, { description: 'HARBOUR COFFEE' }),
+    countdown(everyday.id),
+    reviewItem('cafe', 'new', everyday.id, { description: 'CAFE ROMA' }),
+  ], 2)
+
+  // The next page is held until a decision is sent, so the next item can only be found from the list
+  // as it stands once the decision is made
+  review.laterPages = page.waitForRequest((sent) =>
+    sent.method() === 'POST' && sent.url().startsWith(`${API_BASE_URL}/bank-review/items/`))
+  await openPage(page, '/transactions')
+  await expect(reviewBlock(page).getByRole('listitem')).toHaveCount(2)
+
+  const dialog = await openReview(page, 'COUNTDOWN 123 AUCKLAND')
+  const form = formOf(dialog)
+  await form.keepOpen.check()
+  await form.dismiss.click()
+
+  await expect(filingCard(page)).toContainText('CAFE ROMA')
+  await expect(dialog).toBeVisible()
+  expect(review.decisions).toEqual([{ itemId: 'countdown', action: 'dismiss', body: null }])
 })
 
 test('keeps the item open and says what went wrong when a decision fails', async ({ page, request }) => {
