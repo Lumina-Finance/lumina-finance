@@ -275,7 +275,8 @@ class JournalTransactionRow(BaseModel):
     The frontend decides which endpoints are imported accounts. Each one is named by the account
     mapping source it resolves through, since an export can give an asset account and a liability
     the same name, and every other endpoint is named as it appears in the export. A payee row with
-    no category is sent with a null category, which files it under the no-category mapping source
+    no category is sent with the no-category mapping source for its direction, and a null category
+    is filed under the money-out one
     """
 
     journal_id: TrimmedImportText = Field(max_length=64)

@@ -37,9 +37,9 @@ export function canCarryActualTransfer(category: Pick<Category, 'kind' | 'name'>
  * Fills in the category answers the user has not given
  *
  * Rows without a category go to Miscellaneous, or to Other Income where they bring money in, as they
- * do for Firefly III and CSV files, and transfers whose other
- * side is gone go to Transfer. Credit card payments take Credit Card Payment by its name. Every other source takes an existing personal or built-in category of
- * the same name and kind, capitals folded, and is created otherwise
+ * do for Firefly III and CSV files, and transfers whose other side is gone go to Transfer. Credit
+ * card payments take Credit Card Payment by its name. Every other source takes an existing personal
+ * or built-in category of the same name and kind, capitals folded, and is created otherwise
  */
 export function inferActualCategoryMappings(
   sources: ActualCategorySource[],

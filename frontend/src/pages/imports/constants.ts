@@ -360,8 +360,8 @@ export const SKIPPED_TABLE_VISIBLE_LIMIT = 20
 // step description that states it, so the two cannot disagree about what is on screen
 export const IMPORT_SAMPLE_PREVIEW_LIMIT = 5
 
-// The seeded system category rows with no category are matched to, since a transaction here always
-// carries one, except those bringing money in
+// The seeded system category rows with no category that take money out are matched to, since a
+// transaction here always carries a category
 export const IMPORT_MISCELLANEOUS_CATEGORY_NAME = 'Miscellaneous'
 
 // The seeded system category rows with no category that bring money in are matched to, in every

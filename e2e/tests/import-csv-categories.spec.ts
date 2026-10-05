@@ -56,5 +56,13 @@ test('files CSV rows with no category under Miscellaneous, Other Income or Trans
 
   const categories = await request.get(`${API_BASE_URL}/categories`, { headers: asUser(user) })
   expect(categories.status()).toBe(200)
-  expect((await categories.json() as { name: string }[]).map((category) => category.name)).toContain('Studio costs')
+  const categoryNames = new Map((await categories.json() as { id: string; name: string }[]).map((category) => [category.id, category.name]))
+  expect([...categoryNames.values()]).toContain('Studio costs')
+
+  // Read back from the ledger, so the income row is shown filed where the commit wrote it
+  const transactions = await request.get(`${API_BASE_URL}/transactions`, { headers: asUser(user), params: { limit: 50 } })
+  expect(transactions.status()).toBe(200)
+  const filed = (await transactions.json() as { merchant_name: string | null; category_id: string }[])
+    .map((transaction) => [transaction.merchant_name, categoryNames.get(transaction.category_id)])
+  expect(filed).toEqual(expect.arrayContaining([['Kiosk', 'Miscellaneous'], ['Employer', 'Other Income']]))
 })

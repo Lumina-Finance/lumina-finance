@@ -227,6 +227,17 @@ describe('CSV rows with no category that bring money in', () => {
     expect(getImportedCategories([file], WITH_CATEGORY, {})).toEqual([JOURNAL_NO_CATEGORY_SOURCE])
     expect(getImportedCategories([file], { ...WITH_CATEGORY, amount: '' }, {})).toEqual([JOURNAL_NO_CATEGORY_SOURCE])
   })
+
+  // Read in the amount format the user chose, as the row is when it is sent, or a decimal-comma
+  // amount would read as unreadable and its row be sent under a source the list never offered
+  it('reads the direction in the amount format chosen', () => {
+    const file = createFile(['', ''])
+    file.rows[0].Amount = '-4,50'
+    file.rows[1].Amount = '3.200,00'
+
+    expect(getImportedCategories([file], WITH_CATEGORY, {}, { decimalSeparator: ',', groupingSeparator: '.' }))
+      .toEqual([JOURNAL_NO_CATEGORY_SOURCE, JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE])
+  })
 })
 
 describe('a CSV file mapped without a Category column', () => {

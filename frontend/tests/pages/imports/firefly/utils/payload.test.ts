@@ -880,3 +880,46 @@ describe('importing with the Firefly III accounts export', () => {
     expect(result.errors).toContain("Link Old Loan to one of your own accounts or a new one. Imports don't write to group accounts.")
   })
 })
+
+// Firefly III lets a deposit go without a category, and the commit files a null category under
+// (no category), so a deposit is sent with the money-in source by name to reach Other Income
+describe('Firefly rows with no category', () => {
+  const CURRENCIES: Currency[] = [{ id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 }]
+  const DEPOSIT: CsvRow = {
+    ...ROW,
+    journal_id: '2',
+    type: 'Deposit',
+    amount: '2500.00',
+    description: 'Pay',
+    source_name: 'Employer',
+    source_type: 'Revenue account',
+    destination_name: 'Chequing',
+    destination_type: 'Asset account',
+    category: '',
+  }
+  const WITHDRAWAL: CsvRow = { ...ROW, category: '' }
+
+  it('sends and previews money in under its own source, created as income', () => {
+    const rows = [WITHDRAWAL, DEPOSIT]
+    const { options, payload } = stageFireflyImportAsNew({ ...TRANSACTIONS_FILE, rows }, rows, CURRENCIES)
+
+    expect(payload.rows.map((row) => [row.journal_id, row.category])).toEqual([
+      ['1', '(no category)'],
+      ['2', '(money in, no category)'],
+    ])
+    expect(payload.categories.map((category) => [category.source, category.create?.kind])).toEqual([
+      ['(no category)', 'expense'],
+      ['(money in, no category)', 'income'],
+    ])
+
+    const otherIncome = { id: 'other-income', name: 'Other Income', kind: 'income', is_system: true } as Category
+    const preview = buildFireflyPreviewRows({
+      ...options,
+      categoryById: new Map([[otherIncome.id, otherIncome]]),
+      categoryMappings: { ...options.categoryMappings, '(money in, no category)': otherIncome.id },
+      rows,
+      limit: 10,
+    })
+    expect(preview.find((row) => row.id === 'firefly-preview-2-0')?.transaction.category_id).toBe(otherIncome.id)
+  })
+})
