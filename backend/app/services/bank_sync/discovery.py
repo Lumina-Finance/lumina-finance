@@ -1,9 +1,10 @@
 """Discovering the bank accounts a connection reaches
 
 Discovery is a balances-only read of every bank account the connection's credential reaches. The
-claim runs it within its request through run_discovery, which counts and sends it and then stores
-what it read through apply_discovery. A bank added at the provider appears, and a linked bank
-account that vanished or changed currency stops syncing until it returns or the user chooses again
+claim and the reconnect run it within their requests through run_discovery, which counts and sends
+it and then stores what it read through apply_discovery. A bank added at the provider appears, and
+a linked bank account that vanished or changed currency stops syncing until it returns or the user
+chooses again
 """
 
 import uuid
@@ -23,6 +24,7 @@ from app.models.bank_connection import (
     BankLinkState,
     ProviderRequestPurpose,
 )
+from app.services.bank_sync.connections import get_own_connection
 from app.services.bank_sync.provider_requests import (
     RequestBudgetSpent,
     is_quota_spent,
@@ -52,8 +54,9 @@ async def run_discovery(db: AsyncSession, connection: BankConnection, adapter: P
     """Discover a connection's bank accounts within a request
 
     The request is counted and committed before it is sent, together with whatever the request
-    wrote before, such as a newly claimed connection, which has to be kept once its token is spent.
-    No transaction stays open while the provider answers
+    wrote before, such as a newly claimed credential, which has to be kept once its token is spent.
+    No transaction stays open while the provider answers. The connection is locked again before
+    anything is stored and stays locked until the caller commits
 
     Args:
         db: The request's session
@@ -64,6 +67,9 @@ async def run_discovery(db: AsyncSession, connection: BankConnection, adapter: P
     Returns:
         Whether the bank accounts were read. False when the budget is spent or the provider gave no
         usable answer, so the caller queues a job flagged to discover them
+
+    Raises:
+        HTTPException 404: The connection was disconnected while the provider answered
     """
     currency_exponents = await get_all_currency_exponents(db)
     try:
@@ -73,6 +79,10 @@ async def run_discovery(db: AsyncSession, connection: BankConnection, adapter: P
     await db.commit()
 
     result = await adapter.discover(decrypt(connection.credential_encrypted), currency_exponents=currency_exponents)
+
+    # A disconnect sent while the provider answered has either deleted the connection, so nothing is
+    # stored, or waits until this request commits
+    await get_own_connection(db, connection.owner_id, connection.id, lock={"key_share": True})
     await apply_discovery(db, connection, result, now=now)
     return result.request_error is None
 

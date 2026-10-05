@@ -20,30 +20,15 @@ from app.models.bank_sync_job import BankSyncJob
 from app.schemas.bank_sync import CreateBankConnectionRequest
 from app.services.bank_sync import availability
 from tests.conftest import TestSession
-from tests.fake_simplefin_bridge import FakeBridgeTransport
 from tests.routes.support import _create_account
 from tests.routes.support.bank_sync_helpers import _sign_up
-from tests.services.bank_sync.stand_ins import FakeBridgeScenario, simplefin_adapter
+from tests.services.bank_sync.stand_ins import AccountsTimeOut, FakeBridgeScenario, simplefin_adapter
 
 # A setup token that validation refuses before anything could claim it
 _TOKEN = base64.b64encode(b"https://beta-bridge.simplefin.org/simplefin/claim/never-claimed").decode()
 
 _ALREADY_USED = "This setup token has already been used. Create a new one in SimpleFIN Bridge"
 _UNREACHABLE = "SimpleFIN Bridge couldn't be reached. Try again in a few minutes"
-
-
-class _AccountsTimeOut(httpx.AsyncBaseTransport):
-    """Lets the claim reach the fake SimpleFIN Bridge and times out every accounts request"""
-
-    def __init__(self) -> None:
-        """Forward to the fake Bridge"""
-        self._inner = FakeBridgeTransport()
-
-    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
-        """Time out an accounts request, and forward anything else"""
-        if request.url.path.endswith("/accounts"):
-            raise httpx.ReadTimeout("timed out", request=request)
-        return await self._inner.handle_async_request(request)
 
 
 async def _claim(client, headers, setup_token: str, nickname: str | None = None, provider: str = "simplefin") -> httpx.Response:
@@ -160,7 +145,7 @@ async def test_claim_stores_the_access_url_encrypted_and_never_shows_a_secret(cl
 
 async def test_claim_whose_discovery_fails_keeps_the_connection_and_queues_discovery(client, scenario: FakeBridgeScenario, monkeypatch):
     """The token is spent, so the connection is saved, and its bank accounts appear once a job discovers them"""
-    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, simplefin_adapter(_AccountsTimeOut()))
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, simplefin_adapter(AccountsTimeOut()))
     headers, _ = await _sign_up(client)
     await scenario.add_harbour_accounts()
 

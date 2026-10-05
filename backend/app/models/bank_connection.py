@@ -61,7 +61,7 @@ class BankLinkState(enum.StrEnum):
 
 
 class BankImportKind(enum.StrEnum):
-    """The latest import into a link: the first one, or a catch-up that resumed it
+    """The latest import into a link: the first one, one from a new start, or a catch-up that resumed it
 
     A catch-up fetches from the link's checkpoint and never moves its import start
     """
@@ -71,7 +71,8 @@ class BankImportKind(enum.StrEnum):
     # Linking again after an unlink, as a new link with an import start of its own
     RELINK = "relink"
 
-    # The catch-up after the user chose the bank account again, fetching from the checkpoint
+    # The import after the user chose the bank account again, from a new import start, since the
+    # progress of the bank account as the provider listed it before doesn't carry over
     CHOOSE_AGAIN = "choose_again"
 
     # The catch-up after a rejected credential was replaced, fetching from the checkpoint
@@ -264,8 +265,8 @@ class BankAccountLink(Base):
     )
     import_kind: Mapped[str] = mapped_column(VARCHAR(16), nullable=False)
 
-    # The first day the link's bank data covers. A catch-up fetches from the checkpoint instead
-    # and never moves it
+    # The first day the link's bank data covers, which choosing the bank account again sets anew. A
+    # catch-up fetches from the checkpoint instead and never moves it
     import_start: Mapped[date] = mapped_column(Date, nullable=False)
     linked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     unlinked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

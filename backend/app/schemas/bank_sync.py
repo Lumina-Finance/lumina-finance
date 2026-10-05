@@ -51,6 +51,10 @@ class CreateBankConnectionRequest(SetupTokenRequest):
     nickname: TrimmedName | None = None
 
 
+class ReconnectBankConnectionRequest(SetupTokenRequest):
+    """A new setup token for a connection whose credential the provider rejected"""
+
+
 class UpdateBankConnectionRequest(BaseModel):
     """A connection's new nickname, where blank or null brings back the provider's name"""
 
@@ -105,6 +109,22 @@ class BankConnectionResponse(BaseModel):
     # True while a discovery is queued or running, such as after a claim whose own discovery failed
     discovery_pending: bool
     request_budget: BankRequestBudgetResponse
+
+
+class ReconnectBankConnectionResponse(BaseModel):
+    """What replacing a rejected credential did to the accounts linked through the connection"""
+
+    connection: BankConnectionResponse
+
+    # Accounts whose bank account came back unchanged, which resume syncing
+    resumed_account_ids: list[uuid.UUID]
+
+    # Accounts whose bank account came back under a new identity, which wait for it to be chosen again
+    choose_again_account_ids: list[uuid.UUID]
+
+    # True when the request couldn't list the connection's bank accounts, so both lists are empty
+    # and the accounts are sorted out once a sync lists them
+    accounts_pending: bool
 
 
 class BankProviderResponse(BaseModel):

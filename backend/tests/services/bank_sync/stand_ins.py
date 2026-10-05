@@ -1,6 +1,7 @@
 """Stand-ins for DNS and a provider's server, so outbound requests never leave the test
 
-The fake SimpleFIN Bridge answers as the Bridge does, for claims, account sets and their faults.
+The fake SimpleFIN Bridge answers as the Bridge does, for claims, account sets and their faults, and
+AccountsTimeOut lets it answer claims while every accounts request times out.
 RecordingBridge answers whatever a test needs that the fake can't produce, such as a redirect or a
 body that isn't JSON, and records each request so a test can check what went over the wire
 """
@@ -14,6 +15,7 @@ import httpx
 
 from app.services.bank_sync.outbound import IpAddress, OutboundGuard
 from app.services.bank_sync.providers.simplefin.adapter import SimpleFinAdapter
+from tests.fake_simplefin_bridge import FakeBridgeTransport
 
 # Globally routable. Nothing connects to it, since requests go through a stand-in transport
 PUBLIC_ADDRESS = "93.184.215.14"
@@ -76,6 +78,20 @@ def fail_with(error: type[httpx.TransportError]) -> Responder:
     return fail
 
 
+class AccountsTimeOut(httpx.AsyncBaseTransport):
+    """Lets a claim reach the fake SimpleFIN Bridge and times out every accounts request"""
+
+    def __init__(self) -> None:
+        """Forward to the fake Bridge"""
+        self._inner = FakeBridgeTransport()
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        """Time out an accounts request, and forward anything else"""
+        if request.url.path.endswith("/accounts"):
+            raise httpx.ReadTimeout("timed out", request=request)
+        return await self._inner.handle_async_request(request)
+
+
 def simplefin_adapter(transport: httpx.AsyncBaseTransport, *addresses: str) -> SimpleFinAdapter:
     """Return a SimpleFIN adapter allowed to reach SimpleFIN Bridge, whose requests reach only the transport
 
@@ -108,6 +124,12 @@ class FakeBridgeScenario:
         response = await control.post("/control/scenarios")
         assert response.status_code == 201
         return cls(control, response.json()["id"], response.json()["setup_token"])
+
+    async def new_setup_token(self) -> str:
+        """Return another setup token reaching the scenario, as a reconnect needs"""
+        response = await self._control.post(f"{self._path}/setup-tokens")
+        assert response.status_code == 201
+        return response.json()["setup_token"]
 
     async def change(self, method: str, path: str, body: dict[str, Any] | None = None) -> None:
         """Send one control call for the scenario, such as adding an account or setting a fault

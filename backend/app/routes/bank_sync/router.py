@@ -18,11 +18,13 @@ from app.schemas.bank_sync import (
     CreateBankConnectionRequest,
     DiscoveredBankAccountsResponse,
     LinkBankAccountRequest,
+    ReconnectBankConnectionRequest,
+    ReconnectBankConnectionResponse,
     UnlinkResponse,
     UpdateBankConnectionRequest,
 )
 from app.services.bank_sync.availability import list_providers
-from app.services.bank_sync.claim import claim_connection
+from app.services.bank_sync.claim import claim_connection, reconnect_connection
 from app.services.bank_sync.connections import list_connections, rename_connection
 from app.services.bank_sync.import_range import get_import_range
 from app.services.bank_sync.links import (
@@ -129,6 +131,27 @@ async def delete_bank_connection(
         The accounts unlinked
     """
     return await disconnect_connection(db, user, connection_id)
+
+
+@router.post("/connections/{connection_id}/reconnect", response_model=ReconnectBankConnectionResponse)
+async def reconnect_bank_connection(
+    connection_id: uuid.UUID,
+    request: ReconnectBankConnectionRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Replace a rejected connection's credential with a new setup token, and resume its linked accounts
+
+    Args:
+        connection_id: The connection to reconnect
+        request: The new setup token
+        user: Authenticated owner of the connection
+        db: Active database session
+
+    Returns:
+        The connection, and which linked accounts resume or need their bank account chosen again
+    """
+    return await reconnect_connection(db, user, connection_id, request)
 
 
 @router.get("/connections/{connection_id}/accounts", response_model=DiscoveredBankAccountsResponse)

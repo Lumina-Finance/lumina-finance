@@ -7,6 +7,12 @@ added at the provider a few minutes ago appears without waiting for the daily sy
 request checks again everything the list showed, since the list can be stale, and queues the
 link's first import, which a job runs.
 
+A link waiting in Choose bank account, because the provider now lists its bank account differently,
+goes through the same flow. Choosing moves the link to the new bank account with an import of its
+own from the chosen start, which the import range keeps after the account's latest ledger
+transaction, since the old bank account's progress and transaction identities can't be assumed to
+carry over. Items the old one left waiting for review stay where they are.
+
 Unlinking ends one account's link and disconnecting ends every link on a connection and deletes it.
 Either clears the accounts' pending bank transactions, which nothing can refresh any more, and
 keeps everything else: ledger transactions and their bank source, review decisions and the items
@@ -14,11 +20,11 @@ still waiting for review. An ended link stays as a row, so the account remembers
 """
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
-from sqlalchemy import exists, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -116,11 +122,10 @@ async def list_bank_accounts_for_account(
     account_institution = await _read_institution_name(db, account)
     accounts = []
     for bank_account in bank_accounts:
-        linked = linked_to.get((connection.provider, bank_account.external_id))
         unavailable = find_unavailability(
             bank_account,
             account,
-            linked_to=linked[1] if linked else None,
+            linked_to=_linked_elsewhere(linked_to, connection.provider, bank_account, account),
             allowance=allowance,
             provider_name=adapter.provider_name,
         )
@@ -153,7 +158,9 @@ async def link_bank_account(
     """Link one of the user's accounts to a bank account on one of their connections, and queue its import
 
     The import starts on the chosen day, which has to be inside the account's import range, and
-    runs as a job, so the request returns at once. An account linked before gets a relink import
+    runs as a job, so the request returns at once. An account linked before gets a relink import,
+    and one whose link waits in Choose bank account keeps its link, moved to the chosen bank account
+    with a choose-again import
 
     Args:
         db: Active database session
@@ -162,7 +169,7 @@ async def link_bank_account(
         request: The connection, the bank account it lists and the import's first day
 
     Returns:
-        The new link
+        The link
 
     Raises:
         HTTPException 403: The user may not link bank accounts, the account isn't their own
@@ -194,11 +201,11 @@ async def link_bank_account(
             detail=f"{adapter.provider_name} no longer returns that bank account",
         )
 
-    linked = (await read_linked_bank_accounts(db, user.id)).get((connection.provider, bank_account.external_id))
+    linked_to = await read_linked_bank_accounts(db, user.id)
     unavailable = find_unavailability(
         bank_account,
         account,
-        linked_to=linked[1] if linked else None,
+        linked_to=_linked_elsewhere(linked_to, connection.provider, bank_account, account),
         allowance=await get_institution_allowance(db, user.id, connection.provider),
         provider_name=adapter.provider_name,
     )
@@ -213,21 +220,36 @@ async def link_bank_account(
             detail=f"Choose a start date from {format_day(import_range.earliest_allowed)} to {format_day(import_range.latest_allowed)}",
         )
 
-    was_linked_before = await db.scalar(select(exists().where(BankAccountLink.account_id == account.id)))
-    link = BankAccountLink(
-        owner_id=user.id,
-        account_id=account.id,
-        connection_id=connection.id,
-        provider=connection.provider,
-        external_account_id=bank_account.external_id,
-        external_account_name=bank_account.name,
-        institution_name=bank_account.institution_name,
-        import_kind=BankImportKind.RELINK if was_linked_before else BankImportKind.INITIAL,
-        import_start=request.start_date,
-        # Nothing is known complete yet, so the import fetches from its first day
-        checkpoint=request.start_date - timedelta(days=1),
+    # Locked after the connection, the order a disconnect takes them in, and read again, since an
+    # unlink or a discovery that lists the old bank account again may have moved it meanwhile
+    link = await db.scalar(
+        select(BankAccountLink)
+        .where(BankAccountLink.account_id == account.id, _LIVE_LINK)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
-    db.add(link)
+    if link is None:
+        was_linked_before = await db.scalar(select(exists().where(BankAccountLink.account_id == account.id)))
+        link = BankAccountLink(
+            owner_id=user.id,
+            account_id=account.id,
+            import_kind=BankImportKind.RELINK if was_linked_before else BankImportKind.INITIAL,
+        )
+        db.add(link)
+    elif link.state == BankLinkState.CHOOSE_ACCOUNT:
+        _restart_for_new_bank_account(link)
+        await replace_pending_transactions(db, account.id, [])
+    else:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=ACCOUNT_ALREADY_LINKED)
+    link.connection_id = connection.id
+    link.provider = connection.provider
+    link.external_account_id = bank_account.external_id
+    link.external_account_name = bank_account.name
+    link.institution_name = bank_account.institution_name
+    link.import_start = request.start_date
+
+    # Nothing is known complete yet, so the import fetches from its first day
+    link.checkpoint = request.start_date - timedelta(days=1)
 
     # The account is locked, so only a link to the same bank account through another of the
     # user's connections can race this one, which the one-ledger-per-bank-account index refuses
@@ -327,7 +349,7 @@ async def _end_links(db: AsyncSession, ended: Sequence[BankAccountLink], *, now:
 
 
 async def _get_account_to_link(db: AsyncSession, user: User, account_id: uuid.UUID, *, lock: bool) -> Account:
-    """Return one of the user's own personal accounts that isn't archived or linked
+    """Return one of the user's own personal accounts that isn't archived, and isn't linked unless its bank account is to be chosen again
 
     Locked, a second link or an archive of the same account waits for this request and then sees
     what it did
@@ -343,7 +365,7 @@ async def _get_account_to_link(db: AsyncSession, user: User, account_id: uuid.UU
         await db.refresh(account, with_for_update={"key_share": True})
     if account.is_archived:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Archived accounts can't be linked to a bank")
-    if await db.scalar(select(exists().where(BankAccountLink.account_id == account.id, _LIVE_LINK))):
+    if await db.scalar(select(exists().where(BankAccountLink.account_id == account.id, BankAccountLink.state == BankLinkState.ACTIVE))):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=ACCOUNT_ALREADY_LINKED)
     return account
 
@@ -390,6 +412,40 @@ async def _request_fresh_discovery(db: AsyncSession, connection: BankConnection,
         return False
     await enqueue_bank_sync_job(db, owner_id=connection.owner_id, connection_id=connection.id, kind=BankSyncJobKind.RETRY, discover=True)
     return True
+
+
+def _restart_for_new_bank_account(link: BankAccountLink) -> None:
+    """Make a link waiting in Choose bank account active again as a choose-again import
+
+    Its sync record belonged to the bank account as the provider listed it before, so none of it
+    carries over. The review pause counts the account's waiting items and the opening adjustment is
+    offered once per link, so both stay
+    """
+    link.state = BankLinkState.ACTIVE
+    link.import_kind = BankImportKind.CHOOSE_AGAIN
+    link.linked_at = func.now()
+    link.last_success_at = None
+    link.last_attempt_at = None
+    link.last_failure_reason = None
+    link.retry_count = 0
+    link.next_attempt_at = None
+    link.signin_needed_since = None
+    link.catchup_requested_start = None
+    link.earliest_booked_date = None
+
+
+def _linked_elsewhere(
+    linked_to: Mapping[tuple[str, str], tuple[uuid.UUID, str]],
+    provider: str,
+    bank_account: BankExternalAccount,
+    account: Account,
+) -> str | None:
+    """Return the name of the account another link feeds the bank account into, if one does
+
+    The account's own link waiting for its bank account to be chosen again doesn't count
+    """
+    linked = linked_to.get((provider, bank_account.external_id))
+    return linked[1] if linked and linked[0] != account.id else None
 
 
 async def _read_institution_name(db: AsyncSession, account: Account) -> str | None:

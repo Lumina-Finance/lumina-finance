@@ -2,7 +2,9 @@
 
 A link decides which ledger a bank account's transactions land in, so every rule the link flow's
 list shows is checked again here: one bank account feeds one ledger, an account follows one bank
-account, the currencies match, and the import never starts outside the account's import range
+account, the currencies match, and the import never starts outside the account's import range.
+Choosing a bank account again goes through the same request and keeps the account's link, but
+nothing of the old bank account's progress
 """
 
 import uuid
@@ -10,11 +12,13 @@ from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankExternalAccount, BankLinkState, BankProvider
+from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncJob
+from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
 from app.services.bank_sync import availability, links
 from app.services.bank_sync.import_range import ImportRange, calculate_import_range
 from app.utils.dates import format_day
@@ -23,7 +27,11 @@ from tests.routes.support.bank_sync_helpers import (
     BANK_ACCOUNT_ID,
     _build_account,
     _build_bank_link,
+    _build_bank_transaction,
+    _build_category,
     _build_external_account,
+    _build_ledger_transaction,
+    _build_pending_transaction,
     _build_user,
     _commit_listed_connection,
     _link,
@@ -118,6 +126,99 @@ async def test_link_of_an_account_unlinked_before_is_a_relink(client):
     assert linked.status_code == 201, linked.text
     assert [(state, kind) for *_, state, kind, _, _ in await _stored_links()] == [("unlinked", "initial"), ("active", "relink")]
     assert await _queued_jobs() == [(connection.id, "initial", False, "queued")]
+
+
+async def _waiting_to_choose_again(client) -> tuple[dict, str, BankConnection, uuid.UUID, date]:
+    """Sign up with Everyday's link to ACT-1 waiting in Choose bank account, its connection now listing ACT-2 instead
+
+    ACT-1 left 4 items waiting for review and a pending item, the link was also waiting on a bank
+    sign-in after 2 failed retries, and Everyday's latest ledger transaction is 14 days ago
+
+    Returns:
+        The auth headers, Everyday's id, the connection, the link's id and the latest ledger date
+    """
+    headers, user_id = await _sign_up(client)
+    account_id = await _new_account(client, headers, "Everyday")
+    connection = await _commit_listed_connection(user_id, "ACT-2", discovered_at=datetime.now(UTC))
+    latest = _today() - timedelta(days=14)
+    async with TestSession() as session:
+        account = await session.get_one(Account, uuid.UUID(account_id))
+        category = _build_category(user_id)
+        session.add(category)
+        await session.flush()
+        transaction = _build_ledger_transaction(account, category.id)
+        transaction.dt = latest
+        link = _build_bank_link(
+            account,
+            connection,
+            state=BankLinkState.CHOOSE_ACCOUNT,
+            last_success_at=datetime.now(UTC) - timedelta(days=12),
+            last_failure_reason="Harbour Bank needs you to sign in again.",
+            retry_count=2,
+            signin_needed_since=datetime.now(UTC) - timedelta(days=11),
+        )
+        link_id = link.id
+        session.add_all(
+            [
+                transaction,
+                link,
+                *(_build_bank_transaction(account, f"TRN-OLD-{number}") for number in range(4)),
+                _build_pending_transaction(account, "HOLD-1"),
+            ]
+        )
+        await session.commit()
+    return headers, account_id, connection, link_id, latest
+
+
+async def test_choose_again_moves_the_link_to_the_new_bank_account_from_after_the_latest_ledger_transaction(client):
+    """Everyday's latest ledger transaction was 14 days ago and ACT-1 left 4 items waiting: ACT-2 starts the day after, and the 4 stay"""
+    headers, account_id, connection, link_id, latest = await _waiting_to_choose_again(client)
+    floor = latest + timedelta(days=1)
+
+    ranged = await client.get(f"/accounts/{account_id}/bank-link/import-range", params={"provider": "simplefin"}, headers=headers)
+    too_early = await _link(client, headers, account_id, connection.id, "ACT-2", start_date=latest)
+    chosen = await _link(client, headers, account_id, connection.id, "ACT-2", start_date=floor)
+
+    assert ranged.status_code == 200, ranged.text
+    assert (ranged.json()["earliest_allowed"], ranged.json()["suggested_start"]) == (floor.isoformat(), floor.isoformat())
+    assert too_early.status_code == 422, too_early.text
+    assert too_early.json()["detail"].startswith(f"Choose a start date from {format_day(floor)} to ")
+    assert chosen.status_code == 201, chosen.text
+    assert (chosen.json()["external_account_id"], chosen.json()["import_start"]) == ("ACT-2", floor.isoformat())
+    assert await _stored_links() == [(uuid.UUID(account_id), connection.id, "ACT-2", "active", "choose_again", floor, latest)]
+    async with TestSession() as session:
+        link = await session.get_one(BankAccountLink, link_id)
+        waiting = await session.scalar(
+            select(func.count()).select_from(BankTransaction).where(BankTransaction.disposition == BankTransactionDisposition.AWAITING_REVIEW)
+        )
+        pending = await session.scalar(select(func.count()).select_from(BankPendingTransaction))
+    assert (link.signin_needed_since, link.last_success_at, link.last_failure_reason, link.retry_count) == (None, None, None, 0)
+    assert (waiting, pending) == (4, 0)
+    assert await _queued_jobs() == [(connection.id, "initial", False, "queued")]
+
+
+async def test_choose_again_can_take_the_old_bank_account_through_another_connection(client):
+    """ACT-1 vanished from Everyday's connection but a second one lists it, so Everyday's own link doesn't make it unavailable"""
+    headers, user_id, account_id, first = await _linkable(client)
+    async with TestSession() as session:
+        account = await session.get_one(Account, uuid.UUID(account_id))
+        session.add(_build_bank_link(account, first, state=BankLinkState.CHOOSE_ACCOUNT))
+        await session.execute(update(BankExternalAccount).values(listed=False))
+        await session.commit()
+    second = await _commit_listed_connection(user_id, discovered_at=datetime.now(UTC))
+    start = _today() - timedelta(days=10)
+
+    listed = await client.get(f"/bank-sync/connections/{second.id}/accounts", params={"for_account_id": account_id}, headers=headers)
+    chosen = await _link(client, headers, account_id, second.id, start_date=start)
+
+    assert listed.status_code == 200, listed.text
+    assert [(bank["external_id"], bank["linkable"], bank["unavailable_reason"]) for bank in listed.json()["accounts"]] == [
+        (BANK_ACCOUNT_ID, True, None)
+    ]
+    assert chosen.status_code == 201, chosen.text
+    assert await _stored_links() == [
+        (uuid.UUID(account_id), second.id, BANK_ACCOUNT_ID, "active", "choose_again", start, start - timedelta(days=1))
+    ]
 
 
 async def test_link_through_a_provider_withdrawn_from_new_connections_still_links(client, monkeypatch):

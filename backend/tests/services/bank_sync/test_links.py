@@ -2,8 +2,9 @@
 
 The fresh-discovery age and the ends of the import range are boundaries a route can't hit exactly,
 since the routes can't run under a frozen clock. The locks matter only while another party is
-mid-flight: a second link of the same account must wait and see the first, and a discovery that
-stops listing the bank account must wait and move the new link with the others
+mid-flight: a second link of the same account must wait and see the first, a discovery that stops
+listing the bank account must wait and move the new link with the others, and choosing a bank
+account again must see an unlink or a discovery that moved the link meanwhile
 """
 
 import asyncio
@@ -14,17 +15,17 @@ from fastapi import HTTPException
 from sqlalchemy import select, text, update
 
 from app.models.account import Account
-from app.models.bank_connection import BankAccountLink, BankConnection
-from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobStatus
+from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
+from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobStatus, ProviderErrorKind
 from app.models.currency import Currency
 from app.models.user import User
 from app.schemas.bank_sync import BankAccountLinkResponse, LinkBankAccountRequest
 from app.services.bank_sync import links
 from app.services.bank_sync.discovery import apply_discovery
-from app.services.bank_sync.links import ACCOUNT_ALREADY_LINKED, link_bank_account, list_bank_accounts_for_account
-from app.services.bank_sync.providers.contract import FetchResult
+from app.services.bank_sync.links import ACCOUNT_ALREADY_LINKED, link_bank_account, list_bank_accounts_for_account, unlink_account
+from app.services.bank_sync.providers.contract import ExternalAccount, FetchResult, ProviderError
 from tests.conftest import TestSession
-from tests.routes.support.bank_sync_helpers import _build_account, _build_user, _commit_listed_connection, _seed_job
+from tests.routes.support.bank_sync_helpers import _build_account, _build_bank_link, _build_user, _commit_listed_connection, _seed_job
 from tests.routes.support.identity_helpers import _act_as
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
 
@@ -207,3 +208,84 @@ async def test_discovery_that_stops_listing_a_bank_account_waits_for_its_link_an
         await discovery
 
     assert await _link_states() == [("ACT-1", "choose_account")]
+
+
+async def _commit_choosing_link(account: Account, connection: BankConnection) -> None:
+    """Commit the account's link to ACT-1 waiting in Choose bank account"""
+    async with TestSession() as session:
+        session.add(_build_bank_link(account, connection, "ACT-1", state=BankLinkState.CHOOSE_ACCOUNT))
+        await session.commit()
+
+
+async def _link_kinds() -> list[tuple]:
+    """Return every link's bank account, state and import kind, by bank account"""
+    async with TestSession() as session:
+        rows = await session.execute(
+            select(BankAccountLink.external_account_id, BankAccountLink.state, BankAccountLink.import_kind).order_by(
+                BankAccountLink.external_account_id
+            )
+        )
+        return [tuple(row) for row in rows]
+
+
+async def test_choose_again_finding_its_link_unlinked_meanwhile_links_afresh(linkable, monkeypatch):
+    """Everyday is unlinked while choosing ACT-2 again, so the choice makes a new link as a relink and the ended one stays ended"""
+    user, account, connection = linkable
+    await _commit_choosing_link(account, connection)
+    paused = _PausedRead(links.read_linked_bank_accounts)
+    monkeypatch.setattr(links, "read_linked_bank_accounts", paused)
+
+    async def unlink():
+        """Unlink Everyday as the user"""
+        async with _act_as(user.id) as db:
+            await unlink_account(db, user, account.id)
+
+    async with asyncio.timeout(10):
+        choosing = asyncio.create_task(_link_as(user, account, connection, "ACT-2", datetime.now(UTC).date() - timedelta(days=30)))
+        await paused.reached.wait()
+        await unlink()
+        paused.release.set()
+        await choosing
+
+    assert await _link_kinds() == [("ACT-1", "unlinked", "initial"), ("ACT-2", "active", "relink")]
+
+
+async def test_choose_again_finding_its_link_active_again_meanwhile_is_refused(linkable, monkeypatch):
+    """A discovery lists ACT-1 again while Everyday chooses ACT-2, so the link is back on ACT-1 and the choice is refused"""
+    user, account, connection = linkable
+    await _commit_choosing_link(account, connection)
+    paused = _PausedRead(links.read_linked_bank_accounts)
+    monkeypatch.setattr(links, "read_linked_bank_accounts", paused)
+    act_1 = ExternalAccount(
+        external_id="ACT-1",
+        name="Everyday Chequing",
+        institution_key="harbour",
+        institution_name="Harbour Bank",
+        login_key="login-1",
+        currency="CAD",
+        currency_raw="CAD",
+        balance=None,
+        available_balance=None,
+        balance_at=datetime.now(UTC),
+    )
+
+    async def list_act_1_again():
+        """Store a discovery listing ACT-1 again, and failing for ACT-2 so it isn't taken as gone, as the user"""
+        result = FetchResult(
+            accounts=(act_1,), account_errors={"ACT-2": ProviderError(ProviderErrorKind.TEMPORARY, "Harbour Bank didn't answer")}
+        )
+        async with _act_as(user.id) as db:
+            discovered = await db.get_one(BankConnection, connection.id)
+            await apply_discovery(db, discovered, result, now=datetime.now(UTC))
+            await db.commit()
+
+    async with asyncio.timeout(10):
+        choosing = asyncio.create_task(_link_as(user, account, connection, "ACT-2", datetime.now(UTC).date() - timedelta(days=30)))
+        await paused.reached.wait()
+        await list_act_1_again()
+        paused.release.set()
+        with pytest.raises(HTTPException) as refused:
+            await choosing
+
+    assert (refused.value.status_code, refused.value.detail) == (409, ACCOUNT_ALREADY_LINKED)
+    assert await _link_kinds() == [("ACT-1", "active", "initial")]
