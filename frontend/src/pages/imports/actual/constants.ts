@@ -75,6 +75,7 @@ export const ACTUAL_FILE_GUIDANCE = "Choose the .zip from Actual's Settings unde
 /** Prefixes that keep each category role's mapping sources apart from Actual's category ids */
 export const ACTUAL_TRANSFER_CATEGORY_SOURCE_PREFIX = 'transfer:'
 export const ACTUAL_OFF_BUDGET_CATEGORY_SOURCE_PREFIX = 'off-budget:'
+export const ACTUAL_OFF_BUDGET_MONEY_IN_CATEGORY_SOURCE_PREFIX = 'off-budget-in:'
 
 // The one source every transfer paying down a credit card, line of credit or HELOC is filed under
 export const ACTUAL_CREDIT_PAYMENT_CATEGORY_SOURCE = 'credit-payment:'

@@ -108,10 +108,13 @@ export type ActualCategoryRole =
    */
   | 'transfer'
 
-  /** Budget-side rows with no category */
+  /** Budget-side rows with no category, with money in and money out under sources of their own */
   | 'uncategorized'
 
-  /** Rows with no category in one off-budget account, where Actual never asks for one */
+  /**
+   * Rows with no category in one off-budget account, where Actual never asks for one, with money in
+   * and money out under sources of their own
+   */
   | 'offBudgetUncategorized'
 
 /**

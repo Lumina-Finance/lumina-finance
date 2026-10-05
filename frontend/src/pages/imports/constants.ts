@@ -361,18 +361,16 @@ export const SKIPPED_TABLE_VISIBLE_LIMIT = 20
 export const IMPORT_SAMPLE_PREVIEW_LIMIT = 5
 
 // The seeded system category rows with no category are matched to, since a transaction here always
-// carries one. The CSV import sends only rows whose amount doesn't bring money in
+// carries one, except those bringing money in
 export const IMPORT_MISCELLANEOUS_CATEGORY_NAME = 'Miscellaneous'
 
-// The seeded system category a CSV row with no category that brings money in is matched to
+// The seeded system category rows with no category that bring money in are matched to, in every
+// import. They are listed apart, because Miscellaneous is an expense category and would count the
+// money as spending
 export const IMPORT_OTHER_INCOME_CATEGORY_NAME = 'Other Income'
 
 // The seeded system category a transfer with no category of its own is matched to, in every import
 export const IMPORT_TRANSFER_CATEGORY_NAME = 'Transfer'
-
-// The category source of a CSV row with no category that brings money in. It is listed apart from
-// (no category), because Miscellaneous is an expense category and would count the money as spending
-export const IMPORT_NO_CATEGORY_MONEY_IN_SOURCE = '(money in, no category)'
 
 // The category source of a CSV row with no category that names a transfer account. It is listed
 // apart from (no category), because Miscellaneous is an expense category and can't hold a transfer

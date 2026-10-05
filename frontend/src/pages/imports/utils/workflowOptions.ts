@@ -34,10 +34,8 @@ import type {
 import { getImportAccountName } from './accountMapping'
 import { DEFAULT_IMPORT_AMOUNT_FORMAT, type ImportAmountFormat } from './amountFormats'
 import { getImportRowCategorySource, resolveImportAmount } from './columnMapping'
-import { splitImportedValues, SYSTEM_CATEGORY_NAME_BY_UNNAMED_SOURCE } from './categoryMatching'
+import { sortImportedCategorySources, splitImportedValues } from './categoryMatching'
 import { unique } from './common'
-
-const UNNAMED_CATEGORY_SOURCES = Object.keys(SYSTEM_CATEGORY_NAME_BY_UNNAMED_SOURCE)
 
 // Marks an account that is hidden everywhere else in the app, kept short because it renders as a
 // pill beside the account name. Only the counterparty list offers one, since nothing is written to
@@ -283,12 +281,10 @@ export function getImportedCategories(
   directionAnswers: Record<string, ImportAmountDirection>,
   amountFormat: ImportAmountFormat | null = DEFAULT_IMPORT_AMOUNT_FORMAT,
 ): string[] {
-  const sources = new Set(files.flatMap((file) => file.rows.map((row) => {
+  return sortImportedCategorySources(files.flatMap((file) => file.rows.map((row) => {
     const { amountReading } = resolveImportAmount(row, columnMap, directionAnswers, amountFormat)
     return getImportRowCategorySource(row, columnMap, amountReading)
   })))
-  const named = [...sources].filter((source) => !UNNAMED_CATEGORY_SOURCES.includes(source)).sort((a, b) => a.localeCompare(b))
-  return [...named, ...UNNAMED_CATEGORY_SOURCES.filter((source) => sources.has(source))]
 }
 
 /**

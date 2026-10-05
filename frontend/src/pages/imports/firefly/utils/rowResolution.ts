@@ -1,6 +1,5 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
-import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import type { Institution } from '@/api/institutions'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import type { Currency } from '@/api/currency'
@@ -28,7 +27,7 @@ import {
   isFireflyJournalType,
 } from '@/pages/imports/firefly/constants'
 import type { FireflyAccountSource, FireflyAccountSources } from '@/pages/imports/firefly/types'
-import { getFireflyRowAmounts } from './derivation'
+import { getFireflyRowAmounts, getFireflyRowCategorySource } from './derivation'
 
 /**
  * Mapping lookups needed to resolve journal rows the same way the commit will
@@ -125,7 +124,7 @@ export function getFireflyCategoryUsedByResolution(
   const mappedCategory = getFireflyMappedCategory(row, options)
   if (!mappedCategory || !legs.some((leg) => leg.category?.id === mappedCategory.id)) return undefined
 
-  const source = row.category?.trim() || JOURNAL_NO_CATEGORY_SOURCE
+  const source = getFireflyRowCategorySource(row)
   if (options.categoryMappings[source] !== CREATE_CATEGORY_VALUE) return mappedCategory
 
   const reused = findReusedImportCategory(source, options.categoryById.values())
@@ -302,7 +301,7 @@ function getFireflyMappedCategory(
   row: CsvRow,
   options: FireflyRowResolutionOptions,
 ): Category | undefined {
-  const source = row.category?.trim() || JOURNAL_NO_CATEGORY_SOURCE
+  const source = getFireflyRowCategorySource(row)
   const choice = options.categoryMappings[source]
 
   if (choice === CREATE_CATEGORY_VALUE) {

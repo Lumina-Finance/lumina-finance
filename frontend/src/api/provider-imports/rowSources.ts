@@ -6,6 +6,12 @@ import type { JournalImportRow } from '@/api/provider-imports/types';
 export const JOURNAL_NO_CATEGORY_SOURCE = '(no category)';
 
 /**
+ * Category mapping source for rows without a category that bring money in, which every import sends
+ * by name, so the money isn't filed with the spending under the no-category source
+ */
+export const JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE = '(money in, no category)';
+
+/**
  * Lists the account mapping sources one journal row references
  */
 export function getJournalRowAccountSources(row: JournalImportRow) {

@@ -7,12 +7,8 @@
 import { describe, expect, it } from 'vitest'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
-import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
-import {
-  EMPTY_COLUMN_MAP,
-  IMPORT_NO_CATEGORY_MONEY_IN_SOURCE,
-  IMPORT_NO_CATEGORY_TRANSFER_SOURCE,
-} from '@/pages/imports/constants'
+import { JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE, JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
+import { EMPTY_COLUMN_MAP, IMPORT_NO_CATEGORY_TRANSFER_SOURCE } from '@/pages/imports/constants'
 import type { ColumnMap, CsvRow, ImportAmountDirection, ImportFileDraft } from '@/pages/imports/types'
 import {
   buildTransactionImportPayload,
@@ -202,16 +198,16 @@ describe('CSV rows with no category that bring money in', () => {
 
     const { importedCategories, categoryMappings, build } = importFile(file, columnMap, {}, directionAnswers)
 
-    expect(importedCategories).toEqual([JOURNAL_NO_CATEGORY_SOURCE, IMPORT_NO_CATEGORY_MONEY_IN_SOURCE])
+    expect(importedCategories).toEqual([JOURNAL_NO_CATEGORY_SOURCE, JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE])
     expect(categoryMappings[JOURNAL_NO_CATEGORY_SOURCE]).toBe(MISCELLANEOUS.id)
-    expect(categoryMappings[IMPORT_NO_CATEGORY_MONEY_IN_SOURCE]).toBe(OTHER_INCOME.id)
+    expect(categoryMappings[JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE]).toBe(OTHER_INCOME.id)
     expect(getImportedCategoryTypes([file], columnMap, importedCategories, directionAnswers)).toEqual({
       [JOURNAL_NO_CATEGORY_SOURCE]: 'Expense',
-      [IMPORT_NO_CATEGORY_MONEY_IN_SOURCE]: 'Income',
+      [JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE]: 'Income',
     })
     expect(build.rowProblems).toEqual([])
-    expect(countRowsBySource(build)).toEqual({ [JOURNAL_NO_CATEGORY_SOURCE]: 1, [IMPORT_NO_CATEGORY_MONEY_IN_SOURCE]: 1 })
-    expect(build.payload?.categories).toContainEqual({ source: IMPORT_NO_CATEGORY_MONEY_IN_SOURCE, category_id: OTHER_INCOME.id })
+    expect(countRowsBySource(build)).toEqual({ [JOURNAL_NO_CATEGORY_SOURCE]: 1, [JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE]: 1 })
+    expect(build.payload?.categories).toContainEqual({ source: JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE, category_id: OTHER_INCOME.id })
   })
 
   it('keeps one naming a transfer account under (transfer, no category)', () => {

@@ -1,10 +1,9 @@
 import type { Category } from '@/api/categories'
-import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
+import { JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE, JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import {
   CREATE_CATEGORY_VALUE,
   CSV_CATEGORY_RENAME_APP_NAME,
   IMPORT_MISCELLANEOUS_CATEGORY_NAME,
-  IMPORT_NO_CATEGORY_MONEY_IN_SOURCE,
   IMPORT_NO_CATEGORY_TRANSFER_SOURCE,
   IMPORT_OTHER_INCOME_CATEGORY_NAME,
   IMPORT_TRANSFER_CATEGORY_NAME,
@@ -31,14 +30,36 @@ import { getImportRowCategorySource, resolveImportAmount } from './columnMapping
 // have no name to match on, in the order the category step lists them after every named one
 export const SYSTEM_CATEGORY_NAME_BY_UNNAMED_SOURCE: Record<string, string> = {
   [JOURNAL_NO_CATEGORY_SOURCE]: IMPORT_MISCELLANEOUS_CATEGORY_NAME,
-  [IMPORT_NO_CATEGORY_MONEY_IN_SOURCE]: IMPORT_OTHER_INCOME_CATEGORY_NAME,
+  [JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE]: IMPORT_OTHER_INCOME_CATEGORY_NAME,
   [IMPORT_NO_CATEGORY_TRANSFER_SOURCE]: IMPORT_TRANSFER_CATEGORY_NAME,
+}
+
+const UNNAMED_CATEGORY_SOURCES = Object.keys(SYSTEM_CATEGORY_NAME_BY_UNNAMED_SOURCE)
+
+/**
+ * Sorts the category sources an import lists by name, with those standing for rows with no category
+ * last, in the order the category step lists them
+ */
+export function sortImportedCategorySources(sources: Iterable<string>) {
+  const present = new Set(sources)
+  const named = [...present].filter((source) => !UNNAMED_CATEGORY_SOURCES.includes(source)).sort((a, b) => a.localeCompare(b))
+  return [...named, ...UNNAMED_CATEGORY_SOURCES.filter((source) => present.has(source))]
+}
+
+/**
+ * Gets the seeded category a source standing for rows with no category is matched to, null when the
+ * user's list lacks it, or undefined for a source that names a category
+ */
+export function findUnnamedSourceCategory(source: string, categories: Category[]) {
+  const systemName = SYSTEM_CATEGORY_NAME_BY_UNNAMED_SOURCE[source]
+  if (!systemName) return undefined
+  return categories.find((category) => category.is_system && category.name === systemName) ?? null
 }
 
 // How the category step names the rows with no category, by the direction read from each amount
 const UNNAMED_SOURCE_LABELS: Record<string, string> = {
   [JOURNAL_NO_CATEGORY_SOURCE]: '(withdrawal, no category)',
-  [IMPORT_NO_CATEGORY_MONEY_IN_SOURCE]: '(deposit, no category)',
+  [JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE]: '(deposit, no category)',
 }
 
 /**
@@ -188,9 +209,8 @@ export function inferCategoryMappings(
   for (const source of importedCategories) {
     if (next[source]) continue
 
-    const systemName = SYSTEM_CATEGORY_NAME_BY_UNNAMED_SOURCE[source]
-    if (systemName) {
-      const system = categories.find((category) => category.is_system && category.name === systemName)
+    const system = findUnnamedSourceCategory(source, categories)
+    if (system !== undefined) {
       if (system) next[source] = system.id
       continue
     }

@@ -1,10 +1,9 @@
-import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
+import { JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE, JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import {
   COLUMN_TARGETS,
   EMPTY_COLUMN_MAP,
   getTooManyDirectionValuesError,
   IMPORT_DATE_FORMAT_LABELS,
-  IMPORT_NO_CATEGORY_MONEY_IN_SOURCE,
   IMPORT_NO_CATEGORY_TRANSFER_SOURCE,
   MAX_DIRECTION_COLUMN_VALUES,
 } from '@/pages/imports/constants'
@@ -381,7 +380,7 @@ export function getImportRowCategorySource(row: CsvRow, columnMap: ColumnMap, am
   if (category) return category
   if (getMappedValue(row, columnMap.counterparty_account_id)) return IMPORT_NO_CATEGORY_TRANSFER_SOURCE
   const isMoneyIn = amountReading !== null && !amountReading.isZero && amountReading.sign !== 'negative'
-  return isMoneyIn ? IMPORT_NO_CATEGORY_MONEY_IN_SOURCE : JOURNAL_NO_CATEGORY_SOURCE
+  return isMoneyIn ? JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE : JOURNAL_NO_CATEGORY_SOURCE
 }
 
 /**

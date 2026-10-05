@@ -5,6 +5,7 @@ import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   IMPORT_MISCELLANEOUS_CATEGORY_NAME,
+  IMPORT_OTHER_INCOME_CATEGORY_NAME,
   IMPORT_TRANSFER_CATEGORY_NAME,
 } from '@/pages/imports/constants'
 import type { ImportAccountCreateDetails, ImportCategoryKind } from '@/pages/imports/types'
@@ -35,7 +36,8 @@ export function canCarryActualTransfer(category: Pick<Category, 'kind' | 'name'>
 /**
  * Fills in the category answers the user has not given
  *
- * Rows without a category go to Miscellaneous, as they do for Firefly III, and transfers whose other
+ * Rows without a category go to Miscellaneous, or to Other Income where they bring money in, as they
+ * do for Firefly III and CSV files, and transfers whose other
  * side is gone go to Transfer. Credit card payments take Credit Card Payment by its name. Every other source takes an existing personal or built-in category of
  * the same name and kind, capitals folded, and is created otherwise
  */
@@ -46,6 +48,7 @@ export function inferActualCategoryMappings(
 ): Record<string, string> {
   const systemCategory = (name: string) => categories.find((category) => category.is_system && category.name === name)
   const miscellaneous = systemCategory(IMPORT_MISCELLANEOUS_CATEGORY_NAME)
+  const otherIncome = systemCategory(IMPORT_OTHER_INCOME_CATEGORY_NAME)
   const transfer = systemCategory(IMPORT_TRANSFER_CATEGORY_NAME)
   const spendingLabelByCategory = new Map(sources.flatMap((source) => (
     source.role === 'spending' && source.categoryId ? [[source.categoryId, source.label] as const] : []
@@ -59,7 +62,7 @@ export function inferActualCategoryMappings(
     }
 
     if (source.role === 'uncategorized' || source.role === 'offBudgetUncategorized') {
-      mappings[source.id] = miscellaneous?.id ?? CREATE_CATEGORY_VALUE
+      mappings[source.id] = (source.isIncome ? otherIncome : miscellaneous)?.id ?? CREATE_CATEGORY_VALUE
       continue
     }
     if (source.role === 'transfer' && !source.categoryId && source.id !== ACTUAL_CREDIT_PAYMENT_CATEGORY_SOURCE) {
