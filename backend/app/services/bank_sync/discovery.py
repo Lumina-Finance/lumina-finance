@@ -25,6 +25,7 @@ from app.models.bank_connection import (
     ProviderRequestPurpose,
 )
 from app.services.bank_sync.connections import get_own_connection
+from app.services.bank_sync.pending import replace_pending_transactions
 from app.services.bank_sync.provider_requests import (
     RequestBudgetSpent,
     is_quota_spent,
@@ -94,9 +95,10 @@ async def apply_discovery(db: AsyncSession, connection: BankConnection, result: 
     bank account or link. A linked bank account no longer listed moves its link to
     Choose bank account only when nothing in the response could explain the gap, and one listed in
     a currency other than its account's moves too, since its amounts would be read at the wrong
-    precision. A link waiting there returns to active when its bank account is listed again in
-    the account's currency. The caller marks the user's cache changed and commits, since the cache
-    row comes after the links and any job the caller queues in the order requests lock rows in
+    precision. Either way its account's pending items are cleared. A link waiting there returns to
+    active when its bank account is listed again in the account's currency. The caller marks the
+    user's cache changed and commits, since the cache row comes after the links, their pending items
+    and any job the caller queues in the order requests lock rows in
 
     Args:
         db: Session of the connection's owner
@@ -190,7 +192,9 @@ async def _move_links(db: AsyncSession, connection: BankConnection, accounts: Se
     """Move the connection's live links between active and Choose bank account as the discovery found them
 
     The links are locked in id order and read again, so a link unlinked meanwhile is left alone.
-    They are locked after the bank accounts, the order a link being made takes them in
+    They are locked after the bank accounts, the order a link being made takes them in. A link
+    waiting for its bank account has its account's pending items cleared, since nothing refreshes
+    them meanwhile, and one that returns gets them back from its next sync
     """
     listed = {account.external_id: account for account in accounts}
     links = await db.execute(
@@ -208,5 +212,6 @@ async def _move_links(db: AsyncSession, connection: BankConnection, accounts: Se
         bank_account = listed.get(link.external_account_id)
         if link.external_account_id in vanished or (bank_account is not None and bank_account.currency != account_currency):
             link.state = BankLinkState.CHOOSE_ACCOUNT
+            await replace_pending_transactions(db, link.account_id, [])
         elif bank_account is not None and link.state == BankLinkState.CHOOSE_ACCOUNT:
             link.state = BankLinkState.ACTIVE

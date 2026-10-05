@@ -2,7 +2,8 @@
 
 A bank account stored wrongly is linked or refused wrongly, a link moved on a gap the response
 explains stops a working account's sync, and one not moved on a real vanish or currency change
-reads amounts at the wrong precision. Every discovery is a request against the daily budget, so it
+reads amounts at the wrong precision, while one moved but keeping its pending items shows holds
+nothing refreshes. Every discovery is a request against the daily budget, so it
 has to be counted before it is sent
 """
 
@@ -14,7 +15,9 @@ import pytest
 from sqlalchemy import func, select
 
 from app.encryption import encrypt
+from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankExternalAccount, BankLinkState, BankProviderRequest
+from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.currency import Currency
 from app.services.bank_sync.discovery import apply_discovery, run_discovery
 from app.services.bank_sync.provider_requests import RequestBudget, read_request_budget
@@ -22,7 +25,13 @@ from app.services.bank_sync.providers.contract import ExternalAccount, FetchResu
 from app.services.bank_sync.providers.simplefin.adapter import SimpleFinAdapter
 from tests.conftest import TestSession
 from tests.fake_simplefin_bridge import FakeBridgeTransport
-from tests.routes.support.bank_sync_helpers import _build_account, _build_bank_connection, _build_bank_link, _build_user
+from tests.routes.support.bank_sync_helpers import (
+    _build_account,
+    _build_bank_connection,
+    _build_bank_link,
+    _build_pending_transaction,
+    _build_user,
+)
 from tests.services.bank_sync.stand_ins import FakeBridgeScenario, simplefin_adapter
 
 _NOW = datetime(2026, 10, 4, 12, 0, tzinfo=UTC)
@@ -229,12 +238,18 @@ async def test_discovery_lists_a_bank_account_added_since_the_last_one(db, scena
 
 
 async def test_discovery_vanished_linked_bank_account_moves_its_link_to_choose_account(db, scenario: FakeBridgeScenario):
-    """Everyday Chequing missing from an error-free discovery stops Everyday's sync, and Rewards Visa carries on"""
+    """Everyday Chequing missing from an error-free discovery stops Everyday's sync, and Rewards Visa carries on
+
+    Everyday's pending hold goes with it, since nothing refreshes it while Everyday waits, and Visa keeps its own
+    """
     await scenario.add_harbour_accounts()
     connection = await _claimed_connection(db, scenario)
     everyday = await _linked(db, connection, "Everyday", "ACT-chequing")
     visa = await _linked(db, connection, "Visa", "ACT-visa")
     await _discover(db, connection)
+    for link, hold in [(everyday, "P-everyday"), (visa, "P-visa")]:
+        db.add(_build_pending_transaction(await db.get(Account, link.account_id), hold))
+    await db.commit()
     await scenario.change("PATCH", "/accounts/ACT-chequing", {"hidden": True})
 
     await _discover(db, connection, _NOW + timedelta(days=1))
@@ -242,6 +257,9 @@ async def test_discovery_vanished_linked_bank_account_moves_its_link_to_choose_a
     assert await _link_state(everyday) == BankLinkState.CHOOSE_ACCOUNT
     assert await _link_state(visa) == BankLinkState.ACTIVE
     assert await _listed(connection) == {"ACT-chequing": False, "ACT-savings": True, "ACT-visa": True}
+    async with TestSession() as session:
+        pending = (await session.execute(select(BankPendingTransaction.account_id, BankPendingTransaction.external_transaction_id))).all()
+    assert [tuple(row) for row in pending] == [(visa.account_id, "P-visa")]
 
 
 @pytest.mark.parametrize(
