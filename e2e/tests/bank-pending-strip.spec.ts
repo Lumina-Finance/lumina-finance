@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Locator, type Page, type Response } from '@playwright/test'
 
-import { createAccount, createTransaction, signUpUser, todayInTestTimezone, type SeededAccount } from '../support/api'
+import { createAccount, createGroup, createTransaction, signUpUser, todayInTestTimezone, type SeededAccount } from '../support/api'
 import { filterTransactions, logInViaApi, openPage } from '../support/app'
 import { answerLinksWith, isRead, pageOf, reviewItem, SEP_21 } from '../support/bankSync'
 import { contrastOf, MIN_TEXT_CONTRAST, MINUS } from '../support/selectors'
@@ -20,6 +20,9 @@ const SEP_20 = `${THIS_YEAR}-09-20`
 const PHONE_LAYOUT_BELOW_PX = 640
 
 const HOUR_MS = 60 * 60 * 1000
+
+// The reads of bank items the list's accounts hold, which only the user's own personal accounts have
+const BANK_ITEM_READS = ['/bank-sync/pending', '/bank-review/items', '/bank-review/backlogs']
 
 type PendingTransaction = {
   id: string
@@ -85,8 +88,13 @@ function isPhoneLayout(page: Page): boolean {
   return page.viewportSize()!.width < PHONE_LAYOUT_BELOW_PX
 }
 
-test('shows pending transactions closed, opening to each one newest first, following the account filter and an account page', async ({ page, request }) => {
-  const { everyday, visa } = await start(page, request)
+/**
+ * Answers the pending list with Everyday's Uber trip and coffee and Visa's hotel hold, reported three
+ * days earlier, for the accounts asked for
+ *
+ * @returns The accounts each read asked for, in the order asked
+ */
+async function answerThreePending(page: Page, { everyday, visa }: Accounts): Promise<string[][]> {
   const pending = [
     pendingTransaction('uber', everyday.id, { description: 'UBER TRIP' }),
     pendingTransaction('coffee', everyday.id, { description: 'HARBOUR COFFEE', date: SEP_21, amount: -450 }),
@@ -97,6 +105,11 @@ test('shows pending transactions closed, opening to each one newest first, follo
     asked.push(accountIds)
     return pending.filter((transaction) => accountIds.length === 0 || accountIds.includes(transaction.account_id))
   })
+  return asked
+}
+
+test('shows the pending count closed, and each pending transaction newest first once opened', async ({ page, request }) => {
+  await answerThreePending(page, await start(page, request))
 
   await openPage(page, '/transactions')
 
@@ -120,31 +133,81 @@ test('shows pending transactions closed, opening to each one newest first, follo
   await expect(rows.nth(1)).toContainText('Sep 21 · Everyday · Pending · Checked 3 hours ago')
   await expect(rows.nth(2)).toContainText('Sep 20 · Visa · Pending · Checked 3 days ago')
   await expect(rows.nth(2)).toContainText(`${MINUS}$240.00`)
+})
 
-  // A pending row opens nothing and takes no focus
-  await rows.nth(0).click()
+test('opens nothing from a pending row', async ({ page, request }) => {
+  await answerThreePending(page, await start(page, request))
+  await openPage(page, '/transactions')
+  const strip = pendingStrip(page)
+  await strip.getByRole('button', { name: /^3 pending/ }).click()
+
+  const row = strip.getByRole('listitem').first()
+  await row.click()
+
   await expect(page.getByRole('dialog')).toHaveCount(0)
-  await expect(rows.nth(0)).not.toBeFocused()
+  await expect(row).not.toBeFocused()
+})
 
-  // Read again for the filter, it comes back closed, as the review block does
+test('counts only the accounts the list is filtered to, hiding for those with nothing pending', async ({ page, request }) => {
+  const accounts = await start(page, request)
+  const asked = await answerThreePending(page, accounts)
+  await openPage(page, '/transactions')
+  const strip = pendingStrip(page)
+  await expect(strip.getByRole('button', { name: /^3 pending/ })).toBeVisible()
+
   await filterTransactions(page, 'Accounts', 'Visa')
-  const visaToggle = strip.getByRole('button', { name: /^1 pending/ })
-  await expect(visaToggle).toHaveAttribute('aria-expanded', 'false')
-  await visaToggle.click()
-  await expect(rows).toHaveCount(1)
-  await expect(rows.first()).toContainText('HOTEL HOLD')
-  expect(asked.at(-1)).toEqual([visa.id])
 
-  // Savings has nothing pending, so with Visa unticked and Savings ticked the strip goes
+  await expect(strip.getByRole('button', { name: /^1 pending/ })).toBeVisible()
+  expect(asked.at(-1)).toEqual([accounts.visa.id])
+
   await filterTransactions(page, 'Accounts', 'Visa')
   await filterTransactions(page, 'Accounts', 'Savings')
-  await expect(strip).toBeHidden()
 
-  await openPage(page, `/accounts/${everyday.id}`)
+  await expect(strip).toBeHidden()
+  expect(asked.at(-1)).toEqual([accounts.savings.id])
+})
+
+test("shows only an account's own pending transactions on its page, leaving out its name", async ({ page, request }) => {
+  const accounts = await start(page, request)
+  await answerThreePending(page, accounts)
+
+  await openPage(page, `/accounts/${accounts.everyday.id}`)
+
+  const strip = pendingStrip(page)
+  const rows = strip.getByRole('listitem')
   await strip.getByRole('button', { name: /^2 pending/ }).click()
   await expect(rows).toHaveCount(2)
   await expect(rows.first()).toContainText('Sep 23 · Pending · Checked 3 hours ago')
   await expect(strip).not.toContainText('Everyday')
+})
+
+test('reads neither pending transactions nor review items for a list filtered to group accounts alone', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const everyday = await createAccount(request, user, { name: 'Everyday' })
+  const joint = await createAccount(request, user, { name: 'Joint', groupId: await createGroup(request, user, 'Household') })
+  await createTransaction(request, user, { accountId: everyday.id, categoryName: 'Groceries', amount: -4250 })
+  await createTransaction(request, user, { accountId: joint.id, categoryName: 'Groceries', amount: -1800 })
+  await logInViaApi(page, user)
+
+  // Everyday's hold answers every read, so a read made for no account in particular would show it
+  await answerPending(page, () => [pendingTransaction('uber', everyday.id)])
+  await openPage(page, '/transactions')
+  const strip = pendingStrip(page)
+  const transactionRows = page.getByTestId(/^transaction-row-/)
+  await expect(strip.getByRole('button', { name: /^1 pending/ })).toBeVisible()
+  await expect(transactionRows).toHaveCount(2)
+
+  const bankReads: string[] = []
+  page.on('request', (sent) => {
+    const url = new URL(sent.url())
+    if (BANK_ITEM_READS.some((path) => isRead(path)(url))) bankReads.push(sent.url())
+  })
+  await filterTransactions(page, 'Accounts', 'Joint')
+
+  // Once the list shows Joint's transaction alone, any read made for the filter has gone out
+  await expect(transactionRows).toHaveCount(1)
+  await expect(strip).toBeHidden()
+  expect(bankReads).toEqual([])
 })
 
 test('refreshes when a linked account finishes a sync, a posted transaction moving to the review block', async ({ page, request }) => {
