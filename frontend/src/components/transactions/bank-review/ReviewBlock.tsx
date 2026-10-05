@@ -2,7 +2,6 @@ import { useId } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Landmark, PauseCircle, TriangleAlert } from 'lucide-react'
 import type { BankReviewItem } from '@/api/bank-sync'
-import LoadFailure from '@/components/errors/LoadFailure'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
 import {
@@ -26,12 +25,23 @@ export type ReviewItemAccount = {
   currency: string
 }
 
+/** A read the block depends on that failed, with what makes that read alone again */
+export type ReviewReadFailure = {
+  retry: () => void
+
+  /** The read is being made again */
+  isRetrying: boolean
+}
+
 type BankReviewBlockProps = {
   /** The items loaded so far, newest first, each of an account the caller can name */
   items: BankReviewItem[]
 
   /** Every item waiting in scope, loaded or not, which the header counts */
   total: number
+
+  /** Set while the items have never loaded, which the block says in place of its count and rows */
+  itemsFailure: ReviewReadFailure | null
   accountFor: (accountId: string) => ReviewItemAccount
 
   /** Left out on an account's own page, where every item is that account's */
@@ -41,8 +51,8 @@ type BankReviewBlockProps = {
   today: string
   backlogNotice: BacklogNotice | null
 
-  /** Why the backlogs the notice reads could not load, null when they did */
-  backlogError: unknown
+  /** Set while the backlogs the notice reads have never loaded */
+  backlogFailure: ReviewReadFailure | null
   expanded: boolean
   onToggleExpanded: () => void
 
@@ -69,20 +79,56 @@ type BankReviewBlockProps = {
 }
 
 /**
+ * Says a read the block depends on failed, drawn like the block's backlog notice, with a retry that
+ * makes only that read again
+ *
+ * The retry stays focusable while it waits, so a keyboard user who pressed it keeps their place
+ */
+function ReadFailureNotice({ subject, failure }: {
+  /** What failed, as in "Sync pause status" */
+  subject: string
+  failure: ReviewReadFailure
+}) {
+  return (
+    <div
+      role="alert"
+      className="flex items-center gap-2 rounded-lg py-1 pl-3 pr-1.5 text-xs"
+      style={{ background: 'var(--app-negative-soft)', color: 'var(--app-text)' }}
+    >
+      <TriangleAlert size={14} aria-hidden className="shrink-0" style={{ color: 'var(--app-negative)' }} />
+      <span className="min-w-0 flex-1">{subject} could not load.</span>
+      <button
+        type="button"
+        onClick={() => {
+          if (!failure.isRetrying) failure.retry()
+        }}
+        aria-disabled={failure.isRetrying}
+        aria-busy={failure.isRetrying}
+        className="min-h-6 shrink-0 rounded-md px-1.5 font-medium underline underline-offset-2 transition-colors duration-150 hover:bg-[var(--app-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--app-accent)] aria-disabled:cursor-default motion-reduce:transition-none"
+      >
+        {failure.isRetrying ? 'Retrying…' : 'Try again'}
+      </button>
+    </div>
+  )
+}
+
+/**
  * The bank items waiting for review above the transaction list: new items, corrections and removals
  * that stay outside the ledger and every balance until the user acts on them
  *
  * A row shows its item and opens nothing. Rows grow in and collapse out with the list's day groups,
- * except that closing the block collapses only the rows on screen
+ * except that closing the block collapses only the rows on screen. A read that fails is said inside
+ * the block, under its title, rather than leaving it empty
  */
 export function BankReviewBlock({
   items,
   total,
+  itemsFailure,
   accountFor,
   showAccountNames,
   today,
   backlogNotice,
-  backlogError,
+  backlogFailure,
   expanded,
   onToggleExpanded,
   rowsInViewAtClose,
@@ -101,6 +147,15 @@ export function BankReviewBlock({
   const visibleItems = expanded ? items : items.slice(0, COLLAPSED_ITEM_COUNT)
   const { collapsed, enterTransition, leave } = REVIEW_MOTION[prefersReducedMotion ? 'reduced' : 'full']
 
+  // Each notice grows in and collapses out under the title, its room kept inside it
+  const notice = {
+    className: 'overflow-hidden',
+    initial: { height: 0, opacity: 0 },
+    animate: { height: 'auto', opacity: 1 },
+    exit: leave,
+    transition: enterTransition,
+  }
+
   return (
     <section
       aria-labelledby={titleId}
@@ -113,12 +168,16 @@ export function BankReviewBlock({
         <h2 id={titleId} className="app-label leading-snug">
           Waiting for review
         </h2>
-        <span
-          className="rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums"
-          style={{ background: 'var(--app-warning-text)', color: 'var(--app-review-count-text)' }}
-        >
-          {total.toLocaleString()}
-        </span>
+
+        {/* Left out while the items can't load, since nothing is known to count */}
+        {itemsFailure === null && (
+          <span
+            className="rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums"
+            style={{ background: 'var(--app-warning-text)', color: 'var(--app-review-count-text)' }}
+          >
+            {total.toLocaleString()}
+          </span>
+        )}
       </div>
       <p className="px-4 pb-3 pt-1 text-xs sm:px-5" style={{ color: 'var(--app-text-muted)' }}>
         From your bank, and left out of every balance until you act on them.
@@ -126,14 +185,7 @@ export function BankReviewBlock({
 
       <AnimatePresence initial={false}>
         {backlogNotice && (
-          <motion.div
-            key="backlog"
-            className="overflow-hidden"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={leave}
-            transition={enterTransition}
-          >
+          <motion.div key="backlog" {...notice}>
             <div className="px-4 pb-3 sm:px-5">
               <p
                 className="flex items-start gap-2 rounded-lg px-3 py-2 text-xs"
@@ -147,10 +199,21 @@ export function BankReviewBlock({
             </div>
           </motion.div>
         )}
+        {backlogFailure && (
+          <motion.div key="backlog-failure" {...notice}>
+            <div className="px-4 pb-3 sm:px-5">
+              <ReadFailureNotice subject="Sync pause status" failure={backlogFailure} />
+            </div>
+          </motion.div>
+        )}
+        {itemsFailure && (
+          <motion.div key="items-failure" {...notice}>
+            <div className="px-4 pb-3 sm:px-5">
+              <ReadFailureNotice subject="Bank items to review" failure={itemsFailure} />
+            </div>
+          </motion.div>
+        )}
       </AnimatePresence>
-      {backlogError !== null && (
-        <LoadFailure compact error={backlogError} subject="Sync pause status" className="px-4 pb-3 sm:px-5" />
-      )}
 
       {/* One list, so a screen reader counts every loaded item, with each row past the first few
           growing in as the block opens */}

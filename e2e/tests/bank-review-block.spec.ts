@@ -223,26 +223,71 @@ test('shows each kind of item for the accounts the list shows, and only its own 
   await expect(block).not.toContainText('Visa')
 })
 
-test('says the waiting items could not load rather than leaving the space empty', async ({ page, request }) => {
-  await start(page, request)
-  await answerReviewItems(page, () => 500)
+test('says in the block that the waiting items could not load, and reads only them again', async ({ page, request }) => {
+  const { everyday } = await start(page, request)
+  const reads = { items: 0, backlogs: 0 }
+  let itemsFail = true
+  await answerReviewItems(page, () => {
+    reads.items += 1
+    return itemsFail ? 500 : pageOf([reviewItem('item-0', 'removal', everyday.id, { description: 'UBER TRIP' })])
+  })
+  await answerBacklogs(page, () => {
+    reads.backlogs += 1
+    return []
+  })
 
   await openPage(page, '/transactions')
 
-  await expect(page.getByRole('alert').filter({ hasText: 'Bank items to review could not load' })).toBeVisible()
-  await expect(reviewBlock(page)).toBeHidden()
+  // Said inside the block's frame, which counts nothing while the items are unknown
+  const block = reviewBlock(page)
+  const failure = block.getByRole('alert').filter({ hasText: 'Bank items to review could not load.' })
+  const retry = failure.getByRole('button', { name: 'Try again' })
+  await expect(failure).toBeVisible()
+  await expect(block.getByRole('listitem')).toHaveCount(0)
+  expect(await contrastOf(failure.getByText('Bank items to review could not load.'))).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
+  expect(await contrastOf(retry)).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
+
+  // Trying again reads the items alone, without reloading the page
+  await page.evaluate(() => Object.assign(window, { notReloaded: true }))
+  const backlogReads = reads.backlogs
+  itemsFail = false
+  await retry.click()
+  await expect(block.getByRole('listitem').filter({ hasText: 'UBER TRIP' })).toBeVisible()
+  await expect(failure).toBeHidden()
+  await expect(block.getByText('1', { exact: true })).toBeVisible()
+  expect(reads.backlogs).toBe(backlogReads)
+  expect(await page.evaluate(() => 'notReloaded' in window)).toBe(true)
 })
 
-test('says the pause status could not load while still showing the items', async ({ page, request }) => {
+test('says the pause status could not load while still showing the items, and reads only it again', async ({ page, request }) => {
   const { everyday } = await start(page, request)
-  await answerReviewItems(page, () => pageOf([reviewItem('everyday-1', 'new', everyday.id)]))
-  await page.route(isRead('/bank-review/backlogs'), (route) => route.fulfill({ status: 500, json: { detail: 'Something went wrong' } }))
+  const reads = { items: 0, backlogs: 0 }
+  let backlogsFail = true
+  await answerReviewItems(page, () => {
+    reads.items += 1
+    return pageOf([reviewItem('everyday-1', 'new', everyday.id)])
+  })
+  await page.route(isRead('/bank-review/backlogs'), (route) => {
+    reads.backlogs += 1
+    return backlogsFail
+      ? route.fulfill({ status: 500, json: { detail: 'Something went wrong' } })
+      : route.fulfill({ json: [{ account_id: everyday.id, waiting_new_count: 105, paused: true, review_warning: false }] })
+  })
 
   await openPage(page, '/transactions')
 
   const block = reviewBlock(page)
-  await expect(block.getByRole('alert').filter({ hasText: 'Sync pause status could not load' })).toBeVisible()
+  const failure = block.getByRole('alert').filter({ hasText: 'Sync pause status could not load.' })
+  await expect(failure).toBeVisible()
   await expect(block.getByRole('listitem')).toHaveCount(1)
+
+  const itemReads = reads.items
+  backlogsFail = false
+  await failure.getByRole('button', { name: 'Try again' }).click()
+  await expect(block.getByText('Paused · 105 new to review in Everyday. Sync resumes at 50 or fewer.')).toBeVisible()
+  await expect(failure).toBeHidden()
+  await expect(block.getByRole('listitem')).toHaveCount(1)
+  expect(reads.items).toBe(itemReads)
 })
 
 test('shows the first 4 of a 1,500 item backlog, and loads the rest a page at a time once opened', async ({ page, request }) => {

@@ -2,13 +2,13 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useAccounts } from '@/api/accounts'
 import { useReviewBacklogs, useReviewItems } from '@/api/bank-sync'
-import LoadFailure from '@/components/errors/LoadFailure'
 import { useAuth } from '@/hooks/useAuth'
 import { useTodayYmd } from '@/hooks/useTodayYmd'
 import {
   BankReviewBlock,
   COLLAPSED_ITEM_COUNT,
   type ReviewItemAccount,
+  type ReviewReadFailure,
 } from '@/components/transactions/bank-review/ReviewBlock'
 import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
 import { useInfiniteScrollTrigger } from '@/components/transactions/hooks/useInfiniteScrollTrigger'
@@ -82,10 +82,11 @@ function getRowsOnScreen(rows: Map<string, HTMLDivElement>): Set<string> {
  * The bank items waiting for review in the accounts a transaction list shows, read a page at a time,
  * with the notice for any of them paused or close to pausing for its backlog
  *
- * Hidden while nothing in scope waits, and replaced by a failure while the items can't load, so an
- * empty space never reads as nothing waiting. A Needs review marker's request opens the block when its
- * item is past the first few, loads pages until the item is among them, then scrolls to it, focuses
- * it and rings it for a moment. A page that fails to load ends the request where it is
+ * Hidden while nothing in scope waits. While the items can't load, the block says so in place of its
+ * rows, so an empty space never reads as nothing waiting, and offers to read them again. A Needs
+ * review marker's request opens the block when its item is past the first few, loads pages until the
+ * item is among them, then scrolls to it, focuses it and rings it for a moment. A page that fails to
+ * load ends the request where it is
  *
  * Kept apart from the list's own renders, such as one for each search keystroke, since an open block
  * can hold hundreds of rows
@@ -111,8 +112,22 @@ export const BankReviewSection = memo(function BankReviewSection({
     fetchNextPage,
     isFetching,
     isFetchingNextPage,
+    refetch: refetchItems,
   } = useReviewItems(accountIds, isInScope)
-  const { data: backlogs, error: backlogsError } = useReviewBacklogs(accountIds, isInScope)
+  const {
+    data: backlogs,
+    error: backlogsError,
+    isFetching: isFetchingBacklogs,
+    refetch: refetchBacklogs,
+  } = useReviewBacklogs(accountIds, isInScope)
+
+  // A read that has never succeeded, each retried on its own so the other is left as it is
+  const itemsFailure: ReviewReadFailure | null = isInScope && itemsError && !pages
+    ? { retry: () => void refetchItems(), isRetrying: isFetching }
+    : null
+  const backlogFailure: ReviewReadFailure | null = backlogsError && !backlogs
+    ? { retry: () => void refetchBacklogs(), isRetrying: isFetchingBacklogs }
+    : null
 
   const accountById = useMemo(() => new Map((accounts ?? []).map((account) => [account.id, account])), [accounts])
   const items = useMemo(
@@ -194,6 +209,8 @@ export const BankReviewSection = memo(function BankReviewSection({
     return () => window.clearTimeout(timer)
   }, [highlight])
 
+  const hasItemsFailure = itemsFailure !== null
+
   const { sentinelRef, showPendingFetch } = useInfiniteScrollTrigger({
     hasNextPage,
     isFetchingNextPage,
@@ -205,43 +222,41 @@ export const BankReviewSection = memo(function BankReviewSection({
   const { collapsed, enterTransition, leave } = REVIEW_MOTION[prefersReducedMotion ? 'reduced' : 'full']
 
   return (
-    <>
-      {isInScope && itemsError && !pages && <LoadFailure error={itemsError} subject="Bank items to review" />}
-      <AnimatePresence initial={false}>
-        {total > 0 && (
-          <motion.div
-            key="review"
-            className="overflow-hidden"
-            initial={collapsed}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={leave}
-            transition={enterTransition}
-          >
-            <div className="pb-3 pt-1">
-              <BankReviewBlock
-                items={items}
-                total={total}
-                accountFor={accountFor}
-                showAccountNames={!isFixedAccount}
-                today={today}
-                backlogNotice={backlogNotice}
-                backlogError={backlogsError && !backlogs ? backlogsError : null}
-                expanded={expanded}
-                onToggleExpanded={toggleExpanded}
-                rowsInViewAtClose={rowsInViewAtClose}
-                onRowsLeft={() => setRowsInViewAtClose(null)}
-                hasMoreItems={hasNextPage}
-                isLoadingMore={isFetchingNextPage || Boolean(showPendingFetch)}
-                loadMoreSentinelRef={sentinelRef}
-                skipEnterAnimation={skipAppendedEnter}
-                highlightedId={highlight?.itemId ?? null}
-                registerRow={registerRow}
-                prefersReducedMotion={prefersReducedMotion}
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
+    <AnimatePresence initial={false}>
+      {(total > 0 || hasItemsFailure) && (
+        <motion.div
+          key="review"
+          className="overflow-hidden"
+          initial={collapsed}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={leave}
+          transition={enterTransition}
+        >
+          <div className="pb-3 pt-1">
+            <BankReviewBlock
+              items={items}
+              total={total}
+              itemsFailure={itemsFailure}
+              accountFor={accountFor}
+              showAccountNames={!isFixedAccount}
+              today={today}
+              backlogNotice={backlogNotice}
+              backlogFailure={backlogFailure}
+              expanded={expanded}
+              onToggleExpanded={toggleExpanded}
+              rowsInViewAtClose={rowsInViewAtClose}
+              onRowsLeft={() => setRowsInViewAtClose(null)}
+              hasMoreItems={hasNextPage}
+              isLoadingMore={isFetchingNextPage || Boolean(showPendingFetch)}
+              loadMoreSentinelRef={sentinelRef}
+              skipEnterAnimation={skipAppendedEnter}
+              highlightedId={highlight?.itemId ?? null}
+              registerRow={registerRow}
+              prefersReducedMotion={prefersReducedMotion}
+            />
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 })

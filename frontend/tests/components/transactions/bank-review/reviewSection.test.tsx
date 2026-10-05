@@ -115,13 +115,13 @@ describe('the block for every account', () => {
     expect(renderSection()).toBe('')
   })
 
-  it('says the items could not load rather than disappearing', () => {
+  it('says inside the block that the items could not load, rather than disappearing', () => {
     client.getQueryCache().build(client, { queryKey: bankSyncKeys.reviewItems(undefined) }).setState({
       status: 'error',
       error: new ApiError('Request failed', 500),
     })
 
-    expect(renderSection()).toContain('Bank items to review could not load')
+    expect(renderSection()).toMatch(/Waiting for review<\/h2>.*Bank items to review could not load\.<\/span><button[^>]*>Try again</)
   })
 })
 
