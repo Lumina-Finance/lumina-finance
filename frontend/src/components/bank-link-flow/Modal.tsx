@@ -97,7 +97,10 @@ export function BankLinkFlowModal({ open, account, chosen, level = 'page', onClo
   const ready = status !== undefined && (chosen !== undefined || (connections !== undefined && providers !== undefined))
   const loadError = statusError ?? (chosen ? null : connectionsError ?? providersError)
   const step: LinkFlowStep | null = !ready ? null : chosenStep ?? (chosen ? 'start' : connection ? 'account' : 'connect-first')
-  const choosesBankAccount = !chosen && (step === 'account' || step === 'start')
+
+  // Listed only while open, since a closed flow stays mounted beside an account that may be linked or
+  // archived, which the server refuses a listing for
+  const choosesBankAccount = open && !chosen && (step === 'account' || step === 'start')
 
   const { data: discovered, error: discoveredError } = useDiscoveredBankAccounts(choosesBankAccount ? connection?.id ?? null : null, account.id)
   const bankAccountName = chosen?.bankAccount.name ?? discovered?.accounts.find((entry) => entry.external_id === externalId)?.name ?? ''
