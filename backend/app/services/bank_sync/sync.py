@@ -15,14 +15,15 @@ its amounts would be read at the wrong precision, and the job queues the next on
 accounts first, which moves its link to Choose bank account. A job that listed them itself queues no
 listing, so a provider whose listing and fetch disagree can't spend request after request
 
-What a job stores, the booked records each part brings back, its checkpoints, discoveries and its
-own end, goes through lock_job_for_finish, so a runner that lost its lease stores nothing and a link
-that changed while the job fetched gets none of its results. Each such step locks the connection
-first, then the job, then the links, then any bank transactions it stores, then the owner's cache
-row. The request counts and the budget-spent mark lock only the connection and are written outside
-the job's fence, since they record requests already sent, whoever holds the job. An answer to a
-request sent with a credential the connection no longer holds is dropped whole, budget-spent mark
-included, and the job ends without it. Nothing here marks a credential rejected
+What a job stores, the booked records each part brings back, the pending items a part ending today
+brings back, its checkpoints, discoveries and its own end, goes through lock_job_for_finish, so a
+runner that lost its lease stores nothing and a link that changed while the job fetched gets none of
+its results. Each such step locks the connection first, then the job, then the links, then any bank
+transactions it stores, then any pending items it replaces, then the owner's cache row. The request
+counts and the budget-spent mark lock only the connection and are written outside the job's fence,
+since they record requests already sent, whoever holds the job. An answer to a request sent with a
+credential the connection no longer holds is dropped whole, budget-spent mark included, and the job
+ends without it. Nothing here marks a credential rejected
 """
 
 import logging
@@ -44,6 +45,7 @@ from app.services.bank_sync.availability import ENABLED_ADAPTERS, PROVIDER_ADAPT
 from app.services.bank_sync.discovery import apply_discovery
 from app.services.bank_sync.ingestion import store_booked_records
 from app.services.bank_sync.jobs import ClaimedJob, JobNotHeld, enqueue_bank_sync_job, finish_job, lock_job_for_finish
+from app.services.bank_sync.pending import store_pending_records
 from app.services.bank_sync.provider_requests import (
     RequestBudgetSpent,
     is_quota_spent,
@@ -194,6 +196,13 @@ class _JobRun:
         """Return the window to fetch next for these links, or None when none of them is due"""
         return plan_window(needs, today=self.today, timezone=self.timezone, max_days=self.adapter.max_window_days)
 
+    def _asks_for_pending(self, part: SyncWindow) -> bool:
+        """Return whether a part asks for pending records, and so replaces the pending items of the accounts it brings back whole
+
+        Only a part ending today does, so an import's earlier windows leave the pending items alone
+        """
+        return part.last_day == self.today
+
     async def _read_links(self) -> list[BankAccountLink]:
         """Return every link on the connection, as committed now, noting each linked account's currency"""
         async with async_session() as db:
@@ -314,7 +323,7 @@ class _JobRun:
             account_ids=[need.link.external_account_id for need in part.needs],
             start=start,
             end=end,
-            include_pending=part.last_day == self.today,
+            include_pending=self._asks_for_pending(part),
             timezone=self.timezone,
             currency_exponents=self.currency_exponents,
         )
@@ -335,6 +344,10 @@ class _JobRun:
         whole through today, with the job's start, the moment today was read, so the day it falls on
         is never before the checkpoint
 
+        A part ending today also replaces the pending items of those links' accounts with what it
+        found pending, whatever their checkpoints, since what is pending now doesn't depend on the
+        days a link still lacks
+
         Args:
             part: The days fetched, and the links they were fetched for
             synced: The bank accounts the response brought back whole, by external id
@@ -349,7 +362,10 @@ class _JobRun:
         async with async_session() as db:
             _, held = await _hold_for_finish(db, self.job, [need.link for need in part.needs], sent_with=sent_with)
             whole = [link for link in held if link.external_account_id in synced]
-            stored = await store_booked_records(db, [(link, synced[link.external_account_id].records) for link in whole], observed_at=sent_at)
+            deliveries = [(link, synced[link.external_account_id].records) for link in whole]
+            stored = await store_booked_records(db, deliveries, observed_at=sent_at)
+            if self._asks_for_pending(part):
+                stored |= await store_pending_records(db, deliveries, observed_at=sent_at)
             for link in whole:
                 if first_missing_day(link) < part.first_day:
                     continue

@@ -7,6 +7,8 @@ the request budget is spent can get the user's SimpleFIN token disabled, and a l
 request that holds up the others, or takes each request that frees ahead of them, stalls their
 imports. A booked record dropped is a transaction the user never sees, one stored twice or brought
 back after a dismissal is a duplicate to clear, and one that skips review moves balances unchecked.
+A pending item kept after it posted or was dropped shows a hold that's gone, and pending items
+replaced by a window before today or for an account a fetch failed for hide holds still pending.
 A job that skips its listing leaves new bank accounts unlisted and vanished ones syncing, and one
 that stores what it found after losing its lease, for a link unlinked mid-fetch, or from a request
 sent with a credential replaced mid-flight overwrites what the user, a reconnect or a later attempt
@@ -27,6 +29,7 @@ from app.encryption import encrypt
 from app.models.account import Account
 from app.models.account_review_preference import AccountReviewPreference, ReviewDecision
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState, BankProvider, BankProviderRequest, ProviderRequestPurpose
+from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, ProviderErrorKind
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
 from app.models.cache_state import UserCacheState
@@ -45,6 +48,7 @@ from tests.routes.support.bank_sync_helpers import (
     _build_bank_link,
     _build_bank_transaction,
     _build_external_account,
+    _build_pending_transaction,
     _expire_lease,
     _job_states,
     _seed_job,
@@ -56,6 +60,10 @@ from tests.services.bank_sync.stand_ins import FakeBridgeScenario, simplefin_ada
 # clock reads 1 pm on 4 October there
 _BRISBANE = ZoneInfo("Australia/Brisbane")
 _TODAY = date(2026, 10, 4)
+
+# West of UTC without clock changes, where the frozen clock reads 8 pm on 3 October, already
+# 4 October in UTC, so a day taken in the wrong timezone shows
+_PHOENIX = ZoneInfo("America/Phoenix")
 
 # Yesterday's daily sync, which left a link complete through 3 October
 _YESTERDAYS_SYNC = datetime(2026, 10, 3, 9, 0, tzinfo=_BRISBANE)
@@ -170,11 +178,31 @@ def _record(
     return ProviderRecord(external_id=external_id, date=day, amount=amount, raw_amount=raw_amount, description=description, **fields)
 
 
+def _pending_record(external_id: str, day: date = _TODAY, **values) -> ProviderRecord:
+    """Return a record still pending at the bank, a $4.50 coffee today unless told otherwise"""
+    return _record(external_id, day, pending=True, **values)
+
+
 async def _bank_transactions(*columns) -> list[tuple]:
     """Return these columns of every stored bank transaction, by bank account and then transaction ID"""
     async with TestSession() as session:
         rows = await session.execute(select(*columns).order_by(BankTransaction.external_account_id, BankTransaction.external_transaction_id))
         return [tuple(row) for row in rows]
+
+
+async def _pending_transactions(*columns) -> list[tuple]:
+    """Return these columns of every stored pending item, by transaction ID"""
+    async with TestSession() as session:
+        rows = await session.execute(select(*columns).order_by(BankPendingTransaction.external_transaction_id))
+        return [tuple(row) for row in rows]
+
+
+async def _store_pending(link: BankAccountLink, external_transaction_id: str) -> None:
+    """Commit a pending item an earlier sync found for the link's account"""
+    async with TestSession() as session:
+        account = await session.get(Account, link.account_id)
+        session.add(_build_pending_transaction(account, external_transaction_id))
+        await session.commit()
 
 
 async def _store_bank_transaction(link: BankAccountLink, external_transaction_id: str, **values) -> uuid.UUID:
@@ -235,6 +263,13 @@ async def _link_states(*links: BankAccountLink) -> list[str]:
     """Return each link's committed state"""
     async with TestSession() as session:
         return [await session.scalar(select(BankAccountLink.state).where(BankAccountLink.id == link.id)) for link in links]
+
+
+async def _set_owner_timezone(connection: BankConnection, timezone: ZoneInfo) -> None:
+    """Commit the connection's owner's profile timezone"""
+    async with TestSession() as session:
+        (await session.get(User, connection.owner_id)).tz = timezone.key
+        await session.commit()
 
 
 async def _set_discovered_at(connection: BankConnection, discovered_at: datetime) -> None:
@@ -537,21 +572,18 @@ async def test_job_takes_days_in_the_profile_timezone_west_of_utc(connection, pr
 
     So it re-reads from 18 September to 3 October, where dates taken in UTC would carry on from 3 October to 4 October
     """
-    phoenix = ZoneInfo("America/Phoenix")
-    async with TestSession() as session:
-        (await session.get(User, connection.owner_id)).tz = "America/Phoenix"
-        await session.commit()
+    await _set_owner_timezone(connection, _PHOENIX)
     link = await _link(
         connection,
         "ACT-1",
-        **_synced_through_yesterday(checkpoint=date(2026, 10, 2), last_success_at=datetime(2026, 10, 2, 19, tzinfo=phoenix)),
+        **_synced_through_yesterday(checkpoint=date(2026, 10, 2), last_success_at=datetime(2026, 10, 2, 19, tzinfo=_PHOENIX)),
     )
     provider.outcomes = [_returned("ACT-1")]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
     await _run_jobs_until_none_is_due()
 
-    assert _fetched(provider) == [_window(date(2026, 9, 18), date(2026, 10, 3), pending=True, timezone=phoenix)]
+    assert _fetched(provider) == [_window(date(2026, 9, 18), date(2026, 10, 3), pending=True, timezone=_PHOENIX)]
     assert await _checkpoints(link) == [date(2026, 10, 3)]
 
 
@@ -1138,11 +1170,18 @@ async def test_job_tells_the_owners_pages_as_it_stores_its_listing(connection, p
 
 
 async def test_job_stores_nothing_for_a_link_unlinked_while_it_fetched(connection, monkeypatch):
-    """Savings is unlinked while the job waits on the provider, so only Everyday keeps its records and moves its checkpoint"""
+    """Savings is unlinked while the job waits on the provider, so only Everyday keeps its records and pending items and moves its checkpoint"""
     everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
     savings = await _link(connection, "ACT-savings", **_synced_through_yesterday())
     provider = _HeldProvider()
-    provider.outcomes = [_returned_with({"ACT-everyday": [_record("TRN-coffee")], "ACT-savings": [_record("TRN-interest")]})]
+    provider.outcomes = [
+        _returned_with(
+            {
+                "ACT-everyday": [_record("TRN-coffee"), _pending_record("P-fuel")],
+                "ACT-savings": [_record("TRN-interest"), _pending_record("P-transfer")],
+            }
+        )
+    ]
     monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
@@ -1161,6 +1200,9 @@ async def test_job_stores_nothing_for_a_link_unlinked_while_it_fetched(connectio
 
     assert await _bank_transactions(BankTransaction.external_account_id, BankTransaction.external_transaction_id) == [
         ("ACT-everyday", "TRN-coffee")
+    ]
+    assert await _pending_transactions(BankPendingTransaction.account_id, BankPendingTransaction.external_transaction_id) == [
+        (everyday.account_id, "P-fuel")
     ]
     assert await _checkpoints(everyday, savings) == [_TODAY, date(2026, 10, 3)]
 
@@ -1387,6 +1429,162 @@ async def test_job_puts_no_pending_or_removed_record_in_the_review_inbox(connect
     assert await _bank_transactions(BankTransaction.external_transaction_id) == [("TRN-coffee",)]
 
 
+async def test_job_replaces_an_accounts_pending_items_with_those_still_pending_at_the_bank(connection, provider):
+    """By Tuesday's sync, a coffee pending at Everyday on Monday posted under a new ID and a hotel hold was dropped
+
+    Only the fuel pending beside them on Monday is still pending, the coffee waits for review as a
+    booked item, and the hold leaves no review item behind
+    """
+    await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    fuel = _pending_record("P-fuel", amount=-60_00, raw_amount="-60.00", description="SHELL 0412")
+    hotel = _pending_record("P-hotel", amount=-200_00, raw_amount="-200.00", description="HARBOUR HOTEL")
+    provider.outcomes = [
+        _returned_with({"ACT-everyday": [_pending_record("P-coffee"), fuel, hotel]}),
+        _returned_with({"ACT-everyday": [fuel, _record("TRN-coffee", _TODAY)]}),
+    ]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+    await _run_jobs_until_none_is_due()
+    assert await _pending_transactions(BankPendingTransaction.external_transaction_id) == [("P-coffee",), ("P-fuel",), ("P-hotel",)]
+
+    await _seed_job(connection, BankSyncJobKind.MANUAL)
+    await _run_jobs_until_none_is_due()
+
+    assert await _pending_transactions(BankPendingTransaction.external_transaction_id, BankPendingTransaction.amount) == [("P-fuel", -60_00)]
+    assert await _bank_transactions(BankTransaction.external_transaction_id, BankTransaction.disposition) == [
+        ("TRN-coffee", BankTransactionDisposition.AWAITING_REVIEW)
+    ]
+
+
+async def test_job_keeps_each_pending_record_from_the_import_start_on_once_as_the_bank_sent_it(connection, provider, frozen_now):
+    """Everyday, imported from 3 October, keeps pending a fuel stop, a fee as the bank sent it and a coffee sent twice at its later amount
+
+    A hold from 2 October, before the import start, and a record the provider reports removed are left out
+    """
+    link = await _link(connection, "ACT-everyday", import_start=date(2026, 10, 3), checkpoint=date(2026, 10, 2))
+    pending = [
+        _pending_record("P-fuel", amount=-72_10, raw_amount="-72.10", description="NORTHERN FUEL STOP"),
+        _pending_record("P-fee", amount=None, raw_amount="-12.345", description="FX FEE"),
+        _pending_record("P-coffee"),
+        _pending_record("P-coffee", amount=-5_40, raw_amount="-5.40"),
+        _pending_record("P-before", date(2026, 10, 2)),
+        _pending_record("P-gone", removed=True),
+    ]
+    provider.outcomes = [_returned_with({"ACT-everyday": pending})]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _pending_transactions(
+        BankPendingTransaction.account_id,
+        BankPendingTransaction.external_transaction_id,
+        BankPendingTransaction.transaction_date,
+        BankPendingTransaction.amount,
+        BankPendingTransaction.raw_amount,
+        BankPendingTransaction.description,
+        BankPendingTransaction.observed_at,
+    ) == [
+        (link.account_id, "P-coffee", _TODAY, -5_40, None, "POS 4411 COFFEE", frozen_now),
+        (link.account_id, "P-fee", _TODAY, None, "-12.345", "FX FEE", frozen_now),
+        (link.account_id, "P-fuel", _TODAY, -72_10, None, "NORTHERN FUEL STOP", frozen_now),
+    ]
+
+
+async def test_job_leaves_the_pending_items_of_bank_accounts_the_response_didnt_bring_back_whole(connection, provider):
+    """Savings has an error of its own, Card's bank login needs a sign-in and Travel didn't come back, so each keeps Monday's pending items
+
+    Everyday came back whole in the same response, so its items are replaced
+    """
+    names = ("everyday", "savings", "card", "travel")
+    links = {name: await _link(connection, f"ACT-{name}", **_synced_through_yesterday()) for name in names}
+    for name, link in links.items():
+        await _store_pending(link, f"P-{name}-monday")
+    provider.outcomes = [
+        FetchResult(
+            accounts=(
+                _bank_account("ACT-everyday", records=[_pending_record("P-everyday-tuesday")]),
+                _bank_account("ACT-savings", records=[_pending_record("P-savings-tuesday")]),
+                _bank_account("ACT-card", login_key="CON-card", records=[_pending_record("P-card-tuesday")]),
+            ),
+            account_errors={"ACT-savings": ProviderError(ProviderErrorKind.TEMPORARY, "SimpleFIN Bridge reported a problem")},
+            login_errors={"CON-card": ProviderError(ProviderErrorKind.BANK_LOGIN_NEEDED, "Sign in to your bank again")},
+        )
+    ]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _pending_transactions(BankPendingTransaction.account_id, BankPendingTransaction.external_transaction_id) == [
+        (links["card"].account_id, "P-card-monday"),
+        (links["everyday"].account_id, "P-everyday-tuesday"),
+        (links["savings"].account_id, "P-savings-monday"),
+        (links["travel"].account_id, "P-travel-monday"),
+    ]
+
+
+async def test_job_leaves_pending_items_alone_until_its_window_reaches_today(connection, provider):
+    """In Phoenix, at 8 pm on 3 October and already 4 October in UTC, a catch-up after the worker stopped on 31 March takes three windows
+
+    Each window is a job of its own. The two before today leave March's pending item in place, and
+    the window ending today replaces it with what is pending now
+    """
+    await _set_owner_timezone(connection, _PHOENIX)
+    link = await _link(
+        connection,
+        "ACT-1",
+        **_synced_through_yesterday(checkpoint=date(2026, 3, 31), last_success_at=datetime(2026, 3, 31, 9, tzinfo=_PHOENIX)),
+    )
+    await _store_pending(link, "P-march")
+    provider.outcomes = [_returned("ACT-1"), _returned("ACT-1"), _returned_with({"ACT-1": [_pending_record("P-now", date(2026, 10, 3))]})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    for _ in range(2):
+        assert await run_jobs(1) == 1
+        assert await _pending_transactions(BankPendingTransaction.external_transaction_id) == [("P-march",)]
+    assert await run_jobs(1) == 1
+
+    assert await _pending_transactions(BankPendingTransaction.external_transaction_id) == [("P-now",)]
+    assert len(provider.fetches) == 3
+
+
+async def test_job_tells_the_owners_pages_as_it_replaces_pending_items_without_moving_a_checkpoint(connection, monkeypatch):
+    """An import from 21 September comes back cut short, and only its later half, ending today, brings the bank account back whole
+
+    The checkpoint can't move past the days the earlier half failed for, but the pending items are
+    replaced, so the owner's open pages hear of it before the job ends
+    """
+    await _link(connection, "ACT-1", import_start=date(2026, 9, 21), checkpoint=date(2026, 9, 20))
+    provider = _HeldProvider(held=(3,))
+    provider.outcomes = [
+        _cut_off("ACT-1"),
+        FetchResult(account_errors={"ACT-1": ProviderError(ProviderErrorKind.TEMPORARY, "SimpleFIN Bridge reported a problem")}),
+        _returned_with({"ACT-1": [_pending_record("P-fuel")]}),
+    ]
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
+    told_as_it_ends = []
+    end_job = sync._end_job
+
+    async def end_job_noting_what_the_pages_heard(*args, **kwargs) -> None:
+        """Note when the owner's pages were last told, then end the job as the runner does"""
+        told_as_it_ends.append(await _told_at(connection))
+        await end_job(*args, **kwargs)
+
+    monkeypatch.setattr(sync, "_end_job", end_job_noting_what_the_pages_heard)
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    async with asyncio.timeout(_WAIT_SECONDS):
+        running = asyncio.create_task(run_jobs(1))
+        await provider.sending[3].wait()
+        told_before_the_later_half = await _told_at(connection)
+        provider.release[3].set()
+        await running
+
+    assert await _pending_transactions(BankPendingTransaction.external_transaction_id) == [("P-fuel",)]
+    async with TestSession() as session:
+        assert (await session.execute(select(BankAccountLink.checkpoint, BankAccountLink.last_success_at))).one() == (date(2026, 9, 20), None)
+    [told_as_the_job_ends] = told_as_it_ends
+    assert told_as_the_job_ends > told_before_the_later_half
+
+
 async def test_job_keeps_one_item_with_the_later_values_for_an_id_sent_twice_in_one_response(connection, provider):
     """The coffee comes back twice in one response, at $4.50 and then at $5.40
 
@@ -1410,9 +1608,7 @@ async def test_job_keeps_records_from_the_import_start_on_for_a_user_far_east_of
     first window brings back 4 July, before the import start and left out, and the second brings back
     2 October, which the first ended too soon for and which is kept though it is the checkpoint's own day
     """
-    async with TestSession() as session:
-        (await session.get(User, connection.owner_id)).tz = "Pacific/Tarawa"
-        await session.commit()
+    await _set_owner_timezone(connection, ZoneInfo("Pacific/Tarawa"))
     await scenario.change("POST", "/connections", {"conn_id": "CON-harbour", "name": "Harbour Bank", "org_id": "ORG-harbour"})
     bank_account = {
         "id": "ACT-1",
