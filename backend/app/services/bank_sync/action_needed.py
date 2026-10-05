@@ -1,4 +1,4 @@
-"""Flagging what only the user can fix for a bank connection to sync, and emailing them once as each starts
+"""Flagging what only the user can fix for a bank connection to sync, emailing them once as each starts, and reading it back
 
 Reconnect needed: the provider rejected the connection's credential, so none of its automatic sync
 runs until the user reconnects it with a new one, which clears the mark
@@ -18,13 +18,17 @@ reconnect's listing moves links while the user is in the app choosing, so it ema
 Each state is recorded with its email as sent, in the save that records the state, and the email
 goes out only once that save has committed, so a job run again or cut off after the save sends
 nothing twice, and one cut off before it sends nothing. A send that fails is logged and never undoes
-the save or fails the sync. An email names the connection and the accounts affected, and carries
-no credential, server or transaction data
+the save or fails the sync. An email names what stopped syncing and what to do, and carries no
+credential, server or transaction data
+
+Reconnect needed and Bank sign-in needed are read back per account, with when each began, for the
+account's sync status. Choose bank account shows as the link's own state
 """
 
+import enum
 import logging
 import uuid
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -79,6 +83,53 @@ class ActionEmail:
 
     # Named when the send fails, since the recipient's address isn't logged
     connection_id: uuid.UUID
+
+
+class ActionNeededKind(enum.StrEnum):
+    """What the user has to do for an account's sync to resume"""
+
+    # Reconnect the account's connection in Settings with a new credential
+    RECONNECT = "reconnect"
+
+    # Sign in to the account's bank again on the provider's site
+    BANK_LOGIN = "bank_login"
+
+
+@dataclass(frozen=True)
+class ActionNeeded:
+    """What the user has to do for an account's sync to resume, and when that began"""
+
+    kind: ActionNeededKind
+    since: datetime
+
+
+async def read_actions_needed(db: AsyncSession, account_ids: Collection[uuid.UUID]) -> dict[uuid.UUID, ActionNeeded]:
+    """Return what the user has to do for each account's sync to resume, for the accounts that need something
+
+    Every account still linked through a connection whose credential was rejected needs a
+    reconnect, from when the credential was rejected, which comes before any bank sign-in, since
+    reconnecting comes first. Otherwise an active link marked as waiting on a bank sign-in needs one,
+    from when it was marked. An account no longer linked needs nothing
+
+    Args:
+        db: The owner's session
+        account_ids: The accounts to read
+
+    Returns:
+        What each account that needs something needs, by account id
+    """
+    links = await db.execute(
+        select(BankAccountLink.account_id, BankAccountLink.state, BankAccountLink.signin_needed_since, BankConnection.credential_rejected_at)
+        .join(BankConnection, BankConnection.id == BankAccountLink.connection_id)
+        .where(BankAccountLink.account_id.in_(account_ids), BankAccountLink.state != BankLinkState.UNLINKED)
+    )
+    needed = {}
+    for account_id, state, signin_needed_since, credential_rejected_at in links:
+        if credential_rejected_at is not None:
+            needed[account_id] = ActionNeeded(ActionNeededKind.RECONNECT, credential_rejected_at)
+        elif state == BankLinkState.ACTIVE and signin_needed_since is not None:
+            needed[account_id] = ActionNeeded(ActionNeededKind.BANK_LOGIN, signin_needed_since)
+    return needed
 
 
 async def flag_rejected_credential(db: AsyncSession, connection: BankConnection, *, at: datetime, now: datetime) -> list[ActionEmail]:
