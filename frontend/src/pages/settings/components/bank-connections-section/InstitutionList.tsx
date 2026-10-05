@@ -170,8 +170,11 @@ export interface InstitutionEntry {
   /** What the user has to do here, in red under the name, which also puts the row under Needs attention */
   problem?: string
 
-  /** Why the row is as it is when that is not a problem, in plain small print under the name */
-  detail?: string
+  /**
+   * Why linking is as it is when that is not a problem, said after the count as in "2 of 2 linked ·
+   * Linking resumes after you reconnect". The line sits under the name on phones, where it can't fit beside it
+   */
+  countNote?: string
 
   /** A note that is not a problem, shown above the bank accounts, such as the institution limit */
   note?: string
@@ -197,6 +200,7 @@ export function InstitutionRow({ entry, defaultOpen, prefersReducedMotion }: { e
   const [toggled, setToggled] = useState<boolean | null>(null)
   const open = toggled ?? defaultOpen
   const bodyId = useId()
+  const counted = `${entry.linked} of ${entry.total} linked${entry.countNote ? ` · ${entry.countNote}` : ''}`
 
   return (
     <section aria-label={entry.name}>
@@ -219,7 +223,7 @@ export function InstitutionRow({ entry, defaultOpen, prefersReducedMotion }: { e
           <span className="min-w-0 flex-1">
             <span className="block truncate font-semibold transition-colors duration-150 group-hover/row:text-[var(--app-accent)]" style={{ color: 'var(--app-text)' }}>{entry.name}</span>
             {entry.problem && <ProblemLine>{entry.problem}</ProblemLine>}
-            {entry.detail && <span className="mt-0.5 block text-xs" style={{ color: 'var(--app-text-muted)' }}>{entry.detail}</span>}
+            {entry.countNote && <span className="mt-0.5 block text-xs sm:hidden" style={{ color: 'var(--app-text-muted)' }}>{counted}</span>}
           </span>
         </button>
         {entry.hint && (
@@ -229,8 +233,8 @@ export function InstitutionRow({ entry, defaultOpen, prefersReducedMotion }: { e
             </IconTooltip>
           </span>
         )}
-        <span className="flex min-w-0 flex-1 justify-end self-stretch py-3.5 pl-3">
-          <span className="shrink-0 text-xs leading-6" style={{ color: 'var(--app-text-muted)' }}>{entry.linked} of {entry.total} linked</span>
+        <span className={`${entry.countNote ? 'hidden sm:flex' : 'flex'} min-w-0 flex-1 justify-end self-stretch py-3.5 pl-3`}>
+          <span className="shrink-0 text-xs leading-6" style={{ color: 'var(--app-text-muted)' }}>{counted}</span>
         </span>
       </div>
       <AnimatePresence initial={false}>

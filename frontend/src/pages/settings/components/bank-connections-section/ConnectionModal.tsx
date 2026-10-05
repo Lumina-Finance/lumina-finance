@@ -310,7 +310,7 @@ export function ConnectionModal({ open, connection, accountNameFor, onReconnect,
               entry={{
                 key: 'folded',
                 name: countNoun(institutionCount, 'institution'),
-                detail: 'Linking resumes after you reconnect',
+                countNote: 'Linking resumes after you reconnect',
                 linked: linkedCount,
                 total: bankAccountCount,
                 body: institutionList,
