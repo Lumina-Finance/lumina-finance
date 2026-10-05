@@ -1,18 +1,36 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser, todayInTestTimezone } from '../support/api'
-import { logInViaApi, openModal, openPage } from '../support/app'
+import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 // A linked account's bank supplies its transactions from the import start through today, so the
-// transaction modal refuses those days and the account can't be archived until it is unlinked.
+// transaction modal refuses those days, a bank transaction can't leave the account, and the account
+// can't be archived until it is unlinked.
 //
 // The list of links the app reads is not served yet, so each test answers it with the link it needs.
 // Nothing links the account on the server, which accepts every save, so a refusal seen here is the
 // browser's own and a save that goes through is one the browser let through
 const IMPORT_START = '2026-01-01'
 const SUPPLIED_DAYS_MESSAGE = "SimpleFIN supplies this account's transactions from Jan 1, 2026 to today"
+const MOVE_REFUSAL = "Transactions from SimpleFIN can't move out of Everyday while it's linked"
 const ARCHIVE_LINKED_REASON = "This account can't be archived while it's linked to SimpleFIN. Unlink it first"
+
+// Where a bank transaction came from, as the app reads it alongside the transaction
+const BANK_SOURCE = {
+  provider: 'simplefin',
+  provider_name: 'SimpleFIN',
+  bank_values: {
+    date: '2026-01-15',
+    amount: -4250,
+    raw_amount: null,
+    description: 'GROCER 123',
+    merchant_name: null,
+    category_hint: null,
+  },
+  edited_fields: [],
+  review_item_id: null,
+}
 
 // The layout puts Date, Currency and Amount side by side from this width
 const FIELD_ROW_MIN_WIDTH = 640
@@ -47,6 +65,24 @@ async function answerLinksWith(page: Page, accountIds: () => string[]): Promise<
       balance: null,
     })),
   }))
+}
+
+/**
+ * Answers the app's reads of one transaction as imported from the bank, since nothing links an
+ * account on the server for a sync to import one
+ */
+async function answerAsBankImported(page: Page, transactionId: string): Promise<void> {
+  const isTransactionRead = (url: URL) =>
+    url.href.startsWith(`${API_BASE_URL}/transactions?`) || url.href === `${API_BASE_URL}/transactions/${transactionId}`
+  await page.route(isTransactionRead, async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback()
+
+    const response = await route.fetch()
+    const body = await response.json() as { id: string } | { id: string }[]
+    const markImported = (transaction: { id: string }) =>
+      transaction.id === transactionId ? { ...transaction, bank_source: BANK_SOURCE } : transaction
+    await route.fulfill({ response, json: Array.isArray(body) ? body.map(markImported) : markImported(body) })
+  })
 }
 
 async function getBox(locator: Locator) {
@@ -172,6 +208,49 @@ test('lets an edit keep a date the linked account’s bank supplies, and refuses
   expect((await dateSaved).status()).toBe(200)
   await expect(dialog).toBeHidden()
   expect(sentDates).toEqual(['2025-12-31'])
+})
+
+test('keeps a bank transaction in its linked account, refusing the move on the account field', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  await createAccount(request, user, { name: 'Savings' })
+  const id = await createTransaction(request, user, {
+    accountId: account.id,
+    categoryName: 'Groceries',
+    amount: -4250,
+    date: '2026-01-15',
+  })
+  await answerLinksWith(page, () => [account.id])
+  await answerAsBankImported(page, id)
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  const dialog = page.getByRole('dialog', { name: 'Edit Transaction', exact: true })
+  const refusal = dialog.getByRole('alert').filter({ hasText: MOVE_REFUSAL })
+
+  const sentDates: unknown[] = []
+  page.on('request', (sent) => {
+    if (sent.url() === `${API_BASE_URL}/transactions/${id}` && sent.method() === 'PATCH') sentDates.push(sent.postDataJSON().dt)
+  })
+
+  // The bank's own date is the bank's to correct, so another day it supplies is taken
+  await page.getByTestId(`transaction-row-${id}`).click()
+  await typeDate(page, dialog, '2026-01-16')
+
+  // Leaving the account is refused on its field, and a save sends nothing
+  await chooseFromDropdown(dialog, 'Account', 'Savings')
+  await expect(refusal).toBeVisible()
+  await expect(dialog.getByRole('combobox', { name: 'Account' })).toHaveAttribute('aria-invalid', 'true')
+  await dialog.getByTestId('transaction-submit').click()
+  await expect(dialog).toBeVisible()
+
+  await chooseFromDropdown(dialog, 'Account', 'Everyday')
+  await expect(refusal).toBeHidden()
+  const saved = page.waitForResponse((response) =>
+    response.url() === `${API_BASE_URL}/transactions/${id}` && response.request().method() === 'PATCH')
+  await dialog.getByTestId('transaction-submit').click()
+  expect((await saved).status()).toBe(200)
+  await expect(dialog).toBeHidden()
+  expect(sentDates).toEqual(['2026-01-16'])
 })
 
 test('greys out Archive with its reason while the account is linked, and offers it again once unlinked', async ({ page, request }) => {

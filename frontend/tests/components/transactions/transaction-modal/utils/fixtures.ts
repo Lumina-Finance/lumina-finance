@@ -5,6 +5,7 @@
  * record unremarkable, so an assertion only ever turns on what its own test set
  */
 import type { AccountsOverview } from '@/api/accounts'
+import type { TransactionBankSource } from '@/api/bank-sync'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Transaction } from '@/api/transactions'
@@ -84,4 +85,22 @@ export function createTransaction(overrides: Partial<Transaction> = {}): Transac
     bank_source: null,
     ...overrides,
   }
+}
+
+/**
+ * Where a bank-imported transaction came from, for the paths that treat those apart from manual ones
+ */
+export const BANK_SOURCE: TransactionBankSource = {
+  provider: 'simplefin',
+  provider_name: 'SimpleFIN',
+  bank_values: {
+    date: '2026-07-12',
+    amount: -4250,
+    raw_amount: null,
+    description: 'GROCER 123',
+    merchant_name: null,
+    category_hint: null,
+  },
+  edited_fields: [],
+  review_item_id: null,
 }

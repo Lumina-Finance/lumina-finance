@@ -45,8 +45,8 @@ function isSuppliedDay(date: string, link: SupplyingLink, today: string): boolea
  *
  * Mirrors the backend's refusal, so the date is refused before a save rather than by it. A
  * bank-imported transaction in a linked account answers to that account's link instead: its date is
- * the bank's to correct, and moving it elsewhere is refused on save for the move itself, so it is
- * checked only once it moves out of an account no longer linked. An edit is checked only when its date
+ * the bank's to correct, and moving it elsewhere is refused on the account field for the move itself,
+ * so it is checked only once it moves out of an account no longer linked. An edit is checked only when its date
  * or account changes, since one that keeps both writes no new day. A symmetric transfer writes a second
  * transaction into the other account, so that account's days count too, and the message names it
  */

@@ -25,6 +25,7 @@ import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { usePendingLinks } from '@/components/transactions/transaction-modal/hooks/usePendingLinks'
 import { useRefundRoom } from '@/components/transactions/transaction-modal/hooks/useRefundRoom'
+import { getBankMoveRefusal } from '@/components/transactions/transaction-modal/utils/bankMove'
 import { getSuppliedDays } from '@/components/transactions/transaction-modal/utils/suppliedDays'
 import type {
   CreateTransactionModalProps,
@@ -157,6 +158,13 @@ export default function CreateTransactionModal({
     today: getTodayYmd(user?.tz),
   })
 
+  // Shown as soon as another account is picked, since picking one is already a finished answer
+  const bankMoveRefusal = getBankMoveRefusal({
+    accountId: form.account_id,
+    transaction,
+    sourceAccount: transaction && accounts.find((account) => account.id === transaction.account_id),
+    linksByAccount,
+  })
   const { merchantModal, categoryModal, tagModal } = useTransactionReferenceCreationModals()
 
   const categoryField = useCategoryField({
@@ -243,6 +251,8 @@ export default function CreateTransactionModal({
   })
   // A date on days a linked account's bank supplies is a problem like any other, so a press refuses it
   if (suppliedDays.message && !problems.date) problems.date = suppliedDays.message
+  // So is a bank transaction moved out of its linked account, which the account field shows at once
+  if (bankMoveRefusal && !problems.account_id) problems.account_id = bankMoveRefusal
   const refusal = useRefusedSubmit(problems, fieldLayout.order, suffixControlIds(fieldLayout.controlIds, idSuffix))
   const showError = (field: keyof TransactionFormFieldErrors) => refusal.errors[field]
   // The supplied-days message names a provider and a date, too long for the label row beside Date, so
@@ -331,7 +341,7 @@ export default function CreateTransactionModal({
     options: accountField.accountOptions,
     selectedOption: accountField.selectedArchivedAccountOption,
     value: form.account_id,
-    error: showError('account_id'),
+    error: bankMoveRefusal ?? showError('account_id'),
     onChange: accountField.handleAccountChange,
 
     // The balance belongs to the account the transaction is recorded in, so it travels with that

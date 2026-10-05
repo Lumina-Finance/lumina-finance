@@ -4,11 +4,10 @@
  * bank-imported transaction's own date and every day outside the range stay open
  */
 import { describe, expect, it } from 'vitest'
-import type { TransactionBankSource } from '@/api/bank-sync'
 import { INITIAL_TRANSACTION_FORM } from '@/components/transactions/transaction-modal/constants'
 import type { TransactionFormValues } from '@/components/transactions/transaction-modal/types'
 import { getSuppliedDays } from '@/components/transactions/transaction-modal/utils/suppliedDays'
-import { createAccount, createTransaction } from './fixtures'
+import { BANK_SOURCE, createAccount, createTransaction } from './fixtures'
 
 const TODAY = '2026-10-04'
 const EVERYDAY = createAccount({ id: 'everyday', name: 'Everyday' })
@@ -19,21 +18,6 @@ const LINKS = new Map([
   [VISA.id, { provider_name: 'SimpleFIN', import_start: '2026-09-01' }],
 ])
 const EVERYDAY_MESSAGE = "SimpleFIN supplies this account's transactions from Jun 1, 2026 to today"
-
-const BANK_SOURCE: TransactionBankSource = {
-  provider: 'simplefin',
-  provider_name: 'SimpleFIN',
-  bank_values: {
-    date: '2026-07-12',
-    amount: -4250,
-    raw_amount: null,
-    description: 'GROCER 123',
-    merchant_name: null,
-    category_hint: null,
-  },
-  edited_fields: [],
-  review_item_id: null,
-}
 
 function form(overrides: Partial<TransactionFormValues>): TransactionFormValues {
   return { ...INITIAL_TRANSACTION_FORM, account_id: EVERYDAY.id, ...overrides }
@@ -109,7 +93,7 @@ describe('days a linked account’s bank supplies', () => {
       today: TODAY,
     })
 
-    // Leaving a linked account is refused on save for the move itself, whatever the date
+    // Leaving a linked account is refused on the account field for the move itself, whatever the date
     expect(movedTo(SAVINGS.id).message).toBe(EVERYDAY_MESSAGE)
     expect(movedTo(VISA.id).message).toBeNull()
   })
