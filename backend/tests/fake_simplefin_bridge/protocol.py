@@ -162,9 +162,13 @@ def _now() -> int:
 
 
 def _account_set(errlist: list[dict], connections: list[dict], accounts: list[dict]) -> dict:
-    """Return a version 2 account set, with each errlist message repeated in the legacy errors list"""
+    """Return a version 2 account set, with each errlist problem repeated in the legacy errors list
+
+    The legacy entry words the problem in its own way, as the Bridge's two lists needn't match word
+    for word, so a client can't pair them up by their text
+    """
     return {
-        "errors": [error["msg"] for error in errlist],
+        "errors": [f"{error['code']}: {error['msg']}" for error in errlist],
         "errlist": errlist,
         "connections": connections,
         "accounts": accounts,

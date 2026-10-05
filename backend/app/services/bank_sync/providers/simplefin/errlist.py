@@ -36,7 +36,8 @@ _PRECEDENCE = (
 )
 
 # How SimpleFIN Bridge words a warning that its request quota is spent, in a general errlist entry
-# or the older errors list. Unverified against real SimpleFIN Bridge data
+# or, from a server that sends no errlist, the older errors list. Unverified against real SimpleFIN
+# Bridge data
 _QUOTA_WARNING = re.compile(r"fewer requests|refresh limit|rate[ -]?limit|too many requests", re.IGNORECASE)
 
 # SimpleFIN's demo Bridge sends this as gen.api beside the whole history when a request spans more
@@ -82,24 +83,19 @@ def fetch_result(
         else:
             request_errors.append(error)
 
-    # The older errors list names no code, login or account, and a server may report a problem only
-    # there, so one that errlist doesn't repeat counts like an unknown general code: a warning
-    # beside data, which keeps any bank account it leaves out from being read as gone
-    listed_messages = {problem.msg.strip() for problem in account_set.errlist}
-    for message in account_set.errors:
-        text = message.strip()
-        if _QUOTA_WARNING.search(text):
-            kind = ProviderErrorKind.RATE_LIMITED
-        elif text and text not in listed_messages:
-            kind = ProviderErrorKind.UNKNOWN
-        else:
-            continue
-        (warnings if has_data else request_errors).append(ProviderError(kind, text))
+    # The older errors list names no code, login or account, and needn't word a problem as errlist
+    # does, so it is read only from a server that sends no errlist. Each message there counts like
+    # an unknown general code, a warning beside data that keeps any bank account it leaves out from
+    # being read as gone, except that a quota warning is still recognised
+    if not account_set.errlist:
+        for message in account_set.errors:
+            text = message.strip()
+            if text:
+                kind = ProviderErrorKind.RATE_LIMITED if _QUOTA_WARNING.search(text) else ProviderErrorKind.UNKNOWN
+                (warnings if has_data else request_errors).append(ProviderError(kind, text))
 
-    # A quota warning can arrive in both lists
-    unique_warnings = tuple(dict.fromkeys(warnings))
     if request_errors:
-        return FetchResult(request_error=min(request_errors, key=_seriousness), warnings=unique_warnings)
+        return FetchResult(request_error=min(request_errors, key=_seriousness), warnings=tuple(warnings))
 
     returned_ids = {account.external_id for account in accounts}
     for account_id in requested_account_ids:
@@ -110,7 +106,7 @@ def fetch_result(
         accounts=accounts,
         account_errors=account_errors,
         login_errors=login_errors,
-        warnings=unique_warnings,
+        warnings=tuple(warnings),
         possibly_cut_off=is_possibly_cut_off(account_set),
     )
 

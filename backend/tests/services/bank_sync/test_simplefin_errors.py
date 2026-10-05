@@ -44,7 +44,7 @@ _UNKNOWN = ProviderErrorKind.UNKNOWN
 _UNREACHABLE = "SimpleFIN Bridge couldn't be reached"
 _UNREADABLE = "SimpleFIN Bridge sent a response Lumina Finance couldn't read"
 
-# The fake Bridge's quota warning, which it repeats in the older errors list
+# The fake Bridge's quota warning, which it repeats in other words in the older errors list
 _FAKE_QUOTA_WARNING = "You are making too many requests. Make fewer requests or this access token may be disabled"
 
 
@@ -260,7 +260,7 @@ async def test_bank_login_problem_stops_only_that_logins_accounts(scenario: Fake
     assert result.request_error is None
     assert result.login_errors == {"CON-harbour": ProviderError(_BANK_LOGIN_NEEDED, "Harbour Bank needs you to sign in again.")}
     assert result.account_errors == {}
-    # The fake Bridge repeats the message in the older errors list, which adds nothing more
+    # The fake Bridge repeats the problem in other words in the older errors list, which errlist replaces
     assert result.warnings == ()
     assert {account.external_id: account.login_key for account in result.accounts} == {
         "ACT-chequing": "CON-harbour",
@@ -268,6 +268,17 @@ async def test_bank_login_problem_stops_only_that_logins_accounts(scenario: Fake
         "ACT-visa": "CON-harbourline",
     }
     assert [record.external_id for record in result.accounts[2].records] == ["TRN-streaming"]
+
+
+async def test_bank_login_problem_with_no_accounts_beside_it_still_needs_signing_in(scenario: FakeBridgeScenario):
+    """con.auth for Harbour Bank with nothing listed asks for its sign-in, however the older errors list words it"""
+    problem = {"code": "con.auth", "msg": "Harbour Bank needs you to sign in again.", "conn_id": "CON-harbour"}
+
+    result = await _fetch_from(scenario, problem)
+
+    assert result.request_error is None
+    assert result.login_errors == {"CON-harbour": ProviderError(_BANK_LOGIN_NEEDED, "Harbour Bank needs you to sign in again.")}
+    assert result.warnings == ()
 
 
 async def test_account_problem_fails_only_that_account(scenario: FakeBridgeScenario):
