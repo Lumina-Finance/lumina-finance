@@ -5,7 +5,8 @@
  *
  * These tests catch the block hiding the toggle a long backlog needs, offering one a short backlog
  * doesn't, a removal showing anything but the ledger amount struck through, a failed read counting
- * nothing as zero or offering no retry, and a retry that drops keyboard focus while it waits
+ * nothing as zero or offering no retry, and a retry that drops keyboard focus while it waits.
+ * Following a Needs review marker to a failed read runs in the browser, since it needs effects
  */
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -35,6 +36,7 @@ function renderBlock(
     items,
     total: items.length,
     itemsFailure: null,
+    itemsRetryRef: null,
     accountFor: () => ({ name: 'Everyday', currency: 'USD' }),
     showAccountNames: true,
     today: '2026-10-05',

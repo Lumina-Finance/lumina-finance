@@ -223,13 +223,14 @@ test('shows each kind of item for the accounts the list shows, and only its own 
   await expect(block).not.toContainText('Visa')
 })
 
-test('says in the block that the waiting items could not load, and reads only them again', async ({ page, request }) => {
-  const { everyday } = await start(page, request)
+test('says in the block that the waiting items could not load, sends Needs review there, and reads only them again', async ({ page, request }) => {
+  const accounts = await start(page, request)
+  const uberId = await addUberTripAwaiting(page, request, accounts, 'item-0')
   const reads = { items: 0, backlogs: 0 }
   let itemsFail = true
   await answerReviewItems(page, () => {
     reads.items += 1
-    return itemsFail ? 500 : pageOf([reviewItem('item-0', 'removal', everyday.id, { description: 'UBER TRIP' })])
+    return itemsFail ? 500 : pageOf([reviewItem('item-0', 'removal', accounts.everyday.id, { description: 'UBER TRIP' })])
   })
   await answerBacklogs(page, () => {
     reads.backlogs += 1
@@ -247,11 +248,17 @@ test('says in the block that the waiting items could not load, and reads only th
   expect(await contrastOf(failure.getByText('Bank items to review could not load.'))).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
   expect(await contrastOf(retry)).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
 
-  // Trying again reads the items alone, without reloading the page
+  // A Needs review marker goes to the failure rather than nowhere, ready to try again
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+  await showWaitingItem(page, uberId)
+  await expect(retry).toBeFocused()
+  await expect(failure).toBeInViewport()
+
+  // Trying again from there reads the items alone, without reloading the page
   await page.evaluate(() => Object.assign(window, { notReloaded: true }))
   const backlogReads = reads.backlogs
   itemsFail = false
-  await retry.click()
+  await page.keyboard.press('Enter')
   await expect(block.getByRole('listitem').filter({ hasText: 'UBER TRIP' })).toBeVisible()
   await expect(failure).toBeHidden()
   await expect(block.getByText('1', { exact: true })).toBeVisible()

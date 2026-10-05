@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, type Ref } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Landmark, PauseCircle, TriangleAlert } from 'lucide-react'
 import type { BankReviewItem } from '@/api/bank-sync'
@@ -42,6 +42,9 @@ type BankReviewBlockProps = {
 
   /** Set while the items have never loaded, which the block says in place of its count and rows */
   itemsFailure: ReviewReadFailure | null
+
+  /** Takes the button that reads the items again, which a Needs review marker focuses while they can't load */
+  itemsRetryRef: Ref<HTMLButtonElement>
   accountFor: (accountId: string) => ReviewItemAccount
 
   /** Left out on an account's own page, where every item is that account's */
@@ -84,10 +87,11 @@ type BankReviewBlockProps = {
  *
  * The retry stays focusable while it waits, so a keyboard user who pressed it keeps their place
  */
-function ReadFailureNotice({ subject, failure }: {
+function ReadFailureNotice({ subject, failure, retryRef }: {
   /** What failed, as in "Sync pause status" */
   subject: string
   failure: ReviewReadFailure
+  retryRef?: Ref<HTMLButtonElement>
 }) {
   return (
     <div
@@ -98,6 +102,7 @@ function ReadFailureNotice({ subject, failure }: {
       <TriangleAlert size={14} aria-hidden className="shrink-0" style={{ color: 'var(--app-negative)' }} />
       <span className="min-w-0 flex-1">{subject} could not load.</span>
       <button
+        ref={retryRef}
         type="button"
         onClick={() => {
           if (!failure.isRetrying) failure.retry()
@@ -124,6 +129,7 @@ export function BankReviewBlock({
   items,
   total,
   itemsFailure,
+  itemsRetryRef,
   accountFor,
   showAccountNames,
   today,
@@ -209,7 +215,7 @@ export function BankReviewBlock({
         {itemsFailure && (
           <motion.div key="items-failure" {...notice}>
             <div className="px-4 pb-3 sm:px-5">
-              <ReadFailureNotice subject="Bank items to review" failure={itemsFailure} />
+              <ReadFailureNotice subject="Bank items to review" failure={itemsFailure} retryRef={itemsRetryRef} />
             </div>
           </motion.div>
         )}

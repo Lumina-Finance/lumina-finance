@@ -85,8 +85,8 @@ function getRowsOnScreen(rows: Map<string, HTMLDivElement>): Set<string> {
  * Hidden while nothing in scope waits. While the items can't load, the block says so in place of its
  * rows, so an empty space never reads as nothing waiting, and offers to read them again. A Needs
  * review marker's request opens the block when its item is past the first few, loads pages until the
- * item is among them, then scrolls to it, focuses it and rings it for a moment. A page that fails to
- * load ends the request where it is
+ * item is among them, then scrolls to it, focuses it and rings it for a moment. While the items can't
+ * load, the request goes to that retry instead, and a page that fails to load ends it where it is
  *
  * Kept apart from the list's own renders, such as one for each search keystroke, since an open block
  * can hold hundreds of rows
@@ -209,7 +209,19 @@ export const BankReviewSection = memo(function BankReviewSection({
     return () => window.clearTimeout(timer)
   }, [highlight])
 
+  // With no items to go to, a marker's request goes to the failure and its retry, so the user sees
+  // why and can try again from there
+  const itemsRetryRef = useRef<HTMLButtonElement>(null)
   const hasItemsFailure = itemsFailure !== null
+  useEffect(() => {
+    const retry = itemsRetryRef.current
+    if (!jump || !hasItemsFailure || !retry) return
+    return whenSettled(retry, () => {
+      retry.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'center' })
+      retry.focus({ preventScroll: true })
+      setJump(null)
+    })
+  }, [jump, hasItemsFailure, prefersReducedMotion])
 
   const { sentinelRef, showPendingFetch } = useInfiniteScrollTrigger({
     hasNextPage,
@@ -237,6 +249,7 @@ export const BankReviewSection = memo(function BankReviewSection({
               items={items}
               total={total}
               itemsFailure={itemsFailure}
+              itemsRetryRef={itemsRetryRef}
               accountFor={accountFor}
               showAccountNames={!isFixedAccount}
               today={today}
