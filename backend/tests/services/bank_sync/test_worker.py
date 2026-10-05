@@ -4,8 +4,9 @@ Each is called on its own here, the way a hosted runner calls them, against jobs
 worker's own sessions see them. A runner stand-in takes the place of the sync itself where a test
 needs a job to wait as though fetching, or to write what it found inside the job's fence. Without
 the fence a job that lost its lease would overwrite the next attempt's results, and an account
-unlinked mid-fetch would still get pending items. The heartbeat and what the self-hosted worker
-needs before it starts are covered last
+unlinked mid-fetch would still get pending items, and a job that fails without its links recording
+why leaves their accounts looking fine and never retried. The heartbeat and what the self-hosted
+worker needs before it starts are covered last
 """
 
 import asyncio
@@ -327,6 +328,54 @@ async def test_run_jobs_records_a_job_that_fails_and_runs_the_next(connections, 
         assert await run_jobs(10) == 2
 
     assert await _job_outcomes() == {failing.id: ("failed", kind), following.id: ("succeeded", None)}
+
+
+@pytest.mark.parametrize(
+    ("failure", "reason"),
+    [
+        ("raises", "The sync stopped because of an unexpected error"),
+        ("hangs", "The sync took longer than 5 minutes"),
+        ("interrupted_too_often", "The sync was interrupted 3 times"),
+    ],
+)
+async def test_run_jobs_records_why_a_job_failed_on_each_link_it_was_syncing_and_retries_them(connections, monkeypatch, failure, reason):
+    """The job was syncing Everyday when it failed, so Everyday shows why and is retried 30 minutes on, and Savings shows no attempt"""
+    _, (everyday, savings) = await _seed_links(connections[0], "ACT-everyday", "ACT-savings")
+    values = {"covered_link_ids": [everyday.id]}
+    if failure == "interrupted_too_often":
+        lapsed = datetime.now(UTC) - timedelta(minutes=1)
+        values |= {"status": BankSyncJobStatus.RUNNING, "attempt": MAX_JOB_ATTEMPTS, "lease_expires_at": lapsed}
+    job = await _seed_job(connections[0], BankSyncJobKind.SCHEDULED, **values)
+
+    async def runner(job: ClaimedJob) -> None:
+        """Raise or run past the time limit, as the case says"""
+        if failure == "raises":
+            raise RuntimeError("Unexpected bank data")
+        await asyncio.sleep(_WAIT_SECONDS)
+
+    monkeypatch.setattr(worker, "run_sync_job", runner)
+    monkeypatch.setattr(worker, "JOB_TIME_LIMIT", timedelta(seconds=1))
+
+    async with asyncio.timeout(_WAIT_SECONDS):
+        assert await run_jobs(1) == 1
+
+    async with TestSession() as session:
+        rows = await session.execute(
+            select(
+                BankAccountLink.id,
+                BankAccountLink.last_attempt_at,
+                BankAccountLink.last_failure_reason,
+                BankAccountLink.retry_count,
+                BankAccountLink.next_attempt_at,
+            )
+        )
+        attempts = {link_id: attempt for link_id, *attempt in rows}
+        queued = (await session.execute(select(BankSyncJob.kind, BankSyncJob.run_after).where(BankSyncJob.status == "queued"))).all()
+    failed_at, *recorded = attempts[everyday.id]
+    assert recorded == [reason, 1, failed_at + timedelta(minutes=30)]
+    assert attempts[savings.id] == [None, None, 0, None]
+    assert [tuple(row) for row in queued] == [(BankSyncJobKind.RETRY, failed_at + timedelta(minutes=30))]
+    assert (await _job_outcomes())[job.id][0] == "failed"
 
 
 async def test_enqueue_due_work_queues_each_due_connection_as_its_owner_and_stamps_the_heartbeat(connections, frozen_now):

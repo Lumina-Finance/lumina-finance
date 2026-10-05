@@ -13,7 +13,13 @@ it waits on the provider
 A bank account a fetch lists in a currency other than its account's isn't brought back whole, since
 its amounts would be read at the wrong precision, and the job queues the next one to list the bank
 accounts first, which moves its link to Choose bank account. A job that listed them itself queues no
-listing, so a provider whose listing and fetch disagree can't spend request after request
+listing, so a provider whose listing and fetch disagree can't spend request after request, and nor
+does a job that ends on a rejected credential, which can't list anything
+
+Each attempt is recorded on the links it was for, as the retries module describes: a link brought
+up to date succeeded, and one a request or listing failed for, or a response didn't bring back
+whole, failed with the reason. A link fails at most once a job, so the halves of a window are one
+attempt for it, and every job that ends queues its connection's next retry
 
 What a job stores, the booked records each part brings back, the pending items a part ending today
 brings back, its checkpoints, discoveries and its own end, goes through lock_job_for_finish, so a
@@ -54,6 +60,7 @@ from app.services.bank_sync.provider_requests import (
     reserve_provider_request,
 )
 from app.services.bank_sync.providers.contract import ExternalAccount, FetchResult, ProviderAdapter, ProviderError
+from app.services.bank_sync.retries import is_waiting_to_retry, queue_next_retry, record_failed_attempt, record_successful_attempt
 from app.services.bank_sync.windows import LinkNeed, SyncWindow, find_due_links, first_missing_day, plan_window
 from app.services.cache_state.updates import mark_user_cache_changed
 from app.services.fx.currency_exponent_helpers import get_all_currency_exponents
@@ -68,6 +75,11 @@ DISCOVERY_MAX_AGE = timedelta(hours=20)
 
 # The link states a discovery moves between, so a connection with a link in one is kept listed
 _DISCOVERED_LINK_STATES = (BankLinkState.ACTIVE, BankLinkState.CHOOSE_ACCOUNT)
+
+# Why a link's attempt failed when a response listed its bank account in another currency than its
+# account's, or left it out without saying why, as the account's sync status shows it
+_CURRENCY_CHANGED_REASON = "{provider} now reports this bank account in {currency}, not {account_currency}"
+_NOT_RETURNED_REASON = "{provider} didn't return this bank account"
 
 
 class _CredentialReplaced(Exception):
@@ -111,6 +123,26 @@ async def run_sync_job(job: ClaimedJob) -> None:
             await run.run()
         except _CredentialReplaced:
             await _end_job(job)
+
+
+async def fail_sync_job(job: ClaimedJob, error: ProviderError) -> None:
+    """Record a job its runner couldn't finish as failed, and the error as a failed attempt for each link it was syncing
+
+    Each link the job had started on fails, though a window it finished may already have recorded
+    the link's attempt, and its retry is queued like any job's
+
+    Args:
+        job: The job as claimed
+        error: Why the job couldn't finish
+
+    Raises:
+        JobNotHeld: A later attempt holds the job, it already finished, or the connection was
+            deleted with its jobs, so nothing was written
+    """
+    async with async_session() as db:
+        covered = await db.scalar(select(BankSyncJob.covered_link_ids).where(BankSyncJob.id == job.id))
+        links = (await db.scalars(select(BankAccountLink).where(BankAccountLink.id.in_(covered or ())))).all()
+    await _end_job(job, error, failed=links)
 
 
 class _JobRun:
@@ -157,7 +189,8 @@ class _JobRun:
         A link whose fetch failed is left out of the rest of the job, so one failing on every request
         can't hold up the others: a window that ends before today and moves no checkpoint is followed
         in the same job by the next window the remaining links need. Retrying the failed link waits
-        for a later job, which plans it once no other link is due
+        for its retry time and a later job, which plans it once no other link is due, and a job that
+        leaves a retry that was due for links that could progress queues it again at once
 
         Raises:
             _CredentialReplaced: An answer came back for a credential since replaced, and nothing of
@@ -165,17 +198,13 @@ class _JobRun:
         """
         links = await self._read_links()
         if self._needs_discovery(links):
-            if not await self._discover():
+            if not await self._discover(links):
                 return
             links = await self._read_links()
 
         covered: set[uuid.UUID] = set()
         while True:
-            due = [
-                need
-                for need in find_due_links(links, now=self.now, timezone=self.timezone, overlap_days=self.adapter.revisit_overlap_days)
-                if need.link.id not in self.failed
-            ]
+            due = self._due(links)
             window = self._plan([need for need in due if need.link.id not in self.deferred]) or self._plan(due)
             if window is None:
                 await self._end()
@@ -188,9 +217,15 @@ class _JobRun:
                 return
             if window.last_day == self.today or moved:
                 # The last part written ends where the window does, so a link it moved is synced through the window
-                await self._end(again=window.last_day < self.today)
+                overdue = any(is_waiting_to_retry(need.link) and need.link.id not in covered for need in due)
+                await self._end(again=window.last_day < self.today, retry_overdue=overdue)
                 return
             links = await self._read_links()
+
+    def _due(self, links: list[BankAccountLink]) -> list[LinkNeed]:
+        """Return the links due to sync now, each with the first day it needs, leaving out those this job found failing"""
+        due = find_due_links(links, now=self.now, timezone=self.timezone, overlap_days=self.adapter.revisit_overlap_days)
+        return [need for need in due if need.link.id not in self.failed]
 
     def _plan(self, needs: list[LinkNeed]) -> SyncWindow | None:
         """Return the window to fetch next for these links, or None when none of them is due"""
@@ -227,12 +262,16 @@ class _JobRun:
         stale = discovered_at is None or self.now - discovered_at > DISCOVERY_MAX_AGE
         return stale and any(link.state in _DISCOVERED_LINK_STATES for link in links)
 
-    async def _discover(self) -> bool:
+    async def _discover(self, links: list[BankAccountLink]) -> bool:
         """List the connection's bank accounts and store what came back, if the job still holds itself
 
         A discovery waiting on the budget passes on the job's own flag, so a connection whose listing
         was asked for still shows one pending while one merely rediscovered daily doesn't. One that
-        failed is recorded on the connection and fails the job
+        failed is recorded on the connection and fails the job, and with it the attempt of each link
+        the job was to sync
+
+        Args:
+            links: Every link on the connection, as the job read them before listing
 
         Returns:
             Whether the bank accounts were listed, so the job goes on to its window
@@ -252,7 +291,8 @@ class _JobRun:
             await mark_user_cache_changed(db, self.job.owner_id)
             await db.commit()
         if result.request_error is not None:
-            await self._stop_for(result.request_error, discover=self.job.discover)
+            due = [need.link for need in self._due(links)]
+            await self._stop_for(result.request_error, discover=self.job.discover, attempted=due, sent_at=sent_at)
             return False
         self.listed = True
         return True
@@ -292,16 +332,27 @@ class _JobRun:
             if result.possibly_cut_off:
                 logger.warning("Bank sync job %s kept %s whole, though its response may have been cut short", self.job.id, part.first_day)
             synced = _synced_bank_accounts(result)
+            failures: dict[uuid.UUID, ProviderError] = {}
             for need in part.needs:
-                bank_account = synced.get(need.link.external_account_id)
-                if bank_account is not None and bank_account.currency != self.account_currencies[need.link.account_id]:
-                    del synced[need.link.external_account_id]
+                link = need.link
+                bank_account = synced.get(link.external_account_id)
+                account_currency = self.account_currencies[link.account_id]
+                failure = None
+                if bank_account is not None and bank_account.currency != account_currency:
+                    del synced[link.external_account_id]
                     self.relist = not self.listed
-                if need.link.external_account_id in synced:
-                    self.deferred.discard(need.link.id)
-                else:
-                    self.failed.add(need.link.id)
-            moved = await self._write(part, synced, sent_with=credential, sent_at=sent_at)
+                    reason = _CURRENCY_CHANGED_REASON.format(
+                        provider=self.adapter.provider_name, currency=bank_account.currency_raw, account_currency=account_currency
+                    )
+                    failure = ProviderError(ProviderErrorKind.TEMPORARY, reason)
+                elif bank_account is None:
+                    failure = _failure_of(result, link.external_account_id, self.adapter.provider_name)
+                if failure is None:
+                    self.deferred.discard(link.id)
+                elif link.id not in self.failed:
+                    self.failed.add(link.id)
+                    failures[link.id] = failure
+            moved = await self._write(part, synced, failures, sent_with=credential, sent_at=sent_at)
         return moved
 
     async def _fetch_part(self, part: SyncWindow) -> tuple[FetchResult, str, datetime] | None:
@@ -330,19 +381,29 @@ class _JobRun:
         if is_quota_spent(result):
             await self._mark_budget_spent(sent_with=credential)
         if result.request_error is not None:
-            await self._stop_for(result.request_error, sent_with=credential)
+            attempted = [need.link for need in part.needs if need.link.id not in self.failed]
+            await self._stop_for(result.request_error, sent_with=credential, attempted=attempted, sent_at=sent_at)
             return None
         return result, credential, sent_at
 
-    async def _write(self, part: SyncWindow, synced: Mapping[str, ExternalAccount], *, sent_with: str, sent_at: datetime) -> bool:
-        """Store the records and pending items of each link brought back whole, and move its checkpoint, if the job still holds it
+    async def _write(
+        self,
+        part: SyncWindow,
+        synced: Mapping[str, ExternalAccount],
+        failures: Mapping[uuid.UUID, ProviderError],
+        *,
+        sent_with: str,
+        sent_at: datetime,
+    ) -> bool:
+        """Store the records and pending items of each link brought back whole, move checkpoints and record attempts, if the job still holds it
 
         Records are stored whatever the checkpoint does, since each is kept by its identity and a
         later sync reading it again changes nothing. A checkpoint moves only over days the link's data
         is complete for, so the part has to start no later than the first day the link lacks. The last
         successful sync is stamped when the checkpoint moves, or when the part brought the link back
         whole through today, with the job's start, the moment today was read, so the day it falls on
-        is never before the checkpoint
+        is never before the checkpoint. The attempt succeeded when it is stamped, and failed for each
+        link given a failure
 
         A part ending today also replaces the pending items of those links' accounts with what it
         found pending, whatever their checkpoints, since what is pending now doesn't depend on the
@@ -351,6 +412,7 @@ class _JobRun:
         Args:
             part: The days fetched, and the links they were fetched for
             synced: The bank accounts the response brought back whole, by external id
+            failures: Why the response failed each link it hadn't already failed in this job, by link id
             sent_with: The credential the request went out with
             sent_at: When the request went out, which its records were observed at
 
@@ -377,8 +439,12 @@ class _JobRun:
                     moved = True
                 if advanced or part.last_day == self.today:
                     link.last_success_at = self.now
+                    record_successful_attempt(link, at=sent_at)
                     stamped = True
-            if stored or stamped:
+            failed = [link for link in held if link.id in failures]
+            for link in failed:
+                record_failed_attempt(link, failures[link.id], at=sent_at)
+            if stored or stamped or failed:
                 await mark_user_cache_changed(db, self.job.owner_id)
             await db.commit()
         return moved
@@ -408,19 +474,30 @@ class _JobRun:
             await mark_request_budget_spent(db, connection, now=datetime.now(UTC))
             await db.commit()
 
-    async def _stop_for(self, error: ProviderError, *, sent_with: str | None = None, discover: bool = False) -> None:
+    async def _stop_for(
+        self,
+        error: ProviderError,
+        *,
+        sent_with: str | None = None,
+        discover: bool = False,
+        attempted: Sequence[BankAccountLink] = (),
+        sent_at: datetime | None = None,
+    ) -> None:
         """End the job on a request that failed, queueing it again for when the budget frees if the provider asked to slow down
 
         A slow-down was checked against a replaced credential as the budget was marked spent, and a
-        failed listing as it was stored, so only a fetch's other failures still need checking
+        failed listing as it was stored, so only a fetch's other failures still need checking. A
+        slow-down is no attempt, so only another failure is recorded on the links
 
         Args:
             error: Why the request failed
             sent_with: The credential a fetch went out with, or None when the answer was already checked
             discover: Whether the job queued again lists the bank accounts first
+            attempted: The links the request was for, which failed with it
+            sent_at: When the request was sent
         """
         if error.kind != ProviderErrorKind.RATE_LIMITED:
-            await self._end(error, sent_with=sent_with)
+            await self._end(error, sent_with=sent_with, failed=attempted, attempted_at=sent_at)
             return
         async with async_session() as db:
             connection = await db.get(BankConnection, self.connection.id)
@@ -435,11 +512,15 @@ class _JobRun:
         run_after: datetime | None = None,
         discover: bool = False,
         sent_with: str | None = None,
+        failed: Sequence[BankAccountLink] = (),
+        attempted_at: datetime | None = None,
+        retry_overdue: bool = False,
     ) -> None:
         """Record the job as finished or failed, and queue the next one when asked, planning last the links this one found failing
 
         The next one is queued to list the bank accounts first, whatever was asked, once a fetch
-        found one in a currency other than its account's in a job that didn't list them
+        found one in a currency other than its account's in a job that didn't list them, unless the
+        provider has since rejected the credential, which a listing would only spend a request on
 
         Args:
             error: What stopped the job, or None when it did all it could
@@ -447,15 +528,22 @@ class _JobRun:
             run_after: When that job may run, or at once when not given
             discover: Whether that job lists the bank accounts first
             sent_with: The credential of the request whose answer ends the job, or None when none does
+            failed: The links the error failed an attempt for
+            attempted_at: When the failed attempt's request was sent
+            retry_overdue: Whether the job left a link whose retry was due
         """
+        relist = self.relist and (error is None or error.kind != ProviderErrorKind.CREDENTIAL_REJECTED)
         await _end_job(
             self.job,
             error,
-            again=again or self.relist,
+            again=again or relist,
             run_after=run_after,
-            discover=discover or self.relist,
+            discover=discover or relist,
             deferred=self.failed | self.deferred,
             sent_with=sent_with,
+            failed=failed,
+            attempted_at=attempted_at,
+            retry_overdue=retry_overdue,
         )
 
 
@@ -517,6 +605,19 @@ def _synced_bank_accounts(result: FetchResult) -> dict[str, ExternalAccount]:
     }
 
 
+def _failure_of(result: FetchResult, external_id: str, provider_name: str) -> ProviderError:
+    """Return why a response didn't bring a bank account back whole: its bank login's error, its own, or that it was left out
+
+    A bank login's error comes first, since a sign-in at the bank is what the user has to fix
+    """
+    listed = next((account for account in result.accounts if account.external_id == external_id), None)
+    if listed is not None and listed.bank_login in result.login_errors:
+        return result.login_errors[listed.bank_login]
+    return result.account_errors.get(external_id) or ProviderError(
+        ProviderErrorKind.TEMPORARY, _NOT_RETURNED_REASON.format(provider=provider_name)
+    )
+
+
 async def _end_job(
     job: ClaimedJob,
     error: ProviderError | None = None,
@@ -526,10 +627,14 @@ async def _end_job(
     discover: bool = False,
     deferred: Collection[uuid.UUID] = (),
     sent_with: str | None = None,
+    failed: Sequence[BankAccountLink] = (),
+    attempted_at: datetime | None = None,
+    retry_overdue: bool = False,
 ) -> None:
     """Record a job as finished, or failed with an error, and queue the connection's next job in the same step when asked
 
-    The owner's open pages are told, since the sync status changes with it
+    The error is recorded as a failed attempt on the links it failed for, and the connection's next
+    retry is queued. The owner's open pages are told, since the sync status changes with it
 
     Args:
         job: The job as claimed
@@ -539,6 +644,9 @@ async def _end_job(
         discover: Whether that job lists the bank accounts first
         deferred: The links that job plans only once no other link is due
         sent_with: The credential of the request whose answer ends the job, or None when none does
+        failed: The links the error failed an attempt for, as they stood when the job started
+        attempted_at: When the failed attempt's request was sent, or now when not given
+        retry_overdue: Whether the job left a link whose retry was due
 
     Raises:
         JobNotHeld: A later attempt holds the job, so nothing was written
@@ -546,7 +654,10 @@ async def _end_job(
             with, so nothing was written
     """
     async with async_session() as db:
-        await _hold_for_finish(db, job, sent_with=sent_with)
+        connection, held = await _hold_for_finish(db, job, failed if error is not None else (), sent_with=sent_with)
+        now = datetime.now(UTC)
+        for link in held:
+            record_failed_attempt(link, error, at=attempted_at or now)
         if again:
             await enqueue_bank_sync_job(
                 db,
@@ -557,6 +668,7 @@ async def _end_job(
                 run_after=run_after,
                 deferred_link_ids=deferred,
             )
+        await queue_next_retry(db, connection, ended_by=error, overdue=retry_overdue, now=now)
         await finish_job(db, job, error)
         await mark_user_cache_changed(db, job.owner_id)
         await db.commit()

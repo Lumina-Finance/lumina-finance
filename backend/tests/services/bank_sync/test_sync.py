@@ -12,7 +12,8 @@ replaced by a window before today or for an account a fetch failed for hide hold
 A job that skips its listing leaves new bank accounts unlisted and vanished ones syncing, and one
 that stores what it found after losing its lease, for a link unlinked mid-fetch, or from a request
 sent with a credential replaced mid-flight overwrites what the user, a reconnect or a later attempt
-did
+did. An attempt left unrecorded shows a sync that never happened, a retry sent early or for a failure
+retrying can't fix spends requests for nothing, and one never queued leaves an account stale
 """
 
 import asyncio
@@ -385,6 +386,35 @@ async def _jobs() -> list[tuple]:
         return [(kind, status, error, set(covered or ())) for kind, status, error, covered in rows]
 
 
+async def _queued() -> list[tuple]:
+    """Return the queued job's kind, when it may run and whether it lists the bank accounts first, if one is queued"""
+    async with TestSession() as session:
+        rows = await session.execute(
+            select(BankSyncJob.kind, BankSyncJob.run_after, BankSyncJob.discover).where(BankSyncJob.status == "queued")
+        )
+        return [tuple(row) for row in rows]
+
+
+async def _attempts(*links: BankAccountLink) -> list[tuple]:
+    """Return each link's last successful sync, last attempt, why it failed, failed attempts in its retry series and next attempt"""
+    async with TestSession() as session:
+        rows = [
+            (
+                await session.execute(
+                    select(
+                        BankAccountLink.last_success_at,
+                        BankAccountLink.last_attempt_at,
+                        BankAccountLink.last_failure_reason,
+                        BankAccountLink.retry_count,
+                        BankAccountLink.next_attempt_at,
+                    ).where(BankAccountLink.id == link.id)
+                )
+            ).one()
+            for link in links
+        ]
+    return [tuple(row) for row in rows]
+
+
 @pytest.mark.parametrize(
     ("values", "windows"),
     [
@@ -456,13 +486,13 @@ async def test_job_keeps_records_and_moves_checkpoints_only_for_bank_accounts_th
     ]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
-    await _run_jobs_until_none_is_due()
+    assert await run_jobs(1) == 1
 
     assert await _bank_transactions(BankTransaction.external_account_id, BankTransaction.external_transaction_id) == [
         ("ACT-everyday", "TRN-coffee")
     ]
     assert await _checkpoints(*links) == [_TODAY, date(2026, 10, 3), date(2026, 10, 3), date(2026, 10, 3)]
-    assert [status for _, status, *_ in await _jobs()] == ["succeeded"]
+    assert [(kind, status) for kind, status, *_ in await _jobs()] == [("scheduled", "succeeded"), ("retry", "queued")]
 
 
 class _CardFailingProvider(FakeProviderAdapter):
@@ -635,7 +665,10 @@ async def test_job_whose_request_fails_records_the_failure_and_moves_no_checkpoi
         await running
 
     assert await _checkpoints(link) == [date(2026, 10, 3)]
-    assert [(status, error) for _, status, error, _ in await _jobs()] == [("failed", "temporary")]
+    assert [(kind, status, error) for kind, status, error, _ in await _jobs()] == [
+        ("scheduled", "failed", "temporary"),
+        ("retry", "queued", None),
+    ]
     assert await _told_at(connection) > told_while_fetching
 
 
@@ -658,6 +691,271 @@ async def test_job_without_a_request_to_spend_queues_itself_for_when_one_frees(c
     async with TestSession() as session:
         assert await session.scalar(select(BankSyncJob.run_after).where(BankSyncJob.status == "queued")) == oldest + timedelta(hours=24)
     assert await _checkpoints(link) == [date(2026, 8, 31)]
+
+
+def _reported_a_problem() -> ProviderError:
+    """Return an error of a bank account's own, which retrying may fix"""
+    return ProviderError(ProviderErrorKind.TEMPORARY, "SimpleFIN Bridge reported a problem")
+
+
+async def test_job_syncs_the_bank_accounts_it_brought_back_whole_and_retries_the_others_30_minutes_on(connection, provider, frozen_now):
+    """At 1 pm Everyday comes back whole, while Savings has an error of its own and Travel didn't come back
+
+    Everyday reads as synced now. Savings and Travel keep yesterday's last sync, show why this attempt
+    failed and are retried at 1:30 pm, which the queued retry waits for
+    """
+    everyday, savings, travel = [
+        await _link(connection, name, **_synced_through_yesterday()) for name in ("ACT-everyday", "ACT-savings", "ACT-travel")
+    ]
+    provider.outcomes = [
+        FetchResult(
+            accounts=(_bank_account("ACT-everyday"), _bank_account("ACT-savings")), account_errors={"ACT-savings": _reported_a_problem()}
+        )
+    ]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    assert await run_jobs(1) == 1
+
+    retry_at = frozen_now + timedelta(minutes=30)
+    assert await _attempts(everyday, savings, travel) == [
+        (frozen_now, frozen_now, None, 0, None),
+        (_YESTERDAYS_SYNC, frozen_now, "SimpleFIN Bridge reported a problem", 1, retry_at),
+        (_YESTERDAYS_SYNC, frozen_now, "Fake Bank didn't return this bank account", 1, retry_at),
+    ]
+    assert await _queued() == [("retry", retry_at, False)]
+
+
+@pytest.mark.parametrize(
+    ("failures_so_far", "failures", "wait"),
+    [
+        (0, 1, timedelta(minutes=30)),
+        (1, 2, timedelta(minutes=60)),
+        (2, 3, timedelta(minutes=90)),
+        (3, 4, timedelta(hours=12)),
+        (4, 1, timedelta(minutes=30)),
+    ],
+    ids=["first_failure", "first_retry", "second_retry", "third_retry", "attempt_after_the_rest"],
+)
+async def test_job_retries_a_failing_link_after_30_60_and_90_minutes_then_rests_12_hours_before_a_new_series(
+    connection, provider, frozen_now, failures_so_far, failures, wait
+):
+    """A failure at 1 pm is retried at 1:30, 2:30 and 4 pm, then automatic sync rests until 4 am, and a failure then starts a new series
+
+    Each case is the link's attempt due at 1 pm after the failures its series has had so far, and
+    the queued retry waits for the attempt after it
+    """
+    link = await _link(
+        connection,
+        "ACT-1",
+        **_synced_through_yesterday(retry_count=failures_so_far, next_attempt_at=frozen_now if failures_so_far else None),
+    )
+    provider.outcomes = [FetchResult(account_errors={"ACT-1": _reported_a_problem()})]
+    await _seed_job(connection, BankSyncJobKind.RETRY if failures_so_far else BankSyncJobKind.SCHEDULED)
+
+    assert await run_jobs(1) == 1
+
+    assert [(count, next_at) for *_, count, next_at in await _attempts(link)] == [(failures, frozen_now + wait)]
+    assert await _queued() == [("retry", frozen_now + wait, False)]
+
+
+async def test_job_counts_a_window_fetched_in_halves_as_one_attempt_for_a_link_failing_in_both(connection, provider, frozen_now):
+    """1 January to 31 March comes back cut short and the bank account has an error of its own in each half, so its series has one failure"""
+    link = await _link(connection, "ACT-1", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    failing = FetchResult(account_errors={"ACT-1": _reported_a_problem()})
+    provider.outcomes = [_cut_off("ACT-1"), failing, failing]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    assert await run_jobs(1) == 1
+
+    assert len(provider.fetches) == 3
+    assert [(count, next_at) for *_, count, next_at in await _attempts(link)] == [(1, frozen_now + timedelta(minutes=30))]
+
+
+@pytest.mark.parametrize("cause", ["budget_spent", "provider_asked_to_slow_down"])
+async def test_job_queues_a_retry_due_while_no_request_is_free_for_when_one_frees(connection, provider, frozen_now, cause):
+    """A second retry fails at 1 pm, so the third is due at 2:30 pm, but no request is free until 5:10 pm
+
+    Its request was the last the budget had, or the provider asked for fewer requests, so the retry
+    is queued for 5:10 pm, rather than finding no request free at 2:30 pm
+    """
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday(retry_count=2, next_attempt_at=frozen_now))
+    oldest = frozen_now - timedelta(hours=19, minutes=50)
+    await _spend_requests(connection, _DAILY_REQUESTS - 1 if cause == "budget_spent" else 1, oldest)
+    slow_down = ProviderError(ProviderErrorKind.RATE_LIMITED, "SimpleFIN Bridge asked for fewer requests")
+    provider.outcomes = [
+        FetchResult(
+            account_errors={"ACT-1": _reported_a_problem()},
+            warnings=(slow_down,) if cause == "provider_asked_to_slow_down" else (),
+        )
+    ]
+    await _seed_job(connection, BankSyncJobKind.RETRY)
+
+    assert await run_jobs(1) == 1
+
+    assert [next_at for *_, next_at in await _attempts(link)] == [frozen_now + timedelta(minutes=90)]
+    assert await _queued() == [("retry", oldest + timedelta(hours=24), False)]
+
+
+async def test_job_for_a_retry_due_while_the_budget_is_spent_records_no_attempt_and_runs_once_a_request_frees(connection, provider, frozen_now):
+    """The third retry is due at 1 pm with no request free until 5:10 pm, so nothing is sent and the link still shows its last failure
+
+    Waiting for a request is no attempt, so the series doesn't move on. Once a request frees the
+    retry brings the bank account back whole, which ends the series
+    """
+    failed_at = frozen_now - timedelta(minutes=90)
+    link = await _link(
+        connection,
+        "ACT-1",
+        **_synced_through_yesterday(
+            last_attempt_at=failed_at, last_failure_reason="SimpleFIN Bridge reported a problem", retry_count=3, next_attempt_at=frozen_now
+        ),
+    )
+    oldest = frozen_now - timedelta(hours=19, minutes=50)
+    await _spend_requests(connection, _DAILY_REQUESTS, oldest)
+    provider.outcomes = [_returned("ACT-1")]
+    await _seed_job(connection, BankSyncJobKind.RETRY)
+
+    assert await run_jobs(1) == 1
+
+    assert provider.fetches == []
+    assert await _attempts(link) == [(_YESTERDAYS_SYNC, failed_at, "SimpleFIN Bridge reported a problem", 3, frozen_now)]
+    assert await _queued() == [("retry", oldest + timedelta(hours=24), False)]
+
+    await _free_oldest_request(connection)
+    assert await run_jobs(1) == 1
+
+    assert len(provider.fetches) == 1
+    assert await _attempts(link) == [(frozen_now, frozen_now, None, 0, None)]
+    assert await _queued() == []
+
+
+async def test_job_starts_no_retry_series_for_a_bank_account_whose_bank_needs_a_sign_in(connection, provider, frozen_now):
+    """Card's first retry finds its bank login needing a sign-in as well as an error of its own, and retrying can't fix a sign-in
+
+    Card shows the sign-in as why it failed and leaves its retry series, and no retry is queued
+    """
+    card = await _link(connection, "ACT-card", **_synced_through_yesterday(retry_count=1, next_attempt_at=frozen_now))
+    provider.outcomes = [
+        FetchResult(
+            accounts=(_bank_account("ACT-card", login_key="CON-card"),),
+            account_errors={"ACT-card": _reported_a_problem()},
+            login_errors={"CON-card": ProviderError(ProviderErrorKind.BANK_LOGIN_NEEDED, "Sign in to your bank again")},
+        )
+    ]
+    await _seed_job(connection, BankSyncJobKind.RETRY)
+
+    assert await run_jobs(1) == 1
+
+    assert await _attempts(card) == [(_YESTERDAYS_SYNC, frozen_now, "Sign in to your bank again", 0, None)]
+    assert await _queued() == []
+
+
+async def test_job_retries_a_link_simplefin_bridge_refused_over_a_payment_problem(
+    connection, scenario: FakeBridgeScenario, monkeypatch, frozen_now
+):
+    """SimpleFIN Bridge answers 402, so the account shows the payment problem and is retried 30 minutes on, by when the user may have paid"""
+    adapter = simplefin_adapter(FakeBridgeTransport())
+    access_url = await adapter.claim(scenario.setup_token)
+    async with TestSession() as session:
+        await session.execute(update(BankConnection).where(BankConnection.id == connection.id).values(credential_encrypted=encrypt(access_url)))
+        await session.commit()
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, adapter)
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    await scenario.change("PUT", "/fault", {"kind": "payment_required"})
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    assert await run_jobs(1) == 1
+
+    retry_at = frozen_now + timedelta(minutes=30)
+    assert await _attempts(link) == [(_YESTERDAYS_SYNC, frozen_now, "SimpleFIN Bridge reports a payment problem", 1, retry_at)]
+    assert await _queued() == [("retry", retry_at, False)]
+
+
+async def test_job_whose_request_met_a_payment_problem_starts_no_retry_series(connection, provider, frozen_now, day_later):
+    """Card's daily sync is refused with a payment problem, which waiting minutes can't fix
+
+    Card shows the payment problem as why it failed and rests until the next daily sync, with no
+    retry queued, so the user's one request a day is all it spends while the problem stands
+    """
+    card = await _link(connection, "ACT-card", **_synced_through_yesterday())
+    reason = "SimpleFIN Bridge reports a payment problem"
+    provider.outcomes = [FetchResult(request_error=ProviderError(ProviderErrorKind.PAYMENT_REQUIRED, reason))]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _attempts(card) == [(_YESTERDAYS_SYNC, frozen_now, reason, 0, frozen_now + day_later)]
+    assert await _queued_jobs() == []
+    assert await _next_sync(connection) == frozen_now + day_later
+
+
+async def test_job_ending_on_a_rejected_credential_queues_no_retry_or_listing(connection, provider, frozen_now):
+    """Everyday, importing from 1 January, comes back in yen, and the next window, Savings' first retry, finds the credential rejected
+
+    Neither a retry nor a listing can work until the user reconnects, so nothing is queued. Savings
+    shows the rejection and leaves its series, and Everyday shows the currency it came back in
+    """
+    everyday = await _link(connection, "ACT-everyday", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    savings = await _link(connection, "ACT-savings", **_synced_through_yesterday(retry_count=1, next_attempt_at=frozen_now))
+    provider.outcomes = [
+        FetchResult(accounts=(_bank_account("ACT-everyday", currency="JPY"),)),
+        FetchResult(
+            request_error=ProviderError(ProviderErrorKind.CREDENTIAL_REJECTED, "SimpleFIN Bridge rejected the stored access credential")
+        ),
+    ]
+    await _seed_job(connection, BankSyncJobKind.RETRY)
+
+    assert await run_jobs(1) == 1
+
+    assert _fetched(provider) == [
+        _window(date(2026, 1, 1), date(2026, 3, 31), ["ACT-everyday"]),
+        _window(date(2026, 9, 19), _TODAY, ["ACT-savings"], pending=True),
+    ]
+    assert [(kind, status, error) for kind, status, error, _ in await _jobs()] == [("retry", "failed", "credential_rejected")]
+    assert [attempt[2:] for attempt in await _attempts(everyday, savings)] == [
+        ("Fake Bank now reports this bank account in JPY, not CAD", 1, frozen_now + timedelta(minutes=30)),
+        ("SimpleFIN Bridge rejected the stored access credential", 0, None),
+    ]
+
+
+async def test_job_leaving_a_due_retry_for_links_that_can_progress_retries_it_at_once(connection, provider, frozen_now):
+    """Card failed in an earlier job and its retry is due, so this job plans it last, and Everyday's re-read reaches today without it
+
+    The retry is queued again at once, with Card no longer held back, so the next job brings it back whole
+    """
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    card = await _link(connection, "ACT-card", **_synced_through_yesterday(retry_count=1, next_attempt_at=frozen_now))
+    provider.outcomes = [_returned("ACT-everyday"), _returned("ACT-card", "ACT-everyday")]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED, deferred_link_ids=[card.id])
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [
+        _window(date(2026, 9, 19), _TODAY, ["ACT-everyday"], pending=True),
+        _window(date(2026, 9, 19), _TODAY, ["ACT-card", "ACT-everyday"], pending=True),
+    ]
+    assert [attempt[2:] for attempt in await _attempts(everyday, card)] == [(None, 0, None), (None, 0, None)]
+
+
+async def test_job_tells_the_owners_pages_as_a_part_records_a_failed_attempt(connection, monkeypatch):
+    """A window cut short fails for the bank account in its earlier half, and the owner's open pages hear of it while the later half is out"""
+    await _link(connection, "ACT-1", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    provider = _HeldProvider(held=(1, 3))
+    provider.outcomes = [_cut_off("ACT-1"), FetchResult(account_errors={"ACT-1": _reported_a_problem()}), _returned("ACT-1")]
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    async with asyncio.timeout(_WAIT_SECONDS):
+        running = asyncio.create_task(run_jobs(1))
+        await provider.sending[1].wait()
+        told_as_it_started = await _told_at(connection)
+        provider.release[1].set()
+        await provider.sending[3].wait()
+        told_after_the_earlier_half = await _told_at(connection)
+        provider.release[3].set()
+        await running
+
+    assert told_after_the_earlier_half > told_as_it_started
 
 
 async def test_job_fetches_a_window_whose_response_may_be_cut_short_again_in_two_halves(connection, provider):
@@ -715,7 +1013,7 @@ async def test_job_moves_no_checkpoint_past_a_half_that_failed_for_the_link(conn
     ]
     await _seed_job(connection, BankSyncJobKind.INITIAL)
 
-    await _run_jobs_until_none_is_due()
+    assert await run_jobs(1) == 1
 
     assert len(provider.fetches) == 3
     assert await _checkpoints(link) == [date(2025, 12, 31)]
@@ -753,9 +1051,13 @@ async def test_job_keeps_a_single_day_whose_response_may_still_be_cut_short(conn
     assert await _checkpoints(link) == [_TODAY]
 
 
-async def test_job_sends_nothing_for_a_rejected_connection(connection, provider):
-    """A credential the provider rejected can't work until the user reconnects, so the job ends without spending a request"""
+async def test_job_sends_nothing_for_a_rejected_connection(connection, provider, frozen_now):
+    """A credential the provider rejected can't work until the user reconnects, so the job ends without spending a request
+
+    Nor does it queue the retry Savings waits on, which couldn't work either
+    """
     await _link(connection, "ACT-1", **_synced_through_yesterday())
+    await _link(connection, "ACT-savings", **_synced_through_yesterday(retry_count=1, next_attempt_at=frozen_now + timedelta(minutes=20)))
     async with TestSession() as session:
         await session.execute(
             update(BankConnection).where(BankConnection.id == connection.id).values(credential_rejected_at=datetime(2026, 10, 2, tzinfo=UTC))
@@ -925,6 +1227,7 @@ async def test_job_stores_nothing_for_a_bank_account_a_fetch_lists_in_another_cu
         ("ACT-savings", "TRN-interest")
     ]
     assert await _checkpoints(everyday, savings) == [date(2026, 10, 3), _TODAY]
+    assert (await _attempts(everyday))[0][2] == "Fake Bank now reports this bank account in JPY, not CAD"
     async with TestSession() as session:
         assert (await session.scalars(select(BankSyncJob.discover).where(BankSyncJob.status == "queued"))).all() == [True]
 
@@ -941,7 +1244,8 @@ async def test_job_that_listed_a_bank_account_in_its_accounts_currency_queues_no
     """The daily sync's listing shows Everyday's bank account in Canadian dollars, and its fetch in yen
 
     Nothing is stored and the checkpoint stays, but no listing is queued, so a provider whose answers
-    disagree can't have one job after another spend requests on them
+    disagree can't have one job after another spend requests on them. Only the retry 30 minutes on
+    is queued, and it doesn't list first
     """
     link = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
     await _set_discovered_at(connection, frozen_now - timedelta(days=2))
@@ -951,28 +1255,39 @@ async def test_job_that_listed_a_bank_account_in_its_accounts_currency_queues_no
     ]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
-    await _run_jobs_until_none_is_due()
+    assert await run_jobs(1) == 1
 
     assert (len(provider.discoveries), len(provider.fetches)) == (1, 1)
     assert await _bank_transactions(BankTransaction.external_transaction_id) == []
     assert (await _link_states(link), await _checkpoints(link)) == (["active"], [date(2026, 10, 3)])
-    assert [status for _, status, *_ in await _jobs()] == ["succeeded"]
+    assert [status for _, status, *_ in await _jobs()] == ["succeeded", "queued"]
+    assert await _queued() == [("retry", frozen_now + timedelta(minutes=30), False)]
 
 
 async def test_job_whose_listing_fails_records_it_and_fetches_nothing(connection, provider, frozen_now):
-    """SimpleFIN Bridge couldn't be reached for a stale listing, so the connection and the job record it, and no window is sent"""
+    """SimpleFIN Bridge couldn't be reached for a stale listing, so the connection and the job record it, and no window is sent
+
+    The listing was the attempt of the link the job was to sync, so the link records the failure too
+    and is retried 30 minutes on
+    """
     link = await _link(connection, "ACT-1", **_synced_through_yesterday())
     await _set_discovered_at(connection, frozen_now - timedelta(days=2))
     provider.outcomes = [FetchResult(request_error=ProviderError(ProviderErrorKind.TEMPORARY, "SimpleFIN Bridge couldn't be reached"))]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
-    await _run_jobs_until_none_is_due()
+    assert await run_jobs(1) == 1
 
     assert provider.fetches == []
     async with TestSession() as session:
         assert await session.scalar(select(BankConnection.discovery_failed_at).where(BankConnection.id == connection.id)) == frozen_now
-    assert [(status, error) for _, status, error, _ in await _jobs()] == [("failed", "temporary")]
+    assert [(kind, status, error) for kind, status, error, _ in await _jobs()] == [
+        ("scheduled", "failed", "temporary"),
+        ("retry", "queued", None),
+    ]
     assert await _checkpoints(link) == [date(2026, 10, 3)]
+    assert await _attempts(link) == [
+        (_YESTERDAYS_SYNC, frozen_now, "SimpleFIN Bridge couldn't be reached", 1, frozen_now + timedelta(minutes=30))
+    ]
 
 
 async def _wait_until_waiting_on(blocker_pid: int, running: asyncio.Task) -> None:
@@ -1211,7 +1526,10 @@ async def test_job_stores_nothing_for_a_link_unlinked_while_it_fetched(connectio
 
 
 async def test_job_attempt_that_lost_its_lease_while_fetching_writes_nothing(connection, monkeypatch):
-    """Attempt 1 stalls on the provider past its lease, attempt 2 finds the bank account failing, and attempt 1's late answer stores nothing"""
+    """Attempt 1 stalls on the provider past its lease, attempt 2 finds the bank account failing, and attempt 1's late answer stores nothing
+
+    Nor does it record its attempt, so the link still shows attempt 2's failure and waits on its retry
+    """
     link = await _link(connection, "ACT-1", **_synced_through_yesterday())
     provider = _HeldProvider()
     provider.outcomes = [
@@ -1231,7 +1549,8 @@ async def test_job_attempt_that_lost_its_lease_while_fetching_writes_nothing(con
 
     assert await _bank_transactions(BankTransaction.id) == []
     assert await _checkpoints(link) == [date(2026, 10, 3)]
-    assert await _job_states() == {job.id: ("succeeded", 2)}
+    assert (await _job_states())[job.id] == ("succeeded", 2)
+    assert [(reason, retries) for _, _, reason, retries, _ in await _attempts(link)] == [("SimpleFIN Bridge reported a problem", 1)]
 
 
 async def test_job_attempt_that_lost_its_lease_while_listing_stores_nothing(connection, monkeypatch):

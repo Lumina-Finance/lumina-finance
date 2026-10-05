@@ -32,11 +32,9 @@ from app.services.bank_sync.jobs import (
     JobNotHeld,
     claim_bank_sync_job,
     enqueue_bank_sync_job,
-    finish_job,
-    lock_job_for_finish,
 )
 from app.services.bank_sync.providers.contract import ProviderError
-from app.services.bank_sync.sync import run_sync_job
+from app.services.bank_sync.sync import fail_sync_job, run_sync_job
 
 logger = logging.getLogger(__name__)
 
@@ -145,15 +143,11 @@ async def _run_claimed_job(job: ClaimedJob) -> None:
 
 
 async def _fail_job(job: ClaimedJob, error: ProviderError) -> None:
-    """Record a job as failed, as long as this runner still holds it"""
-    async with async_session() as db:
-        try:
-            await lock_job_for_finish(db, job, links=())
-        except JobNotHeld:
-            logger.info("Bank sync job %s attempt %d no longer held, so its failure isn't recorded", job.id, job.attempt)
-            return
-        await finish_job(db, job, error)
-        await db.commit()
+    """Record a job as failed, and the attempt of each link it was syncing, as long as this runner still holds it"""
+    try:
+        await fail_sync_job(job, error)
+    except JobNotHeld:
+        logger.info("Bank sync job %s attempt %d no longer held, so its failure isn't recorded", job.id, job.attempt)
 
 
 async def check_worker_health() -> bool:

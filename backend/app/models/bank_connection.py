@@ -279,8 +279,14 @@ class BankAccountLink(Base):
     # today, started. Only a sync job sets it. The window planner reads a checkpoint short of the
     # day this falls on as an import or catch-up still under way, and any other as a link to re-read
     last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # When the request of the link's last sync attempt was sent, and why the attempt failed, or
+    # None when it succeeded. A failure never moves last_success_at
     last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_failure_reason: Mapped[str | None] = mapped_column(Text)
+
+    # The failed attempts in the link's current retry series, 1 to 4, or 0 when it isn't waiting to
+    # retry, and when its next attempt is due: a retry, or the end of the rest after a series
     retry_count: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0, server_default="0")
     next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
