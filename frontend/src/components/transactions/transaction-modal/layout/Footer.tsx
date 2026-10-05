@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { Check, Trash2 } from 'lucide-react'
 import { PendingLabel } from '@/components/loading/PendingLabel'
 import { useTransactionModalIds } from '@/components/transactions/transaction-modal/ids'
@@ -10,6 +10,7 @@ import { ARIA_SUBMIT_SHORTCUT } from '@/components/transactions/transaction-moda
 import type { ModalLevel } from '@/components/modal/Shell'
 import { useDisabledReason } from '@/hooks/useDisabledReason'
 import TransactionKeepOpenOption from '@/components/transactions/transaction-modal/controls/KeepOpenOption'
+import { useConfirmingClick } from '@/hooks/useConfirmingClick'
 
 type TransactionModalFooterProps = {
   level: ModalLevel
@@ -63,9 +64,8 @@ export default function TransactionModalFooter({
   onDelete,
 }: TransactionModalFooterProps) {
   const ids = useTransactionModalIds()
-  const { controlProps: deleteReasonProps, tooltip: deleteReasonTooltip } = useDisabledReason(deleteDisabledReason)
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const deleteButtonRef = useRef<HTMLButtonElement>(null)
+  const [confirmingDelete, setConfirmingDelete] = useConfirmingClick(deleteButtonRef, deleteLoading)
   const idleLabelRef = useRef<HTMLSpanElement>(null)
   const confirmLabelRef = useRef<HTMLSpanElement>(null)
   const [labelWidths, setLabelWidths] = useState<{ idle: number; confirm: number } | null>(null)
@@ -99,22 +99,6 @@ export default function TransactionModalFooter({
       })
     }
   }, [editing])
-
-  useEffect(() => {
-    if (!confirmingDelete || deleteLoading) return
-    const onPointer = (event: PointerEvent) => {
-      if (deleteButtonRef.current && !deleteButtonRef.current.contains(event.target as Node)) {
-        setConfirmingDelete(false)
-      }
-    }
-
-    // Defers listener registration so the click that arms confirmation does not immediately cancel it
-    const timeoutId = window.setTimeout(() => window.addEventListener('pointerdown', onPointer), 0)
-    return () => {
-      window.clearTimeout(timeoutId)
-      window.removeEventListener('pointerdown', onPointer)
-    }
-  }, [confirmingDelete, deleteLoading])
 
   return (
     <div

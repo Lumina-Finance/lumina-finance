@@ -149,7 +149,15 @@ function formOf(dialog: Locator) {
     add: dialog.getByRole('button', { name: 'Add to ledger', exact: true }),
     notes: dialog.getByRole('textbox', { name: 'Notes', exact: true }),
     dismiss: dialog.getByRole('button', { name: 'Dismiss', exact: true }),
+    confirmDismiss: dialog.getByRole('button', { name: 'Yes, dismiss', exact: true }),
   }
+}
+
+/** Dismisses the open item, which takes the two presses of Dismiss and Yes, dismiss */
+async function dismissItem(dialog: Locator): Promise<void> {
+  const { dismiss, confirmDismiss } = formOf(dialog)
+  await dismiss.click()
+  await confirmDismiss.click()
 }
 
 /** Asserts the merchant and category are still to be chosen, and not yet marked as missing */
@@ -234,8 +242,8 @@ test('adds an item with its amount changed, and with the window kept open goes o
   await expect(page.getByTestId('review-count')).toHaveText('2')
   await expect(page.getByTestId(`transaction-row-${review.created[0]}`)).toBeVisible()
 
-  // Nothing new is left after it, the correction being reviewed elsewhere, so the window closes
-  await form.dismiss.click()
+  // Nothing new is left after it, so the window closes
+  await dismissItem(dialog)
   await expect(dialog).toBeHidden()
   const rows = reviewBlock(page).getByRole('listitem')
   await expect(rows).toHaveCount(1)
@@ -287,6 +295,43 @@ test('records money in from Savings as one transfer that names Savings, kept as 
   await expect(rows.first()).toContainText('HARBOUR COFFEE')
 })
 
+test('dismisses only on a second press, by mouse or keyboard, and takes the first back when the user moves on', async ({ page, request }) => {
+  const { user, everyday } = await start(page, request, [COUNTDOWN, HARBOUR])
+  await openPage(page, '/transactions')
+
+  const dialog = await openReview(page, COUNTDOWN.description)
+  const form = formOf(dialog)
+  const decisions = watchDecisions(page)
+  const announcement = dialog.getByRole('status').filter({ hasText: 'Press again to dismiss this item for good.' })
+
+  // One press only asks, saying so to a screen reader, and a press elsewhere takes it back
+  await expect(form.dismiss).toHaveClass(/app-danger-button/)
+  await form.dismiss.click()
+  await expect(form.confirmDismiss).toBeVisible()
+  await expect(announcement).toHaveCount(1)
+  await dialog.getByRole('heading', { name: 'Review bank item' }).click()
+  await expect(form.dismiss).toBeVisible()
+  await expect(announcement).toHaveCount(0)
+  expect(decisions).toEqual([])
+
+  // Moving focus on with the keyboard takes it back too
+  await form.dismiss.focus()
+  await page.keyboard.press('Enter')
+  await expect(form.confirmDismiss).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(form.dismiss).toBeVisible()
+  expect(decisions).toEqual([])
+  expect(await readWaiting(request, user, everyday.id)).toEqual([COUNTDOWN.description, HARBOUR.description])
+
+  // The second press from the keyboard decides, and the window closes with the next item still waiting
+  await form.dismiss.focus()
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Space')
+  await expect(dialog).toBeHidden()
+  expect(decisions).toEqual(['dismiss'])
+  expect(await readWaiting(request, user, everyday.id)).toEqual([HARBOUR.description])
+})
+
 test('dismisses items without reading the ledger again, going on to the next while the window is kept open', async ({ page, request }) => {
   const { everyday } = await start(page, request)
   const review = await answerReview(page, [
@@ -303,12 +348,12 @@ test('dismisses items without reading the ledger again, going on to the next whi
     if (sent.method() === 'GET' && sent.url().startsWith(`${API_BASE_URL}/transactions?`)) ledgerReads.push(sent.url())
   })
   await form.keepOpen.check()
-  await form.dismiss.click()
-  await expect(filingCard(page)).toContainText('HARBOUR COFFEE')
+  await dismissItem(dialog)
+  await expect(filingCard(page)).toContainText(HARBOUR.description)
 
   // With the window no longer kept open, the next decision closes it though an item still waits
   await form.keepOpen.uncheck()
-  await form.dismiss.click()
+  await dismissItem(dialog)
   await expect(dialog).toBeHidden()
   const rows = reviewBlock(page).getByRole('listitem')
   await expect(rows).toHaveCount(1)
@@ -338,7 +383,7 @@ test('goes on from the last new item loaded to the first on the next page', asyn
   const dialog = await openReview(page, 'COUNTDOWN 123 AUCKLAND')
   const form = formOf(dialog)
   await form.keepOpen.check()
-  await form.dismiss.click()
+  await dismissItem(dialog)
 
   await expect(filingCard(page)).toContainText('CAFE ROMA')
   await expect(dialog).toBeVisible()
@@ -353,10 +398,7 @@ test('keeps the item open and says what went wrong when a decision fails', async
   const dialog = await openReview(page, 'COUNTDOWN 123 AUCKLAND')
   const form = formOf(dialog)
   const dismissFailed = dialog.getByText('Could not dismiss this item. Please try again.', { exact: true })
-  const serverMessage = "This item was dismissed, so it can't be added to the ledger"
-
-  review.refusal = { status: 500, detail: 'Something went wrong' }
-  await form.dismiss.click()
+  await dismissItem(dialog)
   await expect(dismissFailed).toBeVisible()
 
   // The server's own words when it refuses the item
@@ -480,7 +522,7 @@ test.describe('on a short phone screen', () => {
     await form.keepOpen.check()
     await form.amount.scrollIntoViewIfNeeded()
     await expect(filingCard(page)).not.toBeInViewport()
-    await form.dismiss.click()
+    await dismissItem(dialog)
 
     await expect(filingCard(page)).toContainText('HARBOUR COFFEE')
     await expect(filingCard(page)).toBeInViewport()
@@ -504,9 +546,8 @@ test.describe('on a short phone screen', () => {
     const review = await answerReview(page, [countdown(everyday.id)])
     await openPage(page, '/transactions')
 
-    const dialog = await openReview(page, 'COUNTDOWN 123 AUCKLAND')
-    review.refusal = { status: 500, detail: 'Something went wrong' }
-    await formOf(dialog).dismiss.click()
+    const dialog = await openReview(page, COUNTDOWN.description)
+    await dismissItem(dialog)
 
     await expect(dialog.getByText('Could not dismiss this item. Please try again.', { exact: true })).toBeInViewport({ ratio: 1 })
   })

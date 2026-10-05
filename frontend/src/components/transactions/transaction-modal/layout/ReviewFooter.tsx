@@ -1,4 +1,4 @@
-import { useFittedButtonWidth } from '@/hooks/useFittedButtonWidth'
+import { ReviewDecisionButton } from '@/components/transactions/bank-review/DecisionButton'
 import TransactionKeepOpenOption from '@/components/transactions/transaction-modal/controls/KeepOpenOption'
 
 type TransactionReviewFooterProps = {
@@ -13,9 +13,8 @@ type TransactionReviewFooterProps = {
 /**
  * The two decisions on a bank item, Dismiss and Add to ledger, which is the form's submit, beside the
  * choice to go on to the next item after either. Closing the modal leaves the item waiting, so there
- * is no Cancel beside them
- *
- * Each button is sized to its label, which it shrinks from into its spinner while its decision runs
+ * is no Cancel beside them. Dismiss is drawn and pressed like Delete, twice, because it can't be undone
+ * and sits where Cancel usually does
  */
 export default function TransactionReviewFooter({
   isPending,
@@ -25,9 +24,6 @@ export default function TransactionReviewFooter({
   onKeepOpenChange,
   onDismiss,
 }: TransactionReviewFooterProps) {
-  const { buttonRef: dismissRef, style: dismissStyle, measure: dismissMeasure } = useFittedButtonWidth('Dismiss')
-  const { buttonRef: addRef, style: addStyle, measure: addMeasure } = useFittedButtonWidth('Add to ledger')
-
   return (
     <div
       className="flex shrink-0 flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:px-8 min-[1050px]:py-5"
@@ -41,32 +37,21 @@ export default function TransactionReviewFooter({
         onChange={onKeepOpenChange}
       />
       <div className="grid grid-cols-2 gap-3 sm:ml-auto sm:flex sm:items-center">
-        <button
-          ref={dismissRef}
-          type="button"
-          aria-label="Dismiss"
-          aria-busy={dismissLoading}
+        <ReviewDecisionButton
+          label="Dismiss"
+          tone="danger"
+          confirm={{ label: 'Yes, dismiss', announcement: 'Press again to dismiss this item for good.' }}
+          loading={dismissLoading}
+          disabled={isPending}
           onClick={onDismiss}
+        />
+        <ReviewDecisionButton
+          label="Add to ledger"
+          tone="primary"
+          loading={submitLoading}
           disabled={isPending}
-          className={`app-secondary-button relative overflow-hidden whitespace-nowrap duration-300 ${dismissLoading ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : 'w-full sm:w-(--fit-width)'}`}
-          style={dismissStyle}
-        >
-          {dismissMeasure}
-          {dismissLoading ? <div className="app-spinner" /> : 'Dismiss'}
-        </button>
-        <button
-          ref={addRef}
-          type="submit"
-          data-testid="transaction-submit"
-          aria-label="Add to ledger"
-          aria-busy={submitLoading}
-          disabled={isPending}
-          className={`app-primary-button relative overflow-hidden whitespace-nowrap duration-300 ${submitLoading ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : 'w-full sm:w-(--fit-width)'}`}
-          style={addStyle}
-        >
-          {addMeasure}
-          {submitLoading ? <div className="app-spinner" /> : 'Add to ledger'}
-        </button>
+          testId="transaction-submit"
+        />
       </div>
     </div>
   )
