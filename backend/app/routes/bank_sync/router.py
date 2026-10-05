@@ -35,7 +35,14 @@ from app.services.bank_sync.links import (
     list_bank_accounts_for_account,
     unlink_account,
 )
-from app.services.bank_sync.review_decisions import accept_bank_change, add_review_item_to_ledger, dismiss_review_item, keep_current_value
+from app.services.bank_sync.review_decisions import (
+    accept_bank_change,
+    add_review_item_to_ledger,
+    dismiss_review_item,
+    keep_current_value,
+    keep_transaction,
+    remove_from_ledger,
+)
 from app.services.bank_sync.review_items import REVIEW_PAGE_SIZE, list_review_items
 
 router = APIRouter(prefix="/bank-sync", tags=["bank-sync"])
@@ -339,3 +346,38 @@ async def keep_bank_review_current_value(
         The ledger transaction, with its bank source
     """
     return await keep_current_value(db, user, item_id)
+
+
+@review_router.post("/items/{item_id}/remove-from-ledger", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_bank_review_transaction(
+    item_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Delete the ledger transaction the bank removed and rebuild its balances
+
+    Args:
+        item_id: The removal to accept
+        user: Authenticated user reviewing
+        db: Active database session
+    """
+    await remove_from_ledger(db, user, item_id)
+
+
+@review_router.post("/items/{item_id}/keep-transaction", response_model=TransactionResponse)
+async def keep_bank_review_transaction(
+    item_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Close a removal leaving the ledger transaction as it is
+
+    Args:
+        item_id: The removal to decline
+        user: Authenticated user reviewing
+        db: Active database session
+
+    Returns:
+        The ledger transaction, with its bank source
+    """
+    return await keep_transaction(db, user, item_id)

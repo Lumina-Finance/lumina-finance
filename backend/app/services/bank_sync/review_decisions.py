@@ -1,14 +1,16 @@
-"""Deciding bank items: adding a new one to the ledger or dismissing it, and accepting or declining a correction
+"""Deciding bank items: adding a new one or dismissing it, accepting or declining a correction, and removing or keeping a removed transaction
 
 Adding writes the ledger transaction and accepts the bank transaction in one save, so neither
-exists without the other, and accepting a correction writes the bank's values to the same ledger
-transaction and closes it in one save. Each action locks the bank transaction before deciding, then
-any ledger transaction it writes, so a double submission or any other write to the item, a sync's
-included, queues behind it and then finds the item as that write left it. A repeated action answers
-as the first did without writing again. Adding or dismissing can leave 50 or fewer new items
-waiting, which lifts the account's review pause and queues its sync, so every action first locks
-the connection that sync would need, then the account's links, the order every writer takes
-connections, links, bank transactions and their ledger transactions in
+exists without the other, accepting a correction writes the bank's values to the same ledger
+transaction and closes it in one save, and removing deletes the ledger transaction, its bank
+transaction with it, and rebuilds its balances in one save. Each action locks the bank transaction
+before deciding, then any ledger transaction it writes, so a double submission or any other write
+to the item, a sync's included, queues behind it and then finds the item as that write left it. A
+repeated action answers as the first did without writing again, except a repeated removal, which
+finds nothing left and answers that the item wasn't found. Adding or dismissing can leave 50 or
+fewer new items waiting, which lifts the account's review pause and queues its sync, so every
+action first locks the connection that sync would need, then the account's links, the order every
+writer takes connections, links, bank transactions and their ledger transactions in
 """
 
 import uuid
@@ -31,6 +33,7 @@ from app.services.bank_sync.review_pause import lift_review_pauses, lock_account
 from app.services.bank_sync.review_state import EDITABLE_COLUMNS, align_with_bank, bank_values
 from app.services.cache_state import mark_user_cache_changed
 from app.services.transactions.creation import insert_transaction
+from app.services.transactions.deletion import delete_transaction
 from app.services.transactions.response_helpers import get_transaction_response
 from app.services.transactions.update import apply_transaction_update
 
@@ -39,8 +42,11 @@ REVIEW_ITEM_NOT_FOUND = "Review item not found"
 # Why an added item refuses a transfer counterparty the user can see but doesn't own alone
 _COUNTERPARTY_NOT_OWN_DETAIL = "Transfers from a bank item can't go to an account shared with a group"
 
-# Why a correction's decisions refuse an item that never reached the ledger
+# Why the decisions on a correction or removal refuse an item that never reached the ledger
 _NOT_IN_LEDGER_DETAIL = "This item isn't in the ledger, so it has no bank change to decide"
+
+# Why removing refuses a transaction the bank hasn't asked to remove, or whose removal the user kept
+_NO_REMOVAL_DETAIL = "This transaction has no bank removal waiting, so it stays in the ledger"
 
 # Why accepting refuses a bank amount the account's currency can't hold without rounding
 _UNSTORABLE_AMOUNT_DETAIL = (
@@ -216,6 +222,66 @@ async def keep_current_value(db: AsyncSession, user: User, item_id: uuid.UUID) -
     return await get_transaction_response(db, await db.get_one(Transaction, record.transaction_id))
 
 
+async def remove_from_ledger(db: AsyncSession, user: User, item_id: uuid.UUID) -> None:
+    """Delete the ledger transaction the bank removed, with its bank transaction, and rebuild its balances, in one save
+
+    It works while the account is linked, since the bank asked for it. The bank transaction is
+    locked before the ledger transaction, the order the sync and the other decisions take them in.
+    Nothing of the bank transaction is kept, so a repeated removal finds no item, and the bank
+    sending the same transaction again later brings it in as a new item
+
+    Args:
+        db: Active database session
+        user: The user reviewing
+        item_id: The removal, which is its bank transaction's id
+
+    Raises:
+        HTTPException 404: The item isn't one of the user's, or is already removed
+        HTTPException 409: The item isn't in the ledger, has no removal waiting, or another change
+            held the transaction too long
+        HTTPException 422: The account is archived
+    """
+    record, _, _ = await _lock_review_item(db, user, item_id)
+    _refuse_unless_in_ledger(record)
+    if record.open_kind != OpenReviewKind.REMOVAL:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_NO_REMOVAL_DETAIL)
+
+    txn = await check_transaction_access(db, record.transaction_id, user.id, PermissionLevel.WRITE, lock_for_update=True)
+    await delete_transaction(db, txn)
+    await mark_user_cache_changed(db, user.id)
+    await db.commit()
+
+
+async def keep_transaction(db: AsyncSession, user: User, item_id: uuid.UUID) -> TransactionResponse:
+    """Close a removal leaving the ledger transaction as it is
+
+    The removal stays recorded, so the bank sending it again opens nothing. A correction the
+    removal took the place of is still undecided, so it opens again. A removal already decided
+    answers with the transaction as it stands, so a double submission keeps it once
+
+    Args:
+        db: Active database session
+        user: The user reviewing
+        item_id: The removal, which is its bank transaction's id
+
+    Returns:
+        The ledger transaction, with its bank source
+
+    Raises:
+        HTTPException 404: The item isn't one of the user's
+        HTTPException 409: The item isn't in the ledger
+    """
+    record, _, _ = await _lock_review_item(db, user, item_id)
+    _refuse_unless_in_ledger(record)
+    if record.open_kind == OpenReviewKind.REMOVAL:
+        record.open_kind = OpenReviewKind.CORRECTION if record.previous_values else None
+        await db.flush()
+
+        await mark_user_cache_changed(db, user.id)
+        await db.commit()
+    return await get_transaction_response(db, await db.get_one(Transaction, record.transaction_id))
+
+
 def _refuse_unless_in_ledger(record: BankTransaction) -> None:
     """Refuse a correction's decision on an item still waiting to be added, or dismissed
 
@@ -238,7 +304,8 @@ async def _lock_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) ->
         The item and its account, and the account's links, which a lift takes
 
     Raises:
-        HTTPException 404: The item isn't one of the user's, or was withdrawn by the bank
+        HTTPException 404: The item isn't one of the user's, or is gone, withdrawn by the bank or
+            removed from the ledger
     """
     account_id = await db.scalar(
         select(BankTransaction.account_id)
