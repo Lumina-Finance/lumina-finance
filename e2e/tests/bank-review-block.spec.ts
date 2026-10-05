@@ -230,6 +230,18 @@ test('says the waiting items could not load rather than leaving the space empty'
   await expect(reviewBlock(page)).toBeHidden()
 })
 
+test('says the pause status could not load while still showing the items', async ({ page, request }) => {
+  const { everyday } = await start(page, request)
+  await answerReviewItems(page, () => pageOf([reviewItem('everyday-1', 'new', everyday.id)]))
+  await page.route(isRead('/bank-review/backlogs'), (route) => route.fulfill({ status: 500, json: { detail: 'Something went wrong' } }))
+
+  await openPage(page, '/transactions')
+
+  const block = reviewBlock(page)
+  await expect(block.getByRole('alert').filter({ hasText: 'Sync pause status could not load' })).toBeVisible()
+  await expect(block.getByRole('listitem')).toHaveCount(1)
+})
+
 test('shows the first 4 of a 1,500 item backlog, and loads the rest a page at a time once opened', async ({ page, request }) => {
   const { everyday } = await start(page, request)
   const cursors: (string | null)[] = []
