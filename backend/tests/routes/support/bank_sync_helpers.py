@@ -5,6 +5,7 @@ returns an unsaved row with the fields every test needs, for the caller to add t
 it is testing through. Rows other rows point at get their id up front, so a dependent row can be
 built before the first is flushed, though each level still has to be flushed before the next.
 Route tests sign up, link accounts and read the review list through the API, and record a bank source on a transaction they created there.
+Review items, ledger rows and balances are read back as the table owner, whatever the test wrote them through.
 Jobs are committed, since the worker reaches them through sessions of its own
 """
 
@@ -20,7 +21,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import current_user_id_ctx
-from app.models.account import Account
+from app.models.account import Account, AccountBalanceSnapshot
 from app.models.bank_connection import (
     BankAccountLink,
     BankConnection,
@@ -387,6 +388,17 @@ async def _ledger_rows(account_id: str | uuid.UUID) -> list[tuple[date, int]]:
     """Return the date and amount of each of the account's ledger transactions, read as the table owner"""
     async with TestSession() as session:
         rows = await session.execute(select(Transaction.dt, Transaction.amount).where(Transaction.account_id == uuid.UUID(str(account_id))))
+        return [tuple(row) for row in rows]
+
+
+async def _balances(account_id: str | uuid.UUID) -> list[tuple[date, int]]:
+    """Return the account's end-of-day balances, earliest first, read as the table owner"""
+    async with TestSession() as session:
+        rows = await session.execute(
+            select(AccountBalanceSnapshot.dt, AccountBalanceSnapshot.balance)
+            .where(AccountBalanceSnapshot.account_id == uuid.UUID(str(account_id)))
+            .order_by(AccountBalanceSnapshot.dt)
+        )
         return [tuple(row) for row in rows]
 
 

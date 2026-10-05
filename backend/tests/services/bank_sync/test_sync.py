@@ -34,7 +34,7 @@ from freezegun import freeze_time
 from sqlalchemy import delete, func, select, text, update
 
 from app.encryption import encrypt
-from app.models.account import Account, AccountBalanceSnapshot
+from app.models.account import Account
 from app.models.account_review_preference import AccountReviewPreference, ReviewDecision
 from app.models.bank_connection import (
     BankAccountLink,
@@ -66,6 +66,7 @@ from tests.fake_simplefin_bridge import FakeBridgeTransport
 from tests.routes.support.bank_sync_helpers import (
     _DISMISSED,
     _attempts,
+    _balances,
     _build_account,
     _build_bank_link,
     _build_bank_transaction,
@@ -77,6 +78,7 @@ from tests.routes.support.bank_sync_helpers import (
     _dismiss_items,
     _expire_lease,
     _job_states,
+    _ledger_rows,
     _owner_session,
     _queued_jobs,
     _seed_job,
@@ -2428,24 +2430,6 @@ async def _trust_corrections(link: BankAccountLink) -> None:
         await session.commit()
 
 
-async def _ledger(link: BankAccountLink) -> list[tuple[date, int]]:
-    """Return the date and amount of each ledger transaction in the link's account"""
-    async with TestSession() as session:
-        rows = await session.execute(select(Transaction.dt, Transaction.amount).where(Transaction.account_id == link.account_id))
-        return [tuple(row) for row in rows]
-
-
-async def _balances(link: BankAccountLink) -> list[tuple[date, int]]:
-    """Return the link's account's end-of-day balances, earliest first"""
-    async with TestSession() as session:
-        rows = await session.execute(
-            select(AccountBalanceSnapshot.dt, AccountBalanceSnapshot.balance)
-            .where(AccountBalanceSnapshot.account_id == link.account_id)
-            .order_by(AccountBalanceSnapshot.dt)
-        )
-        return [tuple(row) for row in rows]
-
-
 async def test_job_proposes_a_bank_change_to_a_transaction_in_the_ledger_and_keeps_the_approved_value(connection, provider):
     """The bank re-sends the $4.50 coffee the user added as $4.75, now under the merchant name Blue Bottle Coffee
 
@@ -2467,7 +2451,7 @@ async def test_job_proposes_a_bank_change_to_a_transaction_in_the_ledger_and_kee
     assert len(provider.fetches) == 2
     assert after_the_change == [(item_id, OpenReviewKind.CORRECTION, {"amount": -4_50}, -4_75, "Blue Bottle Coffee", 2)]
     assert await _bank_transactions(*columns) == after_the_change
-    assert await _ledger(link) == [(_COFFEE_DAY, -4_50)]
+    assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_50)]
 
 
 async def test_job_applies_a_trusted_bank_change_to_the_amount_and_leaves_the_date_the_user_edited(connection, provider):
@@ -2481,14 +2465,14 @@ async def test_job_applies_a_trusted_bank_change_to_the_amount_and_leaves_the_da
     await _accept_coffee(link, ledger=(date(2026, 10, 1), -4_50))
     corrected = _record("TRN-coffee", date(2026, 10, 3), amount=-4_75, raw_amount="-4.75", description="BLUE BOTTLE COFFEE")
     provider.outcomes = [_returned_with({"ACT-1": [corrected]})]
-    balances_before = await _balances(link)
+    balances_before = await _balances(link.account_id)
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
     await _run_jobs_until_none_is_due()
 
-    assert await _ledger(link) == [(date(2026, 10, 1), -4_75)]
+    assert await _ledger_rows(link.account_id) == [(date(2026, 10, 1), -4_75)]
     assert balances_before == [(date(2026, 10, 1), -4_50)]
-    assert await _balances(link) == [(date(2026, 10, 1), -4_75)]
+    assert await _balances(link.account_id) == [(date(2026, 10, 1), -4_75)]
     assert await _bank_transactions(
         *_CORRECTION,
         BankTransaction.observed_date,
@@ -2511,7 +2495,7 @@ async def test_job_leaves_an_amount_the_user_kept_once_corrections_are_trusted(c
 
     await _run_jobs_until_none_is_due()
 
-    assert await _ledger(link) == [(_COFFEE_DAY, -4_50)]
+    assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_50)]
     assert await _bank_transactions(*_CORRECTION, BankTransaction.observed_amount) == [(None, None, -5_00)]
 
 
@@ -2538,7 +2522,7 @@ async def test_job_widens_an_open_correction_and_keeps_comparing_with_the_values
     added = {"date": "2026-10-02", "amount": -4_50}
     assert widened == [(item_id, OpenReviewKind.CORRECTION, added, date(2026, 10, 3), -4_75)]
     assert await _bank_transactions(*columns) == [(item_id, OpenReviewKind.CORRECTION, added, date(2026, 10, 3), -5_00)]
-    assert await _ledger(link) == [(_COFFEE_DAY, -4_50)]
+    assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_50)]
 
 
 @pytest.mark.parametrize(
@@ -2559,7 +2543,7 @@ async def test_job_stores_a_new_merchant_name_or_category_hint_without_a_correct
 
     [(field, value)] = sent.items()
     assert await _bank_transactions(*_CORRECTION, getattr(BankTransaction, field)) == [(None, None, value)]
-    assert await _ledger(link) == [(_COFFEE_DAY, -4_50)]
+    assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_50)]
 
 
 async def test_job_closes_an_open_correction_once_the_bank_is_back_to_the_value_added(connection, provider):
@@ -2579,7 +2563,7 @@ async def test_job_closes_an_open_correction_once_the_bank_is_back_to_the_value_
     assert await _bank_transactions(*_CORRECTION, BankTransaction.observed_amount, BankTransaction.aligned_amount) == [
         (None, None, -4_50, -4_50)
     ]
-    assert await _ledger(link) == [(_COFFEE_DAY, -4_00)]
+    assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_00)]
 
 
 async def test_job_aligns_a_date_the_bank_changes_to_the_one_the_user_chose_without_a_correction(connection, provider):
@@ -2612,7 +2596,7 @@ async def test_job_opens_a_correction_for_an_amount_it_cant_store_exactly_though
 
     await _run_jobs_until_none_is_due()
 
-    assert await _ledger(link) == [(_COFFEE_DAY, -4_50)]
+    assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_50)]
     assert await _bank_transactions(*_CORRECTION, BankTransaction.observed_amount, BankTransaction.raw_amount) == [
         (OpenReviewKind.CORRECTION, {"amount": -4_50}, None, "-4.755")
     ]
@@ -2678,7 +2662,7 @@ async def test_job_adds_a_bank_change_to_an_open_correction_though_corrections_a
 
     await _run_jobs_until_none_is_due()
 
-    assert await _ledger(link) == [(_COFFEE_DAY, -4_50)]
+    assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_50)]
     assert await _bank_transactions(*_CORRECTION) == [(OpenReviewKind.CORRECTION, {"date": "2026-10-02", "amount": -4_50})]
 
 
@@ -2699,8 +2683,8 @@ async def test_job_rebuilds_balances_from_the_earliest_day_a_trusted_correction_
 
     await _run_jobs_until_none_is_due()
 
-    assert await _balances(everyday) == [(date(2026, 9, 29), -4_50)]
-    assert await _balances(card) == [(date(2026, 10, 3), -4_50)]
+    assert await _balances(everyday.account_id) == [(date(2026, 9, 29), -4_50)]
+    assert await _balances(card.account_id) == [(date(2026, 10, 3), -4_50)]
 
 
 async def test_job_opens_nothing_when_the_bank_goes_back_to_values_the_user_declined(connection, provider):
@@ -2716,7 +2700,7 @@ async def test_job_opens_nothing_when_the_bank_goes_back_to_values_the_user_decl
     await _run_jobs_until_none_is_due()
 
     assert await _bank_transactions(*_CORRECTION, BankTransaction.observed_amount) == [(None, None, -4_75)]
-    assert await _ledger(link) == [(_COFFEE_DAY, -4_50)]
+    assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_50)]
 
 
 async def test_job_storing_while_the_user_keeps_the_current_value_compares_with_the_value_kept(connection, monkeypatch):
@@ -2759,4 +2743,4 @@ async def test_job_storing_while_the_user_keeps_the_current_value_compares_with_
     assert await _bank_transactions(BankTransaction.id, *_CORRECTION, BankTransaction.observed_amount) == [
         (item_id, OpenReviewKind.CORRECTION, {"amount": -4_75}, -5_00)
     ]
-    assert await _ledger(link) == [(_COFFEE_DAY, -4_50)]
+    assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_50)]

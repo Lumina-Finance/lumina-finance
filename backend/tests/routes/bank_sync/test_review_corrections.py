@@ -16,15 +16,14 @@ from datetime import date
 import pytest
 from sqlalchemy import func, select
 
-from app.models.account import AccountBalanceSnapshot
 from app.models.bank_connection import BankAccountLink
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition, OpenReviewKind
 from app.services.bank_sync import review_decisions
 from tests.conftest import TestSession
-from tests.routes.support.account_helpers import _current_balance
 from tests.routes.support.bank_sync_helpers import (
     BANK_DATE,
     EMPTY_REVIEW_PAGE,
+    _balances,
     _changed_at,
     _commit_other_users_account,
     _commit_review_item,
@@ -111,17 +110,6 @@ def _blue_bottle_source(*, amount: int | None = -475, raw_amount: str | None = N
     }
 
 
-async def _balances(account_id: str) -> list[tuple[date, int]]:
-    """Return the account's end-of-day balances, earliest first, read as the table owner"""
-    async with TestSession() as session:
-        rows = await session.execute(
-            select(AccountBalanceSnapshot.dt, AccountBalanceSnapshot.balance)
-            .where(AccountBalanceSnapshot.account_id == uuid.UUID(account_id))
-            .order_by(AccountBalanceSnapshot.dt)
-        )
-        return [tuple(row) for row in rows]
-
-
 async def test_accepting_a_correction_that_would_over_refund_the_expense_is_refused_and_keeping_the_current_value_still_clears_it(client):
     """A $1.00 refund is linked to the coffee and the bank's change to -0.50 waits
 
@@ -164,7 +152,7 @@ async def test_accepting_writes_the_banks_amount_to_the_same_transaction_and_kee
     stored = await _stored_item(correction.item_id)
     assert (stored.open_kind, stored.previous_values, stored.aligned_date, stored.aligned_amount) == (None, None, BANK_DATE, -475)
     assert await _review_page(client, correction.headers) == EMPTY_REVIEW_PAGE
-    assert await _current_balance(client, correction.headers, correction.account_id) == -475
+    assert await _balances(correction.account_id) == [(date(2026, 10, 2), -475)]
     assert await _changed_at(client, correction.headers) != before
     assert "user_cache_states" in _writes(statements)[-1]
 
@@ -209,7 +197,7 @@ async def test_keeping_the_current_value_leaves_the_ledger_and_remembers_the_val
         {"date": BANK_DATE.isoformat(), "amount": -475, "description": _BLUE_BOTTLE},
     )
     assert await _review_page(client, correction.headers) == EMPTY_REVIEW_PAGE
-    assert await _current_balance(client, correction.headers, correction.account_id) == -450
+    assert await _balances(correction.account_id) == [(BANK_DATE, -450)]
     assert await _changed_at(client, correction.headers) != before
     assert "user_cache_states" in _writes(statements)[-1]
 
@@ -231,7 +219,7 @@ async def test_a_decision_submitted_twice_at_once_is_applied_once(client, decisi
     assert [(response.json()["id"], response.json()["amount"]) for response in (first, second)] == [(correction.transaction_id, amount)] * 2
     assert first.json()["bank_source"] == second.json()["bank_source"]
     assert await _ledger_rows(correction.account_id) == [(BANK_DATE, amount)]
-    assert await _current_balance(client, correction.headers, correction.account_id) == amount
+    assert await _balances(correction.account_id) == [(BANK_DATE, amount)]
 
     # Created at version 1 and written once
     assert (await _stored_item(correction.item_id)).version == 2

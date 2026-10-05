@@ -22,10 +22,10 @@ from app.models.bank_transaction import BankTransaction, BankTransactionDisposit
 from app.models.transaction import Transaction
 from app.services.bank_sync import manual_entries, review_decisions, review_pause
 from tests.conftest import TestSession
-from tests.routes.support.account_helpers import _current_balance
 from tests.routes.support.bank_sync_helpers import (
     BANK_DATE,
     EMPTY_REVIEW_PAGE,
+    _balances,
     _changed_at,
     _commit_other_users_account,
     _commit_paused_link,
@@ -124,7 +124,7 @@ async def test_adding_tesco_writes_one_bank_sourced_transaction_and_empties_the_
         -2340,
     )
     assert await _review_page(client, inbox.headers) == EMPTY_REVIEW_PAGE
-    assert await _current_balance(client, inbox.headers, inbox.account_id) == -2340
+    assert await _balances(inbox.account_id) == [(BANK_DATE, -2340)]
     assert await _changed_at(client, inbox.headers) != before
     assert "user_cache_states" in _writes(statements)[-1]
 
@@ -318,7 +318,7 @@ async def test_a_double_submitted_add_adds_the_item_once(client):
     assert first.json()["id"] == second.json()["id"]
     assert first.json()["bank_source"] == second.json()["bank_source"] == _tesco_source()
     assert await _ledger_rows(inbox.account_id) == [(BANK_DATE, -2340)]
-    assert await _current_balance(client, inbox.headers, inbox.account_id) == -2340
+    assert await _balances(inbox.account_id) == [(BANK_DATE, -2340)]
 
 
 async def test_an_add_waiting_on_a_sync_aligns_with_the_amount_the_sync_stored(client):
