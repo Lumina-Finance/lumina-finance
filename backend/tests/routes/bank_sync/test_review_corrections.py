@@ -9,15 +9,17 @@ one reaching another user's item changes their ledger
 """
 
 import asyncio
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from app.models.bank_connection import BankAccountLink
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition, OpenReviewKind
+from app.models.transaction import Transaction
 from app.services.bank_sync import review_decisions
 from app.services.bank_sync.corrections import store_accepted_observations
 from tests.conftest import TestSession
@@ -225,6 +227,58 @@ async def test_accepting_after_keeping_an_earlier_value_lets_the_declined_value_
     stored = await _stored_item(correction.item_id)
     assert (stored.open_kind, stored.previous_values, stored.declined_observation) == (OpenReviewKind.CORRECTION, {"amount": -500}, None)
     assert await _ledger_rows(correction.account_id) == [(BANK_DATE, -500)]
+
+
+@pytest.mark.parametrize(
+    ("decision", "declined"),
+    [("accept-change", None), ("keep-current", {"date": BANK_DATE.isoformat(), "amount": -450, "description": "BLUE BOTTLE COFFEE"})],
+)
+async def test_deciding_a_new_bank_description_closes_the_correction_and_leaves_the_ledger(client, decision, declined):
+    """The bank renamed SQ *BLUE BOTTLE to BLUE BOTTLE COFFEE and changed nothing else
+
+    The ledger has no description, so either decision only closes the correction, writing nothing
+    to the ledger row or its balances, and keeping it remembers the values declined
+    """
+    correction = await _correction_waiting(
+        client, description="BLUE BOTTLE COFFEE", observed_amount=-450, previous_values={"description": _BLUE_BOTTLE}
+    )
+
+    with _recorded_statements() as statements:
+        decided = await _decide(client, correction, decision)
+
+    assert decided.status_code == 200, decided.text
+    assert (decided.json()["id"], decided.json()["dt"], decided.json()["amount"]) == (correction.transaction_id, BANK_DATE.isoformat(), -450)
+    assert {re.match(r"(?:UPDATE|INSERT INTO|DELETE FROM) (\w+)", write, re.IGNORECASE)[1] for write in _writes(statements)} == {
+        "bank_transactions",
+        "user_cache_states",
+    }
+    stored = await _stored_item(correction.item_id)
+    assert (stored.open_kind, stored.previous_values, stored.declined_observation) == (None, None, declined)
+    assert await _review_page(client, correction.headers) == EMPTY_REVIEW_PAGE
+    assert await _ledger_rows(correction.account_id) == [(BANK_DATE, -450)]
+
+
+async def test_accepting_waits_for_an_edit_to_the_ledger_row_and_rebuilds_balances_from_its_date(client):
+    """The user is moving the coffee to 1 October as they accept the bank's -4.75
+
+    Accepting waits for the move, then writes -4.75 to the moved transaction and rebuilds its
+    balances from 1 October, where it now sits
+    """
+    correction = await _correction_waiting(client)
+    ledger_row = Transaction.id == uuid.UUID(correction.transaction_id)
+
+    async with asyncio.timeout(10), TestSession() as editing:
+        await editing.execute(select(Transaction.id).where(ledger_row).with_for_update())
+        editing_pid = await editing.scalar(select(func.pg_backend_pid()))
+        accepting = asyncio.create_task(_decide(client, correction, "accept-change"))
+        await _wait_until_waiting_on(editing_pid, accepting)
+        await editing.execute(update(Transaction).where(ledger_row).values(dt=date(2026, 10, 1)))
+        await editing.commit()
+        accepted = await accepting
+
+    assert accepted.status_code == 200, accepted.text
+    assert (accepted.json()["dt"], accepted.json()["amount"]) == ("2026-10-01", -475)
+    assert await _balances(correction.account_id) == [(date(2026, 10, 1), -475)]
 
 
 @pytest.mark.parametrize(("decision", "amount"), [("accept-change", -475), ("keep-current", -450)])

@@ -2395,11 +2395,14 @@ _DECLINED_AT_4_75 = {"date": "2026-10-02", "amount": -4_75, "description": "POS 
 _CORRECTION = (BankTransaction.open_kind, BankTransaction.previous_values)
 
 
-async def _accept_coffee(link: BankAccountLink, *, ledger: tuple[date, int] = (_COFFEE_DAY, -4_50), **values) -> uuid.UUID:
+async def _accept_coffee(
+    link: BankAccountLink, external_id: str = "TRN-coffee", *, ledger: tuple[date, int] = (_COFFEE_DAY, -4_50), **values
+) -> uuid.UUID:
     """Commit the $4.50 coffee on 2 October that _record sends as the user added it to the link's account, with its balances
 
-    The ledger row holds the date and amount given, and its bank transaction holds the bank's
-    values, aligned with them, with any of its values replaced
+    The bank sent it under the transaction ID given. The ledger row holds the date and amount
+    given, and its bank transaction holds the bank's values, aligned with them, with any of its
+    values replaced
 
     Returns:
         The bank transaction's id, which is also its review item's
@@ -2411,7 +2414,7 @@ async def _accept_coffee(link: BankAccountLink, *, ledger: tuple[date, int] = (_
         txn.dt = ledger[0]
         session.add(txn)
         await session.flush()
-        record = _build_bank_transaction(account, "TRN-coffee", external_account_id=link.external_account_id, amount=-4_50, transaction=txn)
+        record = _build_bank_transaction(account, external_id, external_account_id=link.external_account_id, amount=-4_50, transaction=txn)
         record.observed_date = record.aligned_date = _COFFEE_DAY
         record.description = "POS 4411 COFFEE"
         record.extras = {}
@@ -2454,49 +2457,68 @@ async def test_job_proposes_a_bank_change_to_a_transaction_in_the_ledger_and_kee
     assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_50)]
 
 
-async def test_job_applies_a_trusted_bank_change_to_the_amount_and_leaves_the_date_the_user_edited(connection, provider):
-    """The user moved the coffee to 1 October, and with corrections trusted the bank sends 3 October, $4.75 and a new description
+@pytest.mark.parametrize(
+    ("ledger", "stored", "sent", "applied", "aligned"),
+    [
+        # The user moved the coffee to 1 October, and the bank now says 3 October and $4.75
+        (
+            (date(2026, 10, 1), -4_50),
+            {},
+            {"day": date(2026, 10, 3), "amount": -4_75, "raw_amount": "-4.75"},
+            (date(2026, 10, 1), -4_75),
+            (_COFFEE_DAY, -4_75),
+        ),
+        # The user kept $4.50 over the bank's $4.75 before trusting corrections, and the bank now
+        # says 3 October and $5.00
+        (
+            (_COFFEE_DAY, -4_50),
+            {"observed_amount": -4_75, "aligned_amount": -4_75, "declined_observation": _DECLINED_AT_4_75},
+            {"day": date(2026, 10, 3), "amount": -5_00, "raw_amount": "-5.00"},
+            (date(2026, 10, 3), -4_50),
+            (date(2026, 10, 3), -4_75),
+        ),
+    ],
+    ids=["date the user moved", "amount the user kept"],
+)
+async def test_job_applies_a_trusted_bank_change_only_to_the_fields_the_user_hasnt_edited(
+    connection, provider, ledger, stored, sent, applied, aligned
+):
+    """With corrections trusted, the bank changes the coffee's date, amount and description, one of the first two edited by the user
 
-    The amount becomes $4.75 and the balance moves by $0.25 with no correction to review, while the
-    date stays the user's 1 October and the description is only stored
+    The other takes the bank's value and the balances follow it, the edited one keeps the user's
+    value, and the description is only stored, with no correction to review
     """
     link = await _link(connection, "ACT-1", **_synced_through_yesterday())
     await _trust_corrections(link)
-    await _accept_coffee(link, ledger=(date(2026, 10, 1), -4_50))
-    corrected = _record("TRN-coffee", date(2026, 10, 3), amount=-4_75, raw_amount="-4.75", description="BLUE BOTTLE COFFEE")
-    provider.outcomes = [_returned_with({"ACT-1": [corrected]})]
-    balances_before = await _balances(link.account_id)
+    await _accept_coffee(link, ledger=ledger, **stored)
+    provider.outcomes = [_returned_with({"ACT-1": [_record("TRN-coffee", description="BLUE BOTTLE COFFEE", **sent)]})]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
     await _run_jobs_until_none_is_due()
 
-    assert await _ledger_rows(link.account_id) == [(date(2026, 10, 1), -4_75)]
-    assert balances_before == [(date(2026, 10, 1), -4_50)]
-    assert await _balances(link.account_id) == [(date(2026, 10, 1), -4_75)]
+    assert await _ledger_rows(link.account_id) == [applied]
+    assert await _balances(link.account_id) == [applied]
     assert await _bank_transactions(
-        *_CORRECTION,
-        BankTransaction.observed_date,
-        BankTransaction.aligned_date,
-        BankTransaction.aligned_amount,
-        BankTransaction.description,
-    ) == [(None, None, date(2026, 10, 3), _COFFEE_DAY, -4_75, "BLUE BOTTLE COFFEE")]
+        *_CORRECTION, BankTransaction.aligned_date, BankTransaction.aligned_amount, BankTransaction.description
+    ) == [(None, None, *aligned, "BLUE BOTTLE COFFEE")]
 
 
-async def test_job_leaves_an_amount_the_user_kept_once_corrections_are_trusted(connection, provider):
-    """The user kept $4.50 over the bank's $4.75, then trusted corrections, and the bank now says $5.00
+async def test_job_proposes_a_new_bank_description_on_its_own(connection, provider):
+    """With corrections set to review, the bank re-sends the coffee as BLUE BOTTLE COFFEE and changes nothing else
 
-    The kept amount counts as edited, so the ledger stays at $4.50 and no correction opens
+    One correction opens for the description alone, and the ledger is unchanged
     """
     link = await _link(connection, "ACT-1", **_synced_through_yesterday())
-    await _trust_corrections(link)
-    await _accept_coffee(link, observed_amount=-4_75, aligned_amount=-4_75, declined_observation=_DECLINED_AT_4_75)
-    provider.outcomes = [_returned_with({"ACT-1": [_record("TRN-coffee", amount=-5_00, raw_amount="-5.00")]})]
+    item_id = await _accept_coffee(link)
+    provider.outcomes = [_returned_with({"ACT-1": [_record("TRN-coffee", description="BLUE BOTTLE COFFEE")]})]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
     await _run_jobs_until_none_is_due()
 
+    assert await _bank_transactions(BankTransaction.id, *_CORRECTION, BankTransaction.description) == [
+        (item_id, OpenReviewKind.CORRECTION, {"description": "POS 4411 COFFEE"}, "BLUE BOTTLE COFFEE")
+    ]
     assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_50)]
-    assert await _bank_transactions(*_CORRECTION, BankTransaction.observed_amount) == [(None, None, -5_00)]
 
 
 async def test_job_widens_an_open_correction_and_keeps_comparing_with_the_values_added(connection, provider):
@@ -2566,12 +2588,17 @@ async def test_job_closes_an_open_correction_once_the_bank_is_back_to_the_value_
     assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_00)]
 
 
-async def test_job_aligns_a_date_the_bank_changes_to_the_one_the_user_chose_without_a_correction(connection, provider):
+@pytest.mark.parametrize("trusted", [False, True], ids=["review", "trusted"])
+async def test_job_aligns_a_date_the_bank_changes_to_the_one_the_user_chose_without_a_correction(connection, provider, trusted):
     """The user moved the coffee to 1 October, and the bank now dates it 1 October too
 
-    The ledger already holds the bank's date, so no correction opens and the date no longer counts as edited
+    The ledger already holds the bank's date, so whether corrections are reviewed or trusted, no
+    correction opens, the ledger and its balances are left as they are, and the date no longer
+    counts as edited
     """
     link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    if trusted:
+        await _trust_corrections(link)
     await _accept_coffee(link, ledger=(date(2026, 10, 1), -4_50))
     provider.outcomes = [_returned_with({"ACT-1": [_record("TRN-coffee", date(2026, 10, 1))]})]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
@@ -2581,6 +2608,8 @@ async def test_job_aligns_a_date_the_bank_changes_to_the_one_the_user_chose_with
     assert await _bank_transactions(*_CORRECTION, BankTransaction.observed_date, BankTransaction.aligned_date) == [
         (None, None, date(2026, 10, 1), date(2026, 10, 1))
     ]
+    assert await _ledger_rows(link.account_id) == [(date(2026, 10, 1), -4_50)]
+    assert await _balances(link.account_id) == [(date(2026, 10, 1), -4_50)]
 
 
 async def test_job_opens_a_correction_for_an_amount_it_cant_store_exactly_though_corrections_are_trusted(connection, provider):
@@ -2666,24 +2695,32 @@ async def test_job_adds_a_bank_change_to_an_open_correction_though_corrections_a
     assert await _bank_transactions(*_CORRECTION) == [(OpenReviewKind.CORRECTION, {"date": "2026-10-02", "amount": -4_50})]
 
 
-async def test_job_rebuilds_balances_from_the_earliest_day_a_trusted_correction_touches(connection, provider):
-    """With corrections trusted, the bank moves Everyday's coffee back to 29 September and Card's on to 3 October
+async def test_job_rebuilds_balances_from_the_earliest_day_trusted_corrections_touch(connection, provider):
+    """With corrections trusted, the bank moves Everyday's two coffees to 29 September and 3 October, and Card's to 3 October
 
-    Everyday's balance holds it from 29 September, and Card's only from 3 October, so neither still holds it on 2 October
+    Everyday's balances are rebuilt from 29 September, the earliest day either of its changes
+    touches, and Card's from 2 October, the day its coffee left, so no balance still holds a coffee
+    on 2 October
     """
     everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
     card = await _link(connection, "ACT-card", **_synced_through_yesterday())
     for link in (everyday, card):
         await _trust_corrections(link)
         await _accept_coffee(link)
+    await _accept_coffee(everyday, "TRN-coffee-2")
     provider.outcomes = [
-        _returned_with({"ACT-everyday": [_record("TRN-coffee", date(2026, 9, 29))], "ACT-card": [_record("TRN-coffee", date(2026, 10, 3))]})
+        _returned_with(
+            {
+                "ACT-everyday": [_record("TRN-coffee", date(2026, 9, 29)), _record("TRN-coffee-2", date(2026, 10, 3))],
+                "ACT-card": [_record("TRN-coffee", date(2026, 10, 3))],
+            }
+        )
     ]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
     await _run_jobs_until_none_is_due()
 
-    assert await _balances(everyday.account_id) == [(date(2026, 9, 29), -4_50)]
+    assert await _balances(everyday.account_id) == [(date(2026, 9, 29), -4_50), (date(2026, 10, 3), -9_00)]
     assert await _balances(card.account_id) == [(date(2026, 10, 3), -4_50)]
 
 
@@ -2794,3 +2831,106 @@ async def test_job_asks_about_a_declined_value_again_once_the_bank_has_since_mat
         (item_id, OpenReviewKind.CORRECTION, {"amount": -4_50}, None)
     ]
     assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_50)]
+
+
+async def test_job_asks_again_when_the_bank_revises_an_amount_it_cant_store_exactly(connection, provider):
+    """The user kept $4.50 over the bank's -4.755, which CAD can't hold, and the bank now says -4.756
+
+    Both amounts are kept only as the bank sent them, and they differ, so a correction opens
+    against the -4.755 declined
+    """
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    declined = {"date": "2026-10-02", "amount": "-4.755", "description": "POS 4411 COFFEE"}
+    await _accept_coffee(link, observed_amount=None, raw_amount="-4.755", aligned_amount=None, declined_observation=declined)
+    provider.outcomes = [_returned_with({"ACT-1": [_record("TRN-coffee", amount=None, raw_amount="-4.756")]})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _bank_transactions(*_CORRECTION, BankTransaction.raw_amount) == [(OpenReviewKind.CORRECTION, {"amount": "-4.755"}, "-4.756")]
+    assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_50)]
+
+
+async def test_job_follows_each_accounts_own_choice_for_corrections(connection, provider):
+    """Everyday trusts corrections and Card reviews them, and one response changes the coffee in each to $4.75
+
+    Everyday's ledger takes $4.75 with nothing to review, while Card's keeps $4.50 with a correction waiting
+    """
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    card = await _link(connection, "ACT-card", **_synced_through_yesterday())
+    await _trust_corrections(everyday)
+    for link in (everyday, card):
+        await _accept_coffee(link)
+    corrected = _record("TRN-coffee", amount=-4_75, raw_amount="-4.75")
+    provider.outcomes = [_returned_with({"ACT-everyday": [corrected], "ACT-card": [corrected]})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _ledger_rows(everyday.account_id) == [(_COFFEE_DAY, -4_75)]
+    assert await _ledger_rows(card.account_id) == [(_COFFEE_DAY, -4_50)]
+    assert await _bank_transactions(BankTransaction.external_account_id, *_CORRECTION) == [
+        ("ACT-card", OpenReviewKind.CORRECTION, {"amount": -4_50}),
+        ("ACT-everyday", None, None),
+    ]
+
+
+async def test_job_applying_a_trusted_change_waits_for_an_edit_to_the_ledger_row_and_keeps_it(connection, provider):
+    """With corrections trusted, the bank changes the coffee to $4.75 while the user is saving $4.00 for it
+
+    The job waits for the user's save, then finds the amount edited and leaves the user's $4.00
+    """
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    await _trust_corrections(link)
+    await _accept_coffee(link)
+    provider.outcomes = [_returned_with({"ACT-1": [_record("TRN-coffee", amount=-4_75, raw_amount="-4.75")]})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    async with asyncio.timeout(_WAIT_SECONDS), TestSession() as editing:
+        ledger_row = select(Transaction.id).where(Transaction.account_id == link.account_id)
+        await editing.execute(ledger_row.with_for_update())
+        blocker_pid = await editing.scalar(text("SELECT pg_backend_pid()"))
+        running = asyncio.create_task(run_jobs(1))
+        await _wait_until_waiting_on(blocker_pid, running)
+        await editing.execute(update(Transaction).where(Transaction.account_id == link.account_id).values(amount=-4_00))
+        await editing.commit()
+        assert await running == 1
+
+    assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_00)]
+    assert await _bank_transactions(*_CORRECTION, BankTransaction.observed_amount, BankTransaction.aligned_amount) == [
+        (None, None, -4_75, -4_50)
+    ]
+
+
+async def test_job_tells_the_owners_pages_as_a_part_before_today_opens_a_correction(connection, monkeypatch):
+    """The daily re-read comes back cut short, and its earlier half, 19 to 26 September, brings the bank's change to a coffee from 22 September
+
+    The correction is stored with the earlier half, so the owner's open pages hear of it while the
+    later half is still out
+    """
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    coffee_day = date(2026, 9, 22)
+    await _accept_coffee(link, ledger=(coffee_day, -4_50), observed_date=coffee_day, aligned_date=coffee_day)
+    provider = _HeldProvider(held=(1, 3))
+    provider.outcomes = [
+        _cut_off("ACT-1"),
+        _returned_with({"ACT-1": [_record("TRN-coffee", coffee_day, amount=-4_75, raw_amount="-4.75")]}),
+        _returned("ACT-1"),
+    ]
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    async with asyncio.timeout(_WAIT_SECONDS):
+        running = asyncio.create_task(run_jobs(1))
+        await provider.sending[1].wait()
+        told_as_it_started = await _told_at(connection)
+        provider.release[1].set()
+        await provider.sending[3].wait()
+        told_after_the_earlier_half = await _told_at(connection)
+        correction_after_the_earlier_half = await _bank_transactions(*_CORRECTION)
+        provider.release[3].set()
+        await running
+
+    assert correction_after_the_earlier_half == [(OpenReviewKind.CORRECTION, {"amount": -4_50})]
+    assert told_as_it_started is not None
+    assert told_after_the_earlier_half > told_as_it_started
