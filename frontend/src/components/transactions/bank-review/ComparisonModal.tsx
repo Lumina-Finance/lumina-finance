@@ -1,0 +1,214 @@
+import { useId, useState } from 'react'
+import { Landmark, Lock } from 'lucide-react'
+import { ApiError } from '@/api/auth'
+import { useResolveReviewItem, type BankReviewItem, type BankValues, type CorrectableBankField, type ReviewResolution } from '@/api/bank-sync'
+import { ModalTitledPanel } from '@/components/modal/TitledPanel'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
+import { useToast } from '@/hooks/useToast'
+import { ReviewDecisionButton } from '@/components/transactions/bank-review/DecisionButton'
+import TransactionModalSubmitError from '@/components/transactions/transaction-modal/controls/SubmitError'
+import { formatRawAmount } from '@/components/transactions/utils/bankReview'
+import { formatDateLabel } from '@/utils/date'
+
+// The rows the comparison lists, in the order the transaction modal shows its fields
+const COMPARED_FIELDS: [CorrectableBankField, string][] = [
+  ['date', 'Date'],
+  ['amount', 'Amount'],
+  ['description', 'Bank description'],
+]
+
+type Decision = {
+  resolution: ReviewResolution
+  label: string
+  toast: string
+}
+
+// Each kind's two decisions: the one leaving the ledger as it is, then the one the bank asks for
+const DECISIONS: Record<'correction' | 'removal', { keep: Decision; apply: Decision }> = {
+  correction: {
+    keep: { resolution: 'keep-current', label: 'Keep current value', toast: 'Current values kept.' },
+    apply: { resolution: 'accept-change', label: 'Accept bank change', toast: 'Bank change applied.' },
+  },
+  removal: {
+    keep: { resolution: 'keep-transaction', label: 'Keep transaction', toast: 'Transaction kept.' },
+    apply: { resolution: 'remove-from-ledger', label: 'Remove from ledger', toast: 'Transaction removed from the ledger.' },
+  },
+}
+
+const DECISION_FAILED_MESSAGE = 'Something went wrong. Please try again.'
+
+// Cell padding that keeps the table's outer cells clear of its border and the columns apart
+const CELL_CLASS_NAME = 'px-1.5 text-left align-top first:pl-4 last:pr-4'
+
+type BankComparisonModalProps = {
+  open: boolean
+
+  /** A correction or a removal, which keeps showing while the modal closes after it is decided */
+  item: BankReviewItem
+
+  /** The currency of the item's account, which both its amounts are in */
+  currency: string
+  onClose: () => void
+}
+
+/**
+ * A bank correction or removal beside the ledger transaction it is about, field by field, with the
+ * two decisions on it
+ *
+ * A correction tints each row the bank changed, and notes under a changed value the user had edited
+ * that accepting replaces it. A removal changes no value, so its bank column only says the bank no
+ * longer reports the transaction. A decision closes the modal with its toast once the ledger and the
+ * review block show it, and one that fails says why in the modal, leaving the item waiting
+ */
+export function BankComparisonModal({ open, item, currency, onClose }: BankComparisonModalProps) {
+  const titleId = useId()
+  const { formatMovedCurrency } = useMoneyFormatters()
+  const { showToast } = useToast()
+  const resolve = useResolveReviewItem()
+  const [error, setError] = useState('')
+
+  const isRemoval = item.kind === 'removal'
+  const { keep, apply } = DECISIONS[isRemoval ? 'removal' : 'correction']
+  const pendingResolution = resolve.isPending ? resolve.variables.resolution : undefined
+
+  // A decided item stays on screen while the modal closes, and can't be decided again
+  const isLocked = resolve.isPending || resolve.isSuccess
+
+  const formatValue = (field: CorrectableBankField, values: BankValues | null): string => {
+    if (!values) return '—'
+    if (field === 'date') return formatDateLabel(values.date)
+    if (field === 'description') return values.description
+
+    // An amount the currency can't hold is shown exactly as the bank sent it, never rounded
+    return values.amount === null ? formatRawAmount(values.raw_amount ?? '', currency).text : formatMovedCurrency(values.amount, currency)
+  }
+
+  const decide = ({ resolution, toast }: Decision) => {
+    setError('')
+    resolve.mutate(
+      { itemId: item.id, resolution, accountId: item.account_id },
+      {
+        onSuccess: () => {
+          showToast({ status: 'success', text: toast })
+          onClose()
+        },
+        onError: (cause) => setError(cause instanceof ApiError ? cause.message : DECISION_FAILED_MESSAGE),
+      },
+    )
+  }
+
+  return (
+    <ModalTitledPanel
+      open={open}
+      onClose={onClose}
+      titleId={titleId}
+      title={isRemoval ? 'Review bank removal' : 'Review bank change'}
+      eyebrow={`${isRemoval ? 'Removal' : 'Correction'} from ${item.provider_name}`}
+      RailIcon={Landmark}
+      railLabel="Review"
+      closeDisabled={resolve.isPending}
+      footer={(
+        // Stacked on phones, where the two labels don't fit side by side
+        <div
+          className="grid shrink-0 grid-cols-1 gap-3 px-6 py-4 sm:flex sm:items-center sm:justify-end sm:px-8 min-[1050px]:py-5"
+          style={{ borderTop: '1px solid var(--app-border)' }}
+        >
+          <ReviewDecisionButton
+            label={keep.label}
+            tone="secondary"
+            loading={pendingResolution === keep.resolution}
+            disabled={isLocked}
+            onClick={() => decide(keep)}
+          />
+          <ReviewDecisionButton
+            label={apply.label}
+            tone={isRemoval ? 'danger' : 'primary'}
+            loading={pendingResolution === apply.resolution}
+            disabled={isLocked}
+            onClick={() => decide(apply)}
+          />
+        </div>
+      )}
+    >
+      <div className="space-y-5 pb-2">
+        <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+          {isRemoval
+            ? `${item.provider_name} no longer reports this transaction. It stays in your ledger unless you remove it.`
+            : `${item.provider_name} sent new values for a transaction you already approved. Nothing changes unless you accept.`}
+        </p>
+
+        <div className="overflow-hidden rounded-xl border" style={{ borderColor: 'var(--app-border)' }}>
+          <table className="w-full table-fixed border-collapse text-sm">
+            <colgroup>
+              <col className="w-2/7" />
+              <col />
+              <col />
+            </colgroup>
+            <thead style={{ background: 'var(--app-surface-soft)' }}>
+              <tr className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--app-text-muted)' }}>
+                <th scope="col" className={`${CELL_CLASS_NAME} py-2 font-medium`}>Field</th>
+                <th scope="col" className={`${CELL_CLASS_NAME} py-2 font-medium`}>In your ledger</th>
+                <th scope="col" className={`${CELL_CLASS_NAME} py-2 font-medium`}>{isRemoval ? 'Bank' : 'From bank'}</th>
+              </tr>
+            </thead>
+
+            {/* A body per field, so the note under an edited value shares its tint and border */}
+            {COMPARED_FIELDS.map(([field, label]) => {
+              const isChanged = !isRemoval && item.changed_fields.includes(field)
+              const isEdited = isChanged && item.protected_fields.some((edited) => edited === field)
+              const valueClassName = `${CELL_CLASS_NAME} pt-2.5 ${isEdited ? 'pb-1' : 'pb-2.5'} break-words ${field === 'amount' ? 'font-financial tabular-nums' : ''}`
+
+              return (
+                <tbody
+                  key={field}
+                  data-testid={`comparison-${field}`}
+                  style={{ borderTop: '1px solid var(--app-border)', background: isChanged ? 'var(--app-warning-soft)' : undefined }}
+                >
+                  <tr>
+                    {/* Muted text falls short of AA contrast on the warning tint in the dark theme, so a
+                        tinted row's label is in the full text colour */}
+                    <th
+                      scope="row"
+                      className={`${CELL_CLASS_NAME} pt-2.5 ${isEdited ? 'pb-1' : 'pb-2.5'} font-normal`}
+                      style={{ color: isChanged ? 'var(--app-text)' : 'var(--app-text-muted)' }}
+                    >
+                      {label}
+                    </th>
+                    <td className={valueClassName} style={{ color: 'var(--app-text)' }}>
+                      {formatValue(field, item.current)}
+                    </td>
+                    {isRemoval ? (
+                      <td className={`${CELL_CLASS_NAME} py-2.5`} style={{ color: 'var(--app-text-muted)' }}>No longer reported</td>
+                    ) : (
+                      <td className={valueClassName} style={{ color: isChanged ? 'var(--app-warning-text)' : 'var(--app-text)' }}>
+                        {formatValue(field, item.bank)}
+                      </td>
+                    )}
+                  </tr>
+
+                  {/* Across the whole row, since squeezed into the bank's column it runs to several lines */}
+                  {isEdited && (
+                    <tr>
+                      <td colSpan={3} className="px-4 pb-2.5 text-xs" style={{ color: 'var(--app-text)' }}>
+                        <span className="flex items-start gap-1.5">
+                          <Lock size={11} aria-hidden className="mt-0.5 shrink-0" />
+                          You edited this. Accepting replaces your value with the bank&apos;s.
+                        </span>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              )
+            })}
+          </table>
+        </div>
+
+        {error && (
+          <div role="alert">
+            <TransactionModalSubmitError error={error} />
+          </div>
+        )}
+      </div>
+    </ModalTitledPanel>
+  )
+}

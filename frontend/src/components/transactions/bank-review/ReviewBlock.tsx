@@ -73,8 +73,8 @@ type BankReviewBlockProps = {
   /** Takes each row as it mounts and null as it goes, for scrolling to and focusing an item */
   registerRow: (itemId: string, row: HTMLDivElement | null) => void
 
-  /** Opens a new item for review. Corrections and removals have no review here yet and open nothing */
-  onOpenNewItem: (item: BankReviewItem) => void
+  /** Opens an item for review */
+  onOpenItem: (item: BankReviewItem) => void
   prefersReducedMotion: boolean | null
 }
 
@@ -82,8 +82,7 @@ type BankReviewBlockProps = {
  * The bank items waiting for review above the transaction list: new items, corrections and removals
  * that stay outside the ledger and every balance until the user acts on them
  *
- * A new item's row opens it for review, and any other row shows its item and opens nothing. Rows
- * grow in and collapse out with the list's day groups, except that closing the block collapses only
+ * Each row opens its item for review. Rows grow in and collapse out with the list's day groups, except that closing the block collapses only
  * the rows on screen. A read that fails is said inside the block, under its title, rather than
  * leaving it empty
  */
@@ -107,7 +106,7 @@ export function BankReviewBlock({
   skipEnterAnimation,
   highlightedId,
   registerRow,
-  onOpenNewItem,
+  onOpenItem,
   prefersReducedMotion,
 }: BankReviewBlockProps) {
   const { formatMovedAmount } = useMoneyFormatters()
@@ -208,7 +207,6 @@ export function BankReviewBlock({
             const account = accountFor(item.account_id)
             const amount = getReviewItemAmount(item, account.currency, formatMovedAmount)
             const details = [formatReviewDate(item.bank.date, today), showAccountNames && account.name, describeReviewItem(item)]
-            const opensItem = item.kind === 'new'
 
             // The divider sits on the content rather than the row, so it stops short of the card's edges
             const content = (
@@ -248,9 +246,9 @@ export function BankReviewBlock({
                 role="listitem"
 
                 // Focusable from a Needs review marker, so a screen reader moves to the item too, but
-                // never a tab stop, which a row that opens its item has in its button
+                // never a tab stop, which the row has in its button
                 tabIndex={-1}
-                className={`relative overflow-hidden focus:outline-none ${opensItem ? '' : 'px-4 sm:px-5'}`}
+                className="relative overflow-hidden focus:outline-none"
                 initial={skipEnterAnimation ? false : collapsed}
                 animate={{ height: 'auto', opacity: 1 }}
                 variants={{
@@ -272,17 +270,15 @@ export function BankReviewBlock({
                   }}
                 />
 
-                {opensItem ? (
-                  // Ringed on hover and keyboard focus like the highlight above, for the same reason,
-                  // with a ring of its own so neither waits on the other's fade
-                  <button type="button" onClick={() => onOpenNewItem(item)} className="group relative block w-full px-4 text-left focus-visible:outline-none sm:px-5">
-                    <span
-                      aria-hidden
-                      className="pointer-events-none absolute inset-x-2 bottom-0 top-px rounded-lg group-hover:ring-1 group-hover:ring-inset group-hover:ring-[var(--app-review-border)] group-focus-visible:ring-2 group-focus-visible:ring-inset group-focus-visible:ring-[var(--app-accent)] sm:inset-x-2.5"
-                    />
-                    {content}
-                  </button>
-                ) : content}
+                {/* Ringed on hover and keyboard focus like the highlight above, for the same reason,
+                    with a ring of its own so neither waits on the other's fade */}
+                <button type="button" onClick={() => onOpenItem(item)} className="group relative block w-full px-4 text-left focus-visible:outline-none sm:px-5">
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-2 bottom-0 top-px rounded-lg group-hover:ring-1 group-hover:ring-inset group-hover:ring-[var(--app-review-border)] group-focus-visible:ring-2 group-focus-visible:ring-inset group-focus-visible:ring-[var(--app-accent)] sm:inset-x-2.5"
+                  />
+                  {content}
+                </button>
               </motion.div>
             )
           })}

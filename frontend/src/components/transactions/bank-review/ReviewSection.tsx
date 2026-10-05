@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useReviewBacklogs, useReviewItems, type BankReviewItem, type BankReviewPage } from '@/api/bank-sync'
 import { useAuth } from '@/hooks/useAuth'
 import { useTodayYmd } from '@/hooks/useTodayYmd'
+import { BankComparisonModal } from '@/components/transactions/bank-review/ComparisonModal'
 import type { BankReadFailure } from '@/components/transactions/bank-review/ReadFailureNotice'
 import { BankReviewBlock, COLLAPSED_ITEM_COUNT } from '@/components/transactions/bank-review/ReviewBlock'
 import CreateTransactionModal from '@/components/transactions/transaction-modal/Modal'
@@ -88,7 +89,8 @@ function getRowsOnScreen(rows: Map<string, HTMLDivElement>): Set<string> {
  * load, the request goes to that retry instead, and a page that fails to load ends it where it is
  *
  * A new item's row opens it in the transaction modal for review. Kept open, the modal goes on through
- * the new items in the block's order after each decision, and closes once none are left
+ * the new items in the block's order after each decision, and closes once none are left. A
+ * correction's or a removal's row opens it beside its ledger transaction in the comparison
  *
  * Kept apart from the list's own renders, such as one for each search keystroke, since an open block
  * can hold hundreds of rows
@@ -220,12 +222,12 @@ export const BankReviewSection = memo(function BankReviewSection({
   })
   const skipAppendedEnter = useSkipAppendedEnter(isFetchingNextPage)
 
-  // The new item open for review, kept once it is decided and leaves the list, so the modal goes on
+  // The item open for review, kept once it is decided and leaves the list, so the modal goes on
   // showing it as it closes. Each opening mounts a fresh modal
   const [reviewItem, setReviewItem] = useState<BankReviewItem | null>(null)
   const [isReviewOpen, setIsReviewOpen] = useState(false)
   const [reviewOpening, setReviewOpening] = useState(0)
-  const openNewItem = useCallback((item: BankReviewItem) => {
+  const openItem = useCallback((item: BankReviewItem) => {
     setReviewItem(item)
     setReviewOpening((opening) => opening + 1)
     setIsReviewOpen(true)
@@ -293,7 +295,7 @@ export const BankReviewSection = memo(function BankReviewSection({
                 skipEnterAnimation={skipAppendedEnter}
                 highlightedId={highlight?.itemId ?? null}
                 registerRow={registerRow}
-                onOpenNewItem={openNewItem}
+                onOpenItem={openItem}
                 prefersReducedMotion={prefersReducedMotion}
               />
             </div>
@@ -302,13 +304,22 @@ export const BankReviewSection = memo(function BankReviewSection({
       </AnimatePresence>
 
       {/* Outside the block, which leaves once its last item is decided, while the modal still has to close */}
-      {reviewItem && (
+      {reviewItem?.kind === 'new' && (
         <CreateTransactionModal
           key={reviewOpening}
           open={isReviewOpen}
           onClose={() => setIsReviewOpen(false)}
           reviewItem={reviewItem}
           onReviewDecided={(openNext) => void settleReview(openNext)}
+        />
+      )}
+      {reviewItem && reviewItem.kind !== 'new' && (
+        <BankComparisonModal
+          key={reviewOpening}
+          open={isReviewOpen}
+          onClose={() => setIsReviewOpen(false)}
+          item={reviewItem}
+          currency={accountFor(reviewItem.account_id).currency}
         />
       )}
     </>

@@ -1,13 +1,13 @@
 /**
  * Covers the rows of the review block above the transaction list: the first four items and the
- * toggle for the rest, how a removal and money in show their amounts, which rows open their item,
+ * toggle for the rest, how a removal and money in show their amounts, that every row opens its item,
  * and how a read that failed is said inside the block
  *
  * These tests catch the block hiding the toggle a long backlog needs, offering one a short backlog
- * doesn't, a removal showing anything but the ledger amount struck through, a correction or removal
- * offering a review that isn't there, and a failed read counting nothing as zero or offering no
- * retry. The notice's own retry is covered with the notice, and following a Needs review marker to a
- * failed read, and opening a new item, run in the browser, since they need effects and clicks
+ * doesn't, a removal showing anything but the ledger amount struck through, a kind of item whose row
+ * a keyboard can't open, and a failed read counting nothing as zero or offering no retry. The
+ * notice's own retry is covered with the notice, and following a Needs review marker to a failed
+ * read, and opening an item, run in the browser, since they need effects and clicks
  */
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -54,7 +54,7 @@ function renderBlock(
     skipEnterAnimation: false,
     highlightedId: null,
     registerRow: () => {},
-    onOpenNewItem: () => {},
+    onOpenItem: () => {},
     prefersReducedMotion: true,
   }))
 }
@@ -85,7 +85,7 @@ describe('the rows the block shows', () => {
     expect(markup).toMatch(/color:var\(--app-positive\)[^>]*>\+\$42\.50</)
   })
 
-  it("makes a new item's row a button that opens it, and leaves a correction's and a removal's as they are", () => {
+  it("makes every kind of item's row a button that opens it", () => {
     const markup = renderBlock([
       createReviewItem('fresh', 'new', 'everyday'),
       createReviewItem('changed', 'correction', 'everyday'),
@@ -94,8 +94,8 @@ describe('the rows the block shows', () => {
     const rows = markup.split('role="listitem"').slice(1)
 
     expect(rows[0]).toMatch(/<button type="button"[^>]*>.*GROCER fresh/)
-    expect(rows[1]).not.toContain('<button')
-    expect(rows[2]).not.toContain('<button')
+    expect(rows[1]).toMatch(/<button type="button"[^>]*>.*GROCER changed/)
+    expect(rows[2]).toMatch(/<button type="button"[^>]*>.*GROCER gone/)
   })
 })
 
