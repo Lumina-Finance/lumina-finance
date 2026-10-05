@@ -23,8 +23,8 @@ const NEAR_MISS_PX = 4
 const OLDER_DAYS = 14
 const SHORT_WINDOW_HEIGHT = 600
 
-// How far below the bars a row's top may sit and still count as just under them
-const JUST_UNDER_PX = 16
+// How far below the sticky bars the bank icon is scrolled to, too close for the panel to fit above it
+const ICON_UNDER_BARS_PX = 2
 
 // How far inside the tooltip panel's edges a point is read to find what covers it, clear of the
 // border's antialiasing
@@ -239,7 +239,7 @@ test('opens the tooltip from a press just off the bank icon, leaving the row clo
   await expectTooltipOpen(page, marker, row, ['From SimpleFIN'])
 })
 
-test('opens the tooltip below the bank icon when the row sits just under the sticky bars', async ({ page, request }) => {
+test('opens the tooltip below the bank icon when the icon sits just under the sticky bars', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   const id = await createTransaction(request, user, {
@@ -268,19 +268,21 @@ test('opens the tooltip below the bank icon when the row sits just under the sti
   const marker = row.getByRole('button', { name: 'From SimpleFIN, edited', exact: true })
   await expect(marker).toBeVisible()
 
-  // Scrolled until the row's day heading has just stuck under the search and filter bars, which
-  // leaves the row right under the heading. Retried while the bars settle into their stuck size
+  // Scrolled until the row's day heading has stuck under the search and filter bars and the bank
+  // icon sits just under the heading. Retried while the bars settle into their stuck size
   await expect(async () => {
-    const gap = await row.evaluate((node) => {
+    const gap = await marker.evaluate((icon, iconGap) => {
       const heading = [...document.querySelectorAll<HTMLElement>('*')]
-        .filter((element) => getComputedStyle(element).position === 'sticky' && !element.contains(node)
-          && element.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING)
+        .filter((element) => getComputedStyle(element).position === 'sticky' && !element.contains(icon)
+          && element.compareDocumentPosition(icon) & Node.DOCUMENT_POSITION_FOLLOWING)
         .at(-1)!
       window.scrollBy({ top: heading.getBoundingClientRect().top - parseFloat(getComputedStyle(heading).top), behavior: 'instant' })
-      return node.getBoundingClientRect().top - heading.getBoundingClientRect().bottom
-    })
-    expect(gap).toBeGreaterThanOrEqual(-1)
-    expect(gap).toBeLessThan(JUST_UNDER_PX)
+      window.scrollBy({ top: icon.getBoundingClientRect().top - heading.getBoundingClientRect().bottom - iconGap, behavior: 'instant' })
+      return icon.getBoundingClientRect().top - heading.getBoundingClientRect().bottom
+    }, ICON_UNDER_BARS_PX)
+    // Within a pixel, since the page scrolls by whole pixels and the icon can sit on a half one
+    expect(gap).toBeGreaterThanOrEqual(ICON_UNDER_BARS_PX - 1)
+    expect(gap).toBeLessThanOrEqual(ICON_UNDER_BARS_PX + 1)
   }).toPass()
 
   // There is no room above the icon below the bars, so the panel opens under it, every line readable
@@ -317,10 +319,13 @@ test('adds a dot and the edited note to a bank-imported row whose bank value the
   expect(dotBox.x < markerBox.x + markerBox.width && markerBox.x < dotBox.x + dotBox.width).toBe(true)
   expect(dotBox.y < markerBox.y + markerBox.height && markerBox.y < dotBox.y + dotBox.height).toBe(true)
 
-  // The note sits on its own line under the provider
+  // The note sits on its own line under the provider, a single line as tall as the provider's
   await getTransactionRowButton(row).focus()
   await page.keyboard.press('Tab')
   await expectTooltipOpen(page, marker, row, ['From SimpleFIN', EDITED_NOTE])
+  const [providerLine, noteLine] = await Promise.all(['From SimpleFIN', EDITED_NOTE]
+    .map((line) => row.getByText(line, { exact: true }).filter({ visible: true }).boundingBox()))
+  expect(noteLine!.height).toBeCloseTo(providerLine!.height, 0)
   await page.keyboard.press('Shift+Tab')
   await expectTooltipClosed(row, 'From SimpleFIN')
 

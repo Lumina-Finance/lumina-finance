@@ -1,6 +1,10 @@
 import { Landmark } from 'lucide-react'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 
+// As wide as its longest line, with room for the edited note on one line rather than a last line
+// of two words, while staying narrower than a phone's page
+const PANEL_WIDTH_CLASS = 'w-max max-w-80'
+
 /**
  * What a transaction row shows about a bank-imported transaction
  */
@@ -41,7 +45,7 @@ export function BankMarker({ providerName, isEdited, needsReview, onShowReview }
           iconColor="var(--app-text-muted)"
           size={13}
           strokeWidth={2}
-          widthClassName="w-max max-w-60"
+          widthClassName={PANEL_WIDTH_CLASS}
           hoverFill={false}
           opensOnFocus
           widensHitArea
