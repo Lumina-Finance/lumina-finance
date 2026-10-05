@@ -26,7 +26,6 @@ async def _seed_institution(logo_url: str | None = None):
         The persisted Institution ORM instance
     """
     async with TestSession() as session:
-
         # Insert a canonical institution row for account FK validation
         inst = Institution(
             status=InstitutionStatus.CANONICAL,
@@ -90,23 +89,23 @@ def _clock_on_account_day(account_data: dict, tz: str) -> _FixedClock:
 async def _archive_adjustment_rows(account_id: str):
     """Return archive balance adjustment transactions for an account"""
     async with TestSession() as session:
-
         # Fetch archive balance adjustments and their categories in creation order
-        return (await session.execute(
-            select(Transaction, Category)
-            .join(Category, Category.id == Transaction.category_id)
-            .where(
-                Transaction.account_id == UUID(account_id),
-                Transaction.notes == "Account archived",
+        return (
+            await session.execute(
+                select(Transaction, Category)
+                .join(Category, Category.id == Transaction.category_id)
+                .where(
+                    Transaction.account_id == UUID(account_id),
+                    Transaction.notes == "Account archived",
+                )
+                .order_by(Transaction.created_at),
             )
-            .order_by(Transaction.created_at),
-        )).all()
+        ).all()
 
 
 async def _latest_snapshot_balance(account_id: str) -> int:
     """Return the latest balance snapshot amount for an account"""
     async with TestSession() as session:
-
         # Read the newest balance snapshot for the account
         balance = await session.scalar(
             select(AccountBalanceSnapshot.balance)
