@@ -256,7 +256,7 @@ export function BankReviewBlock({
               aria-expanded={expanded}
               aria-controls={listId}
               onClick={onToggleExpanded}
-              className="w-full rounded-b-2xl px-4 py-2.5 text-center text-sm font-medium focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--app-accent)] sm:px-5"
+              className="w-full rounded-b-2xl px-4 py-2.5 text-center text-sm font-medium transition-colors duration-150 hover:bg-[var(--app-accent-soft)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--app-accent)] motion-reduce:transition-none sm:px-5"
               style={{ color: 'var(--app-warning-text)' }}
             >
               {expanded ? 'Show fewer' : `Show all ${total.toLocaleString()}`}

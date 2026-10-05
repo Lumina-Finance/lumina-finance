@@ -399,11 +399,32 @@ test('goes to the item from Needs review, right up to its edge by the bank icon,
   const needsReview = row.getByRole('button', { name: 'Needs review. Show the waiting item' })
   await expect(block.getByRole('listitem')).toHaveCount(4)
 
+  // Needs review takes presses a few pixels above and below it, so it stands at least 24px tall to a finger
+  await needsReview.scrollIntoViewIfNeeded()
+  const box = (await needsReview.boundingBox())!
+  const pressedAt = (y: number) => page.evaluate((point) => {
+    const pressed = document.elementFromPoint(point.x, point.y)
+    return pressed?.closest('button')?.getAttribute('aria-label') ?? pressed?.outerHTML.slice(0, 120)
+  }, { x: box.x + box.width / 2, y })
+  expect(await pressedAt(box.y + box.height / 2 - 12)).toBe('Needs review. Show the waiting item')
+  expect(await pressedAt(box.y + box.height / 2 + 12)).toBe('Needs review. Show the waiting item')
+
+  // A pointer that can hover tints it the way it tints the row
+  const canHover = await page.evaluate(() => matchMedia('(hover: hover)').matches)
+  await needsReview.hover()
+  await expect(needsReview).toHaveCSS('background-image', canHover ? /gradient/ : 'none')
+
   // The icon opens its tooltip and leaves the block as it was
   await row.getByRole('button', { name: 'From SimpleFIN', exact: true }).click()
   const tooltip = row.getByText('From SimpleFIN', { exact: true }).filter({ visible: true })
   await expect.poll(() => tooltip.evaluate((node) => node.checkVisibility({ opacityProperty: true, visibilityProperty: true }))).toBe(true)
   await expect(block.getByRole('button', { name: 'Show all 6' })).toHaveAttribute('aria-expanded', 'false')
+
+  // The keyboard goes on from the icon to Needs review, ringed the way the app rings a focused control
+  await page.keyboard.press('Tab')
+  await expect(needsReview).toBeFocused()
+  await expect(needsReview).toHaveCSS('outline-style', 'solid')
+  await expect(needsReview).toHaveCSS('outline-width', '2px')
 
   // The icon takes presses a few pixels around it, which stop short of Needs review beside it
   const { height } = (await needsReview.boundingBox())!
@@ -548,6 +569,13 @@ for (const colorScheme of ['light', 'dark'] as const) {
       expect(amount!.x + amount!.width).toBeLessThanOrEqual(blockBox!.x + blockBox!.width)
     }
     expect((await toggle.boundingBox())!.height).toBeGreaterThanOrEqual(24)
+
+    // A pointer that can hover tints the toggle the way it tints a ledger row, and its words are
+    // measured below over that tint
+    const canHover = await page.evaluate(() => matchMedia('(hover: hover)').matches)
+    await toggle.hover()
+    if (canHover) await expect(toggle).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+    else await expect(toggle).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
 
     const texts = [
       block.getByRole('heading', { name: 'Waiting for review' }),

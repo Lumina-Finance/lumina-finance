@@ -61,17 +61,16 @@ export function BankMarker({ providerName, isEdited, needsReview, onShowReview }
           />
         )}
       </span>
+      {/* Takes presses a few pixels above and below, making it at least 24px tall to a finger, but
+          none to its sides, so its edge still meets the icon's wider area. Hovering lays the row's
+          hover tint over its own */}
       {needsReview && (
         <button
           type="button"
           aria-label="Needs review. Show the waiting item"
           onClick={onShowReview}
-          className="inline-flex cursor-pointer items-center rounded-full border px-1.5 py-0.5 text-xs font-medium leading-none"
-          style={{
-            borderColor: 'var(--app-warning-border)',
-            background: 'var(--app-warning-soft)',
-            color: 'var(--app-warning-text)',
-          }}
+          className="relative inline-flex cursor-pointer items-center rounded-full border bg-[var(--app-warning-soft)] px-1.5 py-0.5 text-xs font-medium leading-none before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-[''] hover:bg-[image:linear-gradient(var(--app-accent-soft),var(--app-accent-soft))] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)]"
+          style={{ borderColor: 'var(--app-warning-border)', color: 'var(--app-warning-text)' }}
         >
           Needs review
         </button>
