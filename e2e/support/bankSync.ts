@@ -54,3 +54,53 @@ export async function answerAsBankImported(page: Page, sources: Record<string, B
     await route.fulfill({ response, json: Array.isArray(body) ? body.map(markImported) : markImported(body) })
   })
 }
+
+/** How a link's sync stands, as the app reads it alongside the account it links */
+export type BankLinkSyncStatus = {
+  last_success_at: string | null
+  sync_in_progress: boolean
+
+  /** New items waiting for their first review */
+  waiting_new_count: number
+}
+
+/**
+ * Answers the app's read of the user's links, which isn't served yet, with a link for each account
+ * `accountIds` returns, read again on every request so a test can unlink by emptying the list or move
+ * a sync on through `status`
+ *
+ * Each link imports from Jan 1, 2026 and has never synced, with nothing waiting, unless `status` says
+ * otherwise
+ */
+export async function answerLinksWith(
+  page: Page,
+  accountIds: () => string[],
+  status: () => Partial<BankLinkSyncStatus> = () => ({}),
+): Promise<void> {
+  await page.route(`${API_BASE_URL}/bank-sync/links`, (route) => route.fulfill({
+    json: accountIds().map((accountId) => ({
+      account_id: accountId,
+      connection_id: 'connection',
+      provider: 'simplefin',
+      provider_name: 'SimpleFIN',
+      external_account_id: 'bank-account',
+      external_account_name: 'Chequing',
+      institution_name: 'Example Bank',
+      import_start: '2026-01-01',
+      linked_at: '2026-01-01T12:00:00Z',
+      import: null,
+      history_reminder: null,
+      last_success_at: null,
+      last_attempt: null,
+      next_attempt_at: null,
+      waiting_on_budget: false,
+      sync_in_progress: false,
+      action_needed: null,
+      waiting_new_count: 0,
+      review_warning: false,
+      paused: false,
+      balance: null,
+      ...status(),
+    })),
+  }))
+}

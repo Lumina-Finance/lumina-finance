@@ -10,55 +10,22 @@ import {
   todayInTestTimezone,
 } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support/app'
-import { answerAsBankImported, BANK_SOURCE } from '../support/bankSync'
+import { answerAsBankImported, answerLinksWith, BANK_SOURCE } from '../support/bankSync'
 import { API_BASE_URL } from '../support/target'
 
 // A linked account's bank supplies its transactions from the import start through today, so the
 // transaction modal refuses those days, a bank transaction can't leave the account, and the account
 // can't be archived until it is unlinked.
 //
-// The list of links the app reads is not served yet, so each test answers it with the link it needs.
-// Nothing links the account on the server, which accepts every save, so a refusal seen here is the
-// browser's own and a save that goes through is one the browser let through
-const IMPORT_START = '2026-01-01'
+// The list of links the app reads is not served yet, so each test answers it with the link it needs,
+// importing from Jan 1, 2026. Nothing links the account on the server, which accepts every save, so a
+// refusal seen here is the browser's own and a save that goes through is one the browser let through
 const SUPPLIED_DAYS_MESSAGE = "SimpleFIN supplies this account's transactions from Jan 1, 2026 to today"
 const MOVE_REFUSAL = "Transactions from SimpleFIN can't move out of Everyday while it's linked"
 const ARCHIVE_LINKED_REASON = "This account can't be archived while it's linked to SimpleFIN. Unlink it first."
 
 // The layout puts Date, Currency and Amount side by side from this width
 const FIELD_ROW_MIN_WIDTH = 640
-
-/**
- * Answers the app's read of the user's links with these links, read again on every request so a test
- * can unlink by emptying the list
- */
-async function answerLinksWith(page: Page, accountIds: () => string[]): Promise<void> {
-  await page.route(`${API_BASE_URL}/bank-sync/links`, (route) => route.fulfill({
-    json: accountIds().map((accountId) => ({
-      account_id: accountId,
-      connection_id: 'connection',
-      provider: 'simplefin',
-      provider_name: 'SimpleFIN',
-      external_account_id: 'bank-account',
-      external_account_name: 'Chequing',
-      institution_name: 'Example Bank',
-      import_start: IMPORT_START,
-      linked_at: `${IMPORT_START}T12:00:00Z`,
-      import: null,
-      history_reminder: null,
-      last_success_at: null,
-      last_attempt: null,
-      next_attempt_at: null,
-      waiting_on_budget: false,
-      sync_in_progress: false,
-      action_needed: null,
-      waiting_new_count: 0,
-      review_warning: false,
-      paused: false,
-      balance: null,
-    })),
-  }))
-}
 
 /**
  * Opens Add Transaction from an account's page with that account chosen. Picked rather than assumed,
