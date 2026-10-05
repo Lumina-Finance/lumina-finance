@@ -9,6 +9,7 @@ pages neither repeats nor skips one, and only the user's own personal accounts h
 import uuid
 from datetime import UTC, date, datetime
 
+import pytest
 from sqlalchemy import delete
 
 from app.models.account import Account
@@ -38,8 +39,8 @@ async def _everyday(client) -> tuple[dict, uuid.UUID, str]:
     return headers, user_id, await _new_account(client, headers, "Everyday")
 
 
-def _bank_values(day: date, amount: int, description: str = BANK_DESCRIPTION) -> dict:
-    """Return the bank values of an item whose amount the currency holds and that has no merchant or category hint"""
+def _bank_values(day: date, amount: int | None, description: str = BANK_DESCRIPTION, **values) -> dict:
+    """Return the bank values of an item without a merchant or category hint, unless given, and with an amount the currency holds"""
     return {
         "date": day.isoformat(),
         "amount": amount,
@@ -47,7 +48,37 @@ def _bank_values(day: date, amount: int, description: str = BANK_DESCRIPTION) ->
         "description": description,
         "merchant_name": None,
         "category_hint": None,
+        **values,
     }
+
+
+async def _commit_open_item(
+    account: Account,
+    category_id: uuid.UUID,
+    kind: OpenReviewKind,
+    *,
+    ledger: tuple[date, int],
+    aligned: tuple[date, int],
+    **values,
+) -> uuid.UUID:
+    """Commit a ledger row and the accepted bank transaction it came from, with a correction or removal open and any of its values replaced
+
+    Returns:
+        The item's id
+    """
+    async with TestSession() as session:
+        txn = _build_ledger_transaction(account, category_id, amount=ledger[1])
+        txn.dt = ledger[0]
+        session.add(txn)
+        await session.flush()
+        record = _build_bank_transaction(account, f"TRN-{txn.id}", transaction=txn)
+        record.aligned_date, record.aligned_amount = aligned
+        record.open_kind = kind
+        for field, value in values.items():
+            setattr(record, field, value)
+        session.add(record)
+        await session.commit()
+    return record.id
 
 
 async def test_review_list_reads_100_new_items_in_two_pages_of_50_newest_first(client):
@@ -78,6 +109,32 @@ async def test_review_list_reads_100_new_items_in_two_pages_of_50_newest_first(c
     assert second["next_cursor"] is None
 
 
+async def test_review_list_reads_as_few_as_one_item_at_a_time(client):
+    """Asked for one item, the newest of two comes back with a cursor to the other"""
+    headers, _, account_id = await _everyday(client)
+    older = await _commit_review_item(account_id, "TRN-1", observed_date=date(2026, 10, 2))
+    newer = await _commit_review_item(account_id, "TRN-2")
+
+    first = await _review_page(client, headers, limit=1)
+    second = await _review_page(client, headers, limit=1, cursor=first["next_cursor"])
+
+    assert [item["id"] for item in first["items"]] == [str(newer)]
+    assert first["counts"] == {"new": 2, "correction": 0, "removal": 0}
+    assert [item["id"] for item in second["items"]] == [str(older)]
+    assert second["next_cursor"] is None
+
+
+@pytest.mark.parametrize("limit", [0, 51])
+async def test_review_list_refuses_a_page_of_none_or_more_than_50(client, limit):
+    """A page holds from one item to 50"""
+    headers, _, _ = await _everyday(client)
+
+    refused = await client.get("/bank-review/items", params={"limit": limit}, headers=headers)
+
+    assert refused.status_code == 422, refused.text
+    assert [error["loc"] for error in refused.json()["detail"]] == [["query", "limit"]]
+
+
 async def test_review_list_refuses_a_cursor_no_page_returned(client):
     """A cursor without a bank date and item id reads nothing"""
     headers, _, account_id = await _everyday(client)
@@ -90,15 +147,16 @@ async def test_review_list_refuses_a_cursor_no_page_returned(client):
 
 
 async def test_review_list_shows_each_kind_with_the_values_its_review_compares(client):
-    """A new item, a correction to an edited amount and the description, and a removal wait, but settled and dismissed ones don't"""
+    """New items, one in USD that cents can't hold, a date-moving correction and a removal wait, but settled and dismissed ones don't"""
     headers, user_id, account_id = await _everyday(client)
+    usd_id = await _new_account(client, headers, "US Chequing", currency="USD")
     async with TestSession() as session:
         account = await session.get_one(Account, uuid.UUID(account_id))
         category = _build_category(user_id)
         session.add(category)
         await session.flush()
         corrected = _build_ledger_transaction(account, category.id, amount=-400)
-        corrected.dt = date(2026, 10, 2)
+        corrected.dt = date(2026, 10, 1)
         removed = _build_ledger_transaction(account, category.id)
         removed.dt = date(2026, 10, 1)
         settled = _build_ledger_transaction(account, category.id)
@@ -106,14 +164,24 @@ async def test_review_list_shows_each_kind_with_the_values_its_review_compares(c
         await session.flush()
 
         new = _build_bank_transaction(account, "TRN-NEW")
+        new.merchant_name = "Harbour Coffee"
+        new.category_hint = "Coffee shops"
 
-        # Added as $4.00 though the bank said $4.50, and the bank now says $4.75 under a new description
+        usd = _build_bank_transaction(await session.get_one(Account, uuid.UUID(usd_id)), "TRN-USD")
+        usd.observed_date = date(2026, 10, 4)
+        usd.observed_amount = None
+        usd.raw_amount = "-12.345"
+        usd.description = "AMZN MKTP US"
+
+        # Added on 1 October as $4.00 though the bank said $4.50, and the bank now says $4.75 on 2
+        # October under a new description
         correction = _build_bank_transaction(account, "TRN-CORRECTED", amount=-475, transaction=corrected)
-        correction.observed_date = correction.aligned_date = date(2026, 10, 2)
+        correction.observed_date = date(2026, 10, 2)
+        correction.aligned_date = date(2026, 10, 1)
         correction.aligned_amount = -450
         correction.description = "BLUE BOTTLE COFFEE"
         correction.open_kind = OpenReviewKind.CORRECTION
-        correction.previous_values = {"amount": -450, "description": "SQ *BLUE BOTTLE"}
+        correction.previous_values = {"date": "2026-10-01", "amount": -450, "description": "SQ *BLUE BOTTLE"}
 
         removal = _build_bank_transaction(account, "TRN-REMOVED", transaction=removed)
         removal.observed_date = removal.aligned_date = date(2026, 10, 1)
@@ -123,7 +191,7 @@ async def test_review_list_shows_each_kind_with_the_values_its_review_compares(c
         dismissed.disposition = BankTransactionDisposition.DISMISSED
         for column in OBSERVATION_COLUMNS:
             setattr(dismissed, column, None)
-        records = [new, correction, removal, dismissed, _build_bank_transaction(account, "TRN-SETTLED", transaction=settled)]
+        records = [usd, new, correction, removal, dismissed, _build_bank_transaction(account, "TRN-SETTLED", transaction=settled)]
         for record in records:
             record.received_at = _RECEIVED_AT
         session.add_all(records)
@@ -131,31 +199,39 @@ async def test_review_list_shows_each_kind_with_the_values_its_review_compares(c
 
     page = await _review_page(client, headers)
 
-    assert [datetime.fromisoformat(listed.pop("received_at")) for listed in page["items"]] == [_RECEIVED_AT] * 3
-    item = {"account_id": account_id, "provider": "simplefin", "provider_name": "SimpleFIN", "version": 1}
+    assert [datetime.fromisoformat(listed.pop("received_at")) for listed in page["items"]] == [_RECEIVED_AT] * 4
+    item = {"provider": "simplefin", "provider_name": "SimpleFIN", "version": 1}
+    new_item = {"transaction_id": None, "current": None, "changed_fields": [], "protected_fields": [], "needs_merchant_or_category": True}
     assert page == {
         "items": [
             {
                 **item,
+                **new_item,
+                "id": str(usd.id),
+                "kind": "new",
+                "account_id": usd_id,
+                "external_transaction_id": "TRN-USD",
+                "bank": _bank_values(date(2026, 10, 4), None, "AMZN MKTP US", raw_amount="-12.345"),
+            },
+            {
+                **item,
+                **new_item,
                 "id": str(new.id),
                 "kind": "new",
+                "account_id": account_id,
                 "external_transaction_id": "TRN-NEW",
-                "bank": _bank_values(date(2026, 10, 3), -1250),
-                "transaction_id": None,
-                "current": None,
-                "changed_fields": [],
-                "protected_fields": [],
-                "needs_merchant_or_category": True,
+                "bank": _bank_values(date(2026, 10, 3), -1250, merchant_name="Harbour Coffee", category_hint="Coffee shops"),
             },
             {
                 **item,
                 "id": str(correction.id),
                 "kind": "correction",
+                "account_id": account_id,
                 "external_transaction_id": "TRN-CORRECTED",
                 "bank": _bank_values(date(2026, 10, 2), -475, "BLUE BOTTLE COFFEE"),
                 "transaction_id": str(corrected.id),
-                "current": _bank_values(date(2026, 10, 2), -400, "SQ *BLUE BOTTLE"),
-                "changed_fields": ["amount", "description"],
+                "current": _bank_values(date(2026, 10, 1), -400, "SQ *BLUE BOTTLE"),
+                "changed_fields": ["date", "amount", "description"],
                 "protected_fields": ["amount"],
                 "needs_merchant_or_category": False,
             },
@@ -163,6 +239,7 @@ async def test_review_list_shows_each_kind_with_the_values_its_review_compares(c
                 **item,
                 "id": str(removal.id),
                 "kind": "removal",
+                "account_id": account_id,
                 "external_transaction_id": "TRN-REMOVED",
                 "bank": _bank_values(date(2026, 10, 1), -1250),
                 "transaction_id": str(removed.id),
@@ -172,9 +249,62 @@ async def test_review_list_shows_each_kind_with_the_values_its_review_compares(c
                 "needs_merchant_or_category": False,
             },
         ],
-        "counts": {"new": 1, "correction": 1, "removal": 1},
+        "counts": {"new": 2, "correction": 1, "removal": 1},
         "next_cursor": None,
     }
+
+
+async def test_review_list_protects_only_the_edited_fields_a_correction_changes(client):
+    """An edited amount isn't protected from a new description or a removal, and an edited date is from a new date"""
+    headers, user_id, account_id = await _everyday(client)
+    october_1, october_2, october_3 = date(2026, 10, 1), date(2026, 10, 2), date(2026, 10, 3)
+    async with TestSession() as session:
+        account = await session.get_one(Account, uuid.UUID(account_id))
+        category = _build_category(user_id)
+        session.add(category)
+        await session.commit()
+
+    # The user entered $4.00 for the bank's $4.50, and the bank resends only a new description
+    new_description = await _commit_open_item(
+        account,
+        category.id,
+        OpenReviewKind.CORRECTION,
+        ledger=(october_3, -400),
+        aligned=(october_3, -450),
+        observed_amount=-450,
+        description="BLUE BOTTLE COFFEE",
+        previous_values={"description": "SQ *BLUE BOTTLE"},
+    )
+    # The same edit, and the bank withdraws the transaction
+    removal = await _commit_open_item(
+        account,
+        category.id,
+        OpenReviewKind.REMOVAL,
+        ledger=(october_2, -400),
+        aligned=(october_2, -450),
+        observed_amount=-450,
+        observed_date=october_2,
+    )
+    # The user moved the bank's 1 October to 2 October, and the bank now says 3 October
+    new_date = await _commit_open_item(
+        account,
+        category.id,
+        OpenReviewKind.CORRECTION,
+        ledger=(october_2, -1250),
+        aligned=(october_1, -1250),
+        observed_date=october_3,
+        previous_values={"date": "2026-10-01"},
+    )
+
+    page = await _review_page(client, headers)
+
+    assert sorted((item["id"], item["kind"], item["changed_fields"], item["protected_fields"]) for item in page["items"]) == sorted(
+        [
+            (str(new_description), "correction", ["description"], []),
+            (str(removal), "removal", [], []),
+            (str(new_date), "correction", ["date"], ["date"]),
+        ]
+    )
 
 
 async def test_review_list_for_one_account_leaves_out_the_others(client):
