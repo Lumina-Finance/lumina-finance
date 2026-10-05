@@ -14,6 +14,7 @@ import { API_BASE_URL } from '../support/target'
 // the real restore route, its refusals and its locking are left to the backend route tests
 const BANK_DESCRIPTION = 'HARBOUR CAFE #12 VANCOUVER'
 const RESTORE_FAILED = 'Could not restore the bank value. Please try again.'
+const UNSTORABLE_REASON = 'The bank\'s amount has more decimal places than CAD allows, so it can\'t be restored.'
 
 /** A bank source sending these values, with these fields edited in the ledger */
 function bankSource(values: Partial<BankSource['bank_values']>, editedFields: BankSource['edited_fields']): BankSource {
@@ -65,7 +66,7 @@ async function openTransaction(page: Page, id: string): Promise<Locator> {
 
 /** The restore action under the date or the amount, found by the bank value it is described by */
 function restoreAction(dialog: Locator, field: 'date' | 'amount'): Locator {
-  return dialog.locator(`button[aria-describedby="txn-${field}-bank-value"]`)
+  return dialog.locator(`button[aria-describedby~="txn-${field}-bank-value"]`)
 }
 
 /** Assert the first box sits below the second and starts within its left and right edges */
@@ -294,4 +295,71 @@ test('says a restore failed, leaving the field and its bank value to try again',
   await expect(dialog.locator('#txn-amount-bank-value')).toHaveText(`Bank: ${MINUS}$42.10`)
   await expect(restore).toHaveAccessibleName('Restore bank value')
   await expect(restore).toBeEnabled()
+})
+
+test('greys out Restore bank value on an amount the currency can\'t hold, saying why', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const id = await createTransaction(request, user, {
+    accountId: account.id,
+    categoryName: 'Groceries',
+    amount: -4250,
+    date: BANK_SOURCE.bank_values.date,
+  })
+  await answerAsBankImported(page, { [id]: bankSource({ amount: null, raw_amount: '-42.505' }, ['amount']) })
+  let restores = 0
+  await page.route(`${API_BASE_URL}/bank-sync/transaction-sources/${id}/restore`, (route) => {
+    restores += 1
+    return route.abort()
+  })
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+
+  // The bank's amount shows exactly as sent, and the action shows greyed out, described by why
+  const dialog = await openTransaction(page, id)
+  const amount = dialog.getByRole('textbox', { name: 'Amount', exact: true })
+  await expect(dialog.locator('#txn-amount-bank-value')).toHaveText(`Bank: ${MINUS}$42.505`)
+  const restore = restoreAction(dialog, 'amount')
+  await expect(restore).toHaveAccessibleName('Restore bank value')
+  await expect(restore).toHaveAttribute('aria-disabled', 'true')
+  await expect(restore).toHaveAccessibleDescription(`Bank: ${MINUS}$42.505 ${UNSTORABLE_REASON}`)
+
+  // Pointing at it shows the reason beside it, and pressing it restores nothing. Forced, because the
+  // action is marked unavailable and pressing it anyway is what is checked
+  const reason = page.getByTestId('disabled-reason-tooltip').filter({ hasText: UNSTORABLE_REASON })
+  await restore.hover()
+  await expect(reason).toHaveCSS('opacity', '1')
+  await restore.click({ force: true })
+  await page.mouse.move(0, 0)
+  // A tap pins the reason where there is no hover, so Escape puts it away there
+  if (!(await page.evaluate(() => matchMedia('(hover: hover)').matches))) await page.keyboard.press('Escape')
+  // Faded out, or gone from the page once its fade has ended
+  await expect.poll(() => reason.evaluateAll((nodes) => nodes.every((node) => getComputedStyle(node).opacity === '0'))).toBe(true)
+  await expect(amount).toHaveValue('42.50')
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+  expect(restores).toBe(0)
+
+  // Reached from the amount by the keyboard, it shows the reason under it
+  await amount.focus()
+  await page.keyboard.press('Tab')
+  await expect(restore).toBeFocused()
+  await expect(reason).toHaveCSS('opacity', '1')
+
+  // Its focus ring keeps its full strength, since only the label fades, and whole, since every box that
+  // clips the action leaves room for the 2px Chrome draws the ring outside it
+  const ring = await restore.evaluate((button) => {
+    const rect = button.getBoundingClientRect()
+    let opacity = 1
+    let room = Number.POSITIVE_INFINITY
+    for (let box: Element | null = button; box; box = box.parentElement) {
+      const style = getComputedStyle(box)
+      opacity *= Number(style.opacity)
+      if (box === button || (style.overflowX === 'visible' && style.overflowY === 'visible')) continue
+      const bounds = box.getBoundingClientRect()
+      room = Math.min(room, rect.top - bounds.top, bounds.bottom - rect.bottom, rect.left - bounds.left, bounds.right - rect.right)
+    }
+    return { opacity, room }
+  })
+  expect(ring.opacity).toBe(1)
+  expect(ring.room).toBeGreaterThanOrEqual(2)
 })

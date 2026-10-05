@@ -392,7 +392,7 @@ export default function CreateTransactionModal({
       <TransactionBankValueCaption
         id={`txn-${field}-bank-value`}
         bankValue={bankValueCaptions[field]?.value ?? null}
-        restorable={bankValueCaptions[field]?.restorable ?? false}
+        unavailableReason={bankValueCaptions[field]?.unavailableReason ?? null}
         financial={field === 'amount'}
         restoring={restoringField === field}
         disabled={readOnly || isPending || restoring}

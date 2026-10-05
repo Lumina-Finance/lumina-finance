@@ -6,10 +6,10 @@ import { formatExactMovedAmount, formatMovedAmount } from '@/utils/formatCurrenc
 // The text an amount exactly as the bank sent it can take, as the server checks it
 const RAW_AMOUNT_PATTERN = /^([+-]?)(\d+)(?:\.(\d+))?$/
 
-/** The bank's value under an edited field, and whether it can be put back on the transaction */
+/** The bank's value under an edited field, and why it can't be put back on the transaction, if it can't */
 export type BankValueCaption = {
   value: string
-  restorable: boolean
+  unavailableReason: string | null
 }
 
 /** The caption under each editable field, or null where none shows */
@@ -21,7 +21,8 @@ export type BankValueCaptions = Record<EditableBankField, BankValueCaption | nul
  *
  * An amount the bank sent with more decimal places than the currency holds shows exactly as sent,
  * with every place, but can't be restored, since the ledger can't store it. Its caption still
- * explains the edited mark on the transaction's row
+ * explains the edited mark on the transaction's row, and gives the reason the server refuses that
+ * restore with, for the action to show greyed out
  *
  * @param source - The transaction's bank source, null for a transaction entered by hand
  * @param currency - The transaction's currency, which the bank's amount is in
@@ -36,13 +37,20 @@ export function getBankValueCaptions(
   const { date, amount, raw_amount: rawAmount } = source.bank_values
   const amountCaption = (): BankValueCaption | null => {
     if (!source.edited_fields.includes('amount')) return null
-    if (amount === null) return { value: formatRawAmount(rawAmount ?? '', currency), restorable: false }
-    return { value: formatMovedAmount(amount, currency, currencies), restorable: true }
+    if (amount === null) {
+      return { value: formatRawAmount(rawAmount ?? '', currency), unavailableReason: getUnstorableAmountReason(currency) }
+    }
+    return { value: formatMovedAmount(amount, currency, currencies), unavailableReason: null }
   }
   return {
-    date: source.edited_fields.includes('date') ? { value: formatDateLabel(date), restorable: true } : null,
+    date: source.edited_fields.includes('date') ? { value: formatDateLabel(date), unavailableReason: null } : null,
     amount: amountCaption(),
   }
+}
+
+/** Why the bank's amount can't be restored, in the words the server refuses that restore with */
+function getUnstorableAmountReason(currency: string): string {
+  return `The bank's amount has more decimal places than ${currency} allows, so it can't be restored.`
 }
 
 /**

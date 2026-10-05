@@ -1,8 +1,8 @@
 /**
  * Guards which fields of a bank-imported transaction show the bank's value under them: only the
  * fields the server counts as edited, the amount signed as a moved amount in the transaction's
- * currency, an amount the bank sent that the currency can't hold shown exactly as sent with nothing to
- * restore, and nothing for a transaction entered by hand
+ * currency, an amount the bank sent that the currency can't hold shown exactly as sent with the reason
+ * it can't be restored, and nothing for a transaction entered by hand
  */
 import { describe, expect, it } from 'vitest'
 import { getBankValueCaptions } from '@/components/transactions/transaction-modal/utils/bankValues'
@@ -20,7 +20,7 @@ describe('bank value captions', () => {
 
     expect(getBankValueCaptions(source, 'CAD', currencies)).toEqual({
       date: null,
-      amount: { value: `${MINUS}CA$42.50`, restorable: true },
+      amount: { value: `${MINUS}CA$42.50`, unavailableReason: null },
     })
   })
 
@@ -28,7 +28,7 @@ describe('bank value captions', () => {
     const source = { ...BANK_SOURCE, edited_fields: ['date' as const] }
 
     expect(getBankValueCaptions(source, 'CAD', currencies)).toEqual({
-      date: { value: 'Jul 12, 2026', restorable: true },
+      date: { value: 'Jul 12, 2026', unavailableReason: null },
       amount: null,
     })
   })
@@ -41,12 +41,12 @@ describe('bank value captions', () => {
     }
 
     expect(getBankValueCaptions(source, 'JPY', currencies)).toEqual({
-      date: { value: 'Jul 12, 2026', restorable: true },
-      amount: { value: '+¥500', restorable: true },
+      date: { value: 'Jul 12, 2026', unavailableReason: null },
+      amount: { value: '+¥500', unavailableReason: null },
     })
   })
 
-  it('show an amount the bank sent with more decimal places than the currency holds exactly as sent, with nothing to restore', () => {
+  it('show an amount the bank sent with more decimal places than the currency holds exactly as sent, saying why it can\'t be restored', () => {
     const source = {
       ...BANK_SOURCE,
       bank_values: { ...BANK_SOURCE.bank_values, amount: null, raw_amount: '-42.505' },
@@ -55,7 +55,10 @@ describe('bank value captions', () => {
 
     expect(getBankValueCaptions(source, 'CAD', currencies)).toEqual({
       date: null,
-      amount: { value: `${MINUS}CA$42.505`, restorable: false },
+      amount: {
+        value: `${MINUS}CA$42.505`,
+        unavailableReason: 'The bank\'s amount has more decimal places than CAD allows, so it can\'t be restored.',
+      },
     })
   })
 

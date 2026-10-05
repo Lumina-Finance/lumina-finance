@@ -1,10 +1,10 @@
 /**
  * Guards what the transaction modal shows of a bank-imported transaction: the provider and the bank's
  * description, read-only, and under an edited field the bank's value with an action to restore it,
- * which says when it is restoring and names the value it restores, or no action for a value the
- * ledger can't store. Which fields are edited is covered with the captions' values. Where each
- * caption sits, when the action is turned off, and pressing it, are covered end to end, since the
- * details section's date field needs a page to render into
+ * which says when it is restoring and names the value it restores, or shows greyed out with its
+ * reason for a value the ledger can't store. Which fields are edited is covered with the captions'
+ * values. Where each caption sits, when the action is turned off, pressing it, and the reason showing
+ * beside it, are covered end to end, since the details section's date field needs a page to render into
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
@@ -12,6 +12,10 @@ import TransactionBankSourcePanel from '@/components/transactions/transaction-mo
 import TransactionBankValueCaption from '@/components/transactions/transaction-modal/controls/BankValueCaption'
 
 const MINUS = String.fromCodePoint(0x2212)
+const UNSTORABLE_REASON = 'The bank\'s amount has more decimal places than CAD allows, so it can\'t be restored.'
+
+// Static rendering escapes the apostrophes in the reason, so markup is matched against the escaped text
+const RENDERED_UNSTORABLE_REASON = UNSTORABLE_REASON.replaceAll("'", '&#x27;')
 
 function renderCaption(overrides: Partial<Parameters<typeof TransactionBankValueCaption>[0]> = {}): string {
   return renderToStaticMarkup(
@@ -19,7 +23,7 @@ function renderCaption(overrides: Partial<Parameters<typeof TransactionBankValue
       id="txn-amount-bank-value"
       bankValue={`${MINUS}CA$42.10`}
       financial
-      restorable
+      unavailableReason={null}
       restoring={false}
       disabled={false}
       onRestore={() => {}}
@@ -57,6 +61,7 @@ describe('bank value caption', () => {
     expect(tag).toContain('aria-describedby="txn-amount-bank-value"')
     expect(tag).toContain('aria-busy="false"')
     expect(tag).not.toContain('disabled=""')
+    expect(tag).not.toContain('aria-disabled="')
   })
 
   it('says it is restoring, busy and closed to a second press', () => {
@@ -67,11 +72,22 @@ describe('bank value caption', () => {
     expect(tag).toContain('disabled=""')
   })
 
-  it('shows a bank value the ledger can\'t store with no action to restore it', () => {
-    const markup = renderCaption({ bankValue: `${MINUS}CA$42.505`, restorable: false })
+  it('greys out the action for a bank value the ledger can\'t store, still focusable and described by why', () => {
+    const markup = renderCaption({ bankValue: `${MINUS}CA$42.505`, unavailableReason: UNSTORABLE_REASON })
 
     expect(markup).toContain(`Bank: <span class="font-financial">${MINUS}CA$42.505</span>`)
-    expect(markup).not.toContain('<button')
-    expect(markup).not.toContain('·')
+    const { tag, text } = restoreButton(markup)
+    expect(text).toBe('Restore bank value')
+    expect(tag).toContain('aria-disabled="true"')
+    expect(tag).not.toContain('disabled=""')
+
+    // Described by the bank's value, then by the reason it can't be restored
+    const [valueId, reasonId] = tag.match(/aria-describedby="([^"]*)"/)?.[1].split(' ') ?? []
+    expect(valueId).toBe('txn-amount-bank-value')
+    expect(markup).toContain(`<span id="${reasonId}" hidden="">${RENDERED_UNSTORABLE_REASON}</span>`)
+
+    // Only the label fades, so the focus ring around the action keeps its full strength
+    expect(markup).toContain('<span class="underline underline-offset-2 opacity-60">Restore bank value</span>')
+    expect(tag).not.toMatch(/(^|\s)opacity-/)
   })
 })
