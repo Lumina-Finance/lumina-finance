@@ -5,7 +5,7 @@ is over 20 hours old, so a daily sync shows a bank added at the provider and sto
 account that vanished before the window is planned. A window whose response may have been cut short
 is fetched again in halves. Each request is counted against the connection's budget in a
 transaction of its own before it is sent, and a job that finds the budget spent queues itself again
-for when a request frees. A job holds no database connection while it waits on the provider.
+for when a request frees. A job holds no database connection while it waits on the provider
 
 What a job stores, its checkpoints, discoveries and its own end, goes through lock_job_for_finish,
 so a runner that lost its lease stores nothing and a link that changed while the job fetched gets
@@ -126,9 +126,9 @@ class _JobRun:
         """List the connection's bank accounts if due, fetch windows for its due links, and record the job as finished
 
         A link whose fetch failed is left out of the rest of the job, so one failing on every request
-        can't hold up the others: a window that ends before today and moves no checkpoint past its
-        failures is followed in the same job by the next window the remaining links need. Retrying
-        the failed link waits for a later job
+        can't hold up the others: a window that ends before today and moves no checkpoint is followed
+        in the same job by the next window the remaining links need. Retrying the failed link waits
+        for a later job
         """
         links = await self._read_links()
         if self._needs_discovery(links):
@@ -155,7 +155,7 @@ class _JobRun:
             fetched = await self._fetch(window)
             if fetched is None:
                 return
-            if window.last_day == self.today or fetched.moved or not fetched.failed:
+            if window.last_day == self.today or fetched.moved:
                 # The last part written ends where the window does, so a link it moved is synced through the window
                 await _end_job(self.job, again=fetched.moved and window.last_day < self.today)
                 return
@@ -206,10 +206,11 @@ class _JobRun:
         return True
 
     async def _record_covered_links(self, covered: set[uuid.UUID]) -> None:
-        """Record the links the job syncs on it, for their status to say a sync is under way"""
+        """Record the links the job syncs on it, for their status to say a sync is under way, and tell the owner's open pages"""
         async with async_session() as db:
             await _hold_for_finish(db, self.job)
             await db.execute(update(BankSyncJob).where(BankSyncJob.id == self.job.id).values(covered_link_ids=list(covered)))
+            await mark_user_cache_changed(db, self.job.owner_id)
             await db.commit()
 
     async def _fetch(self, window: SyncWindow) -> _Fetched | None:
@@ -371,8 +372,8 @@ async def _hold_for_finish(
     connection = await db.scalar(
         select(BankConnection).where(BankConnection.id == job.connection_id).with_for_update().execution_options(populate_existing=True)
     )
-    if connection is None:
-        raise JobNotHeld(f"Bank sync job {job.id}'s connection was deleted")
+
+    # A deleted connection took its jobs with it, so this raises before a missing connection is returned
     return connection, await lock_job_for_finish(db, job, links)
 
 

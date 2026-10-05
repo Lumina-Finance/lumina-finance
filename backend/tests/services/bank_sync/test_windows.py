@@ -4,7 +4,8 @@ A link left out of a sync it was due for waits a day, one paused or waiting for 
 be chosen again must send nothing, a re-read too short misses late postings and corrections, one
 reaching before the import start brings in days the ledger already covers, a window longer than
 SimpleFIN Bridge allows is refused on every retry, and halves that don't meet exactly skip or
-repeat a day
+repeat a day. Days are the profile timezone's: an import starting today there is due, and one
+starting tomorrow there, though already today in UTC, would ask for a window ending before it starts
 """
 
 import uuid
