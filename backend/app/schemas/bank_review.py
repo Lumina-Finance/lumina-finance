@@ -1,16 +1,15 @@
 """Bank review schemas"""
 
 import uuid
-from datetime import date, datetime
+from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.models.bank_connection import BankProvider
 from app.models.bank_transaction import CorrectableBankField, EditableBankField
-from app.models.base import TransferCounterpartyScope
 from app.schemas.bank_sync import BankValues
-from app.schemas.transaction import MAX_IMPORT_NOTES_LENGTH
+from app.schemas.transaction import TransactionEntry
 
 # A bank transaction to add or dismiss, or a change or removal the bank reports for one already in the ledger
 ReviewItemKind = Literal["new", "correction", "removal"]
@@ -64,17 +63,9 @@ class BankReviewPageResponse(BaseModel):
     next_cursor: str | None
 
 
-class AddReviewItemRequest(BaseModel):
-    """The values a new bank item goes into the ledger with, the bank's or the user's own"""
+class AddReviewItemRequest(TransactionEntry):
+    """The values a new bank item goes into the ledger with, the bank's or the user's own
 
-    dt: date
-
-    # Signed minor units of the account's currency, always sent, so an item whose bank amount the
-    # currency can't hold gets one
-    amount: int
-    category_id: uuid.UUID
-    merchant_id: uuid.UUID
-    notes: str | None = Field(None, max_length=MAX_IMPORT_NOTES_LENGTH)
-    tag_ids: list[uuid.UUID] = []
-    counterparty_account_id: uuid.UUID | None = None
-    counterparty_account_scope: TransferCounterpartyScope | None = None
+    The item's account and its currency are where it goes. The amount, in signed minor units of
+    that currency, is always sent, so an item whose bank amount the currency can't hold gets one
+    """
