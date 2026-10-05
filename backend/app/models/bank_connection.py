@@ -138,7 +138,8 @@ class BankConnection(Base):
     discovery_failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # When the due scan next queues a scheduled sync: the earliest next attempt among the links on
-    # the daily schedule, worked out as each job ends, or None while no link is on it
+    # the daily schedule, or the next daily listing while a link waits for its bank account, worked
+    # out as each job ends, or None while no link is on it
     next_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

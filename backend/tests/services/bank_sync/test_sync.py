@@ -4334,6 +4334,56 @@ async def test_connections_next_sync_is_now_for_a_link_with_no_next_attempt_and_
     assert await _next_sync(connection) == (None if next_sync is None else frozen_now + next_sync)
 
 
+@pytest.mark.parametrize(
+    ("failed_ago", "last_sent_ago"),
+    [(None, timedelta(hours=1)), (timedelta(minutes=30), timedelta(minutes=30)), (timedelta(hours=2), timedelta(hours=1))],
+    ids=["listing_worked", "listing_failed_since", "listing_failed_before_the_one_that_worked"],
+)
+async def test_connections_next_sync_lists_again_a_day_after_the_last_listing_while_a_link_waits_on_its_bank_account(
+    connection, frozen_now, day_later, failed_ago, last_sent_ago
+):
+    """Everyday waits on Choose bank account, the connection's only link, and the bank accounts were listed an hour ago
+
+    The connection next syncs a day after the last listing was sent, whether it worked or failed,
+    to list them again, never at Everyday's own next attempt, two hours ago
+    """
+    await _link(
+        connection,
+        "ACT-everyday",
+        **_synced_through_yesterday(state=BankLinkState.CHOOSE_ACCOUNT, next_attempt_at=frozen_now - timedelta(hours=2)),
+    )
+    if failed_ago is not None:
+        async with TestSession() as session:
+            (await session.get(BankConnection, connection.id)).discovery_failed_at = frozen_now - failed_ago
+            await session.commit()
+
+    await _schedule_next_sync(connection, frozen_now)
+
+    assert await _next_sync(connection) == frozen_now - last_sent_ago + day_later
+
+
+async def test_scan_lists_a_connection_whose_every_link_waits_on_its_bank_account_and_resumes_the_link(
+    connection, provider, frozen_now, day_later
+):
+    """Everyday waits on Choose bank account, the only link on a connection listed at noon, and a sync ends at 1 pm
+
+    A day after that listing the scan queues a sync that lists the bank accounts again. SimpleFIN
+    lists Everyday's as before, so Everyday resumes and syncs in the same job
+    """
+    listed_at = frozen_now - timedelta(hours=1)
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday(state=BankLinkState.CHOOSE_ACCOUNT))
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+    await _run_jobs_until_none_is_due()
+    provider.outcomes = [_returned("ACT-everyday"), _returned("ACT-everyday")]
+
+    with freeze_time(listed_at + day_later, real_asyncio=True):
+        await enqueue_due_work()
+        await _run_jobs_until_none_is_due()
+
+    assert (len(provider.discoveries), len(provider.fetches)) == (1, 1)
+    assert await _link_states(everyday) == ["active"]
+
+
 async def test_scan_queues_one_scheduled_sync_once_a_day_has_passed_since_the_last(connection, provider, frozen_now, day_later):
     """Everyday's sync at 12:30 pm on 3 October sets its connection's next sync for 1 pm on the 4th
 

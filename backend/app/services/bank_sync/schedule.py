@@ -9,8 +9,11 @@ schedule, since retrying can't fix it but the user may fix it at the provider at
 A connection's next scheduled sync is the earliest next attempt among its links on the daily
 schedule: active, not held back by the review pause, and not waiting to retry, since a retry series
 queues its own syncs. A link with no next attempt set, such as one still importing, is due at once.
-Every job works it out again as it ends, so a link that changed outside a job, such as one unlinked,
-at worst brings forward a sync that then finds nothing due and sends nothing
+A link waiting for its bank account to be chosen again syncs nothing, but keeps the connection's
+bank accounts listed a day after the last listing was sent, so the link resumes by itself once the
+provider lists its bank account as before. Every job works it out again as it ends, so a link that
+changed outside a job, such as one unlinked, at worst brings forward a sync that then finds nothing
+due and sends nothing
 
 The due scan queues a scheduled sync for each connection due one, as its owner, to run once the
 connection's request budget has a request free, merging into any sync already queued for it. A
@@ -59,19 +62,30 @@ def next_daily_sync(started_at: datetime) -> datetime:
 async def schedule_next_sync(db: AsyncSession, connection: BankConnection, *, now: datetime) -> None:
     """Set the connection's next scheduled sync to the earliest next attempt among its links on the daily schedule
 
-    A connection with none on it has no next scheduled sync, so the due scan passes it by until a
-    link joins the schedule again through a sync of its own, such as the one a lifted review pause
-    queues
+    A link waiting for its bank account to be chosen again is due the connection's next daily
+    listing, a day after the last one was sent, whether it worked or failed. A connection with no
+    link on the schedule has no next scheduled sync, so the due scan passes it by until a link joins
+    the schedule again through a sync of its own, such as the one a lifted review pause queues
 
     Args:
         db: The connection owner's session, which the caller commits
         connection: The connection, locked by the caller
         now: The current time, when a link with no next attempt set is due
     """
-    links = await db.scalars(
-        select(BankAccountLink).where(BankAccountLink.connection_id == connection.id, BankAccountLink.state == BankLinkState.ACTIVE)
-    )
-    due = [link.next_attempt_at or now for link in links if not is_paused_for_review(link) and not is_waiting_to_retry(link)]
+    waiting_or_active = (BankLinkState.ACTIVE, BankLinkState.CHOOSE_ACCOUNT)
+    links = (
+        await db.scalars(
+            select(BankAccountLink).where(BankAccountLink.connection_id == connection.id, BankAccountLink.state.in_(waiting_or_active))
+        )
+    ).all()
+    due = [
+        link.next_attempt_at or now
+        for link in links
+        if link.state == BankLinkState.ACTIVE and not is_paused_for_review(link) and not is_waiting_to_retry(link)
+    ]
+    if any(link.state == BankLinkState.CHOOSE_ACCOUNT for link in links):
+        listed = [at for at in (connection.discovered_at, connection.discovery_failed_at) if at is not None]
+        due.append(next_daily_sync(max(listed, default=now)))
     connection.next_sync_at = min(due, default=None)
 
 
