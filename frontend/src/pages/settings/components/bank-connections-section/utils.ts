@@ -1,5 +1,6 @@
 import type { BankConnection, BankProvider, ConnectionBankAccount, ReconnectConnectionResult } from '@/api/bank-sync'
 import type { SyncStatusTone } from '@/components/display/SyncStatusDot'
+import { formatRelativeFutureTime } from '@/utils/relativeTime'
 
 /** Looks up an account's name by its id, or undefined while the accounts are loading */
 export type AccountNameLookup = (accountId: string) => string | undefined
@@ -151,6 +152,17 @@ export function describeInstitutionAllowance(provider: BankProvider | undefined,
     }
   }
   return { value: `${inUse} of ${provider.institution_limit}`, hint: counted }
+}
+
+/**
+ * Explains the connection's request count beside it: the cap Lumina Finance keeps each connection
+ * under, set below the provider's own daily limit, and once it's spent, when automatic syncs pick up
+ */
+export function describeRequestBudget(connection: BankConnection): string {
+  const { limit, used, available_again_at: availableAgainAt } = connection.request_budget
+  const cap = `Lumina Finance makes up to ${countNoun(limit, 'request')} a day for each connection, below ${connection.provider_name}'s daily limit. Automatic syncs and Sync now share them across every account linked through it.`
+  if (used < limit || !availableAgainAt) return cap
+  return `${cap} Automatic syncs wait until one frees up ${formatRelativeFutureTime(availableAgainAt)}.`
 }
 
 export interface InstitutionGroup {

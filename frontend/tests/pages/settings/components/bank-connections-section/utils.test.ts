@@ -3,7 +3,7 @@
  * shown on a rejected connection, a search that misses a linked account's name, a confirmation that
  * counts wrongly or reads "1 accounts", and an institution limit applied where linking stays allowed
  */
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BankConnection, BankProvider, ConnectionBankAccount, ReconnectConnectionResult } from '@/api/bank-sync'
 import {
   connectionName,
@@ -14,6 +14,7 @@ import {
   describeInstitutionAllowance,
   describeMismatch,
   describeReconnected,
+  describeRequestBudget,
   describeSignInDetail,
   groupInstitutions,
   matchesConnectionSearch,
@@ -174,6 +175,31 @@ describe('bank connection confirmations', () => {
     )
     expect(describeDisconnected(joint, 0)).toBe(
       "Joint banks disconnected. To stop SimpleFIN Bridge sharing data at all, revoke Lumina Finance's access there too.",
+    )
+  })
+})
+
+describe('bank connection requests', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it("names the cap Lumina Finance keeps each connection under, below the provider's own limit", () => {
+    expect(describeRequestBudget(connection({ request_budget: { limit: 20, used: 3, available_again_at: null } }))).toBe(
+      "Lumina Finance makes up to 20 requests a day for each connection, below SimpleFIN's daily limit. Automatic syncs and Sync now share them across every account linked through it.",
+    )
+  })
+
+  it('counts a cap of one in the singular', () => {
+    expect(describeRequestBudget(connection({ request_budget: { limit: 1, used: 0, available_again_at: null } }))).toContain('up to 1 request a day')
+  })
+
+  it('says when automatic syncs pick up once the requests are spent', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-05T12:00:00Z'))
+
+    expect(describeRequestBudget(connection({ request_budget: { limit: 20, used: 20, available_again_at: '2026-10-05T16:00:00Z' } }))).toMatch(
+      / Automatic syncs wait until one frees up in 4 hours\.$/,
     )
   })
 })

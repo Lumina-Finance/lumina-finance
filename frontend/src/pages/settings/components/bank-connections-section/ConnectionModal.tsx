@@ -19,11 +19,11 @@ import {
   describeConnectionStatus,
   describeDisconnected,
   describeInstitutionAllowance,
+  describeRequestBudget,
   describeSignInDetail,
   type AccountNameLookup,
 } from '@/pages/settings/components/bank-connections-section/utils'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
-import { formatRelativeFutureTime } from '@/utils/relativeTime'
 
 /**
  * One fact about the connection, labelled like the facts in an account's Bank link section, with an
@@ -46,7 +46,7 @@ function ConnectionFact({ label, hint, wide = false, children }: { label: string
 }
 
 /**
- * The rolling request count the provider allows the connection, as a thin meter that turns red once
+ * The rolling request count Lumina Finance allows the connection, as a thin meter that turns red once
  * it is spent
  */
 function RequestBudgetMeter({ connection, prefersReducedMotion }: { connection: BankConnection; prefersReducedMotion: boolean | null }) {
@@ -179,7 +179,7 @@ export function ConnectionModal({ open, connection, accountNameFor, onReconnect,
   const statusDetail = describeSignInDetail(connection)
   const institutionCount = new Set(connection.accounts.map((bankAccount) => bankAccount.institution_name)).size
   const linkedCount = countLinked(connection.accounts)
-  const { limit: requestLimit, used: requestsUsed, available_again_at: availableAgainAt } = connection.request_budget
+  const { limit: requestLimit, used: requestsUsed } = connection.request_budget
   const institutionLimit = provider?.institution_limit ?? null
   const institutionsInUse = provider?.institutions_in_use ?? []
   const allowance = describeInstitutionAllowance(provider, connection.provider_name)
@@ -227,12 +227,7 @@ export function ConnectionModal({ open, connection, accountNameFor, onReconnect,
       <ConnectionFact
         label="Requests, 24 hours"
         wide
-        hint={(
-          <>
-            {connection.provider_name} allows each connection {requestLimit} requests a day, shared by every account linked through it. Automatic syncs and Sync now both use them.
-            {requestsUsed >= requestLimit && availableAgainAt && ` Automatic syncs wait until one frees up ${formatRelativeFutureTime(availableAgainAt)}.`}
-          </>
-        )}
+        hint={describeRequestBudget(connection)}
       >
         <span className="block tabular-nums">{requestsUsed} of {requestLimit}</span>
         <span className="mt-1.5 block"><RequestBudgetMeter connection={connection} prefersReducedMotion={prefersReducedMotion} /></span>
