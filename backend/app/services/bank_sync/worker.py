@@ -120,10 +120,11 @@ async def run_jobs(max_jobs: int, deadline: datetime | None = None) -> int:
 
 async def _run_claimed_job(job: ClaimedJob) -> None:
     """Run a claimed job as its owner within its time limit, recording it as failed when it can't finish"""
+    started_at = datetime.now(UTC)
     with _acting_as(job.owner_id):
         if job.attempt > MAX_JOB_ATTEMPTS:
             logger.warning("Bank sync job %s was interrupted %d times, so it is recorded as failed", job.id, MAX_JOB_ATTEMPTS)
-            await _fail_job(job, _INTERRUPTED_TOO_OFTEN)
+            await _fail_job(job, _INTERRUPTED_TOO_OFTEN, started_at=started_at)
             return
 
         try:
@@ -134,18 +135,18 @@ async def _run_claimed_job(job: ClaimedJob) -> None:
         except Exception:
             if limit.expired():
                 logger.warning("Bank sync job %s ran past its time limit and was stopped", job.id)
-                await _fail_job(job, _TIMED_OUT)
+                await _fail_job(job, _TIMED_OUT, started_at=started_at)
             else:
                 # A job that fails is recorded as failed rather than stopping the jobs after it or
                 # leaving it to be claimed again
                 logger.exception("Bank sync job %s failed", job.id)
-                await _fail_job(job, _STOPPED_BY_AN_ERROR)
+                await _fail_job(job, _STOPPED_BY_AN_ERROR, started_at=started_at)
 
 
-async def _fail_job(job: ClaimedJob, error: ProviderError) -> None:
+async def _fail_job(job: ClaimedJob, error: ProviderError, *, started_at: datetime) -> None:
     """Record a job as failed, and the attempt of each link it was syncing, as long as this runner still holds it"""
     try:
-        await fail_sync_job(job, error)
+        await fail_sync_job(job, error, started_at=started_at)
     except JobNotHeld:
         logger.info("Bank sync job %s attempt %d no longer held, so its failure isn't recorded", job.id, job.attempt)
 

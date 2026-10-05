@@ -24,6 +24,7 @@ from typing import override
 from zoneinfo import ZoneInfo
 
 import pytest
+from freezegun import freeze_time
 from sqlalchemy import delete, func, select, text, update
 
 from app.encryption import encrypt
@@ -888,6 +889,29 @@ async def test_job_ending_on_a_rejected_credential_queues_no_retry_or_listing(co
         ("Fake Bank now reports this bank account in JPY, not CAD", 1, frozen_now + timedelta(minutes=30)),
         ("SimpleFIN Bridge rejected the stored access credential", 0, None),
     ]
+
+
+async def test_job_queues_a_retry_that_fell_due_while_it_ran_to_run_at_once(connection, monkeypatch, frozen_now):
+    """Savings' retry is due at 1:00:05 pm, so the job starting at 1 pm syncs Everyday alone, and ends at 1:00:10 with the retry past due
+
+    The retry is queued to run at once, rather than left until a job comes for another reason
+    """
+    await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    await _link(connection, "ACT-savings", **_synced_through_yesterday(retry_count=1, next_attempt_at=frozen_now + timedelta(seconds=5)))
+    provider = _HeldProvider()
+    provider.outcomes = [_returned("ACT-everyday")]
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    async with asyncio.timeout(_WAIT_SECONDS):
+        running = asyncio.create_task(run_jobs(1))
+        await provider.sending[1].wait()
+        with freeze_time(frozen_now + timedelta(seconds=10), real_asyncio=True):
+            provider.release[1].set()
+            assert await running == 1
+
+    assert _fetched(provider) == [_window(date(2026, 9, 19), _TODAY, ["ACT-everyday"], pending=True)]
+    assert await _queued_jobs() == [("retry", timedelta(0), False)]
 
 
 async def test_job_leaving_a_due_retry_for_links_that_can_progress_retries_it_at_once(connection, provider, frozen_now):

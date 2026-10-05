@@ -114,18 +114,18 @@ async def run_sync_job(job: ClaimedJob) -> None:
     adapter = ENABLED_ADAPTERS.get(connection.provider)
     if adapter is None:
         provider_name = PROVIDER_ADAPTERS[connection.provider].provider_name
-        await _end_job(job, ProviderError(ProviderErrorKind.UNKNOWN, f"{provider_name} is turned off on this server"))
+        await _end_job(job, ProviderError(ProviderErrorKind.UNKNOWN, f"{provider_name} is turned off on this server"), started_at=now)
     elif connection.credential_rejected_at is not None:
-        await _end_job(job)
+        await _end_job(job, started_at=now)
     else:
         run = _JobRun(job, connection, adapter, deferred=deferred, timezone=timezone, currency_exponents=currency_exponents, now=now)
         try:
             await run.run()
         except _CredentialReplaced:
-            await _end_job(job)
+            await _end_job(job, started_at=now)
 
 
-async def fail_sync_job(job: ClaimedJob, error: ProviderError) -> None:
+async def fail_sync_job(job: ClaimedJob, error: ProviderError, *, started_at: datetime) -> None:
     """Record a job its runner couldn't finish as failed, and the error as a failed attempt for each link it was syncing
 
     Each link the job had started on fails, though a window it finished may already have recorded
@@ -134,6 +134,7 @@ async def fail_sync_job(job: ClaimedJob, error: ProviderError) -> None:
     Args:
         job: The job as claimed
         error: Why the job couldn't finish
+        started_at: When the runner started the attempt
 
     Raises:
         JobNotHeld: A later attempt holds the job, it already finished, or the connection was
@@ -142,7 +143,7 @@ async def fail_sync_job(job: ClaimedJob, error: ProviderError) -> None:
     async with async_session() as db:
         covered = await db.scalar(select(BankSyncJob.covered_link_ids).where(BankSyncJob.id == job.id))
         links = (await db.scalars(select(BankAccountLink).where(BankAccountLink.id.in_(covered or ())))).all()
-    await _end_job(job, error, failed=links)
+    await _end_job(job, error, failed=links, started_at=started_at)
 
 
 class _JobRun:
@@ -544,6 +545,7 @@ class _JobRun:
             failed=failed,
             attempted_at=attempted_at,
             retry_overdue=retry_overdue,
+            started_at=self.now,
         )
 
 
@@ -630,6 +632,7 @@ async def _end_job(
     failed: Sequence[BankAccountLink] = (),
     attempted_at: datetime | None = None,
     retry_overdue: bool = False,
+    started_at: datetime,
 ) -> None:
     """Record a job as finished, or failed with an error, and queue the connection's next job in the same step when asked
 
@@ -647,6 +650,7 @@ async def _end_job(
         failed: The links the error failed an attempt for, as they stood when the job started
         attempted_at: When the failed attempt's request was sent, or now when not given
         retry_overdue: Whether the job left a link whose retry was due
+        started_at: When the job's attempt started, which it found the links due at
 
     Raises:
         JobNotHeld: A later attempt holds the job, so nothing was written
@@ -668,7 +672,7 @@ async def _end_job(
                 run_after=run_after,
                 deferred_link_ids=deferred,
             )
-        await queue_next_retry(db, connection, ended_by=error, overdue=retry_overdue, now=now)
+        await queue_next_retry(db, connection, ended_by=error, overdue=retry_overdue, started_at=started_at, now=now)
         await finish_job(db, job, error)
         await mark_user_cache_changed(db, job.owner_id)
         await db.commit()

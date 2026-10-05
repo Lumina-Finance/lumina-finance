@@ -79,15 +79,17 @@ async def queue_next_retry(
     *,
     ended_by: ProviderError | None,
     overdue: bool,
+    started_at: datetime,
     now: datetime,
 ) -> None:
     """Queue a retry of the connection for the earliest retry its links wait on, once a request is free
 
     Called as each of the connection's jobs ends. A retry queued for later merges into any job queued
     sooner, which runs it early or leaves it waiting, so each job that ends queues the earliest one
-    again. A link waiting to retry that a job found due but left, since links that could progress
-    came first, is retried at once. A connection whose credential was rejected, by now or by the
-    job's last request, retries nothing
+    again, counting one that fell due while the job ran, which runs at once. A link waiting to retry
+    that a job found due but left, since links that could progress came first, is retried at once
+    too. A connection whose credential was rejected, by now or by the job's last request, retries
+    nothing
 
     Args:
         db: The connection owner's session, which the caller commits, with the connection locked so
@@ -95,6 +97,7 @@ async def queue_next_retry(
         connection: The connection, as locked
         ended_by: What stopped the job, or None when it did all it could
         overdue: Whether the ending job left a link whose retry was due
+        started_at: When the job's attempt started, which it found the links due at
         now: When the job ends
     """
     rejected = ended_by is not None and ended_by.kind == ProviderErrorKind.CREDENTIAL_REJECTED
@@ -107,7 +110,7 @@ async def queue_next_retry(
             BankAccountLink.paused.is_(False),
         )
     )
-    times = [link.next_attempt_at for link in links if is_waiting_to_retry(link) and link.next_attempt_at > now]
+    times = [link.next_attempt_at for link in links if is_waiting_to_retry(link) and link.next_attempt_at > started_at]
     if overdue:
         times.append(now)
     if not times:
