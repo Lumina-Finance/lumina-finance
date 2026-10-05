@@ -957,6 +957,38 @@ async def test_job_tells_the_owners_pages_as_it_starts_syncing_its_links_and_as_
     assert told_after_the_earlier_half > told_as_it_started
 
 
+async def test_job_tells_the_owners_pages_as_it_stores_its_listing(connection, provider, frozen_now, monkeypatch):
+    """A stale listing finds Savings new and Everyday's bank account gone, and the owner's open pages hear of both as it is stored
+
+    The job tells them again as it ends, so what they heard is read as the job goes back to the
+    links once the listing is stored, before anything else it writes
+    """
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    async with TestSession() as session:
+        session.add(_build_external_account(connection, "ACT-everyday"))
+        await session.commit()
+    await _set_discovered_at(connection, frozen_now - timedelta(days=2))
+    provider.outcomes = [_returned("ACT-savings")]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+    told = []
+    read_links = sync._JobRun._read_links
+
+    async def read_links_noting_what_the_pages_heard(run):
+        """Note when the owner's pages were last told, then read the links as the job does"""
+        told.append(await _told_at(connection))
+        return await read_links(run)
+
+    monkeypatch.setattr(sync._JobRun, "_read_links", read_links_noting_what_the_pages_heard)
+
+    await _run_jobs_until_none_is_due()
+
+    before_the_listing, once_it_is_stored = told
+    assert await _link_states(everyday) == ["choose_account"]
+    assert (await _listing(connection))[1] == ["ACT-savings"]
+    assert before_the_listing is None
+    assert once_it_is_stored is not None
+
+
 async def test_job_moves_no_checkpoint_for_a_link_unlinked_while_it_fetched(connection, monkeypatch):
     """Savings is unlinked while the job waits on the provider, so only Everyday takes what came back"""
     everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())

@@ -215,6 +215,9 @@ class _JobRun:
         async with async_session() as db:
             connection, _ = await _hold_for_finish(db, self.job, sent_with=credential)
             await apply_discovery(db, connection, result, now=sent_at)
+
+            # After the discovery's links, the order an unlink takes them in, so the two can't deadlock
+            await mark_user_cache_changed(db, self.job.owner_id)
             await db.commit()
         if result.request_error is not None:
             await self._stop_for(result.request_error, discover=self.job.discover)
