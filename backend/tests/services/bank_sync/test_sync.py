@@ -124,16 +124,21 @@ def _synced_through_yesterday(**values) -> dict:
     return {"import_start": date(2026, 1, 1), "checkpoint": date(2026, 10, 3), "last_success_at": _YESTERDAYS_SYNC} | values
 
 
-def _bank_account(external_id: str, login_key: str = "CON-harbour", records: Sequence[ProviderRecord] = ()) -> ExternalAccount:
-    """Return a bank account as the provider lists it, with the records a fetch brought back for it"""
+def _bank_account(
+    external_id: str,
+    login_key: str = "CON-harbour",
+    records: Sequence[ProviderRecord] = (),
+    currency: str = "CAD",
+) -> ExternalAccount:
+    """Return a bank account as the provider lists it, in its account's currency unless told otherwise, with the records a fetch brought back"""
     return ExternalAccount(
         external_id=external_id,
         name=external_id,
         institution_key="ORG-harbour",
         institution_name="Harbour Bank",
         login_key=login_key,
-        currency="CAD",
-        currency_raw="CAD",
+        currency=currency,
+        currency_raw=currency,
         balance=100_00,
         available_balance=None,
         balance_at=datetime(2026, 10, 4, tzinfo=UTC),
@@ -852,6 +857,71 @@ async def test_job_fetches_nothing_for_a_linked_bank_account_its_listing_no_long
     assert _fetched(provider) == [_window(date(2026, 9, 19), _TODAY, ["ACT-savings"], pending=True)]
     assert await _link_states(everyday, savings) == ["choose_account", "active"]
     assert await _checkpoints(everyday, savings) == [date(2026, 10, 3), _TODAY]
+
+
+def _ramen_in_yen() -> ProviderRecord:
+    """Return a 1,500 yen meal, which an account in Canadian dollars would read as $15.00"""
+    return _record("TRN-ramen", amount=-1500, raw_amount="-1500", description="RAMEN BAR")
+
+
+async def test_job_stores_nothing_for_a_bank_account_a_fetch_lists_in_another_currency_and_lists_the_bank_accounts_next(connection, provider):
+    """Sync now, with no listing due, finds Everyday's bank account in yen, though Everyday is in Canadian dollars
+
+    Everyday keeps nothing and its checkpoint stays, while Savings syncs. The next job lists the bank
+    accounts first, which leaves Everyday waiting for a bank account to be chosen
+    """
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    savings = await _link(connection, "ACT-savings", **_synced_through_yesterday())
+    provider.outcomes = [
+        FetchResult(
+            accounts=(
+                _bank_account("ACT-everyday", records=[_ramen_in_yen()], currency="JPY"),
+                _bank_account("ACT-savings", records=[_record("TRN-interest", amount=3_20, raw_amount="3.20")]),
+            )
+        ),
+        FetchResult(accounts=(_bank_account("ACT-everyday", currency="JPY"), _bank_account("ACT-savings"))),
+        _returned("ACT-savings"),
+    ]
+    await _seed_job(connection, BankSyncJobKind.MANUAL)
+
+    assert await run_jobs(1) == 1
+
+    assert await _bank_transactions(BankTransaction.external_account_id, BankTransaction.external_transaction_id) == [
+        ("ACT-savings", "TRN-interest")
+    ]
+    assert await _checkpoints(everyday, savings) == [date(2026, 10, 3), _TODAY]
+    async with TestSession() as session:
+        assert (await session.scalars(select(BankSyncJob.discover).where(BankSyncJob.status == "queued"))).all() == [True]
+
+    await _run_jobs_until_none_is_due()
+
+    assert (len(provider.discoveries), len(provider.fetches)) == (1, 2)
+    assert await _link_states(everyday, savings) == ["choose_account", "active"]
+    assert await _bank_transactions(BankTransaction.external_transaction_id) == [("TRN-interest",)]
+
+
+async def test_job_that_listed_a_bank_account_in_its_accounts_currency_queues_no_listing_when_its_fetch_disagrees(
+    connection, provider, frozen_now
+):
+    """The daily sync's listing shows Everyday's bank account in Canadian dollars, and its fetch in yen
+
+    Nothing is stored and the checkpoint stays, but no listing is queued, so a provider whose answers
+    disagree can't have one job after another spend requests on them
+    """
+    link = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    await _set_discovered_at(connection, frozen_now - timedelta(days=2))
+    provider.outcomes = [
+        _returned("ACT-everyday"),
+        FetchResult(accounts=(_bank_account("ACT-everyday", records=[_ramen_in_yen()], currency="JPY"),)),
+    ]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert (len(provider.discoveries), len(provider.fetches)) == (1, 1)
+    assert await _bank_transactions(BankTransaction.external_transaction_id) == []
+    assert (await _link_states(link), await _checkpoints(link)) == (["active"], [date(2026, 10, 3)])
+    assert [status for _, status, *_ in await _jobs()] == ["succeeded"]
 
 
 async def test_job_whose_listing_fails_records_it_and_fetches_nothing(connection, provider, frozen_now):

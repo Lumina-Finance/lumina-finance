@@ -10,6 +10,11 @@ it queues plans it only once no other link is due, so a link failing on every re
 each request that frees ahead of links that can progress. A job holds no database connection while
 it waits on the provider
 
+A bank account a fetch lists in a currency other than its account's isn't brought back whole, since
+its amounts would be read at the wrong precision, and the job queues the next one to list the bank
+accounts first, which moves its link to Choose bank account. A job that listed them itself queues no
+listing, so a provider whose listing and fetch disagree can't spend request after request
+
 What a job stores, the booked records each part brings back, its checkpoints, discoveries and its
 own end, goes through lock_job_for_finish, so a runner that lost its lease stores nothing and a link
 that changed while the job fetched gets none of its results. Each such step locks the connection
@@ -31,6 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import async_session
 from app.encryption import decrypt
+from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState, ProviderRequestPurpose
 from app.models.bank_sync_job import BankSyncJob, ProviderErrorKind
 from app.models.user import User
@@ -135,6 +141,14 @@ class _JobRun:
         # once no other link is due
         self.deferred: set[uuid.UUID] = set(deferred)
 
+        # Each linked account's currency, which never changes, read with the links
+        self.account_currencies: dict[uuid.UUID, str] = {}
+
+        # Whether this job listed the bank accounts, and whether the next one lists them, as a fetch
+        # found one in a currency other than its account's in a job that didn't
+        self.listed = False
+        self.relist = False
+
     async def run(self) -> None:
         """List the connection's bank accounts if due, fetch windows for its due links, and record the job as finished
 
@@ -181,9 +195,16 @@ class _JobRun:
         return plan_window(needs, today=self.today, timezone=self.timezone, max_days=self.adapter.max_window_days)
 
     async def _read_links(self) -> list[BankAccountLink]:
-        """Return every link on the connection, as committed now"""
+        """Return every link on the connection, as committed now, noting each linked account's currency"""
         async with async_session() as db:
-            return list(await db.scalars(select(BankAccountLink).where(BankAccountLink.connection_id == self.connection.id)))
+            rows = await db.execute(
+                select(BankAccountLink, Account.currency)
+                .join(Account, Account.id == BankAccountLink.account_id)
+                .where(BankAccountLink.connection_id == self.connection.id)
+            )
+            links = rows.all()
+        self.account_currencies = {link.account_id: currency for link, currency in links}
+        return [link for link, _ in links]
 
     def _needs_discovery(self, links: list[BankAccountLink]) -> bool:
         """Return whether the job lists the bank accounts first: flagged to, or the last listing is over 20 hours old
@@ -224,6 +245,7 @@ class _JobRun:
         if result.request_error is not None:
             await self._stop_for(result.request_error, discover=self.job.discover)
             return False
+        self.listed = True
         return True
 
     async def _record_covered_links(self, covered: set[uuid.UUID]) -> None:
@@ -262,6 +284,10 @@ class _JobRun:
                 logger.warning("Bank sync job %s kept %s whole, though its response may have been cut short", self.job.id, part.first_day)
             synced = _synced_bank_accounts(result)
             for need in part.needs:
+                bank_account = synced.get(need.link.external_account_id)
+                if bank_account is not None and bank_account.currency != self.account_currencies[need.link.account_id]:
+                    del synced[need.link.external_account_id]
+                    self.relist = not self.listed
                 if need.link.external_account_id in synced:
                     self.deferred.discard(need.link.id)
                 else:
@@ -394,6 +420,9 @@ class _JobRun:
     ) -> None:
         """Record the job as finished or failed, and queue the next one when asked, planning last the links this one found failing
 
+        The next one is queued to list the bank accounts first, whatever was asked, once a fetch
+        found one in a currency other than its account's in a job that didn't list them
+
         Args:
             error: What stopped the job, or None when it did all it could
             again: Whether to queue another job of the same kind
@@ -404,9 +433,9 @@ class _JobRun:
         await _end_job(
             self.job,
             error,
-            again=again,
+            again=again or self.relist,
             run_after=run_after,
-            discover=discover,
+            discover=discover or self.relist,
             deferred=self.failed | self.deferred,
             sent_with=sent_with,
         )
