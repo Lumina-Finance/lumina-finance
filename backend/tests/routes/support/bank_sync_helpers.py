@@ -31,6 +31,7 @@ from app.models.category import Category
 from app.models.currency import Currency
 from app.models.transaction import Transaction
 from app.models.user import User
+from app.services.bank_sync import links
 from tests.conftest import TestSession
 from tests.routes.support.account_helpers import _create_account
 from tests.routes.support.auth_helpers import SIGNUP_PAYLOAD, _create_user, _get_auth_header
@@ -124,9 +125,12 @@ async def _new_account(client, headers, name: str, **fields) -> str:
 
 
 async def _link(client, headers, account_id, connection_id, external_account_id: str = BANK_ACCOUNT_ID, *, start_date: date | None = None):
-    """Link an account to a bank account through the route, from 30 days before the user's today unless told otherwise"""
+    """Link an account to a bank account through the route, from 30 days before the user's today unless told otherwise
+
+    Today is read from the clock the link route reads, so it agrees with the route when a test pins it
+    """
     if start_date is None:
-        start_date = datetime.now(ZoneInfo(SIGNUP_PAYLOAD["tz"])).date() - timedelta(days=30)
+        start_date = links.datetime.now(ZoneInfo(SIGNUP_PAYLOAD["tz"])).date() - timedelta(days=30)
     return await client.post(
         f"/accounts/{account_id}/bank-link",
         json={"connection_id": str(connection_id), "external_account_id": external_account_id, "start_date": start_date.isoformat()},
