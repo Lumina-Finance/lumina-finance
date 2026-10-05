@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
-from app.models.bank_transaction import BankTransaction, BankTransactionDisposition, EditableBankField, ReviewedBankField
+from app.models.bank_transaction import BankTransaction, BankTransactionDisposition, CorrectableBankField, EditableBankField
 
 
 @dataclass(frozen=True)
@@ -57,8 +57,8 @@ def edited_fields(record: BankTransaction, ledger_date: date, ledger_amount: int
     return edited
 
 
-def changed_fields(record: BankTransaction, incoming: BankObservation) -> list[ReviewedBankField]:
-    """Return the reviewed fields a new provider observation changes on a record
+def changed_fields(record: BankTransaction, incoming: BankObservation) -> list[CorrectableBankField]:
+    """Return the correctable fields a new provider observation changes on a record
 
     An observation the user already declined with Keep current value changes nothing, so the same
     proposal delivered again doesn't reopen review. A dismissed record holds nothing to compare
@@ -75,7 +75,7 @@ def changed_fields(record: BankTransaction, incoming: BankObservation) -> list[R
         return []
     if record.declined_observation is not None and BankObservation.from_json(record.declined_observation) == incoming:
         return []
-    changed: list[ReviewedBankField] = []
+    changed: list[CorrectableBankField] = []
     if incoming.date != record.observed_date:
         changed.append("date")
     if (incoming.amount, incoming.raw_amount) != (record.observed_amount, record.raw_amount):

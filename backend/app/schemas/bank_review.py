@@ -7,7 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.models.bank_connection import BankProvider
-from app.models.bank_transaction import EditableBankField, ReviewedBankField
+from app.models.bank_transaction import CorrectableBankField, EditableBankField
 from app.models.base import TransferCounterpartyScope
 from app.schemas.bank_sync import BankValues
 from app.schemas.transaction import MAX_IMPORT_NOTES_LENGTH
@@ -36,9 +36,9 @@ class BankReviewItemResponse(BaseModel):
     # The ledger transaction a correction or removal is about, and its approved values, null on a new item
     transaction_id: uuid.UUID | None
     current: BankValues | None
-    changed_fields: list[ReviewedBankField]
+    changed_fields: list[CorrectableBankField]
 
-    # The changed fields the user edited, whose own value accepting the correction would replace
+    # The fields the correction changes that the user had edited
     protected_fields: list[EditableBankField]
 
     # Whether the item can't be added until the user chooses its merchant and category, true of

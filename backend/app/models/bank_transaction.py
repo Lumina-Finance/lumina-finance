@@ -34,7 +34,7 @@ EditableBankField = Literal["date", "amount"]
 
 # The fields whose change opens a correction on an accepted record. A change to only the merchant
 # name or category hint updates the stored observation without one
-ReviewedBankField = Literal["date", "amount", "description"]
+CorrectableBankField = Literal["date", "amount", "description"]
 
 
 # Every column a provider observation fills, which a dismissed record keeps none of
@@ -131,7 +131,7 @@ class BankTransaction(Base):
 
     # An open correction or removal, the bank's values before a correction's change, and the
     # observation the user last declined with Keep current value, so the same proposal delivered
-    # again doesn't reopen review. The previous values map each ReviewedBankField the correction
+    # again doesn't reopen review. The previous values map each CorrectableBankField the correction
     # changes to the bank's value before it, while the observation holds the proposal. The ledger
     # has no description column, so the approved description is read from here
     open_kind: Mapped[str | None] = mapped_column(VARCHAR(16))

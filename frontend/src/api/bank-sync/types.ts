@@ -399,7 +399,7 @@ export type BankReviewItem = {
   current: BankValues | null;
   changed_fields: CorrectableBankField[];
 
-  /** Fields the user has edited, which a correction leaves alone */
+  /** The fields the correction changes that the user had edited */
   protected_fields: EditableBankField[];
 };
 
