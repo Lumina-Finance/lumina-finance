@@ -17,7 +17,6 @@ import {
   TRANSACTION_CHECKBOX_RAIL_WIDTH,
   TRANSACTION_ROW_SCROLL_MARGIN,
 } from '@/components/transactions/constants/transactionList'
-import { formatTransactionDateLabel } from '@/components/transactions/utils/transactionDateGroups'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { FADED_ROW_COLOURS, FadedRowsContext } from '@/contexts/FadedRowsContext'
 import { getRefundLinkLabel } from '@/components/transactions/utils/refundLink'
@@ -116,6 +115,9 @@ interface TransactionRowProps {
 
   // Present on a bank-imported transaction only, so manual rows look exactly as they always have
   bankMarker?: TransactionRowBankMarker
+
+  // The id of the day's heading above the row, which names the date the row's button is described by
+  dateHeadingId?: string
   onOpen: (transaction: Transaction) => void
 }
 
@@ -203,7 +205,7 @@ function TagTooltip({ tags }: { tags: Transaction['tags'] }) {
       {tags.map((tag) => (
         <span
           key={tag.id}
-          className="relative inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-sm font-medium opacity-0 transition-opacity group-hover:opacity-100"
+          className="relative inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-sm font-medium opacity-0 transition-opacity duration-200 group-hover:opacity-100"
           style={{
             background: 'var(--app-surface-soft)',
             color: 'var(--app-text-muted)',
@@ -317,6 +319,7 @@ export function TransactionRowView({
   disabledReason,
   selection,
   bankMarker,
+  dateHeadingId,
   onOpen,
 }: TransactionRowViewProps) {
   const wide = !phoneLayout
@@ -395,13 +398,12 @@ export function TransactionRowView({
   // is hidden with display: none, which keeps its title out of the tab order and away from a screen
   // reader. The press and the pointer are taken by the content the layer stretches across, so a title
   // carries only the rest of the reason: its focus and the blocked key press, and its description,
-  // which follows the amount and the date. The row draws the shared focus ring around itself while
+  // which follows the amount and the day's heading. The row draws the shared focus ring around itself while
   // a title has keyboard focus
   //
   // Tabbing from row to row hears only the button's name and description, so each title is
-  // described by the amount beside it in its own layout and by the date its day's heading shows
+  // described by the amount beside it in its own layout and by its day's heading, which names its date
   const descriptionId = useId()
-  const dateId = `${descriptionId}-date`
   const amountId = (layout: RowLayout) => `${descriptionId}-amount-${layout}`
   const { onClick: handleContentClick, onMouseEnter, onMouseMove, onMouseLeave, ...titleReasonProps } = reasonProps
   const renderTitleButton = (layout: RowLayout) => (
@@ -411,7 +413,7 @@ export function TransactionRowView({
       // controls doing the same thing
       tabIndex={selection ? -1 : undefined}
       {...titleReasonProps}
-      aria-describedby={[amountId(layout), dateId, titleReasonProps['aria-describedby']].filter(Boolean).join(' ')}
+      aria-describedby={[amountId(layout), dateHeadingId, titleReasonProps['aria-describedby']].filter(Boolean).join(' ')}
       aria-pressed={pressed}
       className={`min-w-0 ${isHeldOff ? 'cursor-not-allowed' : 'cursor-pointer'} text-left after:absolute after:inset-0 after:content-[''] focus-visible:outline-none`}
       style={{ scrollMarginTop: TRANSACTION_ROW_SCROLL_MARGIN }}
@@ -693,11 +695,6 @@ export function TransactionRowView({
               )}
             </span>
           )}
-        </span>
-
-        {/* The date the titles are described by, which the day's heading above the row shows */}
-        <span id={dateId} hidden>
-          {formatTransactionDateLabel(transaction.dt)}
         </span>
       </div>
     </motion.div>

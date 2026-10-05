@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useId, useState, type MouseEvent } from 'react'
 import type React from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { Category } from '@/api/categories'
@@ -60,7 +60,7 @@ const DAY_HEADING_STICKY_CLASS = 'sticky z-20 hover:z-40 focus-within:z-40 has-[
  * resting on the heading afterward for a later move to clear the hover preview. A touch tap and a
  * keyboard activation both lack that, so the heading clears the hover itself for either one
  */
-function isMouseClick(event: React.MouseEvent): boolean {
+function isMouseClick(event: MouseEvent): boolean {
   return event.nativeEvent instanceof PointerEvent && event.nativeEvent.pointerType === 'mouse'
 }
 
@@ -123,6 +123,12 @@ export default function TransactionDateGroupList({
     return () => observer.disconnect()
   }, [])
 
+  // Each day's heading names the date its rows are described by. The Upcoming days and the rest are
+  // drawn apart, so each set gets ids of its own
+  const dayHeadingIdPrefix = useId()
+  const dayHeadingId = (isUpcoming: boolean, index: number) =>
+    `${dayHeadingIdPrefix}-${isUpcoming ? 'upcoming' : 'day'}-${index}`
+
   // Inside the open Upcoming section the headings stay in place, since its own header is what sticks
   // there, and a heading stuck at the same height would slide over it. Their totals take the section's
   // muted colour rather than the colours of money in and out, since none of it counts yet. A row there
@@ -134,7 +140,7 @@ export default function TransactionDateGroupList({
     // transaction deleted) while the list stays mounted
     return (
       <AnimatePresence initial={false}>
-        {groups.map(({ dateLabel, transactions }, index) => {
+        {groups.map(({ dateLabel, transactions }, groupIndex) => {
           const dailyTotal = getTransactionDateGroupTotal(transactions, fixedAccount)
           const dayFxStatus = getTransactionDateGroupFxStatus(transactions, currency, fixedAccount)
           // A day that netted to zero moved nothing, so it takes the neutral colour rather than the positive colour
@@ -160,7 +166,7 @@ export default function TransactionDateGroupList({
             >
             <div
               data-testid="day-heading"
-              ref={!isUpcoming && index === 0 ? measureDayHeading : undefined}
+              ref={!isUpcoming && groupIndex === 0 ? measureDayHeading : undefined}
               className={`${isUpcoming ? 'relative' : DAY_HEADING_STICKY_CLASS} flex items-center justify-between rounded-lg py-2 pr-3 min-[750px]:col-span-full`}
               style={{
                 top: isUpcoming ? undefined : stickyTop,
@@ -209,6 +215,7 @@ export default function TransactionDateGroupList({
               </AnimatePresence>
 
               <p
+                id={dayHeadingId(isUpcoming, groupIndex)}
                 className="text-sm font-semibold uppercase tracking-wide"
                 style={{ color: 'var(--app-text-subtle)' }}
               >
@@ -262,6 +269,7 @@ export default function TransactionDateGroupList({
                     transaction={transaction}
                     prefersReducedMotion={prefersReducedMotion}
                     skipEnterAnimation={skipEnterAnimation}
+                    dateHeadingId={dayHeadingId(isUpcoming, groupIndex)}
                     onOpen={onEditTransaction}
                   />
                 )

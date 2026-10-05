@@ -80,13 +80,27 @@ describe('bank marker', () => {
     expect(markup.match(/aria-hidden="true"[^>]*><span class="app-tooltip-panel[^>]*>From SimpleFIN</g)).toHaveLength(LAYOUTS)
   })
 
-  it('describes each title by the amount in its own layout and the date its day shows', () => {
-    const markup = renderRow()
+  it('describes each title by the amount in its own layout and by the heading that names its day', () => {
+    const markup = renderToStaticMarkup(
+      <>
+        <p id="day-heading">October 4, 2026</p>
+        <TransactionRowView
+          category={undefined}
+          transaction={TRANSACTION}
+          amountPresentation={{ text: '+CA$42.50', sign: 1 }}
+          dateHeadingId="day-heading"
+          onOpen={() => {}}
+        />
+      </>,
+    )
     const descriptions = [...markup.matchAll(/<button [^>]*aria-describedby="([^"]+)"[^>]*><span [^>]*>Corner Grocer</g)]
       .map(([, ids]) => ids.split(' ').map((id) => textOf(markup, id)))
 
     expect(descriptions).toEqual(Array.from({ length: LAYOUTS }, () => ['+CA$42.50', 'October 4, 2026']))
     expect(new Set([...markup.matchAll(/aria-describedby="([^" ]+) /g)].map(([, id]) => id)).size).toBe(LAYOUTS)
+
+    // The date is the heading's alone, so a search for it finds the heading rather than a copy in each row
+    expect(markup.split('October 4, 2026')).toHaveLength(2)
   })
 
   it('keeps a press on the marker from reaching the row', () => {
