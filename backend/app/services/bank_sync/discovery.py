@@ -63,7 +63,7 @@ async def run_discovery(db: AsyncSession, connection: BankConnection, adapter: P
 
     Returns:
         Whether the bank accounts were read. False when the budget is spent or the provider gave no
-        usable answer, so the caller queues a job to discover them later
+        usable answer, so the caller queues a job flagged to discover them
     """
     currency_exponents = await get_all_currency_exponents(db)
     try:

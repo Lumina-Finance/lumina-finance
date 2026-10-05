@@ -29,7 +29,8 @@ async def claim_connection(db: AsyncSession, user: User, request: CreateBankConn
     """Claim a supplied credential as a new connection and discover its bank accounts
 
     Once the provider has handed over the access, the connection is kept even when its discovery
-    fails, since the supplied credential is spent. Its next job then discovers the bank accounts
+    fails, since the supplied credential is spent, and a job flagged to discover its bank accounts
+    is queued
 
     Args:
         db: Active database session

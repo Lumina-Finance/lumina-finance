@@ -4,44 +4,50 @@ import uuid
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, SecretStr, model_validator
+from pydantic import BaseModel, SecretStr, model_validator
 
 from app.models.bank_connection import BankProvider, ConnectsFrom
 from app.models.bank_transaction import EditableBankField
 from app.schemas.names import TrimmedName
 
 
-class CreateBankConnectionRequest(BaseModel):
-    """A setup token to claim as a new connection"""
-
-    # Printing a validation error leaves out the body it refused
-    model_config = ConfigDict(hide_input_in_errors=True)
-
-    provider: BankProvider
+class SetupTokenRequest(BaseModel):
+    """A request body carrying a setup token, which no refusal of the body may repeat"""
 
     # A secret: it is claimed once and never stored, logged or shown, so printing the request masks it
     setup_token: SecretStr
-
-    # Blank means none. The length is checked where the refusal can say it in a sentence
-    nickname: TrimmedName | None = None
 
     @model_validator(mode="before")
     @classmethod
     def _mask_setup_token(cls, value: object) -> object:
         """Mask the setup token before the fields are checked
 
-        A refused body is repeated in the 422 response, such as for a missing provider, so the token
-        in it is masked first
+        A refusal repeats what it refused in the 422 response, such as the whole body for a missing
+        field. Anything but an object, such as a body sent as text, is replaced, since the token
+        could be anywhere in it, and a token that isn't text is replaced with null so it is still
+        refused
 
         Args:
             value: The request body as sent
 
         Returns:
-            The body with its setup token masked
+            The body with its setup token masked, or None for a body that isn't an object
         """
-        if isinstance(value, dict) and isinstance(value.get("setup_token"), str):
-            return {**value, "setup_token": SecretStr(value["setup_token"])}
-        return value
+        if not isinstance(value, dict):
+            return None
+        if "setup_token" not in value:
+            return value
+        token = value["setup_token"]
+        return {**value, "setup_token": SecretStr(token) if isinstance(token, str) else None}
+
+
+class CreateBankConnectionRequest(SetupTokenRequest):
+    """A setup token to claim as a new connection"""
+
+    provider: BankProvider
+
+    # Blank means none. The length is checked where the refusal can say it in a sentence
+    nickname: TrimmedName | None = None
 
 
 class UpdateBankConnectionRequest(BaseModel):

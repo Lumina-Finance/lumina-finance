@@ -6,6 +6,7 @@ must never reach a response, a log or the database in the clear
 """
 
 import base64
+import json
 import logging
 import uuid
 
@@ -23,6 +24,9 @@ from tests.fake_simplefin_bridge import FakeBridgeTransport
 from tests.routes.support import _create_account
 from tests.routes.support.bank_sync_helpers import _sign_up
 from tests.services.bank_sync.stand_ins import FakeBridgeScenario, simplefin_adapter
+
+# A setup token that validation refuses before anything could claim it
+_TOKEN = base64.b64encode(b"https://beta-bridge.simplefin.org/simplefin/claim/never-claimed").decode()
 
 _ALREADY_USED = "This setup token has already been used. Create a new one in SimpleFIN Bridge"
 _UNREACHABLE = "SimpleFIN Bridge couldn't be reached. Try again in a few minutes"
@@ -102,18 +106,31 @@ async def test_claim_with_a_fresh_token_saves_the_connection_and_lists_its_bank_
     assert purposes == ["claim", "discovery"]
 
 
-async def test_claim_refused_by_validation_never_repeats_the_setup_token(client, scenario: FakeBridgeScenario):
-    """A body missing its provider is refused without the token, and the request never shows it when printed"""
+@pytest.mark.parametrize(
+    ("body", "content_type", "loc", "error_type"),
+    [
+        ({"setup_token": _TOKEN}, "application/json", ["body", "provider"], "missing"),
+        ({"provider": "simplefin", "setup_token": _TOKEN}, "text/plain", ["body"], "model_attributes_type"),
+        (_TOKEN, "application/json", ["body"], "model_attributes_type"),
+        ([_TOKEN], "application/json", ["body"], "model_attributes_type"),
+        ({"provider": "simplefin", "setup_token": [_TOKEN]}, "application/json", ["body", "setup_token"], "string_type"),
+    ],
+    ids=["missing-provider", "sent-as-text", "bare-token", "token-in-a-list", "token-not-a-string"],
+)
+async def test_claim_refused_by_validation_never_repeats_the_setup_token(client, body, content_type, loc, error_type):
+    """However the body is malformed, the refusal names what is wrong without the token"""
     headers, _ = await _sign_up(client)
 
-    refused = await client.post("/bank-sync/connections", json={"setup_token": scenario.setup_token}, headers=headers)
+    refused = await client.post("/bank-sync/connections", content=json.dumps(body), headers={**headers, "Content-Type": content_type})
 
     assert refused.status_code == 422, refused.text
-    assert refused.json()["detail"] == [
-        {"type": "missing", "loc": ["body", "provider"], "msg": "Field required", "input": {"setup_token": "**********"}}
-    ]
-    assert scenario.setup_token not in refused.text
-    assert scenario.setup_token not in repr(CreateBankConnectionRequest(provider="simplefin", setup_token=scenario.setup_token))
+    assert [(error["loc"], error["type"]) for error in refused.json()["detail"]] == [(loc, error_type)]
+    assert _TOKEN not in refused.text
+
+
+def test_claim_request_printed_masks_the_setup_token():
+    """A request that reaches a log or a traceback never shows the token"""
+    assert _TOKEN not in repr(CreateBankConnectionRequest(provider="simplefin", setup_token=_TOKEN))
 
 
 async def test_claim_stores_the_access_url_encrypted_and_never_shows_a_secret(client, scenario: FakeBridgeScenario, caplog):

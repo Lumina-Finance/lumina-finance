@@ -45,7 +45,7 @@ async def test_rename_without_a_nickname_is_refused(client):
     refused = await client.patch(f"/bank-sync/connections/{connection.id}", json={}, headers=headers)
 
     assert refused.status_code == 422, refused.text
-    assert refused.json()["detail"] == [{"type": "missing", "loc": ["body", "nickname"], "msg": "Field required", "input": {}}]
+    assert [(error["loc"], error["type"]) for error in refused.json()["detail"]] == [(["body", "nickname"], "missing")]
     assert await _stored_nickname(connection.id) == "Joint"
 
 
