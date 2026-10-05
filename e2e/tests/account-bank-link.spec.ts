@@ -1,11 +1,13 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { createAccount, signUpUser, TEST_TIMEZONE, todayInTestTimezone, type TestUser } from '../support/api'
+import { createAccount, formatToday, signUpUser, todayInTestTimezone, type TestUser } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support/app'
 import {
   addBridgeBankAccount,
   addBridgeBankLogin,
+  changeProviders,
   claimSetupToken,
+  readConnection,
   createEmptyBridgeScenario,
   createSampleBridgeScenario,
   linkBankAccount,
@@ -21,13 +23,6 @@ const SAMPLE_BANK = 'Harbour Bank'
 const SAMPLE_CHEQUING = 'Everyday Chequing'
 const SAMPLE_VISA = 'Rewards Visa'
 const LINKING_PAUSED = "Bank sync isn't running right now. You can link accounts once it's back."
-
-/**
- * Today as the app writes a day, in the zone the user signed up with
- */
-function formatToday(): string {
-  return new Intl.DateTimeFormat('en-CA', { month: 'short', day: 'numeric', year: 'numeric', timeZone: TEST_TIMEZONE }).format(new Date())
-}
 
 /**
  * The first day of the month a number of months before this one, as YYYY-MM-DD
@@ -49,7 +44,8 @@ function toast(page: Page, text: string): Locator {
  * One of the facts in the Bank link section, by its label
  */
 function fact(dialog: Locator, label: string): Locator {
-  return dialog.locator('dl > div').filter({ has: dialog.page().locator('dt', { hasText: label }) }).locator('dd')
+  const term = dialog.page().getByRole('term').filter({ hasText: new RegExp(`^${label}$`) })
+  return dialog.locator('dl > div').filter({ has: term }).getByRole('definition')
 }
 
 /**
@@ -80,15 +76,6 @@ async function openBankLink(page: Page, user: TestUser, accountId: string, statu
  */
 async function chooseFirstStart(flow: Locator): Promise<void> {
   await flow.getByRole('radiogroup', { name: 'Start' }).getByRole('radio').first().click()
-}
-
-async function changeProviders(page: Page, change: (body: { sync_running: boolean }) => void): Promise<void> {
-  await page.route(`${API_BASE_URL}/bank-sync/providers`, async (route) => {
-    const response = await route.fetch()
-    const body = await response.json()
-    change(body)
-    await route.fulfill({ response, json: body })
-  })
 }
 
 // A read the page sends as a test ends can still be on its way through a changed answer when the page
@@ -342,31 +329,63 @@ test.describe('the reason on Link bank account while bank sync is not running', 
     await expect(shownReason(page, LINKING_PAUSED)).toHaveCSS('opacity', '1')
     await page.keyboard.press('Escape')
     await expect(shownReason(page, LINKING_PAUSED)).toHaveCSS('opacity', '0')
-    await expect(dialog).toBeVisible()
 
-    // Pressing it anyway opens nothing
+    // Pressing it anyway opens nothing, in the modal Escape left open
     await link.click({ force: true })
     await expect(page.getByRole('dialog', { name: 'Link bank account' })).toHaveCount(0)
+    await expect(dialog).toBeVisible()
   })
+})
 
-  test('shows on hover and goes once the pointer leaves', async ({ page }) => {
-    const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
-    const link = dialog.getByRole('button', { name: 'Link bank account' })
-    await link.hover()
-    await expect(shownReason(page, LINKING_PAUSED)).toHaveCSS('opacity', '1')
-    await dialog.getByText('Link this account to one of the bank accounts').hover()
-    await expect(shownReason(page, LINKING_PAUSED)).toHaveCSS('opacity', '0')
+test('disconnects the whole connection from the Unlink dialog, unlinking the account with it', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const [everyday, scenario] = await Promise.all([
+    createAccount(request, user, { name: 'Everyday' }),
+    createSampleBridgeScenario(request),
+  ])
+  const connection = await claimSetupToken(request, user, scenario.setupToken)
+  await linkBankAccount(request, user, {
+    accountId: everyday.id,
+    connectionId: connection.id,
+    externalAccountId: externalIdOf(connection, SAMPLE_CHEQUING),
+    startDate: todayInTestTimezone(),
   })
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${everyday.id}`)
+  await page.getByRole('button', { name: /^Bank sync: / }).click()
+  const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  await dialog.getByRole('button', { name: 'Unlink' }).click()
 
-  test('shows when the keyboard brings focus to it', async ({ page }) => {
-    const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
-    const link = dialog.getByRole('button', { name: 'Link bank account' })
+  const unlink = page.getByRole('dialog', { name: 'Unlink bank account' })
+  await unlink.getByRole('radio', { name: /^Disconnect SimpleFIN/ }).click()
+  await unlink.getByRole('button', { name: 'Disconnect', exact: true }).click()
 
-    // Back from the Archive switch, the next control after the section, so the keyboard brings focus
-    await dialog.getByRole('switch', { name: /^Archive account/ }).focus()
-    await page.keyboard.press('Shift+Tab')
-    await expect(link).toBeFocused()
-    await expect(link).toHaveAccessibleDescription(LINKING_PAUSED)
-    await expect(shownReason(page, LINKING_PAUSED)).toHaveCSS('opacity', '1')
-  })
+  await expect(toast(page, 'SimpleFIN disconnected. 1 account unlinked.')).toBeVisible()
+  await expect(unlink).toBeHidden()
+  await expect(dialog.getByRole('button', { name: 'Reconnect bank account' })).toBeFocused()
+  expect(await readConnection(request, user, connection.id)).toBeUndefined()
+})
+
+test('lists the bank accounts of the connection switched to, dropping the one chosen before', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const [everyday, sample, lakeside] = await Promise.all([
+    createAccount(request, user, { name: 'Everyday' }),
+    createSampleBridgeScenario(request),
+    createEmptyBridgeScenario(request),
+  ])
+  const login = await addBridgeBankLogin(request, lakeside.id, 'Lakeside Credit Union')
+  await addBridgeBankAccount(request, lakeside.id, { connId: login, name: 'Joint Savings', currency: 'CAD' })
+  await claimSetupToken(request, user, sample.setupToken)
+  await claimSetupToken(request, user, lakeside.setupToken, 'Lakeside')
+  const dialog = await openBankLink(page, user, everyday.id, 'Not linked')
+  await dialog.getByRole('button', { name: 'Link bank account' }).click()
+  const flow = page.getByRole('dialog', { name: 'Link bank account' })
+
+  await flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_CHEQUING}`) }).click()
+  await chooseFromDropdown(flow, 'Connection', 'Lakeside')
+
+  await expect(flow.getByRole('radio', { name: /^Joint Savings/ })).toBeVisible()
+  await expect(flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_CHEQUING}`) })).toHaveCount(0)
+  await expect(flow.getByRole('radio', { checked: true })).toHaveCount(0)
+  await expect(flow.getByRole('button', { name: 'Continue' })).toBeDisabled()
 })

@@ -375,6 +375,9 @@ test('greys out Archive with its reason while the account is linked, and offers 
   expect(unlinked.ok()).toBe(true)
   await page.addInitScript(() => localStorage.removeItem('lumina:query-cache'))
   await openPage(page, `/accounts/${account.id}`)
+
+  // The switch reads as available before any link is read too, so the read has to arrive first
+  await expect(page.getByRole('button', { name: /^Bank sync: Not linked/ })).toBeVisible()
   await page.getByRole('button', { name: 'Edit account', exact: true }).click()
   await expect(archive).not.toHaveAttribute('aria-disabled')
   await expect(archiveReason).toBeHidden()
