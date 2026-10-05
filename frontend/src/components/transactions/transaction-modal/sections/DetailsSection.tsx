@@ -1,4 +1,5 @@
 import { useContext, useRef, type FocusEvent, type KeyboardEvent } from 'react'
+import type { ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
@@ -65,6 +66,11 @@ interface TransactionDetailsSectionProps {
   onAmountChange: (value: string, typed?: string) => void
   onAmountBlur: () => void
   onNotesChange: (value: string) => void
+
+  // The bank's value under the date and the amount of a bank-imported transaction, each in its own
+  // column, so a caption under one leaves the other field where it was
+  dateCaption?: ReactNode
+  amountCaption?: ReactNode
 }
 
 /**
@@ -91,6 +97,8 @@ export default function TransactionDetailsSection({
   onAmountChange,
   onAmountBlur,
   onNotesChange,
+  dateCaption,
+  amountCaption,
 }: TransactionDetailsSectionProps) {
   const ids = useTransactionModalIds()
   const stepHighlight = useContext(DateStepHighlightContext)
@@ -164,6 +172,7 @@ export default function TransactionDetailsSection({
               isDateDisabled={isDateDisabled}
             />
           </div>
+          {dateCaption}
         </div>
         <AnimatePresence initial={false}>
           {suppliedDaysError && (
@@ -268,6 +277,7 @@ export default function TransactionDetailsSection({
               {...amountInput}
             />
           </div>
+          {amountCaption}
         </div>
       </div>
 

@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useAccounts } from '@/api/accounts'
 import { useTransaction } from '@/api/transactions'
-import { useBankLinksByAccount } from '@/api/bank-sync'
+import { useBankLinksByAccount, useRestoreBankValue, type EditableBankField } from '@/api/bank-sync'
+import type { Transaction } from '@/api/transactions'
 import { useCategories } from '@/api/categories'
 import { useCurrencies } from '@/api/currency'
 import { useCurrencyListState } from '@/hooks/useCurrencyListState'
@@ -26,6 +27,8 @@ import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { usePendingLinks } from '@/components/transactions/transaction-modal/hooks/usePendingLinks'
 import { useRefundRoom } from '@/components/transactions/transaction-modal/hooks/useRefundRoom'
 import { getBankMoveRefusal } from '@/components/transactions/transaction-modal/utils/bankMove'
+import { getBankValueCaptions } from '@/components/transactions/transaction-modal/utils/bankValues'
+import { amountToInputString } from '@/components/transactions/transaction-modal/utils/money'
 import { getSuppliedDays } from '@/components/transactions/transaction-modal/utils/suppliedDays'
 import type {
   CreateTransactionModalProps,
@@ -37,6 +40,8 @@ import TransactionModalFooter from '@/components/transactions/transaction-modal/
 import { ReceiptText } from 'lucide-react'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { FormError } from '@/components/forms/FormError'
+import TransactionBankSourcePanel from '@/components/transactions/transaction-modal/controls/BankSourcePanel'
+import TransactionBankValueCaption from '@/components/transactions/transaction-modal/controls/BankValueCaption'
 import TransactionReferenceCreationModals from '@/components/transactions/transaction-modal/modals/ReferenceCreationModals'
 import TransactionReferencesSection from '@/components/transactions/transaction-modal/sections/ReferencesSection'
 import TransactionTypeDirectionSection from '@/components/transactions/transaction-modal/sections/TypeDirectionSection'
@@ -64,6 +69,8 @@ import {
 } from '@/components/transactions/transaction-modal/utils/refund'
 import { TransactionModalIdSuffix, suffixControlIds } from '@/components/transactions/transaction-modal/ids'
 import TransactionModalLinkedDeleteConfirm from '@/components/transactions/transaction-modal/modals/LinkedDeleteConfirm'
+
+const RESTORE_FAILED_MESSAGE = 'Could not restore the bank value. Please try again.'
 
 /**
  * Modal for creating or editing a transaction, including symmetric transfers that record a
@@ -150,9 +157,17 @@ export default function CreateTransactionModal({
   )
   const readOnly = editing && (readOnlyProp || Boolean(selectedAccount?.is_archived))
 
+  // A restored bank value is already saved, so the transaction as the restore answered it is the one a
+  // save compares the form with, and its bank source says which fields are still edited. The form
+  // itself was built from the transaction as opened and isn't built again
+  const restoreBankValue = useRestoreBankValue()
+  const [restoredTransaction, setRestoredTransaction] = useState<Transaction | null>(null)
+  const storedTransaction = restoredTransaction ?? transaction
+  const bankSource = storedTransaction?.bank_source ?? null
+
   const suppliedDays = getSuppliedDays({
     form,
-    transaction,
+    transaction: storedTransaction,
     recordedAccount: selectedAccount,
     counterpartyAccount: selectedCounterpartyAccount,
     linksByAccount,
@@ -162,8 +177,8 @@ export default function CreateTransactionModal({
   // Shown as soon as another account is picked, since picking one is already a finished answer
   const bankMoveRefusal = getBankMoveRefusal({
     accountId: form.account_id,
-    transaction,
-    sourceAccount: transaction && accounts.find((account) => account.id === transaction.account_id),
+    transaction: storedTransaction,
+    sourceAccount: storedTransaction && accounts.find((account) => account.id === storedTransaction.account_id),
     linksByAccount,
   })
   const { merchantModal, categoryModal, tagModal } = useTransactionReferenceCreationModals()
@@ -290,7 +305,7 @@ export default function CreateTransactionModal({
   const { handleSubmit, submitLoading, isPending, keepOpenAfterCreate, setKeepOpenAfterCreate, runningBalance } =
     useTransactionSubmit({
       editing,
-      transaction,
+      transaction: storedTransaction,
       refundOfTransactionId: refunding ? refundOf?.id : undefined,
       stageRefund: refunding ? onStageRefund : undefined,
       refundMerchantName: merchantField.selectedMerchantOption?.label ?? null,
@@ -333,6 +348,44 @@ export default function CreateTransactionModal({
     canLinkHere &&
     !!liveTransaction &&
     canLinkAsRefund({ ...liveTransaction, refund_of_transaction_id: null }, transactionCategoryKind)
+
+  // A save and a restore each write the transaction, so neither starts while the other runs
+  const restoring = restoreBankValue.isPending
+  const restoringField = restoring ? restoreBankValue.variables?.field : undefined
+  const bankValueCaptions = getBankValueCaptions(bankSource, storedTransaction?.currency ?? form.currency, currencies)
+  const restoreField = (field: EditableBankField) => {
+    if (!storedTransaction) return
+    setSubmitError('')
+    setSubmitErrorTitle('')
+    restoreBankValue.mutate(
+      { transactionId: storedTransaction.id, field },
+      {
+        onSuccess: (restored) => {
+          setRestoredTransaction(restored)
+          if (field === 'date') {
+            handleField('date', restored.dt)
+            return
+          }
+          // The field holds the amount's size and the direction its sign, so the bank's sign goes in
+          // as if typed, which sets the direction to the bank's as well
+          const size = amountToInputString(restored.amount, selectedCurrencyExponent)
+          handleAmountChange(size, `${restored.amount < 0 ? '-' : '+'}${size}`)
+        },
+        onError: () => setSubmitError(RESTORE_FAILED_MESSAGE),
+      },
+    )
+  }
+  const renderBankValueCaption = (field: EditableBankField) =>
+    bankSource && (
+      <TransactionBankValueCaption
+        id={`txn-${field}-bank-value`}
+        bankValue={bankValueCaptions[field]}
+        financial={field === 'amount'}
+        restoring={restoringField === field}
+        disabled={readOnly || isPending || restoring}
+        onRestore={() => restoreField(field)}
+      />
+    )
 
   const showRunningBalance = !editing && keepOpenAfterCreate && !!selectedAccount
 
@@ -416,7 +469,7 @@ export default function CreateTransactionModal({
                   linkedIds.length > 0 ? () => setLinkedDelete({ open: true, deleteLinked: false }) : null
                 }
                 editing={editing}
-                isPending={isPending}
+                isPending={isPending || restoring}
                 readOnly={readOnly}
                 submitLoading={submitLoading}
                 submitBlockedReason={refusal.blockedReason}
@@ -429,6 +482,13 @@ export default function CreateTransactionModal({
             }
           >
             <div className="space-y-5">
+              {bankSource && (
+                <TransactionBankSourcePanel
+                  providerName={bankSource.provider_name}
+                  description={bankSource.bank_values.description}
+                />
+              )}
+
               <TransactionTypeDirectionSection
                 kind={form.kind}
                 direction={form.direction}
@@ -525,6 +585,8 @@ export default function CreateTransactionModal({
                 onAmountChange={handleAmountChange}
                 onAmountBlur={() => refusal.touch('amount')}
                 onNotesChange={(value) => handleField('notes', value)}
+                dateCaption={renderBankValueCaption('date')}
+                amountCaption={renderBankValueCaption('amount')}
               />
 
               {liveTransaction && (
