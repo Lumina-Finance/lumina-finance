@@ -292,7 +292,7 @@ async def dismiss_bank_review_item(
     item_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> None:
+):
     """Dismiss a new bank item so it never returns
 
     Args:
