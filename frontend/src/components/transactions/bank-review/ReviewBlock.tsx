@@ -1,4 +1,4 @@
-import { useId, type Ref } from 'react'
+import { useEffect, useId, useRef, type Ref, type RefObject } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Landmark, PauseCircle, TriangleAlert } from 'lucide-react'
 import type { BankReviewItem } from '@/api/bank-sync'
@@ -118,6 +118,26 @@ function ReadFailureNotice({ subject, failure, retryRef }: {
 }
 
 /**
+ * Moves focus to what takes a failure's place once its read succeeds, when the failure's retry had
+ * focus, since the retry leaves with the failure and would otherwise drop focus to the top of the page
+ *
+ * The failure is still on its way out as the success renders, so whether its retry has focus can be
+ * read then
+ */
+function useFocusAfterRetry(
+  failed: boolean,
+  failureRef: RefObject<HTMLElement | null>,
+  getTarget: () => HTMLElement | null | undefined,
+) {
+  const wasFailed = useRef(failed)
+  useEffect(() => {
+    const succeeded = wasFailed.current && !failed
+    wasFailed.current = failed
+    if (succeeded && failureRef.current?.contains(document.activeElement)) getTarget()?.focus({ preventScroll: true })
+  }, [failed, failureRef, getTarget])
+}
+
+/**
  * The bank items waiting for review above the transaction list: new items, corrections and removals
  * that stay outside the ledger and every balance until the user acts on them
  *
@@ -153,6 +173,16 @@ export function BankReviewBlock({
   const visibleItems = expanded ? items : items.slice(0, COLLAPSED_ITEM_COUNT)
   const { collapsed, enterTransition, leave } = REVIEW_MOTION[prefersReducedMotion ? 'reduced' : 'full']
 
+  // Items that load on a retry take focus on their first row, as a Needs review marker's item does,
+  // and a pause status on its notice, or on the title when it has nothing to say
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  const backlogNoticeRef = useRef<HTMLParagraphElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  const itemsFailureRef = useRef<HTMLDivElement>(null)
+  const backlogFailureRef = useRef<HTMLDivElement>(null)
+  useFocusAfterRetry(itemsFailure !== null, itemsFailureRef, () => listRef.current?.querySelector<HTMLElement>('[role="listitem"]'))
+  useFocusAfterRetry(backlogFailure !== null, backlogFailureRef, () => backlogNoticeRef.current ?? headingRef.current)
+
   // Each notice grows in and collapses out under the title, its room kept inside it
   const notice = {
     className: 'overflow-hidden',
@@ -170,8 +200,8 @@ export function BankReviewBlock({
     >
       <div className="flex items-center gap-2.5 px-4 pt-3.5 sm:px-5">
         <Landmark size={17} strokeWidth={2} aria-hidden className="shrink-0" style={{ color: 'var(--app-warning-text)' }} />
-        {/* Titled like the page's other cards */}
-        <h2 id={titleId} className="app-label leading-snug">
+        {/* Titled like the page's other cards. Focusable once a retry succeeds, but never a tab stop */}
+        <h2 ref={headingRef} id={titleId} tabIndex={-1} className="app-label leading-snug focus:outline-none">
           Waiting for review
         </h2>
 
@@ -193,8 +223,11 @@ export function BankReviewBlock({
         {backlogNotice && (
           <motion.div key="backlog" {...notice}>
             <div className="px-4 pb-3 sm:px-5">
+              {/* Focusable once a retry succeeds, but never a tab stop */}
               <p
-                className="flex items-start gap-2 rounded-lg px-3 py-2 text-xs"
+                ref={backlogNoticeRef}
+                tabIndex={-1}
+                className="flex items-start gap-2 rounded-lg px-3 py-2 text-xs focus:outline-none"
                 style={{ background: 'var(--app-warning-soft)', color: 'var(--app-text)' }}
               >
                 {backlogNotice.tone === 'paused'
@@ -207,14 +240,14 @@ export function BankReviewBlock({
         )}
         {backlogFailure && (
           <motion.div key="backlog-failure" {...notice}>
-            <div className="px-4 pb-3 sm:px-5">
+            <div ref={backlogFailureRef} className="px-4 pb-3 sm:px-5">
               <ReadFailureNotice subject="Sync pause status" failure={backlogFailure} />
             </div>
           </motion.div>
         )}
         {itemsFailure && (
           <motion.div key="items-failure" {...notice}>
-            <div className="px-4 pb-3 sm:px-5">
+            <div ref={itemsFailureRef} className="px-4 pb-3 sm:px-5">
               <ReadFailureNotice subject="Bank items to review" failure={itemsFailure} retryRef={itemsRetryRef} />
             </div>
           </motion.div>
@@ -223,7 +256,7 @@ export function BankReviewBlock({
 
       {/* One list, so a screen reader counts every loaded item, with each row past the first few
           growing in as the block opens */}
-      <div id={listId} role="list">
+      <div ref={listRef} id={listId} role="list">
         {/* A leaving row reads which rows were on screen from here rather than from its own props,
             which stop updating once it has left the list */}
         <AnimatePresence initial={false} custom={rowsInViewAtClose} onExitComplete={onRowsLeft}>

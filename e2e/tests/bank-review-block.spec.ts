@@ -288,10 +288,11 @@ test('says in the block that the waiting items could not load, sends Needs revie
   await expect(button).toHaveText('Try again')
   await expect(button).toBeFocused()
 
-  // Trying again from there reads the items alone, without reloading the page
+  // Trying again from there reads the items alone, without reloading the page, and focus goes on to
+  // the first row rather than falling to the top of the page with the retry
   itemsFail = false
   await page.keyboard.press('Enter')
-  await expect(block.getByRole('listitem').filter({ hasText: 'UBER TRIP' })).toBeVisible()
+  await expect(block.getByRole('listitem').filter({ hasText: 'UBER TRIP' })).toBeFocused()
   await expect(failure).toBeHidden()
   await expect(block.getByText('1', { exact: true })).toBeVisible()
   expect(reads.backlogs).toBe(backlogReads)
@@ -322,7 +323,7 @@ test('says the pause status could not load while still showing the items, and re
   await expect(failure).toBeVisible()
   await expect(block.getByRole('listitem')).toHaveCount(1)
 
-  // Held in place while the read is made again, then giving way to the notice
+  // Held in place while the read is made again, then giving way to the notice, which takes focus
   const itemReads = reads.items
   const button = failure.getByRole('button')
   backlogsFail = false
@@ -331,10 +332,55 @@ test('says the pause status could not load while still showing the items, and re
   await expect(button).toHaveText('Retrying…')
   await expect(button).toBeFocused()
   gate.open()
-  await expect(block.getByText('Paused · 105 new to review in Everyday. Sync resumes at 50 or fewer.')).toBeVisible()
+  await expect(page.locator(':focus')).toHaveText('Paused · 105 new to review in Everyday. Sync resumes at 50 or fewer.')
   await expect(failure).toBeHidden()
   await expect(block.getByRole('listitem')).toHaveCount(1)
   expect(reads.items).toBe(itemReads)
+})
+
+test('moves focus on from a retry that succeeds only while the retry has it, to the title when the pause status has nothing to say', async ({ page, request }) => {
+  const { everyday } = await start(page, request)
+  let readsFail = true
+  const gate = readGate()
+  await page.route(isRead('/bank-review/items'), async (route) => {
+    await gate.passed()
+    return readsFail
+      ? route.fulfill({ status: 500, json: { detail: 'Something went wrong' } })
+      : route.fulfill({ json: pageOf([reviewItem('everyday-1', 'new', everyday.id)]) })
+  })
+  await page.route(isRead('/bank-review/backlogs'), (route) => readsFail
+    ? route.fulfill({ status: 500, json: { detail: 'Something went wrong' } })
+    : route.fulfill({ json: [] }))
+
+  await openPage(page, '/transactions')
+
+  const block = reviewBlock(page)
+  const backlogFailure = block.getByRole('alert').filter({ hasText: 'Sync pause status could not load.' })
+  const itemsFailure = block.getByRole('alert').filter({ hasText: 'Bank items to review could not load.' })
+  await expect(backlogFailure).toBeVisible()
+  await expect(itemsFailure).toBeVisible()
+  readsFail = false
+
+  // A pause status with nothing to say leaves no notice, so focus goes to the block's title
+  await backlogFailure.getByRole('button', { name: 'Try again' }).click()
+  await expect(backlogFailure).toBeHidden()
+  await expect(block.getByRole('heading', { name: 'Waiting for review' })).toBeFocused()
+
+  // Focus that has moved on from the retry by the time the items load is left where it went
+  const itemsRetry = itemsFailure.getByRole('button')
+  gate.close()
+  await itemsRetry.click()
+  await expect(itemsRetry).toHaveText('Retrying…')
+  await page.keyboard.press('Tab')
+  await expect(itemsRetry).not.toBeFocused()
+  await page.evaluate(() => document.activeElement?.setAttribute('data-focus-went-here', ''))
+  gate.open()
+  await expect(block.getByRole('listitem')).toHaveCount(1)
+
+  // Two frames on from the rows arriving, by when any move of focus that came with them has run
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+  await expect(block.getByRole('listitem')).not.toBeFocused()
+  expect(await page.evaluate(() => document.activeElement?.hasAttribute('data-focus-went-here') ?? false)).toBe(true)
 })
 
 test('shows the first 4 of a 1,500 item backlog, and loads the rest a page at a time once opened', async ({ page, request }) => {
