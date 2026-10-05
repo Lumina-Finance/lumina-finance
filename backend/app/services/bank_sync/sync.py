@@ -10,13 +10,14 @@ it queues plans it only once no other link is due, so a link failing on every re
 each request that frees ahead of links that can progress. A job holds no database connection while
 it waits on the provider
 
-What a job stores, its checkpoints, discoveries and its own end, goes through lock_job_for_finish,
-so a runner that lost its lease stores nothing and a link that changed while the job fetched gets
-none of its results. Each such step locks the connection first, then the job, then the links. The
-request counts and the budget-spent mark lock only the connection and are written outside the job's
-fence, since they record requests already sent, whoever holds the job. An answer to a request sent
-with a credential the connection no longer holds is dropped whole, budget-spent mark included, and
-the job ends without it. Nothing here marks a credential rejected
+What a job stores, the booked records each part brings back, its checkpoints, discoveries and its
+own end, goes through lock_job_for_finish, so a runner that lost its lease stores nothing and a link
+that changed while the job fetched gets none of its results. Each such step locks the connection
+first, then the job, then the links, then any bank transactions it stores, then the owner's cache
+row. The request counts and the budget-spent mark lock only the connection and are written outside
+the job's fence, since they record requests already sent, whoever holds the job. An answer to a
+request sent with a credential the connection no longer holds is dropped whole, budget-spent mark
+included, and the job ends without it. Nothing here marks a credential rejected
 """
 
 import logging
@@ -35,6 +36,7 @@ from app.models.bank_sync_job import BankSyncJob, ProviderErrorKind
 from app.models.user import User
 from app.services.bank_sync.availability import ENABLED_ADAPTERS, PROVIDER_ADAPTERS
 from app.services.bank_sync.discovery import apply_discovery
+from app.services.bank_sync.ingestion import store_booked_records
 from app.services.bank_sync.jobs import ClaimedJob, JobNotHeld, enqueue_bank_sync_job, finish_job, lock_job_for_finish
 from app.services.bank_sync.provider_requests import (
     RequestBudgetSpent,
@@ -43,7 +45,7 @@ from app.services.bank_sync.provider_requests import (
     read_request_budget,
     reserve_provider_request,
 )
-from app.services.bank_sync.providers.contract import FetchResult, ProviderAdapter, ProviderError
+from app.services.bank_sync.providers.contract import ExternalAccount, FetchResult, ProviderAdapter, ProviderError
 from app.services.bank_sync.windows import LinkNeed, SyncWindow, find_due_links, first_missing_day, plan_window
 from app.services.cache_state.updates import mark_user_cache_changed
 from app.services.fx.currency_exponent_helpers import get_all_currency_exponents
@@ -251,7 +253,7 @@ class _JobRun:
             answered = await self._fetch_part(part)
             if answered is None:
                 return None
-            result, credential = answered
+            result, credential, sent_at = answered
             if result.possibly_cut_off and part.first_day < part.last_day:
                 earlier, later = part.halves()
                 parts += [later, earlier]
@@ -264,18 +266,18 @@ class _JobRun:
                     self.deferred.discard(need.link.id)
                 else:
                     self.failed.add(need.link.id)
-            moved = await self._write(part, synced, sent_with=credential)
+            moved = await self._write(part, synced, sent_with=credential, sent_at=sent_at)
         return moved
 
-    async def _fetch_part(self, part: SyncWindow) -> tuple[FetchResult, str] | None:
+    async def _fetch_part(self, part: SyncWindow) -> tuple[FetchResult, str, datetime] | None:
         """Count and send one request for a part of the window
 
         Returns:
-            What came back and the credential it was sent with, or None when the job ended instead:
-            queued again for when the budget frees, or failed with the request's error
+            What came back, the credential it was sent with and when it was sent, or None when the
+            job ended instead: queued again for when the budget frees, or failed with the request's error
         """
         try:
-            _, credential = await self._count_request(ProviderRequestPurpose.SYNC)
+            sent_at, credential = await self._count_request(ProviderRequestPurpose.SYNC)
         except RequestBudgetSpent as spent:
             await self._end(again=True, run_after=spent.available_again_at)
             return None
@@ -295,20 +297,23 @@ class _JobRun:
         if result.request_error is not None:
             await self._stop_for(result.request_error, sent_with=credential)
             return None
-        return result, credential
+        return result, credential, sent_at
 
-    async def _write(self, part: SyncWindow, synced: set[str], *, sent_with: str) -> bool:
-        """Move the checkpoint of each link the response brought back whole, if the job still holds it
+    async def _write(self, part: SyncWindow, synced: Mapping[str, ExternalAccount], *, sent_with: str, sent_at: datetime) -> bool:
+        """Store the booked records of each link the response brought back whole, and move its checkpoint, if the job still holds it
 
-        A checkpoint moves only over days the link's data is complete for, so the part has to start no
-        later than the first day the link lacks. The last successful sync is stamped when the checkpoint
-        moves, or when the part brought the link back whole through today, with the job's start, the
-        moment today was read, so the day it falls on is never before the checkpoint
+        Records are stored whatever the checkpoint does, since each is kept by its identity and a
+        later sync reading it again changes nothing. A checkpoint moves only over days the link's data
+        is complete for, so the part has to start no later than the first day the link lacks. The last
+        successful sync is stamped when the checkpoint moves, or when the part brought the link back
+        whole through today, with the job's start, the moment today was read, so the day it falls on
+        is never before the checkpoint
 
         Args:
             part: The days fetched, and the links they were fetched for
-            synced: The bank accounts the response brought back whole
+            synced: The bank accounts the response brought back whole, by external id
             sent_with: The credential the request went out with
+            sent_at: When the request went out, which its records were observed at
 
         Returns:
             Whether a checkpoint moved
@@ -317,8 +322,10 @@ class _JobRun:
         stamped = False
         async with async_session() as db:
             _, held = await _hold_for_finish(db, self.job, [need.link for need in part.needs], sent_with=sent_with)
-            for link in held:
-                if link.external_account_id not in synced or first_missing_day(link) < part.first_day:
+            whole = [link for link in held if link.external_account_id in synced]
+            stored = await store_booked_records(db, [(link, synced[link.external_account_id].records) for link in whole], observed_at=sent_at)
+            for link in whole:
+                if first_missing_day(link) < part.first_day:
                     continue
                 advanced = part.last_day > link.checkpoint
                 if advanced:
@@ -327,7 +334,7 @@ class _JobRun:
                 if advanced or part.last_day == self.today:
                     link.last_success_at = self.now
                     stamped = True
-            if stamped:
+            if stored or stamped:
                 await mark_user_cache_changed(db, self.job.owner_id)
             await db.commit()
         return moved
@@ -454,10 +461,10 @@ def _refuse_a_replaced_credential(connection: BankConnection, sent_with: str) ->
         raise _CredentialReplaced(f"Bank connection {connection.id}'s credential was replaced while a request sent with the old one was out")
 
 
-def _synced_bank_accounts(result: FetchResult) -> set[str]:
-    """Return the bank accounts a response brought back whole: listed, with no error of their own and none for their bank login"""
+def _synced_bank_accounts(result: FetchResult) -> dict[str, ExternalAccount]:
+    """Return the bank accounts a response brought back whole, by external id: listed, with no error of their own or their bank login's"""
     return {
-        account.external_id
+        account.external_id: account
         for account in result.accounts
         if account.external_id not in result.account_errors and account.bank_login not in result.login_errors
     }
