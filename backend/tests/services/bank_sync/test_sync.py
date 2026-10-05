@@ -78,6 +78,7 @@ from tests.routes.support.bank_sync_helpers import (
     _attempts,
     _balances,
     _build_account,
+    _build_bank_connection,
     _build_bank_link,
     _build_bank_transaction,
     _build_external_account,
@@ -996,6 +997,32 @@ async def test_job_whose_listing_meets_a_rejected_credential_marks_the_connectio
     assert _emailed(sent_action_emails) == [_email(_RECONNECT_SUBJECT)]
 
 
+async def test_job_ending_on_a_rejected_credential_marks_and_emails_only_for_that_connection_of_its_owner(
+    connection, provider, frozen_now, sent_action_emails
+):
+    """The owner also syncs Joint through a second connection, which SimpleFIN Bridge still accepts, when it refuses Everyday's
+
+    Only Everyday's connection is marked, and the email and the accounts needing a reconnect name
+    Everyday alone, while Joint carries on as before
+    """
+    other = _build_bank_connection(connection.owner_id)
+    async with TestSession() as session:
+        session.add(other)
+        await session.commit()
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    joint = await _link(other, "ACT-joint", **_synced_through_yesterday())
+    provider.outcomes = [FetchResult(request_error=_rejected())]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert (await _rejection(connection), await _rejection(other)) == (frozen_now, None)
+    assert _emailed(sent_action_emails, "ACT-everyday", "ACT-joint") == [_email(_RECONNECT_SUBJECT, "ACT-everyday")]
+    async with _owner_session(connection.owner_id) as session:
+        needed = await action_needed.read_actions_needed(session, [everyday.account_id, joint.account_id])
+    assert needed == {everyday.account_id: action_needed.ActionNeeded(action_needed.ActionNeededKind.RECONNECT, frozen_now)}
+
+
 async def test_job_whose_listing_was_refused_marks_nothing_once_a_reconnect_replaced_the_credential(
     connection, provider, monkeypatch, sent_action_emails
 ):
@@ -1022,12 +1049,57 @@ async def test_job_whose_listing_was_refused_marks_nothing_once_a_reconnect_repl
     assert [(status, error) for _, status, error, _ in await _jobs()] == [("succeeded", None)]
 
 
+async def test_job_whose_save_marking_reconnect_needed_fails_emails_nothing_and_its_retry_emails_once(
+    connection, provider, frozen_now, monkeypatch, sent_action_emails
+):
+    """Telling the owner's pages fails in the save that would mark the connection Reconnect needed, so that save rolls back
+
+    No state started, so nothing is marked and no email goes out, and the job fails on the error.
+    Its retry 30 minutes on is refused too, which marks the connection from when that request went
+    out and emails once
+    """
+    await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    provider.outcomes = [FetchResult(request_error=_rejected()), FetchResult(request_error=_rejected())]
+    mark_user_cache_changed = sync.mark_user_cache_changed
+    calls = 0
+
+    async def fail_the_second_time(*args, **kwargs) -> None:
+        """Fail the second time a job tells the owner's pages, in the save ending the first job, after it recorded the rejection"""
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("The cache row couldn't be updated")
+        return await mark_user_cache_changed(*args, **kwargs)
+
+    monkeypatch.setattr(sync, "mark_user_cache_changed", fail_the_second_time)
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    with freeze_time(frozen_now, real_asyncio=True) as clock:
+        assert await run_jobs(1) == 1
+        assert (await _rejection(connection), sent_action_emails) == (None, [])
+
+        clock.tick(timedelta(minutes=30))
+        async with TestSession() as session:
+            await session.execute(update(BankSyncJob).where(BankSyncJob.status == "queued").values(run_after=func.now()))
+            await session.commit()
+        assert await run_jobs(1) == 1
+
+    assert [(kind, status, error) for kind, status, error, _ in await _jobs()] == [
+        ("scheduled", "failed", "unknown"),
+        ("retry", "failed", "credential_rejected"),
+    ]
+    assert await _rejection(connection) == frozen_now + timedelta(minutes=30)
+    assert _emailed(sent_action_emails, "ACT-everyday") == [_email(_RECONNECT_SUBJECT, "ACT-everyday")]
+
+
 async def test_job_failing_on_a_server_this_instance_doesnt_allow_marks_nothing(connection, provider, sent_action_emails):
     """A development instance restored from production allows only its fake Bridge, so it refuses the connection's real one
 
-    That says nothing about the credential, so the connection isn't marked and its owner isn't emailed
+    That says nothing about the credential or the bank login, so neither the connection nor Everyday
+    is marked and its owner isn't emailed
     """
-    await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-everyday")
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
     provider.outcomes = [
         FetchResult(
             request_error=ProviderError(ProviderErrorKind.UNKNOWN, "This Lumina Finance server is not set up to contact bridge.example")
@@ -1041,7 +1113,7 @@ async def test_job_failing_on_a_server_this_instance_doesnt_allow_marks_nothing(
         ("scheduled", "failed", "unknown"),
         ("retry", "queued", None),
     ]
-    assert await _rejection(connection) is None
+    assert (await _rejection(connection), await _signin_marks(everyday)) == (None, [None])
     assert sent_action_emails == []
 
 
@@ -1147,6 +1219,27 @@ async def test_job_finding_a_bank_login_still_needs_a_sign_in_emails_nothing_mor
     assert sent_action_emails == []
 
 
+async def test_job_finding_two_bank_logins_need_a_sign_in_emails_only_for_the_one_not_already_waiting(
+    connection, provider, frozen_now, sent_action_emails
+):
+    """Chase Checking has waited on a Chase sign-in since yesterday, and SimpleFIN Bridge now says the Amex login needs one too
+
+    Chase's state started yesterday and was emailed then, so only Amex's starts, and its email names Amex alone
+    """
+    yesterday = frozen_now - timedelta(days=1)
+    await _list_under(connection, "CON-chase", "Chase", "ACT-chase-checking")
+    await _list_under(connection, "CON-amex", "American Express", "ACT-amex")
+    checking = await _link(connection, "ACT-chase-checking", **_synced_through_yesterday(signin_needed_since=yesterday))
+    amex = await _link(connection, "ACT-amex", **_synced_through_yesterday())
+    provider.outcomes = [FetchResult(login_errors={"CON-chase": _signin_needed(), "CON-amex": _signin_needed()})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _signin_marks(checking, amex) == [yesterday, frozen_now]
+    assert _emailed(sent_action_emails, "ACT-amex", "ACT-chase-checking") == [_email(_SIGNIN_SUBJECT, "ACT-amex")]
+
+
 async def test_job_marks_no_bank_sign_in_for_an_account_failing_for_another_reason(connection, provider, sent_action_emails):
     """SimpleFIN Bridge reports a problem with Everyday alone, which a retry can fix, so nothing asks the user to act"""
     await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-everyday")
@@ -1247,6 +1340,43 @@ async def test_job_clears_a_bank_sign_in_once_its_account_comes_back_whole_thoug
     assert [attempt[2:4] for attempt in await _attempts(checking)] == [("SimpleFIN Bridge reported a problem", 1)]
 
 
+@pytest.mark.parametrize(
+    ("answer", "rejects"),
+    [
+        (FetchResult(request_error=_rejected()), True),
+        (FetchResult(request_error=_signin_needed()), False),
+        (FetchResult(login_errors={"CON-chase": _signin_needed()}), False),
+    ],
+    ids=["credential_rejected", "sign_in_for_the_request", "sign_in_for_the_login"],
+)
+async def test_job_marks_what_the_user_must_do_from_when_its_request_went_out_not_when_it_saved(
+    connection, provider, frozen_now, monkeypatch, answer, rejects
+):
+    """SimpleFIN Bridge takes 2 minutes to refuse the stored access, or to say the Chase login needs a sign-in, for Chase Checking's daily sync
+
+    The problem was seen as the request went out, so the mark starts then rather than as the job saved it
+    """
+    await _list_under(connection, "CON-chase", "Chase", "ACT-chase-checking")
+    checking = await _link(connection, "ACT-chase-checking", **_synced_through_yesterday())
+    provider.outcomes = [answer]
+    fetch = provider.fetch
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    with freeze_time(frozen_now, real_asyncio=True) as clock:
+
+        async def answer_2_minutes_later(credential: str, **window) -> FetchResult:
+            """Answer as the scripted provider does, with the clock 2 minutes on"""
+            result = await fetch(credential, **window)
+            clock.tick(timedelta(minutes=2))
+            return result
+
+        monkeypatch.setattr(provider, "fetch", answer_2_minutes_later)
+        assert await run_jobs(1) == 1
+
+    marks = (frozen_now, [None]) if rejects else (None, [frozen_now])
+    assert (await _rejection(connection), await _signin_marks(checking)) == marks
+
+
 async def test_job_stopped_by_an_error_still_sends_the_email_an_earlier_step_saved(connection, provider, frozen_now, sent_action_emails):
     """The first window of Everyday's and Chase Card's imports may be cut short, so the job fetches it again in halves
 
@@ -1296,6 +1426,24 @@ async def test_job_whose_listing_moves_a_link_to_choose_bank_account_emails_once
     assert (len(provider.discoveries), provider.fetches) == (2, [])
     assert await _link_states(everyday) == ["choose_account"]
     assert _emailed(sent_action_emails, "ACT-everyday", "Everyday Chequing") == [_CHOOSE_EVERYDAY]
+
+
+async def test_job_whose_listing_misses_a_whole_bank_login_emails_once_for_each_account_it_moves(connection, provider, sent_action_emails):
+    """The listing no longer shows the Harbour Bank login, so Everyday and Savings both wait for their bank accounts to be chosen again
+
+    Each gets an email of its own naming that account and its own bank account
+    """
+    await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-everyday", "ACT-savings")
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    savings = await _link(connection, "ACT-savings", **_synced_through_yesterday(external_account_name="High Interest Savings"))
+    provider.outcomes = [FetchResult()]
+    await _seed_job(connection, BankSyncJobKind.MANUAL, discover=True)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _link_states(everyday, savings) == ["choose_account", "choose_account"]
+    names = ("ACT-everyday", "Everyday Chequing", "ACT-savings", "High Interest Savings")
+    assert sorted(_emailed(sent_action_emails, *names)) == [_CHOOSE_EVERYDAY, _email(_CHOOSE_SUBJECT, "ACT-savings", "High Interest Savings")]
 
 
 async def test_job_whose_listing_shows_a_bank_account_again_resumes_its_link_unannounced_and_emails_when_it_next_goes(

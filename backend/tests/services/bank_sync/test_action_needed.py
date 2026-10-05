@@ -4,10 +4,13 @@ An account left out shows a sync that silently stopped, and one shown needing a 
 its connection needs reconnecting, or shown waiting for its bank account to be chosen while it also
 needs a bank sign-in, sends the user to the wrong fix first. One no longer linked that still asks for
 a bank sign-in nags about an account that isn't syncing. An email that doesn't say what stopped and what to do leaves
-the user guessing, and one carrying the credential or transactions leaks them
+the user guessing, and one carrying the credential or transactions leaks them. A failed send that
+stops the ones after it leaves those users untold, and one logged by its recipient leaks their address
 """
 
+import logging
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 from sqlalchemy import select, update
 
@@ -19,7 +22,10 @@ from app.services.bank_sync.action_needed import (
     flag_rejected_credential,
     flag_signin_needed,
     read_actions_needed,
+    send_action_emails,
 )
+from app.services.email import RenderedEmail
+from app.services.email import contract as email_contract
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import _build_account, _build_bank_link, _build_external_account
 from tests.routes.support.identity_helpers import _act_as
@@ -157,6 +163,38 @@ async def test_action_emails_say_what_stopped_syncing_and_how_to_resume_it(conne
             "SimpleFIN rejected your connection.\n\nReconnect it in Settings with a new setup token before linking accounts to it.",
         ),
     ]
+
+
+async def test_send_action_emails_logs_a_send_that_fails_by_its_connection_and_still_sends_the_next(connections, monkeypatch, caplog):
+    """The mail server refuses the first owner's Reconnect needed email, and the second owner's still goes out
+
+    The warning names the state and the first connection's id, and neither the recipient nor any account
+    """
+    first, second = connections[0], connections[1]
+    await _commit_links(first, Everyday={})
+    emails = []
+    for connection in (first, second):
+        async with _act_as(connection.owner_id) as session:
+            emails += await flag_rejected_credential(session, await session.get_one(BankConnection, connection.id), at=_REJECTED_AT)
+    sent = []
+
+    async def refuse_the_first_owners(recipient: str, message: RenderedEmail) -> None:
+        """Refuse the first owner's email, as a mail server that is down does, and accept the rest"""
+        if recipient == "owner0@example.com":
+            raise ConnectionRefusedError(f"The mail server refused {recipient}")
+        sent.append(recipient)
+
+    monkeypatch.setattr(email_contract, "_active_sender", SimpleNamespace(send=refuse_the_first_owners))
+    with caplog.at_level(logging.WARNING, logger=send_action_emails.__module__):
+        await send_action_emails(emails)
+
+    assert sent == ["owner1@example.com"]
+    assert [record.getMessage() for record in caplog.records if record.name == send_action_emails.__module__] == [
+        f"Couldn't send the action-needed email for Reconnect needed on connection {first.id}: ConnectionRefusedError"
+    ]
+
+    # A mail server's error often repeats the recipient, so the log keeps the error's type alone
+    assert "owner0@example.com" not in caplog.text
 
 
 async def test_read_actions_needed_reads_nothing_of_another_users_accounts(connections):
