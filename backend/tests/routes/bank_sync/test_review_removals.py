@@ -4,27 +4,31 @@ Removing deletes the ledger transaction, its bank transaction with it, and rebui
 and works while the account is linked. Keeping leaves the ledger as it is and closes the removal,
 which stays remembered so the same removal sent again opens nothing. Either is one save with the
 cache mark last. A removal applied after a sync brought the transaction back deletes one the bank
-still lists, one taking the ledger row before the bank transaction can deadlock with a sync, and one
-reaching another user's item deletes from their ledger
+still lists, one taking the ledger row before the bank transaction can deadlock with a sync, one
+reaching a transaction moved to another account deletes it from there, and one reaching another
+user's item deletes from their ledger
 """
 
 import asyncio
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import pytest
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select, text, update
 
+from app.models.account import Account
 from app.models.bank_connection import BankAccountLink
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition, OpenReviewKind
 from app.models.transaction import Transaction
+from app.services.accounts.snapshots import recompute_account_snapshots
 from app.services.bank_sync import review_decisions
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     BANK_DATE,
     EMPTY_REVIEW_PAGE,
     _balances,
+    _build_ledger_transaction,
     _changed_at,
     _commit_other_users_account,
     _commit_review_item,
@@ -34,7 +38,7 @@ from tests.routes.support.bank_sync_helpers import (
     _stored_item,
 )
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
-from tests.routes.support.manual_entry_helpers import _commit_link, _Ledger, _ledger
+from tests.routes.support.manual_entry_helpers import _commit_link, _Ledger, _ledger, _unlink
 from tests.routes.support.query_helpers import _recorded_statements, _writes
 from tests.routes.support.transaction_helpers import _create_transaction
 
@@ -44,7 +48,8 @@ _GROCERIES = "FRESHCO GROCERIES"
 _DECISIONS = ["remove-from-ledger", "keep-transaction"]
 
 _NOT_IN_LEDGER = "This item isn't in the ledger, so it has no bank change to decide"
-_NO_REMOVAL = "This transaction has no bank removal waiting, so it stays in the ledger"
+_NO_REMOVAL = "This transaction has no bank removal waiting, so it stays in your ledger"
+_REMOVAL_WAITING = "This transaction has a bank removal waiting, so decide that first"
 
 # When the sync stored the bank's removal of the groceries
 _REPORTED_AT = datetime(2026, 10, 4, 9, tzinfo=UTC)
@@ -95,6 +100,17 @@ async def _removal_waiting(client, **item_values) -> _Removal:
 async def _decide(client, removal: _Removal, decision: str, item_id: uuid.UUID | None = None):
     """Post a decision on the removal, or on another item"""
     return await client.post(f"/bank-review/items/{item_id or removal.item_id}/{decision}", headers=removal.headers)
+
+
+async def _commit_coffee(removal: _Removal, day: date) -> None:
+    """Commit a -4.50 coffee in Everyday on the day given, with its balances, as an earlier import left it"""
+    async with TestSession() as session:
+        account = await session.get_one(Account, uuid.UUID(removal.account_id))
+        coffee = _build_ledger_transaction(account, uuid.UUID(removal.ledger.category_id), amount=-450)
+        coffee.dt = day
+        session.add(coffee)
+        await recompute_account_snapshots(session, {account.id: day})
+        await session.commit()
 
 
 async def _still_stored(item_id: uuid.UUID) -> bool:
@@ -232,12 +248,10 @@ async def test_keeping_submitted_twice_at_once_closes_the_removal_once(client):
     assert (await _stored_item(removal.item_id)).version == 2
 
 
-@pytest.mark.parametrize(("decision", "status_code", "detail"), [("remove-from-ledger", 409, _NO_REMOVAL), ("keep-transaction", 200, None)])
-async def test_a_decision_waiting_on_a_sync_that_brings_the_transaction_back_keeps_it(client, decision, status_code, detail):
-    """A sync storing the bank sending the groceries again holds the item, and closes the removal before the decision gets it
+async def test_removing_waiting_on_a_sync_that_brings_the_transaction_back_is_refused(client):
+    """A sync storing the bank sending the groceries again holds the item, and closes the removal before removing gets it
 
-    Removing is refused, since the bank lists the groceries again, and keeping answers with them as
-    they are, so the groceries stay in the ledger either way
+    Removing is refused, since the bank lists the groceries again, so they stay in the ledger
     """
     removal = await _removal_waiting(client)
 
@@ -249,13 +263,12 @@ async def test_a_decision_waiting_on_a_sync_that_brings_the_transaction_back_kee
         record.removed_at = None
         await syncing.flush()
         syncing_pid = await syncing.scalar(select(func.pg_backend_pid()))
-        deciding = asyncio.create_task(_decide(client, removal, decision))
-        await _wait_until_waiting_on(syncing_pid, deciding)
+        removing = asyncio.create_task(_decide(client, removal, "remove-from-ledger"))
+        await _wait_until_waiting_on(syncing_pid, removing)
         await syncing.commit()
-        decided = await deciding
+        refused = await removing
 
-    # A transaction answered has no detail
-    assert (decided.status_code, decided.json().get("detail")) == (status_code, detail)
+    assert (refused.status_code, refused.json()["detail"]) == (409, _NO_REMOVAL)
     assert await _ledger_rows(removal.account_id) == [(BANK_DATE, -4200)]
     stored = await _stored_item(removal.item_id)
     assert (stored.open_kind, stored.removed_at, stored.version) == (None, None, 2)
@@ -281,6 +294,85 @@ async def test_removing_locks_the_bank_transaction_before_the_ledger_transaction
 
     assert removed.status_code == 204, removed.text
     assert await _ledger_rows(removal.account_id) == []
+
+
+async def test_removing_waits_for_an_edit_to_the_ledger_row_and_rebuilds_balances_from_its_new_date(client):
+    """The user is moving the groceries from 3 to 1 October, before a coffee on 2 October, as they remove them
+
+    Removing waits for the move, then rebuilds the balances from 1 October, where the groceries now
+    sit, so the coffee's balance no longer counts them
+    """
+    removal = await _removal_waiting(client)
+    await _commit_coffee(removal, date(2026, 10, 2))
+    ledger_row = Transaction.id == uuid.UUID(removal.transaction_id)
+
+    async with asyncio.timeout(10), TestSession() as editing:
+        await editing.execute(select(Transaction.id).where(ledger_row).with_for_update())
+        editing_pid = await editing.scalar(select(func.pg_backend_pid()))
+        removing = asyncio.create_task(_decide(client, removal, "remove-from-ledger"))
+        await _wait_until_waiting_on(editing_pid, removing)
+
+        # The move as an edit writes it, with the balances it moves
+        await editing.execute(update(Transaction).where(ledger_row).values(dt=date(2026, 10, 1)))
+        await recompute_account_snapshots(editing, {uuid.UUID(removal.account_id): date(2026, 10, 1)})
+        await editing.commit()
+        removed = await removing
+
+    assert removed.status_code == 204, removed.text
+    assert await _balances(removal.account_id) == [(date(2026, 10, 2), -450)]
+
+
+async def test_removing_from_an_archived_account_is_refused(client):
+    """Everyday was unlinked and archived with the groceries' removal still waiting, so removing them is refused and they stay"""
+    removal = await _removal_waiting(client)
+    await _unlink(client, removal.ledger, removal.account_id)
+    archived = await client.patch(f"/accounts/{removal.account_id}", json={"is_archived": True}, headers=removal.headers)
+    assert archived.status_code == 200, archived.text
+
+    refused = await _decide(client, removal, "remove-from-ledger")
+
+    assert (refused.status_code, refused.json()["detail"]) == (422, "Account is archived")
+    assert (BANK_DATE, -4200) in await _ledger_rows(removal.account_id)
+    assert (await _stored_item(removal.item_id)).open_kind == OpenReviewKind.REMOVAL
+
+
+@pytest.mark.parametrize("bulk", [False, True], ids=["edit", "bulk edit"])
+async def test_removing_a_transaction_moved_out_of_its_account_while_unlinked_finds_nothing(client, bulk):
+    """With the groceries' removal waiting, the user unlinks Everyday and moves them to Savings in an edit or a bulk edit
+
+    Moving them out took them off the bank with their removal, so removing them finds no item, and
+    Savings keeps them and their balance
+    """
+    removal = await _removal_waiting(client)
+    await _unlink(client, removal.ledger, removal.account_id)
+    savings_id = removal.ledger.savings_id
+    if bulk:
+        moved = await client.patch(
+            "/transactions/bulk", json={"transaction_ids": [removal.transaction_id], "account_id": savings_id}, headers=removal.headers
+        )
+    else:
+        moved = await client.patch(f"/transactions/{removal.transaction_id}", json={"account_id": savings_id}, headers=removal.headers)
+
+    refused = await _decide(client, removal, "remove-from-ledger")
+
+    assert moved.status_code == 200, moved.text
+    assert (refused.status_code, refused.json()["detail"]) == (404, "Review item not found")
+    assert not await _still_stored(removal.item_id)
+    assert await _ledger_rows(savings_id) == [(BANK_DATE, -4200)]
+    assert await _balances(savings_id) == [(BANK_DATE, -4200)]
+
+
+@pytest.mark.parametrize("decision", ["accept-change", "keep-current"])
+async def test_deciding_a_correction_a_removal_took_the_place_of_is_refused(client, decision):
+    """A correction of the groceries to -41.00 was waiting when the bank removed them, so it can't be decided until the removal is"""
+    removal = await _removal_waiting(client, observed_amount=-4100, previous_values={"amount": -4000})
+
+    refused = await _decide(client, removal, decision)
+
+    assert (refused.status_code, refused.json()["detail"]) == (409, _REMOVAL_WAITING)
+    stored = await _stored_item(removal.item_id)
+    assert (stored.open_kind, stored.previous_values, stored.version) == (OpenReviewKind.REMOVAL, {"amount": -4000}, 1)
+    assert await _ledger_rows(removal.account_id) == [(BANK_DATE, -4200)]
 
 
 @pytest.mark.parametrize("decision", _DECISIONS)

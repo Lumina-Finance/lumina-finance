@@ -21,11 +21,11 @@ A removal is the provider saying the transaction no longer exists. Set to review
 removal and the ledger row keeps counting until the user decides. It takes the place of a correction
 it finds open, since there is no point deciding new values for a transaction that may go, and that
 correction's values from before are kept, so keeping the transaction brings the correction back.
-Trusted, the ledger row is deleted, and the bank transaction with it, leaving no marker, so the same
-transaction sent again later is a new import. The bank transaction remembers the removal, so the
-same removal sent again opens nothing, whichever way the user decided. The provider sending the
-transaction again means it is back: the removal closes, and what it sends is compared like any other
-change, so a correction kept under the removal opens again
+Trusted, or removed from the ledger by the user, the ledger row is deleted, and the bank transaction
+with it, leaving no marker, so the same transaction sent again later is a new import. Waiting, or
+kept by the user, the bank transaction remembers the removal, so the same removal sent again opens
+nothing. The provider sending the transaction again means it is back: the removal closes, and what
+it sends is compared like any other change, so a correction kept under the removal opens again
 """
 
 import uuid

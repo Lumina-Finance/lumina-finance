@@ -46,7 +46,10 @@ _COUNTERPARTY_NOT_OWN_DETAIL = "Transfers from a bank item can't go to an accoun
 _NOT_IN_LEDGER_DETAIL = "This item isn't in the ledger, so it has no bank change to decide"
 
 # Why removing refuses a transaction the bank hasn't asked to remove, or whose removal the user kept
-_NO_REMOVAL_DETAIL = "This transaction has no bank removal waiting, so it stays in the ledger"
+_NO_REMOVAL_DETAIL = "This transaction has no bank removal waiting, so it stays in your ledger"
+
+# Why a correction's decisions refuse a correction a removal has since taken the place of
+_REMOVAL_WAITING_DETAIL = "This transaction has a bank removal waiting, so decide that first"
 
 # Why accepting refuses a bank amount the account's currency can't hold without rounding
 _UNSTORABLE_AMOUNT_DETAIL = (
@@ -158,12 +161,15 @@ async def accept_bank_change(db: AsyncSession, user: User, item_id: uuid.UUID) -
 
     Raises:
         HTTPException 404: The item isn't one of the user's
-        HTTPException 409: The item isn't in the ledger, or another change held the transaction too long
+        HTTPException 409: The item isn't in the ledger, a removal has taken the correction's place,
+            or another change held the transaction too long
         HTTPException 422: The bank's amount can't be stored exactly, or a value fails the checks an
             edit passes
     """
     record, account, _ = await _lock_review_item(db, user, item_id)
     _refuse_unless_in_ledger(record)
+    if record.open_kind == OpenReviewKind.REMOVAL:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_REMOVAL_WAITING_DETAIL)
     if record.open_kind != OpenReviewKind.CORRECTION:
         return await get_transaction_response(db, await db.get_one(Transaction, record.transaction_id))
     changed = [field for field in EDITABLE_COLUMNS if field in record.previous_values]
@@ -206,10 +212,12 @@ async def keep_current_value(db: AsyncSession, user: User, item_id: uuid.UUID) -
 
     Raises:
         HTTPException 404: The item isn't one of the user's
-        HTTPException 409: The item isn't in the ledger
+        HTTPException 409: The item isn't in the ledger, or a removal has taken the correction's place
     """
     record, _, _ = await _lock_review_item(db, user, item_id)
     _refuse_unless_in_ledger(record)
+    if record.open_kind == OpenReviewKind.REMOVAL:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_REMOVAL_WAITING_DETAIL)
     if record.open_kind == OpenReviewKind.CORRECTION:
         align_with_bank(record, record.previous_values)
         record.declined_observation = bank_values(record)
@@ -283,7 +291,7 @@ async def keep_transaction(db: AsyncSession, user: User, item_id: uuid.UUID) -> 
 
 
 def _refuse_unless_in_ledger(record: BankTransaction) -> None:
-    """Refuse a correction's decision on an item still waiting to be added, or dismissed
+    """Refuse a decision on a correction or removal for an item still waiting to be added, or dismissed
 
     Raises:
         HTTPException 409: The item isn't in the ledger
