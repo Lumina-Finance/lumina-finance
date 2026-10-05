@@ -26,7 +26,7 @@ from datetime import UTC, date, datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.bank_connection import BankAccountLink, BankLinkState
+from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
 from app.models.bank_sync_job import BankSyncJobKind
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
 from app.services.bank_sync.availability import LIVE_LINK
@@ -92,14 +92,21 @@ async def apply_review_pauses(db: AsyncSession, links: Sequence[BankAccountLink]
 
 
 async def lock_account_links(db: AsyncSession, account_ids: Collection[uuid.UUID]) -> list[BankAccountLink]:
-    """Lock every link of these accounts in id order, the order every writer takes links in, before any bank transaction row
+    """Lock every link of these accounts in id order, after the connections of the live ones, before any bank transaction row
 
-    Every link, not only paused ones, since one a sync is pausing doesn't read as paused until its
-    lock is granted. Each is read again once locked
+    A lifted pause queues a sync, and a job row holds its connection for key share, so that lock is
+    taken on each live link's connection first, since a sync's write holds the connection before
+    the links. Then the links, in the order every writer takes them, and every link, not only paused
+    ones, since one a sync is pausing doesn't read as paused until its lock is granted. Each is read
+    again once locked
 
     Returns:
         The links, as the writes before this left them
     """
+    live_connections = select(BankAccountLink.connection_id).where(BankAccountLink.account_id.in_(account_ids), LIVE_LINK)
+    await db.execute(
+        select(BankConnection.id).where(BankConnection.id.in_(live_connections)).order_by(BankConnection.id).with_for_update(key_share=True)
+    )
     links = await db.scalars(
         select(BankAccountLink)
         .where(BankAccountLink.account_id.in_(account_ids))

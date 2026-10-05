@@ -304,12 +304,14 @@ async def _dismiss_items(session: AsyncSession, item_ids: Collection[uuid.UUID])
     )
 
 
-async def _commit_paused_link(account_id: str | uuid.UUID) -> BankAccountLink:
-    """Commit the account's link on a new SimpleFIN connection, paused for review, its import long ended and its next sync set for tomorrow"""
+async def _commit_paused_link(account_id: str | uuid.UUID, **values) -> BankAccountLink:
+    """Commit the account's link on a new SimpleFIN connection, paused for review, its import long ended unless values say otherwise and its next sync set for tomorrow"""
     async with TestSession() as session:
         account = await session.get_one(Account, uuid.UUID(str(account_id)))
     connection = await _commit_listed_connection(account.owner_id)
-    link = _build_bank_link(account, connection, paused=True, importing=False, next_attempt_at=datetime.now(UTC) + timedelta(days=1))
+    link = _build_bank_link(
+        account, connection, **{"paused": True, "importing": False, "next_attempt_at": datetime.now(UTC) + timedelta(days=1)} | values
+    )
     async with TestSession() as session:
         session.add(link)
         await session.commit()

@@ -4,7 +4,7 @@ A dismissed item keeps only its identity and the dismissal, enough to stay dismi
 sends it again, so the bank's values are cleared. A double-clicked Dismiss dismisses it once, and
 only the user's own items on their own personal accounts can be dismissed. A dismissal that leaves
 50 or fewer new items waiting resumes the account's paused sync at once, and one that took the item
-before the link could deadlock with a sync storing it
+before the link, or the link before the connection, could deadlock with a sync storing it
 """
 
 import asyncio
@@ -14,7 +14,7 @@ import pytest
 from sqlalchemy import func, select
 
 from app.models.account import Account
-from app.models.bank_connection import BankAccountLink, BankProvider
+from app.models.bank_connection import BankAccountLink, BankConnection, BankProvider
 from app.models.bank_transaction import OBSERVATION_COLUMNS, BankTransaction, BankTransactionDisposition, OpenReviewKind
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
@@ -184,3 +184,29 @@ async def test_a_dismissal_waits_for_a_sync_holding_the_link_before_locking_the_
 
     assert dismissed.status_code == 204, dismissed.text
     assert (await _stored_item(item_id)).disposition == BankTransactionDisposition.DISMISSED
+
+
+async def test_a_dismissal_that_queues_a_sync_waits_for_a_sync_holding_the_connection_before_locking_the_link(client):
+    """Everyday keeps its pause through a reconnect import, and the import's write holds the connection, as it does before the links
+
+    Dismissing HARBOUR COFFEE 0412 leaves 50, so the dismissal queues a sync, which needs the
+    connection: it waits for the write without holding the link, so the write can still lock it
+    rather than the two waiting on each other, then lifts the pause
+    """
+    headers, _ = await _sign_up(client)
+    account_id = await _new_account(client, headers, "Everyday")
+    link = await _commit_paused_link(account_id, importing=True)
+    item_id = await _commit_review_item(account_id)
+    await _commit_waiting_items(link, 50)
+
+    async with asyncio.timeout(10), TestSession() as syncing:
+        await syncing.execute(select(BankConnection.id).where(BankConnection.id == link.connection_id).with_for_update())
+        syncing_pid = await syncing.scalar(select(func.pg_backend_pid()))
+        dismissing = asyncio.create_task(_dismiss(client, headers, item_id))
+        await _wait_until_waiting_on(syncing_pid, dismissing)
+        await syncing.execute(select(BankAccountLink.id).where(BankAccountLink.id == link.id).with_for_update(nowait=True))
+        await syncing.commit()
+        dismissed = await dismissing
+
+    assert dismissed.status_code == 204, dismissed.text
+    assert await _pause_state(link) == (False, True, ["scheduled"])

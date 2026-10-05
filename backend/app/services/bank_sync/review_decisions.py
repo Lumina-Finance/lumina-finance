@@ -5,7 +5,8 @@ exists without the other. Each action locks the bank transaction before deciding
 submission or any other write to the item queues behind it and then finds the item as that write
 left it. A repeated action answers as the first did without writing again. A decision that leaves
 50 or fewer new items waiting lifts the account's review pause and queues its sync, so each action
-locks the account's links first, the order every writer takes links and bank transactions in
+first locks the connection that sync would need, then the account's links, the order every writer
+takes connections, links and bank transactions in
 """
 
 import uuid
@@ -116,10 +117,10 @@ async def dismiss_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) 
 
 
 async def _lock_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) -> tuple[BankTransaction, Account]:
-    """Lock one of the user's bank transactions on their own personal accounts, after its account's links, and return it with its account
+    """Lock one of the user's bank transactions on their own personal accounts, after its account's connection and links, and return it with its account
 
-    The links come first, as every writer takes them, since the decision may lift the account's
-    review pause. An item's account never changes, so it is read before anything is locked. A
+    The connection and links come first, as every writer takes them, since the decision may lift
+    the account's review pause and queue its sync. An item's account never changes, so it is read before anything is locked. A
     request that waited on a lock reads the item as the write before it left it. The account itself
     isn't locked, so it stays free for the requests that lock it
 
