@@ -154,8 +154,8 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
 
             {/* A body per field, so the note under an edited value shares its tint and border */}
             {COMPARED_FIELDS.map(([field, label]) => {
-              const isChanged = !isRemoval && item.changed_fields.includes(field)
-              const isEdited = isChanged && item.protected_fields.some((edited) => edited === field)
+              const isChanged = item.changed_fields.includes(field)
+              const isEdited = item.protected_fields.some((edited) => edited === field)
               const valueClassName = `${CELL_CLASS_NAME} pt-2.5 ${isEdited ? 'pb-1' : 'pb-2.5'} break-words ${field === 'amount' ? 'font-financial tabular-nums' : ''}`
 
               return (
