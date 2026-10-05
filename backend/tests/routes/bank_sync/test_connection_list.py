@@ -15,6 +15,7 @@ from sqlalchemy import update
 from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankLinkState, BankProviderRequest
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobStatus
+from app.services.bank_sync import availability
 from tests.conftest import TestSession
 from tests.routes.support import _create_account
 from tests.routes.support.bank_sync_helpers import (
@@ -224,6 +225,37 @@ async def test_connections_list_flags_a_bank_sign_in_and_a_link_to_choose_again_
         ),
         ([("ACT-chequing", False)], []),
         ([("ACT-joint", False)], []),
+    ]
+
+
+async def test_connections_list_offers_no_account_at_a_new_institution_once_the_institution_limit_is_reached(client, monkeypatch):
+    """A reached limit leaves a bank account at a new institution offering no account
+
+    With a limit of one institution and Harbour Bank linked, a free Harbour bank account still offers
+    Everyday, and one at Lakeshore offers nothing, which settings shows as over the limit
+    """
+    monkeypatch.setattr(availability, "get_institution_limit", lambda _user_id, _provider: 1)
+    headers, user_id = await _sign_up(client)
+    everyday_id = await _create_usd_account(client, headers, "Everyday")
+    savings_id = await _create_usd_account(client, headers, "Savings")
+    connection = await _commit_bank_connection(user_id, created_at=datetime.now(UTC))
+    async with TestSession() as session:
+        listed = [_build_external_account(connection, external_id) for external_id in ("ACT-chequing", "ACT-visa", "ACT-lake")]
+        for bank_account in listed:
+            bank_account.currency = "USD"
+        listed[2].institution_key, listed[2].institution_name = "lakeshore", "Lakeshore Credit Union"
+        session.add_all(listed)
+        await session.flush()
+        session.add(_build_bank_link(await session.get(Account, savings_id), connection, "ACT-chequing"))
+        await session.commit()
+
+    response = await client.get("/bank-sync/connections", headers=headers)
+
+    assert response.status_code == 200, response.text
+    assert [(account["external_id"], account["eligible_account_ids"]) for account in response.json()[0]["accounts"]] == [
+        ("ACT-chequing", []),
+        ("ACT-visa", [str(everyday_id)]),
+        ("ACT-lake", []),
     ]
 
 
