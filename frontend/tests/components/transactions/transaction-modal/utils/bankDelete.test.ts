@@ -35,4 +35,18 @@ describe('deleting a bank-imported transaction from its linked account', () => {
 
     expect(refusal).toBeNull()
   })
+
+  it('leaves a new transaction alone', () => {
+    expect(getBankDeleteRefusal({ transaction: undefined, sourceAccount: undefined, linksByAccount: LINKS })).toBeNull()
+  })
+
+  it('leaves the refusal to the server while its account is missing from the account list', () => {
+    const refusal = getBankDeleteRefusal({
+      transaction: createTransaction({ account_id: EVERYDAY.id, bank_source: BANK_SOURCE }),
+      sourceAccount: undefined,
+      linksByAccount: LINKS,
+    })
+
+    expect(refusal).toBeNull()
+  })
 })
