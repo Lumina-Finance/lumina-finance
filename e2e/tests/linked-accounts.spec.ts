@@ -25,8 +25,10 @@ const MOVE_REFUSAL = "Transactions from SimpleFIN can't move out of Everyday whi
 const ARCHIVE_LINKED_REASON = "This account can't be archived while it's linked to SimpleFIN. Unlink it first."
 const DELETE_LINKED_REASON = 'Imported from SimpleFIN. While Everyday is linked, edit it rather than deleting it.'
 
-// How far the pointer moves down Delete to see its reason follow, inside the button's 40px height. A
-// move sideways can leave the reason pinned to the screen's edge, since it sits left of the cursor
+// Where the pointer first rests on Delete, measured in from the button's top-left corner, and how far
+// it then moves down to see the reason follow, staying inside the button's 40px height. A move
+// sideways can leave the reason pinned to the screen's edge, since it sits left of the cursor
+const POINTER_INSET_PX = 10
 const POINTER_STEP_PX = 20
 
 // The layout puts Date, Currency and Amount side by side from this width
@@ -388,22 +390,23 @@ test('greys out Delete on a bank transaction with its reason while the account i
   await expect(remove).toHaveAttribute('aria-disabled', 'true')
   await expect(remove).toHaveAccessibleDescription(DELETE_LINKED_REASON)
 
-  // Pointing at Delete shows the reason, which follows the cursor down the button
+  // Pointing at Delete shows the reason, which follows the cursor down the button. Hovering waits for
+  // Delete to stop moving, so the pointer lands where it is aimed once the modal has grown in
   const reason = page.getByText(DELETE_LINKED_REASON).filter({ visible: true })
-  const button = await getBox(remove)
-  const pointerX = button.x + button.width / 2
-  await page.mouse.move(pointerX, button.y + 10)
+  await remove.hover({ position: { x: POINTER_INSET_PX, y: POINTER_INSET_PX } })
   await expect.poll(() => readTooltipOpacity(reason)).toBe('1')
   const shownAt = await getBox(reason)
-  await page.mouse.move(pointerX, button.y + 10 + POINTER_STEP_PX)
+  await remove.hover({ position: { x: POINTER_INSET_PX, y: POINTER_INSET_PX + POINTER_STEP_PX } })
   await expect.poll(async () => Math.round((await getBox(reason)).y - shownAt.y)).toBe(POINTER_STEP_PX)
 
-  // Pressing it neither asks to confirm nor deletes. Forced, because the button is marked unavailable
-  // and pressing it anyway is what is checked
+  // Pressed twice, since the first press of a free Delete only asks to confirm and the second is the
+  // one that sends. Forced, because the button is marked unavailable and pressing it anyway is what is
+  // checked
   await remove.click({ force: true })
-  await expect(remove).toHaveAccessibleName('Delete')
+  await remove.click({ force: true })
   await expect(dialog).toBeVisible()
   expect(deletesSent).toEqual([])
+  await expect(remove).toHaveAccessibleName('Delete')
 
   // The app keeps what it last read across a reload, so this load starts without that copy and reads
   // the list afresh, as it does once unlinking refreshes it
