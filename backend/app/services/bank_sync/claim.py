@@ -81,6 +81,9 @@ async def claim_connection(db: AsyncSession, user: User, request: CreateBankConn
 
     if not await run_discovery(db, connection, adapter, now=now):
         await enqueue_bank_sync_job(db, owner_id=user.id, connection_id=connection.id, kind=BankSyncJobKind.RETRY, discover=True)
+
+    # Again, for the bank accounts the discovery stored after the first mark was committed
+    await mark_user_cache_changed(db, user.id)
     await db.commit()
 
     # Loads the times the database set, which the response states
@@ -130,9 +133,10 @@ async def reconnect_connection(
 
     # Checked again under a lock, since nothing is locked while the provider answers: a second
     # reconnect sent at the same time finds the first one's credential working, and a connection
-    # disconnected meanwhile is not found
+    # disconnected meanwhile is not found. Locked for update, as counting the listing locks it
+    # next, so the cache row marked below is still the last row this transaction locks
     now = datetime.now(UTC)
-    connection = await get_own_connection(db, user.id, connection_id, lock={"key_share": True})
+    connection = await get_own_connection(db, user.id, connection_id, lock={})
     _refuse_working(connection)
     _store_credential(connection, adapter, credential)
     connection.credential_rejected_at = None
@@ -146,6 +150,9 @@ async def reconnect_connection(
     resumed, choose_again = await _resume_links(db, connection)
     if not listed or resumed:
         await enqueue_bank_sync_job(db, owner_id=user.id, connection_id=connection.id, kind=BankSyncJobKind.INITIAL, discover=not listed)
+
+    # Again, for what the discovery and the links' restart wrote, with the cache row locked last
+    await mark_user_cache_changed(db, user.id)
     await db.commit()
     return ReconnectBankConnectionResponse(
         connection=(await build_connection_responses(db, user.id, [connection]))[0],
@@ -193,16 +200,18 @@ async def _resume_links(db: AsyncSession, connection: BankConnection) -> tuple[l
 
     An active link catches up from its checkpoint as a reconnect import, with a new retry series.
     A link waiting in Choose bank account drops a bank sign-in it was also waiting on, since that
-    belonged to the bank account as it was listed before. The connection is locked, so the links
-    are locked after it, the order a disconnect takes them in
+    belonged to the bank account as it was listed before. The links are locked in id order after
+    the connection, the order a disconnect takes them in, and before the job and the cache row,
+    so an unlink, which locks its link and then the cache row, can't deadlock with the reconnect
 
     Returns:
-        The accounts that resume, and the ones whose bank account must be chosen again
+        The accounts that resume, and the ones whose bank account must be chosen again, each in
+        account id order
     """
     links = await db.scalars(
         select(BankAccountLink)
         .where(BankAccountLink.connection_id == connection.id, BankAccountLink.state != BankLinkState.UNLINKED)
-        .order_by(BankAccountLink.account_id)
+        .order_by(BankAccountLink.id)
         .with_for_update()
         .execution_options(populate_existing=True)
     )
@@ -216,4 +225,4 @@ async def _resume_links(db: AsyncSession, connection: BankConnection) -> tuple[l
         else:
             link.signin_needed_since = None
             choose_again.append(link.account_id)
-    return resumed, choose_again
+    return sorted(resumed), sorted(choose_again)

@@ -32,7 +32,6 @@ from app.services.bank_sync.provider_requests import (
     reserve_provider_request,
 )
 from app.services.bank_sync.providers.contract import ExternalAccount, FetchResult, ProviderAdapter
-from app.services.cache_state.updates import mark_user_cache_changed
 from app.services.fx.currency_exponent_helpers import get_all_currency_exponents
 
 # The stored fields a discovery refreshes on a bank account it lists again
@@ -56,7 +55,8 @@ async def run_discovery(db: AsyncSession, connection: BankConnection, adapter: P
     The request is counted and committed before it is sent, together with whatever the request
     wrote before, such as a newly claimed credential, which has to be kept once its token is spent.
     No transaction stays open while the provider answers. The connection is locked again before
-    anything is stored and stays locked until the caller commits
+    anything is stored and stays locked until the caller commits. The caller marks the user's cache
+    changed once it has written everything else, as apply_discovery leaves it to
 
     Args:
         db: The request's session
@@ -95,7 +95,8 @@ async def apply_discovery(db: AsyncSession, connection: BankConnection, result: 
     Choose bank account only when nothing in the response could explain the gap, and one listed in
     a currency other than its account's moves too, since its amounts would be read at the wrong
     precision. A link waiting there returns to active when its bank account is listed again in
-    the account's currency. The caller commits
+    the account's currency. The caller marks the user's cache changed and commits, since the cache
+    row comes after the links and any job the caller queues in the order requests lock rows in
 
     Args:
         db: Session of the connection's owner
@@ -114,7 +115,6 @@ async def apply_discovery(db: AsyncSession, connection: BankConnection, result: 
         vanished = await _mark_vanished(db, connection, result)
         await _move_links(db, connection, result.accounts, vanished)
         connection.discovered_at = now
-    await mark_user_cache_changed(db, connection.owner_id)
     await db.flush()
 
 
@@ -187,7 +187,11 @@ async def _mark_vanished(db: AsyncSession, connection: BankConnection, result: F
 
 
 async def _move_links(db: AsyncSession, connection: BankConnection, accounts: Sequence[ExternalAccount], vanished: set[str]) -> None:
-    """Move the connection's live links between active and Choose bank account as the discovery found them"""
+    """Move the connection's live links between active and Choose bank account as the discovery found them
+
+    The links are locked in id order and read again, so a link unlinked meanwhile is left alone.
+    They are locked after the bank accounts, the order a link being made takes them in
+    """
     listed = {account.external_id: account for account in accounts}
     links = await db.execute(
         select(BankAccountLink, Account.currency)
@@ -196,6 +200,8 @@ async def _move_links(db: AsyncSession, connection: BankConnection, accounts: Se
             BankAccountLink.connection_id == connection.id,
             BankAccountLink.state.in_((BankLinkState.ACTIVE, BankLinkState.CHOOSE_ACCOUNT)),
         )
+        .order_by(BankAccountLink.id)
+        .with_for_update(of=BankAccountLink)
         .execution_options(populate_existing=True)
     )
     for link, account_currency in links:

@@ -16,11 +16,19 @@ from sqlalchemy import func, select, update
 
 from app.encryption import decrypt
 from app.models.account import Account
-from app.models.bank_connection import BankAccountLink, BankConnection, BankProvider, BankProviderRequest, BankSigninNotice
+from app.models.bank_connection import (
+    BankAccountLink,
+    BankConnection,
+    BankLinkState,
+    BankProvider,
+    BankProviderRequest,
+    BankSigninNotice,
+)
 from app.models.bank_sync_job import BankSyncJob
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
 from app.schemas.bank_sync import ReconnectBankConnectionRequest
 from app.services.bank_sync import availability
+from app.services.cache_state.updates import mark_user_cache_changed
 from tests.conftest import TestSession
 from tests.fake_simplefin_bridge import FakeBridgeTransport
 from tests.routes.support.bank_sync_helpers import (
@@ -32,6 +40,7 @@ from tests.routes.support.bank_sync_helpers import (
     _new_account,
     _sign_up,
 )
+from tests.routes.support.lock_helpers import _wait_until_waiting_on
 from tests.services.bank_sync.stand_ins import AccountsTimeOut, FakeBridgeScenario, simplefin_adapter
 
 _WORKING = "This connection is working, so it needs no new setup token"
@@ -411,6 +420,41 @@ async def test_reconnect_sent_while_another_is_claiming_keeps_the_first_credenti
     assert refused.status_code == 409, refused.text
     assert refused.json()["detail"] == _WORKING
     assert (await _stored_connection(connection_id)).credential_encrypted == stored
+
+
+@pytest.mark.parametrize("everyday_listed_as", ["ACT-chequing", "ACT-chequing-2"], ids=["unchanged", "under-a-new-id"])
+async def test_reconnect_storing_its_listing_while_an_account_is_unlinked_waits_and_resumes_the_others(
+    client, scenario: FakeBridgeScenario, monkeypatch, everyday_listed_as
+):
+    """Everyday is unlinked as the listing comes back, so the reconnect waits for the unlink and resumes Savings alone
+
+    An unlink locks its link and then the cache row, so the reconnect has to lock the links before
+    the cache row, and read Everyday's link again rather than move a link already unlinked
+    """
+    headers, everyday_id, savings_id, connection_id = await _rejected_with_two_links(client, scenario)
+    if everyday_listed_as != "ACT-chequing":
+        await scenario.change("PATCH", "/accounts/ACT-chequing", {"id": everyday_listed_as})
+    paused = _PausedBridge("/accounts")
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, simplefin_adapter(paused))
+
+    async with asyncio.timeout(10):
+        reconnecting = asyncio.create_task(_reconnect(client, headers, connection_id, await scenario.new_setup_token()))
+        await paused.reached.wait()
+        async with TestSession() as unlinking:
+            link = await unlinking.scalar(select(BankAccountLink).where(BankAccountLink.account_id == uuid.UUID(everyday_id)).with_for_update())
+            link.state = BankLinkState.UNLINKED
+            link.unlinked_at = datetime.now(UTC)
+            await unlinking.flush()
+            unlinking_pid = await unlinking.scalar(select(func.pg_backend_pid()))
+            paused.release.set()
+            await _wait_until_waiting_on(unlinking_pid, reconnecting)
+            await mark_user_cache_changed(unlinking, link.owner_id)
+            await unlinking.commit()
+        response = await reconnecting
+
+    assert response.status_code == 200, response.text
+    assert (response.json()["resumed_account_ids"], response.json()["choose_again_account_ids"]) == ([savings_id], [])
+    assert (await _links())[everyday_id][1] == "unlinked"
 
 
 @pytest.mark.parametrize("marker", ["/claim/", "/accounts"], ids=["during-the-claim", "during-the-listing"])
