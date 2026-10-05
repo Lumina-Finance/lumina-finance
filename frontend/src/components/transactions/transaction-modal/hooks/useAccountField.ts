@@ -9,6 +9,9 @@ import type { TransactionFormValues } from '@/components/transactions/transactio
 
 interface UseAccountFieldOptions {
   accounts: AccountsOverview[]
+
+  /** The accounts a transfer may name as its other side, before archived ones and its own are left out */
+  counterpartyAccounts: AccountsOverview[]
   selectableAccounts: AccountsOverview[]
   editing: boolean
   selectedAccount: AccountsOverview | undefined
@@ -34,6 +37,7 @@ interface AccountFieldState {
  */
 export function useAccountField({
   accounts,
+  counterpartyAccounts,
   selectableAccounts,
   editing,
   selectedAccount,
@@ -47,8 +51,8 @@ export function useAccountField({
     [selectableAccounts, editing, form.currency],
   )
   const counterpartyAccountOptions = useMemo(
-    () => buildCounterpartyAccountOptions(accounts, form.account_id, form.symmetric_transfer),
-    [accounts, form.account_id, form.symmetric_transfer],
+    () => buildCounterpartyAccountOptions(counterpartyAccounts, form.account_id, form.symmetric_transfer),
+    [counterpartyAccounts, form.account_id, form.symmetric_transfer],
   )
   const selectedArchivedAccountOption = editing && selectedAccount?.is_archived
     ? { value: selectedAccount.id, label: selectedAccount.name }

@@ -12,6 +12,7 @@ import { formatCurrencySymbol } from '@/utils/formatCurrency'
 import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent } from '@/utils/moneyInput'
 import { useAuth } from '@/hooks/useAuth'
 import { getTodayYmd } from '@/utils/date'
+import { isOwnPersonalAccount } from '@/pages/transactions/utils/bankReview'
 import {
   KIND_LABELS,
   REVIEW_SWAP_EASE,
@@ -256,8 +257,16 @@ export default function CreateTransactionModal({
     closeModal: tagModal.closeModal,
   })
 
+  // A bank item's transfer can only name one of the user's own personal accounts, the only kind the
+  // server takes, so any other is left off the list rather than refused once the form is filled in
+  const counterpartyAccounts = useMemo(
+    () => (reviewItem ? accounts.filter((account) => user !== null && isOwnPersonalAccount(account, user.id)) : accounts),
+    [reviewItem, accounts, user],
+  )
+
   const accountField = useAccountField({
     accounts,
+    counterpartyAccounts,
     selectableAccounts,
     editing,
     selectedAccount,

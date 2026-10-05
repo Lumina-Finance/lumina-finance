@@ -1,6 +1,13 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
-import { createAccount, signUpUser, TEST_CURRENCY, type SeededAccount } from '../support/api'
+import {
+  createAccount,
+  createGroup,
+  signUpUser,
+  TEST_CURRENCY,
+  type SeededAccount,
+  type TestUser,
+} from '../support/api'
 import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
 import {
   answerLinksWith,
@@ -24,7 +31,7 @@ import { API_BASE_URL } from '../support/target'
 // The link list isn't served yet, so it is answered with a link for Everyday, which also puts the days
 // its bank supplies off limits to a manual entry
 
-type Accounts = { everyday: SeededAccount; savings: SeededAccount }
+type Accounts = { user: TestUser; everyday: SeededAccount; savings: SeededAccount }
 
 /** A decision sent on an item, with what it carried */
 type Decision = { itemId: string; action: string; body: Record<string, unknown> | null }
@@ -56,7 +63,7 @@ async function start(page: Page, request: APIRequestContext): Promise<Accounts> 
   const savings = await createAccount(request, user, { name: 'Savings', accountType: 'savings' })
   await answerLinksWith(page, () => [everyday.id])
   await logInViaApi(page, user)
-  return { everyday, savings }
+  return { user, everyday, savings }
 }
 
 /** The bank's $42.10 grocery spend on Sep 21, sent with no merchant or category */
@@ -257,9 +264,13 @@ test('adds an item with its amount changed, and with the window kept open goes o
   await expectTransactionRow(page, review.created[0], `${MINUS}$40.00`)
 })
 
-test('records money in from Savings as one transfer that names Savings, kept as money in', async ({ page, request }) => {
-  const { everyday, savings } = await start(page, request)
-  const review = await answerReview(page, [reviewItem('savings', 'new', everyday.id, { description: 'TFR FROM SAVINGS', amount: 50000 })])
+test('records money in from Savings as one transfer that names Savings, kept as money in, and closes with the window not kept open', async ({ page, request }) => {
+  const { user, everyday, savings } = await start(page, request)
+  await createAccount(request, user, { name: 'Household', groupId: await createGroup(request, user, 'Family') })
+  const review = await answerReview(page, [
+    reviewItem('savings', 'new', everyday.id, { description: 'TFR FROM SAVINGS', amount: 50000 }),
+    reviewItem('harbour', 'new', everyday.id, { description: 'HARBOUR COFFEE' }),
+  ])
   await openPage(page, '/transactions')
 
   const dialog = await openReview(page, 'TFR FROM SAVINGS')
@@ -275,7 +286,12 @@ test('records money in from Savings as one transfer that names Savings, kept as 
 
   // The bank recorded one side only, so recording the other is left to Savings' own bank
   await expect(dialog.getByRole('checkbox', { name: /Record in both accounts/ })).toHaveCount(0)
-  await chooseFromDropdown(dialog, 'Money came from', 'Savings')
+
+  // A bank item's transfer names one of the user's own accounts, which a group account isn't
+  await counterparty.click()
+  await expect(dialog.getByRole('option', { name: 'Savings' })).toBeVisible()
+  await expect(dialog.getByRole('option', { name: 'Household' })).toHaveCount(0)
+  await dialog.getByRole('option', { name: 'Savings' }).click()
   await chooseFromDropdown(dialog, 'Merchant', 'Unknown')
   await form.add.click()
 
@@ -287,7 +303,9 @@ test('records money in from Savings as one transfer that names Savings, kept as 
   }])
   await expect(page.getByTestId(`transaction-row-${review.created[0]}`)).toContainText('Savings')
   await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(1)
-  await expect(reviewBlock(page)).toBeHidden()
+  const rows = reviewBlock(page).getByRole('listitem')
+  await expect(rows).toHaveCount(1)
+  await expect(rows.first()).toContainText('HARBOUR COFFEE')
 })
 
 test('dismisses an item without reading the ledger again, and closes when the window is not kept open', async ({ page, request }) => {
