@@ -93,6 +93,8 @@ jobs:
         env:
           E2E_BASE_URL: http://localhost:8080
           E2E_MAIL_API_URL: http://127.0.0.1:8025
+          # Where the bank specs set up the fake SimpleFIN Bridge the stack syncs with
+          E2E_FAKE_SIMPLEFIN_BRIDGE_URL: http://localhost:8790
         run: npm test -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.project == 'desktop' && 4 || 1 }}
 
       # The report shows only what the browser saw, so a failed request is explained by the app's own log
