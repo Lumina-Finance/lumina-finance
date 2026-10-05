@@ -28,6 +28,7 @@ import {
   fetchImportRange,
   fetchOpeningAdjustment,
   fetchPendingBankTransactions,
+  fetchReviewBacklogs,
   fetchReviewPage,
   fetchReviewPreferences,
   reconnectBankConnection,
@@ -209,16 +210,30 @@ export function useReviewPreferences(accountId: string) {
 }
 
 /**
- * Reads the review inbox a page at a time, newest first, for one account or for all of them
+ * Reads the review inbox a page at a time, newest first, for some accounts or for all of them
  */
-export function useReviewItems(accountId?: string) {
+export function useReviewItems(accountIds: string[] | undefined, enabled = true) {
   const { accessToken } = useAuth();
   return useInfiniteQuery({
-    queryKey: bankSyncKeys.reviewItems(accountId),
-    queryFn: ({ pageParam }) => fetchReviewPage({ accountId, cursor: pageParam }),
+    queryKey: bankSyncKeys.reviewItems(accountIds),
+    queryFn: ({ pageParam }) => fetchReviewPage({ accountIds, cursor: pageParam }),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.next_cursor,
-    enabled: !!accessToken,
+    enabled: !!accessToken && enabled,
+    staleTime: BANK_DATA_STALE_TIME_MS,
+  });
+}
+
+/**
+ * Reads how many new items wait on each account, and whether its sync is paused or warned for
+ * them, for some accounts or for all of them
+ */
+export function useReviewBacklogs(accountIds: string[] | undefined, enabled = true) {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: bankSyncKeys.reviewBacklogs(accountIds),
+    queryFn: () => fetchReviewBacklogs(accountIds),
+    enabled: !!accessToken && enabled,
     staleTime: BANK_DATA_STALE_TIME_MS,
   });
 }

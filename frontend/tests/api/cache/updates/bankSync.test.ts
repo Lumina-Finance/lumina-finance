@@ -6,7 +6,8 @@
  * taken for every link appearing at once, a sync that
  * brought in data leaving the review inbox, pending rows, transaction lists or the account's balance
  * stale, a decided item staying in a later page or its count, an item leaving the inbox before its
- * transaction shows in the list, a decision that left the ledger alone reloading it, a link change
+ * transaction shows in the list or the backlog notice counts it out, a decision that left the ledger
+ * alone reloading it or leaving the backlogs stale, a link change
  * settling before the views that show it have refetched, and a deleted account's items lingering in
  * a cached bulk approval preview
  */
@@ -23,7 +24,7 @@ import {
   removeReviewItemsFromPages,
 } from '@/api/cache/updates/bankSync';
 import type { Transaction } from '@/api/transactions/types';
-import { createBankLink, createBankTransaction, createReviewItem } from './fixtures';
+import { createBacklog, createBankLink, createBankTransaction, createReviewItem } from './fixtures';
 
 type CachedReviewPages = InfiniteData<BankReviewPage, string | null>;
 
@@ -45,8 +46,10 @@ const statusKeys: QueryKey[] = [
   bankSyncKeys.connections(),
   bankSyncKeys.providers(),
 ];
+const backlogKey = bankSyncKeys.reviewBacklogs(undefined);
 const reviewKeys: QueryKey[] = [
   bankSyncKeys.reviewItems(undefined),
+  backlogKey,
   bankSyncKeys.pending('account-1'),
   bankSyncKeys.bulkPreview(undefined),
 ];
@@ -200,6 +203,15 @@ describe('decided review items', () => {
 
     expect(queryClient.getQueryData(reviewKey)).toBe(cached);
   });
+
+  it('leave the cached backlogs, which hold no pages, as they were', () => {
+    const backlogs = [createBacklog()];
+    queryClient.setQueryData(backlogKey, backlogs);
+
+    removeReviewItemsFromPages(queryClient, (item) => item.id === 'item-1');
+
+    expect(queryClient.getQueryData(backlogKey)).toBe(backlogs);
+  });
 });
 
 describe('a review decision that wrote to the ledger', () => {
@@ -208,9 +220,10 @@ describe('a review decision that wrote to the ledger', () => {
     seedReviewPages();
   });
 
-  it('takes the item out of the inbox only once the transaction list has refetched', async () => {
+  it('takes the item out of the inbox only once the transaction list and the backlogs have refetched', async () => {
     const answerTransactions = observeWithHeldRead(transactionKeys.list({ account_id: 'account-1' }), []);
     const answerLinks = observeWithHeldRead(bankSyncKeys.links(), [createBankLink()]);
+    const answerBacklogs = observeWithHeldRead(backlogKey, [createBacklog()]);
 
     const done = applyLedgerReviewOutcome(queryClient, ['account-1'], (item) => item.id === 'item-1');
     await settle();
@@ -219,6 +232,12 @@ describe('a review decision that wrote to the ledger', () => {
 
     answerTransactions();
     answerLinks();
+    await settle();
+
+    // The backlog notice would otherwise count an item the block no longer shows
+    expect(reviewItemIds()).toContain('item-1');
+
+    answerBacklogs();
     await done;
 
     expect(reviewItemIds()).toEqual(['item-2', 'item-3', 'item-4']);
@@ -234,6 +253,7 @@ describe('a review decision that left the ledger alone', () => {
   beforeEach(() => {
     seedReviewPages();
     queryClient.setQueryData(bankSyncKeys.links(), [createBankLink()]);
+    queryClient.setQueryData(backlogKey, [createBacklog()]);
     queryClient.setQueryData(bankSyncKeys.bulkPreview(undefined), {});
     for (const key of statusKeys) queryClient.setQueryData(key, {});
     queryClient.setQueryData(transactionKeys.list({}), [waiting]);
@@ -244,7 +264,7 @@ describe('a review decision that left the ledger alone', () => {
 
     expect(queryClient.getQueryData<Transaction[]>(transactionKeys.list({}))).toEqual([kept]);
     expect(reviewItemIds()).toEqual(['item-1', 'item-2', 'item-3']);
-    expectInvalidated([bankSyncKeys.links(), ...statusKeys, bankSyncKeys.bulkPreview(undefined)], true);
+    expectInvalidated([bankSyncKeys.links(), backlogKey, ...statusKeys, bankSyncKeys.bulkPreview(undefined)], true);
     expectInvalidated([transactionKeys.list({})], false);
   });
 

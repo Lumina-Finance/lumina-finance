@@ -1,4 +1,4 @@
-import type { BankLink, BankReviewItem, BankReviewItemKind } from '@/api/bank-sync/types';
+import type { BankLink, BankReviewBacklog, BankReviewItem, BankReviewItemKind } from '@/api/bank-sync/types';
 import type { Transaction } from '@/api/transactions/types';
 
 /**
@@ -31,6 +31,13 @@ export function createBankLink(overrides: Partial<BankLink> = {}): BankLink {
     balance: null,
     ...overrides,
   };
+}
+
+/**
+ * Builds account-1's review backlog with three new items waiting, neither paused nor warned
+ */
+export function createBacklog(): BankReviewBacklog {
+  return { account_id: 'account-1', waiting_new_count: 3, review_warning: false, paused: false };
 }
 
 /**

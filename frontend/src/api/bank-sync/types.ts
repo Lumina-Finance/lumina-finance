@@ -426,6 +426,12 @@ export type BankReviewItem = {
 export type BankReviewCounts = Record<BankReviewItemKind, number>;
 
 /**
+ * One account's new items waiting for review, and whether its sync is paused or warned for them,
+ * which the review block's notice reads
+ */
+export type BankReviewBacklog = Pick<BankLink, 'account_id' | 'waiting_new_count' | 'review_warning' | 'paused'>;
+
+/**
  * One page of the review inbox, newest first
  */
 export type BankReviewPage = {

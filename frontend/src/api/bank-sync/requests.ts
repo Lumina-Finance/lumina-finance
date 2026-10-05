@@ -9,6 +9,7 @@ import type {
   BankLink,
   BankProviderId,
   BankProvidersResponse,
+  BankReviewBacklog,
   BankReviewPage,
   BulkApprovalPayload,
   BulkApprovalPreview,
@@ -157,14 +158,21 @@ export function updateReviewPreferences({ accountId, preferences }: { accountId:
 }
 
 /**
- * Fetches one page of the review inbox, newest first, for one account or for all of them
+ * Fetches one page of the review inbox, newest first, for some accounts or for all of them
  */
-export function fetchReviewPage({ accountId, cursor }: { accountId?: string; cursor?: string | null }) {
+export function fetchReviewPage({ accountIds, cursor }: { accountIds?: string[]; cursor?: string | null }) {
   return authenticatedFetch<BankReviewPage>('/bank-review/items' + buildQueryString({
-    account_id: accountId,
+    account_id: accountIds,
     cursor,
     limit: REVIEW_PAGE_SIZE,
   }));
+}
+
+/**
+ * Fetches each account's review backlog, for some accounts or for all of them
+ */
+export function fetchReviewBacklogs(accountIds?: string[]) {
+  return authenticatedFetch<BankReviewBacklog[]>('/bank-review/backlogs' + buildQueryString({ account_id: accountIds }));
 }
 
 /**

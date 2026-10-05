@@ -33,7 +33,7 @@ export function removeReviewItemsFromPages(
   queryClient: QueryClient,
   isDecided: (item: BankReviewItem) => boolean,
 ): void {
-  queryClient.setQueriesData<CachedReviewPages>({ queryKey: bankSyncKeys.reviewAll }, (data) => {
+  queryClient.setQueriesData<CachedReviewPages>({ queryKey: bankSyncKeys.reviewItemsAll }, (data) => {
     if (!data) return data;
 
     const removed: BankReviewCounts = { new: 0, correction: 0, removal: 0 };
@@ -146,11 +146,12 @@ export async function applyLedgerReviewOutcome(
 ): Promise<void> {
   invalidateFinancialTransactionData(queryClient, accountIds);
 
-  // The links carry the waiting counts the backlog notice reads, so they refetch alongside, keeping
-  // the notice in step with the block's count
+  // The links and the backlogs carry the waiting counts the sync status and the backlog notice read,
+  // so they refetch alongside, keeping the notice in step with the block's count
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: transactionKeys.all, refetchType: 'active' }),
     queryClient.invalidateQueries({ queryKey: bankSyncKeys.links(), exact: true, refetchType: 'active' }),
+    queryClient.invalidateQueries({ queryKey: bankSyncKeys.reviewBacklogsAll, refetchType: 'active' }),
   ]);
   removeReviewItemsFromPages(queryClient, isDecided);
   invalidateBankSyncStatus(queryClient);
@@ -172,7 +173,7 @@ export function applyReviewDecision(
   removeReviewItemsFromPages(queryClient, isDecided);
   invalidateBankLinks(queryClient);
   invalidateBankSyncStatus(queryClient);
-  invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.bulkPreviews }]);
+  invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.reviewBacklogsAll }, { queryKey: bankSyncKeys.bulkPreviews }]);
 }
 
 /**

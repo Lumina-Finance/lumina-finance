@@ -21,6 +21,7 @@ import {
   fetchDiscoveredBankAccounts,
   fetchImportRange,
   fetchPendingBankTransactions,
+  fetchReviewBacklogs,
   fetchReviewPage,
   reconnectBankConnection,
   resolveReviewItem,
@@ -33,11 +34,11 @@ beforeEach(() => {
 });
 
 describe('bank sync reads', () => {
-  it('reads one account review page from the cursor the last page gave, in pages of fifty', async () => {
-    await fetchReviewPage({ accountId: 'account-1', cursor: 'cursor-2' });
+  it('reads the review page of two accounts from the cursor the last page gave, in pages of fifty', async () => {
+    await fetchReviewPage({ accountIds: ['account-1', 'account-2'], cursor: 'cursor-2' });
 
     expect(authenticatedFetchMock).toHaveBeenCalledWith(
-      '/bank-review/items?account_id=account-1&cursor=cursor-2&limit=50',
+      '/bank-review/items?account_id=account-1&account_id=account-2&cursor=cursor-2&limit=50',
     );
   });
 
@@ -45,6 +46,16 @@ describe('bank sync reads', () => {
     await fetchReviewPage({ cursor: null });
 
     expect(authenticatedFetchMock).toHaveBeenCalledWith('/bank-review/items?limit=50');
+  });
+
+  it('reads the review backlogs of the accounts given, or of every account', async () => {
+    await fetchReviewBacklogs(['account-1', 'account-2']);
+    await fetchReviewBacklogs();
+
+    expect(authenticatedFetchMock.mock.calls).toEqual([
+      ['/bank-review/backlogs?account_id=account-1&account_id=account-2'],
+      ['/bank-review/backlogs'],
+    ]);
   });
 
   it('reads the bank accounts a connection returns relative to the account being linked', async () => {
