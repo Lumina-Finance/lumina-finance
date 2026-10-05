@@ -262,6 +262,17 @@ test('goes on to the accounts once the account whose item was reviewed on its pa
   await expect(getAccountRow(page, 'Everyday')).toHaveCount(0)
 })
 
+test('starts focus on keeping the current value when the comparison opens from the keyboard', async ({ page, request }) => {
+  const setup = await start(page, request)
+  await addWaiting(page, request, setup, 'correction', COUNTDOWN, { ledger: -4210, bank: -4510 })
+  await openPage(page, '/transactions')
+
+  await reviewBlock(page).getByRole('button', { name: COUNTDOWN }).focus()
+  await page.keyboard.press('Enter')
+  const dialog = page.getByRole('dialog', { name: 'Review bank change' })
+  await expect(dialog.getByRole('button', { name: 'Keep current value' })).toBeFocused()
+})
+
 for (const colorScheme of ['light', 'dark'] as const) {
   test(`compares an edited correction readably in the ${colorScheme} theme, without scrolling sideways`, async ({ page, request }) => {
     const setup = await start(page, request)

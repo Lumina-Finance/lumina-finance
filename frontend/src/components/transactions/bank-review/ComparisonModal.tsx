@@ -58,8 +58,9 @@ type BankComparisonModalProps = {
  * A correction tints each row the bank changed, and notes under a changed value the user had edited
  * that accepting replaces it, and under a value the user kept apart from the bank's that accepting
  * leaves it. A removal changes no value, so its bank column only says the bank no longer reports the
- * transaction. A decision closes the modal with its toast once the ledger and the review block show
- * it, and one that fails says why in the modal, leaving the item waiting
+ * transaction. Focus starts on the decision that keeps the ledger as it is. A decision closes the
+ * modal with its toast once the ledger and the review block show it, and one that fails says why in
+ * the modal, leaving the item waiting
  */
 export function BankComparisonModal({ open, item, currency, onClose }: BankComparisonModalProps) {
   const titleId = useId()
@@ -117,6 +118,7 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
           <ReviewDecisionButton
             label={keep.label}
             tone="secondary"
+            initialFocus
             loading={pendingResolution === keep.resolution}
             disabled={isLocked}
             onClick={() => decide(keep)}
