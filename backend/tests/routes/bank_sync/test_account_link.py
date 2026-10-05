@@ -12,18 +12,22 @@ import pytest
 from sqlalchemy import select, update
 
 from app.models.account import Account
-from app.models.bank_connection import BankAccountLink, BankConnection, BankImportKind, BankLinkState
+from app.models.bank_connection import BankAccountLink, BankImportKind, BankLinkState
+from app.models.bank_sync_job import BankSyncJobKind
 from app.services.bank_sync import account_link, import_range, links
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     _build_bank_link,
+    _commit_link,
     _commit_listed_connection,
     _commit_other_users_account,
     _commit_review_item,
+    _commit_running_job,
     _link,
     _new_account,
     _new_group_account,
     _sign_up,
+    _update_connection,
 )
 
 # Noon on October 5 in Toronto, the zone _sign_up stores
@@ -39,21 +43,6 @@ def _pinned_now(pin_clock):
 async def _read_status(client, headers, account_id):
     """Read an account's bank link through the route"""
     return await client.get(f"/accounts/{account_id}/bank-link", headers=headers)
-
-
-async def _commit_link(account_id: str, connection: BankConnection, external_account_id: str = "ACT-1", **values) -> None:
-    """Commit an active link from the account to a bank account on the connection, with any of its values replaced"""
-    async with TestSession() as session:
-        account = await session.get_one(Account, uuid.UUID(account_id))
-        session.add(_build_bank_link(account, connection, external_account_id, **values))
-        await session.commit()
-
-
-async def _update_connection(connection: BankConnection, **values) -> None:
-    """Commit new values on the connection"""
-    async with TestSession() as session:
-        await session.execute(update(BankConnection).where(BankConnection.id == connection.id).values(**values))
-        await session.commit()
 
 
 async def test_account_bank_link_shows_its_imports_progress(client):
@@ -103,6 +92,16 @@ async def test_account_bank_link_shows_its_imports_progress(client):
                 "items_found": 2,
                 "earliest_returned_date": "2026-06-02",
             },
+            "sync": {
+                "state": "importing",
+                "last_success_at": None,
+                "last_failure": None,
+                "next_attempt_at": None,
+                "waiting_on_budget": False,
+                "waiting_new_count": 3,
+                "paused": False,
+                "review_warning": False,
+            },
         },
         "previous_link": None,
     }
@@ -151,6 +150,20 @@ async def test_account_bank_link_import_reads_as_waiting_while_it_cant_fetch_now
 
     assert response.status_code == 200, response.text
     assert response.json()["link"]["import"]["state"] == state
+
+
+async def test_account_bank_link_import_reads_as_running_while_a_sync_fetches_its_retry(client):
+    """An import whose failed attempt is being retried runs while the retry fetches, though it still counts as a retry"""
+    headers, user_id = await _sign_up(client)
+    account_id = await _new_account(client, headers, "Everyday")
+    connection = await _commit_listed_connection(user_id, discovered_at=_NOW)
+    link = await _commit_link(account_id, connection, retry_count=1, next_attempt_at=_NOW - timedelta(minutes=1))
+    await _commit_running_job(connection, link, now=_NOW, kind=BankSyncJobKind.RETRY)
+
+    response = await _read_status(client, headers, account_id)
+
+    assert response.status_code == 200, response.text
+    assert (response.json()["link"]["import"]["state"], response.json()["link"]["sync"]["state"]) == ("running", "importing")
 
 
 async def test_account_bank_link_shows_no_progress_once_its_import_ends(client):

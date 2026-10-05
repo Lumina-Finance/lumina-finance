@@ -1,36 +1,37 @@
 """Reading an account's bank link for the account's page
 
-The page shows the live link with how far its import has got, or what the account was last linked
-to. Only the user's own personal accounts are linked, so any other account is refused as linking it is
+The page shows the live link with how far its import has got and its sync status, or what the account
+was last linked to. Only the user's own personal accounts are linked, so any other account is refused
+as linking it is
 """
 
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.bank_connection import BankAccountLink, BankConnection, BankImportKind, BankLinkState
+from app.models.bank_connection import BankAccountLink
 from app.models.bank_transaction import BankTransaction
 from app.models.user import User
 from app.schemas.bank_sync import (
-    AccountBankLinkResponse,
     AccountBankStatusResponse,
     BankImportProgressResponse,
     BankImportState,
+    BankLinkResponse,
     PreviousBankLinkResponse,
 )
 from app.services.accounts.access import get_own_personal_account
 from app.services.bank_sync.availability import LINK_NOT_OWN_DETAIL, LIVE_LINK, PROVIDER_ADAPTERS
-from app.services.bank_sync.provider_requests import read_request_budget
-from app.services.bank_sync.retries import is_waiting_to_retry
+from app.services.bank_sync.status import read_link_statuses
 from app.services.bank_sync.windows import LinkNeed, plan_window
 from app.utils.dates import resolve_timezone
 
 
 async def read_account_bank_status(db: AsyncSession, user: User, account_id: uuid.UUID) -> AccountBankStatusResponse:
-    """Return an account's live link with its import's progress, or what the account was last linked to
+    """Return an account's live link with its import's progress and sync status, or what the account was last linked to
 
     Args:
         db: Active database session
@@ -48,7 +49,8 @@ async def read_account_bank_status(db: AsyncSession, user: User, account_id: uui
     account = await get_own_personal_account(db, account_id, user.id, not_own_detail=LINK_NOT_OWN_DETAIL)
     link = await db.scalar(select(BankAccountLink).where(BankAccountLink.account_id == account.id, LIVE_LINK))
     if link is not None:
-        return AccountBankStatusResponse(account_id=account.id, link=await _describe_link(db, user, link), previous_link=None)
+        [described] = await _describe_links(db, user, [link], now=datetime.now(UTC))
+        return AccountBankStatusResponse(account_id=account.id, link=described, previous_link=None)
 
     # Every link left is unlinked, so each has the day it ended
     previous = await db.scalar(
@@ -69,45 +71,48 @@ async def read_account_bank_status(db: AsyncSession, user: User, account_id: uui
     )
 
 
-async def _describe_link(db: AsyncSession, user: User, link: BankAccountLink) -> AccountBankLinkResponse:
-    """Return a live link as the page shows it, with its import's progress while one runs from a recorded start
+async def _describe_links(db: AsyncSession, user: User, links: Sequence[BankAccountLink], *, now: datetime) -> list[BankLinkResponse]:
+    """Return live links as the app shows them, in the order given, with each import's progress while it shows one"""
+    statuses = await read_link_statuses(db, links, now=now)
+    importing = [link for link in links if statuses[link.id].import_state is not None]
+    items_found = await _count_items_found(db, importing)
+    timezone = resolve_timezone(user.tz) if importing else None
 
-    A link waiting for its bank account to be chosen again doesn't sync, so it has no progress to show
-    """
-    importing = link.importing and link.state == BankLinkState.ACTIVE and link.import_kind != BankImportKind.RECONNECT
-    return AccountBankLinkResponse(
-        account_id=link.account_id,
-        connection_id=link.connection_id,
-        provider=link.provider,
-        provider_name=PROVIDER_ADAPTERS[link.provider].provider_name,
-        external_account_id=link.external_account_id,
-        external_account_name=link.external_account_name,
-        institution_name=link.institution_name,
-        import_start=link.import_start,
-        linked_at=link.linked_at,
-        state=link.state,
-        import_progress=await _read_import_progress(db, user, link) if importing else None,
-    )
+    described = []
+    for link in links:
+        status = statuses[link.id]
+        progress = None
+        if status.import_state is not None and timezone is not None:
+            progress = _describe_import(link, status.import_state, items_found.get(link.account_id, 0), now=now, timezone=timezone)
+        described.append(
+            BankLinkResponse(
+                account_id=link.account_id,
+                connection_id=link.connection_id,
+                provider=link.provider,
+                provider_name=PROVIDER_ADAPTERS[link.provider].provider_name,
+                external_account_id=link.external_account_id,
+                external_account_name=link.external_account_name,
+                institution_name=link.institution_name,
+                import_start=link.import_start,
+                linked_at=link.linked_at,
+                state=link.state,
+                import_progress=progress,
+                sync=status.sync,
+            )
+        )
+    return described
 
 
-async def _read_import_progress(db: AsyncSession, user: User, link: BankAccountLink) -> BankImportProgressResponse:
-    """Return how far a link's import from its import start has got
-
-    Items found are the account's bank transactions received since the link was made, or since its
-    bank account was chosen again, which restarts its link time
-    """
-    now = datetime.now(UTC)
-    timezone = resolve_timezone(user.tz)
+def _describe_import(
+    link: BankAccountLink, state: BankImportState, items_found: int, *, now: datetime, timezone: ZoneInfo
+) -> BankImportProgressResponse:
+    """Return how far a link's import from its import start has got"""
     windows_total, windows_done = _count_windows(
         link, today=now.astimezone(timezone).date(), timezone=timezone, max_days=PROVIDER_ADAPTERS[link.provider].max_window_days
     )
-    items_found = await db.scalar(
-        select(func.count()).where(BankTransaction.account_id == link.account_id, BankTransaction.received_at >= link.linked_at)
-    )
-    connection = await db.get_one(BankConnection, link.connection_id)
     return BankImportProgressResponse(
         kind=link.import_kind,
-        state=await _read_import_state(db, link, connection, now=now),
+        state=state,
         requested_start=link.import_start,
         windows_total=windows_total,
         windows_done=windows_done,
@@ -116,16 +121,21 @@ async def _read_import_progress(db: AsyncSession, user: User, link: BankAccountL
     )
 
 
-async def _read_import_state(db: AsyncSession, link: BankAccountLink, connection: BankConnection, *, now: datetime) -> BankImportState:
-    """Return whether a link's import can fetch its next part now, or what holds it back
+async def _count_items_found(db: AsyncSession, links: Sequence[BankAccountLink]) -> dict[uuid.UUID, int]:
+    """Return how many items each link's import has found, by account id, leaving out accounts with none
 
-    A failed attempt waiting to retry, a bank that needs a sign-in and a refused credential each hold
-    it until something changes, and a spent budget until a request frees up
+    Items found are the account's bank transactions received since the link was made, or since its
+    bank account was chosen again, which restarts its link time
     """
-    if is_waiting_to_retry(link) or link.signin_needed_since is not None or connection.credential_rejected_at is not None:
-        return "waiting"
-    budget = await read_request_budget(db, connection, now=now)
-    return "running" if budget.available_again_at is None else "waiting_on_budget"
+    if not links:
+        return {}
+    rows = await db.execute(
+        select(BankTransaction.account_id, func.count())
+        .join(BankAccountLink, BankAccountLink.account_id == BankTransaction.account_id)
+        .where(BankAccountLink.id.in_([link.id for link in links]), BankTransaction.received_at >= BankAccountLink.linked_at)
+        .group_by(BankTransaction.account_id)
+    )
+    return {account_id: count for account_id, count in rows.all()}
 
 
 def _count_windows(link: BankAccountLink, *, today: date, timezone: ZoneInfo, max_days: int) -> tuple[int, int]:

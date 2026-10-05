@@ -7,7 +7,7 @@ spent rather than letting the rest go out
 """
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -86,17 +86,37 @@ async def read_request_budget(db: AsyncSession, connection: BankConnection, *, n
     Returns:
         The limit, the count used and, once spent, when the next request frees up
     """
-    counted = await db.scalars(
-        select(BankProviderRequest.requested_at)
-        .where(BankProviderRequest.connection_id == connection.id, BankProviderRequest.requested_at > now - REQUEST_BUDGET_WINDOW)
+    return (await read_request_budgets(db, [connection], now=now))[connection.id]
+
+
+async def read_request_budgets(db: AsyncSession, connections: Collection[BankConnection], *, now: datetime) -> dict[uuid.UUID, RequestBudget]:
+    """Return each connection's request budget at a moment, read together
+
+    Args:
+        db: Active database session
+        connections: The connections, as last read
+        now: The current time
+
+    Returns:
+        Each connection's limit, count used and, once spent, when its next request frees up, by connection id
+    """
+    counted: dict[uuid.UUID, list[datetime]] = {connection.id: [] for connection in connections}
+    rows = await db.execute(
+        select(BankProviderRequest.connection_id, BankProviderRequest.requested_at)
+        .where(BankProviderRequest.connection_id.in_(counted), BankProviderRequest.requested_at > now - REQUEST_BUDGET_WINDOW)
         .order_by(BankProviderRequest.requested_at)
     )
-    return summarize_request_budget(
-        counted.all(),
-        limit=PROVIDER_ADAPTERS[connection.provider].daily_request_budget,
-        spent_until=connection.request_budget_spent_until,
-        now=now,
-    )
+    for connection_id, requested_at in rows:
+        counted[connection_id].append(requested_at)
+    return {
+        connection.id: summarize_request_budget(
+            counted[connection.id],
+            limit=PROVIDER_ADAPTERS[connection.provider].daily_request_budget,
+            spent_until=connection.request_budget_spent_until,
+            now=now,
+        )
+        for connection in connections
+    }
 
 
 async def record_provider_request(

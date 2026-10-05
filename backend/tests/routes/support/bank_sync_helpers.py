@@ -30,7 +30,7 @@ from app.models.bank_connection import (
     BankProvider,
 )
 from app.models.bank_pending_transaction import BankPendingTransaction
-from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind
+from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobStatus
 from app.models.bank_transaction import OBSERVATION_COLUMNS, BankTransaction, BankTransactionDisposition, OpenReviewKind
 from app.models.base import AccountKind, AccountType, CategoryKind
 from app.models.category import Category
@@ -290,6 +290,25 @@ async def _dismiss_items(session: AsyncSession, item_ids: Collection[uuid.UUID])
     )
 
 
+async def _commit_link(
+    account_id: str | uuid.UUID, connection: BankConnection, external_account_id: str = BANK_ACCOUNT_ID, **values
+) -> BankAccountLink:
+    """Commit an active link from the account to a bank account on the connection, with any of its values replaced"""
+    async with TestSession() as session:
+        account = await session.get_one(Account, uuid.UUID(str(account_id)))
+        link = _build_bank_link(account, connection, external_account_id, **values)
+        session.add(link)
+        await session.commit()
+    return link
+
+
+async def _update_connection(connection: BankConnection, **values) -> None:
+    """Commit new values on the connection"""
+    async with TestSession() as session:
+        await session.execute(update(BankConnection).where(BankConnection.id == connection.id).values(**values))
+        await session.commit()
+
+
 async def _commit_paused_link(account_id: str | uuid.UUID, now: datetime) -> BankAccountLink:
     """Commit the account's link on a new SimpleFIN connection, paused for review, its import long ended and its next sync a day after now"""
     async with TestSession() as session:
@@ -439,6 +458,26 @@ async def _seed_job(connection: BankConnection, kind: BankSyncJobKind, **values)
         session.add(job)
         await session.commit()
     return job
+
+
+async def _commit_running_job(
+    connection: BankConnection,
+    *links: BankAccountLink,
+    now: datetime,
+    kind: BankSyncJobKind = BankSyncJobKind.SCHEDULED,
+    lease_left: timedelta = timedelta(minutes=10),
+) -> None:
+    """Commit a job running on the connection that syncs the links, its lease ending `lease_left` after `now`
+
+    `now` is the time the test pins the status read to, so the lease reads the same whatever today is
+    """
+    await _seed_job(
+        connection,
+        kind,
+        status=BankSyncJobStatus.RUNNING,
+        lease_expires_at=now + lease_left,
+        covered_link_ids=[link.id for link in links],
+    )
 
 
 async def _expire_lease(job: BankSyncJob) -> None:

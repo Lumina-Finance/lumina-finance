@@ -10,10 +10,27 @@ from app.models.bank_connection import BankImportKind, BankLinkState, BankProvid
 from app.models.bank_transaction import EditableBankField
 from app.schemas.names import TrimmedName
 
-# Running only while an import's next part can be fetched now. Waiting while a failed attempt waits
-# to retry, the bank needs a sign-in, or the provider refused the connection's credential, and
-# waiting on the budget until the connection's daily request budget frees a request
+# Running while a sync is fetching the import's next part or could fetch it now. Waiting while a
+# failed attempt waits to retry, the bank needs a sign-in, or the provider refused the connection's
+# credential, and waiting on the budget until the connection's daily request budget frees a request
 BankImportState = Literal["running", "waiting", "waiting_on_budget"]
+
+# The one state every surface shows for a live link, in the order the first that applies wins: what
+# only the user can fix, an import fetching or waiting on the request budget, the review pause, a sync
+# fetching, an opening balance to confirm, the review warning, a retry, and otherwise synced
+BankSyncState = Literal[
+    "reconnect_needed",
+    "bank_signin_needed",
+    "choose_account",
+    "importing",
+    "import_waiting_on_budget",
+    "paused",
+    "syncing",
+    "opening_balance",
+    "review_warning",
+    "retrying",
+    "synced",
+]
 
 
 class SetupTokenRequest(BaseModel):
@@ -283,8 +300,42 @@ class BankImportProgressResponse(BaseModel):
     earliest_returned_date: date | None
 
 
-class AccountBankLinkResponse(BankAccountLinkResponse):
-    """An account's live link, as the account's page shows it"""
+class BankSyncFailureResponse(BaseModel):
+    """A link's last attempt, which failed"""
+
+    at: datetime
+    reason: str
+
+
+class BankSyncStatusResponse(BaseModel):
+    """A live link's sync state, with the facts its Sync details and notices word"""
+
+    state: BankSyncState
+
+    # Kept through failed attempts, None until the link first syncs
+    last_success_at: datetime | None
+
+    # The last attempt only when it failed, since a successful one is the last success
+    last_failure: BankSyncFailureResponse | None
+
+    # When the next sync or retry runs, or for an import waiting on the request budget, when a request
+    # frees up for its next part. None while the link is due at once, as while its import catches up,
+    # and after a rejected credential, which stops its sync until a reconnect. A bank sign-in keeps
+    # the daily time the app checks again at
+    next_attempt_at: datetime | None
+
+    # The next sync is due before the connection's request budget frees a request, so it waits for one
+    waiting_on_budget: bool
+
+    # New items awaiting their first review, and whether they hold the sync or warn that they soon
+    # will, as the review block says too
+    waiting_new_count: int
+    paused: bool
+    review_warning: bool
+
+
+class BankLinkResponse(BankAccountLinkResponse):
+    """A live link with its import and sync status, as the account's page and the list of links show it"""
 
     # Choose account while the provider lists the bank account differently, until the user chooses it again
     state: Literal[BankLinkState.ACTIVE, BankLinkState.CHOOSE_ACCOUNT]
@@ -292,6 +343,7 @@ class AccountBankLinkResponse(BankAccountLinkResponse):
     # Sent as "import", which Python keeps as a keyword. None when no import is running, and for the
     # catch-up after a reconnect, whose first day isn't recorded
     import_progress: BankImportProgressResponse | None = Field(serialization_alias="import")
+    sync: BankSyncStatusResponse
 
 
 class PreviousBankLinkResponse(BaseModel):
@@ -308,7 +360,7 @@ class AccountBankStatusResponse(BaseModel):
     """An account's live link to a bank account, or what it was last linked to when it has none"""
 
     account_id: uuid.UUID
-    link: AccountBankLinkResponse | None
+    link: BankLinkResponse | None
     previous_link: PreviousBankLinkResponse | None
 
 

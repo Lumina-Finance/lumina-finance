@@ -15,7 +15,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.bank_connection import BankAccountLink, BankConnection, BankExternalAccount, BankLinkState, BankProviderRequest
+from app.models.bank_connection import BankAccountLink, BankConnection, BankExternalAccount, BankLinkState
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobStatus
 from app.models.user import User
 from app.schemas.bank_sync import (
@@ -34,7 +34,7 @@ from app.services.bank_sync.availability import (
     list_link_candidates,
     read_linked_bank_accounts,
 )
-from app.services.bank_sync.provider_requests import REQUEST_BUDGET_WINDOW, summarize_request_budget
+from app.services.bank_sync.provider_requests import read_request_budgets
 from app.services.bank_sync.providers.contract import is_iso_currency_code
 from app.services.cache_state.updates import mark_user_cache_changed
 
@@ -130,15 +130,7 @@ async def build_connection_responses(
                 ChooseAgainLinkResponse(account_id=link.account_id, external_account_name=link.external_account_name)
             )
 
-    counted: dict[uuid.UUID, list[datetime]] = defaultdict(list)
-    requests = await db.execute(
-        select(BankProviderRequest.connection_id, BankProviderRequest.requested_at)
-        .where(BankProviderRequest.connection_id.in_(connection_ids), BankProviderRequest.requested_at > now - REQUEST_BUDGET_WINDOW)
-        .order_by(BankProviderRequest.requested_at)
-    )
-    for connection_id, requested_at in requests:
-        counted[connection_id].append(requested_at)
-
+    budgets = await read_request_budgets(db, connections, now=now)
     candidates = await list_link_candidates(db, user_id)
     providers = {connection.provider for connection in connections}
     allowances = {provider: await get_institution_allowance(db, user_id, provider) for provider in providers}
@@ -173,12 +165,7 @@ async def build_connection_responses(
                     signin_needed=(connection.id, bank_account.external_id) in signin_needed,
                 )
             )
-        budget = summarize_request_budget(
-            counted[connection.id],
-            limit=adapter.daily_request_budget,
-            spent_until=connection.request_budget_spent_until,
-            now=now,
-        )
+        budget = budgets[connection.id]
         responses.append(
             BankConnectionResponse(
                 id=connection.id,
