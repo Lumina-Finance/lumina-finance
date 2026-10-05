@@ -234,8 +234,9 @@ class _JobRun:
         """Move the checkpoint of each link the response brought back whole, if the job still holds it
 
         A checkpoint moves only over days the link's data is complete for, so the part has to start no
-        later than the first day the link lacks. The last successful sync is stamped with the job's start, the
-        moment today was read, so the day it falls on is the day the checkpoint was set
+        later than the first day the link lacks. The last successful sync is stamped when the checkpoint
+        moves, or when the part brought the link back whole through today, with the job's start, the
+        moment today was read, so the day it falls on is never before the checkpoint
 
         Returns:
             Whether a checkpoint moved
@@ -244,10 +245,14 @@ class _JobRun:
         moved = False
         async with async_session() as db:
             for link in await lock_job_for_finish(db, self.job, [need.link for need in part.needs]):
-                if link.external_account_id in synced and first_missing_day(link) >= part.first_day and part.last_day > link.checkpoint:
+                if link.external_account_id not in synced or first_missing_day(link) < part.first_day:
+                    continue
+                advanced = part.last_day > link.checkpoint
+                if advanced:
                     link.checkpoint = part.last_day
-                    link.last_success_at = self.now
                     moved = True
+                if advanced or part.last_day == self.today:
+                    link.last_success_at = self.now
             await mark_user_cache_changed(db, self.job.owner_id)
             await db.commit()
         return moved

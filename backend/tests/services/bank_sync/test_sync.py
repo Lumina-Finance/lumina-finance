@@ -291,6 +291,19 @@ async def test_job_brings_up_to_date_a_link_whose_checkpoint_is_long_before_its_
     assert await _checkpoints(link) == [_TODAY]
 
 
+async def test_job_records_a_second_sync_the_same_day_as_the_links_last_success(connection, provider, frozen_now):
+    """Everyday synced through today at 8 am and again at 1 pm, so it reads as synced at 1 pm though its checkpoint stays today"""
+    await _link(connection, "ACT-1", **_synced_through_yesterday(checkpoint=_TODAY, last_success_at=datetime(2026, 10, 4, 8, tzinfo=_BRISBANE)))
+    provider.outcomes = [_returned("ACT-1")]
+    await _seed_job(connection, BankSyncJobKind.MANUAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [_window(date(2026, 9, 20), _TODAY, pending=True)]
+    async with TestSession() as session:
+        assert (await session.execute(select(BankAccountLink.checkpoint, BankAccountLink.last_success_at))).one() == (_TODAY, frozen_now)
+
+
 async def test_job_whose_request_fails_records_the_failure_and_moves_no_checkpoint(connection, provider):
     """SimpleFIN Bridge can't be reached: the job records why, and the link keeps its checkpoint"""
     link = await _link(connection, "ACT-1", **_synced_through_yesterday())

@@ -111,9 +111,9 @@ def _need_start(link: BankAccountLink, timezone: ZoneInfo, overlap_days: int) ->
     """Return the first day a link needs, never before its import start
 
     The checkpoint is the last day the link's data is complete through, and its last successful sync
-    is when the checkpoint last moved. A checkpoint short of the day it was set, or one never set,
-    means the link is importing or catching up, so it carries on from the first day it lacks.
-    Otherwise the link re-reads the overlap before its checkpoint
+    is when a sync last moved it or reached today. A checkpoint short of the day that falls on, or a
+    link never synced, means the link is importing or catching up, so it carries on from the first
+    day it lacks. Otherwise the link re-reads the overlap before its checkpoint
     """
     if link.last_success_at is None or link.checkpoint < link.last_success_at.astimezone(timezone).date():
         return first_missing_day(link)

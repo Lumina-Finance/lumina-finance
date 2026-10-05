@@ -264,6 +264,10 @@ class BankAccountLink(Base):
     # The last day the link's data is known complete through, which only moves forward once a
     # sync has stored everything up to it
     checkpoint: Mapped[date] = mapped_column(Date, nullable=False)
+
+    # When the sync that last moved the checkpoint, or brought the bank account back whole through
+    # today, started. Only a sync job sets it. The window planner reads a checkpoint short of the
+    # day this falls on as an import or catch-up still under way, and any other as a link to re-read
     last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_failure_reason: Mapped[str | None] = mapped_column(Text)
