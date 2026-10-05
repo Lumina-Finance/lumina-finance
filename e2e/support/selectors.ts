@@ -93,27 +93,101 @@ export function getTransactionRowButton(row: Locator): Locator {
   return row.getByRole('button').first()
 }
 
+type Edges = { left: number; top: number; right: number; bottom: number }
+
+// How far the row's text keeps clear of the ring on every side, so the ring never touches a line
+const FOCUS_RING_TEXT_CLEARANCE = 4
+
 /**
  * Assert keyboard focus on a control stretched over its row rings the row in the app's accent focus
  * outline, read from the layer the control lays over the row, which is what draws it
+ *
+ * The ring has to run around the row's own box, so it goes round the whole row with the row's padding
+ * inside it rather than tight around the text, and every line of the row's text has to clear it
  */
-export async function expectStretchedFocusRing(control: Locator): Promise<void> {
+export async function expectStretchedFocusRing(control: Locator, row: Locator): Promise<void> {
   await control.focus()
 
   // Back a step and forward again, so the focus arrives from the keyboard as a user's would
   await control.page().keyboard.press('Shift+Tab')
   await control.page().keyboard.press('Tab')
   await expect(control).toBeFocused()
-  const ring = await control.evaluate((element) => {
-    const probe = document.createElement('span')
-    probe.style.color = 'var(--app-accent)'
-    element.append(probe)
-    const accent = getComputedStyle(probe).color
-    probe.remove()
-    const layer = getComputedStyle(element, '::after')
-    return { position: layer.position, style: layer.outlineStyle, width: layer.outlineWidth, color: layer.outlineColor, accent }
-  })
-  expect(ring).toEqual({ position: 'absolute', style: 'solid', width: '2px', color: ring.accent, accent: ring.accent })
+  const rowElement = await row.elementHandle()
+
+  // Measured in one pass, and again until the list has settled, since a row still growing in or a
+  // list still moving would put the ring and the row in different places between two measurements
+  await expect(async () => {
+    const ring = await control.evaluate((element, rowElement) => {
+      const edgesOf = ({ left, top, right, bottom }: DOMRect) => ({ left, top, right, bottom })
+      const probe = document.createElement('span')
+      probe.style.color = 'var(--app-accent)'
+      element.append(probe)
+      const accent = getComputedStyle(probe).color
+      probe.remove()
+      const layer = getComputedStyle(element, '::after')
+
+      // The layer is placed against the nearest positioned ancestor, measured from inside its border
+      const block = (element as HTMLElement).offsetParent as HTMLElement
+      const blockBox = block.getBoundingClientRect()
+      const left = blockBox.left + block.clientLeft + parseFloat(layer.left)
+      const top = blockBox.top + block.clientTop + parseFloat(layer.top)
+
+      // Every line of text on screen in the row, leaving out what is laid out but unseen, such as a
+      // closed tooltip's faded panel
+      let text: ReturnType<typeof edgesOf> | null = null
+      const walker = document.createTreeWalker(rowElement!, NodeFilter.SHOW_TEXT)
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const parent = node.parentElement
+        if (!node.textContent?.trim() || !parent?.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue
+        const range = document.createRange()
+        range.selectNodeContents(node)
+        const line = edgesOf(range.getBoundingClientRect())
+        // A glyph's box can reach past its line. An emoji's font metrics, for one, are taller than the line it
+        // is set in. What is seen of it is inside the line's own box, so that is where it is measured
+        const lineBox = parent.getBoundingClientRect()
+        line.top = Math.max(line.top, lineBox.top)
+        line.bottom = Math.min(line.bottom, lineBox.bottom)
+        text = text
+          ? {
+            left: Math.min(text.left, line.left),
+            top: Math.min(text.top, line.top),
+            right: Math.max(text.right, line.right),
+            bottom: Math.max(text.bottom, line.bottom),
+          }
+          : line
+      }
+
+      return {
+        position: layer.position,
+        style: layer.outlineStyle,
+        width: layer.outlineWidth,
+        color: layer.outlineColor,
+        accent,
+        box: { left, top, right: left + parseFloat(layer.width), bottom: top + parseFloat(layer.height) },
+        rowBox: edgesOf(rowElement!.getBoundingClientRect()),
+        textBox: text,
+      }
+    }, rowElement)
+    expect({ position: ring.position, style: ring.style, width: ring.width, color: ring.color })
+      .toEqual({ position: 'absolute', style: 'solid', width: '2px', color: ring.accent })
+
+    // How far each edge of the inner box sits inside the outer one, negative where it pokes out
+    const inset = (outer: Edges, inner: Edges): Edges => ({
+      left: inner.left - outer.left,
+      top: inner.top - outer.top,
+      right: outer.right - inner.right,
+      bottom: outer.bottom - inner.bottom,
+    })
+    expect(ring.textBox).not.toBeNull()
+    const ringInset = inset(ring.rowBox, ring.box)
+    const textClearance = inset(ring.box, ring.textBox!)
+    for (const edge of ['left', 'top', 'right', 'bottom'] as const) {
+      // On the row's own edge, or just inside its border, which on a transaction row is the separator along its foot
+      expect(Math.round(ringInset[edge]), `the ring's ${edge} edge against the row's`).toBeGreaterThanOrEqual(0)
+      expect(Math.round(ringInset[edge]), `the ring's ${edge} edge against the row's`).toBeLessThanOrEqual(1)
+      expect(textClearance[edge], `the text's clearance from the ring's ${edge} edge`).toBeGreaterThanOrEqual(FOCUS_RING_TEXT_CLEARANCE)
+    }
+  }).toPass()
 }
 
 /**

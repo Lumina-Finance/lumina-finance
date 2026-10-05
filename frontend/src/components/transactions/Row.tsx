@@ -471,8 +471,9 @@ export function TransactionRowView({
             // Laid over the rail rather than placed in the row, because a cell of the row would take
             // one of the list's columns, and the content beside it asks for all five of them. The rail
             // is the row's own left padding, so the box sits still at the list's edge while the rail
-            // opens and closes underneath the rest of the row
-            className="absolute inset-y-0 left-0 flex items-center justify-center"
+            // opens and closes underneath the rest of the row. Raised above the title's layer, which
+            // spans the rail too, so a press on the box ticks it rather than landing on the row
+            className="absolute inset-y-0 left-0 z-10 flex items-center justify-center"
             style={{ width: TRANSACTION_CHECKBOX_RAIL_WIDTH }}
             title={tickTitle}
             initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.72 }}
@@ -493,11 +494,13 @@ export function TransactionRowView({
         )}
       </AnimatePresence>
 
-      {/* What the title's layer stretches across, and from 750px wide a subgrid of its own so the
-          cells inside it still line up against the tracks the list declares. A press anywhere on it
-          lands here, the title's own press and Enter on it included, along with a press on a tag,
-          which sits above the layer for its tooltip. A shift-press holds back the text selection it
-          would otherwise stretch across the rows it ranges over */}
+      {/* The row's content, and from 750px wide a subgrid of its own so the cells inside it still
+          line up against the tracks the list declares. Left unpositioned, so the title's layer
+          stretches across the whole row, its padding included, and its focus ring goes round the
+          row rather than tight around the text. A press anywhere on the row lands here, the title's
+          own press and Enter on it included, along with a press on a tag, which sits above the layer
+          for its tooltip. A shift-press holds back the text selection it would otherwise stretch
+          across the rows it ranges over */}
       <div
         data-testid={`transaction-row-${transaction.id}`}
         onClick={handleContentClick}
@@ -507,7 +510,7 @@ export function TransactionRowView({
         onMouseDown={(event) => {
           if (event.shiftKey) event.preventDefault()
         }}
-        className={`relative block w-full min-w-0 flex-1 ${isHeldOff ? 'cursor-not-allowed' : 'cursor-pointer'} px-3 text-left ${wide ? 'min-[750px]:col-span-5 min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4' : ''}`}
+        className={`block w-full min-w-0 flex-1 ${isHeldOff ? 'cursor-not-allowed' : 'cursor-pointer'} px-3 text-left ${wide ? 'min-[750px]:col-span-5 min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4' : ''}`}
       >
         {/* Row from 750px wide: each cell is a direct child of this content's subgrid, which spans the
           list's content tracks, so every row shares the same column tracks and stays aligned. The
@@ -624,9 +627,11 @@ export function TransactionRowView({
 
         {/* Three lines on a phone: merchant and amount, category, then account. Set close together, and
           reaching a little into the row's padding, which the wide layout keeps, so a row takes less
-          height without crowding the account in beside the category */}
+          height without crowding the account in beside the category. Only so far that the first and
+          last lines stay 4px clear of the focus ring, which sits 2px in from the row's edge, or 4px
+          in a row inside the Upcoming section's edge */}
         <span
-          className={`-my-1 grid grid-cols-[2.125rem_minmax(0,1fr)_max-content] items-start gap-x-2.5 gap-y-0.5 ${wide ? 'min-[750px]:hidden' : ''}`}
+          className={`-my-0.5 grid grid-cols-[2.125rem_minmax(0,1fr)_max-content] items-start gap-x-2.5 gap-y-0.5 ${wide ? 'min-[750px]:hidden' : ''}`}
         >
           <span
             className={`row-span-3 pt-0.5 text-[1.35rem] leading-none ${ICON_FADE_CLASS_NAME}`}

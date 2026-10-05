@@ -326,7 +326,10 @@ test('rings an account row in the accent outline under keyboard focus', async ({
   await logInViaApi(page, user)
   await openPage(page, '/accounts')
 
-  await expectStretchedFocusRing(page.getByRole('link', { name: ACCOUNT_NAME, exact: true }))
+  const link = page.getByRole('link', { name: ACCOUNT_NAME, exact: true })
+
+  // The row is the rounded box the hover tint fills
+  await expectStretchedFocusRing(link, link.locator('xpath=ancestor::div[contains(@class, "rounded-xl")][1]'))
 })
 
 test('keeps the account save action named while an edit is pending', async ({ page, request }) => {

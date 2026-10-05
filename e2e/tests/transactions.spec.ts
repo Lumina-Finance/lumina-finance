@@ -219,7 +219,10 @@ test('rings a transaction row in the accent outline under keyboard focus', async
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
 
-  await expectStretchedFocusRing(getTransactionRowButton(page.getByTestId(`transaction-row-${id}`)))
+  const content = page.getByTestId(`transaction-row-${id}`)
+
+  // The row is the box around the content, which carries the row's padding and its separator
+  await expectStretchedFocusRing(getTransactionRowButton(content), content.locator('..'))
 })
 
 test('keeps the open Upcoming header on screen through a long run of upcoming transactions', AT_EVERY_SIZE, async ({ page, request }) => {
