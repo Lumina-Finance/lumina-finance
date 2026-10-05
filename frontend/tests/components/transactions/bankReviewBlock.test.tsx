@@ -118,7 +118,7 @@ function renderSection(listAccountIds?: string[], isFixedAccount = false): strin
   return renderToStaticMarkup(createElement(
     QueryClientProvider,
     { client },
-    createElement(BankReviewSection, { listAccountIds, isFixedAccount, prefersReducedMotion: true }),
+    createElement(BankReviewSection, { listAccountIds, isFixedAccount, focusRequest: null, prefersReducedMotion: true }),
   ))
 }
 
@@ -244,6 +244,8 @@ describe('the rows the block shows', () => {
       isLoadingMore: false,
       loadMoreSentinelRef: () => {},
       skipEnterAnimation: false,
+      highlightedId: null,
+      registerRow: () => {},
       prefersReducedMotion: true,
     }))
   }

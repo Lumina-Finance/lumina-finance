@@ -51,6 +51,12 @@ interface BankReviewBlockProps {
 
   /** Makes newly mounted rows appear without growing in, used for a page of items that just loaded */
   skipEnterAnimation: boolean
+
+  /** The item a Needs review marker just went to, ringed for a moment so the eye finds it */
+  highlightedId: string | null
+
+  /** Takes each row as it mounts and null as it goes, for scrolling to and focusing an item */
+  registerRow: (itemId: string, row: HTMLDivElement | null) => void
   prefersReducedMotion: boolean | null
 }
 
@@ -75,6 +81,8 @@ export default function BankReviewBlock({
   isLoadingMore,
   loadMoreSentinelRef,
   skipEnterAnimation,
+  highlightedId,
+  registerRow,
   prefersReducedMotion,
 }: BankReviewBlockProps) {
   const { formatMovedAmount } = useMoneyFormatters()
@@ -145,14 +153,27 @@ export default function BankReviewBlock({
             return (
               <motion.div
                 key={item.id}
+                ref={(row: HTMLDivElement | null) => registerRow(item.id, row)}
                 role="listitem"
-                className="overflow-hidden"
+
+                // Focusable from a Needs review marker, so a screen reader moves to the item too, but
+                // never a tab stop, since the row opens nothing yet
+                tabIndex={-1}
+                className="overflow-hidden focus:outline-none"
                 initial={skipEnterAnimation ? false : collapsedRow}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={collapsedRow}
                 transition={rowTransition}
               >
-                <div className="px-4 sm:px-5">
+                {/* A ring rather than a fill, since any fill lighter than the block's own would take
+                    the muted line below 4.5:1 in the dark theme */}
+                <div
+                  className="px-4 sm:px-5"
+                  style={{
+                    boxShadow: highlightedId === item.id ? 'inset 0 0 0 2px var(--app-warning-dot)' : 'none',
+                    transition: prefersReducedMotion ? undefined : 'box-shadow 0.5s',
+                  }}
+                >
                   {/* The divider sits on the content rather than the row, so it stops short of the card's edges */}
                   <div className="flex items-center gap-3 py-2.5" style={{ borderTop: '1px solid var(--app-review-divider)' }}>
                     <div className="min-w-0 flex-1">

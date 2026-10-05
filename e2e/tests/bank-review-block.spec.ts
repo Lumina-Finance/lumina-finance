@@ -1,6 +1,13 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
-import { createAccount, createTransaction, signUpUser, todayInTestTimezone, type SeededAccount } from '../support/api'
+import {
+  createAccount,
+  createTransaction,
+  signUpUser,
+  todayInTestTimezone,
+  type SeededAccount,
+  type TestUser,
+} from '../support/api'
 import { filterTransactions, logInViaApi, openPage } from '../support/app'
 import { MINUS } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
@@ -44,7 +51,7 @@ type ReviewPage = { items: ReviewItem[]; counts: Record<ItemKind, number>; next_
 
 type Backlog = { account_id: string; waiting_new_count: number; paused: boolean; review_warning: boolean }
 
-type Accounts = { everyday: SeededAccount; visa: SeededAccount; savings: SeededAccount }
+type Accounts = { user: TestUser; everyday: SeededAccount; visa: SeededAccount; savings: SeededAccount }
 
 /**
  * Builds an item of a kind on an account, $12.50 out on Sep 21 unless told otherwise. A correction
@@ -109,7 +116,26 @@ async function start(page: Page, request: APIRequestContext): Promise<Accounts> 
   const savings = await createAccount(request, user, { name: 'Savings', accountType: 'savings' })
   await createTransaction(request, user, { accountId: everyday.id, categoryName: 'Groceries', amount: -4250 })
   await logInViaApi(page, user)
-  return { everyday, visa, savings }
+  return { user, everyday, visa, savings }
+}
+
+/**
+ * Answers the app's reads of the transaction list with these transactions imported from the bank,
+ * each with its source, since nothing links an account on the server for a sync to import one
+ */
+async function answerAsBankImported(page: Page, sources: Record<string, object>): Promise<void> {
+  await page.route((url) => url.href.startsWith(`${API_BASE_URL}/transactions?`), async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback()
+
+    // Retried, since the instance now and then drops a reused connection, which the browser would retry
+    const response = await route.fetch({ maxRetries: 2 })
+    const transactions = await response.json() as { id: string }[]
+    await route.fulfill({
+      response,
+      json: transactions.map((transaction) =>
+        Object.hasOwn(sources, transaction.id) ? { ...transaction, bank_source: sources[transaction.id] } : transaction),
+    })
+  })
 }
 
 function reviewBlock(page: Page): Locator {
@@ -236,6 +262,51 @@ test('shows the first 4 of a 1,500 item backlog, and loads the rest a page at a 
 
   await block.getByRole('button', { name: 'Show fewer' }).click()
   await expect(rows).toHaveCount(4)
+})
+
+test("goes from a ledger row's Needs review marker to its item, loading the page it's on", async ({ page, request }) => {
+  const { user, everyday } = await start(page, request)
+  const uberId = await createTransaction(request, user, { accountId: everyday.id, categoryName: 'Groceries', amount: -1800 })
+  await answerAsBankImported(page, {
+    [uberId]: {
+      provider: 'simplefin',
+      provider_name: 'SimpleFIN',
+      bank_values: { date: todayInTestTimezone(), amount: -1800, raw_amount: null, description: 'UBER TRIP', merchant_name: null, category_hint: null },
+      edited_fields: [],
+      review_item_id: 'item-59',
+    },
+  })
+
+  // The Uber removal is the 60th item, on the second page of two
+  const cursors: (string | null)[] = []
+  await answerReviewItems(page, (_, cursor) => {
+    cursors.push(cursor)
+    const first = cursor ? 50 : 0
+    return {
+      items: Array.from({ length: 50 }, (_, offset) => first + offset === 59
+        ? reviewItem('item-59', 'removal', everyday.id, { description: 'UBER TRIP' })
+        : reviewItem(`item-${first + offset}`, 'new', everyday.id)),
+      counts: { new: 99, correction: 0, removal: 1 },
+      next_cursor: cursor ? null : 'page-1',
+    }
+  })
+
+  await openPage(page, '/transactions')
+
+  const block = reviewBlock(page)
+  await expect(block.getByRole('listitem')).toHaveCount(4)
+  await page.getByTestId(`transaction-row-${uberId}`).getByRole('button', { name: 'Needs review. Show the waiting item' }).click()
+
+  const item = block.getByRole('listitem').filter({ hasText: 'UBER TRIP' })
+  await expect(item).toBeFocused()
+  await expect(item).toBeInViewport()
+  expect(cursors).toEqual([null, 'page-1'])
+  await expect(item.getByText(`${MINUS}$18.00`)).toHaveCSS('text-decoration-line', 'line-through')
+
+  // Ringed for a moment, then left as the other rows are
+  const ring = item.locator('div').first()
+  await expect(ring).toHaveCSS('box-shadow', /inset/)
+  await expect(ring).toHaveCSS('box-shadow', 'none')
 })
 
 test('says an account is paused for its backlog, or close to pausing', async ({ page, request }) => {

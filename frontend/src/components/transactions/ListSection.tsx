@@ -36,7 +36,7 @@ import { getTransactionReadOnlyReason } from '@/components/transactions/utils/ro
 import { getImportBlockReason, isImportableAccount } from '@/utils/importableAccount'
 import { TRANSACTION_FILTER_KEYS, TRANSACTION_LIST_EASE } from '@/components/transactions/constants/transactionList'
 import TransactionDateGroupList from '@/components/transactions/DateGroupList'
-import BankReviewSection from '@/components/transactions/bank-review/ReviewSection'
+import BankReviewSection, { type ReviewFocusRequest } from '@/components/transactions/bank-review/ReviewSection'
 import TransactionFilterLoadingOverlay from '@/components/transactions/FilterLoadingOverlay'
 import TransactionListToolbar from '@/components/transactions/toolbar/ListToolbar'
 import { useTransactionFilterLoadingState } from '@/components/transactions/hooks/useTransactionFilterLoadingState'
@@ -184,6 +184,13 @@ export default function TransactionListSection({
   )
   const createDisabledReason = fixedAccount?.is_archived ? 'Archived accounts are read-only' : createBlockReason
   const createDisabled = Boolean(createDisabledReason)
+
+  // A row's Needs review marker asks the review block to go to the row's waiting item
+  const [reviewFocus, setReviewFocus] = useState<ReviewFocusRequest | null>(null)
+  const showReviewItem = useCallback(
+    (itemId: string) => setReviewFocus((current) => ({ itemId, nonce: (current?.nonce ?? 0) + 1 })),
+    [],
+  )
 
   const [isSelecting, setIsSelecting] = useState(false)
   const [pendingChange, setPendingChange] = useState<BulkEditFields | null>(null)
@@ -538,6 +545,7 @@ export default function TransactionListSection({
       <BankReviewSection
         listAccountIds={fixedAccount ? [fixedAccount.id] : filters.account_id}
         isFixedAccount={Boolean(fixedAccount)}
+        focusRequest={reviewFocus}
         prefersReducedMotion={prefersReducedMotion}
       />
 
@@ -594,6 +602,7 @@ export default function TransactionListSection({
                 isSelecting={isSelecting}
                 buildRowSelection={isSelecting ? buildRowSelection : undefined}
                 buildHeadingSelection={isSelecting ? buildHeadingSelection : undefined}
+                onShowReview={showReviewItem}
                 onEditTransaction={onEditTransaction}
               />
 

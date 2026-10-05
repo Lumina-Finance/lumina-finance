@@ -87,6 +87,7 @@ export default function TransactionDateGroupList({
   isSelecting = false,
   buildRowSelection,
   buildHeadingSelection,
+  onShowReview,
   onEditTransaction,
 }: {
   dateGroups: TransactionDateGroup[]
@@ -112,6 +113,10 @@ export default function TransactionDateGroupList({
   buildRowSelection?: (transactionId: string, isReadOnly: boolean) => TransactionRowSelection
   // Takes the transactions one heading shows, which is what its tick covers
   buildHeadingSelection?: (shownTransactionIds: string[]) => TransactionDateHeadingSelection
+
+  // Goes to a row's waiting correction or removal in the review block. Absent where there is no
+  // block, such as the import preview, which leaves the rows without a Needs review marker
+  onShowReview?: (reviewItemId: string) => void
   onEditTransaction: (transaction: Transaction) => void
 }) {
   const { formatMovedCurrency } = useMoneyFormatters()
@@ -273,6 +278,7 @@ export default function TransactionDateGroupList({
                     prefersReducedMotion={prefersReducedMotion}
                     skipEnterAnimation={skipEnterAnimation}
                     dateHeadingId={dayHeadingId(isUpcoming, groupIndex)}
+                    onShowReview={onShowReview}
                     onOpen={onEditTransaction}
                   />
                 )

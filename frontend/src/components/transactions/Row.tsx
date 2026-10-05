@@ -115,10 +115,14 @@ interface TransactionRowProps {
 
   // The id of the day's heading above the row, which names the date the row's button is described by
   dateHeadingId?: string
+
+  // Goes to the waiting correction or removal a bank-imported transaction names, given where the list
+  // shows the review block. Without it the row leaves the Needs review marker out
+  onShowReview?: (reviewItemId: string) => void
   onOpen: (transaction: Transaction) => void
 }
 
-interface TransactionRowViewProps extends Omit<TransactionRowProps, 'transaction' | 'currency' | 'onOpen'> {
+interface TransactionRowViewProps extends Omit<TransactionRowProps, 'transaction' | 'currency' | 'onShowReview' | 'onOpen'> {
   transaction: TransactionRowMetadata
   amountPresentation: TransactionAmountPresentation
 
@@ -288,17 +292,23 @@ function FxNote({ note }: { note: TransactionFxNote }) {
  * narrower screens, and animates its height on mount and removal unless
  * `prefersReducedMotion` is set. A `readOnlyReason` dims the row and shows why it cannot be edited
  */
-export default function TransactionRow({ transaction, currency, onOpen, ...props }: TransactionRowProps) {
+export default function TransactionRow({ transaction, currency, onShowReview, onOpen, ...props }: TransactionRowProps) {
   const { formatMovedCurrency } = useMoneyFormatters()
   const sign = getAmountSign(transaction.amount)
   const text = formatMovedCurrency(transaction.amount, currency)
 
   // Read from the source the transaction carries, so the marker needs no request of its own and stays
-  // once the account is unlinked. The row offers no way to the waiting correction or removal a source
-  // can name, so it leaves the Needs review marker out
+  // once the account is unlinked. A waiting correction or removal shows the Needs review marker where
+  // the list can go to its item
   const source = transaction.bank_source
+  const reviewItemId = source?.review_item_id ?? null
   const bankMarker = source
-    ? { providerName: source.provider_name, isEdited: source.edited_fields.length > 0, needsReview: false }
+    ? {
+        providerName: source.provider_name,
+        isEdited: source.edited_fields.length > 0,
+        needsReview: reviewItemId !== null && onShowReview !== undefined,
+        onShowReview: reviewItemId !== null && onShowReview ? () => onShowReview(reviewItemId) : undefined,
+      }
     : undefined
   return (
     <TransactionRowView
