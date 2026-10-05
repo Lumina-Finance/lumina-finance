@@ -2,7 +2,8 @@ import { useRef } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { LoaderCircle } from 'lucide-react'
 import { useDisabledReason } from '@/hooks/useDisabledReason'
-import { DETAILS_LINE_TRANSITION } from '@/pages/transactions/components/transaction-modal/constants'
+import { DETAILS_LINE_TRANSITION } from '@/components/transactions/transaction-modal/constants'
+import { revealIfHidden } from '@/components/transactions/transaction-modal/utils/reveal'
 
 type BankValueCaptionProps = {
   /** Names the bank's value, which the restore action is described by, telling the date's from the amount's */
@@ -25,17 +26,6 @@ type BankValueCaptionProps = {
   restoring: boolean
   disabled: boolean
   onRestore: () => void
-}
-
-/**
- * Scrolls a line to the middle of the form once it has opened, where anything hides part of it, such
- * as the modal's footer under an action at the foot of a short screen. Focus stays where it is
- */
-function revealIfHidden(line: HTMLElement | null, prefersReducedMotion: boolean) {
-  if (!line) return
-  const box = line.getBoundingClientRect()
-  const shown = [box.top + 1, box.bottom - 1].every((y) => line.contains(document.elementFromPoint(box.left + 1, y)))
-  if (!shown) line.scrollIntoView({ block: 'center', behavior: prefersReducedMotion ? 'auto' : 'smooth' })
 }
 
 /**

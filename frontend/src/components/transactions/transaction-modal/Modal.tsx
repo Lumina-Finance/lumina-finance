@@ -37,6 +37,7 @@ import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { usePendingLinks } from '@/components/transactions/transaction-modal/hooks/usePendingLinks'
 import { useRefundRoom } from '@/components/transactions/transaction-modal/hooks/useRefundRoom'
+import { revealIfHidden } from '@/components/transactions/transaction-modal/utils/reveal'
 import { getBankDeleteRefusal } from '@/components/transactions/transaction-modal/utils/bankDelete'
 import { getBankMoveRefusal } from '@/components/transactions/transaction-modal/utils/bankMove'
 import { getBankValueCaptions } from '@/components/transactions/transaction-modal/utils/bankValues'
@@ -345,6 +346,13 @@ export default function CreateTransactionModal({
     if (isItemSwapped) formBodyRef.current?.scrollTo({ top: 0 })
   }, [reviewItem?.id, isItemSwapped])
 
+  // The failed save message sits at the foot of the form, which a short screen or a long form leaves below
+  // the fold, so once it appears it is scrolled into view wherever anything hides it
+  const submitErrorRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (submitError) revealIfHidden(submitErrorRef.current, Boolean(prefersReducedMotion))
+  }, [submitError, prefersReducedMotion])
+
   // The supplied-days message names a provider and a date, too long for the label row beside Date, so
   // the section shows it under the date row instead
   const suppliedDaysError =
@@ -629,7 +637,7 @@ export default function CreateTransactionModal({
               )
             }
           >
-            <motion.div key={reviewItem?.id} className="space-y-5" {...reviewSwap}>
+            <motion.div key={reviewItem?.id} className="flex flex-col gap-5" {...reviewSwap}>
               {!isFilingCardBeside && filingCard}
               {bankSource && (
                 <TransactionBankSourcePanel
@@ -754,7 +762,9 @@ export default function CreateTransactionModal({
                 />
               )}
 
-              <FormError message={submitError} title={submitErrorTitle} />
+              <div ref={submitErrorRef} className="empty:hidden">
+                <FormError message={submitError} title={submitErrorTitle} />
+              </div>
             </motion.div>
           </ModalTitledPanel>
         </DateStepHighlightContext.Provider>
