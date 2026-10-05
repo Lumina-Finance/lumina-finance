@@ -279,6 +279,75 @@ async def test_job_moves_only_the_checkpoints_of_bank_accounts_the_response_brou
     assert [status for _, status, *_ in await _jobs()] == ["succeeded"]
 
 
+class _CardFailingProvider(FakeProviderAdapter):
+    """Brings back each bank account asked for whole, except Card, which fails on every request"""
+
+    def __init__(self, failure: str) -> None:
+        """Fail Card's bank login, or Card's bank account alone"""
+        super().__init__()
+        self.failure = failure
+
+    @override
+    async def fetch(self, credential: str, **window) -> FetchResult:
+        accounts = tuple(
+            _bank_account(external_id, login_key="CON-card" if external_id == "ACT-card" else "CON-harbour")
+            for external_id in window["account_ids"]
+        )
+        problem = ProviderError(
+            ProviderErrorKind.BANK_LOGIN_NEEDED if self.failure == "bank_login" else ProviderErrorKind.TEMPORARY, "Card failed"
+        )
+        if self.failure == "bank_login":
+            self.outcomes = [FetchResult(accounts=accounts, login_errors={"CON-card": problem})]
+        else:
+            self.outcomes = [FetchResult(accounts=accounts, account_errors={"ACT-card": problem})]
+        return await super().fetch(credential, **window)
+
+
+@pytest.mark.parametrize("failure", ["bank_login", "bank_account"])
+async def test_job_leaves_out_a_link_whose_fetch_failed_and_syncs_the_others(connection, monkeypatch, failure):
+    """Card, importing from 1 January, fails on every request, so after its window fails the job goes on to Everyday's daily re-read"""
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    card = await _link(connection, "ACT-card", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    provider = _CardFailingProvider(failure)
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [
+        _window(date(2026, 1, 1), date(2026, 3, 31), ["ACT-card"]),
+        _window(date(2026, 9, 19), _TODAY, ["ACT-everyday"], pending=True),
+    ]
+    assert await _checkpoints(everyday, card) == [_TODAY, date(2025, 12, 31)]
+    assert [status for _, status, *_ in await _jobs()] == ["succeeded"]
+
+
+async def test_job_carries_an_import_past_a_link_that_fails_on_every_request(connection, monkeypatch):
+    """Everyday and Card both import from 1 January and Card's bank login needs a sign-in, so Everyday's import still reaches today
+
+    Each job tries Card again first, until retrying a failing link waits for its own schedule
+    """
+    everyday = await _link(connection, "ACT-everyday", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    card = await _link(connection, "ACT-card", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    provider = _CardFailingProvider("bank_login")
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    card_alone = _window(date(2026, 1, 1), date(2026, 3, 31), ["ACT-card"])
+    assert _fetched(provider) == [
+        _window(date(2026, 1, 1), date(2026, 3, 31), ["ACT-card", "ACT-everyday"]),
+        card_alone,
+        _window(date(2026, 4, 1), date(2026, 6, 29), ["ACT-everyday"]),
+        card_alone,
+        _window(date(2026, 6, 30), date(2026, 9, 27), ["ACT-everyday"]),
+        card_alone,
+        _window(date(2026, 9, 28), _TODAY, ["ACT-everyday"], pending=True),
+    ]
+    assert await _checkpoints(everyday, card) == [_TODAY, date(2025, 12, 31)]
+
+
 async def test_job_brings_up_to_date_a_link_whose_checkpoint_is_long_before_its_import_start(connection, provider):
     """Everyday's checkpoint is a month before its import start, so it needs nothing before 1 September and the window from then moves it"""
     link = await _link(connection, "ACT-1", import_start=date(2026, 9, 1), checkpoint=date(2026, 8, 1))

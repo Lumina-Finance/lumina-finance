@@ -11,7 +11,9 @@ that changed while the job fetched gets none of its results
 """
 
 import logging
+import uuid
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -79,6 +81,17 @@ async def run_sync_job(job: ClaimedJob) -> None:
         await _JobRun(job, connection, adapter, timezone=timezone, currency_exponents=currency_exponents, now=now).run()
 
 
+@dataclass(frozen=True)
+class _Fetched:
+    """What fetching one window did"""
+
+    # Whether the last part written moved a checkpoint, which ends where the window does
+    moved: bool
+
+    # The links a part didn't bring back whole
+    failed: set[uuid.UUID]
+
+
 class _JobRun:
     """One attempt at a job, with what it read as it started"""
 
@@ -102,20 +115,44 @@ class _JobRun:
         self.today: date = now.astimezone(timezone).date()
 
     async def run(self) -> None:
-        """List the connection's bank accounts if due, fetch the window its due links need, and record the job as finished"""
+        """List the connection's bank accounts if due, fetch windows for its due links, and record the job as finished
+
+        A link whose fetch failed is left out of the rest of the job, so one failing on every request
+        can't hold up the others: a window that ends before today and moves no checkpoint past its
+        failures is followed in the same job by the next window the remaining links need. Retrying
+        the failed link waits for a later job
+        """
         links = await self._read_links()
         if self._needs_discovery(links):
             if not await self._discover():
                 return
             links = await self._read_links()
 
-        needs = find_due_links(links, now=self.now, timezone=self.timezone, overlap_days=self.adapter.revisit_overlap_days)
-        window = plan_window(needs, today=self.today, timezone=self.timezone, max_days=self.adapter.max_window_days)
-        if window is None:
-            await _end_job(self.job)
-            return
-        await self._record_covered_links(window)
-        await self._fetch(window)
+        failed: set[uuid.UUID] = set()
+        covered: set[uuid.UUID] = set()
+        while True:
+            needs = find_due_links(links, now=self.now, timezone=self.timezone, overlap_days=self.adapter.revisit_overlap_days)
+            window = plan_window(
+                [need for need in needs if need.link.id not in failed],
+                today=self.today,
+                timezone=self.timezone,
+                max_days=self.adapter.max_window_days,
+            )
+            if window is None:
+                await _end_job(self.job)
+                return
+            covered |= {need.link.id for need in window.needs}
+            await self._record_covered_links(covered)
+
+            fetched = await self._fetch(window)
+            if fetched is None:
+                return
+            if window.last_day == self.today or fetched.moved or not fetched.failed:
+                # The last part written ends where the window does, so a link it moved is synced through the window
+                await _end_job(self.job, again=fetched.moved and window.last_day < self.today)
+                return
+            failed |= fetched.failed
+            links = await self._read_links()
 
     async def _read_links(self) -> list[BankAccountLink]:
         """Return every link on the connection, as committed now"""
@@ -165,40 +202,42 @@ class _JobRun:
             return False
         return True
 
-    async def _record_covered_links(self, window: SyncWindow) -> None:
+    async def _record_covered_links(self, covered: set[uuid.UUID]) -> None:
         """Record the links the job syncs on it, for their status to say a sync is under way"""
         async with async_session() as db:
             await lock_job_for_finish(db, self.job, ())
-            await db.execute(
-                update(BankSyncJob).where(BankSyncJob.id == self.job.id).values(covered_link_ids=[need.link.id for need in window.needs])
-            )
+            await db.execute(update(BankSyncJob).where(BankSyncJob.id == self.job.id).values(covered_link_ids=list(covered)))
             await db.commit()
 
-    async def _fetch(self, window: SyncWindow) -> None:
-        """Fetch the window and write what it found, queueing the next window at once while a link is still behind
+    async def _fetch(self, window: SyncWindow) -> _Fetched | None:
+        """Fetch the window and write what it found
 
         SimpleFIN has no paging, so a response that may have been cut short is set aside and its days
         fetched again in halves, down to a single day, which is kept however long. Parts are written
         as they come back, earliest first, so those fetched before the budget ran out or a request
         failed keep their progress
+
+        Returns:
+            What the window moved and which links failed, or None when the job ended instead
         """
         parts = [window]
         moved = False
+        failed: set[uuid.UUID] = set()
         while parts:
             part = parts.pop()
             result = await self._fetch_part(part)
             if result is None:
-                return
+                return None
             if result.possibly_cut_off and part.first_day < part.last_day:
                 earlier, later = part.halves()
                 parts += [later, earlier]
                 continue
             if result.possibly_cut_off:
                 logger.warning("Bank sync job %s kept %s whole, though its response may have been cut short", self.job.id, part.first_day)
-            moved = await self._write(part, result)
-
-        # The last part written ends where the window does, so a link it moved is synced through the window
-        await _end_job(self.job, again=moved and window.last_day < self.today)
+            synced = _synced_bank_accounts(result)
+            failed |= {need.link.id for need in part.needs if need.link.external_account_id not in synced}
+            moved = await self._write(part, synced)
+        return _Fetched(moved=moved, failed=failed)
 
     async def _fetch_part(self, part: SyncWindow) -> FetchResult | None:
         """Count and send one request for a part of the window
@@ -230,7 +269,7 @@ class _JobRun:
             return None
         return result
 
-    async def _write(self, part: SyncWindow, result: FetchResult) -> bool:
+    async def _write(self, part: SyncWindow, synced: set[str]) -> bool:
         """Move the checkpoint of each link the response brought back whole, if the job still holds it
 
         A checkpoint moves only over days the link's data is complete for, so the part has to start no
@@ -238,10 +277,13 @@ class _JobRun:
         moves, or when the part brought the link back whole through today, with the job's start, the
         moment today was read, so the day it falls on is never before the checkpoint
 
+        Args:
+            part: The days fetched, and the links they were fetched for
+            synced: The bank accounts the response brought back whole
+
         Returns:
             Whether a checkpoint moved
         """
-        synced = _synced_bank_accounts(result)
         moved = False
         async with async_session() as db:
             for link in await lock_job_for_finish(db, self.job, [need.link for need in part.needs]):
