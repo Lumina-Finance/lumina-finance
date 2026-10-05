@@ -350,12 +350,22 @@ test("goes from a ledger row's Needs review marker to its item, loading the page
 
   // Ringed for a moment once it is reached, then left as the other rows are
   const item = block.getByRole('listitem').filter({ hasText: 'UBER TRIP' })
-  await expect(item).toHaveCSS('box-shadow', /inset/)
+  const ring = item.getByTestId('review-item-ring')
+  await expect(ring).toHaveCSS('box-shadow', /inset/)
   await expect(item).toBeFocused()
   await expect(item).toBeInViewport()
   expect(cursors).toEqual([null, 'page-1'])
   await expect(item.getByText(`${MINUS}$18.00`)).toHaveCSS('text-decoration-line', 'line-through')
-  await expect(item).toHaveCSS('box-shadow', 'none')
+
+  // The ring stays clear of the card's edges and of the text it frames
+  const [blockBox, ringBox, textBox, amountBox] = await Promise.all(
+    [block, ring, item.getByTestId('review-item-text'), item.getByTestId('review-item-amount')].map(async (part) => (await part.boundingBox())!),
+  )
+  expect(ringBox.x).toBeGreaterThanOrEqual(blockBox.x + 8)
+  expect(ringBox.x + ringBox.width).toBeLessThanOrEqual(blockBox.x + blockBox.width - 8)
+  expect(textBox.x).toBeGreaterThanOrEqual(ringBox.x + 4)
+  expect(amountBox.x + amountBox.width).toBeLessThanOrEqual(ringBox.x + ringBox.width - 4)
+  await expect(ring).toHaveCSS('box-shadow', 'none')
 })
 
 test('opens the block for a marker whose item is the fifth, the first one it hides', async ({ page, request }) => {

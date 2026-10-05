@@ -171,7 +171,7 @@ export function BankReviewBlock({
                 // Focusable from a Needs review marker, so a screen reader moves to the item too, but
                 // never a tab stop, since the row opens nothing
                 tabIndex={-1}
-                className="overflow-hidden px-4 focus:outline-none sm:px-5"
+                className="relative overflow-hidden px-4 focus:outline-none sm:px-5"
                 initial={skipEnterAnimation ? false : collapsed}
                 animate={{ height: 'auto', opacity: 1 }}
                 variants={{
@@ -179,14 +179,20 @@ export function BankReviewBlock({
                 }}
                 exit="leave"
                 transition={enterTransition}
-
-                // A ring rather than a fill, since any fill lighter than the block's own would take
-                // the muted line below 4.5:1 in the dark theme
-                style={{
-                  boxShadow: highlightedId === item.id ? 'inset 0 0 0 2px var(--app-warning-dot)' : 'none',
-                  transition: prefersReducedMotion ? undefined : 'box-shadow 0.5s',
-                }}
               >
+                {/* A ring rather than a fill, since any fill lighter than the block's own would take
+                    the muted line below 4.5:1 in the dark theme. It frames the content, halfway into
+                    the margin the dividers and text keep from the card's edges, so it touches neither */}
+                <span
+                  data-testid="review-item-ring"
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-2 bottom-0 top-px rounded-lg sm:inset-x-2.5"
+                  style={{
+                    boxShadow: highlightedId === item.id ? 'inset 0 0 0 2px var(--app-warning-dot)' : 'none',
+                    transition: prefersReducedMotion ? undefined : 'box-shadow 0.5s',
+                  }}
+                />
+
                 {/* The divider sits on the content rather than the row, so it stops short of the card's edges */}
                 <div className="flex items-center gap-3 py-2.5" style={{ borderTop: '1px solid var(--app-review-divider)' }}>
                   <div data-testid="review-item-text" className="min-w-0 flex-1">
