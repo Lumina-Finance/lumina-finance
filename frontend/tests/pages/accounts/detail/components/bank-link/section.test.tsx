@@ -91,14 +91,23 @@ describe('BankLinkSection', () => {
   })
 
   it('refuses a link on an archived account, and while the sync worker is down, saying why', () => {
+    // Archiving lasts, so its reason sits beside the button as the button's description
     const archived = renderSection(createAccount({ is_archived: true }))
-    expect(getButton(archived, 'Link bank account')).toContain('aria-disabled="true"')
-    expect(archived).toContain('Archived accounts are read-only')
+    const archivedButton = getButton(archived, 'Link bank account')
+    expect(archivedButton).toContain('aria-disabled="true"')
+    const reasonId = archivedButton.match(/aria-describedby="([^"]+)"/)?.[1]
+    expect(archived).toContain(`<p id="${reasonId}" class="text-sm" style="color:var(--app-text-muted)">Archived accounts are read-only</p>`)
 
     read.providers = createProviders({ sync_running: false })
     const paused = renderSection()
     expect(getButton(paused, 'Link bank account')).toContain('aria-disabled="true"')
     expect(paused).toContain(escaped(LINKING_PAUSED_REASON))
+  })
+
+  it('marks its control for the modal to focus only when the modal opens at the bank link', () => {
+    const atBankLink = renderToStaticMarkup(<BankLinkSection account={createAccount()} sectionNumber="03" autoFocus />)
+    expect(getButton(atBankLink, 'Link bank account')).toContain('data-modal-initial-focus="true"')
+    expect(getButton(renderSection(), 'Link bank account')).not.toContain('data-modal-initial-focus')
   })
 
   it('shows a live link with its facts, its status, the running import and a way to unlink', () => {

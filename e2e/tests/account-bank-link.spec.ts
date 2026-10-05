@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { createAccount, formatToday, signUpUser, todayInTestTimezone, type TestUser } from '../support/api'
+import { asUser, createAccount, formatToday, signUpUser, todayInTestTimezone, type TestUser } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support/app'
 import {
   addBridgeBankAccount,
@@ -23,6 +23,7 @@ const SAMPLE_BANK = 'Harbour Bank'
 const SAMPLE_CHEQUING = 'Everyday Chequing'
 const SAMPLE_VISA = 'Rewards Visa'
 const LINKING_PAUSED = "Bank sync isn't running right now. You can link accounts once it's back."
+const ARCHIVED = 'Archived accounts are read-only'
 
 /**
  * The first day of the month a number of months before this one, as YYYY-MM-DD
@@ -72,6 +73,17 @@ async function openBankLink(page: Page, user: TestUser, accountId: string, statu
 }
 
 /**
+ * Collects the bank account listings the page asks for, which name the account they are for
+ */
+function watchListings(page: Page): string[] {
+  const listings: string[] = []
+  page.on('request', (sent) => {
+    if (sent.url().includes('for_account_id=')) listings.push(sent.url())
+  })
+  return listings
+}
+
+/**
  * Chooses the first start on offer, whichever the account's ledger leaves
  */
 async function chooseFirstStart(flow: Locator): Promise<void> {
@@ -95,6 +107,12 @@ test('links an account from its page, from choosing the bank account to its impo
 
   const linkButton = dialog.getByRole('button', { name: 'Link bank account' })
   await expect(linkButton).toBeInViewport()
+  await expect(linkButton).toBeFocused()
+
+  // Every open lands there, not only the first
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  await page.getByRole('button', { name: 'Bank sync: Not linked. Open bank link' }).click()
   await expect(linkButton).toBeFocused()
   await expect(dialog.getByText('Link this account to one of the bank accounts on your connections to bring in its transactions automatically.')).toBeVisible()
   await linkButton.click()
@@ -237,14 +255,19 @@ test('unlinks the account alone, then reconnects it with the relink wording', as
     externalAccountId: externalIdOf(connection, SAMPLE_CHEQUING),
     startDate: todayInTestTimezone(),
   })
+  const listings = watchListings(page)
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${everyday.id}`)
   await page.getByRole('button', { name: /^Bank sync: / }).click()
   const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
   await expect(dialog.getByRole('button', { name: 'Unlink' })).toBeFocused()
+
+  // A linked account has no bank account to choose, so none are listed for it
+  expect(listings).toEqual([])
   await dialog.getByRole('button', { name: 'Unlink' }).click()
 
   const unlink = page.getByRole('dialog', { name: 'Unlink bank account' })
+  await expect(unlink.getByRole('radio', { name: /^Unlink this account/ })).toBeFocused()
   await expect(unlink.getByText(`${SAMPLE_CHEQUING} at ${SAMPLE_BANK}`)).toBeVisible()
   await expect(unlink.getByRole('radio', { name: /^Unlink this account/ })).toBeChecked()
   await expect(unlink.getByRole('radio', { name: /^Unlink this account/ }))
@@ -335,6 +358,26 @@ test.describe('the reason on Link bank account while bank sync is not running', 
     await expect(page.getByRole('dialog', { name: 'Link bank account' })).toHaveCount(0)
     await expect(dialog).toBeVisible()
   })
+})
+
+test('holds linking back on an archived account with the reason beside it, listing no bank accounts', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const [everyday, scenario] = await Promise.all([
+    createAccount(request, user, { name: 'Everyday' }),
+    createSampleBridgeScenario(request),
+  ])
+  await claimSetupToken(request, user, scenario.setupToken)
+  const archived = await request.patch(`${API_BASE_URL}/accounts/${everyday.id}`, { headers: asUser(user), data: { is_archived: true } })
+  expect(archived.ok()).toBe(true)
+  const listings = watchListings(page)
+  const dialog = await openBankLink(page, user, everyday.id, 'Not linked')
+
+  const link = dialog.getByRole('button', { name: 'Link bank account' })
+  await expect(link).toBeFocused()
+  await expect(link).toHaveAttribute('aria-disabled', 'true')
+  await expect(link).toHaveAccessibleDescription(ARCHIVED)
+  await expect(link.locator('..').getByText(ARCHIVED, { exact: true })).toBeVisible()
+  expect(listings).toEqual([])
 })
 
 test('disconnects the whole connection from the Unlink dialog, unlinking the account with it', async ({ page, request }) => {
