@@ -98,6 +98,22 @@ async def test_lift_review_pauses_queues_nothing_for_an_account_that_isnt_paused
     assert await _queued_jobs() == []
 
 
+async def test_lift_review_pauses_leaves_an_import_running_on_its_own_schedule(connections):
+    """Everyday keeps its pause through a reconnect import, whose last attempt failed, so it retries in 30 minutes
+
+    A review decision leaving 50 new items waiting lifts the pause, which never held the import back,
+    so the retry stays where it was rather than going out early, and no sync is queued
+    """
+    retry_at = FROZEN_NOW + timedelta(minutes=30)
+    link = await _paused_link(connections[0], importing=True, retry_count=1, next_attempt_at=retry_at)
+    await _commit_waiting_items(link, 50)
+
+    await _lift(link)
+
+    assert await _link_state(link) == (False, retry_at)
+    assert await _queued_jobs() == []
+
+
 async def test_lift_review_pauses_queues_no_sync_for_an_account_waiting_for_its_bank_account(connections):
     """Everyday waits in Choose bank account, paused with 20 new items waiting: a review decision lifts the pause and queues nothing to fetch"""
     link = await _paused_link(connections[0], state=BankLinkState.CHOOSE_ACCOUNT)

@@ -94,9 +94,10 @@ async def lock_account_links(db: AsyncSession, account_ids: Collection[uuid.UUID
     """Lock every link of these accounts in id order, after the connections of the live ones, before any bank transaction row
 
     A lifted pause queues a sync, and a job row holds its connection for key share, so that lock is
-    taken on each live link's connection first, since a sync's write holds the connection before
-    the links. Then the links, in the order every writer takes them, and every link, not only paused
-    ones, since one a sync is pausing doesn't read as paused until its lock is granted
+    taken on each live link's connection first, since a disconnect, a reconnect and a sync's write
+    each hold the connection before the links. Then the links, in the order every writer takes
+    them, and every link, not only paused ones, since one a sync is pausing doesn't read as paused
+    until its lock is granted
 
     Returns:
         The links, as the writes before this left them, since the caller hasn't loaded them before
@@ -117,7 +118,8 @@ async def lift_review_pauses(db: AsyncSession, owner_id: uuid.UUID, links: Seque
     A review action calls this after its write, in the same transaction, so the count takes in its
     decisions, then marks the owner's cache row, which tells their open pages of any pause lifted.
     A link that isn't active, such as one waiting in Choose bank account, only loses the pause,
-    since it has nothing to sync
+    since it has nothing to sync, and so does one an import is running on, since the pause never
+    held it back and its next attempt, which may be a retry, stays where it was
 
     Args:
         db: The owner's session
@@ -135,8 +137,9 @@ async def lift_review_pauses(db: AsyncSession, owner_id: uuid.UUID, links: Seque
     now = datetime.now(UTC)
     due: set[uuid.UUID] = set()
     for link in lifted:
+        held_back = is_paused_for_review(link)
         link.paused = False
-        if link.state == BankLinkState.ACTIVE:
+        if held_back and link.state == BankLinkState.ACTIVE:
             link.next_attempt_at = now
             due.add(link.connection_id)
     for connection_id in sorted(due):
