@@ -1,13 +1,15 @@
 /**
  * Covers how the review block words and scopes waiting bank items: the line each kind asks with, the
- * amount it shows, its date, the backlog notice, and which accounts' items it reads
+ * amount it shows, its date, the backlog notice, which accounts' items it reads, and which new item
+ * is reviewed after another
  *
  * These tests catch a correction naming its changed fields in another order than "amount and date",
  * or saying nothing when it names none the block knows, a new item with an amount its currency can't
  * hold losing decimal places or not asking for an amount, a bank amount that isn't a number vanishing,
  * a removal showing the bank's amount rather than the ledger's, a date in this year carrying its year,
- * a warning shown over a pause, accounts named out of the order given, and a scoped list
- * asking for a group or shared account's items, which the server refuses
+ * a warning shown over a pause, accounts named out of the order given, a scoped list
+ * asking for a group or shared account's items, which the server refuses, and Keep window open
+ * going on to a correction, skipping a new item, or ending while a new item before it still waits
  */
 import { describe, expect, it } from 'vitest'
 import type { BankReviewBacklog, BankReviewItem, BankReviewItemKind } from '@/api/bank-sync/types'
@@ -15,6 +17,7 @@ import type { Currency } from '@/api/currency'
 import {
   describeBacklogNotice,
   describeReviewItem,
+  findNextNewItem,
   formatReviewDate,
   getReviewAccountIds,
   getReviewItemAmount,
@@ -137,5 +140,28 @@ describe('the accounts whose items the block reads', () => {
   it('reads only the own personal accounts a list is filtered or fixed to', () => {
     expect(getReviewAccountIds(accounts, 'user-1', ['savings', 'joint', 'shared'])).toEqual(['savings'])
     expect(getReviewAccountIds(accounts, 'user-1', ['joint'])).toEqual([])
+  })
+})
+
+describe('the new item reviewed after another', () => {
+  const first = createReviewItem('new', { id: 'first' })
+  const correction = createReviewItem('correction', { id: 'correction' })
+  const middle = createReviewItem('new', { id: 'middle' })
+  const removal = createReviewItem('removal', { id: 'removal' })
+  const last = createReviewItem('new', { id: 'last' })
+  const items = [first, correction, middle, removal, last]
+
+  it('is the next new item in the block, passing over corrections and removals', () => {
+    expect(findNextNewItem(items, 'first')).toBe(middle)
+    expect(findNextNewItem(items, 'middle')).toBe(last)
+  })
+
+  it('goes back to the first new item before it once none follows', () => {
+    expect(findNextNewItem(items, 'last')).toBe(first)
+    expect(findNextNewItem([correction, middle, last], 'last')).toBe(middle)
+  })
+
+  it('is none when no other new item is loaded', () => {
+    expect(findNextNewItem([correction, last, removal], 'last')).toBeNull()
   })
 })

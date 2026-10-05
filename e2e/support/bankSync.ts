@@ -38,7 +38,7 @@ export type BankSource = {
 
 export type ReviewItemKind = 'new' | 'correction' | 'removal'
 
-type BankValues = BankSource['bank_values']
+export type BankValues = BankSource['bank_values']
 
 /** A bank item waiting for review, as the app reads it from the review list */
 export type ReviewItem = {

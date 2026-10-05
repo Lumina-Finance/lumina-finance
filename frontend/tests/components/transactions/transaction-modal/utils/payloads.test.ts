@@ -1,12 +1,14 @@
 /**
  * Tests the payloads the transaction modal sends, so an edit patch carries only what changed, a
- * transfer pair writes each leg recording the other, and the counterparty selection reaches the API as
- * an id and a scope
+ * transfer pair writes each leg recording the other, the counterparty selection reaches the API as
+ * an id and a scope, and Add to ledger sends the amount as entered without naming an account or
+ * currency, which the server takes from the bank item
  */
 import { describe, expect, it } from 'vitest'
 import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import { buildInitialTransactionForm } from '@/components/transactions/transaction-modal/utils/initialForm'
 import {
+  buildAddReviewItemPayload,
   buildCreateTransactionPayload,
   buildSymmetricTransferPayloads,
   buildUpdateTransactionPatch,
@@ -179,6 +181,45 @@ describe('transaction modal payloads', () => {
       transaction,
       2,
     )).toEqual({ category_id: 'groceries' })
+  })
+})
+
+describe('the Add to ledger payload', () => {
+  // A bank item for $42.10 out, its merchant and category chosen
+  const reviewForm = {
+    kind: 'expense' as const,
+    direction: 'debit' as const,
+    account_id: 'everyday',
+    category_id: 'groceries',
+    merchant_id: 'countdown',
+    amount: '42.10',
+    currency: 'CAD',
+    notes: '',
+    date: '2026-09-21',
+    tag_ids: [],
+    symmetric_transfer: false,
+    counterparty_account_id: '',
+  }
+
+  it('sends the amount as entered, signed by its direction, and leaves the account and currency to the item', () => {
+    expect(buildAddReviewItemPayload({ ...reviewForm, amount: '40.00' }, 2)).toEqual({
+      dt: '2026-09-21',
+      category_id: 'groceries',
+      merchant_id: 'countdown',
+      amount: -4000,
+      notes: null,
+    })
+  })
+
+  it("sends a transfer's other account as an id and a scope", () => {
+    expect(buildAddReviewItemPayload({
+      ...reviewForm,
+      kind: 'transfer',
+      direction: 'credit',
+      category_id: 'transfer',
+      amount: '500.00',
+      counterparty_account_id: 'savings',
+    }, 2)).toMatchObject({ amount: 50000, counterparty_account_id: 'savings', counterparty_account_scope: 'tracked' })
   })
 })
 

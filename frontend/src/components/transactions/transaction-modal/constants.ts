@@ -80,6 +80,10 @@ export const DEFAULT_DIRECTION_BY_KIND: Record<TransactionModalKind, Transaction
   transfer: 'debit',
 }
 
+// The most characters the Notes field takes, which a value put there for the user, such as a bank item's
+// description, is cut to
+export const NOTES_MAX_LENGTH = 500
+
 export const INITIAL_TRANSACTION_FORM: TransactionFormValues = {
   kind: 'expense',
   direction: DEFAULT_DIRECTION_BY_KIND.expense,
@@ -94,3 +98,6 @@ export const INITIAL_TRANSACTION_FORM: TransactionFormValues = {
   symmetric_transfer: false,
   counterparty_account_id: '',
 }
+
+// The app's ease-out, for a bank item's filing card and form as the next item takes their place
+export const REVIEW_SWAP_EASE = [0.22, 1, 0.36, 1] as const

@@ -23,8 +23,14 @@ interface TransactionFormState {
 /**
  * Owns the transaction form values and the submit-error banner, including the shared kind-change
  * routine that keeps the direction toggle in sync
+ *
+ * @param keepDirectionOnKindChange - Set for a bank item, whose direction a kind change leaves as
+ * the bank sent it
  */
-export function useTransactionFormState(initialForm: TransactionFormValues): TransactionFormState {
+export function useTransactionFormState(
+  initialForm: TransactionFormValues,
+  keepDirectionOnKindChange = false,
+): TransactionFormState {
   const [form, setForm] = useState(initialForm)
   const [submitError, setSubmitError] = useState('')
 
@@ -43,8 +49,8 @@ export function useTransactionFormState(initialForm: TransactionFormValues): Tra
   // highlight animation stay consistent no matter which field triggered the switch
   const applyKindChange = (nextKind: TransactionModalKind, fields?: Partial<TransactionFormValues>) => {
     const kindChanged = nextKind !== form.kind
-    setForm((f) => getFormAfterKindChange(f, nextKind, fields))
-    if (kindChanged) setDirectionHighlightKey((key) => key + 1)
+    setForm((f) => getFormAfterKindChange(f, nextKind, fields, keepDirectionOnKindChange))
+    if (kindChanged && !keepDirectionOnKindChange) setDirectionHighlightKey((key) => key + 1)
   }
 
   const handleField = <K extends keyof TransactionFormValues>(field: K, value: TransactionFormValues[K]) => {

@@ -6,11 +6,15 @@ import type {
 
 /**
  * Applies a transaction-kind choice while preserving the form fields supplied by its caller
+ *
+ * @param keepDirection - Keeps the direction rather than taking the new kind's default, for a bank
+ * item, whose direction is the bank's record of which way the money went
  */
 export function getFormAfterKindChange(
   form: TransactionFormValues,
   nextKind: TransactionModalKind,
   fields: Partial<TransactionFormValues> = {},
+  keepDirection = false,
 ): TransactionFormValues {
   const kindChanged = nextKind !== form.kind
   const hasReplacementCategory = Object.prototype.hasOwnProperty.call(fields, 'category_id')
@@ -25,6 +29,6 @@ export function getFormAfterKindChange(
     ...(kindChanged && !hasReplacementCategory ? { category_id: '' } : {}),
     ...fields,
     kind: nextKind,
-    direction: nextKind === form.kind ? form.direction : getDefaultDirectionForKind(nextKind),
+    direction: nextKind === form.kind || keepDirection ? form.direction : getDefaultDirectionForKind(nextKind),
   }
 }

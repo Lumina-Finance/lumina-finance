@@ -1,15 +1,16 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useReviewBacklogs, useReviewItems } from '@/api/bank-sync'
+import { useReviewBacklogs, useReviewItems, type BankReviewItem } from '@/api/bank-sync'
 import { useAuth } from '@/hooks/useAuth'
 import { useTodayYmd } from '@/hooks/useTodayYmd'
 import type { BankReadFailure } from '@/components/transactions/bank-review/ReadFailureNotice'
 import { BankReviewBlock, COLLAPSED_ITEM_COUNT } from '@/components/transactions/bank-review/ReviewBlock'
+import CreateTransactionModal from '@/components/transactions/transaction-modal/Modal'
 import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
 import { useBankItemScope } from '@/components/transactions/hooks/useBankItemScope'
 import { useInfiniteScrollTrigger } from '@/components/transactions/hooks/useInfiniteScrollTrigger'
 import { useSkipAppendedEnter } from '@/components/transactions/hooks/useSkipAppendedEnter'
-import { describeBacklogNotice, isOwnPersonalAccount } from '@/components/transactions/utils/bankReview'
+import { describeBacklogNotice, findNextNewItem, isOwnPersonalAccount } from '@/components/transactions/utils/bankReview'
 
 // How long a row stays ringed after a Needs review marker went to it
 const JUMP_HIGHLIGHT_MS = 1800
@@ -79,6 +80,9 @@ function getRowsOnScreen(rows: Map<string, HTMLDivElement>): Set<string> {
  * review marker's request opens the block when its item is past the first few, loads pages until the
  * item is among them, then scrolls to it, focuses it and rings it for a moment. While the items can't
  * load, the request goes to that retry instead, and a page that fails to load ends it where it is
+ *
+ * A new item's row opens it in the transaction modal for review. Kept open, the modal goes on through
+ * the new items in the block's order after each decision, and closes once none are left
  *
  * Kept apart from the list's own renders, such as one for each search keystroke, since an open block
  * can hold hundreds of rows
@@ -213,45 +217,90 @@ export const BankReviewSection = memo(function BankReviewSection({
   })
   const skipAppendedEnter = useSkipAppendedEnter(isFetchingNextPage)
 
+  // The new item open for review, kept once it is decided and leaves the list, so the modal goes on
+  // showing it as it closes. Each opening mounts a fresh modal
+  const [reviewItem, setReviewItem] = useState<BankReviewItem | null>(null)
+  const [isReviewOpen, setIsReviewOpen] = useState(false)
+  const [reviewOpening, setReviewOpening] = useState(0)
+  const openNewItem = useCallback((item: BankReviewItem) => {
+    setReviewItem(item)
+    setReviewOpening((opening) => opening + 1)
+    setIsReviewOpen(true)
+  }, [])
+
+  // Called back from the render the decision was made in, whose items still hold the decided one, so
+  // the next is found from its place even though it has left the list since
+  const settleReview = (openNext: boolean) => {
+    const next = openNext && reviewItem ? findNextNewItem(items, reviewItem.id) : null
+    if (next) setReviewItem(next)
+    else setIsReviewOpen(false)
+  }
+
+  // The next item may be on a page not loaded yet, which loads while the last loaded one is open. Asked
+  // for once for each item, so a page that fails isn't asked for again and again
+  const pageAskedFor = useRef<string | null>(null)
+  const openLastNewItemId = isReviewOpen && reviewItem !== null && items.findLast((item) => item.kind === 'new')?.id === reviewItem.id
+    ? reviewItem.id
+    : null
+  useEffect(() => {
+    if (!openLastNewItemId || !hasNextPage || isFetchingNextPage || pageAskedFor.current === openLastNewItemId) return
+    pageAskedFor.current = openLastNewItemId
+    void fetchNextPage()
+  }, [openLastNewItemId, hasNextPage, isFetchingNextPage, fetchNextPage])
+
   const { collapsed, enterTransition, leave } = REVIEW_MOTION[prefersReducedMotion ? 'reduced' : 'full']
 
   return (
-    <AnimatePresence initial={false}>
-      {(total > 0 || hasItemsFailure) && (
-        <motion.div
-          key="review"
-          className="overflow-hidden"
-          initial={collapsed}
-          animate={{ height: 'auto', opacity: 1 }}
-          exit={leave}
-          transition={enterTransition}
-        >
-          <div className="pb-3 pt-1">
-            <BankReviewBlock
-              items={items}
-              total={total}
-              itemsFailure={itemsFailure}
-              itemsRetryRef={itemsRetryRef}
-              accountFor={accountFor}
-              showAccountNames={!isFixedAccount}
-              today={today}
-              backlogNotice={backlogNotice}
-              backlogFailure={backlogFailure}
-              expanded={expanded}
-              onToggleExpanded={toggleExpanded}
-              rowsInViewAtClose={rowsInViewAtClose}
-              onRowsLeft={() => setRowsInViewAtClose(null)}
-              hasMoreItems={hasNextPage}
-              isLoadingMore={isFetchingNextPage || Boolean(showPendingFetch)}
-              loadMoreSentinelRef={sentinelRef}
-              skipEnterAnimation={skipAppendedEnter}
-              highlightedId={highlight?.itemId ?? null}
-              registerRow={registerRow}
-              prefersReducedMotion={prefersReducedMotion}
-            />
-          </div>
-        </motion.div>
+    <>
+      <AnimatePresence initial={false}>
+        {(total > 0 || hasItemsFailure) && (
+          <motion.div
+            key="review"
+            className="overflow-hidden"
+            initial={collapsed}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={leave}
+            transition={enterTransition}
+          >
+            <div className="pb-3 pt-1">
+              <BankReviewBlock
+                items={items}
+                total={total}
+                itemsFailure={itemsFailure}
+                itemsRetryRef={itemsRetryRef}
+                accountFor={accountFor}
+                showAccountNames={!isFixedAccount}
+                today={today}
+                backlogNotice={backlogNotice}
+                backlogFailure={backlogFailure}
+                expanded={expanded}
+                onToggleExpanded={toggleExpanded}
+                rowsInViewAtClose={rowsInViewAtClose}
+                onRowsLeft={() => setRowsInViewAtClose(null)}
+                hasMoreItems={hasNextPage}
+                isLoadingMore={isFetchingNextPage || Boolean(showPendingFetch)}
+                loadMoreSentinelRef={sentinelRef}
+                skipEnterAnimation={skipAppendedEnter}
+                highlightedId={highlight?.itemId ?? null}
+                registerRow={registerRow}
+                onOpenNewItem={openNewItem}
+                prefersReducedMotion={prefersReducedMotion}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Outside the block, which leaves once its last item is decided, while the modal still has to close */}
+      {reviewItem && (
+        <CreateTransactionModal
+          key={reviewOpening}
+          open={isReviewOpen}
+          onClose={() => setIsReviewOpen(false)}
+          reviewItem={reviewItem}
+          onReviewDecided={settleReview}
+        />
       )}
-    </AnimatePresence>
+    </>
   )
 })

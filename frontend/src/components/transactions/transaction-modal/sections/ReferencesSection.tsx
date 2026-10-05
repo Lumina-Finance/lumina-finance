@@ -29,6 +29,9 @@ interface TransactionReferencesSectionProps {
   accountValue: string
   accountError?: string | false
   accountPlaceholder: string
+
+  // Holds the account where it is, for a bank item, which belongs to the account whose feed it came from
+  isAccountLocked: boolean
   runningBalance?: { amount: number; currency: string }
 
   // Set instead of the one above when a paired transfer puts the recorded account in the second slot
@@ -147,6 +150,7 @@ export default function TransactionReferencesSection({
   accountValue,
   accountError,
   accountPlaceholder,
+  isAccountLocked,
   runningBalance,
   counterpartyAccountRunningBalance,
   kind,
@@ -255,7 +259,7 @@ export default function TransactionReferencesSection({
           placeholder={accountPlaceholder}
           searchable
           searchPlaceholder="Search accounts..."
-          disabled={readOnly}
+          disabled={readOnly || isAccountLocked}
         />
         <RunningBalanceRow runningBalance={runningBalance} />
 

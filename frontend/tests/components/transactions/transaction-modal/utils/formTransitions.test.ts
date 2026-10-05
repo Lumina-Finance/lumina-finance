@@ -91,4 +91,15 @@ describe('transaction kind transitions', () => {
 
     expect(getFormAfterKindChange(withCreditDirection, 'transfer')).toEqual(withCreditDirection)
   })
+
+  it("keeps a bank item's direction, the bank's record of which way the money went, through a kind change", () => {
+    const moneyIn = { ...expenseForm, kind: 'income' as const, direction: 'credit' as const, category_id: 'salary' }
+
+    expect(getFormAfterKindChange(moneyIn, 'transfer', {}, true)).toEqual({
+      ...moneyIn,
+      kind: 'transfer',
+      category_id: '',
+    })
+    expect(getFormAfterKindChange(moneyIn, 'transfer').direction).toBe('debit')
+  })
 })

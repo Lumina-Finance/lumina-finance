@@ -173,3 +173,16 @@ export function getReviewAccountIds(
   const ownPersonal = new Set(accounts.filter((account) => isOwnPersonalAccount(account, userId)).map((account) => account.id))
   return listAccountIds.filter((accountId) => ownPersonal.has(accountId))
 }
+
+/**
+ * Picks the new item to review after the given one: the next new item in the block's order, or once
+ * none follows, the first new item before it. Null when no other new item is loaded
+ *
+ * @param items - The loaded items in the block's order
+ */
+export function findNextNewItem(items: BankReviewItem[], itemId: string): BankReviewItem | null {
+  const index = items.findIndex((item) => item.id === itemId)
+  const following = items.slice(index + 1)
+  const preceding = index === -1 ? [] : items.slice(0, index)
+  return [...following, ...preceding].find((item) => item.kind === 'new') ?? null
+}

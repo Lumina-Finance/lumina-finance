@@ -21,6 +21,9 @@ export type SuppliedDays = {
   message: string | null
 }
 
+/** A save that writes into no linked account, or one that brings in a bank item, any day can take */
+export const NO_SUPPLIED_DAYS: SuppliedDays = { isDateDisabled: undefined, message: null }
+
 type GetSuppliedDaysOptions = {
   form: TransactionFormValues
 
@@ -78,7 +81,7 @@ export function getSuppliedDays({
   const counterpartyLink = counterpartyAccount && linksByAccount.get(counterpartyAccount.id)
   if (counterpartyLink && isNewPair) accounts.push({ link: counterpartyLink, accountName: counterpartyAccount.name })
 
-  if (accounts.length === 0) return { isDateDisabled: undefined, message: null }
+  if (accounts.length === 0) return NO_SUPPLIED_DAYS
 
   const isUnchanged = transaction !== undefined && !moved && form.date === transaction.dt
   const supplying = isUnchanged ? undefined : accounts.find(({ link }) => isSuppliedDay(form.date, link, today))

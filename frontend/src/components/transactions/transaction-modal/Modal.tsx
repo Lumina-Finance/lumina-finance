@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useAccounts } from '@/api/accounts'
 import { useTransaction } from '@/api/transactions'
 import { useBankLinksByAccount, useRestoreBankValue, type EditableBankField } from '@/api/bank-sync'
@@ -11,8 +12,15 @@ import { formatCurrencySymbol } from '@/utils/formatCurrency'
 import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent } from '@/utils/moneyInput'
 import { useAuth } from '@/hooks/useAuth'
 import { getTodayYmd } from '@/utils/date'
-import { KIND_LABELS, TRANSACTION_MODAL_FIELD_IDS } from '@/components/transactions/transaction-modal/constants'
-import { buildInitialTransactionForm } from '@/components/transactions/transaction-modal/utils/initialForm'
+import {
+  KIND_LABELS,
+  REVIEW_SWAP_EASE,
+  TRANSACTION_MODAL_FIELD_IDS,
+} from '@/components/transactions/transaction-modal/constants'
+import {
+  buildInitialTransactionForm,
+  buildReviewItemForm,
+} from '@/components/transactions/transaction-modal/utils/initialForm'
 import { buildCurrencyOptions } from '@/components/transactions/transaction-modal/utils/options'
 import {
   getTransactionProblems,
@@ -30,7 +38,7 @@ import { getBankDeleteRefusal } from '@/components/transactions/transaction-moda
 import { getBankMoveRefusal } from '@/components/transactions/transaction-modal/utils/bankMove'
 import { getBankValueCaptions } from '@/components/transactions/transaction-modal/utils/bankValues'
 import { amountToInputString } from '@/components/transactions/transaction-modal/utils/money'
-import { getSuppliedDays } from '@/components/transactions/transaction-modal/utils/suppliedDays'
+import { NO_SUPPLIED_DAYS, getSuppliedDays } from '@/components/transactions/transaction-modal/utils/suppliedDays'
 import type {
   CreateTransactionModalProps,
   TransactionFormFieldErrors,
@@ -38,7 +46,9 @@ import type {
 } from '@/components/transactions/transaction-modal/types'
 import TransactionDetailsSection from '@/components/transactions/transaction-modal/sections/DetailsSection'
 import TransactionModalFooter from '@/components/transactions/transaction-modal/layout/Footer'
-import { ReceiptText } from 'lucide-react'
+import TransactionReviewFooter from '@/components/transactions/transaction-modal/layout/ReviewFooter'
+import BankFilingCard from '@/components/transactions/transaction-modal/controls/BankFilingCard'
+import { Landmark, ReceiptText } from 'lucide-react'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { FormError } from '@/components/forms/FormError'
 import TransactionBankSourcePanel from '@/components/transactions/transaction-modal/controls/BankSourcePanel'
@@ -86,6 +96,11 @@ function getRestoreActionId(field: EditableBankField): string {
  * Cache invalidation for the affected accounts and transaction lists is deferred until the
  * modal closes, so a session of edits refreshes the page once instead of behind the open
  * modal after every save
+ *
+ * Given a new bank item, it reviews that instead: the form starts from what the bank sent, in the
+ * item's account, with a filing card showing what was sent, and the footer adds the item to the
+ * ledger, which updates the ledger and the review block together, or dismisses it, which leaves the
+ * ledger as it is
  */
 export default function CreateTransactionModal({
   open,
@@ -97,6 +112,8 @@ export default function CreateTransactionModal({
   defaultAccountId,
   defaultCurrency,
   readOnly: readOnlyProp = false,
+  reviewItem,
+  onReviewDecided,
 }: CreateTransactionModalProps) {
   const editing = !!transaction
   const refunding = !editing && !!refundOf
@@ -113,9 +130,14 @@ export default function CreateTransactionModal({
     const unarchived = accounts.filter((account) => !account.is_archived)
     return refundOf ? getRefundAccounts(unarchived, refundOf.currency) : unarchived
   }, [accounts, refundOf])
+  const prefersReducedMotion = useReducedMotion()
+  const reviewAccount = reviewItem && accounts.find((account) => account.id === reviewItem.account_id)
+  const reviewCurrency = reviewAccount?.currency ?? ''
 
-  // Build the initial form from the existing transaction (edit) or sensible defaults (create)
+  // Build the initial form from the bank item (review), the existing transaction (edit) or sensible
+  // defaults (create)
   const initialForm = useMemo<TransactionFormValues>(() => {
+    if (reviewItem) return buildReviewItemForm(reviewItem, reviewCurrency, currencies)
     return buildInitialTransactionForm({
       transaction,
       refundOf,
@@ -131,6 +153,8 @@ export default function CreateTransactionModal({
     transaction,
     refundOf,
     refundRoomLimit,
+    reviewItem,
+    reviewCurrency,
     categories,
     currencies,
     defaultAccountId,
@@ -151,7 +175,7 @@ export default function CreateTransactionModal({
     applyKindChange,
     handleField,
     handleAmountChange,
-  } = useTransactionFormState(initialForm)
+  } = useTransactionFormState(initialForm, Boolean(reviewItem))
 
   const selectedAccount = useMemo(
     () => accounts.find((account) => account.id === form.account_id),
@@ -171,14 +195,18 @@ export default function CreateTransactionModal({
   const storedTransaction = restoredTransaction ?? transaction
   const bankSource = storedTransaction?.bank_source ?? null
 
-  const suppliedDays = getSuppliedDays({
-    form,
-    transaction: storedTransaction,
-    recordedAccount: selectedAccount,
-    counterpartyAccount: selectedCounterpartyAccount,
-    linksByAccount,
-    today: getTodayYmd(user?.tz),
-  })
+  // A bank item is the bank's own record of its day, so the rule keeping manual entries off the days
+  // a linked account's bank supplies doesn't apply to it
+  const suppliedDays = reviewItem
+    ? NO_SUPPLIED_DAYS
+    : getSuppliedDays({
+        form,
+        transaction: storedTransaction,
+        recordedAccount: selectedAccount,
+        counterpartyAccount: selectedCounterpartyAccount,
+        linksByAccount,
+        today: getTodayYmd(user?.tz),
+      })
 
   // The account the stored transaction sits in, which a bank-imported one can't leave or be deleted
   // from while it is linked
@@ -285,6 +313,20 @@ export default function CreateTransactionModal({
   if (bankMoveRefusal && !problems.account_id) problems.account_id = bankMoveRefusal
   const refusal = useRefusedSubmit(problems, fieldLayout.order, suffixControlIds(fieldLayout.controlIds, idSuffix))
   const showError = (field: keyof TransactionFormFieldErrors) => refusal.errors[field]
+
+  // Going on to the next item swaps the item under the open modal, so the form starts over from it and
+  // slides in, which the first item doesn't, since it arrives with the modal
+  const [formItemId, setFormItemId] = useState(reviewItem?.id)
+  const [isItemSwapped, setIsItemSwapped] = useState(false)
+  if (reviewItem && reviewItem.id !== formItemId) {
+    setFormItemId(reviewItem.id)
+    setIsItemSwapped(true)
+    setForm(initialForm)
+    refusal.reset()
+    setSubmitError('')
+    setSubmitErrorTitle('')
+  }
+
   // The supplied-days message names a provider and a date, too long for the label row beside Date, so
   // the section shows it under the date row instead
   const suppliedDaysError =
@@ -316,31 +358,41 @@ export default function CreateTransactionModal({
     setSubmitErrorTitle,
   })
 
-  const { handleSubmit, submitLoading, isPending, keepOpenAfterCreate, setKeepOpenAfterCreate, runningBalance } =
-    useTransactionSubmit({
-      editing,
-      transaction: storedTransaction,
-      refundOfTransactionId: refunding ? refundOf?.id : undefined,
-      stageRefund: refunding ? onStageRefund : undefined,
-      refundMerchantName: merchantField.selectedMerchantOption?.label ?? null,
-      pendingLinks: pending,
-      form,
-      setForm,
-      guard: refusal.guard,
-      resetRefusal: refusal.reset,
-      setSubmitError,
-      setSubmitErrorTitle,
-      readOnly,
-      accounts,
-      selectedAccount,
-      selectedCurrencyExponent,
-      isAmountLocked,
-      deleteLoading,
-      openRef,
-      recordCreatedAccountId,
-      flushDeferredRefresh,
-      closeModal,
-    })
+  const {
+    handleSubmit,
+    submitLoading,
+    isPending,
+    keepOpenAfterCreate,
+    setKeepOpenAfterCreate,
+    runningBalance,
+    dismissReviewItem,
+    dismissLoading,
+  } = useTransactionSubmit({
+    editing,
+    transaction: storedTransaction,
+    refundOfTransactionId: refunding ? refundOf?.id : undefined,
+    stageRefund: refunding ? onStageRefund : undefined,
+    refundMerchantName: merchantField.selectedMerchantOption?.label ?? null,
+    pendingLinks: pending,
+    form,
+    setForm,
+    guard: refusal.guard,
+    resetRefusal: refusal.reset,
+    setSubmitError,
+    setSubmitErrorTitle,
+    readOnly,
+    accounts,
+    selectedAccount,
+    selectedCurrencyExponent,
+    isAmountLocked,
+    deleteLoading,
+    openRef,
+    recordCreatedAccountId,
+    flushDeferredRefresh,
+    closeModal,
+    reviewItem,
+    onReviewDecided,
+  })
 
   const level = refunding ? 'stacked' : 'page'
   const { hintsVisible, dateStepHighlight } = useTransactionShortcuts(idSuffix, open, {
@@ -418,7 +470,8 @@ export default function CreateTransactionModal({
       />
     )
 
-  const showRunningBalance = !editing && keepOpenAfterCreate && !!selectedAccount
+  // A review's keep-open choice moves on to another item rather than adding more to this account
+  const showRunningBalance = !editing && !reviewItem && keepOpenAfterCreate && !!selectedAccount
 
   // The direction toggle moves the accounts between the two fields without anything being written
   // back to the form, because the ordering is worked out here on every render
@@ -449,6 +502,32 @@ export default function CreateTransactionModal({
     direction: form.direction,
   })
 
+  // What the bank sent for the item under review, beside the modal from 1320px and heading the form
+  // below that, where there is no room beside it
+  const renderFilingCard = (variant: 'aside' | 'inline') =>
+    reviewItem && (
+      <BankFilingCard
+        key={reviewItem.id}
+        item={reviewItem}
+        link={linksByAccount.get(reviewItem.account_id)}
+        accountName={reviewAccount?.name ?? ''}
+        currency={reviewCurrency}
+        timeZone={user?.tz}
+        variant={variant}
+        prefersReducedMotion={prefersReducedMotion}
+      />
+    )
+  const reviewFooter = reviewItem && (
+    <TransactionReviewFooter
+      isPending={isPending}
+      submitLoading={submitLoading}
+      dismissLoading={dismissLoading}
+      keepOpen={keepOpenAfterCreate}
+      onKeepOpenChange={setKeepOpenAfterCreate}
+      onDismiss={dismissReviewItem}
+    />
+  )
+
   return (
     <TransactionModalIdSuffix.Provider value={idSuffix}>
       <ShortcutHintsVisibleContext.Provider value={hintsVisible}>
@@ -457,13 +536,17 @@ export default function CreateTransactionModal({
             open={open}
             titleId={refunding ? 'create-txn-title-refund' : 'create-txn-title'}
             level={level}
-            title={editing ? 'Edit transaction' : refunding ? 'Add refund' : 'Add transaction'}
+            title={
+              reviewItem ? 'Review bank item' : editing ? 'Edit transaction' : refunding ? 'Add refund' : 'Add transaction'
+            }
             eyebrow={
-              editing
-                ? 'Existing transaction'
-                : refunding
-                  ? buildRefundNote(refundOf?.merchant_name ?? null)
-                  : `${KIND_LABELS[form.kind]} transaction`
+              reviewItem
+                ? `New from ${reviewItem.provider_name}`
+                : editing
+                  ? 'Existing transaction'
+                  : refunding
+                    ? buildRefundNote(refundOf?.merchant_name ?? null)
+                    : `${KIND_LABELS[form.kind]} transaction`
             }
             headerStatus={readOnly ? 'Archived account' : undefined}
             headerAction={
@@ -482,8 +565,8 @@ export default function CreateTransactionModal({
                 />
               ) : undefined
             }
-            RailIcon={ReceiptText}
-            railLabel="Transaction"
+            RailIcon={reviewItem ? Landmark : ReceiptText}
+            railLabel={reviewItem ? 'Review' : 'Transaction'}
             extraPanelClassName={editing || refunding ? undefined : 'min-h-(--app-transaction-window-height)'}
             onClose={closeModal}
             onExitComplete={() => {
@@ -491,29 +574,45 @@ export default function CreateTransactionModal({
               pending.reset()
             }}
             onSubmit={handleSubmit}
+            aside={
+              reviewItem && (
+                <AnimatePresence initial={false} mode="wait">
+                  {renderFilingCard('aside')}
+                </AnimatePresence>
+              )
+            }
             footer={
-              <TransactionModalFooter
-                level={level}
-                hideKeepOpen={refunding}
-                addLabel={refunding ? 'Add refund' : 'Add transaction'}
-                onRequestLinkedDelete={
-                  linkedIds.length > 0 ? () => setLinkedDelete({ open: true, deleteLinked: false }) : null
-                }
-                editing={editing}
-                isPending={isPending || restoring}
-                readOnly={readOnly}
-                submitLoading={submitLoading}
-                submitBlockedReason={refusal.blockedReason}
-                deleteLoading={deleteLoading}
-                deleteDisabledReason={bankDeleteRefusal}
-                keepOpenAfterCreate={keepOpenAfterCreate}
-                onKeepOpenAfterCreateChange={setKeepOpenAfterCreate}
-                onCancel={closeModal}
-                onDelete={deleteTransaction}
-              />
+              reviewFooter || (
+                <TransactionModalFooter
+                  level={level}
+                  hideKeepOpen={refunding}
+                  addLabel={refunding ? 'Add refund' : 'Add transaction'}
+                  onRequestLinkedDelete={
+                    linkedIds.length > 0 ? () => setLinkedDelete({ open: true, deleteLinked: false }) : null
+                  }
+                  editing={editing}
+                  isPending={isPending || restoring}
+                  readOnly={readOnly}
+                  submitLoading={submitLoading}
+                  submitBlockedReason={refusal.blockedReason}
+                  deleteLoading={deleteLoading}
+                  deleteDisabledReason={bankDeleteRefusal}
+                  keepOpenAfterCreate={keepOpenAfterCreate}
+                  onKeepOpenAfterCreateChange={setKeepOpenAfterCreate}
+                  onCancel={closeModal}
+                  onDelete={deleteTransaction}
+                />
+              )
             }
           >
-            <div className="space-y-5">
+            <motion.div
+              key={reviewItem?.id}
+              className="space-y-5"
+              initial={isItemSwapped ? { opacity: 0, x: prefersReducedMotion ? 0 : 12 } : false}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.2, ease: REVIEW_SWAP_EASE }}
+            >
+              {reviewItem && <div className="min-[1320px]:hidden">{renderFilingCard('inline')}</div>}
               {bankSource && (
                 <TransactionBankSourcePanel
                   providerName={bankSource.provider_name}
@@ -538,12 +637,15 @@ export default function CreateTransactionModal({
                 accountValue={topAccountField.value}
                 accountError={topAccountField.error}
                 accountPlaceholder={accounts.length === 0 ? 'No accounts yet' : 'Select account...'}
+                isAccountLocked={Boolean(reviewItem)}
                 runningBalance={topAccountField.runningBalance}
                 kind={form.kind}
 
                 direction={form.direction}
                 isSymmetricTransfer={form.symmetric_transfer}
-                isTransferPairOffered={!editing}
+
+                // The other account's bank sends its own side of a transfer, so a bank item never records both
+                isTransferPairOffered={!editing && !reviewItem}
                 counterpartyAccountOptions={secondAccountField.options}
                 selectedArchivedCounterpartyAccountOption={secondAccountField.selectedOption}
                 counterpartyAccountValue={secondAccountField.value}
@@ -634,7 +736,7 @@ export default function CreateTransactionModal({
               )}
 
               <FormError message={submitError} title={submitErrorTitle} />
-            </div>
+            </motion.div>
           </ModalTitledPanel>
         </DateStepHighlightContext.Provider>
       </ShortcutHintsVisibleContext.Provider>

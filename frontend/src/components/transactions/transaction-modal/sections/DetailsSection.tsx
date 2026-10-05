@@ -11,7 +11,7 @@ import { DateStepHighlightContext } from '@/components/transactions/transaction-
 import ShortcutHint from '@/components/transactions/transaction-modal/controls/ShortcutHint'
 import ShortcutHints from '@/components/transactions/transaction-modal/controls/ShortcutHints'
 import { toShortcutKeyEvent } from '@/components/transactions/transaction-modal/hooks/useShortcuts'
-import { DETAILS_LINE_TRANSITION } from '@/components/transactions/transaction-modal/constants'
+import { DETAILS_LINE_TRANSITION, NOTES_MAX_LENGTH } from '@/components/transactions/transaction-modal/constants'
 import {
   getAriaFieldShortcut,
   getDateKeyAction,
@@ -299,7 +299,7 @@ export default function TransactionDetailsSection({
           value={notes}
           disabled={readOnly}
           onChange={(event) => onNotesChange(event.target.value)}
-          maxLength={500}
+          maxLength={NOTES_MAX_LENGTH}
         />
       </div>
     </CreateModalSectionFrame>

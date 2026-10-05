@@ -4,9 +4,17 @@
  *
  * The missing-currency-table case also asserts on the patch and the validation that follow it, since
  * what the blank amount is worth only shows in whether a save would wipe the stored value
+ *
+ * A new bank item's form is checked whole, so a merchant or category filled in from anywhere, or an
+ * amount rounded to fit its currency rather than left for the user, shows up
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { buildInitialTransactionForm } from '@/components/transactions/transaction-modal/utils/initialForm'
+import type { BankValues } from '@/api/bank-sync'
+import { NOTES_MAX_LENGTH } from '@/components/transactions/transaction-modal/constants'
+import {
+  buildInitialTransactionForm,
+  buildReviewItemForm,
+} from '@/components/transactions/transaction-modal/utils/initialForm'
 import { buildUpdateTransactionPatch } from '@/components/transactions/transaction-modal/utils/payloads'
 import { validateTransactionForm } from '@/components/transactions/transaction-modal/utils/validation'
 import { createAccount, createCategory, createTransaction, currencies } from './fixtures'
@@ -123,4 +131,72 @@ describe('a refund of an expense', () => {
     expect(buildInitialTransactionForm({ ...options, selectableAccounts: [other] }).account_id).toBe('other')
     expect(buildInitialTransactionForm({ ...options, selectableAccounts: [] }).account_id).toBe('')
   })
+})
+
+describe('the form a new bank item opens with', () => {
+  const item = {
+    account_id: 'everyday',
+    bank: {
+      date: '2026-09-21',
+      amount: -1250,
+      raw_amount: null,
+      description: 'COUNTDOWN 123',
+      merchant_name: null,
+      category_hint: null,
+    },
+  }
+  const withBank = (bank: Partial<BankValues>) => ({ ...item, bank: { ...item.bank, ...bank } })
+
+  it('opens money out as an Expense in its account, for the day and amount the bank sent', () => {
+    expect(buildReviewItemForm(withBank({ amount: -4210 }), 'CAD', currencies)).toEqual({
+      kind: 'expense',
+      direction: 'debit',
+      account_id: 'everyday',
+      category_id: '',
+      merchant_id: '',
+      amount: '42.10',
+      currency: 'CAD',
+      notes: 'COUNTDOWN 123',
+      date: '2026-09-21',
+      tag_ids: [],
+      symmetric_transfer: false,
+      counterparty_account_id: '',
+    })
+  })
+
+  it('starts the notes with the bank description, cut to the length the Notes field takes', () => {
+    const long = 'x'.repeat(NOTES_MAX_LENGTH + 40)
+
+    expect(buildReviewItemForm(withBank({ description: long }), 'CAD', currencies).notes).toBe(
+      'x'.repeat(NOTES_MAX_LENGTH),
+    )
+  })
+
+  it('opens money in as Income', () => {
+    expect(buildReviewItemForm(withBank({ amount: 50000 }), 'CAD', currencies)).toMatchObject({
+      kind: 'income',
+      direction: 'credit',
+      amount: '500.00',
+    })
+  })
+
+  it('needs a merchant and a category before it can be added, since nothing suggests them', () => {
+    expect(validateTransactionForm(buildReviewItemForm(item, 'CAD', currencies))).toEqual({
+      category_id: 'Select a category',
+      merchant_id: 'Select or create a merchant',
+    })
+  })
+
+  it.each([
+    ['-42.105', 'expense', 'debit'],
+    ['42.105', 'income', 'credit'],
+  ] as const)(
+    'leaves %s, more decimal places than the currency holds, for the user to enter',
+    (rawAmount, kind, direction) => {
+      const form = buildReviewItemForm(withBank({ amount: null, raw_amount: rawAmount }), 'CAD', currencies)
+
+      expect(form).toMatchObject({ amount: '', kind, direction })
+      expect(validateTransactionForm(form).amount).toBe('Enter an amount')
+    },
+  )
 })
