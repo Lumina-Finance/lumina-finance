@@ -21,6 +21,7 @@ import {
   describeInstitutionAllowance,
   describeRequestBudget,
   describeSignInDetail,
+  listShownBankAccounts,
   type AccountNameLookup,
 } from '@/pages/settings/components/bank-connections-section/utils'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
@@ -137,7 +138,7 @@ export function ConnectionModal({ open, connection, accountNameFor, onReconnect,
   const status = describeConnectionStatus(connection)
   const statusDetail = describeSignInDetail(connection)
   const institutionCount = new Set(connection.accounts.map((bankAccount) => bankAccount.institution_name)).size
-  const linkedCount = countLinked(connection.accounts)
+  const linkedCount = countLinked(listShownBankAccounts(connection))
   const { limit: requestLimit, used: requestsUsed } = connection.request_budget
   const institutionLimit = provider?.institution_limit ?? null
   const institutionsInUse = provider?.institutions_in_use ?? []

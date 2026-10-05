@@ -11,7 +11,7 @@ import {
   CONNECTION_ROW_INITIAL,
   CONNECTION_ROW_TRANSITION,
 } from '@/pages/settings/components/bank-connections-section/constants'
-import { connectionName, countLinked, describeConnectionStatus } from '@/pages/settings/components/bank-connections-section/utils'
+import { connectionName, countLinked, describeConnectionStatus, listShownBankAccounts } from '@/pages/settings/components/bank-connections-section/utils'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
 
 interface ConnectionRowProps {
@@ -38,7 +38,7 @@ interface ConnectionRowProps {
 export function ConnectionRow({ connection, layoutKey, isLast, prefersReducedMotion, onOpen }: ConnectionRowProps) {
   const { user } = useAuth()
   const status = describeConnectionStatus(connection)
-  const linkedCount = countLinked(connection.accounts)
+  const linkedCount = countLinked(listShownBankAccounts(connection))
   const name = connectionName(connection)
 
   // The day it was added in the user's zone. Slicing the timestamp instead would give the UTC day, a

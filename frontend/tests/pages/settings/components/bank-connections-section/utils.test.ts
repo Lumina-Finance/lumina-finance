@@ -256,6 +256,20 @@ describe('bank connection institutions', () => {
     expect(groups.map((group) => group.overLimit)).toEqual([false])
   })
 
+  it('lists a bank account whose link waits to choose it again as not linked, leaving it to Mismatch detected', () => {
+    const currencyChanged = connection({
+      accounts: [
+        bankAccount({ external_id: 'ACT-visa', name: 'Rewards Visa', currency: 'USD', linked_account_id: 'travel' }),
+        bankAccount({ external_id: 'ACT-chequing', linked_account_id: 'everyday' }),
+      ],
+      choose_again_links: [{ account_id: 'travel', external_account_name: 'Rewards Visa' }],
+    })
+    const [harbour] = groupInstitutions(currencyChanged, { institutionLimit: null, institutionsInUse: [] })
+
+    expect(harbour.linked).toBe(1)
+    expect(harbour.bankAccounts.map((bankAccount) => bankAccount.linked_account_id)).toEqual([null, 'everyday'])
+  })
+
   it('finds an institution by its name or one of its bank accounts', () => {
     const [harbour] = groupInstitutions(connection({ accounts: HARBOUR }), { institutionLimit: null, institutionsInUse: [] })
 

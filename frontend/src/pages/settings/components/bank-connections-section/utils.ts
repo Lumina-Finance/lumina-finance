@@ -42,6 +42,18 @@ export function countLinked(accounts: ConnectionBankAccount[]): number {
 }
 
 /**
+ * The connection's bank accounts as settings shows and counts them. A link waiting on Choose bank
+ * account has stopped and shows under Mismatch detected, so a bank account it still points at, as one
+ * whose currency changed does, shows as not linked rather than twice
+ */
+export function listShownBankAccounts(connection: BankConnection): ConnectionBankAccount[] {
+  const waiting = new Set(connection.choose_again_links.map((link) => link.account_id))
+  return connection.accounts.map((account) =>
+    account.linked_account_id !== null && waiting.has(account.linked_account_id) ? { ...account, linked_account_id: null } : account,
+  )
+}
+
+/**
  * The institutions whose bank login behind the connection needs the user to sign in again at the
  * provider, in the order the connection lists them. A rejected connection has to be reconnected
  * first, so it names none
@@ -189,10 +201,11 @@ export function groupInstitutions(
 ): InstitutionGroup[] {
   const signIn = new Set(listSignInInstitutions(connection))
   const limitReached = allowance.institutionLimit !== null && allowance.institutionsInUse.length >= allowance.institutionLimit
-  const names = [...new Set(connection.accounts.map((account) => account.institution_name))]
+  const shown = listShownBankAccounts(connection)
+  const names = [...new Set(shown.map((account) => account.institution_name))]
 
   return names.map((name) => {
-    const bankAccounts = connection.accounts.filter((account) => account.institution_name === name)
+    const bankAccounts = shown.filter((account) => account.institution_name === name)
     const hasLinkable = bankAccounts.some((account) => account.linked_account_id === null && !account.custom_currency)
     return {
       name,
