@@ -85,12 +85,23 @@ async function answerAsBankImported(page: Page, transactionId: string): Promise<
   await page.route(isTransactionRead, async (route) => {
     if (route.request().method() !== 'GET') return route.fallback()
 
-    const response = await route.fetch()
+    // Retried, since the instance now and then drops a reused connection, which the browser would retry
+    const response = await route.fetch({ maxRetries: 2 })
     const body = await response.json() as { id: string } | { id: string }[]
     const markImported = (transaction: { id: string }) =>
       transaction.id === transactionId ? { ...transaction, bank_source: BANK_SOURCE } : transaction
     await route.fulfill({ response, json: Array.isArray(body) ? body.map(markImported) : markImported(body) })
   })
+}
+
+/**
+ * Opens Add Transaction from an account's page with that account chosen. Picked rather than assumed,
+ * since the modal takes its default from the accounts it has loaded by the time it opens
+ */
+async function openAddTransaction(page: Page, accountName: string): Promise<Locator> {
+  const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+  await chooseFromDropdown(dialog, 'Account', accountName)
+  return dialog
 }
 
 type Box = { x: number; y: number; width: number; height: number }
@@ -112,6 +123,12 @@ async function typeDate(page: Page, dialog: Locator, date: string): Promise<void
   await dialog.getByLabel('Notes').click()
 }
 
+// A stand-in can still be fetching for the page when a test ends, which would otherwise surface as an
+// error outside any test
+test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+})
+
 test('refuses a new manual entry on the days a linked account’s bank supplies', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
@@ -119,7 +136,7 @@ test('refuses a new manual entry on the days a linked account’s bank supplies'
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${account.id}`)
 
-  const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+  const dialog = await openAddTransaction(page, 'Everyday')
   const date = dialog.getByRole('group', { name: 'Date' })
   const currency = dialog.getByRole('combobox', { name: 'Currency' })
   const amount = dialog.getByRole('textbox', { name: 'Amount', exact: true })
@@ -180,7 +197,7 @@ test('refuses the days the other account’s bank supplies once a new transfer i
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${account.id}`)
 
-  const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+  const dialog = await openAddTransaction(page, 'Everyday')
   await dialog.getByRole('tab', { name: 'Transfer', exact: true }).click()
   await chooseFromDropdown(dialog, 'Category', 'Transfer')
   await chooseFromDropdown(dialog, 'Money went to', 'Visa')
@@ -215,7 +232,7 @@ test.describe('with the browser in Tokyo and the profile in Toronto', () => {
     await openPage(page, `/accounts/${account.id}`)
 
     // The bank has supplied Toronto's today, and Tokyo's today is still to come in the profile
-    const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+    const dialog = await openAddTransaction(page, 'Everyday')
     await dialog.getByRole('button', { name: 'Open calendar' }).click()
     const dayCell = (iso: string) => page.getByRole('button').and(page.locator(`[data-iso="${iso}"]`))
     await expect(dayCell(today)).toHaveAttribute('aria-disabled', 'true')
