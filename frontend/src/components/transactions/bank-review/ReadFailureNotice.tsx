@@ -28,7 +28,7 @@ export function ReadFailureNotice({ subject, failure, retryRef }: {
       style={{ background: 'var(--app-negative-soft)', color: 'var(--app-text)' }}
     >
       <TriangleAlert size={14} aria-hidden className="shrink-0" style={{ color: 'var(--app-negative)' }} />
-      <span className="min-w-0 flex-1">{subject} could not load.</span>
+      <span className="min-w-0 flex-1 text-pretty">{subject} could not load.</span>
       <button
         ref={retryRef}
         type="button"
