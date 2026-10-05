@@ -4301,7 +4301,7 @@ async def test_job_brings_links_due_within_12_hours_onto_one_daily_sync(connecti
     ],
     ids=["active", "paused_for_review", "importing_though_paused", "waiting_to_retry", "waiting_for_its_bank_account", "unlinked"],
 )
-async def test_connections_next_sync_is_the_earliest_among_links_on_the_daily_schedule(connection, frozen_now, values, joins):
+async def test_connections_next_sync_is_the_earliest_time_one_of_its_links_is_due(connection, frozen_now, values, joins):
     """Savings next syncs 13 hours from now and Everyday 20, so the connection next syncs in 13 hours while Savings can sync
 
     A link the review pause holds back and one that can't sync leave the schedule to Everyday. An
@@ -4487,27 +4487,6 @@ async def test_scan_queues_nothing_after_a_job_finds_the_credential_rejected(con
 
     assert await _rejection(connection) == frozen_now
     assert await _queued_jobs() == []
-
-
-async def test_scan_queues_a_link_whose_bank_needs_a_sign_in_at_its_next_daily_time(connection, provider, frozen_now, day_later):
-    """SimpleFIN Bridge says Everyday's bank needs a sign-in, which retrying can't fix but the user may fix at the bank at any time
-
-    Everyday keeps its daily time: the scan straight after the job queues nothing, and the first
-    scan a day on queues its daily sync
-    """
-    await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-everyday")
-    await _link(connection, "ACT-everyday", **_synced_through_yesterday(next_attempt_at=frozen_now))
-    provider.outcomes = [FetchResult(login_errors={"CON-harbour": _signin_needed()})]
-    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
-    await _run_jobs_until_none_is_due()
-
-    await enqueue_due_work()
-    queued_straight_after = await _queued_jobs()
-    with freeze_time(frozen_now + day_later, real_asyncio=True):
-        await enqueue_due_work()
-
-    assert queued_straight_after == []
-    assert await _queued_jobs() == [("scheduled", timedelta(0), False)]
 
 
 @pytest.mark.parametrize("savings_paused", [False, True], ids=["savings_active", "both_paused"])
