@@ -22,6 +22,7 @@ import {
   invalidateBulkUpdatedTransactionData,
   invalidateFinancialTransactionData,
   invalidatePatchedTransactionData,
+  invalidateReviewOfBankTransactions,
   invalidateTransactionAccountData,
   removeTransactionsFromLists,
 } from '@/api/cache/updates/transactions'
@@ -250,6 +251,9 @@ export function useUpdateTransaction({ minimumPendingMs = 0 }: { minimumPendingM
     onSuccess: (updated, { patch }, context) => {
       const accountIds = uniqueIds([context?.previousTransaction?.account_id, updated.account_id])
       invalidatePatchedTransactionData(queryClient, patch, accountIds)
+
+      // The answer has no bank source once a move out of its account dropped it, so the cached copy says too
+      invalidateReviewOfBankTransactions(queryClient, [context?.previousTransaction, updated])
     },
   })
 }
@@ -262,21 +266,28 @@ export function useBulkUpdateTransactions({ minimumPendingMs = 0 }: { minimumPen
   return useMutation({
     mutationFn: (payload: Parameters<typeof bulkUpdateTransactions>[0]) =>
       runWithMinimumPendingTime(minimumPendingMs, () => bulkUpdateTransactions(payload)),
-    onSuccess: (result, payload) => {
+    onMutate: (payload: Parameters<typeof bulkUpdateTransactions>[0]) => ({
+      editedTransactions: payload.transaction_ids.map((id) => findCachedTransaction(queryClient, id)),
+    }),
+    onSuccess: (result, payload, context) => {
       invalidateBulkUpdatedTransactionData(queryClient, payload, result.affected_account_ids)
+      invalidateReviewOfBankTransactions(queryClient, context?.editedTransactions ?? [])
     },
   })
 }
 
 /**
- * Removes a deleted transaction from the cached lists and refreshes the aggregate views it fed, split
- * out so the caller can defer it until the modal has dismissed and the row can animate out in view
+ * Removes a deleted transaction from the cached lists and refreshes the aggregate views it fed, and the
+ * review inbox when it came from the bank, split out so the caller can defer it until the modal has
+ * dismissed and the row can animate out in view
  */
 export function applyTransactionDeletion(
   queryClient: QueryClient,
   transactionId: string,
   accountId: string | undefined,
 ) {
+  // Read from the cache before the row is removed from it
+  invalidateReviewOfBankTransactions(queryClient, [findCachedTransaction(queryClient, transactionId)])
   applyTransactionsDeletion(queryClient, [transactionId], uniqueIds([accountId]))
 }
 

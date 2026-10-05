@@ -4,6 +4,7 @@ import {
   invalidateAccountBalances,
   invalidateAccountSpending,
   invalidateAccounts,
+  invalidateBankReviewItems,
   invalidateBudgets,
   invalidateDashboardBalance,
   invalidateDashboardBudgets,
@@ -282,6 +283,23 @@ function invalidateTaxAdvantagedActivity(queryClient: QueryClient, accountIds: s
     accountIds.map((accountId) => getCachedAccountTaxAdvantagedCategoryId(queryClient, accountId)),
   )
   invalidateTaxAdvantagedCategories(queryClient, categoryIds)
+}
+
+/**
+ * Refreshes the review inbox when an edited or deleted transaction came from the bank
+ *
+ * The server changes or closes the correction or removal waiting about such a transaction in the same
+ * save, and drops the bank record of one moved out of its account, so the block would otherwise keep
+ * showing the item as it was
+ *
+ * @param transactions - The transactions the change reached, as cached before it and as the server
+ * answered, any of them unknown to the cache left undefined
+ */
+export function invalidateReviewOfBankTransactions(
+  queryClient: QueryClient,
+  transactions: ReadonlyArray<Pick<Transaction, 'bank_source'> | undefined>,
+): void {
+  if (transactions.some((transaction) => transaction?.bank_source)) invalidateBankReviewItems(queryClient);
 }
 
 /**
