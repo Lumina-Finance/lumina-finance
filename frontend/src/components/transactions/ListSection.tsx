@@ -36,6 +36,7 @@ import { getTransactionReadOnlyReason } from '@/components/transactions/utils/ro
 import { getImportBlockReason, isImportableAccount } from '@/utils/importableAccount'
 import { TRANSACTION_FILTER_KEYS, TRANSACTION_LIST_EASE } from '@/components/transactions/constants/transactionList'
 import TransactionDateGroupList from '@/components/transactions/DateGroupList'
+import { BankPendingSection } from '@/components/transactions/bank-review/PendingSection'
 import { BankReviewSection, type ReviewFocusRequest } from '@/components/transactions/bank-review/ReviewSection'
 import TransactionFilterLoadingOverlay from '@/components/transactions/FilterLoadingOverlay'
 import TransactionListToolbar from '@/components/transactions/toolbar/ListToolbar'
@@ -192,7 +193,8 @@ export default function TransactionListSection({
     [],
   )
 
-  // Held between renders, so the review block skips the list's own renders, such as one per search keystroke
+  // Held between renders, so the review block and the pending strip skip the list's own renders, such
+  // as one per search keystroke
   const fixedAccountId = fixedAccount?.id
   const reviewAccountIds = useMemo(
     () => (fixedAccountId ? [fixedAccountId] : filters.account_id),
@@ -553,6 +555,12 @@ export default function TransactionListSection({
         listAccountIds={reviewAccountIds}
         isFixedAccount={Boolean(fixedAccount)}
         focusRequest={reviewFocus}
+        prefersReducedMotion={prefersReducedMotion}
+      />
+
+      <BankPendingSection
+        listAccountIds={reviewAccountIds}
+        isFixedAccount={Boolean(fixedAccount)}
         prefersReducedMotion={prefersReducedMotion}
       />
 

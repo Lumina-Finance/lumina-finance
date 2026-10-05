@@ -9,9 +9,17 @@ import {
   type TestUser,
 } from '../support/api'
 import { filterTransactions, logInViaApi, openPage } from '../support/app'
-import { answerAsBankImported, answerLinksWith, BANK_SOURCE } from '../support/bankSync'
-import { MINUS } from '../support/selectors'
-import { API_BASE_URL } from '../support/target'
+import {
+  answerAsBankImported,
+  answerLinksWith,
+  BANK_SOURCE,
+  isRead,
+  pageOf,
+  reviewItem,
+  SEP_21,
+  type ReviewPage,
+} from '../support/bankSync'
+import { contrastOf, MIN_TEXT_CONTRAST, MINUS } from '../support/selectors'
 
 // Bank items waiting for review show in a block above the transaction list, outside the ledger.
 //
@@ -20,74 +28,9 @@ import { API_BASE_URL } from '../support/target'
 // waiting, unless a test answers them too, and the link list isn't served yet, so the one test that
 // needs a sync to finish answers it
 
-// Bank dates in today's year, which the block shows without a year
-const THIS_YEAR = todayInTestTimezone().slice(0, 4)
-const SEP_21 = `${THIS_YEAR}-09-21`
-
-// What WCAG AA asks of the block's text, all of it small
-const MIN_TEXT_CONTRAST = 4.5
-
-type ItemKind = 'new' | 'correction' | 'removal'
-
-type BankValues = {
-  date: string
-  amount: number | null
-  raw_amount: string | null
-  description: string
-  merchant_name: string | null
-  category_hint: string | null
-}
-
-type ReviewItem = {
-  id: string
-  kind: ItemKind
-  account_id: string
-  bank: BankValues
-  current: BankValues | null
-  changed_fields: ('date' | 'amount' | 'description')[]
-  [field: string]: unknown
-}
-
-type ReviewPage = { items: ReviewItem[]; counts: Record<ItemKind, number>; next_cursor: string | null }
-
 type Backlog = { account_id: string; waiting_new_count: number; paused: boolean; review_warning: boolean }
 
 type Accounts = { user: TestUser; everyday: SeededAccount; visa: SeededAccount; savings: SeededAccount }
-
-/**
- * Builds an item of a kind on an account, $12.50 out on Sep 21 unless told otherwise. A correction
- * or removal is about a ledger transaction of $18.00 out
- */
-function reviewItem(id: string, kind: ItemKind, accountId: string, bank: Partial<BankValues> = {}, fields: Partial<ReviewItem> = {}): ReviewItem {
-  const values = { date: SEP_21, amount: -1250, raw_amount: null, description: `GROCER ${id}`, merchant_name: null, category_hint: null, ...bank }
-  return {
-    id,
-    kind,
-    account_id: accountId,
-    provider: 'simplefin',
-    provider_name: 'SimpleFIN',
-    external_transaction_id: `TRN-${id}`,
-    received_at: `${SEP_21}T12:00:00Z`,
-    version: 1,
-    bank: values,
-    transaction_id: kind === 'new' ? null : `transaction-${id}`,
-    current: kind === 'new' ? null : { ...values, amount: -1800 },
-    changed_fields: kind === 'correction' ? ['amount'] : [],
-    protected_fields: [],
-    ...fields,
-  }
-}
-
-/** One page holding every one of these items, counted by kind */
-function pageOf(items: ReviewItem[]): ReviewPage {
-  const count = (kind: ItemKind) => items.filter((item) => item.kind === kind).length
-  return { items, counts: { new: count('new'), correction: count('correction'), removal: count('removal') }, next_cursor: null }
-}
-
-/** Whether a request reads this API path, whatever its query */
-function isRead(path: string) {
-  return (url: URL) => url.href.split('?')[0] === `${API_BASE_URL}${path}`
-}
 
 /**
  * Answers the review list with what `answer` returns for the accounts and cursor asked for, all
@@ -159,40 +102,6 @@ async function showWaitingItem(page: Page, transactionId: string): Promise<void>
 
 function reviewBlock(page: Page): Locator {
   return page.getByRole('region', { name: 'Waiting for review' })
-}
-
-/**
- * The contrast of an element's text against what is behind it, every translucent background
- * between it and the first opaque one blended in
- */
-async function contrastOf(element: Locator): Promise<number> {
-  return element.evaluate((node) => {
-    type Rgba = [number, number, number, number]
-    const parse = (value: string): Rgba => {
-      const channels = /rgba?\(([^)]+)\)/.exec(value)?.[1].split(/[\s,/]+/).filter(Boolean).map(Number)
-      if (!channels) throw new Error(`Unreadable colour ${value}`)
-      return [channels[0], channels[1], channels[2], channels[3] ?? 1]
-    }
-    const over = (top: Rgba, bottom: Rgba): Rgba =>
-      [0, 1, 2].map((index) => top[index] * top[3] + bottom[index] * (1 - top[3])).concat(1) as Rgba
-    const layers: Rgba[] = []
-    for (let current: Element | null = node; current; current = current.parentElement) {
-      const background = parse(getComputedStyle(current).backgroundColor)
-      if (background[3] > 0) layers.unshift(background)
-      if (background[3] === 1) break
-    }
-    const background = layers.reduce<Rgba>((below, layer) => over(layer, below), [255, 255, 255, 1])
-    const text = over(parse(getComputedStyle(node).color), background)
-    const luminance = (colour: Rgba) => {
-      const [red, green, blue] = colour.slice(0, 3).map((channel) => {
-        const value = channel / 255
-        return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
-      })
-      return 0.2126 * red + 0.7152 * green + 0.0722 * blue
-    }
-    const [lighter, darker] = [luminance(text), luminance(background)].sort((a, b) => b - a)
-    return (lighter + 0.05) / (darker + 0.05)
-  })
 }
 
 test('shows each kind of item for the accounts the list shows, and only its own on an account page', async ({ page, request }) => {

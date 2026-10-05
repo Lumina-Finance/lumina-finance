@@ -7,8 +7,16 @@
 
 import { expect, type APIRequestContext, type Page } from '@playwright/test'
 
-import { asUser, type TestUser } from './api'
+import { asUser, todayInTestTimezone, type TestUser } from './api'
 import { API_BASE_URL, FAKE_SIMPLEFIN_BRIDGE_URL } from './target'
+
+/** Sep 21 of today's year, a bank date the app shows without a year */
+export const SEP_21 = `${todayInTestTimezone().slice(0, 4)}-09-21`
+
+/** Whether a request reads this API path, whatever its query */
+export function isRead(path: string): (url: URL) => boolean {
+  return (url: URL) => url.href.split('?')[0] === `${API_BASE_URL}${path}`
+}
 
 /** Where a bank-imported transaction came from, as the app reads it alongside the transaction */
 export type BankSource = {
@@ -26,6 +34,60 @@ export type BankSource = {
   }
   edited_fields: ('date' | 'amount')[]
   review_item_id: string | null
+}
+
+export type ReviewItemKind = 'new' | 'correction' | 'removal'
+
+type BankValues = BankSource['bank_values']
+
+/** A bank item waiting for review, as the app reads it from the review list */
+export type ReviewItem = {
+  id: string
+  kind: ReviewItemKind
+  account_id: string
+  bank: BankValues
+  current: BankValues | null
+  changed_fields: ('date' | 'amount' | 'description')[]
+  [field: string]: unknown
+}
+
+/** One page of the review list */
+export type ReviewPage = { items: ReviewItem[]; counts: Record<ReviewItemKind, number>; next_cursor: string | null }
+
+/**
+ * Builds an item of a kind on an account, $12.50 out on Sep 21 unless told otherwise. A correction
+ * or removal is about a ledger transaction of $18.00 out
+ */
+export function reviewItem(
+  id: string,
+  kind: ReviewItemKind,
+  accountId: string,
+  bank: Partial<BankValues> = {},
+  fields: Partial<ReviewItem> = {},
+): ReviewItem {
+  const values = { date: SEP_21, amount: -1250, raw_amount: null, description: `GROCER ${id}`, merchant_name: null, category_hint: null, ...bank }
+  return {
+    id,
+    kind,
+    account_id: accountId,
+    provider: 'simplefin',
+    provider_name: 'SimpleFIN',
+    external_transaction_id: `TRN-${id}`,
+    received_at: `${SEP_21}T12:00:00Z`,
+    version: 1,
+    bank: values,
+    transaction_id: kind === 'new' ? null : `transaction-${id}`,
+    current: kind === 'new' ? null : { ...values, amount: -1800 },
+    changed_fields: kind === 'correction' ? ['amount'] : [],
+    protected_fields: [],
+    ...fields,
+  }
+}
+
+/** One page holding every one of these items, counted by kind */
+export function pageOf(items: ReviewItem[]): ReviewPage {
+  const count = (kind: ReviewItemKind) => items.filter((item) => item.kind === kind).length
+  return { items, counts: { new: count('new'), correction: count('correction'), removal: count('removal') }, next_cursor: null }
 }
 
 /** A SimpleFIN transaction whose ledger values are still the bank's own */

@@ -72,13 +72,13 @@ describe('bank sync reads', () => {
     expect(authenticatedFetchMock).toHaveBeenCalledWith('/accounts/account-1/bank-link/import-range?provider=simplefin');
   });
 
-  it('reads pending rows for every account when no account is given', async () => {
+  it('reads pending rows for every account when no account is given, and repeats the key for each account given', async () => {
     await fetchPendingBankTransactions();
-    await fetchPendingBankTransactions('account-1');
+    await fetchPendingBankTransactions(['account-1', 'account-2']);
 
     expect(authenticatedFetchMock.mock.calls).toEqual([
       ['/bank-sync/pending'],
-      ['/bank-sync/pending?account_id=account-1'],
+      ['/bank-sync/pending?account_id=account-1&account_id=account-2'],
     ]);
   });
 });

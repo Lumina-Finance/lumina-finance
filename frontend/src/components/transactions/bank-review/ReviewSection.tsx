@@ -1,23 +1,15 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useAccounts } from '@/api/accounts'
 import { useReviewBacklogs, useReviewItems } from '@/api/bank-sync'
 import { useAuth } from '@/hooks/useAuth'
 import { useTodayYmd } from '@/hooks/useTodayYmd'
-import {
-  BankReviewBlock,
-  COLLAPSED_ITEM_COUNT,
-  type ReviewItemAccount,
-  type ReviewReadFailure,
-} from '@/components/transactions/bank-review/ReviewBlock'
+import type { BankReadFailure } from '@/components/transactions/bank-review/ReadFailureNotice'
+import { BankReviewBlock, COLLAPSED_ITEM_COUNT } from '@/components/transactions/bank-review/ReviewBlock'
 import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
+import { useBankItemScope } from '@/components/transactions/hooks/useBankItemScope'
 import { useInfiniteScrollTrigger } from '@/components/transactions/hooks/useInfiniteScrollTrigger'
 import { useSkipAppendedEnter } from '@/components/transactions/hooks/useSkipAppendedEnter'
-import {
-  describeBacklogNotice,
-  getReviewAccountIds,
-  isOwnPersonalAccount,
-} from '@/components/transactions/utils/bankReview'
+import { describeBacklogNotice, isOwnPersonalAccount } from '@/components/transactions/utils/bankReview'
 
 // How long a row stays ringed after a Needs review marker went to it
 const JUMP_HIGHLIGHT_MS = 1800
@@ -98,13 +90,8 @@ export const BankReviewSection = memo(function BankReviewSection({
   prefersReducedMotion,
 }: BankReviewSectionProps) {
   const { user } = useAuth()
-  const { data: accounts } = useAccounts()
   const today = useTodayYmd()
-
-  // Read once the accounts are, since only the user's own personal accounts have items, and each
-  // item's amount is written in its account's currency
-  const accountIds = accounts && user ? getReviewAccountIds(accounts, user.id, listAccountIds) : []
-  const isInScope = accountIds === undefined || accountIds.length > 0
+  const { accounts, accountIds, isInScope, accountById, accountFor } = useBankItemScope(listAccountIds)
   const {
     data: pages,
     errorUpdateCount: itemsErrorCount,
@@ -124,14 +111,13 @@ export const BankReviewSection = memo(function BankReviewSection({
   // A read that has failed and never succeeded, each retried on its own so the other is left as it
   // is. Read from the count of failures rather than the error, which a retry of a read with nothing
   // loaded clears while it runs, so the failure stays in place, saying it is retrying, until it settles
-  const itemsFailure: ReviewReadFailure | null = isInScope && itemsErrorCount > 0 && !pages
+  const itemsFailure: BankReadFailure | null = isInScope && itemsErrorCount > 0 && !pages
     ? { retry: () => void refetchItems(), isRetrying: isFetching }
     : null
-  const backlogFailure: ReviewReadFailure | null = backlogsErrorCount > 0 && !backlogs
+  const backlogFailure: BankReadFailure | null = backlogsErrorCount > 0 && !backlogs
     ? { retry: () => void refetchBacklogs(), isRetrying: isFetchingBacklogs }
     : null
 
-  const accountById = useMemo(() => new Map((accounts ?? []).map((account) => [account.id, account])), [accounts])
   const items = useMemo(
     () => (pages?.pages ?? []).flatMap((page) => page.items).filter((item) => accountById.has(item.account_id)),
     [pages, accountById],
@@ -143,12 +129,6 @@ export const BankReviewSection = memo(function BankReviewSection({
   const scopedAccounts = (accounts ?? []).filter((account) =>
     accountIds === undefined ? user !== null && isOwnPersonalAccount(account, user.id) : accountIds.includes(account.id))
   const backlogNotice = backlogs ? describeBacklogNotice(backlogs, scopedAccounts) : null
-
-  const accountFor = useCallback((accountId: string): ReviewItemAccount => {
-    const account = accountById.get(accountId)
-    if (!account) throw new Error(`Account ${accountId} is not loaded, so its bank items cannot be shown`)
-    return { name: account.name, currency: account.currency }
-  }, [accountById])
 
   // A block left with no more than its first few items closes, so it comes back showing only those
   // once more arrive, rather than open with nothing having asked it to

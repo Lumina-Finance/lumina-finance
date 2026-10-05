@@ -517,7 +517,6 @@ export type BulkApprovalResult = {
 export type PendingBankTransaction = {
   id: string;
   account_id: string;
-  provider_name: string;
   date: string;
 
   /** Signed minor units, money out negative, null when it can't be stored exactly */
@@ -526,6 +525,12 @@ export type PendingBankTransaction = {
   /** The amount exactly as the bank sent it, given only when `amount` is null */
   raw_amount: string | null;
   description: string;
+
+  /**
+   * When the request that brought it was sent. An account that can't sync keeps its earlier pending
+   * transactions, so this is how old they may be
+   */
+  observed_at: string;
 };
 
 /**

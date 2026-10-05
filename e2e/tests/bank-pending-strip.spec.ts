@@ -1,0 +1,295 @@
+import { expect, test, type APIRequestContext, type Locator, type Page, type Response } from '@playwright/test'
+
+import { createAccount, createTransaction, signUpUser, todayInTestTimezone, type SeededAccount } from '../support/api'
+import { filterTransactions, logInViaApi, openPage } from '../support/app'
+import { answerLinksWith, isRead, pageOf, reviewItem, SEP_21 } from '../support/bankSync'
+import { contrastOf, MIN_TEXT_CONTRAST, MINUS } from '../support/selectors'
+
+// Transactions the bank hasn't posted yet show in a muted strip under the review block, read-only
+// and outside the ledger.
+//
+// Nothing links an account on the server for a sync to store any, so each test answers the pending
+// list with what it needs, except the one that reads the server's own empty list. The link list
+// isn't served yet, so the test that needs a sync to finish answers it
+
+const THIS_YEAR = todayInTestTimezone().slice(0, 4)
+const SEP_23 = `${THIS_YEAR}-09-23`
+const SEP_20 = `${THIS_YEAR}-09-20`
+
+// Below this width the explanation leaves the closed strip for the inside of the opened one
+const PHONE_LAYOUT_BELOW_PX = 640
+
+const HOUR_MS = 60 * 60 * 1000
+
+type PendingTransaction = {
+  id: string
+  account_id: string
+  date: string
+  amount: number | null
+  raw_amount: string | null
+  description: string
+  observed_at: string
+}
+
+type Accounts = { everyday: SeededAccount; visa: SeededAccount; savings: SeededAccount }
+
+/** When the bank was asked this many hours ago */
+function hoursAgo(hours: number): string {
+  return new Date(Date.now() - hours * HOUR_MS).toISOString()
+}
+
+/** Builds a pending transaction on an account, $18.00 out on Sep 23 and reported 3 hours ago unless told otherwise */
+function pendingTransaction(id: string, accountId: string, fields: Partial<PendingTransaction> = {}): PendingTransaction {
+  return {
+    id,
+    account_id: accountId,
+    date: SEP_23,
+    amount: -1800,
+    raw_amount: null,
+    description: `UBER TRIP ${id}`,
+    observed_at: hoursAgo(3),
+    ...fields,
+  }
+}
+
+/** Answers the pending list with what `answer` returns for the accounts asked for, all accounts being none */
+async function answerPending(page: Page, answer: (accountIds: string[]) => PendingTransaction[]): Promise<void> {
+  await page.route(isRead('/bank-sync/pending'), (route) =>
+    route.fulfill({ json: answer(new URL(route.request().url()).searchParams.getAll('account_id')) }))
+}
+
+/** Whether a response answers the pending list for this many accounts, all accounts being none */
+function isPendingRead(accountCount: number) {
+  return (response: Response) => {
+    const url = new URL(response.url())
+    return isRead('/bank-sync/pending')(url) && url.searchParams.getAll('account_id').length === accountCount
+  }
+}
+
+/** Signs up with Everyday, a Visa card and Savings, Everyday holding a $42.50 grocery spend today */
+async function start(page: Page, request: APIRequestContext): Promise<Accounts> {
+  const user = await signUpUser(request)
+  const everyday = await createAccount(request, user, { name: 'Everyday' })
+  const visa = await createAccount(request, user, { name: 'Visa', accountKind: 'revolving', accountType: 'credit_card' })
+  const savings = await createAccount(request, user, { name: 'Savings', accountType: 'savings' })
+  await createTransaction(request, user, { accountId: everyday.id, categoryName: 'Groceries', amount: -4250 })
+  await logInViaApi(page, user)
+  return { everyday, visa, savings }
+}
+
+function pendingStrip(page: Page): Locator {
+  return page.getByRole('region', { name: 'Pending bank transactions' })
+}
+
+function isPhoneLayout(page: Page): boolean {
+  return page.viewportSize()!.width < PHONE_LAYOUT_BELOW_PX
+}
+
+test('shows pending transactions closed, opening to each one newest first, following the account filter and an account page', async ({ page, request }) => {
+  const { everyday, visa } = await start(page, request)
+  const pending = [
+    pendingTransaction('uber', everyday.id, { description: 'UBER TRIP' }),
+    pendingTransaction('coffee', everyday.id, { description: 'HARBOUR COFFEE', date: SEP_21, amount: -450 }),
+    pendingTransaction('hotel', visa.id, { description: 'HOTEL HOLD', date: SEP_20, amount: -24000, observed_at: hoursAgo(72) }),
+  ]
+  const asked: string[][] = []
+  await answerPending(page, (accountIds) => {
+    asked.push(accountIds)
+    return pending.filter((transaction) => accountIds.length === 0 || accountIds.includes(transaction.account_id))
+  })
+
+  await openPage(page, '/transactions')
+
+  // Closed, with the explanation beside the count except on phones, where it waits inside
+  const strip = pendingStrip(page)
+  const toggle = strip.getByRole('button', { name: /^3 pending/ })
+  const rows = strip.getByRole('listitem')
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(toggle).toHaveAccessibleName(isPhoneLayout(page) ? '3 pending' : '3 pending · Not in your balance until the bank settles them')
+  await expect(rows).toHaveCount(0)
+
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  await expect(rows).toHaveCount(3)
+  const explanationInside = strip.getByText('Not in your balance until the bank settles them.')
+  if (isPhoneLayout(page)) await expect(explanationInside).toBeVisible()
+  else await expect(explanationInside).toBeHidden()
+  await expect(rows.nth(0)).toContainText('UBER TRIP')
+  await expect(rows.nth(0)).toContainText('Sep 23 · Everyday · Pending · Checked 3 hours ago')
+  await expect(rows.nth(0)).toContainText(`${MINUS}$18.00`)
+  await expect(rows.nth(1)).toContainText('Sep 21 · Everyday · Pending · Checked 3 hours ago')
+  await expect(rows.nth(2)).toContainText('Sep 20 · Visa · Pending · Checked 3 days ago')
+  await expect(rows.nth(2)).toContainText(`${MINUS}$240.00`)
+
+  // A pending row opens nothing and takes no focus
+  await rows.nth(0).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(rows.nth(0)).not.toBeFocused()
+
+  // Read again for the filter, it comes back closed, as the review block does
+  await filterTransactions(page, 'Accounts', 'Visa')
+  const visaToggle = strip.getByRole('button', { name: /^1 pending/ })
+  await expect(visaToggle).toHaveAttribute('aria-expanded', 'false')
+  await visaToggle.click()
+  await expect(rows).toHaveCount(1)
+  await expect(rows.first()).toContainText('HOTEL HOLD')
+  expect(asked.at(-1)).toEqual([visa.id])
+
+  // Savings has nothing pending, so with Visa unticked and Savings ticked the strip goes
+  await filterTransactions(page, 'Accounts', 'Visa')
+  await filterTransactions(page, 'Accounts', 'Savings')
+  await expect(strip).toBeHidden()
+
+  await openPage(page, `/accounts/${everyday.id}`)
+  await strip.getByRole('button', { name: /^2 pending/ }).click()
+  await expect(rows).toHaveCount(2)
+  await expect(rows.first()).toContainText('Sep 23 · Pending · Checked 3 hours ago')
+  await expect(strip).not.toContainText('Everyday')
+})
+
+test('refreshes when a linked account finishes a sync, a posted transaction moving to the review block', async ({ page, request }) => {
+  const { everyday } = await start(page, request)
+
+  // Read every couple of seconds while it syncs, the sync ending with a later success that posted the Uber trip
+  let synced = false
+  await answerLinksWith(page, () => [everyday.id], () => ({
+    last_success_at: synced ? `${SEP_23}T12:00:00Z` : `${SEP_23}T08:00:00Z`,
+    sync_in_progress: !synced,
+  }))
+  const coffee = pendingTransaction('coffee', everyday.id, { description: 'HARBOUR COFFEE', amount: -450 })
+  await answerPending(page, () => (synced ? [coffee] : [pendingTransaction('uber', everyday.id, { description: 'UBER TRIP' }), coffee]))
+  await page.route(isRead('/bank-review/items'), (route) => route.fulfill({
+    json: pageOf(synced ? [reviewItem('uber-posted', 'new', everyday.id, { description: 'UBER TRIP', amount: -1800 })] : []),
+  }))
+
+  await openPage(page, '/transactions')
+
+  const strip = pendingStrip(page)
+  const rows = strip.getByRole('listitem')
+  await strip.getByRole('button', { name: /^2 pending/ }).click()
+  await expect(rows).toHaveCount(2)
+
+  synced = true
+  await expect(rows).toHaveCount(1)
+  await expect(rows.first()).toContainText('HARBOUR COFFEE')
+  const reviewRows = page.getByRole('region', { name: 'Waiting for review' }).getByRole('listitem')
+  await expect(reviewRows).toHaveCount(1)
+  await expect(reviewRows.first()).toContainText('UBER TRIPNew')
+})
+
+test('says in the strip that pending transactions could not load, and reads only them again', async ({ page, request }) => {
+  const { everyday } = await start(page, request)
+  const reads = { pending: 0, review: 0 }
+  let pendingFails = true
+  await page.route(isRead('/bank-sync/pending'), (route) => {
+    reads.pending += 1
+    return pendingFails
+      ? route.fulfill({ status: 500, json: { detail: 'Something went wrong' } })
+      : route.fulfill({ json: [pendingTransaction('uber', everyday.id, { description: 'UBER TRIP' })] })
+  })
+  await page.route(isRead('/bank-review/items'), (route) => {
+    reads.review += 1
+    return route.fallback()
+  })
+
+  await openPage(page, '/transactions')
+
+  // Said inside the strip's frame, which counts nothing while the transactions are unknown
+  const strip = pendingStrip(page)
+  const failure = strip.getByRole('alert').filter({ hasText: 'Pending bank transactions could not load.' })
+  await expect(failure).toBeVisible()
+  await expect(strip.getByRole('button', { name: /pending/ })).toHaveCount(0)
+
+  // Trying again reads the pending transactions alone, and focus goes on to the strip's toggle
+  // rather than falling to the top of the page with the retry
+  const reviewReads = reads.review
+  const pendingReads = reads.pending
+  pendingFails = false
+  await failure.getByRole('button', { name: 'Try again' }).click()
+  await expect(strip.getByRole('button', { name: /^1 pending/ })).toBeFocused()
+  await expect(failure).toBeHidden()
+  expect(reads.pending).toBe(pendingReads + 1)
+  expect(reads.review).toBe(reviewReads)
+})
+
+test("reads the server's pending transactions for every account and for several filtered to, showing no strip when none are pending", async ({ page, request }) => {
+  const { visa } = await start(page, request)
+
+  const everyAccount = page.waitForResponse(isPendingRead(0))
+  await openPage(page, '/transactions')
+  expect((await everyAccount).status()).toBe(200)
+
+  await filterTransactions(page, 'Accounts', 'Visa')
+  const twoAccounts = page.waitForResponse(isPendingRead(2))
+  await filterTransactions(page, 'Accounts', 'Savings')
+  const read = await twoAccounts
+  expect(read.status()).toBe(200)
+  expect(new URL(read.url()).searchParams.getAll('account_id')).toContain(visa.id)
+
+  await expect(pendingStrip(page)).toBeHidden()
+  await expect(page.getByText('Pending bank transactions could not load.')).toHaveCount(0)
+})
+
+for (const colorScheme of ['light', 'dark'] as const) {
+  test(`sits under the review block and above the list, its text readable in the ${colorScheme} theme`, async ({ page, request }) => {
+    const { everyday, visa } = await start(page, request)
+    await page.route(isRead('/bank-review/items'), (route) => route.fulfill({ json: pageOf([reviewItem('everyday-1', 'new', everyday.id)]) }))
+    await answerPending(page, () => [
+      pendingTransaction('uber', everyday.id, { description: 'UBER TRIP WITH A LONGER BANK DESCRIPTION THAN MOST' }),
+      pendingTransaction('refund', visa.id, { description: 'HARBOUR REFUND', amount: 4250 }),
+    ])
+    await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
+
+    await openPage(page, '/transactions')
+
+    if (colorScheme === 'dark') await expect(page.locator('html')).toHaveClass(/\bdark\b/)
+    else await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
+    const strip = pendingStrip(page)
+    const toggle = strip.getByRole('button', { name: /^2 pending/ })
+    const rows = strip.getByRole('listitem')
+    await toggle.click()
+    await expect(rows).toHaveCount(2)
+
+    // Under the review block and above the first transaction, within the page, with no sideways scroll at any width
+    const block = page.getByRole('region', { name: 'Waiting for review' })
+    const firstTransaction = page.getByTestId(/^transaction-row-/).first()
+    const [blockBox, stripBox, transactionBox] = [await block.boundingBox(), await strip.boundingBox(), await firstTransaction.boundingBox()]
+    const viewportWidth = page.viewportSize()!.width
+    expect(stripBox!.y).toBeGreaterThanOrEqual(blockBox!.y + blockBox!.height)
+    expect(stripBox!.y + stripBox!.height).toBeLessThanOrEqual(transactionBox!.y)
+    expect(stripBox!.x).toBeGreaterThanOrEqual(0)
+    expect(stripBox!.x + stripBox!.width).toBeLessThanOrEqual(viewportWidth)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+
+    // Each amount sits beside its text rather than over it, a long description wrapping instead
+    const uber = rows.filter({ hasText: 'UBER TRIP' })
+    const [description, amount] = [
+      await uber.getByText('UBER TRIP WITH A LONGER BANK DESCRIPTION THAN MOST').boundingBox(),
+      await uber.getByText(`${MINUS}$18.00`).boundingBox(),
+    ]
+    expect(amount!.x).toBeGreaterThanOrEqual(description!.x + description!.width)
+    expect(amount!.x + amount!.width).toBeLessThanOrEqual(stripBox!.x + stripBox!.width)
+    expect((await toggle.boundingBox())!.height).toBeGreaterThanOrEqual(24)
+
+    // The toggle's words are measured as they first show, then again over the tint a pointer that
+    // can hover gives it
+    const toggleTexts = [
+      strip.getByText('2 pending', { exact: true }),
+      strip.getByText('Not in your balance until the bank settles them').filter({ visible: true }),
+    ]
+    for (const text of toggleTexts) {
+      expect(await contrastOf(text), await text.textContent() ?? '').toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
+    }
+    await toggle.hover()
+    const texts = [
+      ...toggleTexts,
+      uber.getByText('UBER TRIP WITH A LONGER BANK DESCRIPTION THAN MOST'),
+      uber.getByText('Sep 23 · Everyday · Pending · Checked 3 hours ago'),
+      uber.getByText(`${MINUS}$18.00`),
+      rows.filter({ hasText: 'HARBOUR REFUND' }).getByText('+$42.50'),
+    ]
+    for (const text of texts) {
+      expect(await contrastOf(text), await text.textContent() ?? '').toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
+    }
+  })
+}

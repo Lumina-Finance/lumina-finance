@@ -155,7 +155,7 @@ export function isOwnPersonalAccount(account: Pick<AccountsOverview, 'owner_id' 
 }
 
 /**
- * Returns the accounts whose bank items the review block shows for a transaction list
+ * Returns the accounts whose bank items the review block and the pending strip show for a transaction list
  *
  * A list of every account reads every account's items, which the server keeps to the user's own
  * personal accounts. A list scoped to some accounts reads only those of them that are the user's own

@@ -53,7 +53,7 @@ const backlogKey = bankSyncKeys.reviewBacklogs(undefined);
 const reviewKeys: QueryKey[] = [
   bankSyncKeys.reviewItems(undefined),
   backlogKey,
-  bankSyncKeys.pending('account-1'),
+  bankSyncKeys.pending(['account-1']),
   bankSyncKeys.bulkPreview(undefined),
 ];
 const ledgerKeys: QueryKey[] = [transactionKeys.list({}), accountKeys.detail('account-1')];

@@ -239,12 +239,15 @@ export function useReviewBacklogs(accountIds: string[] | undefined, enabled = tr
   });
 }
 
-export function usePendingBankTransactions(accountId?: string) {
+/**
+ * Reads the transactions the bank hasn't posted yet, for some accounts or for all of them
+ */
+export function usePendingBankTransactions(accountIds: string[] | undefined, enabled = true) {
   const { accessToken } = useAuth();
   return useQuery({
-    queryKey: bankSyncKeys.pending(accountId),
-    queryFn: () => fetchPendingBankTransactions(accountId),
-    enabled: !!accessToken,
+    queryKey: bankSyncKeys.pending(accountIds),
+    queryFn: () => fetchPendingBankTransactions(accountIds),
+    enabled: !!accessToken && enabled,
     staleTime: BANK_DATA_STALE_TIME_MS,
   });
 }

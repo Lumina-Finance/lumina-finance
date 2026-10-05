@@ -212,8 +212,11 @@ export function applyBulkApproval(payload: BulkApprovalPayload) {
   return post<BulkApprovalResult>('/bank-review/bulk-approve', payload);
 }
 
-export function fetchPendingBankTransactions(accountId?: string) {
-  return authenticatedFetch<PendingBankTransaction[]>('/bank-sync/pending' + buildQueryString({ account_id: accountId }));
+/**
+ * Lists the transactions the bank hasn't posted yet, newest first, for some accounts or for all of them
+ */
+export function fetchPendingBankTransactions(accountIds?: string[]) {
+  return authenticatedFetch<PendingBankTransaction[]>('/bank-sync/pending' + buildQueryString({ account_id: accountIds }));
 }
 
 /**

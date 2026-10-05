@@ -1,9 +1,11 @@
-import { useEffect, useId, useRef, type Ref, type RefObject } from 'react'
+import { useId, useRef, type Ref } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Landmark, PauseCircle, TriangleAlert } from 'lucide-react'
 import type { BankReviewItem } from '@/api/bank-sync'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
+import { ReadFailureNotice, type BankReadFailure } from '@/components/transactions/bank-review/ReadFailureNotice'
 import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
+import { useFocusAfterRetry } from '@/components/transactions/hooks/useFocusAfterRetry'
 import {
   REVIEW_KIND_LABELS,
   describeReviewItem,
@@ -19,18 +21,10 @@ export const COLLAPSED_ITEM_COUNT = 4
 // only the rows anyone can see
 const LEAVE_AT_ONCE = { opacity: 0, transition: { duration: 0 } }
 
-/** The account a review item belongs to, as its row names it and writes its amount */
+/** The account a bank item belongs to, as its row names it and writes its amount */
 export type ReviewItemAccount = {
   name: string
   currency: string
-}
-
-/** A read the block depends on that failed, with what makes that read alone again */
-export type ReviewReadFailure = {
-  retry: () => void
-
-  /** The read is being made again */
-  isRetrying: boolean
 }
 
 type BankReviewBlockProps = {
@@ -41,7 +35,7 @@ type BankReviewBlockProps = {
   total: number
 
   /** Set while the items have never loaded, which the block says in place of its count and rows */
-  itemsFailure: ReviewReadFailure | null
+  itemsFailure: BankReadFailure | null
 
   /** Takes the button that reads the items again, which a Needs review marker focuses while they can't load */
   itemsRetryRef: Ref<HTMLButtonElement>
@@ -55,7 +49,7 @@ type BankReviewBlockProps = {
   backlogNotice: BacklogNotice | null
 
   /** Set while the backlogs the notice reads have never loaded */
-  backlogFailure: ReviewReadFailure | null
+  backlogFailure: BankReadFailure | null
   expanded: boolean
   onToggleExpanded: () => void
 
@@ -79,62 +73,6 @@ type BankReviewBlockProps = {
   /** Takes each row as it mounts and null as it goes, for scrolling to and focusing an item */
   registerRow: (itemId: string, row: HTMLDivElement | null) => void
   prefersReducedMotion: boolean | null
-}
-
-/**
- * Says a read the block depends on failed, drawn like the block's backlog notice, with a retry that
- * makes only that read again
- *
- * The retry stays focusable while it waits, so a keyboard user who pressed it keeps their place
- */
-function ReadFailureNotice({ subject, failure, retryRef }: {
-  /** What failed, as in "Sync pause status" */
-  subject: string
-  failure: ReviewReadFailure
-  retryRef?: Ref<HTMLButtonElement>
-}) {
-  return (
-    <div
-      role="alert"
-      className="flex items-center gap-2 rounded-lg py-1 pl-3 pr-1.5 text-xs"
-      style={{ background: 'var(--app-negative-soft)', color: 'var(--app-text)' }}
-    >
-      <TriangleAlert size={14} aria-hidden className="shrink-0" style={{ color: 'var(--app-negative)' }} />
-      <span className="min-w-0 flex-1">{subject} could not load.</span>
-      <button
-        ref={retryRef}
-        type="button"
-        onClick={() => {
-          if (!failure.isRetrying) failure.retry()
-        }}
-        aria-disabled={failure.isRetrying}
-        aria-busy={failure.isRetrying}
-        className="min-h-6 shrink-0 rounded-md px-1.5 font-medium underline underline-offset-2 transition-colors duration-150 hover:bg-[var(--app-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--app-accent)] aria-disabled:cursor-default motion-reduce:transition-none"
-      >
-        {failure.isRetrying ? 'Retrying…' : 'Try again'}
-      </button>
-    </div>
-  )
-}
-
-/**
- * Moves focus to what takes a failure's place once its read succeeds, when the failure's retry had
- * focus, since the retry leaves with the failure and would otherwise drop focus to the top of the page
- *
- * The failure is still on its way out as the success renders, so whether its retry has focus can be
- * read then
- */
-function useFocusAfterRetry(
-  failed: boolean,
-  failureRef: RefObject<HTMLElement | null>,
-  getTarget: () => HTMLElement | null | undefined,
-) {
-  const wasFailed = useRef(failed)
-  useEffect(() => {
-    const succeeded = wasFailed.current && !failed
-    wasFailed.current = failed
-    if (succeeded && failureRef.current?.contains(document.activeElement)) getTarget()?.focus({ preventScroll: true })
-  }, [failed, failureRef, getTarget])
 }
 
 /**

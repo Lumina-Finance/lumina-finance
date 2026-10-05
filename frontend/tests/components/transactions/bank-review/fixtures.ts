@@ -1,6 +1,6 @@
 import type { InfiniteData } from '@tanstack/react-query'
 import type { AccountsOverview } from '@/api/accounts/types'
-import type { BankReviewItem, BankReviewItemKind, BankReviewPage } from '@/api/bank-sync/types'
+import type { BankReviewItem, BankReviewItemKind, BankReviewPage, PendingBankTransaction } from '@/api/bank-sync/types'
 import type { Currency } from '@/api/currency'
 
 export const MINUS = String.fromCodePoint(0x2212)
@@ -55,6 +55,24 @@ export function createReviewItem(
     current: kind === 'new' ? null : { ...bank, amount: -1800 },
     changed_fields: kind === 'correction' ? ['amount'] : [],
     protected_fields: [],
+    ...overrides,
+  }
+}
+
+/** Builds a pending transaction on an account, for 1800 minor units out on Sep 23, reported at 09:00 UTC on Oct 5, unless told otherwise */
+export function createPendingTransaction(
+  id: string,
+  accountId: string,
+  overrides: Partial<PendingBankTransaction> = {},
+): PendingBankTransaction {
+  return {
+    id,
+    account_id: accountId,
+    date: '2026-09-23',
+    amount: -1800,
+    raw_amount: null,
+    description: `UBER TRIP ${id}`,
+    observed_at: '2026-10-05T09:00:00Z',
     ...overrides,
   }
 }
