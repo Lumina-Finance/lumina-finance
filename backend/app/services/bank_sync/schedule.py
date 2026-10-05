@@ -38,7 +38,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
 from app.models.bank_sync_job import BankSyncJobKind
 from app.models.user import User
-from app.services.bank_sync.availability import ENABLED_ADAPTERS, PROVIDER_ADAPTERS
+from app.services.bank_sync.availability import ENABLED_ADAPTERS, LIVE_LINK, PROVIDER_ADAPTERS
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
 from app.services.bank_sync.provider_requests import read_request_budget
 from app.services.bank_sync.windows import next_due_at
@@ -79,12 +79,7 @@ async def schedule_next_sync(db: AsyncSession, connection: BankConnection, *, no
         connection: The connection, locked by the caller
         now: The current time, when a link with no next attempt set is due
     """
-    waiting_or_active = (BankLinkState.ACTIVE, BankLinkState.CHOOSE_ACCOUNT)
-    links = (
-        await db.scalars(
-            select(BankAccountLink).where(BankAccountLink.connection_id == connection.id, BankAccountLink.state.in_(waiting_or_active))
-        )
-    ).all()
+    links = (await db.scalars(select(BankAccountLink).where(BankAccountLink.connection_id == connection.id, LIVE_LINK))).all()
     timezone = resolve_timezone(await db.scalar(select(User.tz).where(User.id == connection.owner_id)))
     overlap_days = PROVIDER_ADAPTERS[connection.provider].revisit_overlap_days
     due = [due_at for link in links if (due_at := next_due_at(link, now=now, timezone=timezone, overlap_days=overlap_days)) is not None]

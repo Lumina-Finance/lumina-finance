@@ -16,6 +16,7 @@ from typing import NamedTuple
 from sqlalchemy import Connection, text
 
 from app.config.imports import ABANDONED_RUN_AGE, IMPORT_UNDO_WINDOW
+from app.models.bank_connection import FRESH_DISCOVERY_AGE
 from app.models.bank_sync_job import CLAIM_RANK
 
 # Schema-qualified helper names, the single source reused by the policies and the
@@ -48,6 +49,11 @@ _REFUSE_UNDER_A_REQUEST_IDENTITY = f"""
 # queued job ranks by the model in Python, and the claim function holds this copy, so a change to the
 # ranking reaches a database only through a migration that recreates the helpers
 _CLAIM_RANK_OF_KIND = "CASE j.kind " + " ".join(f"WHEN '{kind}' THEN {rank}" for kind, rank in CLAIM_RANK.items()) + " END"
+
+# The connection model's age at which a listing is no longer fresh, as an interval. The link flow
+# compares against the model in Python, and the due scan function holds this copy, so a change to the
+# age reaches a database only through a migration that recreates the helpers
+_FRESH_DISCOVERY_AGE = f"interval '{int(FRESH_DISCOVERY_AGE.total_seconds())} seconds'"
 
 # Signatures the app no longer creates, dropped wherever the helpers are applied or revoked.
 # bump_user_cache stamped whatever user id it was given, and the app role can execute every
@@ -344,8 +350,7 @@ _HELPERS: tuple[_Helper, ...] = (
     # The connections due for a scheduled sync, by id and owner only. A rejected credential
     # stops automatic sync until the user reconnects. A connection whose bank accounts were never
     # listed, such as one whose claim stopped mid-listing, is due once nothing is queued or running
-    # for it and an hour has passed since it was claimed or its last listing failed, the age at
-    # which opening the link flow asks for a fresh listing, so a claim still listing isn't listed twice
+    # for it and FRESH_DISCOVERY_AGE has passed since it was claimed or its last listing failed
     _Helper(
         f"""
     CREATE OR REPLACE FUNCTION {LIST_DUE_BANK_CONNECTIONS}(p_now timestamptz)
@@ -361,7 +366,7 @@ _HELPERS: tuple[_Helper, ...] = (
                 c.next_sync_at <= p_now
                 OR (
                     c.discovered_at IS NULL
-                    AND GREATEST(c.created_at, c.discovery_failed_at) <= p_now - interval '1 hour'
+                    AND GREATEST(c.created_at, c.discovery_failed_at) <= p_now - {_FRESH_DISCOVERY_AGE}
                     AND NOT EXISTS (
                         SELECT 1 FROM public.bank_sync_jobs j
                         WHERE j.connection_id = c.id AND j.status IN ('queued', 'running')

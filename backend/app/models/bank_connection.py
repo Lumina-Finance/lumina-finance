@@ -2,7 +2,7 @@
 
 import enum
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import (
     VARCHAR,
@@ -103,6 +103,13 @@ class OpeningAdjustmentState(enum.StrEnum):
 # Only rows that aren't unlinked count towards the one-link rules, so an unlinked row keeps its
 # "Previously linked to" details without blocking a new link
 _LIVE_LINK = "state <> 'unlinked'"
+
+# How long a listing of a connection's bank accounts counts as fresh, or as still under way. Opening
+# the link flow asks for a fresh listing once the last one is older, and the due scan lists a
+# connection never listed only this long after its claim or its last failed listing, so a claim
+# still listing isn't listed twice. Copied into the due scan function in app.db.rls.functions, so a
+# change reaches a database only through a migration that recreates the helpers
+FRESH_DISCOVERY_AGE = timedelta(hours=1)
 
 
 class BankConnection(Base):

@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
 from app.models.bank_connection import (
+    FRESH_DISCOVERY_AGE,
     BankAccountLink,
     BankConnection,
     BankExternalAccount,
@@ -68,9 +69,6 @@ from app.services.bank_sync.provider_requests import read_request_budget
 from app.services.bank_sync.providers.contract import ProviderAdapter
 from app.services.cache_state.updates import mark_user_cache_changed
 from app.utils.dates import format_day, resolve_timezone
-
-# Opening the link flow asks for a fresh discovery once the last one is older than this
-FRESH_DISCOVERY_AGE = timedelta(hours=1)
 
 ACCOUNT_ALREADY_LINKED = "This account is already linked to a bank"
 BANK_ACCOUNT_ALREADY_LINKED = "That bank account is already linked to another account"
