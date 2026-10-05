@@ -59,10 +59,22 @@ async function isShown(element: Locator): Promise<boolean> {
   return element.evaluate((node) => node.checkVisibility({ opacityProperty: true, visibilityProperty: true }))
 }
 
+/** Press a point the way the project's user would: a tap on a touch screen and a click elsewhere */
+async function pressAt(page: Page, x: number, y: number): Promise<void> {
+  if (test.info().project.use.hasTouch) await page.touchscreen.tap(x, y)
+  else await page.mouse.click(x, y)
+}
+
+/** Press the middle of what the locator finds */
+async function pressMiddleOf(page: Page, element: Locator): Promise<void> {
+  const box = (await element.boundingBox())!
+  await pressAt(page, box.x + box.width / 2, box.y + box.height / 2)
+}
+
 /**
  * Assert the marker's tooltip is open with these lines, each below the one before, in a panel that
- * stays on screen, clear of the marker it explains and above everything around it, while the row the
- * marker sits in stays closed
+ * stays on screen, clear of the marker it explains and the first thing a press there reaches, while
+ * the row the marker sits in stays closed
  */
 async function expectTooltipOpen(page: Page, marker: Locator, row: Locator, lines: string[]): Promise<void> {
   const shownLines = lines.map((line) => row.getByText(line, { exact: true }).filter({ visible: true }))
@@ -78,14 +90,7 @@ async function expectTooltipOpen(page: Page, marker: Locator, row: Locator, line
       const panel = line.parentElement!
       const box = panel.getBoundingClientRect()
       const markerBox = trigger!.getBoundingClientRect()
-
-      // Hit-tested with the panel taking the pointer for a moment, since a panel a press opened
-      // lets it through, and a hit test passes over whatever does
-      const layer = panel.parentElement!
-      const pointerEvents = layer.style.pointerEvents
-      layer.style.pointerEvents = 'auto'
       const topmost = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
-      layer.style.pointerEvents = pointerEvents
       return {
         isOnScreen: box.left >= 0 && box.top >= 0 && box.right <= window.innerWidth && box.bottom <= window.innerHeight,
         isClearOfMarker: box.bottom <= markerBox.top || box.top >= markerBox.bottom,
@@ -148,24 +153,22 @@ test('marks a bank-imported row with its provider on hover, focus or a press, le
   await page.keyboard.press('Tab')
   await expectTooltipClosed(imported, 'From SimpleFIN')
 
-  // A pointer opens it on hover, and a press keeps it open after the pointer leaves, until a press
-  // elsewhere. A touch screen has no hover, so a tap opens it there
-  const heading = page.getByRole('heading', { name: 'Transactions', level: 1 })
-  if (test.info().project.name === 'desktop') {
+  // A pointer opens it on hover, where there is one to hover with
+  if (!test.info().project.use.hasTouch) {
     await marker.hover()
     await expectTooltipOpen(page, marker, imported, ['From SimpleFIN'])
     await page.mouse.move(0, 0)
     await expectTooltipClosed(imported, 'From SimpleFIN')
-    await marker.click()
-    await page.mouse.move(0, 0)
-    await expectTooltipOpen(page, marker, imported, ['From SimpleFIN'])
-    await heading.click()
-  } else {
-    await marker.tap()
-    await expectTooltipOpen(page, marker, imported, ['From SimpleFIN'])
-    await heading.tap()
   }
-  await expectTooltipClosed(imported, 'From SimpleFIN')
+
+  // A press opens it and keeps it open once the pointer leaves, and a press on the open panel stays
+  // with the panel rather than reaching the row beneath it
+  await pressMiddleOf(page, marker)
+  await page.mouse.move(0, 0)
+  await expectTooltipOpen(page, marker, imported, ['From SimpleFIN'])
+  await pressMiddleOf(page, imported.getByText('From SimpleFIN', { exact: true }).filter({ visible: true }))
+  await page.mouse.move(0, 0)
+  await expectTooltipOpen(page, marker, imported, ['From SimpleFIN'])
 })
 
 test('adds a dot and the edited note to a bank-imported row whose bank value the user changed', async ({ page, request }) => {
