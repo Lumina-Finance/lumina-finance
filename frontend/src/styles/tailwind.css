@@ -999,6 +999,19 @@
     }
   }
 
+  .app-calendar-day[data-disabled]:focus-visible {
+    background: transparent;
+  }
+
+  /* A refused day can still be the field's value, such as today before the user picks another, and
+     then keeps the chosen day's colours, pointed at or not, with only the strike marking it refused */
+  .app-calendar-day[data-selected][data-disabled],
+  .app-calendar-day[data-selected][data-disabled]:hover,
+  .app-calendar-day[data-selected][data-disabled]:focus-visible {
+    background: var(--app-button-primary-bg);
+    color: var(--app-button-primary-text);
+  }
+
   .app-runway-threshold-input {
     appearance: textfield;
   }

@@ -177,6 +177,23 @@ test('refuses a new manual entry on the days a linked account’s bank supplies'
   const tomorrowCell = page.getByRole('button').and(page.locator(`[data-iso="${daysFromTodayInTestTimezone(1)}"]`))
   await expect(todayCell).toHaveAttribute('aria-disabled', 'true')
   await expect(tomorrowCell).not.toHaveAttribute('aria-disabled', 'true')
+
+  // Today is the chosen day as well as a refused one, and its number reads as any chosen day's does,
+  // pointed at or not
+  await expect(todayCell).toHaveAttribute('aria-pressed', 'true')
+  const chosenDay = await todayCell.evaluate((cell) => {
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--app-button-primary-text)'
+    probe.style.backgroundColor = 'var(--app-button-primary-bg)'
+    cell.parentElement!.append(probe)
+    const { color, backgroundColor } = getComputedStyle(probe)
+    probe.remove()
+    return { color, backgroundColor }
+  })
+  await expect(todayCell).toHaveCSS('color', chosenDay.color)
+  await todayCell.hover()
+  await expect(todayCell).toHaveCSS('color', chosenDay.color)
+  await expect(todayCell).toHaveCSS('background-color', chosenDay.backgroundColor)
   await tomorrowCell.click()
   await expect(message).toBeHidden()
   await expect(year).toHaveAttribute('aria-invalid', 'false')
