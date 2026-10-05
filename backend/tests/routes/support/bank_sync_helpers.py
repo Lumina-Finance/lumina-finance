@@ -9,13 +9,17 @@ Jobs are committed, since the worker reaches them through sessions of its own
 """
 
 import asyncio
+import contextlib
 import uuid
+from collections.abc import AsyncIterator, Collection
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import httpx
 from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database import current_user_id_ctx
 from app.models.account import Account
 from app.models.bank_connection import (
     BankAccountLink,
@@ -27,14 +31,14 @@ from app.models.bank_connection import (
 )
 from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind
-from app.models.bank_transaction import BankTransaction, BankTransactionDisposition, OpenReviewKind
+from app.models.bank_transaction import OBSERVATION_COLUMNS, BankTransaction, BankTransactionDisposition, OpenReviewKind
 from app.models.base import AccountKind, AccountType, CategoryKind
 from app.models.category import Category
 from app.models.currency import Currency
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.services.bank_sync import links
-from tests.conftest import TestSession
+from tests.conftest import ScopedSession, TestSession
 from tests.fake_simplefin_bridge import FakeBridgeTransport
 from tests.routes.support.account_helpers import _create_account
 from tests.routes.support.auth_helpers import SIGNUP_PAYLOAD, _create_user, _get_auth_header
@@ -49,6 +53,9 @@ BANK_RECEIVED_AT = datetime(2026, 10, 4, 9, 5, tzinfo=UTC)
 
 # The review list with nothing waiting
 EMPTY_REVIEW_PAGE = {"items": [], "counts": {"new": 0, "correction": 0, "removal": 0}, "next_cursor": None}
+
+# The values a dismissal clears, since a dismissed bank transaction keeps only its identity
+_DISMISSED = {"disposition": BankTransactionDisposition.DISMISSED} | dict.fromkeys(OBSERVATION_COLUMNS)
 
 
 async def _sign_up(client) -> tuple[dict, uuid.UUID]:
@@ -287,6 +294,25 @@ async def _commit_accepted_items(link: BankAccountLink, *, plain: int = 0, corre
             record.open_kind = open_kind
             session.add(record)
         await session.commit()
+
+
+async def _dismiss_items(session: AsyncSession, item_ids: Collection[uuid.UUID]) -> None:
+    """Dismiss these review items in the session, as the user's review action does, leaving the caller to commit"""
+    # A Core update moves the version itself, as the model asks
+    await session.execute(
+        update(BankTransaction).where(BankTransaction.id.in_(item_ids)).values(version=BankTransaction.version + 1, **_DISMISSED)
+    )
+
+
+@contextlib.asynccontextmanager
+async def _owner_session(owner_id: uuid.UUID) -> AsyncIterator[AsyncSession]:
+    """Open a session as the owner under row-level security, as the owner's own requests run"""
+    token = current_user_id_ctx.set(owner_id)
+    try:
+        async with ScopedSession() as session:
+            yield session
+    finally:
+        current_user_id_ctx.reset(token)
 
 
 async def _record_bank_source(

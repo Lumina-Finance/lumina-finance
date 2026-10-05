@@ -44,7 +44,7 @@ from app.models.bank_connection import (
 )
 from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, ProviderErrorKind
-from app.models.bank_transaction import OBSERVATION_COLUMNS, BankTransaction, BankTransactionDisposition
+from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
 from app.models.cache_state import UserCacheState
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -53,10 +53,12 @@ from app.services.bank_sync.availability import PROVIDER_ADAPTERS
 from app.services.bank_sync.connections import build_connection_responses
 from app.services.bank_sync.provider_requests import reserve_provider_request
 from app.services.bank_sync.providers.contract import ExternalAccount, FetchResult, ProviderError, ProviderRecord
+from app.services.bank_sync.review_pause import lift_review_pauses
 from app.services.bank_sync.worker import run_jobs
 from tests.conftest import TestSession
 from tests.fake_simplefin_bridge import FakeBridgeTransport
 from tests.routes.support.bank_sync_helpers import (
+    _DISMISSED,
     _attempts,
     _build_account,
     _build_bank_link,
@@ -65,8 +67,10 @@ from tests.routes.support.bank_sync_helpers import (
     _build_pending_transaction,
     _commit_accepted_items,
     _commit_waiting_items,
+    _dismiss_items,
     _expire_lease,
     _job_states,
+    _owner_session,
     _queued_jobs,
     _seed_job,
 )
@@ -97,9 +101,6 @@ _DAILY_REQUESTS = PROVIDER_ADAPTERS[BankProvider.SIMPLEFIN].daily_request_budget
 # The connection's credential, and the one reconnecting it stores in its place
 _CREDENTIAL = "https://user:secret@bridge.example/simplefin"
 _RENEWED = "https://user:renewed@bridge.example/simplefin"
-
-# The values a dismissal clears, since a dismissed bank transaction keeps only its identity
-_DISMISSED = {"disposition": BankTransactionDisposition.DISMISSED} | dict.fromkeys(OBSERVATION_COLUMNS)
 
 pytestmark = pytest.mark.usefixtures("worker_sessions")
 
@@ -2255,12 +2256,7 @@ async def test_job_pauses_a_first_import_by_the_count_left_when_it_ends_not_by_i
     assert [await run_jobs(1), await run_jobs(1)] == [1, 1]
     waiting_at_the_peak = await _waiting(link)
     async with TestSession() as session:
-        dismissed = (await session.scalars(select(BankTransaction.id).order_by(BankTransaction.external_transaction_id).limit(110))).all()
-
-        # A Core update moves the version itself, as the model asks
-        await session.execute(
-            update(BankTransaction).where(BankTransaction.id.in_(dismissed)).values(version=BankTransaction.version + 1, **_DISMISSED)
-        )
+        await _dismiss_items(session, (await session.scalars(select(BankTransaction.id).limit(110))).all())
         await session.commit()
 
     await _run_jobs_until_none_is_due()
@@ -2302,3 +2298,33 @@ async def test_job_tells_the_owners_pages_as_a_part_that_stores_nothing_pauses_t
 
     assert pauses_after_the_earlier_half == [(paused, False)]
     assert (told_after_the_earlier_half > told_as_it_started) is paused
+
+
+async def test_job_a_review_queues_by_lifting_the_pause_catches_the_account_up_from_where_it_stopped(connection, provider, frozen_now):
+    """Everyday was paused three weeks ago, complete through 13 September, with 80 new items waiting and its next sync set for tomorrow
+
+    Dismissing 30 leaves 50, which lifts the pause and makes Everyday due at once: the sync this
+    queues re-reads from 30 August, 14 days before the checkpoint, through today
+    """
+    link = await _link(
+        connection,
+        "ACT-1",
+        import_start=date(2026, 1, 1),
+        checkpoint=date(2026, 9, 13),
+        last_success_at=datetime(2026, 9, 13, 9, tzinfo=_BRISBANE),
+        importing=False,
+        paused=True,
+        next_attempt_at=frozen_now + timedelta(days=1),
+    )
+    item_ids = await _commit_waiting_items(link, 80)
+    provider.outcomes = [_returned("ACT-1")]
+    async with _owner_session(connection.owner_id) as session:
+        await _dismiss_items(session, item_ids[:30])
+        await lift_review_pauses(session, connection.owner_id, [link.account_id])
+        await session.commit()
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [_window(date(2026, 8, 30), _TODAY, pending=True)]
+    assert await _checkpoints(link) == [_TODAY]
+    assert await _pauses(link) == [(False, False)]

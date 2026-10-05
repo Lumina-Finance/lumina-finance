@@ -11,18 +11,24 @@ A sync stores everything its request brought back before the pause applies, so t
 
 An import, the first one after linking, relinking or choosing the bank account again, or the
 catch-up after a reconnect, runs to today whatever the count, since stopping one part way would
-leave a gap in the history. The thresholds apply once it ends
+leave a gap in the history. The thresholds apply once it ends.
+
+A review decision that leaves 50 or fewer lifts the pause at once and queues the connection's sync,
+so the account catches up from where it stopped rather than at the next daily sync
 """
 
 import uuid
 from collections.abc import Collection, Sequence
-from datetime import date
+from datetime import UTC, date, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.bank_connection import BankAccountLink
+from app.models.bank_connection import BankAccountLink, BankLinkState
+from app.models.bank_sync_job import BankSyncJobKind
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
+from app.services.bank_sync.jobs import enqueue_bank_sync_job
+from app.services.cache_state.updates import mark_user_cache_changed
 
 # A sync that leaves this many new items waiting for review pauses the account
 PAUSE_AT = 100
@@ -64,6 +70,50 @@ async def apply_review_pauses(db: AsyncSession, links: Sequence[BankAccountLink]
             link.paused = paused
             changed = True
     return changed
+
+
+async def lift_review_pauses(db: AsyncSession, owner_id: uuid.UUID, account_ids: Collection[uuid.UUID]) -> None:
+    """Lift the pause on each of these accounts once 50 or fewer new items wait, and queue its connection's sync at once
+
+    A review action calls this after its write and before it marks the owner's cache row, in the
+    same transaction, so the count takes in its decisions. A link that isn't active, such as one
+    waiting in Choose bank account, only loses the pause, since it has nothing to sync. The owner's
+    open pages are told of any pause lifted.
+
+    The links are locked in id order, so a sync writing one finishes first and is counted. A review
+    action has to lock the accounts' links the same way before its bank transaction rows, as
+    every writer does, or it can deadlock with a sync storing those rows. Locking them here again
+    then costs nothing
+
+    Args:
+        db: The owner's session
+        owner_id: The user who made the decisions, who owns the accounts
+        account_ids: The accounts whose items the review action decided
+    """
+    # Every link, since one a sync is pausing doesn't read as paused until the lock is granted
+    links = await db.scalars(
+        select(BankAccountLink)
+        .where(BankAccountLink.account_id.in_(account_ids))
+        .order_by(BankAccountLink.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    paused = [link for link in links if link.paused]
+    waiting = await _count_waiting_new(db, [link.account_id for link in paused])
+    lifted = [link for link in paused if not _stays_paused(True, waiting.get(link.account_id, 0))]
+    if not lifted:
+        return
+
+    now = datetime.now(UTC)
+    due: set[uuid.UUID] = set()
+    for link in lifted:
+        link.paused = False
+        if link.state == BankLinkState.ACTIVE:
+            link.next_attempt_at = now
+            due.add(link.connection_id)
+    for connection_id in sorted(due):
+        await enqueue_bank_sync_job(db, owner_id=owner_id, connection_id=connection_id, kind=BankSyncJobKind.SCHEDULED, run_after=now)
+    await mark_user_cache_changed(db, owner_id)
 
 
 def _stays_paused(paused: bool, waiting: int) -> bool:
