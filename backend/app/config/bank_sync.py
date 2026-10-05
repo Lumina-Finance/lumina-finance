@@ -100,18 +100,21 @@ def warn_if_test_origin_set() -> None:
     """Warn while the testing-only origin is set, which the app and the bank sync worker each do as they start"""
     if BANK_SYNC_SIMPLEFIN_TEST_ORIGIN:
         logger.warning(
-            "BANK_SYNC_SIMPLEFIN_TEST_ORIGIN lets SimpleFIN requests reach %s without HTTPS or the public address check. "
-            "It is for testing only",
+            "BANK_SYNC_SIMPLEFIN_TEST_ORIGIN sends SimpleFIN requests only to %s, without HTTPS or the public address check, "
+            "and refuses every other origin, SimpleFIN Bridge's included. It is for testing only",
             BANK_SYNC_SIMPLEFIN_TEST_ORIGIN,
         )
 
 
-# Origins SimpleFIN requests may reach, always over HTTPS and only at public addresses
+# Origins SimpleFIN requests may reach while no test origin is set, always over HTTPS and only at
+# public addresses
 BANK_SYNC_SIMPLEFIN_ORIGINS = read_simplefin_origins()
 
-# Testing only: one origin exempt from the HTTPS and public address checks, so development
-# instances and browser tests can reach a fake SimpleFIN Bridge on a private network. Unset by
-# default and kept out of the self-hosting docs, and the app warns at start while it is set
+# Testing only: while set, the one origin SimpleFIN requests may reach, exempt from the HTTPS and
+# public address checks, so development instances and browser tests reach a fake SimpleFIN Bridge on
+# a private network and nothing else, not even a real connection restored from production. Unset by
+# default and kept out of the self-hosting docs, and the app and the bank sync worker each warn as
+# they start while it is set
 BANK_SYNC_SIMPLEFIN_TEST_ORIGIN = read_simplefin_test_origin()
 
 # How many jobs the self-hosted worker runs at once, each on a different connection

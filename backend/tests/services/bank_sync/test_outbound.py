@@ -181,22 +181,32 @@ async def test_test_origin_reaches_a_private_address_over_http():
 
 
 @pytest.mark.parametrize(
-    ("url", "refusal"),
+    "url",
     [
-        ("http://fake-bridge:8081/simplefin/accounts", OriginRefused),
-        ("https://fake-bridge:8080/simplefin/accounts", OriginRefused),
-        ("http://other-bridge:8080/simplefin/accounts", OriginRefused),
-        ("https://bridge.simplefin.org/simplefin/accounts", AddressRefused),
+        "http://fake-bridge:8081/simplefin/accounts",
+        "https://fake-bridge:8080/simplefin/accounts",
+        "http://other-bridge:8080/simplefin/accounts",
     ],
-    ids=["other-port", "other-scheme", "other-private-host", "allowed-origin-resolving-privately"],
+    ids=["other-port", "other-scheme", "other-private-host"],
 )
-async def test_test_origin_exempts_only_itself(url, refusal):
+async def test_test_origin_exempts_only_itself(url):
     """The testing-only setting exempts exactly one origin, so nothing beside it reaches a private address"""
     bridge = RecordingBridge()
     guard = OutboundGuard([_BRIDGE_ORIGIN], "http://fake-bridge:8080", resolve=FixedResolver("172.18.0.5"), transport=bridge.transport)
 
-    with pytest.raises(refusal):
+    with pytest.raises(OriginRefused):
         await guard.send("GET", httpx.URL(url))
+
+    assert bridge.requests == []
+
+
+async def test_test_origin_refuses_the_allowed_origins():
+    """While the testing-only origin is set nothing else is reached, so a dev instance can't sync production's connections"""
+    bridge = RecordingBridge()
+    guard = OutboundGuard([_BRIDGE_ORIGIN], "http://fake-bridge:8080", resolve=FixedResolver(PUBLIC_ADDRESS), transport=bridge.transport)
+
+    with pytest.raises(OriginRefused):
+        await guard.send("GET", _ACCOUNTS_URL)
 
     assert bridge.requests == []
 

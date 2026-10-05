@@ -4,7 +4,7 @@ A SimpleFIN setup token decodes to a URL the user controls, which the server the
 provider request goes through this guard to keep a crafted URL from reaching an internal service.
 Only an allowed HTTPS origin is contacted, every address its host resolves to must be public, and
 the connection goes to the address that was checked, so a DNS answer that changes in between
-can't send it elsewhere
+can't send it elsewhere. A testing-only origin, while set, replaces the allowed origins with itself
 """
 
 import asyncio
@@ -93,8 +93,9 @@ class OutboundGuard:
         """Build a guard over a set of allowed origins
 
         Args:
-            allowed_origins: HTTPS origins requests may reach
-            test_origin: Testing only, one origin exempt from the HTTPS and public address checks
+            allowed_origins: HTTPS origins requests may reach while no test origin is set
+            test_origin: Testing only, the one origin requests may reach while it is set, the
+                allowed origins included, exempt from the HTTPS and public address checks
             resolve: Resolves a host name, which tests substitute
             transport: Transport to send through, which tests substitute
         """
@@ -110,13 +111,19 @@ class OutboundGuard:
             url: The URL a request would go to
 
         Raises:
-            OriginRefused: The URL carries user info, isn't HTTPS, or is on an origin not allowed
+            OriginRefused: The URL carries user info, isn't HTTPS, or is on an origin not allowed, which
+                while a test origin is set is every origin but that one
         """
         if url.userinfo:
             raise OriginRefused(f"A URL for {url.host} carries user info")
 
+        # A development instance can hold production's connections, restored with its encryption
+        # key, so while the testing-only origin is set nothing else is reached, the real Bridge
+        # included, and those connections can't sync with real credentials
         origin = _origin_of(url)
-        if origin == self._test_origin:
+        if self._test_origin is not None:
+            if origin != self._test_origin:
+                raise OriginRefused(f"{url.host} is not the testing-only origin")
             return
         if url.scheme != "https" or origin not in self._allowed_origins:
             raise OriginRefused(f"{url.host} is not an allowed origin")
