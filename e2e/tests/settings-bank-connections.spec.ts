@@ -485,6 +485,25 @@ test("lists the connection's facts one to a row beside its institutions from 105
   await expect.poll(layout).toBe('two to a row')
 })
 
+test('cuts a long institution name short before its count, keeping the whole name', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const scenario = await createEmptyBridgeScenario(request)
+  // Longer than the institutions pane at every width
+  const bank = 'Northern Coastal Fishing, Forestry and Mining Workers Cooperative Credit Union of the Greater Lakeshore and Harbour Region'
+  const login = await addBridgeBankLogin(request, scenario.id, bank)
+  await addBridgeBankAccount(request, scenario.id, { connId: login, name: SAMPLE_CHEQUING, currency: 'CAD' })
+  await claimSetupToken(request, user, scenario.setupToken)
+  const section = await openBankConnections(page, user)
+  const dialog = await openConnection(page, section, 'SimpleFIN')
+  const institution = dialog.getByRole('region', { name: bank })
+  const name = institution.getByRole('button', { name: bank })
+  const count = institution.getByText('0 of 1 linked', { exact: true })
+
+  await expect(count).toBeVisible()
+  const [nameBox, countBox] = await Promise.all([name.boundingBox(), count.boundingBox()])
+  expect(nameBox!.x + nameBox!.width).toBeLessThanOrEqual(countBox!.x)
+})
+
 test('searches the institutions of a connection with more than 5, and Escape clears the search first', async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createEmptyBridgeScenario(request)

@@ -4,6 +4,7 @@ import { ArrowRight, ChevronRight, CircleHelp } from 'lucide-react'
 import { Link } from 'react-router'
 import type { BankConnection, ConnectionBankAccount } from '@/api/bank-sync'
 import { LINKING_PAUSED_REASON } from '@/components/bank-link-flow/constants'
+import MarqueeText from '@/components/display/MarqueeText'
 import { SyncStatusDot } from '@/components/display/SyncStatusDot'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
@@ -192,7 +193,8 @@ export interface InstitutionEntry {
 /**
  * One institution, or several folded together, as a row between hairlines that opens to what it holds,
  * indented under its name with nothing boxed around it. The row says how many are linked and what to do
- * about any problem, so a long list reads at a glance while closed
+ * about any problem, so a long list reads at a glance while closed. A name too long for the row is cut
+ * short before the count, and scrolls in place while the row is hovered or focused
  */
 export function InstitutionRow({ entry, defaultOpen, prefersReducedMotion }: { entry: InstitutionEntry; defaultOpen: boolean; prefersReducedMotion: boolean | null }) {
   // Follows the default until the row is toggled, so an institution whose problem shows up after the
@@ -209,7 +211,7 @@ export function InstitutionRow({ entry, defaultOpen, prefersReducedMotion }: { e
       <div className="group/row relative flex w-full items-start px-1">
         <button
           type="button"
-          className="flex min-w-0 items-center gap-2.5 py-3.5 text-left after:absolute after:inset-0 after:rounded-lg after:content-[''] focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--app-accent)]"
+          className="app-marquee-trigger flex min-w-0 items-center gap-2.5 py-3.5 text-left after:absolute after:inset-0 after:rounded-lg after:content-[''] focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--app-accent)]"
           aria-expanded={open}
           aria-controls={bodyId}
           onClick={() => setToggled(!open)}
@@ -221,7 +223,7 @@ export function InstitutionRow({ entry, defaultOpen, prefersReducedMotion }: { e
             style={{ color: 'var(--app-text-subtle)' }}
           />
           <span className="min-w-0 flex-1">
-            <span className="block truncate font-semibold transition-colors duration-150 group-hover/row:text-[var(--app-accent)]" style={{ color: 'var(--app-text)' }}>{entry.name}</span>
+            <MarqueeText className="font-semibold text-[var(--app-text)] transition-colors duration-150 group-hover/row:text-[var(--app-accent)]">{entry.name}</MarqueeText>
             {entry.problem && <ProblemLine>{entry.problem}</ProblemLine>}
             {entry.countNote && <span className="mt-0.5 block text-xs sm:hidden" style={{ color: 'var(--app-text-muted)' }}>{counted}</span>}
           </span>
@@ -233,7 +235,8 @@ export function InstitutionRow({ entry, defaultOpen, prefersReducedMotion }: { e
             </IconTooltip>
           </span>
         )}
-        <span className={`${entry.countNote ? 'hidden sm:flex' : 'flex'} min-w-0 flex-1 justify-end self-stretch py-3.5 pl-3`}>
+        {/* Keeps its width, so a long name gives way to the count rather than running into it */}
+        <span className={`${entry.countNote ? 'hidden sm:flex' : 'flex'} ml-auto shrink-0 self-stretch py-3.5 pl-3`}>
           <span className="shrink-0 text-xs leading-6" style={{ color: 'var(--app-text-muted)' }}>{counted}</span>
         </span>
       </div>
