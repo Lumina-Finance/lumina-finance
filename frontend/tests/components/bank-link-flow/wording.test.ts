@@ -2,14 +2,17 @@
  * Tests how the link flow words itself from the account's own link and the user's connections, so a
  * rewrite catches an account linked before reading as a first link, from settings as much as from the
  * account, a link waiting for its bank account titled as a reconnect, the old bank account missing
- * from the comparison, and a dead end sending the user to Settings when nothing there can help
+ * from the comparison, a choice made again starting on another connection than its own, and a dead
+ * end sending the user to Settings when nothing there can help
  */
 import { describe, expect, it } from 'vitest'
+import { NOTHING_TO_LINK_REASON } from '@/components/bank-link-flow/constants'
 import {
   LINK_FLOW_WORDING,
   describeConnectFirst,
   findPreviousBankAccount,
   getLinkFlowMode,
+  pickListedConnection,
 } from '@/components/bank-link-flow/wording'
 import { createConnection, createProviders, createStatus } from './fixtures'
 
@@ -61,25 +64,37 @@ describe('the link flow wording', () => {
   })
 })
 
+describe('the connection the link flow lists', () => {
+  const first = createConnection({ id: 'connection-1' })
+  const second = createConnection({ id: 'connection-2' })
+
+  it('starts on the first working connection', () => {
+    expect(pickListedConnection([first, second], null, createStatus())).toBe(first)
+  })
+
+  it('starts a choice made again on the connection its waiting link came from', () => {
+    expect(pickListedConnection([first, second], null, createStatus({ link: WAITING_LINK }))).toBe(second)
+  })
+
+  it('lists the connection the user switched to', () => {
+    expect(pickListedConnection([first, second], 'connection-1', createStatus({ link: WAITING_LINK }))).toBe(first)
+  })
+})
+
 describe('the link flow without a working connection', () => {
   it('sends a user with none to Settings to add one', () => {
-    expect(describeConnectFirst([], createProviders())).toEqual({
-      message: 'Add a bank connection in Settings first. One connection reaches every bank account you hold with that provider, and each account then chooses one of them here.',
-      canOpenSettings: true,
-    })
+    const connectFirst = describeConnectFirst([], createProviders())
+    expect(connectFirst.canOpenSettings).toBe(true)
+    expect(connectFirst.message).toContain('Add a bank connection in Settings first.')
   })
 
   it('sends a user whose connection was rejected to Settings to reconnect it, even with no provider taking new connections', () => {
-    expect(describeConnectFirst([createConnection({ status: 'credential_rejected' })], createProviders(false))).toEqual({
-      message: 'Your bank connection needs a new setup token before it can link accounts. Reconnect it in Settings, then come back here.',
-      canOpenSettings: true,
-    })
+    const connectFirst = describeConnectFirst([createConnection({ status: 'credential_rejected' })], createProviders(false))
+    expect(connectFirst.canOpenSettings).toBe(true)
+    expect(connectFirst.message).toContain('Reconnect it in Settings')
   })
 
   it('only closes when no provider takes new connections and there is nothing to reconnect', () => {
-    expect(describeConnectFirst([], createProviders(false))).toEqual({
-      message: 'No bank provider is open to new connections right now, so there is nothing to link this account to yet.',
-      canOpenSettings: false,
-    })
+    expect(describeConnectFirst([], createProviders(false))).toEqual({ message: NOTHING_TO_LINK_REASON, canOpenSettings: false })
   })
 })

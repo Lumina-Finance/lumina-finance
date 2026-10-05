@@ -41,6 +41,19 @@ export function getLinkFlowMode(status: AccountBankStatus): LinkFlowMode {
 }
 
 /**
+ * The working connection whose bank accounts the flow lists: the one the user switched to, else the
+ * connection a link waiting for its bank account to be chosen again came from, else the first
+ */
+export function pickListedConnection(
+  working: BankConnection[],
+  switchedId: string | null,
+  status: AccountBankStatus | undefined,
+): BankConnection | undefined {
+  const waitingId = status?.link?.state === 'choose_account' ? status.link.connection_id : null
+  return working.find((entry) => entry.id === switchedId) ?? working.find((entry) => entry.id === waitingId) ?? working[0]
+}
+
+/**
  * The bank account the account followed before, which a relink or a choice made again compares the
  * listed ones with, or null for a first link
  */

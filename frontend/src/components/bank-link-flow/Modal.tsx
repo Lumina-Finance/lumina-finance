@@ -23,6 +23,7 @@ import {
   describeConnectFirst,
   findPreviousBankAccount,
   getLinkFlowMode,
+  pickListedConnection,
   type LinkFlowStep,
 } from '@/components/bank-link-flow/wording'
 import LoadFailure from '@/components/errors/LoadFailure'
@@ -89,11 +90,7 @@ export function BankLinkFlowModal({ open, account, chosen, level = 'page', onClo
   const previous = status ? findPreviousBankAccount(status) : null
   const wording = LINK_FLOW_WORDING[mode]
 
-  // A link waiting for its bank account to be chosen again starts on the connection it came from
-  const waitingConnectionId = status?.link?.state === 'choose_account' ? status.link.connection_id : null
-  const connection = chosen?.connection ?? workingConnections.find((entry) => entry.id === chosenConnectionId)
-    ?? workingConnections.find((entry) => entry.id === waitingConnectionId)
-    ?? workingConnections[0]
+  const connection = chosen?.connection ?? pickListedConnection(workingConnections, chosenConnectionId, status)
 
   // The flow waits on the account's link for its wording and, opened from the account, on the
   // connections and providers, which decide whether there is anything to choose from
