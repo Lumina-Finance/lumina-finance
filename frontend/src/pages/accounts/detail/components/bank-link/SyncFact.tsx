@@ -1,44 +1,87 @@
+import { useLayoutEffect, useRef, useState } from 'react'
+import { ChevronRight } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { SyncStatusDot } from '@/components/display/SyncStatusDot'
+import IconTooltip from '@/components/tooltips/IconTooltip'
 import type { BankSyncLabel } from '@/pages/accounts/detail/components/bank-link/status'
+
+const LABEL_EASE = [0.22, 1, 0.36, 1] as const
+const LABEL_DURATION_S = 0.2
+
+// How far a new label rises into place, and the old one rises away
+const LABEL_RISE_PX = 8
 
 type SyncFactProps = {
   /** What the fact is called: Bank sync on the identity card, Status in the bank link section */
   name: string
   sync: BankSyncLabel
 
+  /** Adds the Sync details tooltip after the label */
+  showsDetails?: boolean
+
   /** Makes the value a way into the bank link section */
   onOpen?: () => void
 }
 
 /**
- * The account's bank sync as one of its facts, across the full width, set out like the facts beside
- * it apart from the dot, and a new label fading in over the old one
+ * The label, with a new one sliding in over the old as it leaves. Both share one cell, which eases to
+ * the new label's width, so whatever follows glides rather than jumps
  */
-export function SyncFact({ name, sync, onOpen }: SyncFactProps) {
+function SlidingLabel({ label, underlinesOnHover }: { label: string; underlinesOnHover: boolean }) {
   const prefersReducedMotion = useReducedMotion()
+  const measureRef = useRef<HTMLSpanElement>(null)
+  const [width, setWidth] = useState<number | null>(null)
+
+  useLayoutEffect(() => {
+    // Rounded up, since a width rounded down cuts the last letter short
+    if (measureRef.current) setWidth(Math.ceil(measureRef.current.getBoundingClientRect().width))
+  }, [label])
+
+  const rise = prefersReducedMotion ? 0 : LABEL_RISE_PX
+  const transition = { duration: prefersReducedMotion ? 0 : LABEL_DURATION_S, ease: LABEL_EASE }
+  return (
+    <>
+      <span ref={measureRef} aria-hidden className="pointer-events-none invisible absolute whitespace-nowrap">{label}</span>
+      <motion.span
+        className="grid min-w-0 max-w-full overflow-hidden"
+        initial={false}
+        animate={width === null ? undefined : { width }}
+        transition={transition}
+      >
+        <AnimatePresence initial={false}>
+          <motion.span
+            key={label}
+            className={`min-w-0 truncate whitespace-nowrap ${underlinesOnHover ? 'underline decoration-transparent underline-offset-2 transition-[text-decoration-color] duration-150 group-hover:decoration-current' : ''}`}
+            style={{ gridArea: '1 / 1' }}
+            initial={{ opacity: 0, y: rise }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -rise }}
+            transition={transition}
+          >
+            {label}
+          </motion.span>
+        </AnimatePresence>
+      </motion.span>
+    </>
+  )
+}
+
+/**
+ * The account's bank sync as one of its facts, across the full width, set out like the facts beside
+ * it apart from the dot
+ */
+export function SyncFact({ name, sync, showsDetails = false, onOpen }: SyncFactProps) {
   const value = (
     <>
       <SyncStatusDot tone={sync.tone} pulse={sync.pulse} />
-      <AnimatePresence initial={false} mode="wait">
-        <motion.span
-          key={sync.label}
-          className={`min-w-0 truncate ${onOpen ? 'underline decoration-transparent underline-offset-2 transition-[text-decoration-color] duration-150 group-hover:decoration-current' : ''}`}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: prefersReducedMotion ? 0 : 0.15 }}
-        >
-          {sync.label}
-        </motion.span>
-      </AnimatePresence>
+      <SlidingLabel label={sync.label} underlinesOnHover={Boolean(onOpen)} />
     </>
   )
 
   return (
     <div className="col-span-2 min-w-0">
       <dt className="text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>{name}</dt>
-      <dd className="mt-0.5 min-w-0 text-sm font-medium">
+      <dd className="relative mt-0.5 flex min-w-0 items-center gap-2 text-sm font-medium">
         {onOpen
           ? (
               <button
@@ -48,9 +91,18 @@ export function SyncFact({ name, sync, onOpen }: SyncFactProps) {
                 className="group flex max-w-full items-center gap-2 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
               >
                 {value}
+                {/* Shows at rest that the status opens the bank link, as the hover underline only shows it to a pointer */}
+                <ChevronRight aria-hidden className="size-4 shrink-0" style={{ color: 'var(--app-text-subtle)' }} />
               </button>
             )
-          : <span className="flex max-w-full items-center gap-2">{value}</span>}
+          : <span className="flex min-w-0 max-w-full items-center gap-2">{value}</span>}
+        {showsDetails && sync.details.length > 0 && (
+          <IconTooltip label="Sync details" placement="bottom">
+            <span className="block space-y-1">
+              {sync.details.map((line) => <span key={line} className="block">{line}</span>)}
+            </span>
+          </IconTooltip>
+        )}
       </dd>
     </div>
   )

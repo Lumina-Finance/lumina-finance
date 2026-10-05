@@ -3,11 +3,12 @@
  */
 import type { Account } from '@/api/accounts'
 import type {
-  AccountBankLink,
   AccountBankStatus,
   BankConnection,
   BankImportProgress,
+  BankLink,
   BankProvidersResponse,
+  BankSyncStatus,
   PreviousBankLink,
 } from '@/api/bank-sync'
 
@@ -50,8 +51,26 @@ export function createImport(overrides: Partial<BankImportProgress> = {}): BankI
   }
 }
 
-/** Builds Everyday's live link to Everyday Chequing at Harbour Bank through SimpleFIN, with no import running */
-export function createLink(overrides: Partial<AccountBankLink> = {}): AccountBankLink {
+/**
+ * Builds a link's sync status on the tests' clock, noon in Toronto on Oct 5, 2026: synced an hour ago
+ * and due again in three hours, with nothing waiting for review
+ */
+export function createSync(overrides: Partial<BankSyncStatus> = {}): BankSyncStatus {
+  return {
+    state: 'synced',
+    last_success_at: '2026-10-05T15:00:00Z',
+    last_failure: null,
+    next_attempt_at: '2026-10-05T19:00:00Z',
+    waiting_on_budget: false,
+    waiting_new_count: 0,
+    paused: false,
+    review_warning: false,
+    ...overrides,
+  }
+}
+
+/** Builds Everyday's live link to Everyday Chequing at Harbour Bank through SimpleFIN, synced with no import running */
+export function createLink(overrides: Partial<BankLink> = {}): BankLink {
   return {
     account_id: 'account-1',
     connection_id: 'connection-1',
@@ -64,6 +83,7 @@ export function createLink(overrides: Partial<AccountBankLink> = {}): AccountBan
     linked_at: '2026-10-01T12:00:00Z',
     state: 'active',
     import: null,
+    sync: createSync(),
     ...overrides,
   }
 }

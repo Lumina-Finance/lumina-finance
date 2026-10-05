@@ -20,6 +20,6 @@ export function useAccountBankLink(account: Pick<AccountsOverview, 'id' | 'owner
     statusError,
     providers,
     shown: showsBankSync(providers, status),
-    syncLabel: describeBankSync(ownPersonal, status, statusError !== null),
+    syncLabel: describeBankSync(ownPersonal, status, statusError !== null, user?.tz),
   }
 }

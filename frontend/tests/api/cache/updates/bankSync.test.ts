@@ -144,14 +144,16 @@ describe('a polled change in the link list', () => {
   it.each([
     [
       'a sync fails',
-      [createBankLink({ last_attempt: { at: '2026-10-01T00:00:00Z', outcome: 'failure', reason: 'Bank unavailable' } }), before[1]],
+      [
+        createBankLink({
+          sync: { ...before[0].sync, state: 'retrying', last_failure: { at: '2026-10-01T00:00:00Z', reason: 'Bank unavailable' } },
+        }),
+        before[1],
+      ],
     ],
     [
       'a link moves to Choose bank account',
-      [
-        createBankLink({ action_needed: { kind: 'choose_account', since: '2026-10-01T00:00:00Z', message: 'Choose the bank account again' } }),
-        before[1],
-      ],
+      [createBankLink({ state: 'choose_account', sync: { ...before[0].sync, state: 'choose_account', next_attempt_at: null } }), before[1]],
     ],
     ['a link is removed elsewhere', [before[0]]],
   ])('refreshes the status and the pending strip, leaving the inbox and the ledger, when %s', (_, after) => {
@@ -162,7 +164,7 @@ describe('a polled change in the link list', () => {
   });
 
   it('refreshes the inbox, the pending strip, the ledger and the synced account when a sync brings in data', () => {
-    const after = [createBankLink({ last_success_at: '2026-10-01T00:00:00Z' }), before[1]];
+    const after = [createBankLink({ sync: { ...before[0].sync, last_success_at: '2026-10-01T00:00:00Z' } }), before[1]];
 
     applyBankLinkChanges(queryClient, before, after);
 

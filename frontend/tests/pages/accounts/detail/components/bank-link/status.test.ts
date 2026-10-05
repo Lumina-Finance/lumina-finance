@@ -1,16 +1,45 @@
 /**
  * Covers whether an account's page shows bank sync, the account's bank sync as its page labels it,
- * from the link alone, and the import heading for each reason an import runs
+ * with the Sync details' lines, and the import heading for each reason an import runs
  *
  * These tests catch bank sync shown to a user the deployment lets link nothing, a linked account's
- * link hidden once the user may no longer link, a group account read as linkable, a failed read shown
- * as still checking, an account waiting for its bank account to be chosen again shown as syncing, a
- * waiting import blinking as if it were fetching, and a relink's catch-up described as an import from
- * the link's first day
+ * link hidden once the user may no longer link, a failed read shown as still checking, any state
+ * worded, coloured or blinking unlike the others or the prototype, a waiting import blinking as if it
+ * were fetching, a detail line repeating the label or leaving out the failure or the next sync, a retry
+ * or an import's next part timed by the UTC day rather than the user's, and a relink's catch-up
+ * described as an import from the link's first day
  */
-import { describe, expect, it } from 'vitest'
-import { describeBankSync, describeImportHeading, showsBankSync } from '@/pages/accounts/detail/components/bank-link/status'
-import { createImport, createLink, createPreviousLink, createProviders, createStatus } from './fixtures'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { BankLink } from '@/api/bank-sync'
+import { describeBankSync, describeImportHeading, showsBankSync, type BankSyncLabel } from '@/pages/accounts/detail/components/bank-link/status'
+import { createImport, createLink, createPreviousLink, createProviders, createStatus, createSync } from './fixtures'
+
+const TIME_ZONE = 'America/Toronto'
+
+// Noon in Toronto, the clock the link fixtures are set against
+const NOW = '2026-10-05T16:00:00Z'
+
+const FAILURE = { at: '2026-10-05T14:00:00Z', reason: 'Bank unavailable' }
+const FAILURE_LINE = 'Last attempt failed 2 hours ago: Bank unavailable'
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date(NOW))
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+})
+
+/**
+ * The label and details for a linked account, with the narrow spaces some times are formatted with
+ * read as plain ones
+ */
+function describeLink(link: BankLink): BankSyncLabel {
+  const plain = (text: string) => text.replace(/\s/g, ' ')
+  const sync = describeBankSync(true, createStatus({ link }), false, TIME_ZONE)
+  return { ...sync, label: plain(sync.label), details: sync.details.map(plain) }
+}
 
 describe('showsBankSync', () => {
   it('shows while the user may link through a provider', () => {
@@ -30,38 +59,118 @@ describe('showsBankSync', () => {
   })
 })
 
-describe('describeBankSync', () => {
+describe('describeBankSync without a live link', () => {
   it('labels an account that is not the user own personal one as manual only', () => {
-    expect(describeBankSync(false, undefined, false)).toEqual({ label: 'Manual only', tone: 'off', pulse: false })
+    expect(describeBankSync(false, undefined, false)).toEqual({ label: 'Manual only', tone: 'off', pulse: false, details: [] })
   })
 
   it('says it is checking until the link is read, and that it could not check once the read fails', () => {
-    expect(describeBankSync(true, undefined, false)).toEqual({ label: 'Checking…', tone: 'off', pulse: false })
-    expect(describeBankSync(true, undefined, true)).toEqual({ label: "Couldn't check", tone: 'off', pulse: false })
+    expect(describeBankSync(true, undefined, false)).toEqual({ label: 'Checking…', tone: 'off', pulse: false, details: [] })
+    expect(describeBankSync(true, undefined, true)).toEqual({ label: "Couldn't check", tone: 'off', pulse: false, details: [] })
   })
 
   it('labels an account without a live link as not linked, whether or not it was linked before', () => {
-    expect(describeBankSync(true, createStatus(), false).label).toBe('Not linked')
+    expect(describeBankSync(true, createStatus(), false)).toEqual({ label: 'Not linked', tone: 'off', pulse: false, details: [] })
     expect(describeBankSync(true, createStatus({ previous_link: createPreviousLink() }), false).label).toBe('Not linked')
   })
+})
 
-  it('stops on an account waiting for its bank account to be chosen again', () => {
-    const status = createStatus({ link: createLink({ state: 'choose_account' }) })
-    expect(describeBankSync(true, status, false)).toEqual({ label: 'Choose bank account', tone: 'stopped', pulse: false })
+describe('describeBankSync for a live link', () => {
+  it.each<[string, Partial<BankLink>, BankSyncLabel]>([
+    [
+      'a synced link, with when it syncs next',
+      {},
+      { label: 'Synced 1 hour ago', tone: 'ok', pulse: false, details: ['Next sync in 3 hours'] },
+    ],
+    [
+      'a link reconnected before it first synced, waiting on its catch-up',
+      { sync: createSync({ last_success_at: null, next_attempt_at: null }) },
+      { label: 'Not synced yet', tone: 'ok', pulse: false, details: [] },
+    ],
+    [
+      'a synced link whose last attempt failed',
+      { sync: createSync({ last_failure: FAILURE }) },
+      { label: 'Synced 1 hour ago', tone: 'ok', pulse: false, details: [FAILURE_LINE, 'Next sync in 3 hours'] },
+    ],
+    [
+      'a synced link whose next sync waits on the request budget',
+      { sync: createSync({ waiting_on_budget: true }) },
+      { label: 'Synced 1 hour ago', tone: 'ok', pulse: false, details: ["Next sync is waiting on today's SimpleFIN request budget"] },
+    ],
+    [
+      'a rejected connection',
+      { sync: createSync({ state: 'reconnect_needed', last_failure: FAILURE, next_attempt_at: null }) },
+      {
+        label: 'Reconnect needed',
+        tone: 'stopped',
+        pulse: false,
+        details: ['Reconnect SimpleFIN in Settings with a new setup token', FAILURE_LINE],
+      },
+    ],
+    [
+      'a bank asking the user to sign in again',
+      { sync: createSync({ state: 'bank_signin_needed', last_failure: FAILURE }) },
+      { label: 'Bank sign-in needed', tone: 'stopped', pulse: false, details: ['The app checks daily', FAILURE_LINE] },
+    ],
+    [
+      'a bank account to choose again',
+      { state: 'choose_account', sync: createSync({ state: 'choose_account', next_attempt_at: null }) },
+      { label: 'Choose bank account', tone: 'stopped', pulse: false, details: ['SimpleFIN now lists it differently'] },
+    ],
+    [
+      'an import fetching, blinking with its count',
+      { import: createImport(), sync: createSync({ state: 'importing', last_success_at: null }) },
+      { label: 'Importing · 1 of 2', tone: 'working', pulse: true, details: ['Since Jun 1, 2026'] },
+    ],
+    [
+      "an import waiting on the request budget, steady, with its next part's time",
+      {
+        import: createImport({ state: 'waiting_on_budget' }),
+        sync: createSync({ state: 'import_waiting_on_budget', last_success_at: null, next_attempt_at: '2026-10-05T20:30:00Z' }),
+      },
+      {
+        label: 'Importing · 1 of 2',
+        tone: 'working',
+        pulse: false,
+        details: ['Next part at 4:30 p.m., when the SimpleFIN request budget frees up'],
+      },
+    ],
+    [
+      'a sync paused for review',
+      { sync: createSync({ state: 'paused', paused: true, waiting_new_count: 105, next_attempt_at: null }) },
+      { label: 'Paused · 105 new to review', tone: 'review', pulse: false, details: ['Resumes at 50 or fewer'] },
+    ],
+    [
+      'a sync under way, blinking',
+      { sync: createSync({ state: 'syncing' }) },
+      { label: 'Syncing', tone: 'working', pulse: true, details: ['Last synced 1 hour ago'] },
+    ],
+    [
+      'an opening balance to confirm',
+      { sync: createSync({ state: 'opening_balance' }) },
+      { label: 'Opening balance to confirm', tone: 'review', pulse: false, details: ['Synced 1 hour ago', 'Next sync in 3 hours'] },
+    ],
+    [
+      'a review backlog nearing the pause',
+      { sync: createSync({ state: 'review_warning', review_warning: true, waiting_new_count: 85 }) },
+      { label: '85 new to review', tone: 'review', pulse: false, details: ['Sync pauses at 100', 'Next sync in 3 hours'] },
+    ],
+    [
+      'a failed attempt waiting on its retry',
+      { sync: createSync({ state: 'retrying', last_failure: FAILURE, next_attempt_at: '2026-10-05T16:30:00Z' }) },
+      { label: 'Retrying at 12:30 p.m.', tone: 'working', pulse: false, details: ['Last attempt failed: Bank unavailable', 'Synced 1 hour ago'] },
+    ],
+  ])('words %s', (_, link, expected) => {
+    expect(describeLink(createLink(link))).toEqual(expected)
   })
 
-  it('reads as importing, without the count its progress shows, blinking only while the import fetches', () => {
-    const running = createStatus({ link: createLink({ import: createImport() }) })
-    expect(describeBankSync(true, running, false)).toEqual({ label: 'Importing', tone: 'working', pulse: true })
+  it("times a retry by the user's day, west of UTC, giving the date only when it falls on another day", () => {
+    // 7 p.m. in Toronto, when UTC has already reached Oct 6
+    vi.setSystemTime(new Date('2026-10-05T23:00:00Z'))
+    const retrying = (at: string) => createLink({ sync: createSync({ state: 'retrying', last_failure: FAILURE, next_attempt_at: at }) })
 
-    for (const state of ['waiting', 'waiting_on_budget'] as const) {
-      const waiting = createStatus({ link: createLink({ import: createImport({ state }) }) })
-      expect(describeBankSync(true, waiting, false)).toEqual({ label: 'Importing', tone: 'working', pulse: false })
-    }
-  })
-
-  it('labels a link with no import running as linked', () => {
-    expect(describeBankSync(true, createStatus({ link: createLink() }), false)).toEqual({ label: 'Linked', tone: 'ok', pulse: false })
+    expect(describeLink(retrying('2026-10-06T01:00:00Z')).label).toBe('Retrying at 9:00 p.m.')
+    expect(describeLink(retrying('2026-10-06T13:00:00Z')).label).toBe('Retrying at Oct 6, 9:00 a.m.')
   })
 })
 

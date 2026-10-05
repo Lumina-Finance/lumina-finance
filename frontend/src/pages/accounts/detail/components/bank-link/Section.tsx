@@ -1,14 +1,15 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { AnimatePresence } from 'motion/react'
-import { Link2, Unlink } from 'lucide-react'
+import { Link2, PauseCircle, TriangleAlert, Unlink } from 'lucide-react'
+import { useNavigate } from 'react-router'
 import type { Account } from '@/api/accounts'
-import { useBankConnections, type AccountBankLink } from '@/api/bank-sync'
-import { GROUP_ACCOUNT_LINK_REASON, LINKING_PAUSED_REASON } from '@/components/bank-link-flow/constants'
+import { REVIEW_PAUSE_COUNT, REVIEW_RESUME_COUNT, useBankConnections, type BankLink, type BankSyncState } from '@/api/bank-sync'
+import { BANK_CONNECTIONS_SETTINGS_PATH, GROUP_ACCOUNT_LINK_REASON, LINKING_PAUSED_REASON } from '@/components/bank-link-flow/constants'
 import { BankLinkFlowModal } from '@/components/bank-link-flow/Modal'
 import { Unfold } from '@/components/display/Unfold'
 import LoadFailure from '@/components/errors/LoadFailure'
+import { InfoCallout } from '@/components/InfoCallout'
 import LoadingRegion from '@/components/loading/Region'
-import { getFocusableElements } from '@/components/modal/focus'
 import { StepTransition } from '@/components/two-factor/StepTransition'
 import { useAuth } from '@/hooks/useAuth'
 import { getDisabledControlProps, useDisabledReason } from '@/hooks/useDisabledReason'
@@ -20,10 +21,12 @@ import { useAccountBankLink } from '@/pages/accounts/detail/components/bank-link
 import { useLingeringImport } from '@/pages/accounts/detail/components/bank-link/useLingeringImport'
 import { EditModalSection } from '@/pages/accounts/detail/components/edit-identity/layout/Section'
 import { IdentityFacts } from '@/pages/accounts/detail/components/identity/Facts'
+import { providerSite } from '@/utils/bankSync'
 import { DATE_FORMATS, formatDate, formatDateLabel } from '@/utils/date'
 
 const ARCHIVED_REASON = 'Archived accounts are read-only'
 const LOADING_OVERLAY_CLASS = 'absolute inset-0 z-10 flex items-center justify-center bg-[var(--app-bg)]'
+const NOTICE_ACTION_CLASS = 'app-primary-button h-9 w-full justify-center whitespace-nowrap px-4 text-sm sm:w-auto'
 
 // Long enough for the modal to have opened and put focus in its first field
 const OPENING_FOCUS_DELAY_MS = 260
@@ -31,11 +34,34 @@ const OPENING_FOCUS_DELAY_MS = 260
 /** Marks the control the modal focuses as it opens, in place of its first field */
 type InitialFocusProps = { 'data-modal-field-tab-stop'?: 'true'; 'data-modal-initial-focus'?: 'true' }
 
+// Marks each view's actions, the first of which takes focus when the view swaps in, ahead of the
+// Sync details icon among the facts above them
+const ACTION_ATTRIBUTE = 'data-bank-link-action'
+const ACTION_PROPS = { [ACTION_ATTRIBUTE]: 'true' }
+
+const STOPPED_STATES: ReadonlySet<BankSyncState> = new Set(['reconnect_needed', 'bank_signin_needed', 'choose_account'])
+
+type LinkedViewProps = {
+  link: BankLink
+  sync: BankSyncLabel
+  initialFocus: InitialFocusProps
+  onChooseBankAccount: () => void
+  onUnlink: () => void
+}
+
 /**
- * A live link: its facts and status, the import while one runs, and the actions on the link
+ * A live link: its facts and status, the import while one runs, a notice for anything holding its sync
+ * back, and the actions on the link. A notice's own action comes first, since it is what resumes the sync
  */
-function LinkedView({ link, sync, initialFocus, onUnlink }: { link: AccountBankLink; sync: BankSyncLabel; initialFocus: InitialFocusProps; onUnlink: () => void }) {
+function LinkedView({ link, sync, initialFocus, onChooseBankAccount, onUnlink }: LinkedViewProps) {
+  const navigate = useNavigate()
   const shownImport = useLingeringImport(link.import)
+  const { state, paused, review_warning: warned } = link.sync
+  const waiting = link.sync.waiting_new_count.toLocaleString()
+
+  // A sync only the user can restart won't resume on its own when the backlog shrinks, so its notice
+  // shows alone
+  const stopped = STOPPED_STATES.has(state)
 
   return (
     <div>
@@ -48,7 +74,7 @@ function LinkedView({ link, sync, initialFocus, onUnlink }: { link: AccountBankL
           { label: 'History from', value: formatDateLabel(link.import_start) },
         ]}
       >
-        <SyncFact name="Status" sync={sync} />
+        <SyncFact name="Status" sync={sync} showsDetails />
       </IdentityFacts>
 
       <AnimatePresence initial={false}>
@@ -57,13 +83,60 @@ function LinkedView({ link, sync, initialFocus, onUnlink }: { link: AccountBankL
             <ImportProgress progress={shownImport} />
           </Unfold>
         )}
+        {state === 'reconnect_needed' && (
+          <Unfold key="reconnect">
+            <InfoCallout
+              tone="stopped"
+              icon={TriangleAlert}
+              action={(
+                <button type="button" className={NOTICE_ACTION_CLASS} {...ACTION_PROPS} {...initialFocus} onClick={() => navigate(BANK_CONNECTIONS_SETTINGS_PATH)}>
+                  Open settings
+                </button>
+              )}
+            >
+              {providerSite(link)} rejected the connection this account uses. Automatic sync is stopped for every account on it until you reconnect it in Settings with a new setup token.
+            </InfoCallout>
+          </Unfold>
+        )}
+        {state === 'choose_account' && (
+          <Unfold key="choose-account">
+            <InfoCallout
+              tone="stopped"
+              icon={TriangleAlert}
+              action={(
+                <button type="button" className={NOTICE_ACTION_CLASS} {...ACTION_PROPS} {...initialFocus} onClick={onChooseBankAccount}>
+                  Choose bank account
+                </button>
+              )}
+            >
+              {link.provider_name} now lists {link.external_account_name} differently, so Lumina Finance can't tell whether it's the same account. Choose its bank account again to resume syncing.
+            </InfoCallout>
+          </Unfold>
+        )}
+        {state === 'bank_signin_needed' && (
+          <Unfold key="bank-sign-in">
+            <InfoCallout tone="stopped" icon={TriangleAlert}>Sign in to your bank again in {providerSite(link)}.</InfoCallout>
+          </Unfold>
+        )}
+        {paused && !stopped && (
+          <Unfold key="paused">
+            <InfoCallout tone="review" icon={PauseCircle}>
+              Sync is paused with {waiting} new items waiting for review. It resumes on its own once {REVIEW_RESUME_COUNT} or fewer are left.
+            </InfoCallout>
+          </Unfold>
+        )}
+        {warned && !stopped && (
+          <Unfold key="warning">
+            <InfoCallout tone="review" icon={TriangleAlert}>{waiting} new to review. Sync pauses at {REVIEW_PAUSE_COUNT}.</InfoCallout>
+          </Unfold>
+        )}
       </AnimatePresence>
 
-      {/* Notices and the bank balance go here */}
+      {/* The bank balance goes here */}
 
       {/* The link's actions, in one row that wraps */}
       <div className="flex flex-wrap items-center gap-2 pt-4">
-        <button type="button" className="app-secondary-button h-9 justify-center whitespace-nowrap px-3.5 text-sm" {...initialFocus} onClick={onUnlink}>
+        <button type="button" className="app-secondary-button h-9 justify-center whitespace-nowrap px-3.5 text-sm" {...ACTION_PROPS} {...initialFocus} onClick={onUnlink}>
           <Unlink size={14} aria-hidden />
           Unlink
         </button>
@@ -81,10 +154,10 @@ type BankLinkSectionProps = {
 }
 
 /**
- * Focuses the first control inside the element, if it holds one
+ * Focuses the first action inside the element, if it holds one
  */
-function focusFirstControl(container: HTMLElement | null) {
-  if (container) getFocusableElements(container)[0]?.focus({ preventScroll: true })
+function focusFirstAction(container: HTMLElement | null) {
+  container?.querySelector<HTMLElement>(`[${ACTION_ATTRIBUTE}]`)?.focus({ preventScroll: true })
 }
 
 /**
@@ -99,7 +172,7 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
   const [linkFlowKey, setLinkFlowKey] = useState(0)
 
   // Held past the unlink itself, so the dialog can finish closing once the link is gone
-  const [unlinking, setUnlinking] = useState<AccountBankLink | null>(null)
+  const [unlinking, setUnlinking] = useState<BankLink | null>(null)
   const [unlinkOpen, setUnlinkOpen] = useState(false)
 
   const link = status?.link ?? null
@@ -127,7 +200,7 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
     if (!focusOnShow || !showsControls) return undefined
     const timer = window.setTimeout(() => {
       setFocusOnShow(false)
-      focusFirstControl(contentRef.current)
+      focusFirstAction(contentRef.current)
     }, OPENING_FOCUS_DELAY_MS)
     return () => window.clearTimeout(timer)
   }, [focusOnShow, showsControls])
@@ -137,7 +210,7 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
   // instead, after the dialog has put focus back wherever it still could
   const restoreLostFocus = () => {
     window.requestAnimationFrame(() => {
-      if (document.activeElement === null || document.activeElement === document.body) focusFirstControl(contentRef.current)
+      if (document.activeElement === null || document.activeElement === document.body) focusFirstAction(contentRef.current)
     })
   }
 
@@ -160,7 +233,7 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
                         ? `Previously linked to ${previous.external_account_name} at ${previous.institution_name} through ${previous.provider_name}, until ${formatDate(new Date(previous.unlinked_at), DATE_FORMATS.monthDayYear, user?.tz)}. Reconnecting fetches what the bank reported since then.`
                         : 'Link this account to one of the bank accounts on your connections to bring in its transactions automatically. Everything the bank sends waits for your review before it touches a balance.'}
                     </p>
-                    <button type="button" className="app-primary-button" {...initialFocus} {...controlProps} onClick={openLinkFlow}>
+                    <button type="button" className="app-primary-button" {...ACTION_PROPS} {...initialFocus} {...controlProps} onClick={openLinkFlow}>
                       <Link2 size={16} aria-hidden />
                       {previous ? 'Reconnect bank account' : 'Link bank account'}
                     </button>
@@ -175,6 +248,7 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
                     link={link}
                     sync={syncLabel}
                     initialFocus={initialFocus}
+                    onChooseBankAccount={openLinkFlow}
                     onUnlink={() => {
                       setUnlinking(link)
                       setUnlinkOpen(true)

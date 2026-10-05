@@ -1,6 +1,14 @@
-import type { AccountBankStatus, BankImportProgress, BankProvidersResponse } from '@/api/bank-sync'
+import {
+  REVIEW_PAUSE_COUNT,
+  REVIEW_RESUME_COUNT,
+  type AccountBankStatus,
+  type BankImportProgress,
+  type BankLink,
+  type BankProvidersResponse,
+} from '@/api/bank-sync'
 import type { SyncStatusTone } from '@/components/display/SyncStatusDot'
-import { formatDateLabel } from '@/utils/date'
+import { DATE_FORMATS, formatDate, formatDateLabel, getTodayYmd } from '@/utils/date'
+import { formatRelativeFutureTime, formatRelativeTime } from '@/utils/relativeTime'
 
 /**
  * Whether an account's page shows bank sync: while the deployment lets the user link through one of
@@ -21,26 +29,94 @@ export type BankSyncLabel = {
 
   /** Blinks while the app is fetching */
   pulse: boolean
+
+  /**
+   * The Sync details tooltip's lines: what the label means, then only what it leaves unsaid. Empty
+   * for an account with no live link, whose section says the rest in its own words
+   */
+  details: string[]
 }
 
 /**
- * The account's bank sync as a dot and a label, which the identity card's Bank sync fact and the Bank
- * link section's Status both show, worked out from the account's link alone
+ * Formats when an attempt runs, as a time on the user's today and with its date further out
+ */
+function formatAttemptTime(iso: string, timeZone: string | undefined): string {
+  const date = new Date(iso)
+  const isToday = getTodayYmd(timeZone, date) === getTodayYmd(timeZone)
+  return formatDate(date, isToday ? DATE_FORMATS.time : DATE_FORMATS.monthDayTime, timeZone)
+}
+
+/**
+ * A live link's state as the server chose it, worded with its facts. The server sends each state with
+ * the facts its wording needs: an import its progress, an import waiting on the request budget and a
+ * retry their times, and a retry its failure. A failure is added
+ * wherever the state's first line doesn't already give it, apart from a fetch under way, and what
+ * happens next only where the state doesn't say, so no line repeats another
+ */
+function describeLinkSync(link: BankLink, timeZone: string | undefined): BankSyncLabel {
+  const { sync } = link
+  const label = (tone: SyncStatusTone, text: string, details: (string | null)[], pulse = false): BankSyncLabel => ({
+    label: text,
+    tone,
+    pulse,
+    details: details.filter((line): line is string => line !== null),
+  })
+  // A link that never synced can still be retrying its import, or reconnected and waiting on its
+  // catch-up, which reads as synced until the catch-up runs
+  const synced = sync.last_success_at ? `Synced ${formatRelativeTime(sync.last_success_at)}` : 'Not synced yet'
+  const failure = sync.last_failure ? `Last attempt failed ${formatRelativeTime(sync.last_failure.at)}: ${sync.last_failure.reason}` : null
+  const next = sync.waiting_on_budget
+    ? `Next sync is waiting on today's ${link.provider_name} request budget`
+    : sync.next_attempt_at ? `Next sync ${formatRelativeFutureTime(sync.next_attempt_at)}` : null
+  const importing = (progress: BankImportProgress) => `Importing · ${progress.windows_done} of ${progress.windows_total}`
+  const waiting = sync.waiting_new_count.toLocaleString()
+
+  switch (sync.state) {
+    case 'reconnect_needed':
+      return label('stopped', 'Reconnect needed', [`Reconnect ${link.provider_name} in Settings with a new setup token`, failure])
+    case 'bank_signin_needed':
+      return label('stopped', 'Bank sign-in needed', ['The app checks daily', failure])
+    case 'choose_account':
+      return label('stopped', 'Choose bank account', [`${link.provider_name} now lists it differently`, failure])
+    case 'importing':
+      return label('working', importing(link.import!), [`Since ${formatDateLabel(link.import!.requested_start)}`], true)
+    case 'import_waiting_on_budget':
+      return label('working', importing(link.import!), [
+        `Next part at ${formatAttemptTime(sync.next_attempt_at!, timeZone)}, when the ${link.provider_name} request budget frees up`,
+      ])
+    case 'paused':
+      return label('review', `Paused · ${waiting} new to review`, [`Resumes at ${REVIEW_RESUME_COUNT} or fewer`, failure])
+    case 'syncing':
+      return label('working', 'Syncing', [sync.last_success_at ? `Last synced ${formatRelativeTime(sync.last_success_at)}` : 'Not synced yet'], true)
+    case 'opening_balance':
+      return label('review', 'Opening balance to confirm', [synced, failure, next])
+    case 'review_warning':
+      return label('review', `${waiting} new to review`, [`Sync pauses at ${REVIEW_PAUSE_COUNT}`, failure, next])
+    case 'retrying':
+      return label('working', `Retrying at ${formatAttemptTime(sync.next_attempt_at!, timeZone)}`, [
+        `Last attempt failed: ${sync.last_failure!.reason}`,
+        synced,
+      ])
+    case 'synced':
+      return label('ok', synced, [failure, next])
+  }
+}
+
+/**
+ * The account's bank sync as a dot, a label and the Sync details' lines, the one state every surface
+ * shows. The server chooses a live link's state, so the identity card, the bank link section and the
+ * review block always agree
  *
  * @param ownPersonal - Whether the account is the user's own personal account, the only kind linked
  * @param status - The account's link, undefined until read
  * @param failed - Whether reading the link failed
+ * @param timeZone - The user's profile zone, which decides whether a retry falls today
  */
-export function describeBankSync(ownPersonal: boolean, status: AccountBankStatus | undefined, failed: boolean): BankSyncLabel {
-  if (!ownPersonal) return { label: 'Manual only', tone: 'off', pulse: false }
-  if (!status) return { label: failed ? "Couldn't check" : 'Checking…', tone: 'off', pulse: false }
-
-  const { link } = status
-  if (!link) return { label: 'Not linked', tone: 'off', pulse: false }
-  if (link.state === 'choose_account') return { label: 'Choose bank account', tone: 'stopped', pulse: false }
-  // The count sits on the import's own progress beneath, so it isn't repeated here
-  if (link.import) return { label: 'Importing', tone: 'working', pulse: link.import.state === 'running' }
-  return { label: 'Linked', tone: 'ok', pulse: false }
+export function describeBankSync(ownPersonal: boolean, status: AccountBankStatus | undefined, failed: boolean, timeZone?: string): BankSyncLabel {
+  if (!ownPersonal) return { label: 'Manual only', tone: 'off', pulse: false, details: [] }
+  if (!status) return { label: failed ? "Couldn't check" : 'Checking…', tone: 'off', pulse: false, details: [] }
+  if (!status.link) return { label: 'Not linked', tone: 'off', pulse: false, details: [] }
+  return describeLinkSync(status.link, timeZone)
 }
 
 /**

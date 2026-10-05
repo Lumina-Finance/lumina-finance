@@ -36,6 +36,16 @@ const WAITING_LINK = {
   linked_at: '2026-06-02T12:00:00Z',
   state: 'choose_account' as const,
   import: null,
+  sync: {
+    state: 'choose_account' as const,
+    last_success_at: '2026-10-03T12:00:00Z',
+    last_failure: null,
+    next_attempt_at: null,
+    waiting_on_budget: false,
+    waiting_new_count: 0,
+    paused: false,
+    review_warning: false,
+  },
 }
 
 describe('the link flow wording', () => {

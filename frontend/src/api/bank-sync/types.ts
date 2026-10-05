@@ -229,25 +229,58 @@ export type LinkBankAccountPayload = {
   start_date: string;
 };
 
-export type BankSyncOutcome = 'success' | 'failure';
+/**
+ * The one state every surface shows for a live link, chosen by the server as the first that applies,
+ * in this order: what only the user can fix (reconnect in settings, sign in to the bank at the
+ * provider, choose the bank account again), an import fetching or waiting on the request budget, the
+ * review pause, a sync fetching, an opening balance to confirm, the review warning, a retry, and
+ * otherwise synced
+ */
+export type BankSyncState =
+  | 'reconnect_needed'
+  | 'bank_signin_needed'
+  | 'choose_account'
+  | 'importing'
+  | 'import_waiting_on_budget'
+  | 'paused'
+  | 'syncing'
+  | 'opening_balance'
+  | 'review_warning'
+  | 'retrying'
+  | 'synced';
 
-export type BankSyncAttempt = {
+export type BankSyncFailure = {
   at: string;
-  outcome: BankSyncOutcome;
-  reason: string | null;
+  reason: string;
 };
 
 /**
- * Why sync is stopped until the user acts: a rejected credential is reconnected in settings, a bank
- * login is fixed at the provider, and a bank account the provider now reports under a new identity is
- * chosen again from the account
+ * A live link's sync state, with the facts its Sync details and notices word
  */
-export type BankActionNeededKind = 'reconnect' | 'bank_login' | 'choose_account';
+export type BankSyncStatus = {
+  state: BankSyncState;
 
-export type BankActionNeeded = {
-  kind: BankActionNeededKind;
-  since: string;
-  message: string;
+  /** Kept through failed attempts, null until the link first syncs */
+  last_success_at: string | null;
+
+  /** The last attempt only when it failed, since a successful one is the last success */
+  last_failure: BankSyncFailure | null;
+
+  /**
+   * When the next sync or retry runs, or for an import waiting on the request budget, when a request
+   * frees up for its next part. Null while the link is due at once, as while its import catches up,
+   * and after a rejected credential, which stops its sync until a reconnect. A bank sign-in keeps the
+   * daily time the app checks again at
+   */
+  next_attempt_at: string | null;
+
+  /** The next sync is due before the connection's request budget frees a request, so it waits for one */
+  waiting_on_budget: boolean;
+
+  /** New posted items awaiting their first review, the count the warning and the pause read */
+  waiting_new_count: number;
+  paused: boolean;
+  review_warning: boolean;
 };
 
 /**
@@ -258,10 +291,10 @@ export type BankActionNeeded = {
 export type BankImportKind = 'initial' | 'relink' | 'choose_again' | 'reconnect';
 
 /**
- * Where an import stands. It runs only while its next part can be fetched now. It waits while a
- * failed attempt waits to retry, the bank needs a sign-in, or the provider refused the connection's
- * credential, and waits on the budget until the connection's request budget frees a request, when
- * its link's `next_attempt_at` says when its next part can
+ * Where an import stands. It runs while a sync fetches its next part or could fetch it now. It waits
+ * while a failed attempt waits to retry, the bank needs a sign-in, or the provider refused the
+ * connection's credential, and waits on the budget until the connection's request budget frees a
+ * request, when its link's `sync.next_attempt_at` says when its next part can
  */
 export type BankImportState = 'running' | 'waiting' | 'waiting_on_budget' | 'complete';
 
@@ -281,22 +314,6 @@ export type BankImportProgress = {
   earliest_returned_date: string | null;
 };
 
-export type BankHistoryReminder = {
-  requested_start: string;
-  earliest_returned: string | null;
-};
-
-export type BankBalance = {
-  /** Provider balance in minor units of the account currency */
-  amount: number;
-
-  /** ISO timestamp the provider gives the balance as of */
-  balance_date: string;
-
-  /** Read-only available balance in minor units, when the provider supplies one */
-  available: number | null;
-};
-
 /**
  * The link between one account and one bank account, as linking answers it, without its status
  */
@@ -312,36 +329,6 @@ export type BankAccountLink = {
   /** The calendar day, in the user's profile timezone, from which the bank supplies the account's transactions */
   import_start: string;
   linked_at: string;
-};
-
-/**
- * The link between one account and one bank account, with everything its status shows
- */
-export type BankLink = BankAccountLink & {
-  import: BankImportProgress | null;
-  history_reminder: BankHistoryReminder | null;
-  last_success_at: string | null;
-  last_attempt: BankSyncAttempt | null;
-
-  /** The next automatic attempt, null while an action is needed or the account is paused */
-  next_attempt_at: string | null;
-  waiting_on_budget: boolean;
-
-  /**
-   * True while a job syncs the link, and for Sync now from the moment the request is accepted until
-   * its job finishes, queued included, so the Sync now response already carries it and the status
-   * never falls back to the last sync while the job waits its turn
-   */
-  sync_in_progress: boolean;
-  action_needed: BankActionNeeded | null;
-
-  /** New posted items awaiting their first review, the count the warning and pause read */
-  waiting_new_count: number;
-  review_warning: boolean;
-  paused: boolean;
-
-  /** Null until the provider reports a balance, and when the one it reports can't be stored exactly */
-  balance: BankBalance | null;
 };
 
 /**
@@ -363,9 +350,9 @@ export type PreviousBankLink = {
 export type BankLinkState = 'active' | 'choose_account';
 
 /**
- * An account's live link as the account's page reads it
+ * A live link with its import and sync status, as the account's page and the list of links read it
  */
-export type AccountBankLink = BankAccountLink & {
+export type BankLink = BankAccountLink & {
   state: BankLinkState;
 
   /**
@@ -373,6 +360,7 @@ export type AccountBankLink = BankAccountLink & {
    * the catch-up after a reconnect, whose first day the server doesn't record. Never `complete`
    */
   import: BankImportProgress | null;
+  sync: BankSyncStatus;
 };
 
 /**
@@ -381,7 +369,7 @@ export type AccountBankLink = BankAccountLink & {
  */
 export type AccountBankStatus = {
   account_id: string;
-  link: AccountBankLink | null;
+  link: BankLink | null;
 
   /** What the account was last linked to, only when it has no live link */
   previous_link: PreviousBankLink | null;
@@ -468,7 +456,7 @@ export type BankReviewCounts = Record<BankReviewItemKind, number>;
  * One account's new items waiting for review, and whether its sync is paused or warned for them,
  * which the review block's notice reads
  */
-export type BankReviewBacklog = Pick<BankLink, 'account_id' | 'waiting_new_count' | 'review_warning' | 'paused'>;
+export type BankReviewBacklog = Pick<BankLink, 'account_id'> & Pick<BankSyncStatus, 'waiting_new_count' | 'review_warning' | 'paused'>;
 
 /**
  * One page of the review inbox, newest first

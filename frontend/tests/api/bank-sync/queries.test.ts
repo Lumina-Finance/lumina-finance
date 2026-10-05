@@ -9,7 +9,7 @@
  */
 import { MutationObserver, QueryClient, QueryObserver } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createBankLink } from './fixtures';
+import { createBankLink, createSyncStatus } from './fixtures';
 
 const { authenticatedFetchMock } = vi.hoisted(() => ({
   authenticatedFetchMock: vi.fn(),
@@ -95,13 +95,13 @@ describe('a Sync now answer', () => {
   }
 
   it('goes into the cached list at once, which takes the poll to its fast pace', async () => {
-    authenticatedFetchMock.mockResolvedValue(createBankLink({ sync_in_progress: true }));
+    authenticatedFetchMock.mockResolvedValue(createBankLink({ sync: createSyncStatus({ state: 'syncing' }) }));
 
     await syncNow();
 
     const links = queryClient.getQueryData<BankLink[]>(bankSyncKeys.links());
     expect(authenticatedFetchMock).toHaveBeenCalledWith('/accounts/account-1/bank-link/sync', expect.objectContaining({ method: 'POST' }));
-    expect(links?.map((link) => [link.account_id, link.sync_in_progress])).toEqual([['account-1', true], ['account-2', false]]);
+    expect(links?.map((link) => [link.account_id, link.sync.state])).toEqual([['account-1', 'syncing'], ['account-2', 'synced']]);
     expect(getBankLinksPollInterval(links, null)).toBe(BANK_LINKS_ACTIVE_POLL_MS);
     expect(queryClient.getQueryState(bankSyncKeys.links())?.isInvalidated).toBe(false);
   });
@@ -112,6 +112,6 @@ describe('a Sync now answer', () => {
     await syncNow();
 
     expect(queryClient.getQueryState(bankSyncKeys.links())?.isInvalidated).toBe(true);
-    expect(queryClient.getQueryData<BankLink[]>(bankSyncKeys.links())?.map((link) => link.sync_in_progress)).toEqual([false, false]);
+    expect(queryClient.getQueryData<BankLink[]>(bankSyncKeys.links())?.map((link) => link.sync.state)).toEqual(['synced', 'synced']);
   });
 });

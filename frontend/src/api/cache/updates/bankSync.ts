@@ -108,7 +108,7 @@ export function replaceCachedBankConnection(queryClient: QueryClient, connection
  * trusted, ledger transactions
  */
 function hasNewBankData(previous: BankLink, link: BankLink): boolean {
-  return previous.last_success_at !== link.last_success_at
+  return previous.sync.last_success_at !== link.sync.last_success_at
     || previous.import?.windows_done !== link.import?.windows_done;
 }
 

@@ -5,8 +5,8 @@ import { ApiError } from '@/api/auth'
 import {
   useDisconnectBankConnection,
   useUnlinkBankAccount,
-  type AccountBankLink,
   type BankConnection,
+  type BankLink,
 } from '@/api/bank-sync'
 import { ChoiceCard } from '@/components/bank-link-flow/ChoiceCard'
 import { InfoCallout } from '@/components/InfoCallout'
@@ -21,7 +21,7 @@ type UnlinkScope = 'account' | 'connection'
 type UnlinkModalProps = {
   open: boolean
   account: AccountsOverview
-  link: AccountBankLink
+  link: BankLink
 
   /** The connection the link goes through, undefined while the connections load */
   connection: BankConnection | undefined

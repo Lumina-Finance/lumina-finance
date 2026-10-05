@@ -6,14 +6,15 @@
  * pace for the hours it can wait, a refused read being asked again, a server failure taken for a
  * refusal and never asked again, either pace drifting from the two seconds and the minute the
  * feature promises, and a screen opening between polls reading the list again rather than taking
- * the polled copy. For an account's own link read on its page, they catch an import's progress
- * being read slowly, or a finished one being polled for as long as the page stays open
+ * the polled copy
  */
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '@/api/auth/errors';
 import { BANK_LINKS_ACTIVE_POLL_MS, BANK_LINKS_IDLE_POLL_MS } from '@/api/bank-sync/constants';
-import { getAccountBankStatusPollInterval, getBankLinksPollInterval, getBankLinksStaleTime } from '@/api/bank-sync/polling';
-import { createAccountBankLink, createBankLink, createImportingAccountStatus, createImportingBankLink } from './fixtures';
+import { getBankLinksPollInterval, getBankLinksStaleTime } from '@/api/bank-sync/polling';
+import { createBankLink, createImportingBankLink, createSyncStatus } from './fixtures';
+
+const syncingLink = () => createBankLink({ sync: createSyncStatus({ state: 'syncing' }) });
 
 describe('bank link polling interval', () => {
   it.each([
@@ -29,7 +30,7 @@ describe('bank link polling interval', () => {
   });
 
   it('polls quickly while any one link syncs', () => {
-    expect(getBankLinksPollInterval([createBankLink(), createBankLink({ sync_in_progress: true })], null))
+    expect(getBankLinksPollInterval([createBankLink(), syncingLink()], null))
       .toBe(BANK_LINKS_ACTIVE_POLL_MS);
   });
 
@@ -58,27 +59,11 @@ describe('bank link polling interval', () => {
 
 describe('bank link freshness', () => {
   it('keeps a read fresh until the poll would read it again', () => {
-    expect(getBankLinksStaleTime([createBankLink({ sync_in_progress: true })])).toBe(BANK_LINKS_ACTIVE_POLL_MS);
+    expect(getBankLinksStaleTime([syncingLink()])).toBe(BANK_LINKS_ACTIVE_POLL_MS);
     expect(getBankLinksStaleTime([createBankLink()])).toBe(BANK_LINKS_IDLE_POLL_MS);
   });
 
   it('keeps a read with no links fresh for as long as an idle poll would', () => {
     expect(getBankLinksStaleTime([])).toBe(BANK_LINKS_IDLE_POLL_MS);
-  });
-});
-
-describe("an account's link polling interval", () => {
-  it('polls quickly while its import runs and slowly while the import waits', () => {
-    expect(getAccountBankStatusPollInterval(createImportingAccountStatus('running'))).toBe(BANK_LINKS_ACTIVE_POLL_MS);
-    expect(getAccountBankStatusPollInterval(createImportingAccountStatus('waiting'))).toBe(BANK_LINKS_IDLE_POLL_MS);
-    expect(getAccountBankStatusPollInterval(createImportingAccountStatus('waiting_on_budget'))).toBe(BANK_LINKS_IDLE_POLL_MS);
-  });
-
-  it.each([
-    ['before the first read', undefined],
-    ['for an account that was never linked', { account_id: 'account-1', link: null, previous_link: null }],
-    ['for a link with no import running', { account_id: 'account-1', link: createAccountBankLink(), previous_link: null }],
-  ])('does not poll %s', (_, status) => {
-    expect(getAccountBankStatusPollInterval(status)).toBe(false);
   });
 });
