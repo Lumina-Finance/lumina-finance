@@ -11,6 +11,7 @@ import {
   type ImportDateChoiceScan,
   type ImportDateFormat,
 } from '@/pages/imports/utils'
+import { ImportSegmentedToggle } from './tables/SegmentedToggle'
 
 const UNREADABLE_FORMAT_BADGE = 'Does not fit'
 
@@ -134,29 +135,19 @@ export function ImportDelimiterControl({
   hasError: boolean
   onChange: (delimiter: ImportDelimiter) => void
 }) {
-  const labelId = useId()
-  const options: DropdownOption[] = IMPORT_DELIMITERS.map((candidate) => ({
+  // Every choice is shown with the character it stands for, so it can be matched against the file
+  const options = IMPORT_DELIMITERS.map((candidate) => ({
     value: candidate,
     label: IMPORT_DELIMITER_LABELS[candidate],
+    symbol: candidate,
   }))
 
   return (
-    <div className="flex items-center justify-between gap-3 px-3">
-      <p id={labelId} className="text-sm font-medium">
+    <div className="flex flex-col gap-1.5 px-3">
+      <p aria-hidden className="text-sm font-medium">
         Separator
       </p>
-
-      {/* Fixed wide enough for the longest name, so the row does not shift as the choice changes */}
-      <div className="w-36 shrink-0">
-        <Dropdown
-          options={options}
-          value={delimiter}
-          onChange={(value) => onChange(value as ImportDelimiter)}
-          labelledBy={labelId}
-          hasError={hasError}
-          size="field"
-        />
-      </div>
+      <ImportSegmentedToggle options={options} value={delimiter} label="Separator" onChange={onChange} hasError={hasError} />
     </div>
   )
 }

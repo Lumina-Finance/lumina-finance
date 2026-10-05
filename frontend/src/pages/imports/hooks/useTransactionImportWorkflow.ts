@@ -935,7 +935,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
    */
   const changeDelimiter = async (delimiter: ImportDelimiter) => {
     const sourceFile = sourceFileRef.current
-    // Choosing the separator already shown, which is how the dropdown is closed, keeps the answers
+    // Choosing the separator already in use keeps the answers
     if (!sourceFile || isProcessingFiles || delimiter === files[0]?.delimiter) return
 
     const workflowRun = startWorkflowRun()

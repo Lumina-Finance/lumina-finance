@@ -10,8 +10,11 @@ import { getSegmentedControlKeyAction } from '@/pages/imports/utils'
  * keys move between the options with one stop for the whole set in the tab order
  *
  * @param options - The answers on offer, which the caller supplies so one control serves the kind of
- * a category being created and the direction a word in a file states
+ * a category being created and the direction a word in a file states. An option's symbol, when given,
+ * is shown in place of its label, such as the character a separator stands for, and the label is
+ * then read out and shown on hover
  * @param label - What the whole set is asked about, read out in place of the options themselves
+ * @param hasError - Whether the answer given is what stopped the step, shown by a red border
  */
 export function ImportSegmentedToggle<T extends string>({
   options,
@@ -19,12 +22,14 @@ export function ImportSegmentedToggle<T extends string>({
   label,
   onChange,
   disabled,
+  hasError = false,
 }: {
-  options: Array<{ value: T; label: string }>
+  options: Array<{ value: T; label: string; symbol?: string }>
   value: T | ''
   label: string
   onChange: (value: T) => void
   disabled?: boolean
+  hasError?: boolean
 }) {
   const shouldReduceMotion = useReducedMotion()
   const selectedIndex = options.findIndex((option) => option.value === value)
@@ -51,9 +56,10 @@ export function ImportSegmentedToggle<T extends string>({
 
   return (
     <div
-      className={`app-segmented-control relative w-full overflow-hidden ${disabled ? 'opacity-60' : ''}`}
+      className={`app-segmented-control relative w-full overflow-hidden${hasError ? ' border-[var(--app-negative-border)]' : ''}${disabled ? ' opacity-60' : ''}`}
       role="radiogroup"
       aria-label={label}
+      aria-invalid={hasError || undefined}
       onKeyDown={handleKeyDown}
     >
       {selectedIndex >= 0 && (
@@ -86,11 +92,13 @@ export function ImportSegmentedToggle<T extends string>({
             // Widths are shared evenly rather than fixed, so the highlight above lines up with the
             // option under it whatever the caller offers
             style={{ width: `${100 / options.length}%`, ...(active ? { background: 'transparent' } : {}) }}
-            className={`app-segmented-option relative z-10 px-0 text-center text-sm ${active ? 'app-segmented-option-active' : ''}`}
+            className={`app-segmented-option relative z-10 px-0 text-center ${option.symbol !== undefined ? 'text-base font-semibold' : 'text-sm'} ${active ? 'app-segmented-option-active' : ''}`}
             onClick={() => onChange(option.value)}
             disabled={disabled}
+            aria-label={option.symbol !== undefined ? option.label : undefined}
+            title={option.symbol !== undefined ? option.label : undefined}
           >
-            {option.label}
+            {option.symbol ?? option.label}
           </button>
         )
       })}

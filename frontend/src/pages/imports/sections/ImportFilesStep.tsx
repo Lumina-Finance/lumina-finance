@@ -64,6 +64,46 @@ export function ImportFilesStep({
     stagedListRef.current?.querySelector('button')?.focus()
   }, [isFileAccepted])
 
+  const uploadArea = !isFileAccepted && (
+    <>
+      {/* Stated before a file is chosen, since re-exporting is the only thing that answers it.
+          The wording stays loose about what goes wrong on purpose, because readCsvFile has two
+          outcomes for a file it cannot read as UTF-8: accented characters lost below the
+          replacement share, and the file refused above it or on any null character. It says the
+          other encodings are unsupported rather than unreadable, since supporting them is open
+          rather than ruled out */}
+      <ImportInfoCard title="Files are read as UTF-8">
+        Other encodings are not supported yet, so a file saved as ISO-8859-1 or UTF-16 may not import correctly. Look for a UTF-8 option when saving your file as CSV.
+      </ImportInfoCard>
+
+      <input
+        ref={inputRef}
+        type="file"
+        className="hidden"
+        accept=".csv,text/csv"
+        onChange={async (event) => {
+          const input = event.currentTarget
+          try {
+            await handleFileChange(input.files ?? [])
+          } finally {
+            input.value = ''
+          }
+        }}
+        disabled={isUploadBlocked}
+      />
+      <ImportUploadCard
+        title="Upload CSV file"
+        hint="One file accepted."
+        processing={isProcessingFiles}
+        disabled={isUploadBlocked}
+        rejection={fileIntakeError}
+        blockReason={uploadBlockReason}
+        onClick={() => inputRef.current?.click()}
+        onDropFile={(selection) => void handleFileChange(selection)}
+      />
+    </>
+  )
+
   return (
     <ImportFilesStepLayout
       title="File"
@@ -74,51 +114,14 @@ export function ImportFilesStep({
         { label: 'Mapped', value: mappedFieldCount },
       ]}
     >
-      {!isFileAccepted && (
+      {files.length === 0 ? (
         <>
-          {/* Stated before a file is chosen, since re-exporting is the only thing that answers it.
-              The wording stays loose about what goes wrong on purpose, because readCsvFile has two
-              outcomes for a file it cannot read as UTF-8: accented characters lost below the
-              replacement share, and the file refused above it or on any null character. It says the
-              other encodings are unsupported rather than unreadable, since supporting them is open
-              rather than ruled out */}
-          <ImportInfoCard title="Files are read as UTF-8">
-            Other encodings are not supported yet, so a file saved as ISO-8859-1 or UTF-16 may not import correctly. Look for a UTF-8 option when saving your file as CSV.
-          </ImportInfoCard>
-
-          <input
-            ref={inputRef}
-            type="file"
-            className="hidden"
-            accept=".csv,text/csv"
-            onChange={async (event) => {
-              const input = event.currentTarget
-              try {
-                await handleFileChange(input.files ?? [])
-              } finally {
-                input.value = ''
-              }
-            }}
-            disabled={isUploadBlocked}
-          />
-          <ImportUploadCard
-            title="Upload CSV file"
-            hint="One file accepted."
-            processing={isProcessingFiles}
-            disabled={isUploadBlocked}
-            rejection={fileIntakeError}
-            blockReason={uploadBlockReason}
-            onClick={() => inputRef.current?.click()}
-            onDropFile={(selection) => void handleFileChange(selection)}
+          {uploadArea}
+          <EmptyState
+            title="No file staged"
+            description="The uploaded file will appear here."
           />
         </>
-      )}
-
-      {files.length === 0 ? (
-        <EmptyState
-          title="No file staged"
-          description="The uploaded file will appear here."
-        />
       ) : (
         <>
           <div ref={stagedListRef}>
@@ -132,6 +135,9 @@ export function ImportFilesStep({
               onChange={(delimiter) => void changeDelimiter(delimiter)}
             />
           )}
+          {/* A refused file keeps its place above the upload, so the Separator control stays under the
+              pointer when a choice is refused */}
+          {uploadArea}
         </>
       )}
     </ImportFilesStepLayout>

@@ -45,7 +45,7 @@ const MIN_IMPORT_COLUMNS = 2
 const FATAL_PARSE_ERROR_CODE = 'MissingQuotes'
 
 // The separators the reader tells apart, and the only ones the user can choose in their place
-export const IMPORT_DELIMITERS = [',', ';', '\t', '|'] as const
+export const IMPORT_DELIMITERS = [',', ';'] as const
 export type ImportDelimiter = typeof IMPORT_DELIMITERS[number]
 
 const HEADER_ALIASES = new Set([
@@ -101,8 +101,8 @@ const HEADER_ALIASES = new Set([
 
 const NO_READABLE_ROWS_ERROR = 'No readable rows detected'
 const NO_DATA_ROWS_ERROR = 'This file has a heading row and no transactions under it.'
-const SINGLE_COLUMN_ERROR = 'Only one column was found. Check this is a CSV whose fields are separated by a comma, semicolon, tab or pipe.'
-export const SINGLE_COLUMN_SEPARATOR_ERROR = 'Only one column was found. Choose the separator your file uses from the Separator dropdown.'
+const SINGLE_COLUMN_ERROR = 'Only one column was found. Check this is a CSV whose fields are separated by a comma or semicolon.'
+export const SINGLE_COLUMN_SEPARATOR_ERROR = 'Only one column was found. Choose the separator your file uses under Separator.'
 const UNREADABLE_TEXT_ERROR = 'This file is not readable as text. Export it as a CSV encoded in UTF-8 and upload it again.'
 
 /**
@@ -141,7 +141,7 @@ interface ParsedCsv {
  * rewritten as newlines. It returns null for text the tool did not write as it stands, such as its
  * export saved again by a spreadsheet, which the general parser then reads with its delimiter guessing
  * @param delimiter - The separator the user chose, which the general parser reads with in place of guessing
- * @param offersDelimiterChoice - Whether the flow offers the Separator dropdown, which a file read as a
+ * @param offersDelimiterChoice - Whether the flow offers the Separator choice, which a file read as a
  * single column is then pointed to
  */
 export async function readCsvFile(

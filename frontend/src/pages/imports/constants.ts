@@ -612,8 +612,6 @@ export const IMPORT_DATE_FORMAT_LABELS: Record<ImportDateFormat, { label: string
 export const IMPORT_DELIMITER_LABELS: Record<ImportDelimiter, string> = {
   ',': 'Comma',
   ';': 'Semicolon',
-  '\t': 'Tab',
-  '|': 'Pipe',
 }
 
 export const KIND_LABELS: Record<Category['kind'], string> = {
