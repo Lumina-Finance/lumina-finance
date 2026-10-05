@@ -553,6 +553,16 @@ test('disables Add a connection when no provider is open to new connections', as
   await expect(section.getByText('No bank provider is open to new connections right now. Existing connections keep working.')).toBeVisible()
 })
 
+test("says why Add a connection is held back when the bank providers can't load", async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await page.route(`${API_BASE_URL}/bank-sync/providers`, (route) => route.fulfill({ status: 500, body: '' }))
+  const section = await openBankConnections(page, user)
+  const add = section.getByRole('button', { name: 'Add a connection' })
+
+  await expect(add).toHaveAttribute('aria-disabled', 'true')
+  await expect(add).toHaveAccessibleDescription('Bank providers could not load. Reload the page to try again.')
+})
+
 test("shows the failure when the connections can't load, rather than an empty list", async ({ page, request }) => {
   const user = await signUpUser(request)
   await page.route(`${API_BASE_URL}/bank-sync/connections`, (route) => route.fulfill({ status: 500, body: '' }))

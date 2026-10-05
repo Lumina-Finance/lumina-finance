@@ -31,7 +31,7 @@ import { useMeasuredHeight } from '@/pages/settings/components/shared/hooks/useM
 export function BankConnectionsSection() {
   const prefersReducedMotion = useReducedMotion()
   const { data: connections, error: connectionsError } = useBankConnections()
-  const { data: providers } = useBankProviders()
+  const { data: providers, error: providersError } = useBankProviders()
   const { data: accounts } = useAccounts()
   const accountNameFor = (accountId: string) => accounts?.find((account) => account.id === accountId)?.name
 
@@ -40,6 +40,9 @@ export function BankConnectionsSection() {
     : []
   const noneOffered = providers !== undefined && offeredProviders.length === 0
   const workerDown = providers !== undefined && offeredProviders.length > 0 && !providers.sync_running
+  const addReason = workerDown
+    ? "Bank sync isn't running right now. You can add one once it's back."
+    : !providers && providersError ? 'Bank providers could not load. Reload the page to try again.' : null
 
   // Connections are few and already loaded, so the search filters them here rather than on the server
   const [search, setSearch] = useState('')
@@ -99,7 +102,7 @@ export function BankConnectionsSection() {
               type="button"
               className="app-primary-button shrink-0"
               disabled={offeredProviders.length === 0}
-              disabledReason={workerDown ? "Bank sync isn't running right now. You can add one once it's back." : null}
+              disabledReason={addReason}
               onClick={() => openConnect(null)}
             >
               <Plus size={16} aria-hidden />
