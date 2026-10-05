@@ -31,3 +31,19 @@ export function formatRelativeTime(iso: string): string {
 
   return 'just now'
 }
+
+/**
+ * Formats a future ISO-8601 timestamp as a short phrase such as "in 30 minutes", picking the largest
+ * unit that fits, with "shortly" for anything under a minute away or already past
+ */
+export function formatRelativeFutureTime(iso: string): string {
+  const seconds = Math.round((new Date(iso).getTime() - Date.now()) / 1000)
+
+  for (const [unit, unitSeconds] of RELATIVE_UNITS) {
+    if (seconds >= unitSeconds) {
+      return RELATIVE_TIME_FORMAT.format(Math.round(seconds / unitSeconds), unit)
+    }
+  }
+
+  return 'shortly'
+}

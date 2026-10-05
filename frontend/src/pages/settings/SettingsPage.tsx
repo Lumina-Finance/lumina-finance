@@ -1,5 +1,7 @@
 import { useAccounts } from '@/api/accounts'
+import { useBankProviders } from '@/api/bank-sync'
 import { useOidcIdentities } from '@/api/oidc'
+import { BankConnectionsSection } from '@/pages/settings/components/bank-connections-section/Section'
 import CategorySettingsSection from '@/pages/settings/components/category-settings-section/Section'
 import MerchantSettingsSection from '@/pages/settings/components/merchant-settings-section/Section'
 import TagSettingsSection from '@/pages/settings/components/tag-settings-section/Section'
@@ -17,10 +19,14 @@ import { useProfileSettingsForm } from '@/pages/settings/hooks/useProfileSetting
 import { useRunwaySettingsForm } from '@/pages/settings/hooks/useRunwaySettingsForm'
 import { useSecuritySettingsForm } from '@/pages/settings/hooks/useSecuritySettingsForm'
 import { useSettingsSectionNavigation } from '@/pages/settings/hooks/useSettingsSectionNavigation'
+import { listSettingsSections } from '@/pages/settings/settingsNavigation'
 
 /**
- * Settings page gathering the profile, security, runway, category, merchant, tag, and
- * tax-advantaged panes behind one section navigation
+ * Settings page gathering the profile, security, runway, bank connection, category, merchant, tag,
+ * and tax-advantaged panes behind one section navigation
+ *
+ * Bank connections are left out, section and navigation entry alike, for a user the bank-linking
+ * check refuses
  *
  * Each pane keeps its own draft, dirty state, and save controls, so saving or discarding one
  * pane leaves the edits in the others alone
@@ -78,6 +84,9 @@ export default function SettingsPage() {
   // Assume a password until the identities load, so the change-password form is the default view
   const hasPassword = oidcIdentities.data?.has_password ?? true
   const sectionNavigation = useSettingsSectionNavigation()
+  const { data: bankProviders } = useBankProviders()
+  const sections = listSettingsSections(bankProviders?.may_link)
+  const showBankConnections = sections.some((section) => section.id === 'bank-connections')
 
   const profileActions = (
     <SettingsPaneActions
@@ -124,6 +133,7 @@ export default function SettingsPage() {
       </header>
 
       <SettingsMobileSectionMenu
+        sections={sections}
         activeSection={sectionNavigation.activeSection}
         activeSettingsSection={sectionNavigation.activeSettingsSection}
         menuOpen={sectionNavigation.settingsMenuOpen}
@@ -137,6 +147,7 @@ export default function SettingsPage() {
 
       <div className="min-[1200px]:grid min-[1200px]:grid-cols-[260px_minmax(0,1fr)] min-[1200px]:gap-10 min-[1200px]:items-start">
         <SettingsDesktopSectionSidebar
+          sections={sections}
           activeSection={sectionNavigation.activeSection}
           onSectionSelect={sectionNavigation.navigateToSection}
           onImportSelect={sectionNavigation.navigateToImport}
@@ -177,6 +188,8 @@ export default function SettingsPage() {
             onThresholdChange={setRunwayThreshold}
             actions={runwayActions}
           />
+
+          {showBankConnections && <BankConnectionsSection />}
 
           <CategorySettingsSection />
 
