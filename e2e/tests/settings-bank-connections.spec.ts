@@ -94,6 +94,12 @@ async function changeProviders(
   await changeAnswer(page, '/bank-sync/providers', change)
 }
 
+// A read the page sends as a test ends can still be on its way through a changed answer when the page
+// closes, which would fail a test whose checks all passed
+test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+})
+
 test('adds a connection with a nickname and lists it with its bank accounts', async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
