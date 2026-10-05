@@ -8,9 +8,8 @@ says, since nothing can fill in its merchant and category yet. An item still wai
 values refreshed in place, and a dismissed one stays dismissed whatever the bank now says.
 
 Records dated before the link's import start are left out, but never those dated before the window
-that brought them back. SimpleFIN dates a booked record by the bank's day at noon UTC, which for a
-user far east of UTC falls in the window starting the next day, so a window brings back the day
-before its first, and the window before it, which ended at that midnight, didn't include it.
+that brought them back, since a provider can date a record the day before the window it came back
+in, and the window before it, which ended at that midnight, didn't include it.
 
 An amount that can't be stored exactly in the account's currency is kept as the bank sent it, with
 no amount, so its item waits for the user to enter one rather than being rounded or dropped
@@ -72,14 +71,13 @@ async def store_booked_records(
         .with_for_update()
     )
 
-    # An account has one live link, so among these rows its id and a transaction ID name one record
-    known = {(row.account_id, row.external_transaction_id): row for row in stored}
+    known = {(row.account_id, row.provider, row.external_account_id, row.external_transaction_id): row for row in stored}
 
     changed = False
     for link, booked in wanted:
         for external_id, record in booked.items():
             observation = _observation(record)
-            row = known.get((link.account_id, external_id))
+            row = known.get((link.account_id, link.provider, link.external_account_id, external_id))
             if row is None:
                 db.add(
                     BankTransaction(

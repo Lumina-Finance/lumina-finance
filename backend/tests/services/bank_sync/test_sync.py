@@ -1214,7 +1214,7 @@ async def test_job_attempt_that_lost_its_lease_while_listing_stores_nothing(conn
 
 
 async def test_job_puts_each_new_booked_record_in_the_review_inbox_whatever_the_accounts_preference(connection, provider, frozen_now):
-    """Everyday is set to Auto-approve all, and a daily sync brings three new booked records
+    """Everyday has every review choice set to trust, and a daily sync brings three new booked records
 
     All three wait for review with the bank's values, and none reaches the ledger, since nothing can
     fill in a merchant and category yet
