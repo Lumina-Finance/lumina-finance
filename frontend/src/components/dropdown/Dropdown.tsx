@@ -513,6 +513,7 @@ const Dropdown = ({
   return (
     <div
       ref={containerRef}
+      data-testid="dropdown-slot"
       className={joinClassNames('app-dropdown-slot', className)}
       style={{ height: collapsedHeight }}
     >

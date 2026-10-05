@@ -30,28 +30,33 @@ test('opens the replacement dropdown in the short merchant delete modal from its
 
   await logInViaApi(page, user)
   await openPage(page, '/settings')
-  const section = page.locator('section#merchants')
-  const search = section.getByPlaceholder('Search merchants...', { exact: true })
+  const search = page.getByRole('textbox', { name: 'Search merchants...', exact: true })
   await search.fill(name)
   await search.press('Enter')
 
   // Refused while transactions use the merchant, which is what opens the modal
-  await section.getByRole('button', { name: `Delete ${name}`, exact: true }).click()
-  await section.getByRole('button', { name: `Confirm delete ${name}`, exact: true }).click()
+  await page.getByRole('button', { name: `Delete ${name}`, exact: true }).click()
+  await page.getByRole('button', { name: `Confirm delete ${name}`, exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Move Transactions First', exact: true })
   await expect(dialog).toBeVisible()
 
   const field = dialog.getByRole('combobox', { name: 'Replacement merchant', exact: true })
   await field.click()
   await expect(dialog.getByRole('listbox')).toBeVisible()
+  // The inner locator of a filter is looked for inside the box, so it starts from the page rather than the dialog
+  const head = page.getByRole('combobox', { name: 'Replacement merchant', exact: true })
+  const measured = [
+    dialog.getByTestId('dropdown-box').filter({ has: head }),
+    dialog.getByTestId('dropdown-slot').filter({ has: head }),
+    dialog,
+  ]
 
-  // Measured once the box has finished widening
+  // Measured together, once the box has finished widening
   await expect(async () => {
-    const { box, slot, modal } = await field.evaluate((head) => ({
-      box: head.closest('.app-dropdown-glass')!.getBoundingClientRect().toJSON() as DOMRect,
-      slot: head.closest('.app-dropdown-slot')!.getBoundingClientRect().toJSON() as DOMRect,
-      modal: head.closest('[role="dialog"]')!.getBoundingClientRect().toJSON() as DOMRect,
-    }))
+    const [box, slot, modal] = await page.evaluate(
+      (elements) => elements.map((element) => element!.getBoundingClientRect().toJSON() as DOMRect),
+      await Promise.all(measured.map((locator) => locator.elementHandle())),
+    )
 
     expect(box.left, 'the box\'s left edge against the modal\'s').toBeGreaterThanOrEqual(modal.left)
     expect(box.right, 'the box\'s right edge against the modal\'s').toBeLessThanOrEqual(modal.right)

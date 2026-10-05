@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator } from '@playwright/test'
 
 import { createAccount, signUpUser } from '../support/api'
 import { openPage, logInViaApi, openModal } from '../support/app'
@@ -25,13 +25,12 @@ test('exposes and clears an invalid dropdown with its inline validation alert', 
   await type.click()
   const checking = dialog.getByRole('option', { name: 'Checking' })
   await expect(checking).toBeVisible()
-  const validBackground = await name.evaluate((field) => getComputedStyle(field).backgroundColor)
-  const backgrounds = () => type.evaluate((head) => ({
-    box: getComputedStyle(head.closest('.app-dropdown-glass')!).backgroundColor,
-    head: getComputedStyle(head).backgroundColor,
-  }))
-  await expect.poll(async () => (await backgrounds()).box).toBe(validBackground)
-  expect((await backgrounds()).head).not.toBe(validBackground)
+  const backgroundOf = (locator: Locator) => locator.evaluate((element) => getComputedStyle(element).backgroundColor)
+  const validBackground = await backgroundOf(name)
+  // The inner locator of a filter is looked for inside the box, so it starts from the page rather than the dialog
+  const box = dialog.getByTestId('dropdown-box').filter({ has: page.getByRole('combobox', { name: 'Account Type', exact: true }) })
+  await expect.poll(() => backgroundOf(box)).toBe(validBackground)
+  expect(await backgroundOf(type)).not.toBe(validBackground)
 
   await checking.click()
   await expect(type).not.toHaveAttribute('aria-invalid', 'true')

@@ -219,20 +219,30 @@ test('rings a transaction row in the accent outline under keyboard focus', async
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
 
-  const content = page.getByTestId(`transaction-row-${id}`)
-
   // The row is the box around the content, which carries the row's padding and its separator
-  await expectStretchedFocusRing(getTransactionRowButton(content), content.locator('..'))
+  await expectStretchedFocusRing(
+    getTransactionRowButton(page.getByTestId(`transaction-row-${id}`)),
+    page.getByTestId(`transaction-box-${id}`),
+  )
 })
 
 test('rings an upcoming transaction row inside the Upcoming section\'s dashed edge', async ({ page, request }) => {
   const { upcomingId, upcoming } = await openListWithUpcomingAndToday(page, request)
   await upcoming.click()
-  const content = page.getByTestId(`transaction-row-${upcomingId}`)
   await expectTransactionRow(page, upcomingId, `${MINUS}$45.00`)
 
   // The section draws its edge over the sides of the rows inside it, which the ring has to stay clear of
-  await expectStretchedFocusRing(getTransactionRowButton(content), content.locator('..'))
+  await expectStretchedFocusRing(
+    getTransactionRowButton(page.getByTestId(`transaction-row-${upcomingId}`)),
+    page.getByTestId(`transaction-box-${upcomingId}`),
+  )
+
+  // Once focus leaves, the row rests at the gap its ring was drawn at, so the ring fades out in place
+  // rather than jumping outward as it goes
+  const box = page.getByTestId(`transaction-box-${upcomingId}`)
+  const drawnAt = await box.evaluate((node) => getComputedStyle(node).outlineOffset)
+  await page.evaluate(() => (document.activeElement as HTMLElement).blur())
+  await expect(box).toHaveCSS('outline-offset', drawnAt)
 })
 
 test('keeps the open Upcoming header on screen through a long run of upcoming transactions', AT_EVERY_SIZE, async ({ page, request }) => {

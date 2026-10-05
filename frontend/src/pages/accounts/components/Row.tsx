@@ -106,6 +106,7 @@ export default function AccountRow({
   // so the row beside it cannot cover it, since the light alone is too faint to find the focus by
   return (
     <div
+      data-testid={`account-row-${account.id}`}
       className={`group/row app-focus-inset relative flex min-w-0 items-stretch rounded-xl hover:bg-[var(--app-accent-soft)] has-[a:focus-visible]:bg-transparent! has-[a:focus-visible]:[outline:var(--app-focus-outline)] ${
         isArchived
           ? 'my-1 border border-dashed opacity-75 transition-[color,background-color,opacity] hover:opacity-100'

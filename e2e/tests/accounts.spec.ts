@@ -322,14 +322,13 @@ test('records an expense through the modal and shows it as money out', async ({ 
 
 test('rings an account row in the accent outline under keyboard focus', async ({ page, request }) => {
   const user = await signUpUser(request)
-  await createAccount(request, user, { name: ACCOUNT_NAME })
+  const account = await createAccount(request, user, { name: ACCOUNT_NAME })
   await logInViaApi(page, user)
   await openPage(page, '/accounts')
 
-  const link = page.getByRole('link', { name: ACCOUNT_NAME, exact: true })
-
   // The row is the rounded box the hover tint fills
-  await expectStretchedFocusRing(link, link.locator('xpath=ancestor::div[contains(@class, "rounded-xl")][1]'))
+  const row = page.getByTestId(`account-row-${account.id}`)
+  await expectStretchedFocusRing(row.getByRole('link', { name: ACCOUNT_NAME, exact: true }), row)
 })
 
 test('keeps the account save action named while an edit is pending', async ({ page, request }) => {

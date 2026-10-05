@@ -425,7 +425,10 @@ export function TransactionRowView({
   )
 
   return (
+    // The row's own box, around the content that carries transaction-row-<id>, with the row's padding
+    // and separator, which is what a focused row's ring has to go round
     <motion.div
+      data-testid={`transaction-box-${transaction.id}`}
       onMouseEnter={selection?.onPointerEnter}
       initial={
         skipEnterAnimation

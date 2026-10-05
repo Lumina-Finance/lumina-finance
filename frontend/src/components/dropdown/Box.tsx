@@ -93,6 +93,7 @@ export function DropdownBox({
   return (
     <motion.div
       ref={boxRef}
+      data-testid="dropdown-box"
       className={joinClassNames(
         'app-dropdown-glass',
         open && 'app-dropdown-glass-open',
