@@ -48,7 +48,7 @@ from collections.abc import Collection, Mapping, Sequence
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import and_, select, update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import async_session
@@ -66,7 +66,7 @@ from app.services.bank_sync.action_needed import (
     log_unsent_action_emails,
     send_action_emails,
 )
-from app.services.bank_sync.availability import ENABLED_ADAPTERS, PROVIDER_ADAPTERS
+from app.services.bank_sync.availability import ENABLED_ADAPTERS, LINK_LISTING, PROVIDER_ADAPTERS
 from app.services.bank_sync.discovery import apply_discovery
 from app.services.bank_sync.ingestion import store_booked_records
 from app.services.bank_sync.jobs import ClaimedJob, JobNotHeld, enqueue_bank_sync_job, finish_job, lock_job_for_finish
@@ -293,13 +293,7 @@ class _JobRun:
             rows = await db.execute(
                 select(BankAccountLink, Account.currency, BankExternalAccount.login_key)
                 .join(Account, Account.id == BankAccountLink.account_id)
-                .outerjoin(
-                    BankExternalAccount,
-                    and_(
-                        BankExternalAccount.connection_id == BankAccountLink.connection_id,
-                        BankExternalAccount.external_id == BankAccountLink.external_account_id,
-                    ),
-                )
+                .outerjoin(BankExternalAccount, LINK_LISTING)
                 .where(BankAccountLink.connection_id == self.connection.id)
             )
             links = rows.all()

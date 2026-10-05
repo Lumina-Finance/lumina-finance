@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
-from sqlalchemy import exists, func, select
+from sqlalchemy import and_, exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.bank_sync import BANK_SYNC_SIMPLEFIN_ENABLED, BANK_SYNC_SIMPLEFIN_OFFERED
@@ -43,6 +43,13 @@ OFFERED_PROVIDERS: frozenset[BankProvider] = frozenset(provider for provider, (_
 
 # A link that still feeds its account, active or waiting for its bank account to be chosen again
 LIVE_LINK = BankAccountLink.state != BankLinkState.UNLINKED
+
+# Joins a link to its bank account as the connection's provider last listed it, which records the
+# bank login the account sits under
+LINK_LISTING = and_(
+    BankExternalAccount.connection_id == BankAccountLink.connection_id,
+    BankExternalAccount.external_id == BankAccountLink.external_account_id,
+)
 
 # Why a visible account the user doesn't own alone, such as a group account, can't be linked
 LINK_NOT_OWN_DETAIL = "Accounts shared with a group can't be linked to a bank yet"

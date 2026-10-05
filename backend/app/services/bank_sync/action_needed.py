@@ -34,22 +34,16 @@ from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import and_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankExternalAccount, BankLinkState
 from app.models.user import User
-from app.services.bank_sync.availability import PROVIDER_ADAPTERS
+from app.services.bank_sync.availability import LINK_LISTING, PROVIDER_ADAPTERS
 from app.services.email import RenderedEmail, get_email_sender, render_action_needed_email
 
 logger = logging.getLogger(__name__)
-
-# A link's bank account as the connection's provider last listed it
-_LISTING_OF_LINK = and_(
-    BankExternalAccount.connection_id == BankAccountLink.connection_id,
-    BankExternalAccount.external_id == BankAccountLink.external_account_id,
-)
 
 # The Reconnect needed email, which leaves the provider's own message to the last attempt's reason.
 # A connection with no linked accounts gets the opening and closing without the list
@@ -196,7 +190,7 @@ async def flag_signin_needed(
         (
             await db.scalars(
                 select(BankExternalAccount.login_key)
-                .join(BankAccountLink, _LISTING_OF_LINK)
+                .join(BankAccountLink, LINK_LISTING)
                 .where(
                     BankAccountLink.connection_id == connection.id,
                     BankAccountLink.state == BankLinkState.ACTIVE,
@@ -211,7 +205,7 @@ async def flag_signin_needed(
     # Every linked bank account keeps its listing, which records the login it sits under
     rows = await db.execute(
         select(BankExternalAccount.login_key, BankExternalAccount.institution_name, Account.name)
-        .join(BankAccountLink, _LISTING_OF_LINK)
+        .join(BankAccountLink, LINK_LISTING)
         .join(Account, Account.id == BankAccountLink.account_id)
         .where(BankAccountLink.id.in_([link.id for link in marking]))
         .order_by(BankExternalAccount.login_key, Account.name)
