@@ -162,6 +162,33 @@ test('refuses a new manual entry on the days a linked account’s bank supplies'
   await expect(year).toHaveAttribute('aria-invalid', 'false')
 })
 
+test('refuses the days the other account’s bank supplies once a new transfer is recorded in both, naming it', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const visa = await createAccount(request, user, { name: 'Visa' })
+  await answerLinksWith(page, () => [visa.id])
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+
+  const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+  await dialog.getByRole('tab', { name: 'Transfer', exact: true }).click()
+  await chooseFromDropdown(dialog, 'Category', 'Transfer')
+  await chooseFromDropdown(dialog, 'Money went to', 'Visa')
+  await typeDate(page, dialog, todayInTestTimezone())
+
+  // Recorded in both, the transfer writes a transaction into Visa too, so Visa's days count
+  const recordInBoth = dialog.getByRole('checkbox', { name: /Record in both accounts/ })
+  const message = dialog.getByRole('alert').filter({
+    hasText: 'SimpleFIN supplies the transactions in Visa from Jan 1, 2026 to today',
+  })
+  await recordInBoth.check()
+  await expect(message).toBeVisible()
+
+  // Recorded in Everyday alone, it only notes where the money went
+  await recordInBoth.uncheck()
+  await expect(message).toBeHidden()
+})
+
 test('lets an edit keep a date the linked account’s bank supplies, and refuses moving it to another such day', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })

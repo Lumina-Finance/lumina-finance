@@ -153,6 +153,7 @@ export default function CreateTransactionModal({
   const suppliedDays = getSuppliedDays({
     form,
     transaction,
+    recordedAccount: selectedAccount,
     counterpartyAccount: selectedCounterpartyAccount,
     linksByAccount,
     today: getTodayYmd(user?.tz),

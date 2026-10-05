@@ -27,6 +27,9 @@ type GetSuppliedDaysOptions = {
   /** The stored transaction an edit starts from, absent when creating */
   transaction?: Pick<Transaction, 'account_id' | 'dt' | 'bank_source'>
 
+  /** The account the form records the transaction in, named when a new pair writes into two */
+  recordedAccount: Pick<AccountsOverview, 'name'> | undefined
+
   /** The account chosen as the other side of a transfer, absent when it is outside the app or not chosen */
   counterpartyAccount: Pick<AccountsOverview, 'id' | 'name'> | undefined
   linksByAccount: ReadonlyMap<string, SupplyingLink>
@@ -47,12 +50,14 @@ function isSuppliedDay(date: string, link: SupplyingLink, today: string): boolea
  * bank-imported transaction in a linked account answers to that account's link instead: its date is
  * the bank's to correct, and moving it elsewhere is refused on the account field for the move itself,
  * so it is checked only once it moves out of an account no longer linked. An edit is checked only when its date
- * or account changes, since one that keeps both writes no new day. A symmetric transfer writes a second
- * transaction into the other account, so that account's days count too, and the message names it
+ * or account changes, since one that keeps both writes no new day. A new symmetric transfer writes a
+ * second transaction into the other account, so that account's days count too, and with two accounts
+ * in play the message names the one it means
  */
 export function getSuppliedDays({
   form,
   transaction,
+  recordedAccount,
   counterpartyAccount,
   linksByAccount,
   today,
@@ -60,15 +65,18 @@ export function getSuppliedDays({
   const moved = transaction !== undefined && form.account_id !== transaction.account_id
   const accounts: SuppliedAccount[] = []
 
+  // Only a new pair writes into the other account, since an edit changes the one transaction alone
+  const isNewPair = !transaction && isSymmetricTransferForm(form)
+
+  // Checked first, so a day both accounts' banks supply is described as the recorded account's
   const recordedLink = linksByAccount.get(form.account_id)
   const isUnderItsLink = transaction?.bank_source != null && linksByAccount.has(transaction.account_id)
-  if (recordedLink && !isUnderItsLink) accounts.push({ link: recordedLink, accountName: null })
-
-  // Only a new pair writes into the other account, since an edit changes the one transaction alone
-  const counterpartyLink = counterpartyAccount && linksByAccount.get(counterpartyAccount.id)
-  if (counterpartyLink && !transaction && isSymmetricTransferForm(form)) {
-    accounts.push({ link: counterpartyLink, accountName: counterpartyAccount.name })
+  if (recordedLink && !isUnderItsLink) {
+    accounts.push({ link: recordedLink, accountName: isNewPair ? (recordedAccount?.name ?? null) : null })
   }
+
+  const counterpartyLink = counterpartyAccount && linksByAccount.get(counterpartyAccount.id)
+  if (counterpartyLink && isNewPair) accounts.push({ link: counterpartyLink, accountName: counterpartyAccount.name })
 
   if (accounts.length === 0) return { isDateDisabled: undefined, message: null }
 
