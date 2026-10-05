@@ -298,22 +298,23 @@ async def _dismiss_items(session: AsyncSession, item_ids: Collection[uuid.UUID])
     )
 
 
-async def _commit_paused_link(account_id: str | uuid.UUID, **values) -> BankAccountLink:
-    """Commit the account's link on a new SimpleFIN connection, paused for review, its import long ended unless values say otherwise and its next sync set for tomorrow"""
+async def _commit_paused_link(account_id: str | uuid.UUID, now: datetime, **values) -> BankAccountLink:
+    """Commit the account's link on a new SimpleFIN connection, paused for review with its next sync a day after now
+
+    Its import has long ended, unless the values say otherwise
+    """
     async with TestSession() as session:
         account = await session.get_one(Account, uuid.UUID(str(account_id)))
     connection = await _commit_listed_connection(account.owner_id)
-    link = _build_bank_link(
-        account, connection, **{"paused": True, "importing": False, "next_attempt_at": datetime.now(UTC) + timedelta(days=1)} | values
-    )
+    link = _build_bank_link(account, connection, **{"paused": True, "importing": False, "next_attempt_at": now + timedelta(days=1)} | values)
     async with TestSession() as session:
         session.add(link)
         await session.commit()
     return link
 
 
-async def _pause_state(link: BankAccountLink) -> tuple[bool, bool, list[str]]:
-    """Return whether the link is paused for review, whether it is due now, and the kind of each sync queued for its connection"""
+async def _pause_state(link: BankAccountLink) -> tuple[bool, datetime, list[str]]:
+    """Return whether the link is paused for review, when it is next due, and the kind of each sync queued for its connection"""
     async with TestSession() as session:
         paused, next_attempt_at = (
             await session.execute(select(BankAccountLink.paused, BankAccountLink.next_attempt_at).where(BankAccountLink.id == link.id))
@@ -321,7 +322,7 @@ async def _pause_state(link: BankAccountLink) -> tuple[bool, bool, list[str]]:
         queued = await session.scalars(
             select(BankSyncJob.kind).where(BankSyncJob.connection_id == link.connection_id, BankSyncJob.status == "queued")
         )
-        return paused, next_attempt_at <= datetime.now(UTC), list(queued)
+        return paused, next_attempt_at, list(queued)
 
 
 @contextlib.asynccontextmanager

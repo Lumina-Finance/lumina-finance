@@ -9,6 +9,7 @@ before the link, or the link before the connection, could deadlock with a sync s
 
 import asyncio
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import func, select
@@ -16,6 +17,7 @@ from sqlalchemy import func, select
 from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankProvider
 from app.models.bank_transaction import OBSERVATION_COLUMNS, BankTransaction, BankTransactionDisposition, OpenReviewKind
+from app.services.bank_sync import review_pause
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     BANK_ACCOUNT_ID,
@@ -36,6 +38,9 @@ from tests.routes.support.bank_sync_helpers import (
 )
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
 from tests.routes.support.query_helpers import _recorded_statements, _writes
+
+# The instant a lifted pause makes the account due at, as its clock is pinned
+_NOW = datetime(2026, 10, 4, 9, 0, tzinfo=UTC)
 
 
 async def _dismiss(client, headers, item_id: uuid.UUID):
@@ -140,18 +145,19 @@ async def test_dismissing_another_users_item_or_one_on_a_group_account_is_not_fo
 
 @pytest.mark.parametrize(
     ("waiting", "pause_state"),
-    [(52, (True, False, [])), (51, (False, True, ["scheduled"]))],
+    [(52, (True, _NOW + timedelta(days=1), [])), (51, (False, _NOW, ["scheduled"]))],
     ids=["leaves_51", "leaves_50"],
 )
-async def test_a_dismissal_leaving_50_new_items_waiting_resumes_the_paused_sync_at_once(client, waiting, pause_state):
-    """Everyday is paused for review with HARBOUR COFFEE 0412 among its new items waiting
+async def test_a_dismissal_leaving_50_new_items_waiting_resumes_the_paused_sync_at_once(client, pin_clock, waiting, pause_state):
+    """Everyday is paused for review with HARBOUR COFFEE 0412 among its new items waiting, its next sync set for tomorrow
 
     Dismissing it leaves 51, which stays paused, or 50, which lifts the pause, makes Everyday due now
     and queues its connection's sync, with the cache mark still the last write
     """
+    pin_clock(_NOW, review_pause)
     headers, _ = await _sign_up(client)
     account_id = await _new_account(client, headers, "Everyday")
-    link = await _commit_paused_link(account_id)
+    link = await _commit_paused_link(account_id, _NOW)
     item_id = await _commit_review_item(account_id)
     await _commit_waiting_items(link, waiting - 1)
 
@@ -170,7 +176,7 @@ async def test_a_dismissal_waits_for_a_sync_holding_the_link_before_locking_the_
     """
     headers, _ = await _sign_up(client)
     account_id = await _new_account(client, headers, "Everyday")
-    link = await _commit_paused_link(account_id)
+    link = await _commit_paused_link(account_id, _NOW)
     item_id = await _commit_review_item(account_id)
 
     async with asyncio.timeout(10), TestSession() as syncing:
@@ -186,16 +192,17 @@ async def test_a_dismissal_waits_for_a_sync_holding_the_link_before_locking_the_
     assert (await _stored_item(item_id)).disposition == BankTransactionDisposition.DISMISSED
 
 
-async def test_a_dismissal_that_queues_a_sync_waits_for_a_sync_holding_the_connection_before_locking_the_link(client):
+async def test_a_dismissal_that_queues_a_sync_waits_for_a_sync_holding_the_connection_before_locking_the_link(client, pin_clock):
     """Everyday keeps its pause through a reconnect import, and the import's write holds the connection, as it does before the links
 
     Dismissing HARBOUR COFFEE 0412 leaves 50, so the dismissal queues a sync, which needs the
     connection: it waits for the write without holding the link, so the write can still lock it
     rather than the two waiting on each other, then lifts the pause
     """
+    pin_clock(_NOW, review_pause)
     headers, _ = await _sign_up(client)
     account_id = await _new_account(client, headers, "Everyday")
-    link = await _commit_paused_link(account_id, importing=True)
+    link = await _commit_paused_link(account_id, _NOW, importing=True)
     item_id = await _commit_review_item(account_id)
     await _commit_waiting_items(link, 50)
 
@@ -209,4 +216,4 @@ async def test_a_dismissal_that_queues_a_sync_waits_for_a_sync_holding_the_conne
         dismissed = await dismissing
 
     assert dismissed.status_code == 204, dismissed.text
-    assert await _pause_state(link) == (False, True, ["scheduled"])
+    assert await _pause_state(link) == (False, _NOW, ["scheduled"])

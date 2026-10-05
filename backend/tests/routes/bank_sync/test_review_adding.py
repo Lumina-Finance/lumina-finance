@@ -11,7 +11,7 @@ An add that leaves 50 or fewer new items waiting resumes the account's paused sy
 import asyncio
 import uuid
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 from sqlalchemy import func, select
@@ -20,7 +20,7 @@ from app.models.account import Account
 from app.models.bank_connection import BankAccountLink
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
 from app.models.transaction import Transaction
-from app.services.bank_sync import manual_entries, review_decisions
+from app.services.bank_sync import manual_entries, review_decisions, review_pause
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     BANK_DATE,
@@ -409,17 +409,18 @@ async def test_adding_to_an_archived_account_is_refused_as_for_a_hand_entered_tr
 
 @pytest.mark.parametrize(
     ("waiting", "pause_state"),
-    [(52, (True, False, [])), (51, (False, True, ["scheduled"]))],
+    [(52, (True, NOW + timedelta(days=1), [])), (51, (False, NOW, ["scheduled"]))],
     ids=["leaves_51", "leaves_50"],
 )
-async def test_adding_the_item_that_leaves_50_new_items_waiting_resumes_the_paused_sync_at_once(client, waiting, pause_state):
-    """Everyday is paused for review with the Tesco item among its new items waiting
+async def test_adding_the_item_that_leaves_50_new_items_waiting_resumes_the_paused_sync_at_once(client, pin_clock, waiting, pause_state):
+    """Everyday is paused for review with the Tesco item among its new items waiting, its next sync set for tomorrow
 
     Adding it leaves 51, which stays paused, or 50, which lifts the pause, makes Everyday due now and
     queues its connection's sync, with the cache mark still the last write
     """
+    pin_clock(NOW, review_pause)
     inbox = await _tesco_waiting(client)
-    link = await _commit_paused_link(inbox.account_id)
+    link = await _commit_paused_link(inbox.account_id, NOW)
     await _commit_waiting_items(link, waiting - 1)
 
     with _recorded_statements() as statements:
