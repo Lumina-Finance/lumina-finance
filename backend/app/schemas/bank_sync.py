@@ -295,3 +295,9 @@ class TransactionBankSource(BaseModel):
 
     # The waiting correction or removal about this transaction, if any
     review_item_id: uuid.UUID | None
+
+
+class RestoreBankValueRequest(BaseModel):
+    """The edited field of a bank-imported transaction to put the bank's latest value back on"""
+
+    field: EditableBankField

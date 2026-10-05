@@ -21,6 +21,7 @@ from app.schemas.bank_sync import (
     LinkBankAccountRequest,
     ReconnectBankConnectionRequest,
     ReconnectBankConnectionResponse,
+    RestoreBankValueRequest,
     UnlinkResponse,
     UpdateBankConnectionRequest,
 )
@@ -42,6 +43,7 @@ from app.services.bank_sync.review_decisions import (
     keep_current_value,
     keep_transaction,
     remove_from_ledger,
+    restore_bank_value,
 )
 from app.services.bank_sync.review_items import REVIEW_PAGE_SIZE, list_review_backlogs, list_review_items
 
@@ -187,6 +189,27 @@ async def list_connection_bank_accounts(
         Each bank account, linkable or unavailable with its reason, and whether a discovery is on its way
     """
     return await list_bank_accounts_for_account(db, user, connection_id, for_account_id)
+
+
+@router.post("/transaction-sources/{transaction_id}/restore", response_model=TransactionResponse)
+async def restore_transaction_bank_value(
+    transaction_id: uuid.UUID,
+    request: RestoreBankValueRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Put the bank's latest date or amount back on a bank-imported transaction where the user edited it
+
+    Args:
+        transaction_id: The bank-imported ledger transaction
+        request: The edited field to restore
+        user: Authenticated owner of the transaction
+        db: Active database session
+
+    Returns:
+        The ledger transaction, with its bank source
+    """
+    return await restore_bank_value(db, user, transaction_id, request.field)
 
 
 @bank_link_router.post("", response_model=BankAccountLinkResponse, status_code=status.HTTP_201_CREATED)

@@ -1,27 +1,36 @@
-"""Deciding bank items: adding a new one or dismissing it, accepting or declining a correction, and removing or keeping a removed transaction
+"""Deciding bank items and the bank values of transactions already in the ledger
+
+The actions are adding a new item or dismissing it, accepting or declining a correction, removing
+or keeping a removed transaction, and restoring a bank value the user edited.
 
 Adding writes the ledger transaction and accepts the bank transaction in one save, so neither
-exists without the other, accepting a correction writes the bank's values to the same ledger
-transaction and closes it in one save, and removing deletes the ledger transaction, its bank
-transaction with it, and rebuilds its balances in one save. Each action locks the bank transaction
-before deciding, then any ledger transaction it writes, so a double submission or any other write
-to the item, a sync's included, queues behind it and then finds the item as that write left it. A
-repeated action answers as the first did without writing again, except a repeated removal, which
-finds nothing left and answers that the item wasn't found. Adding or dismissing can leave 50 or
-fewer new items waiting, which lifts the account's review pause and queues its sync, so every
-action first locks the connection that sync would need, then the account's links, the order every
-writer takes connections, links, bank transactions and their ledger transactions in
+exists without the other, accepting a correction or restoring a bank value writes the bank's values
+to the same ledger transaction and aligns it with them in one save, and removing deletes the ledger
+transaction, its bank transaction with it, and rebuilds its balances in one save. Each action locks
+the bank transaction before deciding, then any ledger transaction it writes, so a double submission
+or any other write to the item, a sync's included, queues behind it and then finds the item as that
+write left it. A repeated action answers as the first did without writing again, except a repeated
+removal, which finds nothing left and answers that the item wasn't found. Adding or dismissing can
+leave 50 or fewer new items waiting, which lifts the account's review pause and queues its sync, so
+every action first locks the connection that sync would need, then the account's links, the order
+every writer takes connections, links, bank transactions and their ledger transactions in
 """
 
 import uuid
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
 from app.models.bank_connection import BankAccountLink
-from app.models.bank_transaction import OBSERVATION_COLUMNS, BankTransaction, BankTransactionDisposition, OpenReviewKind
+from app.models.bank_transaction import (
+    OBSERVATION_COLUMNS,
+    BankTransaction,
+    BankTransactionDisposition,
+    EditableBankField,
+    OpenReviewKind,
+)
 from app.models.base import PermissionLevel
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -30,7 +39,7 @@ from app.schemas.bank_review import AddReviewItemRequest
 from app.schemas.transaction import CreateTransactionRequest, TransactionResponse, UpdateTransactionRequest
 from app.services.accounts.access import get_own_personal_account, own_personal_account_condition
 from app.services.bank_sync.review_pause import lift_review_pauses, lock_account_links
-from app.services.bank_sync.review_state import EDITABLE_COLUMNS, align_with_bank, bank_values
+from app.services.bank_sync.review_state import EDITABLE_COLUMNS, align_with_bank, bank_values, edited_fields
 from app.services.cache_state import mark_user_cache_changed
 from app.services.transactions.creation import insert_transaction
 from app.services.transactions.deletion import delete_transaction
@@ -38,6 +47,15 @@ from app.services.transactions.response_helpers import get_transaction_response
 from app.services.transactions.update import apply_transaction_update
 
 REVIEW_ITEM_NOT_FOUND = "Review item not found"
+
+# Why restoring refuses a transaction the user entered, or one no longer tied to the bank
+BANK_SOURCE_NOT_FOUND = "Bank source not found"
+
+# Why restoring refuses a transaction on an account the user can see but doesn't own alone
+_RESTORE_NOT_OWN_DETAIL = "Bank values can't be restored on accounts shared with a group"
+
+# Why restoring refuses a bank amount the account's currency can't hold without rounding
+_UNSTORABLE_RESTORE_DETAIL = "The bank's amount has more decimal places than {currency} allows, so it can't be restored"
 
 # Why an added item refuses a transfer counterparty the user can see but doesn't own alone
 _COUNTERPARTY_NOT_OWN_DETAIL = "Transfers from a bank item can't go to an account shared with a group"
@@ -290,6 +308,64 @@ async def keep_transaction(db: AsyncSession, user: User, item_id: uuid.UUID) -> 
     return await get_transaction_response(db, await db.get_one(Transaction, record.transaction_id))
 
 
+async def restore_bank_value(db: AsyncSession, user: User, transaction_id: uuid.UUID, field: EditableBankField) -> TransactionResponse:
+    """Write the bank's latest date or amount to a bank-imported transaction where the user edited it, in one save
+
+    The transaction keeps its id and bank source and passes the checks an edit does, and its
+    balances are rebuilt from the earlier of its old and new dates. An amount brings the bank's sign
+    with it, so the direction follows the bank. The field is aligned with the bank, so it no longer
+    counts as edited and a trusted correction applies to it again, and the values the user declined
+    before no longer stand. A correction waiting on the field is settled, since the ledger now holds
+    the bank's value, and closes once it has no field left. A field that isn't edited answers with
+    the transaction as it stands, so a double submission restores it once, and a correction waiting
+    on a field the user left alone stays theirs to decide
+
+    Args:
+        db: Active database session
+        user: The user restoring the value
+        transaction_id: The bank-imported ledger transaction
+        field: The edited field to put the bank's value back on
+
+    Returns:
+        The ledger transaction, with its bank source
+
+    Raises:
+        HTTPException 403: The transaction is on an account the user can see but doesn't own alone
+        HTTPException 404: The transaction isn't visible to the user, or didn't come from a bank
+        HTTPException 409: Another change held the transaction too long
+        HTTPException 422: The bank's amount can't be stored exactly, or the bank's value fails the
+            checks an edit passes
+    """
+    visible = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.READ)
+    await get_own_personal_account(db, visible.account_id, user.id, not_own_detail=_RESTORE_NOT_OWN_DETAIL)
+    record, account, _ = await _lock_bank_transaction(db, user, BankTransaction.transaction_id == transaction_id, BANK_SOURCE_NOT_FOUND)
+
+    txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.WRITE, lock_for_update=True)
+    if field not in edited_fields(record, txn.dt, txn.amount):
+        return await get_transaction_response(db, txn)
+    columns = EDITABLE_COLUMNS[field]
+    bank = getattr(record, columns.observed)
+    if bank is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=_UNSTORABLE_RESTORE_DETAIL.format(currency=account.currency)
+        )
+
+    await apply_transaction_update(db, user, txn, UpdateTransactionRequest(**{columns.ledger: bank}))
+    align_with_bank(record, [field])
+    if record.previous_values is not None:
+        record.previous_values = {name: value for name, value in record.previous_values.items() if name != field} or None
+
+    # A removal stays open, keeping what is left of a correction it took the place of
+    if record.open_kind == OpenReviewKind.CORRECTION and record.previous_values is None:
+        record.open_kind = None
+    await db.flush()
+
+    await mark_user_cache_changed(db, user.id)
+    await db.commit()
+    await db.refresh(txn)
+    return await get_transaction_response(db, txn)
+
+
 def _refuse_unless_in_ledger(record: BankTransaction) -> None:
     """Refuse a decision on a correction or removal for an item still waiting to be added, or dismissed
 
@@ -301,40 +377,58 @@ def _refuse_unless_in_ledger(record: BankTransaction) -> None:
 
 
 async def _lock_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) -> tuple[BankTransaction, Account, list[BankAccountLink]]:
-    """Lock one of the user's bank transactions on their own personal accounts, after its account's connection and links
-
-    The connection and links come first, as every writer takes them, since adding or dismissing may
-    lift the account's review pause and queue its sync. An item's account never changes, so it is read
-    before anything is locked. A request that waited on a lock reads the item as the write before it
-    left it. The account itself isn't locked, so it stays free for the requests that lock it
-
-    Returns:
-        The item and its account, and the account's links, which a lift takes
+    """Lock the bank transaction an item id names, as _lock_bank_transaction does
 
     Raises:
         HTTPException 404: The item isn't one of the user's, or is gone, withdrawn by the bank or
             removed from the ledger
     """
+    return await _lock_bank_transaction(db, user, BankTransaction.id == item_id, REVIEW_ITEM_NOT_FOUND)
+
+
+async def _lock_bank_transaction(
+    db: AsyncSession, user: User, which: ColumnElement[bool], not_found_detail: str
+) -> tuple[BankTransaction, Account, list[BankAccountLink]]:
+    """Lock one of the user's bank transactions on their own personal accounts, after its account's connection and links
+
+    The connection and links come first, as every writer takes them, since adding or dismissing may
+    lift the account's review pause and queue its sync. A bank transaction's account never changes,
+    so it is read before anything is locked. A request that waited on a lock reads the bank
+    transaction as the write before it left it. The account itself isn't locked, so it stays free
+    for the requests that lock it
+
+    Args:
+        db: Active database session
+        user: The user acting
+        which: The condition picking out the one bank transaction
+        not_found_detail: Why there is nothing to lock, as the caller names what it looked for
+
+    Returns:
+        The bank transaction and its account, and the account's links, which a lift takes
+
+    Raises:
+        HTTPException 404: No bank transaction of the user's own meets the condition
+    """
     account_id = await db.scalar(
         select(BankTransaction.account_id)
         .join(Account, Account.id == BankTransaction.account_id)
-        .where(BankTransaction.id == item_id, own_personal_account_condition(user.id))
+        .where(which, own_personal_account_condition(user.id))
     )
     if account_id is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=REVIEW_ITEM_NOT_FOUND)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=not_found_detail)
     links = await lock_account_links(db, [account_id])
 
-    # Read again under its own lock, since the item may have changed or gone while the links were locked
+    # Read again under its own lock, since it may have changed or gone while the links were locked
     row = (
         await db.execute(
             select(BankTransaction, Account)
             .join(Account, Account.id == BankTransaction.account_id)
-            .where(BankTransaction.id == item_id, own_personal_account_condition(user.id))
+            .where(which, own_personal_account_condition(user.id))
             .with_for_update(of=BankTransaction)
             .execution_options(populate_existing=True)
         )
     ).one_or_none()
     if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=REVIEW_ITEM_NOT_FOUND)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=not_found_detail)
     record, account = row.tuple()
     return record, account, links
