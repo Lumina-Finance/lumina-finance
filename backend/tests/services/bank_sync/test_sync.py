@@ -4474,3 +4474,31 @@ async def test_scan_queues_nothing_for_a_connection_disconnected_after_it_was_fo
         await session.commit()
 
     assert await _queued_jobs() == []
+
+
+async def test_scan_lists_the_bank_accounts_of_a_connection_whose_claim_stopped_mid_listing(connection, provider, frozen_now):
+    """The app restarted while the claim two hours ago listed the bank accounts, leaving no listing and nothing queued
+
+    The scan queues a sync that lists them, telling the owner's open pages the listing is pending,
+    and once they are listed the connection, with nothing linked yet, isn't due again
+    """
+    await _set_discovered_at(connection, None)
+    async with TestSession() as session:
+        (await session.get(BankConnection, connection.id)).created_at = frozen_now - timedelta(hours=2)
+        await session.commit()
+    provider.outcomes = [_returned("ACT-everyday", "ACT-savings")]
+    told_before = await _told_at(connection)
+
+    await enqueue_due_work()
+    queued = await _queued_jobs()
+    pending = await _listing(connection)
+    told_on_queueing = await _told_at(connection)
+    await _run_jobs_until_none_is_due()
+    await enqueue_due_work()
+
+    assert queued == [("scheduled", timedelta(0), True)]
+    assert (told_before, pending) == (None, (True, []))
+    assert told_on_queueing is not None
+    assert (len(provider.discoveries), provider.fetches) == (1, [])
+    assert await _listing(connection) == (False, ["ACT-everyday", "ACT-savings"])
+    assert await _queued_jobs() == []

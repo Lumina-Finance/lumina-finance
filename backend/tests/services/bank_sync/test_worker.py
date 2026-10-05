@@ -393,8 +393,9 @@ async def test_run_jobs_records_why_a_job_failed_on_each_link_it_was_syncing_and
 
 
 async def test_enqueue_due_work_queues_each_due_connection_as_its_owner_and_stamps_the_heartbeat(connections, frozen_now):
-    """Two owners' connections past their next sync get a scheduled job each, and one not yet due gets none"""
+    """Two owners' connections past their next sync get a scheduled job each, and one not yet due gets none, all listed a day ago"""
     async with TestSession() as session:
+        await session.execute(update(BankConnection).values(discovered_at=frozen_now - timedelta(days=1)))
         for connection, next_sync_at in (
             (connections[0], frozen_now - timedelta(minutes=5)),
             (connections[1], frozen_now - timedelta(days=2)),

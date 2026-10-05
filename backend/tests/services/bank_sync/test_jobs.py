@@ -4,7 +4,9 @@ The claim and the due scan run as the worker, the app role with no request ident
 definer functions, and queueing runs as the connection's owner under row-level security, so these
 tests call each the same way. A job claimed twice would sync a connection twice at once, and a
 queued job started beside a running one would race it, and a merge that drops the links a job
-queued itself to plan last hands their failing requests back the next request that frees
+queued itself to plan last hands their failing requests back the next request that frees. A
+connection whose claim stopped mid-listing that the scan never finds due stays empty, and one it
+finds due while a listing is under way is listed twice
 """
 
 import uuid
@@ -29,6 +31,13 @@ async def _claim(limit: int) -> list:
         claimed = (await session.execute(_CLAIM, {"limit": limit})).all()
         await session.commit()
     return claimed
+
+
+async def _list_due(now: datetime) -> list[tuple]:
+    """Return the connections the due scan finds due at this time, as the worker reads them"""
+    async with ScopedSession() as worker:
+        due = await worker.execute(text("SELECT connection_id, owner_id FROM public.list_due_bank_connections(:now)"), {"now": now})
+        return [tuple(row) for row in due]
 
 
 async def test_claim_takes_initial_and_manual_jobs_before_retries_and_scheduled_ones(connections):
@@ -265,7 +274,7 @@ async def test_enqueue_while_a_job_runs_queues_one_job_behind_it(connections):
 
 
 async def test_list_due_bank_connections_returns_due_ones_across_owners_by_id(connections):
-    """Due connections come back as ids and owners, leaving those not due and those rejected"""
+    """Due connections, each listed a day ago, come back as ids and owners, leaving those not due and those rejected"""
     now = datetime(2026, 10, 4, 12, 0, tzinfo=UTC)
     async with TestSession() as session:
         for connection, next_sync_at, rejected_at in (
@@ -277,20 +286,57 @@ async def test_list_due_bank_connections_returns_due_ones_across_owners_by_id(co
             stored = await session.get(BankConnection, connection.id)
             stored.next_sync_at = next_sync_at
             stored.credential_rejected_at = rejected_at
+            stored.discovered_at = now - timedelta(days=1)
         await session.commit()
 
-    async with ScopedSession() as worker:
-        due = (
-            await worker.execute(
-                text("SELECT connection_id, owner_id FROM public.list_due_bank_connections(:now)"),
-                {"now": now},
-            )
-        ).all()
-
-    assert [tuple(row) for row in due] == [
+    assert await _list_due(now) == [
         (connections[1].id, connections[1].owner_id),
         (connections[0].id, connections[0].owner_id),
     ]
+
+
+@pytest.mark.parametrize(
+    ("values", "job", "due"),
+    [
+        ({"created_at": timedelta(hours=1)}, None, True),
+        ({"created_at": timedelta(minutes=59)}, None, False),
+        ({"discovery_failed_at": timedelta(hours=1)}, None, True),
+        ({"discovery_failed_at": timedelta(minutes=59)}, None, False),
+        ({"discovered_at": timedelta(days=2)}, None, False),
+        ({"credential_rejected_at": timedelta(hours=1)}, None, False),
+        ({}, {"status": BankSyncJobStatus.QUEUED}, False),
+        ({}, {"status": BankSyncJobStatus.RUNNING, "attempt": 1, "lease_expires_at": datetime(2026, 10, 4, 12, 5, tzinfo=UTC)}, False),
+        ({}, {"status": BankSyncJobStatus.SUCCEEDED, "attempt": 1, "finished_at": datetime(2026, 10, 4, 11, 55, tzinfo=UTC)}, True),
+    ],
+    ids=[
+        "claimed_an_hour_ago",
+        "claimed_59_minutes_ago",
+        "listing_failed_an_hour_ago",
+        "listing_failed_59_minutes_ago",
+        "listed_before",
+        "credential_rejected",
+        "job_queued",
+        "job_running",
+        "job_finished",
+    ],
+)
+async def test_list_due_bank_connections_returns_one_never_listed_once_nothing_is_under_way_for_an_hour(connections, values, job, due):
+    """A connection claimed a day ago whose bank accounts were never listed, and with no next sync, is due a listing
+
+    Not within an hour of its claim or of a listing that failed, while a job is queued or running for
+    it, once it was listed, or with its credential rejected
+    """
+    now = datetime(2026, 10, 4, 12, 0, tzinfo=UTC)
+    async with TestSession() as session:
+        stored = await session.get(BankConnection, connections[0].id)
+        stored.created_at = now - timedelta(days=1)
+        for field, ago in values.items():
+            setattr(stored, field, now - ago)
+        await session.commit()
+    if job is not None:
+        await _seed_job(connections[0], BankSyncJobKind.RETRY, discover=True, **job)
+
+    assert await _list_due(now) == ([(connections[0].id, connections[0].owner_id)] if due else [])
 
 
 async def test_record_bank_sync_scan_stamps_the_heartbeat_and_deletes_old_finished_jobs(connections):

@@ -13,7 +13,9 @@ Every job works it out again as it ends, so a link that changed outside a job, s
 at worst brings forward a sync that then finds nothing due and sends nothing
 
 The due scan queues a scheduled sync for each connection due one, as its owner, to run once the
-connection's request budget has a request free, merging into any sync already queued for it. Nothing
+connection's request budget has a request free, merging into any sync already queued for it. A
+connection whose bank accounts were never listed, which has no link to come due, is due a sync that
+lists them once nothing is under way for it, so a claim stopped mid-listing isn't left empty. Nothing
 here depends on a provider adapter, so another policy, such as syncing inactive users less often, can
 change who is due without touching ingestion
 """
@@ -31,6 +33,7 @@ from app.services.bank_sync.jobs import enqueue_bank_sync_job
 from app.services.bank_sync.provider_requests import read_request_budget
 from app.services.bank_sync.retries import is_waiting_to_retry
 from app.services.bank_sync.review_pause import is_paused_for_review
+from app.services.cache_state.updates import mark_user_cache_changed
 
 # A link up to date syncs again this long after its sync started
 DAILY_SYNC_INTERVAL = timedelta(hours=24)
@@ -77,7 +80,7 @@ async def queue_scheduled_sync(db: AsyncSession, connection_id: uuid.UUID, *, no
 
     A sync run while the budget is spent would only find no request and queue itself again, so it
     waits for the oldest request to leave the rolling day, or for the provider's word that its quota
-    is spent to run out
+    is spent to run out. A connection whose bank accounts were never listed has them listed first
 
     Args:
         db: The connection owner's session, which the caller commits
@@ -90,10 +93,16 @@ async def queue_scheduled_sync(db: AsyncSession, connection_id: uuid.UUID, *, no
     if connection is None:
         return
     budget = await read_request_budget(db, connection, now=now)
+    discover = connection.discovered_at is None
     await enqueue_bank_sync_job(
         db,
         owner_id=connection.owner_id,
         connection_id=connection.id,
         kind=BankSyncJobKind.SCHEDULED,
+        discover=discover,
         run_after=budget.available_again_at,
     )
+
+    # The connection now shows a listing pending, which the owner's open pages are told of
+    if discover:
+        await mark_user_cache_changed(db, connection.owner_id)

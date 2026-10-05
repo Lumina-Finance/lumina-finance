@@ -342,7 +342,10 @@ _HELPERS: tuple[_Helper, ...] = (
         f"{CLAIM_BANK_SYNC_JOBS}(integer)",
     ),
     # The connections due for a scheduled sync, by id and owner only. A rejected credential
-    # stops automatic sync until the user reconnects
+    # stops automatic sync until the user reconnects. A connection whose bank accounts were never
+    # listed, such as one whose claim stopped mid-listing, is due once nothing is queued or running
+    # for it and an hour has passed since it was claimed or its last listing failed, the age at
+    # which opening the link flow asks for a fresh listing, so a claim still listing isn't listed twice
     _Helper(
         f"""
     CREATE OR REPLACE FUNCTION {LIST_DUE_BANK_CONNECTIONS}(p_now timestamptz)
@@ -353,7 +356,18 @@ _HELPERS: tuple[_Helper, ...] = (
 
         RETURN QUERY
         SELECT c.id, c.owner_id FROM public.bank_connections c
-        WHERE c.next_sync_at <= p_now AND c.credential_rejected_at IS NULL
+        WHERE c.credential_rejected_at IS NULL
+            AND (
+                c.next_sync_at <= p_now
+                OR (
+                    c.discovered_at IS NULL
+                    AND GREATEST(c.created_at, c.discovery_failed_at) <= p_now - interval '1 hour'
+                    AND NOT EXISTS (
+                        SELECT 1 FROM public.bank_sync_jobs j
+                        WHERE j.connection_id = c.id AND j.status IN ('queued', 'running')
+                    )
+                )
+            )
         ORDER BY c.next_sync_at;
     END
     $$
