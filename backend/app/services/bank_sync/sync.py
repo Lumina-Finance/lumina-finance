@@ -19,7 +19,9 @@ does a job that ends on a rejected credential, which can't list anything
 Each attempt is recorded on the links it was for, as the retries module describes: a link brought
 up to date succeeded, and one a request or listing failed for, or a response didn't bring back
 whole, failed with the reason. A link fails at most once a job, so the halves of a window are one
-attempt for it, and every job that ends queues its connection's next retry
+attempt for it, and every job that ends queues its connection's next retry. A link brought up to
+date through today, or whose bank needs a sign-in, next syncs a day after the job started, as the
+schedule module describes, and every job that ends sets its connection's next scheduled sync
 
 What a job stores, the booked records each part brings back, the pending items a part ending today
 brings back, its checkpoints, discoveries and its own end, goes through lock_job_for_finish, so a
@@ -81,6 +83,7 @@ from app.services.bank_sync.provider_requests import (
 from app.services.bank_sync.providers.contract import ExternalAccount, FetchResult, ProviderAdapter, ProviderError
 from app.services.bank_sync.retries import is_waiting_to_retry, queue_next_retry, record_failed_attempt, record_successful_attempt
 from app.services.bank_sync.review_pause import apply_review_pauses
+from app.services.bank_sync.schedule import next_daily_sync, schedule_next_sync
 from app.services.bank_sync.windows import LinkNeed, SyncWindow, find_due_links, first_missing_day, plan_window
 from app.services.cache_state.updates import mark_user_cache_changed
 from app.services.fx.currency_exponent_helpers import get_all_currency_exponents
@@ -215,6 +218,10 @@ class _JobRun:
         self.currency_exponents = currency_exponents
         self.now = now
         self.today: date = now.astimezone(timezone).date()
+
+        # When the links this job brings up to date through today next sync, drawn once so the links
+        # it syncs together stay together
+        self.next_sync = next_daily_sync(now)
 
         # The links a part of this job didn't bring back whole, left out of the rest of it
         self.failed: set[uuid.UUID] = set()
@@ -461,7 +468,8 @@ class _JobRun:
         successful sync is stamped when the checkpoint moves, or when the part brought the link back
         whole through today, with the job's start, the moment today was read, so the day it falls on
         is never before the checkpoint. The attempt succeeded when it is stamped, and failed for each
-        link given a failure
+        link given a failure. A link the part brought through today next syncs a day on, while one
+        with days still to catch up stays due for the job's next window
 
         A part ending today also replaces the pending items of those links' accounts with what it
         found pending, whatever their checkpoints, since what is pending now doesn't depend on the
@@ -505,11 +513,11 @@ class _JobRun:
                     moved = True
                 if advanced or part.last_day == self.today:
                     link.last_success_at = self.now
-                    record_successful_attempt(link, at=sent_at)
+                    record_successful_attempt(link, at=sent_at, next_sync=self.next_sync if part.last_day == self.today else None)
                     succeeded.append(link)
             failed = [link for link in held if link.id in failures]
             for link in failed:
-                record_failed_attempt(link, failures[link.id], at=sent_at)
+                record_failed_attempt(link, failures[link.id], at=sent_at, next_sync=self.next_sync)
             clear_signin_needed(whole)
             signin_needed = [link for link in failed if failures[link.id].kind == ProviderErrorKind.BANK_LOGIN_NEEDED]
             emails = await flag_signin_needed(db, connection, signin_needed, at=sent_at)
@@ -712,11 +720,12 @@ async def _end_job(
 ) -> None:
     """Record a job as finished, or failed with an error, and queue the connection's next job in the same step when asked
 
-    The error is recorded as a failed attempt on the links it failed for, and the connection's next
-    retry is queued. A rejected credential marks the connection Reconnect needed, since the request
-    was checked against the credential the connection holds. The owner's open pages are told, since
-    the sync status changes with it. The action-needed emails the step recorded join the outbox as
-    it commits, for the caller to send
+    The error is recorded as a failed attempt on the links it failed for, the connection's next
+    retry is queued, and its next scheduled sync is set from what its links now wait for. A rejected
+    credential marks the connection Reconnect needed, since the request was checked against the
+    credential the connection holds. The owner's open pages are told, since the sync status changes
+    with it. The action-needed emails the step recorded join the outbox as it commits, for the
+    caller to send
 
     Args:
         job: The job as claimed
@@ -740,8 +749,9 @@ async def _end_job(
     async with async_session() as db:
         connection, held = await _hold_for_finish(db, job, failed if error is not None else (), sent_with=sent_with)
         now = datetime.now(UTC)
+        next_sync = next_daily_sync(started_at)
         for link in held:
-            record_failed_attempt(link, error, at=attempted_at or now)
+            record_failed_attempt(link, error, at=attempted_at or now, next_sync=next_sync)
         emails = []
         if error is not None and error.kind == ProviderErrorKind.CREDENTIAL_REJECTED:
             emails = await flag_rejected_credential(db, connection, at=attempted_at or now)
@@ -758,6 +768,7 @@ async def _end_job(
                 deferred_link_ids=deferred,
             )
         await queue_next_retry(db, connection, ended_by=error, overdue=retry_overdue, started_at=started_at, now=now)
+        await schedule_next_sync(db, connection, now=now)
         await finish_job(db, job, error)
         await mark_user_cache_changed(db, job.owner_id)
         await db.commit()

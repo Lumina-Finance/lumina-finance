@@ -1,12 +1,12 @@
 from collections.abc import Iterator
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 from freezegun import freeze_time
 
 from app.models.bank_connection import BankConnection
 from app.models.currency import Currency
-from app.services.bank_sync import sync, worker
+from app.services.bank_sync import schedule, sync, worker
 from tests.conftest import ScopedSession, TestSession
 from tests.routes.support.bank_sync_helpers import _build_bank_connection, _build_user
 from tests.services.bank_sync.stand_ins import FROZEN_NOW
@@ -38,6 +38,17 @@ async def connections() -> list[BankConnection]:
         session.add_all(built)
         await session.commit()
     return built
+
+
+@pytest.fixture
+def day_later(monkeypatch) -> timedelta:
+    """Draw every daily sync's random wait at its longest, so a link's next daily sync falls 24 and a half hours after its sync started
+
+    Returns:
+        How long after a sync starts the links it brought up to date next sync
+    """
+    monkeypatch.setattr(schedule, "randbelow", lambda limit: limit - 1)
+    return timedelta(hours=24, minutes=30)
 
 
 @pytest.fixture

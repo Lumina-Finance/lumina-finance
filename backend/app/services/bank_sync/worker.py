@@ -26,15 +26,11 @@ from app.config.bank_sync import BANK_SYNC_WORKER_CONCURRENCY, warn_if_test_orig
 from app.database import async_session, current_user_id_ctx, engine, verify_app_role_is_unprivileged
 from app.db.encryption_key import verify_key_matches_data
 from app.db.rls.functions import LIST_DUE_BANK_CONNECTIONS, MIGRATION_REVISIONS, RECORD_BANK_SYNC_SCAN
-from app.models.bank_sync_job import BankSyncJobKind, ProviderErrorKind
+from app.models.bank_sync_job import ProviderErrorKind
 from app.services.bank_sync.heartbeat import is_sync_worker_running
-from app.services.bank_sync.jobs import (
-    ClaimedJob,
-    JobNotHeld,
-    claim_bank_sync_job,
-    enqueue_bank_sync_job,
-)
+from app.services.bank_sync.jobs import ClaimedJob, JobNotHeld, claim_bank_sync_job
 from app.services.bank_sync.providers.contract import ProviderError
+from app.services.bank_sync.schedule import queue_scheduled_sync
 from app.services.bank_sync.sync import fail_sync_job, run_sync_job
 from app.services.email import build_email_sender, get_email_sender, set_email_sender
 
@@ -80,7 +76,8 @@ async def enqueue_due_work() -> None:
     """Queue a scheduled sync for each connection due one, then stamp the heartbeat and prune old jobs
 
     The due list comes through a definer function, since only the worker sees across users, and
-    each job is queued as its connection's owner, merging into any job already queued for it
+    each sync is queued as its connection's owner, for once a request is free, merging into any job
+    already queued for it, as the schedule module describes
     """
     now = datetime.now(UTC)
     async with async_session() as db:
@@ -89,7 +86,7 @@ async def enqueue_due_work() -> None:
     for connection_id, owner_id in due:
         with _acting_as(owner_id):
             async with async_session() as db:
-                await enqueue_bank_sync_job(db, owner_id=owner_id, connection_id=connection_id, kind=BankSyncJobKind.SCHEDULED)
+                await queue_scheduled_sync(db, connection_id, now=now)
                 await db.commit()
 
     async with async_session() as db:

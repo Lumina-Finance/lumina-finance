@@ -22,6 +22,12 @@ its balances, changes the user's money unseen, and a correction opened again for
 already decided keeps asking the same question. Something only the user can fix that isn't marked,
 or isn't emailed, leaves accounts silently stale, while one emailed twice, marked from a refusal of
 a credential since replaced, or whose failed email undoes the sync, nags or misleads the user
+
+The daily schedule, and the due scan that queues it, called on its own as a hosted runner calls it,
+come last. A link synced through today that is fetched again before tomorrow spends a request for
+nothing, one whose next sync is never set stops syncing, and a schedule that counts a paused,
+retrying or unchosen link, or queues a sync before a request frees, sends what the review pause,
+the retry series or the budget holds back
 """
 
 import asyncio
@@ -60,14 +66,15 @@ from app.models.transaction_link import TransactionLink
 from app.models.user import User
 from app.schemas.transaction import UpdateTransactionRequest
 from app.services.accounts.snapshots import recompute_account_snapshots
-from app.services.bank_sync import action_needed, availability, sync, worker
+from app.services.bank_sync import action_needed, availability, schedule, sync, worker
 from app.services.bank_sync.availability import PROVIDER_ADAPTERS
 from app.services.bank_sync.connections import build_connection_responses
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
 from app.services.bank_sync.provider_requests import reserve_provider_request
 from app.services.bank_sync.providers.contract import ExternalAccount, FetchResult, ProviderError, ProviderRecord
 from app.services.bank_sync.review_pause import lift_review_pauses, lock_account_links
-from app.services.bank_sync.worker import run_jobs
+from app.services.bank_sync.schedule import next_daily_sync, queue_scheduled_sync, schedule_next_sync
+from app.services.bank_sync.worker import enqueue_due_work, run_jobs
 from app.services.email import RenderedEmail
 from app.services.email import contract as email_contract
 from app.services.merchants.defaults import SELF_MERCHANT_NAME
@@ -106,6 +113,10 @@ _TODAY = date(2026, 10, 4)
 # West of UTC without clock changes, where the frozen clock reads 8 pm on 3 October, already
 # 4 October in UTC, so a day taken in the wrong timezone shows
 _PHOENIX = ZoneInfo("America/Phoenix")
+
+# Where clocks go forward an hour at 2 am on 4 October, so a time worked out on the clock rather
+# than in elapsed time shows
+_SYDNEY = ZoneInfo("Australia/Sydney")
 
 # Yesterday's daily sync, which left a link complete through 3 October
 _YESTERDAYS_SYNC = datetime(2026, 10, 3, 9, 0, tzinfo=_BRISBANE)
@@ -316,6 +327,33 @@ async def _set_discovered_at(connection: BankConnection, discovered_at: datetime
     """Commit when the connection's bank accounts were last listed"""
     async with TestSession() as session:
         await session.execute(update(BankConnection).where(BankConnection.id == connection.id).values(discovered_at=discovered_at))
+        await session.commit()
+
+
+async def _bring_next_syncs_round(connection: BankConnection, at: datetime) -> None:
+    """Commit each of the connection's links as next syncing at this time, as a day passing would, though the clock is frozen"""
+    async with TestSession() as session:
+        await session.execute(update(BankAccountLink).where(BankAccountLink.connection_id == connection.id).values(next_attempt_at=at))
+        await session.commit()
+
+
+async def _next_sync(connection: BankConnection) -> datetime | None:
+    """Return the connection's committed next scheduled sync"""
+    async with TestSession() as session:
+        return await session.scalar(select(BankConnection.next_sync_at).where(BankConnection.id == connection.id))
+
+
+async def _set_next_sync(connection: BankConnection, at: datetime) -> None:
+    """Commit the connection's next scheduled sync, as the job before set it"""
+    async with TestSession() as session:
+        await session.execute(update(BankConnection).where(BankConnection.id == connection.id).values(next_sync_at=at))
+        await session.commit()
+
+
+async def _schedule_next_sync(connection: BankConnection, now: datetime) -> None:
+    """Work out and commit the connection's next scheduled sync as its owner, as a job ending does"""
+    async with _owner_session(connection.owner_id) as session:
+        await schedule_next_sync(session, await session.get(BankConnection, connection.id), now=now)
         await session.commit()
 
 
@@ -712,11 +750,13 @@ def _reported_a_problem() -> ProviderError:
     return ProviderError(ProviderErrorKind.TEMPORARY, "SimpleFIN Bridge reported a problem")
 
 
-async def test_job_syncs_the_bank_accounts_it_brought_back_whole_and_retries_the_others_30_minutes_on(connection, provider, frozen_now):
+async def test_job_syncs_the_bank_accounts_it_brought_back_whole_and_retries_the_others_30_minutes_on(
+    connection, provider, frozen_now, day_later
+):
     """At 1 pm Everyday comes back whole, while Savings has an error of its own and Travel didn't come back
 
-    Everyday reads as synced now. Savings and Travel keep yesterday's last sync, show why this attempt
-    failed and are retried at 1:30 pm, which the queued retry waits for
+    Everyday reads as synced now and next syncs tomorrow. Savings and Travel keep yesterday's last
+    sync, show why this attempt failed and are retried at 1:30 pm, which the queued retry waits for
     """
     everyday, savings, travel = [
         await _link(connection, name, **_synced_through_yesterday()) for name in ("ACT-everyday", "ACT-savings", "ACT-travel")
@@ -732,7 +772,7 @@ async def test_job_syncs_the_bank_accounts_it_brought_back_whole_and_retries_the
 
     retry_at = frozen_now + timedelta(minutes=30)
     assert await _attempts(everyday, savings, travel) == [
-        (frozen_now, frozen_now, None, 0, None),
+        (frozen_now, frozen_now, None, 0, frozen_now + day_later),
         (_YESTERDAYS_SYNC, frozen_now, "SimpleFIN Bridge reported a problem", 1, retry_at),
         (_YESTERDAYS_SYNC, frozen_now, "Fake Bank didn't return this account", 1, retry_at),
     ]
@@ -816,11 +856,14 @@ async def test_job_queues_a_retry_due_while_no_request_is_free_for_when_one_free
     assert await _queued_jobs() == [("retry", oldest + timedelta(hours=24) - frozen_now, False)]
 
 
-async def test_job_for_a_retry_due_while_the_budget_is_spent_records_no_attempt_and_runs_once_a_request_frees(connection, provider, frozen_now):
+async def test_job_for_a_retry_due_while_the_budget_is_spent_records_no_attempt_and_runs_once_a_request_frees(
+    connection, provider, frozen_now, day_later
+):
     """The third retry is due at 1 pm with no request free until 5:10 pm, so nothing is sent and the link still shows its last failure
 
     Waiting for a request is no attempt, so the series doesn't move on. Once a request frees the
-    retry brings the bank account back whole, which ends the series
+    retry brings the bank account back whole, which ends the series and puts it back on the daily
+    schedule
     """
     failed_at = frozen_now - timedelta(minutes=90)
     link = await _link(
@@ -845,17 +888,18 @@ async def test_job_for_a_retry_due_while_the_budget_is_spent_records_no_attempt_
     await _run_jobs_until_none_is_due()
 
     assert len(provider.fetches) == 1
-    assert await _attempts(link) == [(frozen_now, frozen_now, None, 0, None)]
+    assert await _attempts(link) == [(frozen_now, frozen_now, None, 0, frozen_now + day_later)]
     assert await _queued_jobs() == []
 
 
-@pytest.mark.parametrize("returned", [True, False], ids=["listed_with_an_error_of_its_own", "left_out_of_the_response"])
-async def test_job_starts_no_retry_series_for_a_bank_account_whose_bank_needs_a_sign_in(connection, provider, frozen_now, returned):
+@pytest.mark.parametrize("answer", ["listed_with_an_error_of_its_own", "left_out_of_the_response", "the_whole_request_failed"])
+async def test_job_starts_no_retry_series_for_a_bank_account_whose_bank_needs_a_sign_in(connection, provider, frozen_now, day_later, answer):
     """Card's first retry finds its bank login needing a sign-in, and retrying can't fix a sign-in
 
     The response lists Card with an error of its own as well, or leaves it out, when the bank login
-    its listing stored names it. Either way Card shows the sign-in as why it failed and leaves its
-    retry series, and no retry is queued
+    its listing stored names it, or the whole request fails with the sign-in. Either way Card shows
+    the sign-in as why it failed and leaves its retry series for the daily schedule, so no retry is
+    queued and the connection's next sync is a day on, when the user may have signed in
     """
     card = await _link(connection, "ACT-card", **_synced_through_yesterday(retry_count=1, next_attempt_at=frozen_now))
     listed = _build_external_account(connection, "ACT-card")
@@ -863,19 +907,23 @@ async def test_job_starts_no_retry_series_for_a_bank_account_whose_bank_needs_a_
     async with TestSession() as session:
         session.add(listed)
         await session.commit()
+    sign_in = ProviderError(ProviderErrorKind.BANK_LOGIN_NEEDED, "Sign in to your bank again")
     provider.outcomes = [
-        FetchResult(
-            accounts=(_bank_account("ACT-card", login_key="CON-card"),) if returned else (),
-            account_errors={"ACT-card": _reported_a_problem()} if returned else {},
-            login_errors={"CON-card": ProviderError(ProviderErrorKind.BANK_LOGIN_NEEDED, "Sign in to your bank again")},
+        FetchResult(request_error=sign_in)
+        if answer == "the_whole_request_failed"
+        else FetchResult(
+            accounts=(_bank_account("ACT-card", login_key="CON-card"),) if answer == "listed_with_an_error_of_its_own" else (),
+            account_errors={"ACT-card": _reported_a_problem()} if answer == "listed_with_an_error_of_its_own" else {},
+            login_errors={"CON-card": sign_in},
         )
     ]
     await _seed_job(connection, BankSyncJobKind.RETRY)
 
     await _run_jobs_until_none_is_due()
 
-    assert await _attempts(card) == [(_YESTERDAYS_SYNC, frozen_now, "Sign in to your bank again", 0, None)]
+    assert await _attempts(card) == [(_YESTERDAYS_SYNC, frozen_now, "Sign in to your bank again", 0, frozen_now + day_later)]
     assert await _queued_jobs() == []
+    assert await _next_sync(connection) == frozen_now + day_later
 
 
 async def test_job_whose_request_met_a_payment_problem_starts_no_retry_series(connection, provider, frozen_now, day_later):
@@ -1124,7 +1172,7 @@ async def _signin_marks(*links: BankAccountLink) -> list[datetime | None]:
 
 
 async def test_job_finding_a_bank_login_needs_a_sign_in_marks_its_accounts_and_emails_once_while_the_others_sync(
-    connection, provider, frozen_now, sent_action_emails
+    connection, provider, frozen_now, day_later, sent_action_emails
 ):
     """SimpleFIN Bridge says the Chase login needs a sign-in, on a connection that also holds an Amex login
 
@@ -1145,9 +1193,9 @@ async def test_job_finding_a_bank_login_needs_a_sign_in_marks_its_accounts_and_e
     names = ("ACT-amex", "ACT-chase-card", "ACT-chase-checking")
     assert _emailed(sent_action_emails, *names) == [_email(_SIGNIN_SUBJECT, "ACT-chase-card", "ACT-chase-checking")]
     assert [attempt[1:] for attempt in await _attempts(checking, card, amex)] == [
-        (frozen_now, _SIGNIN_REASON, 0, None),
-        (frozen_now, _SIGNIN_REASON, 0, None),
-        (frozen_now, None, 0, None),
+        (frozen_now, _SIGNIN_REASON, 0, frozen_now + day_later),
+        (frozen_now, _SIGNIN_REASON, 0, frozen_now + day_later),
+        (frozen_now, None, 0, frozen_now + day_later),
     ]
     assert await _queued_jobs() == []
 
@@ -1232,7 +1280,7 @@ async def test_job_whose_request_needs_a_bank_sign_in_marks_every_account_in_it_
 
 
 async def test_job_bringing_a_bank_login_back_clears_its_sign_in_and_emails_again_when_the_bank_next_asks(
-    connection, provider, frozen_now, sent_action_emails
+    connection, provider, frozen_now, day_later, sent_action_emails
 ):
     """The user signed in to Chase again in SimpleFIN Bridge, and the next daily sync brings Chase Checking back whole
 
@@ -1255,9 +1303,10 @@ async def test_job_bringing_a_bank_login_back_clears_its_sign_in_and_emails_agai
 
     assert _fetched(provider) == [_window(date(2026, 9, 19), _TODAY, ["ACT-chase-checking"], pending=True)]
     assert await _signin_marks(checking) == [None]
-    assert [attempt[1:] for attempt in await _attempts(checking)] == [(frozen_now, None, 0, None)]
+    assert [attempt[1:] for attempt in await _attempts(checking)] == [(frozen_now, None, 0, frozen_now + day_later)]
 
     provider.outcomes = [FetchResult(login_errors={"CON-chase": _signin_needed()})]
+    await _bring_next_syncs_round(connection, frozen_now)
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
     await _run_jobs_until_none_is_due()
 
@@ -1721,23 +1770,27 @@ async def test_job_queues_a_retry_that_fell_due_while_it_ran_to_run_at_once(conn
     assert await _queued_jobs() == [("retry", timedelta(0), False)]
 
 
-async def test_job_leaving_a_due_retry_for_links_that_can_progress_retries_it_at_once(connection, provider, frozen_now):
+async def test_job_leaving_a_due_retry_for_links_that_can_progress_retries_it_at_once(connection, provider, frozen_now, day_later):
     """Card failed in an earlier job and its retry is due, so this job plans it last, and Everyday's re-read reaches today without it
 
-    The retry is queued again at once, with Card no longer held back, so the next job brings it back whole
+    The retry is queued again at once, with Card no longer held back, so the next job brings Card
+    back whole, leaving Everyday, synced through today, for tomorrow
     """
     everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
     card = await _link(connection, "ACT-card", **_synced_through_yesterday(retry_count=1, next_attempt_at=frozen_now))
-    provider.outcomes = [_returned("ACT-everyday"), _returned("ACT-card", "ACT-everyday")]
+    provider.outcomes = [_returned("ACT-everyday"), _returned("ACT-card")]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED, deferred_link_ids=[card.id])
 
     await _run_jobs_until_none_is_due()
 
     assert _fetched(provider) == [
         _window(date(2026, 9, 19), _TODAY, ["ACT-everyday"], pending=True),
-        _window(date(2026, 9, 19), _TODAY, ["ACT-card", "ACT-everyday"], pending=True),
+        _window(date(2026, 9, 19), _TODAY, ["ACT-card"], pending=True),
     ]
-    assert [attempt[2:] for attempt in await _attempts(everyday, card)] == [(None, 0, None), (None, 0, None)]
+    assert [attempt[2:] for attempt in await _attempts(everyday, card)] == [
+        (None, 0, frozen_now + day_later),
+        (None, 0, frozen_now + day_later),
+    ]
 
 
 async def test_job_leaving_a_link_whose_bank_needs_a_sign_in_queues_nothing(connection, provider, frozen_now):
@@ -2033,7 +2086,6 @@ async def test_job_stores_nothing_for_a_bank_account_a_fetch_lists_in_another_cu
             )
         ),
         FetchResult(accounts=(_bank_account("ACT-everyday", currency="JPY"), _bank_account("ACT-savings"))),
-        _returned("ACT-savings"),
     ]
     await _seed_job(connection, BankSyncJobKind.MANUAL)
 
@@ -2049,7 +2101,8 @@ async def test_job_stores_nothing_for_a_bank_account_a_fetch_lists_in_another_cu
 
     await _run_jobs_until_none_is_due()
 
-    assert (len(provider.discoveries), len(provider.fetches)) == (1, 2)
+    # Savings, synced through today, waits for tomorrow, so the listing is all the next job sends
+    assert (len(provider.discoveries), len(provider.fetches)) == (1, 1)
     assert await _link_states(everyday, savings) == ["choose_account", "active"]
     assert await _bank_transactions(BankTransaction.external_transaction_id) == [("TRN-interest",)]
 
@@ -2483,7 +2536,7 @@ async def test_job_keeps_an_amount_it_cant_store_exactly_as_the_bank_sent_it_and
 
 
 async def test_job_reading_the_same_records_again_keeps_one_unchanged_item_each(connection, provider, frozen_now):
-    """Sync now re-reads the days the daily sync read a day earlier, and the same coffee and the same unstorable -12.345 come back
+    """The next daily sync re-reads the days the one before read, and the same coffee and the same unstorable -12.345 come back
 
     Each stays one item, untouched, so a bulk approval previewed in between still applies to it
     """
@@ -2493,14 +2546,15 @@ async def test_job_reading_the_same_records_again_keeps_one_unchanged_item_each(
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
     await _run_jobs_until_none_is_due()
 
-    # The clock is frozen, so the daily sync is moved a day back for a needless refresh to show
+    # The clock is frozen, so the first sync is moved a day back for a needless refresh to show
     async with TestSession() as session:
         await session.execute(update(BankTransaction).values(observed_at=frozen_now - timedelta(days=1)))
         await session.commit()
     columns = (BankTransaction.external_transaction_id, BankTransaction.id, BankTransaction.version, BankTransaction.observed_at)
     stored = await _bank_transactions(*columns)
 
-    await _seed_job(connection, BankSyncJobKind.MANUAL)
+    await _bring_next_syncs_round(connection, frozen_now)
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
     await _run_jobs_until_none_is_due()
 
     assert len(provider.fetches) == 2
@@ -2582,7 +2636,7 @@ async def test_job_puts_no_pending_or_removed_record_in_the_review_inbox(connect
     assert await _bank_transactions(BankTransaction.external_transaction_id) == [("TRN-coffee",)]
 
 
-async def test_job_replaces_each_accounts_pending_items_with_those_still_pending_at_the_bank(connection, provider):
+async def test_job_replaces_each_accounts_pending_items_with_those_still_pending_at_the_bank(connection, provider, frozen_now):
     """A sync finds COFFEE, SHELL and a hotel hold pending at Everyday and a refund pending at Card, each kept for its own account
 
     By the next sync the coffee posted under a new ID, the hotel hold was dropped and Card has nothing
@@ -2603,7 +2657,8 @@ async def test_job_replaces_each_accounts_pending_items_with_those_still_pending
     await _run_jobs_until_none_is_due()
     after_the_first_sync = await _pending_transactions(*columns)
 
-    await _seed_job(connection, BankSyncJobKind.MANUAL)
+    await _bring_next_syncs_round(connection, frozen_now)
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
     await _run_jobs_until_none_is_due()
 
     assert after_the_first_sync == [
@@ -2858,10 +2913,10 @@ async def _waiting(link: BankAccountLink) -> int:
         )
 
 
-async def test_job_that_leaves_100_new_items_waiting_pauses_that_account_alone(connection, provider):
+async def test_job_that_leaves_100_new_items_waiting_pauses_that_account_alone(connection, provider, frozen_now):
     """Everyday has 96 new items waiting, and the daily sync brings 12 more: all 12 are kept and Everyday pauses at 108
 
-    The next sync leaves Everyday out, while Savings, on the same connection, keeps syncing
+    The next day's sync leaves Everyday out, while Savings, on the same connection, keeps syncing
     """
     everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
     savings = await _link(connection, "ACT-savings", **_synced_through_yesterday())
@@ -2870,6 +2925,7 @@ async def test_job_that_leaves_100_new_items_waiting_pauses_that_account_alone(c
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
     await _run_jobs_until_none_is_due()
 
+    await _bring_next_syncs_round(connection, frozen_now)
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
     await _run_jobs_until_none_is_due()
 
@@ -3048,6 +3104,7 @@ async def test_job_tries_a_paused_links_import_daily_while_its_bank_needs_a_sign
     assert await _signin_marks(link) == [frozen_now]
     assert await _queued_jobs() == []
 
+    await _bring_next_syncs_round(connection, frozen_now)
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
     await _run_jobs_until_none_is_due()
 
@@ -3226,7 +3283,7 @@ async def _trust(link: BankAccountLink, *changes: str) -> None:
         await session.commit()
 
 
-async def test_job_proposes_a_bank_change_to_a_transaction_in_the_ledger_and_keeps_the_approved_value(connection, provider):
+async def test_job_proposes_a_bank_change_to_a_transaction_in_the_ledger_and_keeps_the_approved_value(connection, provider, frozen_now):
     """The bank re-sends the $4.50 coffee the user added as $4.75, now under the merchant name Blue Bottle Coffee
 
     With corrections set to review, the ledger keeps $4.50 and one correction opens, for the amount
@@ -3241,7 +3298,8 @@ async def test_job_proposes_a_bank_change_to_a_transaction_in_the_ledger_and_kee
     await _run_jobs_until_none_is_due()
     after_the_change = await _bank_transactions(*columns)
 
-    await _seed_job(connection, BankSyncJobKind.MANUAL)
+    await _bring_next_syncs_round(connection, frozen_now)
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
     await _run_jobs_until_none_is_due()
 
     assert len(provider.fetches) == 2
@@ -3314,7 +3372,7 @@ async def test_job_proposes_a_new_bank_description_on_its_own(connection, provid
     assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_50)]
 
 
-async def test_job_widens_an_open_correction_and_keeps_comparing_with_the_values_added(connection, provider):
+async def test_job_widens_an_open_correction_and_keeps_comparing_with_the_values_added(connection, provider, frozen_now):
     """A correction to $4.75 waits, then the bank moves the coffee to 3 October, then changes it to $5.00
 
     Each change joins the same correction, which still compares with the $4.50 on 2 October the user
@@ -3331,7 +3389,8 @@ async def test_job_widens_an_open_correction_and_keeps_comparing_with_the_values
     await _run_jobs_until_none_is_due()
     widened = await _bank_transactions(*columns)
 
-    await _seed_job(connection, BankSyncJobKind.MANUAL)
+    await _bring_next_syncs_round(connection, frozen_now)
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
     await _run_jobs_until_none_is_due()
 
     added = {"date": "2026-10-02", "amount": -4_50}
@@ -3602,7 +3661,7 @@ async def test_job_storing_while_the_user_keeps_the_current_value_compares_with_
     assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_50)]
 
 
-async def test_job_asks_about_a_declined_value_again_once_the_bank_has_since_matched_the_ledger(connection, provider):
+async def test_job_asks_about_a_declined_value_again_once_the_bank_has_since_matched_the_ledger(connection, provider, frozen_now):
     """The user kept $4.50 over the bank's $4.75, the bank then agreed on $4.50, and now says $4.75 again
 
     The bank agreeing with the ledger ended what the user declined, so $4.75 is a new change and a correction opens for it
@@ -3616,7 +3675,8 @@ async def test_job_asks_about_a_declined_value_again_once_the_bank_has_since_mat
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
     await _run_jobs_until_none_is_due()
 
-    await _seed_job(connection, BankSyncJobKind.MANUAL)
+    await _bring_next_syncs_round(connection, frozen_now)
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
     await _run_jobs_until_none_is_due()
 
     assert len(provider.fetches) == 2
@@ -3882,8 +3942,8 @@ async def test_job_deletes_a_trusted_removal_of_a_refund_linked_row_with_its_lin
         assert await session.scalar(select(func.count()).select_from(TransactionLink)) == 0
 
 
-async def test_job_takes_out_an_item_the_provider_withdraws_and_brings_the_same_transaction_back_as_new(connection, provider):
-    """The provider removes the groceries while they wait in the inbox, and the next sync sends them again as posted
+async def test_job_takes_out_an_item_the_provider_withdraws_and_brings_the_same_transaction_back_as_new(connection, provider, frozen_now):
+    """The provider removes the groceries while they wait in the inbox, and the next daily sync sends them again as posted
 
     They leave the inbox with no task and nothing in the ledger, then arrive as a new item awaiting
     review, under a new id
@@ -3896,7 +3956,8 @@ async def test_job_takes_out_an_item_the_provider_withdraws_and_brings_the_same_
     await _run_jobs_until_none_is_due()
     after_the_removal = await _bank_transactions(*columns)
 
-    await _seed_job(connection, BankSyncJobKind.MANUAL)
+    await _bring_next_syncs_round(connection, frozen_now)
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
     await _run_jobs_until_none_is_due()
 
     assert after_the_removal == []
@@ -4158,3 +4219,258 @@ async def test_job_withdrawing_an_item_the_user_is_adding_waits_and_opens_a_remo
         (item_id, BankTransactionDisposition.ACCEPTED, OpenReviewKind.REMOVAL, None, frozen_now)
     ]
     assert await _ledger_rows(link.account_id) == [(added[1], -42_00)]
+
+
+@pytest.mark.parametrize(("draw", "after"), [("shortest", timedelta(hours=24)), ("longest", timedelta(hours=24, minutes=30))])
+def test_next_daily_sync_falls_24_hours_on_plus_a_random_0_to_30_minutes(monkeypatch, draw, after):
+    """A sync at 9 am on 3 October next runs between 9 and 9:30 am on 4 October, both ends included"""
+    monkeypatch.setattr(schedule, "randbelow", lambda limit: 0 if draw == "shortest" else limit - 1)
+
+    assert next_daily_sync(_YESTERDAYS_SYNC) == _YESTERDAYS_SYNC + after
+
+
+def test_next_daily_sync_draws_its_wait_afresh_each_time():
+    """Twenty syncs started together don't all next run at the same moment, so connections spread out rather than land on the hour
+
+    Twenty draws from 1,801 seconds all landing on one is too unlikely to make this flaky
+    """
+    assert len({next_daily_sync(_YESTERDAYS_SYNC) for _ in range(20)}) > 1
+
+
+@pytest.mark.parametrize(
+    ("timezone", "started_at", "today", "next_sync"),
+    [
+        (_BRISBANE, datetime(2026, 10, 4, 13, tzinfo=_BRISBANE), _TODAY, datetime(2026, 10, 5, 13, 30, tzinfo=_BRISBANE)),
+        (_PHOENIX, datetime(2026, 10, 3, 20, tzinfo=_PHOENIX), date(2026, 10, 3), datetime(2026, 10, 4, 20, 30, tzinfo=_PHOENIX)),
+        (_SYDNEY, datetime(2026, 10, 4, 1, tzinfo=_SYDNEY), _TODAY, datetime(2026, 10, 5, 2, 30, tzinfo=_SYDNEY)),
+    ],
+    ids=["brisbane", "phoenix_a_day_behind_utc", "sydney_as_clocks_go_forward"],
+)
+@pytest.mark.usefixtures("day_later")
+async def test_job_bringing_a_link_through_today_sets_its_next_sync_a_day_on(connection, provider, timezone, started_at, today, next_sync):
+    """A daily sync brings Everyday through today in the owner's timezone, and Everyday and its connection next sync 24 and a half hours on
+
+    In Phoenix, where it's still 3 October, today is the 3rd though UTC has reached the 4th. In
+    Sydney, a sync at 1 am on the day clocks go forward an hour next runs at 2:30 am, a day of
+    elapsed time on, not at 1:30 am by the clock
+    """
+    await _set_owner_timezone(connection, timezone)
+    link = await _link(connection, "ACT-everyday", **_synced_through_yesterday(next_attempt_at=started_at))
+    provider.outcomes = [_returned("ACT-everyday")]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    with freeze_time(started_at, real_asyncio=True):
+        await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [_window(date(2026, 9, 19), today, ["ACT-everyday"], pending=True, timezone=timezone)]
+    assert [next_attempt for *_, next_attempt in await _attempts(link)] == [next_sync]
+    assert await _next_sync(connection) == next_sync
+
+
+async def test_job_brings_links_due_within_12_hours_onto_one_daily_sync(connection, provider, frozen_now, day_later):
+    """Everyday is due at 1 pm and Savings at 9:28 pm, so the 1 pm sync takes both in one request and both next sync together
+
+    Travel, due at 1:01 am tomorrow, 12 hours and a minute away, isn't taken in, so the connection's
+    next sync is Travel's, the earliest among its links
+    """
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday(next_attempt_at=frozen_now))
+    savings = await _link(connection, "ACT-savings", **_synced_through_yesterday(next_attempt_at=frozen_now + timedelta(hours=8, minutes=28)))
+    travel_due = frozen_now + timedelta(hours=12, minutes=1)
+    travel = await _link(connection, "ACT-travel", **_synced_through_yesterday(next_attempt_at=travel_due))
+    provider.outcomes = [_returned("ACT-everyday", "ACT-savings")]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [_window(date(2026, 9, 19), _TODAY, ["ACT-everyday", "ACT-savings"], pending=True)]
+    assert [next_attempt for *_, next_attempt in await _attempts(everyday, savings, travel)] == [
+        frozen_now + day_later,
+        frozen_now + day_later,
+        travel_due,
+    ]
+    assert await _next_sync(connection) == travel_due
+
+
+@pytest.mark.parametrize(
+    ("values", "joins"),
+    [
+        ({}, True),
+        ({"paused": True}, False),
+        ({"paused": True, "importing": True}, True),
+        ({"retry_count": 1}, False),
+        ({"state": BankLinkState.CHOOSE_ACCOUNT}, False),
+        ({"state": BankLinkState.UNLINKED, "unlinked_at": datetime(2026, 10, 1, tzinfo=UTC)}, False),
+    ],
+    ids=["active", "paused_for_review", "importing_though_paused", "waiting_to_retry", "waiting_for_its_bank_account", "unlinked"],
+)
+async def test_connections_next_sync_is_the_earliest_among_links_on_the_daily_schedule(connection, frozen_now, values, joins):
+    """Savings next syncs 13 hours from now and Everyday 20, so the connection next syncs in 13 hours while Savings is on the daily schedule
+
+    A link the review pause holds back, one waiting to retry, whose retry queues its own sync, and
+    one that can't sync leave the schedule to Everyday. An import runs whatever the pause
+    """
+    await _link(connection, "ACT-everyday", **_synced_through_yesterday(next_attempt_at=frozen_now + timedelta(hours=20)))
+    await _link(connection, "ACT-savings", **_synced_through_yesterday(next_attempt_at=frozen_now + timedelta(hours=13)) | values)
+
+    await _schedule_next_sync(connection, frozen_now)
+
+    assert await _next_sync(connection) == frozen_now + timedelta(hours=13 if joins else 20)
+
+
+@pytest.mark.parametrize(
+    ("savings", "next_sync"),
+    [({"next_attempt_at": None}, timedelta(0)), ({"paused": True}, None)],
+    ids=["link_with_no_next_attempt", "every_link_paused"],
+)
+async def test_connections_next_sync_is_now_for_a_link_with_no_next_attempt_and_none_with_no_link_on_the_schedule(
+    connection, frozen_now, savings, next_sync
+):
+    """Everyday is paused, and Savings, with no next attempt set, is due at once, or is paused too, leaving the connection no next sync"""
+    await _link(connection, "ACT-everyday", **_synced_through_yesterday(paused=True, next_attempt_at=frozen_now))
+    await _link(connection, "ACT-savings", **_synced_through_yesterday(next_attempt_at=frozen_now) | savings)
+
+    await _schedule_next_sync(connection, frozen_now)
+
+    assert await _next_sync(connection) == (None if next_sync is None else frozen_now + next_sync)
+
+
+async def test_scan_queues_one_scheduled_sync_once_a_day_has_passed_since_the_last(connection, provider, frozen_now, day_later):
+    """Everyday's sync at 12:30 pm on 3 October sets its connection's next sync for 1 pm on the 4th
+
+    A scan at 12:59 pm queues nothing, the first scan from 1 pm queues a scheduled sync to run at
+    once, and the scan after merges into it, so the connection still has one queued
+    """
+    started_at = frozen_now - day_later
+    await _link(
+        connection,
+        "ACT-everyday",
+        **_synced_through_yesterday(checkpoint=date(2026, 10, 2), last_success_at=datetime(2026, 10, 2, 12, 30, tzinfo=_BRISBANE)),
+    )
+    provider.outcomes = [_returned("ACT-everyday")]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+    with freeze_time(started_at, real_asyncio=True):
+        await _run_jobs_until_none_is_due()
+    with freeze_time(frozen_now - timedelta(minutes=1), real_asyncio=True):
+        await enqueue_due_work()
+    queued_before = await _queued_jobs()
+
+    await enqueue_due_work()
+    queued_at = await _queued_jobs()
+    await enqueue_due_work()
+
+    assert await _next_sync(connection) == frozen_now
+    assert queued_before == []
+    assert queued_at == [("scheduled", timedelta(0), False)]
+    assert await _queued_jobs() == [("scheduled", timedelta(0), False)]
+
+
+@pytest.mark.parametrize("cause", ["budget_spent", "provider_quota_spent"])
+async def test_scan_queues_a_scheduled_sync_due_while_no_request_is_free_for_when_one_frees(connection, provider, frozen_now, cause):
+    """Everyday's daily sync is due at 1 pm with no request free until 5 pm, as the rolling day is spent or the provider said so
+
+    The scan queues the sync for 5 pm, so nothing runs before then to find the budget spent
+    """
+    await _link(connection, "ACT-everyday", **_synced_through_yesterday(next_attempt_at=frozen_now))
+    await _set_next_sync(connection, frozen_now)
+    if cause == "budget_spent":
+        await _spend_requests(connection, _DAILY_REQUESTS, frozen_now - timedelta(hours=20))
+    else:
+        async with TestSession() as session:
+            stored = await session.get(BankConnection, connection.id)
+            stored.request_budget_spent_until = frozen_now + timedelta(hours=4)
+            await session.commit()
+
+    await enqueue_due_work()
+
+    assert await _queued_jobs() == [("scheduled", timedelta(hours=4), False)]
+    assert await run_jobs(1) == 0
+    assert provider.fetches == []
+
+
+async def test_scan_queues_nothing_for_a_connection_whose_credential_was_rejected(connection, provider, frozen_now):
+    """Everyday's daily sync is due, but SimpleFIN rejected the connection's credential, so nothing runs until the user reconnects"""
+    await _link(connection, "ACT-everyday", **_synced_through_yesterday(next_attempt_at=frozen_now))
+    await _set_next_sync(connection, frozen_now)
+    async with TestSession() as session:
+        (await session.get(BankConnection, connection.id)).credential_rejected_at = frozen_now - timedelta(days=1)
+        await session.commit()
+
+    await enqueue_due_work()
+
+    assert await _queued_jobs() == []
+
+
+@pytest.mark.parametrize("savings_paused", [False, True], ids=["savings_active", "both_paused"])
+async def test_daily_sync_leaves_out_an_account_paused_for_review_and_none_is_queued_once_every_one_is(
+    connection, provider, frozen_now, day_later, savings_paused
+):
+    """Everyday is paused with new items waiting, so the daily sync covers Savings alone and next runs a day on
+
+    With Savings paused too, the sync due sends nothing and leaves the connection no next sync, so
+    the next scan queues none
+    """
+    paused = {"paused": True, "next_attempt_at": frozen_now}
+    await _link(connection, "ACT-everyday", **_synced_through_yesterday(**paused))
+    await _link(connection, "ACT-savings", **_synced_through_yesterday(**(paused if savings_paused else {"next_attempt_at": frozen_now})))
+    await _set_next_sync(connection, frozen_now)
+    provider.outcomes = [_returned("ACT-savings")]
+
+    await enqueue_due_work()
+    await _run_jobs_until_none_is_due()
+    await enqueue_due_work()
+
+    assert _fetched(provider) == ([] if savings_paused else [_window(date(2026, 9, 19), _TODAY, ["ACT-savings"], pending=True)])
+    assert await _next_sync(connection) == (None if savings_paused else frozen_now + day_later)
+    assert await _queued_jobs() == []
+
+
+async def test_scan_queueing_the_daily_sync_sends_no_link_ahead_of_its_retry(connection, provider, frozen_now, day_later):
+    """Everyday's daily sync is due at 1 pm and Card retries at 1:30 pm: the 1 pm sync fetches Everyday alone, and Card's retry waits"""
+    await _link(connection, "ACT-everyday", **_synced_through_yesterday(next_attempt_at=frozen_now))
+    await _link(connection, "ACT-card", **_synced_through_yesterday(retry_count=1, next_attempt_at=frozen_now + timedelta(minutes=30)))
+    await _set_next_sync(connection, frozen_now)
+    provider.outcomes = [_returned("ACT-everyday")]
+
+    await enqueue_due_work()
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [_window(date(2026, 9, 19), _TODAY, ["ACT-everyday"], pending=True)]
+    assert await _queued_jobs() == [("retry", timedelta(minutes=30), False)]
+    assert await _next_sync(connection) == frozen_now + day_later
+
+
+async def test_scan_after_the_worker_stopped_for_three_days_queues_one_job_that_catches_up(connection, provider, frozen_now, day_later):
+    """The worker stopped after Everyday's sync at 1 pm on 1 October, and restarts at 1 pm on the 4th, three daily syncs later
+
+    The first scan queues one job, which fetches from 14 days before Everyday's checkpoint through
+    today in one request, and the next sync is a day on
+    """
+    stopped_at = frozen_now - timedelta(days=3)
+    await _link(
+        connection,
+        "ACT-everyday",
+        **_synced_through_yesterday(checkpoint=date(2026, 10, 1), last_success_at=stopped_at, next_attempt_at=stopped_at + day_later),
+    )
+    await _set_next_sync(connection, stopped_at + day_later)
+    provider.outcomes = [_returned("ACT-everyday")]
+
+    await enqueue_due_work()
+    queued = await _queued_jobs()
+    await _run_jobs_until_none_is_due()
+
+    assert queued == [("scheduled", timedelta(0), False)]
+    assert _fetched(provider) == [_window(date(2026, 9, 17), _TODAY, ["ACT-everyday"], pending=True)]
+    assert await _next_sync(connection) == frozen_now + day_later
+
+
+async def test_scan_queues_nothing_for_a_connection_disconnected_after_it_was_found_due(connection, frozen_now):
+    """The user disconnects between the scan listing the connection and queueing its sync, so there is nothing to queue"""
+    async with TestSession() as session:
+        await session.execute(delete(BankConnection).where(BankConnection.id == connection.id))
+        await session.commit()
+
+    async with _owner_session(connection.owner_id) as session:
+        await queue_scheduled_sync(session, connection.id, now=frozen_now)
+        await session.commit()
+
+    assert await _queued_jobs() == []

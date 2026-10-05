@@ -136,6 +136,9 @@ class BankConnection(Base):
     # Discovery reads which bank accounts the connection lists
     discovered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     discovery_failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # When the due scan next queues a scheduled sync: the earliest next attempt among the links on
+    # the daily schedule, worked out as each job ends, or None while no link is on it
     next_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -286,7 +289,8 @@ class BankAccountLink(Base):
     last_failure_reason: Mapped[str | None] = mapped_column(Text)
 
     # The failed attempts in the link's current retry series, 1 to 4, or 0 when it isn't waiting to
-    # retry, and when its next attempt is due: a retry, or the end of the rest after a series
+    # retry, and when its next attempt is due: a retry, the end of the rest after a series, or its
+    # next daily sync. None when no time holds it back, such as during an import
     retry_count: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0, server_default="0")
     next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
