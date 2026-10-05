@@ -2177,6 +2177,15 @@ async def test_job_counts_only_new_items_waiting_toward_the_pause(connection, pr
     assert await _pauses(link) == [(False, False)]
 
 
+# The four windows of an import from 1 January
+_WINDOWS_FROM_1_JANUARY = [
+    _window(date(2026, 1, 1), date(2026, 3, 31)),
+    _window(date(2026, 4, 1), date(2026, 6, 29)),
+    _window(date(2026, 6, 30), date(2026, 9, 27)),
+    _window(date(2026, 9, 28), _TODAY, pending=True),
+]
+
+
 async def test_job_runs_a_first_import_to_today_past_100_new_items_and_pauses_once_it_ends(connection, provider):
     """Everyday's import from 1 January brings 85 new items in each of its four windows
 
@@ -2184,20 +2193,39 @@ async def test_job_runs_a_first_import_to_today_past_100_new_items_and_pauses_on
     the year missing. Once it reaches today, the 340 waiting pause Everyday
     """
     link = await _link(connection, "ACT-1", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
-    windows = [
-        _window(date(2026, 1, 1), date(2026, 3, 31)),
-        _window(date(2026, 4, 1), date(2026, 6, 29)),
-        _window(date(2026, 6, 30), date(2026, 9, 27)),
-        _window(date(2026, 9, 28), _TODAY, pending=True),
-    ]
     first_days = [date(2026, 1, 1), date(2026, 4, 1), date(2026, 6, 30), date(2026, 9, 28)]
     provider.outcomes = [_returned_with({"ACT-1": _new_records(85, f"TRN-{day}", day)}) for day in first_days]
     await _seed_job(connection, BankSyncJobKind.INITIAL)
 
     await _run_jobs_until_none_is_due()
 
-    assert _fetched(provider) == windows
+    assert _fetched(provider) == _WINDOWS_FROM_1_JANUARY
     assert await _waiting(link) == 340
+    assert await _pauses(link) == [(True, False)]
+
+
+async def test_job_runs_a_relinks_import_to_today_with_100_new_items_already_waiting_and_pauses_once_it_ends(connection, provider):
+    """Everyday was unlinked with 105 new items left waiting, and is linked again from 1 January
+
+    Every window of the new import runs though the account is past 100 from the start, and once it
+    reaches today the 105 pause Everyday
+    """
+    previous = await _link(connection, "ACT-1", state=BankLinkState.UNLINKED, unlinked_at=datetime(2026, 9, 1, tzinfo=UTC), importing=False)
+    await _commit_waiting_items(previous, 105)
+    async with TestSession() as session:
+        account = await session.get_one(Account, previous.account_id)
+        link = _build_bank_link(account, connection, "ACT-1")
+        link.import_kind = BankImportKind.RELINK
+        link.import_start = date(2026, 1, 1)
+        link.checkpoint = date(2025, 12, 31)
+        session.add(link)
+        await session.commit()
+    provider.outcomes = [_returned("ACT-1") for _ in _WINDOWS_FROM_1_JANUARY]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == _WINDOWS_FROM_1_JANUARY
     assert await _pauses(link) == [(True, False)]
 
 
