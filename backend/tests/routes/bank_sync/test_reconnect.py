@@ -22,7 +22,6 @@ from app.models.bank_connection import (
     BankLinkState,
     BankProvider,
     BankProviderRequest,
-    BankSigninNotice,
 )
 from app.models.bank_sync_job import BankSyncJob
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
@@ -32,7 +31,6 @@ from app.services.cache_state.updates import mark_user_cache_changed
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     _build_bank_transaction,
-    _build_signin_notice,
     _build_user,
     _changed_at,
     _commit_bank_connection,
@@ -82,9 +80,7 @@ async def _reject(scenario: FakeBridgeScenario, connection_id: str) -> None:
     rejected_at = datetime.now(UTC) - timedelta(days=10)
     async with TestSession() as session:
         await session.execute(
-            update(BankConnection)
-            .where(BankConnection.id == uuid.UUID(connection_id))
-            .values(credential_rejected_at=rejected_at, rejection_emailed_at=rejected_at)
+            update(BankConnection).where(BankConnection.id == uuid.UUID(connection_id)).values(credential_rejected_at=rejected_at)
         )
         await session.execute(update(BankSyncJob).values(kind="scheduled"))
         await session.commit()
@@ -130,13 +126,11 @@ async def _request_purposes() -> list[str]:
 
 
 async def _wait_on_signin(account_id: str) -> None:
-    """Commit that an account's link is also waiting on a bank sign-in at Harbour Bank, noticed on its login"""
+    """Commit that an account's link is also waiting on a bank sign-in at Harbour Bank"""
     async with TestSession() as session:
         await session.execute(
             update(BankAccountLink).where(BankAccountLink.account_id == uuid.UUID(account_id)).values(signin_needed_since=_SIGNIN_SINCE)
         )
-        connection = await session.scalar(select(BankConnection))
-        session.add(_build_signin_notice(connection, "CON-harbour"))
         await session.commit()
 
 
@@ -168,7 +162,7 @@ async def test_reconnect_with_both_bank_accounts_unchanged_resumes_both_and_clea
         ("ACT-visa", None),
     ]
     connection = await _stored_connection(connection_id)
-    assert (connection.credential_rejected_at, connection.rejection_emailed_at) == (None, None)
+    assert connection.credential_rejected_at is None
     assert decrypt(connection.credential_encrypted) != old_credential
     assert await _links() == {
         account_id: (external_id, "active", "reconnect", checkpoint, None) for account_id, (external_id, _, _, checkpoint, _) in before.items()
@@ -276,8 +270,6 @@ async def test_reconnect_keeps_a_bank_sign_in_the_bank_still_needs(client, scena
     assert response.json()["connection"]["status"] == "active"
     _, state, import_kind, _, signin_needed_since = (await _links())[savings_id]
     assert (state, import_kind, signin_needed_since) == ("active", "reconnect", _SIGNIN_SINCE)
-    async with TestSession() as session:
-        assert await session.scalar(select(BankSigninNotice.login_key)) == "CON-harbour"
 
 
 async def test_reconnect_of_a_working_connection_is_refused_before_the_token_is_spent(client, scenario: FakeBridgeScenario):

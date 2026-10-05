@@ -26,7 +26,6 @@ from app.models.bank_connection import (
     BankExternalAccount,
     BankLinkState,
     BankProviderRequest,
-    BankSigninNotice,
     ProviderRequestPurpose,
 )
 from app.models.bank_pending_transaction import BankPendingTransaction
@@ -46,7 +45,6 @@ from tests.routes.support.bank_sync_helpers import (
     _build_external_account,
     _build_ledger_transaction,
     _build_pending_transaction,
-    _build_signin_notice,
     _build_user,
 )
 
@@ -170,7 +168,7 @@ async def test_bank_connection_deleted_after_unlinking_keeps_the_links_previous_
         connection_id=connection.id,
         purpose=ProviderRequestPurpose.SYNC,
     )
-    await _add(session, link, _build_external_account(connection), _build_signin_notice(connection), request)
+    await _add(session, link, _build_external_account(connection), request)
 
     await session.execute(delete(BankConnection).where(BankConnection.id == connection.id))
 
@@ -186,7 +184,7 @@ async def test_bank_connection_deleted_after_unlinking_keeps_the_links_previous_
         )
     ).one()
     assert tuple(kept) == (None, "simplefin", "ACT-1", "Everyday Chequing", "Harbour Bank")
-    for model in (BankExternalAccount, BankSigninNotice, BankProviderRequest):
+    for model in (BankExternalAccount, BankProviderRequest):
         assert (await session.scalars(select(model.id))).all() == []
 
 
@@ -233,17 +231,6 @@ async def test_bank_external_account_is_listed_once_per_connection(session):
 
     await _refused(session, _build_external_account(connection_a), "uq_bank_external_accounts_connection_external_id")
     await _add(session, _build_external_account(connection_b))
-
-
-async def test_bank_signin_notice_is_recorded_once_per_bank_login(session):
-    """A bank login waiting for a sign-in has one notice, so its email goes out once"""
-    user = await _owner(session)
-    connection = _build_bank_connection(user.id)
-    await _add(session, connection)
-    await _add(session, _build_signin_notice(connection, "login-1"))
-
-    await _refused(session, _build_signin_notice(connection, "login-1"), "uq_bank_signin_notices_connection_login")
-    await _add(session, _build_signin_notice(connection, "login-2"))
 
 
 async def test_account_review_preferences_go_with_the_account(session):
@@ -530,7 +517,6 @@ _SECURED_BANK_TABLES = (
     "bank_provider_requests",
     "bank_external_accounts",
     "bank_account_links",
-    "bank_signin_notices",
     "account_review_preferences",
     "bank_transactions",
     "bank_pending_transactions",

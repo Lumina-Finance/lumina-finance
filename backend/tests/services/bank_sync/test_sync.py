@@ -47,7 +47,6 @@ from app.models.bank_connection import (
     BankLinkState,
     BankProvider,
     BankProviderRequest,
-    BankSigninNotice,
     ProviderRequestPurpose,
 )
 from app.models.bank_pending_transaction import BankPendingTransaction
@@ -85,7 +84,6 @@ from tests.routes.support.bank_sync_helpers import (
     _build_external_account,
     _build_ledger_transaction,
     _build_pending_transaction,
-    _build_signin_notice,
     _commit_accepted_items,
     _commit_waiting_items,
     _dismiss_items,
@@ -932,13 +930,10 @@ def _rejected() -> ProviderError:
     return ProviderError(ProviderErrorKind.CREDENTIAL_REJECTED, "SimpleFIN Bridge rejected the stored access credential")
 
 
-async def _rejection(connection: BankConnection) -> tuple[datetime | None, datetime | None]:
-    """Return when the connection's credential was marked rejected, and when the email saying so was recorded as sent"""
+async def _rejection(connection: BankConnection) -> datetime | None:
+    """Return when the connection's credential was marked rejected, or None while it isn't"""
     async with TestSession() as session:
-        marked = await session.execute(
-            select(BankConnection.credential_rejected_at, BankConnection.rejection_emailed_at).where(BankConnection.id == connection.id)
-        )
-        return tuple(marked.one())
+        return await session.scalar(select(BankConnection.credential_rejected_at).where(BankConnection.id == connection.id))
 
 
 # The Reconnect needed email for the connection the owner named Family banks, through which Card and Everyday are linked
@@ -957,10 +952,9 @@ async def test_job_ending_on_a_rejected_credential_marks_the_connection_reconnec
 ):
     """SimpleFIN Bridge refuses the stored access for Everyday's daily sync, on the connection the owner named Family banks
 
-    The connection is marked from when the refused request went out, with its email recorded as sent
-    in the same step, and the owner is emailed once, naming every account still linked through it:
-    Card, waiting for its bank account to be chosen again, too, but not Old, unlinked last month. A
-    later sync sends nothing, and nothing more is emailed
+    The connection is marked from when the refused request went out, and the owner is emailed once,
+    naming every account still linked through it: Card, waiting for its bank account to be chosen
+    again, too, but not Old, unlinked last month. A later sync sends nothing, and nothing more is emailed
     """
     async with TestSession() as session:
         await session.execute(update(BankConnection).where(BankConnection.id == connection.id).values(nickname="Family banks"))
@@ -973,7 +967,7 @@ async def test_job_ending_on_a_rejected_credential_marks_the_connection_reconnec
 
     await _run_jobs_until_none_is_due()
 
-    assert await _rejection(connection) == (frozen_now, frozen_now)
+    assert await _rejection(connection) == frozen_now
     assert sent_action_emails == [_FAMILY_BANKS_REJECTED]
 
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
@@ -996,7 +990,7 @@ async def test_job_whose_listing_meets_a_rejected_credential_marks_the_connectio
 
     await _run_jobs_until_none_is_due()
 
-    assert await _rejection(connection) == (frozen_now, frozen_now)
+    assert await _rejection(connection) == frozen_now
     assert sent_action_emails == [
         (
             "owner0@example.com",
@@ -1047,16 +1041,12 @@ async def test_job_refused_after_its_connection_was_marked_reconnect_needed_keep
         running = asyncio.create_task(run_jobs(1))
         await provider.sending[1].wait()
         async with TestSession() as session:
-            await session.execute(
-                update(BankConnection)
-                .where(BankConnection.id == connection.id)
-                .values(credential_rejected_at=marked_at, rejection_emailed_at=marked_at)
-            )
+            await session.execute(update(BankConnection).where(BankConnection.id == connection.id).values(credential_rejected_at=marked_at))
             await session.commit()
         provider.release[1].set()
         assert await running == 1
 
-    assert await _rejection(connection) == (marked_at, marked_at)
+    assert await _rejection(connection) == marked_at
     assert sent_action_emails == []
 
 
@@ -1081,7 +1071,7 @@ async def test_job_whose_listing_was_refused_marks_nothing_once_a_reconnect_repl
 
     await _run_jobs_until_none_is_due()
 
-    assert await _rejection(connection) == (None, None)
+    assert await _rejection(connection) is None
     assert sent_action_emails == []
     assert [(status, error) for _, status, error, _ in await _jobs()] == [("succeeded", None)]
 
@@ -1105,7 +1095,7 @@ async def test_job_failing_on_a_server_this_instance_doesnt_allow_marks_nothing(
         ("scheduled", "failed", "unknown"),
         ("retry", "queued", None),
     ]
-    assert await _rejection(connection) == (None, None)
+    assert await _rejection(connection) is None
     assert sent_action_emails == []
 
 
@@ -1153,7 +1143,7 @@ async def test_job_whose_email_fails_to_send_keeps_everything_it_recorded(connec
         assert await run_jobs(1) == 1
 
     assert [(status, error) for _, status, error, _ in await _jobs()] == [("failed", "credential_rejected")]
-    assert await _rejection(connection) == (frozen_now, frozen_now)
+    assert await _rejection(connection) == frozen_now
     assert [attempt[2:] for attempt in await _attempts(everyday)] == [("SimpleFIN Bridge rejected the stored access credential", 0, None)]
 
 
@@ -1187,31 +1177,10 @@ async def _list_under(connection: BankConnection, login_key: str, institution: s
         await session.commit()
 
 
-async def _notify_signin(connection: BankConnection, login_key: str, since: datetime) -> None:
-    """Commit the notice that a bank login on the connection needed a sign-in from then, its email sent then"""
-    async with TestSession() as session:
-        notice = _build_signin_notice(connection, login_key)
-        notice.since = since
-        notice.emailed_at = since
-        session.add(notice)
-        await session.commit()
-
-
 async def _signin_marks(*links: BankAccountLink) -> list[datetime | None]:
     """Return when each link was marked as waiting on a bank sign-in, or None for one that isn't"""
     async with TestSession() as session:
         return [await session.scalar(select(BankAccountLink.signin_needed_since).where(BankAccountLink.id == link.id)) for link in links]
-
-
-async def _signin_notices(connection: BankConnection) -> list[tuple[str, datetime, datetime | None]]:
-    """Return each sign-in notice on the connection, as its bank login, when its state started and when its email was recorded as sent"""
-    async with TestSession() as session:
-        notices = await session.execute(
-            select(BankSigninNotice.login_key, BankSigninNotice.since, BankSigninNotice.emailed_at)
-            .where(BankSigninNotice.connection_id == connection.id)
-            .order_by(BankSigninNotice.login_key)
-        )
-        return [tuple(notice) for notice in notices]
 
 
 async def test_job_finding_a_bank_login_needs_a_sign_in_marks_its_accounts_and_emails_once_while_the_others_sync(
@@ -1233,7 +1202,6 @@ async def test_job_finding_a_bank_login_needs_a_sign_in_marks_its_accounts_and_e
     await _run_jobs_until_none_is_due()
 
     assert await _signin_marks(checking, card, amex) == [frozen_now, frozen_now, None]
-    assert await _signin_notices(connection) == [("CON-chase", frozen_now, frozen_now)]
     assert sent_action_emails == [_signin_email("Chase", "ACT-chase-card", "ACT-chase-checking")]
     assert [attempt[1:] for attempt in await _attempts(checking, card, amex)] == [
         (frozen_now, _SIGNIN_REASON, 0, None),
@@ -1253,7 +1221,6 @@ async def test_job_finding_a_bank_login_still_needs_a_sign_in_emails_nothing_mor
     await _list_under(connection, "CON-chase", "Chase", "ACT-chase-checking", "ACT-chase-card")
     checking = await _link(connection, "ACT-chase-checking", **_synced_through_yesterday(signin_needed_since=yesterday))
     card = await _link(connection, "ACT-chase-card", import_start=date(2026, 9, 1), checkpoint=date(2026, 8, 31))
-    await _notify_signin(connection, "CON-chase", yesterday)
     provider.outcomes = [FetchResult(login_errors={"CON-chase": _signin_needed()})]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
@@ -1261,7 +1228,6 @@ async def test_job_finding_a_bank_login_still_needs_a_sign_in_emails_nothing_mor
 
     assert len(provider.fetches) == 1
     assert await _signin_marks(checking, card) == [yesterday, frozen_now]
-    assert await _signin_notices(connection) == [("CON-chase", yesterday, yesterday)]
     assert sent_action_emails == []
 
 
@@ -1275,7 +1241,6 @@ async def test_job_marks_no_bank_sign_in_for_an_account_failing_for_another_reas
     await _run_jobs_until_none_is_due()
 
     assert await _signin_marks(everyday) == [None]
-    assert await _signin_notices(connection) == []
     assert sent_action_emails == []
 
 
@@ -1297,7 +1262,6 @@ async def test_job_whose_request_needs_a_bank_sign_in_marks_every_account_in_it_
     await _run_jobs_until_none_is_due()
 
     assert await _signin_marks(checking, amex) == [frozen_now, frozen_now]
-    assert await _signin_notices(connection) == [("CON-amex", frozen_now, frozen_now), ("CON-chase", frozen_now, frozen_now)]
     assert sent_action_emails == [_signin_email("American Express", "ACT-amex"), _signin_email("Chase", "ACT-chase-checking")]
     assert await _queued_jobs() == []
 
@@ -1307,9 +1271,9 @@ async def test_job_bringing_a_bank_login_back_clears_its_sign_in_and_emails_agai
 ):
     """The user signed in to Chase again in SimpleFIN Bridge, and the next daily sync brings Chase Checking back whole
 
-    The daily sync tries Checking with no retry queued for it, clears its mark and ends the login's
-    notice, which Chase Savings, unlinked while it waited on the same sign-in, doesn't keep. When a
-    later sync finds the login needing a sign-in again, a new email goes out
+    The daily sync tries Checking with no retry queued for it and clears its mark, which ends the
+    login's state, since Chase Savings, unlinked while it waited on the same sign-in, doesn't keep it
+    going. When a later sync finds the login needing a sign-in again, a new email goes out
     """
     yesterday = frozen_now - timedelta(days=1)
     await _list_under(connection, "CON-chase", "Chase", "ACT-chase-checking", "ACT-chase-savings")
@@ -1319,7 +1283,6 @@ async def test_job_bringing_a_bank_login_back_clears_its_sign_in_and_emails_agai
         "ACT-chase-checking",
         **_synced_through_yesterday(signin_needed_since=yesterday, last_attempt_at=yesterday, last_failure_reason=_SIGNIN_REASON),
     )
-    await _notify_signin(connection, "CON-chase", yesterday)
     provider.outcomes = [_returned("ACT-chase-checking")]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
@@ -1327,7 +1290,6 @@ async def test_job_bringing_a_bank_login_back_clears_its_sign_in_and_emails_agai
 
     assert _fetched(provider) == [_window(date(2026, 9, 19), _TODAY, ["ACT-chase-checking"], pending=True)]
     assert await _signin_marks(checking) == [None]
-    assert await _signin_notices(connection) == []
     assert [attempt[1:] for attempt in await _attempts(checking)] == [(frozen_now, None, 0, None)]
 
     provider.outcomes = [FetchResult(login_errors={"CON-chase": _signin_needed()})]
@@ -1335,31 +1297,7 @@ async def test_job_bringing_a_bank_login_back_clears_its_sign_in_and_emails_agai
     await _run_jobs_until_none_is_due()
 
     assert await _signin_marks(checking) == [frozen_now]
-    assert await _signin_notices(connection) == [("CON-chase", frozen_now, frozen_now)]
     assert sent_action_emails == [_signin_email("Chase", "ACT-chase-checking")]
-
-
-async def test_job_emails_a_bank_login_whose_notice_outlived_the_account_that_needed_the_sign_in(
-    connection, provider, frozen_now, sent_action_emails
-):
-    """Chase Checking was unlinked while it waited on a Chase sign-in, leaving the login's notice, and Chase Card, linked since, now meets one
-
-    No active account on the login was waiting on a sign-in, so its state starts again: the notice is
-    renewed and the owner emailed
-    """
-    last_month = frozen_now - timedelta(days=30)
-    await _list_under(connection, "CON-chase", "Chase", "ACT-chase-checking", "ACT-chase-card")
-    await _link(connection, "ACT-chase-checking", state=BankLinkState.UNLINKED, unlinked_at=last_month, signin_needed_since=last_month)
-    card = await _link(connection, "ACT-chase-card", **_synced_through_yesterday())
-    await _notify_signin(connection, "CON-chase", last_month)
-    provider.outcomes = [FetchResult(login_errors={"CON-chase": _signin_needed()})]
-    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
-
-    await _run_jobs_until_none_is_due()
-
-    assert await _signin_marks(card) == [frozen_now]
-    assert await _signin_notices(connection) == [("CON-chase", frozen_now, frozen_now)]
-    assert sent_action_emails == [_signin_email("Chase", "ACT-chase-card")]
 
 
 async def test_job_stopped_by_an_error_still_sends_the_email_an_earlier_step_saved(connection, provider, frozen_now, sent_action_emails):

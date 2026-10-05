@@ -24,7 +24,6 @@ from app.models.bank_connection import (
     BankExternalAccount,
     BankLinkState,
     BankProviderRequest,
-    BankSigninNotice,
     ProviderRequestPurpose,
 )
 from app.models.bank_pending_transaction import BankPendingTransaction
@@ -46,7 +45,6 @@ from tests.routes.support.bank_sync_helpers import (
     _build_external_account,
     _build_ledger_transaction,
     _build_pending_transaction,
-    _build_signin_notice,
 )
 from tests.routes.support.identity_helpers import _act_as
 
@@ -500,7 +498,6 @@ _BANK_MODELS = [
     BankProviderRequest,
     BankExternalAccount,
     BankAccountLink,
-    BankSigninNotice,
     AccountReviewPreference,
     BankTransaction,
     BankPendingTransaction,
@@ -524,7 +521,6 @@ async def _create_bank_records(session, owner_id) -> tuple[Account, BankConnecti
             BankProviderRequest(owner_id=owner_id, connection_id=connection.id, purpose=ProviderRequestPurpose.SYNC),
             _build_external_account(connection),
             _build_bank_link(account, connection),
-            _build_signin_notice(connection),
             AccountReviewPreference(account_id=account.id, owner_id=owner_id),
             _build_bank_transaction(account),
             _build_pending_transaction(account, "P-1"),
@@ -581,7 +577,6 @@ async def test_bank_records_are_invisible_to_other_users(users, bank_records, mo
             purpose=ProviderRequestPurpose.SYNC,
         ),
         lambda connection, owner_id, _: _owned_by(_build_external_account(connection, "ACT-B"), owner_id),
-        lambda connection, owner_id, _: _owned_by(_build_signin_notice(connection, "login-b"), owner_id),
         lambda connection, _, account: _build_bank_link(account, connection, "ACT-B"),
         lambda connection, owner_id, _: BankSyncJob(
             owner_id=owner_id,
@@ -589,7 +584,7 @@ async def test_bank_records_are_invisible_to_other_users(users, bank_records, mo
             kind=BankSyncJobKind.MANUAL,
         ),
     ],
-    ids=["provider_request", "external_account", "signin_notice", "account_link", "sync_job"],
+    ids=["provider_request", "external_account", "account_link", "sync_job"],
 )
 async def test_bank_record_naming_another_users_connection_is_refused(users, bank_records, build):
     """A user can't attach their own records to a connection that isn't theirs
@@ -744,7 +739,6 @@ _CONNECTION_ROWS = [
         id="provider_request",
     ),
     pytest.param(lambda connection, _: _build_external_account(connection), id="external_account"),
-    pytest.param(lambda connection, _: _build_signin_notice(connection), id="signin_notice"),
     pytest.param(lambda connection, _: BankSyncJob(connection_id=connection.id, kind=BankSyncJobKind.MANUAL), id="sync_job"),
     pytest.param(lambda connection, account: _build_bank_link(account, connection), id="account_link"),
 ]

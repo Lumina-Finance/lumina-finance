@@ -35,9 +35,8 @@ ends without it
 A job ending on a rejected credential marks the connection Reconnect needed as it ends, a link an
 attempt fails on a bank sign-in is marked Bank sign-in needed until one succeeds, and a link the
 job's listing moves to Choose bank account waits there, each emailing the owner once as the
-action_needed module describes. The sign-in notices recording those emails are
-written after any pending items and before any job queued. The emails a job's saves record go out
-once its last save is done, so a send that hangs can't hold up the sync or see it fail
+action_needed module describes. The emails a job's saves record go out once its last save is done,
+so a send that hangs can't hold up the sync or see it fail
 """
 
 import logging
@@ -497,9 +496,9 @@ class _JobRun:
             failed = [link for link in held if link.id in failures]
             for link in failed:
                 record_failed_attempt(link, failures[link.id], at=sent_at)
-            await clear_signin_needed(db, connection, succeeded)
+            clear_signin_needed(succeeded)
             signin_needed = [link for link in failed if failures[link.id].kind == ProviderErrorKind.BANK_LOGIN_NEEDED]
-            emails = await flag_signin_needed(db, connection, signin_needed, at=sent_at, now=datetime.now(UTC))
+            emails = await flag_signin_needed(db, connection, signin_needed, at=sent_at)
             paused_or_imported = await apply_review_pauses(db, whole, today=self.today)
             if stored or succeeded or failed or paused_or_imported:
                 await mark_user_cache_changed(db, self.job.owner_id)
@@ -728,9 +727,9 @@ async def _end_job(
             record_failed_attempt(link, error, at=attempted_at or now)
         emails = []
         if error is not None and error.kind == ProviderErrorKind.CREDENTIAL_REJECTED:
-            emails = await flag_rejected_credential(db, connection, at=attempted_at or now, now=now)
+            emails = await flag_rejected_credential(db, connection, at=attempted_at or now)
         elif error is not None and error.kind == ProviderErrorKind.BANK_LOGIN_NEEDED:
-            emails = await flag_signin_needed(db, connection, held, at=attempted_at or now, now=now)
+            emails = await flag_signin_needed(db, connection, held, at=attempted_at or now)
         if again:
             await enqueue_bank_sync_job(
                 db,

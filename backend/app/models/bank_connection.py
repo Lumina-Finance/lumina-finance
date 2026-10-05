@@ -130,9 +130,8 @@ class BankConnection(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     # Set when the provider refuses the credential, which stops automatic sync until the user
-    # reconnects, and the time the action-needed email for it went out, so it goes out once
+    # reconnects. Its action-needed email goes out once the save that sets it commits
     credential_rejected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    rejection_emailed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # Discovery reads which bank accounts the connection lists
     discovered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -318,21 +317,3 @@ class BankAccountLink(Base):
         default=OpeningAdjustmentState.NOT_READY,
         server_default=OpeningAdjustmentState.NOT_READY.value,
     )
-
-
-class BankSigninNotice(Base):
-    """A bank login on a connection that needs the user to sign in again at the bank
-
-    One row per login while the problem lasts, so the action-needed email goes out once
-    each time the problem starts
-    """
-
-    __tablename__ = "bank_signin_notices"
-    __table_args__ = (UniqueConstraint("connection_id", "login_key", name="uq_bank_signin_notices_connection_login"),)
-
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    connection_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("bank_connections.id", ondelete="CASCADE"), nullable=False)
-    login_key: Mapped[str] = mapped_column(Text, nullable=False)
-    since: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    emailed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

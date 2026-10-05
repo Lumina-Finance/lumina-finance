@@ -140,9 +140,6 @@ async def reconnect_connection(
     _refuse_working(connection)
     _store_credential(connection, adapter, credential)
     connection.credential_rejected_at = None
-
-    # So a later rejection sends its own email
-    connection.rejection_emailed_at = None
     await record_provider_request(db, owner_id=user.id, connection_id=connection.id, purpose=ProviderRequestPurpose.CLAIM, now=now)
     await mark_user_cache_changed(db, user.id)
 

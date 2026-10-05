@@ -7,17 +7,16 @@ Bank sign-in needed: the provider says a bank login behind the connection needs 
 again on the provider's site. Each of that login's accounts is marked as an attempt fails for it,
 while the connection's other accounts keep syncing, and stays on the connection's daily sync rather
 than retrying, so the mark clears once an attempt brings the account back whole. The state starts
-for a login when the first of its active links is marked, and a notice per login records when, with
-its email as sent, until none of them is marked
+for a login, and emails the owner, when the first of its active links is marked
 
 Choose bank account: a sync's listing found a linked bank account gone or in another currency, so its
 account stops syncing until the user chooses its bank account again or the provider lists it as
 before. Moving the link records the state, so a job run again finds it moved and emails nothing. A
 reconnect's listing moves links while the user is in the app choosing, so it emails nothing
 
-Each state is recorded with its email as sent, in the save that records the state, and the email
-goes out only once that save has committed, so a job run again or cut off after the save sends
-nothing twice, and one cut off before it sends nothing. A send that fails is logged and never undoes
+The save that records a state starting is what records its email as due, and the email goes out
+only once that save has committed, so a job run again or cut off after the save finds the state
+already started and sends nothing twice, and one cut off before it sends nothing. A send that fails is logged and never undoes
 the save or fails the sync. An email names what stopped syncing and what to do, and carries no
 credential, server or transaction data
 
@@ -32,12 +31,11 @@ from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import and_, delete, select
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.bank_connection import BankAccountLink, BankConnection, BankExternalAccount, BankLinkState, BankSigninNotice
+from app.models.bank_connection import BankAccountLink, BankConnection, BankExternalAccount, BankLinkState
 from app.models.user import User
 from app.services.bank_sync.availability import PROVIDER_ADAPTERS
 from app.services.email import RenderedEmail, get_email_sender, render_action_needed_email
@@ -76,7 +74,7 @@ _CHOOSE_CLOSING = "If {provider} goes back to listing it as before, {account} re
 
 @dataclass(frozen=True)
 class ActionEmail:
-    """An action-needed email a save recorded as sent, to send once that save has committed"""
+    """An action-needed email for a state a save started, to send once that save has committed"""
 
     recipient: str
     message: RenderedEmail
@@ -132,8 +130,8 @@ async def read_actions_needed(db: AsyncSession, account_ids: Collection[uuid.UUI
     return needed
 
 
-async def flag_rejected_credential(db: AsyncSession, connection: BankConnection, *, at: datetime, now: datetime) -> list[ActionEmail]:
-    """Mark a connection Reconnect needed as the provider rejects its credential, with its email recorded as sent
+async def flag_rejected_credential(db: AsyncSession, connection: BankConnection, *, at: datetime) -> list[ActionEmail]:
+    """Mark a connection Reconnect needed as the provider rejects its credential, returning the email to send its owner
 
     The caller has locked the connection and checked that it still holds the credential the
     rejected request went out with, so a rejection of a credential a reconnect replaced marks
@@ -143,7 +141,6 @@ async def flag_rejected_credential(db: AsyncSession, connection: BankConnection,
         db: The owner's session, which the caller commits
         connection: The connection, as locked
         at: When the request the provider rejected was sent, which the mark starts at
-        now: When the save records it
 
     Returns:
         The email to send once the save commits, or nothing for a connection already marked
@@ -151,7 +148,6 @@ async def flag_rejected_credential(db: AsyncSession, connection: BankConnection,
     if connection.credential_rejected_at is not None:
         return []
     connection.credential_rejected_at = at
-    connection.rejection_emailed_at = now
 
     accounts = (
         await db.scalars(
@@ -174,21 +170,18 @@ async def flag_signin_needed(
     links: Sequence[BankAccountLink],
     *,
     at: datetime,
-    now: datetime,
 ) -> list[ActionEmail]:
     """Mark links Bank sign-in needed as an attempt finds their bank login needs a sign-in, emailing once per login it starts for
 
     A link already marked keeps when its mark started. A login's state starts when none of its
-    active links was marked before, and its notice then records the start with its email as sent,
-    replacing one left behind by accounts since unlinked or chosen again
+    active links was marked before, so an account unlinked or waiting in Choose bank account with
+    a mark left over doesn't keep it going
 
     Args:
-        db: The owner's session, which the caller commits, with the connection and the links
-            locked, and the bank transactions and pending items it stores already written
+        db: The owner's session, which the caller commits, with the connection and the links locked
         connection: The connection, as locked
         links: The links the attempt failed for with a bank sign-in problem, as locked
         at: When the attempt's request was sent, which the marks start at
-        now: When the save records them
 
     Returns:
         The emails to send once the save commits, one for each login whose state started
@@ -227,18 +220,6 @@ async def flag_signin_needed(
     if not started:
         return []
 
-    notices = insert(BankSigninNotice).values(
-        [
-            {"owner_id": connection.owner_id, "connection_id": connection.id, "login_key": login, "since": at, "emailed_at": now}
-            for login in started
-        ]
-    )
-    await db.execute(
-        notices.on_conflict_do_update(
-            index_elements=[BankSigninNotice.connection_id, BankSigninNotice.login_key],
-            set_={"since": notices.excluded.since, "emailed_at": notices.excluded.emailed_at},
-        )
-    )
     site = PROVIDER_ADAPTERS[connection.provider].provider_site
     recipient = await _owner_email(db, connection)
     return [
@@ -253,33 +234,14 @@ async def flag_signin_needed(
     ]
 
 
-async def clear_signin_needed(db: AsyncSession, connection: BankConnection, links: Sequence[BankAccountLink]) -> None:
-    """Clear Bank sign-in needed from links an attempt brought back whole, ending each login's state once none of its active links is marked
+def clear_signin_needed(links: Sequence[BankAccountLink]) -> None:
+    """Clear Bank sign-in needed from links an attempt succeeded for, a login's state ending once none of its active links is marked
 
     Args:
-        db: The owner's session, which the caller commits, with the connection and the links
-            locked, and the bank transactions and pending items it stores already written
-        connection: The connection, as locked
-        links: The links the attempt succeeded for, as locked
+        links: The links the attempt succeeded for, as the caller locked them
     """
-    clearing = [link for link in links if link.signin_needed_since is not None]
-    if not clearing:
-        return
-    for link in clearing:
+    for link in links:
         link.signin_needed_since = None
-    still_marked = (
-        select(BankAccountLink.id)
-        .join(BankExternalAccount, _LISTING_OF_LINK)
-        .where(
-            BankAccountLink.connection_id == connection.id,
-            BankAccountLink.state == BankLinkState.ACTIVE,
-            BankAccountLink.signin_needed_since.is_not(None),
-            BankExternalAccount.login_key == BankSigninNotice.login_key,
-        )
-        .correlate(BankSigninNotice)
-    )
-    await db.flush()
-    await db.execute(delete(BankSigninNotice).where(BankSigninNotice.connection_id == connection.id, ~still_marked.exists()))
 
 
 async def choose_account_emails(db: AsyncSession, connection: BankConnection, links: Sequence[BankAccountLink]) -> list[ActionEmail]:
@@ -310,8 +272,8 @@ async def choose_account_emails(db: AsyncSession, connection: BankConnection, li
 async def send_action_emails(emails: Sequence[ActionEmail]) -> None:
     """Send action-needed emails whose saves have committed, through the configured sender
 
-    Each is sent at most once: one that fails is logged and not tried again, since its state is
-    already recorded as emailed and shows in the app either way
+    Each is sent at most once: one that fails is logged and not tried again, since its state has
+    already started and shows in the app either way
     """
     for email in emails:
         # A failed send must never fail the sync whose state it reports

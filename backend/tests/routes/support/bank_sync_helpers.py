@@ -28,7 +28,6 @@ from app.models.bank_connection import (
     BankExternalAccount,
     BankImportKind,
     BankProvider,
-    BankSigninNotice,
 )
 from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind
@@ -190,16 +189,6 @@ def _build_bank_link(
         import_start=LINK_START,
         checkpoint=date(2026, 8, 31),
         **values,
-    )
-
-
-def _build_signin_notice(connection: BankConnection, login_key: str = "login-1") -> BankSigninNotice:
-    """Return an unsaved notice that a bank login on a connection needs a sign-in"""
-    return BankSigninNotice(
-        owner_id=connection.owner_id,
-        connection_id=connection.id,
-        login_key=login_key,
-        since=datetime(2026, 10, 1, tzinfo=UTC),
     )
 
 

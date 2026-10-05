@@ -26,7 +26,6 @@ _TABLES = (
     "bank_provider_requests",
     "bank_external_accounts",
     "bank_account_links",
-    "bank_signin_notices",
 )
 
 
@@ -45,7 +44,6 @@ def upgrade() -> None:
         sa.Column("server_host", sa.Text(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("credential_rejected_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("rejection_emailed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("discovered_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("discovery_failed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("next_sync_at", sa.DateTime(timezone=True), nullable=True),
@@ -152,19 +150,6 @@ def upgrade() -> None:
         postgresql_where=sa.text(_LIVE_LINK),
     )
     op.create_index("ix_bank_account_links_connection_id", "bank_account_links", ["connection_id"])
-    op.create_table(
-        "bank_signin_notices",
-        sa.Column("id", sa.Uuid(), nullable=False),
-        sa.Column("owner_id", sa.Uuid(), nullable=False),
-        sa.Column("connection_id", sa.Uuid(), nullable=False),
-        sa.Column("login_key", sa.Text(), nullable=False),
-        sa.Column("since", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("emailed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(["owner_id"], ["users.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["connection_id"], ["bank_connections.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("connection_id", "login_key", name="uq_bank_signin_notices_connection_login"),
-    )
     for table in _TABLES:
         secure_registered_table(op.get_bind(), table)
 
@@ -183,7 +168,6 @@ def downgrade() -> None:
             "bank_external_accounts": "the bank accounts connections list",
             "bank_account_links": "links between Lumina accounts and bank accounts",
             "bank_provider_requests": "the record of provider requests the daily request budget counts",
-            "bank_signin_notices": "bank logins waiting for the user to sign in again",
         },
     )
     for table in reversed(_TABLES):

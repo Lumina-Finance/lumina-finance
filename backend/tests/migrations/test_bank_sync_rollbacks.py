@@ -82,18 +82,6 @@ _ROLLBACKS = [
         (),
         id="provider_requests",
     ),
-    pytest.param(
-        _CONNECTIONS_REVISION,
-        (
-            _CONNECTION,
-            "INSERT INTO bank_signin_notices (id, owner_id, connection_id, login_key, since) "
-            "VALUES (gen_random_uuid(), :user_id, :connection_id, 'login-1', now())",
-        ),
-        ("bank_signin_notices", "bank_connections"),
-        "bank logins waiting for the user to sign in again",
-        (),
-        id="signin_notices",
-    ),
     # A link outlives its disconnected connection to keep its "Previously linked to" details
     pytest.param(
         _CONNECTIONS_REVISION,
