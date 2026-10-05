@@ -10,11 +10,7 @@ import {
   COLLAPSED_ITEM_COUNT,
   type ReviewItemAccount,
 } from '@/components/transactions/bank-review/ReviewBlock'
-import {
-  TRANSACTION_LIST_EASE,
-  TRANSACTION_LIST_ENTER_DURATION_S,
-  TRANSACTION_LIST_EXIT_DURATION_S,
-} from '@/components/transactions/constants/transactionList'
+import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
 import { useInfiniteScrollTrigger } from '@/components/transactions/hooks/useInfiniteScrollTrigger'
 import { useSkipAppendedEnter } from '@/components/transactions/hooks/useSkipAppendedEnter'
 import {
@@ -206,12 +202,7 @@ export const BankReviewSection = memo(function BankReviewSection({
   })
   const skipAppendedEnter = useSkipAppendedEnter(isFetchingNextPage)
 
-  const enterTransition = { duration: prefersReducedMotion ? 0 : TRANSACTION_LIST_ENTER_DURATION_S, ease: TRANSACTION_LIST_EASE }
-  const collapsed = prefersReducedMotion ? { opacity: 0 } : { height: 0, opacity: 0 }
-  const leave = {
-    ...collapsed,
-    transition: { duration: prefersReducedMotion ? 0 : TRANSACTION_LIST_EXIT_DURATION_S, ease: TRANSACTION_LIST_EASE },
-  }
+  const { collapsed, enterTransition, leave } = REVIEW_MOTION[prefersReducedMotion ? 'reduced' : 'full']
 
   return (
     <>

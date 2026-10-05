@@ -4,11 +4,7 @@ import { Landmark, PauseCircle, TriangleAlert } from 'lucide-react'
 import type { BankReviewItem } from '@/api/bank-sync'
 import LoadFailure from '@/components/errors/LoadFailure'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
-import {
-  TRANSACTION_LIST_EASE,
-  TRANSACTION_LIST_ENTER_DURATION_S,
-  TRANSACTION_LIST_EXIT_DURATION_S,
-} from '@/components/transactions/constants/transactionList'
+import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
 import {
   REVIEW_KIND_LABELS,
   describeReviewItem,
@@ -103,12 +99,7 @@ export function BankReviewBlock({
   const titleId = useId()
   const listId = useId()
   const visibleItems = expanded ? items : items.slice(0, COLLAPSED_ITEM_COUNT)
-  const enterTransition = { duration: prefersReducedMotion ? 0 : TRANSACTION_LIST_ENTER_DURATION_S, ease: TRANSACTION_LIST_EASE }
-  const collapsed = prefersReducedMotion ? { opacity: 0 } : { height: 0, opacity: 0 }
-  const leave = {
-    ...collapsed,
-    transition: { duration: prefersReducedMotion ? 0 : TRANSACTION_LIST_EXIT_DURATION_S, ease: TRANSACTION_LIST_EASE },
-  }
+  const { collapsed, enterTransition, leave } = REVIEW_MOTION[prefersReducedMotion ? 'reduced' : 'full']
 
   return (
     <section
