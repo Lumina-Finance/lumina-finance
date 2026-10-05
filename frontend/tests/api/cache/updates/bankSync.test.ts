@@ -318,7 +318,7 @@ describe('a restored bank value', () => {
 
     expect(queryClient.getQueryData(transactionKeys.detail('transaction-1'))).toEqual(restored);
     expectInvalidated([reviewKey, bankSyncKeys.bulkPreview(undefined), accountKeys.detail('account-1')], true);
-    expectInvalidated([bankSyncKeys.pending('account-1'), bankSyncKeys.links(), ...statusKeys, otherAccountKey], false);
+    expectInvalidated([pendingKey, bankSyncKeys.links(), ...statusKeys, otherAccountKey], false);
   });
 });
 
