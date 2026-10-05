@@ -35,10 +35,10 @@ async def add_review_item_to_ledger(db: AsyncSession, user: User, item_id: uuid.
 
     The ledger transaction passes the checks a hand-entered one does, except the days a linked
     account's bank supplies, since this one is the bank's. A transfer's counterparty has to be one
-    of the user's own personal accounts, as for the item itself. It is aligned with the bank's date and
-    amount, so a date or amount the user changed counts as edited, and so does any amount entered
-    for one the bank sent that couldn't be stored. An item already added answers with its
-    transaction, so a double submission adds it once
+    of the user's own personal accounts, as for the item itself. The ledger transaction is aligned
+    with the bank's date and amount, so a date or amount the user changed counts as edited, and so
+    does any amount entered for one the bank sent that couldn't be stored. An item already added
+    answers with its transaction, so a double submission adds it once
 
     Args:
         db: Active database session

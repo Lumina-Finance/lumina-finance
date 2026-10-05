@@ -29,7 +29,7 @@ from app.services.bank_sync.review_state import edited_fields
 REVIEW_PAGE_SIZE = 50
 
 # Why the list refuses an account the user can see but doesn't own alone
-_NOT_OWN_DETAIL = "Bank items are only listed for your own accounts"
+_NOT_OWN_DETAIL = "Bank items aren't listed for accounts shared with a group"
 
 # Separates the bank date and the id of the last item a page returned, which its cursor carries
 _CURSOR_SEPARATOR = "_"

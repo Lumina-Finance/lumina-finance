@@ -119,7 +119,7 @@ class LinkRefundRequest(BaseModel):
 
 
 class TransactionEntry(BaseModel):
-    """The values a user enters for a new transaction, apart from where it goes"""
+    """The values a user enters for a new transaction, apart from its account, currency and FX rate"""
 
     dt: date
     category_id: uuid.UUID

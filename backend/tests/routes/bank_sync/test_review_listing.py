@@ -347,7 +347,7 @@ async def test_review_list_leaves_out_group_accounts_even_for_their_admin(client
     every_account = await _review_page(client, headers)
 
     assert refused.status_code == 403, refused.text
-    assert refused.json()["detail"] == "Bank items are only listed for your own accounts"
+    assert refused.json()["detail"] == "Bank items aren't listed for accounts shared with a group"
     assert every_account == EMPTY_REVIEW_PAGE
 
 
