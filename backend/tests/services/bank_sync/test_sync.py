@@ -63,6 +63,7 @@ from app.services.accounts.snapshots import recompute_account_snapshots
 from app.services.bank_sync import action_needed, availability, sync, worker
 from app.services.bank_sync.availability import PROVIDER_ADAPTERS
 from app.services.bank_sync.connections import build_connection_responses
+from app.services.bank_sync.jobs import enqueue_bank_sync_job
 from app.services.bank_sync.provider_requests import reserve_provider_request
 from app.services.bank_sync.providers.contract import ExternalAccount, FetchResult, ProviderError, ProviderRecord
 from app.services.bank_sync.review_pause import lift_review_pauses, lock_account_links
@@ -1049,49 +1050,6 @@ async def test_job_whose_listing_was_refused_marks_nothing_once_a_reconnect_repl
     assert [(status, error) for _, status, error, _ in await _jobs()] == [("succeeded", None)]
 
 
-async def test_job_whose_save_marking_reconnect_needed_fails_emails_nothing_and_its_retry_emails_once(
-    connection, provider, frozen_now, monkeypatch, sent_action_emails
-):
-    """Telling the owner's pages fails in the save that would mark the connection Reconnect needed, so that save rolls back
-
-    No state started, so nothing is marked and no email goes out, and the job fails on the error.
-    Its retry 30 minutes on is refused too, which marks the connection from when that request went
-    out and emails once
-    """
-    await _link(connection, "ACT-everyday", **_synced_through_yesterday())
-    provider.outcomes = [FetchResult(request_error=_rejected()), FetchResult(request_error=_rejected())]
-    mark_user_cache_changed = sync.mark_user_cache_changed
-    calls = 0
-
-    async def fail_the_second_time(*args, **kwargs) -> None:
-        """Fail the second time a job tells the owner's pages, in the save ending the first job, after it recorded the rejection"""
-        nonlocal calls
-        calls += 1
-        if calls == 2:
-            raise RuntimeError("The cache row couldn't be updated")
-        return await mark_user_cache_changed(*args, **kwargs)
-
-    monkeypatch.setattr(sync, "mark_user_cache_changed", fail_the_second_time)
-    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
-
-    with freeze_time(frozen_now, real_asyncio=True) as clock:
-        assert await run_jobs(1) == 1
-        assert (await _rejection(connection), sent_action_emails) == (None, [])
-
-        clock.tick(timedelta(minutes=30))
-        async with TestSession() as session:
-            await session.execute(update(BankSyncJob).where(BankSyncJob.status == "queued").values(run_after=func.now()))
-            await session.commit()
-        assert await run_jobs(1) == 1
-
-    assert [(kind, status, error) for kind, status, error, _ in await _jobs()] == [
-        ("scheduled", "failed", "unknown"),
-        ("retry", "failed", "credential_rejected"),
-    ]
-    assert await _rejection(connection) == frozen_now + timedelta(minutes=30)
-    assert _emailed(sent_action_emails, "ACT-everyday") == [_email(_RECONNECT_SUBJECT, "ACT-everyday")]
-
-
 async def test_job_failing_on_a_server_this_instance_doesnt_allow_marks_nothing(connection, provider, sent_action_emails):
     """A development instance restored from production allows only its fake Bridge, so it refuses the connection's real one
 
@@ -1117,9 +1075,8 @@ async def test_job_failing_on_a_server_this_instance_doesnt_allow_marks_nothing(
     assert sent_action_emails == []
 
 
-@pytest.mark.parametrize("failure", ["refused", "never_answers"])
-async def test_job_whose_email_fails_to_send_keeps_everything_it_recorded(connection, provider, frozen_now, monkeypatch, failure):
-    """The mail server refuses the Reconnect needed email, or never answers until the job's time limit stops the job
+async def test_job_whose_email_fails_to_send_keeps_everything_it_recorded(connection, provider, frozen_now, monkeypatch):
+    """The mail server refuses the Reconnect needed email
 
     The email went out after the job's last step, so the job stays failed on the rejected credential,
     with the connection marked and Everyday's attempt recorded, rather than failing as stopped
@@ -1130,11 +1087,7 @@ async def test_job_whose_email_fails_to_send_keeps_everything_it_recorded(connec
     async def refuse(recipient: str, message: RenderedEmail) -> None:
         raise ConnectionRefusedError("The mail server refused the connection")
 
-    async def never_answer(recipient: str, message: RenderedEmail) -> None:
-        await asyncio.Event().wait()
-
-    monkeypatch.setattr(email_contract, "_active_sender", SimpleNamespace(send=refuse if failure == "refused" else never_answer))
-    monkeypatch.setattr(worker, "JOB_TIME_LIMIT", timedelta(seconds=3))
+    monkeypatch.setattr(email_contract, "_active_sender", SimpleNamespace(send=refuse))
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
     async with asyncio.timeout(_WAIT_SECONDS):
@@ -1487,12 +1440,78 @@ async def test_job_whose_listing_still_misses_a_bank_account_a_reconnect_left_to
     assert sent_action_emails == []
 
 
-def _never_answering_sender(asked: list[str]) -> SimpleNamespace:
-    """Return a sender whose mail server never answers, noting each recipient it was asked to send to"""
+@pytest.mark.parametrize(
+    ("listed_hours_ago", "answer", "failing_call", "marked", "email"),
+    [
+        (1, FetchResult(request_error=_rejected()), 2, (True, False, "active"), _email(_RECONNECT_SUBJECT, "ACT-everyday")),
+        (
+            1,
+            FetchResult(login_errors={"CON-harbour": _signin_needed()}),
+            2,
+            (False, True, "active"),
+            _email(_SIGNIN_SUBJECT, "ACT-everyday"),
+        ),
+        (21, FetchResult(), 1, (False, False, "choose_account"), _CHOOSE_EVERYDAY),
+    ],
+    ids=["reconnect_needed_as_the_job_ends", "bank_sign_in_needed_as_a_part_is_written", "choose_bank_account_as_the_listing_is_stored"],
+)
+async def test_job_whose_save_starting_a_state_fails_emails_nothing_and_the_next_job_emails_once(
+    connection, provider, frozen_now, monkeypatch, sent_action_emails, listed_hours_ago, answer, failing_call, marked, email
+):
+    """The save that would start a state fails as it tells the owner's pages, after recording the state, so the save rolls back
+
+    The state is Reconnect needed as the job ends, Bank sign-in needed as a part is written, or
+    Choose bank account as the listing is stored. None started, so nothing is marked and no email
+    goes out, and the job fails on the error. The connection's next job 30 minutes on meets the
+    same answer, which starts the state from when that job's request went out and emails once
+    """
+    await _set_discovered_at(connection, frozen_now - timedelta(hours=listed_hours_ago))
+    await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-everyday")
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    provider.outcomes = [answer, answer]
+    mark_user_cache_changed = sync.mark_user_cache_changed
+    calls = 0
+
+    async def fail_in_the_save(*args, **kwargs) -> None:
+        """Fail as the first job tells the owner's pages in the save starting the state, after it recorded the state"""
+        nonlocal calls
+        calls += 1
+        if calls == failing_call:
+            raise RuntimeError("The cache row couldn't be updated")
+        return await mark_user_cache_changed(*args, **kwargs)
+
+    async def states() -> tuple:
+        """Return when the connection was marked rejected, when Everyday was marked as waiting on a sign-in, and its state"""
+        return await _rejection(connection), await _signin_marks(everyday), await _link_states(everyday)
+
+    monkeypatch.setattr(sync, "mark_user_cache_changed", fail_in_the_save)
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    with freeze_time(frozen_now, real_asyncio=True) as clock:
+        assert await run_jobs(1) == 1
+        assert (await states(), sent_action_emails) == ((None, [None], ["active"]), [])
+        assert (await _jobs())[0][1:3] == ("failed", "unknown")
+
+        # The next daily scan queues the connection's sync, merging into the retry the failed job queued, if any
+        clock.tick(timedelta(minutes=30))
+        async with _owner_session(connection.owner_id) as session:
+            await enqueue_bank_sync_job(session, owner_id=connection.owner_id, connection_id=connection.id, kind=BankSyncJobKind.SCHEDULED)
+            await session.commit()
+        assert await run_jobs(1) == 1
+
+    later = frozen_now + timedelta(minutes=30)
+    rejected, signin_needed, state = marked
+    assert await states() == (later if rejected else None, [later if signin_needed else None], [state])
+    assert _emailed(sent_action_emails, "ACT-everyday", "Everyday Chequing") == [email]
+
+
+def _sender_hanging_on_the_second_email(sent: list[tuple[str, RenderedEmail]]) -> SimpleNamespace:
+    """Return a sender whose mail server takes the first email, noting it, and never answers the next"""
 
     async def send(recipient: str, message: RenderedEmail) -> None:
-        asked.append(recipient)
-        await asyncio.Event().wait()
+        if sent:
+            await asyncio.Event().wait()
+        sent.append((recipient, message))
 
     return SimpleNamespace(send=send)
 
@@ -1502,21 +1521,22 @@ def _unsent(caplog: pytest.LogCaptureFixture) -> list[str]:
     return [record.getMessage() for record in caplog.records if record.name == action_needed.__name__ and "unsent" in record.getMessage()]
 
 
-async def test_job_whose_mail_server_hangs_past_the_time_limit_logs_each_email_left_unsent_naming_no_one(
+async def test_job_whose_mail_server_hangs_past_the_time_limit_logs_the_email_left_unsent_naming_no_one(
     connection, provider, frozen_now, monkeypatch, caplog
 ):
-    """The Chase and Amex logins both need a sign-in, and the mail server never answers the first of the two emails
+    """The Chase and Amex logins both need a sign-in, and the mail server takes the Amex email but never answers the Chase one
 
-    The job's time limit cuts the send off. Both emails are logged as unsent, by their state and the
-    connection, naming no address or account, and both marks stay
+    The job's time limit cuts that send off, so the Chase email alone is logged as unsent, by its
+    state, its bank login and the connection, naming no address or account. Both marks stay, and the
+    job stays failed on the sign-in rather than failing as stopped
     """
     await _list_under(connection, "CON-chase", "Chase", "ACT-chase-checking")
     await _list_under(connection, "CON-amex", "American Express", "ACT-amex")
     checking = await _link(connection, "ACT-chase-checking", **_synced_through_yesterday())
     amex = await _link(connection, "ACT-amex", **_synced_through_yesterday())
     provider.outcomes = [FetchResult(request_error=_signin_needed())]
-    asked = []
-    monkeypatch.setattr(email_contract, "_active_sender", _never_answering_sender(asked))
+    sent = []
+    monkeypatch.setattr(email_contract, "_active_sender", _sender_hanging_on_the_second_email(sent))
     monkeypatch.setattr(worker, "JOB_TIME_LIMIT", timedelta(seconds=3))
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
@@ -1524,22 +1544,20 @@ async def test_job_whose_mail_server_hangs_past_the_time_limit_logs_each_email_l
         async with asyncio.timeout(_WAIT_SECONDS):
             assert await run_jobs(1) == 1
 
-    assert asked == ["owner0@example.com"]
-    assert (
-        _unsent(caplog)
-        == [f"The action-needed email for Bank sign-in needed on connection {connection.id} was left unsent, as its job was stopped"] * 2
-    )
+    assert _emailed(sent, "ACT-amex", "ACT-chase-checking") == [_email(_SIGNIN_SUBJECT, "ACT-amex")]
+    assert _unsent(caplog) == [
+        f"The action-needed email for Bank sign-in needed for bank login CON-chase on connection {connection.id} was left unsent, "
+        "as its job was stopped"
+    ]
     assert await _signin_marks(checking, amex) == [frozen_now, frozen_now]
+    assert [(status, error) for _, status, error, _ in await _jobs()] == [("failed", "bank_login_needed")]
 
 
-async def test_job_its_time_limit_stops_sends_nothing_after_it_and_logs_the_email_an_earlier_step_saved_as_unsent(
-    connection, monkeypatch, caplog
-):
+async def test_job_stopped_by_its_time_limit_has_already_sent_the_email_its_listing_saved(connection, monkeypatch, caplog, sent_action_emails):
     """The listing moves Everyday to Choose bank account, and Savings's fetch then outlasts the job's time limit
 
-    The step that moved Everyday had saved, but the job is past its limit, so its email isn't sent,
-    where a mail server that never answers would hold the runner. It is logged as unsent, and the job
-    fails as timed out
+    The email went out as the listing's save committed, so the owner is told though the job then
+    fails as timed out, and no later job would tell them, since it finds Everyday already moved
     """
     await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-everyday", "ACT-savings")
     everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
@@ -1547,8 +1565,6 @@ async def test_job_its_time_limit_stops_sends_nothing_after_it_and_logs_the_emai
     provider = _HeldProvider(held=(2,))
     provider.outcomes = [_returned("ACT-savings"), _returned("ACT-savings")]
     monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
-    asked = []
-    monkeypatch.setattr(email_contract, "_active_sender", _never_answering_sender(asked))
     monkeypatch.setattr(worker, "JOB_TIME_LIMIT", timedelta(seconds=3))
     await _seed_job(connection, BankSyncJobKind.MANUAL, discover=True)
 
@@ -1557,8 +1573,8 @@ async def test_job_its_time_limit_stops_sends_nothing_after_it_and_logs_the_emai
             assert await run_jobs(1) == 1
 
     assert await _link_states(everyday) == ["choose_account"]
-    assert asked == []
-    assert _unsent(caplog) == [f"The action-needed email for Choose bank account on link {everyday.id} was left unsent, as its job was stopped"]
+    assert _emailed(sent_action_emails, "ACT-everyday", "Everyday Chequing") == [_CHOOSE_EVERYDAY]
+    assert _unsent(caplog) == []
     assert [(kind, status, error) for kind, status, error, _ in await _jobs()] == [("manual", "failed", "temporary"), ("retry", "queued", None)]
 
 

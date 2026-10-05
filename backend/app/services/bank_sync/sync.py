@@ -35,10 +35,10 @@ ends without it
 A job ending on a rejected credential marks the connection Reconnect needed as it ends, a link an
 attempt fails on a bank sign-in is marked Bank sign-in needed until it comes back whole, and a link the
 job's listing moves to Choose bank account waits there, each emailing the owner once as the
-action_needed module describes. The emails a job's saves record go out once its last save is done,
-within the job's time limit, so a send that fails can't undo the sync. One still waiting when the
-limit ends the job, and every one a job stopped by its limit never reached, is logged as unsent
-rather than sent past the limit, so a mail server that hangs can't hold the runner
+action_needed module describes. The emails a save records go out right after it commits, within the
+job's time limit, so a later step that fails or runs past the limit can't hold them back, and a send
+that fails can't undo the sync. One the limit cuts off is logged as unsent rather than sent past the
+limit, so a mail server that hangs can't hold the runner
 """
 
 import asyncio
@@ -112,9 +112,8 @@ async def run_sync_job(job: ClaimedJob) -> None:
     row-level security as that user. A rejected credential can't work until the user reconnects, so
     nothing is sent with it. A job that met an answer to a credential since replaced ends there,
     neither failed nor queued again, so whatever replaces a connection's credential has to queue the
-    connection's next sync itself. The action-needed emails its saves recorded are sent last, within
-    the job's time limit, even when a later step raised. A job cancelled by its time limit sends none
-    of them, and logs each as unsent
+    connection's next sync itself. The action-needed emails a save recorded are sent right after it
+    commits, within the job's time limit. One a cancelled job hadn't sent is logged as unsent
 
     Args:
         job: The job as claimed
@@ -133,15 +132,16 @@ async def run_sync_job(job: ClaimedJob) -> None:
         timezone = resolve_timezone(await db.scalar(select(User.tz).where(User.id == job.owner_id)))
         currency_exponents = await get_all_currency_exponents(db)
 
+    # The emails of each save that committed, until they are sent
     outbox: list[ActionEmail] = []
     try:
         adapter = ENABLED_ADAPTERS.get(connection.provider)
         if adapter is None:
             provider_name = PROVIDER_ADAPTERS[connection.provider].provider_name
             error = ProviderError(ProviderErrorKind.UNKNOWN, f"{provider_name} is turned off on this server")
-            outbox += await _end_job(job, error, started_at=now)
+            await _end_job(job, error, started_at=now, outbox=outbox)
         elif connection.credential_rejected_at is not None:
-            outbox += await _end_job(job, started_at=now)
+            await _end_job(job, started_at=now, outbox=outbox)
         else:
             run = _JobRun(
                 job, connection, adapter, outbox=outbox, deferred=deferred, timezone=timezone, currency_exponents=currency_exponents, now=now
@@ -149,13 +149,14 @@ async def run_sync_job(job: ClaimedJob) -> None:
             try:
                 await run.run()
             except _CredentialReplaced:
-                outbox += await _end_job(job, started_at=now)
+                await _end_job(job, started_at=now, outbox=outbox)
     except asyncio.CancelledError:
         # The time limit or the worker stopping ended the job, so nothing is sent after it, where
         # a mail server that hangs would hold the runner
         log_unsent_action_emails(outbox)
         raise
     except Exception:
+        # A save that committed before the error still sends what it recorded
         await send_action_emails(outbox)
         raise
     await send_action_emails(outbox)
@@ -164,9 +165,10 @@ async def run_sync_job(job: ClaimedJob) -> None:
 async def fail_sync_job(job: ClaimedJob, error: ProviderError, *, started_at: datetime) -> None:
     """Record a job its runner couldn't finish as failed, and the error as a failed attempt for each link it was syncing
 
-    Each link the job had started on fails, though one a window brought up to date earlier in the
-    attempt fails too, and its retry is queued like any job's. A link the attempt already failed
-    keeps that one failure, so its series moves on once a job
+    Each link the job had started on and recorded no attempt for fails, and its retry is queued like
+    any job's. A link the attempt already recorded keeps that record, a failure as well as a
+    success: a failure moves its series on once a job, and a success it brought in stays one, with
+    an import carrying on at the next scheduled sync rather than waiting out a retry
 
     Args:
         job: The job as claimed
@@ -180,10 +182,10 @@ async def fail_sync_job(job: ClaimedJob, error: ProviderError, *, started_at: da
     async with async_session() as db:
         covered = await db.scalar(select(BankSyncJob.covered_link_ids).where(BankSyncJob.id == job.id))
         links = (await db.scalars(select(BankAccountLink).where(BankAccountLink.id.in_(covered or ())))).all()
-    failed_already = {link.id for link in links if link.last_failure_reason is not None and link.last_attempt_at >= started_at}
+    recorded_already = {link.id for link in links if link.last_attempt_at is not None and link.last_attempt_at >= started_at}
     # Only a time limit or an unexpected error fails a job here, and neither starts a state that
-    # emails the owner, so nothing is sent, and nothing holds the runner past the limit
-    await _end_job(job, error, failed=[link for link in links if link.id not in failed_already], started_at=started_at)
+    # emails the owner, so the outbox stays empty and nothing holds the runner past the limit
+    await _end_job(job, error, failed=[link for link in links if link.id not in recorded_already], started_at=started_at, outbox=[])
 
 
 class _JobRun:
@@ -206,7 +208,8 @@ class _JobRun:
         self.connection = connection
         self.adapter = adapter
 
-        # The action-needed emails of each save once it commits, which the caller sends as the job ends
+        # The action-needed emails of each save once it commits, sent right after it and logged as
+        # unsent by the caller when the job is cancelled first
         self.outbox = outbox
         self.timezone = timezone
         self.currency_exponents = currency_exponents
@@ -319,7 +322,8 @@ class _JobRun:
         A discovery waiting on the budget passes on the job's own flag, so a connection whose listing
         was asked for still shows one pending while one merely rediscovered daily doesn't. One that
         failed is recorded on the connection and fails the job, and with it the attempt of each link
-        the job was to sync. Each link one moves to Choose bank account gets an email to its owner
+        the job was to sync. Each link one moves to Choose bank account gets an email to its owner,
+        sent as soon as the listing's save commits
 
         Args:
             links: Every link on the connection, as the job read them before listing
@@ -342,7 +346,8 @@ class _JobRun:
             # After the discovery's links, the order an unlink takes them in, so the two can't deadlock
             await mark_user_cache_changed(db, self.job.owner_id)
             await db.commit()
-        self.outbox += emails
+            self.outbox += emails
+        await send_action_emails(self.outbox)
         if result.request_error is not None:
             due = [need.link for need in self._due(links)]
             await self._stop_for(result.request_error, sent_with=credential, discover=self.job.discover, attempted=due, sent_at=sent_at)
@@ -464,9 +469,10 @@ class _JobRun:
 
         A link brought back whole is no longer waiting on a bank sign-in, even when re-reading days it
         has doesn't count as a success, since its bank login answered. One that failed on a bank
-        sign-in is marked as waiting on one, its bank login's email recorded when that starts it.
-        Last, an import the part brought through today ends, and each link no import is running on
-        pauses or resumes by its account's review backlog, the whole part counted. A link that failed
+        sign-in is marked as waiting on one, and when that starts its bank login's state, the login's
+        email goes out once the part's save commits. Last, an import the part brought through today
+        ends, and each link no import is running on pauses or resumes by its account's review
+        backlog, the whole part counted. A link that failed
         wasn't brought back whole, so its import keeps running and the pause leaves it as it was
 
         Args:
@@ -511,7 +517,8 @@ class _JobRun:
             if stored or succeeded or failed or paused_or_imported:
                 await mark_user_cache_changed(db, self.job.owner_id)
             await db.commit()
-        self.outbox += emails
+            self.outbox += emails
+        await send_action_emails(self.outbox)
         return moved
 
     async def _count_request(self, purpose: ProviderRequestPurpose) -> tuple[datetime, str]:
@@ -599,7 +606,7 @@ class _JobRun:
             retry_overdue: Whether the job left a link whose retry was due
         """
         relist = self.relist and (error is None or error.kind != ProviderErrorKind.CREDENTIAL_REJECTED)
-        self.outbox += await _end_job(
+        await _end_job(
             self.job,
             error,
             again=again or relist,
@@ -611,7 +618,9 @@ class _JobRun:
             attempted_at=attempted_at,
             retry_overdue=retry_overdue,
             started_at=self.now,
+            outbox=self.outbox,
         )
+        await send_action_emails(self.outbox)
 
 
 async def _hold_for_finish(
@@ -699,13 +708,15 @@ async def _end_job(
     attempted_at: datetime | None = None,
     retry_overdue: bool = False,
     started_at: datetime,
-) -> list[ActionEmail]:
+    outbox: list[ActionEmail],
+) -> None:
     """Record a job as finished, or failed with an error, and queue the connection's next job in the same step when asked
 
     The error is recorded as a failed attempt on the links it failed for, and the connection's next
     retry is queued. A rejected credential marks the connection Reconnect needed, since the request
     was checked against the credential the connection holds. The owner's open pages are told, since
-    the sync status changes with it
+    the sync status changes with it. The action-needed emails the step recorded join the outbox as
+    it commits, for the caller to send
 
     Args:
         job: The job as claimed
@@ -719,9 +730,7 @@ async def _end_job(
         attempted_at: When the failed attempt's request was sent, or now when not given
         retry_overdue: Whether the job left a link whose retry was due
         started_at: When the job's attempt started, which it found the links due at
-
-    Returns:
-        The action-needed emails the step recorded, to send once the job's last step is done
+        outbox: Where the emails the step recorded wait to be sent
 
     Raises:
         JobNotHeld: A later attempt holds the job, so nothing was written
@@ -752,4 +761,4 @@ async def _end_job(
         await finish_job(db, job, error)
         await mark_user_cache_changed(db, job.owner_id)
         await db.commit()
-    return emails
+        outbox += emails

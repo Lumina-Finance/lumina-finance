@@ -7,9 +7,8 @@ Bank sign-in needed: the provider says a bank login behind the connection needs 
 again on the provider's site. Each of that login's accounts is marked as an attempt fails for it,
 while the connection's other accounts keep syncing, and stays on the connection's daily sync rather
 than retrying, so the mark clears once an attempt brings the account back whole, or once a listing
-moves its link to Choose bank account, where no sync would clear it. It outranks Choose bank
-account, as the status order has it. The state starts for a login, and emails the owner, when the
-first of its active links is marked
+moves its link to Choose bank account, where no sync would clear it. The state starts for a login,
+and emails the owner, when the first of its active links is marked
 
 Choose bank account: a sync's listing found a linked bank account gone or in another currency, so its
 account stops syncing until the user chooses its bank account again or the provider lists it as
@@ -17,18 +16,17 @@ before. Moving the link records the state, so a job run again finds it moved and
 reconnect's listing moves links while the user is in the app choosing, so it emails nothing
 
 The save that records a state starting is what records its email as due, and the email goes out
-only once that save has committed, so a job run again or cut off after the save finds the state
+right after that save commits, so a job run again or cut off after the save finds the state
 already started and sends nothing twice, and one cut off before it sends nothing. A send that
 fails is logged and never undoes the save or fails the sync. Sends run within the job's time
-limit, and one the limit cuts off, or one a job stopped before reaching, is logged as unsent by its
-state and the connection or link it is about. An email names what stopped syncing and what to do,
-and carries no credential, server or transaction data
+limit, and one the limit cuts off is logged as unsent by its state and the connection, bank login
+or link it is about. An email names what stopped syncing and what to do, and carries no
+credential, server or transaction data
 
 Reconnect needed and Bank sign-in needed are read back per account, with when each began, for the
 account's sync status. Choose bank account shows as the link's own state
 """
 
-import asyncio
 import enum
 import logging
 import uuid
@@ -79,7 +77,8 @@ class ActionEmail:
     message: RenderedEmail
 
     # What a log line names in place of the recipient and every name when the email isn't sent: the
-    # state, and the connection's id, or for Choose bank account the link's
+    # state, and the connection's id, with the bank login's key for Bank sign-in needed, or for
+    # Choose bank account the link's id
     about: str
 
 
@@ -107,8 +106,7 @@ async def read_actions_needed(db: AsyncSession, account_ids: Collection[uuid.UUI
     Every account still linked through a connection whose credential was rejected needs a
     reconnect, from when the credential was rejected, which comes before any bank sign-in, since
     reconnecting comes first. Otherwise a link marked as waiting on a bank sign-in needs one, from
-    when it was marked, which comes before choosing its bank account again, as the status order
-    has it. An account no longer linked needs nothing
+    when it was marked. An account no longer linked needs nothing
 
     Args:
         db: The owner's session
@@ -227,9 +225,9 @@ async def flag_signin_needed(
             render_action_needed_email(
                 _SIGNIN_SUBJECT.format(site=site), _SIGNIN_LEAD.format(institution=institution, site=site), accounts, _SIGNIN_CLOSING
             ),
-            f"Bank sign-in needed on connection {connection.id}",
+            f"Bank sign-in needed for bank login {login} on connection {connection.id}",
         )
-        for institution, accounts in started.values()
+        for login, (institution, accounts) in started.items()
     ]
 
 
@@ -271,30 +269,32 @@ async def choose_account_emails(db: AsyncSession, connection: BankConnection, li
     return emails
 
 
-async def send_action_emails(emails: Sequence[ActionEmail]) -> None:
-    """Send action-needed emails whose saves have committed, through the configured sender, within the caller's time limit
+async def send_action_emails(outbox: list[ActionEmail]) -> None:
+    """Send the action-needed emails waiting in an outbox, whose saves have committed, through the configured sender
 
-    Each is sent at most once: one that fails is logged and not tried again, since its state has
-    already started and shows in the app either way. When the caller is cancelled, as its time limit
-    ends, the email being sent and every one after it is logged as unsent
+    Each is taken out once tried, so it is sent at most once: one that fails is logged and not tried
+    again, since its state has already started and shows in the app either way. The caller's time
+    limit bounds the sends, and when it cancels them, the email being sent and every one after it
+    stay in the outbox, for the caller to log as unsent
+
+    Args:
+        outbox: The emails to send, in order, emptied as they are sent
 
     Raises:
-        CancelledError: The caller was cancelled while sending, which carries on once the unsent
-            emails are logged
+        CancelledError: The caller was cancelled while sending
     """
-    for index, email in enumerate(emails):
+    while outbox:
+        email = outbox[0]
         try:
             await get_email_sender().send(email.recipient, email.message)
-        except asyncio.CancelledError:
-            log_unsent_action_emails(emails[index:])
-            raise
         except Exception:
             # A failed send must never fail the sync whose state it reports
             logger.warning("Couldn't send the action-needed email for %s", email.about, exc_info=True)
+        del outbox[0]
 
 
 def log_unsent_action_emails(emails: Sequence[ActionEmail]) -> None:
-    """Log each action-needed email a stopped job leaves unsent, by its state and the connection or link it is about, naming no one"""
+    """Log each action-needed email a stopped job leaves unsent, by its state and what it is about, naming no one"""
     for email in emails:
         logger.warning("The action-needed email for %s was left unsent, as its job was stopped", email.about)
 
