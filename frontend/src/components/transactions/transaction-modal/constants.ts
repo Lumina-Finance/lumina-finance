@@ -9,9 +9,12 @@ import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 export const EASE = [0.25, 0.1, 0.25, 1] as const
 export const SELECTOR_SPRING = { type: 'spring', stiffness: 420, damping: 36, mass: 0.8 } as const
 
-// The app's ease-out, for a line under a details field opening and closing: the message under the
-// date row and the bank's value under the date or the amount
-export const DETAILS_LINE_TRANSITION = { duration: 0.18, ease: [0.22, 1, 0.36, 1] } as const
+// The app's ease-out, which the modal's bank item motions share
+export const APP_EASE_OUT = [0.22, 1, 0.36, 1] as const
+
+// For a line under a details field opening and closing: the message under the date row and the bank's
+// value under the date or the amount
+export const DETAILS_LINE_TRANSITION = { duration: 0.18, ease: APP_EASE_OUT } as const
 export const DEFAULT_CATEGORY_ICON = '🏷️'
 export const MIN_ADD_TRANSACTION_LOADING_MS = LOADING_ANIMATION_MIN_MS
 export const MIN_BATCH_ADD_TRANSACTION_LOADING_MS = LOADING_ANIMATION_MIN_MS
@@ -99,5 +102,8 @@ export const INITIAL_TRANSACTION_FORM: TransactionFormValues = {
   counterparty_account_id: '',
 }
 
-// The app's ease-out, for a bank item's filing card and form as the next item takes their place
-export const REVIEW_SWAP_EASE = [0.22, 1, 0.36, 1] as const
+// How a bank item's form, and its filing card beside it, slide in as the next item takes their place:
+// the app's ease-out over a short distance, with no exit, so the decided item's card never sits beside
+// the next item's form
+export const REVIEW_SWAP_DURATION_S = 0.2
+export const REVIEW_SWAP_OFFSET_PX = 12

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { motion, useReducedMotion } from 'motion/react'
 import { useAccounts } from '@/api/accounts'
 import { useTransaction } from '@/api/transactions'
 import { useBankLinksByAccount, useRestoreBankValue, type EditableBankField } from '@/api/bank-sync'
@@ -12,10 +12,12 @@ import { formatCurrencySymbol } from '@/utils/formatCurrency'
 import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent } from '@/utils/moneyInput'
 import { useAuth } from '@/hooks/useAuth'
 import { getTodayYmd } from '@/utils/date'
-import { isOwnPersonalAccount } from '@/pages/transactions/utils/bankReview'
+import { isOwnPersonalAccount } from '@/components/transactions/utils/bankReview'
 import {
+  APP_EASE_OUT,
   KIND_LABELS,
-  REVIEW_SWAP_EASE,
+  REVIEW_SWAP_DURATION_S,
+  REVIEW_SWAP_OFFSET_PX,
   TRANSACTION_MODAL_FIELD_IDS,
 } from '@/components/transactions/transaction-modal/constants'
 import {
@@ -50,6 +52,7 @@ import TransactionModalFooter from '@/components/transactions/transaction-modal/
 import TransactionReviewFooter from '@/components/transactions/transaction-modal/layout/ReviewFooter'
 import BankFilingCard from '@/components/transactions/transaction-modal/controls/BankFilingCard'
 import { Landmark, ReceiptText } from 'lucide-react'
+import { useAsideRoom } from '@/components/modal/asideRoom'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { FormError } from '@/components/forms/FormError'
 import TransactionBankSourcePanel from '@/components/transactions/transaction-modal/controls/BankSourcePanel'
@@ -511,21 +514,25 @@ export default function CreateTransactionModal({
     direction: form.direction,
   })
 
-  // What the bank sent for the item under review, beside the modal from 1320px and heading the form
-  // below that, where there is no room beside it
-  const renderFilingCard = (variant: 'aside' | 'inline') =>
-    reviewItem && (
-      <BankFilingCard
-        key={reviewItem.id}
-        item={reviewItem}
-        link={linksByAccount.get(reviewItem.account_id)}
-        accountName={reviewAccount?.name ?? ''}
-        currency={reviewCurrency}
-        timeZone={user?.tz}
-        variant={variant}
-        prefersReducedMotion={prefersReducedMotion}
-      />
-    )
+  // What the bank sent for the item under review, beside the modal where there is room and heading the
+  // form where there isn't
+  const isFilingCardBeside = useAsideRoom()
+  const filingCard = reviewItem && (
+    <BankFilingCard
+      item={reviewItem}
+      link={linksByAccount.get(reviewItem.account_id)}
+      accountName={reviewAccount?.name ?? ''}
+      currency={reviewCurrency}
+      timeZone={user?.tz}
+    />
+  )
+
+  // The next item's form, and its card beside it, slide in in place of the decided one's, with no exit
+  const reviewSwap = {
+    initial: isItemSwapped ? { opacity: 0, x: prefersReducedMotion ? 0 : REVIEW_SWAP_OFFSET_PX } : false,
+    animate: { opacity: 1, x: 0 },
+    transition: { duration: prefersReducedMotion ? 0 : REVIEW_SWAP_DURATION_S, ease: APP_EASE_OUT },
+  } as const
   const reviewFooter = reviewItem && (
     <TransactionReviewFooter
       isPending={isPending}
@@ -584,10 +591,11 @@ export default function CreateTransactionModal({
             }}
             onSubmit={handleSubmit}
             aside={
-              reviewItem && (
-                <AnimatePresence initial={false} mode="wait">
-                  {renderFilingCard('aside')}
-                </AnimatePresence>
+              isFilingCardBeside &&
+              filingCard && (
+                <motion.div key={reviewItem?.id} {...reviewSwap}>
+                  {filingCard}
+                </motion.div>
               )
             }
             footer={
@@ -614,14 +622,8 @@ export default function CreateTransactionModal({
               )
             }
           >
-            <motion.div
-              key={reviewItem?.id}
-              className="space-y-5"
-              initial={isItemSwapped ? { opacity: 0, x: prefersReducedMotion ? 0 : 12 } : false}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: prefersReducedMotion ? 0 : 0.2, ease: REVIEW_SWAP_EASE }}
-            >
-              {reviewItem && <div className="min-[1320px]:hidden">{renderFilingCard('inline')}</div>}
+            <motion.div key={reviewItem?.id} className="space-y-5" {...reviewSwap}>
+              {!isFilingCardBeside && filingCard}
               {bankSource && (
                 <TransactionBankSourcePanel
                   providerName={bankSource.provider_name}

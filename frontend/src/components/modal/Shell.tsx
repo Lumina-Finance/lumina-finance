@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useSyncExternalStore, type MouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
+import { useAsideRoom } from '@/components/modal/asideRoom'
 import { useDialogFocus } from '@/components/modal/focus'
 import { isModalCovered, registerOpenModal, subscribeToModalStack, unregisterOpenModal } from '@/components/modal/stack'
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
@@ -33,22 +34,6 @@ const LEVELS = {
 
 export type ModalLevel = keyof typeof LEVELS
 
-// Where an aside has room beside the panel. The panel stays centred, so the aside needs its own width
-// and gap free on both sides: 18rem and 1.5rem either side of the widest titled panel, 42rem, comes to
-// 1296px, and the rest keeps it off the screen's edge. The app's two breakpoints sit far below that,
-// so this one is the aside's own
-const ASIDE_ROOM_QUERY = '(min-width: 1320px)'
-
-function subscribeToAsideRoom(onChange: () => void): () => void {
-  const query = window.matchMedia(ASIDE_ROOM_QUERY)
-  query.addEventListener('change', onChange)
-  return () => query.removeEventListener('change', onChange)
-}
-
-function hasAsideRoom(): boolean {
-  return window.matchMedia(ASIDE_ROOM_QUERY).matches
-}
-
 interface ModalShellProps {
   open: boolean
   onClose: () => void
@@ -69,8 +54,8 @@ interface ModalShellProps {
   /**
    * Shown beside the panel rather than inside it, as part of the same dialog
    *
-   * The panel stays centred and this hangs off its right edge, 18rem wide. It is left out below 1320px
-   * wide, where there is no room for it, so whatever it holds needs another place in the panel there.
+   * The panel stays centred and this hangs off its right edge, 18rem wide. It is left out while
+   * `useAsideRoom` says there is no room for it, so whatever it holds needs another place in the panel.
    * While shown it describes the dialog, so a screen reader reads it with the title. It is for reading
    * only: focus is kept inside the panel, so Tab never reaches a control placed here
    */
@@ -104,7 +89,7 @@ export function ModalShell({
   useBodyScrollLock(open)
 
   const covered = useSyncExternalStore(subscribeToModalStack, () => isModalCovered(token))
-  const asideHasRoom = useSyncExternalStore(subscribeToAsideRoom, hasAsideRoom)
+  const asideHasRoom = useAsideRoom()
 
   useEffect(() => {
     if (!open) return

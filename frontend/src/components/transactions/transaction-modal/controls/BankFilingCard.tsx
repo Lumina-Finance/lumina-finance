@@ -1,8 +1,6 @@
 import type { ReactNode } from 'react'
-import { motion } from 'motion/react'
 import type { BankAccountLink, BankReviewItem } from '@/api/bank-sync'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
-import { REVIEW_SWAP_EASE } from '@/components/transactions/transaction-modal/constants'
 import { REVIEW_KIND_LABELS, getReviewItemAmount } from '@/components/transactions/utils/bankReview'
 import { DATE_FORMATS, formatDate, formatDateLabel } from '@/utils/date'
 
@@ -23,10 +21,6 @@ type BankFilingCardProps = {
 
   /** The user's profile timezone, which the time the item arrived is told in */
   timeZone: string | undefined
-
-  /** Beside the modal, where it slides out from behind it, or at the head of its form */
-  variant: 'aside' | 'inline'
-  prefersReducedMotion: boolean | null
 }
 
 /**
@@ -60,13 +54,11 @@ export default function BankFilingCard({
   accountName,
   currency,
   timeZone,
-  variant,
-  prefersReducedMotion,
 }: BankFilingCardProps) {
   const { formatMovedCurrency } = useMoneyFormatters()
   const amount = getReviewItemAmount(item, currency, formatMovedCurrency)
 
-  const card = (
+  return (
     <div className="relative">
       {/* The tab stands above the card's top edge, flush with its left side, so it carries the same stock but
           none of the shadow, and the card's corner under it is square */}
@@ -117,19 +109,5 @@ export default function BankFilingCard({
         </div>
       </div>
     </div>
-  )
-
-  if (variant === 'inline') return card
-
-  return (
-    <motion.div
-      className="w-72"
-      initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -24 }}
-      animate={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, x: 0 }}
-      exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -24 }}
-      transition={{ duration: prefersReducedMotion ? 0 : 0.32, ease: REVIEW_SWAP_EASE, delay: prefersReducedMotion ? 0 : 0.1 }}
-    >
-      {card}
-    </motion.div>
   )
 }

@@ -51,8 +51,6 @@ function renderCard(item: BankReviewItem, isLinkKnown = true): string {
     accountName: 'Everyday',
     currency: 'USD',
     timeZone: 'America/Phoenix',
-    variant: 'inline',
-    prefersReducedMotion: true,
   }))
 }
 
