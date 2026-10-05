@@ -1,10 +1,8 @@
 import type { EditableBankField, TransactionBankSource } from '@/api/bank-sync'
 import type { Currency } from '@/api/currency'
+import { formatRawAmount } from '@/components/transactions/utils/bankReview'
 import { formatDateLabel } from '@/utils/date'
-import { formatExactMovedAmount, formatMovedAmount } from '@/utils/formatCurrency'
-
-// The text an amount exactly as the bank sent it can take, as the server checks it
-const RAW_AMOUNT_PATTERN = /^([+-]?)(\d+)(?:\.(\d+))?$/
+import { formatMovedCurrency } from '@/utils/formatCurrency'
 
 /** The bank's value under an edited field, and why it can't be put back on the transaction, if it can't */
 export type BankValueCaption = {
@@ -38,9 +36,9 @@ export function getBankValueCaptions(
   const amountCaption = (): BankValueCaption | null => {
     if (!source.edited_fields.includes('amount')) return null
     if (amount === null) {
-      return { value: formatRawAmount(rawAmount ?? '', currency), unavailableReason: getUnstorableAmountReason(currency) }
+      return { value: formatRawAmount(rawAmount ?? '', currency).text, unavailableReason: getUnstorableAmountReason(currency) }
     }
-    return { value: formatMovedAmount(amount, currency, currencies), unavailableReason: null }
+    return { value: formatMovedCurrency(amount, currency, currencies), unavailableReason: null }
   }
   return {
     date: source.edited_fields.includes('date') ? { value: formatDateLabel(date), unavailableReason: null } : null,
@@ -51,15 +49,4 @@ export function getBankValueCaptions(
 /** Why the bank's amount can't be restored, in the words the server refuses that restore with */
 function getUnstorableAmountReason(currency: string): string {
   return `The bank's amount has more decimal places than ${currency} allows, so it can't be restored.`
-}
-
-/**
- * Formats an amount exactly as the bank sent it, with every decimal place it carried, signed as any
- * amount that moved is. Text the server would never send is shown as it came
- */
-function formatRawAmount(rawAmount: string, currency: string): string {
-  const match = RAW_AMOUNT_PATTERN.exec(rawAmount)
-  if (!match) return rawAmount
-  const [, sign, whole, fraction = ''] = match
-  return formatExactMovedAmount(BigInt(`${whole}${fraction}`) * (sign === '-' ? -1n : 1n), currency, fraction.length)
 }
