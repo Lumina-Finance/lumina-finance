@@ -6,7 +6,8 @@
  * These tests catch a removal worded as a correction or the other way round, a value shown in the
  * wrong column or in a currency other than the account's, a removal claiming a bank value it no longer
  * sends, a changed row left untinted or an unchanged one tinted, the note that accepting replaces the
- * user's value missing from an edited field or shown on one the user left alone, an amount the
+ * user's value missing from an edited field or shown on one the user left alone, a value the user kept
+ * apart from the bank's left reading as a change accepting would make, an amount the
  * currency can't hold rounded rather than shown as the bank sent it, and the removal's delete offered
  * in anything but the danger tone. Each decision with its toast, a failed decision and the Needs
  * review marker it clears run in the browser, since they need clicks
@@ -37,7 +38,8 @@ vi.mock('@/components/modal/TitledPanel', () => ({
 
 import { BankComparisonModal } from '@/components/transactions/bank-review/ComparisonModal'
 
-const EDITED_NOTE = 'You edited this. Accepting replaces your value with the bank'
+const EDITED_NOTE = 'You edited this. Accepting replaces your value with the bank\'s.'
+const KEPT_NOTE = 'Your own value. Accepting leaves it as it is.'
 const FIELDS = ['date', 'amount', 'description'] as const
 const TINT = 'var(--app-warning-soft)'
 
@@ -66,14 +68,19 @@ function styleOf(tag: string): Record<string, string> {
   }))
 }
 
-/** One field's body of the table: its tint, its label, ledger and bank cells, and whether the edited note follows */
+/** One field's body of the table: its tint, its label, ledger and bank cells, and the text of any note under them */
 function rowOf(markup: string, field: string) {
   const body = new RegExp(`(<tbody\\b[^>]*\\sdata-testid="comparison-${field}"[^>]*>)([\\s\\S]*?)</tbody>`).exec(markup)
   expect(body).not.toBeNull()
   const [, opening = '', content = ''] = body ?? []
-  const cells = [...(content.split('</tr>')[0] ?? '').matchAll(/<(th|td)\b([^>]*)>([\s\S]*?)<\/\1>/g)]
-    .map(([, , attributes = '', text = '']) => ({ text: text.replace(/<[^>]*>/g, ''), color: styleOf(attributes).color }))
-  return { tint: styleOf(opening).background, cells, hasNote: content.includes(EDITED_NOTE) }
+  const [row = '', note] = content.split('</tr>').filter((part) => part.includes('<td'))
+  const cells = [...row.matchAll(/<(th|td)\b([^>]*)>([\s\S]*?)<\/\1>/g)]
+    .map(([, , attributes = '', text = '']) => ({ text: textOf(text), color: styleOf(attributes).color }))
+  return { tint: styleOf(opening).background, cells, note: note === undefined ? undefined : textOf(note) }
+}
+
+function textOf(markup: string): string {
+  return markup.replace(/<[^>]*>/g, '').replaceAll('&#x27;', '\'').trim()
 }
 
 /** The tone of the button named `label`, read from its class whatever order its attributes come in */
@@ -107,7 +114,7 @@ describe('a correction', () => {
     ])
     expect(rows.map(({ tint }) => tint)).toEqual([undefined, TINT, TINT])
     expect(rows.map(({ cells }) => cells[2]?.color)).toEqual(['var(--app-text)', 'var(--app-warning-text)', 'var(--app-warning-text)'])
-    expect(markup).not.toContain(EDITED_NOTE)
+    expect(rows.map(({ note }) => note)).toEqual([undefined, undefined, undefined])
 
     expect(toneOf(markup, 'Keep current value')).toBe('secondary')
     expect(toneOf(markup, 'Accept bank change')).toBe('primary')
@@ -121,8 +128,21 @@ describe('a correction', () => {
       protected_fields: ['amount'],
     })
 
-    expect(rowOf(markup, 'amount').hasNote).toBe(true)
-    expect(rowOf(markup, 'date')).toMatchObject({ tint: TINT, hasNote: false })
+    expect(rowOf(markup, 'amount').note).toBe(EDITED_NOTE)
+    expect(rowOf(markup, 'date')).toMatchObject({ tint: TINT, note: undefined })
+  })
+
+  it('notes under a value the user kept apart from the bank\'s, which the change doesn\'t touch, that accepting leaves it', () => {
+    const markup = render({
+      ...COUNTDOWN,
+      bank: { ...COUNTDOWN.bank, date: '2026-09-22' },
+      changed_fields: ['date'],
+    })
+
+    expect(rowOf(markup, 'amount')).toMatchObject({ tint: undefined, note: KEPT_NOTE })
+    expect(rowOf(markup, 'amount').cells.map(({ text }) => text)).toEqual(['Amount', `${MINUS}$42.10`, `${MINUS}$45.10`])
+    expect(rowOf(markup, 'date').note).toBeUndefined()
+    expect(rowOf(markup, 'description').note).toBeUndefined()
   })
 
   it('shows an amount the currency can\'t hold exactly as the bank sent it', () => {
@@ -136,7 +156,8 @@ describe('a removal', () => {
   it('says the bank no longer reports the transaction on every row, offering to remove it in the danger tone', () => {
     const markup = render(createReviewItem('uber', 'removal', 'everyday', {
       current: { ...LEDGER, amount: -1800, description: 'UBER TRIP' },
-      bank: { ...LEDGER, amount: -1800, description: 'UBER TRIP' },
+      // Last reported at an amount the user changed, which a removal still doesn't offer to keep apart
+      bank: { ...LEDGER, amount: -1750, description: 'UBER TRIP' },
     }))
 
     expect(markup).toContain('<p>Removal from SimpleFIN</p><h2>Review bank removal</h2>')
@@ -150,6 +171,7 @@ describe('a removal', () => {
       ['UBER TRIP', 'No longer reported'],
     ])
     expect(rows.map(({ tint }) => tint)).toEqual([undefined, undefined, undefined])
+    expect(rows.map(({ note }) => note)).toEqual([undefined, undefined, undefined])
 
     expect(toneOf(markup, 'Keep transaction')).toBe('secondary')
     expect(toneOf(markup, 'Remove from ledger')).toBe('danger')

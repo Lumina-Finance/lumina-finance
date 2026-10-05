@@ -56,9 +56,10 @@ type BankComparisonModalProps = {
  * two decisions on it
  *
  * A correction tints each row the bank changed, and notes under a changed value the user had edited
- * that accepting replaces it. A removal changes no value, so its bank column only says the bank no
- * longer reports the transaction. A decision closes the modal with its toast once the ledger and the
- * review block show it, and one that fails says why in the modal, leaving the item waiting
+ * that accepting replaces it, and under a value the user kept apart from the bank's that accepting
+ * leaves it. A removal changes no value, so its bank column only says the bank no longer reports the
+ * transaction. A decision closes the modal with its toast once the ledger and the review block show
+ * it, and one that fails says why in the modal, leaving the item waiting
  */
 export function BankComparisonModal({ open, item, currency, onClose }: BankComparisonModalProps) {
   const titleId = useId()
@@ -152,11 +153,16 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
               </tr>
             </thead>
 
-            {/* A body per field, so the note under an edited value shares its tint and border */}
+            {/* A body per field, so the note under a value shares its tint and border */}
             {COMPARED_FIELDS.map(([field, label]) => {
               const isChanged = item.changed_fields.includes(field)
               const isEdited = item.protected_fields.some((edited) => edited === field)
-              const valueClassName = `${CELL_CLASS_NAME} pt-2.5 ${isEdited ? 'pb-1' : 'pb-2.5'} break-words ${field === 'amount' ? 'font-financial tabular-nums' : ''}`
+
+              // A value the user kept apart from the bank's before, which this change leaves alone. A
+              // removal shows no bank value to differ from
+              const isKept = !isRemoval && !isChanged && formatValue(field, item.current) !== formatValue(field, item.bank)
+              const rowPadding = `pt-2.5 ${isEdited || isKept ? 'pb-1' : 'pb-2.5'}`
+              const valueClassName = `${CELL_CLASS_NAME} ${rowPadding} break-words ${field === 'amount' ? 'font-financial tabular-nums' : ''}`
 
               return (
                 <tbody
@@ -169,7 +175,7 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
                         tinted row's label is in the full text colour */}
                     <th
                       scope="row"
-                      className={`${CELL_CLASS_NAME} pt-2.5 ${isEdited ? 'pb-1' : 'pb-2.5'} font-normal`}
+                      className={`${CELL_CLASS_NAME} ${rowPadding} font-normal`}
                       style={{ color: isChanged ? 'var(--app-text)' : 'var(--app-text-muted)' }}
                     >
                       {label}
@@ -194,6 +200,13 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
                           <Lock size={11} aria-hidden className="mt-0.5 shrink-0" />
                           You edited this. Accepting replaces your value with the bank&apos;s.
                         </span>
+                      </td>
+                    </tr>
+                  )}
+                  {isKept && (
+                    <tr>
+                      <td colSpan={3} className="px-4 pb-2.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                        Your own value. Accepting leaves it as it is.
                       </td>
                     </tr>
                   )}
