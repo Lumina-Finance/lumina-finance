@@ -128,14 +128,14 @@ async def list_review_backlogs(
         account_ids: The accounts whose backlogs to read, or None for every account
 
     Returns:
-        One backlog for each account, in the order named, or by id for every account
+        One backlog for each account named, in that order, or for every account
 
     Raises:
         HTTPException 403: An account is visible but isn't the user's own personal account
         HTTPException 404: An account isn't visible to the user
     """
     if account_ids is None:
-        account_ids = list(await db.scalars(select(Account.id).where(own_personal_account_condition(user.id)).order_by(Account.id)))
+        account_ids = list(await db.scalars(select(Account.id).where(own_personal_account_condition(user.id))))
     else:
         await _check_own_accounts(db, user, account_ids)
     backlogs = await read_review_backlogs(db, account_ids)
@@ -146,20 +146,24 @@ async def list_review_backlogs(
             paused=backlogs[account_id].paused,
             review_warning=backlogs[account_id].warning,
         )
-        # An account named twice has one backlog
-        for account_id in dict.fromkeys(account_ids)
+        for account_id in account_ids
     ]
 
 
 async def _check_own_accounts(db: AsyncSession, user: User, account_ids: Sequence[uuid.UUID]) -> None:
     """Refuse the first account named that isn't one of the user's own personal accounts
 
+    One query finds which of them are, so naming more accounts costs no more queries, and only an
+    account it leaves out is looked up again, to say whether the user can see it
+
     Raises:
         HTTPException 403: The account is visible but isn't the user's own personal account
         HTTPException 404: The account isn't visible to the user
     """
+    own = set(await db.scalars(select(Account.id).where(Account.id.in_(account_ids), own_personal_account_condition(user.id))))
     for account_id in account_ids:
-        await get_own_personal_account(db, account_id, user.id, not_own_detail=_NOT_OWN_DETAIL)
+        if account_id not in own:
+            await get_own_personal_account(db, account_id, user.id, not_own_detail=_NOT_OWN_DETAIL)
 
 
 def _build_item(record: BankTransaction, ledger_date: date | None, ledger_amount: int | None) -> BankReviewItemResponse:

@@ -82,7 +82,9 @@ async def test_backlogs_for_every_account_leave_out_group_and_other_users_accoun
     response = await client.get("/bank-review/backlogs", headers=headers)
 
     assert response.status_code == 200, response.text
-    assert response.json() == sorted([_backlog(everyday_id, 1), _backlog(savings_id, 0)], key=lambda backlog: uuid.UUID(backlog["account_id"]))
+    assert sorted(response.json(), key=lambda backlog: backlog["account_id"]) == sorted(
+        [_backlog(everyday_id, 1), _backlog(savings_id, 0)], key=lambda backlog: backlog["account_id"]
+    )
 
 
 @pytest.mark.parametrize(

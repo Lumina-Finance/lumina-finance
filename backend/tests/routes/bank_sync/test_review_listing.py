@@ -362,6 +362,18 @@ async def test_review_list_refuses_several_accounts_when_any_isnt_the_users_own(
     assert response.json()["detail"] == detail
 
 
+async def test_review_list_checks_three_accounts_in_as_many_queries_as_one(client):
+    """Filtered to Everyday, Savings and Travel, the list reads in as many queries as filtered to Everyday alone"""
+    headers, _, everyday_id = await _everyday(client)
+    savings_id = await _new_account(client, headers, "Savings")
+    travel_id = await _new_account(client, headers, "Travel")
+
+    _, one_selects = await _get_with_selects(client, "/bank-review/items", headers, account_id=[everyday_id])
+    _, three_selects = await _get_with_selects(client, "/bank-review/items", headers, account_id=[everyday_id, savings_id, travel_id])
+
+    assert len(three_selects) == len(one_selects)
+
+
 async def test_review_list_never_shows_another_users_items(client):
     """Another user's waiting item is in neither list, and their account reads as not found"""
     headers, _, _ = await _everyday(client)
