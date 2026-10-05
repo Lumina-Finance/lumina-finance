@@ -143,7 +143,7 @@ export function ImportDelimiterControl({
   }))
 
   return (
-    <div className="flex flex-col gap-1.5 px-3">
+    <div className="flex flex-col gap-1.5">
       <p aria-hidden className="text-sm font-medium">
         Separator
       </p>

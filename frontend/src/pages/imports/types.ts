@@ -138,6 +138,37 @@ export interface ImportFileDraft {
    * a tool-specific reader read the file or reading stopped before the parser
    */
   delimiter?: ImportDelimiter
+
+  /** Where the general reader read the table from, in a flow that offers reading choices */
+  reading?: CsvReading
+}
+
+/**
+ * The reading choices a flow gives the CSV reader: the header row, counted from 1 on the file's
+ * non-blank lines, and how many lines to leave out from the end. A header row given is always read
+ * as headings, and one left out is found
+ */
+export type CsvReadingChoices = {
+  headerRow?: number
+  skipLastRows?: number
+}
+
+/** One line of the reading preview, as the reader split it */
+export type CsvPreviewLine = {
+  rowNumber: number
+  cells: string[]
+  isSkipped: boolean
+}
+
+/** Where the reader read the table from, with the first and last lines of the file to show it */
+export type CsvReading = {
+  /** Null when the table has no heading row, so a later re-read looks again rather than forcing one */
+  headerRow: number | null
+  skipLastRows: number
+
+  /** What Skip last rows should be, when the file was refused for a wide line that may start a summary */
+  suggestedSkipLastRows?: number
+  preview: CsvPreviewLine[]
 }
 
 /**

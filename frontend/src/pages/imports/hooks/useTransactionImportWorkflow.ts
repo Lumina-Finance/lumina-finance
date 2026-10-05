@@ -9,7 +9,7 @@ import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import { useAuth } from '@/hooks/useAuth'
 import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
-import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportAmountDirection, ImportCategoryKind, ImportFileDraft, ImportRowProblem, PreviewTransactionRow } from '@/pages/imports/types'
+import type { ColumnMap, ColumnTarget, ColumnValidationErrors, CsvReadingChoices, ImportAmountDirection, ImportCategoryKind, ImportFileDraft, ImportRowProblem, PreviewTransactionRow } from '@/pages/imports/types'
 import {
   buildColumnTargetOptions,
   buildImportAnswerScope,
@@ -904,7 +904,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
 
         try {
           const [draft] = await Promise.all([
-            readCsvFile(selectedFile, supportedCurrencyCodes, { requireDataRows: true, offersDelimiterChoice: true }),
+            readCsvFile(selectedFile, supportedCurrencyCodes, { requireDataRows: true, offersReadingChoices: true }),
             waitForMilliseconds(CSV_PROCESSING_MIN_MS),
           ])
 
@@ -931,26 +931,48 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   }
 
   /**
-   * Reads the staged file again with the separator the user chose, starting the column mapping over
+   * Reads the staged file again with the reading choices given, starting the column mapping over
+   * where the columns can have changed
    */
-  const changeDelimiter = async (delimiter: ImportDelimiter) => {
+  const rereadFile = async (choices: CsvReadingChoices & { delimiter?: ImportDelimiter }, startFresh: boolean) => {
     const sourceFile = sourceFileRef.current
-    // Choosing the separator already in use keeps the answers
-    if (!sourceFile || isProcessingFiles || delimiter === files[0]?.delimiter) return
+    if (!sourceFile || isProcessingFiles) return
 
     const workflowRun = startWorkflowRun()
     setIsProcessingFiles(true)
     try {
       const draft = await readCsvFile(sourceFile, supportedCurrencyCodes, {
         requireDataRows: true,
-        offersDelimiterChoice: true,
-        delimiter,
+        offersReadingChoices: true,
+        ...choices,
       })
       if (!isCurrentWorkflowRun(workflowRun)) return
-      applyStagedFiles([draft], { startFresh: true })
+      applyStagedFiles([draft], { startFresh })
     } finally {
       if (isCurrentWorkflowRun(workflowRun)) setIsProcessingFiles(false)
     }
+  }
+
+  // Choosing the separator already in use keeps the answers. Another
+  // separator finds the header row again, since the lines above the table split differently
+  const changeDelimiter = (delimiter: ImportDelimiter) => {
+    const staged = files[0]
+    if (delimiter === staged?.delimiter) return
+    void rereadFile({ delimiter, skipLastRows: staged?.reading?.skipLastRows }, true)
+  }
+
+  const changeHeaderRow = (headerRow: number) => {
+    const staged = files[0]
+    if (!staged?.reading || headerRow === staged.reading.headerRow) return
+    void rereadFile({ delimiter: staged.delimiter, headerRow, skipLastRows: staged.reading.skipLastRows }, true)
+  }
+
+  // Leaving out lines at the end keeps the headings, so the column answers carry over. A file read
+  // without a heading row is looked at again rather than given one
+  const changeSkipLastRows = (skipLastRows: number) => {
+    const staged = files[0]
+    if (!staged?.reading || skipLastRows === staged.reading.skipLastRows) return
+    void rereadFile({ delimiter: staged.delimiter, headerRow: staged.reading.headerRow ?? undefined, skipLastRows }, false)
   }
 
   const updateColumnTarget = (header: string, targetValue: string) => {
@@ -1146,6 +1168,8 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setTagHandlingOpen,
     handleFileChange,
     changeDelimiter,
+    changeHeaderRow,
+    changeSkipLastRows,
     removeFile,
     updateSourceAccount,
     updateColumnTarget,
