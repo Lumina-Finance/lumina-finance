@@ -22,7 +22,16 @@ const LINKS = new Map([
   [EVERYDAY.id, { provider_name: 'SimpleFIN', import_start: '2026-06-01' }],
   [VISA.id, { provider_name: 'SimpleFIN', import_start: '2026-09-01' }],
 ])
-const EVERYDAY_MESSAGE = "SimpleFIN supplies this account's transactions from Jun 1, 2026 to today"
+
+/**
+ * Writes a date as the message does, with non-breaking spaces, so a narrow field never wraps it
+ * between its month and its day
+ */
+function unbroken(date: string): string {
+  return date.replaceAll(' ', ' ')
+}
+
+const EVERYDAY_MESSAGE = `SimpleFIN supplies this account's transactions from ${unbroken('Jun 1, 2026')} to today`
 
 /**
  * Works out the refused days for a form recorded in Everyday unless it says otherwise, finding its
@@ -99,7 +108,7 @@ describe('days a linked account’s bank supplies', () => {
   it('checks the other account of a new symmetric transfer, naming it', () => {
     const days = pair(SAVINGS.id, VISA.id, '2026-09-15')
 
-    expect(days.message).toBe('SimpleFIN supplies the transactions in Visa from Sep 1, 2026 to today')
+    expect(days.message).toBe(`SimpleFIN supplies the transactions in Visa from ${unbroken('Sep 1, 2026')} to today`)
     expect(days.isDateDisabled?.('2026-09-15')).toBe(true)
     expectNothingRefused(pair(SAVINGS.id, VISA.id, '2026-09-15', false))
   })
@@ -107,12 +116,12 @@ describe('days a linked account’s bank supplies', () => {
   it('checks both linked accounts of a new pair, each from its own start, naming the recorded one first', () => {
     // Visa's bank supplies nothing before September, Everyday's does from June
     const july = pair(VISA.id, EVERYDAY.id, '2026-07-01')
-    expect(july.message).toBe('SimpleFIN supplies the transactions in Everyday from Jun 1, 2026 to today')
+    expect(july.message).toBe(`SimpleFIN supplies the transactions in Everyday from ${unbroken('Jun 1, 2026')} to today`)
     expect(july.isDateDisabled?.('2026-07-01')).toBe(true)
 
     // Both supply mid-September, and the message names the account the transfer is recorded in
     expect(pair(VISA.id, EVERYDAY.id, '2026-09-15').message)
-      .toBe('SimpleFIN supplies the transactions in Visa from Sep 1, 2026 to today')
+      .toBe(`SimpleFIN supplies the transactions in Visa from ${unbroken('Sep 1, 2026')} to today`)
   })
 
   it('leaves the other account alone when a transfer is edited, since only the one transaction changes', () => {

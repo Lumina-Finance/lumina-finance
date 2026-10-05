@@ -88,7 +88,12 @@ export function getSuppliedDays({
   }
 }
 
+/**
+ * Words the refusal, with the date's spaces unbreakable so a narrow field never leaves its month on
+ * one line and its day on the next
+ */
 function describeSuppliedDays({ link, accountName }: SuppliedAccount): string {
   const transactions = accountName ? `the transactions in ${accountName}` : "this account's transactions"
-  return `${link.provider_name} supplies ${transactions} from ${formatDateLabel(link.import_start)} to today`
+  const start = formatDateLabel(link.import_start).replaceAll(' ', ' ')
+  return `${link.provider_name} supplies ${transactions} from ${start} to today`
 }
