@@ -291,8 +291,13 @@ class BankAccountLink(Base):
     retry_count: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0, server_default="0")
     next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    # Sync stops while too many new items wait for review, and resumes once enough are decided
+    # Set once a sync leaves 100 or more new items waiting for review, which stops the link's sync,
+    # and cleared once 50 or fewer are left, so the link stays paused in between
     paused: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+
+    # While the link's latest import is under way. Syncs take an import to today whatever the review
+    # backlog, and the pause applies once it ends. Every link starts with one
+    importing: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     signin_needed_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     catchup_requested_start: Mapped[date | None] = mapped_column(Date)
 

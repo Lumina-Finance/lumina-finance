@@ -419,10 +419,11 @@ def _restart_for_new_bank_account(link: BankAccountLink) -> None:
 
     Its sync record belonged to the bank account as the provider listed it before, so none of it
     carries over. The review pause counts the account's waiting items and the opening adjustment is
-    offered once per link, so both stay
+    offered once per link, so both stay, and the new import runs to today whatever the pause says
     """
     link.state = BankLinkState.ACTIVE
     link.import_kind = BankImportKind.CHOOSE_AGAIN
+    link.importing = True
     link.linked_at = func.now()
     link.last_success_at = None
     link.last_attempt_at = None

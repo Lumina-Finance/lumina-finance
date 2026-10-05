@@ -61,6 +61,7 @@ from app.services.bank_sync.provider_requests import (
 )
 from app.services.bank_sync.providers.contract import ExternalAccount, FetchResult, ProviderAdapter, ProviderError
 from app.services.bank_sync.retries import is_waiting_to_retry, queue_next_retry, record_failed_attempt, record_successful_attempt
+from app.services.bank_sync.review_pause import apply_review_pauses
 from app.services.bank_sync.windows import LinkNeed, SyncWindow, find_due_links, first_missing_day, plan_window
 from app.services.cache_state.updates import mark_user_cache_changed
 from app.services.fx.currency_exponent_helpers import get_all_currency_exponents
@@ -421,7 +422,9 @@ class _JobRun:
 
         A part ending today also replaces the pending items of those links' accounts with what it
         found pending, whatever their checkpoints, since what is pending now doesn't depend on the
-        days a link still lacks
+        days a link still lacks. Last, an import the part brought through today ends, and each link
+        no import is running on pauses or resumes by its account's review backlog, the whole part
+        counted
 
         Args:
             part: The days fetched, and the links they were fetched for
@@ -458,7 +461,8 @@ class _JobRun:
             failed = [link for link in held if link.id in failures]
             for link in failed:
                 record_failed_attempt(link, failures[link.id], at=sent_at)
-            if stored or stamped or failed:
+            paused_or_imported = await apply_review_pauses(db, whole, today=self.today)
+            if stored or stamped or failed or paused_or_imported:
                 await mark_user_cache_changed(db, self.job.owner_id)
             await db.commit()
         return moved

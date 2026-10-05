@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 
 from app.models.bank_connection import BankAccountLink, BankLinkState
 from app.services.bank_sync.retries import is_waiting_to_retry
+from app.services.bank_sync.review_pause import is_paused_for_review
 
 # A sync takes in every link due within this long, so the links on one connection converge on one
 # daily request rather than each spending a request of its own
@@ -59,10 +60,10 @@ class SyncWindow:
 def find_due_links(links: Iterable[BankAccountLink], *, now: datetime, timezone: ZoneInfo, overlap_days: int) -> list[LinkNeed]:
     """Return the links to sync now, each with the first day it needs
 
-    A link syncs while it is active and not paused for review, once its next attempt falls within
-    the next 12 hours, and a link with no next attempt set is due now. A link waiting to retry is due
-    only once its retry is, so it isn't fetched ahead of it with links due later today. A link whose
-    need starts after today has nothing to fetch yet
+    A link syncs while it is active and not paused for review, which an import running never is,
+    once its next attempt falls within the next 12 hours, and a link with no next attempt set is due
+    now. A link waiting to retry is due only once its retry is, so it isn't fetched ahead of it with
+    links due later today. A link whose need starts after today has nothing to fetch yet
 
     Args:
         links: The connection's links
@@ -73,7 +74,7 @@ def find_due_links(links: Iterable[BankAccountLink], *, now: datetime, timezone:
     today = now.astimezone(timezone).date()
     due = []
     for link in links:
-        if link.state != BankLinkState.ACTIVE or link.paused:
+        if link.state != BankLinkState.ACTIVE or is_paused_for_review(link):
             continue
         due_by = now if is_waiting_to_retry(link) else now + DUE_WITHIN
         if link.next_attempt_at is not None and link.next_attempt_at > due_by:

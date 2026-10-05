@@ -141,8 +141,16 @@ async def _wait_on_signin(account_id: str) -> None:
 
 
 async def test_reconnect_with_both_bank_accounts_unchanged_resumes_both_and_clears_reconnect_needed(client, scenario: FakeBridgeScenario):
-    """Everyday and Savings were stopped for 10 days: a new token brings both back, catching up from where each stopped"""
+    """Everyday and Savings were stopped for 10 days: a new token brings both back, catching up from where each stopped
+
+    Everyday was also paused for review. Its catch-up is an import, which runs to today whatever the
+    pause, and the pause stays for when the import ends
+    """
     headers, everyday_id, savings_id, connection_id = await _rejected_with_two_links(client, scenario)
+    async with TestSession() as session:
+        await session.execute(update(BankAccountLink).values(importing=False))
+        await session.execute(update(BankAccountLink).where(BankAccountLink.account_id == uuid.UUID(everyday_id)).values(paused=True))
+        await session.commit()
     before = await _links()
     old_credential = decrypt((await _stored_connection(connection_id)).credential_encrypted)
 
@@ -165,6 +173,12 @@ async def test_reconnect_with_both_bank_accounts_unchanged_resumes_both_and_clea
     assert await _links() == {
         account_id: (external_id, "active", "reconnect", checkpoint, None) for account_id, (external_id, _, _, checkpoint, _) in before.items()
     }
+    async with TestSession() as session:
+        rows = await session.execute(select(BankAccountLink.account_id, BankAccountLink.importing, BankAccountLink.paused))
+        assert {str(account_id): (importing, paused) for account_id, importing, paused in rows} == {
+            everyday_id: (True, True),
+            savings_id: (True, False),
+        }
     assert await _jobs() == [("initial", False, "queued")]
     assert await _request_purposes() == ["claim", "claim", "discovery", "discovery"]
 

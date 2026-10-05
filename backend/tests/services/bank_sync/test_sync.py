@@ -13,7 +13,10 @@ A job that skips its listing leaves new bank accounts unlisted and vanished ones
 that stores what it found after losing its lease, for a link unlinked mid-fetch, or from a request
 sent with a credential replaced mid-flight overwrites what the user, a reconnect or a later attempt
 did. An attempt left unrecorded shows a sync that never happened, a retry sent early or for a failure
-retrying can't fix spends requests for nothing, and one never queued leaves an account stale
+retrying can't fix spends requests for nothing, and one never queued leaves an account stale. An
+account that keeps syncing past 100 new items waiting buries the user in review, one paused by
+corrections or a pause on another account stops for nothing, and an import the pause stops part way
+leaves a gap in the history
 """
 
 import asyncio
@@ -30,10 +33,18 @@ from sqlalchemy import delete, func, select, text, update
 from app.encryption import encrypt
 from app.models.account import Account
 from app.models.account_review_preference import AccountReviewPreference, ReviewDecision
-from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState, BankProvider, BankProviderRequest, ProviderRequestPurpose
+from app.models.bank_connection import (
+    BankAccountLink,
+    BankConnection,
+    BankImportKind,
+    BankLinkState,
+    BankProvider,
+    BankProviderRequest,
+    ProviderRequestPurpose,
+)
 from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, ProviderErrorKind
-from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
+from app.models.bank_transaction import OBSERVATION_COLUMNS, BankTransaction, BankTransactionDisposition
 from app.models.cache_state import UserCacheState
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -52,6 +63,8 @@ from tests.routes.support.bank_sync_helpers import (
     _build_bank_transaction,
     _build_external_account,
     _build_pending_transaction,
+    _commit_accepted_items,
+    _commit_waiting_items,
     _expire_lease,
     _job_states,
     _queued_jobs,
@@ -85,14 +98,8 @@ _DAILY_REQUESTS = PROVIDER_ADAPTERS[BankProvider.SIMPLEFIN].daily_request_budget
 _CREDENTIAL = "https://user:secret@bridge.example/simplefin"
 _RENEWED = "https://user:renewed@bridge.example/simplefin"
 
-# The shared builder's values a dismissal clears, since a dismissed bank transaction keeps only its identity
-_DISMISSED = {
-    "disposition": BankTransactionDisposition.DISMISSED,
-    "observed_date": None,
-    "observed_amount": None,
-    "description": None,
-    "observed_at": None,
-}
+# The values a dismissal clears, since a dismissed bank transaction keeps only its identity
+_DISMISSED = {"disposition": BankTransactionDisposition.DISMISSED} | dict.fromkeys(OBSERVATION_COLUMNS)
 
 pytestmark = pytest.mark.usefixtures("worker_sessions")
 
@@ -132,8 +139,8 @@ async def _link(connection: BankConnection, external_id: str, **values) -> BankA
 
 
 def _synced_through_yesterday(**values) -> dict:
-    """Return the fields of a link that yesterday's daily sync left complete through 3 October"""
-    return {"import_start": date(2026, 1, 1), "checkpoint": date(2026, 10, 3), "last_success_at": _YESTERDAYS_SYNC} | values
+    """Return the fields of a link whose import ended long ago and which yesterday's daily sync left complete through 3 October"""
+    return {"import_start": date(2026, 1, 1), "checkpoint": date(2026, 10, 3), "last_success_at": _YESTERDAYS_SYNC, "importing": False} | values
 
 
 def _bank_account(
@@ -2089,3 +2096,209 @@ async def test_job_tells_the_owners_pages_as_a_part_stores_records_without_movin
     assert checkpoint_after_the_earlier_half == [date(2026, 10, 3)]
     assert told_as_it_started is not None
     assert told_after_the_earlier_half > told_as_it_started
+
+
+def _new_records(count: int, prefix: str = "TRN-new", day: date = date(2026, 10, 2)) -> list[ProviderRecord]:
+    """Return this many booked records new to Lumina, each a $4.50 coffee on the day given, 2 October unless told otherwise"""
+    return [_record(f"{prefix}-{number}", day) for number in range(count)]
+
+
+async def _pauses(*links: BankAccountLink) -> list[tuple[bool, bool]]:
+    """Return whether each link is paused for review, and whether an import is running on it, as committed"""
+    async with TestSession() as session:
+        rows = [
+            (await session.execute(select(BankAccountLink.paused, BankAccountLink.importing).where(BankAccountLink.id == link.id))).one()
+            for link in links
+        ]
+    return [tuple(row) for row in rows]
+
+
+async def _waiting(link: BankAccountLink) -> int:
+    """Return how many new items wait for their first review in the link's account"""
+    async with TestSession() as session:
+        return await session.scalar(
+            select(func.count())
+            .select_from(BankTransaction)
+            .where(BankTransaction.account_id == link.account_id, BankTransaction.disposition == BankTransactionDisposition.AWAITING_REVIEW)
+        )
+
+
+async def test_job_that_leaves_100_new_items_waiting_pauses_that_account_alone(connection, provider):
+    """Everyday has 96 new items waiting, and the daily sync brings 12 more: all 12 are kept and Everyday pauses at 108
+
+    The next sync leaves Everyday out, while Savings, on the same connection, keeps syncing
+    """
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    savings = await _link(connection, "ACT-savings", **_synced_through_yesterday())
+    await _commit_waiting_items(everyday, 96)
+    provider.outcomes = [_returned_with({"ACT-everyday": _new_records(12), "ACT-savings": []}), _returned("ACT-savings")]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+    await _run_jobs_until_none_is_due()
+
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [
+        _window(date(2026, 9, 19), _TODAY, ["ACT-everyday", "ACT-savings"], pending=True),
+        _window(date(2026, 9, 20), _TODAY, ["ACT-savings"], pending=True),
+    ]
+    assert await _waiting(everyday) == 108
+    assert await _pauses(everyday, savings) == [(True, False), (False, False)]
+
+
+@pytest.mark.parametrize(("waiting", "paused"), [(87, False), (88, True)], ids=["leaves_99", "leaves_100"])
+async def test_job_pauses_an_account_once_100_new_items_wait(connection, provider, waiting, paused):
+    """12 new items on top of 87 waiting leave 99, and Everyday keeps syncing. On top of 88 they leave 100, and it pauses"""
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    await _commit_waiting_items(link, waiting)
+    provider.outcomes = [_returned_with({"ACT-1": _new_records(12)})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _pauses(link) == [(paused, False)]
+
+
+async def test_job_counts_only_new_items_waiting_toward_the_pause(connection, provider):
+    """Everyday has 90 new items waiting, 15 corrections and 5 removals open, and 20 accepted items with nothing open
+
+    A sync bringing nothing new leaves Everyday syncing, since the corrections and removals are opened
+    on accepted transactions and only the 90 count
+    """
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    await _commit_waiting_items(link, 90)
+    await _commit_accepted_items(link, plain=20, corrections=15, removals=5)
+    provider.outcomes = [_returned("ACT-1")]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _pauses(link) == [(False, False)]
+
+
+async def test_job_runs_a_first_import_to_today_past_100_new_items_and_pauses_once_it_ends(connection, provider):
+    """Everyday's import from 1 January brings 85 new items in each of its four windows
+
+    It passes 100 waiting in its second window and carries on, since stopping would leave the rest of
+    the year missing. Once it reaches today, the 340 waiting pause Everyday
+    """
+    link = await _link(connection, "ACT-1", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    windows = [
+        _window(date(2026, 1, 1), date(2026, 3, 31)),
+        _window(date(2026, 4, 1), date(2026, 6, 29)),
+        _window(date(2026, 6, 30), date(2026, 9, 27)),
+        _window(date(2026, 9, 28), _TODAY, pending=True),
+    ]
+    first_days = [date(2026, 1, 1), date(2026, 4, 1), date(2026, 6, 30), date(2026, 9, 28)]
+    provider.outcomes = [_returned_with({"ACT-1": _new_records(85, f"TRN-{day}", day)}) for day in first_days]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == windows
+    assert await _waiting(link) == 340
+    assert await _pauses(link) == [(True, False)]
+
+
+# A link whose bank account was chosen again, importing from 1 September
+_CHOSEN_AGAIN = {"import_kind": BankImportKind.CHOOSE_AGAIN, "import_start": date(2026, 9, 1), "checkpoint": date(2026, 8, 31)}
+
+# A link reconnected after its credential was rejected, complete through 24 September, the day of its last sync
+_RECONNECTED = {
+    "import_kind": BankImportKind.RECONNECT,
+    "checkpoint": date(2026, 9, 24),
+    "last_success_at": datetime(2026, 9, 24, 9, tzinfo=_BRISBANE),
+}
+
+
+@pytest.mark.parametrize(
+    ("values", "waiting", "sent_by", "window", "paused"),
+    [
+        (_CHOSEN_AGAIN, 105, "ACT-before", _window(date(2026, 9, 1), _TODAY, pending=True), True),
+        (_RECONNECTED, 51, "ACT-1", _window(date(2026, 9, 10), _TODAY, pending=True), True),
+        (_RECONNECTED, 50, "ACT-1", _window(date(2026, 9, 10), _TODAY, pending=True), False),
+    ],
+    ids=["choose_again_with_105_from_the_old_bank_account", "reconnect_with_51", "reconnect_with_50"],
+)
+async def test_job_runs_an_import_on_a_paused_link_to_today_and_keeps_the_pause_until_50_or_fewer_wait(
+    connection, provider, values, waiting, sent_by, window, paused
+):
+    """Everyday was paused for review when its bank account had to be chosen again, or its connection reconnected
+
+    The import that follows runs to today whatever the pause. Once it ends, the pause stays while more
+    than 50 new items wait, counting those the account's old bank account sent, and lifts at 50
+    """
+    link = await _link(connection, "ACT-1", **{"import_start": date(2026, 1, 1), "paused": True, "importing": True} | values)
+    await _commit_waiting_items(link, waiting, external_account_id=sent_by)
+    provider.outcomes = [_returned("ACT-1")]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [window]
+    assert await _pauses(link) == [(paused, False)]
+
+
+async def test_job_pauses_a_first_import_by_the_count_left_when_it_ends_not_by_its_peak(connection, provider):
+    """Everyday's import from 1 January brings 85 new items in each of its first two windows, and the user dismisses 110 before the third
+
+    The import ends with 60 waiting, so Everyday keeps syncing: the 170 it passed on the way paused nothing
+    """
+    link = await _link(connection, "ACT-1", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    provider.outcomes = [
+        _returned_with({"ACT-1": _new_records(85, "TRN-january", date(2026, 1, 1))}),
+        _returned_with({"ACT-1": _new_records(85, "TRN-april", date(2026, 4, 1))}),
+        _returned("ACT-1"),
+        _returned("ACT-1"),
+    ]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+    assert [await run_jobs(1), await run_jobs(1)] == [1, 1]
+    waiting_at_the_peak = await _waiting(link)
+    async with TestSession() as session:
+        dismissed = (await session.scalars(select(BankTransaction.id).order_by(BankTransaction.external_transaction_id).limit(110))).all()
+
+        # A Core update moves the version itself, as the model asks
+        await session.execute(
+            update(BankTransaction).where(BankTransaction.id.in_(dismissed)).values(version=BankTransaction.version + 1, **_DISMISSED)
+        )
+        await session.commit()
+
+    await _run_jobs_until_none_is_due()
+
+    assert waiting_at_the_peak == 170
+    assert len(provider.fetches) == 4
+    assert await _waiting(link) == 60
+    assert await _pauses(link) == [(False, False)]
+
+
+@pytest.mark.parametrize(("waiting", "paused"), [(100, True), (99, False)], ids=["100_waiting", "99_waiting"])
+async def test_job_tells_the_owners_pages_as_a_part_that_stores_nothing_pauses_the_account(
+    connection, monkeypatch, frozen_now, waiting, paused
+):
+    """Sync now re-reads Everyday, synced through today an hour ago, and comes back cut short. Its earlier half brings nothing new
+
+    With 100 new items waiting, that half pauses Everyday, and the owner's open pages hear of it while
+    the later half is still out. With 99 the half changes nothing, so they hear nothing
+    """
+    link = await _link(
+        connection, "ACT-1", import_start=date(2026, 1, 1), checkpoint=_TODAY, last_success_at=frozen_now - timedelta(hours=1), importing=False
+    )
+    await _commit_waiting_items(link, waiting)
+    provider = _HeldProvider(held=(1, 3))
+    provider.outcomes = [_cut_off("ACT-1"), _returned("ACT-1"), _returned("ACT-1")]
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
+    await _seed_job(connection, BankSyncJobKind.MANUAL)
+
+    async with asyncio.timeout(_WAIT_SECONDS):
+        running = asyncio.create_task(run_jobs(1))
+        await provider.sending[1].wait()
+        told_as_it_started = await _told_at(connection)
+        provider.release[1].set()
+        await provider.sending[3].wait()
+        told_after_the_earlier_half = await _told_at(connection)
+        pauses_after_the_earlier_half = await _pauses(link)
+        provider.release[3].set()
+        await running
+
+    assert pauses_after_the_earlier_half == [(paused, False)]
+    assert (told_after_the_earlier_half > told_as_it_started) is paused

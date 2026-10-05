@@ -135,8 +135,9 @@ async def test_link_of_an_account_unlinked_before_is_a_relink(client):
 async def _waiting_to_choose_again(client) -> tuple[dict, str, BankConnection, uuid.UUID, date]:
     """Sign up with Everyday's link to ACT-1 waiting in Choose bank account, its connection now listing ACT-2 instead
 
-    ACT-1 left 4 items waiting for review and a pending item, the link was also waiting on a bank
-    sign-in after 2 failed retries, and Everyday's latest ledger transaction is 14 days ago
+    ACT-1 left 4 items waiting for review and a pending item, the link's import had ended and it was
+    also waiting on a bank sign-in after 2 failed retries, and Everyday's latest ledger transaction
+    is 14 days ago
 
     Returns:
         The auth headers, Everyday's id, the connection, the link's id and the latest ledger date
@@ -160,6 +161,7 @@ async def _waiting_to_choose_again(client) -> tuple[dict, str, BankConnection, u
             last_failure_reason="Harbour Bank needs you to sign in again.",
             retry_count=2,
             signin_needed_since=_NOW - timedelta(days=11),
+            importing=False,
         )
         link_id = link.id
         session.add_all(
@@ -196,7 +198,13 @@ async def test_choose_again_moves_the_link_to_the_new_bank_account_from_after_th
             select(func.count()).select_from(BankTransaction).where(BankTransaction.disposition == BankTransactionDisposition.AWAITING_REVIEW)
         )
         pending = await session.scalar(select(func.count()).select_from(BankPendingTransaction))
-    assert (link.signin_needed_since, link.last_success_at, link.last_failure_reason, link.retry_count) == (None, None, None, 0)
+    assert (link.signin_needed_since, link.last_success_at, link.last_failure_reason, link.retry_count, link.importing) == (
+        None,
+        None,
+        None,
+        0,
+        True,
+    )
     assert (waiting, pending) == (4, 0)
     assert await _queued_jobs() == [(connection.id, "initial", False, "queued")]
 

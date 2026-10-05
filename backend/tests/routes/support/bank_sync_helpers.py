@@ -27,7 +27,7 @@ from app.models.bank_connection import (
 )
 from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind
-from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
+from app.models.bank_transaction import BankTransaction, BankTransactionDisposition, OpenReviewKind
 from app.models.base import AccountKind, AccountType, CategoryKind
 from app.models.category import Category
 from app.models.currency import Currency
@@ -243,6 +243,50 @@ def _build_bank_transaction(
         aligned_date=BANK_DATE if accepted else None,
         aligned_amount=amount if accepted else None,
     )
+
+
+async def _commit_waiting_items(
+    link: BankAccountLink,
+    count: int,
+    prefix: str = "TRN-waiting",
+    *,
+    external_account_id: str | None = None,
+) -> list[uuid.UUID]:
+    """Commit this many new items for the link's account, each awaiting its first review, sent by the link's bank account unless told otherwise
+
+    Returns:
+        Their ids, which are also their review items'
+    """
+    sent_by = external_account_id or link.external_account_id
+    async with TestSession() as session:
+        account = await session.get_one(Account, link.account_id)
+        items = [_build_bank_transaction(account, f"{prefix}-{number}", external_account_id=sent_by) for number in range(count)]
+        session.add_all(items)
+        await session.commit()
+    return [item.id for item in items]
+
+
+async def _commit_accepted_items(link: BankAccountLink, *, plain: int = 0, corrections: int = 0, removals: int = 0) -> None:
+    """Commit bank transactions the link's bank account sent that the user accepted into the ledger
+
+    Given counts have nothing open on them, a correction open, or a removal open
+    """
+    open_kinds = [None] * plain + [OpenReviewKind.CORRECTION] * corrections + [OpenReviewKind.REMOVAL] * removals
+    async with TestSession() as session:
+        account = await session.get_one(Account, link.account_id)
+        category = _build_category(account.owner_id)
+        session.add(category)
+        await session.flush()
+        ledger = [_build_ledger_transaction(account, category.id) for _ in open_kinds]
+        session.add_all(ledger)
+        await session.flush()
+        for number, (transaction, open_kind) in enumerate(zip(ledger, open_kinds, strict=True)):
+            record = _build_bank_transaction(
+                account, f"TRN-accepted-{number}", external_account_id=link.external_account_id, transaction=transaction
+            )
+            record.open_kind = open_kind
+            session.add(record)
+        await session.commit()
 
 
 async def _record_bank_source(

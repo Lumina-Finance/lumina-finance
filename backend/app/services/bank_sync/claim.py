@@ -198,7 +198,8 @@ def _refuse_working(connection: BankConnection) -> None:
 async def _resume_links(db: AsyncSession, connection: BankConnection) -> tuple[list[uuid.UUID], list[uuid.UUID]]:
     """Restart the connection's links after a reconnect, as its discovery left them
 
-    An active link catches up from its checkpoint as a reconnect import, with a new retry series.
+    An active link catches up from its checkpoint as a reconnect import, which runs to today
+    whatever the review pause says, with a new retry series.
     A link waiting in Choose bank account drops a bank sign-in it was also waiting on, since that
     belonged to the bank account as it was listed before. The links are locked in id order after
     the connection, the order a disconnect takes them in, and before the job and the cache row,
@@ -219,6 +220,7 @@ async def _resume_links(db: AsyncSession, connection: BankConnection) -> tuple[l
     for link in links:
         if link.state == BankLinkState.ACTIVE:
             link.import_kind = BankImportKind.RECONNECT
+            link.importing = True
             link.retry_count = 0
             link.next_attempt_at = None
             resumed.append(link.account_id)

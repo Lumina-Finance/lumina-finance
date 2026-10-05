@@ -1,8 +1,9 @@
 """Planning which days a sync fetches, and for which links
 
 A link left out of a sync it was due for waits a day, one paused or waiting for its bank account to
-be chosen again must send nothing, one waiting to retry that joins early is fetched again before its
-retry is due, a re-read too short misses late postings and corrections, one
+be chosen again must send nothing, an import the pause held back leaves a gap in the history, one
+waiting to retry that joins early is fetched again before its retry is due, a re-read too short
+misses late postings and corrections, one
 reaching before the import start brings in days the ledger already covers, a window longer than
 SimpleFIN Bridge allows is refused on every retry, and halves that don't meet exactly skip or
 repeat a day. Days are the profile timezone's: an import starting today there is due, and one
@@ -29,11 +30,12 @@ _TODAY = date(2026, 10, 4)
 
 
 def _link(**values) -> BankAccountLink:
-    """Return an unsaved active link, not paused, never synced and not waiting to retry, with the fields given"""
+    """Return an unsaved active link, not paused, never synced, not waiting to retry and with no import running, with the fields given"""
     link = _build_bank_link(_build_account(uuid.uuid4()), None)
     link.state = BankLinkState.ACTIVE
     link.paused = False
     link.retry_count = 0
+    link.importing = False
     for field, value in values.items():
         setattr(link, field, value)
     return link
@@ -55,6 +57,7 @@ def test_plan_window_for_a_daily_sync_never_rereads_before_the_import_start():
         ({"next_attempt_at": _NOW + timedelta(hours=12)}, True),
         ({"next_attempt_at": _NOW + timedelta(hours=12, minutes=1)}, False),
         ({"paused": True}, False),
+        ({"paused": True, "importing": True}, True),
         ({"state": BankLinkState.CHOOSE_ACCOUNT}, False),
         ({"import_start": _TODAY, "checkpoint": _TODAY - timedelta(days=1)}, True),
         ({"retry_count": 1, "next_attempt_at": _NOW}, True),
@@ -65,6 +68,7 @@ def test_plan_window_for_a_daily_sync_never_rereads_before_the_import_start():
         "due_in_12_hours",
         "due_in_12_hours_and_a_minute",
         "paused_for_review",
+        "paused_but_importing",
         "waiting_to_choose_its_bank_account",
         "import_starting_today",
         "retry_due_now",
