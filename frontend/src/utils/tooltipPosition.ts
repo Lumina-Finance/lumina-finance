@@ -101,6 +101,28 @@ export function getCursorTooltipPosition({
 }
 
 /**
+ * Where the lowest bar marked with `data-tooltip-cover` ends, among those starting above the trigger
+ * and reaching across it, such as a sticky toolbar a list scrolls under, or 0 when there is none. A
+ * panel opening upwards past it would be drawn under the bar
+ *
+ * A bar holding the trigger is its own surface rather than one over it, so it is left out. So is
+ * every bar for a trigger in a dialog, since the page behind the dialog keeps its stuck bars in
+ * place under the dialog rather than over it
+ */
+export function getTooltipCoverBottom(trigger: HTMLElement, triggerRect: DOMRect): number {
+  if (trigger.closest('[role="dialog"]')) return 0
+
+  let coverBottom = 0
+  for (const cover of document.querySelectorAll('[data-tooltip-cover]')) {
+    if (cover.contains(trigger)) continue
+    const rect = cover.getBoundingClientRect()
+    const isAcross = rect.left < triggerRect.right && rect.right > triggerRect.left
+    if (rect.top < triggerRect.top && isAcross) coverBottom = Math.max(coverBottom, rect.bottom)
+  }
+  return coverBottom
+}
+
+/**
  * Positions a tooltip element against the cursor by writing the computed coordinates onto its style
  *
  * The two axes are written to custom properties the caller names, so a stylesheet decides how each one

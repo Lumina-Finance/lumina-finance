@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Info, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { joinClassNames } from '@/utils/classNames'
 import { FX_TONE_CLASS, type IconTooltipFxTone } from '@/components/tooltips/fxToneClass'
+import { getTooltipCoverBottom } from '@/utils/tooltipPosition'
 
 export type IconTooltipLevel = 'info' | 'warn' | 'important'
 
@@ -117,23 +118,6 @@ function getAvailablePlacement({
   return bottomWouldClip && !topWouldClip ? 'top' : 'bottom'
 }
 
-/**
- * Where the lowest bar marked with `data-tooltip-cover` ends, among those starting above the trigger
- * and reaching across it, such as a sticky toolbar a list scrolls under, or 0 when there is none. A
- * panel opening upwards past it would be drawn under the bar. A bar holding the trigger is its own
- * surface rather than one over it, so it is left out
- */
-function getCoverBottom(trigger: HTMLElement, triggerRect: DOMRect): number {
-  let coverBottom = 0
-  for (const cover of document.querySelectorAll('[data-tooltip-cover]')) {
-    if (cover.contains(trigger)) continue
-    const rect = cover.getBoundingClientRect()
-    const isAcross = rect.left < triggerRect.right && rect.right > triggerRect.left
-    if (rect.top < triggerRect.top && isAcross) coverBottom = Math.max(coverBottom, rect.bottom)
-  }
-  return coverBottom
-}
-
 function getHorizontalOffset({
   triggerRect,
   tooltipRect,
@@ -180,7 +164,7 @@ function getTooltipSide(
     triggerRect,
     tooltipRect: tooltip.getBoundingClientRect(),
     boundaryRect,
-    coverBottom: getCoverBottom(trigger, triggerRect),
+    coverBottom: getTooltipCoverBottom(trigger, triggerRect),
   })
 }
 
