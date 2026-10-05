@@ -12,6 +12,7 @@ from app.models.bank_connection import BankProvider
 from app.models.user import User
 from app.schemas.bank_review import AddReviewItemRequest, BankReviewBacklogResponse, BankReviewPageResponse
 from app.schemas.bank_sync import (
+    AccountBankStatusResponse,
     BankAccountLinkResponse,
     BankConnectionResponse,
     BankImportRangeResponse,
@@ -27,6 +28,7 @@ from app.schemas.bank_sync import (
     UpdateBankConnectionRequest,
 )
 from app.schemas.transaction import TransactionResponse
+from app.services.bank_sync.account_link import read_account_bank_status
 from app.services.bank_sync.availability import list_providers
 from app.services.bank_sync.claim import claim_connection, reconnect_connection
 from app.services.bank_sync.connections import list_connections, rename_connection
@@ -231,6 +233,25 @@ async def list_pending_bank_transactions(
         Each pending item, with when the bank reported it
     """
     return await list_pending_transactions(db, user, account_ids=account_id)
+
+
+@bank_link_router.get("", response_model=AccountBankStatusResponse)
+async def get_account_bank_status(
+    account_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return one of the user's own accounts' live bank link, or what it was last linked to
+
+    Args:
+        account_id: The account
+        user: Authenticated owner of the account
+        db: Active database session
+
+    Returns:
+        The live link with its import's progress, or the latest unlinked one
+    """
+    return await read_account_bank_status(db, user, account_id)
 
 
 @bank_link_router.post("", response_model=BankAccountLinkResponse, status_code=status.HTTP_201_CREATED)

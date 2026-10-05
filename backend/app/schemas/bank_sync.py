@@ -4,9 +4,9 @@ import uuid
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, SecretStr, model_validator
+from pydantic import BaseModel, Field, SecretStr, model_validator
 
-from app.models.bank_connection import BankProvider, ConnectsFrom, UnavailableReason
+from app.models.bank_connection import BankImportKind, BankLinkState, BankProvider, ConnectsFrom, UnavailableReason
 from app.models.bank_transaction import EditableBankField
 from app.schemas.names import TrimmedName
 
@@ -256,6 +256,56 @@ class BankAccountLinkResponse(BaseModel):
     institution_name: str
     import_start: date
     linked_at: datetime
+
+
+class BankImportProgressResponse(BaseModel):
+    """How far a link's import has got. An import runs to today whatever the review backlog"""
+
+    kind: BankImportKind
+
+    # Waiting on the budget until the connection's daily request budget frees a request for its next part
+    state: Literal["running", "waiting_on_budget"]
+    requested_start: date
+
+    # The windows a fetch of the days from the requested start through today splits into, and how
+    # many of them are stored
+    windows_total: int
+    windows_done: int
+
+    # Bank transactions received for the account since the import began
+    items_found: int
+
+    # The earliest booked date the provider returned, None until one arrives
+    earliest_returned_date: date | None
+
+
+class AccountBankLinkResponse(BankAccountLinkResponse):
+    """An account's live link, as the account's page shows it"""
+
+    # Choose account while the provider lists the bank account differently, until the user chooses it again
+    state: Literal[BankLinkState.ACTIVE, BankLinkState.CHOOSE_ACCOUNT]
+
+    # Sent as "import", which Python keeps as a keyword. None when no import is running, and for the
+    # catch-up after a reconnect, whose first day isn't recorded
+    import_progress: BankImportProgressResponse | None = Field(serialization_alias="import")
+
+
+class PreviousBankLinkResponse(BaseModel):
+    """What an account was last linked to, kept after unlinking"""
+
+    provider_name: str
+    external_account_id: str
+    external_account_name: str
+    institution_name: str
+    unlinked_at: datetime
+
+
+class AccountBankStatusResponse(BaseModel):
+    """An account's live link to a bank account, or what it was last linked to when it has none"""
+
+    account_id: uuid.UUID
+    link: AccountBankLinkResponse | None
+    previous_link: PreviousBankLinkResponse | None
 
 
 class UnlinkResponse(BaseModel):
