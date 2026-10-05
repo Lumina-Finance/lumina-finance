@@ -175,7 +175,7 @@ export async function expectStretchedFocusRing(control: Locator, row: Locator): 
       // section lays over its rows' sides. Only a positioned box outside the row can be painted over it,
       // and one laid out but unseen is left out
       const rowBox = edgesOf(rowElement!.getBoundingClientRect())
-      const borders: ReturnType<typeof edgesOf>[] = []
+      const borders: (ReturnType<typeof edgesOf> & { side: 'left' | 'right' | 'top' | 'bottom' })[] = []
       for (const other of document.body.querySelectorAll('*')) {
         if (other === rowElement || other.contains(rowElement!) || rowElement!.contains(other)) continue
         const style = getComputedStyle(other)
@@ -183,10 +183,10 @@ export async function expectStretchedFocusRing(control: Locator, row: Locator): 
         const box = edgesOf(other.getBoundingClientRect())
         if (box.right <= rowBox.left || box.left >= rowBox.right || box.bottom <= rowBox.top || box.top >= rowBox.bottom) continue
         borders.push(
-          { ...box, right: box.left + parseFloat(style.borderLeftWidth) },
-          { ...box, left: box.right - parseFloat(style.borderRightWidth) },
-          { ...box, bottom: box.top + parseFloat(style.borderTopWidth) },
-          { ...box, top: box.bottom - parseFloat(style.borderBottomWidth) },
+          { ...box, side: 'left', right: box.left + parseFloat(style.borderLeftWidth) },
+          { ...box, side: 'right', left: box.right - parseFloat(style.borderRightWidth) },
+          { ...box, side: 'top', bottom: box.top + parseFloat(style.borderTopWidth) },
+          { ...box, side: 'bottom', top: box.bottom - parseFloat(style.borderBottomWidth) },
         )
       }
 
@@ -202,6 +202,7 @@ export async function expectStretchedFocusRing(control: Locator, row: Locator): 
         rowBox,
         textBox: text,
         borders,
+        pixelRatio: window.devicePixelRatio,
       }
     }, rowElement)
     expect({ position: ring.position, style: ring.style, width: ring.width, color: ring.color })
@@ -242,6 +243,25 @@ export async function expectStretchedFocusRing(control: Locator, row: Locator): 
       && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5
     expect(ring.borders.filter((border) => ringSides.some((side) => crosses(border, side))), 'borders drawn across the ring')
       .toEqual([])
+
+    // Where borders run down both of the ring's sides, as the Upcoming section's edge does, the ring keeps
+    // the same gap from each as the screen draws them. A box's edges are drawn on the nearest device pixel
+    // and its border inward from there, so an inset that isn't a whole number of device pixels rounds the
+    // two gaps opposite ways
+    const snap = (x: number) => Math.round(x * ring.pixelRatio) / ring.pixelRatio
+    const beside = (border: (typeof ring.borders)[number]) => (border.side === 'left' || border.side === 'right')
+      && border.right > border.left
+      && Math.min(border.bottom, ring.box.bottom) - Math.max(border.top, ring.box.top) > 0.5
+    const drawn = (border: (typeof ring.borders)[number]) => border.side === 'right'
+      ? { left: snap(border.right) - (border.right - border.left), right: snap(border.right) }
+      : { left: snap(border.left), right: snap(border.left) + (border.right - border.left) }
+    const leftBorders = ring.borders.filter((border) => beside(border) && border.right <= ring.box.left + 0.5).map(drawn)
+    const rightBorders = ring.borders.filter((border) => beside(border) && border.left >= ring.box.right - 0.5).map(drawn)
+    if (leftBorders.length > 0 && rightBorders.length > 0) {
+      const leftGap = snap(ring.box.left) - Math.max(...leftBorders.map((border) => border.right))
+      const rightGap = Math.min(...rightBorders.map((border) => border.left)) - snap(ring.box.right)
+      expect(leftGap, 'the ring\'s drawn gap from the border along its left side, against its right side\'s').toBeCloseTo(rightGap, 3)
+    }
   }).toPass()
 }
 
