@@ -342,6 +342,49 @@ test('says a restore failed, leaving the field and its bank value to try again',
   await expect(restore).toBeEnabled()
 })
 
+test('brings a failed restore into view above the footer, from an action at the foot of a short screen', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const id = await createTransaction(request, user, {
+    accountId: account.id,
+    categoryName: 'Groceries',
+    amount: -4000,
+    date: BANK_SOURCE.bank_values.date,
+  })
+  await answerAsBankImported(page, { [id]: bankSource({ amount: -4210 }, ['amount']) })
+  await page.route(`${API_BASE_URL}/bank-sync/transaction-sources/${id}/restore`, (route) =>
+    route.fulfill({ status: 500, json: { detail: 'Internal Server Error' } }))
+  await page.setViewportSize({ width: 390, height: 667 })
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+
+  // The form scrolls until the amount's action sits just above the footer, where the failure would
+  // open underneath it. The footer is the part of the modal holding Save that doesn't hold the form
+  const dialog = await openTransaction(page, id)
+  const restore = restoreAction(dialog, 'amount')
+  const footerTop = await restore.evaluate((action) => {
+    const save = document.querySelector('[data-testid="transaction-submit"]')!
+    let footer = save
+    while (!footer.parentElement!.contains(action)) footer = footer.parentElement!
+    let form = action.parentElement!
+    while (!/auto|scroll/.test(getComputedStyle(form).overflowY)) form = form.parentElement!
+    form.scrollTop += action.getBoundingClientRect().bottom - (footer.getBoundingClientRect().top - 4)
+    return footer.getBoundingClientRect().top
+  })
+  expect((await restore.boundingBox())!.y).toBeGreaterThan(footerTop - 40)
+
+  // Once it has opened, the failure shows in full above the footer, and focus stays on the action
+  await restore.focus()
+  await page.keyboard.press('Enter')
+  const failure = dialog.getByRole('alert').filter({ hasText: RESTORE_FAILED })
+  await expect(failure).toBeVisible()
+  await expect.poll(async () => {
+    const box = (await failure.boundingBox())!
+    return box.y + box.height
+  }).toBeLessThanOrEqual(footerTop)
+  await expect(restore).toBeFocused()
+})
+
 test('greys out Restore bank value on an amount the currency can\'t hold, saying why', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })

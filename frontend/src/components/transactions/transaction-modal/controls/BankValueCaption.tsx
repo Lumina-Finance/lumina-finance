@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { LoaderCircle } from 'lucide-react'
 import { useDisabledReason } from '@/hooks/useDisabledReason'
@@ -24,6 +25,17 @@ type BankValueCaptionProps = {
   restoring: boolean
   disabled: boolean
   onRestore: () => void
+}
+
+/**
+ * Scrolls a line to the middle of the form once it has opened, where anything hides part of it, such
+ * as the modal's footer under an action at the foot of a short screen. Focus stays where it is
+ */
+function revealIfHidden(line: HTMLElement | null, prefersReducedMotion: boolean) {
+  if (!line) return
+  const box = line.getBoundingClientRect()
+  const shown = [box.top + 1, box.bottom - 1].every((y) => line.contains(document.elementFromPoint(box.left + 1, y)))
+  if (!shown) line.scrollIntoView({ block: 'center', behavior: prefersReducedMotion ? 'auto' : 'smooth' })
 }
 
 /**
@@ -55,6 +67,7 @@ export default function TransactionBankValueCaption({
 }: BankValueCaptionProps) {
   const prefersReducedMotion = useReducedMotion()
   const { controlProps, tooltip } = useDisabledReason(unavailableReason)
+  const failureRef = useRef<HTMLParagraphElement>(null)
 
   // The action is described by the bank's value it restores, then by why it can't, where it can't
   const describedBy = [id, controlProps['aria-describedby']].filter(Boolean).join(' ')
@@ -115,14 +128,23 @@ export default function TransactionBankValueCaption({
             <AnimatePresence initial={false}>
               {error && (
                 <motion.p
+                  ref={failureRef}
                   key="restore-error"
                   role="alert"
                   className="overflow-hidden text-xs font-medium leading-5"
                   style={{ color: 'var(--app-negative)' }}
-                  initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                  // Named, so the end of the line's opening can be told from the end of its closing
+                  variants={{
+                    closed: prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 },
+                    open: { opacity: 1, height: 'auto' },
+                  }}
+                  initial="closed"
+                  animate="open"
+                  exit="closed"
                   transition={DETAILS_LINE_TRANSITION}
+                  onAnimationComplete={(definition) => {
+                    if (definition === 'open') revealIfHidden(failureRef.current, !!prefersReducedMotion)
+                  }}
                 >
                   {error}
                 </motion.p>
