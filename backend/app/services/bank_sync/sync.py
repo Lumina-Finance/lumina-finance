@@ -1,8 +1,8 @@
 """Running one claimed bank sync job: a discovery when one is due, then one date window of a connection's links
 
 A job lists the connection's bank accounts first when it was flagged to, or when the last listing
-is over a day old, so a bank added at the provider appears and a linked bank account that vanished
-stops syncing before the window is planned. A window whose response may have been cut short is
+is over 20 hours old, so a daily sync shows a bank added at the provider and stops a linked bank
+account that vanished before the window is planned. A window whose response may have been cut short is
 fetched again in halves. Each request is counted against the connection's budget in a transaction
 of its own before it is sent, and a job that finds the budget spent queues itself again for when a
 request frees. A job holds no database connection while it waits on the provider, and everything it
@@ -42,8 +42,10 @@ from app.utils.dates import resolve_timezone
 
 logger = logging.getLogger(__name__)
 
-# A job lists the connection's bank accounts again once the last listing is older than this
-DISCOVERY_MAX_AGE = timedelta(hours=24)
+# A job lists the connection's bank accounts again once the last listing is older than this: a day
+# less a margin, since a listing is timed from when its request was sent and a daily sync can start
+# hours earlier than the day before, so each daily sync rediscovers, never twice within 20 hours
+DISCOVERY_MAX_AGE = timedelta(hours=20)
 
 # The link states a discovery moves between, so a connection with a link in one is kept listed
 _DISCOVERED_LINK_STATES = (BankLinkState.ACTIVE, BankLinkState.CHOOSE_ACCOUNT)
@@ -160,7 +162,7 @@ class _JobRun:
             return list(await db.scalars(select(BankAccountLink).where(BankAccountLink.connection_id == self.connection.id)))
 
     def _needs_discovery(self, links: list[BankAccountLink]) -> bool:
-        """Return whether the job lists the bank accounts first: flagged to, or the last listing is over a day old
+        """Return whether the job lists the bank accounts first: flagged to, or the last listing is over 20 hours old
 
         An old listing matters only while a link could sync or wait for its bank account to return,
         and a connection without one gets a fresh listing when the user opens the link flow

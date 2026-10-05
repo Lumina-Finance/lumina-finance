@@ -576,17 +576,17 @@ async def test_job_relisting_a_stale_listing_waits_for_a_request_without_showing
 @pytest.mark.parametrize(
     ("listed_ago", "values", "requests"),
     [
-        (timedelta(hours=24), {}, (0, 1)),
-        (timedelta(hours=24, minutes=1), {}, (1, 1)),
-        (timedelta(hours=24, minutes=1), {"state": BankLinkState.CHOOSE_ACCOUNT}, (1, 1)),
-        (timedelta(hours=24, minutes=1), {"state": BankLinkState.UNLINKED, "unlinked_at": datetime(2026, 10, 1, tzinfo=UTC)}, (0, 0)),
+        (timedelta(hours=20), {}, (0, 1)),
+        (timedelta(hours=20, minutes=1), {}, (1, 1)),
+        (timedelta(hours=20, minutes=1), {"state": BankLinkState.CHOOSE_ACCOUNT}, (1, 1)),
+        (timedelta(hours=20, minutes=1), {"state": BankLinkState.UNLINKED, "unlinked_at": datetime(2026, 10, 1, tzinfo=UTC)}, (0, 0)),
     ],
-    ids=["listed_24_hours_ago", "listed_over_24_hours_ago", "link_waiting_for_its_bank_account", "link_unlinked"],
+    ids=["listed_20_hours_ago", "listed_over_20_hours_ago", "link_waiting_for_its_bank_account", "link_unlinked"],
 )
-async def test_job_lists_the_bank_accounts_first_once_the_last_listing_is_over_a_day_old(
+async def test_job_lists_the_bank_accounts_first_once_the_last_listing_is_over_20_hours_old(
     connection, provider, frozen_now, listed_ago, values, requests
 ):
-    """A daily sync rediscovers its connection, so a bank added at SimpleFIN Bridge appears within a day
+    """A daily sync rediscovers its connection each day, even starting hours earlier than the day before, and never twice within 20 hours
 
     A link waiting for its bank account to return goes back to active when the listing shows it, and
     syncs in the same job. A connection whose only link was unlinked has nothing a listing could change
