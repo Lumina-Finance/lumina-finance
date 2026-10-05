@@ -19,6 +19,8 @@ interface ModalFormFooterProps {
    * fill in, whose button never fades
    */
   submitBlockedReason?: string
+  /** Holds the submit button disabled, keeping its label and leaving Cancel open, until the form has what it needs */
+  submitUnavailable?: boolean
   /** Width classes for the submit button, so a short label does not stretch the whole way across */
   submitWidthClassName: string
   /** Shown beside the actions when the submission failed, rather than against any one field */
@@ -54,6 +56,7 @@ export function ModalFormFooter({
   submitLabel,
   submitDisabled,
   submitBlockedReason,
+  submitUnavailable = false,
   submitWidthClassName,
   error,
   errorId,
@@ -104,7 +107,7 @@ export function ModalFormFooter({
         primaryHadFocus.current = true
         onPrimary?.()
       }}
-      disabled={submitDisabled}
+      disabled={submitDisabled || submitUnavailable}
       disabledReason={submitDisabled ? undefined : submitBlockedReason}
       aria-busy={submitDisabled}
       className={`${tone === 'danger' ? 'app-danger-button' : 'app-primary-button'} shrink-0${submitDisabled ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : ` ${submitWidthClassName}`}`}

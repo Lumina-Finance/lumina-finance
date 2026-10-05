@@ -1,0 +1,82 @@
+import type { KeyboardEvent, ReactNode } from 'react'
+import { Check } from 'lucide-react'
+
+// Arrow keys that move to the next choice in the group, and those that move back
+const NEXT_KEYS = new Set(['ArrowDown', 'ArrowRight'])
+const PREVIOUS_KEYS = new Set(['ArrowUp', 'ArrowLeft'])
+
+/**
+ * Moves to the group's next or previous choice and chooses it, as arrow keys do between native radio
+ * buttons, wrapping round at either end and stepping over choices that can't be taken
+ */
+function moveWithArrows(event: KeyboardEvent<HTMLButtonElement>) {
+  const step = NEXT_KEYS.has(event.key) ? 1 : PREVIOUS_KEYS.has(event.key) ? -1 : 0
+  const group = event.currentTarget.closest('[role="radiogroup"]')
+  if (step === 0 || !group) return
+
+  const radios = [...group.querySelectorAll<HTMLButtonElement>('[role="radio"]:not(:disabled)')]
+  const index = radios.indexOf(event.currentTarget)
+  const next = radios[(index + step + radios.length) % radios.length]
+  event.preventDefault()
+  next.focus()
+  next.click()
+}
+
+interface ChoiceCardProps {
+  selected: boolean
+  disabled?: boolean
+  onSelect: () => void
+  children: ReactNode
+
+  /** A field of the choice's own, inside the card's frame but outside its button */
+  extra?: ReactNode
+}
+
+/**
+ * A selectable card in the bank link flow's lists, shown as unavailable when it cannot be chosen
+ *
+ * Anything passed as extra sits beneath the choice on phones and beside it from sm up
+ */
+export function ChoiceCard({ selected, disabled, onSelect, children, extra }: ChoiceCardProps) {
+  // An unavailable card is marked by its plain fill and faded radio rather than by fading the whole
+  // card, which would take its text below readable contrast
+  const frameStyle = {
+    borderColor: selected ? 'var(--app-accent)' : 'var(--app-border)',
+    background: selected ? 'var(--app-accent-soft)' : disabled ? 'var(--app-surface-soft)' : 'transparent',
+  }
+  const frameClass = 'rounded-xl border transition-colors duration-200'
+
+  const choice = (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      disabled={disabled}
+      onClick={onSelect}
+      onKeyDown={moveWithArrows}
+      className={`flex w-full items-start gap-3 p-3.5 text-left disabled:cursor-not-allowed focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--app-accent)] ${extra === undefined ? frameClass : 'rounded-xl sm:min-w-0 sm:flex-1'}`}
+      style={extra === undefined ? frameStyle : undefined}
+    >
+      <span
+        className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors duration-200"
+        style={{
+          borderColor: selected ? 'var(--app-accent)' : 'var(--app-border-strong)',
+          background: selected ? 'var(--app-accent)' : 'transparent',
+          opacity: disabled ? 0.45 : 1,
+        }}
+      >
+        {selected && <Check size={10} strokeWidth={3} color="var(--app-button-primary-text)" aria-hidden />}
+      </span>
+      <span className="min-w-0 flex-1">{children}</span>
+    </button>
+  )
+
+  if (extra === undefined) return choice
+
+  return (
+    <div className={`sm:flex sm:items-center ${frameClass}`} style={frameStyle}>
+      {choice}
+      {extra}
+    </div>
+  )
+}
