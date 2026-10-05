@@ -250,8 +250,9 @@ async def link_bank_account(
     # Nothing is known complete yet, so the import fetches from its first day
     link.checkpoint = request.start_date - timedelta(days=1)
 
-    # The account is locked, so only a link to the same bank account through another of the
-    # user's connections can race this one, which the one-ledger-per-bank-account index refuses
+    # The account is locked, but the bank account is only shared, so another account linking the
+    # same bank account can race this one, through this connection or another of the user's. The
+    # one-ledger-per-bank-account index refuses whichever link is written second
     try:
         await db.flush()
     except IntegrityError as error:
