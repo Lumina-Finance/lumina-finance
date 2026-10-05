@@ -122,10 +122,20 @@ test('refuses a new manual entry on the days a linked account’s bank supplies'
   const date = dialog.getByRole('group', { name: 'Date' })
   const currency = dialog.getByRole('combobox', { name: 'Currency' })
   const amount = dialog.getByRole('textbox', { name: 'Amount', exact: true })
-
-  // Today is the last day the bank supplies
-  await typeDate(page, dialog, todayInTestTimezone())
   const message = dialog.getByRole('alert').filter({ hasText: SUPPLIED_DAYS_MESSAGE })
+
+  // Every create sent, so one the browser refused would show up ahead of the one it let through
+  const sentDates: unknown[] = []
+  page.on('request', (sent) => {
+    if (sent.url() === `${API_BASE_URL}/transactions` && sent.method() === 'POST') sentDates.push(sent.postDataJSON().dt)
+  })
+
+  // The date starts on today, the last day the bank supplies, and says nothing until a save is tried
+  await expect(message).toBeHidden()
+  await chooseFromDropdown(dialog, 'Category', 'Groceries')
+  await chooseFromDropdown(dialog, 'Merchant', 'Unknown')
+  await amount.fill('12.34')
+  await dialog.getByTestId('transaction-submit').click()
   await expect(message).toBeVisible()
   const year = date.getByRole('textbox', { name: 'Year' })
   await expect(year).toHaveAttribute('aria-invalid', 'true')
@@ -152,6 +162,13 @@ test('refuses a new manual entry on the days a linked account’s bank supplies'
   await tomorrowCell.click()
   await expect(message).toBeHidden()
   await expect(year).toHaveAttribute('aria-invalid', 'false')
+
+  const created = page.waitForResponse((response) =>
+    response.url() === `${API_BASE_URL}/transactions` && response.request().method() === 'POST')
+  await dialog.getByTestId('transaction-submit').click()
+  expect((await created).status()).toBe(201)
+  await expect(dialog).toBeHidden()
+  expect(sentDates).toEqual([daysFromTodayInTestTimezone(1)])
 })
 
 test('refuses the days the other account’s bank supplies once a new transfer is recorded in both, naming it', async ({ page, request }) => {
