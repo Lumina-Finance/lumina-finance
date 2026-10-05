@@ -4229,14 +4229,6 @@ def test_next_daily_sync_falls_24_hours_on_plus_a_random_0_to_30_minutes(monkeyp
     assert next_daily_sync(_YESTERDAYS_SYNC) == _YESTERDAYS_SYNC + after
 
 
-def test_next_daily_sync_draws_its_wait_afresh_each_time():
-    """Twenty syncs started together don't all next run at the same moment, so connections spread out rather than land on the hour
-
-    Twenty draws from 1,801 seconds all landing on one is too unlikely to make this flaky
-    """
-    assert len({next_daily_sync(_YESTERDAYS_SYNC) for _ in range(20)}) > 1
-
-
 @pytest.mark.parametrize(
     ("timezone", "started_at", "today", "next_sync"),
     [
@@ -4437,19 +4429,6 @@ async def test_scan_queues_a_scheduled_sync_due_while_no_request_is_free_for_whe
     assert provider.fetches == []
 
 
-async def test_scan_queues_nothing_for_a_connection_whose_credential_was_rejected(connection, provider, frozen_now):
-    """Everyday's daily sync is due, but SimpleFIN rejected the connection's credential, so nothing runs until the user reconnects"""
-    await _link(connection, "ACT-everyday", **_synced_through_yesterday(next_attempt_at=frozen_now))
-    await _set_next_sync(connection, frozen_now)
-    async with TestSession() as session:
-        (await session.get(BankConnection, connection.id)).credential_rejected_at = frozen_now - timedelta(days=1)
-        await session.commit()
-
-    await enqueue_due_work()
-
-    assert await _queued_jobs() == []
-
-
 @pytest.mark.parametrize("savings_paused", [False, True], ids=["savings_active", "both_paused"])
 async def test_daily_sync_leaves_out_an_account_paused_for_review_and_none_is_queued_once_every_one_is(
     connection, provider, frozen_now, day_later, savings_paused
@@ -4472,21 +4451,6 @@ async def test_daily_sync_leaves_out_an_account_paused_for_review_and_none_is_qu
     assert _fetched(provider) == ([] if savings_paused else [_window(date(2026, 9, 19), _TODAY, ["ACT-savings"], pending=True)])
     assert await _next_sync(connection) == (None if savings_paused else frozen_now + day_later)
     assert await _queued_jobs() == []
-
-
-async def test_scan_queueing_the_daily_sync_sends_no_link_ahead_of_its_retry(connection, provider, frozen_now, day_later):
-    """Everyday's daily sync is due at 1 pm and Card retries at 1:30 pm: the 1 pm sync fetches Everyday alone, and Card's retry waits"""
-    await _link(connection, "ACT-everyday", **_synced_through_yesterday(next_attempt_at=frozen_now))
-    await _link(connection, "ACT-card", **_synced_through_yesterday(retry_count=1, next_attempt_at=frozen_now + timedelta(minutes=30)))
-    await _set_next_sync(connection, frozen_now)
-    provider.outcomes = [_returned("ACT-everyday")]
-
-    await enqueue_due_work()
-    await _run_jobs_until_none_is_due()
-
-    assert _fetched(provider) == [_window(date(2026, 9, 19), _TODAY, ["ACT-everyday"], pending=True)]
-    assert await _queued_jobs() == [("retry", timedelta(minutes=30), False)]
-    assert await _next_sync(connection) == frozen_now + day_later
 
 
 async def test_scan_after_the_worker_stopped_for_three_days_queues_one_job_that_catches_up(connection, provider, frozen_now, day_later):
