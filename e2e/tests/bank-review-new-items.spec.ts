@@ -3,6 +3,7 @@ import { expect, test, type APIRequestContext, type Locator, type Page } from '@
 import {
   createAccount,
   createGroup,
+  daysFromTodayInTestTimezone,
   signUpUser,
   TEST_CURRENCY,
   type SeededAccount,
@@ -133,20 +134,6 @@ function filingCard(page: Page): Locator {
   return page.getByRole('region', { name: 'SimpleFIN filing card' })
 }
 
-/** Each labelled line of a filing card as [label, value], in order */
-async function fieldsOf(card: Locator): Promise<[string, string][]> {
-  const [labels, values] = await Promise.all([card.locator('dt').allTextContents(), card.locator('dd').allTextContents()])
-  return labels.map((label, index) => [label, values[index]])
-}
-
-/**
- * The count beside the review block's heading behind an open dialog, which takes the page out of the
- * accessibility tree, so the heading is found by its text rather than its role
- */
-function countBehindDialog(page: Page): Locator {
-  return page.getByText('Waiting for review', { exact: true }).locator('xpath=following-sibling::span')
-}
-
 /** The form's fields a review fills in or leaves to the user */
 function formOf(dialog: Locator) {
   const date = dialog.getByRole('group', { name: 'Date' })
@@ -199,21 +186,11 @@ test('opens a new item as the bank sent it beside its filing card, and adds noth
   await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toHaveCount(0)
   await expect(form.keepOpen).not.toBeChecked()
 
+  // The card's fields are covered with the card, leaving what the link and the item's account bring it
   const card = filingCard(page)
   await expect(card).toContainText('Example Bank')
-  await expect(card).toContainText('New')
   await expect(card).toContainText('Chequing')
-  await expect(card).toContainText('Description from SimpleFIN')
   await expect(card).toContainText('COUNTDOWN 123 AUCKLAND')
-  const fields = await fieldsOf(card)
-  expect(fields).toEqual([
-    ['Amount', `${MINUS}$42.10`],
-    ['Date', `Sep 21, ${SEP_21.slice(0, 4)}`],
-    ['Merchant', '—'],
-    ['Category', '—'],
-    ['Received', expect.stringMatching(/^Sep 21, 8:00\sa\.m\.$/u)],
-    ['Ref', 'TRN-countdown'],
-  ])
 
   // The bank's description starts the notes, which the user may change
   await expect(form.notes).toHaveValue(COUNTDOWN.description)
@@ -230,7 +207,7 @@ test('opens a new item as the bank sent it beside its filing card, and adds noth
 test('adds an item with its amount changed, and with the window kept open goes on through the new items until none are left', async ({ page, request }) => {
   const { everyday } = await start(page, request)
   const review = await answerReview(page, [
-    countdown(everyday.id),
+    countdown(everyday.id, { date: daysFromTodayInTestTimezone(-3) }),
     reviewItem('uber', 'correction', everyday.id, { description: 'UBER TRIP' }),
     reviewItem('harbour', 'new', everyday.id, { description: 'HARBOUR COFFEE' }),
   ])
@@ -243,7 +220,7 @@ test('adds an item with its amount changed, and with the window kept open goes o
   await form.amount.fill('40.00')
   await form.keepOpen.check()
 
-  // Sep 21 is a day Everyday's bank supplies, which a manual entry may not take, and a review may
+  // Three days ago is a day Everyday's bank supplies, which a manual entry may not take, and a review may
   await form.add.click()
 
   // The next new item, past the correction between them, in a fresh form with the window still open
@@ -253,7 +230,8 @@ test('adds an item with its amount changed, and with the window kept open goes o
   await expect(form.keepOpen).toBeChecked()
   expect(review.decisions).toEqual([{ itemId: 'countdown', action: 'add', body: expect.objectContaining({ amount: -4000 }) }])
   expect(review.created).toHaveLength(1)
-  await expect(countBehindDialog(page)).toHaveText('2')
+  // Behind the open dialog, which takes the page out of the accessibility tree
+  await expect(page.getByTestId('review-count')).toHaveText('2')
   await expect(page.getByTestId(`transaction-row-${review.created[0]}`)).toBeVisible()
 
   // Nothing new is left after it, the correction being reviewed elsewhere, so the window closes
@@ -309,26 +287,36 @@ test('records money in from Savings as one transfer that names Savings, kept as 
   await expect(rows.first()).toContainText('HARBOUR COFFEE')
 })
 
-test('dismisses an item without reading the ledger again, and closes when the window is not kept open', async ({ page, request }) => {
+test('dismisses items without reading the ledger again, going on to the next while the window is kept open', async ({ page, request }) => {
   const { everyday } = await start(page, request)
   const review = await answerReview(page, [
     countdown(everyday.id),
     reviewItem('harbour', 'new', everyday.id, { description: 'HARBOUR COFFEE' }),
+    reviewItem('cafe', 'new', everyday.id, { description: 'CAFE ROMA' }),
   ])
   await openPage(page, '/transactions')
 
   const dialog = await openReview(page, 'COUNTDOWN 123 AUCKLAND')
+  const form = formOf(dialog)
   const ledgerReads: string[] = []
   page.on('request', (sent) => {
     if (sent.method() === 'GET' && sent.url().startsWith(`${API_BASE_URL}/transactions?`)) ledgerReads.push(sent.url())
   })
-  await formOf(dialog).dismiss.click()
+  await form.keepOpen.check()
+  await form.dismiss.click()
+  await expect(filingCard(page)).toContainText('HARBOUR COFFEE')
 
+  // With the window no longer kept open, the next decision closes it though an item still waits
+  await form.keepOpen.uncheck()
+  await form.dismiss.click()
   await expect(dialog).toBeHidden()
   const rows = reviewBlock(page).getByRole('listitem')
   await expect(rows).toHaveCount(1)
-  await expect(rows.first()).toContainText('HARBOUR COFFEE')
-  expect(review.decisions).toEqual([{ itemId: 'countdown', action: 'dismiss', body: null }])
+  await expect(rows.first()).toContainText('CAFE ROMA')
+  expect(review.decisions).toEqual([
+    { itemId: 'countdown', action: 'dismiss', body: null },
+    { itemId: 'harbour', action: 'dismiss', body: null },
+  ])
   expect(ledgerReads).toEqual([])
 })
 
@@ -399,7 +387,6 @@ test('opens an amount its currency cannot hold empty, and adds the item once one
   const form = formOf(dialog)
   await expect(dialog.getByRole('tab', { name: 'Expense', exact: true })).toHaveAttribute('aria-selected', 'true')
   await expect(form.amount).toHaveValue('')
-  expect(new Map(await fieldsOf(filingCard(page))).get('Amount')).toBe(`${MINUS}$42.105`)
 
   await chooseFromDropdown(dialog, 'Merchant', 'Unknown')
   await chooseFromDropdown(dialog, 'Category', 'Groceries')

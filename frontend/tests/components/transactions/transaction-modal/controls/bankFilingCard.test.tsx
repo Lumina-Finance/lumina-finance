@@ -58,6 +58,11 @@ function withBank(bank: Partial<BankReviewItem['bank']>): BankReviewItem {
   return { ...ITEM, bank: { ...ITEM.bank, ...bank } }
 }
 
+/** The card's text in reading order, one entry for each run of text between tags */
+function textOf(markup: string): string[] {
+  return markup.split(/<[^>]+>/).filter(Boolean)
+}
+
 /** Each labelled line of the card as [label, value], in order, with the value's markup taken out */
 function fieldsOf(markup: string): [string, string][] {
   return [...markup.matchAll(/<dt[^>]*>(.*?)<\/dt><dd[^>]*>(.*?)<\/dd>/g)]
@@ -68,8 +73,8 @@ describe('the filing card', () => {
   it('carries the provider on its tab and names the institution, the bank account and the kind', () => {
     const markup = renderCard(ITEM)
 
-    expect(markup).toMatch(/^<div[^>]*><span[^>]*>SimpleFIN<\/span><div role="region" aria-label="SimpleFIN filing card"/)
-    expect(markup).toMatch(/>Example Bank<\/p><p[^>]*>New<\/p><\/div><p[^>]*>Chequing<\/p>/)
+    expect(markup).toContain('aria-label="SimpleFIN filing card"')
+    expect(textOf(markup).slice(0, 5)).toEqual(['SimpleFIN', 'Example Bank', 'New', 'Chequing', 'Description from SimpleFIN'])
   })
 
   it('gives the description its own heading and lists every other field the provider sent', () => {
@@ -105,9 +110,6 @@ describe('the filing card', () => {
   })
 
   it('is headed by the account in the app when its link is not known', () => {
-    const markup = renderCard(ITEM, false)
-
-    expect(markup).toMatch(/>Everyday<\/p><p[^>]*>New<\/p><\/div><\/div>/)
-    expect(markup).not.toContain('Chequing')
+    expect(textOf(renderCard(ITEM, false)).slice(0, 4)).toEqual(['SimpleFIN', 'Everyday', 'New', 'Description from SimpleFIN'])
   })
 })

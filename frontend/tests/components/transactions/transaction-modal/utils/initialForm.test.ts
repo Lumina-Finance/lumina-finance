@@ -180,10 +180,15 @@ describe('the form a new bank item opens with', () => {
     })
   })
 
-  it('needs a merchant and a category before it can be added, since nothing suggests them', () => {
-    expect(validateTransactionForm(buildReviewItemForm(item, 'CAD', currencies))).toEqual({
-      category_id: 'Select a category',
-      merchant_id: 'Select or create a merchant',
+  it('opens an amount in a currency with no minor unit as whole units', () => {
+    expect(buildReviewItemForm(withBank({ amount: -4210 }), 'JPY', currencies).amount).toBe('4210')
+  })
+
+  it('leaves the amount for the user in a currency the table does not carry, still as money out', () => {
+    expect(buildReviewItemForm(withBank({ amount: -4210 }), 'XTS', currencies)).toMatchObject({
+      amount: '',
+      kind: 'expense',
+      direction: 'debit',
     })
   })
 

@@ -151,6 +151,7 @@ export function BankReviewBlock({
         {/* Left out while the items can't load, since nothing is known to count */}
         {itemsFailure === null && (
           <span
+            data-testid="review-count"
             className="rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums"
             style={{ background: 'var(--app-warning-text)', color: 'var(--app-review-count-text)' }}
           >
