@@ -114,8 +114,9 @@ async def test_claim_with_a_fresh_token_saves_the_connection_and_lists_its_bank_
         (_TOKEN, "application/json", ["body"], "model_attributes_type"),
         ([_TOKEN], "application/json", ["body"], "model_attributes_type"),
         ({"provider": "simplefin", "setup_token": [_TOKEN]}, "application/json", ["body", "setup_token"], "string_type"),
+        ({"provider": "simplefin", "setupToken": _TOKEN}, "application/json", ["body", "setup_token"], "missing"),
     ],
-    ids=["missing-provider", "sent-as-text", "bare-token", "token-in-a-list", "token-not-a-string"],
+    ids=["missing-provider", "sent-as-text", "bare-token", "token-in-a-list", "token-not-a-string", "token-under-another-name"],
 )
 async def test_claim_refused_by_validation_never_repeats_the_setup_token(client, body, content_type, loc, error_type):
     """However the body is malformed, the refusal names what is wrong without the token"""

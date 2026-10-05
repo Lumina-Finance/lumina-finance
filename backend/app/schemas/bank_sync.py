@@ -24,21 +24,22 @@ class SetupTokenRequest(BaseModel):
 
         A refusal repeats what it refused in the 422 response, such as the whole body for a missing
         field. Anything but an object, such as a body sent as text, is replaced, since the token
-        could be anywhere in it, and a token that isn't text is replaced with null so it is still
-        refused
+        could be anywhere in it. Only the model's own fields are kept, since a token could be sent
+        under another name, and a token that isn't text is replaced with null so it is still refused
 
         Args:
             value: The request body as sent
 
         Returns:
-            The body with its setup token masked, or None for a body that isn't an object
+            The model's fields with the setup token masked, or None for a body that isn't an object
         """
         if not isinstance(value, dict):
             return None
-        if "setup_token" not in value:
-            return value
-        token = value["setup_token"]
-        return {**value, "setup_token": SecretStr(token) if isinstance(token, str) else None}
+        fields = {name: value[name] for name in cls.model_fields if name in value}
+        if "setup_token" in fields:
+            token = fields["setup_token"]
+            fields["setup_token"] = SecretStr(token) if isinstance(token, str) else None
+        return fields
 
 
 class CreateBankConnectionRequest(SetupTokenRequest):
