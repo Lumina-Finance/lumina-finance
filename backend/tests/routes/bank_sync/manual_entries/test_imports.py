@@ -1,7 +1,8 @@
 """Importing a file or a journal export into a linked account
 
 An import is refused whole when any row lands on a day the bank supplies, including the leg a
-transfer writes into the account, and is taken again once the account is unlinked
+transfer writes into the account, naming the account since the rows can span several, and is
+taken again once the account is unlinked
 """
 
 from datetime import date
@@ -11,7 +12,7 @@ import pytest
 from tests.routes.support.manual_entry_helpers import (
     INSIDE,
     OUTSIDE,
-    SUPPLIED,
+    SUPPLIED_IN_EVERYDAY,
     _commit_link,
     _dates_in,
     _Ledger,
@@ -87,7 +88,7 @@ async def test_a_file_import_with_a_row_inside_the_range_is_refused_whole(client
     imported = await _import_transactions(client, ledger.headers, _csv_import(ledger, date(2026, 5, 31), day))
 
     assert imported.status_code == 422, imported.text
-    assert imported.json()["detail"] == SUPPLIED
+    assert imported.json()["detail"] == SUPPLIED_IN_EVERYDAY
     assert await _dates_in(ledger.everyday_id) == []
 
 
@@ -113,7 +114,7 @@ async def test_a_journal_import_with_a_row_inside_the_range_is_refused_whole(cli
     )
 
     assert imported.status_code == 422, imported.text
-    assert imported.json()["detail"] == SUPPLIED
+    assert imported.json()["detail"] == SUPPLIED_IN_EVERYDAY
     assert await _dates_in(ledger.everyday_id) == []
 
 
@@ -125,8 +126,21 @@ async def test_a_journal_transfer_into_the_linked_account_inside_the_range_is_re
     imported = await _import_journal(client, ledger.headers, _journal_import(ledger, _journal_transfer("1", date(2026, 7, 12))))
 
     assert imported.status_code == 422, imported.text
-    assert imported.json()["detail"] == SUPPLIED
+    assert imported.json()["detail"] == SUPPLIED_IN_EVERYDAY
     assert await _dates_in(ledger.savings_id) == []
+
+
+async def test_a_journal_import_names_the_linked_account_whose_row_lands_inside_the_range(client):
+    """Everyday and Savings are both linked, and only Savings' 12 July Coffee is on a day its bank supplies"""
+    ledger = await _ledger(client)
+    await _commit_link(ledger, ledger.everyday_id)
+    await _commit_link(ledger, ledger.savings_id, external_account_id="ACT-2")
+    rows = [_journal_row("1", date(2026, 5, 31)), _journal_row("2", date(2026, 7, 12), source_account="Savings")]
+
+    imported = await _import_journal(client, ledger.headers, _journal_import(ledger, *rows))
+
+    assert imported.status_code == 422, imported.text
+    assert imported.json()["detail"] == "SimpleFIN supplies the transactions in Savings from Jun 1, 2026 to today"
 
 
 async def test_a_journal_import_outside_the_range_saves(client):

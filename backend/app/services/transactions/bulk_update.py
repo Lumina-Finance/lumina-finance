@@ -152,7 +152,7 @@ async def bulk_update_transactions(
         )
         for transaction in transactions
     ]
-    await refuse_edits_a_bank_supplies(db, user, edits)
+    await refuse_edits_a_bank_supplies(db, user, edits, name_accounts=True)
 
     # Collected before the update, because SQLAlchemy writes the new values back onto the loaded
     # rows and a date or a counterparty read afterwards is the new one

@@ -46,19 +46,28 @@ class LedgerEdit(NamedTuple):
 
 
 class _LiveLink(NamedTuple):
-    """The provider a linked account follows and the day its bank import starts"""
+    """A linked account's name, the provider it follows and the day its bank import starts"""
 
+    account_name: str
     provider: BankProvider
     import_start: date
 
 
-async def refuse_days_a_bank_supplies(db: AsyncSession, user: User, dates_by_account: Mapping[uuid.UUID, Iterable[date]]) -> None:
+async def refuse_days_a_bank_supplies(
+    db: AsyncSession,
+    user: User,
+    dates_by_account: Mapping[uuid.UUID, Iterable[date]],
+    *,
+    name_accounts: bool = False,
+) -> None:
     """Refuse new transactions dated on days a linked account's bank supplies
 
     Args:
         db: Active database session
         user: The user writing, whose profile timezone sets today
         dates_by_account: The dates of the transactions to be written, by the account each lands in
+        name_accounts: Whether a refusal names the account, for a write that can cover more than
+            one, where "this account" wouldn't say which
 
     Raises:
         HTTPException 422: A transaction lands on a linked account from its import start through
@@ -72,10 +81,10 @@ async def refuse_days_a_bank_supplies(db: AsyncSession, user: User, dates_by_acc
         return
     today = _today(user)
     for account_id in sorted(links):
-        _refuse_supplied_days(links[account_id], dates_by_account[account_id], today=today)
+        _refuse_supplied_days(links[account_id], dates_by_account[account_id], today=today, name_account=name_accounts)
 
 
-async def refuse_edits_a_bank_supplies(db: AsyncSession, user: User, edits: Sequence[LedgerEdit]) -> None:
+async def refuse_edits_a_bank_supplies(db: AsyncSession, user: User, edits: Sequence[LedgerEdit], *, name_accounts: bool = False) -> None:
     """Refuse edits that date a transaction on days a linked account's bank supplies, or take a bank-imported one out of its linked account
 
     Only a changed date or account is checked, so an edit leaving both alone saves wherever the
@@ -87,6 +96,8 @@ async def refuse_edits_a_bank_supplies(db: AsyncSession, user: User, edits: Sequ
         db: Active database session
         user: The user editing, whose profile timezone sets today
         edits: Each edited transaction's account and date before the edit and once it applies
+        name_accounts: Whether a refusal names the account, for an edit that can cover more than
+            one, where "this account" wouldn't say which
 
     Raises:
         HTTPException 422: A bank-imported transaction would leave its linked account, an edit
@@ -111,15 +122,16 @@ async def refuse_edits_a_bank_supplies(db: AsyncSession, user: User, edits: Sequ
             source_link = links.get(edit.account_id)
             if moved and source_link is not None:
                 provider_name = PROVIDER_ADAPTERS[source_link.provider].provider_name
+                account = source_link.account_name if name_accounts else "this account"
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=f"Transactions from {provider_name} can't move to another account while this account is linked",
+                    detail=f"Transactions from {provider_name} can't move to another account while {account} is linked",
                 )
             if not moved:
                 continue
         target_link = links.get(edit.new_account_id)
         if target_link is not None:
-            _refuse_supplied_days(target_link, [edit.new_dt], today=today)
+            _refuse_supplied_days(target_link, [edit.new_dt], today=today, name_account=name_accounts)
 
 
 async def refuse_archiving_a_linked_account(db: AsyncSession, account: Account) -> None:
@@ -154,11 +166,11 @@ async def _read_live_links(db: AsyncSession, account_ids: Iterable[uuid.UUID]) -
     ids = sorted(set(account_ids))
     await db.execute(select(Account.id).where(Account.id.in_(ids)).order_by(Account.id).with_for_update(read=True))
     rows = await db.execute(
-        select(BankAccountLink.account_id, BankAccountLink.provider, BankAccountLink.import_start).where(
-            BankAccountLink.account_id.in_(ids), _LIVE_LINK
-        )
+        select(BankAccountLink.account_id, Account.name, BankAccountLink.provider, BankAccountLink.import_start)
+        .join(Account, Account.id == BankAccountLink.account_id)
+        .where(BankAccountLink.account_id.in_(ids), _LIVE_LINK)
     )
-    return {account_id: _LiveLink(provider, import_start) for account_id, provider, import_start in rows}
+    return {account_id: _LiveLink(name, provider, import_start) for account_id, name, provider, import_start in rows}
 
 
 def _today(user: User) -> date:
@@ -166,17 +178,15 @@ def _today(user: User) -> date:
     return datetime.now(resolve_timezone(user.tz)).date()
 
 
-def _refuse_supplied_days(link: _LiveLink, dates: Iterable[date], *, today: date) -> None:
-    """Refuse any date from a link's import start through today
+def _refuse_supplied_days(link: _LiveLink, dates: Iterable[date], *, today: date, name_account: bool) -> None:
+    """Refuse any date from a link's import start through today, naming the account when asked
 
     Raises:
         HTTPException 422: One of the dates is supplied by the link's bank
     """
     if any(link.import_start <= day <= today for day in dates):
+        transactions = f"the transactions in {link.account_name}" if name_account else "this account's transactions"
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=(
-                f"{PROVIDER_ADAPTERS[link.provider].provider_name} supplies this account's transactions "
-                f"from {format_day(link.import_start)} to today"
-            ),
+            detail=f"{PROVIDER_ADAPTERS[link.provider].provider_name} supplies {transactions} from {format_day(link.import_start)} to today",
         )

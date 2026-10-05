@@ -88,7 +88,7 @@ async def import_transactions(
     for row in data.rows:
         account = get_import_row_account(import_lookups.accounts_by_source, row.account_source)
         dates_by_account.setdefault(account.id, []).append(row.dt)
-    await refuse_days_a_bank_supplies(db, user, dates_by_account)
+    await refuse_days_a_bank_supplies(db, user, dates_by_account, name_accounts=True)
 
     await recompute_account_snapshots(db, first_import_date_by_account_id)
     await mark_import_caches_changed(
