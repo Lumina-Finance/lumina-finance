@@ -48,11 +48,9 @@ from app.services.transactions.update import apply_transaction_update
 
 REVIEW_ITEM_NOT_FOUND = "Review item not found"
 
-# Why restoring refuses a transaction the user entered, or one no longer tied to the bank
+# Why restoring refuses a transaction that isn't the user's, was entered by hand, or is no longer
+# tied to the bank
 BANK_SOURCE_NOT_FOUND = "Bank source not found"
-
-# Why restoring refuses a transaction on an account the user can see but doesn't own alone
-_RESTORE_NOT_OWN_DETAIL = "Bank values can't be restored on accounts shared with a group"
 
 # Why restoring refuses a bank amount the account's currency can't hold without rounding
 _UNSTORABLE_RESTORE_DETAIL = "The bank's amount has more decimal places than {currency} allows, so it can't be restored"
@@ -330,14 +328,12 @@ async def restore_bank_value(db: AsyncSession, user: User, transaction_id: uuid.
         The ledger transaction, with its bank source
 
     Raises:
-        HTTPException 403: The transaction is on an account the user can see but doesn't own alone
-        HTTPException 404: The transaction isn't visible to the user, or didn't come from a bank
+        HTTPException 404: The user has no bank-imported transaction with this id, which covers one
+            that is someone else's or was entered by hand, since only a personal account is linked
         HTTPException 409: Another change held the transaction too long
         HTTPException 422: The bank's amount can't be stored exactly, or the bank's value fails the
             checks an edit passes
     """
-    visible = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.READ)
-    await get_own_personal_account(db, visible.account_id, user.id, not_own_detail=_RESTORE_NOT_OWN_DETAIL)
     record, account, _ = await _lock_bank_transaction(db, user, BankTransaction.transaction_id == transaction_id, BANK_SOURCE_NOT_FOUND)
 
     txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.WRITE, lock_for_update=True)

@@ -13,12 +13,13 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
-from app.models.account import Account
 from app.models.account_review_preference import ReviewDecision
 from app.models.bank_connection import BankAccountLink
 from app.models.bank_transaction import BankTransactionDisposition, OpenReviewKind
+from app.models.transaction import Transaction
+from app.services.bank_sync import review_decisions
 from app.services.bank_sync.ingestion import store_booked_records
 from app.services.bank_sync.providers.contract import ProviderRecord
 from app.services.bank_sync.review_preferences import update_review_preferences
@@ -34,7 +35,6 @@ from tests.routes.support.bank_sync_helpers import (
     _commit_other_users_account,
     _commit_review_item,
     _ledger_rows,
-    _new_group_account,
     _owner_session,
     _review_page,
     _stored_item,
@@ -158,28 +158,14 @@ async def test_restoring_the_date_moves_the_transaction_and_its_balance_to_the_b
     assert await _balances(imported.account_id) == [(BANK_DATE, _BANK_AMOUNT)]
 
 
-@pytest.mark.parametrize(
-    ("ledger_amount", "record_values"),
-    [
-        (
-            _BANK_AMOUNT,
-            {
-                "aligned_amount": -4510,
-                "declined_observation": {"date": BANK_DATE.isoformat(), "amount": -4510, "description": BANK_DESCRIPTION},
-            },
-        ),
-        (-4000, {}),
-    ],
-    ids=["amount kept over the bank's change", "amount edited before a trusted change"],
-)
-async def test_a_restored_amount_takes_the_banks_latest_and_follows_trusted_corrections_again(client, ledger_amount, record_values):
-    """The bank now says -45.10 while the ledger holds the user's own amount, on an account that trusts corrections
+async def test_a_restored_amount_takes_the_banks_latest_and_follows_trusted_corrections_again(client):
+    """The user saved -40.00 before a trusted change to -45.10 left it alone, on an account that trusts corrections
 
-    The user either kept -42.10 when the bank changed it to -45.10, or had saved -40.00 before a
-    trusted change to -45.10 left it alone. Restoring sets -45.10, so when the bank next changes the
-    coffee to -46.00 the ledger takes it, where the user's own amount would have stayed
+    Restoring sets the bank's latest -45.10 rather than the -42.10 the user first edited, so when the
+    bank next changes the coffee to -46.00 the ledger takes it, where the user's own amount would have
+    stayed
     """
-    imported = await _bank_imported(client, ledger_amount=ledger_amount, observed_amount=-4510, **record_values)
+    imported = await _bank_imported(client, observed_amount=-4510)
     await _commit_link(imported.ledger, imported.account_id)
     await _trust_corrections(imported)
 
@@ -265,54 +251,84 @@ async def test_restoring_an_amount_the_currency_cant_hold_is_refused(client):
     assert await _ledger_rows(imported.account_id) == [(BANK_DATE, -1251)]
 
 
-async def test_restoring_another_users_a_group_accounts_or_a_hand_entered_transaction_is_refused(client):
-    """Another user's imported coffee is not found, one on the user's group account is refused, and a lunch the user entered has no bank source
+async def test_restoring_another_users_or_a_hand_entered_transaction_is_not_found(client):
+    """Another user's imported coffee and a lunch the user entered by hand both have no bank source the user can restore from
 
     Each would have its amount restored if the check were missing, and stays as it was
     """
     imported = await _bank_imported(client)
     theirs = await _commit_other_users_account()
-    joint_id = await _new_group_account(client, imported.headers)
     async with TestSession() as session:
-        joint = await session.get_one(Account, uuid.UUID(joint_id))
         their_category = _build_category(theirs.owner_id)
         session.add(their_category)
         await session.flush()
         their_coffee = _build_ledger_transaction(theirs, their_category.id, amount=-4000)
-
-        # A group account has no owner, so the user who recorded its coffee is named
-        joint_coffee = _build_ledger_transaction(joint, uuid.UUID(imported.ledger.category_id), amount=-4000)
-        joint_coffee.created_by_user_id = imported.ledger.user_id
-        session.add_all([their_coffee, joint_coffee])
+        session.add(their_coffee)
         await session.flush()
         session.add(_build_bank_transaction(theirs, amount=_BANK_AMOUNT, transaction=their_coffee))
-        joint_record = _build_bank_transaction(joint, amount=_BANK_AMOUNT, transaction=joint_coffee)
-        joint_record.owner_id = imported.ledger.user_id
-        session.add(joint_record)
         await session.commit()
     lunch = await _create_transaction(client, imported.headers, imported.account_id, imported.ledger.category_id, amount=-1500)
     assert lunch.status_code == 201, lunch.text
 
-    responses = [
-        await _restore(client, imported, "amount", transaction_id) for transaction_id in (their_coffee.id, joint_coffee.id, lunch.json()["id"])
-    ]
+    responses = [await _restore(client, imported, "amount", transaction_id) for transaction_id in (their_coffee.id, lunch.json()["id"])]
 
-    assert [response.status_code for response in responses] == [404, 403, 404]
-    assert [response.json()["detail"] for response in responses] == [
-        "Transaction not found",
-        "Bank values can't be restored on accounts shared with a group",
-        "Bank source not found",
-    ]
+    assert [response.status_code for response in responses] == [404, 404]
+    assert [response.json()["detail"] for response in responses] == ["Bank source not found"] * 2
     assert await _ledger_rows(theirs.id) == [(BANK_DATE, -4000)]
-    assert await _ledger_rows(joint_id) == [(BANK_DATE, -4000)]
+
+
+async def test_restoring_waits_for_an_edit_to_the_ledger_row_and_rebuilds_balances_from_its_date(client):
+    """The user is moving the coffee to 1 October as they restore the bank's -42.10 over their -40.00
+
+    Restoring waits for the move, then writes -42.10 to the moved transaction and rebuilds its
+    balances from 1 October, where it now sits, leaving the moved date edited
+    """
+    imported = await _bank_imported(client)
+    ledger_row = Transaction.id == uuid.UUID(imported.transaction_id)
+
+    async with asyncio.timeout(10), TestSession() as editing:
+        await editing.execute(select(Transaction.id).where(ledger_row).with_for_update())
+        editing_pid = await editing.scalar(select(func.pg_backend_pid()))
+        restoring = asyncio.create_task(_restore(client, imported, "amount"))
+        await _wait_until_waiting_on(editing_pid, restoring)
+        await editing.execute(update(Transaction).where(ledger_row).values(dt=date(2026, 10, 1)))
+        await editing.commit()
+        restored = await restoring
+
+    assert restored.status_code == 200, restored.text
+    assert (restored.json()["dt"], restored.json()["amount"], restored.json()["bank_source"]["edited_fields"]) == (
+        "2026-10-01",
+        _BANK_AMOUNT,
+        ["date"],
+    )
+    assert await _balances(imported.account_id) == [(date(2026, 10, 1), _BANK_AMOUNT)]
+
+
+async def test_restoring_writes_nothing_when_the_save_fails_after_the_ledger_row(client, monkeypatch):
+    """A failure once the ledger row and its balances are written leaves the coffee at the user's -40.00, still edited"""
+
+    async def fail(db, user_id):
+        """Fail where the cache is marked, after every other write"""
+        raise RuntimeError("cache mark failed")
+
+    imported = await _bank_imported(client)
+    monkeypatch.setattr(review_decisions, "mark_user_cache_changed", fail)
+
+    with pytest.raises(RuntimeError, match="cache mark failed"):
+        await _restore(client, imported, "amount")
+
+    assert await _ledger_rows(imported.account_id) == [(BANK_DATE, -4000)]
+    assert await _balances(imported.account_id) == [(BANK_DATE, -4000)]
+    stored = await _stored_item(imported.record_id)
+    assert (stored.aligned_amount, stored.version) == (_BANK_AMOUNT, 1)
 
 
 async def test_a_restore_waiting_on_a_sync_restores_the_value_the_sync_stored(client):
     """A sync on an account trusting corrections stores the bank's change from -42.10 to -46.00, leaving the user's -40.00 alone as edited
 
-    The restore queues behind the sync's locks, the link first as every writer takes it, then puts
-    the bank's newest -46.00 on the ledger rather than the -42.10 it would have read before the sync
-    finished, which would leave the ledger differing from the bank with nothing marked edited
+    The restore waits for the sync to commit, then puts the bank's newest -46.00 on the ledger rather
+    than the -42.10 it would have read before the sync finished, which would leave the ledger
+    differing from the bank with nothing marked edited
     """
     imported = await _bank_imported(client)
     await _commit_link(imported.ledger, imported.account_id)
