@@ -93,10 +93,11 @@ async def apply_review_pauses(db: AsyncSession, links: Sequence[BankAccountLink]
 async def lock_account_links(db: AsyncSession, account_ids: Collection[uuid.UUID]) -> list[BankAccountLink]:
     """Lock every link of these accounts in id order, after the connections of the live ones, before any bank transaction row
 
-    A lifted pause queues a sync, and a job row holds its connection for key share, so that lock is
-    taken on each live link's connection first, since a disconnect, a reconnect and a sync's write
-    each hold the connection before the links. Then the links, in the order every writer takes
-    them, and every link, not only paused ones, since one a sync is pausing doesn't read as paused
+    A lifted pause queues a sync, whose job row takes a key share lock on its connection, and a
+    disconnect, a reconnect and a sync's write each hold the connection for update before the links.
+    So each live link's connection is locked first, for no key update as a discovery locks it, which
+    waits for those writers and covers the job row's lock. Then the links, in the order every writer
+    takes them, and every link, not only paused ones, since one a sync is pausing doesn't read as paused
     until its lock is granted
 
     Returns:
