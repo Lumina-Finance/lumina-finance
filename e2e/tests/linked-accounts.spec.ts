@@ -1,0 +1,174 @@
+import { expect, test, type Locator, type Page } from '@playwright/test'
+
+import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser, todayInTestTimezone } from '../support/api'
+import { logInViaApi, openModal, openPage } from '../support/app'
+import { API_BASE_URL } from '../support/target'
+
+// A linked account's bank supplies its transactions from the import start through today, so the
+// transaction modal refuses those days.
+//
+// The list of links the app reads is not served yet, so each test answers it with the link it needs.
+// Nothing links the account on the server, which accepts every save, so a refusal seen here is the
+// browser's own and a save that goes through is one the browser let through
+const IMPORT_START = '2026-01-01'
+const SUPPLIED_DAYS_MESSAGE = "SimpleFIN supplies this account's transactions from Jan 1, 2026 to today"
+
+// The layout puts Date, Currency and Amount side by side from this width
+const FIELD_ROW_MIN_WIDTH = 640
+
+/**
+ * Answers the app's read of the user's links with these links, read again on every request so a test
+ * can unlink by emptying the list
+ */
+async function answerLinksWith(page: Page, accountIds: () => string[]): Promise<void> {
+  await page.route(`${API_BASE_URL}/bank-sync/links`, (route) => route.fulfill({
+    json: accountIds().map((accountId) => ({
+      account_id: accountId,
+      connection_id: 'connection',
+      provider: 'simplefin',
+      provider_name: 'SimpleFIN',
+      external_account_id: 'bank-account',
+      external_account_name: 'Chequing',
+      institution_name: 'Example Bank',
+      import_start: IMPORT_START,
+      linked_at: `${IMPORT_START}T12:00:00Z`,
+      import: null,
+      history_reminder: null,
+      last_success_at: null,
+      last_attempt: null,
+      next_attempt_at: null,
+      waiting_on_budget: false,
+      sync_in_progress: false,
+      action_needed: null,
+      waiting_new_count: 0,
+      review_warning: false,
+      paused: false,
+      balance: null,
+    })),
+  }))
+}
+
+async function getBox(locator: Locator) {
+  const box = await locator.boundingBox()
+  if (!box) throw new Error('the element has no box on screen')
+  return box
+}
+
+/**
+ * Types a date into the modal's date field and leaves the field, as a user does. The field moves on
+ * by itself as each part fills, and clicking Notes leaves it, since Tab from the day stops on the
+ * field's own calendar button first
+ */
+async function typeDate(page: Page, dialog: Locator, date: string): Promise<void> {
+  await dialog.getByRole('group', { name: 'Date' }).getByRole('textbox', { name: 'Year' }).click()
+  await page.keyboard.type(date.replaceAll('-', ''))
+  await dialog.getByLabel('Notes').click()
+}
+
+test('refuses a new manual entry on the days a linked account’s bank supplies', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  await answerLinksWith(page, () => [account.id])
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+
+  const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+  const date = dialog.getByRole('group', { name: 'Date' })
+  const currency = dialog.getByRole('combobox', { name: 'Currency' })
+  const amount = dialog.getByRole('textbox', { name: 'Amount', exact: true })
+  const details = dialog.getByText('Details', { exact: true })
+
+  // Measured from the section's heading, since the dialog recentres as it grows and can land the
+  // fields on a different part of a pixel, so the rows count as unmoved within one pixel
+  const fieldTops = async () => {
+    const headingTop = (await getBox(details)).y
+    return Promise.all([date, currency, amount].map(async (field) => (await getBox(field)).y - headingTop))
+  }
+  const isUnmoved = (tops: number[], before: number[]) => tops.every((top, index) => Math.abs(top - before[index]) < 1)
+  const topsBefore = await fieldTops()
+
+  // Today is the last day the bank supplies
+  await typeDate(page, dialog, todayInTestTimezone())
+  const message = dialog.getByRole('alert').filter({ hasText: SUPPLIED_DAYS_MESSAGE })
+  await expect(message).toBeVisible()
+  const year = date.getByRole('textbox', { name: 'Year' })
+  await expect(year).toHaveAttribute('aria-invalid', 'true')
+  await expect(year).toHaveAccessibleDescription(SUPPLIED_DAYS_MESSAGE)
+
+  // Under the date on a phone, and under the whole row once the fields sit side by side, so Date,
+  // Currency and Amount stay where they were. Read once the message has finished opening
+  if (page.viewportSize()!.width >= FIELD_ROW_MIN_WIDTH) {
+    await expect.poll(async () => {
+      const [dateBox, amountBox, messageBox] = await Promise.all([date, amount, message].map(getBox))
+      return {
+        unmoved: isUnmoved(await fieldTops(), topsBefore),
+        underTheRow: messageBox.y >= amountBox.y + amountBox.height,
+        acrossTheRow: Math.round(messageBox.x) === Math.round(dateBox.x)
+          && Math.round(messageBox.x + messageBox.width) === Math.round(amountBox.x + amountBox.width),
+      }
+    }).toEqual({ unmoved: true, underTheRow: true, acrossTheRow: true })
+  } else {
+    await expect.poll(async () => {
+      const [dateBox, currencyBox, messageBox] = await Promise.all([date, currency, message].map(getBox))
+      return messageBox.y >= dateBox.y + dateBox.height && currencyBox.y >= messageBox.y + messageBox.height
+    }).toBe(true)
+  }
+
+  // The calendar refuses today, and a later day the bank can't have supplied yet is taken
+  await dialog.getByRole('button', { name: 'Open calendar' }).click()
+  const todayCell = page.getByRole('button').and(page.locator(`[data-iso="${todayInTestTimezone()}"]`))
+  const tomorrowCell = page.getByRole('button').and(page.locator(`[data-iso="${daysFromTodayInTestTimezone(1)}"]`))
+  await expect(todayCell).toHaveAttribute('aria-disabled', 'true')
+  await expect(tomorrowCell).not.toHaveAttribute('aria-disabled', 'true')
+  await tomorrowCell.click()
+  await expect(message).toBeHidden()
+  await expect(year).toHaveAttribute('aria-invalid', 'false')
+})
+
+test('lets an edit keep a date the linked account’s bank supplies, and refuses moving it to another such day', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const id = await createTransaction(request, user, {
+    accountId: account.id,
+    categoryName: 'Groceries',
+    amount: -4250,
+    date: '2026-01-15',
+  })
+  await answerLinksWith(page, () => [account.id])
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  const row = page.getByTestId(`transaction-row-${id}`)
+  const dialog = page.getByRole('dialog', { name: 'Edit Transaction', exact: true })
+  const message = dialog.getByRole('alert').filter({ hasText: SUPPLIED_DAYS_MESSAGE })
+
+  // Changing only the notes dates nothing anew, so it saves where the transaction already sits
+  await row.click()
+  await dialog.getByLabel('Notes').fill('Receipt checked')
+  const notesSaved = page.waitForResponse((response) =>
+    response.url() === `${API_BASE_URL}/transactions/${id}` && response.request().method() === 'PATCH')
+  await dialog.getByTestId('transaction-submit').click()
+  expect((await notesSaved).status()).toBe(200)
+  await expect(dialog).toBeHidden()
+
+  // Every save sent from here on, so one the browser refused would show up ahead of the one it let through
+  const sentDates: unknown[] = []
+  page.on('request', (sent) => {
+    if (sent.url() === `${API_BASE_URL}/transactions/${id}` && sent.method() === 'PATCH') sentDates.push(sent.postDataJSON().dt)
+  })
+
+  await row.click()
+  await typeDate(page, dialog, '2026-01-16')
+  await expect(message).toBeVisible()
+  await dialog.getByTestId('transaction-submit').click()
+  await expect(dialog).toBeVisible()
+
+  // The day before the import start is the user's own to fill
+  await typeDate(page, dialog, '2025-12-31')
+  await expect(message).toBeHidden()
+  const dateSaved = page.waitForResponse((response) =>
+    response.url() === `${API_BASE_URL}/transactions/${id}` && response.request().method() === 'PATCH')
+  await dialog.getByTestId('transaction-submit').click()
+  expect((await dateSaved).status()).toBe(200)
+  await expect(dialog).toBeHidden()
+  expect(sentDates).toEqual(['2025-12-31'])
+})

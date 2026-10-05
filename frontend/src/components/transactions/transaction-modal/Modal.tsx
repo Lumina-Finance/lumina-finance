@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useAccounts } from '@/api/accounts'
 import { useTransaction } from '@/api/transactions'
+import { useBankLinksByAccount } from '@/api/bank-sync'
 import { useCategories } from '@/api/categories'
 import { useCurrencies } from '@/api/currency'
 import { useCurrencyListState } from '@/hooks/useCurrencyListState'
@@ -8,6 +9,7 @@ import { CURRENCY_LIST_LOADING } from '@/utils/currencyStatus'
 import { formatCurrencySymbol } from '@/utils/formatCurrency'
 import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent } from '@/utils/moneyInput'
 import { useAuth } from '@/hooks/useAuth'
+import { getTodayYmd } from '@/utils/date'
 import { KIND_LABELS } from '@/components/transactions/transaction-modal/constants'
 import { buildInitialTransactionForm } from '@/components/transactions/transaction-modal/utils/initialForm'
 import { buildCurrencyOptions } from '@/components/transactions/transaction-modal/utils/options'
@@ -23,6 +25,7 @@ import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { usePendingLinks } from '@/components/transactions/transaction-modal/hooks/usePendingLinks'
 import { useRefundRoom } from '@/components/transactions/transaction-modal/hooks/useRefundRoom'
+import { getSuppliedDays } from '@/components/transactions/transaction-modal/utils/suppliedDays'
 import type {
   CreateTransactionModalProps,
   TransactionFormFieldErrors,
@@ -90,6 +93,7 @@ export default function CreateTransactionModal({
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
   const { data: currencies = [] } = useCurrencies()
+  const linksByAccount = useBankLinksByAccount()
   const currencyState = useCurrencyListState()
   const selectableAccounts = useMemo(() => {
     const unarchived = accounts.filter((account) => !account.is_archived)
@@ -144,6 +148,14 @@ export default function CreateTransactionModal({
     [accounts, form.counterparty_account_id],
   )
   const readOnly = editing && (readOnlyProp || Boolean(selectedAccount?.is_archived))
+
+  const suppliedDays = getSuppliedDays({
+    form,
+    transaction,
+    counterpartyAccount: selectedCounterpartyAccount,
+    linksByAccount,
+    today: getTodayYmd(user?.tz),
+  })
 
   const { merchantModal, categoryModal, tagModal } = useTransactionReferenceCreationModals()
 
@@ -221,19 +233,22 @@ export default function CreateTransactionModal({
               : 'This expense is already fully refunded',
         }
       : undefined
-  const refusal = useRefusedSubmit(
-    getTransactionProblems(form, {
-      editing,
-      refundLimit,
-      isAmountLocked,
-      isBalanceAdjustmentCategory: categoryField.isBalanceAdjustmentCategory,
-      selectedAccount,
-      selectedCounterpartyAccount,
-    }),
-    fieldLayout.order,
-    suffixControlIds(fieldLayout.controlIds, idSuffix),
-  )
+  const problems = getTransactionProblems(form, {
+    editing,
+    refundLimit,
+    isAmountLocked,
+    isBalanceAdjustmentCategory: categoryField.isBalanceAdjustmentCategory,
+    selectedAccount,
+    selectedCounterpartyAccount,
+  })
+  // A date on days a linked account's bank supplies is a problem like any other, so a press refuses it
+  if (suppliedDays.message && !problems.date) problems.date = suppliedDays.message
+  const refusal = useRefusedSubmit(problems, fieldLayout.order, suffixControlIds(fieldLayout.controlIds, idSuffix))
   const showError = (field: keyof TransactionFormFieldErrors) => refusal.errors[field]
+  // The supplied-days message names a provider and a date, too long for the label row beside Date, so
+  // the section shows it under the date row instead
+  const suppliedDaysError =
+    suppliedDays.message && showError('date') === suppliedDays.message ? suppliedDays.message : null
 
   const { openRef, recordCreatedAccountId, flushDeferredRefresh, closeModal } = useDeferredTransactionRefresh({
     open,
@@ -480,7 +495,9 @@ export default function CreateTransactionModal({
 
               <TransactionDetailsSection
                 date={form.date}
-                dateError={showError('date')}
+                dateError={suppliedDaysError ? undefined : showError('date')}
+                suppliedDaysError={suppliedDaysError}
+                isDateDisabled={suppliedDays.isDateDisabled}
                 currencyOptions={currencyOptions}
                 currencyValue={form.currency}
                 currencyPlaceholder={currencyState === 'loading' ? CURRENCY_LIST_LOADING : 'Select...'}

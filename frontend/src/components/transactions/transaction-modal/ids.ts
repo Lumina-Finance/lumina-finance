@@ -33,6 +33,8 @@ export function getTransactionModalIds(suffix: string) {
     tags: `${TRANSACTION_MODAL_FIELD_IDS.tags}${suffix}`,
     currency: `${TRANSACTION_MODAL_FIELD_IDS.currency}${suffix}`,
     date: `txn-date${suffix}`,
+    // The message under the date row when its days are a linked bank's, which the date's segments point at
+    suppliedDaysError: `txn-date-supplied-days${suffix}`,
     amount: `txn-amount${suffix}`,
     notes: `txn-notes${suffix}`,
     keepOpen: `txn-keep-open${suffix}`,

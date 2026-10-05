@@ -1,4 +1,5 @@
 import { useContext, useRef, type FocusEvent, type KeyboardEvent } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import DateField from '@/components/date-field/DateField'
@@ -27,9 +28,20 @@ import {
   type CurrencyListState,
 } from '@/utils/currencyStatus'
 
+// The app's ease-out, for the message under the date row opening and closing
+const SUPPLIED_DAYS_ERROR_TRANSITION = { duration: 0.18, ease: [0.22, 1, 0.36, 1] } as const
+
 interface TransactionDetailsSectionProps {
   date: string
   dateError?: string | false
+
+  // Why the date falls on days a linked account's bank supplies. It names the provider and a date,
+  // too long for the label row beside Date, so it goes under the date on a phone and under the whole
+  // row once the fields sit side by side, keeping Date, Currency and Amount level
+  suppliedDaysError: string | null
+
+  // Days the calendar refuses, the same days the message above refuses typed in
+  isDateDisabled?: (iso: string) => boolean
   currencyOptions: DropdownOption[]
   currencyValue: string
   currencyPlaceholder: string
@@ -61,6 +73,8 @@ interface TransactionDetailsSectionProps {
 export default function TransactionDetailsSection({
   date,
   dateError,
+  suppliedDaysError,
+  isDateDisabled,
   currencyOptions,
   currencyValue,
   currencyPlaceholder,
@@ -81,6 +95,7 @@ export default function TransactionDetailsSection({
   const ids = useTransactionModalIds()
   const stepHighlight = useContext(DateStepHighlightContext)
   const { user } = useAuth()
+  const prefersReducedMotion = useReducedMotion()
   const amountInput = useMoneyInput({
     value: amount,
     exponent: currencyExponent,
@@ -138,15 +153,33 @@ export default function TransactionDetailsSection({
               ariaLabel="Date"
               keyShortcuts={getAriaFieldShortcut('date')}
               value={date}
-              error={!!dateError}
-              describedById={ids.errors.date}
+              error={!!dateError || !!suppliedDaysError}
+              describedById={suppliedDaysError ? ids.suppliedDaysError : ids.errors.date}
               disabled={readOnly}
               stepHighlight={stepHighlight}
               onChange={onDateChange}
               onBlur={onDateBlur}
+              isDateDisabled={isDateDisabled}
             />
           </div>
         </div>
+        <AnimatePresence initial={false}>
+          {suppliedDaysError && (
+            <motion.p
+              key="supplied-days-error"
+              id={ids.suppliedDaysError}
+              role="alert"
+              className="overflow-hidden text-xs font-medium leading-5 sm:order-last sm:col-span-3"
+              style={{ color: 'var(--app-negative)' }}
+              initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+              transition={SUPPLIED_DAYS_ERROR_TRANSITION}
+            >
+              {suppliedDaysError}
+            </motion.p>
+          )}
+        </AnimatePresence>
         <div>
           <div className="mb-1.5 flex items-center gap-2">
             <label htmlFor={ids.currency} className="app-label block text-[0.9375rem] leading-5">
