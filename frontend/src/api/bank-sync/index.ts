@@ -32,6 +32,7 @@ export type {
   BulkApprovalPayload,
   BulkApprovalPreview,
   BulkApprovalResult,
+  ChooseAgainLink,
   ClaimSetupTokenPayload,
   ConnectionBankAccount,
   CorrectableBankField,

@@ -89,6 +89,19 @@ class ConnectionBankAccountResponse(BaseModel):
     # The accounts that could take it, decided by the bank-linking eligibility check
     eligible_account_ids: list[uuid.UUID]
 
+    # True while the account linked to it through this connection waits on the user signing in to
+    # its bank again at the provider. Never set on a rejected connection, which needs reconnecting first
+    signin_needed: bool
+
+
+class ChooseAgainLinkResponse(BaseModel):
+    """A link through a connection whose bank account the provider no longer lists as before"""
+
+    account_id: uuid.UUID
+
+    # The bank account's name as it was when the provider last listed it as before
+    external_account_name: str
+
 
 class BankConnectionResponse(BaseModel):
     """One of the user's provider credentials, described without the credential itself"""
@@ -105,6 +118,9 @@ class BankConnectionResponse(BaseModel):
 
     # Kept while a rejected credential waits for a reconnect
     accounts: list[ConnectionBankAccountResponse]
+
+    # The connection's links that stopped syncing until the user chooses each one's bank account again
+    choose_again_links: list[ChooseAgainLinkResponse]
 
     # True while a discovery is queued or running, such as after a claim whose own discovery failed
     discovery_pending: bool

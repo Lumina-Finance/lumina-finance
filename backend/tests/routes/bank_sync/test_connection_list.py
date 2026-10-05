@@ -1,8 +1,9 @@
 """Listing bank connections
 
-Settings shows each connection from this list, so its status, bank accounts, eligible accounts and
-request budget have to read true, and another user's connection must never show. The app polls it
-while a discovery is pending, so it runs a fixed number of queries however many connections there are
+Settings shows each connection from this list, so its status, bank accounts, eligible accounts, bank
+sign-ins, links to choose again and request budget have to read true, and another user's connection
+must never show. The app polls it while a discovery is pending, so it runs a fixed number of queries
+however many connections there are
 """
 
 import uuid
@@ -158,6 +159,64 @@ async def test_connections_list_shows_a_bank_account_linked_through_another_conn
         [(account["linked_account_id"], account["eligible_account_ids"]) for account in connection["accounts"]]
         for connection in unlinked.json()
     ] == [[(None, [str(everyday_id)])], [(None, [str(everyday_id)])]]
+
+
+async def test_connections_list_flags_a_bank_sign_in_and_a_link_to_choose_again_only_on_the_connection_they_go_through(client):
+    """A sign-in shows on the bank account whose live link through the connection waits on one, never through a rejected connection"""
+    headers, user_id = await _sign_up(client)
+    everyday_id = await _create_usd_account(client, headers, "Everyday")
+    savings_id = await _create_usd_account(client, headers, "Savings")
+    travel_id = await _create_usd_account(client, headers, "Travel")
+    joint_id = await _create_usd_account(client, headers, "Joint")
+
+    now = datetime.now(UTC)
+    harbour = await _commit_bank_connection(user_id, created_at=now - timedelta(days=3))
+    second = await _commit_bank_connection(user_id, created_at=now - timedelta(days=2))
+    rejected = await _commit_bank_connection(user_id, created_at=now - timedelta(days=1), rejected=True)
+    async with TestSession() as session:
+        listed = [
+            (harbour, "ACT-chequing"),
+            (harbour, "ACT-savings"),
+            (harbour, "ACT-visa"),
+            (second, "ACT-chequing"),
+            (rejected, "ACT-joint"),
+        ]
+        for connection, external_id in listed:
+            bank_account = _build_external_account(connection, external_id)
+            bank_account.currency = "USD"
+            session.add(bank_account)
+        await session.flush()
+        everyday, savings, travel, joint = [
+            await session.get(Account, account_id) for account_id in (everyday_id, savings_id, travel_id, joint_id)
+        ]
+        choose_again = _build_bank_link(travel, harbour, "ACT-old-visa", state=BankLinkState.CHOOSE_ACCOUNT)
+        choose_again.external_account_name = "Old Visa"
+        session.add_all(
+            [
+                # Everyday once followed the Visa, and its sign-in now belongs to the chequing account it follows
+                _build_bank_link(everyday, harbour, "ACT-visa", state=BankLinkState.UNLINKED, unlinked_at=now - timedelta(days=5)),
+                _build_bank_link(everyday, harbour, "ACT-chequing", signin_needed_since=now - timedelta(hours=2)),
+                _build_bank_link(savings, harbour, "ACT-savings"),
+                choose_again,
+                _build_bank_link(joint, rejected, "ACT-joint", signin_needed_since=now - timedelta(days=3)),
+            ]
+        )
+        await session.commit()
+
+    response = await client.get("/bank-sync/connections", headers=headers)
+
+    assert response.status_code == 200, response.text
+    assert [
+        ([(account["external_id"], account["signin_needed"]) for account in connection["accounts"]], connection["choose_again_links"])
+        for connection in response.json()
+    ] == [
+        (
+            [("ACT-chequing", True), ("ACT-savings", False), ("ACT-visa", False)],
+            [{"account_id": str(travel_id), "external_account_name": "Old Visa"}],
+        ),
+        ([("ACT-chequing", False)], []),
+        ([("ACT-joint", False)], []),
+    ]
 
 
 async def test_connections_list_leaves_out_another_users_connections(client):

@@ -76,6 +76,7 @@ async def test_claim_with_a_fresh_token_saves_the_connection_and_lists_its_bank_
                 "custom_currency": False,
                 "linked_account_id": None,
                 "eligible_account_ids": [everyday_id],
+                "signin_needed": False,
             }
             for external_id, name, institution in [
                 ("ACT-chequing", "Everyday Chequing", "Harbour Bank"),
@@ -83,6 +84,7 @@ async def test_claim_with_a_fresh_token_saves_the_connection_and_lists_its_bank_
                 ("ACT-visa", "Rewards Visa", "Harbourline Card Services"),
             ]
         ],
+        "choose_again_links": [],
         "discovery_pending": False,
         "request_budget": {"limit": 20, "used": 2, "available_again_at": None},
     }

@@ -2,7 +2,8 @@
 
 A connection is described by its provider, nickname and server host, never its credential. Each
 bank account it lists says which account it is linked to or which accounts could take it, through
-the one bank-linking eligibility check
+the one bank-linking eligibility check, and whether its link through the connection waits on a bank
+sign-in. The connection also names its links waiting for their bank account to be chosen again
 """
 
 import uuid
@@ -14,16 +15,19 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.bank_connection import BankConnection, BankExternalAccount, BankProviderRequest
+from app.models.bank_connection import BankAccountLink, BankConnection, BankExternalAccount, BankLinkState, BankProviderRequest
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobStatus
 from app.models.user import User
 from app.schemas.bank_sync import (
     BankConnectionResponse,
     BankRequestBudgetResponse,
+    ChooseAgainLinkResponse,
     ConnectionBankAccountResponse,
     UpdateBankConnectionRequest,
 )
+from app.services.bank_sync.action_needed import ActionNeededKind, read_actions_needed
 from app.services.bank_sync.availability import (
+    LIVE_LINK,
     PROVIDER_ADAPTERS,
     find_unavailability,
     get_institution_allowance,
@@ -79,8 +83,8 @@ async def build_connection_responses(
         connections: The connections to describe, in the order to return them
 
     Returns:
-        Each connection with its listed bank accounts, whether a discovery is pending and its
-        request budget
+        Each connection with its listed bank accounts, its links waiting for a bank account to be
+        chosen again, whether a discovery is pending and its request budget
     """
     if not connections:
         return []
@@ -98,6 +102,33 @@ async def build_connection_responses(
 
     linked_to = await read_linked_bank_accounts(db, user_id)
     discovering = await read_discovering_connections(db, connection_ids)
+
+    # A bank account reached through two connections shows a sign-in only on the one its link goes
+    # through, since the sign-in is for the bank login behind that connection
+    signin_needed: set[tuple[uuid.UUID, str]] = set()
+    choose_again: dict[uuid.UUID, list[ChooseAgainLinkResponse]] = defaultdict(list)
+    links = (
+        await db.execute(
+            select(
+                BankAccountLink.connection_id,
+                BankAccountLink.account_id,
+                BankAccountLink.external_account_id,
+                BankAccountLink.external_account_name,
+                BankAccountLink.state,
+            )
+            .where(BankAccountLink.connection_id.in_(connection_ids), LIVE_LINK)
+            .order_by(BankAccountLink.external_account_name, BankAccountLink.account_id)
+        )
+    ).all()
+    needed = await read_actions_needed(db, [link.account_id for link in links])
+    for link in links:
+        action = needed.get(link.account_id)
+        if action is not None and action.kind is ActionNeededKind.BANK_LOGIN:
+            signin_needed.add((link.connection_id, link.external_account_id))
+        if link.state == BankLinkState.CHOOSE_ACCOUNT:
+            choose_again[link.connection_id].append(
+                ChooseAgainLinkResponse(account_id=link.account_id, external_account_name=link.external_account_name)
+            )
 
     counted: dict[uuid.UUID, list[datetime]] = defaultdict(list)
     requests = await db.execute(
@@ -139,6 +170,7 @@ async def build_connection_responses(
                     custom_currency=not is_iso_currency_code(bank_account.currency),
                     linked_account_id=link[0] if link else None,
                     eligible_account_ids=eligible,
+                    signin_needed=(connection.id, bank_account.external_id) in signin_needed,
                 )
             )
         budget = summarize_request_budget(
@@ -157,6 +189,7 @@ async def build_connection_responses(
                 created_at=connection.created_at,
                 status="credential_rejected" if connection.credential_rejected_at is not None else "active",
                 accounts=accounts,
+                choose_again_links=choose_again[connection.id],
                 discovery_pending=connection.id in discovering,
                 request_budget=BankRequestBudgetResponse(limit=budget.limit, used=budget.used, available_again_at=budget.available_again_at),
             )

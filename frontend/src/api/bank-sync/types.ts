@@ -88,6 +88,9 @@ export type BankConnection = {
   /** The bank accounts the credential last returned, kept while a rejected credential waits for a reconnect */
   accounts: ConnectionBankAccount[];
 
+  /** The links through it that stopped syncing until the user chooses each one's bank account again */
+  choose_again_links: ChooseAgainLink[];
+
   /**
    * True while the connection's bank accounts are waiting on a listing still to run, such as after a
    * claim or reconnect whose own listing failed. `accounts` fills in when it finishes
@@ -116,6 +119,22 @@ export type ConnectionBankAccount = {
    * in the same currency and not already linked. Empty for a custom currency
    */
   eligible_account_ids: string[];
+
+  /**
+   * True while the account linked to it through this connection waits on the user signing in to its
+   * bank again at the provider. Never set on a rejected connection, which needs reconnecting first
+   */
+  signin_needed: boolean;
+};
+
+/**
+ * A link whose bank account the provider no longer lists as before, waiting for the user to choose it again
+ */
+export type ChooseAgainLink = {
+  account_id: string;
+
+  /** The bank account's name as it was when the provider last listed it as before */
+  external_account_name: string;
 };
 
 export type UnavailableBankAccountReason = 'already_linked' | 'currency_mismatch' | 'custom_currency' | 'institution_limit';
