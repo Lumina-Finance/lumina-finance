@@ -75,7 +75,7 @@ function whenSettled(element: HTMLElement, onSettled: () => void): () => void {
  * Hidden while nothing in scope waits, and replaced by a failure while the items can't load, so an
  * empty space never reads as nothing waiting. A Needs review marker's request opens the block when its
  * item is past the first few, loads pages until the item is among them, then scrolls to it, focuses
- * it and rings it for a moment
+ * it and rings it for a moment. A page that fails to load ends the request where it is
  */
 export default function BankReviewSection({
   listAccountIds,
@@ -140,7 +140,12 @@ export default function BankReviewSection({
   if (jump && jumpIndex === -1 && pages && !hasNextPage && !isFetching) setJump(null)
 
   useEffect(() => {
-    if (jump && jumpIndex === -1 && hasNextPage && !isFetchingNextPage) void fetchNextPage()
+    if (!jump || jumpIndex !== -1 || !hasNextPage || isFetchingNextPage) return
+    void fetchNextPage().then((result) => {
+      // A page that still fails once its retry has run ends the jump, rather than being asked for
+      // again for as long as the page stays open
+      if (result.isError) setJump((current) => (current === jump ? null : current))
+    })
   }, [jump, jumpIndex, hasNextPage, isFetchingNextPage, fetchNextPage])
 
   const rows = useRef(new Map<string, HTMLDivElement>())
