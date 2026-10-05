@@ -44,11 +44,8 @@ async def update_transaction_and_get_response(
 ) -> TransactionResponse:
     """Update a transaction and return its API response
 
-    The service checks write access, validates account and related entity
-    changes, applies requested field updates, replaces tag assignments when
-    supplied, recalculates affected snapshots, marks changed cache scopes, and returns
-    the enriched transaction response. A changed date or account a linked account's bank
-    supplies is refused, and so is moving a bank-imported transaction out of its linked account
+    The service checks write access, applies the update, marks changed cache scopes and commits,
+    and returns the enriched transaction response. A request changing nothing writes nothing
 
     Args:
         db: Active database session
@@ -67,16 +64,52 @@ async def update_transaction_and_get_response(
         PermissionLevel.WRITE,
         lock_for_update=True,
     )
+    changed_accounts = await apply_transaction_update(db, user, txn, data)
+    if not changed_accounts:
+        return await get_transaction_response(db, txn)
 
+    # Mark cache scopes for the original account and the new account when moved
+    for account in changed_accounts:
+        await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
+
+    # Build the response before committing, since a delete of the account may take the row the moment
+    # this commits
+    await db.flush()
+    await db.refresh(txn)
+    response = await get_transaction_response(db, txn)
+    await db.commit()
+    return response
+
+
+async def apply_transaction_update(
+    db: AsyncSession,
+    user: User,
+    txn: Transaction,
+    data: UpdateTransactionRequest,
+) -> list[Account]:
+    """Validate a partial update and write it to a transaction, its tags and the balances it moves, without committing
+
+    The caller marks the cache of each account returned, last, and commits, so the write can be one
+    step of a larger save. A changed date or account a linked account's bank supplies is refused,
+    and so is moving a bank-imported transaction out of its linked account
+
+    Args:
+        db: Active database session
+        user: The user updating the transaction
+        txn: The transaction, locked and checked writable by the caller
+        data: Partial transaction update payload
+
+    Returns:
+        The account the transaction was in, then the one it moved to if it moved, or none when the
+        request changes nothing and nothing was written
+    """
     # Load the persisted parent account for archive validation and cache scope updates
     current_account = await get_parent_account_for_transaction(db, txn)
     validate_transaction_account_is_not_archived(current_account)
 
     changed_fields = data.model_dump(exclude_unset=True)
-
-    # Load related response data without writing when the request contains no changes
     if not changed_fields:
-        return await get_transaction_response(db, txn)
+        return []
 
     previous_account_id = txn.account_id
     previous_date = txn.dt
@@ -198,19 +231,9 @@ async def update_transaction_and_get_response(
         previous_date=previous_date,
         changed_fields=changed_fields,
     )
-
-    # Mark cache scopes for the original account and the new account when moved
-    await mark_cache_changed_for_scope(db, user_id=current_account.owner_id, group_id=current_account.group_id)
     if new_account is not None and new_account.id != current_account.id:
-        await mark_cache_changed_for_scope(db, user_id=new_account.owner_id, group_id=new_account.group_id)
-
-    # Build the response before committing, since a delete of the account may take the row the moment
-    # this commits
-    await db.flush()
-    await db.refresh(txn)
-    response = await get_transaction_response(db, txn)
-    await db.commit()
-    return response
+        return [current_account, new_account]
+    return [current_account]
 
 
 def _get_held_bank_transaction_detail(account_name: str) -> str:

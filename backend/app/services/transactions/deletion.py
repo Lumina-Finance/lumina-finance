@@ -31,11 +31,9 @@ async def delete_transaction_for_user(
 ) -> None:
     """Delete one transaction after checking write access
 
-    The service loads the writable transaction, validates its parent account,
-    removes attached tag assignments, deletes the transaction row, rebuilds
-    affected account snapshots, and marks the cache scope changed. Its refund link, if any, goes
-    with it and the transaction on the other side stays. Deleting both is a bulk delete that
-    chooses the linked ones
+    The service loads the writable transaction, deletes it, marks the cache scope changed and
+    commits. Its refund link, if any, goes with it and the transaction on the other side stays.
+    Deleting both is a bulk delete that chooses the linked ones
 
     Args:
         db: Active database session
@@ -53,7 +51,28 @@ async def delete_transaction_for_user(
         PermissionLevel.WRITE,
         lock_for_update=True,
     )
+    account = await delete_transaction(db, txn)
 
+    # Mark the affected user or group cache after all delete writes are flushed
+    await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
+
+    # Commit tag deletion, transaction deletion, snapshot updates, and cache updates together
+    await db.commit()
+
+
+async def delete_transaction(db: AsyncSession, txn: Transaction) -> Account:
+    """Delete a transaction with its tag assignments and rebuild its account's balances, without committing
+
+    The caller marks the returned account's cache last and commits, so the deletion can be one step
+    of a larger save
+
+    Args:
+        db: Active database session
+        txn: The transaction, locked and checked writable by the caller
+
+    Returns:
+        The account the transaction was in
+    """
     # Load the parent account for archive validation and cache scope updates
     account = await get_parent_account_for_transaction(db, txn)
     validate_transaction_account_is_not_archived(account)
@@ -62,7 +81,7 @@ async def delete_transaction_for_user(
     deleted_dt = txn.dt
 
     # Remove tag assignments before deleting the transaction row in the same commit
-    await delete_transaction_tag_assignments(db, transaction_id)
+    await delete_transaction_tag_assignments(db, txn.id)
 
     # Delete the transaction row and flush before rebuilding dependent snapshots
     await db.delete(txn)
@@ -70,12 +89,7 @@ async def delete_transaction_for_user(
 
     # Rebuild balance snapshots from the deleted transaction's day forward
     await recompute_account_snapshots(db, {account_id: deleted_dt})
-
-    # Mark the affected user or group cache after all delete writes are flushed
-    await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
-
-    # Commit tag deletion, transaction deletion, snapshot updates, and cache updates together
-    await db.commit()
+    return account
 
 
 async def bulk_delete_transactions(
