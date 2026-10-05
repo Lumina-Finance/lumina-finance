@@ -1,15 +1,34 @@
 /**
- * Covers the account's bank sync as its page labels it, from the link alone, and the import heading
- * for each reason an import runs
+ * Covers whether an account's page shows bank sync, the account's bank sync as its page labels it,
+ * from the link alone, and the import heading for each reason an import runs
  *
- * These tests catch a group account read as linkable, a failed read shown as still checking, an
- * account waiting for its bank account to be chosen again shown as syncing, an import paused on the
- * provider's request limit blinking as if it were fetching, and a relink's catch-up described as an
- * import from the link's first day
+ * These tests catch bank sync shown to a user the deployment lets link nothing, a linked account's
+ * link hidden once the user may no longer link, a group account read as linkable, a failed read shown
+ * as still checking, an account waiting for its bank account to be chosen again shown as syncing, a
+ * waiting import blinking as if it were fetching, and a relink's catch-up described as an import from
+ * the link's first day
  */
 import { describe, expect, it } from 'vitest'
-import { describeBankSync, describeImportHeading } from '@/pages/accounts/detail/components/bank-link/status'
-import { createImport, createLink, createPreviousLink, createStatus } from './fixtures'
+import { describeBankSync, describeImportHeading, showsBankSync } from '@/pages/accounts/detail/components/bank-link/status'
+import { createImport, createLink, createPreviousLink, createProviders, createStatus } from './fixtures'
+
+describe('showsBankSync', () => {
+  it('shows while the user may link through a provider', () => {
+    expect(showsBankSync(createProviders(), createStatus())).toBe(true)
+  })
+
+  it.each([
+    ['before the providers are read', undefined],
+    ['to a user the deployment lets link nothing', createProviders({ may_link: false })],
+    ['on a deployment with no provider', createProviders({ providers: [] })],
+  ])('leaves an unlinked account without it %s', (_, providers) => {
+    expect(showsBankSync(providers, createStatus())).toBe(false)
+  })
+
+  it('keeps it for a linked account once the user may no longer link', () => {
+    expect(showsBankSync(createProviders({ may_link: false }), createStatus({ link: createLink() }))).toBe(true)
+  })
+})
 
 describe('describeBankSync', () => {
   it('labels an account that is not the user own personal one as manual only', () => {

@@ -103,11 +103,22 @@ export function createConnection(overrides: Partial<BankConnection> = {}): BankC
   }
 }
 
-/** Builds the providers read: SimpleFIN, open to new connections, with sync running unless told otherwise */
-export function createProviders(syncRunning = true): BankProvidersResponse {
+/** Builds the providers read: SimpleFIN, open to new connections, for a user who may link, with sync running */
+export function createProviders(overrides: Partial<BankProvidersResponse> = {}): BankProvidersResponse {
   return {
     may_link: true,
-    sync_running: syncRunning,
-    providers: [],
+    sync_running: true,
+    providers: [{
+      id: 'simplefin',
+      name: 'SimpleFIN',
+      description: 'Connects to banks through SimpleFIN Bridge',
+      connects_from: 'settings',
+      offered: true,
+      history_limit_months: 12,
+      advertises_history: false,
+      institution_limit: null,
+      institutions_in_use: [],
+    }],
+    ...overrides,
   }
 }

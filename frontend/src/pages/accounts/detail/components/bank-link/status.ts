@@ -1,6 +1,19 @@
-import type { AccountBankStatus, BankImportProgress } from '@/api/bank-sync'
+import type { AccountBankStatus, BankImportProgress, BankProvidersResponse } from '@/api/bank-sync'
 import type { SyncStatusTone } from '@/components/display/SyncStatusDot'
 import { formatDateLabel } from '@/utils/date'
+
+/**
+ * Whether an account's page shows bank sync: while the deployment lets the user link through one of
+ * its providers, and while the account is linked whatever that says, so its link can still be seen
+ * and ended
+ *
+ * @param providers - The deployment's providers and whether the user may link, undefined until read
+ * @param status - The account's link, undefined until read and for any account but the user's own personal ones
+ */
+export function showsBankSync(providers: BankProvidersResponse | undefined, status: AccountBankStatus | undefined): boolean {
+  const offered = providers !== undefined && providers.may_link && providers.providers.length > 0
+  return offered || Boolean(status?.link)
+}
 
 export type BankSyncLabel = {
   label: string

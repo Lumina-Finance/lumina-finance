@@ -95,7 +95,7 @@ describe('BankLinkSection', () => {
     expect(getButton(archived, 'Link bank account')).toContain('aria-disabled="true"')
     expect(archived).toContain('Archived accounts are read-only')
 
-    read.providers = createProviders(false)
+    read.providers = createProviders({ sync_running: false })
     const paused = renderSection()
     expect(getButton(paused, 'Link bank account')).toContain('aria-disabled="true"')
     expect(paused).toContain(escaped(LINKING_PAUSED_REASON))
