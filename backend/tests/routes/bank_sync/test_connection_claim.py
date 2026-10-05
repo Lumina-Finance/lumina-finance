@@ -18,7 +18,7 @@ from app.encryption import decrypt
 from app.models.bank_connection import BankConnection, BankProvider, BankProviderRequest
 from app.models.bank_sync_job import BankSyncJob
 from app.schemas.bank_sync import CreateBankConnectionRequest
-from app.services.bank_sync import availability, claim
+from app.services.bank_sync import availability
 from tests.conftest import TestSession
 from tests.fake_simplefin_bridge import FakeBridgeTransport
 from tests.routes.support import _create_account
@@ -268,7 +268,7 @@ async def test_claim_with_simplefin_disabled_is_refused(client, scenario: FakeBr
 
 async def test_claim_by_a_user_who_may_not_link_bank_accounts_is_refused(client, scenario: FakeBridgeScenario, monkeypatch):
     """The bank-linking check is enforced on the claim, not only in the interface"""
-    monkeypatch.setattr(claim, "may_link_bank_accounts", lambda _user_id: False)
+    monkeypatch.setattr(availability, "may_link_bank_accounts", lambda _user_id: False)
     headers, _ = await _sign_up(client)
 
     refused = await _claim(client, headers, scenario.setup_token)

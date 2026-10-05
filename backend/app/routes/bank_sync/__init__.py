@@ -1,5 +1,5 @@
 """Bank sync route module"""
 
-from app.routes.bank_sync.router import router
+from app.routes.bank_sync.router import bank_link_router, router
 
-__all__ = ["router"]
+__all__ = ["bank_link_router", "router"]

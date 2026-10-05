@@ -118,8 +118,9 @@ def _build_bank_link(
     account: Account,
     connection: BankConnection | None,
     external_account_id: str = BANK_ACCOUNT_ID,
+    **values,
 ) -> BankAccountLink:
-    """Return an unsaved active link from a Lumina account to a bank account on a connection
+    """Return an unsaved link from a Lumina account to a bank account on a connection, active unless told otherwise
 
     The link is owned by the account's owner and names the connection's provider
     """
@@ -135,6 +136,7 @@ def _build_bank_link(
         import_kind=BankImportKind.INITIAL,
         import_start=LINK_START,
         checkpoint=date(2026, 8, 31),
+        **values,
     )
 
 

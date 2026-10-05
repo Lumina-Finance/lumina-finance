@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 
+from fastapi import HTTPException, status
 from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,6 +43,9 @@ ENABLED_ADAPTERS: dict[BankProvider, ProviderAdapter] = {
 OFFERED_PROVIDERS: frozenset[BankProvider] = frozenset(provider for provider, (_, offered) in _PROVIDER_SWITCHES.items() if offered)
 
 _LIVE_LINK = BankAccountLink.state != BankLinkState.UNLINKED
+
+# Why a visible account the user doesn't own alone, such as a group account, can't be linked
+LINK_NOT_OWN_DETAIL = "Accounts shared with a group can't be linked to a bank yet"
 
 
 class UnavailableReason(StrEnum):
@@ -78,12 +82,34 @@ def is_offered(provider: BankProvider) -> bool:
 
 
 def may_link_bank_accounts(user_id: uuid.UUID) -> bool:
-    """Return whether a user may link bank accounts, which the provider list and the claim check
+    """Return whether a user may link bank accounts, which the provider list and every linking request check
 
     Always true on self-hosted deployments. Hosted plans that leave bank linking out answer here
     once a plans project builds them
     """
     return True
+
+
+def require_bank_linking(user_id: uuid.UUID) -> None:
+    """Refuse a user who may not link bank accounts
+
+    Raises:
+        HTTPException 403: The bank-linking check fails for the user
+    """
+    if not may_link_bank_accounts(user_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bank sync isn't available for your account")
+
+
+def get_enabled_adapter(provider: BankProvider) -> ProviderAdapter:
+    """Return the adapter for a provider the user chose, which this deployment has to enable
+
+    Raises:
+        HTTPException 422: The deployment doesn't enable the provider
+    """
+    adapter = ENABLED_ADAPTERS.get(provider)
+    if adapter is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Choose a bank provider this server supports")
+    return adapter
 
 
 def get_institution_limit(user_id: uuid.UUID, provider: BankProvider) -> int | None:
