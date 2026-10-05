@@ -27,7 +27,6 @@ from app.models.bank_sync_job import BankSyncHeartbeat, BankSyncJob, BankSyncJob
 from app.services.bank_sync import availability, worker
 from app.services.bank_sync.jobs import ClaimedJob, finish_job, lock_job_for_finish
 from app.services.bank_sync.pending import replace_pending_transactions
-from app.services.bank_sync.providers.simplefin.adapter import SimpleFinAdapter
 from app.services.bank_sync.sync import run_sync_job
 from app.services.bank_sync.worker import MAX_JOB_ATTEMPTS, enqueue_due_work, run_jobs
 from tests.conftest import ScopedSession, TestSession
@@ -40,6 +39,7 @@ from tests.routes.support.bank_sync_helpers import (
     _job_states,
     _seed_job,
 )
+from tests.services.bank_sync.fake_provider import FakeProviderAdapter
 
 # Long enough for any step here to finish, so a missing protection fails the test rather than hanging it
 _WAIT_SECONDS = 10
@@ -51,8 +51,8 @@ pytestmark = pytest.mark.usefixtures("worker_sessions", "simplefin_enabled")
 
 @pytest.fixture
 def simplefin_enabled(monkeypatch) -> None:
-    """Serve SimpleFIN whatever this deployment's setting, since the jobs here run the real job runner on SimpleFIN connections"""
-    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, SimpleFinAdapter())
+    """Serve SimpleFIN through a scripted fake whatever the deployment's setting, as the jobs here run the real runner on its connections"""
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, FakeProviderAdapter())
 
 
 class _FetchingRunner:
