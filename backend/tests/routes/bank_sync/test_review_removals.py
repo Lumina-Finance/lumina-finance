@@ -34,11 +34,12 @@ from tests.routes.support.bank_sync_helpers import (
     _commit_review_item,
     _ledger_rows,
     _new_group_account,
+    _record_bank_source,
     _review_page,
     _stored_item,
 )
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
-from tests.routes.support.manual_entry_helpers import _commit_link, _Ledger, _ledger, _unlink
+from tests.routes.support.manual_entry_helpers import _added_id, _commit_link, _Ledger, _ledger, _unlink
 from tests.routes.support.query_helpers import _recorded_statements, _writes
 from tests.routes.support.transaction_helpers import _create_transaction
 
@@ -341,10 +342,13 @@ async def test_removing_a_transaction_moved_out_of_its_account_while_unlinked_fi
     """With the groceries' removal waiting, the user unlinks Everyday and moves them to Savings in an edit or a bulk edit
 
     Moving them out took them off the bank with their removal, so removing them finds no item, and
-    Savings keeps them and their balance
+    Savings keeps them and their balance. A bank-imported coffee left in Everyday keeps its bank
+    transaction
     """
     removal = await _removal_waiting(client)
     await _unlink(client, removal.ledger, removal.account_id)
+    coffee_id = await _added_id(client, removal.ledger, removal.account_id, date(2026, 10, 1))
+    coffee_record_id = await _record_bank_source(coffee_id, "TRN-1002")
     savings_id = removal.ledger.savings_id
     if bulk:
         moved = await client.patch(
@@ -354,12 +358,16 @@ async def test_removing_a_transaction_moved_out_of_its_account_while_unlinked_fi
         moved = await client.patch(f"/transactions/{removal.transaction_id}", json={"account_id": savings_id}, headers=removal.headers)
 
     refused = await _decide(client, removal, "remove-from-ledger")
+    coffee = await client.get(f"/transactions/{coffee_id}", headers=removal.headers)
 
     assert moved.status_code == 200, moved.text
     assert (refused.status_code, refused.json()["detail"]) == (404, "Review item not found")
     assert not await _still_stored(removal.item_id)
     assert await _ledger_rows(savings_id) == [(BANK_DATE, -4200)]
     assert await _balances(savings_id) == [(BANK_DATE, -4200)]
+    assert await _still_stored(coffee_record_id)
+    assert coffee.status_code == 200, coffee.text
+    assert coffee.json()["bank_source"]["provider"] == "simplefin"
 
 
 @pytest.mark.parametrize("decision", ["accept-change", "keep-current"])
