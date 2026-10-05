@@ -15,7 +15,7 @@ from typing import override
 from zoneinfo import ZoneInfo
 
 import pytest
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select, text, update
 
 from app.encryption import encrypt
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState, BankProvider, BankProviderRequest, ProviderRequestPurpose
@@ -716,6 +716,78 @@ class _HeldProvider(FakeProviderAdapter):
             self.sending.set()
             await self.release.wait()
         return result
+
+
+async def _wait_until_waiting_on(blocker_pid: int, running: asyncio.Task) -> None:
+    """Wait until a backend waits on a lock the blocker holds, or the running task has finished"""
+    async with TestSession() as observer:
+        while not running.done():
+            if await observer.scalar(
+                text("SELECT EXISTS (SELECT 1 FROM pg_locks WHERE NOT granted AND :pid = ANY(pg_blocking_pids(pid)))"),
+                {"pid": blocker_pid},
+            ):
+                return
+            await observer.rollback()
+            await asyncio.sleep(0.02)
+
+
+async def test_job_finishing_waits_for_the_connection_before_locking_its_links(connection, monkeypatch):
+    """An unlink holding the connection locks Everyday's link while the job waits to write, and the job then leaves Everyday alone
+
+    Whatever writes a connection's links locks the connection, then the job, then the links, so a job
+    that locked its links first could deadlock with an unlink
+    """
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    provider = _HeldProvider()
+    provider.outcomes = [_returned("ACT-everyday")]
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
+    job = await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    async with asyncio.timeout(_WAIT_SECONDS):
+        running = asyncio.create_task(run_jobs(1))
+        await provider.sending.wait()
+        async with TestSession() as unlinking:
+            blocker_pid = await unlinking.scalar(text("SELECT pg_backend_pid()"))
+            await unlinking.execute(select(BankConnection.id).where(BankConnection.id == connection.id).with_for_update())
+            provider.release.set()
+            await _wait_until_waiting_on(blocker_pid, running)
+
+            await unlinking.execute(text("SET LOCAL lock_timeout = '2s'"))
+            await unlinking.execute(
+                update(BankAccountLink)
+                .where(BankAccountLink.id == everyday.id)
+                .values(state=BankLinkState.UNLINKED, unlinked_at=datetime(2026, 10, 4, tzinfo=UTC))
+            )
+            await unlinking.commit()
+        assert await running == 1
+
+    assert await _checkpoints(everyday) == [date(2026, 10, 3)]
+    assert await _job_states() == {job.id: ("succeeded", 1)}
+
+
+async def test_job_sends_each_request_with_the_credential_stored_when_it_is_counted(connection, monkeypatch):
+    """A reconnect replaces the credential while the job lists the bank accounts, so the window that follows goes out with the new one"""
+    await _link(connection, "ACT-1", **_synced_through_yesterday())
+    provider = _HeldProvider()
+    provider.outcomes = [_returned("ACT-1"), _returned("ACT-1")]
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
+    await _seed_job(connection, BankSyncJobKind.RETRY, discover=True)
+
+    async with asyncio.timeout(_WAIT_SECONDS):
+        running = asyncio.create_task(run_jobs(1))
+        await provider.sending.wait()
+        async with TestSession() as session:
+            await session.execute(
+                update(BankConnection)
+                .where(BankConnection.id == connection.id)
+                .values(credential_encrypted=encrypt("https://user:renewed@bridge.example/simplefin"))
+            )
+            await session.commit()
+        provider.release.set()
+        await running
+
+    assert provider.discoveries == ["https://user:secret@bridge.example/simplefin"]
+    assert [call.credential for call in provider.fetches] == ["https://user:renewed@bridge.example/simplefin"]
 
 
 async def test_job_moves_no_checkpoint_for_a_link_unlinked_while_it_fetched(connection, monkeypatch):

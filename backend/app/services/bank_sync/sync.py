@@ -9,18 +9,21 @@ for when a request frees. A job holds no database connection while it waits on t
 
 What a job stores, its checkpoints, discoveries and its own end, goes through lock_job_for_finish,
 so a runner that lost its lease stores nothing and a link that changed while the job fetched gets
-none of its results. The request counts and the budget-spent mark are written outside it, since
-they record requests already sent, whoever holds the job
+none of its results. Each such step locks the connection first, then the job, then the links. The
+request counts and the budget-spent mark lock only the connection and are written outside the job's
+fence, since they record requests already sent, whoever holds the job. Nothing here marks a
+credential rejected
 """
 
 import logging
 import uuid
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import async_session
 from app.encryption import decrypt
@@ -187,20 +190,14 @@ class _JobRun:
             Whether the bank accounts were listed, so the job goes on to its window
         """
         try:
-            sent_at = await self._count_request(ProviderRequestPurpose.DISCOVERY)
+            sent_at, credential = await self._count_request(ProviderRequestPurpose.DISCOVERY)
         except RequestBudgetSpent as spent:
             await _end_job(self.job, again=True, run_after=spent.available_again_at, discover=self.job.discover)
             return False
 
-        result = await self.adapter.discover(decrypt(self.connection.credential_encrypted), currency_exponents=self.currency_exponents)
+        result = await self.adapter.discover(credential, currency_exponents=self.currency_exponents)
         async with async_session() as db:
-            await lock_job_for_finish(db, self.job, ())
-            connection = await db.scalar(
-                select(BankConnection)
-                .where(BankConnection.id == self.connection.id)
-                .with_for_update()
-                .execution_options(populate_existing=True)
-            )
+            connection, _ = await _hold_for_finish(db, self.job)
             await apply_discovery(db, connection, result, now=sent_at)
             await db.commit()
         if result.request_error is not None:
@@ -211,7 +208,7 @@ class _JobRun:
     async def _record_covered_links(self, covered: set[uuid.UUID]) -> None:
         """Record the links the job syncs on it, for their status to say a sync is under way"""
         async with async_session() as db:
-            await lock_job_for_finish(db, self.job, ())
+            await _hold_for_finish(db, self.job)
             await db.execute(update(BankSyncJob).where(BankSyncJob.id == self.job.id).values(covered_link_ids=list(covered)))
             await db.commit()
 
@@ -253,14 +250,14 @@ class _JobRun:
             frees, or failed with the request's error
         """
         try:
-            await self._count_request(ProviderRequestPurpose.SYNC)
+            _, credential = await self._count_request(ProviderRequestPurpose.SYNC)
         except RequestBudgetSpent as spent:
             await _end_job(self.job, again=True, run_after=spent.available_again_at)
             return None
 
         start, end = part.bounds(self.timezone)
         result = await self.adapter.fetch(
-            decrypt(self.connection.credential_encrypted),
+            credential,
             account_ids=[need.link.external_account_id for need in part.needs],
             start=start,
             end=end,
@@ -293,7 +290,8 @@ class _JobRun:
         moved = False
         stamped = False
         async with async_session() as db:
-            for link in await lock_job_for_finish(db, self.job, [need.link for need in part.needs]):
+            _, held = await _hold_for_finish(db, self.job, [need.link for need in part.needs])
+            for link in held:
                 if link.external_account_id not in synced or first_missing_day(link) < part.first_day:
                     continue
                 advanced = part.last_day > link.checkpoint
@@ -308,11 +306,12 @@ class _JobRun:
             await db.commit()
         return moved
 
-    async def _count_request(self, purpose: ProviderRequestPurpose) -> datetime:
+    async def _count_request(self, purpose: ProviderRequestPurpose) -> tuple[datetime, str]:
         """Count a request against the connection's budget and commit it, before it is sent
 
         Returns:
-            When the request is sent
+            When the request is sent, and the credential to send it with, read as it is counted so
+            a credential a reconnect replaced since the job started is never sent
 
         Raises:
             RequestBudgetSpent: No request is left, carrying when the next one frees up
@@ -320,8 +319,9 @@ class _JobRun:
         sent_at = datetime.now(UTC)
         async with async_session() as db:
             await reserve_provider_request(db, self.connection, purpose=purpose, now=sent_at)
+            credential = await db.scalar(select(BankConnection.credential_encrypted).where(BankConnection.id == self.connection.id))
             await db.commit()
-        return sent_at
+        return sent_at, decrypt(credential)
 
     async def _mark_budget_spent(self) -> None:
         """Count the connection's budget as spent, as the provider said its quota is"""
@@ -344,6 +344,36 @@ class _JobRun:
             connection = await db.get(BankConnection, self.connection.id)
             budget = await read_request_budget(db, connection, now=datetime.now(UTC))
         await _end_job(self.job, again=True, run_after=budget.available_again_at, discover=discover)
+
+
+async def _hold_for_finish(
+    db: AsyncSession,
+    job: ClaimedJob,
+    links: Sequence[BankAccountLink] = (),
+) -> tuple[BankConnection, list[BankAccountLink]]:
+    """Lock the job's connection, then the job and the links it may still write for, as each step that stores what it found starts
+
+    Connection, job, links is the one order the connection's writers take their locks in, so none
+    can hold a link another waits for while waiting on the connection that one holds
+
+    Args:
+        db: The job owner's session, which the step then writes in
+        job: The job as claimed
+        links: The links the step writes for, as they stood when the job started
+
+    Returns:
+        The connection freshly read, and the links still covered, freshly read and locked
+
+    Raises:
+        JobNotHeld: A later attempt holds the job, it already finished, or the connection was
+            deleted with its jobs
+    """
+    connection = await db.scalar(
+        select(BankConnection).where(BankConnection.id == job.connection_id).with_for_update().execution_options(populate_existing=True)
+    )
+    if connection is None:
+        raise JobNotHeld(f"Bank sync job {job.id}'s connection was deleted")
+    return connection, await lock_job_for_finish(db, job, links)
 
 
 def _synced_bank_accounts(result: FetchResult) -> set[str]:
@@ -378,7 +408,7 @@ async def _end_job(
         JobNotHeld: A later attempt holds the job, so nothing was written
     """
     async with async_session() as db:
-        await lock_job_for_finish(db, job, ())
+        await _hold_for_finish(db, job)
         if again:
             await enqueue_bank_sync_job(
                 db, owner_id=job.owner_id, connection_id=job.connection_id, kind=job.kind, discover=discover, run_after=run_after
