@@ -136,11 +136,7 @@ async def get_institution_allowance(db: AsyncSession, user_id: uuid.UUID, provid
     """
     in_use = await db.execute(
         select(BankExternalAccount.institution_key, func.min(BankExternalAccount.institution_name))
-        .join(
-            BankAccountLink,
-            (BankAccountLink.connection_id == BankExternalAccount.connection_id)
-            & (BankAccountLink.external_account_id == BankExternalAccount.external_id),
-        )
+        .join(BankAccountLink, LINK_LISTING)
         .where(BankAccountLink.owner_id == user_id, BankAccountLink.provider == provider, LIVE_LINK)
         .group_by(BankExternalAccount.institution_key)
     )
