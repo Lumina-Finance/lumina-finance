@@ -174,9 +174,9 @@ describe('bank connection requests', () => {
     vi.useRealTimers()
   })
 
-  it("names the cap Lumina Finance keeps each connection under, below the provider's own limit", () => {
+  it('names the cap Lumina Finance keeps each connection under', () => {
     expect(describeRequestBudget(connection({ request_budget: { limit: 20, used: 3, available_again_at: null } }))).toBe(
-      "Lumina Finance makes up to 20 requests a day for each connection, below SimpleFIN's daily limit. Automatic syncs and Sync now share them across every account linked through it.",
+      'Lumina Finance makes up to 20 requests a day for each connection. Automatic syncs and Sync now share them across every account linked through it.',
     )
   })
 
