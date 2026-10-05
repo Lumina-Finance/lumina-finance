@@ -98,14 +98,21 @@ type Edges = { left: number; top: number; right: number; bottom: number }
 // How far the row's text keeps clear of the ring on every side, so the ring never touches a line
 const FOCUS_RING_TEXT_CLEARANCE = 4
 
+// The corners of a focused row's ring and light, which are those of the rounded-xl account row
+const FOCUS_RING_RADIUS = '12px'
+
 /**
  * Assert keyboard focus on a control stretched over its row rings the row in the app's accent focus
  * outline, read from the layer the control lays over the row, which is what draws it
  *
  * The ring has to run around the row's own box, so it goes round the whole row with the row's padding
- * inside it rather than tight around the text, and every line of the row's text has to clear it
+ * inside it rather than tight around the text, and every line of the row's text has to clear it. The
+ * row is lit in the accent's soft tint as well, by its own background or by the layer, and the ring
+ * and the light share the rounded corners of an account row
  */
 export async function expectStretchedFocusRing(control: Locator, row: Locator): Promise<void> {
+  // The pointer is kept off the row, so the light that a hover also gives can only come from the focus
+  await control.page().mouse.move(0, 0)
   await control.focus()
 
   // Back a step and forward again, so the focus arrives from the keyboard as a user's would
@@ -120,11 +127,17 @@ export async function expectStretchedFocusRing(control: Locator, row: Locator): 
     const ring = await control.evaluate((element, rowElement) => {
       const edgesOf = ({ left, top, right, bottom }: DOMRect) => ({ left, top, right, bottom })
       const probe = document.createElement('span')
-      probe.style.color = 'var(--app-accent)'
       element.append(probe)
-      const accent = getComputedStyle(probe).color
+      const resolve = (color: string) => {
+        probe.style.color = color
+        return getComputedStyle(probe).color
+      }
+      const accent = resolve('var(--app-accent)')
+      const accentSoft = resolve('var(--app-accent-soft)')
       probe.remove()
       const layer = getComputedStyle(element, '::after')
+      const rowStyle = getComputedStyle(rowElement!)
+      const lit = [layer, rowStyle].find((style) => style.backgroundColor === accentSoft)
 
       // The layer is placed against the nearest positioned ancestor, measured from inside its border
       const block = (element as HTMLElement).offsetParent as HTMLElement
@@ -163,6 +176,8 @@ export async function expectStretchedFocusRing(control: Locator, row: Locator): 
         width: layer.outlineWidth,
         color: layer.outlineColor,
         accent,
+        radius: layer.borderRadius,
+        litRadius: lit?.borderRadius ?? null,
         box: { left, top, right: left + parseFloat(layer.width), bottom: top + parseFloat(layer.height) },
         rowBox: edgesOf(rowElement!.getBoundingClientRect()),
         textBox: text,
@@ -170,6 +185,10 @@ export async function expectStretchedFocusRing(control: Locator, row: Locator): 
     }, rowElement)
     expect({ position: ring.position, style: ring.style, width: ring.width, color: ring.color })
       .toEqual({ position: 'absolute', style: 'solid', width: '2px', color: ring.accent })
+
+    // The light is null where neither the row nor the layer carries the tint
+    expect({ radius: ring.radius, litRadius: ring.litRadius })
+      .toEqual({ radius: FOCUS_RING_RADIUS, litRadius: FOCUS_RING_RADIUS })
 
     // How far each edge of the inner box sits inside the outer one, negative where it pokes out
     const inset = (outer: Edges, inner: Edges): Edges => ({

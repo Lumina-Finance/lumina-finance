@@ -403,6 +403,11 @@ export function TransactionRowView({
   //
   // Tabbing from row to row hears only the button's name and description, so each title is
   // described by the amount beside it in its own layout and by its day's heading, which names its date
+  //
+  // Keyboard focus and a hover light the row as they light an account row, in the accent's soft
+  // tint with its rounded corners, and focus rings it as well. The light is the layer's rather than
+  // the row's, since rounding the row would bend its separator up at both ends. In selection mode a
+  // ticked row already carries that tint, so a hover there keeps the plain hover shade instead
   const descriptionId = useId()
   const amountId = (layout: RowLayout) => `${descriptionId}-amount-${layout}`
   const { onClick: handleContentClick, onMouseEnter, onMouseMove, onMouseLeave, ...titleReasonProps } = reasonProps
