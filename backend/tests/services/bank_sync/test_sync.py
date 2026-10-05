@@ -6,7 +6,8 @@ long import that stops after its first window leaves months missing, a job that 
 the request budget is spent can get the user's SimpleFIN token disabled, and a link failing on every
 request that holds up the others stalls their imports. A job that skips its listing leaves new bank
 accounts unlisted and vanished ones syncing, and one that stores what it found after losing its
-lease or for a link unlinked mid-fetch overwrites what the user or a later attempt did
+lease, for a link unlinked mid-fetch, or from a request sent with a credential replaced mid-flight
+overwrites what the user, a reconnect or a later attempt did
 """
 
 import asyncio
@@ -23,9 +24,10 @@ from app.models.bank_connection import BankAccountLink, BankConnection, BankLink
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, ProviderErrorKind
 from app.models.cache_state import UserCacheState
 from app.models.user import User
-from app.services.bank_sync import availability
+from app.services.bank_sync import availability, sync
 from app.services.bank_sync.availability import PROVIDER_ADAPTERS
 from app.services.bank_sync.connections import build_connection_responses
+from app.services.bank_sync.provider_requests import reserve_provider_request
 from app.services.bank_sync.providers.contract import ExternalAccount, FetchResult, ProviderError
 from app.services.bank_sync.worker import run_jobs
 from tests.conftest import TestSession
@@ -56,6 +58,10 @@ _WAIT_SECONDS = 10
 # Requests a SimpleFIN connection may send in 24 hours
 _DAILY_REQUESTS = PROVIDER_ADAPTERS[BankProvider.SIMPLEFIN].daily_request_budget
 
+# The connection's credential, and the one reconnecting it stores in its place
+_CREDENTIAL = "https://user:secret@bridge.example/simplefin"
+_RENEWED = "https://user:renewed@bridge.example/simplefin"
+
 pytestmark = pytest.mark.usefixtures("worker_sessions")
 
 
@@ -72,7 +78,7 @@ async def connection(connections, frozen_now) -> BankConnection:
     """The first owner's connection, with a credential the job can read, listed an hour ago, and its owner in Brisbane"""
     async with TestSession() as session:
         stored = await session.get(BankConnection, connections[0].id)
-        stored.credential_encrypted = encrypt("https://user:secret@bridge.example/simplefin")
+        stored.credential_encrypted = encrypt(_CREDENTIAL)
         stored.discovered_at = frozen_now - timedelta(hours=1)
         (await session.get(User, stored.owner_id)).tz = "Australia/Brisbane"
         await session.commit()
@@ -193,6 +199,13 @@ async def _free_requests(connection: BankConnection) -> None:
         await session.execute(
             update(BankSyncJob).where(BankSyncJob.status == "queued").values(run_after=datetime.now(UTC) - timedelta(minutes=1))
         )
+        await session.commit()
+
+
+async def _replace_credential(connection: BankConnection) -> None:
+    """Commit a new credential for the connection, as reconnecting it does"""
+    async with TestSession() as session:
+        await session.execute(update(BankConnection).where(BankConnection.id == connection.id).values(credential_encrypted=encrypt(_RENEWED)))
         await session.commit()
 
 
@@ -774,29 +787,99 @@ async def test_job_finishing_waits_for_the_connection_before_locking_its_links(c
     assert await _job_states() == {job.id: ("succeeded", 1)}
 
 
-async def test_job_sends_each_request_with_the_credential_stored_when_it_is_counted(connection, monkeypatch):
-    """A reconnect replaces the credential while the job lists the bank accounts, so the window that follows goes out with the new one"""
-    await _link(connection, "ACT-1", **_synced_through_yesterday())
-    provider = _HeldProvider()
+async def test_job_sends_each_request_with_the_credential_stored_when_it_is_counted(connection, provider, monkeypatch):
+    """A reconnect replaces the credential once the job stored its listing, so the window counted next goes out with the new one and is kept"""
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
     provider.outcomes = [_returned("ACT-1"), _returned("ACT-1")]
+
+    async def reconnect_before_the_window_is_counted(db, counted, *, purpose, now) -> None:
+        """Commit the reconnect just before the window's request is counted"""
+        if purpose == ProviderRequestPurpose.SYNC:
+            await _replace_credential(connection)
+        await reserve_provider_request(db, counted, purpose=purpose, now=now)
+
+    monkeypatch.setattr(sync, "reserve_provider_request", reconnect_before_the_window_is_counted)
+    await _seed_job(connection, BankSyncJobKind.RETRY, discover=True)
+
+    await _run_jobs_until_none_is_due()
+
+    assert provider.discoveries == [_CREDENTIAL]
+    assert [call.credential for call in provider.fetches] == [_RENEWED]
+    assert await _checkpoints(link) == [_TODAY]
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        _returned("ACT-1"),
+        FetchResult(request_error=ProviderError(ProviderErrorKind.CREDENTIAL_REJECTED, "SimpleFIN Bridge rejected the access URL")),
+        FetchResult(
+            accounts=(_bank_account("ACT-1"),),
+            warnings=(ProviderError(ProviderErrorKind.RATE_LIMITED, "SimpleFIN Bridge says the daily quota is used up"),),
+        ),
+    ],
+    ids=["brought_back_whole", "credential_rejected", "quota_spent"],
+)
+async def test_job_stores_nothing_from_a_window_sent_with_a_credential_replaced_while_it_was_out(connection, monkeypatch, answer):
+    """A reconnect stores a new credential while the window's request is out, so the answer to the old one is dropped
+
+    It moves no checkpoint, doesn't fail the job, and doesn't count the budget as spent for the new credential
+    """
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    provider = _HeldProvider()
+    provider.outcomes = [answer]
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    async with asyncio.timeout(_WAIT_SECONDS):
+        running = asyncio.create_task(run_jobs(1))
+        await provider.sending.wait()
+        await _replace_credential(connection)
+        provider.release.set()
+        assert await running == 1
+
+    assert await _checkpoints(link) == [date(2026, 10, 3)]
+    assert [(status, error) for _, status, error, _ in await _jobs()] == [("succeeded", None)]
+    async with TestSession() as session:
+        assert await session.scalar(select(BankConnection.request_budget_spent_until).where(BankConnection.id == connection.id)) is None
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [FetchResult(), FetchResult(request_error=ProviderError(ProviderErrorKind.TEMPORARY, "SimpleFIN Bridge couldn't be reached"))],
+    ids=["listing_leaves_the_bank_account_out", "listing_failed"],
+)
+async def test_job_stores_nothing_from_a_listing_sent_with_a_credential_replaced_while_it_was_out(connection, monkeypatch, frozen_now, answer):
+    """A reconnect stores a new credential while the job's listing is out with the old one, so what the old one lists is dropped
+
+    The link stays active, the connection keeps when it was listed, and the job neither fails nor sends a window
+    """
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    async with TestSession() as session:
+        session.add(_build_external_account(connection, "ACT-1"))
+        await session.commit()
+    provider = _HeldProvider()
+    provider.outcomes = [answer]
     monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
     await _seed_job(connection, BankSyncJobKind.RETRY, discover=True)
 
     async with asyncio.timeout(_WAIT_SECONDS):
         running = asyncio.create_task(run_jobs(1))
         await provider.sending.wait()
-        async with TestSession() as session:
-            await session.execute(
-                update(BankConnection)
-                .where(BankConnection.id == connection.id)
-                .values(credential_encrypted=encrypt("https://user:renewed@bridge.example/simplefin"))
-            )
-            await session.commit()
+        await _replace_credential(connection)
         provider.release.set()
-        await running
+        assert await running == 1
 
-    assert provider.discoveries == ["https://user:secret@bridge.example/simplefin"]
-    assert [call.credential for call in provider.fetches] == ["https://user:renewed@bridge.example/simplefin"]
+    assert await _link_states(link) == ["active"]
+    async with TestSession() as session:
+        listed = (
+            await session.execute(
+                select(BankConnection.discovered_at, BankConnection.discovery_failed_at).where(BankConnection.id == connection.id)
+            )
+        ).one()
+    assert tuple(listed) == (frozen_now - timedelta(hours=1), None)
+    assert [(status, error) for _, status, error, _ in await _jobs()] == [("succeeded", None)]
+    assert provider.fetches == []
 
 
 async def test_job_tells_the_owners_pages_when_it_starts_syncing_its_links(connection, monkeypatch):

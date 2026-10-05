@@ -11,8 +11,9 @@ What a job stores, its checkpoints, discoveries and its own end, goes through lo
 so a runner that lost its lease stores nothing and a link that changed while the job fetched gets
 none of its results. Each such step locks the connection first, then the job, then the links. The
 request counts and the budget-spent mark lock only the connection and are written outside the job's
-fence, since they record requests already sent, whoever holds the job. Nothing here marks a
-credential rejected
+fence, since they record requests already sent, whoever holds the job. An answer to a request sent
+with a credential the connection no longer holds is dropped whole, budget-spent mark included, and
+the job ends without it. Nothing here marks a credential rejected
 """
 
 import logging
@@ -57,12 +58,17 @@ DISCOVERY_MAX_AGE = timedelta(hours=20)
 _DISCOVERED_LINK_STATES = (BankLinkState.ACTIVE, BankLinkState.CHOOSE_ACCOUNT)
 
 
+class _CredentialReplaced(Exception):
+    """The connection's credential was replaced while a request sent with the old one was out, so its answer is dropped"""
+
+
 async def run_sync_job(job: ClaimedJob) -> None:
     """Run a claimed job as its owner, and record it as finished or failed, queueing what comes next
 
     The worker has already set the owner's identity, so every session opened here works under
     row-level security as that user. A rejected credential can't work until the user reconnects, so
-    nothing is sent with it
+    nothing is sent with it. A job that met an answer to a credential since replaced ends there,
+    neither failed nor queued again
 
     Args:
         job: The job as claimed
@@ -86,7 +92,10 @@ async def run_sync_job(job: ClaimedJob) -> None:
     elif connection.credential_rejected_at is not None:
         await _end_job(job)
     else:
-        await _JobRun(job, connection, adapter, timezone=timezone, currency_exponents=currency_exponents, now=now).run()
+        try:
+            await _JobRun(job, connection, adapter, timezone=timezone, currency_exponents=currency_exponents, now=now).run()
+        except _CredentialReplaced:
+            await _end_job(job)
 
 
 @dataclass(frozen=True)
@@ -129,6 +138,10 @@ class _JobRun:
         can't hold up the others: a window that ends before today and moves no checkpoint is followed
         in the same job by the next window the remaining links need. Retrying the failed link waits
         for a later job
+
+        Raises:
+            _CredentialReplaced: An answer came back for a credential since replaced, and nothing of
+                it was stored
         """
         links = await self._read_links()
         if self._needs_discovery(links):
@@ -197,11 +210,11 @@ class _JobRun:
 
         result = await self.adapter.discover(credential, currency_exponents=self.currency_exponents)
         async with async_session() as db:
-            connection, _ = await _hold_for_finish(db, self.job)
+            connection, _ = await _hold_for_finish(db, self.job, sent_with=credential)
             await apply_discovery(db, connection, result, now=sent_at)
             await db.commit()
         if result.request_error is not None:
-            await self._stop_for(result.request_error, discover=self.job.discover)
+            await self._stop_for(result.request_error, sent_with=credential, discover=self.job.discover)
             return False
         return True
 
@@ -229,9 +242,10 @@ class _JobRun:
         failed: set[uuid.UUID] = set()
         while parts:
             part = parts.pop()
-            result = await self._fetch_part(part)
-            if result is None:
+            answered = await self._fetch_part(part)
+            if answered is None:
                 return None
+            result, credential = answered
             if result.possibly_cut_off and part.first_day < part.last_day:
                 earlier, later = part.halves()
                 parts += [later, earlier]
@@ -240,15 +254,15 @@ class _JobRun:
                 logger.warning("Bank sync job %s kept %s whole, though its response may have been cut short", self.job.id, part.first_day)
             synced = _synced_bank_accounts(result)
             failed |= {need.link.id for need in part.needs if need.link.external_account_id not in synced}
-            moved = await self._write(part, synced)
+            moved = await self._write(part, synced, sent_with=credential)
         return _Fetched(moved=moved, failed=failed)
 
-    async def _fetch_part(self, part: SyncWindow) -> FetchResult | None:
+    async def _fetch_part(self, part: SyncWindow) -> tuple[FetchResult, str] | None:
         """Count and send one request for a part of the window
 
         Returns:
-            What came back, or None when the job ended instead: queued again for when the budget
-            frees, or failed with the request's error
+            What came back and the credential it was sent with, or None when the job ended instead:
+            queued again for when the budget frees, or failed with the request's error
         """
         try:
             _, credential = await self._count_request(ProviderRequestPurpose.SYNC)
@@ -267,13 +281,13 @@ class _JobRun:
             currency_exponents=self.currency_exponents,
         )
         if is_quota_spent(result):
-            await self._mark_budget_spent()
+            await self._mark_budget_spent(sent_with=credential)
         if result.request_error is not None:
-            await self._stop_for(result.request_error)
+            await self._stop_for(result.request_error, sent_with=credential)
             return None
-        return result
+        return result, credential
 
-    async def _write(self, part: SyncWindow, synced: set[str]) -> bool:
+    async def _write(self, part: SyncWindow, synced: set[str], *, sent_with: str) -> bool:
         """Move the checkpoint of each link the response brought back whole, if the job still holds it
 
         A checkpoint moves only over days the link's data is complete for, so the part has to start no
@@ -284,6 +298,7 @@ class _JobRun:
         Args:
             part: The days fetched, and the links they were fetched for
             synced: The bank accounts the response brought back whole
+            sent_with: The credential the request went out with
 
         Returns:
             Whether a checkpoint moved
@@ -291,7 +306,7 @@ class _JobRun:
         moved = False
         stamped = False
         async with async_session() as db:
-            _, held = await _hold_for_finish(db, self.job, [need.link for need in part.needs])
+            _, held = await _hold_for_finish(db, self.job, [need.link for need in part.needs], sent_with=sent_with)
             for link in held:
                 if link.external_account_id not in synced or first_missing_day(link) < part.first_day:
                     continue
@@ -324,33 +339,37 @@ class _JobRun:
             await db.commit()
         return sent_at, decrypt(credential)
 
-    async def _mark_budget_spent(self) -> None:
-        """Count the connection's budget as spent, as the provider said its quota is"""
+    async def _mark_budget_spent(self, *, sent_with: str) -> None:
+        """Count the connection's budget as spent, as the provider said its quota is for the credential the request went out with"""
         async with async_session() as db:
-            connection = await db.get(BankConnection, self.connection.id)
+            connection = await _lock_connection(db, self.connection.id)
+            _refuse_a_replaced_credential(connection, sent_with)
             await mark_request_budget_spent(db, connection, now=datetime.now(UTC))
             await db.commit()
 
-    async def _stop_for(self, error: ProviderError, *, discover: bool = False) -> None:
+    async def _stop_for(self, error: ProviderError, *, sent_with: str, discover: bool = False) -> None:
         """End the job on a request that failed, queueing it again for when the budget frees if the provider asked to slow down
 
         Args:
             error: Why the request failed
+            sent_with: The credential the request went out with
             discover: Whether the job queued again lists the bank accounts first
         """
         if error.kind != ProviderErrorKind.RATE_LIMITED:
-            await _end_job(self.job, error)
+            await _end_job(self.job, error, sent_with=sent_with)
             return
         async with async_session() as db:
             connection = await db.get(BankConnection, self.connection.id)
             budget = await read_request_budget(db, connection, now=datetime.now(UTC))
-        await _end_job(self.job, again=True, run_after=budget.available_again_at, discover=discover)
+        await _end_job(self.job, again=True, run_after=budget.available_again_at, discover=discover, sent_with=sent_with)
 
 
 async def _hold_for_finish(
     db: AsyncSession,
     job: ClaimedJob,
     links: Sequence[BankAccountLink] = (),
+    *,
+    sent_with: str | None = None,
 ) -> tuple[BankConnection, list[BankAccountLink]]:
     """Lock the job's connection, then the job and the links it may still write for, as each step that stores what it found starts
 
@@ -361,6 +380,8 @@ async def _hold_for_finish(
         db: The job owner's session, which the step then writes in
         job: The job as claimed
         links: The links the step writes for, as they stood when the job started
+        sent_with: The credential the request whose answer the step stores went out with, or None
+            when the step stores no answer
 
     Returns:
         The connection freshly read, and the links still covered, freshly read and locked
@@ -368,13 +389,28 @@ async def _hold_for_finish(
     Raises:
         JobNotHeld: A later attempt holds the job, it already finished, or the connection was
             deleted with its jobs
+        _CredentialReplaced: The connection no longer holds the credential the request went out with
     """
-    connection = await db.scalar(
-        select(BankConnection).where(BankConnection.id == job.connection_id).with_for_update().execution_options(populate_existing=True)
-    )
+    connection = await _lock_connection(db, job.connection_id)
 
     # A deleted connection took its jobs with it, so this raises before a missing connection is returned
-    return connection, await lock_job_for_finish(db, job, links)
+    held = await lock_job_for_finish(db, job, links)
+    if sent_with is not None:
+        _refuse_a_replaced_credential(connection, sent_with)
+    return connection, held
+
+
+async def _lock_connection(db: AsyncSession, connection_id: uuid.UUID) -> BankConnection | None:
+    """Lock the connection's row and return it freshly read, or None when it was deleted"""
+    return await db.scalar(
+        select(BankConnection).where(BankConnection.id == connection_id).with_for_update().execution_options(populate_existing=True)
+    )
+
+
+def _refuse_a_replaced_credential(connection: BankConnection, sent_with: str) -> None:
+    """Raise _CredentialReplaced when the connection, locked, no longer holds the credential a request went out with"""
+    if decrypt(connection.credential_encrypted) != sent_with:
+        raise _CredentialReplaced(f"Bank connection {connection.id}'s credential was replaced while a request sent with the old one was out")
 
 
 def _synced_bank_accounts(result: FetchResult) -> set[str]:
@@ -393,6 +429,7 @@ async def _end_job(
     again: bool = False,
     run_after: datetime | None = None,
     discover: bool = False,
+    sent_with: str | None = None,
 ) -> None:
     """Record a job as finished, or failed with an error, and queue the connection's next job in the same step when asked
 
@@ -404,12 +441,15 @@ async def _end_job(
         again: Whether to queue another job of the same kind, which merges into one already queued
         run_after: When that job may run, or at once when not given
         discover: Whether that job lists the bank accounts first
+        sent_with: The credential of the request whose answer ends the job, or None when none does
 
     Raises:
         JobNotHeld: A later attempt holds the job, so nothing was written
+        _CredentialReplaced: The connection no longer holds the credential the request went out
+            with, so nothing was written
     """
     async with async_session() as db:
-        await _hold_for_finish(db, job)
+        await _hold_for_finish(db, job, sent_with=sent_with)
         if again:
             await enqueue_bank_sync_job(
                 db, owner_id=job.owner_id, connection_id=job.connection_id, kind=job.kind, discover=discover, run_after=run_after
