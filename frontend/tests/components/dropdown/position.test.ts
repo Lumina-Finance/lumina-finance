@@ -451,6 +451,22 @@ describe('dropdown box placement', () => {
       expect(1200 - position.right).toBe(850)
     })
 
+    it('keeps to the panel’s sides measured as the screen measures them, whose edges are read rather than copied', () => {
+      // A measured box, such as getBoundingClientRect returns, keeps its edges on its prototype, so
+      // copying its own fields gives none of them
+      class MeasuredBox {
+        get bottom() { return 420 }
+        get left() { return 300 }
+        get right() { return 900 }
+        get top() { return 200 }
+      }
+      const anchorRect = { bottom: 400, left: 700, top: 360, width: 150 }
+      const measured = getDropdownBoxPosition({ ...head, searchable: true, anchorRect, panel: new MeasuredBox(), viewport: wide })
+      const plain = getDropdownBoxPosition({ ...head, searchable: true, anchorRect, panel: { ...panel, top: 200, bottom: 420 }, viewport: wide })
+
+      expect(measured).toEqual(plain)
+    })
+
     // The panel's top sets the room above a field near its foot, and with it the list kept inside: the
     // head and box edges take 54 of the room, and five rows take 180
     it.each([

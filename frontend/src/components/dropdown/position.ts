@@ -246,10 +246,12 @@ export function getDropdownBoxPosition({
   if (!panel || inPanel.listMaxHeight >= DROPDOWN_MIN_PANEL_ROWS * DROPDOWN_ROW_HEIGHT) return inPanel
 
   // The box picks the roomier side wherever the side it prefers is short, so a list short here is
-  // short on both sides of the field, or on the side an open box is held to
+  // short on both sides of the field, or on the side an open box is held to. The sides are read off
+  // the panel one by one rather than copied, since a measured box keeps its edges on its prototype
+  // and a copy of it would have none, which put the box at the screen's left edge
   return placeDropdownBox({
     ...params,
-    viewport: clampDropdownViewportToPanel(viewport, { ...panel, top: -Infinity, bottom: Infinity }),
+    viewport: clampDropdownViewportToPanel(viewport, { left: panel.left, right: panel.right, top: -Infinity, bottom: Infinity }),
   })
 }
 
