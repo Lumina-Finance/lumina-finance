@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type KeyboardEvent } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence } from 'motion/react'
 import { Landmark } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { StartingBalanceNotSavedError, useRecordStartingBalance, type AccountsOverview } from '@/api/accounts'
@@ -8,6 +8,7 @@ import { useBankConnections, useBankProviders } from '@/api/bank-sync'
 import { ChoiceCard } from '@/components/bank-link-flow/ChoiceCard'
 import { GROUP_ACCOUNT_LINK_REASON, NOTHING_TO_LINK_REASON } from '@/components/bank-link-flow/constants'
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
+import { Unfold } from '@/components/display/Unfold'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
@@ -21,8 +22,6 @@ const STARTING_BALANCE_INPUT_ID = 'new-account-starting-balance'
 
 // Arriving on the account's page with this opens the link flow there
 const LINK_BANK_ARRIVAL: AccountDetailArrivalState = { linkBank: true }
-
-const UNFOLD_EASE = [0.22, 1, 0.36, 1] as const
 
 // A starting balance is zero or higher, so a hyphen or a true minus typed or pasted into the field
 // is answered with a message rather than dropped without a word
@@ -53,7 +52,6 @@ type NewAccountPromptModalProps = {
  */
 export default function NewAccountPromptModal({ open, account, onClose, onExitComplete }: NewAccountPromptModalProps) {
   const navigate = useNavigate()
-  const prefersReducedMotion = useReducedMotion()
   const { currencies } = useMoneyFormatters()
   const recordStartingBalance = useRecordStartingBalance()
   const { data: providers, isPending: providersPending } = useBankProviders()
@@ -208,16 +206,7 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
               </div>
               <AnimatePresence initial={false}>
                 {choice === 'manual' && (
-                  <motion.div
-                    key="starting-balance"
-                    className="overflow-hidden"
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: UNFOLD_EASE }}
-                  >
-                    <div className="pt-4">{startingBalanceField}</div>
-                  </motion.div>
+                  <Unfold key="starting-balance">{startingBalanceField}</Unfold>
                 )}
               </AnimatePresence>
             </div>

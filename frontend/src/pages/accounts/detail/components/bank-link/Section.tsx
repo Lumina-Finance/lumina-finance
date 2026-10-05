@@ -1,12 +1,14 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { useState } from 'react'
+import { AnimatePresence } from 'motion/react'
 import { Link2, Unlink } from 'lucide-react'
 import type { Account } from '@/api/accounts'
 import { useBankConnections, type AccountBankLink } from '@/api/bank-sync'
 import { GROUP_ACCOUNT_LINK_REASON, LINKING_PAUSED_REASON } from '@/components/bank-link-flow/constants'
 import { BankLinkFlowModal } from '@/components/bank-link-flow/Modal'
+import { Unfold } from '@/components/display/Unfold'
 import LoadFailure from '@/components/errors/LoadFailure'
 import LoadingRegion from '@/components/loading/Region'
+import { StepTransition } from '@/components/two-factor/StepTransition'
 import { useAuth } from '@/hooks/useAuth'
 import { useDisabledReason } from '@/hooks/useDisabledReason'
 import { ImportProgress } from '@/pages/accounts/detail/components/bank-link/ImportProgress'
@@ -21,74 +23,6 @@ import { DATE_FORMATS, formatDate, formatDateLabel } from '@/utils/date'
 
 const ARCHIVED_REASON = 'Archived accounts are read-only'
 const LOADING_OVERLAY_CLASS = 'absolute inset-0 z-10 flex items-center justify-center bg-[var(--app-bg)]'
-const FADE_EASE = [0.22, 1, 0.36, 1] as const
-
-/**
- * Eases the section's height on a spring when it swaps between its views, so the modal grows rather
- * than snapping. The outgoing view is lifted out of flow while it fades, so the measured height is
- * already the incoming one. Between swaps the height follows the content at once, leaving the parts
- * inside to unfold on their own
- */
-function ViewSwap({ viewKey, children }: { viewKey: string; children: ReactNode }) {
-  const prefersReducedMotion = useReducedMotion()
-  const contentRef = useRef<HTMLDivElement>(null)
-  const [height, setHeight] = useState<number | 'auto'>('auto')
-  const [swappedKey, setSwappedKey] = useState(viewKey)
-  const [easing, setEasing] = useState(false)
-  if (swappedKey !== viewKey) {
-    setSwappedKey(viewKey)
-    setEasing(true)
-  }
-
-  useLayoutEffect(() => {
-    const node = contentRef.current
-    if (!node) return undefined
-    const observer = new ResizeObserver(() => setHeight(node.offsetHeight))
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [])
-
-  return (
-    <motion.div
-      animate={{ height }}
-      transition={easing && !prefersReducedMotion ? { type: 'spring', visualDuration: 0.3, bounce: 0 } : { duration: 0 }}
-      style={{ overflow: easing ? 'hidden' : 'visible' }}
-      onAnimationComplete={() => setEasing(false)}
-    >
-      <div ref={contentRef} className="relative">
-        <AnimatePresence initial={false} mode="popLayout">
-          <motion.div
-            key={viewKey}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
-          >
-            {children}
-          </motion.div>
-        </AnimatePresence>
-      </div>
-    </motion.div>
-  )
-}
-
-/**
- * Grows a part of the linked view in and out by height, so the section never jumps as it comes and goes
- */
-function Unfold({ children }: { children: ReactNode }) {
-  const prefersReducedMotion = useReducedMotion()
-  return (
-    <motion.div
-      className="overflow-hidden"
-      initial={prefersReducedMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
-      animate={{ height: 'auto', opacity: 1 }}
-      exit={prefersReducedMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
-      transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.24, ease: FADE_EASE }}
-    >
-      <div className="pt-4">{children}</div>
-    </motion.div>
-  )
-}
 
 /**
  * A live link: its facts and status, the import while one runs, and the actions on the link
@@ -170,7 +104,7 @@ export function BankLinkSection({ account, sectionNumber }: BankLinkSectionProps
         ? <LoadFailure error={statusError} subject="Bank link" />
         : (
             <LoadingRegion loading={viewKey === 'loading'} label="Loading bank link" animateLoadingHeight overlayClassName={LOADING_OVERLAY_CLASS}>
-              <ViewSwap viewKey={viewKey}>
+              <StepTransition stepKey={viewKey} easeContentChanges={false}>
                 {viewKey === 'loading' && <div className="min-h-16" />}
                 {viewKey === 'group' && (
                   <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>{GROUP_ACCOUNT_LINK_REASON} Its transactions stay manual.</p>
@@ -199,7 +133,7 @@ export function BankLinkSection({ account, sectionNumber }: BankLinkSectionProps
                     }}
                   />
                 )}
-              </ViewSwap>
+              </StepTransition>
             </LoadingRegion>
           )}
 

@@ -1,11 +1,12 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 
 const EASE = [0.25, 0.1, 0.25, 1] as const;
 const HEIGHT_TRANSITION = { duration: 0.26, ease: EASE };
 // The outgoing step is gone before the incoming one shows, so the two never sit over each other
 const FADE_OUT_TRANSITION = { duration: 0.1, ease: EASE };
 const FADE_IN_TRANSITION = { duration: 0.2, ease: EASE };
+const INSTANT = { duration: 0 };
 
 interface StepTransitionProps {
   /** Identity of the visible step, so a change fades the old body out, then the new one in, and eases the panel height */
@@ -15,6 +16,13 @@ interface StepTransitionProps {
   /** On a phone, where the modal fills the screen, stretches the step so a footer inside it can sit at the
    *  bottom of the screen, as the form modals' footers do */
   fillPhone?: boolean;
+  /**
+   * Whether the height also eases when the step's own content changes size. Off for a step whose parts
+   * unfold on their own, which the height then follows at once, easing only between steps
+   */
+  easeContentChanges?: boolean;
+  /** Runs once an outgoing step has faded and left */
+  onExitComplete?: () => void;
   children: ReactNode;
 }
 
@@ -26,10 +34,24 @@ interface StepTransitionProps {
  * outgoing step is lifted out of flow during the fade, so the measured height already reflects the
  * incoming step
  */
-export function StepTransition({ stepKey, header, fillPhone = false, children }: StepTransitionProps) {
+export function StepTransition({
+  stepKey,
+  header,
+  fillPhone = false,
+  easeContentChanges = true,
+  onExitComplete,
+  children,
+}: StepTransitionProps) {
+  const prefersReducedMotion = useReducedMotion();
   const contentRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<number | 'auto'>('auto');
   const [isEasing, setIsEasing] = useState(false);
+  const [shownKey, setShownKey] = useState(stepKey);
+  const [isSwapping, setIsSwapping] = useState(false);
+  if (shownKey !== stepKey) {
+    setShownKey(stepKey);
+    setIsSwapping(true);
+  }
 
   // Track the in-flow content height so the wrapper can ease to it whenever the step or its content
   // changes, such as an error line appearing under the code field
@@ -42,27 +64,35 @@ export function StepTransition({ stepKey, header, fillPhone = false, children }:
     return () => observer.disconnect();
   }, []);
 
+  const easesHeight = !prefersReducedMotion && (easeContentChanges || isSwapping);
+
   return (
     <motion.div
       className={fillPhone ? 'max-[1049px]:flex max-[1049px]:min-h-full max-[1049px]:flex-col' : undefined}
       animate={{ height }}
-      transition={HEIGHT_TRANSITION}
+      transition={easesHeight ? HEIGHT_TRANSITION : INSTANT}
       // Clip only while the height eases, so focus rings on the edge controls are not cut off at rest. Clip
       // rather than hide, and only top to bottom, so a dialog footer inside keeps sticking to the panel's
       // bottom and reaching its side edges while it eases
       style={{ overflowX: 'visible', overflowY: isEasing ? 'clip' : 'visible' }}
       onAnimationStart={() => setIsEasing(true)}
-      onAnimationComplete={() => setIsEasing(false)}
+      onAnimationComplete={() => {
+        setIsEasing(false);
+        setIsSwapping(false);
+      }}
     >
       <div ref={contentRef} className={`relative flex flex-col gap-5 ${fillPhone ? 'max-[1049px]:flex-1' : ''}`}>
         {header}
-        <AnimatePresence mode="popLayout" initial={false}>
+        <AnimatePresence mode="popLayout" initial={false} onExitComplete={onExitComplete}>
           <motion.div
             key={stepKey}
             className={fillPhone ? 'max-[1049px]:flex max-[1049px]:flex-1 max-[1049px]:flex-col' : undefined}
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1, transition: { ...FADE_IN_TRANSITION, delay: FADE_OUT_TRANSITION.duration } }}
-            exit={{ opacity: 0, transition: FADE_OUT_TRANSITION }}
+            animate={{
+              opacity: 1,
+              transition: prefersReducedMotion ? INSTANT : { ...FADE_IN_TRANSITION, delay: FADE_OUT_TRANSITION.duration },
+            }}
+            exit={{ opacity: 0, transition: prefersReducedMotion ? INSTANT : FADE_OUT_TRANSITION }}
           >
             {children}
           </motion.div>
