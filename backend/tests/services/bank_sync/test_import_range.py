@@ -16,7 +16,6 @@ from tests.routes.support.bank_sync_helpers import (
     _build_account,
     _build_bank_connection,
     _build_bank_link,
-    _build_bank_transaction,
     _build_category,
     _build_ledger_transaction,
     _build_user,
@@ -105,14 +104,13 @@ def test_import_range_after_an_earlier_link_suggests_picking_up_after_the_ledger
 
 @pytest.mark.parametrize(
     ("previous_link", "default_suggestion"),
-    [(None, date(2026, 7, 1)), (BankLinkState.UNLINKED, date(2026, 10, 3)), (BankLinkState.CHOOSE_ACCOUNT, date(2026, 10, 3))],
+    [(None, date(2026, 7, 1)), (BankLinkState.UNLINKED, date(2026, 10, 4)), (BankLinkState.CHOOSE_ACCOUNT, date(2026, 10, 4))],
     ids=["first-link", "relink-after-unlinking", "choosing-the-bank-account-again"],
 )
 async def test_import_range_reads_the_ledger_on_the_users_own_day(db, frozen_now, previous_link, default_suggestion):
-    """At 8 pm on 3 October in Los Angeles, a transaction dated 4 October is still future-dated
+    """At 8 pm on 3 October in Los Angeles, a transaction dated 3 October is in the ledger and one dated 4 October is still future-dated
 
-    The 3 October bank item waiting for review isn't in the ledger either, so the floor is the day
-    after the 2 October transaction, and only an account linked before suggests it
+    So the floor is 4 October, the only start allowed, and only an account linked before suggests it
     """
     db.add(Currency(id="CAD", name="Canadian Dollar", symbol="$", minor_unit_exponent=2))
     user = _build_user("range@example.com")
@@ -124,11 +122,10 @@ async def test_import_range_reads_the_ledger_on_the_users_own_day(db, frozen_now
     connection = _build_bank_connection(user.id)
     db.add_all([account, category, connection])
     await db.flush()
-    for day in (date(2026, 10, 2), date(2026, 10, 4)):
+    for day in (date(2026, 10, 3), date(2026, 10, 4)):
         transaction = _build_ledger_transaction(account, category.id)
         transaction.dt = day
         db.add(transaction)
-    db.add(_build_bank_transaction(account))
     if previous_link is BankLinkState.UNLINKED:
         db.add(_build_bank_link(account, None, state=previous_link, unlinked_at=frozen_now))
     elif previous_link is not None:
@@ -137,9 +134,10 @@ async def test_import_range_reads_the_ledger_on_the_users_own_day(db, frozen_now
 
     imported = await get_import_range(db, user, account.id, BankProvider.SIMPLEFIN)
 
-    assert (imported.latest_ledger_date, imported.ledger_floor, imported.latest_allowed) == (
-        date(2026, 10, 2),
+    assert (imported.latest_ledger_date, imported.ledger_floor, imported.earliest_allowed, imported.latest_allowed) == (
         date(2026, 10, 3),
-        date(2026, 10, 3),
+        date(2026, 10, 4),
+        date(2026, 10, 4),
+        date(2026, 10, 4),
     )
-    assert (imported.default_suggestion, imported.suggested_start) == (default_suggestion, date(2026, 10, 3))
+    assert (imported.default_suggestion, imported.suggested_start) == (default_suggestion, date(2026, 10, 4))
