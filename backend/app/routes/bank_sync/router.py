@@ -24,6 +24,7 @@ from app.schemas.bank_sync import (
     BankAccountLinkResponse,
     BankConnectionResponse,
     BankImportRangeResponse,
+    BankLinkResponse,
     BankPendingTransactionResponse,
     BankProvidersResponse,
     CreateBankConnectionRequest,
@@ -36,7 +37,7 @@ from app.schemas.bank_sync import (
     UpdateBankConnectionRequest,
 )
 from app.schemas.transaction import TransactionResponse
-from app.services.bank_sync.account_link import read_account_bank_status
+from app.services.bank_sync.account_link import list_bank_links, read_account_bank_status
 from app.services.bank_sync.availability import list_providers
 from app.services.bank_sync.bulk_approval import apply_bulk_approval, preview_bulk_approval
 from app.services.bank_sync.claim import claim_connection, reconnect_connection
@@ -202,6 +203,23 @@ async def list_connection_bank_accounts(
         Each bank account, linkable or unavailable with its reason, and whether a discovery is on its way
     """
     return await list_bank_accounts_for_account(db, user, connection_id, for_account_id)
+
+
+@router.get("/links", response_model=list[BankLinkResponse])
+async def list_user_bank_links(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return the user's live bank links, each with its import's progress and sync status
+
+    Args:
+        user: Authenticated owner of the links
+        db: Active database session
+
+    Returns:
+        Each link on the user's own personal accounts, including those waiting for their bank account to be chosen again
+    """
+    return await list_bank_links(db, user)
 
 
 @router.post("/transaction-sources/{transaction_id}/restore", response_model=TransactionResponse)

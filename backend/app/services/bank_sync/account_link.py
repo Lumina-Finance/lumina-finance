@@ -1,8 +1,8 @@
-"""Reading an account's bank link for the account's page
+"""Reading the user's bank links with how far each import has got and its sync status
 
-The page shows the live link with how far its import has got and its sync status, or what the account
-was last linked to. Only the user's own personal accounts are linked, so any other account is refused
-as linking it is
+An account's page shows its live link, or what the account was last linked to, and the app keeps
+every live link's status current. Only the user's own personal accounts are linked, so any other
+account is refused or left out as linking it is
 """
 
 import uuid
@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.account import Account
 from app.models.bank_connection import BankAccountLink
 from app.models.bank_transaction import BankTransaction
 from app.models.user import User
@@ -23,7 +24,7 @@ from app.schemas.bank_sync import (
     BankLinkResponse,
     PreviousBankLinkResponse,
 )
-from app.services.accounts.access import get_own_personal_account
+from app.services.accounts.access import get_own_personal_account, own_personal_account_condition
 from app.services.bank_sync.availability import LINK_NOT_OWN_DETAIL, LIVE_LINK, PROVIDER_ADAPTERS
 from app.services.bank_sync.status import read_link_statuses
 from app.services.bank_sync.windows import LinkNeed, plan_window
@@ -69,6 +70,30 @@ async def read_account_bank_status(db: AsyncSession, user: User, account_id: uui
             unlinked_at=previous.unlinked_at,
         ),
     )
+
+
+async def list_bank_links(db: AsyncSession, user: User) -> list[BankLinkResponse]:
+    """Return the user's live links on their own personal accounts, oldest first, with each import's progress and sync status
+
+    A link waiting for its bank account to be chosen again is live, and an unlinked one isn't
+
+    Args:
+        db: Active database session
+        user: The links' owner
+
+    Returns:
+        Each live link
+
+    Raises:
+        HTTPException 422: The profile's timezone no longer resolves, read only while an import runs
+    """
+    links = await db.scalars(
+        select(BankAccountLink)
+        .join(Account, Account.id == BankAccountLink.account_id)
+        .where(LIVE_LINK, own_personal_account_condition(user.id))
+        .order_by(BankAccountLink.linked_at, BankAccountLink.id)
+    )
+    return await _describe_links(db, user, links.all(), now=datetime.now(UTC))
 
 
 async def _describe_links(db: AsyncSession, user: User, links: Sequence[BankAccountLink], *, now: datetime) -> list[BankLinkResponse]:
