@@ -1,4 +1,4 @@
-import type { FormEvent, ReactNode } from 'react'
+import type { FormEvent, ReactNode, Ref } from 'react'
 import { X, type LucideIcon } from 'lucide-react'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import { MODAL_TITLE_CLASS_NAME, ModalRail } from '@/components/modal/Rail'
@@ -53,6 +53,9 @@ interface ModalTitledPanelProps {
   footer: ReactNode
   /** Shown beside the panel on wide screens, see ModalShell */
   aside?: ReactNode
+
+  /** The body between the header and the footer, which scrolls when the content is taller than it */
+  bodyRef?: Ref<HTMLDivElement>
   children: ReactNode
 }
 
@@ -79,6 +82,7 @@ export function ModalTitledPanel({
   onExitComplete,
   footer,
   aside,
+  bodyRef,
   children,
 }: ModalTitledPanelProps) {
   const chrome = CHROME[level]
@@ -121,7 +125,7 @@ export function ModalTitledPanel({
         </div>
       </div>
 
-      <div className={chrome.bodyClassName} data-tooltip-bounds data-dropdown-bounds>
+      <div ref={bodyRef} className={chrome.bodyClassName} data-tooltip-bounds data-dropdown-bounds>
         {children}
       </div>
 

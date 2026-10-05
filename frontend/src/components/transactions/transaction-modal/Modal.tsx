@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { useAccounts } from '@/api/accounts'
 import { useTransaction } from '@/api/transactions'
@@ -339,6 +339,12 @@ export default function CreateTransactionModal({
     setSubmitErrorTitle('')
   }
 
+  // The form scrolls on a short screen, so the next item's form starts from its top, where its card is
+  const formBodyRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (isItemSwapped) formBodyRef.current?.scrollTo({ top: 0 })
+  }, [reviewItem?.id, isItemSwapped])
+
   // The supplied-days message names a provider and a date, too long for the label row beside Date, so
   // the section shows it under the date row instead
   const suppliedDaysError =
@@ -598,6 +604,7 @@ export default function CreateTransactionModal({
                 </motion.div>
               )
             }
+            bodyRef={formBodyRef}
             footer={
               reviewFooter || (
                 <TransactionModalFooter
