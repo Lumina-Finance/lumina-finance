@@ -30,7 +30,7 @@ import {
   type CurrencyListState,
 } from '@/utils/currencyStatus'
 
-interface TransactionDetailsSectionProps {
+type TransactionDetailsSectionProps = {
   date: string
   dateError?: string | false
 
