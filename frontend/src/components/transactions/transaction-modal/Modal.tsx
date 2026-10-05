@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAccounts } from '@/api/accounts'
 import { useTransaction } from '@/api/transactions'
 import { useBankLinksByAccount, useRestoreBankValue, type EditableBankField } from '@/api/bank-sync'
@@ -11,7 +11,7 @@ import { formatCurrencySymbol } from '@/utils/formatCurrency'
 import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent } from '@/utils/moneyInput'
 import { useAuth } from '@/hooks/useAuth'
 import { getTodayYmd } from '@/utils/date'
-import { KIND_LABELS } from '@/components/transactions/transaction-modal/constants'
+import { KIND_LABELS, TRANSACTION_MODAL_FIELD_IDS } from '@/components/transactions/transaction-modal/constants'
 import { buildInitialTransactionForm } from '@/components/transactions/transaction-modal/utils/initialForm'
 import { buildCurrencyOptions } from '@/components/transactions/transaction-modal/utils/options'
 import {
@@ -239,7 +239,9 @@ export default function CreateTransactionModal({
   // blank it leaves behind as a zero, and a new transaction has no stored amount to lock over
   const isAmountLocked = editing && knownCurrencyExponent === null
 
-  useRestoreLockedAmount({ open, transaction, currencies, isAmountLocked, setForm })
+  // Filled in from the saved amount, which after a restore is the bank's rather than the one the
+  // modal opened with
+  useRestoreLockedAmount({ open, transaction: storedTransaction, currencies, isAmountLocked, setForm })
 
   const isSymmetricTransfer = isSymmetricTransferForm(form)
   const fieldLayout = getTransactionFieldLayout({ isSymmetricTransfer, direction: form.direction })
@@ -353,6 +355,15 @@ export default function CreateTransactionModal({
   const restoring = restoreBankValue.isPending
   const restoringField = restoring ? restoreBankValue.variables?.field : undefined
   const bankValueCaptions = getBankValueCaptions(bankSource, storedTransaction?.currency ?? form.currency, currencies)
+
+  // The pressed action goes with its caption, so focus moves to the field it restored once the field
+  // shows the bank's value, and a screen reader reads that value out. A new object each time, so a
+  // second restore of the same field focuses it again
+  const [restoredFocus, setRestoredFocus] = useState<{ field: EditableBankField } | null>(null)
+  useEffect(() => {
+    if (restoredFocus) document.getElementById(TRANSACTION_MODAL_FIELD_IDS[restoredFocus.field])?.focus()
+  }, [restoredFocus])
+
   const restoreField = (field: EditableBankField) => {
     if (!storedTransaction) return
     setSubmitError('')
@@ -362,6 +373,7 @@ export default function CreateTransactionModal({
       {
         onSuccess: (restored) => {
           setRestoredTransaction(restored)
+          setRestoredFocus({ field })
           if (field === 'date') {
             handleField('date', restored.dt)
             return

@@ -124,9 +124,11 @@ test('restores the bank amount under an edited amount, bringing back its sign an
   await expect(dialog.getByTestId('transaction-submit')).toBeDisabled()
   release()
 
-  // The amount reads the bank's, money out again, and nothing is left to restore
+  // The amount reads the bank's, money out again, and nothing is left to restore, so focus moves to
+  // the amount from the action that went with its caption
   await expect(dialog.getByRole('tab', { name: 'Debit', exact: true })).toHaveAttribute('aria-selected', 'true')
   await expect(amount).toHaveValue('42.10')
+  await expect(amount).toBeFocused()
   await expect(caption).toHaveCount(0)
   await expect(dialog.getByRole('button', { name: /Restor/ })).toHaveCount(0)
   await expect(dialog.getByText(RESTORE_FAILED)).toHaveCount(0)
@@ -194,6 +196,7 @@ test('restores the bank date under an edited date, which stays restored once the
   await restoreAction(dialog, 'date').click()
   await expect(date.getByRole('textbox', { name: 'Day' })).toHaveValue('15')
   await expect(caption).toHaveCount(0)
+  await expect(date.getByRole('textbox', { name: 'Year' })).toBeFocused()
 
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(dialog).toBeHidden()
