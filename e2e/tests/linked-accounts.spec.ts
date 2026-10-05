@@ -6,6 +6,7 @@ import {
   createTransaction,
   daysFromTodayInTestTimezone,
   signUpUser,
+  startOfDayInTestTimezone,
   todayInTestTimezone,
 } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support/app'
@@ -196,6 +197,30 @@ test('refuses the days the other account’s bank supplies once a new transfer i
   // Recorded in Everyday alone, it only notes where the money went
   await recordInBoth.uncheck()
   await expect(message).toBeHidden()
+})
+
+test.describe('with the browser in Tokyo and the profile in Toronto', () => {
+  test.use({ timezoneId: 'Asia/Tokyo' })
+
+  test('ends the days the bank supplies on today in the profile’s timezone', async ({ page, request }) => {
+    const user = await signUpUser(request)
+    const account = await createAccount(request, user, { name: 'Everyday' })
+    const today = todayInTestTimezone()
+    const tomorrow = daysFromTodayInTestTimezone(1)
+    await answerLinksWith(page, () => [account.id])
+    await logInViaApi(page, user)
+
+    // An hour before tomorrow begins in Toronto, when it is already tomorrow afternoon in Tokyo
+    await page.clock.install({ time: startOfDayInTestTimezone(tomorrow).getTime() - 3_600_000 })
+    await openPage(page, `/accounts/${account.id}`)
+
+    // The bank has supplied Toronto's today, and Tokyo's today is still to come in the profile
+    const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+    await dialog.getByRole('button', { name: 'Open calendar' }).click()
+    const dayCell = (iso: string) => page.getByRole('button').and(page.locator(`[data-iso="${iso}"]`))
+    await expect(dayCell(today)).toHaveAttribute('aria-disabled', 'true')
+    await expect(dayCell(tomorrow)).not.toHaveAttribute('aria-disabled', 'true')
+  })
 })
 
 test('lets an edit keep a date the linked account’s bank supplies, and refuses moving it to another such day', async ({ page, request }) => {
