@@ -9,7 +9,7 @@
  * stale, a link moved to Choose bank account or removed leaving its cleared pending rows on screen, a decided item staying in a later page or its count, an item leaving the inbox before its
  * transaction shows in the list or the backlog notice counts it out, a decision that left the ledger
  * alone reloading it or taking its item out before both the links and the backlogs have refetched, a
- * restored bank value leaving the inbox showing the ledger value it replaced, a link change settling
+ * kept removal taking out the correction it reopened or leaving it named a removal, a restored bank value leaving the inbox showing the ledger value it replaced, a link change settling
  * before the views that show it have refetched, and a deleted account's items lingering in a cached
  * bulk approval preview
  */
@@ -291,6 +291,33 @@ describe('a review decision that left the ledger alone', () => {
       expectInvalidated([transactionKeys.list({})], false);
     },
   );
+
+  it('keeps a removal whose kept transaction still names it as waiting, settling once the inbox reads it as the correction it reopened', async () => {
+    const pagesWith = (item: ReturnType<typeof createReviewItem>): CachedReviewPages => ({
+      pages: [{ items: [createReviewItem('item-1', 'new'), item], counts: { new: 1, correction: 0, removal: 0, [item.kind]: 1 }, next_cursor: null }],
+      pageParams: [null],
+    });
+    const answerReview = observeWithHeldRead(reviewKey, pagesWith(createReviewItem('item-4', 'correction')));
+    queryClient.setQueryData(reviewKey, pagesWith(createReviewItem('item-4', 'removal')));
+
+    let isSettled = false;
+    const done = applyReviewDecision(queryClient, (item) => item.id === 'item-4', waiting).then(() => {
+      isSettled = true;
+    });
+    answerLinks();
+    answerBacklogs();
+    await settle();
+
+    // Settling now would toast the kept transaction beside a row still offering to remove it
+    expect(isSettled).toBe(false);
+
+    answerReview();
+    await done;
+
+    const items = queryClient.getQueryData<CachedReviewPages>(reviewKey)?.pages.flatMap((page) => page.items);
+    expect(items?.map((item) => [item.id, item.kind])).toEqual([['item-1', 'new'], ['item-4', 'correction']]);
+    expect(queryClient.getQueryData<Transaction[]>(transactionKeys.list({}))).toEqual([waiting]);
+  });
 
   it('settles a dismissed item, which answers with no transaction, leaving the ledger as it was', async () => {
     const done = applyReviewDecision(queryClient, (item) => item.id === 'item-1', undefined);

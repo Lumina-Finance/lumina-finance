@@ -181,18 +181,24 @@ export async function applyLedgerReviewOutcome(
  * items leave, and the marker clears, only once the links and the backlogs have refetched, since they
  * carry the waiting counts the sync status and the backlog notice read, so the notice never counts an
  * item the block no longer shows. The returned promise settles then
+ *
+ * Keeping a removal that took the place of a correction opens that correction again under the same
+ * id, which the kept transaction names as still waiting. That item stays, and the inbox is read again
+ * before the promise settles, since the item now asks something else
  */
 export async function applyReviewDecision(
   queryClient: QueryClient,
   isDecided: (item: BankReviewItem) => boolean,
   transaction: Transaction | undefined,
 ): Promise<void> {
+  const stillWaitingId = transaction?.bank_source?.review_item_id ?? null;
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: bankSyncKeys.links(), exact: true, refetchType: 'active' }),
     queryClient.invalidateQueries({ queryKey: bankSyncKeys.reviewBacklogsAll, refetchType: 'active' }),
+    stillWaitingId && queryClient.invalidateQueries({ queryKey: bankSyncKeys.reviewItemsAll, refetchType: 'active' }),
   ]);
   if (transaction) replaceCachedTransaction(queryClient, transaction);
-  removeReviewItemsFromPages(queryClient, isDecided);
+  removeReviewItemsFromPages(queryClient, (item) => isDecided(item) && item.id !== stillWaitingId);
   invalidateBankSyncStatus(queryClient);
   invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.bulkPreviews }]);
 }
