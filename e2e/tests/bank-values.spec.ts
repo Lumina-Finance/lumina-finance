@@ -10,7 +10,8 @@ import { API_BASE_URL } from '../support/target'
 // the user edited, the bank's value with Restore bank value. Nothing links an account on the server
 // for a sync to import a transaction, so each test answers the app's reads with the source the server
 // attaches, and answers a restore by writing the bank's value to the real transaction, as the server
-// does, then answering with the source as the restore left it
+// does, then answering with the source as the restore left it. That stand-in tests the modal alone:
+// the real restore route, its refusals and its locking are left to the backend route tests
 const BANK_DESCRIPTION = 'HARBOUR CAFE #12 VANCOUVER'
 const RESTORE_FAILED = 'Could not restore the bank value. Please try again.'
 
@@ -139,6 +140,71 @@ test('restores the bank amount under an edited amount, bringing back its sign an
   await expect(dialog).toBeHidden()
   await expectTransactionRow(page, id, `${MINUS}$42.10`)
   await expect(page.getByTestId(`transaction-row-${id}`).getByTestId('bank-edited-dot').filter({ visible: true })).toHaveCount(0)
+})
+
+test('restores money coming in, bringing back the Credit direction', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+
+  // The bank sent money in, which the user turned into money out
+  const id = await createTransaction(request, user, {
+    accountId: account.id,
+    categoryName: 'Groceries',
+    amount: -5000,
+    date: BANK_SOURCE.bank_values.date,
+  })
+  const sources = { [id]: bankSource({ amount: 5000 }, ['amount']) }
+  await answerAsBankImported(page, sources)
+  const release = await answerRestores(page, request, user, sources, id)
+  release()
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+
+  const dialog = await openTransaction(page, id)
+  await expect(dialog.locator('#txn-amount-bank-value')).toHaveText('Bank: +$50.00')
+  await expect(dialog.getByRole('tab', { name: 'Debit', exact: true })).toHaveAttribute('aria-selected', 'true')
+
+  await restoreAction(dialog, 'amount').click()
+  await expect(dialog.getByRole('tab', { name: 'Credit', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await expect(dialog.getByRole('textbox', { name: 'Amount', exact: true })).toHaveValue('50.00')
+  await expect(dialog.locator('#txn-amount-bank-value')).toHaveCount(0)
+})
+
+test('restores one of two edited fields, holding the other back while it restores', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const id = await createTransaction(request, user, {
+    accountId: account.id,
+    categoryName: 'Groceries',
+    amount: -4000,
+    date: '2026-01-13',
+  })
+  const sources = { [id]: bankSource({ amount: -4210 }, ['date', 'amount']) }
+  await answerAsBankImported(page, sources)
+  const release = await answerRestores(page, request, user, sources, id)
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+
+  const dialog = await openTransaction(page, id)
+  await expect(dialog.locator('#txn-date-bank-value')).toHaveText('Bank: Jan 15, 2026')
+  await expect(dialog.locator('#txn-amount-bank-value')).toHaveText(`Bank: ${MINUS}$42.10`)
+
+  // Only the amount reads Restoring, and the date's action waits for it
+  const restoreDate = restoreAction(dialog, 'date')
+  const restoreAmount = restoreAction(dialog, 'amount')
+  await restoreAmount.click()
+  await expectPendingAction(restoreAmount, 'Restoring')
+  await expect(restoreDate).toHaveAccessibleName('Restore bank value')
+  await expect(restoreDate).toBeDisabled()
+  await expect(restoreDate).not.toHaveAttribute('aria-busy', 'true')
+  release()
+
+  // The amount is restored and the date is still the user's own, with its action back
+  await expect(dialog.locator('#txn-amount-bank-value')).toHaveCount(0)
+  await expect(dialog.getByRole('textbox', { name: 'Amount', exact: true })).toHaveValue('42.10')
+  await expect(dialog.locator('#txn-date-bank-value')).toHaveText('Bank: Jan 15, 2026')
+  await expect(dialog.getByRole('group', { name: 'Date' }).getByRole('textbox', { name: 'Day' })).toHaveValue('13')
+  await expect(restoreDate).toBeEnabled()
 })
 
 test('saves an edit made after a restore in the same modal, compared with the restored value', async ({ page, request }) => {
