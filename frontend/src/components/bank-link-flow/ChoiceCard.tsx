@@ -79,7 +79,8 @@ export function ChoiceCard({ selected, disabled, onSelect, children, extra, init
   if (extra === undefined) return choice
 
   return (
-    <div className={`sm:flex sm:items-center ${frameClass}`} style={frameStyle}>
+    // Held at the top, so the choice stays put while the extra grows beneath, as with an error under a field
+    <div className={`sm:flex sm:items-start ${frameClass}`} style={frameStyle}>
       {choice}
       {extra}
     </div>
