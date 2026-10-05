@@ -72,6 +72,11 @@ import TransactionModalLinkedDeleteConfirm from '@/components/transactions/trans
 
 const RESTORE_FAILED_MESSAGE = 'Could not restore the bank value. Please try again.'
 
+/** Names a field's restore action, which focus returns to when its restore fails */
+function getRestoreActionId(field: EditableBankField): string {
+  return `txn-${field}-restore`
+}
+
 /**
  * Modal for creating or editing a transaction, including symmetric transfers that record a
  * linked debit and credit across two accounts, and inline creation of merchants, categories,
@@ -357,23 +362,24 @@ export default function CreateTransactionModal({
   const bankValueCaptions = getBankValueCaptions(bankSource, storedTransaction?.currency ?? form.currency, currencies)
 
   // The pressed action goes with its caption, so focus moves to the field it restored once the field
-  // shows the bank's value, and a screen reader reads that value out. A new object each time, so a
-  // second restore of the same field focuses it again
-  const [restoredFocus, setRestoredFocus] = useState<{ field: EditableBankField } | null>(null)
+  // shows the bank's value, and a screen reader reads that value out. A restore that fails leaves the
+  // caption, so focus goes back to its action, which was turned off while it ran. A new object each
+  // time, so a second restore of the same field moves focus again
+  const [focusAfterRestore, setFocusAfterRestore] = useState<{ id: string } | null>(null)
   useEffect(() => {
-    if (restoredFocus) document.getElementById(TRANSACTION_MODAL_FIELD_IDS[restoredFocus.field])?.focus()
-  }, [restoredFocus])
+    if (focusAfterRestore) document.getElementById(focusAfterRestore.id)?.focus()
+  }, [focusAfterRestore])
+  const [restoreFailedField, setRestoreFailedField] = useState<EditableBankField | null>(null)
 
   const restoreField = (field: EditableBankField) => {
     if (!storedTransaction) return
-    setSubmitError('')
-    setSubmitErrorTitle('')
+    setRestoreFailedField(null)
     restoreBankValue.mutate(
       { transactionId: storedTransaction.id, field },
       {
         onSuccess: (restored) => {
           setRestoredTransaction(restored)
-          setRestoredFocus({ field })
+          setFocusAfterRestore({ id: TRANSACTION_MODAL_FIELD_IDS[field] })
           if (field === 'date') {
             handleField('date', restored.dt)
             return
@@ -383,7 +389,10 @@ export default function CreateTransactionModal({
           const size = amountToInputString(restored.amount, selectedCurrencyExponent)
           handleAmountChange(size, `${restored.amount < 0 ? '-' : '+'}${size}`)
         },
-        onError: () => setSubmitError(RESTORE_FAILED_MESSAGE),
+        onError: () => {
+          setRestoreFailedField(field)
+          setFocusAfterRestore({ id: getRestoreActionId(field) })
+        },
       },
     )
   }
@@ -391,8 +400,10 @@ export default function CreateTransactionModal({
     bankSource && (
       <TransactionBankValueCaption
         id={`txn-${field}-bank-value`}
+        actionId={getRestoreActionId(field)}
         bankValue={bankValueCaptions[field]?.value ?? null}
         unavailableReason={bankValueCaptions[field]?.unavailableReason ?? null}
+        error={restoreFailedField === field ? RESTORE_FAILED_MESSAGE : null}
         financial={field === 'amount'}
         restoring={restoringField === field}
         disabled={readOnly || isPending || restoring}

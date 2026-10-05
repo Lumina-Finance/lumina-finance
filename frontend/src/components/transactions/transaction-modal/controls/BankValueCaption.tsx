@@ -7,6 +7,9 @@ type BankValueCaptionProps = {
   /** Names the bank's value, which the restore action is described by, telling the date's from the amount's */
   id: string
 
+  /** Names the restore action, which focus returns to when a restore fails */
+  actionId: string
+
   /** The bank's value as it reads, or null while the field isn't edited, which hides the caption */
   bankValue: string | null
 
@@ -15,6 +18,9 @@ type BankValueCaptionProps = {
 
   /** Why the bank's value can't be put back, for one the ledger can't store, or null where it can be */
   unavailableReason: string | null
+
+  /** Says the last restore of this field failed, under the caption, or null */
+  error: string | null
   restoring: boolean
   disabled: boolean
   onRestore: () => void
@@ -29,7 +35,8 @@ type BankValueCaptionProps = {
  * of text stays as tall as the caption's own
  *
  * The action follows the value after a dot where both fit on one line, and otherwise starts a line of
- * its own, in line with the value and with no dot
+ * its own, in line with the value and with no dot. A restore that fails says so under the caption, by
+ * the field it was restoring rather than at the foot of the form, out of sight on a phone
  *
  * For a value the ledger can't store, the action shows greyed out and gives its reason beside the
  * pointer, or under it for the keyboard, as the app's other unavailable actions do. Only its label
@@ -37,9 +44,11 @@ type BankValueCaptionProps = {
  */
 export default function TransactionBankValueCaption({
   id,
+  actionId,
   bankValue,
   financial = false,
   unavailableReason,
+  error,
   restoring,
   disabled,
   onRestore,
@@ -80,6 +89,7 @@ export default function TransactionBankValueCaption({
               <span className="inline-flex items-center">
                 <span aria-hidden className="w-4 shrink-0 text-center">&middot;</span>
                 <button
+                  id={actionId}
                   type="button"
                   onClick={onRestore}
                   // An unavailable action stays focusable, refused through aria-disabled instead, so the
@@ -102,6 +112,22 @@ export default function TransactionBankValueCaption({
                 {tooltip}
               </span>
             </p>
+            <AnimatePresence initial={false}>
+              {error && (
+                <motion.p
+                  key="restore-error"
+                  role="alert"
+                  className="overflow-hidden text-xs font-medium leading-5"
+                  style={{ color: 'var(--app-negative)' }}
+                  initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                  transition={DETAILS_LINE_TRANSITION}
+                >
+                  {error}
+                </motion.p>
+              )}
+            </AnimatePresence>
           </div>
         </motion.div>
       )}

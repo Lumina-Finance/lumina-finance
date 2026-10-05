@@ -2,9 +2,10 @@
  * Guards what the transaction modal shows of a bank-imported transaction: the provider and the bank's
  * description, read-only, and under an edited field the bank's value with an action to restore it,
  * which says when it is restoring and names the value it restores, or shows greyed out with its
- * reason for a value the ledger can't store. Which fields are edited is covered with the captions'
- * values. Where each caption sits, when the action is turned off, pressing it, and the reason showing
- * beside it, are covered end to end, since the details section's date field needs a page to render into
+ * reason for a value the ledger can't store, and under it a restore that failed. Which fields are
+ * edited is covered with the captions' values. Where each caption sits, when the action is turned off,
+ * pressing it, focus after it, and the reason showing beside it, are covered end to end, since the
+ * details section's date field needs a page to render into
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
@@ -21,9 +22,11 @@ function renderCaption(overrides: Partial<Parameters<typeof TransactionBankValue
   return renderToStaticMarkup(
     <TransactionBankValueCaption
       id="txn-amount-bank-value"
+      actionId="txn-amount-restore"
       bankValue={`${MINUS}CA$42.10`}
       financial
       unavailableReason={null}
+      error={null}
       restoring={false}
       disabled={false}
       onRestore={() => {}}
@@ -62,6 +65,17 @@ describe('bank value caption', () => {
     expect(tag).toContain('aria-busy="false"')
     expect(tag).not.toContain('disabled=""')
     expect(tag).not.toContain('aria-disabled="')
+    expect(markup).not.toContain('role="alert"')
+  })
+
+  it('says a restore failed under the bank value, as an alert, leaving the action to try again', () => {
+    const markup = renderCaption({ error: 'Could not restore the bank value. Please try again.' })
+
+    expect(markup).toMatch(/<\/p><p role="alert"[^>]*>Could not restore the bank value\. Please try again\.<\/p>/)
+    const { tag, text } = restoreButton(markup)
+    expect(text).toBe('Restore bank value')
+    expect(tag).toContain('id="txn-amount-restore"')
+    expect(tag).not.toContain('disabled=""')
   })
 
   it('says it is restoring, busy and closed to a second press', () => {
