@@ -1,6 +1,7 @@
 import type { InfiniteData, QueryClient } from '@tanstack/react-query';
 import {
   invalidateBankReview,
+  invalidateBankReviewItems,
   invalidateBankSyncStatus,
   invalidateTransactions,
 } from '@/api/cache/invalidation';
@@ -193,6 +194,10 @@ export async function applyReviewDecision(
 
 /**
  * Updates the views a restored bank date or amount changes
+ *
+ * The review inbox refetches too, since a waiting item shows its transaction's ledger date and
+ * amount, and a restore settles that field of a waiting correction, closing one with nothing else
+ * left. The link list stays, since its counts take in only new items
  */
 export function applyRestoredBankValue(
   queryClient: QueryClient,
@@ -205,6 +210,7 @@ export function applyRestoredBankValue(
     field === 'date' ? { dt: transaction.dt } : { amount: transaction.amount },
     [transaction.account_id],
   );
+  invalidateBankReviewItems(queryClient);
 }
 
 /**

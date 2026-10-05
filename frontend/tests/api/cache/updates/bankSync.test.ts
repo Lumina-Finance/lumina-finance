@@ -1,15 +1,17 @@
 /**
- * Covers the cache writes behind bank sync: the polled link list, review decisions, a link made or
- * removed, and account deletion. A Sync now answer is covered with the link list read
+ * Covers the cache writes behind bank sync: the polled link list, review decisions, a restored bank
+ * value, a link made or removed, and account deletion. A Sync now answer is covered with the link
+ * list read
  *
  * These tests catch a polled link list that changed nothing refetching every bank view, a first read
  * taken for every link appearing at once, a sync that
  * brought in data leaving the review inbox, pending rows, transaction lists or the account's balance
  * stale, a decided item staying in a later page or its count, an item leaving the inbox before its
  * transaction shows in the list or the backlog notice counts it out, a decision that left the ledger
- * alone reloading it or taking its item out before both the links and the backlogs have refetched, a link change
- * settling before the views that show it have refetched, and a deleted account's items lingering in
- * a cached bulk approval preview
+ * alone reloading it or taking its item out before both the links and the backlogs have refetched, a
+ * restored bank value leaving the inbox showing the ledger value it replaced, a link change settling
+ * before the views that show it have refetched, and a deleted account's items lingering in a cached
+ * bulk approval preview
  */
 import { QueryClient, QueryObserver, type InfiniteData, type QueryKey } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -18,6 +20,7 @@ import { accountKeys, bankSyncKeys, transactionKeys } from '@/api/cache/queryKey
 import {
   applyBankLinkChanges,
   applyLedgerReviewOutcome,
+  applyRestoredBankValue,
   applyReviewDecision,
   clearDeletedAccountBankData,
   refreshBankLinkState,
@@ -294,6 +297,25 @@ describe('a review decision that left the ledger alone', () => {
 
     expect(queryClient.getQueryData<Transaction[]>(transactionKeys.list({}))).toEqual([waiting]);
     expect(reviewItemIds()).toEqual(['item-2', 'item-3', 'item-4']);
+  });
+});
+
+describe('a restored bank value', () => {
+  const edited = { ...createBankTransaction('transaction-1'), amount: -1000 };
+  const restored = createBankTransaction('transaction-1');
+
+  beforeEach(() => {
+    seedBankViews();
+    queryClient.setQueryData(bankSyncKeys.links(), [createBankLink()]);
+    queryClient.setQueryData(transactionKeys.detail('transaction-1'), edited);
+  });
+
+  it('puts the restored transaction in place and refreshes the inbox, which shows its amount', () => {
+    applyRestoredBankValue(queryClient, restored, 'amount');
+
+    expect(queryClient.getQueryData(transactionKeys.detail('transaction-1'))).toEqual(restored);
+    expectInvalidated([reviewKey, bankSyncKeys.bulkPreview(undefined), accountKeys.detail('account-1')], true);
+    expectInvalidated([bankSyncKeys.pending('account-1'), bankSyncKeys.links(), ...statusKeys, otherAccountKey], false);
   });
 });
 
