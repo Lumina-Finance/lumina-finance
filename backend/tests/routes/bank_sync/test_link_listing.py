@@ -12,7 +12,6 @@ import pytest
 from sqlalchemy import select
 
 from app.models.bank_connection import BankExternalAccount
-from app.models.bank_sync_job import BankSyncJob
 from app.models.institution import Institution, InstitutionStatus
 from app.services.bank_sync import availability
 from tests.conftest import TestSession
@@ -118,8 +117,11 @@ async def test_listing_says_which_institutions_look_different_from_the_accounts(
     [(timedelta(hours=3), True), (timedelta(minutes=20), False)],
     ids=["3-hours-ago", "20-minutes-ago"],
 )
-async def test_listing_asks_for_a_fresh_discovery_only_when_the_last_is_over_an_hour_old(client, last_discovered, asks):
-    """Listed 3 hours ago, opening the flow queues a discovery and says one is on its way; listed 20 minutes ago, it doesn't"""
+async def test_listing_marks_the_cache_changed_only_when_it_asks_for_a_fresh_discovery(client, last_discovered, asks):
+    """Listed 3 hours ago, opening the flow queues a discovery, which other sessions learn of; listed 20 minutes ago, nothing changes
+
+    Which ages ask for a discovery is tested to the second in the service tests
+    """
     headers, user_id = await _sign_up(client)
     everyday_id = await _new_account(client, headers, "Everyday")
     connection = await _commit_listed_connection(user_id, discovered_at=datetime.now(UTC) - last_discovered)
@@ -129,12 +131,21 @@ async def test_listing_asks_for_a_fresh_discovery_only_when_the_last_is_over_an_
     after = await client.get("/me/cache-status", headers=headers)
 
     assert listed.status_code == 200, listed.text
-    assert listed.json()["discovery_pending"] is asks
-    async with TestSession() as session:
-        jobs = (await session.execute(select(BankSyncJob.connection_id, BankSyncJob.kind, BankSyncJob.discover))).all()
-    assert [tuple(job) for job in jobs] == ([(connection.id, "retry", True)] if asks else [])
     assert after.status_code == 200, after.text
     assert (after.json()["personal"]["changed_at"] != before.json()["personal"]["changed_at"]) is asks
+
+
+async def test_listing_for_a_user_who_may_not_link_bank_accounts_is_refused(client, monkeypatch):
+    """The bank-linking check is enforced on the link flow's list, not only in the interface"""
+    monkeypatch.setattr(availability, "may_link_bank_accounts", lambda _user_id: False)
+    headers, user_id = await _sign_up(client)
+    everyday_id = await _new_account(client, headers, "Everyday")
+    connection = await _commit_listed_connection(user_id, discovered_at=datetime.now(UTC))
+
+    refused = await _list(client, headers, connection.id, everyday_id)
+
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == "Bank sync isn't available for your account"
 
 
 async def test_listing_for_another_users_connection_or_account_is_not_found(client):
