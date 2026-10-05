@@ -1471,7 +1471,7 @@ async def test_job_tells_the_owners_pages_as_a_part_stores_records_without_movin
     The checkpoint stays at 3 October, but the new item is kept, so the owner's open pages hear of it
     while the later half is still out
     """
-    await _link(connection, "ACT-1", **_synced_through_yesterday())
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
     provider = _HeldProvider(held=(1, 3))
     provider.outcomes = [_cut_off("ACT-1"), _returned_with({"ACT-1": [_record("TRN-late", date(2026, 9, 22))]}), _returned("ACT-1")]
     monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
@@ -1484,8 +1484,11 @@ async def test_job_tells_the_owners_pages_as_a_part_stores_records_without_movin
         provider.release[1].set()
         await provider.sending[3].wait()
         told_after_the_earlier_half = await _told_at(connection)
+        checkpoint_after_the_earlier_half = await _checkpoints(link)
         provider.release[3].set()
         await running
 
     assert await _bank_transactions(BankTransaction.external_transaction_id) == [("TRN-late",)]
+    assert checkpoint_after_the_earlier_half == [date(2026, 10, 3)]
+    assert told_as_it_started is not None
     assert told_after_the_earlier_half > told_as_it_started
