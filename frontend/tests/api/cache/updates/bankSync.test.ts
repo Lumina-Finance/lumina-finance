@@ -7,7 +7,7 @@
  * brought in data leaving the review inbox, pending rows, transaction lists or the account's balance
  * stale, a decided item staying in a later page or its count, an item leaving the inbox before its
  * transaction shows in the list or the backlog notice counts it out, a decision that left the ledger
- * alone reloading it or taking its item out before the backlogs have refetched, a link change
+ * alone reloading it or taking its item out before both the links and the backlogs have refetched, a link change
  * settling before the views that show it have refetched, and a deleted account's items lingering in
  * a cached bulk approval preview
  */
@@ -262,24 +262,29 @@ describe('a review decision that left the ledger alone', () => {
     queryClient.setQueryData(transactionKeys.list({}), [waiting]);
   });
 
-  it('puts the kept transaction in place and settles the inbox once the backlogs have refetched, without reloading the ledger', async () => {
-    const done = applyReviewDecision(queryClient, (item) => item.id === 'item-4', kept);
-    answerLinks();
-    await settle();
+  it.each(['links', 'backlogs'] as const)(
+    'puts the kept transaction in place once the links and the backlogs have both refetched, the %s answering first, without reloading the ledger',
+    async (first) => {
+      const done = applyReviewDecision(queryClient, (item) => item.id === 'item-4', kept);
+      const [answerFirst, answerSecond] = first === 'links' ? [answerLinks, answerBacklogs] : [answerBacklogs, answerLinks];
+      answerFirst();
+      await settle();
 
-    // The backlog notice would otherwise count an item the block no longer shows, beside a marker
-    // that has already cleared
-    expect(reviewItemIds()).toContain('item-4');
-    expect(queryClient.getQueryData<Transaction[]>(transactionKeys.list({}))).toEqual([waiting]);
+      // The waiting count the other read carries would otherwise still include an item the block no
+      // longer shows, in the sync status for the links and in the backlog notice for the backlogs,
+      // beside a marker that has already cleared
+      expect(reviewItemIds()).toContain('item-4');
+      expect(queryClient.getQueryData<Transaction[]>(transactionKeys.list({}))).toEqual([waiting]);
 
-    answerBacklogs();
-    await done;
+      answerSecond();
+      await done;
 
-    expect(queryClient.getQueryData<Transaction[]>(transactionKeys.list({}))).toEqual([kept]);
-    expect(reviewItemIds()).toEqual(['item-1', 'item-2', 'item-3']);
-    expectInvalidated([...statusKeys, bankSyncKeys.bulkPreview(undefined)], true);
-    expectInvalidated([transactionKeys.list({})], false);
-  });
+      expect(queryClient.getQueryData<Transaction[]>(transactionKeys.list({}))).toEqual([kept]);
+      expect(reviewItemIds()).toEqual(['item-1', 'item-2', 'item-3']);
+      expectInvalidated([...statusKeys, bankSyncKeys.bulkPreview(undefined)], true);
+      expectInvalidated([transactionKeys.list({})], false);
+    },
+  );
 
   it('settles a dismissed item, which answers with no transaction, leaving the ledger as it was', async () => {
     const done = applyReviewDecision(queryClient, (item) => item.id === 'item-1', undefined);
