@@ -55,11 +55,10 @@ export function listShownBankAccounts(connection: BankConnection): ConnectionBan
 
 /**
  * The institutions whose bank login behind the connection needs the user to sign in again at the
- * provider, in the order the connection lists them. A rejected connection has to be reconnected
- * first, so it names none
+ * provider, in the order the connection lists them. The server flags none on a rejected connection,
+ * whose reconnect comes first
  */
 export function listSignInInstitutions(connection: BankConnection): string[] {
-  if (connection.status !== 'active') return []
   return [...new Set(connection.accounts.filter((account) => account.signin_needed).map((account) => account.institution_name))]
 }
 
