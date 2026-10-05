@@ -36,8 +36,7 @@ _PRECEDENCE = (
 )
 
 # How SimpleFIN Bridge words a warning that its request quota is spent, in a general errlist entry
-# or, from a server that sends no errlist, the older errors list. Unverified against real SimpleFIN
-# Bridge data
+# or the older errors list. Unverified against real SimpleFIN Bridge data
 _QUOTA_WARNING = re.compile(r"fewer requests|refresh limit|rate[ -]?limit|too many requests", re.IGNORECASE)
 
 # SimpleFIN's demo Bridge sends this as gen.api beside the whole history when a request spans more
@@ -84,15 +83,19 @@ def fetch_result(
             request_errors.append(error)
 
     # The older errors list names no code, login or account, and needn't word a problem as errlist
-    # does, so it is read only from a server that sends no errlist. Each message there counts like
-    # an unknown general code, a warning beside data that keeps any bank account it leaves out from
-    # being read as gone, except that a quota warning is still recognised
-    if not account_set.errlist:
-        for message in account_set.errors:
-            text = message.strip()
-            if text:
-                kind = ProviderErrorKind.RATE_LIMITED if _QUOTA_WARNING.search(text) else ProviderErrorKind.UNKNOWN
-                (warnings if has_data else request_errors).append(ProviderError(kind, text))
+    # does. A quota warning there is always recognised, since it may be the only place a server
+    # says so, and another request could get the token disabled. Any other message is read only
+    # from a server that sends no errlist, and counts like an unknown general code: a warning beside
+    # data that keeps any bank account it leaves out from being read as gone
+    for message in account_set.errors:
+        text = message.strip()
+        if _QUOTA_WARNING.search(text):
+            kind = ProviderErrorKind.RATE_LIMITED
+        elif text and not account_set.errlist:
+            kind = ProviderErrorKind.UNKNOWN
+        else:
+            continue
+        (warnings if has_data else request_errors).append(ProviderError(kind, text))
 
     if request_errors:
         return FetchResult(request_error=min(request_errors, key=_seriousness), warnings=tuple(warnings))

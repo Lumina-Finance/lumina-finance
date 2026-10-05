@@ -19,6 +19,7 @@ import pytest
 from app.http_client import MAX_RESPONSE_BYTES
 from app.services.bank_sync import outbound
 from app.services.bank_sync.outbound import IpAddress, OutboundGuard
+from app.services.bank_sync.provider_requests import is_quota_spent
 from app.services.bank_sync.providers.contract import FetchResult, ProviderError, ProviderErrorKind
 from app.services.bank_sync.providers.simplefin.adapter import SimpleFinAdapter
 from tests.fake_simplefin_bridge import FakeBridgeTransport
@@ -309,31 +310,36 @@ async def test_unknown_subcode_takes_its_prefixs_meaning(scenario: FakeBridgeSce
 
 
 @pytest.mark.parametrize(
-    ("problem", "fault", "warning"),
+    ("problem", "fault", "warnings"),
     [
         (
             {"code": "gen.maintenance", "msg": "Some banks may be slow to update tonight."},
             None,
-            ProviderError(_UNKNOWN, "Some banks may be slow to update tonight."),
+            (ProviderError(_UNKNOWN, "Some banks may be slow to update tonight."),),
         ),
         # SimpleFIN's own demo Bridge answers a request over 45 days with the whole history and this note
         (
             {"code": "gen.api", "msg": "Requested date range exceeds recommended range of 45 days. In the future, this may be capped."},
             None,
-            ProviderError(_TEMPORARY, "Requested date range exceeds recommended range of 45 days. In the future, this may be capped."),
+            (ProviderError(_TEMPORARY, "Requested date range exceeds recommended range of 45 days. In the future, this may be capped."),),
         ),
-        (None, "quota_warning", ProviderError(_RATE_LIMITED, _FAKE_QUOTA_WARNING)),
+        # The quota warning is read from both lists, since the older one may be the only one that has it
+        (
+            None,
+            "quota_warning",
+            (ProviderError(_RATE_LIMITED, _FAKE_QUOTA_WARNING), ProviderError(_RATE_LIMITED, f"gen.: {_FAKE_QUOTA_WARNING}")),
+        ),
     ],
     ids=["unknown-general-code", "range-over-recommended", "quota-warning"],
 )
-async def test_general_warning_beside_data_keeps_the_data(scenario: FakeBridgeScenario, problem, fault, warning):
-    """An unknown general code, a note about the date range or a quota warning that arrives with accounts is recorded once, and they sync"""
+async def test_general_warning_beside_data_keeps_the_data(scenario: FakeBridgeScenario, problem, fault, warnings):
+    """An unknown general code, a note about the date range or a quota warning that arrives with accounts is recorded, and they sync"""
     await scenario.add_harbour_accounts()
 
     result = await _fetch_from(scenario, *([problem] if problem else []), fault=fault)
 
     assert result.request_error is None
-    assert result.warnings == (warning,)
+    assert result.warnings == warnings
     assert result.account_errors == {}
     assert result.login_errors == {}
     assert [account.external_id for account in result.accounts] == list(_ALL_ACCOUNTS)
@@ -369,6 +375,36 @@ async def test_message_only_in_the_older_errors_list_is_a_warning_beside_the_dat
 
     assert result.warnings == (ProviderError(kind, message),)
     assert [account.external_id for account in result.accounts] == ["ACT-chequing"]
+
+
+async def test_quota_warning_in_the_older_errors_list_beside_errlist_is_still_recognised():
+    """A refresh-limit message only the older list carries, beside a sign-in problem for another login, counts the day as spent"""
+    message = "You have hit today's refresh limit for this token"
+    body = {
+        "errors": [message],
+        "errlist": [{"code": "con.auth", "msg": "Harbour Bank needs you to sign in again.", "conn_id": "CON-harbour"}],
+        "connections": [
+            {"conn_id": "CON-harbour", "name": "Harbour Bank", "org_id": "ORG-harbour"},
+            {"conn_id": "CON-harbourline", "name": "Harbourline Card Services", "org_id": "ORG-harbourline"},
+        ],
+        "accounts": [
+            {
+                "id": "ACT-visa",
+                "name": "Rewards Visa",
+                "conn_id": "CON-harbourline",
+                "currency": "USD",
+                "balance": "-640.12",
+                "balance-date": 1791115200,
+            }
+        ],
+    }
+
+    result = await _fetch(simplefin_adapter(RecordingBridge(answer_with(200, json.dumps(body).encode(), "application/json")).transport))
+
+    assert result.warnings == (ProviderError(_RATE_LIMITED, message),)
+    assert is_quota_spent(result)
+    assert result.login_errors == {"CON-harbour": ProviderError(_BANK_LOGIN_NEEDED, "Harbour Bank needs you to sign in again.")}
+    assert [account.external_id for account in result.accounts] == ["ACT-visa"]
 
 
 @pytest.mark.parametrize(
