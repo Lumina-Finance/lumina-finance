@@ -394,7 +394,7 @@ export function useResolveReviewItem() {
       }
 
       // Nothing in the ledger changed, so its views keep their data rather than reloading
-      applyReviewDecision(queryClient, isDecided, transaction);
+      return applyReviewDecision(queryClient, isDecided, transaction);
     },
   });
 }

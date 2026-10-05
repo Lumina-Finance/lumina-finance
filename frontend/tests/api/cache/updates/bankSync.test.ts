@@ -7,7 +7,7 @@
  * brought in data leaving the review inbox, pending rows, transaction lists or the account's balance
  * stale, a decided item staying in a later page or its count, an item leaving the inbox before its
  * transaction shows in the list or the backlog notice counts it out, a decision that left the ledger
- * alone reloading it or leaving the backlogs stale, a link change
+ * alone reloading it or taking its item out before the backlogs have refetched, a link change
  * settling before the views that show it have refetched, and a deleted account's items lingering in
  * a cached bulk approval preview
  */
@@ -250,26 +250,42 @@ describe('a review decision that left the ledger alone', () => {
   const waiting = createBankTransaction('transaction-item-4', 'item-4');
   const kept = createBankTransaction('transaction-item-4');
 
+  let answerLinks: () => void;
+  let answerBacklogs: () => void;
+
   beforeEach(() => {
     seedReviewPages();
-    queryClient.setQueryData(bankSyncKeys.links(), [createBankLink()]);
-    queryClient.setQueryData(backlogKey, [createBacklog()]);
+    answerLinks = observeWithHeldRead(bankSyncKeys.links(), [createBankLink()]);
+    answerBacklogs = observeWithHeldRead(backlogKey, [createBacklog()]);
     queryClient.setQueryData(bankSyncKeys.bulkPreview(undefined), {});
     for (const key of statusKeys) queryClient.setQueryData(key, {});
     queryClient.setQueryData(transactionKeys.list({}), [waiting]);
   });
 
-  it('puts the kept transaction in place and settles the inbox without reloading the ledger', () => {
-    applyReviewDecision(queryClient, (item) => item.id === 'item-4', kept);
+  it('puts the kept transaction in place and settles the inbox once the backlogs have refetched, without reloading the ledger', async () => {
+    const done = applyReviewDecision(queryClient, (item) => item.id === 'item-4', kept);
+    answerLinks();
+    await settle();
+
+    // The backlog notice would otherwise count an item the block no longer shows, beside a marker
+    // that has already cleared
+    expect(reviewItemIds()).toContain('item-4');
+    expect(queryClient.getQueryData<Transaction[]>(transactionKeys.list({}))).toEqual([waiting]);
+
+    answerBacklogs();
+    await done;
 
     expect(queryClient.getQueryData<Transaction[]>(transactionKeys.list({}))).toEqual([kept]);
     expect(reviewItemIds()).toEqual(['item-1', 'item-2', 'item-3']);
-    expectInvalidated([bankSyncKeys.links(), backlogKey, ...statusKeys, bankSyncKeys.bulkPreview(undefined)], true);
+    expectInvalidated([...statusKeys, bankSyncKeys.bulkPreview(undefined)], true);
     expectInvalidated([transactionKeys.list({})], false);
   });
 
-  it('settles a dismissed item, which answers with no transaction, leaving the ledger as it was', () => {
-    applyReviewDecision(queryClient, (item) => item.id === 'item-1', undefined);
+  it('settles a dismissed item, which answers with no transaction, leaving the ledger as it was', async () => {
+    const done = applyReviewDecision(queryClient, (item) => item.id === 'item-1', undefined);
+    answerLinks();
+    answerBacklogs();
+    await done;
 
     expect(queryClient.getQueryData<Transaction[]>(transactionKeys.list({}))).toEqual([waiting]);
     expect(reviewItemIds()).toEqual(['item-2', 'item-3', 'item-4']);

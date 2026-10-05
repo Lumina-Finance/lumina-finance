@@ -1,6 +1,5 @@
 import type { InfiniteData, QueryClient } from '@tanstack/react-query';
 import {
-  invalidateBankLinks,
   invalidateBankReview,
   invalidateBankSyncStatus,
   invalidateTransactions,
@@ -162,18 +161,24 @@ export async function applyLedgerReviewOutcome(
  * Brings the inbox up to date after a review decision that left every ledger value as it was
  *
  * A kept transaction comes back with its bank source updated, which replaces the cached one so the
- * Needs review marker clears and the edited fields show without the lists refetching
+ * Needs review marker clears and the edited fields show without the lists refetching. The decided
+ * items leave, and the marker clears, only once the links and the backlogs have refetched, since they
+ * carry the waiting counts the sync status and the backlog notice read, so the notice never counts an
+ * item the block no longer shows. The returned promise settles then
  */
-export function applyReviewDecision(
+export async function applyReviewDecision(
   queryClient: QueryClient,
   isDecided: (item: BankReviewItem) => boolean,
   transaction: Transaction | undefined,
-): void {
+): Promise<void> {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: bankSyncKeys.links(), exact: true, refetchType: 'active' }),
+    queryClient.invalidateQueries({ queryKey: bankSyncKeys.reviewBacklogsAll, refetchType: 'active' }),
+  ]);
   if (transaction) replaceCachedTransaction(queryClient, transaction);
   removeReviewItemsFromPages(queryClient, isDecided);
-  invalidateBankLinks(queryClient);
   invalidateBankSyncStatus(queryClient);
-  invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.reviewBacklogsAll }, { queryKey: bankSyncKeys.bulkPreviews }]);
+  invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.bulkPreviews }]);
 }
 
 /**
