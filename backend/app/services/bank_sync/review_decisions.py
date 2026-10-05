@@ -19,19 +19,23 @@ from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.bank_review import AddReviewItemRequest
 from app.schemas.transaction import CreateTransactionRequest, TransactionResponse
-from app.services.accounts.access import own_personal_account_condition
+from app.services.accounts.access import get_own_personal_account, own_personal_account_condition
 from app.services.cache_state import mark_user_cache_changed
 from app.services.transactions.creation import insert_transaction
 from app.services.transactions.response_helpers import get_transaction_response
 
 REVIEW_ITEM_NOT_FOUND = "Review item not found"
 
+# Why an added item refuses a transfer counterparty the user can see but doesn't own alone
+_COUNTERPARTY_NOT_OWN_DETAIL = "Transfers from a bank item can't go to an account shared with a group"
+
 
 async def add_review_item_to_ledger(db: AsyncSession, user: User, item_id: uuid.UUID, request: AddReviewItemRequest) -> TransactionResponse:
     """Add a new bank item to the ledger with the user's values and accept it, in one save
 
     The ledger transaction passes the checks a hand-entered one does, except the days a linked
-    account's bank supplies, since this one is the bank's. It is aligned with the bank's date and
+    account's bank supplies, since this one is the bank's. A transfer's counterparty has to be one
+    of the user's own personal accounts, as for the item itself. It is aligned with the bank's date and
     amount, so a date or amount the user changed counts as edited, and so does any amount entered
     for one the bank sent that couldn't be stored. An item already added answers with its
     transaction, so a double submission adds it once
@@ -46,7 +50,9 @@ async def add_review_item_to_ledger(db: AsyncSession, user: User, item_id: uuid.
         The ledger transaction, with its bank source
 
     Raises:
-        HTTPException 404: The item isn't one of the user's, or was withdrawn by the bank
+        HTTPException 403: The transfer counterparty is visible but isn't the user's own personal account
+        HTTPException 404: The item isn't one of the user's, or was withdrawn by the bank, or the
+            transfer counterparty isn't visible to the user
         HTTPException 409: The item was dismissed
         HTTPException 422: A value fails the checks a new transaction passes
     """
@@ -55,6 +61,8 @@ async def add_review_item_to_ledger(db: AsyncSession, user: User, item_id: uuid.
         return await get_transaction_response(db, await db.get_one(Transaction, record.transaction_id))
     if record.disposition == BankTransactionDisposition.DISMISSED:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This item was dismissed, so it can't be added to the ledger")
+    if request.counterparty_account_id is not None:
+        await get_own_personal_account(db, request.counterparty_account_id, user.id, not_own_detail=_COUNTERPARTY_NOT_OWN_DETAIL)
 
     txn = await insert_transaction(
         db,

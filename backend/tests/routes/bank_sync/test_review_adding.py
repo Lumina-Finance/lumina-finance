@@ -273,6 +273,28 @@ async def test_adding_as_a_transfer_to_savings_writes_the_row_a_manual_transfer_
     assert (added.json()["counterparty_account_id"], added.json()["counterparty_account_scope"]) == (savings_id, "tracked")
 
 
+async def test_adding_as_a_transfer_to_a_group_or_another_users_account_is_refused(client):
+    """The Smith Family's Joint account is the user's to read but not their own, and another user's Theirs isn't theirs to read"""
+    inbox = await _tesco_waiting(client)
+    joint_id = await _new_group_account(client, inbox.headers)
+    theirs = await _commit_other_users_account()
+    transfer = {
+        "category_id": await _get_system_category_id(client, inbox.headers, "Transfer"),
+        "merchant_id": await _get_system_merchant_id(client, inbox.headers),
+        "counterparty_account_scope": "tracked",
+    }
+
+    to_joint = await _add(client, inbox, counterparty_account_id=joint_id, **transfer)
+    to_theirs = await _add(client, inbox, counterparty_account_id=str(theirs.id), **transfer)
+
+    assert to_joint.status_code == 403, to_joint.text
+    assert to_joint.json()["detail"] == "Transfers from a bank item can't go to an account shared with a group"
+    assert to_theirs.status_code == 404, to_theirs.text
+    assert to_theirs.json()["detail"] == "Account not found"
+    assert (await _stored_item(inbox.item_id)).disposition == BankTransactionDisposition.AWAITING_REVIEW
+    assert await _ledger_rows(inbox.account_id) == []
+
+
 async def test_adding_to_a_linked_account_takes_a_day_its_bank_supplies(client, pin_clock):
     """Everyday's bank supplies 12 July, which refuses a hand-entered transaction but takes the bank's own"""
     pin_clock(NOW, manual_entries)
