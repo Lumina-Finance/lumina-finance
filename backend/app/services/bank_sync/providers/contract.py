@@ -221,8 +221,9 @@ class ProviderAdapter(ABC):
             start: First instant of the window, inclusive, timezone-aware
             end: Instant the window ends before, timezone-aware, at most max_window_days of
                 elapsed time after start
-            include_pending: Whether to ask for pending records too. A provider may ask for them
-                only in a window that reaches today
+            include_pending: Whether to ask for pending records too, as the engine does only for a
+                window ending on the day it fixed as today. The adapter asks exactly as told, since
+                a request sent after midnight still serves that day
             timezone: The user's profile timezone, which dates records
             currency_exponents: Minor-unit exponent of every currency Lumina holds, by code
 

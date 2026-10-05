@@ -206,7 +206,7 @@ async def test_access_url_for_a_server_not_added_is_refused():
 
 @pytest.mark.usefixtures("frozen_now")
 async def test_fetch_returns_only_the_chosen_accounts_records_in_the_window(scenario: FakeBridgeScenario):
-    """The Bridge gets one request naming the chosen accounts and the window, and a past window brings no pending records"""
+    """The Bridge gets one request naming the chosen accounts and the window, and a fetch not asking for pending records brings none"""
     await scenario.add_harbour_accounts()
     transactions = [
         {"id": "TRN-in-window", "posted": "2026-09-15", "amount": "-4.50", "description": "POS 4411 BLUE BOTTLE SF"},
@@ -218,7 +218,7 @@ async def test_fetch_returns_only_the_chosen_accounts_records_in_the_window(scen
     await scenario.change("POST", "/accounts/ACT-savings/transactions", {"transactions": [savings]})
     adapter = _fake_adapter()
 
-    result = await _fetch(adapter, _WINDOW_START, _WINDOW_END, access_url=await adapter.claim(scenario.setup_token))
+    result = await _fetch(adapter, _WINDOW_START, _WINDOW_END, access_url=await adapter.claim(scenario.setup_token), include_pending=False)
 
     assert result.request_error is None
     assert {account.external_id: [record.external_id for record in account.records] for account in result.accounts} == {
@@ -280,7 +280,7 @@ async def test_fetch_holding_1000_transactions_may_be_cut_off(scenario: FakeBrid
     await scenario.change("POST", "/accounts/ACT-chequing/transactions", {"transactions": transactions})
     adapter = _fake_adapter()
 
-    # A window reaching today, so pending transactions come back
+    # A window ending today, which a sync asks for pending transactions with
     result = await _fetch(adapter, frozen_now - timedelta(days=30), frozen_now, access_url=await adapter.claim(scenario.setup_token))
 
     assert sum(len(account.records) for account in result.accounts) == booked + pending
@@ -347,7 +347,7 @@ async def test_requests_ask_for_balances_only_or_for_the_window_in_epoch_seconds
     adapter = simplefin_adapter(bridge.transport)
 
     await adapter.discover(_ACCESS_URL, currency_exponents=_EXPONENTS)
-    await _fetch(adapter, _WINDOW_START, _WINDOW_END)
+    await _fetch(adapter, _WINDOW_START, _WINDOW_END, include_pending=False)
 
     discovery, fetch = bridge.requests
     assert sorted(discovery.url.params.multi_items()) == [("balances-only", "1"), ("version", "2")]
@@ -364,24 +364,20 @@ async def test_requests_ask_for_balances_only_or_for_the_window_in_epoch_seconds
 _TODAY_STARTS = datetime(2026, 10, 3, tzinfo=_LOS_ANGELES)
 
 
-@pytest.mark.parametrize(
-    ("end", "include_pending", "asks_for_pending"),
-    [
-        (_TODAY_STARTS + timedelta(seconds=1), True, True),
-        (_TODAY_STARTS + timedelta(seconds=1), False, False),
-        (_TODAY_STARTS, True, False),
-    ],
-    ids=["reaches-today", "reaches-today-without-pending-wanted", "ends-at-local-midnight"],
-)
+@pytest.mark.parametrize("include_pending", [True, False], ids=["wanted", "not-wanted"])
 @pytest.mark.usefixtures("frozen_now")
-async def test_only_a_window_reaching_today_asks_for_pending_records(end, include_pending, asks_for_pending):
-    """pending=1 goes only with a window reaching into the user's today, and only when the sync wants pending records"""
+async def test_fetch_asks_for_pending_records_exactly_when_the_sync_wants_them(include_pending):
+    """The window ends at the midnight starting 3 October, as one from a sync that fixed 2 October as today and sent after midnight does
+
+    The adapter's own clock reads 3 October, but the sync owns today, so pending=1 goes whenever it
+    asks and never otherwise
+    """
     bridge = RecordingBridge()
 
-    await _fetch(simplefin_adapter(bridge.transport), end - timedelta(days=30), end, include_pending=include_pending)
+    await _fetch(simplefin_adapter(bridge.transport), _TODAY_STARTS - timedelta(days=30), _TODAY_STARTS, include_pending=include_pending)
 
     [request] = bridge.requests
-    assert (("pending", "1") in request.url.params.multi_items()) is asks_for_pending
+    assert (("pending", "1") in request.url.params.multi_items()) is include_pending
 
 
 async def test_pending_record_without_a_time_is_dated_the_users_today(scenario: FakeBridgeScenario, frozen_now: datetime):

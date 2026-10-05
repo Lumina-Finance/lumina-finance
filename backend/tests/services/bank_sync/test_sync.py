@@ -1524,8 +1524,9 @@ async def test_job_leaves_the_pending_items_of_bank_accounts_the_response_didnt_
 async def test_job_leaves_pending_items_alone_until_its_window_reaches_today(connection, provider):
     """In Phoenix, at 8 pm on 3 October and already 4 October in UTC, a catch-up after the worker stopped on 31 March takes three windows
 
-    Each window is a job of its own. The two before today leave March's pending item in place, and
-    the window ending today replaces it with what is pending now
+    Each window is a job of its own. The two before today don't ask for pending records and get none,
+    yet leave March's pending item in place, and the window ending today replaces it with what is
+    pending now
     """
     await _set_owner_timezone(connection, _PHOENIX)
     link = await _link(
@@ -1534,7 +1535,8 @@ async def test_job_leaves_pending_items_alone_until_its_window_reaches_today(con
         **_synced_through_yesterday(checkpoint=date(2026, 3, 31), last_success_at=datetime(2026, 3, 31, 9, tzinfo=_PHOENIX)),
     )
     await _store_pending(link, "P-march")
-    provider.outcomes = [_returned("ACT-1"), _returned("ACT-1"), _returned_with({"ACT-1": [_pending_record("P-now", date(2026, 10, 3))]})]
+    # The provider holds the same pending record throughout, and sends it only to a fetch that asks for it
+    provider.outcomes = [_returned_with({"ACT-1": [_pending_record("P-now", date(2026, 10, 3))]}) for _ in range(3)]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
     for _ in range(2):

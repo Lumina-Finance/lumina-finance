@@ -7,7 +7,7 @@ neither appears in a request URL, a log, an exception or a reason. Only the host
 import base64
 import logging
 from collections.abc import Mapping, Sequence
-from datetime import UTC, datetime, time, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import override
 from zoneinfo import ZoneInfo
 
@@ -160,13 +160,13 @@ class SimpleFinAdapter(ProviderAdapter):
         # start-date is inclusive and end-date exclusive, both in epoch seconds
         params = [_PROTOCOL_VERSION, ("start-date", str(int(start.timestamp()))), ("end-date", str(int(end.timestamp())))]
 
-        # Pending records are still settling, so only a window that reaches today asks for them
-        today = datetime.now(timezone).date()
-        if include_pending and end > datetime.combine(today, time.min, tzinfo=timezone):
+        # Asked for as the sync says, never checked against this clock's today: a sync that fixed its
+        # today before midnight and sends after it still needs the pending set it replaces
+        if include_pending:
             params.append(("pending", "1"))
         params.extend(("account", account_id) for account_id in account_ids)
 
-        dating = RecordDating(timezone=timezone, requested_on=today)
+        dating = RecordDating(timezone=timezone, requested_on=datetime.now(timezone).date())
         return await self._read_accounts(
             credential, params, currency_exponents=currency_exponents, dating=dating, requested_account_ids=account_ids
         )

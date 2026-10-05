@@ -5,7 +5,7 @@ removed record, and read back the requests the engine made
 """
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import override
 from zoneinfo import ZoneInfo
@@ -30,7 +30,7 @@ class FetchCall:
 
 
 class FakeProviderAdapter(ProviderAdapter):
-    """Answers each operation from what the test queued, in order"""
+    """Answers each operation from what the test queued, in order, leaving pending records out of a fetch that didn't ask for them"""
 
     provider_id = "fake"
     provider_name = "Fake Bank"
@@ -82,4 +82,12 @@ class FakeProviderAdapter(ProviderAdapter):
         currency_exponents: Mapping[str, int],
     ) -> FetchResult:
         self.fetches.append(FetchCall(credential, tuple(account_ids), start, end, include_pending))
-        return self.outcomes.pop(0)
+        outcome = self.outcomes.pop(0)
+        if include_pending:
+            return outcome
+
+        # A provider not asked for pending records sends none
+        accounts = tuple(
+            replace(account, records=tuple(record for record in account.records if not record.pending)) for account in outcome.accounts
+        )
+        return replace(outcome, accounts=accounts)
