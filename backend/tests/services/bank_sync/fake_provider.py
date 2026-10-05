@@ -1,7 +1,8 @@
 """A scripted bank provider for testing the provider-neutral sync engine
 
 Tests queue the exact outcomes they need, including ones SimpleFIN never produces, such as a
-removed record, and read back the requests the engine made
+removed record, and read back the requests the engine made. A fetch gives each bank account asked
+for that its outcome leaves out an error of its own, as the contract has every provider do
 """
 
 from collections.abc import Mapping, Sequence
@@ -11,10 +12,12 @@ from typing import override
 from zoneinfo import ZoneInfo
 
 from app.models.bank_connection import ConnectsFrom
+from app.models.bank_sync_job import ProviderErrorKind
 from app.services.bank_sync.providers.contract import (
     ClaimRefused,
     FetchResult,
     ProviderAdapter,
+    ProviderError,
 )
 
 
@@ -83,11 +86,18 @@ class FakeProviderAdapter(ProviderAdapter):
     ) -> FetchResult:
         self.fetches.append(FetchCall(credential, tuple(account_ids), start, end, include_pending))
         outcome = self.outcomes.pop(0)
-        if include_pending:
+        if outcome.request_error is not None:
             return outcome
 
         # A provider not asked for pending records sends none
-        accounts = tuple(
-            replace(account, records=tuple(record for record in account.records if not record.pending)) for account in outcome.accounts
-        )
-        return replace(outcome, accounts=accounts)
+        accounts = outcome.accounts
+        if not include_pending:
+            accounts = tuple(
+                replace(account, records=tuple(record for record in account.records if not record.pending)) for account in accounts
+            )
+        returned = {account.external_id for account in accounts}
+        left_out = ProviderError(ProviderErrorKind.TEMPORARY, f"{self.provider_name} didn't return this account")
+        missing = {
+            account_id: left_out for account_id in account_ids if account_id not in returned and account_id not in outcome.account_errors
+        }
+        return replace(outcome, accounts=accounts, account_errors={**outcome.account_errors, **missing})

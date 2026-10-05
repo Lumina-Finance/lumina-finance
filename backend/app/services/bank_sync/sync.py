@@ -38,13 +38,13 @@ from collections.abc import Collection, Mapping, Sequence
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select, update
+from sqlalchemy import and_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import async_session
 from app.encryption import decrypt
 from app.models.account import Account
-from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState, ProviderRequestPurpose
+from app.models.bank_connection import BankAccountLink, BankConnection, BankExternalAccount, BankLinkState, ProviderRequestPurpose
 from app.models.bank_sync_job import BankSyncJob, ProviderErrorKind
 from app.models.user import User
 from app.services.bank_sync.availability import ENABLED_ADAPTERS, PROVIDER_ADAPTERS
@@ -77,9 +77,8 @@ DISCOVERY_MAX_AGE = timedelta(hours=20)
 _DISCOVERED_LINK_STATES = (BankLinkState.ACTIVE, BankLinkState.CHOOSE_ACCOUNT)
 
 # Why a link's attempt failed when a response listed its bank account in another currency than its
-# account's, or left it out without saying why, as the account's sync status shows it
+# account's, as the account's sync status shows it
 _CURRENCY_CHANGED_REASON = "{provider} now reports this bank account in {currency}, not {account_currency}"
-_NOT_RETURNED_REASON = "{provider} didn't return this bank account"
 
 
 class _CredentialReplaced(Exception):
@@ -181,6 +180,10 @@ class _JobRun:
         # Each linked account's currency, which never changes, read with the links
         self.account_currencies: dict[uuid.UUID, str] = {}
 
+        # The bank login each linked bank account was listed under, by external id, read with the
+        # links, for one a response leaves out
+        self.bank_logins: dict[str, str | None] = {}
+
         # Whether this job listed the bank accounts, and whether the next one lists them, as a fetch
         # found one in a currency other than its account's in a job that didn't
         self.listed = False
@@ -242,16 +245,24 @@ class _JobRun:
         return part.last_day == self.today
 
     async def _read_links(self) -> list[BankAccountLink]:
-        """Return every link on the connection, as committed now, noting each linked account's currency"""
+        """Return every link on the connection, as committed now, noting each linked account's currency and its bank login"""
         async with async_session() as db:
             rows = await db.execute(
-                select(BankAccountLink, Account.currency)
+                select(BankAccountLink, Account.currency, BankExternalAccount.login_key)
                 .join(Account, Account.id == BankAccountLink.account_id)
+                .outerjoin(
+                    BankExternalAccount,
+                    and_(
+                        BankExternalAccount.connection_id == BankAccountLink.connection_id,
+                        BankExternalAccount.external_id == BankAccountLink.external_account_id,
+                    ),
+                )
                 .where(BankAccountLink.connection_id == self.connection.id)
             )
             links = rows.all()
-        self.account_currencies = {link.account_id: currency for link, currency in links}
-        return [link for link, _ in links]
+        self.account_currencies = {link.account_id: currency for link, currency, _ in links}
+        self.bank_logins = {link.external_account_id: login for link, _, login in links}
+        return [link for link, *_ in links]
 
     def _needs_discovery(self, links: list[BankAccountLink]) -> bool:
         """Return whether the job lists the bank accounts first: flagged to, or the last listing is over 20 hours old
@@ -349,7 +360,7 @@ class _JobRun:
                     )
                     failure = ProviderError(ProviderErrorKind.TEMPORARY, reason)
                 elif bank_account is None:
-                    failure = _failure_of(result, link.external_account_id, self.adapter.provider_name)
+                    failure = _failure_of(result, link.external_account_id, self.bank_logins.get(link.external_account_id))
                 if failure is None:
                     self.deferred.discard(link.id)
                 elif link.id not in self.failed:
@@ -609,17 +620,18 @@ def _synced_bank_accounts(result: FetchResult) -> dict[str, ExternalAccount]:
     }
 
 
-def _failure_of(result: FetchResult, external_id: str, provider_name: str) -> ProviderError:
-    """Return why a response didn't bring a bank account back whole: its bank login's error, its own, or that it was left out
+def _failure_of(result: FetchResult, external_id: str, stored_login: str | None) -> ProviderError:
+    """Return why a response didn't bring a bank account back whole: its bank login's error, or else its own
 
-    A bank login's error comes first, since a sign-in at the bank is what the user has to fix
+    A bank login's error comes first, since a sign-in at the bank is what the user has to fix. A bank
+    account the response left out is under the bank login its listing stored, and the provider gives
+    each one it leaves out an error of its own
     """
     listed = next((account for account in result.accounts if account.external_id == external_id), None)
-    if listed is not None and listed.bank_login in result.login_errors:
-        return result.login_errors[listed.bank_login]
-    return result.account_errors.get(external_id) or ProviderError(
-        ProviderErrorKind.TEMPORARY, _NOT_RETURNED_REASON.format(provider=provider_name)
-    )
+    login = listed.bank_login if listed is not None else stored_login
+    if login in result.login_errors:
+        return result.login_errors[login]
+    return result.account_errors[external_id]
 
 
 async def _end_job(

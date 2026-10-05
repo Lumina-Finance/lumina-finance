@@ -228,7 +228,9 @@ class ProviderAdapter(ABC):
             currency_exponents: Minor-unit exponent of every currency Lumina holds, by code
 
         Returns:
-            The accounts with their records, and any errors and warnings the provider sent
+            The accounts with their records, and any errors and warnings the provider sent. Each
+            account asked for that a response without a request error leaves out has an error of
+            its own, so the sync can say why it wasn't brought back
 
         Raises:
             ValueError: The window is empty, longer than max_window_days or not timezone-aware

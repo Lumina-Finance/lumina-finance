@@ -693,7 +693,7 @@ async def test_job_syncs_the_bank_accounts_it_brought_back_whole_and_retries_the
     assert await _attempts(everyday, savings, travel) == [
         (frozen_now, frozen_now, None, 0, None),
         (_YESTERDAYS_SYNC, frozen_now, "SimpleFIN Bridge reported a problem", 1, retry_at),
-        (_YESTERDAYS_SYNC, frozen_now, "Fake Bank didn't return this bank account", 1, retry_at),
+        (_YESTERDAYS_SYNC, frozen_now, "Fake Bank didn't return this account", 1, retry_at),
     ]
     assert await _queued_jobs() == [("retry", timedelta(minutes=30), False)]
 
@@ -802,16 +802,24 @@ async def test_job_for_a_retry_due_while_the_budget_is_spent_records_no_attempt_
     assert await _queued_jobs() == []
 
 
-async def test_job_starts_no_retry_series_for_a_bank_account_whose_bank_needs_a_sign_in(connection, provider, frozen_now):
-    """Card's first retry finds its bank login needing a sign-in as well as an error of its own, and retrying can't fix a sign-in
+@pytest.mark.parametrize("returned", [True, False], ids=["listed_with_an_error_of_its_own", "left_out_of_the_response"])
+async def test_job_starts_no_retry_series_for_a_bank_account_whose_bank_needs_a_sign_in(connection, provider, frozen_now, returned):
+    """Card's first retry finds its bank login needing a sign-in, and retrying can't fix a sign-in
 
-    Card shows the sign-in as why it failed and leaves its retry series, and no retry is queued
+    The response lists Card with an error of its own as well, or leaves it out, when the bank login
+    its listing stored names it. Either way Card shows the sign-in as why it failed and leaves its
+    retry series, and no retry is queued
     """
     card = await _link(connection, "ACT-card", **_synced_through_yesterday(retry_count=1, next_attempt_at=frozen_now))
+    listed = _build_external_account(connection, "ACT-card")
+    listed.login_key = "CON-card"
+    async with TestSession() as session:
+        session.add(listed)
+        await session.commit()
     provider.outcomes = [
         FetchResult(
-            accounts=(_bank_account("ACT-card", login_key="CON-card"),),
-            account_errors={"ACT-card": _reported_a_problem()},
+            accounts=(_bank_account("ACT-card", login_key="CON-card"),) if returned else (),
+            account_errors={"ACT-card": _reported_a_problem()} if returned else {},
             login_errors={"CON-card": ProviderError(ProviderErrorKind.BANK_LOGIN_NEEDED, "Sign in to your bank again")},
         )
     ]
