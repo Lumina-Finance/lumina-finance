@@ -445,3 +445,69 @@ for (const colorScheme of ['light', 'dark'] as const) {
     }
   })
 }
+
+// A short phone screen, where the card heading the form leaves most of the form below the fold
+test.describe('on a short phone screen', () => {
+  test.beforeEach(async ({ page }) => {
+    test.skip(test.info().project.name !== 'phone', 'Only a phone screen is short enough')
+    await page.setViewportSize({ width: 390, height: 667 })
+  })
+
+  test('starts on the first field to fill in, the amount where the bank’s can’t be used', async ({ page, request }) => {
+    const { everyday } = await start(page, request)
+    await answerReview(page, [
+      countdown(everyday.id),
+      reviewItem('harbour', 'new', everyday.id, { description: 'HARBOUR COFFEE', amount: null, raw_amount: '-12.505' }),
+    ])
+    await openPage(page, '/transactions')
+
+    const dialog = await openReview(page, 'COUNTDOWN 123 AUCKLAND')
+    await expect(formOf(dialog).merchant).toBeFocused()
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click()
+    await expect(dialog).toBeHidden()
+
+    await openReview(page, 'HARBOUR COFFEE')
+    await expect(formOf(dialog).amount).toBeFocused()
+  })
+
+  test('shows the next item from the top of its form, wherever the last one was scrolled to', async ({ page, request }) => {
+    const { everyday } = await start(page, request)
+    await answerReview(page, [countdown(everyday.id), reviewItem('harbour', 'new', everyday.id, { description: 'HARBOUR COFFEE' })])
+    await openPage(page, '/transactions')
+
+    const dialog = await openReview(page, 'COUNTDOWN 123 AUCKLAND')
+    const form = formOf(dialog)
+    await form.keepOpen.check()
+    await form.amount.scrollIntoViewIfNeeded()
+    await expect(filingCard(page)).not.toBeInViewport()
+    await form.dismiss.click()
+
+    await expect(filingCard(page)).toContainText('HARBOUR COFFEE')
+    await expect(filingCard(page)).toBeInViewport()
+  })
+
+  test('brings the first field Add still needs into view, and focuses it', async ({ page, request }) => {
+    const { everyday } = await start(page, request)
+    await answerReview(page, [countdown(everyday.id)])
+    await openPage(page, '/transactions')
+
+    const dialog = await openReview(page, 'COUNTDOWN 123 AUCKLAND')
+    const form = formOf(dialog)
+    await form.add.click()
+
+    await expect(form.merchant).toBeFocused()
+    await expect(form.merchant).toBeInViewport({ ratio: 1 })
+  })
+
+  test('brings a failed decision’s message into view', async ({ page, request }) => {
+    const { everyday } = await start(page, request)
+    const review = await answerReview(page, [countdown(everyday.id)])
+    await openPage(page, '/transactions')
+
+    const dialog = await openReview(page, 'COUNTDOWN 123 AUCKLAND')
+    review.refusal = { status: 500, detail: 'Something went wrong' }
+    await formOf(dialog).dismiss.click()
+
+    await expect(dialog.getByText('Could not dismiss this item. Please try again.', { exact: true })).toBeInViewport({ ratio: 1 })
+  })
+})
