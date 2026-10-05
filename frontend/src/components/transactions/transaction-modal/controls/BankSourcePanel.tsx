@@ -1,6 +1,6 @@
 import { Landmark } from 'lucide-react'
 
-interface BankSourcePanelProps {
+type BankSourcePanelProps = {
   providerName: string
 
   /** The bank's own description of the transaction, as it last sent it */

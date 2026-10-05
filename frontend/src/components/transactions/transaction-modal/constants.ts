@@ -8,6 +8,10 @@ import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 
 export const EASE = [0.25, 0.1, 0.25, 1] as const
 export const SELECTOR_SPRING = { type: 'spring', stiffness: 420, damping: 36, mass: 0.8 } as const
+
+// The app's ease-out, for a line under a details field opening and closing: the message under the
+// date row and the bank's value under the date or the amount
+export const DETAILS_LINE_TRANSITION = { duration: 0.18, ease: [0.22, 1, 0.36, 1] } as const
 export const DEFAULT_CATEGORY_ICON = '🏷️'
 export const MIN_ADD_TRANSACTION_LOADING_MS = LOADING_ANIMATION_MIN_MS
 export const MIN_BATCH_ADD_TRANSACTION_LOADING_MS = LOADING_ANIMATION_MIN_MS

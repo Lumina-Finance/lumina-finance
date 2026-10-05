@@ -11,6 +11,7 @@ import { DateStepHighlightContext } from '@/components/transactions/transaction-
 import ShortcutHint from '@/components/transactions/transaction-modal/controls/ShortcutHint'
 import ShortcutHints from '@/components/transactions/transaction-modal/controls/ShortcutHints'
 import { toShortcutKeyEvent } from '@/components/transactions/transaction-modal/hooks/useShortcuts'
+import { DETAILS_LINE_TRANSITION } from '@/components/transactions/transaction-modal/constants'
 import {
   getAriaFieldShortcut,
   getDateKeyAction,
@@ -28,9 +29,6 @@ import {
   CURRENCY_LIST_NOTICE,
   type CurrencyListState,
 } from '@/utils/currencyStatus'
-
-// The app's ease-out, for the message under the date row opening and closing
-const SUPPLIED_DAYS_ERROR_TRANSITION = { duration: 0.18, ease: [0.22, 1, 0.36, 1] } as const
 
 interface TransactionDetailsSectionProps {
   date: string
@@ -186,7 +184,7 @@ export default function TransactionDetailsSection({
               initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
-              transition={SUPPLIED_DAYS_ERROR_TRANSITION}
+              transition={DETAILS_LINE_TRANSITION}
             >
               <span className="block pt-3">{suppliedDaysError}</span>
             </motion.p>

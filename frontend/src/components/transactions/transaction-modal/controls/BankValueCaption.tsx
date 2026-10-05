@@ -1,10 +1,8 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { LoaderCircle } from 'lucide-react'
+import { DETAILS_LINE_TRANSITION } from '@/pages/transactions/components/transaction-modal/constants'
 
-// The app's ease-out, for the caption opening and closing
-const CAPTION_TRANSITION = { duration: 0.18, ease: [0.22, 1, 0.36, 1] } as const
-
-interface BankValueCaptionProps {
+type BankValueCaptionProps = {
   /** Names the bank's value, which the restore action is described by, telling the date's from the amount's */
   id: string
 
@@ -50,7 +48,7 @@ export default function TransactionBankValueCaption({
           initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: 'auto' }}
           exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
-          transition={CAPTION_TRANSITION}
+          transition={DETAILS_LINE_TRANSITION}
         >
           <p
             className="flex flex-wrap items-center gap-x-1.5 pt-0.5 text-xs leading-4"

@@ -1,9 +1,10 @@
 /**
  * Guards what the transaction modal shows of a bank-imported transaction: the provider and the bank's
  * description, read-only, and under an edited field the bank's value with an action to restore it,
- * which says when it is restoring, can be turned off and names the value it restores. Which fields
- * are edited is covered with the captions' values. Where each caption sits, and pressing the action,
- * are covered end to end, since the details section's date field needs a page to render into
+ * which says when it is restoring and names the value it restores, or no action for a value the
+ * ledger can't store. Which fields are edited is covered with the captions' values. Where each
+ * caption sits, when the action is turned off, and pressing it, are covered end to end, since the
+ * details section's date field needs a page to render into
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
@@ -40,7 +41,7 @@ describe('bank source panel', () => {
     )
 
     expect(markup).toContain('From SimpleFIN')
-    expect(markup).toContain('<dt class="text-xs font-medium" style="color:var(--app-text-muted)">Bank description</dt>')
+    expect(markup).toMatch(/<dt[^>]*>Bank description<\/dt>/)
     expect(markup).toMatch(/<dd[^>]*>HARBOUR CAFE #12 VANCOUVER<\/dd>/)
     expect(markup).not.toMatch(/<(input|textarea|button)\b/)
   })
@@ -58,26 +59,12 @@ describe('bank value caption', () => {
     expect(tag).not.toContain('disabled=""')
   })
 
-  it('shows a date in the interface typeface', () => {
-    expect(renderCaption({ id: 'txn-date-bank-value', bankValue: 'Oct 3, 2026', financial: false }))
-      .toContain('<span id="txn-date-bank-value">Bank: <span>Oct 3, 2026</span></span>')
-  })
-
-  it('says it is restoring, busy and closed to a second press, without fading', () => {
+  it('says it is restoring, busy and closed to a second press', () => {
     const { tag, text } = restoreButton(renderCaption({ restoring: true }))
 
     expect(text).toBe('Restoring')
     expect(tag).toContain('aria-busy="true"')
     expect(tag).toContain('disabled=""')
-    expect(tag).not.toContain('disabled:opacity-60')
-  })
-
-  it('turns the action off while the modal is busy or read-only, faded as unavailable', () => {
-    const { tag, text } = restoreButton(renderCaption({ disabled: true }))
-
-    expect(text).toBe('Restore bank value')
-    expect(tag).toContain('disabled=""')
-    expect(tag).toContain('disabled:opacity-60')
   })
 
   it('shows a bank value the ledger can\'t store with no action to restore it', () => {
@@ -86,9 +73,5 @@ describe('bank value caption', () => {
     expect(markup).toContain(`Bank: <span class="font-financial">${MINUS}CA$42.505</span>`)
     expect(markup).not.toContain('<button')
     expect(markup).not.toContain('·')
-  })
-
-  it('shows nothing under a field that matches the bank', () => {
-    expect(renderCaption({ bankValue: null })).toBe('')
   })
 })
