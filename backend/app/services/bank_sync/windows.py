@@ -6,7 +6,8 @@ checkpoint was set re-reads the provider's revisit overlap before it, to see wha
 corrected, never before its import start. One request per connection fetches a window from the
 earliest need among the links due, at most as long as the provider allows, for every link whose need
 begins in it, so imports, routine syncs and catch-ups after any gap are one mechanism. Days are
-calendar days in the user's profile timezone
+calendar days in the user's profile timezone. When each link is next due is worked out here for the
+schedule and the planner alike, so the two agree on it
 """
 
 from collections.abc import Iterable
@@ -57,13 +58,30 @@ class SyncWindow:
         return earlier, SyncWindow(middle + _ONE_DAY, self.last_day, self.needs)
 
 
+def next_due_at(link: BankAccountLink, *, now: datetime, timezone: ZoneInfo, overlap_days: int) -> datetime | None:
+    """Return when a link is next due to sync, or None while it can't sync
+
+    A link syncs while it is active and not paused for review, which an import running never is. It
+    is due at its next attempt, or now when none is set, but never before the first day it needs has
+    started in the profile timezone, since a sync can't fetch a day still to come
+
+    Args:
+        link: The link
+        now: The current time
+        timezone: The profile timezone, which days are counted in
+        overlap_days: Days before its checkpoint that a routine sync re-reads
+    """
+    if link.state != BankLinkState.ACTIVE or is_paused_for_review(link):
+        return None
+    return max(link.next_attempt_at or now, _midnight(_need_start(link, timezone, overlap_days), timezone))
+
+
 def find_due_links(links: Iterable[BankAccountLink], *, now: datetime, timezone: ZoneInfo, overlap_days: int) -> list[LinkNeed]:
     """Return the links to sync now, each with the first day it needs
 
-    A link syncs while it is active and not paused for review, which an import running never is,
-    once its next attempt falls within the next 12 hours, and a link with no next attempt set is due
-    now. A link waiting to retry is due only once its retry is, so it isn't fetched ahead of it with
-    links due later today. A link whose need starts after today has nothing to fetch yet
+    A link joins once next_due_at falls within the next 12 hours and the first day it needs has
+    started. A link waiting to retry joins only once its retry is due, so it isn't fetched ahead of
+    it with links due later today
 
     Args:
         links: The connection's links
@@ -74,10 +92,9 @@ def find_due_links(links: Iterable[BankAccountLink], *, now: datetime, timezone:
     today = now.astimezone(timezone).date()
     due = []
     for link in links:
-        if link.state != BankLinkState.ACTIVE or is_paused_for_review(link):
-            continue
+        due_at = next_due_at(link, now=now, timezone=timezone, overlap_days=overlap_days)
         due_by = now if is_waiting_to_retry(link) else now + DUE_WITHIN
-        if link.next_attempt_at is not None and link.next_attempt_at > due_by:
+        if due_at is None or due_at > due_by:
             continue
         start = _need_start(link, timezone, overlap_days)
         if start <= today:

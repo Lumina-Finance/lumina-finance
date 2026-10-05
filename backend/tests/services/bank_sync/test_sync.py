@@ -27,7 +27,8 @@ The daily schedule, and the due scan that queues it, called on its own as a host
 come last. A link synced through today that is fetched again before tomorrow spends a request for
 nothing, one whose next sync is never set stops syncing, and a schedule that counts a paused,
 retrying or unchosen link, or queues a sync before a request frees, sends what the review pause,
-the retry series or the budget holds back
+the retry series or the budget holds back. One that counts a link before the first day it needs has
+started queues syncs that find nothing to fetch
 """
 
 import asyncio
@@ -4324,6 +4325,20 @@ async def test_connections_next_sync_is_now_for_a_link_with_no_next_attempt_and_
     await _schedule_next_sync(connection, frozen_now)
 
     assert await _next_sync(connection) == (None if next_sync is None else frozen_now + next_sync)
+
+
+async def test_connections_next_sync_waits_until_the_first_day_a_link_needs_starts_in_the_owners_timezone(connection, frozen_now):
+    """In Phoenix it's 8 pm on 3 October, and Everyday, with no next attempt set, imports from the 4th
+
+    No sync before midnight there has a day to fetch for Everyday, so the connection next syncs at
+    midnight in Phoenix, not now, and not at midnight in UTC, which has already passed
+    """
+    await _set_owner_timezone(connection, _PHOENIX)
+    await _link(connection, "ACT-everyday", import_start=date(2026, 10, 4), checkpoint=date(2026, 10, 3), importing=True)
+
+    await _schedule_next_sync(connection, frozen_now)
+
+    assert await _next_sync(connection) == datetime(2026, 10, 4, tzinfo=_PHOENIX)
 
 
 @pytest.mark.parametrize(
