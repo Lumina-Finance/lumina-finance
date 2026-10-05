@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { AnimatePresence } from 'motion/react'
 import { Link2, Unlink } from 'lucide-react'
 import type { Account } from '@/api/accounts'
@@ -11,7 +11,7 @@ import LoadingRegion from '@/components/loading/Region'
 import { getFocusableElements } from '@/components/modal/focus'
 import { StepTransition } from '@/components/two-factor/StepTransition'
 import { useAuth } from '@/hooks/useAuth'
-import { useDisabledReason } from '@/hooks/useDisabledReason'
+import { getDisabledControlProps, useDisabledReason } from '@/hooks/useDisabledReason'
 import { ImportProgress } from '@/pages/accounts/detail/components/bank-link/ImportProgress'
 import type { BankSyncLabel } from '@/pages/accounts/detail/components/bank-link/status'
 import { SyncFact } from '@/pages/accounts/detail/components/bank-link/SyncFact'
@@ -28,10 +28,13 @@ const LOADING_OVERLAY_CLASS = 'absolute inset-0 z-10 flex items-center justify-c
 // Long enough for the modal to have opened and put focus in its first field
 const OPENING_FOCUS_DELAY_MS = 260
 
+/** Marks the control the modal focuses as it opens, in place of its first field */
+type InitialFocusProps = { 'data-modal-field-tab-stop'?: 'true'; 'data-modal-initial-focus'?: 'true' }
+
 /**
  * A live link: its facts and status, the import while one runs, and the actions on the link
  */
-function LinkedView({ link, sync, onUnlink }: { link: AccountBankLink; sync: BankSyncLabel; onUnlink: () => void }) {
+function LinkedView({ link, sync, initialFocus, onUnlink }: { link: AccountBankLink; sync: BankSyncLabel; initialFocus: InitialFocusProps; onUnlink: () => void }) {
   const shownImport = useLingeringImport(link.import)
 
   return (
@@ -60,7 +63,7 @@ function LinkedView({ link, sync, onUnlink }: { link: AccountBankLink; sync: Ban
 
       {/* The link's actions, in one row that wraps */}
       <div className="flex flex-wrap items-center gap-2 pt-4">
-        <button type="button" className="app-secondary-button h-9 justify-center whitespace-nowrap px-3.5 text-sm" onClick={onUnlink}>
+        <button type="button" className="app-secondary-button h-9 justify-center whitespace-nowrap px-3.5 text-sm" {...initialFocus} onClick={onUnlink}>
           <Unlink size={14} aria-hidden />
           Unlink
         </button>
@@ -102,8 +105,10 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
   const link = status?.link ?? null
   const previous = status?.previous_link ?? null
   const linkingPaused = providers !== undefined && !providers.sync_running
-  const linkReason = account.is_archived ? ARCHIVED_REASON : linkingPaused ? LINKING_PAUSED_REASON : null
-  const { controlProps, tooltip } = useDisabledReason(linkReason)
+  // Archiving lasts, so its reason sits beside the button. A pause passes, so it waits in a tooltip
+  const archivedReasonId = useId()
+  const { controlProps: pausedProps, tooltip } = useDisabledReason(!account.is_archived && linkingPaused ? LINKING_PAUSED_REASON : null)
+  const controlProps = account.is_archived ? getDisabledControlProps(archivedReasonId) : pausedProps
 
   const openLinkFlow = () => {
     setLinkFlowKey((key) => key + 1)
@@ -112,10 +117,12 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
 
   const viewKey = !ownPersonal ? 'group' : !status ? 'loading' : link ? 'linked' : 'unlinked'
   const contentRef = useRef<HTMLDivElement>(null)
-  const [focusOnShow, setFocusOnShow] = useState(autoFocus)
   const showsControls = viewKey === 'linked' || viewKey === 'unlinked'
+  const initialFocus: InitialFocusProps = autoFocus ? { 'data-modal-field-tab-stop': 'true', 'data-modal-initial-focus': 'true' } : {}
 
-  // Waits for the modal to open and put focus in its first field, then moves it on to this section
+  // The modal focuses the marked control as it opens. One that shows only once the link has loaded
+  // misses that, so it waits for the modal to have opened and put focus in its first field instead
+  const [focusOnShow, setFocusOnShow] = useState(autoFocus && !showsControls)
   useEffect(() => {
     if (!focusOnShow || !showsControls) return undefined
     const timer = window.setTimeout(() => {
@@ -153,10 +160,13 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
                         ? `Previously linked to ${previous.external_account_name} at ${previous.institution_name} through ${previous.provider_name}, until ${formatDate(new Date(previous.unlinked_at), DATE_FORMATS.monthDayYear, user?.tz)}. Reconnecting fetches what the bank reported since then.`
                         : 'Link this account to one of the bank accounts on your connections to bring in its transactions automatically. Everything the bank sends waits for your review before it touches a balance.'}
                     </p>
-                    <button type="button" className="app-primary-button" {...controlProps} onClick={openLinkFlow}>
+                    <button type="button" className="app-primary-button" {...initialFocus} {...controlProps} onClick={openLinkFlow}>
                       <Link2 size={16} aria-hidden />
                       {previous ? 'Reconnect bank account' : 'Link bank account'}
                     </button>
+                    {account.is_archived && (
+                      <p id={archivedReasonId} className="text-sm" style={{ color: 'var(--app-text-muted)' }}>{ARCHIVED_REASON}</p>
+                    )}
                     {tooltip}
                   </div>
                 )}
@@ -164,6 +174,7 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
                   <LinkedView
                     link={link}
                     sync={syncLabel}
+                    initialFocus={initialFocus}
                     onUnlink={() => {
                       setUnlinking(link)
                       setUnlinkOpen(true)
