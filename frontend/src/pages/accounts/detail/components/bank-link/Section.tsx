@@ -191,7 +191,6 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
           key={linkFlowKey}
           open={linkFlowOpen}
           account={account}
-          level="stacked"
           onClose={() => setLinkFlowOpen(false)}
           onExitComplete={restoreLostFocus}
         />

@@ -29,7 +29,6 @@ import {
 import LoadFailure from '@/components/errors/LoadFailure'
 import LoadingRegion from '@/components/loading/Region'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
-import type { ModalLevel } from '@/components/modal/Shell'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { StepTransition } from '@/components/two-factor/StepTransition'
 import { useToast } from '@/hooks/useToast'
@@ -51,9 +50,6 @@ type BankLinkFlowModalProps = {
 
   /** A bank account already chosen in settings, which starts the flow at where history starts */
   chosen?: Omit<BankLinkTarget, 'account'>
-
-  /** Stacked when opened over another modal, page level when opened over the page */
-  level?: ModalLevel
   onClose: () => void
 
   /** Runs when the link is made, before the flow closes */
@@ -71,8 +67,11 @@ type BankLinkFlowModalProps = {
  * again chooses it here, each worded so. Connections themselves are added in settings, since one
  * reaches every bank account the user holds with its provider. Callers remount it with a key for
  * each opening, so a choice never carries over
+ *
+ * It takes the stacked frame wherever it opens. Settings and the edit modal open it over a modal, and
+ * the new account's page over the page itself, and one frame keeps it the same flow from each
  */
-export function BankLinkFlowModal({ open, account, chosen, level = 'page', onClose, onLinked, onExitComplete }: BankLinkFlowModalProps) {
+export function BankLinkFlowModal({ open, account, chosen, onClose, onLinked, onExitComplete }: BankLinkFlowModalProps) {
   const navigate = useNavigate()
   const { showToast } = useToast()
   const { data: status, error: statusError } = useAccountBankStatus(account.id, open)
@@ -162,7 +161,7 @@ export function BankLinkFlowModal({ open, account, chosen, level = 'page', onClo
       eyebrow={LINK_FLOW_STEP_NAMES[step ?? (chosen ? 'start' : 'account')]}
       RailIcon={Landmark}
       railLabel="Bank"
-      level={level}
+      level="stacked"
       closeDisabled={busy}
       onExitComplete={onExitComplete}
       footer={(
@@ -173,7 +172,7 @@ export function BankLinkFlowModal({ open, account, chosen, level = 'page', onClo
           submitReason={step === 'start' && linkingPaused ? LINKING_PAUSED_REASON : null}
           submitWidthClassName="w-full sm:w-40"
           error={error}
-          level={level}
+          level="stacked"
           onCancel={backsToAccount ? () => goTo('account') : onClose}
           cancelLabel={backsToAccount ? 'Back' : 'Cancel'}
           onPrimary={primary.onPrimary}

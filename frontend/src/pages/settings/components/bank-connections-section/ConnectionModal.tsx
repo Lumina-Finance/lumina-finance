@@ -325,7 +325,6 @@ export function ConnectionModal({ open, connection, accountNameFor, onReconnect,
           open={linkFlowOpen}
           account={linkTarget.account}
           chosen={linkTarget}
-          level="stacked"
           onLinked={() => markLinked(linkTarget.bankAccount.external_id)}
           onClose={() => setLinkFlowOpen(false)}
         />
