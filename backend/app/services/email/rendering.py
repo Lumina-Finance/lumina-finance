@@ -1,5 +1,6 @@
 """Email template rendering"""
 
+from collections.abc import Sequence
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -45,3 +46,21 @@ def render_signup_confirmation_email(confirm_link: str, expiry_hours: int) -> Re
     html_body = _environment.get_template("signup_confirmation.html").render(context)
     text_body = _environment.get_template("signup_confirmation.txt").render(context)
     return RenderedEmail(subject=_SIGNUP_CONFIRMATION_SUBJECT, text_body=text_body, html_body=html_body)
+
+
+def render_action_needed_email(subject: str, lead: str, accounts: Sequence[str], closing: str) -> RenderedEmail:
+    """Render an email saying what only the user can do for bank sync to resume, with its HTML and plain-text parts
+
+    Args:
+        subject: The subject line
+        lead: The opening, saying what happened
+        accounts: The names of the accounts it affects, listed after the opening
+        closing: What to do, or what happens next
+
+    Returns:
+        The rendered subject and both body parts
+    """
+    context = {"app_name": EMAIL_SENDER_NAME, "lead": lead, "accounts": accounts, "closing": closing}
+    html_body = _environment.get_template("bank_sync_action_needed.html").render(context)
+    text_body = _environment.get_template("bank_sync_action_needed.txt").render(context)
+    return RenderedEmail(subject=subject, text_body=text_body, html_body=html_body)

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<p style="margin:0">{{ lead }}</p>
+{% if accounts %}
+<ul style="margin:16px 0 0;padding-left:20px">
+  {% for account in accounts %}<li>{{ account }}</li>{% endfor %}
+</ul>
+{% endif %}
+<p style="margin:16px 0 0">{{ closing }}</p>
+{% endblock %}

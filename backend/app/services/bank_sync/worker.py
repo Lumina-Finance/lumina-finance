@@ -10,6 +10,7 @@ import asyncio
 import contextlib
 import functools
 import logging
+import signal
 import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
@@ -35,6 +36,7 @@ from app.services.bank_sync.jobs import (
 )
 from app.services.bank_sync.providers.contract import ProviderError
 from app.services.bank_sync.sync import fail_sync_job, run_sync_job
+from app.services.email import build_email_sender, set_email_sender
 
 logger = logging.getLogger(__name__)
 
@@ -168,23 +170,37 @@ async def run_worker() -> None:
 
     Waits until the database is reachable and migrated, then scans for due work every 5 minutes
     while BANK_SYNC_WORKER_CONCURRENCY runners claim and run jobs. The claim never hands two
-    runners jobs for one connection
+    runners jobs for one connection. On SIGTERM or SIGINT it claims no more jobs, lets each job
+    already running finish, which its time limit bounds, and returns. Jobs send their action-needed emails through the sender
+    EMAIL_BACKEND names, as the app sends its own
 
     Raises:
-        RuntimeError: Jobs would run as a role row-level security doesn't constrain, or the
-            encryption key isn't the one the stored secrets are under
+        RuntimeError: Jobs would run as a role row-level security doesn't constrain, the
+            encryption key isn't the one the stored secrets are under, or EMAIL_BACKEND names an
+            unknown backend
     """
     warn_if_test_origin_set()
+    set_email_sender(build_email_sender())
     await _wait_for_database()
     await verify_app_role_is_unprivileged()
     async with engine.connect() as connection:
         await verify_key_matches_data(connection)
 
+    # Installed once the start-up checks have passed, since a stop before then has no job to protect
+    stopping = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for stop_signal in (signal.SIGTERM, signal.SIGINT):
+        loop.add_signal_handler(stop_signal, stopping.set)
+
     logger.info("Bank sync worker started, running up to %d jobs at once", BANK_SYNC_WORKER_CONCURRENCY)
-    async with asyncio.TaskGroup() as runners:
-        runners.create_task(_scan_for_due_work())
-        for _ in range(BANK_SYNC_WORKER_CONCURRENCY):
-            runners.create_task(_run_jobs_in_turn())
+    try:
+        async with asyncio.TaskGroup() as runners:
+            runners.create_task(_scan_for_due_work(stopping))
+            for _ in range(BANK_SYNC_WORKER_CONCURRENCY):
+                runners.create_task(_run_jobs_in_turn(stopping))
+    finally:
+        await engine.dispose()
+    logger.info("Bank sync worker stopped")
 
 
 async def is_database_migrated(connection: AsyncConnection) -> bool:
@@ -225,21 +241,31 @@ async def _wait_for_database() -> None:
         await asyncio.sleep(_START_RETRY_INTERVAL.total_seconds())
 
 
-async def _scan_for_due_work() -> None:
-    """Scan for due work now and every 5 minutes after, carrying on past a scan that fails"""
-    while True:
+async def _sleep_unless_stopping(stopping: asyncio.Event, interval: timedelta) -> None:
+    """Wait out the interval, or return as soon as the worker is asked to stop"""
+    with contextlib.suppress(TimeoutError):
+        await asyncio.wait_for(stopping.wait(), interval.total_seconds())
+
+
+async def _scan_for_due_work(stopping: asyncio.Event) -> None:
+    """Scan for due work now and every 5 minutes after, carrying on past a scan that fails, until asked to stop"""
+    while not stopping.is_set():
         try:
             await enqueue_due_work()
         except Exception:
             # Best effort: the next scan finds the same connections due, and a worker that keeps
             # failing shows as sync not running once the heartbeat goes stale
             logger.exception("Scanning for due bank syncs failed")
-        await asyncio.sleep(_SCAN_INTERVAL.total_seconds())
+        await _sleep_unless_stopping(stopping, _SCAN_INTERVAL)
 
 
-async def _run_jobs_in_turn() -> None:
-    """Run due jobs one after another, checking again every 5 seconds while none is due"""
-    while True:
+async def _run_jobs_in_turn(stopping: asyncio.Event) -> None:
+    """Run due jobs one after another, checking again every 5 seconds while none is due
+
+    Once asked to stop it claims no more jobs, and the job it is running finishes first, within its
+    time limit
+    """
+    while not stopping.is_set():
         try:
             ran = await run_jobs(1)
         except Exception:
@@ -248,4 +274,4 @@ async def _run_jobs_in_turn() -> None:
             logger.exception("Claiming a bank sync job failed")
             ran = 0
         if not ran:
-            await asyncio.sleep(_CLAIM_INTERVAL.total_seconds())
+            await _sleep_unless_stopping(stopping, _CLAIM_INTERVAL)

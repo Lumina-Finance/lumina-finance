@@ -30,7 +30,11 @@ pending items it replaces, then the owner's cache row. The request
 counts and the budget-spent mark lock only the connection and are written outside the job's fence,
 since they record requests already sent, whoever holds the job. An answer to a request sent with a
 credential the connection no longer holds is dropped whole, budget-spent mark included, and the job
-ends without it. Nothing here marks a credential rejected
+ends without it
+
+A job ending on a rejected credential marks the connection Reconnect needed as it ends, which emails
+its owner once, as the action_needed module describes. The emails a job's saves record go out once
+its last save is done, so a send that hangs can't hold up the sync or see it fail
 """
 
 import logging
@@ -48,6 +52,7 @@ from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankExternalAccount, BankLinkState, ProviderRequestPurpose
 from app.models.bank_sync_job import BankSyncJob, ProviderErrorKind
 from app.models.user import User
+from app.services.bank_sync.action_needed import ActionEmail, flag_rejected_credential, send_action_emails
 from app.services.bank_sync.availability import ENABLED_ADAPTERS, PROVIDER_ADAPTERS
 from app.services.bank_sync.discovery import apply_discovery
 from app.services.bank_sync.ingestion import store_booked_records
@@ -94,7 +99,8 @@ async def run_sync_job(job: ClaimedJob) -> None:
     row-level security as that user. A rejected credential can't work until the user reconnects, so
     nothing is sent with it. A job that met an answer to a credential since replaced ends there,
     neither failed nor queued again, so whatever replaces a connection's credential has to queue the
-    connection's next sync itself
+    connection's next sync itself. The action-needed emails its saves recorded are sent last, even
+    when a later step raised
 
     Args:
         job: The job as claimed
@@ -112,18 +118,25 @@ async def run_sync_job(job: ClaimedJob) -> None:
         timezone = resolve_timezone(await db.scalar(select(User.tz).where(User.id == job.owner_id)))
         currency_exponents = await get_all_currency_exponents(db)
 
-    adapter = ENABLED_ADAPTERS.get(connection.provider)
-    if adapter is None:
-        provider_name = PROVIDER_ADAPTERS[connection.provider].provider_name
-        await _end_job(job, ProviderError(ProviderErrorKind.UNKNOWN, f"{provider_name} is turned off on this server"), started_at=now)
-    elif connection.credential_rejected_at is not None:
-        await _end_job(job, started_at=now)
-    else:
-        run = _JobRun(job, connection, adapter, deferred=deferred, timezone=timezone, currency_exponents=currency_exponents, now=now)
-        try:
-            await run.run()
-        except _CredentialReplaced:
-            await _end_job(job, started_at=now)
+    outbox: list[ActionEmail] = []
+    try:
+        adapter = ENABLED_ADAPTERS.get(connection.provider)
+        if adapter is None:
+            provider_name = PROVIDER_ADAPTERS[connection.provider].provider_name
+            error = ProviderError(ProviderErrorKind.UNKNOWN, f"{provider_name} is turned off on this server")
+            outbox += await _end_job(job, error, started_at=now)
+        elif connection.credential_rejected_at is not None:
+            outbox += await _end_job(job, started_at=now)
+        else:
+            run = _JobRun(
+                job, connection, adapter, outbox=outbox, deferred=deferred, timezone=timezone, currency_exponents=currency_exponents, now=now
+            )
+            try:
+                await run.run()
+            except _CredentialReplaced:
+                outbox += await _end_job(job, started_at=now)
+    finally:
+        await send_action_emails(outbox)
 
 
 async def fail_sync_job(job: ClaimedJob, error: ProviderError, *, started_at: datetime) -> None:
@@ -146,7 +159,9 @@ async def fail_sync_job(job: ClaimedJob, error: ProviderError, *, started_at: da
         covered = await db.scalar(select(BankSyncJob.covered_link_ids).where(BankSyncJob.id == job.id))
         links = (await db.scalars(select(BankAccountLink).where(BankAccountLink.id.in_(covered or ())))).all()
     failed_already = {link.id for link in links if link.last_failure_reason is not None and link.last_attempt_at >= started_at}
-    await _end_job(job, error, failed=[link for link in links if link.id not in failed_already], started_at=started_at)
+    await send_action_emails(
+        await _end_job(job, error, failed=[link for link in links if link.id not in failed_already], started_at=started_at)
+    )
 
 
 class _JobRun:
@@ -158,15 +173,19 @@ class _JobRun:
         connection: BankConnection,
         adapter: ProviderAdapter,
         *,
+        outbox: list[ActionEmail],
         deferred: Collection[uuid.UUID],
         timezone: ZoneInfo,
         currency_exponents: Mapping[str, int],
         now: datetime,
     ) -> None:
-        """Hold the job, its connection as read, its provider, the links it plans last, and the time it started"""
+        """Hold the job, its connection as read, its provider, where its emails go, the links it plans last, and the time it started"""
         self.job = job
         self.connection = connection
         self.adapter = adapter
+
+        # The action-needed emails of each save once it commits, which the caller sends as the job ends
+        self.outbox = outbox
         self.timezone = timezone
         self.currency_exponents = currency_exponents
         self.now = now
@@ -308,7 +327,7 @@ class _JobRun:
             await db.commit()
         if result.request_error is not None:
             due = [need.link for need in self._due(links)]
-            await self._stop_for(result.request_error, discover=self.job.discover, attempted=due, sent_at=sent_at)
+            await self._stop_for(result.request_error, sent_with=credential, discover=self.job.discover, attempted=due, sent_at=sent_at)
             return False
         self.listed = True
         return True
@@ -497,20 +516,21 @@ class _JobRun:
         self,
         error: ProviderError,
         *,
-        sent_with: str | None = None,
+        sent_with: str,
         discover: bool = False,
         attempted: Sequence[BankAccountLink] = (),
         sent_at: datetime | None = None,
     ) -> None:
         """End the job on a request that failed, queueing it again for when the budget frees if the provider asked to slow down
 
-        A slow-down was checked against a replaced credential as the budget was marked spent, and a
-        failed listing as it was stored, so only a fetch's other failures still need checking. A
-        slow-down is no attempt, so only another failure is recorded on the links
+        A slow-down was checked against a replaced credential as the budget was marked spent. Any
+        other failure is checked again as the job ends, a failed listing too, since a reconnect can
+        commit after the listing was stored, and a rejection of the credential it replaced must not
+        mark the connection. A slow-down is no attempt, so only another failure is recorded on the links
 
         Args:
             error: Why the request failed
-            sent_with: The credential a fetch went out with, or None when the answer was already checked
+            sent_with: The credential the request went out with
             discover: Whether the job queued again lists the bank accounts first
             attempted: The links the request was for, which failed with it
             sent_at: When the request was sent
@@ -552,7 +572,7 @@ class _JobRun:
             retry_overdue: Whether the job left a link whose retry was due
         """
         relist = self.relist and (error is None or error.kind != ProviderErrorKind.CREDENTIAL_REJECTED)
-        await _end_job(
+        self.outbox += await _end_job(
             self.job,
             error,
             again=again or relist,
@@ -652,11 +672,13 @@ async def _end_job(
     attempted_at: datetime | None = None,
     retry_overdue: bool = False,
     started_at: datetime,
-) -> None:
+) -> list[ActionEmail]:
     """Record a job as finished, or failed with an error, and queue the connection's next job in the same step when asked
 
     The error is recorded as a failed attempt on the links it failed for, and the connection's next
-    retry is queued. The owner's open pages are told, since the sync status changes with it
+    retry is queued. A rejected credential marks the connection Reconnect needed, since the request
+    was checked against the credential the connection holds. The owner's open pages are told, since
+    the sync status changes with it
 
     Args:
         job: The job as claimed
@@ -671,6 +693,9 @@ async def _end_job(
         retry_overdue: Whether the job left a link whose retry was due
         started_at: When the job's attempt started, which it found the links due at
 
+    Returns:
+        The action-needed emails the step recorded, to send once the job's last step is done
+
     Raises:
         JobNotHeld: A later attempt holds the job, so nothing was written
         _CredentialReplaced: The connection no longer holds the credential the request went out
@@ -681,6 +706,9 @@ async def _end_job(
         now = datetime.now(UTC)
         for link in held:
             record_failed_attempt(link, error, at=attempted_at or now)
+        emails = []
+        if error is not None and error.kind == ProviderErrorKind.CREDENTIAL_REJECTED:
+            emails = await flag_rejected_credential(db, connection, at=attempted_at or now, now=now)
         if again:
             await enqueue_bank_sync_job(
                 db,
@@ -695,3 +723,4 @@ async def _end_job(
         await finish_job(db, job, error)
         await mark_user_cache_changed(db, job.owner_id)
         await db.commit()
+    return emails

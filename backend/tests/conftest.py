@@ -2,7 +2,7 @@ import logging
 import os
 from collections.abc import AsyncIterator, Callable, Iterator
 from datetime import datetime
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from uuid import uuid4
 
 import httpx
@@ -21,7 +21,9 @@ from app.db.rls import apply_rls
 from app.models import import_all_models
 from app.models.base import Base
 from app.request_hook import RequestRecord, observe_requests
+from app.services.bank_sync import action_needed
 from app.services.categories.defaults import seed_system_categories
+from app.services.email import RenderedEmail
 from app.services.merchants.defaults import seed_system_merchants
 from app.valkey_store import ValkeyStore, use_valkey
 from tests.fake_simplefin_bridge import FakeBridgeTransport
@@ -219,3 +221,15 @@ async def scenario() -> AsyncIterator[FakeBridgeScenario]:
     """An empty scenario on the in-process fake SimpleFIN Bridge, reached at SimpleFIN Bridge's own origin"""
     async with httpx.AsyncClient(transport=FakeBridgeTransport(), base_url=SIMPLEFIN_BRIDGE_ORIGIN) as control:
         yield await FakeBridgeScenario.create(control)
+
+
+@pytest.fixture
+def sent_action_emails(monkeypatch) -> list[tuple[str, str, str]]:
+    """Each action-needed email bank sync sends, as its recipient, subject and text, recorded in place of the configured sender"""
+    sent = []
+
+    async def record(recipient: str, message: RenderedEmail) -> None:
+        sent.append((recipient, message.subject, message.text_body))
+
+    monkeypatch.setattr(action_needed, "get_email_sender", lambda: SimpleNamespace(send=record))
+    return sent
