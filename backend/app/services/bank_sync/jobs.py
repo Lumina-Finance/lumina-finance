@@ -1,11 +1,11 @@
 """Bank sync jobs: queueing, claiming, and the fence around a job's finishing step"""
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import case, func, select, text, update
+from sqlalchemy import case, func, literal_column, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -52,13 +52,14 @@ async def enqueue_bank_sync_job(
     kind: BankSyncJobKind,
     discover: bool = False,
     run_after: datetime | None = None,
+    deferred_link_ids: Collection[uuid.UUID] = (),
 ) -> None:
     """Queue a sync of a connection, merging into the job already queued for it
 
     A connection has at most one queued job. New work for it merges in: the higher-priority kind
-    wins, a request to rediscover the bank accounts is kept once either asks, and the job runs at
-    the earlier of the two times. A running job is left alone, so the queued one runs after it.
-    The caller commits
+    wins, a request to rediscover the bank accounts is kept once either asks, a link either plans
+    last stays last, and the job runs at the earlier of the two times. A running job is left alone,
+    so the queued one runs after it. The caller commits
 
     Args:
         db: Session of the connection's owner
@@ -67,6 +68,8 @@ async def enqueue_bank_sync_job(
         kind: Why the sync is wanted
         discover: Whether to list the connection's bank accounts again first
         run_after: When the job may run, or now when not given
+        deferred_link_ids: The links to sync only once no other link is due, since a job just
+            failed to bring them back whole
     """
     queued = insert(BankSyncJob).values(
         owner_id=owner_id,
@@ -75,6 +78,7 @@ async def enqueue_bank_sync_job(
         discover=discover,
         status=BankSyncJobStatus.QUEUED,
         run_after=run_after if run_after is not None else func.now(),
+        deferred_link_ids=list(deferred_link_ids),
     )
     await db.execute(
         queued.on_conflict_do_update(
@@ -88,6 +92,10 @@ async def enqueue_bank_sync_job(
                 ),
                 "discover": BankSyncJob.discover | queued.excluded.discover,
                 "run_after": func.least(BankSyncJob.run_after, queued.excluded.run_after),
+                # Each link once, whichever job deferred it
+                "deferred_link_ids": literal_column(
+                    "ARRAY(SELECT DISTINCT unnest(bank_sync_jobs.deferred_link_ids || excluded.deferred_link_ids))"
+                ),
             },
         )
     )

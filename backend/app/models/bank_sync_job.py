@@ -118,6 +118,11 @@ class BankSyncJob(Base):
     # The links the job syncs, recorded once it runs so their status can say a sync is under way
     covered_link_ids: Mapped[list[uuid.UUID] | None] = mapped_column(ARRAY(Uuid))
 
+    # The links an earlier job of the connection couldn't bring back whole, which this one plans
+    # only once no other link is due, so a link failing on every request doesn't take each request
+    # the budget frees ahead of links that can progress
+    deferred_link_ids: Mapped[list[uuid.UUID]] = mapped_column(ARRAY(Uuid), nullable=False, default=list, server_default="{}")
+
     # The kind of the last failure the provider adapter reported
     last_error_kind: Mapped[str | None] = mapped_column(VARCHAR(32))
 

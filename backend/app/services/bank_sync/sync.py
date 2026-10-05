@@ -5,7 +5,10 @@ is over 20 hours old, so a daily sync shows a bank added at the provider and sto
 account that vanished before the window is planned. A window whose response may have been cut short
 is fetched again in halves. Each request is counted against the connection's budget in a
 transaction of its own before it is sent, and a job that finds the budget spent queues itself again
-for when a request frees. A job holds no database connection while it waits on the provider
+for when a request frees. A link whose fetch failed is left out of the rest of the job, and the job
+it queues plans it only once no other link is due, so a link failing on every request can't take
+each request that frees ahead of links that can progress. A job holds no database connection while
+it waits on the provider
 
 What a job stores, its checkpoints, discoveries and its own end, goes through lock_job_for_finish,
 so a runner that lost its lease stores nothing and a link that changed while the job fetched gets
@@ -18,8 +21,7 @@ the job ends without it. Nothing here marks a credential rejected
 
 import logging
 import uuid
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Collection, Mapping, Sequence
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -42,7 +44,7 @@ from app.services.bank_sync.provider_requests import (
     reserve_provider_request,
 )
 from app.services.bank_sync.providers.contract import FetchResult, ProviderAdapter, ProviderError
-from app.services.bank_sync.windows import SyncWindow, find_due_links, first_missing_day, plan_window
+from app.services.bank_sync.windows import LinkNeed, SyncWindow, find_due_links, first_missing_day, plan_window
 from app.services.cache_state.updates import mark_user_cache_changed
 from app.services.fx.currency_exponent_helpers import get_all_currency_exponents
 from app.utils.dates import resolve_timezone
@@ -82,6 +84,7 @@ async def run_sync_job(job: ClaimedJob) -> None:
         connection = await db.get(BankConnection, job.connection_id)
         if connection is None:
             raise JobNotHeld(f"Bank sync job {job.id}'s connection was deleted")
+        deferred = await db.scalar(select(BankSyncJob.deferred_link_ids).where(BankSyncJob.id == job.id))
         timezone = resolve_timezone(await db.scalar(select(User.tz).where(User.id == job.owner_id)))
         currency_exponents = await get_all_currency_exponents(db)
 
@@ -92,25 +95,15 @@ async def run_sync_job(job: ClaimedJob) -> None:
     elif connection.credential_rejected_at is not None:
         await _end_job(job)
     else:
+        run = _JobRun(job, connection, adapter, deferred=deferred, timezone=timezone, currency_exponents=currency_exponents, now=now)
         try:
-            await _JobRun(job, connection, adapter, timezone=timezone, currency_exponents=currency_exponents, now=now).run()
+            await run.run()
         except _CredentialReplaced:
             await _end_job(job)
 
 
-@dataclass(frozen=True)
-class _Fetched:
-    """What fetching one window did"""
-
-    # Whether the last part written moved a checkpoint, which ends where the window does
-    moved: bool
-
-    # The links a part didn't bring back whole
-    failed: set[uuid.UUID]
-
-
 class _JobRun:
-    """One attempt at a job, with what it read as it started"""
+    """One attempt at a job, with what it read as it started and the links it found failing"""
 
     def __init__(
         self,
@@ -118,11 +111,12 @@ class _JobRun:
         connection: BankConnection,
         adapter: ProviderAdapter,
         *,
+        deferred: Collection[uuid.UUID],
         timezone: ZoneInfo,
         currency_exponents: Mapping[str, int],
         now: datetime,
     ) -> None:
-        """Hold the job, its connection as read and its provider, and the time it started"""
+        """Hold the job, its connection as read, its provider, the links it plans last, and the time it started"""
         self.job = job
         self.connection = connection
         self.adapter = adapter
@@ -131,13 +125,20 @@ class _JobRun:
         self.now = now
         self.today: date = now.astimezone(timezone).date()
 
+        # The links a part of this job didn't bring back whole, left out of the rest of it
+        self.failed: set[uuid.UUID] = set()
+
+        # The links an earlier job couldn't bring back whole and this one hasn't yet, planned only
+        # once no other link is due
+        self.deferred: set[uuid.UUID] = set(deferred)
+
     async def run(self) -> None:
         """List the connection's bank accounts if due, fetch windows for its due links, and record the job as finished
 
         A link whose fetch failed is left out of the rest of the job, so one failing on every request
         can't hold up the others: a window that ends before today and moves no checkpoint is followed
         in the same job by the next window the remaining links need. Retrying the failed link waits
-        for a later job
+        for a later job, which plans it once no other link is due
 
         Raises:
             _CredentialReplaced: An answer came back for a credential since replaced, and nothing of
@@ -149,31 +150,32 @@ class _JobRun:
                 return
             links = await self._read_links()
 
-        failed: set[uuid.UUID] = set()
         covered: set[uuid.UUID] = set()
         while True:
-            needs = find_due_links(links, now=self.now, timezone=self.timezone, overlap_days=self.adapter.revisit_overlap_days)
-            window = plan_window(
-                [need for need in needs if need.link.id not in failed],
-                today=self.today,
-                timezone=self.timezone,
-                max_days=self.adapter.max_window_days,
-            )
+            due = [
+                need
+                for need in find_due_links(links, now=self.now, timezone=self.timezone, overlap_days=self.adapter.revisit_overlap_days)
+                if need.link.id not in self.failed
+            ]
+            window = self._plan([need for need in due if need.link.id not in self.deferred]) or self._plan(due)
             if window is None:
-                await _end_job(self.job)
+                await self._end()
                 return
             covered |= {need.link.id for need in window.needs}
             await self._record_covered_links(covered)
 
-            fetched = await self._fetch(window)
-            if fetched is None:
+            moved = await self._fetch(window)
+            if moved is None:
                 return
-            if window.last_day == self.today or fetched.moved:
+            if window.last_day == self.today or moved:
                 # The last part written ends where the window does, so a link it moved is synced through the window
-                await _end_job(self.job, again=fetched.moved and window.last_day < self.today)
+                await self._end(again=moved and window.last_day < self.today)
                 return
-            failed |= fetched.failed
             links = await self._read_links()
+
+    def _plan(self, needs: list[LinkNeed]) -> SyncWindow | None:
+        """Return the window to fetch next for these links, or None when none of them is due"""
+        return plan_window(needs, today=self.today, timezone=self.timezone, max_days=self.adapter.max_window_days)
 
     async def _read_links(self) -> list[BankAccountLink]:
         """Return every link on the connection, as committed now"""
@@ -205,7 +207,7 @@ class _JobRun:
         try:
             sent_at, credential = await self._count_request(ProviderRequestPurpose.DISCOVERY)
         except RequestBudgetSpent as spent:
-            await _end_job(self.job, again=True, run_after=spent.available_again_at, discover=self.job.discover)
+            await self._end(again=True, run_after=spent.available_again_at, discover=self.job.discover)
             return False
 
         result = await self.adapter.discover(credential, currency_exponents=self.currency_exponents)
@@ -226,8 +228,8 @@ class _JobRun:
             await mark_user_cache_changed(db, self.job.owner_id)
             await db.commit()
 
-    async def _fetch(self, window: SyncWindow) -> _Fetched | None:
-        """Fetch the window and write what it found
+    async def _fetch(self, window: SyncWindow) -> bool | None:
+        """Fetch the window and write what it found, noting each link a part didn't bring back whole
 
         SimpleFIN has no paging, so a response that may have been cut short is set aside and its days
         fetched again in halves, down to a single day, which is kept however long. Parts are written
@@ -235,11 +237,11 @@ class _JobRun:
         failed keep their progress
 
         Returns:
-            What the window moved and which links failed, or None when the job ended instead
+            Whether the last part written, which ends where the window does, moved a checkpoint, or
+            None when the job ended instead
         """
         parts = [window]
         moved = False
-        failed: set[uuid.UUID] = set()
         while parts:
             part = parts.pop()
             answered = await self._fetch_part(part)
@@ -253,9 +255,13 @@ class _JobRun:
             if result.possibly_cut_off:
                 logger.warning("Bank sync job %s kept %s whole, though its response may have been cut short", self.job.id, part.first_day)
             synced = _synced_bank_accounts(result)
-            failed |= {need.link.id for need in part.needs if need.link.external_account_id not in synced}
+            for need in part.needs:
+                if need.link.external_account_id in synced:
+                    self.deferred.discard(need.link.id)
+                else:
+                    self.failed.add(need.link.id)
             moved = await self._write(part, synced, sent_with=credential)
-        return _Fetched(moved=moved, failed=failed)
+        return moved
 
     async def _fetch_part(self, part: SyncWindow) -> tuple[FetchResult, str] | None:
         """Count and send one request for a part of the window
@@ -267,7 +273,7 @@ class _JobRun:
         try:
             _, credential = await self._count_request(ProviderRequestPurpose.SYNC)
         except RequestBudgetSpent as spent:
-            await _end_job(self.job, again=True, run_after=spent.available_again_at)
+            await self._end(again=True, run_after=spent.available_again_at)
             return None
 
         start, end = part.bounds(self.timezone)
@@ -356,12 +362,40 @@ class _JobRun:
             discover: Whether the job queued again lists the bank accounts first
         """
         if error.kind != ProviderErrorKind.RATE_LIMITED:
-            await _end_job(self.job, error, sent_with=sent_with)
+            await self._end(error, sent_with=sent_with)
             return
         async with async_session() as db:
             connection = await db.get(BankConnection, self.connection.id)
             budget = await read_request_budget(db, connection, now=datetime.now(UTC))
-        await _end_job(self.job, again=True, run_after=budget.available_again_at, discover=discover, sent_with=sent_with)
+        await self._end(again=True, run_after=budget.available_again_at, discover=discover, sent_with=sent_with)
+
+    async def _end(
+        self,
+        error: ProviderError | None = None,
+        *,
+        again: bool = False,
+        run_after: datetime | None = None,
+        discover: bool = False,
+        sent_with: str | None = None,
+    ) -> None:
+        """Record the job as finished or failed, and queue the next one when asked, planning last the links this one found failing
+
+        Args:
+            error: What stopped the job, or None when it did all it could
+            again: Whether to queue another job of the same kind
+            run_after: When that job may run, or at once when not given
+            discover: Whether that job lists the bank accounts first
+            sent_with: The credential of the request whose answer ends the job, or None when none does
+        """
+        await _end_job(
+            self.job,
+            error,
+            again=again,
+            run_after=run_after,
+            discover=discover,
+            deferred=self.failed | self.deferred,
+            sent_with=sent_with,
+        )
 
 
 async def _hold_for_finish(
@@ -429,6 +463,7 @@ async def _end_job(
     again: bool = False,
     run_after: datetime | None = None,
     discover: bool = False,
+    deferred: Collection[uuid.UUID] = (),
     sent_with: str | None = None,
 ) -> None:
     """Record a job as finished, or failed with an error, and queue the connection's next job in the same step when asked
@@ -441,6 +476,7 @@ async def _end_job(
         again: Whether to queue another job of the same kind, which merges into one already queued
         run_after: When that job may run, or at once when not given
         discover: Whether that job lists the bank accounts first
+        deferred: The links that job plans only once no other link is due
         sent_with: The credential of the request whose answer ends the job, or None when none does
 
     Raises:
@@ -452,7 +488,13 @@ async def _end_job(
         await _hold_for_finish(db, job, sent_with=sent_with)
         if again:
             await enqueue_bank_sync_job(
-                db, owner_id=job.owner_id, connection_id=job.connection_id, kind=job.kind, discover=discover, run_after=run_after
+                db,
+                owner_id=job.owner_id,
+                connection_id=job.connection_id,
+                kind=job.kind,
+                discover=discover,
+                run_after=run_after,
+                deferred_link_ids=deferred,
             )
         await finish_job(db, job, error)
         await mark_user_cache_changed(db, job.owner_id)

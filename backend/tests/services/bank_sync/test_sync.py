@@ -4,10 +4,11 @@ Jobs run through the worker's run_jobs, as their owner under row-level security,
 provider. A checkpoint moved for days a response didn't bring back whole hides that gap for good, a
 long import that stops after its first window leaves months missing, a job that keeps sending once
 the request budget is spent can get the user's SimpleFIN token disabled, and a link failing on every
-request that holds up the others stalls their imports. A job that skips its listing leaves new bank
-accounts unlisted and vanished ones syncing, and one that stores what it found after losing its
-lease, for a link unlinked mid-fetch, or from a request sent with a credential replaced mid-flight
-overwrites what the user, a reconnect or a later attempt did
+request that holds up the others, or takes each request that frees ahead of them, stalls their
+imports. A job that skips its listing leaves new bank accounts unlisted and vanished ones syncing,
+and one that stores what it found after losing its lease, for a link unlinked mid-fetch, or from a
+request sent with a credential replaced mid-flight overwrites what the user, a reconnect or a later
+attempt did
 """
 
 import asyncio
@@ -17,7 +18,7 @@ from typing import override
 from zoneinfo import ZoneInfo
 
 import pytest
-from sqlalchemy import delete, select, text, update
+from sqlalchemy import delete, func, select, text, update
 
 from app.encryption import encrypt
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState, BankProvider, BankProviderRequest, ProviderRequestPurpose
@@ -202,6 +203,21 @@ async def _free_requests(connection: BankConnection) -> None:
         await session.commit()
 
 
+async def _free_oldest_request(connection: BankConnection) -> None:
+    """Let the connection's oldest request leave the rolling day, and its queued job run, as when that request frees"""
+    async with TestSession() as session:
+        oldest = await session.scalar(
+            select(func.min(BankProviderRequest.requested_at)).where(BankProviderRequest.connection_id == connection.id)
+        )
+        await session.execute(
+            delete(BankProviderRequest).where(BankProviderRequest.connection_id == connection.id, BankProviderRequest.requested_at == oldest)
+        )
+        await session.execute(
+            update(BankSyncJob).where(BankSyncJob.status == "queued").values(run_after=datetime.now(UTC) - timedelta(minutes=1))
+        )
+        await session.commit()
+
+
 async def _replace_credential(connection: BankConnection) -> None:
     """Commit a new credential for the connection, as reconnecting it does"""
     async with TestSession() as session:
@@ -369,6 +385,48 @@ async def test_job_carries_an_import_past_a_link_that_fails_on_every_request(con
         _window(date(2026, 9, 28), _TODAY, ["ACT-everyday"], pending=True),
     ]
     assert await _checkpoints(everyday, card) == [_TODAY, date(2025, 12, 31)]
+
+
+async def test_job_spends_a_request_that_frees_on_a_link_that_can_progress_before_one_that_just_failed(connection, monkeypatch, frozen_now):
+    """Everyday and Card import from 1 January with one request left in the budget, and Card's bank login needs a sign-in
+
+    The first window moves Everyday and fails Card, the job queued after it finds no request left,
+    and the request that frees next fetches Everyday's following window rather than Card's again
+    """
+    everyday = await _link(connection, "ACT-everyday", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    card = await _link(connection, "ACT-card", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    await _spend_requests(connection, _DAILY_REQUESTS - 1, frozen_now - timedelta(hours=20))
+    provider = _CardFailingProvider()
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    assert await run_jobs(1) == 1
+    assert await run_jobs(1) == 1
+    await _free_oldest_request(connection)
+    assert await run_jobs(1) == 1
+
+    assert _fetched(provider) == [
+        _window(date(2026, 1, 1), date(2026, 3, 31), ["ACT-card", "ACT-everyday"]),
+        _window(date(2026, 4, 1), date(2026, 6, 29), ["ACT-everyday"]),
+    ]
+    assert await _checkpoints(everyday, card) == [date(2026, 6, 29), date(2025, 12, 31)]
+
+
+async def test_job_plans_a_link_an_earlier_job_found_failing_once_no_other_link_is_due(connection, provider):
+    """Card failed in the job before, so it waits for the other links, and with Everyday paused for review it is the only one due
+
+    Its window comes back whole, so the job queued after it no longer holds Card back
+    """
+    await _link(connection, "ACT-everyday", **_synced_through_yesterday(paused=True))
+    card = await _link(connection, "ACT-card", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    provider.outcomes = [_returned("ACT-card")]
+    await _seed_job(connection, BankSyncJobKind.INITIAL, deferred_link_ids=[card.id])
+
+    assert await run_jobs(1) == 1
+
+    assert _fetched(provider) == [_window(date(2026, 1, 1), date(2026, 3, 31), ["ACT-card"])]
+    async with TestSession() as session:
+        assert await session.scalar(select(BankSyncJob.deferred_link_ids).where(BankSyncJob.status == "queued")) == []
 
 
 async def test_job_brings_up_to_date_a_link_whose_checkpoint_is_long_before_its_import_start(connection, provider):

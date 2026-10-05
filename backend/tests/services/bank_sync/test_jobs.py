@@ -3,9 +3,11 @@
 The claim and the due scan run as the worker, the app role with no request identity, through the
 definer functions, and queueing runs as the connection's owner under row-level security, so these
 tests call each the same way. A job claimed twice would sync a connection twice at once, and a
-queued job started beside a running one would race it
+queued job started beside a running one would race it, and a merge that drops the links a job
+queued itself to plan last hands their failing requests back the next request that frees
 """
 
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -220,6 +222,21 @@ async def test_enqueue_initial_import_outranks_sync_now_in_either_order(connecti
     jobs, _ = await _enqueue_as_owner(connections[0], *({"kind": kind} for kind in kinds))
 
     assert jobs == [("initial", False, "queued")]
+
+
+async def test_enqueue_plans_last_the_links_either_request_plans_last(connections):
+    """A job queued to plan Card and Savings last, merged with one planning Travel and Card last, plans each of the three last once"""
+    card, savings, travel = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+
+    await _enqueue_as_owner(
+        connections[0],
+        {"kind": BankSyncJobKind.RETRY, "deferred_link_ids": [card, savings]},
+        {"kind": BankSyncJobKind.SCHEDULED, "deferred_link_ids": [travel, card]},
+    )
+
+    async with TestSession() as session:
+        deferred = await session.scalar(select(BankSyncJob.deferred_link_ids).where(BankSyncJob.status == BankSyncJobStatus.QUEUED))
+    assert sorted(deferred) == sorted([card, savings, travel])
 
 
 async def test_enqueue_while_a_job_runs_queues_one_job_behind_it(connections):
