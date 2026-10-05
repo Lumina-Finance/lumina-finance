@@ -93,6 +93,16 @@ export function getTransactionRowButton(row: Locator): Locator {
   return row.getByRole('button').first()
 }
 
+/**
+ * Find an account's row on the accounts page by the account's name
+ *
+ * The row's link is the name alone, stretched over the row, so the balance and anything else the row
+ * shows beside the name is read from the row rather than from the link
+ */
+export function getAccountRow(page: Page, name: string): Locator {
+  return page.getByTestId(/^account-row-/).filter({ has: page.getByRole('link', { name, exact: true }) })
+}
+
 type Edges = { left: number; top: number; right: number; bottom: number }
 
 // How far the row's text keeps clear of the ring on every side, so the ring never touches a line

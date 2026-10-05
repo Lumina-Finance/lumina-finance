@@ -5,6 +5,7 @@ import { openPage, chooseFromDropdown, logInViaApi, openModal } from '../support
 import {
   expectPendingAction,
   expectStretchedFocusRing,
+  getAccountRow,
   getTransactionRowButton,
   MINUS,
   whileApiRequestHeld,
@@ -85,7 +86,7 @@ test('starts a new user with no accounts and creates one with its starting balan
   await prompt.getByRole('button', { name: 'Continue' }).click()
 
   await expect(prompt).toBeHidden()
-  await expect(page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) })).toContainText('$1,250.00')
+  await expect(getAccountRow(page, ACCOUNT_NAME)).toContainText('$1,250.00')
 })
 
 test('records a new credit card\'s amount owed as a balance below zero', async ({ page, request }) => {
@@ -99,7 +100,7 @@ test('records a new credit card\'s amount owed as a balance below zero', async (
 
   await expect(prompt).toBeHidden()
   // The list writes a balance below zero in parentheses
-  await expect(page.getByRole('link', { name: /Rewards Card/ })).toContainText('($400.00)')
+  await expect(getAccountRow(page, 'Rewards Card')).toContainText('($400.00)')
 })
 
 test('leaves a new account at zero when its starting balance is left blank', async ({ page, request }) => {
@@ -112,7 +113,7 @@ test('leaves a new account at zero when its starting balance is left blank', asy
   await prompt.getByRole('button', { name: 'Continue' }).click()
 
   await expect(prompt).toBeHidden()
-  await expect(page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) })).toContainText('$0.00')
+  await expect(getAccountRow(page, ACCOUNT_NAME)).toContainText('$0.00')
   expect(startingBalanceRequests).toEqual([])
 })
 
@@ -127,7 +128,7 @@ test('leaves a new account at zero when its starting balance is skipped', async 
   await prompt.getByRole('button', { name: 'Skip' }).click()
 
   await expect(prompt).toBeHidden()
-  await expect(page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) })).toContainText('$0.00')
+  await expect(getAccountRow(page, ACCOUNT_NAME)).toContainText('$0.00')
   expect(startingBalanceRequests).toEqual([])
 })
 
@@ -234,7 +235,7 @@ test('lets a refused minus in an empty field be cleared, and closes it as blank'
   await prompt.getByRole('button', { name: 'Continue' }).click()
 
   await expect(prompt).toBeHidden()
-  await expect(page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) })).toContainText('$0.00')
+  await expect(getAccountRow(page, ACCOUNT_NAME)).toContainText('$0.00')
   expect(startingBalanceRequests).toEqual([])
 })
 
@@ -255,7 +256,7 @@ test('closes the prompt as saved when the save lands but its answer is lost', as
 
   // The account is read after the lost answer, and holding the balance means the save landed
   await expect(prompt).toBeHidden()
-  await expect(page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) })).toContainText('$1,250.00')
+  await expect(getAccountRow(page, ACCOUNT_NAME)).toContainText('$1,250.00')
 })
 
 test('keeps the prompt and the typed balance when a save is lost before it lands', async ({ page, request }) => {
@@ -286,7 +287,7 @@ test('keeps the prompt and the typed balance when a save is lost before it lands
   await prompt.getByRole('button', { name: 'Continue' }).click()
 
   await expect(prompt).toBeHidden()
-  await expect(page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) })).toContainText('$1,250.00')
+  await expect(getAccountRow(page, ACCOUNT_NAME)).toContainText('$1,250.00')
 })
 
 test('records an expense through the modal and shows it as money out', async ({ page, request }) => {
@@ -322,12 +323,12 @@ test('records an expense through the modal and shows it as money out', async ({ 
 
 test('rings an account row in the accent outline under keyboard focus', async ({ page, request }) => {
   const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: ACCOUNT_NAME })
+  await createAccount(request, user, { name: ACCOUNT_NAME })
   await logInViaApi(page, user)
   await openPage(page, '/accounts')
 
   // The row is the rounded box the hover tint fills
-  const row = page.getByTestId(`account-row-${account.id}`)
+  const row = getAccountRow(page, ACCOUNT_NAME)
   await expectStretchedFocusRing(row.getByRole('link', { name: ACCOUNT_NAME, exact: true }), row)
 })
 
