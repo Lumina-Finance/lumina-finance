@@ -18,6 +18,7 @@ function renderCaption(overrides: Partial<Parameters<typeof TransactionBankValue
       id="txn-amount-bank-value"
       bankValue={`${MINUS}CA$42.10`}
       financial
+      restorable
       restoring={false}
       disabled={false}
       onRestore={() => {}}
@@ -77,6 +78,14 @@ describe('bank value caption', () => {
     expect(text).toBe('Restore bank value')
     expect(tag).toContain('disabled=""')
     expect(tag).toContain('disabled:opacity-60')
+  })
+
+  it('shows a bank value the ledger can\'t store with no action to restore it', () => {
+    const markup = renderCaption({ bankValue: `${MINUS}CA$42.505`, restorable: false })
+
+    expect(markup).toContain(`Bank: <span class="font-financial">${MINUS}CA$42.505</span>`)
+    expect(markup).not.toContain('<button')
+    expect(markup).not.toContain('·')
   })
 
   it('shows nothing under a field that matches the bank', () => {

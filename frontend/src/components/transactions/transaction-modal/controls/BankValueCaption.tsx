@@ -13,13 +13,17 @@ interface BankValueCaptionProps {
 
   /** Sets the value in the figures' typeface, for an amount */
   financial?: boolean
+
+  /** False for a bank value the ledger can't store, which shows with no action to put it back */
+  restorable: boolean
   restoring: boolean
   disabled: boolean
   onRestore: () => void
 }
 
 /**
- * Shows the bank's value under a field the user edited, with an action that puts it back
+ * Shows the bank's value under a field the user edited, with an action that puts it back where the
+ * ledger can store it
  *
  * The text and the action take the muted colour rather than the accent, which misses 4.5:1 against
  * the modal in the light theme, and the action is underlined, so it reads as one without its colour.
@@ -30,6 +34,7 @@ export default function TransactionBankValueCaption({
   id,
   bankValue,
   financial = false,
+  restorable,
   restoring,
   disabled,
   onRestore,
@@ -54,25 +59,27 @@ export default function TransactionBankValueCaption({
             <span id={id}>
               Bank: <span className={financial ? 'font-financial' : undefined}>{bankValue}</span>
             </span>
-            {/* The dot travels with the action, so a wrap never leaves it at the end of a line */}
-            <span className="inline-flex items-center gap-x-1.5">
-              <span aria-hidden>&middot;</span>
-              <button
-                type="button"
-                onClick={onRestore}
-                disabled={disabled || restoring}
-                aria-busy={restoring}
-                aria-describedby={id}
-                // Restoring keeps its full colour, since it says what is happening rather than that
-                // the action is unavailable
-                className={`inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent py-1 font-medium underline underline-offset-2 disabled:cursor-not-allowed ${restoring ? '' : 'disabled:opacity-60'}`}
-              >
-                {restoring && (
-                  <LoaderCircle size={12} strokeWidth={2.4} className="animate-spin motion-reduce:animate-none" aria-hidden />
-                )}
-                {restoring ? 'Restoring' : 'Restore bank value'}
-              </button>
-            </span>
+            {restorable && (
+              // The dot travels with the action, so a wrap never leaves it at the end of a line
+              <span className="inline-flex items-center gap-x-1.5">
+                <span aria-hidden>&middot;</span>
+                <button
+                  type="button"
+                  onClick={onRestore}
+                  disabled={disabled || restoring}
+                  aria-busy={restoring}
+                  aria-describedby={id}
+                  // Restoring keeps its full colour, since it says what is happening rather than that
+                  // the action is unavailable
+                  className={`inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent py-1 font-medium underline underline-offset-2 disabled:cursor-not-allowed ${restoring ? '' : 'disabled:opacity-60'}`}
+                >
+                  {restoring && (
+                    <LoaderCircle size={12} strokeWidth={2.4} className="animate-spin motion-reduce:animate-none" aria-hidden />
+                  )}
+                  {restoring ? 'Restoring' : 'Restore bank value'}
+                </button>
+              </span>
+            )}
           </p>
         </motion.div>
       )}
