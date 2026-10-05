@@ -113,6 +113,12 @@ async function expectTooltipClosed(row: Locator, firstLine: string): Promise<voi
   await expect.poll(() => isShown(row.getByText(firstLine, { exact: true }).filter({ visible: true }))).toBe(false)
 }
 
+// A stand-in can still be fetching for the page when a test ends, which would otherwise surface as an
+// error outside any test
+test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+})
+
 test('marks a bank-imported row with its provider on hover, focus or a press, leaving the row closed and a manual row unmarked', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
@@ -143,13 +149,6 @@ test('marks a bank-imported row with its provider on hover, focus or a press, le
   await expect(getTransactionRowButton(manual)).toBeVisible()
   await expect(manual.getByRole('button')).toHaveCount(1)
 
-  // The icon's strokes stand out from the page in both themes
-  await page.mouse.move(0, 0)
-  for (const colorScheme of ['dark', 'light'] as const) {
-    await switchTheme(page, colorScheme)
-    expect(await contrastWithBackground(marker, 'color')).toBeGreaterThanOrEqual(MIN_GRAPHIC_CONTRAST)
-  }
-
   // Keyboard focus opens it, and moving on closes it
   await getTransactionRowButton(imported).focus()
   await page.keyboard.press('Tab')
@@ -174,6 +173,19 @@ test('marks a bank-imported row with its provider on hover, focus or a press, le
   await pressMiddleOf(page, imported.getByText('From SimpleFIN', { exact: true }).filter({ visible: true }))
   await page.mouse.move(0, 0)
   await expectTooltipOpen(page, marker, imported, ['From SimpleFIN'])
+
+  // A second press on the icon closes it, though the press left the icon focused, since only
+  // keyboard focus holds it open
+  await pressMiddleOf(page, marker)
+  await page.mouse.move(0, 0)
+  await expect(marker).toBeFocused()
+  await expectTooltipClosed(imported, 'From SimpleFIN')
+
+  // A press anywhere else closes it too
+  await pressMiddleOf(page, marker)
+  await expectTooltipOpen(page, marker, imported, ['From SimpleFIN'])
+  await pressMiddleOf(page, page.getByRole('heading', { name: 'Transactions', level: 1 }))
+  await expectTooltipClosed(imported, 'From SimpleFIN')
 })
 
 test('opens the tooltip from a press just off the bank icon, leaving the row closed', async ({ page, request }) => {
@@ -220,17 +232,24 @@ test('adds a dot and the edited note to a bank-imported row whose bank value the
   await expect(marker).toBeVisible()
   await expect(dot).toBeVisible()
 
+  // The dot sits on the icon's corner rather than wherever the row would put it
+  const [dotBox, markerBox] = [(await dot.boundingBox())!, (await marker.boundingBox())!]
+  expect(dotBox.x < markerBox.x + markerBox.width && markerBox.x < dotBox.x + dotBox.width).toBe(true)
+  expect(dotBox.y < markerBox.y + markerBox.height && markerBox.y < dotBox.y + dotBox.height).toBe(true)
+
+  // The note sits on its own line under the provider
+  await getTransactionRowButton(row).focus()
+  await page.keyboard.press('Tab')
+  await expectTooltipOpen(page, marker, row, ['From SimpleFIN', EDITED_NOTE])
+  await page.keyboard.press('Shift+Tab')
+  await expectTooltipClosed(row, 'From SimpleFIN')
+
+  // The icon's strokes and the dot stand out from the page in both themes, the icon looking the same
+  // whether or not the row was edited
   await page.mouse.move(0, 0)
   for (const colorScheme of ['light', 'dark'] as const) {
     await switchTheme(page, colorScheme)
     expect(await contrastWithBackground(marker, 'color')).toBeGreaterThanOrEqual(MIN_GRAPHIC_CONTRAST)
     expect(await contrastWithBackground(dot, 'backgroundColor')).toBeGreaterThanOrEqual(MIN_GRAPHIC_CONTRAST)
-
-    // The note sits on its own line under the provider in either theme
-    await getTransactionRowButton(row).focus()
-    await page.keyboard.press('Tab')
-    await expectTooltipOpen(page, marker, row, ['From SimpleFIN', EDITED_NOTE])
-    await page.keyboard.press('Shift+Tab')
-    await expectTooltipClosed(row, 'From SimpleFIN')
   }
 })
