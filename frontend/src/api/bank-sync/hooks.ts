@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import {
   mutationOptions,
   queryOptions,
+  skipToken,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -193,11 +194,14 @@ export function useAccountBankStatus(accountId: string, enabled: boolean) {
   });
 }
 
-export function useImportRange(accountId: string, provider: BankProviderId, enabled: boolean) {
+/**
+ * The days an account can import from through a provider, read once the provider is known
+ */
+export function useImportRange(accountId: string, provider: BankProviderId | null, enabled: boolean) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: bankSyncKeys.importRange(accountId, provider),
-    queryFn: () => fetchImportRange(accountId, provider),
+    queryFn: provider ? () => fetchImportRange(accountId, provider) : skipToken,
     enabled: !!accessToken && enabled,
     staleTime: BANK_DATA_STALE_TIME_MS,
   });

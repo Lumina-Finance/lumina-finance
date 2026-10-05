@@ -108,8 +108,8 @@ export function BankLinkFlowModal({ open, account, chosen, level = 'page', onClo
   const provider = providers?.providers.find((entry) => entry.id === connection?.provider)
   const { data: range, error: rangeError } = useImportRange(
     account.id,
-    connection?.provider ?? 'simplefin',
-    open && connection !== undefined && (step === 'account' || step === 'start'),
+    connection?.provider ?? null,
+    open && (step === 'account' || step === 'start'),
   )
   const startChoice = useStartChoice(range, account.name)
 
