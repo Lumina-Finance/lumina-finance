@@ -16,10 +16,10 @@ OIDC_GENERIC_DEFAULT_DISPLAY_NAME = "OIDC"
 OIDC_DEFAULT_SCOPES = "openid email profile"
 
 # Whether onboarding a new account requires the provider to assert email_verified as true. Strict by
-# default so an unverified address cannot create an account. Self-hosted providers such as Authentik
-# and Authelia hardcode this claim with no real verification and disagree on its default, so an operator
-# using one sets this false to onboard on any provider-supplied email. Existing-account takeover is
-# prevented regardless, since a provider sign-in is never auto-linked by email
+# default so an unverified address cannot create an account. Some self-hosted providers do not verify
+# email addresses, or report them as verified without checking, so an operator using one sets this
+# false to onboard on any provider-supplied email. Existing-account takeover is prevented regardless,
+# since a provider sign-in is never auto-linked by email
 OIDC_REQUIRE_VERIFIED_EMAIL = optional_bool_env("OIDC_REQUIRE_VERIFIED_EMAIL", default=True)
 
 # A sign-in roundtrip must finish within this window, covering the user authenticating at the provider

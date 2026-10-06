@@ -6,15 +6,14 @@
 </div>
 
 <p align="center">
-  <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/pr.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/pr.yml?label=CI&style=flat&logo=githubactions&logoColor=white"></a>&nbsp;&nbsp;
-  <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/release.yml"><img alt="Docker Image Builds" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/release.yml?event=release&label=Docker%20Image%20Builds&style=flat&logo=githubactions&logoColor=white"></a>&nbsp;&nbsp;
+  <a href="https://docs.luminafinance.co"><img alt="Documentation" src="https://img.shields.io/badge/Docs-docs.luminafinance.co-white?style=flat&logo=docusaurus&logoColor=white&labelColor=C9A96A"></a>&nbsp;&nbsp;
+  <a href="https://www.reddit.com/r/LuminaFinance/"><img alt="Reddit community" src="https://img.shields.io/badge/Reddit-r%2FLuminaFinance-white?style=flat&logo=reddit&logoColor=white&labelColor=FF4500"></a>&nbsp;&nbsp;
   <a href="https://hub.docker.com/r/luminahq/lumina-finance"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/luminahq/lumina-finance?label=Docker%20Pulls&style=flat&logo=docker&logoColor=white&labelColor=2496ED&color=white"></a>&nbsp;&nbsp;
   <a href="https://github.com/Lumina-Finance/lumina-finance"><img alt="GitHub Stars" src="https://img.shields.io/github/stars/Lumina-Finance/lumina-finance?label=GitHub%20Stars&style=flat&logo=github&logoColor=white&labelColor=181717&color=eac54f"></a>
 </p>
 
 <p align="center">
-  <a href="https://www.reddit.com/r/LuminaFinance/"><img alt="Reddit community" src="https://img.shields.io/badge/Reddit-r%2FLuminaFinance-white?style=flat&logo=reddit&logoColor=white&labelColor=FF4500"></a>&nbsp;&nbsp;
-  <a href="https://www.buymeacoffee.com/lumina.finance"><img alt="Buy Me a Coffee" src="https://img.shields.io/badge/-Buy%20me%20a%20coffee-FFDD00?style=flat&logo=buymeacoffee&logoColor=black"></a>
+  <a href="https://www.buymeacoffee.com/lumina.finance"><img alt="Buy Me a Coffee" src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="48"></a>
 </p>
 
 <!-- markdownlint-enable MD033 -->
@@ -34,6 +33,19 @@ Join the community at [r/LuminaFinance](https://www.reddit.com/r/LuminaFinance/)
 
 THIS APPLICATION IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANTIES OF ANY KIND. THIS APPLICATION IS A SOFTWARE TOOL ONLY AND DOES NOT PROVIDE FINANCIAL, INVESTMENT, TAX, LEGAL, ACCOUNTING, OR OTHER PROFESSIONAL ADVICE. ANY CALCULATIONS, ESTIMATES, PROJECTIONS, SUMMARIES, OR OTHER OUTPUTS MAY BE INACCURATE OR INCOMPLETE AND SHOULD NOT BE RELIED ON AS A SUBSTITUTE FOR PROFESSIONAL JUDGMENT. YOU ARE SOLELY RESPONSIBLE FOR REVIEWING ALL OUTPUTS AND FOR ANY DECISIONS YOU MAKE. USE OF THIS APPLICATION IS AT YOUR OWN RISK.
 
+## Permitted use
+
+Lumina Finance is made available for personal, non-commercial use only. You may install, run and modify it to manage your own finances, and you may share access with your family and friends free of charge.
+
+Commercial use requires prior written permission. Commercial use includes, without limitation:
+
+- hosting, operating or providing access to Lumina Finance for another person in exchange for any fee or other consideration, whether charged directly or recovered through another product, service, subscription, hosting plan, or setup, support or maintenance package
+- using it to provide bookkeeping, accounting, financial planning, advisory or similar services to clients or customers
+- offering it as a hosted, managed or software-as-a-service product
+- selling, sublicensing or distributing it, or any modified version, for consideration
+
+These terms apply equally to any modified, renamed or derivative version. They cannot be avoided by describing a paying party as a friend, family member or guest, or by structuring payment as a donation, gift, membership or separate charge. All rights not expressly granted here are reserved. To ask about commercial use, start a [discussion](https://github.com/Lumina-Finance/lumina-finance/discussions).
+
 ## Demo
 
 <!-- markdownlint-disable MD033 -->
@@ -49,7 +61,7 @@ Lumina Finance gives you one place to track accounts, transactions, budgets, and
 - **Accounts** - Lumina Finance helps you track cash, credit, savings, and every other account type, with a detailed view and balance history for each. Archived accounts can be hidden when you don't need to see them.
 - **Multi-currency** - Exchange rate conversions help you follow accounts and activity in different currencies across dashboards, budgets, runway, and insights.
 - **Transactions** - You can add transactions and organize them with merchants, categories, tags, and notes to keep your records clear.
-- **Imports** - App-specific importers and a general importer help you bring your transaction history into Lumina Finance.
+- **Imports** - The CSV importer brings in new transactions from your bank as you go, and app-specific importers help you move your history over from another app.
 - **Tax-advantaged accounts** - Accounts with the same tax-advantaged structure can be grouped together, helping you track their contribution and withdrawal limits in one place.
 - **Budgets** - Recurring and one-time budgets help you compare your spending against the amounts you set for each category. Their history stays available after you archive them.
 - **Dashboard** - The dashboard brings your net worth, credit usage, spending, savings rate, recent activity, and top budgets together in one beautifully presented view.
@@ -59,12 +71,24 @@ Lumina Finance gives you one place to track accounts, transactions, budgets, and
 - **Single sign-on** - You can sign in through your own OpenID Connect provider, or link it to an existing account and manage it from settings.
 - **Self-hostable** - Running Lumina Finance locally with Docker keeps you in full control of your data.
 
+### Importers
+
+Each app-specific importer is tested every week against the app's latest release.
+
+<!-- markdownlint-disable MD033 -->
+| Importer | Used for | Status |
+|-|-|-|
+| CSV | Everyday imports from your bank | |
+| Actual Budget | Moving over from Actual Budget | <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/actual-check.yml"><img alt="Actual Budget import check" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/actual-check.yml?label=Weekly%20test&style=flat&logo=githubactions&logoColor=white"></a> |
+| Firefly III | Moving over from Firefly III | <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/firefly-check.yml"><img alt="Firefly III import check" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/firefly-check.yml?label=Weekly%20test&style=flat&logo=githubactions&logoColor=white"></a> |
+<!-- markdownlint-enable MD033 -->
+
 ### Roadmap
 
 This roadmap may change as Lumina Finance evolves based on user feedback, technical constraints, and project priorities.
 
 <!-- markdownlint-disable MD033 -->
-<details>
+<details open>
 <summary><b>Shipped</b></summary>
 
 - [X] Insights tab for deeper reports and trends
@@ -80,9 +104,11 @@ This roadmap may change as Lumina Finance evolves based on user feedback, techni
 
 In no particular order:
 
-- [ ] SimpleFIN support
-- [ ] Docs site
-- [ ] Internationalization and multi-language support ([#92](https://github.com/Lumina-Finance/lumina-finance/discussions/92), [#77](https://github.com/Lumina-Finance/lumina-finance/discussions/77))
+- [ ] SimpleFIN support (in progress)
+- [ ] Docs site (in progress)
+  - [X] self-hosting documentation
+  - [ ] user guides
+- [ ] Internationalization and multi-language support (in progress; [#92](https://github.com/Lumina-Finance/lumina-finance/discussions/92), [#77](https://github.com/Lumina-Finance/lumina-finance/discussions/77))
 - [ ] Goals ([#75](https://github.com/Lumina-Finance/lumina-finance/discussions/75))
 - [ ] Plaid support
 - [ ] SaaS development and testing
@@ -148,13 +174,16 @@ Every page is fully optimized for desktop, tablet, and mobile.
 
 <!-- markdownlint-enable MD033 -->
 
-## Deployment
+## Self-hosting
 
-### Docker
+<!-- markdownlint-disable MD033 -->
+<a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/pr.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/pr.yml?label=CI&style=flat&logo=githubactions&logoColor=white"></a>&nbsp;&nbsp;
+<a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/release.yml"><img alt="Docker Image Builds" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/release.yml?event=release&label=Docker%20Image%20Builds&style=flat&logo=githubactions&logoColor=white"></a>
+<!-- markdownlint-enable MD033 -->
 
-To deploy with Docker, use the example compose file at [`docker/compose.yml`](docker/compose.yml) and the example [`.env`](docker/.env.example) beside it. The `.env` file contains the required database variables and the most common optional settings, including email delivery and single sign-on. The compose file passes these settings to the app. You can add any variable from the [Environment Variables](#environment-variables) tables below to `.env`.
+Lumina Finance runs with Docker Compose on a 64-bit host. Images are published for `linux/amd64` and `linux/arm64`.
 
-To get a fresh instance running:
+To start a fresh instance with the example [compose file](docker/compose.yml) and [`.env`](docker/.env.example):
 
 ```sh
 cd docker
@@ -162,170 +191,29 @@ cp .env.example .env
 docker compose up -d
 ```
 
-Before starting the stack, set `DB_PASSWORD` in `.env` to a password of your own. The example file prefills the other database values for the bundled PostgreSQL service. Once the containers are up, the app is available at `http://localhost:8080`. If the instance is reachable from other machines, also set `APP_URL` to the origin you use to access it.
+Set `DB_PASSWORD` in `.env` to a password of your own before the first start. The app is then available at `http://localhost:8080`. The [getting started guide](https://docs.luminafinance.co/self-hosting/getting-started/) covers the rest of the setup.
 
-### Frankfurter (Foreign Currency Exchange Rates)
+## Documentation
 
-Lumina Finance uses [Frankfurter](https://github.com/lineofflight/frankfurter) for FX rates. By default, it uses the hosted API at `https://api.frankfurter.dev/v2`.
+Setup, configuration and answers to common questions are on the docs site at [docs.luminafinance.co](https://docs.luminafinance.co):
 
-Frankfurter can also be self-hosted. To use a self-hosted instance, see Frankfurter's GitHub repository for details. After it is set up, set `FRANKFURTER_URL` to its versioned API URL, including the `/v2` path, for Lumina Finance to use your self-hosted instance.
+- [Getting started](https://docs.luminafinance.co/self-hosting/getting-started/)
+- [Environment variables](https://docs.luminafinance.co/self-hosting/environment-variables/)
+- [Email](https://docs.luminafinance.co/self-hosting/email/)
+- [Single sign-on](https://docs.luminafinance.co/self-hosting/single-sign-on/)
+- [Rotating the encryption key](https://docs.luminafinance.co/self-hosting/encryption-keys/)
+- [Signing keys and JWKS](https://docs.luminafinance.co/self-hosting/signing-keys/)
+- [FAQ](https://docs.luminafinance.co/self-hosting/faq/)
 
-## Environment Variables
+## Support the project
 
-| Variable | Required | Expected Values | Default Value | Purpose |
-| --- | --- | --- | --- | --- |
-| `APP_URL` | No | URL origin | None | Public frontend origin. Automatically included in the backend CORS allowed origins. If unset, CORS allows all origins |
-| `APP_IMAGE_TAG` | No | Release tag | `latest` | Docker image tag the example compose file runs. Pin a specific release to control exactly when updates happen |
-| `DB_HOST` | Yes | Hostname or IP | None | PostgreSQL host |
-| `DB_PORT` | Yes | Port number | None | PostgreSQL port |
-| `DB_NAME` | Yes | Database name | None | PostgreSQL database name |
-| `DB_USER` | Yes | Database user | None | PostgreSQL admin role used on startup to provision the `lumina_migrator` and `lumina_app` roles |
-| `DB_PASSWORD` | Yes | Database password | None | Password for the PostgreSQL admin role |
-| `MIGRATOR_DB_PASSWORD` | No | Database password | Auto-generated | Password for the `lumina_migrator` role that owns the schema and runs migrations. If unset, a password is generated on first start and persisted to `/data/secrets/migrator_db_password` on the data volume, then reused on later starts |
-| `APP_DB_PASSWORD` | No | Database password | Auto-generated | Password for the `lumina_app` role that serves requests under row-level security. If unset, a password is generated on first start and persisted to `/data/secrets/app_db_password` on the data volume, then reused on later starts |
-| `FRANKFURTER_URL` | No | URL including API version path | `https://api.frankfurter.dev/v2` | Frankfurter-compatible FX rate API URL; set this to a self-hosted Frankfurter instance to keep FX lookups private |
-| `UPDATE_CHECKS_ENABLED` | No | `true` or `false` | `true` in official Docker images | Enables update checks against GitHub releases and matching Docker image tags |
+Lumina Finance is fully bootstrapped. If you would like to support its development, please consider donating to the project.
 
-### Email
+<!-- markdownlint-disable MD033 -->
+<a href="https://www.buymeacoffee.com/lumina.finance"><img alt="Buy Me a Coffee" src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="48"></a>
+<!-- markdownlint-enable MD033 -->
 
-Lumina Finance sends email for password resets. The default `logging` backend prints outgoing mail to the container logs instead of sending it. The app runs fine before SMTP is configured.
-
-| Variable | Required | Expected Values | Default Value | Purpose |
-|-|-|-|-|-|
-| `EMAIL_BACKEND` | No | `smtp` or `logging` | `logging` | `smtp` delivers mail through the server below, `logging` prints it to the container logs |
-| `SMTP_HOST` | Only if `EMAIL_BACKEND=smtp` | Hostname | None | SMTP server host |
-| `SMTP_PORT` | No | Port number | `587` | SMTP server port |
-| `SMTP_USERNAME` | Only if `EMAIL_BACKEND=smtp` | String | None | SMTP auth username |
-| `SMTP_PASSWORD` | Only if `EMAIL_BACKEND=smtp` | String | None | SMTP auth password |
-| `SMTP_USE_TLS` | No | `true` or `false` | `true` | Use STARTTLS when connecting to the SMTP server |
-| `MAIL_FROM` | No | Email address | Value of `SMTP_USERNAME` | From address on outgoing mail |
-
-### Password Reset
-
-| Variable | Required | Expected Values | Default Value | Purpose |
-|-|-|-|-|-|
-| `PASSWORD_RESET_TOKEN_EXPIRE_SECONDS` | No | Positive integer | `900` | How long a password reset link stays valid after it is emailed |
-| `PASSWORD_RESET_DAILY_EMAIL_LIMIT` | No | Positive integer | `3` | Cap on password reset emails per account per rolling day |
-
-### Passkeys and Two-Factor Authentication
-
-Two-factor authentication with an authenticator app works without any of these settings. Passkeys are bound to a specific domain, called the relying party ID, which defaults to the hostname in `APP_URL`. A bare IP address cannot be a relying party ID, so passkeys need a real domain name to work at all.
-
-| Variable | Required | Expected Values | Default Value | Purpose |
-|-|-|-|-|-|
-| `WEBAUTHN_RP_ID` | No | Domain name | Hostname of `APP_URL` | The domain passkeys are bound to. Only set this if it needs to differ from the app's own domain |
-| `WEBAUTHN_ORIGINS` | No | Comma-separated list of URL origins | Value of `APP_URL` | Origins a passkey sign-in is accepted from |
-| `WEBAUTHN_CHALLENGE_EXPIRE_SECONDS` | No | Positive integer | `300` | How long a passkey prompt stays valid before it needs to be retried |
-| `TWO_FACTOR_STAGING_EXPIRE_SECONDS` | No | Positive integer | `1800` | How long a newly set up but not yet confirmed second factor and its recovery codes are kept before being discarded |
-| `MFA_CHALLENGE_TOKEN_EXPIRE_SECONDS` | No | Positive integer | `120` | How long a sign-in has to complete its second factor after the password step |
-
-### Single Sign-On (OIDC)
-
-Lumina Finance can accept sign-ins from any standards-compliant OpenID Connect provider, such as Authentik or Authelia. Single sign-on is off by default. Setting `OIDC_GENERIC_CLIENT_ID` turns it on, but an incomplete provider configuration fails at startup.
-
-`APP_URL` must be set because the provider redirects back to `<APP_URL>/auth/oidc/callback`.
-
-| Variable | Required | Expected Values | Default Value | Purpose |
-|-|-|-|-|-|
-| `OIDC_GENERIC_CLIENT_ID` | To enable single sign-on | String | None | OAuth client ID registered with the provider. Setting it turns single sign-on on |
-| `OIDC_GENERIC_ISSUER` | With the client ID | Issuer URL | None | Issuer exactly as the provider publishes it, including any trailing slash |
-| `OIDC_GENERIC_CLIENT_SECRET` | With the client ID | String | None | OAuth client secret, encrypted at rest with `APP_ENCRYPTION_KEY` |
-| `OIDC_GENERIC_DISPLAY_NAME` | No | String | `OIDC` | Sign-in button label. When it matches a self-hosted app, such as `Authentik`, that app's logo replaces the generic icon on the button |
-| `OIDC_GENERIC_SCOPES` | No | Space-separated scopes | `openid email profile` | Scopes requested from the provider. Must include `openid` |
-| `OIDC_REQUIRE_VERIFIED_EMAIL` | No | `true` or `false` | `true` | Whether a first-time sign-in must have a provider-verified email to create an account. Set `false` for providers that do not truly verify email, such as Authentik and Authelia. Existing accounts are never auto-linked by email regardless |
-| `OIDC_AUTHORIZATION_REQUEST_EXPIRE_SECONDS` | No | Positive integer | `600` | How long a pending sign-in has to complete at the provider and return before it expires |
-| `OIDC_ONBOARDING_TOKEN_EXPIRE_SECONDS` | No | Positive integer | `600` | How long a first-time sign-in has to finish the profile completion step |
-| `OIDC_REAUTH_STEPUP_TOKEN_EXPIRE_SECONDS` | No | Positive integer | `300` | How long a passwordless account has to set a password or manage its providers after re-confirming with the provider |
-
-### Encryption at Rest
-
-| Variable | Required | Expected Values | Default Value | Purpose |
-|-|-|-|-|-|
-| `APP_ENCRYPTION_KEY` | No | Fernet key | Auto-generated | Encrypts secrets stored in the database, such as two-factor secrets and the OIDC client secret. If unset, a key is generated on first start and persisted to `/data/secrets/app_encryption_key` on the data volume. Setting this to a key the stored secrets were not encrypted under stops the container at startup rather than making them unreadable. To change the key, follow [Rotating the encryption key](#rotating-the-encryption-key), which rewrites every stored secret under the new one. Losing this key makes the stored secrets undecryptable, so back up the data volume alongside your database |
-
-#### Rotating the encryption key
-
-**YOU MUST STOP THE APP BEFORE ROTATING THE KEY.** Failure to do so will result in permanent data loss. We also highly recommend you to back up your database before beginning the process.
-
-To rotate your encryption key, follow the steps below. The rotation command updates your saved secrets by re-encrypting them with the replacement key.
-
-1. Stop the stack and back up your database and encryption key (from either `APP_ENCRYPTION_KEY` or `/data/secrets/app_encryption_key`). You will need the old key to restore your backup.
-
-2. Generate a key:
-
-   ```sh
-   docker compose run --rm app generate-app-encryption-key
-   ```
-
-3. Save the replacement key.
-
-4. Stop the app, but leave PostgreSQL running:
-
-   ```sh
-   docker compose stop app
-   ```
-
-5. Run the rotation command with the replacement key:
-
-   ```sh
-   docker compose run --rm app rotate-app-encryption-key "your-new-key"
-   ```
-
-6. Set `APP_ENCRYPTION_KEY` in `.env` to the replacement key.
-
-7. Start the app again:
-
-   ```sh
-   docker compose up -d
-   ```
-
-##### Errors before the database changes are saved
-
-If the command fails before saving its database changes, the saved secrets still use the old key. Fix the reported problem and repeat step 5. Don't change `APP_ENCRYPTION_KEY` until those changes are saved. **DO NOT START THE APP WHILE YOU ARE ROTATING THE KEYS UNDER ANY CIRCUMSTANCES**.
-
-##### `Could not remove the stale key file`
-
-The database has already switched to your replacement key, but the old key file could not be deleted. Confirm that the rotation completed, then fix the file permissions and delete the old file. The app cannot start while this file conflicts with your replacement key in `APP_ENCRYPTION_KEY`.
-
-You can run the rotation command again to try removing the old file. This only works if the database's key record matches your replacement key and the key can read at least one saved secret. If you have no saved secrets, it cannot confirm that the rotation completed. You will still need to fix any file permission problems yourself.
-
-##### `Refusing to rotate: the new key is the key already in use`
-
-If you have already set `APP_ENCRYPTION_KEY` to your replacement key and removed the old file, you do not need to rotate to that key again. Start the app and test a feature that uses a saved secret, such as your existing two-factor sign-in. Do not change the database's key record to force the command to run again.
-
-### [JWKS (JSON Web Key Set)](https://auth0.com/docs/secure/tokens/json-web-tokens/json-web-key-sets) and JWT Configs
-
-Lumina Finance provides an endpoint that exposes known RSA public keys for verifying JWT tokens. Only change these advanced settings if you set up an API gateway or reverse proxy that validates JWT signatures. The options below let you configure that verification so only validated requests pass through your gateway or proxy:
-
-| Variable | Required | Expected Values | Default Value | Purpose |
-| --- | --- | --- | --- | --- |
-| `JWT_ACCESS_KID` | No | String | `access-kid` | Key ID written into access-token JWT headers and published in JWKS. It does not need to match the private key filename |
-| `JWT_REFRESH_KID` | No | String | `refresh-kid` | Key ID written into refresh-token JWT headers and published in JWKS. It does not need to match the private key filename |
-| `JWT_ACCESS_TOKEN_EXPIRE_SECONDS` | No | Positive integer | `900` | Access-token lifetime in seconds |
-| `JWT_REFRESH_TOKEN_EXPIRE_SECONDS` | No | Positive integer | `86400` | Refresh-token lifetime in seconds |
-| `JWT_ISSUER` | No | String | `lumina-finance` | JWT issuer claim |
-| `JWT_ACCESS_PRIVATE_KEY_PATH` | No | File path | `/data/keys/access_private.pem` | Access token RSA256 private key path inside the container. If a key is not provided, the app will generate one automatically |
-| `JWT_REFRESH_PRIVATE_KEY_PATH` | No | File path | `/data/keys/refresh_private.pem` | Refresh token RSA256 private key path inside the container. If a key is not provided, the app will generate one automatically |
-
-## FAQs
-
-1. **Why are you building Lumina Finance when other personal finance tools already exist?**
-
-    Great personal finance tools already exist, including self-hostable options, but many feel outdated, too simplistic, overly complex, or too narrowly focused.
-
-    We are building Lumina Finance because we want a modern, feature-rich, and accessible alternative that helps people understand their finances more clearly without fighting the software. Our goal is to combine strong financial tracking, a clean and modern user experience, privacy conscious design, and practical insights in one product. Essentially, we want to build something that "just works."
-
-2. **Is this open source, and will self-hosting be free?**
-
-    We are committed to keeping Lumina Finance free to self-host for non-commercial personal use, excluding features and services that require external data, paid APIs, or external compute.
-
-    Our goal is to eventually make Lumina Finance open source, but because we may commercialize the project in the future, we are still evaluating the best licensing structure with legal professionals. We want to choose a licence that supports community use while keeping the project sustainable.
-
-    For now, any commercial, organizational, or business related use is not permitted unless explicitly authorized. This includes, but is not limited to, self-hosting Lumina Finance for employees, clients, customers, contractors, teams, or business operations.
-
-3. **What data does Lumina Finance collect?**
-
-    For self-hosted instances, Lumina Finance collects no data. Your data stays within your own deployment environment and never leaves your site. You are also responsible for securing your own deployment, database, backups, and any connected services.
+You can also show your support by starring the project on GitHub!
 
 ---
 

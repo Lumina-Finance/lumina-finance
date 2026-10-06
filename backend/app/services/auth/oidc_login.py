@@ -222,11 +222,11 @@ async def complete_oidc_sign_in(
             detail={"code": OIDC_EMAIL_CONFLICT_CODE, "email": email},
         )
 
-    # Whether an unverified provider email can create an account is an operator policy. Self-hosted
-    # providers hardcode email_verified with no real verification and disagree on the default, so
-    # OIDC_REQUIRE_VERIFIED_EMAIL lets the operator relax it for those. Existing-account takeover is
-    # prevented regardless, since a provider sign-in is never auto-linked by email. The flag is recorded
-    # as the provider stated it either way
+    # Whether an unverified provider email can create an account is an operator policy. Some
+    # self-hosted providers do not verify email addresses, or report them as verified without
+    # checking, so OIDC_REQUIRE_VERIFIED_EMAIL lets the operator relax it for those. Existing-account
+    # takeover is prevented regardless, since a provider sign-in is never auto-linked by email. The
+    # flag is recorded as the provider stated it either way
     if OIDC_REQUIRE_VERIFIED_EMAIL and claims.get("email_verified") is not True:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

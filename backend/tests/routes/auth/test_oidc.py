@@ -238,8 +238,8 @@ async def test_callback_onboards_unverified_email_when_relaxed(
 ):
     """With verification relaxed, a provider that reports or omits email_verified still onboards
 
-    Self-hosted providers such as Authentik hardcode the claim, so an operator relaxes the check and
-    relies on the never-auto-link rule to prevent takeover
+    Some self-hosted providers report the claim without verifying the address, so an operator relaxes
+    the check and relies on the never-auto-link rule to prevent takeover
     """
     monkeypatch.setattr(oidc_login, "OIDC_REQUIRE_VERIFIED_EMAIL", False)
     await _seed_provider()
