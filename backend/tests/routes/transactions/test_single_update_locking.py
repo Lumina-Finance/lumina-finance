@@ -12,22 +12,13 @@ from app.services.transactions import deletion as deletion_module
 from app.services.transactions import update as update_module
 from tests.conftest import TestSession
 from tests.routes.groups.test_transactions import _setup_group_with_shared_account
+from tests.routes.support import _wait_until_blocked
 from tests.routes.transactions._helpers import (
     _create_account,
     _create_transaction,
     _get_system_category_id,
     _setup_user_with_deps,
 )
-
-
-async def _wait_until_blocked(blocker_pid: int, blocked_pid: int) -> None:
-    """Observe the actual PostgreSQL wait rather than assuming a scheduled task reached the lock."""
-    async with asyncio.timeout(5):
-        async with TestSession() as observer:
-            while blocker_pid not in await observer.scalar(
-                text("SELECT pg_blocking_pids(:pid)"), {"pid": blocked_pid},
-            ):
-                await asyncio.sleep(0.01)
 
 
 async def _run_serialized_patches(client, headers, transaction_id, first_fields, second_fields, monkeypatch):
