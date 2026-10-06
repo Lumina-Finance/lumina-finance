@@ -65,7 +65,7 @@ async def read_link_statuses(db: AsyncSession, links: Sequence[BankAccountLink],
     syncing = await _read_links_syncing(db, now=now)
     account_ids = [link.account_id for link in links]
     needed = await read_actions_needed(db, account_ids)
-    backlogs = await read_review_backlogs(db, account_ids)
+    backlogs = await read_review_backlogs(db, account_ids, actions_needed=needed)
 
     statuses = {}
     for link in links:

@@ -22,7 +22,7 @@ decides when it syncs
 """
 
 import uuid
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
@@ -32,7 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
 from app.models.bank_sync_job import BankSyncJobKind
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
-from app.services.bank_sync.action_needed import read_actions_needed
+from app.services.bank_sync.action_needed import ActionNeeded, read_actions_needed
 from app.services.bank_sync.availability import LIVE_LINK
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
 
@@ -152,7 +152,12 @@ async def lift_review_pauses(db: AsyncSession, owner_id: uuid.UUID, links: Seque
         await enqueue_bank_sync_job(db, owner_id=owner_id, connection_id=connection_id, kind=BankSyncJobKind.SCHEDULED)
 
 
-async def read_review_backlogs(db: AsyncSession, account_ids: Collection[uuid.UUID]) -> dict[uuid.UUID, ReviewBacklog]:
+async def read_review_backlogs(
+    db: AsyncSession,
+    account_ids: Collection[uuid.UUID],
+    *,
+    actions_needed: Mapping[uuid.UUID, ActionNeeded] | None = None,
+) -> dict[uuid.UUID, ReviewBacklog]:
     """Return each account's review backlog: how many new items wait, and whether it shows the pause or the warning
 
     While an import runs the account shows the import instead, so neither the pause it may keep for
@@ -163,13 +168,15 @@ async def read_review_backlogs(db: AsyncSession, account_ids: Collection[uuid.UU
     Args:
         db: The owner's session
         account_ids: The accounts to read
+        actions_needed: What read_actions_needed returned for these accounts, from a caller that has
+            already read it, so it isn't read twice
 
     Returns:
         Each account's backlog, by account id
     """
     waiting = await _count_waiting_new(db, account_ids)
     links = await db.scalars(select(BankAccountLink).where(BankAccountLink.account_id.in_(account_ids), LIVE_LINK))
-    stopped = await read_actions_needed(db, account_ids)
+    stopped = await read_actions_needed(db, account_ids) if actions_needed is None else actions_needed
     counted = {link.account_id: link for link in links if link.state == BankLinkState.ACTIVE and link.account_id not in stopped}
     backlogs = {}
     for account_id in account_ids:

@@ -232,3 +232,27 @@ async def test_sync_status_counts_the_new_items_holding_it(client, link_values, 
     sync = await _read_sync(client, headers, account_id)
 
     assert (sync["state"], sync["waiting_new_count"], sync["paused"], sync["review_warning"]) == (state, waiting, paused, review_warning)
+
+
+@pytest.mark.parametrize(
+    ("link_values", "connection_values", "waiting", "state"),
+    [
+        pytest.param(_SYNCED | {"paused": True}, {"credential_rejected_at": _NOW}, 105, "reconnect_needed", id="paused-and-reconnect-needed"),
+        pytest.param(_SYNCED | {"signin_needed_since": _NOW}, {}, 85, "bank_signin_needed", id="warned-and-bank-sign-in-needed"),
+    ],
+)
+async def test_sync_status_of_a_sync_only_the_user_can_restart_shows_neither_the_pause_nor_the_warning(
+    client, link_values, connection_values, waiting, state
+):
+    """Everyday's sync resumes only once the user acts, so its status counts what waits without saying the count pauses or resumes it"""
+    headers, user_id = await _sign_up(client)
+    account_id = await _new_account(client, headers, "Everyday")
+    connection = await _commit_listed_connection(user_id, discovered_at=_NOW)
+    link = await _commit_link(account_id, connection, **link_values)
+    if connection_values:
+        await _update_connection(connection, **connection_values)
+    await _commit_waiting_items(link, waiting)
+
+    sync = await _read_sync(client, headers, account_id)
+
+    assert (sync["state"], sync["waiting_new_count"], sync["paused"], sync["review_warning"]) == (state, waiting, False, False)
