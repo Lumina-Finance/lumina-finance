@@ -79,10 +79,12 @@ class BankReviewBacklogResponse(BaseModel):
     # New items awaiting their first review, the count the warning and the pause read
     waiting_new_count: int
 
-    # The account's sync is held until enough items are reviewed, never while an import runs
+    # The account's sync is held until enough items are reviewed, never while an import runs or while
+    # only the user can restart the sync
     paused: bool
 
-    # Enough items wait that the sync will soon pause, on a linked account neither paused nor importing
+    # Enough items wait that the sync will soon pause, on a linked account neither paused, importing
+    # nor waiting for only the user to restart its sync
     review_warning: bool
 
 

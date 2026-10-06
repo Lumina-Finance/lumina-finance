@@ -3,7 +3,8 @@
 A setup token claims once, so the new credential has to be kept whatever happens after the claim.
 The linked accounts must come back as the listing finds them: one whose bank account is unchanged
 resumes from where it stopped, and one listed under a new id waits for the user rather than syncing
-into the wrong ledger
+into the wrong ledger. Neither may still show the failure from before the reconnect, which its new
+credential has answered
 """
 
 import asyncio
