@@ -18,6 +18,12 @@ type LoadingRegionBaseProps = {
 
   /** Follows the content's height across the load, for content that animates no height of its own */
   animateLoadingHeight?: boolean
+
+  /**
+   * Clips the content only while it is concealed or the height is held, so a tooltip or a focus ring
+   * inside can reach past the region's edges once it has settled
+   */
+  clipsOnlyWhileChanging?: boolean
 }
 
 // The two forms are kept apart so children written as a function cannot be left without the
@@ -51,6 +57,7 @@ export default function LoadingRegion<T>({
   transitionKey,
   snapshot,
   animateLoadingHeight = false,
+  clipsOnlyWhileChanging = false,
 }: LoadingRegionProps<T>) {
   const {
     displaySnapshot,
@@ -121,9 +128,11 @@ export default function LoadingRegion<T>({
     ? (children as (displaySnapshot: T) => ReactNode)(displaySnapshot)
     : children
 
+  const clips = !clipsOnlyWhileChanging || contentConcealed || !revealSettled
+
   return (
     <div
-      className={`relative overflow-hidden ${className}`}
+      className={`relative ${clips ? 'overflow-hidden ' : ''}${className}`}
       style={{
         height: height ?? undefined,
         transition: shouldReduceMotion || !animateLoadingHeight

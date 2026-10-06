@@ -61,6 +61,33 @@ async function isBlinking(dot: Locator): Promise<boolean> {
   }), { faint: BLINKING_OPACITY, watchMs: BLINK_WATCH_MS, reads: BLINK_WATCH_READS })
 }
 
+// How far an app button's focus ring spreads outside it
+const FOCUS_RING_PX = 3
+
+/**
+ * The boxes in the dialog that cut off part of an element, or of the room it needs around it for its
+ * focus ring, named by their classes
+ */
+async function readClippingBoxes(element: Locator, room = 0): Promise<string[]> {
+  return element.evaluate((target, needed) => {
+    const rect = target.getBoundingClientRect()
+    const clipping: string[] = []
+    for (let box = target.parentElement; box; box = box.parentElement) {
+      const style = getComputedStyle(box)
+      const bounds = box.getBoundingClientRect()
+
+      // Half a pixel spare, for a layout in fractions of one
+      const cutsAcross = style.overflowX !== 'visible' && (rect.left - needed < bounds.left - 0.5 || rect.right + needed > bounds.right + 0.5)
+      const cutsDown = style.overflowY !== 'visible' && (rect.top - needed < bounds.top - 0.5 || rect.bottom + needed > bounds.bottom + 0.5)
+      if (cutsAcross || cutsDown) clipping.push(`${box.tagName.toLowerCase()}.${box.className}`)
+
+      // The page behind the dialog doesn't hold it, so nothing past the dialog cuts it off
+      if (box.getAttribute('role') === 'dialog') break
+    }
+    return clipping
+  }, room)
+}
+
 /**
  * Opens the account's page and, once the identity card's Bank sync fact reads as expected, its edit
  * modal at the Bank link section through that fact
@@ -131,6 +158,21 @@ test('reads as retrying at the time of the retry when the Bridge fails', async (
   // The time's own period ends the sentence in the fact's name, with no second one after it
   const dialog = await openBankLink(page, user, account.id, /Retrying at (\w{3} \d{1,2}, )?\d{1,2}:\d{2}\s[ap]\.m\./)
   await expect(fact(dialog, 'Status')).toHaveText(/^Retrying at /)
+
+  // The details show whole, reaching past the section where they need the room, and so does the ring
+  // around Unlink, the section's last control
+  const showDetails = dialog.getByRole('button', { name: 'Sync details' })
+  const details = dialog.locator('.app-tooltip-panel').filter({ hasText: 'Not synced yet' })
+  await showDetails.click()
+  await expect(details).toContainText('Last attempt failed: ')
+  await expect.poll(() => readClippingBoxes(details)).toEqual([])
+  expect(await readClippingBoxes(dialog.getByRole('button', { name: 'Unlink', exact: true }), FOCUS_RING_PX)).toEqual([])
+
+  // With the status scrolled to the foot of the modal, where they'd fall out of sight, they open above it
+  await showDetails.click()
+  await fact(dialog, 'Status').evaluate((status) => status.scrollIntoView({ block: 'end' }))
+  await showDetails.click()
+  await expect.poll(() => readClippingBoxes(details)).toEqual([])
 })
 
 for (const reducedMotion of ['no-preference', 'reduce'] as const) {

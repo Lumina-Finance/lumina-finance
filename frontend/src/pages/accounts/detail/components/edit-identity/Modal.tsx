@@ -352,7 +352,8 @@ export default function EditAccountIdentityModal({
             onClose={requestClose}
           />
 
-          <div ref={scrollAreaRef} className="min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-7" data-dropdown-bounds>
+          {/* A tooltip in a section flips and shifts to stay within what this area shows */}
+          <div ref={scrollAreaRef} className="min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-7" data-tooltip-bounds data-dropdown-bounds>
             <div className="space-y-5">
               <AccountIdentitySection
                 form={form}

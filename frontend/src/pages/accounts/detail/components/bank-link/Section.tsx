@@ -219,18 +219,26 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
 
   return (
     <EditModalSection number={sectionNumber} title="Bank link">
-      <div ref={contentRef} data-tooltip-bounds>
+      <div ref={contentRef}>
       {ownPersonal && statusError && !status
         ? <LoadFailure error={statusError} subject="Bank link" />
         : (
-            <LoadingRegion loading={viewKey === 'loading'} label="Loading bank link" animateLoadingHeight overlayClassName={LOADING_OVERLAY_CLASS}>
+            <LoadingRegion
+              loading={viewKey === 'loading'}
+              label="Loading bank link"
+              animateLoadingHeight
+              clipsOnlyWhileChanging
+              overlayClassName={LOADING_OVERLAY_CLASS}
+            >
               <StepTransition stepKey={viewKey} easeContentChanges={false} onExitComplete={restoreLostFocus}>
                 {viewKey === 'loading' && <div className="min-h-16" />}
                 {viewKey === 'group' && (
                   <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>{GROUP_ACCOUNT_LINK_REASON} Its transactions stay manual.</p>
                 )}
+                {/* The reason a pause gives for Link bank account keeps to the section's sides. The Sync
+                    details in the linked view take the room the modal has, which a short section lacks */}
                 {viewKey === 'unlinked' && (
-                  <div className="space-y-3">
+                  <div className="space-y-3" data-tooltip-bounds>
                     <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
                       {previous
                         ? `Previously linked to ${previous.external_account_name} at ${previous.institution_name} through ${previous.provider_name}, until ${formatDate(new Date(previous.unlinked_at), DATE_FORMATS.monthDayYear, user?.tz)}. Reconnecting fetches what the bank reported since then.`
