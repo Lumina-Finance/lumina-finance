@@ -279,6 +279,8 @@ export type BankSyncStatus = {
 
   /** New posted items awaiting their first review, the count the warning and the pause read */
   waiting_new_count: number;
+
+  /** Both false while only the user can restart the sync, since the count no longer decides when it syncs */
   paused: boolean;
   review_warning: boolean;
 };

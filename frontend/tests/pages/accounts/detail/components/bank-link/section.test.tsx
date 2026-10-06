@@ -176,23 +176,6 @@ describe('BankLinkSection', () => {
     if (action) expect(getButton(markup, action)).toContain('data-bank-link-action="true"')
   })
 
-  // The pause says the sync resumes on its own and the warning that it pauses, which a stopped sync won't
-  describe.each([
-    ['paused for review', { paused: true, waiting_new_count: 105 }],
-    ['nearing the pause', { review_warning: true, waiting_new_count: 85 }],
-  ] as const)('while the sync is %s too', (_, backlog) => {
-    it.each([
-      ['a rejected connection', 'reconnect_needed', RECONNECT_NOTICE],
-      ['a bank account to choose again', 'choose_account', CHOOSE_NOTICE],
-      ['a bank asking for its sign-in again', 'bank_signin_needed', SIGN_IN_NOTICE],
-    ] as const)('shows only the notice for %s', (_name, state, notice) => {
-      const sync = createSync({ state, ...backlog })
-      read.status = createStatus({ link: createLink({ state: state === 'choose_account' ? 'choose_account' : 'active', sync }) })
-      const markup = renderSection()
-      for (const other of NOTICES) expect(markup.includes(escaped(other))).toBe(other === notice)
-    })
-  })
-
   it('keeps the review notices through a sync, since they follow the backlog rather than the state', () => {
     read.status = createStatus({ link: createLink({ sync: createSync({ state: 'syncing', review_warning: true, waiting_new_count: 85 }) }) })
     expect(renderSection()).toContain(WARNING_NOTICE)

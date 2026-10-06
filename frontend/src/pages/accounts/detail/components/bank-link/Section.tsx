@@ -3,7 +3,7 @@ import { AnimatePresence } from 'motion/react'
 import { Link2, PauseCircle, TriangleAlert, Unlink } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import type { Account } from '@/api/accounts'
-import { REVIEW_PAUSE_COUNT, REVIEW_RESUME_COUNT, useBankConnections, type BankLink, type BankSyncState } from '@/api/bank-sync'
+import { REVIEW_PAUSE_COUNT, REVIEW_RESUME_COUNT, useBankConnections, type BankLink } from '@/api/bank-sync'
 import { BANK_CONNECTIONS_SETTINGS_PATH, GROUP_ACCOUNT_LINK_REASON, LINKING_PAUSED_REASON } from '@/components/bank-link-flow/constants'
 import { BankLinkFlowModal } from '@/components/bank-link-flow/Modal'
 import { Unfold } from '@/components/display/Unfold'
@@ -39,8 +39,6 @@ type InitialFocusProps = { 'data-modal-field-tab-stop'?: 'true'; 'data-modal-ini
 const ACTION_ATTRIBUTE = 'data-bank-link-action'
 const ACTION_PROPS = { [ACTION_ATTRIBUTE]: 'true' }
 
-const STOPPED_STATES: ReadonlySet<BankSyncState> = new Set(['reconnect_needed', 'bank_signin_needed', 'choose_account'])
-
 type LinkedViewProps = {
   link: BankLink
   sync: BankSyncLabel
@@ -51,17 +49,15 @@ type LinkedViewProps = {
 
 /**
  * A live link: its facts and status, the import while one runs, a notice for anything holding its sync
- * back, and the actions on the link. A notice's own action comes first, since it is what resumes the sync
+ * back, and the actions on the link. A notice's own action comes first, since it is what resumes the
+ * sync. The server leaves the review notices out while only the user can restart the sync, so a
+ * stop's notice shows alone
  */
 function LinkedView({ link, sync, initialFocus, onChooseBankAccount, onUnlink }: LinkedViewProps) {
   const navigate = useNavigate()
   const shownImport = useLingeringImport(link.import)
   const { state, paused, review_warning: warned } = link.sync
   const waiting = link.sync.waiting_new_count.toLocaleString()
-
-  // A sync only the user can restart won't resume on its own when the backlog shrinks, so its notice
-  // shows alone
-  const stopped = STOPPED_STATES.has(state)
 
   return (
     <div>
@@ -118,14 +114,14 @@ function LinkedView({ link, sync, initialFocus, onChooseBankAccount, onUnlink }:
             <InfoCallout tone="stopped" icon={TriangleAlert}>Sign in to your bank again in {providerSite(link)}.</InfoCallout>
           </Unfold>
         )}
-        {paused && !stopped && (
+        {paused && (
           <Unfold key="paused">
             <InfoCallout tone="review" icon={PauseCircle}>
               Sync is paused with {waiting} new items waiting for review. It resumes on its own once {REVIEW_RESUME_COUNT} or fewer are left.
             </InfoCallout>
           </Unfold>
         )}
-        {warned && !stopped && (
+        {warned && (
           <Unfold key="warning">
             <InfoCallout tone="review" icon={TriangleAlert}>{waiting} new to review. Sync pauses at {REVIEW_PAUSE_COUNT}.</InfoCallout>
           </Unfold>

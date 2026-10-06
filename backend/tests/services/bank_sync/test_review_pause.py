@@ -4,8 +4,9 @@ A paused account never syncs, so a pause that stays on after the user has brough
 leaves it stale with nothing left to review, and one lifted at 51 lets the pile grow straight back.
 A sync queued for an account waiting to have its bank account chosen again has nothing to fetch, and
 a lift that counts before a sync pausing the link has finished leaves on a pause the user's decisions
-already cleared. A backlog shown wrong tells the user an account is paused while it syncs, or hides
-a pause or the warning before one
+already cleared. A backlog shown wrong tells the user an account is paused while it syncs, hides a
+pause or the warning before one, or promises that a sync only the user can restart resumes or pauses
+on the count
 """
 
 import asyncio
@@ -190,3 +191,27 @@ async def test_read_review_backlogs_shows_the_pause_from_100_and_the_warning_fro
     await _commit_waiting_items(link, waiting)
 
     assert await _backlog(link) == backlog
+
+
+@pytest.mark.parametrize(
+    ("link_values", "connection_values"),
+    [
+        ({}, {"credential_rejected_at": FROZEN_NOW}),
+        ({"signin_needed_since": FROZEN_NOW}, {}),
+        ({"state": BankLinkState.CHOOSE_ACCOUNT}, {}),
+    ],
+    ids=["reconnect_needed", "bank_sign_in_needed", "choose_bank_account"],
+)
+@pytest.mark.parametrize(("paused", "waiting"), [(True, 105), (False, 85)], ids=["paused_with_105", "85_waiting"])
+async def test_read_review_backlogs_shows_neither_the_pause_nor_the_warning_while_only_the_user_can_restart_the_sync(
+    connections, link_values, connection_values, paused, waiting
+):
+    """Everyday's sync stays stopped until the user acts, whatever the count, so its backlog says neither that it resumes nor that it pauses"""
+    if connection_values:
+        async with TestSession() as session:
+            await session.execute(update(BankConnection).where(BankConnection.id == connections[0].id).values(**connection_values))
+            await session.commit()
+    link = await _paused_link(connections[0], paused=paused, **link_values)
+    await _commit_waiting_items(link, waiting)
+
+    assert await _backlog(link) == ReviewBacklog(waiting_new=waiting, paused=False, warning=False)

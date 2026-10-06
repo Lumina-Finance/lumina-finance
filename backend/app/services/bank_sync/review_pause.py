@@ -16,7 +16,9 @@ leave a gap in the history. The thresholds apply once it ends.
 
 A review decision that leaves 50 or fewer lifts the pause at once and queues the connection's sync,
 so the account catches up from where it stopped rather than at the next daily sync. From 80 waiting,
-an account neither paused nor importing shows a warning that the pause is near
+an account neither paused nor importing shows a warning that the pause is near. An account whose
+sync only the user can restart shows neither the pause nor the warning, since the count no longer
+decides when it syncs
 """
 
 import uuid
@@ -30,6 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
 from app.models.bank_sync_job import BankSyncJobKind
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
+from app.services.bank_sync.action_needed import read_actions_needed
 from app.services.bank_sync.availability import LIVE_LINK
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
 
@@ -49,10 +52,11 @@ class ReviewBacklog:
 
     waiting_new: int
 
-    # The account's sync is held for review, which never shows while an import runs
+    # The account's sync is held for review, which never shows while an import runs or while only the
+    # user can restart the sync
     paused: bool
 
-    # 80 or more wait on an account neither paused nor importing
+    # 80 or more wait on an account neither paused, importing nor stopped until the user acts
     warning: bool
 
 
@@ -153,7 +157,8 @@ async def read_review_backlogs(db: AsyncSession, account_ids: Collection[uuid.UU
 
     While an import runs the account shows the import instead, so neither the pause it may keep for
     when the import ends nor the warning. An account no longer linked shows neither, since it doesn't
-    sync
+    sync, and nor does one whose sync only the user can restart, by reconnecting, signing in to the
+    bank or choosing the bank account again, since it neither resumes nor pauses on the count
 
     Args:
         db: The owner's session
@@ -164,11 +169,12 @@ async def read_review_backlogs(db: AsyncSession, account_ids: Collection[uuid.UU
     """
     waiting = await _count_waiting_new(db, account_ids)
     links = await db.scalars(select(BankAccountLink).where(BankAccountLink.account_id.in_(account_ids), LIVE_LINK))
-    live = {link.account_id: link for link in links}
+    stopped = await read_actions_needed(db, account_ids)
+    counted = {link.account_id: link for link in links if link.state == BankLinkState.ACTIVE and link.account_id not in stopped}
     backlogs = {}
     for account_id in account_ids:
         count = waiting.get(account_id, 0)
-        link = live.get(account_id)
+        link = counted.get(account_id)
         paused = link is not None and is_paused_for_review(link)
         warning = link is not None and not link.importing and not paused and count >= WARN_AT
         backlogs[account_id] = ReviewBacklog(waiting_new=count, paused=paused, warning=warning)

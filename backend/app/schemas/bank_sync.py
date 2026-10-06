@@ -328,7 +328,7 @@ class BankSyncStatusResponse(BaseModel):
     waiting_on_budget: bool
 
     # New items awaiting their first review, and whether they hold the sync or warn that they soon
-    # will, as the review block says too
+    # will, as the review block says too. Neither while only the user can restart the sync
     waiting_new_count: int
     paused: bool
     review_warning: bool
