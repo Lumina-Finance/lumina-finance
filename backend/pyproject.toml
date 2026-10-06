@@ -42,7 +42,7 @@ dev = [
 [tool.uv]
 constraint-dependencies = [
     "idna>=3.19",
-    "mako>=1.4.1",
+    "mako>=1.4.2",
     "starlette>=1.6.0",
 ]
 
