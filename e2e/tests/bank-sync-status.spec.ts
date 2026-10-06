@@ -34,26 +34,31 @@ const SAMPLE_CHEQUING = 'Everyday Chequing'
 // The width from which a notice's action sits beside its text rather than under it
 const NOTICE_ROW_MIN_WIDTH = 640
 
-// A blink takes 1.4 seconds, so watching a dot a little longer always meets it at its faintest
-const BLINK_WATCH_MS = 1_600
-
 // Fainter than a dot ever is at rest, and well short of how faint a blink goes
 const BLINKING_OPACITY = 0.5
 
+// Three blinks of 1.4 seconds, read at least as often as one blink has frames, so a dot that blinks
+// is met at its faintest however slowly a busy browser draws its frames
+const BLINK_WATCH_MS = 4_200
+const BLINK_WATCH_READS = 90
+
 /**
- * The faintest a status dot shows while watched for a little over one blink, read every frame
+ * Whether a status dot blinks: read every frame until it shows fainter than it ever is at rest, or
+ * for three blinks and at least as many reads as one blink has frames without doing so
  */
-async function readFaintestOpacity(dot: Locator): Promise<number> {
-  return dot.evaluate((element, watchMs) => new Promise<number>((resolve) => {
+async function isBlinking(dot: Locator): Promise<boolean> {
+  return dot.evaluate((element, { faint, watchMs, reads }) => new Promise<boolean>((resolve) => {
     const end = performance.now() + watchMs
-    let faintest = 1
+    let count = 0
     const read = () => {
-      faintest = Math.min(faintest, Number(getComputedStyle(element).opacity))
-      if (performance.now() < end) requestAnimationFrame(read)
-      else resolve(faintest)
+      count += 1
+      // Parsed rather than converted, so a dot taken off the page, which has no opacity, never reads as faint
+      if (Number.parseFloat(getComputedStyle(element).opacity) < faint) resolve(true)
+      else if (performance.now() >= end && count >= reads) resolve(false)
+      else requestAnimationFrame(read)
     }
     read()
-  }), BLINK_WATCH_MS)
+  }), { faint: BLINKING_OPACITY, watchMs: BLINK_WATCH_MS, reads: BLINK_WATCH_READS })
 }
 
 /**
@@ -143,12 +148,12 @@ for (const reducedMotion of ['no-preference', 'reduce'] as const) {
     await logInViaApi(page, user)
     await openPage(page, `/accounts/${account.id}`)
     const bankSync = page.getByRole('button', { name: 'Bank sync: Syncing. Open bank link' })
-    expect(await readFaintestOpacity(bankSync.getByTestId('sync-status-dot')) < BLINKING_OPACITY).toBe(blinks)
+    expect(await isBlinking(bankSync.getByTestId('sync-status-dot'))).toBe(blinks)
 
     // The modal opens with the link already read, which its first view mustn't hold still
     await bankSync.click()
     const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
-    expect(await readFaintestOpacity(fact(dialog, 'Status').getByTestId('sync-status-dot')) < BLINKING_OPACITY).toBe(blinks)
+    expect(await isBlinking(fact(dialog, 'Status').getByTestId('sync-status-dot'))).toBe(blinks)
   })
 }
 
