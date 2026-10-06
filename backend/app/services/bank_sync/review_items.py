@@ -37,8 +37,8 @@ from app.services.bank_sync.review_state import edited_fields
 # The most items one page holds, so an import that leaves hundreds waiting loads a page at a time
 REVIEW_PAGE_SIZE = 50
 
-# Why both reads refuse an account the user can see but doesn't own alone
-_NOT_OWN_DETAIL = "Bank items aren't listed for accounts shared with a group"
+# Why the reads of bank items refuse an account the user can see but doesn't own alone
+REVIEW_NOT_OWN_DETAIL = "Bank items aren't listed for accounts shared with a group"
 
 # Separates the bank date and the id of the last item a page returned, which its cursor carries
 _CURSOR_SEPARATOR = "_"
@@ -79,7 +79,7 @@ async def list_review_items(
     """
     scope = [_IS_REVIEW_ITEM, own_personal_account_condition(user.id)]
     if account_ids is not None:
-        await check_own_personal_accounts(db, account_ids, user.id, not_own_detail=_NOT_OWN_DETAIL)
+        await check_own_personal_accounts(db, account_ids, user.id, not_own_detail=REVIEW_NOT_OWN_DETAIL)
         scope.append(BankTransaction.account_id.in_(account_ids))
 
     # One row past the page says whether another page follows
@@ -108,7 +108,7 @@ async def list_review_items(
 
     page = rows[:limit]
     return BankReviewPageResponse(
-        items=[_build_item(record, ledger_date, ledger_amount) for record, ledger_date, ledger_amount in page],
+        items=[build_review_item(record, ledger_date, ledger_amount) for record, ledger_date, ledger_amount in page],
         counts=BankReviewCountsResponse(new=counts.get("new", 0), correction=counts.get("correction", 0), removal=counts.get("removal", 0)),
         next_cursor=_write_cursor(page[-1][0]) if len(rows) > limit else None,
     )
@@ -137,7 +137,7 @@ async def list_review_backlogs(
     if account_ids is None:
         account_ids = list(await db.scalars(select(Account.id).where(own_personal_account_condition(user.id))))
     else:
-        await check_own_personal_accounts(db, account_ids, user.id, not_own_detail=_NOT_OWN_DETAIL)
+        await check_own_personal_accounts(db, account_ids, user.id, not_own_detail=REVIEW_NOT_OWN_DETAIL)
     backlogs = await read_review_backlogs(db, account_ids)
     return [
         BankReviewBacklogResponse(
@@ -150,7 +150,7 @@ async def list_review_backlogs(
     ]
 
 
-def _build_item(record: BankTransaction, ledger_date: date | None, ledger_amount: int | None) -> BankReviewItemResponse:
+def build_review_item(record: BankTransaction, ledger_date: date | None, ledger_amount: int | None) -> BankReviewItemResponse:
     """Return a bank transaction as a review item, given its ledger row's date and amount when it has one"""
     bank = BankValues(
         date=record.observed_date,

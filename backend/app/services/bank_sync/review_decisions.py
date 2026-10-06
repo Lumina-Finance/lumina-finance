@@ -216,12 +216,12 @@ async def write_bank_change(db: AsyncSession, user: User, record: BankTransactio
         HTTPException 422: The bank's amount can't be stored exactly, or a value fails the checks an
             edit passes
     """
-    changed = [field for field in EDITABLE_COLUMNS if field in record.previous_values]
-    if "amount" in changed and record.observed_amount is None:
+    if not is_bank_change_storable(record):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=_UNSTORABLE_AMOUNT_DETAIL.format(currency=account.currency)
         )
 
+    changed = [field for field in EDITABLE_COLUMNS if field in record.previous_values]
     txn = await check_transaction_access(db, record.transaction_id, user.id, PermissionLevel.WRITE, lock_for_update=True)
     bank = {EDITABLE_COLUMNS[field].ledger: getattr(record, EDITABLE_COLUMNS[field].observed) for field in changed}
     await apply_transaction_update(db, user, txn, UpdateTransactionRequest(**bank))
@@ -230,6 +230,11 @@ async def write_bank_change(db: AsyncSession, user: User, record: BankTransactio
     record.previous_values = None
     await db.flush()
     return txn
+
+
+def is_bank_change_storable(record: BankTransaction) -> bool:
+    """Return whether the ledger can take every value an open correction changes, unless it's an amount the currency can't hold"""
+    return "amount" not in record.previous_values or record.observed_amount is not None
 
 
 async def keep_current_value(db: AsyncSession, user: User, item_id: uuid.UUID) -> TransactionResponse:

@@ -8,7 +8,7 @@ for the same account serialize until their caller commits or rolls back
 
 import hashlib
 import uuid
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import date
 
 from fastapi import HTTPException, status
@@ -105,14 +105,23 @@ async def recompute_account_snapshots(
         return
 
     await db.flush()
-    lock_keys = sorted({_snapshot_lock_key(account_id) for account_id in snapshot_starts})
 
-    # Serialize every affected account before any anchor read so a rebuild sees earlier commits
-    for lock_key in lock_keys:
+    # Serialize every affected account before any anchor read so a rebuild sees earlier commits. Accounts
+    # whose keys collide share one lock, taken once
+    for lock_key in dict.fromkeys(_snapshot_lock_key(account_id) for account_id in sort_by_snapshot_lock(snapshot_starts)):
         await db.execute(select(func.pg_advisory_xact_lock(lock_key)))
 
     for account_id, from_dt in snapshot_starts.items():
         await _recompute_account_snapshots_from(db, account_id, from_dt)
+
+
+def sort_by_snapshot_lock(account_ids: Iterable[uuid.UUID]) -> list[uuid.UUID]:
+    """Return the accounts in the order every rebuild takes their locks
+
+    A save that rebuilds several accounts one at a time goes through them in this order, so it never
+    holds one account's lock while waiting for another that a rebuild of several at once already holds
+    """
+    return sorted(set(account_ids), key=_snapshot_lock_key)
 
 
 def _snapshot_lock_key(account_id: uuid.UUID) -> int:
