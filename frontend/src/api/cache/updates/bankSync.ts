@@ -113,13 +113,21 @@ function hasNewBankData(previous: BankLink, link: BankLink): boolean {
 }
 
 /**
+ * Whether a link's review pause or warning came or went, which the backlog notice shows too. A stop
+ * only the user can fix ends both without bringing in data
+ */
+function hasNewBacklogNotice(previous: BankLink, link: BankLink): boolean {
+  return previous.sync.paused !== link.sync.paused || previous.sync.review_warning !== link.sync.review_warning;
+}
+
+/**
  * Refreshes what a polled change in the link list makes stale
  *
  * Any change to a link refreshes the status shown for it and the pending strip, since a link moved to
- * Choose bank account, or removed, has its pending rows cleared without bringing in data. A link that
- * brought in data also refreshes the review inbox, the transaction lists and the account's figures.
- * No other request would refresh any of these, since the worker writes them outside any request this
- * window made
+ * Choose bank account, or removed, has its pending rows cleared without bringing in data. A pause or
+ * warning that came or went refreshes the backlog notice. A link that brought in data also refreshes
+ * the review inbox, the transaction lists and the account's figures. No other request would refresh
+ * any of these, since the worker writes them outside any request this window made
  *
  * Nothing is compared until there is a list on both sides, so the first read is never taken as every
  * link appearing at once, and a list read again unchanged, which the cache hands back as the same
@@ -135,6 +143,7 @@ export function applyBankLinkChanges(
   const previousByAccount = new Map(before.map((link) => [link.account_id, link]));
   const withNewData: string[] = [];
   let changed = before.length !== after.length;
+  let backlogNoticeChanged = false;
 
   for (const link of after) {
     const previous = previousByAccount.get(link.account_id);
@@ -143,6 +152,7 @@ export function applyBankLinkChanges(
       continue;
     }
     if (JSON.stringify(previous) !== JSON.stringify(link)) changed = true;
+    if (hasNewBacklogNotice(previous, link)) backlogNoticeChanged = true;
     if (hasNewBankData(previous, link)) withNewData.push(link.account_id);
   }
 
@@ -150,6 +160,7 @@ export function applyBankLinkChanges(
 
   invalidateBankSyncStatus(queryClient);
   invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.pendingAll }]);
+  if (backlogNoticeChanged) invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.reviewBacklogsAll }]);
   if (withNewData.length === 0) return;
 
   invalidateBankReviewItems(queryClient);

@@ -6,7 +6,8 @@
  * These tests catch a polled link list that changed nothing refetching every bank view, a first read
  * taken for every link appearing at once, a sync that
  * brought in data leaving the review inbox, pending rows, transaction lists or the account's balance
- * stale, a link moved to Choose bank account or removed leaving its cleared pending rows on screen, a decided item staying in a later page or its count, an item leaving the inbox before its
+ * stale, a link moved to Choose bank account or removed leaving its cleared pending rows on screen, a
+ * stop leaving the review pause or warning on the backlog notice, a decided item staying in a later page or its count, an item leaving the inbox before its
  * transaction shows in the list or the backlog notice counts it out, a decision that left the ledger
  * alone reloading it or taking its item out before both the links and the backlogs have refetched, a
  * kept removal taking out the correction it reopened or leaving it named a removal, bulk approval
@@ -161,6 +162,20 @@ describe('a polled change in the link list', () => {
 
     expectInvalidated([...statusKeys, pendingKey], true);
     expectInvalidated([...reviewKeys, ...ledgerKeys], false);
+  });
+
+  // The server clears the pause and the warning once only the user can restart the sync
+  it.each([
+    ['a rejected connection ends its warning', { review_warning: true }, { state: 'reconnect_needed', next_attempt_at: null }],
+    ['a bank sign-in ends its pause', { state: 'paused', paused: true }, { state: 'bank_signin_needed' }],
+  ] as const)('refreshes the backlog notice, leaving the inbox and the ledger, when %s', (_, held, stopped) => {
+    const holding = [createBankLink({ sync: { ...before[0].sync, waiting_new_count: 110, ...held } }), before[1]];
+    const stopping = [createBankLink({ sync: { ...before[0].sync, waiting_new_count: 110, ...stopped } }), before[1]];
+
+    applyBankLinkChanges(queryClient, holding, stopping);
+
+    expectInvalidated([...statusKeys, backlogKey, pendingKey], true);
+    expectInvalidated([reviewKey, bankSyncKeys.bulkPreview(undefined), ...ledgerKeys], false);
   });
 
   it('refreshes the inbox, the pending strip, the ledger and the synced account when a sync brings in data', () => {
