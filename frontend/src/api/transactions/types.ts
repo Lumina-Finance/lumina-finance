@@ -211,3 +211,10 @@ export interface BulkUpdateTransactionsResult {
   /** Accounts behind the changed transactions, used to refresh only the views they feed */
   affected_account_ids: string[];
 }
+
+export type BulkDeleteTransactionsResult = {
+  transactions_deleted: number;
+
+  /** Accounts the deleted transactions were in, used to refresh only the views they feed */
+  affected_account_ids: string[];
+}

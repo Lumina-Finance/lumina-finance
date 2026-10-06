@@ -21,9 +21,10 @@ import {
   invalidateFinancialTransactionData,
   invalidatePatchedTransactionData,
   invalidateTransactionAccountData,
-  removeTransactionFromLists,
+  removeTransactionsFromLists,
 } from '@/api/cache/updates/transactions';
 import {
+  bulkDeleteTransactions,
   bulkUpdateTransactions,
   createTransaction,
   deleteTransaction,
@@ -202,8 +203,15 @@ export function applyTransactionDeletion(
   transactionId: string,
   accountId: string | undefined,
 ) {
-  const accountIds = uniqueIds([accountId]);
-  removeTransactionFromLists(queryClient, transactionId);
+  applyTransactionsDeletion(queryClient, [transactionId], uniqueIds([accountId]));
+}
+
+/**
+ * Removes deleted transactions from the cached lists and refreshes the aggregate views of the
+ * accounts they were in, once for the whole set
+ */
+function applyTransactionsDeletion(queryClient: QueryClient, transactionIds: string[], accountIds: string[]) {
+  removeTransactionsFromLists(queryClient, transactionIds);
   invalidateTransactions(queryClient);
   invalidateFinancialTransactionData(queryClient, accountIds);
   invalidateInsightsMerchants(queryClient);
@@ -227,6 +235,21 @@ export function useDeleteTransaction({
     onSuccess: (_data, id, context) => {
       if (deferRemoval) return;
       applyTransactionDeletion(queryClient, id, context?.deletedTransaction?.account_id);
+    },
+  });
+}
+
+/**
+ * Deletes several transactions in one request, then drops them from the cached lists and refreshes
+ * the aggregate views of the accounts they were in, once for the whole set
+ */
+export function useBulkDeleteTransactions({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (transactionIds: string[]) =>
+      runWithMinimumPendingTime(minimumPendingMs, () => bulkDeleteTransactions(transactionIds)),
+    onSuccess: (result, transactionIds) => {
+      applyTransactionsDeletion(queryClient, transactionIds, result.affected_account_ids);
     },
   });
 }

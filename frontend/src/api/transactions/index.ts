@@ -1,6 +1,7 @@
 export type {
   BulkDirectionChange,
   BulkTransferEnd,
+  BulkDeleteTransactionsResult,
   BulkUpdateTransactionsPayload,
   BulkUpdateTransactionsResult,
   CreateTransactionPayload,
@@ -30,6 +31,7 @@ export {
 
 export {
   applyTransactionDeletion,
+  useBulkDeleteTransactions,
   useBulkUpdateTransactions,
   useCreateTransaction,
   useDeleteTransaction,

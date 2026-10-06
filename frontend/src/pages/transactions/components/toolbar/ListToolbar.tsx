@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { Check, ListChecks, PencilLine, SlidersHorizontal, Upload } from 'lucide-react'
+import { Check, ListChecks, PencilLine, SlidersHorizontal, Trash2, Upload } from 'lucide-react'
 import { DesktopToolbarControls } from '@/components/list-controls/DesktopToolbarControls'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import { MobileToolbarActions } from '@/components/list-controls/MobileToolbarActions'
@@ -42,6 +42,8 @@ export default function TransactionListToolbar({
   selectedCount = 0,
   editDisabledReason,
   onEditSelection,
+  deleteDisabledReason,
+  onDeleteSelection,
   onToggleSelecting,
 }: TransactionListToolbarProps) {
   const prefersReducedMotion = useReducedMotion()
@@ -89,7 +91,7 @@ export default function TransactionListToolbar({
   const selectAction = onToggleSelecting ? (
     <button
       type="button"
-      className="app-glass-button h-11 w-11 shrink-0 overflow-hidden px-0 @min-[16rem]/bulk-actions:w-auto @min-[16rem]/bulk-actions:px-4 min-[750px]:w-auto min-[750px]:px-4"
+      className="app-glass-button h-11 w-11 shrink-0 overflow-hidden px-0 @min-[19.5rem]/bulk-actions:w-auto @min-[19.5rem]/bulk-actions:px-4 min-[750px]:w-auto min-[750px]:px-4"
       onClick={onToggleSelecting}
       aria-pressed={isSelecting}
       aria-label={isSelecting ? 'Stop selecting transactions' : 'Select transactions'}
@@ -104,7 +106,7 @@ export default function TransactionListToolbar({
           transition={{ duration: prefersReducedMotion ? 0 : 0.16, ease: TRANSACTION_LIST_EASE }}
         >
           {isSelecting ? <Check size={18} aria-hidden /> : <ListChecks size={18} aria-hidden />}
-          <span className="hidden text-center @min-[16rem]/bulk-actions:inline min-[750px]:inline min-[750px]:w-10">
+          <span className="hidden text-center @min-[19.5rem]/bulk-actions:inline min-[750px]:inline min-[750px]:w-10">
             {isSelecting ? 'Done' : 'Select'}
           </span>
         </motion.span>
@@ -131,6 +133,26 @@ export default function TransactionListToolbar({
     )
   }
 
+  // Sits beside Edit and follows its rules for being off, square below the 1050px breakpoint, where
+  // the row has no room left for another word
+  function renderDeleteAction(className: string) {
+    if (!onDeleteSelection) return undefined
+    const reason = selectedCount === 0 ? 'Tick a transaction first' : deleteDisabledReason
+    return (
+      <button
+        type="button"
+        className={className}
+        onClick={onDeleteSelection}
+        disabled={Boolean(reason)}
+        title={reason}
+        aria-label="Delete the selected transactions"
+      >
+        <Trash2 size={18} aria-hidden />
+        <span className="hidden min-[1050px]:inline">Delete</span>
+      </button>
+    )
+  }
+
   // Animates in beside Done rather than appearing in one frame. The always-present actions keep the
   // row's own gap-3 among themselves in a group of their own; this button's trailing space instead
   // lives inside the animated box, as a margin on the button that the width animation carries along
@@ -149,7 +171,10 @@ export default function TransactionListToolbar({
           onAnimationStart={() => setIsEditActionAnimating(true)}
           onAnimationComplete={() => setIsEditActionAnimating(false)}
         >
-          {renderEditAction('app-glass-button h-11 w-11 shrink-0 px-0 mr-3 min-[750px]:w-auto min-[750px]:px-4')}
+          <div className="flex items-center">
+            {renderEditAction('app-glass-button h-11 w-11 shrink-0 px-0 mr-3 min-[750px]:w-auto min-[750px]:px-4')}
+            {renderDeleteAction('app-glass-button h-11 w-11 shrink-0 px-0 mr-3 min-[1050px]:w-auto min-[1050px]:px-4')}
+          </div>
         </motion.div>
       )}
     </AnimatePresence>
@@ -183,17 +208,18 @@ export default function TransactionListToolbar({
         />
 
         {/* Query this row's available width, including on an account page. Each threshold reserves
-            room for the higher-priority labels and all three 44px controls before adding a word. */}
+            room for the higher-priority labels and all four 44px controls before adding a word.
+            Delete stays square at every width */}
         {isSelecting ? (
           <div className="@container/bulk-actions flex w-full items-center gap-3 min-[750px]:hidden">
             <button
               type="button"
-              className="app-glass-button relative h-11 w-11 shrink-0 px-0 @min-[20rem]/bulk-actions:w-auto @min-[20rem]/bulk-actions:px-4"
+              className="app-glass-button relative h-11 w-11 shrink-0 px-0 @min-[23.5rem]/bulk-actions:w-auto @min-[23.5rem]/bulk-actions:px-4"
               onClick={shell.openMobileSheet}
               aria-label={activeFilterCount > 0 ? `Filters, ${activeFilterCount} active` : 'Filters'}
             >
               <SlidersHorizontal size={17} aria-hidden />
-              <span className="hidden @min-[20rem]/bulk-actions:inline">Filters</span>
+              <span className="hidden @min-[23.5rem]/bulk-actions:inline">Filters</span>
               {activeFilterCount > 0 && (
                 <span
                   aria-hidden
@@ -205,9 +231,10 @@ export default function TransactionListToolbar({
               )}
             </button>
             {renderEditAction(
-              'app-glass-button h-11 min-w-11 flex-1 gap-2 px-0 @min-[12.5rem]/bulk-actions:px-4',
-              'hidden @min-[12.5rem]/bulk-actions:inline',
+              'app-glass-button h-11 min-w-11 flex-1 gap-2 px-0 @min-[16rem]/bulk-actions:px-4',
+              'hidden @min-[16rem]/bulk-actions:inline',
             )}
+            {renderDeleteAction('app-glass-button h-11 w-11 shrink-0 px-0')}
             {selectAction}
           </div>
         ) : (

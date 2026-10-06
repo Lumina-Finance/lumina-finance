@@ -36,5 +36,11 @@ export type TransactionListToolbarProps = {
 
   // Opens the bulk edit modal. Absent on a list that offers no selection at all
   onEditSelection?: () => void
+
+  // Shown as the delete button's title while it is off for a reason other than nothing being ticked
+  deleteDisabledReason?: string
+
+  // Opens the bulk delete confirmation. Absent on a list that offers no selection at all
+  onDeleteSelection?: () => void
   onToggleSelecting?: () => void
 }

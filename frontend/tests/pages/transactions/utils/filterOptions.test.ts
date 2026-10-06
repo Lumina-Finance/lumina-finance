@@ -33,6 +33,7 @@ function createAccount(overrides: Partial<TransactionListAccount>): TransactionL
     institution: null,
     can_write: true,
     is_archived: false,
+    group_id: null,
     ...overrides,
   }
 }

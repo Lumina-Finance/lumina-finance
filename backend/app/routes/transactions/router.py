@@ -21,6 +21,8 @@ from app.schemas.import_run import (
     TransactionImportStageRequest,
 )
 from app.schemas.transaction import (
+    BulkDeleteTransactionsRequest,
+    BulkDeleteTransactionsResponse,
     BulkUpdateTransactionsRequest,
     BulkUpdateTransactionsResponse,
     CreateTransactionRequest,
@@ -40,7 +42,7 @@ from app.services.importers import (
 )
 from app.services.transactions.bulk_update import bulk_update_transactions
 from app.services.transactions.creation import create_transaction_and_get_response
-from app.services.transactions.deletion import delete_transaction_for_user
+from app.services.transactions.deletion import bulk_delete_transactions, delete_transaction_for_user
 from app.services.transactions.detail import get_transaction_response_for_user
 from app.services.transactions.listing import list_transaction_responses
 from app.services.transactions.overview import get_transactions_overview as get_transactions_overview_response
@@ -379,6 +381,28 @@ async def bulk_update_transactions_route(
         the accounts affected, including a transfer's far side account before and after the edit
     """
     return await bulk_update_transactions(db, user, data)
+
+
+@router.post("/bulk/delete", response_model=BulkDeleteTransactionsResponse)
+async def bulk_delete_transactions_route(
+    data: BulkDeleteTransactionsRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Delete several transactions at once, all of them or none
+
+    A POST rather than a DELETE, since a DELETE carrying a body is dropped by some clients and
+    proxies
+
+    Args:
+        data: Transactions to delete
+        user: Authenticated user deleting the transactions
+        db: Active database session
+
+    Returns:
+        The count of rows deleted and the accounts they were in
+    """
+    return await bulk_delete_transactions(db, user, data)
 
 
 @router.patch("/{transaction_id}", response_model=TransactionResponse)

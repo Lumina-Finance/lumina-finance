@@ -161,6 +161,17 @@ export function removeTransactionFromLists(
   queryClient: QueryClient,
   transactionId: string,
 ): void {
+  removeTransactionsFromLists(queryClient, [transactionId]);
+}
+
+/**
+ * Drops several transactions from every cached list in one pass per list, for a bulk delete
+ */
+export function removeTransactionsFromLists(
+  queryClient: QueryClient,
+  transactionIds: string[],
+): void {
+  const removed = new Set(transactionIds);
   const transactionQueries = queryClient.getQueriesData<Transaction[] | InfiniteData<Transaction[]>>({
     queryKey: transactionKeys.all,
     exact: false,
@@ -171,10 +182,10 @@ export function removeTransactionFromLists(
     if (isInfiniteTransactionsData(data)) {
       queryClient.setQueryData<InfiniteData<Transaction[]>>(queryKey, {
         ...data,
-        pages: data.pages.map((page) => page.filter((item) => item.id !== transactionId)),
+        pages: data.pages.map((page) => page.filter((item) => !removed.has(item.id))),
       });
     } else if (Array.isArray(data)) {
-      queryClient.setQueryData<Transaction[]>(queryKey, data.filter((item) => item.id !== transactionId));
+      queryClient.setQueryData<Transaction[]>(queryKey, data.filter((item) => !removed.has(item.id)));
     }
   }
 }

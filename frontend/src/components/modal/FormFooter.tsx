@@ -27,6 +27,9 @@ interface ModalFormFooterProps {
    * first in the DOM so it is still the first stop after the close button on a Tab
    */
   primaryOnLeft?: boolean
+
+  /** Draws the primary action red, for a confirmation that deletes */
+  tone?: 'primary' | 'danger'
 }
 
 /**
@@ -41,6 +44,7 @@ export function ModalFormFooter({
   onCancel,
   onPrimary,
   primaryOnLeft = false,
+  tone = 'primary',
 }: ModalFormFooterProps) {
   return (
     <div
@@ -68,7 +72,8 @@ export function ModalFormFooter({
         type={onPrimary ? 'button' : 'submit'}
         onClick={onPrimary}
         disabled={submitDisabled}
-        className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${primaryOnLeft ? 'order-1' : ''} ${submitDisabled ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : submitWidthClassName}`}
+        aria-busy={submitDisabled}
+        className={`${tone === 'danger' ? 'app-danger-button' : 'app-primary-button'} overflow-hidden whitespace-nowrap duration-300 ${primaryOnLeft ? 'order-1' : ''} ${submitDisabled ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : submitWidthClassName}`}
       >
         {/* The spinner replaces the label, so it carries the label as its own name and a screen reader still
             says which action is in flight */}

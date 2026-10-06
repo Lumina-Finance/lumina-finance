@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useCategories } from '@/api/categories'
 import { ApiError } from '@/api/auth'
 import {
+  useBulkDeleteTransactions,
   useBulkUpdateTransactions,
   useInfiniteTransactions,
   type Transaction,
@@ -10,8 +11,10 @@ import {
 import { useToast } from '@/hooks/useToast'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 import { BulkEditModal } from '@/pages/transactions/components/bulk-edit/BulkEditModal'
+import { BulkDeleteConfirm } from '@/pages/transactions/components/bulk-edit/BulkDeleteConfirm'
 import { BulkEditConfirm } from '@/pages/transactions/components/bulk-edit/BulkEditConfirm'
 import { selectedTransactionsSignature } from '@/pages/transactions/components/bulk-edit/confirmation'
+import { getBulkDeleteBlockReason } from '@/pages/transactions/components/bulk-edit/deletion'
 import {
   doesChosenCategoryRecordTransferTarget,
   isRowSelectable,
@@ -183,6 +186,15 @@ export default function TransactionListSection({
   const [applyError, setApplyError] = useState<string | null>(null)
   const { showToast } = useToast()
   const bulkUpdate = useBulkUpdateTransactions({ minimumPendingMs: LOADING_ANIMATION_MIN_MS })
+
+  // The ids the delete confirmation was opened for, frozen so a refetch while it is open cannot change
+  // what Delete removes. Null while it is closed
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[] | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  // Kept after the confirmation closes, so its title does not read 0 while it fades out
+  const [deleteCount, setDeleteCount] = useState(0)
+  const bulkDelete = useBulkDeleteTransactions({ minimumPendingMs: LOADING_ANIMATION_MIN_MS })
 
   // The rows a range runs along, in the order they appear, carrying the same editable rule the row
   // itself shows
@@ -380,6 +392,32 @@ export default function TransactionListSection({
     )
   }
 
+  const deleteDisabledReason = useMemo(
+    () => getBulkDeleteBlockReason(selectedFacts.map((row) => row.accountId), accountMap, fixedAccount),
+    [selectedFacts, accountMap, fixedAccount],
+  )
+
+  /**
+   * Deletes the transactions the confirmation was opened for, keeping a refusal open with its reason
+   */
+  function deletePendingSelection() {
+    if (!pendingDeleteIds) return
+    setDeleteError(null)
+    bulkDelete.mutate(pendingDeleteIds, {
+      onSuccess: (result) => {
+        setPendingDeleteIds(null)
+        stopSelecting()
+        showToast({
+          status: 'success',
+          text: `${result.transactions_deleted} ${result.transactions_deleted === 1 ? 'transaction' : 'transactions'} deleted.`,
+        })
+      },
+      onError: (error) => {
+        setDeleteError(error instanceof ApiError ? error.message : 'Something went wrong. Please try again.')
+      },
+    })
+  }
+
   // Only a list fixed to one account can be blocked, since only that one writes rows to an account
   // of its own. On the list of every account the button is the way to the import page and is always
   // offered. Where it is blocked it stays on the row, greyed out with the reason, rather than
@@ -437,6 +475,12 @@ export default function TransactionListSection({
           setEditOpenings((count) => count + 1)
           setIsEditMounted(true)
           setIsEditOpen(true)
+        }}
+        deleteDisabledReason={deleteDisabledReason}
+        onDeleteSelection={() => {
+          setDeleteError(null)
+          setPendingDeleteIds([...selection.selectedIds])
+          setDeleteCount(selection.selectedIds.length)
         }}
         onToggleSelecting={() => (isSelecting ? stopSelecting() : setIsSelecting(true))}
       />
@@ -548,6 +592,18 @@ export default function TransactionListSection({
           setPendingChangeIds([])
           setPendingChangeSignature(null)
           setApplyError(null)
+        }}
+      />
+
+      <BulkDeleteConfirm
+        open={pendingDeleteIds !== null}
+        count={deleteCount}
+        error={deleteError}
+        isDeleting={bulkDelete.isPending}
+        onConfirm={deletePendingSelection}
+        onCancel={() => {
+          setPendingDeleteIds(null)
+          setDeleteError(null)
         }}
       />
     </section>
