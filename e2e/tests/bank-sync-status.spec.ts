@@ -60,12 +60,14 @@ async function readFaintestOpacity(dot: Locator): Promise<number> {
  * Opens the account's page and, once the identity card's Bank sync fact reads as expected, its edit
  * modal at the Bank link section through that fact
  *
- * @param status - The label the fact should come to show, which may take the worker a while
+ * @param status - The label the fact should come to show, which may take the worker a while. A
+ * pattern ends with the period that ends the label's sentence in the fact's name, since a label
+ * ending in p.m. has one already
  */
 async function openBankLink(page: Page, user: TestUser, accountId: string, status: string | RegExp): Promise<Locator> {
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${accountId}`)
-  const name = typeof status === 'string' ? `Bank sync: ${status}. Open bank link` : new RegExp(`^Bank sync: ${status.source}\\. Open bank link$`)
+  const name = typeof status === 'string' ? `Bank sync: ${status}. Open bank link` : new RegExp(`^Bank sync: ${status.source} Open bank link$`)
   const bankSync = page.getByRole('button', { name })
   await expect(bankSync).toBeVisible({ timeout: WORKER_RESULT_TIMEOUT_MS })
   await bankSync.click()
@@ -108,7 +110,7 @@ test('reads as synced once the import finishes', async ({ page, request }) => {
   const account = await createAccount(request, user, { name: 'Everyday' })
   await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
 
-  const dialog = await openBankLink(page, user, account.id, /Synced (just now|\d+ minutes? ago)/)
+  const dialog = await openBankLink(page, user, account.id, /Synced (just now|\d+ minutes? ago)\./)
   await expect(fact(dialog, 'Status')).toHaveText(/^Synced/)
 
   // Nothing stops the sync, so no notice offers an action ahead of Unlink
@@ -121,6 +123,7 @@ test('reads as retrying at the time of the retry when the Bridge fails', async (
   const account = await createAccount(request, user, { name: 'Everyday' })
   await linkIntoFault(request, user, account.id, (scenarioId) => breakBridge(request, scenarioId))
 
+  // The time's own period ends the sentence in the fact's name, with no second one after it
   const dialog = await openBankLink(page, user, account.id, /Retrying at (\w{3} \d{1,2}, )?\d{1,2}:\d{2}\s[ap]\.m\./)
   await expect(fact(dialog, 'Status')).toHaveText(/^Retrying at /)
 })

@@ -71,6 +71,8 @@ function SlidingLabel({ label, underlinesOnHover }: { label: string; underlinesO
  * it apart from the dot
  */
 export function SyncFact({ name, sync, showsDetails = false, onOpen }: SyncFactProps) {
+  // A label ending in an abbreviation, such as a retry at 10:12 p.m., already ends its sentence
+  const sentence = sync.label.endsWith('.') ? sync.label : `${sync.label}.`
   const value = (
     <>
       <SyncStatusDot tone={sync.tone} pulse={sync.pulse} />
@@ -87,7 +89,7 @@ export function SyncFact({ name, sync, showsDetails = false, onOpen }: SyncFactP
               <button
                 type="button"
                 onClick={onOpen}
-                aria-label={`${name}: ${sync.label}. Open bank link`}
+                aria-label={`${name}: ${sentence} Open bank link`}
                 className="group flex max-w-full items-center gap-2 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
               >
                 {value}
