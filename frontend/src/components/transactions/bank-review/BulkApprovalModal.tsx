@@ -199,7 +199,7 @@ export function BulkApprovalModal({ open, scope, accountFor, today, onClose }: B
           {preview?.groups.map(renderGroup)}
 
           {preview && items.length === 0 && (
-            <p className="py-4 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
+            <p className="py-4 text-center text-sm italic" style={{ color: 'var(--app-text-muted)' }}>
               Nothing here can be approved in bulk right now.
             </p>
           )}
