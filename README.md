@@ -50,7 +50,7 @@ These terms apply equally to any modified, renamed or derivative version. They c
 
 <!-- markdownlint-disable MD033 -->
 
-https://github.com/user-attachments/assets/0674ffa8-a16e-4460-a82a-fc039aba6d30
+https://github.com/user-attachments/assets/ff25a063-eec5-4069-b019-3e0ebb8c7ed9
 
 <!-- markdownlint-enable MD033 -->
 
