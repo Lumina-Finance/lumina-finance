@@ -2,14 +2,15 @@
 
 import uuid
 from collections.abc import Awaitable, Callable, Collection
-from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.cache_state import UserCacheState
 from app.models.import_run import ImportRun, ImportRunSource, ImportStagedRow
+from app.services.cache_state import mark_user_cache_changed
 from app.services.importers.shared.run_locking import load_locked_run
 from app.services.importers.shared.run_staging import is_run_abandoned, require_run_source
 
@@ -122,6 +123,8 @@ async def _finish_run_commit(db: AsyncSession, run: ImportRun, summary: BaseMode
     The staged copy has served its purpose once the rows are in the ledger, and it goes in the
     same transaction as the rows so neither can outlive the other
 
+    Every earlier run the user committed goes too, since only the last import can be undone
+
     Args:
         db: Active database session
         run: Run whose records have been written
@@ -131,6 +134,16 @@ async def _finish_run_commit(db: AsyncSession, run: ImportRun, summary: BaseMode
         None
     """
     await db.execute(delete(ImportStagedRow).where(ImportStagedRow.import_run_id == run.id))
-    run.committed_at = datetime.now(UTC)
+    # Only the last saved import can be undone, so the runs of earlier ones go with this commit. Their
+    # transactions stay and only lose the link to them
+    await db.execute(delete(ImportRun).where(
+        ImportRun.owner_id == run.owner_id,
+        ImportRun.committed_at.is_not(None),
+        ImportRun.id != run.id,
+    ))
+    # Stamped with the user's change marker once the import's own writes have moved it, so any later
+    # change to their data moves it past this and ends the undo
+    await mark_user_cache_changed(db, run.owner_id)
+    run.committed_at = await db.scalar(select(UserCacheState.changed_at).where(UserCacheState.user_id == run.owner_id))
     run.summary = summary.model_dump(mode="json")
     await db.commit()

@@ -1,7 +1,7 @@
 """Import run request and response schemas and the caps they enforce, for the CSV, Firefly III and Actual Budget imports"""
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, Field, model_validator
@@ -124,6 +124,10 @@ class TransactionImportRunRequest(BaseModel):
     # Which importer's rows the run stages, so each importer's commit reads only its own. Firefly III
     # and Actual Budget runs both stage journal rows, and the source decides how a refusal names a row
     source: Literal["generic", "firefly", "actual_budget"] = "generic"
+
+    # The name of the file the user picked, shown with the last import. The page cuts a
+    # longer one to fit
+    file_name: str | None = Field(None, max_length=255)
 
 
 class TransactionImportRunResponse(BaseModel):
@@ -435,3 +439,28 @@ class ImportRunArchiveRequest(BaseModel):
     """
 
     account_sources: UniqueTrimmedImportTexts = Field(default=[], max_length=MAX_IMPORT_MAPPINGS)
+
+
+class LastImportResponse(BaseModel):
+    """The last saved import, with when it can be undone until and everything undoing it deletes"""
+
+    id: uuid.UUID
+    source: Literal["generic", "firefly", "actual_budget"]
+    file_name: str | None
+    committed_at: datetime
+    undo_until: datetime
+
+    # The transactions the import wrote and the records it created, all of which undoing it deletes
+    transaction_count: int
+    account_count: int
+    category_count: int
+    merchant_count: int
+    tag_count: int
+    budget_count: int
+
+
+class ImportUndoResponse(BaseModel):
+    """Summary of an undone import"""
+
+    transactions_deleted: int
+    affected_account_ids: list[uuid.UUID]

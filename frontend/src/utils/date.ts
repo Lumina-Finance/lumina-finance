@@ -19,6 +19,7 @@ export const DATE_FORMATS = {
   monthDay: { month: 'short', day: 'numeric' },
   monthYear: { month: 'short', year: 'numeric' },
   monthDayYear: { month: 'short', day: 'numeric', year: 'numeric' },
+  monthDayTime: { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' },
   longMonthYear: { month: 'long', year: 'numeric' },
   longDate: { year: 'numeric', month: 'long', day: 'numeric' },
 } as const satisfies Record<string, Intl.DateTimeFormatOptions>

@@ -6,11 +6,12 @@ import type { TransactionImportPayload } from '@/api/transaction-imports/types';
  * Provides the mutation boundary for staging a prepared import and committing it
  */
 export function useImportTransactions() {
-  return useImportRunMutation(({ payload, signal, onStaged }: {
+  return useImportRunMutation(({ payload, signal, onStaged, fileName }: {
     payload: TransactionImportPayload;
     signal?: AbortSignal;
     onStaged?: () => Promise<void>;
-  }) => runTransactionImport(payload, signal, onStaged));
+    fileName?: string;
+  }) => runTransactionImport(payload, signal, onStaged, fileName));
 }
 
 /**

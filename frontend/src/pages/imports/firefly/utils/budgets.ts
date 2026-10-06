@@ -27,6 +27,7 @@ import {
   getFireflyBudgetUnsupportedCurrencyReason,
 } from '@/pages/imports/firefly/constants'
 import type { FireflyBudgetDraft } from '@/pages/imports/firefly/types'
+import { joinWords } from '@/pages/imports/utils/common'
 import { toImportMinorUnits } from '@/pages/imports/utils/valueParsers'
 import { parseYmd } from '@/utils/date'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -291,24 +292,17 @@ export function buildFireflyBudgetCountingNotes({
       const others = (budgetNamesByTarget.get(key) ?? []).filter((name) => name !== draft.name)
       if (others.length === 0) continue
       const theirs = others.length === 1 ? `${others[0]}'s` : 'their'
-      notes.push(`${draft.name} shares ${categoryName} with ${joinNames(others)}, so it also counts ${theirs} spending in ${categoryName}.`)
+      notes.push(`${draft.name} shares ${categoryName} with ${joinWords(others)}, so it also counts ${theirs} spending in ${categoryName}.`)
     }
 
     const totals = [...uncategorizedByBudget.get(draft.name) ?? []]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([currencyCode, minorUnits]) => formatCurrency(minorUnits, currencyCode, options.currencies))
     if (totals.length > 0) {
-      notes.push(`${draft.name} has ${joinNames(totals)} of spending with no category in Firefly III, which it will not count.`)
+      notes.push(`${draft.name} has ${joinWords(totals)} of spending with no category in Firefly III, which it will not count.`)
     }
     return notes
   })
-}
-
-/**
- * Joins names into a readable list, such as "A, B and C"
- */
-function joinNames(names: string[]): string {
-  return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0] ?? ''
 }
 
 /**

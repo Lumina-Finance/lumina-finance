@@ -11,7 +11,7 @@ import {
   IMPORT_SCOPE_FAILURE_EXPLANATION,
   IMPORT_SCOPE_FAILURE_TITLE,
 } from './constants'
-import { ImportExpectationsCard, ImportLoadFailure, ImportProgressOverlay } from './components'
+import { ImportExpectationsCard, ImportLoadFailure, ImportProgressOverlay, ImportUndoNoticeCard, LastImportCard } from './components'
 import { getImportExpectations } from './expectations'
 import { useActualImportWorkflow } from './actual/hooks'
 import {
@@ -271,6 +271,8 @@ export default function ImportsPage() {
           <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-3 sm:px-8 xl:overflow-hidden">
             <div className="flex min-h-full flex-col gap-8 xl:h-full xl:min-h-0 xl:flex-row">
               <aside className="flex flex-col gap-8 xl:h-full xl:w-[340px] xl:shrink-0">
+                {/* First, so the way to undo the last import is in view without scrolling the steps below */}
+                <LastImportCard />
                 {/* An import started from an account has one source, so the choice is not offered */}
                 {!isScopedToAccount && <ImportSourceStep value={dataSource} onChange={handleDataSourceChange} />}
                 <div className="min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1">
@@ -283,8 +285,12 @@ export default function ImportsPage() {
               <div className="min-w-0 xl:h-full xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1">
                 <div className="space-y-8">
                   {/* Shown whether or not a file is staged, since what the import does with one is worth
-                      knowing before choosing it. Keyed by flow so each source opens with its card collapsed */}
-                  <ImportExpectationsCard key={activeFlow} expectations={getImportExpectations(activeFlow, workflow.fixedAccount?.name ?? null)} />
+                      knowing before choosing it. Keyed by flow so each source opens with its card collapsed.
+                      The undo notice sits close above it, as part of the same briefing */}
+                  <div className="space-y-3">
+                    <ImportUndoNoticeCard />
+                    <ImportExpectationsCard key={activeFlow} expectations={getImportExpectations(activeFlow, workflow.fixedAccount?.name ?? null)} />
+                  </div>
                   {activeFlow === 'actual' && (
                     <>
                       <ActualAccountMappingStep {...actualWorkflow} />

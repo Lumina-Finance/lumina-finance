@@ -1,12 +1,14 @@
-"""Holding an import run while one request works on it"""
+"""Holding an import run, or the user's change marker, while one request works on it"""
 
 import uuid
+from datetime import datetime
 
 from fastapi import HTTPException, status
 from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.cache_state import UserCacheState
 from app.models.import_run import ImportRun
 
 # Postgres raises this for a lock the caller waited out
@@ -54,3 +56,37 @@ async def load_locked_run(db: AsyncSession, run_id: uuid.UUID) -> ImportRun | No
 
     await db.execute(text("SET LOCAL lock_timeout = DEFAULT"))
     return run
+
+
+async def load_locked_change_marker(db: AsyncSession, user_id: uuid.UUID) -> datetime | None:
+    """Read when the user's data last changed, holding that marker for the rest of the transaction
+
+    Every write to the user's data moves the marker as it finishes, so while it is held no other
+    change can land, and one already landed shows as a later time
+
+    Args:
+        db: Active database session
+        user_id: User whose marker is read
+
+    Returns:
+        When their data last changed, or None when it never has
+
+    Raises:
+        HTTPException: Raised with 409 when another change holds the marker for longer than the wait
+    """
+    await db.execute(text(f"SET LOCAL lock_timeout = '{RUN_LOCK_WAIT}'"))
+    query = select(UserCacheState.changed_at).where(UserCacheState.user_id == user_id).with_for_update()
+
+    try:
+        changed_at = (await db.execute(query)).scalar_one_or_none()
+    except DBAPIError as exc:
+        if getattr(exc.orig, "sqlstate", None) != _LOCK_NOT_AVAILABLE_SQLSTATE:
+            raise
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This import can no longer be undone",
+        ) from exc
+
+    await db.execute(text("SET LOCAL lock_timeout = DEFAULT"))
+    return changed_at

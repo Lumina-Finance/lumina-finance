@@ -1,13 +1,15 @@
 """Loading and access checks shared by the bulk transaction services
 
-A bulk edit and a bulk delete both lock the requested rows inside the caller's readable scope and
-check write access on every account behind them before writing anything, so a set holding one row
-the caller may not change is refused whole
+A bulk edit, a bulk delete and undoing an import all lock their rows inside the caller's readable
+scope and check write access on every account behind them before writing anything, so a set
+holding one row the caller may not change is refused whole
 """
 import uuid
+from collections.abc import Collection
+from datetime import date
 
 from fastapi import HTTPException, status
-from sqlalchemy import select, text
+from sqlalchemy import Result, Select, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -47,11 +49,6 @@ async def load_locked_transactions(
     Raises:
         HTTPException: Another change holds one of the rows, or a transaction was not found
     """
-    # Bounded for this statement alone, following load_locked_run in run_locking.py. The setting
-    # lasts the whole transaction, so leaving it in place would put the same bound on every lock
-    # the commit takes afterwards, including the balance snapshot rebuild
-    await db.execute(text(f"SET LOCAL lock_timeout = '{_BULK_LOCK_WAIT}'"))
-
     # An id belonging to someone else is missing from the result rather than silently changing
     # nothing. Locked in id order so two bulk changes over overlapping rows queue behind each other
     # in the same order rather than deadlocking, and held until this transaction commits so no other
@@ -67,6 +64,66 @@ async def load_locked_transactions(
         .order_by(Transaction.id)
         .with_for_update()
     )
+    transactions = list((await _execute_locking(db, query)).scalars().all())
+    if len(transactions) != len(requested_ids):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"{len(requested_ids) - len(transactions)} of {len(requested_ids)} transactions were not found",
+        )
+    return transactions
+
+
+async def load_locked_run_transactions(
+    db: AsyncSession,
+    user: User,
+    import_run_id: uuid.UUID,
+) -> list[tuple[uuid.UUID, date]]:
+    """Lock every transaction an import run wrote that is still in the caller's readable scope
+
+    Selected by the run rather than by id, since a run can hold a couple of hundred thousand rows
+    and the driver caps how many values one statement can bind. Only the account and date of each
+    row come back, which is all deleting them needs, so a large run is not loaded whole
+
+    Args:
+        db: Active database session
+        user: Authenticated user making the change
+        import_run_id: Run whose transactions to lock
+
+    Returns:
+        The account and date of each transaction, locked until the caller's transaction ends
+
+    Raises:
+        HTTPException: Another change holds one of the rows
+    """
+    query = (
+        select(Transaction.account_id, Transaction.dt)
+        .where(
+            Transaction.import_run_id == import_run_id,
+            Transaction.account_id.in_(accessible_account_ids_subquery(user.id)),
+        )
+        .order_by(Transaction.id)
+        .with_for_update(of=Transaction)
+    )
+    return [(account_id, dt) for account_id, dt in (await _execute_locking(db, query)).all()]
+
+
+async def _execute_locking(db: AsyncSession, query: Select) -> Result:
+    """Run a locking read, giving up with a 409 when another change holds a row too long
+
+    Args:
+        db: Active database session
+        query: SELECT ... FOR UPDATE to run
+
+    Returns:
+        The query's result
+
+    Raises:
+        HTTPException: Another change held one of the rows for longer than the wait
+    """
+    # Bounded for this statement alone, following load_locked_run in run_locking.py. The setting
+    # lasts the whole transaction, so leaving it in place would put the same bound on every lock
+    # the commit takes afterwards, including the balance snapshot rebuild
+    await db.execute(text(f"SET LOCAL lock_timeout = '{_BULK_LOCK_WAIT}'"))
     try:
         result = await db.execute(query)
     except DBAPIError as exc:
@@ -78,20 +135,14 @@ async def load_locked_transactions(
             detail="Another change reached one of these transactions first",
         ) from exc
     await db.execute(text("SET LOCAL lock_timeout = DEFAULT"))
-
-    transactions = list(result.scalars().all())
-    if len(transactions) != len(requested_ids):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"{len(requested_ids) - len(transactions)} of {len(requested_ids)} transactions were not found",
-        )
-    return transactions
+    return result
 
 
 async def load_writable_accounts(
     db: AsyncSession,
     user: User,
     account_ids: set[uuid.UUID],
+    archived_ok: Collection[uuid.UUID] = (),
 ) -> list[Account]:
     """Return the given accounts, refusing any the caller cannot write to
 
@@ -102,6 +153,8 @@ async def load_writable_accounts(
         db: Active database session
         user: Authenticated user making the change
         account_ids: Accounts to check
+        archived_ok: Archived accounts the change may write to anyway, such as the ones an import
+            archived itself when undoing it
 
     Returns:
         One account row per identifier
@@ -112,6 +165,7 @@ async def load_writable_accounts(
     accounts = []
     for account_id in sorted(account_ids):
         account = await check_account_access(db, account_id, user.id, PermissionLevel.WRITE)
-        validate_transaction_account_is_not_archived(account)
+        if account_id not in archived_ok:
+            validate_transaction_account_is_not_archived(account)
         accounts.append(account)
     return accounts

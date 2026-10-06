@@ -171,3 +171,17 @@ export function isImportCommitWorthRepeating(error: unknown): boolean {
   if (!(cause instanceof ApiError)) return true;
   return !PERMANENT_COMMIT_FAILURE_STATUSES.has(cause.status);
 }
+
+// The longest file name a run records, matching the column it is kept in
+const MAX_IMPORT_FILE_NAME_LENGTH = 255;
+
+/**
+ * Names an import by the files the user picked, shown with the last import
+ *
+ * @param names - Each picked file's name, in the order the user added them
+ * @returns The names joined and cut to what a run records, or undefined when there are none
+ */
+export function getImportFileName(names: string[]): string | undefined {
+  const joined = names.join(', ');
+  return joined ? joined.slice(0, MAX_IMPORT_FILE_NAME_LENGTH) : undefined;
+}

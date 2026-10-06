@@ -82,3 +82,10 @@ export function countCreatedImportSources(
 ) {
   return sources.filter((source) => mappings[source] === createValue && writtenSources.has(source)).length
 }
+
+/**
+ * Lists words the way a sentence does: "A", "A and B", or "A, B and C"
+ */
+export function joinWords(words: string[]) {
+  return words.length < 2 ? words.join('') : `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`
+}

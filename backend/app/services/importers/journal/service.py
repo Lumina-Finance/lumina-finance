@@ -44,6 +44,7 @@ async def write_journal_transactions(
     db: AsyncSession,
     user: User,
     source: ImportRunSource,
+    import_run_id: uuid.UUID,
     accounts: list[TransactionImportAccountMapping],
     categories: list[TransactionImportCategoryMapping],
     rows: list[JournalTransactionRow],
@@ -54,6 +55,7 @@ async def write_journal_transactions(
         db: Active database session
         user: Authenticated user running the import
         source: Importer that opened the run, which decides how a refusal names a row
+        import_run_id: Run being committed, which every written transaction is stamped with
         accounts: Account mappings covering every account source the rows name
         categories: Category mappings covering every category the rows read
         rows: Journal rows in export order
@@ -89,6 +91,7 @@ async def write_journal_transactions(
     first_import_date_by_account_id = await write_imported_transactions(
         db,
         user_id=user.id,
+        import_run_id=import_run_id,
         transactions=[_to_imported_transaction(leg) for leg in legs],
         merchant_mappings=[],
         import_lookups=import_lookups,

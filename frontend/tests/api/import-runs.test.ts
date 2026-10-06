@@ -1,6 +1,7 @@
 /**
- * Covers what every import shares about a run: settling one kept from an interrupted save, and
- * reading the ledger again after a save that landed or whose outcome is unknown
+ * Covers what every import shares about a run: settling one kept from an interrupted save, reading
+ * the ledger and the last import again after a save or an undo that landed or whose outcome is
+ * unknown, and naming the run by its files
  *
  * These tests catch regressions where a save that landed, with or without its answer, leaves the screens
  * showing the ledger as it was, and where a kept run is read as saved or dropped when it wasn't
@@ -9,7 +10,7 @@ import { QueryClient, type MutationObserverOptions } from '@tanstack/react-query
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from '@/api/auth/errors';
-import { transactionKeys } from '@/api/cache/queryKeys';
+import { lastImportKeys, transactionKeys } from '@/api/cache/queryKeys';
 import type { TransactionImportPayload } from '@/api/transaction-imports';
 
 const { authenticatedFetchMock } = vi.hoisted(() => ({
@@ -37,7 +38,7 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
   };
 });
 
-import { settleStagedRun } from '@/api/import-runs';
+import { getImportFileName, settleStagedRun, useUndoImportRun } from '@/api/import-runs';
 import { useImportTransactions } from '@/api/transaction-imports';
 
 const RUN_ID = 'run_1';
@@ -61,6 +62,7 @@ beforeEach(() => {
   authenticatedFetchMock.mockReset();
   hookContext.client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
   hookContext.client.setQueryData(transactionKeys.list({}), []);
+  hookContext.client.setQueryData(lastImportKeys.all, null);
 });
 
 afterEach(() => {
@@ -73,8 +75,13 @@ function isTransactionListStale() {
   return hookContext.client!.getQueryState(transactionKeys.list({}))?.isInvalidated;
 }
 
+/** Whether the last import was marked stale, so a save shows up there without a reload */
+function isImportHistoryStale() {
+  return hookContext.client!.getQueryState(lastImportKeys.all)?.isInvalidated;
+}
+
 describe('reading the ledger again after a save', () => {
-  it('refreshes the transactions after a CSV save that landed', async () => {
+  it('refreshes the transactions and the last import after a CSV save that landed', async () => {
     authenticatedFetchMock
       .mockResolvedValueOnce({ id: RUN_ID })
       .mockResolvedValueOnce(undefined)
@@ -83,9 +90,10 @@ describe('reading the ledger again after a save', () => {
     await useImportTransactions().mutateAsync({ payload: PAYLOAD });
 
     expect(isTransactionListStale()).toBe(true);
+    expect(isImportHistoryStale()).toBe(true);
   });
 
-  it('refreshes the transactions after a CSV save whose answer was lost, since it may have landed', async () => {
+  it('refreshes the transactions and the last import after a CSV save whose answer was lost, since it may have landed', async () => {
     authenticatedFetchMock
       .mockResolvedValueOnce({ id: RUN_ID })
       .mockResolvedValueOnce(undefined)
@@ -94,6 +102,7 @@ describe('reading the ledger again after a save', () => {
     await useImportTransactions().mutateAsync({ payload: PAYLOAD }).catch(() => undefined);
 
     expect(isTransactionListStale()).toBe(true);
+    expect(isImportHistoryStale()).toBe(true);
   });
 
   it('leaves the transactions alone after a CSV upload that failed before saving', async () => {
@@ -105,6 +114,28 @@ describe('reading the ledger again after a save', () => {
     await useImportTransactions().mutateAsync({ payload: PAYLOAD }).catch(() => undefined);
 
     expect(isTransactionListStale()).toBe(false);
+    expect(isImportHistoryStale()).toBe(false);
+  });
+});
+
+describe('reading the ledger again after an undo', () => {
+  it('refreshes the transactions and the last import after an undo that landed', async () => {
+    authenticatedFetchMock.mockResolvedValueOnce({ transactions_deleted: 1 });
+
+    await useUndoImportRun().mutateAsync(RUN_ID);
+
+    expect(isTransactionListStale()).toBe(true);
+    expect(isImportHistoryStale()).toBe(true);
+  });
+
+  // An undo whose answer was lost may have landed, so the screens must not keep showing what it deleted
+  it('refreshes the transactions and the last import after an undo whose answer was lost', async () => {
+    authenticatedFetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+    await useUndoImportRun().mutateAsync(RUN_ID).catch(() => undefined);
+
+    expect(isTransactionListStale()).toBe(true);
+    expect(isImportHistoryStale()).toBe(true);
   });
 });
 
@@ -120,5 +151,22 @@ describe('settling a kept run before importing afresh', () => {
     else authenticatedFetchMock.mockResolvedValueOnce(undefined);
 
     expect(await settleStagedRun(RUN_ID)).toBe(settlement);
+  });
+});
+
+describe('naming an import by its files', () => {
+  it.each([
+    [['everyday.csv'], 'everyday.csv'],
+    [['january.csv', 'february.csv'], 'january.csv, february.csv'],
+    [[], undefined],
+  ])('names %o', (names, expected) => {
+    expect(getImportFileName(names)).toBe(expected);
+  });
+
+  // The server refuses a longer name, which would stop the import from opening at all
+  it('cuts a name past what a run records', () => {
+    const name = getImportFileName(['a'.repeat(200) + '.csv', 'b'.repeat(200) + '.csv']);
+    expect(name).toHaveLength(255);
+    expect(name?.startsWith('a'.repeat(200))).toBe(true);
   });
 });

@@ -13,15 +13,18 @@ from app.services.importers.journal.run import (
     stage_import_budgets,
     stage_journal_batch,
 )
+from app.services.importers.shared.run_history import get_last_import, undo_import_run
 from app.services.importers.shared.run_staging import delete_import_run, open_import_run
 
 __all__ = [
     "commit_import_run",
     "commit_journal_run",
     "delete_import_run",
+    "get_last_import",
     "open_import_run",
     "stage_import_archive",
     "stage_import_batch",
     "stage_import_budgets",
     "stage_journal_batch",
+    "undo_import_run",
 ]

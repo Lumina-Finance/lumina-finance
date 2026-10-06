@@ -179,3 +179,7 @@ export const oidcKeys = {
   providers: () => ['oidc', 'providers'] as const,
   identities: () => ['oidc', 'identities'] as const,
 };
+
+export const lastImportKeys = {
+  all: ['last-import'] as const,
+};

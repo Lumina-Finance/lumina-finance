@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
+import { getImportFileName } from '@/api/import-runs'
 import {
   useCommitStagedImport,
   useImportTransactions,
@@ -1032,7 +1033,12 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     if (!payload || !canCommitImport) return
 
     await run.startImport(importBuild.rowProblems, {
-      upload: (signal, onStaged) => importTransactions.mutateAsync({ payload, signal, onStaged }),
+      upload: (signal, onStaged) => importTransactions.mutateAsync({
+        payload,
+        signal,
+        onStaged,
+        fileName: getImportFileName(files.map((file) => file.name)),
+      }),
       commit: (runId, signal) => commitStagedImport.mutateAsync({ runId, signal }),
     })
   }

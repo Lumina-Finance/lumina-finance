@@ -108,6 +108,7 @@ async def zero_account_balance_for_archive(
     account: Account,
     user: User,
     archive_date: date,
+    import_run_id: uuid.UUID | None = None,
 ) -> bool:
     """Add an archive adjustment when an account has a nonzero balance
 
@@ -116,6 +117,8 @@ async def zero_account_balance_for_archive(
         account: Account being archived
         user: Authenticated user archiving the account
         archive_date: Date used for the archive adjustment transaction
+        import_run_id: Import run archiving the account, which the adjustment is stamped with so
+            undoing the import deletes it with the rest
 
     Returns:
         Whether an adjustment was added
@@ -137,6 +140,7 @@ async def zero_account_balance_for_archive(
         currency=account.currency,
         fx_rate=None,
         notes=_ARCHIVE_BALANCE_ADJUSTMENT_NOTE,
+        import_run_id=import_run_id,
     ))
     await db.flush()
     await recompute_account_snapshots(db, {account.id: archive_date})

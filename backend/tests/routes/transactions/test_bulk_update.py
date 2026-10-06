@@ -18,7 +18,7 @@ from app.services.transactions import creation as creation_module
 from app.services.transactions import deletion as deletion_module
 from app.services.transactions import snapshots as transaction_snapshots_module
 from tests.conftest import TestSession
-from tests.routes.support import _create_user, _get_auth_header
+from tests.routes.support import _create_user, _get_auth_header, _wait_until_blocked
 from tests.routes.transactions._helpers import (
     _create_account,
     _create_category,
@@ -269,17 +269,6 @@ async def _read_transaction_total(account_id):
                 Transaction.account_id == uuid.UUID(account_id),
             ),
         )
-
-
-async def _wait_until_blocked(blocker_pid, blocked_pid):
-    """Wait until PostgreSQL reports one backend blocked by another."""
-    async with asyncio.timeout(5):
-        async with TestSession() as observer:
-            while blocker_pid not in await observer.scalar(
-                text("SELECT pg_blocking_pids(:pid)"),
-                {"pid": blocked_pid},
-            ):
-                await asyncio.sleep(0.01)
 
 
 async def _run_bulk_with_blocked_writer(

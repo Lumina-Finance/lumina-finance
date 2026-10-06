@@ -167,10 +167,10 @@ describe('runJournalImport', () => {
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce({ rows_imported: 1 });
 
-    await runJournalImport({ source: 'actual_budget', payload, budgets: null, archiveAccountSources: [] });
+    await runJournalImport({ source: 'actual_budget', payload, budgets: null, archiveAccountSources: [], fileName: 'My Budget.zip' });
 
     const [[, open], [, stage]] = authenticatedFetchMock.mock.calls;
-    expect(JSON.parse(open.body)).toEqual({ expected_transaction_count: 1, source: 'actual_budget' });
+    expect(JSON.parse(open.body)).toEqual({ expected_transaction_count: 1, source: 'actual_budget', file_name: 'My Budget.zip' });
     expect(JSON.parse(stage.body).categories).toEqual(payload.categories);
   });
 });

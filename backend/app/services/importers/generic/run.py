@@ -91,7 +91,7 @@ async def commit_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> 
         run_id,
         _GENERIC_RUN_SOURCES,
         TransactionImportResponse,
-        lambda run, rows: import_transactions(db, user, _build_import_request(run, rows)),
+        lambda run, rows: import_transactions(db, user, _build_import_request(run, rows), run.id),
     )
 
 

@@ -8,7 +8,7 @@ from typing import Any
 
 from fastapi import HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import delete, select
+from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -48,6 +48,10 @@ from app.services.importers.shared.validation_helpers import strip_import_text_o
 # within minutes, so a run this old is one nobody is coming back to, and saving it now would land
 # an import its user may already have given up on and brought in again
 ABANDONED_RUN_AGE = timedelta(hours=24)
+
+# How long after an import is saved it can be undone. Its run, and the link from each transaction it
+# wrote, is only kept for that, so it goes once this passes
+IMPORT_UNDO_WINDOW = timedelta(hours=24)
 
 # How a refusal names the importer a run belongs to
 _RUN_SOURCE_LABELS = {
@@ -115,6 +119,7 @@ async def open_import_run(
     user: User,
     expected_transaction_count: int,
     source: ImportRunSource,
+    file_name: str | None = None,
 ) -> ImportRun:
     """Open a run for a file about to be staged
 
@@ -123,15 +128,17 @@ async def open_import_run(
         user: Authenticated user running the import
         expected_transaction_count: Rows the whole file will write
         source: Importer opening the run, which decides what its rows hold and which commit writes them
+        file_name: Name of the file the user picked, shown with the last import
 
     Returns:
         The opened run
     """
-    await delete_abandoned_import_runs(db, user)
+    await delete_expired_import_runs(db, user)
     run = ImportRun(
         owner_id=user.id,
         source=source,
         expected_transaction_count=expected_transaction_count,
+        file_name=file_name,
         account_mappings={},
         category_mappings={},
         merchant_mappings={},
@@ -148,29 +155,33 @@ def is_run_abandoned(run: ImportRun) -> bool:
     return run.committed_at is None and run.created_at < datetime.now(UTC) - ABANDONED_RUN_AGE
 
 
-async def delete_abandoned_import_runs(db: AsyncSession, user: User) -> None:
-    """Delete the caller's runs that were never committed and are now abandoned, with what they staged
+async def delete_expired_import_runs(db: AsyncSession, user: User) -> None:
+    """Delete the caller's runs that were abandoned before being committed or can no longer be undone
 
-    Nothing else ever removes a run its user walked away from, so this runs whenever they open
-    another and whenever they sign in or their sign-in is renewed. A committed run stays, since a
-    commit whose response was lost is answered from it
+    Nothing else removes them, so this runs whenever the user opens another run and whenever they
+    sign in or their sign-in is renewed. A committed run is kept for the undo window, even once a
+    change has ended its undo, so a commit whose response was lost is still answered rather than
+    saved twice. Deleting it keeps its transactions and only clears their link to it
 
     Args:
         db: Active database session
-        user: User whose abandoned runs are deleted
+        user: User whose expired runs are deleted
     """
     # A run another request holds is skipped rather than waited on. A commit holding it either
     # lands, and the run is no longer this query's, or refuses it as abandoned
-    abandoned = (
+    now = datetime.now(UTC)
+    expired = (
         select(ImportRun.id)
         .where(
             ImportRun.owner_id == user.id,
-            ImportRun.committed_at.is_(None),
-            ImportRun.created_at < datetime.now(UTC) - ABANDONED_RUN_AGE,
+            or_(
+                and_(ImportRun.committed_at.is_(None), ImportRun.created_at < now - ABANDONED_RUN_AGE),
+                ImportRun.committed_at < now - IMPORT_UNDO_WINDOW,
+            ),
         )
         .with_for_update(skip_locked=True)
     )
-    await db.execute(delete(ImportRun).where(ImportRun.id.in_(abandoned)))
+    await db.execute(delete(ImportRun).where(ImportRun.id.in_(expired)))
 
 
 async def delete_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> None:

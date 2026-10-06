@@ -1,5 +1,11 @@
 import { authenticatedFetch } from '@/api/client';
-import type { ImportRun, ImportRunRoutes, OpenImportRunRequest } from '@/api/import-runs/types';
+import type {
+  LastImport,
+  ImportRun,
+  ImportRunRoutes,
+  ImportUndoResult,
+  OpenImportRunRequest,
+} from '@/api/import-runs/types';
 
 const IMPORT_RUNS_PATH = '/transactions/import/runs';
 
@@ -47,5 +53,22 @@ export function commitImportRun<TResponse>(runId: string, routes: ImportRunRoute
 export function deleteImportRun(runId: string) {
   return authenticatedFetch<void>(`${IMPORT_RUNS_PATH}/${runId}`, {
     method: 'DELETE',
+  });
+}
+
+/**
+ * Reads the last saved import while it can still be undone, with what undoing it would delete and keep,
+ * or null when there is none
+ */
+export function fetchLastImport() {
+  return authenticatedFetch<LastImport | null>('/transactions/import/last');
+}
+
+/**
+ * Deletes every transaction a saved import wrote that is still there, all of them or none
+ */
+export function undoImportRun(runId: string) {
+  return authenticatedFetch<ImportUndoResult>(`${IMPORT_RUNS_PATH}/${runId}/undo`, {
+    method: 'POST',
   });
 }

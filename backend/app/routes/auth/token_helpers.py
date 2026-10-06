@@ -50,7 +50,7 @@ from app.services.auth.tokens import (
 )
 from app.services.auth.two_factor import SECOND_FACTOR_PASSKEY, verify_login_second_factor
 from app.services.auth.webauthn import verify_passkey_second_factor
-from app.services.importers.shared.run_staging import delete_abandoned_import_runs
+from app.services.importers.shared.run_staging import delete_expired_import_runs
 
 logger = logging.getLogger(__name__)
 
@@ -532,21 +532,21 @@ async def issue_and_store_tokens(
 
     # Built before the cleanup, whose rollback on failure would expire the user it reads
     auth_response = AuthResponse(user=UserInfo.model_validate(user), access_token=access_token)
-    await _delete_abandoned_imports(db, user)
+    await _delete_expired_imports(db, user)
 
     set_refresh_cookie(request, response, refresh_token)
     return auth_response
 
 
-async def _delete_abandoned_imports(db: AsyncSession, user: User) -> None:
-    """Delete the user's abandoned import uploads, so one is never kept for good even if they never import again"""
+async def _delete_expired_imports(db: AsyncSession, user: User) -> None:
+    """Delete the user's abandoned uploads and expired imports, so neither is kept if they never import again"""
     try:
-        await delete_abandoned_import_runs(db, user)
+        await delete_expired_import_runs(db, user)
         await db.commit()
     except Exception:
         # Sign-in has already succeeded by now and must not fail over a cleanup the next sign-in repeats
         await db.rollback()
-        logger.warning("Abandoned import uploads could not be deleted", exc_info=True)
+        logger.warning("Expired import runs could not be deleted", exc_info=True)
 
 
 def _get_refresh_grace_expiry() -> datetime:

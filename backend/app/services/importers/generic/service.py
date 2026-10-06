@@ -1,5 +1,7 @@
 """Transaction import orchestration service"""
 
+import uuid
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
@@ -16,6 +18,7 @@ async def import_transactions(
     db: AsyncSession,
     user: User,
     data: TransactionImportRequest,
+    import_run_id: uuid.UUID,
 ) -> TransactionImportResponse:
     """Create transactions from a whole staged import file
 
@@ -26,6 +29,7 @@ async def import_transactions(
         db: Active database session
         user: Authenticated user running the import
         data: The whole file, rebuilt from its run
+        import_run_id: Run being committed, which every written transaction is stamped with
 
     Returns:
         Import summary containing transaction, account, category, merchant, tag, and affected account counts
@@ -42,6 +46,7 @@ async def import_transactions(
     first_import_date_by_account_id = await write_imported_transactions(
         db,
         user_id=user.id,
+        import_run_id=import_run_id,
         transactions=resolve_import_rows(data.rows, import_lookups, user.id),
         merchant_mappings=data.merchants,
         import_lookups=import_lookups,

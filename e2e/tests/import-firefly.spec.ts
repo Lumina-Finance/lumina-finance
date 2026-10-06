@@ -54,6 +54,8 @@ test('imports a Firefly III export with only the budgets left ticked', async ({ 
   }
   expect(ticked.length).toBeGreaterThan(1)
 
+  // The run is named for the export's transactions file, which is how the last import shows it
+  const opened = page.waitForRequest((sent) => sent.method() === 'POST' && /\/transactions\/import\/runs$/.test(sent.url()))
   const commit = page.getByRole('button', { name: 'Commit import', exact: true })
   await expect(commit).toBeEnabled()
   const committed = page.waitForResponse((response) => response.request().method() === 'POST'
@@ -61,6 +63,7 @@ test('imports a Firefly III export with only the budgets left ticked', async ({ 
   await commit.click()
   const response = await committed
   expect(response.status()).toBe(201)
+  expect((await opened).postDataJSON()).toMatchObject({ file_name: 'transactions.csv' })
 
   const result = await response.json() as { budgets: { name: string }[] }
   expect(result.budgets.map((budget) => budget.name).sort()).toEqual(ticked.sort())
