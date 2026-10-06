@@ -1,8 +1,5 @@
-import { useId } from 'react'
 import { Trash2 } from 'lucide-react'
-import { ModalFormFooter } from '@/components/modal/FormFooter'
-import { ModalTitledPanel } from '@/components/modal/TitledPanel'
-import { WarningCallout } from '@/components/WarningCallout'
+import { ModalDeleteConfirm } from '@/components/modal/DeleteConfirm'
 
 type BulkDeleteConfirmProps = {
   open: boolean
@@ -16,8 +13,7 @@ type BulkDeleteConfirmProps = {
 /**
  * Asks before the ticked transactions are deleted, whatever the size of the selection
  *
- * A refusal keeps this open and shows what the server said, since the set is deleted whole or not at
- * all and the user has to know that nothing was removed
+ * The set is deleted whole or not at all, so a refusal stays open saying nothing was removed
  */
 export function BulkDeleteConfirm({
   open,
@@ -27,32 +23,17 @@ export function BulkDeleteConfirm({
   onConfirm,
   onCancel,
 }: BulkDeleteConfirmProps) {
-  const titleId = useId()
-
   return (
-    <ModalTitledPanel
+    <ModalDeleteConfirm
       open={open}
-      onClose={onCancel}
-      titleId={titleId}
-      eyebrow="Bulk delete"
+      label="Bulk delete"
       title={`Delete ${count} ${count === 1 ? 'transaction' : 'transactions'}?`}
       RailIcon={Trash2}
-      railLabel="Bulk delete"
-      closeDisabled={isDeleting}
-      footer={(
-        <ModalFormFooter
-          submitLabel="Delete"
-          submitDisabled={isDeleting}
-          submitWidthClassName="w-full sm:w-auto"
-          error={error}
-          onCancel={onCancel}
-          onPrimary={onConfirm}
-          primaryOnLeft
-          tone="danger"
-        />
-      )}
-    >
-      <WarningCallout>This can't be undone.</WarningCallout>
-    </ModalTitledPanel>
+      confirmLabel="Delete"
+      error={error}
+      isDeleting={isDeleting}
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    />
   )
 }
