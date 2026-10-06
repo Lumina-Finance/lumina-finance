@@ -6,9 +6,9 @@ const UNFOLD_EASE = [0.22, 1, 0.36, 1] as const
 /**
  * Grows its content in and out by height as AnimatePresence adds and removes it, so what sits below
  * never jumps. The gap above the content sits inside, since padding on a box whose height animates to
- * zero stays behind
+ * zero stays behind. Flush content, whose own divider marks its top edge, goes without the gap
  */
-export function Unfold({ children }: { children: ReactNode }) {
+export function Unfold({ children, flush = false }: { children: ReactNode; flush?: boolean }) {
   const prefersReducedMotion = useReducedMotion()
   return (
     <motion.div
@@ -18,7 +18,7 @@ export function Unfold({ children }: { children: ReactNode }) {
       exit={{ height: 0, opacity: 0 }}
       transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: UNFOLD_EASE }}
     >
-      <div className="pt-4">{children}</div>
+      <div className={flush ? undefined : 'pt-4'}>{children}</div>
     </motion.div>
   )
 }

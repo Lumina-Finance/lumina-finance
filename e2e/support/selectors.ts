@@ -310,6 +310,9 @@ export async function contrastOf(element: Locator): Promise<number> {
   return element.evaluate((node) => {
     type Rgba = [number, number, number, number]
     const parse = (value: string): Rgba => {
+      // A colour mixed in CSS computes to the color() form, its channels from 0 to 1
+      const mixed = /color\(srgb ([^)]+)\)/.exec(value)?.[1].split(/[\s/]+/).filter(Boolean).map(Number)
+      if (mixed) return [mixed[0] * 255, mixed[1] * 255, mixed[2] * 255, mixed[3] ?? 1]
       const channels = /rgba?\(([^)]+)\)/.exec(value)?.[1].split(/[\s,/]+/).filter(Boolean).map(Number)
       if (!channels) throw new Error(`Unreadable colour ${value}`)
       return [channels[0], channels[1], channels[2], channels[3] ?? 1]

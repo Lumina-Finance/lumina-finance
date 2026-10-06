@@ -494,19 +494,28 @@ export type AddReviewItemPayload = {
   counterparty_account_scope?: TransferCounterpartyScope | null;
 };
 
+/**
+ * The kinds of item bulk approval applies. New items stay waiting, since each needs a merchant and
+ * category before it is added
+ */
+export type BulkApprovalKind = Exclude<BankReviewItemKind, 'new'>;
+
 export type BulkApprovalGroup = {
-  kind: BankReviewItemKind;
+  kind: BulkApprovalKind;
   count: number;
 
-  /** Signed change to account balances in minor units, summed per currency */
+  /** Signed change to account balances in minor units, summed per currency, leaving out any currency it doesn't move */
   net_effect: { currency: string; amount: number }[];
   items: BankReviewItem[];
 };
 
+/**
+ * What bulk approval would apply, with a group for each kind that has items, corrections first
+ */
 export type BulkApprovalPreview = {
   groups: BulkApprovalGroup[];
 
-  /** New items left in the inbox because they have no merchant or category or no storable amount yet */
+  /** New items in scope, which stay waiting */
   excluded_count: number;
 };
 
@@ -523,12 +532,17 @@ export type BulkApprovalPayload = {
 };
 
 export type BulkApprovalResult = {
-  added: number;
   corrected: number;
   removed: number;
 
-  /** Previewed items left waiting, because the bank changed them since the preview or they could not be applied */
+  /**
+   * Items sent that still wait for review, because the bank changed them since the preview or a check
+   * refused them. One decided elsewhere since isn't counted
+   */
   failed: number;
+
+  /** The items applied, which no longer wait */
+  applied_ids: string[];
 };
 
 /**

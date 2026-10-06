@@ -36,26 +36,36 @@ export function removeReviewItemsFromPages(
 ): void {
   queryClient.setQueriesData<CachedReviewPages>({ queryKey: bankSyncKeys.reviewItemsAll }, (data) => {
     if (!data) return data;
-
-    const removed: BankReviewCounts = { new: 0, correction: 0, removal: 0 };
-    for (const item of data.pages.flatMap((page) => page.items)) {
-      if (isDecided(item)) removed[item.kind] += 1;
-    }
-    if (removed.new + removed.correction + removed.removal === 0) return data;
-
-    return {
-      ...data,
-      pages: data.pages.map((page) => ({
-        ...page,
-        items: page.items.filter((item) => !isDecided(item)),
-        counts: {
-          new: Math.max(0, page.counts.new - removed.new),
-          correction: Math.max(0, page.counts.correction - removed.correction),
-          removal: Math.max(0, page.counts.removal - removed.removal),
-        },
-      })),
-    };
+    return withoutReviewItems(data, isDecided, countByKind(data.pages.flatMap((page) => page.items).filter(isDecided)));
   });
+}
+
+function countByKind(items: BankReviewItem[]): BankReviewCounts {
+  const counts: BankReviewCounts = { new: 0, correction: 0, removal: 0 };
+  for (const item of items) counts[item.kind] += 1;
+  return counts;
+}
+
+/** The pages without the decided items, each page's counts lowered by those given */
+function withoutReviewItems(
+  data: CachedReviewPages,
+  isDecided: (item: BankReviewItem) => boolean,
+  removed: BankReviewCounts,
+): CachedReviewPages {
+  if (removed.new + removed.correction + removed.removal === 0) return data;
+
+  return {
+    ...data,
+    pages: data.pages.map((page) => ({
+      ...page,
+      items: page.items.filter((item) => !isDecided(item)),
+      counts: {
+        new: Math.max(0, page.counts.new - removed.new),
+        correction: Math.max(0, page.counts.correction - removed.correction),
+        removal: Math.max(0, page.counts.removal - removed.removal),
+      },
+    })),
+  };
 }
 
 /**
@@ -159,18 +169,55 @@ export async function applyLedgerReviewOutcome(
   accountIds: string[],
   isDecided: (item: BankReviewItem) => boolean,
 ): Promise<void> {
-  invalidateFinancialTransactionData(queryClient, accountIds);
+  await refetchLedgerAndWaitingCounts(queryClient, accountIds);
+  removeReviewItemsFromPages(queryClient, isDecided);
+  invalidateBankSyncStatus(queryClient);
+  invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.bulkPreviews }]);
+}
 
-  // The links and the backlogs carry the waiting counts the sync status and the backlog notice read,
-  // so they refetch alongside, keeping the notice in step with the block's count
+/**
+ * Brings the ledger views and the inbox up to date after bulk approval
+ *
+ * The applied items leave the inbox once the transaction lists have refetched, as a single
+ * decision's item does, so the block and the ledger show the approval in the same render. The scope
+ * the preview covered lowers its counts by every applied item, loaded or not, and any other scope
+ * cached from before takes out the items it holds. The inbox is then read again behind the scenes,
+ * since an item the approval left waiting may have changed since the preview, and the returned
+ * promise settles without waiting for it
+ *
+ * @param scope - The accounts the preview covered, as the block's list is read for them
+ * @param applied - The previewed items the server applied
+ */
+export async function applyBulkApprovalOutcome(
+  queryClient: QueryClient,
+  scope: string[] | undefined,
+  applied: BankReviewItem[],
+): Promise<void> {
+  const appliedIds = new Set(applied.map((item) => item.id));
+  const isApplied = (item: BankReviewItem) => appliedIds.has(item.id);
+  await refetchLedgerAndWaitingCounts(queryClient, [...new Set(applied.map((item) => item.account_id))]);
+  queryClient.setQueryData<CachedReviewPages>(
+    bankSyncKeys.reviewItems(scope),
+    (data) => data && withoutReviewItems(data, isApplied, countByKind(applied)),
+  );
+  removeReviewItemsFromPages(queryClient, isApplied);
+  invalidateBankSyncStatus(queryClient);
+  invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.reviewItemsAll }, { queryKey: bankSyncKeys.bulkPreviews }]);
+}
+
+/**
+ * Refreshes the ledger views of the accounts a review decision wrote to, settling once the
+ * transaction lists, the links and the backlogs have refetched. The links and the backlogs carry the
+ * waiting counts the sync status and the backlog notice read, so they refetch alongside, keeping the
+ * notice in step with the block's count
+ */
+async function refetchLedgerAndWaitingCounts(queryClient: QueryClient, accountIds: string[]): Promise<void> {
+  invalidateFinancialTransactionData(queryClient, accountIds);
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: transactionKeys.all, refetchType: 'active' }),
     queryClient.invalidateQueries({ queryKey: bankSyncKeys.links(), exact: true, refetchType: 'active' }),
     queryClient.invalidateQueries({ queryKey: bankSyncKeys.reviewBacklogsAll, refetchType: 'active' }),
   ]);
-  removeReviewItemsFromPages(queryClient, isDecided);
-  invalidateBankSyncStatus(queryClient);
-  invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.bulkPreviews }]);
 }
 
 /**

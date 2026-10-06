@@ -46,15 +46,15 @@ import {
   updateReviewPreferences,
   type ReviewResolution,
 } from '@/api/bank-sync/requests';
-import type { BankLink, BankProviderId, BulkApprovalPayload } from '@/api/bank-sync/types';
+import type { BankLink, BankProviderId, BankReviewItem } from '@/api/bank-sync/types';
 import {
   invalidateBankLinks,
-  invalidateBankReview,
   invalidateBankSyncStatus,
 } from '@/api/cache/invalidation';
 import { bankSyncKeys } from '@/api/cache/queryKeys';
 import {
   applyBankLinkChanges,
+  applyBulkApprovalOutcome,
   applyLedgerReviewOutcome,
   applyRestoredBankValue,
   applyReviewDecision,
@@ -268,6 +268,10 @@ export function usePendingBankTransactions(accountIds: string[] | undefined, ena
   });
 }
 
+/**
+ * Reads what bulk approval would apply anew each time a view showing it mounts, so it never starts
+ * from a preview listing items decided since
+ */
 export function useBulkApprovalPreview(accountIds: string[] | undefined, enabled: boolean) {
   const { accessToken } = useAuth();
   return useQuery({
@@ -275,6 +279,7 @@ export function useBulkApprovalPreview(accountIds: string[] | undefined, enabled
     queryFn: () => fetchBulkApprovalPreview(accountIds),
     enabled: !!accessToken && enabled,
     staleTime: BANK_DATA_STALE_TIME_MS,
+    refetchOnMount: 'always',
   });
 }
 
@@ -448,20 +453,18 @@ export function useResolveReviewItem() {
 }
 
 /**
- * Applies the items the preview listed, which the server decides, leaving waiting any the bank
- * changed since the preview
+ * Applies the items a preview listed, each at the version it showed, leaving waiting any the bank
+ * changed since. Settles once the ledger and the review block show the outcome
  */
 export function useApplyBulkApproval() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: BulkApprovalPayload & { accountIds: string[] }) =>
-      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => applyBulkApproval({ items: payload.items })),
-    onSuccess: async (_result, { accountIds, items }) => {
-      // An item the bank changed since the preview stays waiting, so only the inbox refetch can say
-      // which ones went. The previewed ones leave at once, and the refetch brings back any that stayed
-      const previewed = new Set(items.map((item) => item.id));
-      await applyLedgerReviewOutcome(queryClient, accountIds, (item) => previewed.has(item.id));
-      invalidateBankReview(queryClient);
+    mutationFn: ({ items }: { scope: string[] | undefined; items: BankReviewItem[] }) =>
+      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () =>
+        applyBulkApproval({ items: items.map(({ id, version }) => ({ id, version })) })),
+    onSuccess: (result, { scope, items }) => {
+      const appliedIds = new Set(result.applied_ids);
+      return applyBulkApprovalOutcome(queryClient, scope, items.filter((item) => appliedIds.has(item.id)));
     },
   });
 }

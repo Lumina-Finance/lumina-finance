@@ -317,9 +317,16 @@ test('shows the first 4 of a 1,500 item backlog, and loads the rest a page at a 
   await expect(rows).toHaveCount(100)
   await expect(count).toBeVisible()
 
-  await block.getByRole('button', { name: 'Show fewer' }).click()
+  // The toggle sits in the header above the first row, so closing a list 1,500 long never means
+  // scrolling to its end. The keyboard closes it from there, and focus stays on it as its name changes
+  const showFewer = block.getByRole('button', { name: 'Show fewer' })
+  const [toggleBox, firstRowBox] = await readBoxes(page, [showFewer, rows.first()])
+  expect(toggleBox.y + toggleBox.height).toBeLessThanOrEqual(firstRowBox.y)
+  await showFewer.focus()
+  await page.keyboard.press('Enter')
   await expect(rows).toHaveCount(4)
   await expect(loading).toBeHidden()
+  await expect(block.getByRole('button', { name: 'Show all 1,500' })).toBeFocused()
 })
 
 test('closes once four or fewer items wait, so it shows only the first four when more come back', async ({ page, request }) => {
@@ -615,14 +622,9 @@ for (const colorScheme of ['light', 'dark'] as const) {
       expect(amount!.x).toBeGreaterThanOrEqual(text!.x + text!.width)
       expect(amount!.x + amount!.width).toBeLessThanOrEqual(blockBox!.x + blockBox!.width)
     }
-    expect((await toggle.boundingBox())!.height).toBeGreaterThanOrEqual(24)
-
-    // A pointer that can hover tints the toggle the way it tints a ledger row, and its words are
-    // measured below over that tint
-    const canHover = await page.evaluate(() => matchMedia('(hover: hover)').matches)
-    await toggle.hover()
-    if (canHover) await expect(toggle).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
-    else await expect(toggle).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+    // The caret ends the header's first row, a button at least 24px each way with no words to read
+    const toggleBox = (await toggle.boundingBox())!
+    expect(Math.min(toggleBox.width, toggleBox.height)).toBeGreaterThanOrEqual(24)
 
     const texts = [
       block.getByRole('heading', { name: 'Waiting for review' }),
@@ -635,7 +637,6 @@ for (const colorScheme of ['light', 'dark'] as const) {
       rows.nth(0).getByText(`${MINUS}$23.10`),
       rows.nth(1).getByText('+$42.50'),
       rows.nth(2).getByText(`${MINUS}$18.00`),
-      toggle,
     ]
     for (const text of texts) {
       expect(await contrastOf(text), await text.textContent() ?? '').toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)

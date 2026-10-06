@@ -1,7 +1,8 @@
-import { useId, useRef, type Ref } from 'react'
+import { useId, useRef, type CSSProperties, type Ref } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Landmark, PauseCircle, TriangleAlert } from 'lucide-react'
+import { ChevronDown, Landmark, ListChecks, PauseCircle, TriangleAlert } from 'lucide-react'
 import type { BankReviewItem } from '@/api/bank-sync'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { ReadFailureNotice, type BankReadFailure } from '@/components/transactions/bank-review/ReadFailureNotice'
 import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
@@ -16,6 +17,17 @@ import {
 
 // How many items show before the block is opened, so a long backlog doesn't push the ledger away
 export const COLLAPSED_ITEM_COUNT = 4
+
+// What a failed read of the items calls them, in its notice and on Bulk approve
+// Bulk approve's label at the full text colour, set through the button's own variable so the held
+// fade still greys it out
+const BULK_APPROVE_LABEL = { '--app-secondary-button-text': 'var(--app-text)' } as CSSProperties
+
+const ITEMS_SUBJECT = 'Bank items to review'
+
+// Why Bulk approve is unavailable while only new items wait in scope
+export const BULK_APPROVE_UNAVAILABLE_REASON =
+  'Bulk approve applies corrections and removals. New items need a merchant and category, so each is added on its own.'
 
 // How a row out of view leaves as the block closes, so closing on hundreds of loaded items animates
 // only the rows anyone can see
@@ -75,6 +87,10 @@ type BankReviewBlockProps = {
 
   /** Opens an item for review */
   onOpenItem: (item: BankReviewItem) => void
+
+  /** Set while a correction or a removal waits in scope, which bulk approval can apply */
+  canBulkApprove: boolean
+  onBulkApprove: () => void
   prefersReducedMotion: boolean | null
 }
 
@@ -85,6 +101,9 @@ type BankReviewBlockProps = {
  * Each row opens its item for review. Rows grow in and collapse out with the list's day groups, except that closing the block collapses only
  * the rows on screen. A read that fails is said inside the block, under its title, rather than
  * leaving it empty
+ *
+ * Bulk approve in the header opens what bulk approval would apply. With no correction or removal in
+ * scope, or while the items can't load, it says why it is unavailable, on hover and on focus
  */
 export function BankReviewBlock({
   items,
@@ -107,9 +126,15 @@ export function BankReviewBlock({
   highlightedId,
   registerRow,
   onOpenItem,
+  canBulkApprove,
+  onBulkApprove,
   prefersReducedMotion,
 }: BankReviewBlockProps) {
-  const { formatMovedAmount } = useMoneyFormatters()
+  const { formatMovedCurrency } = useMoneyFormatters()
+  // Unavailable with nothing it can apply, or while the items can't load, which it says as the block does
+  const bulkApproveReason = itemsFailure
+    ? `${ITEMS_SUBJECT} could not load.`
+    : canBulkApprove ? undefined : BULK_APPROVE_UNAVAILABLE_REASON
   const titleId = useId()
   const listId = useId()
   const visibleItems = expanded ? items : items.slice(0, COLLAPSED_ITEM_COUNT)
@@ -140,7 +165,9 @@ export function BankReviewBlock({
       className="overflow-hidden rounded-2xl border border-dashed"
       style={{ borderColor: 'var(--app-review-border)', background: 'var(--app-review-bg)' }}
     >
-      <div className="flex items-center gap-2.5 px-4 pt-3.5 sm:px-5">
+      {/* The subtitle shares the header's rows, so on a phone Bulk approve takes a full-width row of its
+          own beneath it, leaving the title its line */}
+      <div className="flex flex-wrap items-center gap-x-2.5 px-4 pt-3.5 sm:px-5">
         <Landmark size={17} strokeWidth={2} aria-hidden className="shrink-0" style={{ color: 'var(--app-warning-text)' }} />
         {/* Titled like the page's other cards. Focusable once a retry succeeds, but never a tab stop */}
         <h2 ref={headingRef} id={titleId} tabIndex={-1} className="app-label leading-snug focus:outline-none">
@@ -157,10 +184,41 @@ export function BankReviewBlock({
             {total.toLocaleString()}
           </span>
         )}
+
+        {/* Beside the title from 750px. Its label takes the full text colour, since the muted one falls
+            short of AA on the block's tint in the dark theme */}
+        <div className="order-last basis-full pb-3 min-[750px]:order-none min-[750px]:ml-auto min-[750px]:basis-auto min-[750px]:pb-0">
+          <DisabledReasonButton
+            className="app-secondary-button w-full min-[750px]:w-auto"
+            style={BULK_APPROVE_LABEL}
+            onClick={onBulkApprove}
+            disabledReason={bulkApproveReason}
+          >
+            <ListChecks size={15} aria-hidden />
+            Bulk approve
+          </DisabledReasonButton>
+        </div>
+
+        {/* The caret opens and closes the list, up here so a long list closes from where it starts, not
+            from its end, and ends the header's first row like the chevron of the app's other collapsible
+            sections. It stays mounted as the list changes, which keeps keyboard focus on it through both.
+            It turns over as they do, and its name says what pressing it does */}
+        {total > COLLAPSED_ITEM_COUNT && (
+          <button
+            type="button"
+            aria-expanded={expanded}
+            aria-controls={listId}
+            aria-label={expanded ? 'Show fewer' : `Show all ${total.toLocaleString()}`}
+            onClick={onToggleExpanded}
+            className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--app-text-muted)] transition-colors hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--app-focus-ring)] motion-reduce:transition-none min-[750px]:ml-2"
+          >
+            <ChevronDown size={16} aria-hidden className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+          </button>
+        )}
+        <p className="basis-full pb-3 pt-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+          From your bank, and left out of every balance until you act on them.
+        </p>
       </div>
-      <p className="px-4 pb-3 pt-1 text-xs sm:px-5" style={{ color: 'var(--app-text-muted)' }}>
-        From your bank, and left out of every balance until you act on them.
-      </p>
 
       <AnimatePresence initial={false}>
         {backlogNotice && (
@@ -191,7 +249,7 @@ export function BankReviewBlock({
         {itemsFailure && (
           <motion.div key="items-failure" {...notice}>
             <div ref={itemsFailureRef} className="px-4 pb-3 sm:px-5">
-              <ReadFailureNotice subject="Bank items to review" failure={itemsFailure} retryRef={itemsRetryRef} />
+              <ReadFailureNotice subject={ITEMS_SUBJECT} failure={itemsFailure} retryRef={itemsRetryRef} />
             </div>
           </motion.div>
         )}
@@ -205,7 +263,7 @@ export function BankReviewBlock({
         <AnimatePresence initial={false} custom={rowsInViewAtClose} onExitComplete={onRowsLeft}>
           {visibleItems.map((item) => {
             const account = accountFor(item.account_id)
-            const amount = getReviewItemAmount(item, account.currency, formatMovedAmount)
+            const amount = getReviewItemAmount(item, account.currency, formatMovedCurrency)
             const details = [formatReviewDate(item.bank.date, today), showAccountNames && account.name, describeReviewItem(item)]
 
             // The divider sits on the content rather than the row, so it stops short of the card's edges
@@ -275,7 +333,7 @@ export function BankReviewBlock({
                 <button type="button" onClick={() => onOpenItem(item)} className="group relative block w-full px-4 text-left focus-visible:outline-none sm:px-5">
                   <span
                     aria-hidden
-                    className="pointer-events-none absolute inset-x-2 bottom-0 top-px rounded-lg group-hover:ring-1 group-hover:ring-inset group-hover:ring-[var(--app-review-border)] group-focus-visible:ring-2 group-focus-visible:ring-inset group-focus-visible:ring-[var(--app-accent)] sm:inset-x-2.5"
+                    className="pointer-events-none absolute inset-x-2 bottom-0 top-px rounded-lg transition-shadow motion-reduce:transition-none group-hover:ring-1 group-hover:ring-inset group-hover:ring-[var(--app-review-border)] group-focus-visible:ring-2 group-focus-visible:ring-inset group-focus-visible:ring-[var(--app-accent)] sm:inset-x-2.5"
                   />
                   {content}
                 </button>
@@ -295,33 +353,6 @@ export function BankReviewBlock({
           )}
         </>
       )}
-
-      <AnimatePresence initial={false}>
-        {total > COLLAPSED_ITEM_COUNT && (
-          <motion.div
-            key="toggle"
-            className="overflow-hidden"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={leave}
-            transition={enterTransition}
-          >
-            <div className="mx-4 sm:mx-5" style={{ borderTop: '1px solid var(--app-review-divider)' }} aria-hidden />
-
-            {/* Rounded at the foot like the card, so its focus ring follows the corners it sits in */}
-            <button
-              type="button"
-              aria-expanded={expanded}
-              aria-controls={listId}
-              onClick={onToggleExpanded}
-              className="w-full rounded-b-2xl px-4 py-2.5 text-center text-sm font-medium transition-colors duration-150 hover:bg-[var(--app-accent-soft)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--app-accent)] motion-reduce:transition-none sm:px-5"
-              style={{ color: 'var(--app-warning-text)' }}
-            >
-              {expanded ? 'Show fewer' : `Show all ${total.toLocaleString()}`}
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </section>
   )
 }

@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useReviewBacklogs, useReviewItems, type BankReviewItem, type BankReviewPage } from '@/api/bank-sync'
 import { useAuth } from '@/hooks/useAuth'
 import { useTodayYmd } from '@/hooks/useTodayYmd'
+import { BulkApprovalModal } from '@/components/transactions/bank-review/BulkApprovalModal'
 import { BankComparisonModal } from '@/components/transactions/bank-review/ComparisonModal'
 import type { BankReadFailure } from '@/components/transactions/bank-review/ReadFailureNotice'
 import { BankReviewBlock, COLLAPSED_ITEM_COUNT } from '@/components/transactions/bank-review/ReviewBlock'
@@ -90,7 +91,8 @@ function getRowsOnScreen(rows: Map<string, HTMLDivElement>): Set<string> {
  *
  * A new item's row opens it in the transaction modal for review. Kept open, the modal goes on through
  * the new items in the block's order after each decision, and closes once none are left. A
- * correction's or a removal's row opens it beside its ledger transaction in the comparison
+ * correction's or a removal's row opens it beside its ledger transaction in the comparison. Bulk
+ * approve opens what bulk approval would apply in the same accounts
  *
  * Kept apart from the list's own renders, such as one for each search keystroke, since an open block
  * can hold hundreds of rows
@@ -261,6 +263,14 @@ export const BankReviewSection = memo(function BankReviewSection({
     else setIsReviewOpen(false)
   }
 
+  // Each opening mounts a fresh modal, which reads what bulk approval would apply anew
+  const [isBulkApprovalOpen, setIsBulkApprovalOpen] = useState(false)
+  const [bulkApprovalOpening, setBulkApprovalOpening] = useState(0)
+  const openBulkApproval = useCallback(() => {
+    setBulkApprovalOpening((opening) => opening + 1)
+    setIsBulkApprovalOpen(true)
+  }, [])
+
   const { collapsed, enterTransition, leave } = REVIEW_MOTION[prefersReducedMotion ? 'reduced' : 'full']
 
   return (
@@ -297,6 +307,8 @@ export const BankReviewSection = memo(function BankReviewSection({
                 highlightedId={highlight?.itemId ?? null}
                 registerRow={registerRow}
                 onOpenItem={openItem}
+                canBulkApprove={(counts?.correction ?? 0) + (counts?.removal ?? 0) > 0}
+                onBulkApprove={openBulkApproval}
                 prefersReducedMotion={prefersReducedMotion}
               />
             </div>
@@ -322,6 +334,16 @@ export const BankReviewSection = memo(function BankReviewSection({
           onClose={() => setIsReviewOpen(false)}
           item={reviewItem}
           currency={reviewAccount.currency}
+        />
+      )}
+      {bulkApprovalOpening > 0 && (
+        <BulkApprovalModal
+          key={bulkApprovalOpening}
+          open={isBulkApprovalOpen}
+          onClose={() => setIsBulkApprovalOpen(false)}
+          scope={accountIds}
+          accountFor={accountFor}
+          today={today}
         />
       )}
     </>

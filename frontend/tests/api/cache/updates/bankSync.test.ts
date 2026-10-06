@@ -1,7 +1,7 @@
 /**
- * Covers the cache writes behind bank sync: the polled link list, review decisions, a restored bank
- * value, a link made or removed, and account deletion. A Sync now answer is covered with the link
- * list read
+ * Covers the cache writes behind bank sync: the polled link list, review decisions, bulk approval, a
+ * restored bank value, a link made or removed, and account deletion. A Sync now answer is covered
+ * with the link list read
  *
  * These tests catch a polled link list that changed nothing refetching every bank view, a first read
  * taken for every link appearing at once, a sync that
@@ -9,16 +9,19 @@
  * stale, a link moved to Choose bank account or removed leaving its cleared pending rows on screen, a decided item staying in a later page or its count, an item leaving the inbox before its
  * transaction shows in the list or the backlog notice counts it out, a decision that left the ledger
  * alone reloading it or taking its item out before both the links and the backlogs have refetched, a
- * kept removal taking out the correction it reopened or leaving it named a removal, a restored bank value leaving the inbox showing the ledger value it replaced, a link change settling
+ * kept removal taking out the correction it reopened or leaving it named a removal, bulk approval
+ * taking out an item it left waiting, leaving its count too high for an applied item on a page not
+ * loaded yet or never reading the inbox again for the items left waiting, a restored bank value leaving the inbox showing the ledger value it replaced, a link change settling
  * before the views that show it have refetched, and a deleted account's items lingering in a cached
  * bulk approval preview
  */
 import { QueryClient, QueryObserver, type InfiniteData, type QueryKey } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { BankReviewPage } from '@/api/bank-sync/types';
+import type { BankReviewCounts, BankReviewItem, BankReviewPage } from '@/api/bank-sync/types';
 import { accountKeys, bankSyncKeys, transactionKeys } from '@/api/cache/queryKeys';
 import {
   applyBankLinkChanges,
+  applyBulkApprovalOutcome,
   applyLedgerReviewOutcome,
   applyRestoredBankValue,
   applyReviewDecision,
@@ -249,6 +252,60 @@ describe('a review decision that wrote to the ledger', () => {
     expect(reviewItemIds()).toEqual(['item-2', 'item-3', 'item-4']);
     expectInvalidated([...statusKeys, bankSyncKeys.bulkPreview(undefined), accountKeys.detail('account-1')], true);
     expectInvalidated([otherAccountKey], false);
+  });
+});
+
+describe('bulk approval', () => {
+  const skipped = createReviewItem('item-7', 'correction');
+  const applied = [
+    createReviewItem('item-4', 'correction'),
+    createReviewItem('item-5', 'removal'),
+
+    // On a page not loaded yet
+    createReviewItem('item-6', 'correction'),
+  ];
+  const accountScopeKey = bankSyncKeys.reviewItems(['account-1']);
+
+  const pagesOf = (items: BankReviewItem[], counts: BankReviewCounts): CachedReviewPages => ({
+    pages: [{ items, counts, next_cursor: 'cursor-2' }],
+    pageParams: [null],
+  });
+  const pagesIn = (key: QueryKey) =>
+    queryClient.getQueryData<CachedReviewPages>(key)?.pages.map((page) => [page.items.map((item) => item.id), page.counts]);
+
+  beforeEach(seedBankViews);
+
+  it('takes the applied items out once the transaction list and the backlogs have refetched, settling before the inbox is read again', async () => {
+    const answerTransactions = observeWithHeldRead(transactionKeys.list({ account_id: 'account-1' }), []);
+    const answerLinks = observeWithHeldRead(bankSyncKeys.links(), [createBankLink()]);
+    const answerBacklogs = observeWithHeldRead(backlogKey, [createBacklog()]);
+    const changedSince = { ...skipped, version: 2 };
+    const answerReview = observeWithHeldRead(reviewKey, pagesOf([createReviewItem('item-1', 'new'), changedSince], { new: 1, correction: 1, removal: 0 }));
+    queryClient.setQueryData(reviewKey, pagesOf([createReviewItem('item-1', 'new'), skipped, applied[0], applied[1]], { new: 1, correction: 3, removal: 1 }));
+    queryClient.setQueryData(accountScopeKey, pagesOf([createReviewItem('item-1', 'new'), applied[0]], { new: 1, correction: 2, removal: 0 }));
+
+    const done = applyBulkApprovalOutcome(queryClient, undefined, applied);
+    answerTransactions();
+    answerLinks();
+    await settle();
+
+    expect(reviewItemIds()).toContain('item-4');
+
+    answerBacklogs();
+    await done;
+
+    // The scope previewed counts out the applied item no loaded page holds too, and one cached from
+    // before only the items it holds, until it is read again when next shown
+    expect(pagesIn(reviewKey)).toEqual([[['item-1', 'item-7'], { new: 1, correction: 1, removal: 0 }]]);
+    expect(pagesIn(accountScopeKey)).toEqual([[['item-1'], { new: 1, correction: 1, removal: 0 }]]);
+    expectInvalidated([...statusKeys, accountScopeKey, bankSyncKeys.bulkPreview(undefined), accountKeys.detail('account-1')], true);
+    expectInvalidated([otherAccountKey], false);
+
+    answerReview();
+    await settle();
+
+    // The correction left waiting shows what the bank sent since the preview
+    expect(queryClient.getQueryData<CachedReviewPages>(reviewKey)?.pages[0].items).toEqual([createReviewItem('item-1', 'new'), changedSince]);
   });
 });
 

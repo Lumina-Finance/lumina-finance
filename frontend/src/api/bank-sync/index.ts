@@ -31,6 +31,7 @@ export type {
   BankValues,
   BulkApprovalGroup,
   BulkApprovalItem,
+  BulkApprovalKind,
   BulkApprovalPayload,
   BulkApprovalPreview,
   BulkApprovalResult,
