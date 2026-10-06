@@ -6,15 +6,14 @@
 </div>
 
 <p align="center">
-  <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/pr.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/pr.yml?label=CI&style=flat&logo=githubactions&logoColor=white"></a>&nbsp;&nbsp;
-  <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/release.yml"><img alt="Docker Image Builds" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/release.yml?event=release&label=Docker%20Image%20Builds&style=flat&logo=githubactions&logoColor=white"></a>&nbsp;&nbsp;
+  <a href="https://docs.luminafinance.co"><img alt="Documentation" src="https://img.shields.io/badge/Docs-docs.luminafinance.co-white?style=flat&logo=docusaurus&logoColor=white&labelColor=C9A96A"></a>&nbsp;&nbsp;
+  <a href="https://www.reddit.com/r/LuminaFinance/"><img alt="Reddit community" src="https://img.shields.io/badge/Reddit-r%2FLuminaFinance-white?style=flat&logo=reddit&logoColor=white&labelColor=FF4500"></a>&nbsp;&nbsp;
   <a href="https://hub.docker.com/r/luminahq/lumina-finance"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/luminahq/lumina-finance?label=Docker%20Pulls&style=flat&logo=docker&logoColor=white&labelColor=2496ED&color=white"></a>&nbsp;&nbsp;
   <a href="https://github.com/Lumina-Finance/lumina-finance"><img alt="GitHub Stars" src="https://img.shields.io/github/stars/Lumina-Finance/lumina-finance?label=GitHub%20Stars&style=flat&logo=github&logoColor=white&labelColor=181717&color=eac54f"></a>
 </p>
 
 <p align="center">
-  <a href="https://docs.luminafinance.co"><img alt="Documentation" src="https://img.shields.io/badge/Docs-docs.luminafinance.co-white?style=flat&logo=docusaurus&logoColor=white&labelColor=C9A96A"></a>&nbsp;&nbsp;
-  <a href="https://www.reddit.com/r/LuminaFinance/"><img alt="Reddit community" src="https://img.shields.io/badge/Reddit-r%2FLuminaFinance-white?style=flat&logo=reddit&logoColor=white&labelColor=FF4500"></a>
+  <a href="https://www.buymeacoffee.com/lumina.finance"><img alt="Buy Me a Coffee" src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="48"></a>
 </p>
 
 <!-- markdownlint-enable MD033 -->
@@ -176,6 +175,11 @@ Every page is fully optimized for desktop, tablet, and mobile.
 <!-- markdownlint-enable MD033 -->
 
 ## Self-hosting
+
+<!-- markdownlint-disable MD033 -->
+<a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/pr.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/pr.yml?label=CI&style=flat&logo=githubactions&logoColor=white"></a>&nbsp;&nbsp;
+<a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/release.yml"><img alt="Docker Image Builds" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/release.yml?event=release&label=Docker%20Image%20Builds&style=flat&logo=githubactions&logoColor=white"></a>
+<!-- markdownlint-enable MD033 -->
 
 Lumina Finance runs with Docker Compose on a 64-bit host. Images are published for `linux/amd64` and `linux/arm64`.
 
