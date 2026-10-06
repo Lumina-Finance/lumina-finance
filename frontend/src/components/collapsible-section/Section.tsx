@@ -2,9 +2,7 @@ import { useId, useState, type CSSProperties, type ReactNode } from 'react'
 import { ChevronDown, type LucideIcon } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 import { AppSlotMachineText } from '@/components/display/SlotMachineText'
-
-const COLLAPSIBLE_SECTION_EASE = [0.25, 0.1, 0.25, 1] as const
-const COLLAPSIBLE_SECTION_TRANSITION_SECONDS = 0.24
+import { COLLAPSIBLE_SECTION_EASE, COLLAPSIBLE_SECTION_TRANSITION_SECONDS } from './motion'
 
 type CollapsibleSectionProps = {
   icon: LucideIcon

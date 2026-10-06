@@ -15,14 +15,16 @@ const TRANSACTION_IMPORT_ROUTES: ImportRunRoutes = { rows: 'rows', commit: 'comm
  * @param signal - Abandons the upload. The run is dropped when this fires during staging, while
  *   during the commit it only stops waiting, since the commit may already have landed
  * @param onStaged - Runs once everything is staged, before the commit starts
+ * @param fileName - Names the import with the last import
  */
 export function runTransactionImport(
   payload: TransactionImportPayload,
   signal?: AbortSignal,
   onStaged?: () => Promise<void>,
+  fileName?: string,
 ): Promise<TransactionImportResponse> {
   return runImport<TransactionImportResponse>({
-    open: { expected_transaction_count: payload.rows.length },
+    open: { expected_transaction_count: payload.rows.length, file_name: fileName },
     routes: TRANSACTION_IMPORT_ROUTES,
     buildBatches: () => buildStagedImportBatches(payload),
   }, signal, onStaged);

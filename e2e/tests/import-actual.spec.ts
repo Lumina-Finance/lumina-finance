@@ -38,11 +38,14 @@ async function uploadActualExport(page: Page, user: TestUser, fixture: string) {
 async function commitImport(page: Page) {
   const commit = page.getByRole('button', { name: 'Commit import', exact: true })
   await expect(commit).toBeEnabled()
+  // The run is named for the picked export, which is how the last import shows it
+  const opened = page.waitForRequest((sent) => sent.method() === 'POST' && /\/transactions\/import\/runs$/.test(sent.url()))
   const committed = page.waitForResponse((response) => response.request().method() === 'POST'
     && /\/transactions\/import\/runs\/[^/]+\/journal\/commit$/.test(response.url()))
   await commit.click()
   const response = await committed
   expect(response.status()).toBe(201)
+  expect((await opened).postDataJSON()).toMatchObject({ file_name: 'export.zip' })
   return response
 }
 

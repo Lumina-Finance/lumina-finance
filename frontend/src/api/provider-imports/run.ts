@@ -24,6 +24,9 @@ export interface JournalImportRequest {
 
   /** Account sources answered create-new that the export marks inactive or closed */
   archiveAccountSources: string[];
+
+  /** Names the import with the last import */
+  fileName?: string;
 }
 
 /**
@@ -38,12 +41,12 @@ export interface JournalImportRequest {
  *   show the upload finishing. Stopping while it runs still counts as stopping during staging
  */
 export function runJournalImport(
-  { source, payload, budgets, archiveAccountSources }: JournalImportRequest,
+  { source, payload, budgets, archiveAccountSources, fileName }: JournalImportRequest,
   signal?: AbortSignal,
   onStaged?: () => Promise<void>,
 ): Promise<JournalImportRunResponse> {
   return runImport<JournalImportRunResponse>({
-    open: { expected_transaction_count: payload.rows.length, source },
+    open: { expected_transaction_count: payload.rows.length, source, file_name: fileName },
     routes: JOURNAL_IMPORT_ROUTES,
     buildBatches: () => buildJournalStageBatches(payload),
     stageExtras: async (runId, stageSignal) => {

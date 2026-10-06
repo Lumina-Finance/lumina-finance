@@ -530,6 +530,7 @@ export function useActualImportWorkflow() {
       payload,
       budgets: runBudgetsBuild.budgets,
       archiveAccountSources: importBuild.archiveAccountSources,
+      fileName: stagedFile?.name,
       skippedRows: predictedSkippedRows,
     })
   }

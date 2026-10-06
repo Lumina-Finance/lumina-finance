@@ -529,6 +529,7 @@ export function useFireflyImportWorkflow() {
       payload,
       budgets: runBudgetsBuild.budgets,
       archiveAccountSources: importBuild.archiveAccountSources,
+      fileName: transactionsFile?.name,
       skippedRows: predictedSkippedRows,
     })
   }

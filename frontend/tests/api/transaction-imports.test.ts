@@ -132,11 +132,11 @@ beforeEach(() => {
 });
 
 describe('staging a transaction import', () => {
-  it('opens a run, stages a small import in one batch and commits it', async () => {
+  it('opens a run named for its file, stages a small import in one batch and commits it', async () => {
     const payload = buildImportPayload([buildImportRow()]);
     mockRunCalls(buildImportResponse({ transactions_created: 1, affected_account_ids: ['acc_123'] }));
 
-    await expect(runTransactionImport(payload)).resolves.toMatchObject({
+    await expect(runTransactionImport(payload, undefined, undefined, 'everyday-test.csv')).resolves.toMatchObject({
       transactions_created: 1,
       affected_account_ids: ['acc_123'],
     });
@@ -145,7 +145,7 @@ describe('staging a transaction import', () => {
       `/transactions/import/runs/${RUN_ID}/rows`,
       `/transactions/import/runs/${RUN_ID}/commit`,
     ]);
-    expect(sentBody(0)).toEqual({ expected_transaction_count: 1 });
+    expect(sentBody(0)).toEqual({ expected_transaction_count: 1, file_name: 'everyday-test.csv' });
     expect(sentBody(1)).toMatchObject({
       accounts: payload.accounts,
       categories: payload.categories,
