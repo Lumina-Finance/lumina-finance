@@ -22,7 +22,8 @@ export function ImportExpectationsCard({ expectations }: { expectations: ImportE
         >
           <Info size={16} strokeWidth={2.25} />
         </span>
-        <div className="min-w-0">
+        {/* Fills the card, so the tinted groups below span its width rather than their longest line */}
+        <div className="min-w-0 flex-1">
           <p className="text-[0.9375rem] font-semibold leading-5" style={{ color: 'var(--app-text)' }}>
             What To Expect
           </p>
