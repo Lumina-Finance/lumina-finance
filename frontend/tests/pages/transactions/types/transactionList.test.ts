@@ -39,11 +39,17 @@ describe('the account the transaction list is handed', () => {
       institution: null,
       can_write: true,
       is_archived: false,
+      group_id: null,
     })
   })
 
   it('carries the archived state through', () => {
     expect(toTransactionListAccount(createAccount({ is_archived: true })).is_archived).toBe(true)
+  })
+
+  // Bulk delete reads it to leave group accounts out, so a mapping that dropped it would let them through
+  it('carries the group an account belongs to', () => {
+    expect(toTransactionListAccount(createAccount({ group_id: 'household' })).group_id).toBe('household')
   })
 
   it('preserves both write capability values', () => {

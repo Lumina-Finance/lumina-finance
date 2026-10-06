@@ -8,7 +8,12 @@ import { API_BASE } from '@/api/config';
 import { registerAuthBindings } from '@/api/client';
 import { accountKeys, transactionKeys } from '@/api/cache/queryKeys';
 import { findCachedTransaction } from '@/api/cache/updates/transactions';
-import { applyTransactionDeletion, useDeleteTransaction, useUpdateTransaction } from '@/api/transactions/hooks';
+import {
+  applyTransactionDeletion,
+  useBulkDeleteTransactions,
+  useDeleteTransaction,
+  useUpdateTransaction,
+} from '@/api/transactions/hooks';
 import type { Transaction } from '@/api/transactions/types';
 
 const hookContext = vi.hoisted(() => ({ client: undefined as QueryClient | undefined }));
@@ -154,6 +159,30 @@ describe('mutations after loading a transaction detail', () => {
     expect(client.getQueryState(transactionKeys.detail(target.id))?.isInvalidated).toBe(true);
     expectAccountInvalidation(client, 'source', true);
     expectAccountInvalidation(client, 'destination', false);
+    expectAccountInvalidation(client, 'unrelated', false);
+  });
+
+  it('drops every deleted row and refreshes each account the bulk delete reached', async () => {
+    const client = hookContext.client!;
+    seedAccountViews(client);
+    const moved: Transaction = { ...other, id: 'destination-expense', account_id: 'destination' };
+    client.setQueryData(transactionKeys.list({}), [target, other, moved]);
+    client.setQueryData<InfiniteData<Transaction[]>>(transactionKeys.infinite({}, 1), {
+      pages: [[moved, other], [target]], pageParams: [0, 1],
+    });
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({
+      transactions_deleted: 2, affected_account_ids: ['source', 'destination'],
+    })));
+
+    await useBulkDeleteTransactions().mutateAsync([target.id, moved.id]);
+
+    expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/transactions/bulk/delete`, expect.objectContaining({
+      method: 'POST', body: JSON.stringify({ transaction_ids: [target.id, moved.id] }),
+    }));
+    expect(client.getQueryData(transactionKeys.list({}))).toEqual([other]);
+    expect(client.getQueryData(transactionKeys.infinite({}, 1))).toEqual({ pages: [[other], []], pageParams: [0, 1] });
+    expectAccountInvalidation(client, 'source', true);
+    expectAccountInvalidation(client, 'destination', true);
     expectAccountInvalidation(client, 'unrelated', false);
   });
 });

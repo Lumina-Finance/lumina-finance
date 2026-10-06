@@ -10,9 +10,10 @@ from app.models.base import TransferCounterpartyScope
 from app.schemas.fx import FxStatus
 from app.schemas.import_run import MAX_IMPORT_NOTES_LENGTH, MAX_IMPORT_TAGS_PER_ROW
 
-# Transactions one bulk edit may carry, matching the import mapping cap, since both bound an id list
-# a single request checks row by row against the database. The list loads 15 rows at a time and a
-# selection is built from rows already loaded, so reaching this takes roughly 67 pages of scrolling
+# Transactions one bulk edit or bulk delete may carry, matching the import mapping cap, since each
+# bounds an id list a single request checks row by row against the database. The list loads 15 rows
+# at a time and a selection is built from rows already loaded, so reaching this takes roughly 67
+# pages of scrolling
 MAX_BULK_UPDATE_TRANSACTIONS = 1_000
 
 
@@ -294,4 +295,17 @@ class BulkUpdateTransactionsResponse(BaseModel):
     """Summary of a bulk transaction edit."""
 
     transactions_updated: int
+    affected_account_ids: list[uuid.UUID]
+
+
+class BulkDeleteTransactionsRequest(BaseModel):
+    """Delete several transactions at once, all of them or none."""
+
+    transaction_ids: list[uuid.UUID] = Field(min_length=1, max_length=MAX_BULK_UPDATE_TRANSACTIONS)
+
+
+class BulkDeleteTransactionsResponse(BaseModel):
+    """Summary of a bulk transaction delete."""
+
+    transactions_deleted: int
     affected_account_ids: list[uuid.UUID]

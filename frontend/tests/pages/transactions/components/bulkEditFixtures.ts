@@ -7,11 +7,11 @@ import type { BulkEditChoice, SelectedTransactionFacts } from '@/pages/transacti
 import type { TransactionListAccount } from '@/pages/transactions/types/transactionList'
 
 export const writableAccounts: TransactionListAccount[] = [
-  { id: 'chequing', name: 'Chequing', currency: 'CAD', can_write: true },
-  { id: 'savings', name: 'Savings', currency: 'CAD', can_write: true },
-  { id: 'cash', name: 'Cash', currency: 'CAD', can_write: true },
-  { id: 'us_savings', name: 'US Savings', currency: 'USD', can_write: true },
-  { id: 'eur_account', name: 'Euro account', currency: 'EUR', can_write: true },
+  { id: 'chequing', name: 'Chequing', currency: 'CAD', can_write: true, group_id: null },
+  { id: 'savings', name: 'Savings', currency: 'CAD', can_write: true, group_id: null },
+  { id: 'cash', name: 'Cash', currency: 'CAD', can_write: true, group_id: null },
+  { id: 'us_savings', name: 'US Savings', currency: 'USD', can_write: true, group_id: null },
+  { id: 'eur_account', name: 'Euro account', currency: 'EUR', can_write: true, group_id: null },
 ]
 
 export const transferCategory = {

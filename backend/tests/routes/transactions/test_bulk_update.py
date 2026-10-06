@@ -12,6 +12,7 @@ from app.models.transaction import Transaction
 from app.services.accounts import snapshots as account_snapshots_module
 from app.services.importers.generic import service as generic_import_module
 from app.services.importers.journal import service as journal_import_module
+from app.services.transactions import bulk_access as bulk_access_module
 from app.services.transactions import bulk_update as bulk_update_module
 from app.services.transactions import creation as creation_module
 from app.services.transactions import deletion as deletion_module
@@ -1798,7 +1799,7 @@ async def test_bulk_transfer_from_leaves_an_expense_out_of_the_group_write_check
 
 async def test_bulk_transfer_from_refuses_a_row_another_session_holds(client, monkeypatch):
     """A row another session already holds answers 409 rather than waiting behind it."""
-    monkeypatch.setattr(bulk_update_module, "_BULK_UPDATE_LOCK_WAIT", "100ms")
+    monkeypatch.setattr(bulk_access_module, "_BULK_LOCK_WAIT", "100ms")
     headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
     cash_id = (await _create_account(client, headers, name="Cash")).json()["id"]
     transfer = (await _make_transfer(
@@ -1829,7 +1830,7 @@ async def test_bulk_transfer_from_refuses_a_row_another_session_holds(client, mo
 
 async def test_bulk_direction_reverse_refuses_a_row_another_session_holds(client, monkeypatch):
     """Reverse, which names no absolute answer, still cannot write onto a row another session holds."""
-    monkeypatch.setattr(bulk_update_module, "_BULK_UPDATE_LOCK_WAIT", "100ms")
+    monkeypatch.setattr(bulk_access_module, "_BULK_LOCK_WAIT", "100ms")
     headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
     transfer = (await _make_transfer(
         client, headers, chequing_id, transfer_id, savings_id, amount=-4000,

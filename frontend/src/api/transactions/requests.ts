@@ -1,6 +1,7 @@
 import { authenticatedFetch } from '@/api/client';
 import { buildQueryString, type QueryStringValue } from '@/api/utils/queryString';
 import type {
+  BulkDeleteTransactionsResult,
   BulkUpdateTransactionsPayload,
   BulkUpdateTransactionsResult,
   CreateTransactionPayload,
@@ -78,6 +79,16 @@ export function bulkUpdateTransactions(payload: BulkUpdateTransactionsPayload) {
   return authenticatedFetch<BulkUpdateTransactionsResult>('/transactions/bulk', {
     method: 'PATCH',
     body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Deletes several transactions in one request, all of them or none
+ */
+export function bulkDeleteTransactions(transactionIds: string[]) {
+  return authenticatedFetch<BulkDeleteTransactionsResult>('/transactions/bulk/delete', {
+    method: 'POST',
+    body: JSON.stringify({ transaction_ids: transactionIds }),
   });
 }
 

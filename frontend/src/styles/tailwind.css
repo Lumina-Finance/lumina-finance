@@ -2046,6 +2046,12 @@
     box-shadow: var(--app-shadow-soft);
   }
 
+  /* A dialog with no fields takes focus on the panel itself so focus leaves the page behind. The
+     panel is not a control, so it draws no ring, the way a dialog opened by mouse already looks */
+  .app-modal-panel:focus-visible {
+    outline: none;
+  }
+
   /* Every modal portals its dialog panel into the body, so this locks page scroll for any open modal
      at once. The viewport scrolls the root element, not the body, so the lock has to sit on html, and
      the stable scrollbar gutter keeps the content from shifting when the scrollbar disappears */

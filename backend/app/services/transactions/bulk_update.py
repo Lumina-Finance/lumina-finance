@@ -14,8 +14,7 @@ from datetime import date
 from typing import NamedTuple
 
 from fastapi import HTTPException, status
-from sqlalchemy import ColumnElement, func, select, text, update
-from sqlalchemy.exc import DBAPIError
+from sqlalchemy import ColumnElement, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
@@ -35,6 +34,7 @@ from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.categories.transfer_rules import does_category_record_counterparty_account
 from app.services.transactions.access_helpers import accessible_account_ids_subquery
 from app.services.transactions.accounts import validate_transaction_account_is_not_archived
+from app.services.transactions.bulk_access import load_locked_transactions, load_writable_accounts
 from app.services.transactions.tags import add_transaction_tag_assignments, clear_transaction_tag_assignments
 from app.services.transactions.validation import (
     get_valid_transaction_tag_ids,
@@ -48,15 +48,6 @@ _DIRECT_COLUMN_FIELDS = ("account_id", "dt", "category_id", "merchant_id", "note
 
 # The own and far ends resolved for one row, either one None where that side is left alone
 _TransferEndPair = tuple[TransferEnd | None, TransferEnd | None]
-
-# Postgres raises this for a lock the caller waited out
-_LOCK_NOT_AVAILABLE_SQLSTATE = "55P03"
-
-# The most one lock attempt waits before the statement gives up, matching the wait load_locked_run
-# in run_locking.py gives an import run. Postgres acquires a multi-row SELECT ... FOR UPDATE's locks
-# one row at a time, so a selection whose rows are held by several sessions can wait this long per
-# held row rather than once for the whole statement
-_BULK_UPDATE_LOCK_WAIT = "10s"
 
 
 class _RowResolution(NamedTuple):
@@ -96,48 +87,10 @@ async def bulk_update_transactions(
     sent = data.model_fields_set
     requested_ids = list(dict.fromkeys(data.transaction_ids))
 
-    # Bounded for this statement alone, following load_locked_run in run_locking.py. The setting
-    # lasts the whole transaction, so leaving it in place would put the same bound on every lock
-    # the commit takes afterwards, including the balance snapshot rebuild
-    await db.execute(text(f"SET LOCAL lock_timeout = '{_BULK_UPDATE_LOCK_WAIT}'"))
-
-    # Load the requested rows inside the caller's readable scope, so an id belonging to someone else
-    # is missing from the result rather than silently changing nothing. Locked in id order so two
-    # bulk edits over overlapping rows queue behind each other in the same order rather than
-    # deadlocking, and held until this transaction commits so no other writer can change a row
-    # between this read and the write below. The accessible-accounts filter stays the scalar
-    # subquery it is; a join would put the lock on the nullable side of an outer join, which
-    # Postgres refuses
-    query = (
-        select(Transaction)
-        .where(
-            Transaction.id.in_(requested_ids),
-            Transaction.account_id.in_(accessible_account_ids_subquery(user.id)),
-        )
-        .order_by(Transaction.id)
-        .with_for_update()
-    )
-    try:
-        result = await db.execute(query)
-    except DBAPIError as exc:
-        if getattr(exc.orig, "sqlstate", None) != _LOCK_NOT_AVAILABLE_SQLSTATE:
-            raise
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Another change reached one of these transactions first",
-        ) from exc
-    await db.execute(text("SET LOCAL lock_timeout = DEFAULT"))
-
-    transactions = list(result.scalars().all())
-    if len(transactions) != len(requested_ids):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"{len(requested_ids) - len(transactions)} of {len(requested_ids)} transactions were not found",
-        )
+    transactions = await load_locked_transactions(db, user, requested_ids)
 
     transaction_ids = [transaction.id for transaction in transactions]
-    source_accounts = await _load_writable_accounts(db, user, {t.account_id for t in transactions})
+    source_accounts = await load_writable_accounts(db, user, {t.account_id for t in transactions})
     source_accounts_by_id = {account.id: account for account in source_accounts}
 
     target_account = None
@@ -207,35 +160,6 @@ async def bulk_update_transactions(
         transactions_updated=len(written_ids),
         affected_account_ids=sorted(affected_account_ids),
     )
-
-
-async def _load_writable_accounts(
-    db: AsyncSession,
-    user: User,
-    account_ids: set[uuid.UUID],
-) -> list[Account]:
-    """Return the given accounts, refusing any the caller cannot write to
-
-    Row-level security secures ``transactions`` with a check that passes any account permission
-    whatever its level, so this application check is the only thing separating read from write
-
-    Args:
-        db: Active database session
-        user: Authenticated user applying the change
-        account_ids: Accounts to check
-
-    Returns:
-        One account row per identifier
-
-    Raises:
-        HTTPException: An account refuses the write or is archived
-    """
-    accounts = []
-    for account_id in sorted(account_ids):
-        account = await check_account_access(db, account_id, user.id, PermissionLevel.WRITE)
-        validate_transaction_account_is_not_archived(account)
-        accounts.append(account)
-    return accounts
 
 
 async def _load_move_target(db: AsyncSession, user: User, account_id: uuid.UUID) -> Account:

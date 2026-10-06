@@ -9,8 +9,8 @@ import type { Transaction } from '@/api/transactions'
 import type { TransactionListAccount } from '@/pages/transactions/types/transactionList'
 import { getTransactionReadOnlyReason } from '@/pages/transactions/utils/rowEditability'
 
-const openAccount: TransactionListAccount = { id: 'chequing', is_archived: false, can_write: true }
-const archivedAccount: TransactionListAccount = { id: 'old_account', is_archived: true, can_write: true }
+const openAccount: TransactionListAccount = { id: 'chequing', is_archived: false, can_write: true, group_id: null }
+const archivedAccount: TransactionListAccount = { id: 'old_account', is_archived: true, can_write: true, group_id: null }
 const accountMap = new Map([[openAccount.id, openAccount], [archivedAccount.id, archivedAccount]])
 
 const groceriesCategory: Category = {
