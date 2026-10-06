@@ -47,6 +47,9 @@ _ALREADY_USED = "This setup token has already been used. Create a new one in Sim
 _NOT_FOUND = "Bank connection not found"
 _SIGNIN_SINCE = datetime(2026, 9, 30, tzinfo=UTC)
 
+# Why each link's last attempt failed, as SimpleFIN rejecting the credential leaves it
+_REJECTED_REASON = "SimpleFIN Bridge rejected the stored access credential"
+
 
 async def _rejected_with_two_links(client, scenario: FakeBridgeScenario) -> tuple[dict, str, str, str]:
     """Connect Harbour Bank, link Everyday to its chequing and Savings to its savings, and have SimpleFIN reject the credential
@@ -211,6 +214,29 @@ async def test_reconnect_with_a_bank_account_listed_under_a_new_id_waits_for_it_
     assert waiting == 4
     assert await _jobs() == [("initial", False, "queued")]
     assert sent_action_emails == []
+
+
+async def test_reconnect_leaves_no_link_showing_the_failure_from_before_it(client, scenario: FakeBridgeScenario):
+    """Everyday and Savings last failed on the rejected credential: once reconnected, neither shows it
+
+    Everyday's bank account comes back under a new id, so it waits to be chosen again, and Savings resumes
+    """
+    headers, everyday_id, savings_id, connection_id = await _rejected_with_two_links(client, scenario)
+    async with TestSession() as session:
+        await session.execute(
+            update(BankAccountLink).values(last_attempt_at=datetime.now(UTC) - timedelta(days=10), last_failure_reason=_REJECTED_REASON)
+        )
+        await session.commit()
+    await scenario.change("PATCH", "/accounts/ACT-chequing", {"id": "ACT-chequing-2"})
+
+    response = await _reconnect(client, headers, connection_id, await scenario.new_setup_token())
+
+    assert response.status_code == 200, response.text
+    assert (response.json()["resumed_account_ids"], response.json()["choose_again_account_ids"]) == ([savings_id], [everyday_id])
+    for account_id in (everyday_id, savings_id):
+        read = await client.get(f"/accounts/{account_id}/bank-link", headers=headers)
+        assert read.status_code == 200, read.text
+        assert read.json()["link"]["sync"]["last_failure"] is None
 
 
 async def test_reconnect_leaves_a_link_unlinked_before_as_it_was(client, scenario: FakeBridgeScenario):

@@ -196,9 +196,11 @@ async def _resume_links(db: AsyncSession, connection: BankConnection) -> tuple[l
     """Restart the connection's links after a reconnect, as its discovery left them
 
     An active link catches up from its checkpoint as a reconnect import, which runs to today
-    whatever the review pause says, with a new retry series. The links are locked in id order after
-    the connection, the order a disconnect takes them in, and before the job and the cache row,
-    so an unlink, which locks its link and then the cache row, can't deadlock with the reconnect
+    whatever the review pause says, with a new retry series. No link keeps its last failure, which
+    came before the new credential, so its sync status never shows it. The links are locked in id
+    order after the connection, the order a disconnect takes them in, and before the job and the
+    cache row, so an unlink, which locks its link and then the cache row, can't deadlock with the
+    reconnect
 
     Returns:
         The accounts that resume, and the ones whose bank account must be chosen again, each in
@@ -213,6 +215,7 @@ async def _resume_links(db: AsyncSession, connection: BankConnection) -> tuple[l
     )
     resumed, choose_again = [], []
     for link in links:
+        link.last_failure_reason = None
         if link.state == BankLinkState.ACTIVE:
             link.import_kind = BankImportKind.RECONNECT
             link.importing = True
