@@ -6,9 +6,10 @@
  * These tests catch a group account offered a link, the previous link's bank account, provider or
  * date dropped from the relink text, the relink button worded as a first link, an archived account
  * or a paused worker leaving the button live, a failed read offering a link as if there were none,
- * a linked view missing a fact, its status or the running import, a notice missing, worded unlike the
- * issue, or shown for a link it doesn't apply to, and a notice's action losing focus to Unlink when
- * the modal opens at the bank link. Opening the flow, the tooltip and unlinking run in the browser
+ * a linked view missing a fact, its status or the running import, an import shown while a retry or a
+ * stop holds it, a notice missing, worded unlike the issue, or shown for a link it doesn't apply to,
+ * and a notice's action losing focus to Unlink when the modal opens at the bank link. Opening the
+ * flow, the tooltip and unlinking run in the browser
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -174,6 +175,25 @@ describe('BankLinkSection', () => {
     const markup = renderSection()
     for (const other of NOTICES) expect(markup.includes(escaped(other))).toBe(other === notice)
     if (action) expect(getButton(markup, action)).toContain('data-bank-link-action="true"')
+  })
+
+  it('shows the import while it waits on the request budget, as while it runs', () => {
+    read.status = createStatus({
+      link: createLink({ import: createImport({ state: 'waiting_on_budget' }), sync: createSync({ state: 'import_waiting_on_budget' }) }),
+    })
+    expect(renderSection()).toContain('role="progressbar"')
+  })
+
+  // The import keeps its progress for when it goes on, but saying it is importing would contradict the status
+  it.each([
+    ['a retry', createSync({ state: 'retrying', last_failure: { at: '2026-10-05T15:50:00Z', reason: "SimpleFIN Bridge couldn't be reached" } })],
+    ['a rejected connection', createSync({ state: 'reconnect_needed', next_attempt_at: null })],
+    ['a bank asking for its sign-in again', createSync({ state: 'bank_signin_needed' })],
+  ])('leaves out an import that %s holds', (_, sync) => {
+    read.status = createStatus({ link: createLink({ import: createImport({ state: 'waiting' }), sync }) })
+    const markup = renderSection()
+    expect(markup).not.toContain('role="progressbar"')
+    expect(markup).not.toContain('Importing from Jun 1, 2026')
   })
 
   it('keeps the review notices through a sync, since they follow the backlog rather than the state', () => {

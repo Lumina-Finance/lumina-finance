@@ -101,7 +101,7 @@ def _choose_state(
 ) -> BankSyncState:
     """Return the first state that applies to a live link
 
-    An import held by a retry shows the retry, since the import's own progress shows beside it
+    An import held by a retry shows the retry, which says when the import goes on
     """
     if action is not None:
         return _ACTION_STATES[action.kind]

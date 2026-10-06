@@ -3,7 +3,7 @@ import { AnimatePresence } from 'motion/react'
 import { Link2, PauseCircle, TriangleAlert, Unlink } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import type { Account } from '@/api/accounts'
-import { REVIEW_PAUSE_COUNT, REVIEW_RESUME_COUNT, useBankConnections, type BankLink } from '@/api/bank-sync'
+import { REVIEW_PAUSE_COUNT, REVIEW_RESUME_COUNT, useBankConnections, type BankLink, type BankSyncState } from '@/api/bank-sync'
 import { BANK_CONNECTIONS_SETTINGS_PATH, GROUP_ACCOUNT_LINK_REASON, LINKING_PAUSED_REASON } from '@/components/bank-link-flow/constants'
 import { BankLinkFlowModal } from '@/components/bank-link-flow/Modal'
 import { Unfold } from '@/components/display/Unfold'
@@ -39,6 +39,10 @@ type InitialFocusProps = { 'data-modal-field-tab-stop'?: 'true'; 'data-modal-ini
 const ACTION_ATTRIBUTE = 'data-bank-link-action'
 const ACTION_PROPS = { [ACTION_ATTRIBUTE]: 'true' }
 
+// The states that are the import's own, the only ones its progress shows under, so a retry or a stop
+// holding the import never reads as importing
+const IMPORT_STATES: ReadonlySet<BankSyncState> = new Set(['importing', 'import_waiting_on_budget'])
+
 type LinkedViewProps = {
   link: BankLink
   sync: BankSyncLabel
@@ -48,16 +52,19 @@ type LinkedViewProps = {
 }
 
 /**
- * A live link: its facts and status, the import while one runs, a notice for anything holding its sync
- * back, and the actions on the link. A notice's own action comes first, since it is what resumes the
- * sync. The server leaves the review notices out while only the user can restart the sync, so a
- * stop's notice shows alone
+ * A live link: its facts and status, the import while it is the status, a notice for anything holding
+ * its sync back, and the actions on the link. A notice's own action comes first, since it is what
+ * resumes the sync. The server leaves the review notices out while only the user can restart the
+ * sync, so a stop's notice shows alone
  */
 function LinkedView({ link, sync, initialFocus, onChooseBankAccount, onUnlink }: LinkedViewProps) {
   const navigate = useNavigate()
   const shownImport = useLingeringImport(link.import)
   const { state, paused, review_warning: warned } = link.sync
   const waiting = link.sync.waiting_new_count.toLocaleString()
+
+  // An import that has just ended stays a moment as done, whatever the status has moved on to
+  const showsImport = shownImport !== null && (shownImport.state === 'complete' || IMPORT_STATES.has(state))
 
   return (
     <div>
@@ -74,7 +81,7 @@ function LinkedView({ link, sync, initialFocus, onChooseBankAccount, onUnlink }:
       </IdentityFacts>
 
       <AnimatePresence initial={false}>
-        {shownImport && (
+        {showsImport && (
           <Unfold key="import">
             <ImportProgress progress={shownImport} />
           </Unfold>
