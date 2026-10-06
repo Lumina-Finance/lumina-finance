@@ -4,7 +4,7 @@
 
 If you believe you have found a security vulnerability in Lumina Finance, please report it by emailing:
 
-**[security@lumina-finance.com](mailto:security@lumina-finance.com)**
+**[security@luminafinance.co](mailto:security@luminafinance.co)**
 
 Please do not open a public GitHub issue for security vulnerabilities.
 
