@@ -176,12 +176,40 @@ export type BankLinkSyncStatus = {
 }
 
 /**
+ * An account's live link as the server answers it, to Example Bank's chequing, which imports from
+ * Jan 1, 2026 and has never synced, with nothing waiting, unless `status` says otherwise
+ */
+export function buildLinkAnswer(accountId: string, status: Partial<BankLinkSyncStatus> = {}) {
+  const { last_success_at = null, sync_in_progress = false, waiting_new_count = 0 } = status
+  return {
+    account_id: accountId,
+    connection_id: 'connection',
+    provider: 'simplefin',
+    provider_name: 'SimpleFIN',
+    external_account_id: 'bank-account',
+    external_account_name: 'Chequing',
+    institution_name: 'Example Bank',
+    import_start: '2026-01-01',
+    linked_at: '2026-01-01T12:00:00Z',
+    state: 'active',
+    import: null,
+    sync: {
+      state: sync_in_progress ? 'syncing' : 'synced',
+      last_success_at,
+      last_failure: null,
+      next_attempt_at: null,
+      waiting_on_budget: false,
+      waiting_new_count,
+      paused: false,
+      review_warning: false,
+    },
+  }
+}
+
+/**
  * Answers the app's read of the user's links in place of the server's, with a link for each account
  * `accountIds` returns, read again on every request so a test can unlink by emptying the list or move
  * a sync on through `status`, without waiting on the worker
- *
- * Each link imports from Jan 1, 2026 and has never synced, with nothing waiting, unless `status` says
- * otherwise
  */
 export async function answerLinksWith(
   page: Page,
@@ -189,32 +217,8 @@ export async function answerLinksWith(
   status: () => Partial<BankLinkSyncStatus> = () => ({}),
 ): Promise<void> {
   await page.route(`${API_BASE_URL}/bank-sync/links`, (route) => {
-    const { last_success_at = null, sync_in_progress = false, waiting_new_count = 0 } = status()
-    return route.fulfill({
-      json: accountIds().map((accountId) => ({
-        account_id: accountId,
-        connection_id: 'connection',
-        provider: 'simplefin',
-        provider_name: 'SimpleFIN',
-        external_account_id: 'bank-account',
-        external_account_name: 'Chequing',
-        institution_name: 'Example Bank',
-        import_start: '2026-01-01',
-        linked_at: '2026-01-01T12:00:00Z',
-        state: 'active',
-        import: null,
-        sync: {
-          state: sync_in_progress ? 'syncing' : 'synced',
-          last_success_at,
-          last_failure: null,
-          next_attempt_at: null,
-          waiting_on_budget: false,
-          waiting_new_count,
-          paused: false,
-          review_warning: false,
-        },
-      })),
-    })
+    const current = status()
+    return route.fulfill({ json: accountIds().map((accountId) => buildLinkAnswer(accountId, current)) })
   })
 }
 

@@ -1,4 +1,5 @@
-import { motion, useReducedMotion } from 'motion/react'
+import { useEffect } from 'react'
+import { useAnimate, useReducedMotion } from 'motion/react'
 
 /**
  * The colour family of a bank sync state: the app is working on it, it is up to date, it is waiting on
@@ -37,15 +38,24 @@ type SyncStatusDotProps = {
  */
 export function SyncStatusDot({ tone, pulse = false, size = 'sm' }: SyncStatusDotProps) {
   const prefersReducedMotion = useReducedMotion()
+  const [dot, animate] = useAnimate<HTMLSpanElement>()
   const color = TONE_COLORS[tone]
   const isBlinking = pulse && !prefersReducedMotion
 
+  // Played from here rather than through the element's own animate prop, which skips its first
+  // animation inside a presence that skips its children's, such as a modal's opening view, so a dot
+  // shown already fetching would never blink there
+  useEffect(() => {
+    const animation = isBlinking ? animate(dot.current, BLINK_ANIMATE, BLINK_TRANSITION) : animate(dot.current, { opacity: 1 }, SETTLE_TRANSITION)
+    return () => animation.stop()
+  }, [animate, dot, isBlinking])
+
   return (
-    <motion.span
+    <span
+      ref={dot}
       className={`inline-flex shrink-0 rounded-full transition-colors duration-300 ${SIZE_CLASSES[size]}`}
       style={{ background: tone === 'off' ? 'transparent' : color, border: `1.5px solid ${color}` }}
-      animate={isBlinking ? BLINK_ANIMATE : { opacity: 1 }}
-      transition={isBlinking ? BLINK_TRANSITION : { duration: 0.2 }}
+      data-testid="sync-status-dot"
       aria-hidden
     />
   )

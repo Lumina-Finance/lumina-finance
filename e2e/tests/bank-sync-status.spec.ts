@@ -6,6 +6,7 @@ import {
   addBridgeBankAccount,
   addBridgeBankLogin,
   breakBridge,
+  buildLinkAnswer,
   changeBridgeBankAccountId,
   claimSetupToken,
   createBridgeSetupToken,
@@ -24,13 +25,36 @@ import { API_BASE_URL } from '../support/target'
 
 // A linked account's bank sync status, as its page shows it once the worker has met each situation
 // on the fake SimpleFIN Bridge: the identity card's Bank sync fact, the Bank link section's Status,
-// and the notice for whatever stops the sync, with the action that resumes it. Sync details' wording
-// is covered by the status unit tests
+// and the notice for whatever stops the sync, with the action that resumes it. The dot's blink while
+// a sync fetches is watched on a link read answered here instead. Sync details' wording is covered by
+// the status unit tests
 const SAMPLE_BANK = 'Harbour Bank'
 const SAMPLE_CHEQUING = 'Everyday Chequing'
 
 // The width from which a notice's action sits beside its text rather than under it
 const NOTICE_ROW_MIN_WIDTH = 640
+
+// A blink takes 1.4 seconds, so watching a dot a little longer always meets it at its faintest
+const BLINK_WATCH_MS = 1_600
+
+// Fainter than a dot ever is at rest, and well short of how faint a blink goes
+const BLINKING_OPACITY = 0.5
+
+/**
+ * The faintest a status dot shows while watched for a little over one blink, read every frame
+ */
+async function readFaintestOpacity(dot: Locator): Promise<number> {
+  return dot.evaluate((element, watchMs) => new Promise<number>((resolve) => {
+    const end = performance.now() + watchMs
+    let faintest = 1
+    const read = () => {
+      faintest = Math.min(faintest, Number(getComputedStyle(element).opacity))
+      if (performance.now() < end) requestAnimationFrame(read)
+      else resolve(faintest)
+    }
+    read()
+  }), BLINK_WATCH_MS)
+}
 
 /**
  * Opens the account's page and, once the identity card's Bank sync fact reads as expected, its edit
@@ -73,6 +97,12 @@ async function linkIntoFault(
   return { scenario, connection }
 }
 
+// A read answered here can still be on its way to the page when a test ends, which would otherwise
+// surface as an error outside any test
+test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+})
+
 test('reads as synced once the import finishes', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
@@ -94,6 +124,30 @@ test('reads as retrying at the time of the retry when the Bridge fails', async (
   const dialog = await openBankLink(page, user, account.id, /Retrying at (\w{3} \d{1,2}, )?\d{1,2}:\d{2}\s[ap]\.m\./)
   await expect(fact(dialog, 'Status')).toHaveText(/^Retrying at /)
 })
+
+for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+  test(`blinks the status dot while a sync fetches, in the modal as on the card, with ${reducedMotion} motion`, async ({ page, request }) => {
+    await page.emulateMedia({ reducedMotion })
+    const user = await signUpUser(request)
+    const account = await createAccount(request, user, { name: 'Everyday' })
+
+    // Answered here, since a real sync finishes before the dot could be watched
+    await page.route(`${API_BASE_URL}/accounts/${account.id}/bank-link`, (route) => route.fulfill({
+      json: { account_id: account.id, link: buildLinkAnswer(account.id, { sync_in_progress: true }), previous_link: null },
+    }))
+    const blinks = reducedMotion === 'no-preference'
+
+    await logInViaApi(page, user)
+    await openPage(page, `/accounts/${account.id}`)
+    const bankSync = page.getByRole('button', { name: 'Bank sync: Syncing. Open bank link' })
+    expect(await readFaintestOpacity(bankSync.getByTestId('sync-status-dot')) < BLINKING_OPACITY).toBe(blinks)
+
+    // The modal opens with the link already read, which its first view mustn't hold still
+    await bankSync.click()
+    const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+    expect(await readFaintestOpacity(fact(dialog, 'Status').getByTestId('sync-status-dot')) < BLINKING_OPACITY).toBe(blinks)
+  })
+}
 
 test('stops on a rejected connection, with a notice that leads to Settings to reconnect it', async ({ page, request }) => {
   const user = await signUpUser(request)
