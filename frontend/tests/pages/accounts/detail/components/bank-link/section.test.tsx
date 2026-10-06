@@ -7,7 +7,7 @@
  * date dropped from the relink text, the relink button worded as a first link, an archived account
  * or a paused worker leaving the button live, a failed read offering a link as if there were none,
  * a linked view missing a fact, its status or the running import, an import shown while a retry or a
- * stop holds it, a notice missing, worded unlike the issue, or shown for a link it doesn't apply to,
+ * stop holds it or dropped before it shows as done, a notice missing, worded unlike the issue, or shown for a link it doesn't apply to,
  * and a notice's action losing focus to Unlink when the modal opens at the bank link. Opening the
  * flow, the tooltip and unlinking run in the browser
  */
@@ -182,6 +182,13 @@ describe('BankLinkSection', () => {
       link: createLink({ import: createImport({ state: 'waiting_on_budget' }), sync: createSync({ state: 'import_waiting_on_budget' }) }),
     })
     expect(renderSection()).toContain('role="progressbar"')
+  })
+
+  it('holds a finished import as done once the status has moved on to synced', () => {
+    read.status = createStatus({ link: createLink({ import: createImport({ state: 'complete', windows_done: 2 }), sync: createSync() }) })
+    const markup = renderSection()
+    expect(markup).toContain('role="progressbar"')
+    expect(markup).toContain('Imported from Jun 1, 2026')
   })
 
   // The import keeps its progress for when it goes on, but saying it is importing would contradict the status
