@@ -49,7 +49,7 @@ Lumina Finance gives you one place to track accounts, transactions, budgets, and
 - **Accounts** - Lumina Finance helps you track cash, credit, savings, and every other account type, with a detailed view and balance history for each. Archived accounts can be hidden when you don't need to see them.
 - **Multi-currency** - Exchange rate conversions help you follow accounts and activity in different currencies across dashboards, budgets, runway, and insights.
 - **Transactions** - You can add transactions and organize them with merchants, categories, tags, and notes to keep your records clear.
-- **Imports** - App-specific importers and a general importer help you bring your transaction history into Lumina Finance.
+- **Imports** - The CSV importer brings in new transactions from your bank as you go, and app-specific importers help you move your history over from another app.
 - **Tax-advantaged accounts** - Accounts with the same tax-advantaged structure can be grouped together, helping you track their contribution and withdrawal limits in one place.
 - **Budgets** - Recurring and one-time budgets help you compare your spending against the amounts you set for each category. Their history stays available after you archive them.
 - **Dashboard** - The dashboard brings your net worth, credit usage, spending, savings rate, recent activity, and top budgets together in one beautifully presented view.
@@ -58,6 +58,18 @@ Lumina Finance gives you one place to track accounts, transactions, budgets, and
 - **Account security** - Two-factor authentication protects your sign-in through an authenticator app or passkeys, with recovery codes as a fallback. Email password resets help you regain access if you forget your password.
 - **Single sign-on** - You can sign in through your own OpenID Connect provider, or link it to an existing account and manage it from settings.
 - **Self-hostable** - Running Lumina Finance locally with Docker keeps you in full control of your data.
+
+### Importers
+
+Each app-specific importer is tested every week against the app's latest release.
+
+<!-- markdownlint-disable MD033 -->
+| Importer | Used for | Status |
+|-|-|-|
+| CSV | Everyday imports from your bank | |
+| Actual Budget | Moving over from Actual Budget | <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/actual-check.yml"><img alt="Actual Budget import check" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/actual-check.yml?label=Weekly%20test&style=flat&logo=githubactions&logoColor=white"></a> |
+| Firefly III | Moving over from Firefly III | <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/firefly-check.yml"><img alt="Firefly III import check" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/firefly-check.yml?label=Weekly%20test&style=flat&logo=githubactions&logoColor=white"></a> |
+<!-- markdownlint-enable MD033 -->
 
 ### Roadmap
 
