@@ -1,4 +1,4 @@
-import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
+import type { CsvPreviewLine, CsvReading, CsvReadingChoices, CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import { formatBytes } from './common'
 import { isSupportedCurrency, isValidAmountValue, isValidDateValue } from './valueParsers'
 
@@ -101,6 +101,12 @@ const HEADER_ALIASES = new Set([
 
 const NO_READABLE_ROWS_ERROR = 'No readable rows detected'
 const NO_DATA_ROWS_ERROR = 'This file has a heading row and no transactions under it.'
+
+// How far down the file the table's header is looked for, past the lines a bank puts above it
+const TABLE_START_SEARCH_ROWS = 20
+
+// How many lines from each end of the file the reading preview shows
+const READING_PREVIEW_ROWS = 4
 const SINGLE_COLUMN_ERROR = 'Only one column was found. Check this is a CSV whose fields are separated by a comma or semicolon.'
 export const SINGLE_COLUMN_SEPARATOR_ERROR = 'Only one column was found. Choose the separator your file uses under Separator.'
 const UNREADABLE_TEXT_ERROR = 'This file is not readable as text. Export it as a CSV encoded in UTF-8 and upload it again.'
@@ -113,6 +119,9 @@ interface ParsedCsv {
   hasHeaderRow: boolean
   rows: CsvRow[]
   error: string | null
+
+  /** Where the table was read from, in a flow that offers reading choices */
+  reading?: CsvReading
 
   /** The separator the general parser read the file with, absent for a tool-specific reader */
   delimiter?: ImportDelimiter
@@ -141,8 +150,10 @@ interface ParsedCsv {
  * rewritten as newlines. It returns null for text the tool did not write as it stands, such as its
  * export saved again by a spreadsheet, which the general parser then reads with its delimiter guessing
  * @param delimiter - The separator the user chose, which the general parser reads with in place of guessing
- * @param offersDelimiterChoice - Whether the flow offers the Separator choice, which a file read as a
- * single column is then pointed to
+ * @param offersReadingChoices - Whether the flow offers the Separator choice, Header row and Skip last
+ * rows, which the reader then finds the table's start for and points its refusals to
+ * @param headerRow - The header row the user chose, counted from 1, found by the reader when left out
+ * @param skipLastRows - How many lines the user chose to leave out from the end of the file
  */
 export async function readCsvFile(
   file: File,
@@ -152,17 +163,21 @@ export async function readCsvFile(
     unescapeCell = (value) => value,
     readRecords,
     delimiter,
-    offersDelimiterChoice = false,
+    offersReadingChoices = false,
+    headerRow,
+    skipLastRows,
   }: {
     requireDataRows: boolean
     unescapeCell?: (value: string) => string
     readRecords?: (text: string) => string[][] | null
     delimiter?: ImportDelimiter
-    offersDelimiterChoice?: boolean
+    offersReadingChoices?: boolean
+    headerRow?: number
+    skipLastRows?: number
   },
 ): Promise<ImportFileDraft> {
   const staged = { id: createFileId(file), name: file.name, size: file.size }
-  const refuse = (error: string, read: Pick<ImportFileDraft, 'delimiter'> = {}): ImportFileDraft => ({
+  const refuse = (error: string, read: Pick<ImportFileDraft, 'delimiter' | 'reading'> = {}): ImportFileDraft => ({
     ...staged,
     headers: [],
     hasHeaderRow: false,
@@ -185,10 +200,10 @@ export async function readCsvFile(
     if (replacementCount > replacementLimit || text.includes(NULL_CHARACTER)) return refuse(UNREADABLE_TEXT_ERROR)
 
     const parsed = parseKnownCsvText(text, supportedCurrencyCodes, requireDataRows, unescapeCell, readRecords)
-      ?? await parseCsvText(text, supportedCurrencyCodes, requireDataRows, unescapeCell, delimiter)
-    const read = parsed.delimiter ? { delimiter: parsed.delimiter } : {}
+      ?? await parseCsvText(text, supportedCurrencyCodes, requireDataRows, unescapeCell, delimiter, offersReadingChoices ? { headerRow, skipLastRows } : undefined)
+    const read = { ...(parsed.delimiter && { delimiter: parsed.delimiter }), ...(parsed.reading && { reading: parsed.reading }) }
     if (parsed.error) {
-      const error = offersDelimiterChoice && parsed.error === SINGLE_COLUMN_ERROR ? SINGLE_COLUMN_SEPARATOR_ERROR : parsed.error
+      const error = offersReadingChoices && parsed.error === SINGLE_COLUMN_ERROR ? SINGLE_COLUMN_SEPARATOR_ERROR : parsed.error
       return refuse(error, read)
     }
 
@@ -221,6 +236,7 @@ async function parseCsvText(
   requireDataRows: boolean,
   unescapeCell: (value: string) => string,
   chosenDelimiter: ImportDelimiter | undefined,
+  choices: CsvReadingChoices | undefined,
 ): Promise<ParsedCsv> {
   // Pull the CSV parser on demand so papaparse only ships with the import flow
   const { parse } = await import('papaparse')
@@ -274,7 +290,7 @@ async function parseCsvText(
     if (record.some(Boolean)) records.push(record)
   }
 
-  return { ...buildParsedCsv(records, supportedCurrencyCodes, requireDataRows), delimiter }
+  return { ...buildParsedCsv(records, supportedCurrencyCodes, requireDataRows, choices), delimiter }
 }
 
 /**
@@ -346,33 +362,66 @@ function getDelimiterEvidence(rows: string[][], supportedCurrencyCodes: Set<stri
  *
  * Kept apart from reading the file so the decisions can be exercised without one
  *
+ * Where the flow offers reading choices, lines above the table and the last lines the user chose are
+ * left out first: the table starts at the header row the user gave, or at the one found by
+ * `findTableStart`, and the rows the user asked to skip are dropped from the end
+ *
  * @param records - Every non-blank record, in file order
  * @param supportedCurrencyCodes - Upper-case codes from the currency list the API served
  * @param requireDataRows - Whether headings with nothing under them are refused
+ * @param choices - The flow's reading choices, absent where it offers none and the table starts on
+ * the first record and runs to the last
  */
 export function buildParsedCsv(
   records: string[][],
   supportedCurrencyCodes: Set<string>,
   requireDataRows = true,
+  choices?: CsvReadingChoices,
 ): ParsedCsv {
   if (records.length === 0) return refuseParsedCsv(NO_READABLE_ROWS_ERROR)
 
-  const hasHeaderRow = detectHeaderRow(records, supportedCurrencyCodes)
-  const headers = dedupeHeaders(hasHeaderRow ? records[0] : makeGeneratedHeaders(getMaxColumnCount(records)))
-  const dataRecords = hasHeaderRow ? records.slice(1) : records
+  // The field never offers skipping every line, and a header row below the lines kept is a choice
+  // made before Skip last rows was raised, so both are held to what the file has and shown as used
+  const skipLastRows = Math.min(choices?.skipLastRows ?? 0, records.length - 1)
+  const end = records.length - skipLastRows
+  const isHeaderChosen = choices?.headerRow !== undefined
+  const start = isHeaderChosen
+    ? Math.min(choices.headerRow! - 1, end - 1)
+    : choices ? findTableStart(records.slice(0, end)) : 0
 
-  if (headers.length < MIN_IMPORT_COLUMNS) return refuseParsedCsv(SINGLE_COLUMN_ERROR)
-  if (requireDataRows && dataRecords.length === 0) return refuseParsedCsv(NO_DATA_ROWS_ERROR)
-  if (dataRecords.length > MAX_IMPORT_ROWS) return refuseParsedCsv(getTooManyRowsError(dataRecords.length))
+  const table = records.slice(start, end)
+  const hasHeaderRow = isHeaderChosen || detectHeaderRow(table, supportedCurrencyCodes)
+  const reading: CsvReading | undefined = choices && {
+    headerRow: hasHeaderRow ? start + 1 : null,
+    skipLastRows,
+    preview: buildReadingPreview(records, start, end),
+  }
+  const refuse = (error: string) => ({ ...refuseParsedCsv(error), reading })
+
+  const headers = dedupeHeaders(hasHeaderRow ? table[0] : makeGeneratedHeaders(getMaxColumnCount(table)))
+  const dataRecords = hasHeaderRow ? table.slice(1) : table
+
+  if (headers.length < MIN_IMPORT_COLUMNS) return refuse(SINGLE_COLUMN_ERROR)
+  if (requireDataRows && dataRecords.length === 0) return refuse(NO_DATA_ROWS_ERROR)
+  if (dataRecords.length > MAX_IMPORT_ROWS) return refuse(getTooManyRowsError(dataRecords.length))
 
   // Only a record wider than the headings loses anything, because a row is built by walking the
   // headings and a value past the last one has nowhere to go. A short record is padded instead,
   // which is what a trailing summary line is, and one of those reaches the preview as an ordinary
   // row to be judged there. Generated headings are sized from the widest record, so this can only
-  // bite a file that stated its own
+  // bite a file that stated its own. Where rows can be skipped, the line is named by its place in
+  // the file, as the header row is, with the count that would skip it and everything after it
   const raggedIndex = dataRecords.findIndex((record) => record.length > headers.length)
   if (raggedIndex !== -1) {
-    return refuseParsedCsv(getRaggedRowError(raggedIndex + 1, dataRecords[raggedIndex].length, headers.length))
+    const valueCount = dataRecords[raggedIndex].length
+    if (!choices) return refuse(getRaggedRowError(raggedIndex + 1, valueCount, headers.length))
+
+    const fileIndex = start + (hasHeaderRow ? 1 : 0) + raggedIndex
+    const suggestedSkipLastRows = records.length - fileIndex
+    return {
+      ...refuseParsedCsv(getRaggedFooterError(fileIndex + 1, valueCount, headers.length, suggestedSkipLastRows)),
+      reading: reading && { ...reading, suggestedSkipLastRows },
+    }
   }
 
   const rows = dataRecords.map((record) => {
@@ -383,11 +432,56 @@ export function buildParsedCsv(
     return row
   })
 
-  return { headers, hasHeaderRow, rows, error: null }
+  return { headers, hasHeaderRow, rows, error: null, reading }
 }
 
 function refuseParsedCsv(error: string): ParsedCsv {
   return { headers: [], hasHeaderRow: false, rows: [], error }
+}
+
+/**
+ * Finds where the table starts below any lines a bank puts above it, such as account details
+ *
+ * The table is taken to be as wide as most of the file's records, the widest such width where two
+ * are as common, and to start at the first record of that width near the top. A file where none
+ * of the first records is that wide starts on its first record, as it did before rows could be skipped
+ *
+ * A record of known headings just above that first record is the header instead, which is how a
+ * header narrower than its rows, such as rows that each end with a separator, is still read from it
+ */
+export function findTableStart(records: string[][]) {
+  const widthCounts = new Map<number, number>()
+  for (const record of records) widthCounts.set(record.length, (widthCounts.get(record.length) ?? 0) + 1)
+
+  let tableWidth = 0
+  let tableWidthCount = 0
+  for (const [width, count] of widthCounts) {
+    if (count > tableWidthCount || (count === tableWidthCount && width > tableWidth)) {
+      tableWidth = width
+      tableWidthCount = count
+    }
+  }
+
+  const start = records.slice(0, TABLE_START_SEARCH_ROWS).findIndex((record) => record.length === tableWidth)
+  if (start <= 0) return 0
+  const isHeadingRecord = (record: string[]) => record.filter(isKnownHeaderCell).length >= 2
+  return isHeadingRecord(records[start - 1]) && !isHeadingRecord(records[start]) ? start - 1 : start
+}
+
+/**
+ * The first and last few records of the file, each marked with whether it is left out because it
+ * sits above the header row or among the last rows skipped
+ */
+function buildReadingPreview(records: string[][], start: number, end: number): CsvPreviewLine[] {
+  const indexes = new Set<number>()
+  for (let index = 0; index < Math.min(READING_PREVIEW_ROWS, records.length); index += 1) indexes.add(index)
+  for (let index = Math.max(0, records.length - READING_PREVIEW_ROWS); index < records.length; index += 1) indexes.add(index)
+
+  return [...indexes].map((index) => ({
+    rowNumber: index + 1,
+    cells: records[index],
+    isSkipped: index < start || index >= end,
+  }))
 }
 
 /**
@@ -452,6 +546,10 @@ function getMalformedQuoteError(line: number | undefined) {
  */
 function getRaggedRowError(rowNumber: number, valueCount: number, columnCount: number) {
   return `Row ${rowNumber} has ${valueCount} values against ${columnCount} columns, so values would be dropped. An unquoted comma inside a value is the usual cause.`
+}
+
+function getRaggedFooterError(rowNumber: number, valueCount: number, columnCount: number, rowsToEnd: number) {
+  return `Row ${rowNumber} has ${valueCount} values against ${columnCount} columns, so values would be dropped. If it starts a summary at the end of the file, set Skip last rows to ${rowsToEnd}. Otherwise an unquoted comma inside a value is the usual cause.`
 }
 
 function getUnreadableCharacterNotice(count: number) {

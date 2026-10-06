@@ -346,7 +346,7 @@ describe('creating a fresh id for each read', () => {
 
 describe('reading a file with the separator the user chose', () => {
   const read = (csv: string, options: Partial<Parameters<typeof readCsvFile>[2]> = {}) => (
-    readCsvFile(new File([csv], 'statement.csv'), SUPPORTED_CURRENCY_CODES, { requireDataRows: true, offersDelimiterChoice: true, ...options })
+    readCsvFile(new File([csv], 'statement.csv'), SUPPORTED_CURRENCY_CODES, { requireDataRows: true, offersReadingChoices: true, ...options })
   )
 
   it('reports the separator it detected', async () => {

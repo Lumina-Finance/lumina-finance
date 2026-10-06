@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react'
 import {
   EmptyState,
-  ImportDelimiterControl,
   ImportFilesStepLayout,
   ImportInfoCard,
+  ImportReadingChoices,
   ImportStagedFileList,
   ImportUploadCard,
 } from '@/pages/imports/components'
@@ -20,13 +20,16 @@ type ImportFilesStepProps = Pick<
   | 'mappedFieldCount'
   | 'handleFileChange'
   | 'changeDelimiter'
+  | 'changeHeaderRow'
+  | 'changeSkipLastRows'
   | 'removeFile'
   | 'uploadBlockReason'
 >
 
 /**
  * Files step of the generic CSV import flow, taking a single upload and showing the staged file's
- * row and mapped-field counts, with the separator it was read with, which the user can change
+ * row and mapped-field counts, with how it was read: the separator, header row and lines skipped at
+ * the end, which the user can change
  *
  * The upload control and the guidance above it are taken away once a usable file is staged, since
  * this flow carries one file and uploading another would only replace it. A file the reader refused
@@ -41,6 +44,8 @@ export function ImportFilesStep({
   mappedFieldCount,
   handleFileChange,
   changeDelimiter,
+  changeHeaderRow,
+  changeSkipLastRows,
   removeFile,
   uploadBlockReason,
 }: ImportFilesStepProps) {
@@ -50,7 +55,7 @@ export function ImportFilesStep({
   const isFileAccepted = hasAcceptedFile(files)
   const stagedListRef = useRef<HTMLDivElement>(null)
   const wasFileAcceptedRef = useRef(isFileAccepted)
-  const stagedDelimiter = files[0]?.delimiter
+  const stagedFile = files[0]
 
   // The upload card is what the keyboard user pressed to get here, so taking it away leaves them on
   // the page body with the next tab starting from the top. The staged row's Remove button is the
@@ -127,16 +132,17 @@ export function ImportFilesStep({
           <div ref={stagedListRef}>
             <ImportStagedFileList files={files} onRemove={(file) => removeFile(file.id)} />
           </div>
-          {/* Shown for a refused file too, since a file read as one column is fixed here */}
-          {stagedDelimiter && (
-            <ImportDelimiterControl
-              delimiter={stagedDelimiter}
-              hasError={Boolean(files[0]?.error)}
-              onChange={(delimiter) => void changeDelimiter(delimiter)}
+          {/* Shown for a refused file too, since most refusals of a bank export are fixed by one of these */}
+          {stagedFile && (stagedFile.delimiter || stagedFile.reading) && (
+            <ImportReadingChoices
+              file={stagedFile}
+              onDelimiterChange={changeDelimiter}
+              onHeaderRowChange={changeHeaderRow}
+              onSkipLastRowsChange={changeSkipLastRows}
             />
           )}
-          {/* A refused file keeps its place above the upload, so the Separator control stays under the
-              pointer when a choice is refused */}
+          {/* A refused file keeps its place above the upload, so the reading choices stay under the
+              pointer when one is refused */}
           {uploadArea}
         </>
       )}
