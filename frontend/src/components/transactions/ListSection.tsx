@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useCategories } from '@/api/categories'
 import { ApiError } from '@/api/auth'
+import { useBankLinksByAccount } from '@/api/bank-sync'
 import {
   useBulkDeleteTransactions,
   useBulkUpdateTransactions,
@@ -418,15 +419,16 @@ export default function TransactionListSection({
     )
   }
 
-  const deleteDisabledReason = useMemo(
-    () =>
-      getBulkDeleteBlockReason(
-        selectedFacts.map((row) => row.accountId),
-        accountMap,
-        fixedAccount,
-      ),
-    [selectedFacts, accountMap, fixedAccount],
-  )
+  const linksByAccount = useBankLinksByAccount()
+  const deleteDisabledReason = useMemo(() => {
+    const selected = new Set(selection.selectedIds)
+    return getBulkDeleteBlockReason(
+      displayedTransactions.filter((transaction) => selected.has(transaction.id)),
+      accountMap,
+      fixedAccount,
+      linksByAccount,
+    )
+  }, [displayedTransactions, selection.selectedIds, accountMap, fixedAccount, linksByAccount])
 
   /**
    * Deletes the transactions the confirmation was opened for, keeping a refusal open with its reason

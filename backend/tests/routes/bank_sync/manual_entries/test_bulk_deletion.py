@@ -7,8 +7,8 @@ transaction with it
 
 from tests.routes.support.bank_sync_helpers import _record_bank_source, _still_stored
 from tests.routes.support.manual_entry_helpers import (
+    BULK_DELETE_REFUSED,
     COFFEE_DAY,
-    DELETE_REFUSED,
     _added_id,
     _commit_link,
     _dates_in,
@@ -24,7 +24,10 @@ async def _bulk_delete(client, ledger: _Ledger, transaction_ids: list[str]):
 
 
 async def test_a_bulk_delete_reaching_a_bank_imported_transaction_is_refused_whole_while_its_account_is_linked(client):
-    """Savings' manual 12 July Coffee and Everyday's bank-imported one both stay, with the bank transaction"""
+    """Savings' manual 12 July Coffee and Everyday's bank-imported one both stay, with the bank transaction
+
+    The refusal speaks of the selection's transactions rather than one, naming the account refused
+    """
     ledger = await _ledger(client)
     manual_id = await _added_id(client, ledger, ledger.savings_id, COFFEE_DAY)
     imported_id = await _added_id(client, ledger, ledger.everyday_id, COFFEE_DAY)
@@ -34,7 +37,7 @@ async def test_a_bulk_delete_reaching_a_bank_imported_transaction_is_refused_who
     refused = await _bulk_delete(client, ledger, [manual_id, imported_id])
 
     assert refused.status_code == 409, refused.text
-    assert refused.json()["detail"] == DELETE_REFUSED
+    assert refused.json()["detail"] == BULK_DELETE_REFUSED
     assert await _dates_in(ledger.savings_id) == [COFFEE_DAY]
     assert await _dates_in(ledger.everyday_id) == [COFFEE_DAY]
     assert await _still_stored(record_id)

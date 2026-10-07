@@ -31,8 +31,11 @@ SUPPLIED_IN_EVERYDAY = "SimpleFIN supplies the transactions in Everyday from Jun
 # A move is refused naming the account it would leave, for one transaction or several
 MOVE_REFUSED = "Transactions from SimpleFIN can't move out of Everyday while it's linked"
 
-# A delete of a bank-imported transaction is refused naming its account, for one transaction or several
+# A delete of a bank-imported transaction is refused naming its account, for one transaction alone
 DELETE_REFUSED = "Imported from SimpleFIN. While Everyday is linked, edit it rather than deleting it"
+
+# And for a selection deleted together, which may hold several
+BULK_DELETE_REFUSED = "Transactions from SimpleFIN can't be deleted from Everyday while it's linked"
 
 # A day the bank supplies, where a manual transaction can only have been entered before the link
 COFFEE_DAY = date(2026, 7, 12)

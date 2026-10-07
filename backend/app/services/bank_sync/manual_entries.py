@@ -151,7 +151,7 @@ async def detach_moved_bank_imports(db: AsyncSession, edits: Sequence[LedgerEdit
         await db.execute(delete(BankTransaction).where(BankTransaction.transaction_id.in_(moved)))
 
 
-async def refuse_deleting_bank_imports(db: AsyncSession, transactions: Sequence[Transaction]) -> None:
+async def refuse_deleting_bank_imports(db: AsyncSession, transactions: Sequence[Transaction], *, in_bulk: bool = False) -> None:
     """Refuse to delete a bank-imported transaction while its account is linked
 
     Bank sync's own removals don't come through here, so a bank removal the user approves, or one
@@ -160,6 +160,8 @@ async def refuse_deleting_bank_imports(db: AsyncSession, transactions: Sequence[
     Args:
         db: Active database session
         transactions: The transactions about to be deleted, locked by the caller
+        in_bulk: Whether they were selected to delete together, which the refusal speaks of as
+            several, as it does a move of several
 
     Raises:
         HTTPException 409: A bank-imported transaction's account is linked, naming the provider it
@@ -178,10 +180,12 @@ async def refuse_deleting_bank_imports(db: AsyncSession, transactions: Sequence[
         link = links.get(txn.account_id)
         if txn.id in providers and link is not None:
             provider_name = PROVIDER_ADAPTERS[providers[txn.id]].provider_name
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Imported from {provider_name}. While {link.account_name} is linked, edit it rather than deleting it",
+            detail = (
+                f"Transactions from {provider_name} can't be deleted from {link.account_name} while it's linked"
+                if in_bulk
+                else f"Imported from {provider_name}. While {link.account_name} is linked, edit it rather than deleting it"
             )
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
 
 
 async def refuse_archiving_a_linked_account(db: AsyncSession, account: Account) -> None:

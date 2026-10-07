@@ -142,7 +142,7 @@ async def bulk_delete_transactions(
     transactions = await load_locked_transactions(db, user, requested_ids)
     accounts = await load_writable_accounts(db, user, {t.account_id for t in transactions})
     _refuse_grouped_accounts(accounts)
-    await refuse_deleting_bank_imports(db, transactions)
+    await refuse_deleting_bank_imports(db, transactions, in_bulk=True)
 
     await delete_locked_transactions(
         db,

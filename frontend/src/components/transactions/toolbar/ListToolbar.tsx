@@ -203,8 +203,10 @@ export default function TransactionListToolbar({
     )
   }
 
-  // Sits beside Edit and follows its rules for being off, square below the 1050px breakpoint, where
-  // the row has no room left for another word
+  // Sits beside Edit, square below the 1050px breakpoint, where the row has no room left for another
+  // word. Its reason for being off shows on it when it is pointed at, focused or tapped, as Delete's
+  // does in the transaction modal, since a selection holding a bank-imported row is refused for the
+  // same reason
   function renderDeleteAction(className: string) {
     if (!onDeleteSelection) return undefined
     const reason = selectedCount === 0 ? 'Tick a transaction first' : deleteDisabledReason

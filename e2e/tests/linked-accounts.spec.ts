@@ -31,6 +31,7 @@ const MESSAGE_FROM_TODAY = `SimpleFIN supplies this account's transactions from 
 const MOVE_REFUSAL = "Transactions from SimpleFIN can't move out of Everyday while it's linked"
 const ARCHIVE_LINKED_REASON = "This account can't be archived while it's linked to SimpleFIN. Unlink it first."
 const DELETE_LINKED_REASON = 'Imported from SimpleFIN. While Everyday is linked, edit it rather than deleting it.'
+const BULK_DELETE_LINKED_REASON = "Transactions from SimpleFIN can't be deleted from Everyday while it's linked"
 
 // Where the pointer first rests on Delete, measured in from the button's top-left corner, and how far
 // it then moves down to see the reason follow, staying inside the button's 40px height. A move
@@ -435,4 +436,44 @@ test('greys out Delete on a bank transaction with its reason while the account i
   expect((await deleted).status()).toBe(204)
   await expect(dialog).toBeHidden()
   await expect(page.getByTestId(`transaction-row-${id}`)).toBeHidden()
+})
+
+test('greys out bulk Delete with its reason while a ticked bank transaction is in a linked account', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const manualDate = daysFromTodayInTestTimezone(-(IMPORT_START_DAYS_AGO + 2))
+  const manual = await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1500, date: manualDate })
+  await linkToSampleBankAccount(request, user, {
+    accountId: account.id,
+    bankAccountName: SAMPLE_CHEQUING,
+    startDate: daysFromTodayInTestTimezone(-IMPORT_START_DAYS_AGO),
+  })
+  const bankDate = (await addImportedItem(request, user, account.id, SAMPLE_COFFEE)).date
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+
+  // Every bulk delete sent, so one the browser should have held back shows up
+  const deletesSent: string[] = []
+  page.on('request', (sent) => {
+    if (sent.url() === `${API_BASE_URL}/transactions/bulk/delete`) deletesSent.push(sent.url())
+  })
+
+  await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
+  await page.getByRole('checkbox', { name: new RegExp(`^Select .+ on ${manualDate}$`) }).check()
+  const deleteAction = page.getByRole('button', { name: 'Delete the selected transactions', exact: true })
+  await expect(deleteAction).not.toHaveAttribute('aria-disabled')
+
+  // Ticking the bank transaction beside the manual one refuses the pair, saying why on Delete itself
+  await page.getByRole('checkbox', { name: new RegExp(`^Select .+ on ${bankDate}$`) }).check()
+  await expect(deleteAction).toHaveAttribute('aria-disabled', 'true')
+  await expect(deleteAction).toHaveAccessibleDescription(BULK_DELETE_LINKED_REASON)
+  const reason = page.getByText(BULK_DELETE_LINKED_REASON).filter({ visible: true })
+  await deleteAction.hover({ position: { x: POINTER_INSET_PX, y: POINTER_INSET_PX } })
+  await expect.poll(async () => (await readTooltip(reason)).opacity).toBe('1')
+
+  // Forced, because the button is marked unavailable and pressing it anyway is what is checked
+  await deleteAction.click({ force: true })
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  expect(deletesSent).toEqual([])
+  await expect(page.getByTestId(`transaction-row-${manual}`)).toBeVisible()
 })
