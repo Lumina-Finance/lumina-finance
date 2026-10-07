@@ -42,12 +42,14 @@ export function ModalDeleteConfirm({
   children,
 }: ModalDeleteConfirmProps) {
   const titleId = useId()
+  const descriptionId = useId()
 
   return (
     <ModalTitledPanel
       open={open}
       onClose={onCancel}
       titleId={titleId}
+      descriptionId={descriptionId}
       eyebrow={label}
       title={title}
       RailIcon={RailIcon}
@@ -66,7 +68,7 @@ export function ModalDeleteConfirm({
         />
       )}
     >
-      <div className="space-y-4">
+      <div id={descriptionId} className="space-y-4">
         {children}
         <WarningCallout>This can't be undone.</WarningCallout>
       </div>

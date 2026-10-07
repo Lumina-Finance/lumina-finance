@@ -38,6 +38,8 @@ interface ModalShellProps {
   onClose: () => void
   /** Id of the heading that titles the dialog, so a screen reader announces what opened */
   titleId: string
+  /** Id of the text explaining what the dialog asks, read out with the title when it opens */
+  descriptionId?: string
   /** Size and layout classes for the panel. Its background, border and shadow come from app-modal-panel */
   panelClassName: string
   /** Whether the modal was opened from the page or from another modal, which sets its stacking level and its entrance timing */
@@ -60,6 +62,7 @@ export function ModalShell({
   open,
   onClose,
   titleId,
+  descriptionId,
   panelClassName,
   level = 'page',
   closeDisabled = false,
@@ -100,6 +103,7 @@ export function ModalShell({
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
+            aria-describedby={descriptionId}
             tabIndex={-1}
             inert={covered}
             data-tooltip-bounds={boundsTooltips ? true : undefined}
