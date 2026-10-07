@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.encryption import decrypt, encrypt
 from app.models.auth import TotpCredential
-from app.services.auth.recovery_codes import delete_pending_recovery_codes
+from app.services.auth.recovery_codes import delete_pending_recovery_codes, staging_cutoff
 from app.services.auth.webauthn import delete_staged_passkeys
 
 # Authenticator apps assume these defaults and many ignore other values, so they are fixed
@@ -106,7 +106,8 @@ async def begin_totp_setup(db: AsyncSession, user_id: uuid.UUID, account_name: s
         .values(user_id=user_id, secret_encrypted=encrypted_secret)
         .on_conflict_do_update(
             index_elements=[TotpCredential.user_id],
-            set_={"secret_encrypted": encrypted_secret, "created_at": datetime.now(UTC)},
+            # A new secret has had no code verified yet, so clear the step its predecessor recorded
+            set_={"secret_encrypted": encrypted_secret, "created_at": datetime.now(UTC), "last_used_step": None},
             where=TotpCredential.confirmed_at.is_(None),
         )
     )
@@ -153,10 +154,10 @@ async def is_pending_totp_code_valid(db: AsyncSession, user_id: uuid.UUID, code:
         code: Code from the authenticator app
 
     Returns:
-        Whether a pending secret exists and the code verifies
+        Whether an unexpired pending secret exists and the code verifies
     """
     credential = await _lock_pending_totp(db, user_id)
-    if credential is None:
+    if credential is None or credential.created_at < staging_cutoff():
         return False
 
     step = match_totp_step(decrypt(credential.secret_encrypted), code)
@@ -164,6 +165,10 @@ async def is_pending_totp_code_valid(db: AsyncSession, user_id: uuid.UUID, code:
         return False
 
     credential.last_used_step = step
+
+    # Restart the staging lifetime so the authenticator ages with the recovery batch this confirm stages,
+    # and finishing setup depends on that batch alone rather than on how long the user took to scan
+    credential.created_at = datetime.now(UTC)
     return True
 
 
@@ -178,10 +183,13 @@ async def mark_totp_confirmed(db: AsyncSession, user_id: uuid.UUID) -> bool:
         user_id: User finishing enrolment
 
     Returns:
-        Whether a pending credential existed to confirm
+        Whether an unexpired pending credential with a verified code existed to confirm
     """
     credential = await _lock_pending_totp(db, user_id)
-    if credential is None:
+
+    # A recovery batch staged by regeneration also lets completion through, so the authenticator must
+    # carry its own proof: a code verified at confirm, which also restarted its lifetime
+    if credential is None or credential.last_used_step is None or credential.created_at < staging_cutoff():
         return False
 
     credential.confirmed_at = datetime.now(UTC)

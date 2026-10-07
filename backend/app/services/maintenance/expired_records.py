@@ -23,10 +23,8 @@ from app.services.importers.shared.run_staging import delete_expired_import_runs
 
 logger = logging.getLogger(__name__)
 
-# How often the server prunes. Twice a day is enough for a personal server, since expired sign-ins and
-# imports are already refused by their own expiry checks and a pass only clears what they leave. A
-# staged two-factor setup is the exception: it stays confirmable until a pass or its owner's next
-# login deletes it
+# How often the server prunes. Twice a day is enough for a personal server, since every kind is already
+# refused by its own expiry check once it expires and a pass only clears what is left
 EXPIRED_RECORD_PRUNE_INTERVAL = timedelta(hours=12)
 
 

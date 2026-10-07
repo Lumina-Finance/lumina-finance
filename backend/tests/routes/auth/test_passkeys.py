@@ -20,7 +20,7 @@ import pyotp
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, update
 from webauthn.helpers import bytes_to_base64url
 
 import app.services.auth.webauthn as webauthn_service
@@ -762,6 +762,48 @@ async def test_login_prunes_stale_passkey_staging(client):
         )
     assert staged is None
     assert pending is None
+
+
+async def test_confirm_refuses_a_staged_passkey_past_its_lifetime(client):
+    """A first passkey left unacknowledged past the staging lifetime can't be turned on later"""
+    signup = await _create_user(client)
+    await _seed_stale_staged_passkey(signup.json()["user"]["id"], b"stale-staged-key")
+
+    confirm = await client.post("/auth/passkeys/register/confirm", headers=_get_auth_header(signup))
+    assert confirm.status_code == 400
+    assert confirm.json()["detail"] == "No passkey awaiting confirmation"
+    async with TestSession() as db:
+        staged = await db.scalar(select(WebauthnCredential).where(WebauthnCredential.credential_id == b"stale-staged-key"))
+    assert staged.confirmed_at is None
+
+
+async def test_registration_options_drop_only_the_users_expired_staged_passkeys(client, monkeypatch):
+    """Starting again after an expired passkey setup frees that authenticator and keeps every other passkey"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    user_id = signup.json()["user"]["id"]
+    other_id = (await _create_second_user(client)).json()["user"]["id"]
+    await _seed_passkey(user_id, b"old-confirmed-key")
+    async with TestSession() as db:
+        await db.execute(
+            update(WebauthnCredential)
+            .where(WebauthnCredential.credential_id == b"old-confirmed-key")
+            .values(created_at=datetime.now(UTC) - timedelta(days=30))
+        )
+        await db.commit()
+    await _seed_stale_staged_passkey(user_id, b"stale-staged-key")
+    await _stage_passkey_with_pending_codes(user_id, b"fresh-staged-key")
+    await _seed_stale_staged_passkey(other_id, b"other-stale-key")
+
+    step_up = await _step_up_with_passkey(client, auth, monkeypatch, user_id, b"old-confirmed-key")
+    response = await client.post("/auth/passkeys/register/options", headers=auth, json={"step_up": step_up})
+    assert response.status_code == 200
+
+    excluded = {entry["id"] for entry in response.json()["excludeCredentials"]}
+    assert excluded == {bytes_to_base64url(b"old-confirmed-key"), bytes_to_base64url(b"fresh-staged-key")}
+    async with TestSession() as db:
+        remaining = set((await db.scalars(select(WebauthnCredential.credential_id))).all())
+    assert remaining == {b"old-confirmed-key", b"fresh-staged-key", b"other-stale-key"}
 
 
 async def _login(client, email: str = SIGNUP_PAYLOAD["email"]):

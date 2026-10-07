@@ -11,8 +11,9 @@ from sqlalchemy import func, select, text, update
 
 from app.models.auth import RecoveryCode, TotpCredential
 from app.routes.auth.router import login_route
-from app.services.auth import two_factor, webauthn
+from app.services.auth import recovery_codes, two_factor
 from app.services.auth.mfa_challenge import MFA_PURPOSE_LOGIN, MFA_PURPOSE_PASSWORD_RESET, issue_mfa_challenge
+from app.services.auth.recovery_codes import generate_recovery_codes
 from tests.conftest import TestSession
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _fresh_totp_code, _get_auth_header
 
@@ -80,10 +81,9 @@ async def _age_totp_staging(user_id, created_at):
 
 
 def _freeze_staging_cleanup(monkeypatch, now, lifetime=1800):
-    """Fix the staging clock and lifetime without changing route execution"""
-    for service in (webauthn, two_factor):
-        monkeypatch.setattr(service, "datetime", SimpleNamespace(now=lambda _tz: now), raising=False)
-        monkeypatch.setattr(service, "TWO_FACTOR_STAGING_EXPIRE_SECONDS", lifetime, raising=False)
+    """Fix the clock and lifetime behind the shared staging cutoff without changing route execution"""
+    monkeypatch.setattr(recovery_codes, "datetime", SimpleNamespace(now=lambda _tz: now))
+    monkeypatch.setattr(recovery_codes, "TWO_FACTOR_STAGING_EXPIRE_SECONDS", lifetime)
 
 
 @pytest.mark.parametrize(
@@ -179,9 +179,7 @@ async def _wait_for_cleanup_overlap(task, blocker_pid, blocked_pid):
 async def test_totp_requests_reject_setup_removed_by_concurrent_login(client, monkeypatch, action):
     """Confirmation observes a concurrent cleanup as expired setup instead of updating a deleted row"""
     auth, secret, user_id = await _stage_totp(client)
-    now = datetime.now(UTC)
-    await _age_totp_staging(user_id, now - timedelta(seconds=1801))
-    _freeze_staging_cleanup(monkeypatch, now)
+    await _age_totp_staging(user_id, datetime.now(UTC) - timedelta(seconds=120))
     cleanup_paused = asyncio.Event()
     action_started = asyncio.Event()
     release_cleanup = asyncio.Event()
@@ -194,7 +192,11 @@ async def test_totp_requests_reject_setup_removed_by_concurrent_login(client, mo
     async def pause_cleanup(db, owner_id):
         """Hold the real deletion uncommitted while another request reads its old visible state"""
         pids["cleanup"] = await db.scalar(select(func.pg_backend_pid()))
-        await original_sweep(db, owner_id)
+        # Only the sweep sees the two-minute-old setup as expired, so the request below passes its own
+        # expiry check and reaches the rows the sweep is deleting
+        with monkeypatch.context() as sweep_clock:
+            sweep_clock.setattr(recovery_codes, "TWO_FACTOR_STAGING_EXPIRE_SECONDS", 60)
+            await original_sweep(db, owner_id)
         cleanup_paused.set()
         await release_cleanup.wait()
 
@@ -236,9 +238,12 @@ async def test_totp_requests_reject_setup_removed_by_concurrent_login(client, mo
 async def test_totp_completion_preserves_its_factor_when_login_cleanup_overlaps(client, monkeypatch):
     """Cleanup waits for a completing credential and then preserves its confirmed factor and active codes"""
     auth, _, user_id = await _stage_totp(client)
-    now = datetime.now(UTC)
-    await _age_totp_staging(user_id, now - timedelta(seconds=1801))
-    _freeze_staging_cleanup(monkeypatch, now)
+    # Only the authenticator is two minutes old, so the sweep's one-minute lifetime below targets the
+    # credential being confirmed and leaves the fresh batch alone
+    async with TestSession() as db:
+        aged = datetime.now(UTC) - timedelta(seconds=120)
+        await db.execute(update(TotpCredential).where(TotpCredential.user_id == user_id).values(created_at=aged))
+        await db.commit()
     completion_paused = asyncio.Event()
     cleanup_started = asyncio.Event()
     release_completion = asyncio.Event()
@@ -258,7 +263,9 @@ async def test_totp_completion_preserves_its_factor_when_login_cleanup_overlaps(
         """Identify the cleanup transaction before its real deletion"""
         pids["cleanup"] = await db.scalar(select(func.pg_backend_pid()))
         cleanup_started.set()
-        await original_sweep(db, owner_id)
+        with monkeypatch.context() as sweep_clock:
+            sweep_clock.setattr(recovery_codes, "TWO_FACTOR_STAGING_EXPIRE_SECONDS", 60)
+            await original_sweep(db, owner_id)
 
     monkeypatch.setattr(two_factor, "mark_totp_confirmed", pause_completion)
     monkeypatch.setitem(login_route.__globals__, "prune_stale_factor_staging", observe_cleanup)
@@ -381,6 +388,64 @@ async def test_restarting_setup_discards_staged_codes(client):
 
     status = await client.get("/auth/2fa/status", headers=auth)
     assert status.json()["totp_enabled"] is False
+
+
+async def test_confirm_refuses_an_authenticator_setup_past_its_lifetime(client):
+    """A setup left open past the staging lifetime can't be confirmed, even with a valid code"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    secret = (await client.post("/auth/2fa/setup", headers=auth, json={"step_up": _STEP_UP})).json()["secret"]
+    await _age_totp_staging(uuid.UUID(signup.json()["user"]["id"]), datetime.now(UTC) - timedelta(seconds=1801))
+
+    confirm = await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
+    assert confirm.status_code == 400
+    assert confirm.json()["detail"] == "Invalid or expired code"
+
+
+async def test_complete_refuses_recovery_codes_past_their_lifetime(client):
+    """Finishing setup after the staged recovery codes expired leaves two-factor off"""
+    auth, _, user_id = await _stage_totp(client)
+    await _age_totp_staging(user_id, datetime.now(UTC) - timedelta(seconds=1801))
+
+    complete = await client.post("/auth/2fa/complete", headers=auth)
+    assert complete.status_code == 400
+    assert complete.json()["detail"] == "Confirm an authenticator code first"
+    status = await client.get("/auth/2fa/status", headers=auth)
+    assert status.json()["totp_enabled"] is False
+
+
+async def test_complete_refuses_an_authenticator_without_a_verified_code(client):
+    """A batch staged by regeneration can't switch on an authenticator whose code was never entered"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    assert (await client.post("/auth/2fa/setup", headers=auth, json={"step_up": _STEP_UP})).status_code == 200
+    async with TestSession() as db:
+        await generate_recovery_codes(db, uuid.UUID(signup.json()["user"]["id"]), pending=True)
+        await db.commit()
+
+    complete = await client.post("/auth/2fa/complete", headers=auth)
+    assert complete.status_code == 400
+    assert complete.json()["detail"] == "No pending two-factor setup to finish"
+    status = await client.get("/auth/2fa/status", headers=auth)
+    assert status.json()["totp_enabled"] is False
+
+
+async def test_complete_after_a_late_confirm_survives_the_next_login(client, monkeypatch):
+    """Confirming near the end of the lifetime gives the authenticator a fresh one alongside its recovery codes"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    user_id = uuid.UUID(signup.json()["user"]["id"])
+    secret = (await client.post("/auth/2fa/setup", headers=auth, json={"step_up": _STEP_UP})).json()["secret"]
+    await _age_totp_staging(user_id, datetime.now(UTC) - timedelta(seconds=1700))
+    confirm = await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
+    assert confirm.status_code == 200
+
+    # Ten minutes later the original setup time is past the lifetime but the confirm time isn't
+    _freeze_staging_cleanup(monkeypatch, datetime.now(UTC) + timedelta(seconds=600))
+    login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
+    assert login.status_code == 200
+
+    assert (await client.post("/auth/2fa/complete", headers=auth)).status_code == 204
 
 
 async def test_confirm_rejects_a_wrong_code(client):
@@ -554,6 +619,88 @@ async def test_confirm_recovery_codes_requires_a_staged_batch(client):
 
     confirm = await client.post("/auth/2fa/recovery-codes/confirm", headers=auth)
     assert confirm.status_code == 400
+
+
+async def test_confirm_recovery_codes_refuses_a_batch_past_its_lifetime(client):
+    """An abandoned regeneration can't later replace the active codes"""
+    auth, secret, old_codes = await _enroll(client)
+    regenerate = await client.post(
+        "/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": _fresh_totp_code(secret)}
+    )
+    new_codes = regenerate.json()["recovery_codes"]
+    async with TestSession() as db:
+        await db.execute(
+            update(RecoveryCode)
+            .where(RecoveryCode.pending.is_(True))
+            .values(created_at=datetime.now(UTC) - timedelta(minutes=31))
+        )
+        await db.commit()
+
+    confirm = await client.post("/auth/2fa/recovery-codes/confirm", headers=auth)
+    assert confirm.status_code == 400
+    assert confirm.json()["detail"] == "No pending recovery codes to confirm"
+    assert (await _login_with_code(client, new_codes[0])).status_code == 401
+    assert (await _login_with_code(client, old_codes[0])).status_code == 200
+
+
+async def test_recovery_code_confirm_keeps_the_active_codes_when_login_cleanup_overlaps(client, monkeypatch):
+    """A batch swept while its confirm waits is refused instead of leaving the account with no codes"""
+    auth, secret, old_codes = await _enroll(client)
+    regenerate = await client.post(
+        "/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": _fresh_totp_code(secret)}
+    )
+    assert regenerate.status_code == 200
+    async with TestSession() as db:
+        aged = datetime.now(UTC) - timedelta(seconds=120)
+        await db.execute(update(RecoveryCode).where(RecoveryCode.pending.is_(True)).values(created_at=aged))
+        await db.commit()
+    cleanup_paused = asyncio.Event()
+    confirm_started = asyncio.Event()
+    release_cleanup = asyncio.Event()
+    pids = {}
+    original_sweep = login_route.__globals__["prune_stale_factor_staging"]
+    original_check = two_factor.has_pending_recovery_codes
+
+    async def pause_cleanup(db, owner_id):
+        """Hold the real deletion uncommitted while the confirm reads the batch it still sees"""
+        pids["cleanup"] = await db.scalar(select(func.pg_backend_pid()))
+        # Only the sweep sees the two-minute-old batch as expired, so the confirm passes its own check
+        with monkeypatch.context() as sweep_clock:
+            sweep_clock.setattr(recovery_codes, "TWO_FACTOR_STAGING_EXPIRE_SECONDS", 60)
+            await original_sweep(db, owner_id)
+        cleanup_paused.set()
+        await release_cleanup.wait()
+
+    async def observe_confirm(db, owner_id):
+        """Identify the confirm transaction without changing its check"""
+        pids["confirm"] = await db.scalar(select(func.pg_backend_pid()))
+        confirm_started.set()
+        return await original_check(db, owner_id)
+
+    monkeypatch.setitem(login_route.__globals__, "prune_stale_factor_staging", pause_cleanup)
+    monkeypatch.setattr(two_factor, "has_pending_recovery_codes", observe_confirm)
+    tasks = []
+    try:
+        async with asyncio.timeout(5):
+            login = asyncio.create_task(client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD}))
+            tasks.append(login)
+            await cleanup_paused.wait()
+            confirm = asyncio.create_task(client.post("/auth/2fa/recovery-codes/confirm", headers=auth))
+            tasks.append(confirm)
+            await confirm_started.wait()
+            await _wait_for_cleanup_overlap(confirm, pids["cleanup"], pids["confirm"])
+            release_cleanup.set()
+            _, confirm_response = await asyncio.gather(*tasks)
+    finally:
+        release_cleanup.set()
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+    assert confirm_response.status_code == 400
+    monkeypatch.undo()
+    assert (await _login_with_code(client, old_codes[0])).status_code == 200
 
 
 async def test_regenerate_rejects_a_recovery_code_as_second_factor(client):
