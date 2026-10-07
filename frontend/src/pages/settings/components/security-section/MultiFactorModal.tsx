@@ -344,6 +344,7 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
         level="stacked"
         open={totp.regeneratedCodes !== null}
         codes={totp.regeneratedCodes}
+        factors={{ authenticator: totp.isEnabled, passkeys: passkey.passkeys.length }}
         onConfirm={totp.acknowledgeRegeneratedCodes}
         onClose={totp.dismissRegeneratedCodes}
         onRestart={() => {
@@ -356,6 +357,7 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
         level="stacked"
         open={passkey.pendingRecoveryCodes !== null}
         codes={passkey.pendingRecoveryCodes}
+        factors={{ authenticator: false, passkeys: 1 }}
         description={FIRST_PASSKEY_CODES_DESCRIPTION}
         onConfirm={passkey.acknowledgeRecoveryCodes}
         onClose={passkey.dismissRecoveryCodes}
