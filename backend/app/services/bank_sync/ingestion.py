@@ -27,6 +27,7 @@ no amount, so its item waits for the user to enter one rather than being rounded
 """
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -39,12 +40,24 @@ from app.services.bank_sync.corrections import store_accepted_observations
 from app.services.bank_sync.providers.contract import ProviderRecord
 
 
+@dataclass(frozen=True)
+class StoredRecords:
+    """What storing a sync's booked records changed"""
+
+    # Anything stored, so the caller tells the owner's open pages
+    changed: bool = False
+
+    # A trusted correction or removal reached the ledger, which the caller marks as a change to the
+    # owner's data rather than only to what their pages show
+    ledger_changed: bool = False
+
+
 async def store_booked_records(
     db: AsyncSession,
     deliveries: Sequence[tuple[BankAccountLink, Sequence[ProviderRecord]]],
     *,
     observed_at: datetime,
-) -> bool:
+) -> StoredRecords:
     """Store the booked records each link's bank account came back with as review items, or as what the bank now says about ones in the ledger
 
     The caller locked the links and commits. The stored bank transactions these records name are
@@ -58,12 +71,12 @@ async def store_booked_records(
         observed_at: When the request that brought the records was sent
 
     Returns:
-        Whether anything stored changed, so the caller tells the owner's open pages
+        Whether anything stored changed, and whether that reached the ledger
     """
     wanted = [(link, _booked_records(records)) for link, records in deliveries]
     wanted = [(link, booked) for link, booked in wanted if booked]
     if not wanted:
-        return False
+        return StoredRecords()
 
     stored = await db.scalars(
         select(BankTransaction)
@@ -135,10 +148,11 @@ async def store_booked_records(
                     setattr(row, column, value)
                 row.observed_at = observed_at
                 changed = True
+    ledger_changed = False
     if accepted or removed:
-        await store_accepted_observations(db, accepted, removed, observed_at=observed_at)
+        ledger_changed = await store_accepted_observations(db, accepted, removed, observed_at=observed_at)
     await db.flush()
-    return changed
+    return StoredRecords(changed=changed, ledger_changed=ledger_changed)
 
 
 def _differs(row: BankTransaction, observation: dict[str, Any]) -> bool:

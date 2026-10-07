@@ -67,7 +67,7 @@ from app.services.bank_sync.jobs import enqueue_bank_sync_job
 from app.services.bank_sync.pending import replace_pending_transactions
 from app.services.bank_sync.provider_requests import read_request_budget
 from app.services.bank_sync.providers.contract import ProviderAdapter
-from app.services.cache_state.updates import mark_user_cache_changed
+from app.services.cache_state.updates import mark_user_cache_changed, mark_user_status_changed
 from app.utils.dates import format_day, resolve_timezone
 
 ACCOUNT_ALREADY_LINKED = "This account is already linked to a bank"
@@ -106,7 +106,8 @@ async def list_bank_accounts_for_account(
     account = await _get_account_to_link(db, user, account_id, lock=False)
     connection, adapter = await _get_working_connection(db, user.id, connection_id, lock=False)
     if await _request_fresh_discovery(db, connection, now=datetime.now(UTC)):
-        await mark_user_cache_changed(db, user.id)
+        # The connection now shows a listing pending, which changes none of the user's data
+        await mark_user_status_changed(db, user.id)
         await db.commit()
 
     bank_accounts = await db.scalars(

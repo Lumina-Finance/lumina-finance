@@ -52,7 +52,7 @@ async def store_accepted_observations(
     removals: Sequence[BankTransaction],
     *,
     observed_at: datetime,
-) -> None:
+) -> bool:
     """Store what the bank now says about transactions already in the ledger, opening or applying the corrections and removals it makes
 
     The caller has locked the bank transactions and marks the cache. Their ledger rows are locked
@@ -65,6 +65,10 @@ async def store_accepted_observations(
             now sends, which differ from those stored unless the bank had reported it removed
         removals: Each accepted bank transaction the bank newly reports removed
         observed_at: When the request that brought them was sent
+
+    Returns:
+        Whether a trusted correction or removal changed the ledger, which the caller marks as a
+        change to the owner's data rather than only to what their pages show
     """
     records = [record for record, _ in observations] + list(removals)
     ledger = {
@@ -114,6 +118,9 @@ async def store_accepted_observations(
             record.removed_at = observed_at
             record.open_kind = OpenReviewKind.REMOVAL
     await recompute_account_snapshots(db, snapshot_starts)
+
+    # Only a changed date or amount, or a deleted row, reaches the ledger, and each rebuilds balances
+    return bool(snapshot_starts)
 
 
 def _select_linked(ledger: Mapping[uuid.UUID, Transaction]):

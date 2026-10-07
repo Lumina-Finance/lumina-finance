@@ -113,6 +113,12 @@ def _scope_status(
     if state is None:
         return ScopeCacheStatus(changed_at=None, last_change_from_current_session=False)
 
+    # A personal scope's pages also refresh for what bank sync changed without touching the ledger,
+    # once it is later than the last data change, and treat it as no session's own
+    status_changed_at = state.status_changed_at if isinstance(state, UserCacheState) else None
+    if status_changed_at is not None and status_changed_at > state.changed_at:
+        return ScopeCacheStatus(changed_at=_as_utc(status_changed_at), last_change_from_current_session=False)
+
     return ScopeCacheStatus(
         changed_at=_as_utc(state.changed_at),
         last_change_from_current_session=(

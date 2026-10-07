@@ -24,6 +24,7 @@ from tests.routes.support.bank_sync_helpers import (
     _new_account,
     _sign_up,
 )
+from tests.routes.support.transaction_helpers import _import_transactions
 
 
 async def _list(client, headers, connection_id, account_id):
@@ -136,6 +137,41 @@ async def test_listing_marks_the_cache_changed_only_when_it_asks_for_a_fresh_dis
     assert listed.status_code == 200, listed.text
     assert after.status_code == 200, after.text
     assert (after.json()["personal"]["changed_at"] != before.json()["personal"]["changed_at"]) is asks
+
+
+async def test_listing_that_asks_for_a_fresh_discovery_leaves_the_last_import_undoable(client):
+    """The user imported a file into Everyday, then opened the link flow on a connection listed 3 hours ago and closed it
+
+    Asking for a fresh listing changes none of their data, so the import can still be undone
+    """
+    headers, user_id = await _sign_up(client)
+    everyday_id = await _new_account(client, headers, "Everyday")
+    connection = await _commit_listed_connection(user_id, discovered_at=datetime.now(UTC) - timedelta(hours=3))
+    imported = await _import_transactions(
+        client,
+        headers,
+        {
+            "accounts": [{"source": "Everyday", "account_id": str(everyday_id)}],
+            "categories": [{"source": "Coffee", "create": {"name": "Coffee", "kind": "expense"}}],
+            "rows": [
+                {
+                    "account_source": "Everyday",
+                    "category_source": "Coffee",
+                    "dt": "2026-09-15",
+                    "amount": "-4.50",
+                    "merchant_name": "Harbour Coffee",
+                }
+            ],
+        },
+    )
+    assert imported.status_code == 201, imported.text
+
+    listed = await _list(client, headers, connection.id, everyday_id)
+    last = await client.get("/transactions/import/last", headers=headers)
+
+    assert listed.status_code == 200, listed.text
+    assert last.status_code == 200, last.text
+    assert last.json() is not None
 
 
 async def test_listing_for_a_user_who_may_not_link_bank_accounts_is_refused(client, monkeypatch):

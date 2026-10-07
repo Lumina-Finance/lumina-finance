@@ -42,7 +42,7 @@ from app.services.bank_sync.availability import ENABLED_ADAPTERS, LIVE_LINK, PRO
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
 from app.services.bank_sync.provider_requests import read_request_budget
 from app.services.bank_sync.windows import next_due_at
-from app.services.cache_state.updates import mark_user_cache_changed
+from app.services.cache_state.updates import mark_user_status_changed
 from app.utils.dates import resolve_timezone
 
 # A link up to date syncs again this long after its sync started
@@ -120,4 +120,4 @@ async def queue_scheduled_sync(db: AsyncSession, connection_id: uuid.UUID, *, no
 
     # The connection now shows a listing pending, which the owner's open pages are told of
     if discover:
-        await mark_user_cache_changed(db, connection.owner_id)
+        await mark_user_status_changed(db, connection.owner_id)

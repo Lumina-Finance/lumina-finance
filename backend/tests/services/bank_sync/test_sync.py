@@ -63,6 +63,7 @@ from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, ProviderError
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition, OpenReviewKind
 from app.models.cache_state import UserCacheState
 from app.models.category import Category
+from app.models.import_run import ImportRun
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction
 from app.models.transaction_link import TransactionLink
@@ -78,8 +79,10 @@ from app.services.bank_sync.providers.contract import ExternalAccount, FetchResu
 from app.services.bank_sync.review_pause import lift_review_pauses, lock_account_links
 from app.services.bank_sync.schedule import next_daily_sync, queue_scheduled_sync, schedule_next_sync
 from app.services.bank_sync.worker import enqueue_due_work, run_jobs
+from app.services.cache_state import get_visible_cache_status, mark_user_cache_changed
 from app.services.email import RenderedEmail
 from app.services.email import contract as email_contract
+from app.services.importers.shared.run_history import get_last_import
 from app.services.merchants.defaults import SELF_MERCHANT_NAME
 from app.services.transactions.update import apply_transaction_update
 from tests.conftest import TestSession
@@ -418,9 +421,9 @@ async def _listing(connection: BankConnection) -> tuple[bool, list[str]]:
 
 
 async def _told_at(connection: BankConnection) -> datetime | None:
-    """Return when the owner's open pages were last told their data changed, or None when they never were"""
+    """Return when the owner's open pages were last told something changed, their data or a sync's status, or None when they never were"""
     async with TestSession() as session:
-        return await session.scalar(select(UserCacheState.changed_at).where(UserCacheState.user_id == connection.owner_id))
+        return (await get_visible_cache_status(session, connection.owner_id)).personal.changed_at
 
 
 class _HeldProvider(FakeProviderAdapter):
@@ -1524,7 +1527,7 @@ async def test_job_whose_save_starting_a_state_fails_emails_nothing_and_the_next
     await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-everyday")
     everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
     provider.outcomes = [answer, answer]
-    mark_user_cache_changed = sync.mark_user_cache_changed
+    mark_user_status_changed = sync.mark_user_status_changed
     calls = 0
 
     async def fail_to_commit() -> None:
@@ -1535,7 +1538,7 @@ async def test_job_whose_save_starting_a_state_fails_emails_nothing_and_the_next
         """Tell the owner's pages, and in the first job's save starting the state, have that save's commit fail next"""
         nonlocal calls
         calls += 1
-        await mark_user_cache_changed(db, *args, **kwargs)
+        await mark_user_status_changed(db, *args, **kwargs)
         if calls == failing_call:
             monkeypatch.setattr(db, "commit", fail_to_commit)
 
@@ -1543,7 +1546,7 @@ async def test_job_whose_save_starting_a_state_fails_emails_nothing_and_the_next
         """Return when the connection was marked rejected, when Everyday was marked as waiting on a sign-in, and its state"""
         return await _rejection(connection), await _signin_marks(everyday), await _link_states(everyday)
 
-    monkeypatch.setattr(sync, "mark_user_cache_changed", fail_the_saves_commit)
+    monkeypatch.setattr(sync, "mark_user_status_changed", fail_the_saves_commit)
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
     with freeze_time(frozen_now, real_asyncio=True) as clock:
@@ -3580,6 +3583,101 @@ async def test_job_rebuilds_balances_from_the_earliest_day_trusted_corrections_t
 
     assert await _balances(everyday.account_id) == [(date(2026, 9, 29), -4_50), (date(2026, 10, 3), -9_00)]
     assert await _balances(card.account_id) == [(date(2026, 10, 3), -4_50)]
+
+
+async def _save_import(account_id: uuid.UUID) -> uuid.UUID:
+    """Commit an import of one $12.50 row on 15 September into the account, stamped with the change marker its save set, as saving one is
+
+    Returns:
+        The import's id
+    """
+    async with TestSession() as session:
+        account = await session.get_one(Account, account_id)
+        category_id = await session.scalar(select(Category.id).where(Category.is_system.is_(True)).limit(1))
+        run = ImportRun(owner_id=account.owner_id, expected_transaction_count=1, file_name="everyday.csv")
+        session.add(run)
+        await session.flush()
+        txn = _build_ledger_transaction(account, category_id)
+        txn.dt = date(2026, 9, 15)
+        txn.import_run_id = run.id
+        session.add(txn)
+        await session.flush()
+        await recompute_account_snapshots(session, {account.id: txn.dt})
+        await mark_user_cache_changed(session, account.owner_id)
+        run.committed_at = await session.scalar(select(UserCacheState.changed_at).where(UserCacheState.user_id == account.owner_id))
+        await session.commit()
+    return run.id
+
+
+async def _undoable_import(connection: BankConnection) -> uuid.UUID | None:
+    """Return the import the owner's Imports page offers to undo, or None when it offers none"""
+    async with TestSession() as session:
+        last = await get_last_import(session, await session.get_one(User, connection.owner_id))
+    return last.id if last else None
+
+
+@pytest.mark.parametrize("lists_first", [False, True], ids=["fetching", "listing-first"])
+async def test_job_bringing_a_new_item_for_review_leaves_the_last_import_undoable(connection, provider, lists_first):
+    """The owner saved an import into Everyday, then the daily sync, listing the bank accounts first or not, brings back a new coffee
+
+    The coffee waits for review outside the ledger, so nothing the import wrote, or any balance, has
+    changed and the import can still be undone. The owner's open pages still hear of the sync
+    """
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    run_id = await _save_import(link.account_id)
+    told_before = await _told_at(connection)
+    fetched = _returned_with({"ACT-1": [_record("TRN-coffee")]})
+    provider.outcomes = [_returned("ACT-1"), fetched] if lists_first else [fetched]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED, discover=lists_first)
+
+    await _run_jobs_until_none_is_due()
+
+    assert len(provider.discoveries) == int(lists_first)
+    assert await _checkpoints(link) == [_TODAY]
+    assert await _bank_transactions(BankTransaction.disposition) == [(BankTransactionDisposition.AWAITING_REVIEW,)]
+    assert await _undoable_import(connection) == run_id
+    assert await _told_at(connection) > told_before
+
+
+async def test_scan_listing_a_connection_never_listed_leaves_the_last_import_undoable(connection, provider, frozen_now):
+    """The owner saved an import into Everyday, a manual account, while a claim two hours ago stopped before listing the bank accounts
+
+    The scan queues the listing and the job lists them, which changes none of the owner's data, so
+    the import can still be undone
+    """
+    await _set_discovered_at(connection, None)
+    everyday = _build_account(connection.owner_id, name="Everyday")
+    async with TestSession() as session:
+        (await session.get(BankConnection, connection.id)).created_at = frozen_now - timedelta(hours=2)
+        session.add(everyday)
+        await session.commit()
+    run_id = await _save_import(everyday.id)
+    provider.outcomes = [_returned("ACT-everyday")]
+
+    await enqueue_due_work()
+    await _run_jobs_until_none_is_due()
+
+    assert len(provider.discoveries) == 1
+    assert await _undoable_import(connection) == run_id
+
+
+async def test_job_applying_a_trusted_correction_makes_the_last_import_permanent(connection, provider):
+    """The owner saved an import into Everyday, then the daily sync moves a coffee already in its ledger to 3 October
+
+    Everyday trusts the bank's corrections, so the ledger and its balances change after the import,
+    and undoing the import is no longer offered
+    """
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    await _trust(link, "corrections")
+    await _accept_coffee(link)
+    await _save_import(link.account_id)
+    provider.outcomes = [_returned_with({"ACT-1": [_record("TRN-coffee", date(2026, 10, 3))]})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert sorted(await _ledger_rows(link.account_id)) == [(date(2026, 9, 15), -12_50), (date(2026, 10, 3), -4_50)]
+    assert await _undoable_import(connection) is None
 
 
 async def test_job_stores_a_bank_change_dating_a_stored_transaction_before_the_import_start(connection, provider):

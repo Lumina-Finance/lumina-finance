@@ -85,7 +85,7 @@ from app.services.bank_sync.retries import is_waiting_to_retry, queue_next_retry
 from app.services.bank_sync.review_pause import apply_review_pauses
 from app.services.bank_sync.schedule import next_daily_sync, schedule_next_sync
 from app.services.bank_sync.windows import LinkNeed, SyncWindow, find_due_links, first_missing_day, plan_window
-from app.services.cache_state.updates import mark_user_cache_changed
+from app.services.cache_state.updates import mark_user_cache_changed, mark_user_status_changed
 from app.services.fx.currency_exponent_helpers import get_all_currency_exponents
 from app.utils.dates import resolve_timezone
 
@@ -350,7 +350,7 @@ class _JobRun:
             emails = await choose_account_emails(db, connection, moved)
 
             # After the discovery's links, the order an unlink takes them in, so the two can't deadlock
-            await mark_user_cache_changed(db, self.job.owner_id)
+            await mark_user_status_changed(db, self.job.owner_id)
             await db.commit()
             self.outbox += emails
         await send_action_emails(self.outbox)
@@ -366,7 +366,7 @@ class _JobRun:
         async with async_session() as db:
             await _hold_for_finish(db, self.job)
             await db.execute(update(BankSyncJob).where(BankSyncJob.id == self.job.id).values(covered_link_ids=list(covered)))
-            await mark_user_cache_changed(db, self.job.owner_id)
+            await mark_user_status_changed(db, self.job.owner_id)
             await db.commit()
 
     async def _fetch(self, window: SyncWindow) -> bool | None:
@@ -521,8 +521,13 @@ class _JobRun:
             signin_needed = [link for link in failed if failures[link.id].kind == ProviderErrorKind.BANK_LOGIN_NEEDED]
             emails = await flag_signin_needed(db, connection, signin_needed, at=sent_at)
             paused_or_imported = await apply_review_pauses(db, whole, today=self.today)
-            if stored or succeeded or failed or paused_or_imported:
+
+            # Only a trusted correction or removal changes the owner's ledger, which makes an import
+            # saved before it permanent. Anything else here changes only what their pages show
+            if stored.ledger_changed:
                 await mark_user_cache_changed(db, self.job.owner_id)
+            elif stored.changed or succeeded or failed or paused_or_imported:
+                await mark_user_status_changed(db, self.job.owner_id)
             await db.commit()
             self.outbox += emails
         await send_action_emails(self.outbox)
@@ -769,6 +774,6 @@ async def _end_job(
         await queue_next_retry(db, connection, ended_by=error, overdue=retry_overdue, started_at=started_at, now=now)
         await schedule_next_sync(db, connection, now=now)
         await finish_job(db, job, error)
-        await mark_user_cache_changed(db, job.owner_id)
+        await mark_user_status_changed(db, job.owner_id)
         await db.commit()
         outbox += emails
