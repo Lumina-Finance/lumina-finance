@@ -1,7 +1,7 @@
 """Comparing the bank's balance for a linked account with the ledger's
 
-The bank's figure is its balance as of its balance date, from the latest listing of the bank
-account. The ledger's is the account's balance at the end of that date in the owner's profile
+The bank's figure is its balance as of its balance date, from the latest listing or sync that read
+the bank account. The ledger's is the account's balance at the end of that date in the owner's profile
 timezone, so transactions dated later, future-dated ones included, are left out. The comparison only
 informs: a difference never adjusts the ledger or changes a total
 """

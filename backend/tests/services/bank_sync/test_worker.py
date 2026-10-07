@@ -29,7 +29,7 @@ from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncHeartbeat, BankSyncJob, BankSyncJobKind, BankSyncJobStatus
 from app.models.user import User
 from app.services.bank_sync import availability, worker
-from app.services.bank_sync.jobs import ClaimedJob, finish_job, lock_job_for_finish
+from app.services.bank_sync.jobs import ClaimedJob, finish_job, lock_covered_links, lock_held_job
 from app.services.bank_sync.links import disconnect_connection, unlink_account
 from app.services.bank_sync.pending import replace_pending_transactions
 from app.services.bank_sync.sync import run_sync_job
@@ -107,7 +107,8 @@ class _FetchingRunner:
             raise RuntimeError("Unexpected bank data")
 
         async with ScopedSession() as db:
-            for link in await lock_job_for_finish(db, job, links):
+            await lock_held_job(db, job)
+            for link in await lock_covered_links(db, links):
                 await replace_pending_transactions(
                     db, link.account_id, [_build_pending_transaction(self.accounts[link.account_id], f"HOLD-{job.attempt}")]
                 )

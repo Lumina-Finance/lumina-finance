@@ -17,7 +17,7 @@ from sqlalchemy import func, select, text, update
 
 from app.models.bank_connection import BankConnection
 from app.models.bank_sync_job import BankSyncHeartbeat, BankSyncJob, BankSyncJobKind, BankSyncJobStatus
-from app.services.bank_sync.jobs import ClaimedJob, JobNotHeld, claim_bank_sync_job, enqueue_bank_sync_job, finish_job, lock_job_for_finish
+from app.services.bank_sync.jobs import ClaimedJob, JobNotHeld, claim_bank_sync_job, enqueue_bank_sync_job, finish_job, lock_held_job
 from tests.conftest import ScopedSession, TestSession
 from tests.routes.support.bank_sync_helpers import _build_bank_connection, _job_states, _seed_job
 from tests.routes.support.identity_helpers import _act_as
@@ -117,13 +117,13 @@ async def _holds(job: ClaimedJob) -> bool:
     """Return whether the job's finishing step may go ahead, opened as its owner and rolled back"""
     async with _act_as(job.owner_id) as session:
         try:
-            await lock_job_for_finish(session, job, links=())
+            await lock_held_job(session, job)
         except JobNotHeld:
             return False
     return True
 
 
-async def test_lock_job_for_finish_refuses_an_attempt_a_later_claim_took_over(connections):
+async def test_lock_held_job_refuses_an_attempt_a_later_claim_took_over(connections):
     """Attempt 1, whose lease ran out, may write nothing, while attempt 2 and the owner's other job's attempt 1 still may"""
     second_connection = _build_bank_connection(connections[0].owner_id)
     async with TestSession() as session:
@@ -144,12 +144,12 @@ async def test_lock_job_for_finish_refuses_an_attempt_a_later_claim_took_over(co
     assert [await _holds(job) for job in (first, second, other)] == [False, True, True]
 
 
-async def test_lock_job_for_finish_refuses_a_job_already_finished(connections):
+async def test_lock_held_job_refuses_a_job_already_finished(connections):
     """A runner that already recorded its job as finished can't record it a second time, as failed or otherwise"""
     await _seed_job(connections[0], BankSyncJobKind.SCHEDULED)
     job = await _claim_job()
     async with _act_as(job.owner_id) as session:
-        await lock_job_for_finish(session, job, links=())
+        await lock_held_job(session, job)
         await finish_job(session, job)
         await session.commit()
 

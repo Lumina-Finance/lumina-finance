@@ -137,23 +137,17 @@ async def claim_bank_sync_job(db: AsyncSession) -> ClaimedJob | None:
     )
 
 
-async def lock_job_for_finish(db: AsyncSession, job: ClaimedJob, links: Sequence[BankAccountLink]) -> list[BankAccountLink]:
-    """Start a job's finishing step: lock the job, and return the links it may still write for
+async def lock_held_job(db: AsyncSession, job: ClaimedJob) -> None:
+    """Start a job's finishing step by locking the job while its runner still holds it
 
     A job writes what it found in one transaction, which this opens, and only while its runner
-    still holds the job, so a runner that outlived its lease writes nothing. Of the links the job
-    set out to sync, only those still active on the same bank account of the same connection are
-    returned, so a link unlinked, waiting for its bank account to be chosen again, or moved to
-    another bank account while the job fetched gets none of its results. The job and those links
-    stay locked until the caller commits
+    still holds the job, so a runner that outlived its lease writes nothing. The job stays locked
+    until the caller commits. A step that writes for links locks them with lock_covered_links next,
+    after any bank accounts it writes, the order a listing takes them in
 
     Args:
         db: The job owner's session, which the results are then written in
         job: The job as claimed
-        links: The links the job syncs, as they stood when it started
-
-    Returns:
-        The links still covered, freshly read and locked, in id order
 
     Raises:
         JobNotHeld: A later attempt holds the job, or it already finished
@@ -169,6 +163,24 @@ async def lock_job_for_finish(db: AsyncSession, job: ClaimedJob, links: Sequence
     )
     if held is None:
         raise JobNotHeld(f"Attempt {job.attempt} no longer holds bank sync job {job.id}")
+
+
+async def lock_covered_links(db: AsyncSession, links: Sequence[BankAccountLink]) -> list[BankAccountLink]:
+    """Lock and return the links a held job may still write for
+
+    Of the links the job set out to sync, only those still active on the same bank account of the
+    same connection are returned, so a link unlinked, waiting for its bank account to be chosen
+    again, or moved to another bank account while the job fetched gets none of its results. The
+    caller locked the job with lock_held_job in this transaction, and those links stay locked
+    until it commits
+
+    Args:
+        db: The job owner's session
+        links: The links the job syncs, as they stood when it started
+
+    Returns:
+        The links still covered, freshly read and locked, in id order
+    """
     if not links:
         return []
 
@@ -182,7 +194,7 @@ async def lock_job_for_finish(db: AsyncSession, job: ClaimedJob, links: Sequence
 async def finish_job(db: AsyncSession, job: ClaimedJob, error: ProviderError | None = None) -> None:
     """Record a job as finished, failed when given the error that stopped it
 
-    The caller locked the job with lock_job_for_finish in this transaction, and commits
+    The caller locked the job with lock_held_job in this transaction, and commits
 
     Args:
         db: The job owner's session

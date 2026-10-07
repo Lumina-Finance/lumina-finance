@@ -37,6 +37,7 @@ import asyncio
 import logging
 import uuid
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 from typing import override
@@ -52,6 +53,7 @@ from app.models.account_review_preference import AccountReviewPreference, Review
 from app.models.bank_connection import (
     BankAccountLink,
     BankConnection,
+    BankExternalAccount,
     BankImportKind,
     BankLinkState,
     BankProvider,
@@ -2417,6 +2419,73 @@ async def test_job_tells_the_owners_pages_as_it_stores_its_listing(connection, p
     assert (await _listing(connection))[1] == ["ACT-savings"]
     assert before_the_listing is None
     assert once_it_is_stored is not None
+
+
+async def test_job_tells_the_owners_pages_of_a_balance_a_part_stores_with_nothing_else(connection, provider, monkeypatch):
+    """1 January to 31 March comes back cut short, the earlier half fails for the bank account, and the later half brings back its new balance
+
+    The bank account lacks the earlier half's days, so the later half moves no checkpoint, records
+    no attempt and stores no records, yet the owner's open pages still hear of the balance it stores
+    """
+    await _link(connection, "ACT-1", import_start=date(2026, 1, 1), checkpoint=date(2025, 12, 31))
+    async with TestSession() as session:
+        session.add(_build_external_account(connection, "ACT-1"))
+        await session.commit()
+    provider.outcomes = [
+        _cut_off("ACT-1"),
+        FetchResult(account_errors={"ACT-1": _reported_a_problem()}),
+        FetchResult(accounts=(replace(_bank_account("ACT-1"), balance=250_00),)),
+    ]
+    told: dict[date, tuple[datetime | None, datetime | None]] = {}
+    write = sync._JobRun._write
+
+    async def write_noting_what_the_pages_heard(run, part, *args, **kwargs):
+        """Note when the owner's pages were last told before and after the part is written"""
+        before = await _told_at(connection)
+        moved = await write(run, part, *args, **kwargs)
+        told[part.first_day] = (before, await _told_at(connection))
+        return moved
+
+    monkeypatch.setattr(sync._JobRun, "_write", write_noting_what_the_pages_heard)
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    before_the_later_half, once_it_is_stored = told[date(2026, 2, 15)]
+    assert once_it_is_stored > before_the_later_half
+
+
+@pytest.mark.parametrize(
+    ("listed_at", "kept"),
+    [
+        pytest.param(datetime(2026, 10, 3, 9, tzinfo=UTC), (250_00, 240_00, datetime(2026, 10, 4, 2, tzinfo=UTC)), id="older-listing"),
+        pytest.param(datetime(2026, 10, 4, 2, 30, tzinfo=UTC), (100_00, None, datetime(2026, 10, 4, 2, 30, tzinfo=UTC)), id="newer-listing"),
+    ],
+)
+async def test_job_stores_the_balance_its_fetch_read_over_an_older_one(connection, provider, listed_at, kept):
+    """Sync now reads Everyday's $250.00, $240.00 available, as of 2 am UTC, so the bank link shows it without waiting for a listing
+
+    It replaces the $100.00 a listing stored as of an earlier time, but not one a listing read later
+    """
+    await _link(connection, "ACT-1", **_synced_through_yesterday())
+    listed = _build_external_account(connection, "ACT-1")
+    listed.balance, listed.balance_at = 100_00, listed_at
+    async with TestSession() as session:
+        session.add(listed)
+        await session.commit()
+    read = replace(_bank_account("ACT-1"), balance=250_00, available_balance=240_00, balance_at=datetime(2026, 10, 4, 2, tzinfo=UTC))
+    provider.outcomes = [FetchResult(accounts=(read,))]
+    await _seed_job(connection, BankSyncJobKind.MANUAL)
+
+    await _run_jobs_until_none_is_due()
+
+    async with TestSession() as session:
+        stored = await session.execute(
+            select(BankExternalAccount.balance, BankExternalAccount.available_balance, BankExternalAccount.balance_at).where(
+                BankExternalAccount.connection_id == connection.id
+            )
+        )
+    assert [tuple(row) for row in stored] == [kept]
 
 
 async def test_job_stores_nothing_for_a_link_unlinked_while_it_fetched(connection, monkeypatch):

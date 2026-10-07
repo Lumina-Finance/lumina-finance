@@ -25,12 +25,13 @@ attempt for it, and every job that ends queues its connection's next retry. A li
 date through today, or whose bank needs a sign-in, next syncs a day after the job started, as the
 schedule module describes, and every job that ends sets its connection's next scheduled sync
 
-What a job stores, the booked records each part brings back, the pending items a part ending today
-brings back, its checkpoints, discoveries and its own end, goes through lock_job_for_finish, so a
-runner that lost its lease stores nothing and a link that changed while the job fetched gets none of
-its results. Each such step locks the connection first, then the job, then the links, then any bank
-transactions it stores, then the ledger rows and balances a correction or removal reaches, then any
-pending items it replaces, then the owner's cache row. The request
+What a job stores, the balances and booked records each part brings back, the pending items a part
+ending today brings back, its checkpoints, discoveries and its own end, is stored only while the job
+holds itself, so a runner that lost its lease stores nothing and a link that changed while the job
+fetched gets none of its results. Each such step locks the connection first, then the job, then any
+bank accounts it stores a listing or balances for, then the links, then any bank transactions it
+stores, then the ledger rows and balances a correction or removal reaches, then any pending items it
+replaces, then the owner's cache row. The request
 counts and the budget-spent mark lock only the connection and are written outside the job's fence,
 since they record requests already sent, whoever holds the job. An answer to a request sent with a
 credential the connection no longer holds is dropped whole, budget-spent mark included, and the job
@@ -71,9 +72,9 @@ from app.services.bank_sync.action_needed import (
     send_action_emails,
 )
 from app.services.bank_sync.availability import ENABLED_ADAPTERS, LINK_LISTING, PROVIDER_ADAPTERS
-from app.services.bank_sync.discovery import apply_discovery
+from app.services.bank_sync.discovery import apply_discovery, store_fetched_balances
 from app.services.bank_sync.ingestion import store_booked_records
-from app.services.bank_sync.jobs import ClaimedJob, JobNotHeld, enqueue_bank_sync_job, finish_job, lock_job_for_finish
+from app.services.bank_sync.jobs import ClaimedJob, JobNotHeld, enqueue_bank_sync_job, finish_job, lock_covered_links, lock_held_job
 from app.services.bank_sync.pending import store_pending_records
 from app.services.bank_sync.provider_requests import (
     RequestBudgetSpent,
@@ -483,7 +484,8 @@ class _JobRun:
     ) -> bool:
         """Store the records and pending items of each link brought back whole, move checkpoints and record attempts, if the job still holds it
 
-        Records are stored whatever the checkpoint does, since each is kept by its identity and a
+        The balance each bank account brought back whole was read at is stored first, whatever its
+        link does, as a listing would store it. Records are stored whatever the checkpoint does, since each is kept by its identity and a
         later sync reading it again changes nothing. A checkpoint moves only over days the link's data
         is complete for, so the part has to start no later than the first day the link lacks. The last
         successful sync is stamped when the checkpoint moves, or when the part brought the link back
@@ -517,7 +519,11 @@ class _JobRun:
         moved = False
         succeeded = []
         async with async_session() as db:
-            connection, held = await _hold_for_finish(db, self.job, [need.link for need in part.needs], sent_with=sent_with)
+            connection = await _hold_job(db, self.job, sent_with=sent_with)
+
+            # Between the job and the links, the order a listing writes bank accounts in
+            balances_changed = await store_fetched_balances(db, connection, synced.values())
+            held = await lock_covered_links(db, [need.link for need in part.needs])
             whole = [link for link in held if link.external_account_id in synced]
             deliveries = [(link, synced[link.external_account_id].records) for link in whole]
             stored = await store_booked_records(db, deliveries, observed_at=sent_at)
@@ -548,7 +554,7 @@ class _JobRun:
             # saved before it permanent. Anything else here changes only what their pages show
             if stored.ledger_changed:
                 await mark_user_cache_changed(db, self.job.owner_id)
-            elif stored.changed or succeeded or failed or paused_or_imported:
+            elif stored.changed or balances_changed or succeeded or failed or paused_or_imported:
                 await mark_user_status_changed(db, self.job.owner_id)
             await db.commit()
             self.outbox += emails
@@ -688,13 +694,28 @@ async def _hold_for_finish(
             deleted with its jobs
         _CredentialReplaced: The connection no longer holds the credential the request went out with
     """
+    connection = await _hold_job(db, job, sent_with=sent_with)
+    return connection, await lock_covered_links(db, links)
+
+
+async def _hold_job(db: AsyncSession, job: ClaimedJob, *, sent_with: str | None = None) -> BankConnection:
+    """Lock the job's connection, then the job, the first half of _hold_for_finish, for a step that writes bank accounts before the links
+
+    Returns:
+        The connection freshly read
+
+    Raises:
+        JobNotHeld: A later attempt holds the job, it already finished, or the connection was
+            deleted with its jobs
+        _CredentialReplaced: The connection no longer holds the credential the request went out with
+    """
     connection = await _lock_connection(db, job.connection_id)
 
     # A deleted connection took its jobs with it, so this raises before a missing connection is returned
-    held = await lock_job_for_finish(db, job, links)
+    await lock_held_job(db, job)
     if sent_with is not None:
         _refuse_a_replaced_credential(connection, sent_with)
-    return connection, held
+    return connection
 
 
 async def _lock_connection(db: AsyncSession, connection_id: uuid.UUID) -> BankConnection | None:

@@ -4,14 +4,14 @@ Discovery is a balances-only read of every bank account the connection's credent
 claim and the reconnect run it within their requests through run_discovery, which counts and sends
 it and then stores what it read through apply_discovery. A bank added at the provider appears, and
 a linked bank account that vanished or changed currency stops syncing until it returns or the user
-chooses again
+chooses again. A sync's fetch reads the balances too, which store_fetched_balances keeps
 """
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from datetime import datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -162,6 +162,42 @@ async def _store_bank_accounts(db: AsyncSession, connection: BankConnection, acc
             set_={field: statement.excluded[field] for field in _REFRESHED_FIELDS},
         )
     )
+
+
+async def store_fetched_balances(db: AsyncSession, connection: BankConnection, accounts: Collection[ExternalAccount]) -> bool:
+    """Store the balance a sync's fetch read for each of the connection's bank accounts, as a listing stores it
+
+    A fetch reads each bank account's balance with its records, so the bank link shows the latest
+    one without waiting for the next listing. A balance older than the one stored is left alone,
+    since a listing may have read a newer one while the fetch was out. The caller holds the
+    connection and the job, and locks the links only after this, the order a listing writes in
+
+    Args:
+        db: Session of the connection's owner
+        connection: The connection fetched
+        accounts: The bank accounts the fetch brought back whole
+
+    Returns:
+        Whether a stored balance changed
+    """
+    changed = False
+    for account in sorted(accounts, key=lambda account: account.external_id):
+        result = await db.execute(
+            update(BankExternalAccount)
+            .where(
+                BankExternalAccount.connection_id == connection.id,
+                BankExternalAccount.external_id == account.external_id,
+                or_(BankExternalAccount.balance_at.is_(None), BankExternalAccount.balance_at <= account.balance_at),
+                or_(
+                    BankExternalAccount.balance.is_distinct_from(account.balance),
+                    BankExternalAccount.available_balance.is_distinct_from(account.available_balance),
+                    BankExternalAccount.balance_at.is_distinct_from(account.balance_at),
+                ),
+            )
+            .values(balance=account.balance, available_balance=account.available_balance, balance_at=account.balance_at)
+        )
+        changed = changed or result.rowcount > 0
+    return changed
 
 
 async def _mark_vanished(db: AsyncSession, connection: BankConnection, result: FetchResult) -> set[str]:
