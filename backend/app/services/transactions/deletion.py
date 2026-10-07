@@ -121,8 +121,9 @@ async def bulk_delete_transactions(
 
     Every rule single delete enforces is enforced on every row, and a set holding one row that
     refuses is refused whole. The rows are locked, their accounts checked for write access and
-    archiving, their tag assignments and the rows removed, and the balances rebuilt from each
-    account's earliest deleted day, all in one commit
+    archiving, any bank-imported row in a linked account refused, their tag assignments and the
+    rows removed, and the balances rebuilt from each account's earliest deleted day, all in one
+    commit
 
     Args:
         db: Active database session
@@ -134,12 +135,14 @@ async def bulk_delete_transactions(
 
     Raises:
         HTTPException: A transaction was not found, an account refuses the write, an account
-            belongs to a group, or another change reached one of the transactions first
+            belongs to a group, a bank-imported transaction's account is linked, or another change
+            reached one of the transactions first
     """
     requested_ids = list(dict.fromkeys(data.transaction_ids))
     transactions = await load_locked_transactions(db, user, requested_ids)
     accounts = await load_writable_accounts(db, user, {t.account_id for t in transactions})
     _refuse_grouped_accounts(accounts)
+    await refuse_deleting_bank_imports(db, transactions)
 
     await delete_locked_transactions(
         db,

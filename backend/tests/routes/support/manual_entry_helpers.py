@@ -31,6 +31,12 @@ SUPPLIED_IN_EVERYDAY = "SimpleFIN supplies the transactions in Everyday from Jun
 # A move is refused naming the account it would leave, for one transaction or several
 MOVE_REFUSED = "Transactions from SimpleFIN can't move out of Everyday while it's linked"
 
+# A delete of a bank-imported transaction is refused naming its account, for one transaction or several
+DELETE_REFUSED = "Imported from SimpleFIN. While Everyday is linked, edit it rather than deleting it"
+
+# A day the bank supplies, where a manual transaction can only have been entered before the link
+COFFEE_DAY = date(2026, 7, 12)
+
 # Either end of the range the bank supplies, and a day inside it
 INSIDE = [IMPORT_START, date(2026, 7, 12), TODAY]
 

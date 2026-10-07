@@ -8,7 +8,6 @@ transaction with it
 
 import asyncio
 import uuid
-from datetime import date
 
 import pytest
 from sqlalchemy import func, select
@@ -18,12 +17,16 @@ from app.models.bank_connection import BankLinkState
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import _build_bank_link, _commit_listed_connection, _record_bank_source, _still_stored
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
-from tests.routes.support.manual_entry_helpers import _added_id, _commit_link, _dates_in, _Ledger, _ledger, _unlink
-
-_DELETE_REFUSED = "Imported from SimpleFIN. While Everyday is linked, edit it rather than deleting it"
-
-# A day the bank supplies, where a manual transaction can only have been entered before the link
-_COFFEE_DAY = date(2026, 7, 12)
+from tests.routes.support.manual_entry_helpers import (
+    COFFEE_DAY,
+    DELETE_REFUSED,
+    _added_id,
+    _commit_link,
+    _dates_in,
+    _Ledger,
+    _ledger,
+    _unlink,
+)
 
 
 async def _delete(client, ledger: _Ledger, transaction_id: str):
@@ -35,22 +38,22 @@ async def _delete(client, ledger: _Ledger, transaction_id: str):
 async def test_deleting_a_bank_imported_transaction_is_refused_while_its_account_is_linked(client, state):
     """Everyday's bank-imported 12 July Coffee stays in the ledger with its bank transaction, whatever the link waits on"""
     ledger = await _ledger(client)
-    coffee_id = await _added_id(client, ledger, ledger.everyday_id, _COFFEE_DAY)
+    coffee_id = await _added_id(client, ledger, ledger.everyday_id, COFFEE_DAY)
     await _commit_link(ledger, ledger.everyday_id, state=state)
     record_id = await _record_bank_source(coffee_id)
 
     refused = await _delete(client, ledger, coffee_id)
 
     assert refused.status_code == 409, refused.text
-    assert refused.json()["detail"] == _DELETE_REFUSED
-    assert await _dates_in(ledger.everyday_id) == [_COFFEE_DAY]
+    assert refused.json()["detail"] == DELETE_REFUSED
+    assert await _dates_in(ledger.everyday_id) == [COFFEE_DAY]
     assert await _still_stored(record_id)
 
 
 async def test_deleting_a_manual_transaction_on_a_linked_account_goes_through(client):
     """A 12 July Coffee entered by hand before Everyday was linked deletes as usual"""
     ledger = await _ledger(client)
-    coffee_id = await _added_id(client, ledger, ledger.everyday_id, _COFFEE_DAY)
+    coffee_id = await _added_id(client, ledger, ledger.everyday_id, COFFEE_DAY)
     await _commit_link(ledger, ledger.everyday_id)
 
     deleted = await _delete(client, ledger, coffee_id)
@@ -62,7 +65,7 @@ async def test_deleting_a_manual_transaction_on_a_linked_account_goes_through(cl
 async def test_a_bank_imported_transaction_deletes_once_its_account_is_unlinked_taking_its_bank_transaction(client):
     """Once Everyday is unlinked, its bank-imported 12 July Coffee deletes, leaving nothing of its bank identity"""
     ledger = await _ledger(client)
-    coffee_id = await _added_id(client, ledger, ledger.everyday_id, _COFFEE_DAY)
+    coffee_id = await _added_id(client, ledger, ledger.everyday_id, COFFEE_DAY)
     await _commit_link(ledger, ledger.everyday_id)
     record_id = await _record_bank_source(coffee_id)
     await _unlink(client, ledger, ledger.everyday_id)
@@ -77,7 +80,7 @@ async def test_a_bank_imported_transaction_deletes_once_its_account_is_unlinked_
 async def test_deleting_waits_for_a_link_being_made_and_is_then_refused(client):
     """A link holding Everyday as the link request does commits first, and deleting the 12 July Coffee an earlier link imported then finds it"""
     ledger = await _ledger(client)
-    coffee_id = await _added_id(client, ledger, ledger.everyday_id, _COFFEE_DAY)
+    coffee_id = await _added_id(client, ledger, ledger.everyday_id, COFFEE_DAY)
     await _record_bank_source(coffee_id)
     connection = await _commit_listed_connection(ledger.user_id)
 
@@ -93,5 +96,5 @@ async def test_deleting_waits_for_a_link_being_made_and_is_then_refused(client):
     deleted = await asyncio.wait_for(deleting, 10)
 
     assert deleted.status_code == 409, deleted.text
-    assert deleted.json()["detail"] == _DELETE_REFUSED
-    assert await _dates_in(ledger.everyday_id) == [_COFFEE_DAY]
+    assert deleted.json()["detail"] == DELETE_REFUSED
+    assert await _dates_in(ledger.everyday_id) == [COFFEE_DAY]
