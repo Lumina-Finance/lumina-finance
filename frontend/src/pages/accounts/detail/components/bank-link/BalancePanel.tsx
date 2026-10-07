@@ -60,9 +60,10 @@ type BalancePanelProps = {
 /**
  * The bank's balance beside the ledger's at the end of the bank's balance date, and the ledger against
  * the bank, so a gap shows without anything correcting it. A bank balance that can't be read exactly
- * in the account's currency shows as unavailable, with nothing to compare. On phones each balance
- * takes a row, label on the left and amount on the right. On wider screens the balances share a row
- * in equal columns, and those too long to fit side by side move to another row
+ * in the account's currency shows as unavailable, with nothing to compare, and an available balance
+ * that can't is marked unavailable in the caption rather than left out. On phones each balance takes
+ * a row, label on the left and amount on the right. On wider screens the balances share a row in
+ * equal columns, and those too long to fit side by side move to another row
  */
 export function BalancePanel({ balance, currency, providerName }: BalancePanelProps) {
   const { formatCurrency, formatMovedAmount } = useMoneyFormatters()
@@ -94,6 +95,16 @@ export function BalancePanel({ balance, currency, providerName }: BalancePanelPr
       <p className="mt-3 text-xs" style={{ color: 'var(--app-text-muted)' }}>
         As of {asOf}
         {balance.available !== null && <CaptionPart>{formatCurrency(balance.available, currency)} available</CaptionPart>}
+        {balance.available_unreadable && (
+          <CaptionPart>
+            <LabelWithHint
+              label="Available balance unavailable"
+              hint={`${providerName}'s available balance for this account can't be read exactly in ${currency}, so it isn't shown. Your ledger isn't affected.`}
+              hintLabel="Why the available balance is unavailable"
+              hintPlacement="top"
+            />
+          </CaptionPart>
+        )}
       </p>
     </div>
   )

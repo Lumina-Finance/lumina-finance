@@ -305,6 +305,18 @@ test('keeps each balance whole with its sign, and the caption\'s dot with the pa
   expect((await readLines(caption)).filter((line) => line.endsWith('·'))).toEqual([])
 })
 
+test('marks an available balance that can\'t be read exactly in the caption, keeping the dot with it', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  await linkWithBalances(request, user, account.id, { available_balance: '2318.365' })
+
+  // On a phone the caption wraps, and the dot goes to the next line with the part it introduces
+  const dialog = await openBankLink(page, user, account.id, /Synced (just now|\d+ minutes? ago)\./)
+  const caption = dialog.getByText(/^As of /)
+  await expect(caption).toContainText('Available balance unavailable')
+  expect((await readLines(caption)).filter((line) => line.endsWith('·'))).toEqual([])
+})
+
 test('reads as retrying at the time of the retry when the Bridge fails', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })

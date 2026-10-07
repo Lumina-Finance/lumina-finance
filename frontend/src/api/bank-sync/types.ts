@@ -389,6 +389,9 @@ export type BankBalance = {
   /** Null when the bank gives none or it can't be read exactly */
   available: number | null;
 
+  /** Whether the bank gave an available balance that can't be read exactly, which shows as unavailable */
+  available_unreadable: boolean;
+
   /** The moment the bank gives the balance as of */
   balance_date: string;
 

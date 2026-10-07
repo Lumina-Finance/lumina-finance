@@ -4,8 +4,9 @@
  *
  * These tests catch a match that reads as a gap or offers the tooltip, a gap without its sign, its
  * warning colour or its tooltip, a gap signed the wrong way round, a card's negative balances written
- * as positive, an available balance shown when the bank gives none or dropped when it does, and a
- * balance that can't be read exactly shown as an amount or compared
+ * as positive, an available balance shown when the bank gives none or dropped when it does, a
+ * balance that can't be read exactly shown as an amount or compared, and an available balance that
+ * can't be read exactly dropped from the caption as if the bank gave none
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -31,7 +32,15 @@ const MINUS = String.fromCodePoint(0x2212)
 
 /** Builds SimpleFIN's 1,250.00 as of 6:00 PM on October 3 in Toronto against a ledger that matches, with no available balance */
 function createBalance(overrides: Partial<BankBalance> = {}): BankBalance {
-  return { amount: 125000, available: null, balance_date: '2026-10-03T22:00:00Z', ledger_balance: 125000, difference: 0, ...overrides }
+  return {
+    amount: 125000,
+    available: null,
+    available_unreadable: false,
+    balance_date: '2026-10-03T22:00:00Z',
+    ledger_balance: 125000,
+    difference: 0,
+    ...overrides,
+  }
 }
 
 function renderPanel(balance: BankBalance): string {
@@ -101,5 +110,12 @@ describe('bank balance panel', () => {
     expect(readFacts(markup)).toEqual([['SimpleFIN', 'Unavailable'], ['Ledger', 'CA$1,250.00']])
     expect(readColour(markup, 'SimpleFIN')).toBe('var(--app-text-muted)')
     expect(readTooltips(markup)).toEqual(['Why the balance is unavailable'])
+  })
+
+  it('marks an available balance that can\'t be read exactly as unavailable in the caption, saying why', () => {
+    const markup = renderPanel(createBalance({ available_unreadable: true }))
+
+    expect(readCaption(markup)).toMatch(/^As of Oct 3, 6:00\sp\.m\. · Available balance unavailable/)
+    expect(readTooltips(markup)).toEqual(['Why the available balance is unavailable'])
   })
 })
