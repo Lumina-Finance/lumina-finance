@@ -99,7 +99,7 @@ export function UnlinkModal({ open, account, link, connection, level = 'page', o
           submitLabel={scope === 'account' ? 'Unlink' : 'Disconnect'}
           submitDisabled={busy}
           submitWidthClassName="w-full sm:w-32"
-          danger
+          tone="danger"
           error={error}
           level={level}
           onCancel={onClose}
