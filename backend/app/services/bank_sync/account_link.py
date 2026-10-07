@@ -1,8 +1,8 @@
 """Reading the user's bank links with how far each import has got and its sync status
 
-An account's page shows its live link, or what the account was last linked to, and the app keeps
-every live link's status current. Only the user's own personal accounts are linked, so any other
-account is refused or left out as linking it is
+An account's page shows its live link with the bank's balance beside the ledger's, or what the
+account was last linked to, and the app keeps every live link's status current. Only the user's own
+personal accounts are linked, so any other account is refused or left out as linking it is
 """
 
 import uuid
@@ -26,13 +26,14 @@ from app.schemas.bank_sync import (
 )
 from app.services.accounts.access import get_own_personal_account, own_personal_account_condition
 from app.services.bank_sync.availability import LINK_NOT_OWN_DETAIL, LIVE_LINK, PROVIDER_ADAPTERS
+from app.services.bank_sync.balance_comparison import compare_bank_balance
 from app.services.bank_sync.status import read_link_statuses
 from app.services.bank_sync.windows import LinkNeed, plan_window
 from app.utils.dates import resolve_timezone
 
 
 async def read_account_bank_status(db: AsyncSession, user: User, account_id: uuid.UUID) -> AccountBankStatusResponse:
-    """Return an account's live link with its import's progress and sync status, or what the account was last linked to
+    """Return an account's live link with its import's progress, sync status and bank balance, or what the account was last linked to
 
     Args:
         db: Active database session
@@ -46,12 +47,14 @@ async def read_account_bank_status(db: AsyncSession, user: User, account_id: uui
         HTTPException 403: The account is visible but isn't the user's own personal account
         HTTPException 404: The user can't see the account
         HTTPException 422: The profile's timezone no longer resolves, read only while an import runs
+            or a bank balance is compared
     """
     account = await get_own_personal_account(db, account_id, user.id, not_own_detail=LINK_NOT_OWN_DETAIL)
     link = await db.scalar(select(BankAccountLink).where(BankAccountLink.account_id == account.id, LIVE_LINK))
     if link is not None:
         [described] = await describe_links(db, user, [link], now=datetime.now(UTC))
-        return AccountBankStatusResponse(account_id=account.id, link=described, previous_link=None)
+        balance = await compare_bank_balance(db, link, tz=user.tz)
+        return AccountBankStatusResponse(account_id=account.id, link=described, previous_link=None, balance=balance)
 
     # Every link left is unlinked, so each has the day it ended
     previous = await db.scalar(
@@ -69,6 +72,7 @@ async def read_account_bank_status(db: AsyncSession, user: User, account_id: uui
             institution_name=previous.institution_name,
             unlinked_at=previous.unlinked_at,
         ),
+        balance=None,
     )
 
 

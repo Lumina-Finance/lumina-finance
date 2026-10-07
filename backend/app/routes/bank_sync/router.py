@@ -277,7 +277,7 @@ async def get_account_bank_status(
         db: Active database session
 
     Returns:
-        The live link with its import's progress, or the latest unlinked one
+        The live link with its import's progress and the bank's balance beside the ledger's, or the latest unlinked one
     """
     return await read_account_bank_status(db, user, account_id)
 

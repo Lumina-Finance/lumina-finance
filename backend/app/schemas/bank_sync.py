@@ -365,12 +365,39 @@ class PreviousBankLinkResponse(BaseModel):
     unlinked_at: datetime
 
 
+class BankBalanceResponse(BaseModel):
+    """The bank's balance for a linked account beside the ledger's at the end of the bank's balance date
+
+    Information only: a difference never adjusts the ledger or changes a total
+    """
+
+    # The bank's balance in the account currency's minor units, compared with the sign the bank sent.
+    # None when it can't be read exactly in that currency, which shows as unavailable and isn't compared
+    amount: int | None
+
+    # Read-only, in minor units, and None when the bank gives none or it can't be read exactly
+    available: int | None
+
+    # The moment the bank gives the balance as of
+    balance_date: datetime
+
+    # The account's balance in minor units at the end of the balance date's day in the owner's profile
+    # timezone, so transactions dated later, future-dated ones included, are left out
+    ledger_balance: int
+
+    # The ledger against the bank, ledger minus bank, in minor units, None while amount is
+    difference: int | None
+
+
 class AccountBankStatusResponse(BaseModel):
     """An account's live link to a bank account, or what it was last linked to when it has none"""
 
     account_id: uuid.UUID
     link: BankLinkResponse | None
     previous_link: PreviousBankLinkResponse | None
+
+    # Only for a live link that has synced and follows its bank account as the provider lists it
+    balance: BankBalanceResponse | None
 
 
 class UnlinkResponse(BaseModel):
