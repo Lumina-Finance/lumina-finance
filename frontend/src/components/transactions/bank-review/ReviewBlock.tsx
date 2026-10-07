@@ -315,8 +315,8 @@ export function BankReviewBlock({
                 exit="leave"
                 transition={enterTransition}
               >
-                {/* A ring rather than a fill, since any fill lighter than the block's own would take
-                    the muted line below 4.5:1 in the dark theme. It frames the content, halfway into
+                {/* A ring rather than a fill, since the warning tint would take the muted line below
+                    4.5:1 in the dark theme. It frames the content, halfway into
                     the margin the dividers and text keep from the card's edges, so it touches neither */}
                 <span
                   data-testid="review-item-ring"
@@ -328,7 +328,7 @@ export function BankReviewBlock({
                   }}
                 />
 
-                {/* Ringed on hover and keyboard focus like the highlight above, for the same reason,
+                {/* Ringed on hover and keyboard focus like the highlight above, so the two read alike,
                     with a ring of its own so neither waits on the other's fade */}
                 <button type="button" onClick={() => onOpenItem(item)} className="group relative block w-full px-4 text-left focus-visible:outline-none sm:px-5">
                   <span

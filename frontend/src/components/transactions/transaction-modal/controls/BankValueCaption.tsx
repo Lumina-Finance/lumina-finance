@@ -31,8 +31,8 @@ type BankValueCaptionProps = {
 /**
  * Shows the bank's value under a field the user edited, with an action that puts it back
  *
- * The text and the action take the muted colour rather than the accent, which misses 4.5:1 against
- * the modal in the light theme, and the action is underlined, so it reads as one without its colour.
+ * The text and the action take the muted colour, which keeps them above 4.5:1 against the modal in
+ * both themes, and the action is underlined, so it reads as one without the accent colour.
  * Its presses reach 24px tall through padding inside the caption, which clips nothing, while the line
  * of text stays as tall as the caption's own
  *

@@ -12,8 +12,7 @@ type BankSourcePanelProps = {
  * description, which is always read-only, since the ledger has no description field and only the
  * bank changes it
  *
- * The labels take the muted colour rather than the subtle one, which misses 4.5:1 on the panel in the
- * light theme
+ * The labels take the muted colour, which keeps them above 4.5:1 on the panel in both themes
  */
 export default function TransactionBankSourcePanel({ providerName, description }: BankSourcePanelProps) {
   return (

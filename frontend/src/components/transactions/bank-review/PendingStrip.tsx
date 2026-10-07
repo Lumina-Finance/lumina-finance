@@ -76,8 +76,7 @@ export function BankPendingStrip({
         ) : (
           <motion.div key="transactions" {...swap}>
             {/* Rounded like the card at whichever corners it fills, so its focus ring follows them. Its
-                muted words and icons lift to the full text colour over the hover tint, which leaves
-                muted text too faint to read in the dark theme */}
+                muted words and icons lift to the full text colour over the hover tint */}
             <button
               ref={toggleRef}
               type="button"

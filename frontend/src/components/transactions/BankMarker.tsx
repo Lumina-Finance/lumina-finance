@@ -31,8 +31,8 @@ export type TransactionRowBankMarker = {
  * than opening the row as well, and the icon takes presses a few pixels around it, so a near miss
  * opens the tooltip rather than the row
  *
- * The icon takes the muted text colour rather than the subtle one, since it is a control and its
- * strokes need 3:1 against the page in both themes, which the subtle colour misses in the light one
+ * The icon takes the muted text colour, since it is a control and its strokes need 3:1 against the
+ * page in both themes, which the muted colour clears by a wide margin
  */
 export function BankMarker({ providerName, isEdited, needsReview, onShowReview }: TransactionRowBankMarker) {
   return (
