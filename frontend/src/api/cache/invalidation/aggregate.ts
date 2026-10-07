@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import {
   accountKeys,
+  bankSyncKeys,
   budgetKeys,
   heldBankTransactionKeys,
   importLayoutKeys,
@@ -20,6 +21,9 @@ import { invalidateTargets, type InvalidationTarget } from '@/api/cache/invalida
 
 const aggregateTargets: InvalidationTarget[] = [
   { queryKey: accountKeys.all },
+
+  // Each account's bank link compares the bank's balance with the ledger's on a day in the profile timezone
+  { queryKey: bankSyncKeys.accountAll },
   { queryKey: transactionKeys.all },
   { queryKey: transactionOverviewKeys.all },
   { queryKey: taxAdvantagedCategoryKeys.all },

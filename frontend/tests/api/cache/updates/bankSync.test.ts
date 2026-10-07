@@ -12,7 +12,7 @@
  * alone reloading it or taking its item out before both the links and the backlogs have refetched, a
  * kept removal taking out the correction it reopened or leaving it named a removal, bulk approval
  * taking out an item it left waiting, leaving its count too high for an applied item on a page not
- * loaded yet or never reading the inbox again for the items left waiting, a restored bank value leaving the inbox showing the ledger value it replaced, a link change settling
+ * loaded yet or never reading the inbox again for the items left waiting, a restored bank value leaving the inbox showing the ledger value it replaced or the balance panel's ledger stale, a link change settling
  * before the views that show it have refetched, and a deleted account's items lingering in a cached
  * bulk approval preview
  */
@@ -414,12 +414,17 @@ describe('a restored bank value', () => {
     queryClient.setQueryData(transactionKeys.detail('transaction-1'), edited);
   });
 
-  it('puts the restored transaction in place and refreshes the inbox, which shows its amount', () => {
+  it('puts the restored transaction in place and refreshes the inbox, which shows its amount, and the balance panel', () => {
     applyRestoredBankValue(queryClient, restored, 'amount');
 
     expect(queryClient.getQueryData(transactionKeys.detail('transaction-1'))).toEqual(restored);
-    expectInvalidated([reviewKey, bankSyncKeys.bulkPreview(undefined), accountKeys.detail('account-1')], true);
-    expectInvalidated([pendingKey, bankSyncKeys.links(), ...statusKeys, otherAccountKey], false);
+    expectInvalidated([
+      reviewKey,
+      bankSyncKeys.bulkPreview(undefined),
+      accountKeys.detail('account-1'),
+      bankSyncKeys.accountStatus('account-1'),
+    ], true);
+    expectInvalidated([pendingKey, bankSyncKeys.links(), bankSyncKeys.connections(), bankSyncKeys.providers(), otherAccountKey], false);
   });
 });
 

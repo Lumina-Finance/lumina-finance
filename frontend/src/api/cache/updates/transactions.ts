@@ -4,6 +4,7 @@ import {
   invalidateAccountBalances,
   invalidateAccountSpending,
   invalidateAccounts,
+  invalidateAllAccountBalances,
   invalidateBankReviewItems,
   invalidateBudgets,
   invalidateDashboardBalance,
@@ -242,7 +243,7 @@ export interface AccountActivityInvalidationOptions {
 }
 
 /**
- * Invalidates exact account balances when account IDs are known, or falls back to the account list
+ * Invalidates exact account balances when account IDs are known, or falls back to every account's
  */
 function invalidateTransactionAccountBalances(queryClient: QueryClient, accountIds: string[]) {
   if (accountIds.length > 0) {
@@ -250,7 +251,7 @@ function invalidateTransactionAccountBalances(queryClient: QueryClient, accountI
     return
   }
 
-  invalidateAccounts(queryClient)
+  invalidateAllAccountBalances(queryClient)
 }
 
 /**

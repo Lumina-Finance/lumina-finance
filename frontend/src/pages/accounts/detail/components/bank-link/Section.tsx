@@ -7,6 +7,7 @@ import {
   REVIEW_PAUSE_COUNT,
   REVIEW_RESUME_COUNT,
   useBankConnections,
+  type BankBalance,
   type BankConnection,
   type BankLink,
   type BankProvidersResponse,
@@ -22,6 +23,7 @@ import { revealInScrollArea } from '@/components/modal/scrollArea'
 import { StepTransition } from '@/components/two-factor/StepTransition'
 import { useAuth } from '@/hooks/useAuth'
 import { getDisabledControlProps, useDisabledReason } from '@/hooks/useDisabledReason'
+import { BalancePanel } from '@/pages/accounts/detail/components/bank-link/BalancePanel'
 import { ImportProgress } from '@/pages/accounts/detail/components/bank-link/ImportProgress'
 import type { BankSyncLabel } from '@/pages/accounts/detail/components/bank-link/status'
 import { SyncFact } from '@/pages/accounts/detail/components/bank-link/SyncFact'
@@ -55,6 +57,10 @@ const IMPORT_STATES: ReadonlySet<BankSyncState> = new Set(['importing', 'import_
 
 type LinkedViewProps = {
   link: BankLink
+  balance: BankBalance | null
+
+  /** The account's currency, which a live link's bank account shares */
+  currency: string
   sync: BankSyncLabel
   connection: BankConnection | undefined
   providers: BankProvidersResponse | undefined
@@ -65,11 +71,11 @@ type LinkedViewProps = {
 
 /**
  * A live link: its facts and status, the import while it is the status, a notice for anything holding
- * its sync back, and the actions on the link. A notice's own action comes first, since it is what
- * resumes the sync. The server leaves the review notices out while only the user can restart the
- * sync, so a stop's notice shows alone
+ * its sync back, the bank's balance beside the ledger's once it has synced, and the actions on the
+ * link. A notice's own action comes first, since it is what resumes the sync. The server leaves the
+ * review notices out while only the user can restart the sync, so a stop's notice shows alone
  */
-function LinkedView({ link, sync, connection, providers, initialFocus, onChooseBankAccount, onUnlink }: LinkedViewProps) {
+function LinkedView({ link, balance, currency, sync, connection, providers, initialFocus, onChooseBankAccount, onUnlink }: LinkedViewProps) {
   const navigate = useNavigate()
   const shownImport = useLingeringImport(link.import)
   const { state, paused, review_warning: warned } = link.sync
@@ -145,9 +151,12 @@ function LinkedView({ link, sync, connection, providers, initialFocus, onChooseB
             <InfoCallout tone="review" icon={TriangleAlert}>{waiting} new to review. Sync pauses at {REVIEW_PAUSE_COUNT}.</InfoCallout>
           </Unfold>
         )}
+        {balance && (
+          <Unfold key="balance" clipsOnlyWhileChanging>
+            <BalancePanel balance={balance} currency={currency} providerName={link.provider_name} />
+          </Unfold>
+        )}
       </AnimatePresence>
-
-      {/* The bank balance goes here */}
 
       {/* The link's actions, in one row that wraps, each taking a full row on a phone */}
       <div className="flex flex-wrap items-center gap-2 pt-4">
@@ -277,6 +286,8 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
                 {viewKey === 'linked' && link && (
                   <LinkedView
                     link={link}
+                    balance={status?.balance ?? null}
+                    currency={account.currency}
                     sync={syncLabel}
                     connection={connections?.find((connection) => connection.id === link.connection_id)}
                     providers={providers}

@@ -2,7 +2,7 @@ import { QueryClient, type InfiniteData, type MutationObserverOptions } from '@t
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { API_BASE } from '@/api/config'
 import { registerAuthBindings } from '@/api/client'
-import { accountKeys, transactionKeys } from '@/api/cache/queryKeys'
+import { accountKeys, bankSyncKeys, transactionKeys } from '@/api/cache/queryKeys'
 import { findCachedTransaction } from '@/api/cache/updates/transactions'
 import {
   applyTransactionDeletion,
@@ -80,12 +80,24 @@ function seedAccountViews(client: QueryClient): void {
     client.setQueryData(accountKeys.detail(id), { id, account_kind: 'asset', tax_advantaged_category_id: null })
     client.setQueryData(accountKeys.cashFlow(id, 3), [])
     client.setQueryData(accountKeys.spendingBreakdown(id, 'MTD'), {})
+    client.setQueryData(bankSyncKeys.accountStatus(id), {
+      account_id: id,
+      link: null,
+      previous_link: null,
+      balance: null,
+    })
   }
 }
 
-/** Checks account detail, cash flow and spending freshness without mocking invalidation */
+/** Checks account detail, cash flow, spending and bank link freshness without mocking invalidation */
 function expectAccountInvalidation(client: QueryClient, id: string, invalidated: boolean): void {
-  for (const key of [accountKeys.detail(id), accountKeys.cashFlow(id, 3), accountKeys.spendingBreakdown(id, 'MTD')]) {
+  const keys = [
+    accountKeys.detail(id),
+    accountKeys.cashFlow(id, 3),
+    accountKeys.spendingBreakdown(id, 'MTD'),
+    bankSyncKeys.accountStatus(id),
+  ]
+  for (const key of keys) {
     expect(client.getQueryState(key)?.isInvalidated, JSON.stringify(key)).toBe(invalidated)
   }
 }

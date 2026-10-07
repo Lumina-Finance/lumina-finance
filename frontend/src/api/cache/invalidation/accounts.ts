@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { accountKeys } from '@/api/cache/queryKeys';
+import { accountKeys, bankSyncKeys } from '@/api/cache/queryKeys';
 import { invalidateTargets } from '@/api/cache/invalidation/types';
 
 /**
@@ -17,13 +17,23 @@ export function invalidateAccounts(queryClient: QueryClient) {
 }
 
 /**
- * Invalidates account balances and balance history after balance-changing mutations
+ * Invalidates every account's queries and bank link after a balance change on accounts that aren't
+ * known, since each bank link compares the bank's balance with the ledger's
+ */
+export function invalidateAllAccountBalances(queryClient: QueryClient) {
+  invalidateTargets(queryClient, [{ queryKey: accountKeys.all }, { queryKey: bankSyncKeys.accountAll }]);
+}
+
+/**
+ * Invalidates account balances and balance history after balance-changing mutations, and the
+ * accounts' bank links, which compare the bank's balance with the ledger's
  */
 export function invalidateAccountBalances(queryClient: QueryClient, accountIds: string[]) {
   invalidateAccountSummaries(queryClient);
   invalidateTargets(queryClient, accountIds.flatMap((accountId) => [
     { queryKey: accountKeys.detail(accountId), exact: true },
     { queryKey: accountKeys.snapshotsAll(accountId) },
+    { queryKey: bankSyncKeys.accountStatus(accountId), exact: true },
   ]));
 }
 
@@ -47,11 +57,13 @@ export function invalidateAccountActivity(queryClient: QueryClient, accountIds: 
 }
 
 /**
- * Invalidates every cached query under specific account scopes
+ * Invalidates every cached query under specific account scopes, and the accounts' bank links, which
+ * compare the bank's balance with the ledger's
  */
 export function invalidateAccountData(queryClient: QueryClient, accountIds: string[]) {
   invalidateAccountSummaries(queryClient);
-  invalidateTargets(queryClient, accountIds.map((accountId) => ({
-    queryKey: accountKeys.accountScope(accountId),
-  })));
+  invalidateTargets(queryClient, accountIds.flatMap((accountId) => [
+    { queryKey: accountKeys.accountScope(accountId) },
+    { queryKey: bankSyncKeys.accountStatus(accountId), exact: true },
+  ]));
 }

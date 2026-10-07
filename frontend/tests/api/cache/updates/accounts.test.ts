@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import type { Account, AccountsOverview } from '@/api/accounts';
 import {
   accountKeys,
+  bankSyncKeys,
   dashboardKeys,
   insightsKeys,
   transactionKeys,
@@ -22,6 +23,7 @@ import { applyRecordedStartingBalance, refreshAfterInterruptedStartingBalance } 
 // Every view a starting balance changes, by name, so a failure says which one was left fresh
 const STARTING_BALANCE_VIEWS: Record<string, QueryKey> = {
   accountBalanceHistory: accountKeys.snapshots('card', {}),
+  bankLink: bankSyncKeys.accountStatus('card'),
   transactions: transactionKeys.list({}),
   transactionOverview: transactionOverviewKeys.detail({}),
   dashboardNetWorth: dashboardKeys.netWorth(30),

@@ -100,10 +100,11 @@ async function isAtLeast(page: Page, widthPx: number): Promise<boolean> {
 }
 
 /**
- * One of the facts a dialog or card lists as terms and their values, by its label
+ * One of the facts a dialog or card lists as terms and their values, by its label, or by a pattern
+ * for a label followed by a tooltip, whose text the term holds too
  */
-export function fact(container: Locator, label: string): Locator {
-  const term = container.page().getByRole('term').filter({ hasText: new RegExp(`^${label}$`) })
+export function fact(container: Locator, label: string | RegExp): Locator {
+  const term = container.page().getByRole('term').filter({ hasText: typeof label === 'string' ? new RegExp(`^${label}$`) : label })
   return container.locator('dl > div').filter({ has: term }).getByRole('definition')
 }
 

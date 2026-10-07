@@ -316,6 +316,18 @@ export async function changeBridgeBankAccountId(request: APIRequestContext, scen
 }
 
 /**
+ * Change the balances the Bridge sends for a bank account, each kept exactly as given.
+ */
+export async function changeBridgeBalances(
+  request: APIRequestContext,
+  scenarioId: string,
+  accountId: string,
+  balances: { balance?: string; available_balance?: string },
+): Promise<void> {
+  await controlBridge(request, 'patch', `/${scenarioId}/accounts/${accountId}`, balances)
+}
+
+/**
  * Return another setup token reaching the same scenario, as a reconnect needs.
  */
 export async function createBridgeSetupToken(request: APIRequestContext, scenarioId: string): Promise<string> {

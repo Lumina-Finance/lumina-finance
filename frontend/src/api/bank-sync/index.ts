@@ -2,6 +2,7 @@ export type {
   AccountBankStatus,
   AddReviewItemPayload,
   BankAccountLink,
+  BankBalance,
   BankConnection,
   BankConnectionStatus,
   BankField,

@@ -379,6 +379,27 @@ export type BankLink = BankAccountLink & {
 };
 
 /**
+ * The bank's balance for a linked account beside the ledger's at the end of the bank's balance date,
+ * in the account currency's minor units. It only informs, so a difference never adjusts the ledger
+ */
+export type BankBalance = {
+  /** Null when the bank's balance can't be read exactly in the account's currency, which isn't compared */
+  amount: number | null;
+
+  /** Null when the bank gives none or it can't be read exactly */
+  available: number | null;
+
+  /** The moment the bank gives the balance as of */
+  balance_date: string;
+
+  /** The account's balance at the end of the balance date's day in the user's profile timezone */
+  ledger_balance: number;
+
+  /** The ledger against the bank, ledger minus bank, null while the amount is */
+  difference: number | null;
+};
+
+/**
  * One account's bank link, read only for the user's own personal accounts. The server refuses any
  * other account, so a group account is never read
  */
@@ -388,6 +409,9 @@ export type AccountBankStatus = {
 
   /** What the account was last linked to, only when it has no live link */
   previous_link: PreviousBankLink | null;
+
+  /** Only for a live link that has synced and follows its bank account as the provider lists it */
+  balance: BankBalance | null;
 };
 
 export type ReviewDecision = 'review' | 'trust';

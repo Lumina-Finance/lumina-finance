@@ -1,12 +1,21 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
-import { asUser, createAccount, signUpUser, todayInTestTimezone, type TestUser } from '../support/api'
+import {
+  asUser,
+  createAccount,
+  createTransaction,
+  daysFromTodayInTestTimezone,
+  signUpUser,
+  todayInTestTimezone,
+  type TestUser,
+} from '../support/api'
 import { fact, logInViaApi, openPage } from '../support/app'
 import {
   addBridgeBankAccount,
   addBridgeBankLogin,
   breakBridge,
   buildLinkAnswer,
+  changeBridgeBalances,
   changeBridgeBankAccountId,
   claimSetupToken,
   createBridgeSetupToken,
@@ -21,13 +30,14 @@ import {
   type BridgeScenario,
   type SeededConnection,
 } from '../support/bankSync'
+import { MINUS } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 
 // A linked account's bank sync status, as its page shows it once the worker has met each situation
 // on the fake SimpleFIN Bridge: the identity card's Bank sync fact, the Bank link section's Status,
-// and the notice for whatever stops the sync, with the action that resumes it. The dot's blink while
-// a sync fetches is watched on a link read answered here instead. Sync details' wording is covered by
-// the status unit tests
+// the notice for whatever stops the sync, with the action that resumes it, and the bank's balance
+// beside the ledger's once the link has synced. The dot's blink while a sync fetches is watched on a
+// link read answered here instead. Sync details' wording is covered by the status unit tests
 const SAMPLE_BANK = 'Harbour Bank'
 const SAMPLE_CHEQUING = 'Everyday Chequing'
 
@@ -89,6 +99,53 @@ async function readClippingBoxes(element: Locator, room = 0): Promise<string[]> 
 }
 
 /**
+ * Whether an element's text runs past its box, so part of it is cut off or hidden behind an ellipsis
+ */
+async function isCutShort(element: Locator): Promise<boolean> {
+  return element.evaluate((target) => target.scrollWidth > target.clientWidth)
+}
+
+/**
+ * An element's text a line at a time as the browser lays it out, without its spaces or the text of a
+ * tooltip in it, which sits apart from its lines. A glyph lower than the middle of the one before it
+ * starts a line
+ */
+async function readLines(element: Locator): Promise<string[]> {
+  return element.evaluate((target) => {
+    const lines: { text: string; top: number; height: number }[] = []
+    const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT, {
+      acceptNode: (node) => (node.parentElement?.closest('.app-tooltip-panel') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+    })
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const text = node.textContent ?? ''
+      for (let index = 0; index < text.length; index += 1) {
+        if (!text[index].trim()) continue
+        const range = document.createRange()
+        range.setStart(node, index)
+        range.setEnd(node, index + 1)
+        const { top, height } = range.getBoundingClientRect()
+        const line = lines[lines.length - 1]
+        if (line && top < line.top + line.height / 2) line.text += text[index]
+        else lines.push({ text: text[index], top, height })
+      }
+    }
+    return lines.map(({ text }) => text)
+  })
+}
+
+/**
+ * Whether one element's box covers part of another's, with half a pixel spare for a layout in
+ * fractions of one
+ */
+async function isCovering(cover: Locator, covered: Locator): Promise<boolean> {
+  const [over, under] = await Promise.all([cover.boundingBox(), covered.boundingBox()])
+  if (!over || !under) return false
+  const across = Math.min(over.x + over.width, under.x + under.width) - Math.max(over.x, under.x)
+  const down = Math.min(over.y + over.height, under.y + under.height) - Math.max(over.y, under.y)
+  return across > 0.5 && down > 0.5
+}
+
+/**
  * Opens the account's page and, once the identity card's Bank sync fact reads as expected, its edit
  * modal at the Bank link section through that fact
  *
@@ -131,6 +188,23 @@ async function linkIntoFault(
   return { scenario, connection }
 }
 
+/**
+ * Claims a connection to the sample bank login, has the Bridge send Everyday Chequing's balances as
+ * given, then links the account to it, so the link's first sync reads those balances
+ */
+async function linkWithBalances(
+  request: APIRequestContext,
+  user: TestUser,
+  accountId: string,
+  balances: { balance?: string; available_balance?: string },
+): Promise<void> {
+  const scenario = await createSampleBridgeScenario(request)
+  const connection = await claimSetupToken(request, user, scenario.setupToken)
+  const chequingId = connection.accounts.find((bankAccount) => bankAccount.name === SAMPLE_CHEQUING)!.external_id
+  await changeBridgeBalances(request, scenario.id, chequingId, balances)
+  await linkBankAccount(request, user, { accountId, connectionId: connection.id, externalAccountId: chequingId, startDate: todayInTestTimezone() })
+}
+
 // A read answered here can still be on its way to the page when a test ends, which would otherwise
 // surface as an error outside any test
 test.afterEach(async ({ page }) => {
@@ -148,6 +222,87 @@ test('reads as synced once the import finishes', async ({ page, request }) => {
   // Nothing stops the sync, so no notice offers an action ahead of Unlink
   await expect(dialog.getByRole('button', { name: 'Open settings' })).toHaveCount(0)
   await expect(dialog.getByRole('button', { name: 'Choose bank account' })).toHaveCount(0)
+})
+
+test('compares the bank balance with the ledger at the end of its balance date', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -5000, date: daysFromTodayInTestTimezone(-1) })
+  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -8000, date: daysFromTodayInTestTimezone(1) })
+  await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
+
+  // SimpleFIN gives the balance as of now, so the ledger keeps yesterday's transaction and leaves out
+  // tomorrow's
+  const dialog = await openBankLink(page, user, account.id, /Synced (just now|\d+ minutes? ago)\./)
+  await expect(fact(dialog, 'SimpleFIN')).toHaveText('$2,418.36')
+  await expect(fact(dialog, 'Ledger')).toHaveText('($50.00)')
+  await expect(fact(dialog, /^Difference/)).toHaveText(`${MINUS}$2,468.36`)
+  const caption = dialog.getByText(/^As of /)
+  await expect(caption).toBeVisible()
+  await expect(caption).not.toContainText('available')
+
+  // Balances of a common size share a row in equal columns from the width a notice's action moves
+  // beside its text, and take a row each on a phone
+  const figures = await Promise.all(['SimpleFIN', 'Ledger', /^Difference/].map(async (label) => (await fact(dialog, label).boundingBox())!))
+  const spread = (values: number[]) => Math.max(...values) - Math.min(...values)
+  if (page.viewportSize()!.width >= NOTICE_ROW_MIN_WIDTH) {
+    expect(spread(figures.map(({ y }) => y))).toBeLessThan(0.5)
+    expect(spread(figures.map(({ width }) => width))).toBeLessThan(0.5)
+  } else {
+    expect(spread(figures.map(({ x, width }) => x + width))).toBeLessThan(0.5)
+    expect(figures.slice(1).every(({ y }, index) => y >= figures[index].y + figures[index].height)).toBe(true)
+  }
+
+  // The reason for the gap opens as the keyboard reaches its button, as it does on hover, clear of the
+  // balance it explains, and shows whole, reaching past the panel where it needs the room
+  const why = dialog.getByRole('button', { name: 'Why the balances differ' })
+  await why.focus()
+  await page.keyboard.press('Shift+Tab')
+  await page.keyboard.press('Tab')
+  await expect(why).toBeFocused()
+  const reason = dialog.locator('.app-tooltip-panel').filter({ hasText: 'Most gaps come from' })
+  await expect(reason.locator('..')).toHaveCSS('opacity', '1')
+  expect(await isCovering(reason, fact(dialog, /^Difference/))).toBe(false)
+  await expect.poll(() => readClippingBoxes(reason)).toEqual([])
+})
+
+test('shows a bank balance that can\'t be read exactly as unavailable, its reason opening clear of it', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  await linkWithBalances(request, user, account.id, { balance: '2418.365' })
+
+  const dialog = await openBankLink(page, user, account.id, /Synced (just now|\d+ minutes? ago)\./)
+  const bankBalance = fact(dialog, /^SimpleFIN/)
+  await expect(bankBalance).toHaveText('Unavailable')
+  await dialog.getByRole('button', { name: 'Why the balance is unavailable' }).click()
+  const reason = dialog.locator('.app-tooltip-panel').filter({ hasText: 'can\'t be read exactly' })
+  await expect(reason.locator('..')).toHaveCSS('opacity', '1')
+  expect(await isCovering(reason, bankBalance)).toBe(false)
+})
+
+test('keeps each balance whole with its sign, and the caption\'s dot with the part it introduces', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -11111111111100, date: daysFromTodayInTestTimezone(-1) })
+  await linkWithBalances(request, user, account.id, { balance: '123456789012.34', available_balance: '111111111111.00' })
+
+  // Twelve digits leave three balances too wide to sit side by side, so they move to another row
+  // rather than splitting a figure or leaving its sign on a line of its own, and on a phone the
+  // caption wraps without ending a line on the dot before the available balance
+  const dialog = await openBankLink(page, user, account.id, /Synced (just now|\d+ minutes? ago)\./)
+  const figures: [Locator, string][] = [
+    [fact(dialog, 'SimpleFIN'), '$123,456,789,012.34'],
+    [fact(dialog, 'Ledger'), '($111,111,111,111.00)'],
+    [fact(dialog, /^Difference/), `${MINUS}$234,567,900,123.34`],
+  ]
+  for (const [figure, text] of figures) {
+    await expect(figure).toHaveText(text)
+    expect(await readLines(figure)).toEqual([text])
+    expect(await isCutShort(figure)).toBe(false)
+  }
+  const caption = dialog.getByText(/^As of /)
+  await expect(caption).toContainText('$111,111,111,111.00 available')
+  expect((await readLines(caption)).filter((line) => line.endsWith('·'))).toEqual([])
 })
 
 test('reads as retrying at the time of the retry when the Bridge fails', async ({ page, request }) => {

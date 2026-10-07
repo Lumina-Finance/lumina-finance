@@ -9,6 +9,7 @@ import { SyncStatusDot } from '@/components/display/SyncStatusDot'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import { ModalWorkspacePanel } from '@/components/modal/WorkspacePanel'
 import IconTooltip from '@/components/tooltips/IconTooltip'
+import { LabelWithHint } from '@/components/tooltips/LabelWithHint'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
 import { EASE, INSTITUTION_SEARCH_AFTER, LINKING_HOLD_MS } from '@/pages/settings/components/bank-connections-section/constants'
@@ -33,12 +34,7 @@ function ConnectionFact({ label, hint, wide = false, children }: { label: string
   return (
     <div className={`min-w-0 ${wide ? 'sm:max-[1050px]:col-span-2' : ''}`}>
       <dt className="flex items-center gap-1 text-xs font-medium uppercase" style={{ color: 'var(--app-text-muted)' }}>
-        {label}
-        {hint && (
-          <IconTooltip label={`About ${label.toLowerCase()}`} placement="bottom" size={12}>
-            <span className="font-normal normal-case">{hint}</span>
-          </IconTooltip>
-        )}
+        <LabelWithHint label={label} hint={hint} />
       </dt>
       <dd className="mt-0.5 min-w-0 text-sm font-medium" style={{ color: 'var(--app-text)' }}>{children}</dd>
     </div>

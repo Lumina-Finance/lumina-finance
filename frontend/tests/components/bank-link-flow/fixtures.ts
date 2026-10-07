@@ -70,7 +70,7 @@ export function createBankAccount(overrides: Partial<DiscoveredBankAccount> = {}
 
 /** Builds Everyday's read of its link: never linked, unless told otherwise */
 export function createStatus(overrides: Partial<AccountBankStatus> = {}): AccountBankStatus {
-  return { account_id: 'account-1', link: null, previous_link: null, ...overrides }
+  return { account_id: 'account-1', link: null, previous_link: null, balance: null, ...overrides }
 }
 
 /** Builds the providers read: SimpleFIN, open to new connections unless told otherwise, with sync running */
