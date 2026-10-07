@@ -129,6 +129,7 @@
       "conn_name": "Gulf Trust",
       "currency": "BHD",
       "balance": "1200.500",
+      "available-balance": "1100.2505",
       "balance-date": 1791115200,
       "transactions": [
         {

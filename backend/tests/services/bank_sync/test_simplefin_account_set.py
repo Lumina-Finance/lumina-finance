@@ -169,14 +169,18 @@ def test_institution_is_the_bank_logins_institution():
 
 
 def test_balances_are_read_with_their_time_and_an_unstorable_one_is_unavailable():
-    """Balances read at the currency's precision, while one with too many decimals reads as unavailable"""
-    accounts = _accounts()
-    chequing, savings, visa = accounts["ACT-chequing"], accounts["ACT-savings"], accounts["ACT-visa"]
+    """Balances read at the currency's precision, while one with too many decimals reads as unavailable
 
-    assert (chequing.balance, chequing.available_balance) == (251075, 241075)
+    An available balance sent with too many decimals is flagged, so it reads apart from one never sent
+    """
+    accounts = _accounts()
+    chequing, savings, visa, dinar = accounts["ACT-chequing"], accounts["ACT-savings"], accounts["ACT-visa"], accounts["ACT-dinar"]
+
+    assert (chequing.balance, chequing.available_balance, chequing.available_balance_unreadable) == (251075, 241075, False)
     assert chequing.balance_at == datetime(2026, 10, 4, 12, tzinfo=UTC)
-    assert savings.available_balance is None
+    assert (savings.available_balance, savings.available_balance_unreadable) == (None, False)
     assert visa.balance is None
+    assert (dinar.balance, dinar.available_balance, dinar.available_balance_unreadable) == (1200500, None, True)
 
 
 @pytest.mark.parametrize(

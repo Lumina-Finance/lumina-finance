@@ -2488,6 +2488,32 @@ async def test_job_stores_the_balance_its_fetch_read_over_an_older_one(connectio
     assert [tuple(row) for row in stored] == [kept]
 
 
+async def test_job_flags_an_available_balance_its_fetch_could_not_read(connection, provider):
+    """Sync now reads Everyday's available balance with more decimals than its currency holds, so the bank link says so
+
+    A listing read the same $100.00 at the same time with no available balance, so the flag is all that changes
+    """
+    await _link(connection, "ACT-1", **_synced_through_yesterday())
+    listed = _build_external_account(connection, "ACT-1")
+    listed.balance, listed.balance_at = 100_00, datetime(2026, 10, 4, tzinfo=UTC)
+    async with TestSession() as session:
+        session.add(listed)
+        await session.commit()
+    read = replace(_bank_account("ACT-1"), available_balance_unreadable=True)
+    provider.outcomes = [FetchResult(accounts=(read,))]
+    await _seed_job(connection, BankSyncJobKind.MANUAL)
+
+    await _run_jobs_until_none_is_due()
+
+    async with TestSession() as session:
+        stored = await session.execute(
+            select(BankExternalAccount.balance, BankExternalAccount.available_balance, BankExternalAccount.available_balance_unreadable).where(
+                BankExternalAccount.connection_id == connection.id
+            )
+        )
+    assert [tuple(row) for row in stored] == [(100_00, None, True)]
+
+
 async def test_job_stores_nothing_for_a_link_unlinked_while_it_fetched(connection, monkeypatch):
     """Savings is unlinked while the job waits on the provider, so only Everyday keeps its records and pending items and moves its checkpoint"""
     everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday())

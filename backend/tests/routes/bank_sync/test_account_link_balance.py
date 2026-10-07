@@ -81,7 +81,7 @@ async def test_bank_balance_that_matches_the_ledger_has_no_difference(client):
     balance = await _read_balance(client, headers, account_id)
 
     assert datetime.fromisoformat(balance.pop("balance_date")) == _BALANCE_AT
-    assert balance == {"amount": 125000, "available": 118000, "ledger_balance": 125000, "difference": 0}
+    assert balance == {"amount": 125000, "available": 118000, "available_unreadable": False, "ledger_balance": 125000, "difference": 0}
 
 
 @pytest.mark.parametrize(
@@ -140,7 +140,20 @@ async def test_bank_balance_that_cant_be_read_exactly_isnt_compared(client):
     balance = await _read_balance(client, headers, account_id)
 
     assert datetime.fromisoformat(balance.pop("balance_date")) == _BALANCE_AT
-    assert balance == {"amount": None, "available": 118000, "ledger_balance": 125000, "difference": None}
+    assert balance == {"amount": None, "available": 118000, "available_unreadable": False, "ledger_balance": 125000, "difference": None}
+
+
+async def test_available_balance_that_cant_be_read_exactly_is_flagged_rather_than_left_out(client):
+    """An available balance SimpleFIN sent with more decimals than CAD holds reads as unreadable, not as never sent
+
+    The balance itself is still compared with the ledger
+    """
+    headers, account_id = await _synced_account(client, ("2026-10-03", 125000), balance=125000, available_balance_unreadable=True)
+
+    balance = await _read_balance(client, headers, account_id)
+
+    assert datetime.fromisoformat(balance.pop("balance_date")) == _BALANCE_AT
+    assert balance == {"amount": 125000, "available": None, "available_unreadable": True, "ledger_balance": 125000, "difference": 0}
 
 
 @pytest.mark.parametrize(

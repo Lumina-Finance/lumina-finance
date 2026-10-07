@@ -91,6 +91,10 @@ class ExternalAccount:
     available_balance: int | None
     balance_at: datetime
 
+    # Whether the provider sent an available balance that can't be read or stored exactly, which
+    # tells it apart from one never sent, since both leave available_balance None
+    available_balance_unreadable: bool = False
+
     # The earliest date the provider proves it covered, for a provider that can prove one
     covered_from: date | None = None
     records: tuple[ProviderRecord, ...] = ()

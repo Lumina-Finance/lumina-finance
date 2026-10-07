@@ -44,6 +44,7 @@ _REFRESHED_FIELDS = (
     "currency",
     "balance",
     "available_balance",
+    "available_balance_unreadable",
     "balance_at",
     "listed",
     "last_seen_at",
@@ -149,6 +150,7 @@ async def _store_bank_accounts(db: AsyncSession, connection: BankConnection, acc
             "currency": account.currency_raw,
             "balance": account.balance,
             "available_balance": account.available_balance,
+            "available_balance_unreadable": account.available_balance_unreadable,
             "balance_at": account.balance_at,
             "listed": True,
             "last_seen_at": now,
@@ -191,10 +193,16 @@ async def store_fetched_balances(db: AsyncSession, connection: BankConnection, a
                 or_(
                     BankExternalAccount.balance.is_distinct_from(account.balance),
                     BankExternalAccount.available_balance.is_distinct_from(account.available_balance),
+                    BankExternalAccount.available_balance_unreadable.is_distinct_from(account.available_balance_unreadable),
                     BankExternalAccount.balance_at.is_distinct_from(account.balance_at),
                 ),
             )
-            .values(balance=account.balance, available_balance=account.available_balance, balance_at=account.balance_at)
+            .values(
+                balance=account.balance,
+                available_balance=account.available_balance,
+                available_balance_unreadable=account.available_balance_unreadable,
+                balance_at=account.balance_at,
+            )
         )
         changed = changed or result.rowcount > 0
     return changed

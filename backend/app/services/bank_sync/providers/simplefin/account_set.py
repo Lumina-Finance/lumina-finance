@@ -166,6 +166,7 @@ def _read_account(
     connection = connections[account.conn_id]
     currency = account.currency if is_iso_currency_code(account.currency) else None
     exponent = currency_exponents.get(currency) if currency else None
+    available_balance = _minor_units(account.available_balance, currency, exponent)
 
     return ExternalAccount(
         external_id=account.id,
@@ -176,8 +177,9 @@ def _read_account(
         currency=currency,
         currency_raw=account.currency,
         balance=_minor_units(account.balance, currency, exponent),
-        available_balance=_minor_units(account.available_balance, currency, exponent),
+        available_balance=available_balance,
         balance_at=datetime.fromtimestamp(account.balance_date, UTC),
+        available_balance_unreadable=account.available_balance is not None and available_balance is None,
         records=tuple(_read_record(transaction, currency, exponent, dating) for transaction in account.transactions) if dating else (),
     )
 

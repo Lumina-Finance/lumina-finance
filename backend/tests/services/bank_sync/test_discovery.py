@@ -128,9 +128,14 @@ async def _discover(db, connection: BankConnection, at: datetime = _NOW, transpo
 
 
 async def test_discovery_stores_each_bank_account_as_listed(db, scenario: FakeBridgeScenario):
-    """ISO, URL and empty currencies are kept as sent, and a missing available balance stays empty"""
+    """ISO, URL and empty currencies are kept as sent, and a missing available balance stays empty
+
+    An available balance sent with more decimals than its currency holds stays empty too, but is
+    flagged, so the bank link says it can't be read rather than leaving it out
+    """
     await scenario.add_harbour_accounts()
     await scenario.change("PATCH", "/accounts/ACT-savings", {"available_balance": "8150.00"})
+    await scenario.change("PATCH", "/accounts/ACT-visa", {"available_balance": "1359.875"})
     for account_id, name, currency in [
         ("ACT-miles", "Flight Miles", "https://www.simplefin.org/currencies/miles"),
         ("ACT-blank", "Gift Card", ""),
@@ -159,20 +164,40 @@ async def test_discovery_stores_each_bank_account_as_listed(db, scenario: FakeBr
                 BankExternalAccount.currency,
                 BankExternalAccount.balance,
                 BankExternalAccount.available_balance,
+                BankExternalAccount.available_balance_unreadable,
                 BankExternalAccount.balance_at,
                 BankExternalAccount.listed,
             ).order_by(BankExternalAccount.external_id)
         )
     ).all()
     harbourline = ("ORG-harbourline", "Harbourline Card Services", "CON-harbourline")
+    harbour = ("ORG-harbour", "Harbour Bank", "CON-harbour")
     assert [tuple(row) for row in stored] == [
-        ("ACT-blank", "Gift Card", *harbourline, "", None, None, _BALANCE_AT, True),
-        ("ACT-chequing", "Everyday Chequing", "ORG-harbour", "Harbour Bank", "CON-harbour", "USD", 251075, None, _BALANCE_AT, True),
-        ("ACT-miles", "Flight Miles", *harbourline, "https://www.simplefin.org/currencies/miles", None, None, _BALANCE_AT, True),
-        ("ACT-savings", "Online Savings", "ORG-harbour", "Harbour Bank", "CON-harbour", "USD", 820000, 815000, _BALANCE_AT, True),
-        ("ACT-visa", "Rewards Visa", *harbourline, "USD", -64012, None, _BALANCE_AT, True),
+        ("ACT-blank", "Gift Card", *harbourline, "", None, None, False, _BALANCE_AT, True),
+        ("ACT-chequing", "Everyday Chequing", *harbour, "USD", 251075, None, False, _BALANCE_AT, True),
+        ("ACT-miles", "Flight Miles", *harbourline, "https://www.simplefin.org/currencies/miles", None, None, False, _BALANCE_AT, True),
+        ("ACT-savings", "Online Savings", *harbour, "USD", 820000, 815000, False, _BALANCE_AT, True),
+        ("ACT-visa", "Rewards Visa", *harbourline, "USD", -64012, None, True, _BALANCE_AT, True),
     ]
     assert connection.discovered_at == _NOW
+
+
+async def test_discovery_clears_the_unreadable_flag_once_the_available_balance_reads(db, scenario: FakeBridgeScenario):
+    """Rewards Visa's available balance comes as 1359.875 and then as 1359.87, so the second listing stores it and drops the flag"""
+    await scenario.add_harbour_accounts()
+    await scenario.change("PATCH", "/accounts/ACT-visa", {"available_balance": "1359.875"})
+    connection = await _claimed_connection(db, scenario)
+    assert await _discover(db, connection) is True
+    await scenario.change("PATCH", "/accounts/ACT-visa", {"available_balance": "1359.87"})
+
+    assert await _discover(db, connection, at=_NOW + timedelta(hours=1)) is True
+
+    stored = await db.execute(
+        select(BankExternalAccount.available_balance, BankExternalAccount.available_balance_unreadable).where(
+            BankExternalAccount.external_id == "ACT-visa"
+        )
+    )
+    assert [tuple(row) for row in stored] == [(135987, False)]
 
 
 async def test_discovery_request_is_counted_before_it_is_sent_and_survives_a_crash(db, scenario: FakeBridgeScenario):

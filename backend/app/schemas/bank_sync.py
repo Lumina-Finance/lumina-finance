@@ -378,6 +378,10 @@ class BankBalanceResponse(BaseModel):
     # Read-only, in minor units, and None when the bank gives none or it can't be read exactly
     available: int | None
 
+    # Whether the bank gave an available balance that can't be read exactly in the account's
+    # currency, which shows as unavailable rather than being left out like one the bank never gives
+    available_unreadable: bool
+
     # The moment the bank gives the balance as of
     balance_date: datetime
 

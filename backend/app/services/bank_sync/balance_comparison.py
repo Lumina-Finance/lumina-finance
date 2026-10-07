@@ -54,6 +54,7 @@ async def compare_bank_balance(db: AsyncSession, link: BankAccountLink, *, tz: s
     return BankBalanceResponse(
         amount=bank_account.balance,
         available=bank_account.available_balance,
+        available_unreadable=bank_account.available_balance_unreadable,
         balance_date=bank_account.balance_at,
         ledger_balance=ledger_balance,
         difference=None if bank_account.balance is None else ledger_balance - bank_account.balance,

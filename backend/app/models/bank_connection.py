@@ -212,6 +212,10 @@ class BankExternalAccount(Base):
     available_balance: Mapped[int | None] = mapped_column(BigInteger)
     balance_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    # Whether the provider sent an available balance that can't be stored exactly, which a null
+    # available balance can't tell apart from one never sent
+    available_balance_unreadable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+
     # Whether the latest discovery still listed it
     listed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
