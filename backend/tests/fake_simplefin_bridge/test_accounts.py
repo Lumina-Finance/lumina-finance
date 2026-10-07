@@ -1,3 +1,5 @@
+import asyncio
+
 import httpx
 import pytest
 
@@ -117,3 +119,22 @@ async def test_accounts_timeout_fault_raises_read_timeout_in_process(bridge):
     # A per-request timeout reaches the transport, so only this request is held to it
     with pytest.raises(httpx.ReadTimeout):
         await bridge.get(f"{access_url}/accounts", params={"version": "2"}, timeout=0.2)
+
+
+async def test_accounts_timeout_fault_frees_the_request_it_holds_once_cleared(bridge):
+    """Clearing a timeout fault answers the request it holds at once, so a browser test can free the bank sync worker it held
+
+    Left held, the worker would wait out its read timeout, keeping other tests' syncs waiting too
+    """
+    scenario_id, setup_token = await _create_scenario(bridge)
+    access_url = await _claim_access_url(bridge, setup_token)
+    await bridge.put(f"/control/scenarios/{scenario_id}/fault", json={"kind": "timeout"})
+    held = asyncio.create_task(bridge.get(f"{access_url}/accounts", params={"version": "2"}, timeout=10))
+    await asyncio.sleep(0.2)
+    assert not held.done()
+
+    cleared = await bridge.delete(f"/control/scenarios/{scenario_id}/fault")
+
+    assert cleared.status_code == 204
+    async with asyncio.timeout(2):
+        assert (await held).status_code == 504

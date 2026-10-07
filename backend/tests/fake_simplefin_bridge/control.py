@@ -319,14 +319,14 @@ async def set_fault(scenario_id: str, body: SetFaultRequest):
     if body.kind == FaultKind.HTML_ERROR:
         page_status = body.status or DEFAULT_HTML_ERROR_STATUS
     fault = Fault(kind=body.kind, status=page_status)
-    _find_scenario(scenario_id).fault = fault
+    _find_scenario(scenario_id).change_fault(fault)
     return fault
 
 
 @router.delete("/{scenario_id}/fault", status_code=status.HTTP_204_NO_CONTENT)
 async def clear_fault(scenario_id: str):
-    """Answer requests normally again"""
-    _find_scenario(scenario_id).fault = None
+    """Answer requests normally again, freeing any a timeout fault still holds"""
+    _find_scenario(scenario_id).change_fault(None)
 
 
 @router.post("/{scenario_id}/revoke", status_code=status.HTTP_204_NO_CONTENT)

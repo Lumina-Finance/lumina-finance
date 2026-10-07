@@ -5,6 +5,7 @@ fault their responses carry, and the setup tokens and access credentials that re
 creates its own scenario, so tests sharing one fake never see each other's data
 """
 
+import asyncio
 import hmac
 import secrets
 from dataclasses import dataclass, field
@@ -104,6 +105,15 @@ class Scenario:
     accounts: list[Account] = field(default_factory=list)
     errors: list[BankError] = field(default_factory=list)
     fault: Fault | None = None
+
+    # Set once the fault is cleared or replaced, which frees the requests a timeout fault holds
+    stalls_released: asyncio.Event = field(default_factory=asyncio.Event)
+
+    def change_fault(self, fault: Fault | None) -> None:
+        """Show another fault, or none, freeing the requests the one before held"""
+        self.fault = fault
+        self.stalls_released.set()
+        self.stalls_released = asyncio.Event()
 
 
 @dataclass

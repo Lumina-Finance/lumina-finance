@@ -7,14 +7,13 @@ app is built on, noted beside each one
 
 import asyncio
 import base64
-import contextlib
 from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 
-from .state import Access, Account, BankError, Connection, Fault, FaultKind, Transaction, bridge
+from .state import Access, Account, BankError, Connection, FaultKind, Scenario, Transaction, bridge
 
 router = APIRouter(prefix="/simplefin")
 
@@ -53,7 +52,7 @@ async def claim_setup_token(token: str, request: Request):
     A fault answers in place of the claim and leaves the token unspent, so the claim can be tried again
     """
     scenario = bridge.setup_tokens.get(token)
-    if scenario is not None and (fault_response := await _fault_response(scenario.fault, request)) is not None:
+    if scenario is not None and (fault_response := await _fault_response(scenario, request)) is not None:
         return fault_response
 
     credentials = bridge.claim(token)
@@ -84,7 +83,7 @@ async def get_accounts(
         return PlainTextResponse(FORBIDDEN, status_code=403)
 
     scenario = access.scenario
-    if (fault_response := await _fault_response(scenario.fault, request)) is not None:
+    if (fault_response := await _fault_response(scenario, request)) is not None:
         return fault_response
     if access.revoked:
         return PlainTextResponse(FORBIDDEN, status_code=403)
@@ -114,8 +113,9 @@ async def get_accounts(
     return JSONResponse(_account_set(errlist, connections, accounts))
 
 
-async def _fault_response(fault: Fault | None, request: Request) -> Response | None:
-    """Return the response a fault answers with in place of the request, or None when it adds to the normal one"""
+async def _fault_response(scenario: Scenario, request: Request) -> Response | None:
+    """Return the response the scenario's fault answers with in place of the request, or None when it adds to the normal one"""
+    fault = scenario.fault
     if fault is None:
         return None
 
@@ -127,20 +127,29 @@ async def _fault_response(fault: Fault | None, request: Request) -> Response | N
         case FaultKind.HTML_ERROR:
             return HTMLResponse(HTML_ERROR_PAGE, status_code=fault.status)
         case FaultKind.TIMEOUT:
-            await _stall(request)
+            await _stall(request, scenario.stalls_released)
             return Response(status_code=504)
     return None
 
 
-async def _stall(request: Request) -> None:
-    """Hold the request until its client gives up, or for the whole stall at most
+async def _stall(request: Request, released: asyncio.Event) -> None:
+    """Hold the request until its client gives up, the fault is cleared, or for the whole stall at most
 
-    Ending at the disconnect leaves no stalled request behind to hold up stopping the server
+    Ending at the disconnect leaves no stalled request behind to hold up stopping the server. Ending
+    at the clear lets a test free a client it held, such as the bank sync worker, once it has seen
+    what the hold was for, rather than leaving the worker waiting out its read timeout
     """
-    with contextlib.suppress(TimeoutError):
-        async with asyncio.timeout(TIMEOUT_STALL_SECONDS):
-            while (await request.receive())["type"] != "http.disconnect":
-                pass
+
+    async def disconnected() -> None:
+        while (await request.receive())["type"] != "http.disconnect":
+            pass
+
+    waits = [asyncio.create_task(disconnected()), asyncio.create_task(released.wait())]
+    try:
+        await asyncio.wait(waits, timeout=TIMEOUT_STALL_SECONDS, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        for wait in waits:
+            wait.cancel()
 
 
 def _find_access(authorization: str | None) -> Access | None:
