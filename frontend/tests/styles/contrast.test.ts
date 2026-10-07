@@ -62,8 +62,9 @@ function contrast(text: Rgb, surface: Rgb) {
   return (lighter + 0.05) / (darker + 0.05)
 }
 
-// The surfaces text sits on: the page, a card, and the tinted inset the Imports page draws its panels
-// in (IMPORT_INSET_STYLE, 58% of the input fill over the page)
+// The plain surfaces text sits on: the page, a card, and the tinted inset the Imports page draws its
+// panels in (IMPORT_INSET_STYLE, 58% of the input fill over the page). State tints laid over them, such
+// as a field in error or a chosen dropdown row, are not covered here
 function surfaces(tokens: Tokens): Record<string, Rgb> {
   const page = solid(tokens, '--app-bg')
   return {
@@ -82,5 +83,28 @@ describe('secondary button label contrast', () => {
     const tokens = THEMES[theme]
     const fill = paint(solid(tokens, '--app-input-bg'), 0.62, backdrop)
     expect(contrast(solid(tokens, '--app-text-muted'), fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+  })
+})
+
+describe('text colour contrast', () => {
+  const TEXT_TOKENS = ['--app-text', '--app-text-muted', '--app-text-subtle', '--app-accent']
+
+  // Text also sits directly on a field, as placeholders, money prefixes and an open dropdown's panel do
+  const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) => {
+    const tokens = THEMES[theme]
+    const backdrops = { ...surfaces(tokens), field: solid(tokens, '--app-input-bg') }
+    return TEXT_TOKENS.flatMap((token) =>
+      Object.entries(backdrops).map(([surface, backdrop]) => ({ theme, token, surface, backdrop })))
+  })
+
+  it.each(cases)('$token reads at 4.5:1 or better in the $theme theme on the $surface', ({ theme, token, backdrop }) => {
+    expect(contrast(solid(THEMES[theme], token), backdrop)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+  })
+
+  // Subtle text is the quieter of the two secondary levels, so raising it must not overtake muted
+  it.each(Object.keys(THEMES) as Theme[])('keeps subtle text quieter than muted text in the %s theme', (theme) => {
+    const tokens = THEMES[theme]
+    const page = solid(tokens, '--app-bg')
+    expect(contrast(solid(tokens, '--app-text-subtle'), page)).toBeLessThan(contrast(solid(tokens, '--app-text-muted'), page))
   })
 })
