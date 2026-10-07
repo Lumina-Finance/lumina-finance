@@ -13,7 +13,6 @@ from app.services.accounts.snapshots import recompute_account_snapshots
 from app.services.bank_sync.manual_entries import refuse_days_a_bank_supplies
 from app.services.importers.generic.row_resolution import resolve_import_rows
 from app.services.importers.shared.lookups import load_import_lookups
-from app.services.importers.shared.row_mappings import get_import_row_account
 from app.services.importers.shared.save_results import build_import_summary, mark_import_caches_changed
 from app.services.importers.shared.stats import ImportStats
 from app.services.importers.shared.transaction_writer import ImportedTransaction, write_imported_transactions
@@ -65,6 +64,14 @@ async def import_transactions(
     resolved = resolve_import_rows(data.rows, import_lookups, user.id)
     transactions = await _leave_out_held_bank_transactions(db, resolved)
 
+    # Checked once every row has resolved to an account, so a row refused for its mapping says so
+    # first, and before anything is written. A row the account already holds is left out, so its day
+    # refuses nothing
+    dates_by_account: dict[uuid.UUID, list[date]] = {}
+    for transaction in transactions:
+        dates_by_account.setdefault(transaction.account.id, []).append(transaction.dt)
+    await refuse_days_a_bank_supplies(db, user, dates_by_account, name_accounts=True)
+
     # The index holding each bank transaction once per account refuses the second of two imports
     # racing to write the same one, and the whole commit goes with it
     try:
@@ -81,14 +88,6 @@ async def import_transactions(
     except IntegrityError as error:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=BANK_TRANSACTION_RACE_DETAIL) from error
-
-    # Checked once every row has resolved to an account, so a row refused for its mapping says so
-    # first. Nothing written above lasts, since the caller's transaction ends with the refusal
-    dates_by_account: dict[uuid.UUID, list[date]] = {}
-    for row in data.rows:
-        account = get_import_row_account(import_lookups.accounts_by_source, row.account_source)
-        dates_by_account.setdefault(account.id, []).append(row.dt)
-    await refuse_days_a_bank_supplies(db, user, dates_by_account, name_accounts=True)
 
     await recompute_account_snapshots(db, first_import_date_by_account_id)
     await mark_import_caches_changed(
