@@ -379,7 +379,7 @@ async def _count_run_rows(run_id):
     return runs, staged
 
 
-async def test_opening_a_run_deletes_the_users_abandoned_runs_and_keeps_committed_and_recent_ones(client):
+async def test_opening_a_run_deletes_abandoned_runs_and_keeps_committed_and_recent_ones(client):
     """A run left uncommitted goes once the user imports again, and a committed one still answers its commit."""
     headers = _get_auth_header(await _create_user(client))
     other_headers, _, _ = await _setup_user_with_deps(client, email="other@example.com", name_prefix="Other")
@@ -404,8 +404,8 @@ async def test_opening_a_run_deletes_the_users_abandoned_runs_and_keeps_committe
     assert fresh.status_code == 201, fresh.text
     assert await _count_run_rows(abandoned) == (0, 0)
 
-    # Only the importing user's runs are cleared, however long another user has left theirs
-    assert await _count_run_rows(others) == (1, 1)
+    # Every user's abandoned runs go, since the cleanup sweeps the whole table
+    assert await _count_run_rows(others) == (0, 0)
 
 
 async def test_opening_a_run_passes_over_an_abandoned_run_another_request_holds(client):
@@ -454,7 +454,7 @@ async def test_renewing_a_sign_in_succeeds_when_its_import_cleanup_fails(client,
     """The cleanup is only housekeeping, so its failure leaves the user signed in."""
     signup = await _create_user(client)
 
-    async def fail_cleanup(db, _user):
+    async def fail_cleanup(db):
         # A real failure comes mid-statement, so the cleanup has a transaction open to roll back
         await db.execute(text("SELECT 1"))
         raise RuntimeError("cleanup failed")

@@ -76,7 +76,7 @@ async def build_passkey_registration_options(db: AsyncSession, user_id: uuid.UUI
     Returns:
         The ceremony options serialized as JSON for the browser
     """
-    await _delete_expired_challenges(db)
+    await delete_expired_webauthn_challenges(db)
 
     # Exclude every credential the user already holds, including a staged one, so the same authenticator
     # cannot be enrolled twice while a first passkey is still pending acknowledgement
@@ -103,20 +103,20 @@ async def build_passkey_registration_options(db: AsyncSession, user_id: uuid.UUI
     )
 
     expires_at = datetime.now(UTC) + timedelta(seconds=WEBAUTHN_CHALLENGE_EXPIRE_SECONDS)
-    db.add(WebauthnChallenge(
-        challenge=options.challenge,
-        user_id=user_id,
-        purpose=_REGISTRATION_PURPOSE,
-        expires_at=expires_at,
-    ))
+    db.add(
+        WebauthnChallenge(
+            challenge=options.challenge,
+            user_id=user_id,
+            purpose=_REGISTRATION_PURPOSE,
+            expires_at=expires_at,
+        )
+    )
     await db.commit()
 
     return options_to_json(options)
 
 
-async def register_passkey(
-    db: AsyncSession, user_id: uuid.UUID, credential: dict, name: str
-) -> tuple[WebauthnCredential, list[str] | None]:
+async def register_passkey(db: AsyncSession, user_id: uuid.UUID, credential: dict, name: str) -> tuple[WebauthnCredential, list[str] | None]:
     """Verify a finished registration ceremony and store the new passkey
 
     The challenge embedded in the response locates the stored challenge so concurrent ceremonies stay
@@ -164,11 +164,7 @@ async def register_passkey(
     # unconfirmed TOTP is deleted here rather than through the totp module to avoid an import cycle
     if not reuse_existing_codes:
         await delete_staged_passkeys(db, user_id)
-        await db.execute(
-            delete(TotpCredential).where(
-                TotpCredential.user_id == user_id, TotpCredential.confirmed_at.is_(None)
-            )
-        )
+        await db.execute(delete(TotpCredential).where(TotpCredential.user_id == user_id, TotpCredential.confirmed_at.is_(None)))
 
     transports = credential.get("response", {}).get("transports") or []
     passkey = WebauthnCredential(
@@ -253,9 +249,7 @@ async def is_passkey_registered(db: AsyncSession, user_id: uuid.UUID) -> bool:
         Whether a confirmed passkey exists
     """
     result = await db.execute(
-        select(WebauthnCredential.id)
-        .where(WebauthnCredential.user_id == user_id, WebauthnCredential.confirmed_at.is_not(None))
-        .limit(1)
+        select(WebauthnCredential.id).where(WebauthnCredential.user_id == user_id, WebauthnCredential.confirmed_at.is_not(None)).limit(1)
     )
     return result.first() is not None
 
@@ -279,9 +273,7 @@ async def revoke_all_passkeys(db: AsyncSession, user_id: uuid.UUID) -> None:
     )
 
 
-async def _staged_passkeys(
-    db: AsyncSession, user_id: uuid.UUID, *, lock_for_update: bool = False
-) -> list[WebauthnCredential]:
+async def _staged_passkeys(db: AsyncSession, user_id: uuid.UUID, *, lock_for_update: bool = False) -> list[WebauthnCredential]:
     """Return the user's passkeys still awaiting recovery-code acknowledgement
 
     Args:
@@ -293,9 +285,7 @@ async def _staged_passkeys(
     Returns:
         Staged passkey rows for the user
     """
-    staged_query = select(WebauthnCredential).where(
-        WebauthnCredential.user_id == user_id, WebauthnCredential.confirmed_at.is_(None)
-    )
+    staged_query = select(WebauthnCredential).where(WebauthnCredential.user_id == user_id, WebauthnCredential.confirmed_at.is_(None))
     if lock_for_update:
         staged_query = staged_query.with_for_update()
     result = await db.execute(staged_query)
@@ -305,11 +295,7 @@ async def _staged_passkeys(
 async def delete_staged_passkeys(db: AsyncSession, user_id: uuid.UUID) -> None:
     """Delete the user's passkeys still awaiting recovery-code acknowledgement"""
     # Clear any passkey left staged by an abandoned enrolment so a new staging starts from a clean slate
-    await db.execute(
-        delete(WebauthnCredential).where(
-            WebauthnCredential.user_id == user_id, WebauthnCredential.confirmed_at.is_(None)
-        )
-    )
+    await db.execute(delete(WebauthnCredential).where(WebauthnCredential.user_id == user_id, WebauthnCredential.confirmed_at.is_(None)))
 
 
 async def build_passkey_authentication_options(db: AsyncSession) -> str:
@@ -324,7 +310,7 @@ async def build_passkey_authentication_options(db: AsyncSession) -> str:
     Returns:
         The ceremony options serialized as JSON for the browser
     """
-    await _delete_expired_challenges(db)
+    await delete_expired_webauthn_challenges(db)
 
     options = generate_authentication_options(
         rp_id=WEBAUTHN_RP_ID,
@@ -332,12 +318,14 @@ async def build_passkey_authentication_options(db: AsyncSession) -> str:
     )
 
     expires_at = datetime.now(UTC) + timedelta(seconds=WEBAUTHN_CHALLENGE_EXPIRE_SECONDS)
-    db.add(WebauthnChallenge(
-        challenge=options.challenge,
-        user_id=None,
-        purpose=_AUTHENTICATION_PURPOSE,
-        expires_at=expires_at,
-    ))
+    db.add(
+        WebauthnChallenge(
+            challenge=options.challenge,
+            user_id=None,
+            purpose=_AUTHENTICATION_PURPOSE,
+            expires_at=expires_at,
+        )
+    )
     await db.commit()
 
     return options_to_json(options)
@@ -404,7 +392,7 @@ async def build_passkey_second_factor_options(db: AsyncSession, user_id: uuid.UU
     Returns:
         The ceremony options serialized as JSON for the browser
     """
-    await _delete_expired_challenges(db)
+    await delete_expired_webauthn_challenges(db)
 
     allow_credentials = [
         PublicKeyCredentialDescriptor(
@@ -423,12 +411,14 @@ async def build_passkey_second_factor_options(db: AsyncSession, user_id: uuid.UU
     )
 
     expires_at = datetime.now(UTC) + timedelta(seconds=WEBAUTHN_CHALLENGE_EXPIRE_SECONDS)
-    db.add(WebauthnChallenge(
-        challenge=options.challenge,
-        user_id=user_id,
-        purpose=_AUTHENTICATION_PURPOSE,
-        expires_at=expires_at,
-    ))
+    db.add(
+        WebauthnChallenge(
+            challenge=options.challenge,
+            user_id=user_id,
+            purpose=_AUTHENTICATION_PURPOSE,
+            expires_at=expires_at,
+        )
+    )
     await db.commit()
 
     return options_to_json(options)
@@ -494,9 +484,7 @@ async def list_passkeys(db: AsyncSession, user_id: uuid.UUID) -> list[WebauthnCr
     return list(result.scalars().all())
 
 
-async def rename_passkey(
-    db: AsyncSession, user_id: uuid.UUID, passkey_id: uuid.UUID, name: str
-) -> WebauthnCredential:
+async def rename_passkey(db: AsyncSession, user_id: uuid.UUID, passkey_id: uuid.UUID, name: str) -> WebauthnCredential:
     """Relabel one of the user's passkeys
 
     Args:
@@ -544,9 +532,7 @@ async def remove_passkey(db: AsyncSession, user_id: uuid.UUID, passkey_id: uuid.
     await db.commit()
 
 
-async def _get_owned_passkey(
-    db: AsyncSession, user_id: uuid.UUID, passkey_id: uuid.UUID
-) -> WebauthnCredential:
+async def _get_owned_passkey(db: AsyncSession, user_id: uuid.UUID, passkey_id: uuid.UUID) -> WebauthnCredential:
     """Return the user's passkey by id or raise when it is missing or owned by someone else"""
     passkey = await db.get(WebauthnCredential, passkey_id)
     if passkey is None or passkey.user_id != user_id:
@@ -567,9 +553,7 @@ def _read_challenge_bytes(credential: dict) -> bytes:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Malformed passkey response") from error
 
 
-async def _claim_registration_challenge(
-    db: AsyncSession, user_id: uuid.UUID, credential: dict
-) -> bytes:
+async def _claim_registration_challenge(db: AsyncSession, user_id: uuid.UUID, credential: dict) -> bytes:
     """Consume the stored registration challenge that the response answers
 
     Reading the challenge out of the client data ties the response to the exact stored row, so two
@@ -603,9 +587,7 @@ async def _claim_registration_challenge(
     return challenge
 
 
-async def _claim_authentication_challenge(
-    db: AsyncSession, credential: dict, user_id: uuid.UUID | None = None
-) -> bytes:
+async def _claim_authentication_challenge(db: AsyncSession, credential: dict, user_id: uuid.UUID | None = None) -> bytes:
     """Consume the stored authentication challenge that the assertion answers
 
     A usernameless sign-in stores the challenge with no user and is claimed by its value alone, while a
@@ -694,6 +676,6 @@ async def _ensure_webauthn_identity(db: AsyncSession, user_id: uuid.UUID) -> Non
         db.add(AuthIdentity(user_id=user_id, auth_provider=AuthProvider.WEBAUTHN))
 
 
-async def _delete_expired_challenges(db: AsyncSession) -> None:
-    """Prune challenges whose expiry has passed, since unclaimed ones are never cleaned up otherwise"""
+async def delete_expired_webauthn_challenges(db: AsyncSession) -> None:
+    """Prune challenges whose expiry has passed, on the schedule and at each passkey ceremony for the Lambda runtime"""
     await db.execute(delete(WebauthnChallenge).where(WebauthnChallenge.expires_at < sa_func.now()))

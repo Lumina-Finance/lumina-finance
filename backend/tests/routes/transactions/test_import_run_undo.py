@@ -8,9 +8,9 @@ from datetime import datetime, timedelta
 import pytest
 from sqlalchemy import func, select, text
 
+from app.config.imports import IMPORT_UNDO_WINDOW
 from app.models.tag import TransactionTag
 from app.services.importers.shared import run_history as run_history_module
-from app.services.importers.shared.run_staging import IMPORT_UNDO_WINDOW
 from tests.conftest import TestSession
 from tests.routes.support import _create_account, _create_user, _get_auth_header, _wait_until_blocked
 from tests.routes.transactions._helpers import _create_transaction, _get_system_category_id, _setup_user_with_deps

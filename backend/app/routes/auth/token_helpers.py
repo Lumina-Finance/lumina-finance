@@ -532,16 +532,16 @@ async def issue_and_store_tokens(
 
     # Built before the cleanup, whose rollback on failure would expire the user it reads
     auth_response = AuthResponse(user=UserInfo.model_validate(user), access_token=access_token)
-    await _delete_expired_imports(db, user)
+    await _delete_expired_imports(db)
 
     set_refresh_cookie(request, response, refresh_token)
     return auth_response
 
 
-async def _delete_expired_imports(db: AsyncSession, user: User) -> None:
-    """Delete the user's abandoned uploads and expired imports, so neither is kept if they never import again"""
+async def _delete_expired_imports(db: AsyncSession) -> None:
+    """Delete abandoned uploads and expired imports here too, since the Lambda runtime runs no scheduled cleanup"""
     try:
-        await delete_expired_import_runs(db, user)
+        await delete_expired_import_runs(db)
         await db.commit()
     except Exception:
         # Sign-in has already succeeded by now and must not fail over a cleanup the next sign-in repeats

@@ -15,6 +15,8 @@ from typing import NamedTuple
 
 from sqlalchemy import Connection, text
 
+from app.config.imports import ABANDONED_RUN_AGE, IMPORT_UNDO_WINDOW
+
 # Schema-qualified helper names, the single source reused by the policies and the
 # application call sites so a rename is one edit rather than a search across files
 CURRENT_USER_ID = "public.current_user_id"
@@ -26,6 +28,7 @@ FIND_LOGIN_USER = "public.find_login_user"
 USER_TZ = "public.user_tz"
 BUMP_GROUP_MEMBER_CACHE = "public.bump_group_member_cache"
 BUDGET_SPEND_ROWS = "public.budget_spend_rows"
+PRUNE_EXPIRED_IMPORT_RUNS = "public.prune_expired_import_runs"
 
 # Signatures the app no longer creates, dropped wherever the helpers are applied or revoked.
 # bump_user_cache stamped whatever user id it was given, and the app role can execute every
@@ -229,6 +232,38 @@ _HELPERS: tuple[_Helper, ...] = (
     $$
     """,
         f"{BUDGET_SPEND_ROWS}(uuid[], timestamptz)",
+    ),
+    # Deletes every user's runs that were abandoned before being committed or are past their undo
+    # window, which a sweep with no request identity could not see through the owner policy. The
+    # lifetimes are written into the body rather than taken as arguments, since the app role can
+    # execute every helper and must not be able to choose a shorter one. A run another transaction
+    # holds is skipped rather than waited on: a commit holding it either lands, and the run is no
+    # longer expired, or refuses it as abandoned. Written in plpgsql so creating it does not check
+    # the table exists, since migrations that predate import runs create every current helper
+    _Helper(
+        f"""
+    CREATE OR REPLACE FUNCTION {PRUNE_EXPIRED_IMPORT_RUNS}() RETURNS integer
+    LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
+    DECLARE
+        pruned integer;
+    BEGIN
+        WITH expired AS (
+            SELECT r.id FROM public.import_runs r
+            WHERE (
+                r.committed_at IS NULL
+                AND r.created_at < now() - make_interval(secs => {int(ABANDONED_RUN_AGE.total_seconds())})
+            )
+            OR r.committed_at < now() - make_interval(secs => {int(IMPORT_UNDO_WINDOW.total_seconds())})
+            FOR UPDATE SKIP LOCKED
+        ), deleted AS (
+            DELETE FROM public.import_runs r USING expired e WHERE r.id = e.id RETURNING 1
+        )
+        SELECT count(*)::integer INTO pruned FROM deleted;
+        RETURN pruned;
+    END
+    $$
+    """,
+        f"{PRUNE_EXPIRED_IMPORT_RUNS}()",
     ),
 )
 

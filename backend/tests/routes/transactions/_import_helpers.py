@@ -4,11 +4,11 @@ from decimal import Decimal
 
 from sqlalchemy import select, text
 
+from app.config.imports import ABANDONED_RUN_AGE
 from app.models.account import Account
 from app.models.base import AccountKind, AccountType, CategoryKind
 from app.models.category import Category
 from app.models.merchant import Merchant
-from app.services.importers.shared.run_staging import ABANDONED_RUN_AGE
 from tests.conftest import TestSession
 from tests.routes.transactions._helpers import _seed_institution, _setup_user_with_deps
 

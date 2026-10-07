@@ -67,7 +67,8 @@ async def delete_stale_password_reset_tokens(db: AsyncSession) -> None:
         PasswordResetToken.created_at < datetime.now(UTC) - _SEND_LOG_RETENTION
     )
 
-    # Tokens are never cleaned up otherwise, so prune them opportunistically
+    # The scheduled cleanup prunes these too. A reset request still prunes first, since the email
+    # limit counts the rows left
     await db.execute(stale_delete_query)
 
 

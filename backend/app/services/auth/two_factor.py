@@ -39,38 +39,27 @@ SECOND_FACTOR_RECOVERY_CODE = "recovery_code"
 SECOND_FACTOR_PASSKEY = "passkey"
 
 
-async def prune_stale_factor_staging(db: AsyncSession, user_id: uuid.UUID) -> None:
-    """Delete expired pending authenticators, passkeys and recovery codes for one user
+async def prune_stale_factor_staging(db: AsyncSession, user_id: uuid.UUID | None = None) -> None:
+    """Delete expired pending authenticators, passkeys and recovery codes, for one user or everyone
 
-    Ordinary actions such as login sweep abandoned setup because leaving the flow has no reliable
-    signal. Confirmed factors and active recovery codes are preserved. The caller commits
+    A staged factor stays confirmable for as long as its row exists, so deleting it is what ends
+    it. Login sweeps the user's own before checking their factors, and the scheduled cleanup sweeps
+    everyone's. Confirmed factors and active recovery codes are preserved. The caller commits
 
     Args:
         db: Active database session
-        user_id: User whose stale staged rows are cleared
+        user_id: User whose stale staged rows are cleared, or None for every user's
     """
     cutoff = datetime.now(UTC) - timedelta(seconds=TWO_FACTOR_STAGING_EXPIRE_SECONDS)
-    await db.execute(
-        delete(WebauthnCredential).where(
-            WebauthnCredential.user_id == user_id,
-            WebauthnCredential.confirmed_at.is_(None),
-            WebauthnCredential.created_at < cutoff,
-        )
-    )
-    await db.execute(
-        delete(TotpCredential).where(
-            TotpCredential.user_id == user_id,
-            TotpCredential.confirmed_at.is_(None),
-            TotpCredential.created_at < cutoff,
-        )
-    )
-    await db.execute(
-        delete(RecoveryCode).where(
-            RecoveryCode.user_id == user_id,
-            RecoveryCode.pending.is_(True),
-            RecoveryCode.created_at < cutoff,
-        )
-    )
+    for model, is_staged in (
+        (WebauthnCredential, WebauthnCredential.confirmed_at.is_(None)),
+        (TotpCredential, TotpCredential.confirmed_at.is_(None)),
+        (RecoveryCode, RecoveryCode.pending.is_(True)),
+    ):
+        query = delete(model).where(is_staged, model.created_at < cutoff)
+        if user_id is not None:
+            query = query.where(model.user_id == user_id)
+        await db.execute(query)
 
 
 async def verify_login_second_factor(db: AsyncSession, user_id: uuid.UUID, code: str) -> str:
@@ -193,9 +182,7 @@ async def complete_totp_enrollment(db: AsyncSession, user_id: uuid.UUID) -> None
     await db.commit()
 
 
-async def disable_two_factor(
-    db: AsyncSession, user: User, password: str, *, code: str | None = None, passkey: dict | None = None
-) -> None:
+async def disable_two_factor(db: AsyncSession, user: User, password: str, *, code: str | None = None, passkey: dict | None = None) -> None:
     """Disable TOTP after step-up, clearing the recovery codes only when no passkey still relies on them
 
     Args:
