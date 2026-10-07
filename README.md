@@ -33,19 +33,6 @@ Join the community at [r/LuminaFinance](https://www.reddit.com/r/LuminaFinance/)
 
 THIS APPLICATION IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANTIES OF ANY KIND. THIS APPLICATION IS A SOFTWARE TOOL ONLY AND DOES NOT PROVIDE FINANCIAL, INVESTMENT, TAX, LEGAL, ACCOUNTING, OR OTHER PROFESSIONAL ADVICE. ANY CALCULATIONS, ESTIMATES, PROJECTIONS, SUMMARIES, OR OTHER OUTPUTS MAY BE INACCURATE OR INCOMPLETE AND SHOULD NOT BE RELIED ON AS A SUBSTITUTE FOR PROFESSIONAL JUDGMENT. YOU ARE SOLELY RESPONSIBLE FOR REVIEWING ALL OUTPUTS AND FOR ANY DECISIONS YOU MAKE. USE OF THIS APPLICATION IS AT YOUR OWN RISK.
 
-## Permitted use
-
-Lumina Finance is made available for personal, non-commercial use only. You may install, run and modify it to manage your own finances, and you may share access with your family and friends free of charge.
-
-Commercial use requires prior written permission. Commercial use includes, without limitation:
-
-- hosting, operating or providing access to Lumina Finance for another person in exchange for any fee or other consideration, whether charged directly or recovered through another product, service, subscription, hosting plan, or setup, support or maintenance package
-- using it to provide bookkeeping, accounting, financial planning, advisory or similar services to clients or customers
-- offering it as a hosted, managed or software-as-a-service product
-- selling, sublicensing or distributing it, or any modified version, for consideration
-
-These terms apply equally to any modified, renamed or derivative version. They cannot be avoided by describing a paying party as a friend, family member or guest, or by structuring payment as a donation, gift, membership or separate charge. All rights not expressly granted here are reserved. To ask about commercial use, start a [discussion](https://github.com/Lumina-Finance/lumina-finance/discussions).
-
 ## Demo
 
 <!-- markdownlint-disable MD033 -->
