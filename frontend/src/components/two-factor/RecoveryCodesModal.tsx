@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { RecoveryCodesPanel } from '@/components/two-factor/RecoveryCodesPanel';
+import { RecoveryCodesPanel, type RecoveryFactors } from '@/components/two-factor/RecoveryCodesPanel';
 import { SetupRestart } from '@/components/two-factor/SetupRestart';
 import { ModalContentPanel } from '@/components/modal/ContentPanel';
 import type { ModalLevel } from '@/components/modal/Shell';
@@ -8,9 +8,11 @@ import { delayToMinimum } from '@/utils/timing';
 const DEFAULT_DESCRIPTION =
   "These replace your current codes once you confirm. Store them somewhere safe, you won't see them again.";
 
-interface RecoveryCodesModalProps {
+type RecoveryCodesModalProps = {
   open: boolean;
   codes: string[] | null;
+  /** The factors this batch covers, named in the lockout warning */
+  factors: RecoveryFactors;
   /** Activates the staged batch once acknowledged, the parent closes the modal on success */
   onConfirm: () => Promise<void>;
   /** Dismisses without activating, leaving the current codes in force */
@@ -21,7 +23,7 @@ interface RecoveryCodesModalProps {
   description?: string;
   /** Set to stacked where this opens over the multi-factor modal rather than straight from a page */
   level?: ModalLevel;
-}
+};
 
 /**
  * Reveals a freshly staged batch of recovery codes and only swaps them in once the user acknowledges
@@ -30,6 +32,7 @@ interface RecoveryCodesModalProps {
 export function RecoveryCodesModal({
   open,
   codes,
+  factors,
   onConfirm,
   onClose,
   onRestart,
@@ -95,7 +98,7 @@ export function RecoveryCodesModal({
         </p>
       </div>
 
-      {codes && <RecoveryCodesPanel codes={codes} />}
+      {codes && <RecoveryCodesPanel codes={codes} factors={factors} />}
 
       <div className="space-y-2">
         <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>

@@ -103,6 +103,7 @@ export function PasskeyReenrollment({ onComplete }: PasskeyReenrollmentProps) {
       <RecoveryCodesModal
         open={pendingRecoveryCodes !== null}
         codes={pendingRecoveryCodes}
+        factors={{ authenticator: false, passkeys: 1 }}
         description={RECOVERY_CODES_DESCRIPTION}
         onConfirm={acknowledgeRecoveryCodes}
         onClose={() => setPendingRecoveryCodes(null)}

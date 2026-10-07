@@ -3,14 +3,33 @@ import { copyText } from '@/utils/clipboard';
 
 const RECOVERY_CODES_FILENAME = 'lumina-recovery-codes.txt';
 
-interface RecoveryCodesPanelProps {
+/** The factors these codes stand in for, which the lockout warning names */
+export type RecoveryFactors = {
+  authenticator: boolean;
+  passkeys: number;
+};
+
+type RecoveryCodesPanelProps = {
   codes: string[];
+  factors: RecoveryFactors;
+};
+
+/**
+ * Words the lockout warning for the factors the codes cover, so it never names one the user doesn't have
+ */
+function lockoutWarning({ authenticator, passkeys }: RecoveryFactors): string {
+  const names = [
+    ...(authenticator ? ['your authenticator app'] : []),
+    ...(passkeys === 1 ? ['your passkey'] : passkeys > 1 ? ['your passkeys'] : []),
+  ];
+  const lost = names.length === 1 ? `both ${names[0]}` : names.join(', ');
+  return `If you lose access to ${lost} and these recovery codes, you may be permanently locked out of your account.`;
 }
 
 /**
  * Lists the one-time recovery codes with copy and download actions, shared by enrolment and regeneration
  */
-export function RecoveryCodesPanel({ codes }: RecoveryCodesPanelProps) {
+export function RecoveryCodesPanel({ codes, factors }: RecoveryCodesPanelProps) {
   /**
    * Copies the recovery codes to the clipboard as newline-separated text
    */
@@ -50,10 +69,7 @@ export function RecoveryCodesPanel({ codes }: RecoveryCodesPanelProps) {
         </button>
       </div>
 
-      <WarningCallout>
-        If you lose access to both your authenticator app and these recovery codes, you may be permanently
-        locked out of your account.
-      </WarningCallout>
+      <WarningCallout>{lockoutWarning(factors)}</WarningCallout>
     </div>
   );
 }

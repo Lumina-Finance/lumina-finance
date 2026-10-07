@@ -198,7 +198,7 @@ export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialS
             </p>
           </div>
 
-          <RecoveryCodesPanel codes={recoveryCodes} />
+          <RecoveryCodesPanel codes={recoveryCodes} factors={{ authenticator: true, passkeys: 0 }} />
 
           <div className="space-y-2">
             <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
