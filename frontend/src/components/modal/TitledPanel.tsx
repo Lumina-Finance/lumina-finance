@@ -39,6 +39,8 @@ interface ModalTitledPanelProps {
   onSubmit?: (event: FormEvent<HTMLFormElement>) => void
   /** Id given to the heading, which is what the dialog is labelled by */
   titleId: string
+  /** Id of the text explaining what the dialog asks, read out with the title when it opens */
+  descriptionId?: string
   title: string
   eyebrow: string
   /** Note appended to the eyebrow in warning colour, for something to take in before saving */
@@ -66,6 +68,7 @@ export function ModalTitledPanel({
   onClose,
   onSubmit,
   titleId,
+  descriptionId,
   title,
   eyebrow,
   headerStatus,
@@ -126,6 +129,7 @@ export function ModalTitledPanel({
       open={open}
       onClose={onClose}
       titleId={titleId}
+      descriptionId={descriptionId}
       panelClassName={`${chrome.panelClassName} ${widthClassName ?? chrome.widthClassName}`}
       level={level}
       closeDisabled={closeDisabled}

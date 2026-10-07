@@ -50,3 +50,34 @@ test('turns Delete off while a group account row is ticked', async ({ page, requ
   await expect(deleteAction).toBeDisabled()
   await expect(deleteAction).toHaveAttribute('title', "Transactions in group accounts can't be deleted in bulk")
 })
+
+// The confirmation opens on Cancel so a stray Enter deletes nothing, reads its warning with the title,
+// and Tab moves through the actions the way they are drawn, Delete on the left and Cancel on the right
+test('opens the delete confirmation on Cancel and tabs through its actions as drawn', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const date = daysFromTodayInTestTimezone(-1)
+  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000, date })
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
+  await page.getByRole('checkbox', { name: new RegExp(`^Select .+ on ${date}$`) }).check()
+  await page.getByRole('button', { name: 'Delete the selected transactions', exact: true }).click()
+
+  const confirm = page.getByRole('dialog', { name: 'Delete 1 transaction?', exact: true })
+  const cancel = confirm.getByRole('button', { name: 'Cancel', exact: true })
+  const remove = confirm.getByRole('button', { name: 'Delete', exact: true })
+  await expect(confirm).toHaveAccessibleDescription(/This can't be undone\./)
+  await expect(cancel).toBeFocused()
+
+  const [removeBox, cancelBox] = [await remove.boundingBox(), await cancel.boundingBox()]
+  expect(removeBox!.x).toBeLessThan(cancelBox!.x)
+
+  await page.keyboard.press('Shift+Tab')
+  await expect(remove).toBeFocused()
+  await page.keyboard.press('Shift+Tab')
+  await expect(confirm.getByRole('button', { name: 'Close', exact: true })).toBeFocused()
+  await page.keyboard.press('Shift+Tab')
+  await expect(cancel).toBeFocused()
+})

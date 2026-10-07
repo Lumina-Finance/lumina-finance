@@ -30,12 +30,14 @@ export function BulkEditConfirm({
   onCancel,
 }: BulkEditConfirmProps) {
   const titleId = useId()
+  const descriptionId = useId()
 
   return (
     <ModalTitledPanel
       open={open}
       onClose={onCancel}
       titleId={titleId}
+      descriptionId={descriptionId}
       eyebrow="Bulk edit"
       title={`Change ${count} ${count === 1 ? 'transaction' : 'transactions'}?`}
       RailIcon={PencilLine}
@@ -55,7 +57,9 @@ export function BulkEditConfirm({
         />
       )}
     >
-      <WarningCallout>This cannot be undone.</WarningCallout>
+      <div id={descriptionId}>
+        <WarningCallout>This cannot be undone.</WarningCallout>
+      </div>
     </ModalTitledPanel>
   )
 }

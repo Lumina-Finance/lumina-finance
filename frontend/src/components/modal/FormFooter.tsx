@@ -23,8 +23,9 @@ interface ModalFormFooterProps {
   onPrimary?: () => void
 
   /**
-   * Draws the primary button at the left and Cancel at the right by CSS order, with Cancel staying
-   * first in the DOM so it is still the first stop after the close button on a Tab
+   * Draws the primary button at the left and Cancel at the right, for a confirmation that changes or
+   * deletes records. They sit in that order in the DOM too, so Tab moves through them the way they are
+   * drawn, and the dialog opens on Cancel so a stray Enter cancels rather than writes
    */
   primaryOnLeft?: boolean
 
@@ -46,39 +47,58 @@ export function ModalFormFooter({
   primaryOnLeft = false,
   tone = 'primary',
 }: ModalFormFooterProps) {
+  const errorMessage = error && (
+    <p
+      className={`col-span-2 text-sm font-medium sm:col-span-1 ${primaryOnLeft ? '' : 'sm:mr-auto'}`}
+      role="alert"
+      style={{ color: 'var(--app-negative)' }}
+    >
+      {error}
+    </p>
+  )
+  const cancelButton = (
+    <button
+      type="button"
+      className="app-secondary-button w-full sm:w-auto"
+      onClick={onCancel}
+      disabled={submitDisabled}
+      data-modal-initial-focus={primaryOnLeft ? 'true' : undefined}
+    >
+      Cancel
+    </button>
+  )
+  const primaryButton = (
+    <button
+      type={onPrimary ? 'button' : 'submit'}
+      onClick={onPrimary}
+      disabled={submitDisabled}
+      aria-busy={submitDisabled}
+      className={`${tone === 'danger' ? 'app-danger-button' : 'app-primary-button'} overflow-hidden whitespace-nowrap duration-300 ${submitDisabled ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : submitWidthClassName}`}
+    >
+      {/* The spinner replaces the label, so it carries the label as its own name and a screen reader still
+          says which action is in flight */}
+      {submitDisabled ? <div className="app-spinner" aria-label={submitLabel} /> : submitLabel}
+    </button>
+  )
+
   return (
     <div
       className={`${FOOTER_BASE_CLASS_NAME[level]} ${primaryOnLeft ? 'sm:justify-between' : 'sm:justify-end'} ${error ? 'items-center' : ''}`}
       style={{ borderTop: '1px solid var(--app-border)' }}
     >
-      {error && (
-        <p
-          className={`col-span-2 text-sm font-medium sm:col-span-1 ${primaryOnLeft ? 'order-2' : 'sm:mr-auto'}`}
-          role="alert"
-          style={{ color: 'var(--app-negative)' }}
-        >
-          {error}
-        </p>
+      {primaryOnLeft ? (
+        <>
+          {primaryButton}
+          {errorMessage}
+          {cancelButton}
+        </>
+      ) : (
+        <>
+          {errorMessage}
+          {cancelButton}
+          {primaryButton}
+        </>
       )}
-      <button
-        type="button"
-        className={`app-secondary-button w-full sm:w-auto ${primaryOnLeft ? 'order-3' : ''}`}
-        onClick={onCancel}
-        disabled={submitDisabled}
-      >
-        Cancel
-      </button>
-      <button
-        type={onPrimary ? 'button' : 'submit'}
-        onClick={onPrimary}
-        disabled={submitDisabled}
-        aria-busy={submitDisabled}
-        className={`${tone === 'danger' ? 'app-danger-button' : 'app-primary-button'} overflow-hidden whitespace-nowrap duration-300 ${primaryOnLeft ? 'order-1' : ''} ${submitDisabled ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : submitWidthClassName}`}
-      >
-        {/* The spinner replaces the label, so it carries the label as its own name and a screen reader still
-            says which action is in flight */}
-        {submitDisabled ? <div className="app-spinner" aria-label={submitLabel} /> : submitLabel}
-      </button>
     </div>
   )
 }

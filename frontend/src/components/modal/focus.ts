@@ -56,13 +56,19 @@ export function getNextTabStop<T>(
   return tabStops[activeIndex < 0 || activeIndex === tabStops.length - 1 ? 0 : activeIndex + 1]
 }
 
+// A control a dialog names to open on instead of its first field, such as Cancel in a delete confirmation
+const MODAL_INITIAL_FOCUS_SELECTOR = '[data-modal-initial-focus="true"]:not([disabled])'
+
 /**
- * Moves focus into the panel once it has mounted, preferring its first field so a form opens ready to type
- * in, and falling back to the panel itself so a dialog with no fields still takes focus off the page behind
+ * Moves focus into the panel once it has mounted, preferring a control the dialog names, then its first
+ * field so a form opens ready to type in, and falling back to the panel itself so a dialog with no fields
+ * still takes focus off the page behind
  */
 export function requestInitialModalFocus(panel: HTMLElement) {
   return window.requestAnimationFrame(() => {
-    const target = getModalFieldTabStops(panel)[0] ?? panel
+    const target = panel.querySelector<HTMLElement>(MODAL_INITIAL_FOCUS_SELECTOR)
+      ?? getModalFieldTabStops(panel)[0]
+      ?? panel
     target.focus({ preventScroll: true })
   })
 }

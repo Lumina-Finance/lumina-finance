@@ -95,6 +95,7 @@ for (const mode of ['add', 'replace', 'clear'] as const) {
     await expect(confirmation).toBeVisible()
     await expect(confirmation.getByText(summaryLabel, { exact: true })).toHaveCount(0)
     await expect(confirmation.getByText('This cannot be undone.', { exact: true })).toBeVisible()
+    await expect(confirmation).toHaveAccessibleDescription('This cannot be undone.')
     await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click()
     await expect(confirmation).toBeHidden()
     expect(writes).toEqual([])
