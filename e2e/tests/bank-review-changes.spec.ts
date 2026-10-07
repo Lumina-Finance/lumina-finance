@@ -288,6 +288,33 @@ test('starts focus on keeping the current value when the comparison opens from t
   await expect(dialog.getByRole('button', { name: 'Keep current value' })).toBeFocused()
 })
 
+// The actions end where the close button above them ends at every width, as the other dialogs' do.
+// Their left edge is only checked while they stack, since side by side they sit at the right
+test('lines the comparison actions up with its header', async ({ page, request }) => {
+  const setup = await start(page, request)
+  await addWaiting(page, request, setup, 'correction', COUNTDOWN, { ledger: -4210, bank: -4510 })
+  await openPage(page, '/transactions')
+
+  const dialog = await openComparison(page, COUNTDOWN, 'Review bank change')
+  // Measured together and polled, since the panel scales in as it opens and edges read mid-animation
+  // drift apart by however far it has to go
+  const readEdgeOffsets = async () => {
+    const [title, close, keep, accept] = await Promise.all([
+      dialog.getByRole('heading', { name: 'Review bank change', exact: true }).boundingBox(),
+      dialog.getByRole('button', { name: 'Close', exact: true }).boundingBox(),
+      dialog.getByRole('button', { name: 'Keep current value', exact: true }).boundingBox(),
+      dialog.getByRole('button', { name: 'Accept bank change', exact: true }).boundingBox(),
+    ])
+    const stacked = keep!.y !== accept!.y
+    return {
+      left: stacked ? Math.round(keep!.x - title!.x) || 0 : 0,
+      right: Math.round(accept!.x + accept!.width - (close!.x + close!.width)) || 0,
+    }
+  }
+
+  await expect.poll(readEdgeOffsets).toEqual({ left: 0, right: 0 })
+})
+
 test('gives each value column room for a bank description on one line at 1440 wide', async ({ page, request }) => {
   const setup = await start(page, request)
   await addWaiting(page, request, setup, 'correction', COUNTDOWN, { ledger: -4210, bank: -4510 })

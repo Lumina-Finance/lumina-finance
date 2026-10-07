@@ -2,6 +2,7 @@ import { useId, useState } from 'react'
 import { Landmark, Lock } from 'lucide-react'
 import { ApiError } from '@/api/auth'
 import { useResolveReviewItem, type BankReviewItem, type BankValues, type CorrectableBankField, type ReviewResolution } from '@/api/bank-sync'
+import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { useToast } from '@/hooks/useToast'
@@ -112,7 +113,7 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
       footer={(
         // Stacked on phones, where the two labels don't fit side by side
         <div
-          className="grid shrink-0 grid-cols-1 gap-3 px-6 py-4 sm:flex sm:items-center sm:justify-end sm:px-8 min-[1050px]:py-5"
+          className={`grid shrink-0 grid-cols-1 gap-3 py-4 sm:flex sm:items-center sm:justify-end min-[1050px]:py-5 ${MODAL_INSET_CLASS_NAME.page}`}
           style={{ borderTop: '1px solid var(--app-border)' }}
         >
           <ReviewDecisionButton
