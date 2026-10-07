@@ -15,6 +15,7 @@ import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
 // so the modal's label follows whichever step is on screen
 export const TOTP_ENROLLMENT_TITLE_ID = 'totp-enrollment-title';
 import { RecoveryCodesPanel } from '@/components/two-factor/RecoveryCodesPanel';
+import { SetupRestart } from '@/components/two-factor/SetupRestart';
 import { StepTransition } from '@/components/two-factor/StepTransition';
 import { copyText } from '@/utils/clipboard';
 import { delayToMinimum, LOADING_ANIMATION_MIN_MS, MFA_LOADING_MIN_MS } from '@/utils/timing';
@@ -39,15 +40,22 @@ interface TotpEnrollmentProps {
    * gates the account's first factor. Omitted for a forced re-enrolment
    */
   setupStepUp?: StepUpPayload;
+  /**
+   * Starts enrolment over from the step-up that minted `initialSetup`, which only the caller can rerun.
+   * Without it, enrolment mints a fresh secret itself
+   */
+  onRestart?: () => void;
 }
 
 /**
  * Drives the shared TOTP enrolment flow: the QR and code confirmation, then the one-time recovery codes
  */
-export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialSetup, setupStepUp }: TotpEnrollmentProps) {
+export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialSetup, setupStepUp, onRestart }: TotpEnrollmentProps) {
   // Settings supplies a secret it already stepped up for, so this only mints one for signup and re-enrol
   const setup = useSetupTotp({ enabled: !initialSetup, stepUp: setupStepUp });
-  const setupData = initialSetup ?? setup.data;
+  // A failed refetch keeps the previous secret cached, which a restart has already abandoned, so an error
+  // shows the retry button rather than a QR that can no longer be confirmed
+  const setupData = initialSetup ?? (setup.isError ? undefined : setup.data);
   const confirm = useConfirmTotp();
   const complete = useCompleteTotp();
   const [minLoadingElapsed, setMinLoadingElapsed] = useState(false);
@@ -59,6 +67,7 @@ export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialS
   const [lockoutAcknowledged, setLockoutAcknowledged] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [completing, setCompleting] = useState(false);
+  const [finishFailed, setFinishFailed] = useState(false);
   const [keyCopied, setKeyCopied] = useState(false);
   const copyResetTimer = useRef<number | null>(null);
 
@@ -76,7 +85,8 @@ export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialS
   }, []);
 
   // The spinner stays until both the minimum has elapsed and the secret has resolved
-  const isSetupLoading = !minLoadingElapsed || (!setupData && !setup.isError);
+  // A restart refetches while the old secret is still cached, so the spinner covers that refetch too
+  const isSetupLoading = !minLoadingElapsed || (!setupData && !setup.isError) || setup.isFetching;
 
   /**
    * Copies the secret to the clipboard and briefly confirms it so the user need not select the text
@@ -139,9 +149,27 @@ export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialS
       onComplete();
     } catch {
       await delayToMinimum(start, MFA_LOADING_MIN_MS);
-      setError('Could not finish setup. Try again.');
+      setFinishFailed(true);
       setCompleting(false);
     }
+  };
+
+  /**
+   * Returns to the QR step with a fresh secret, or hands the restart to the caller that minted the secret
+   */
+  const startAgain = () => {
+    if (onRestart) {
+      onRestart();
+      return;
+    }
+
+    setRecoveryCodes(null);
+    setSavedAcknowledged(false);
+    setLockoutAcknowledged(false);
+    setFinishFailed(false);
+    setCode('');
+    setError('');
+    setup.refetch();
   };
 
   const stepKey = enabledViaReuse ? 'reuse-done' : recoveryCodes ? 'recovery-codes' : 'totp-confirm';
@@ -193,22 +221,20 @@ export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialS
             </label>
           </div>
 
-          {error && (
-            <p className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
-              {error}
-            </p>
+          {finishFailed ? (
+            <SetupRestart onStartAgain={startAgain} />
+          ) : (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={handleComplete}
+                disabled={!savedAcknowledged || !lockoutAcknowledged || completing}
+                className={`app-primary-button transition-all duration-300 ${completing ? 'app-primary-button-loading' : 'w-full'}`}
+              >
+                {completing ? <div className="app-spinner" /> : 'Done'}
+              </button>
+            </div>
           )}
-
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={handleComplete}
-              disabled={!savedAcknowledged || !lockoutAcknowledged || completing}
-              className={`app-primary-button transition-all duration-300 ${completing ? 'app-primary-button-loading' : 'w-full'}`}
-            >
-              {completing ? <div className="app-spinner" /> : 'Done'}
-            </button>
-          </div>
         </div>
       ) : (
         <div className="space-y-5">

@@ -306,6 +306,11 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
           totp.closeModal();
           setTotpSetup(null);
         }}
+        onRestart={() => {
+          totp.closeModal();
+          setTotpSetup(null);
+          setIsTotpEnableStepUpOpen(true);
+        }}
       />
 
       <StepUpModal
@@ -341,6 +346,10 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
         codes={totp.regeneratedCodes}
         onConfirm={totp.acknowledgeRegeneratedCodes}
         onClose={totp.dismissRegeneratedCodes}
+        onRestart={() => {
+          totp.dismissRegeneratedCodes();
+          totp.showRegenerate();
+        }}
       />
 
       <RecoveryCodesModal
@@ -350,6 +359,10 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
         description={FIRST_PASSKEY_CODES_DESCRIPTION}
         onConfirm={passkey.acknowledgeRecoveryCodes}
         onClose={passkey.dismissRecoveryCodes}
+        onRestart={() => {
+          passkey.dismissRecoveryCodes();
+          setIsAddingPasskey(true);
+        }}
       />
 
       <ModalContentPanel open={passkey.reuseReminder} onClose={passkey.dismissReuseReminder} titleId="passkey-added-title" level="stacked">
