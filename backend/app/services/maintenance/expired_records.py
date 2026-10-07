@@ -1,7 +1,11 @@
-"""One cleanup for every kind of record that expires or is left behind
+"""One cleanup for the records that expire or are left behind, except those bank sync prunes as it writes
 
 Each kind is one entry in EXPIRED_RECORD_KINDS. A self-hosted server prunes them all on a schedule
 from inside the app, and any other runtime calls prune_expired_records from its own scheduler
+
+Bank sync prunes its own records where it writes them: each scan the worker makes for due work
+deletes the sync jobs finished more than 30 days ago, and recording a request to a provider deletes
+that connection's earlier records once the request budget no longer counts them
 """
 
 import asyncio
