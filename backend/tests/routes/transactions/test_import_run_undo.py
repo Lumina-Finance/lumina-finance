@@ -3,13 +3,15 @@
 import asyncio
 import json
 import uuid
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 from sqlalchemy import func, select, text
 
 from app.config.imports import IMPORT_UNDO_WINDOW
 from app.models.tag import TransactionTag
+from app.services.accounts.snapshots import recompute_account_snapshots
+from app.services.cache_state import mark_user_cache_changed
 from app.services.importers.shared import run_history as run_history_module
 from tests.conftest import TestSession
 from tests.routes.support import _create_account, _create_user, _get_auth_header, _wait_until_blocked
@@ -282,6 +284,37 @@ async def test_any_change_after_the_import_makes_it_permanent(client, change):
     assert await _count("accounts", everyday_id) == 1
 
 
+async def test_an_undo_after_a_change_is_refused_before_it_locks_any_row_or_the_marker(client, monkeypatch):
+    """The early check alone ends an undo whose marker has already moved, apart from the check made last
+
+    The check made once the marker is held would refuse this undo too, so only that nothing else was
+    locked or deleted first shows the early check is there
+    """
+    headers, _, _ = await _setup_user_with_deps(client)
+    run_id, summary = await _import_everyday(client, headers)
+    resp = await client.post("/tags", json={"name": "Holiday"}, headers=headers)
+    assert resp.status_code == 201, resp.text
+
+    reached = []
+
+    def spy_on(name):
+        original = getattr(run_history_module, name)
+
+        async def spied(*args, **kwargs):
+            reached.append(name)
+            return await original(*args, **kwargs)
+
+        monkeypatch.setattr(run_history_module, name, spied)
+
+    spy_on("load_locked_run_transactions")
+    spy_on("load_locked_change_marker")
+    refused = await _undo(client, headers, run_id)
+
+    assert (refused.status_code, refused.json()["detail"]) == (409, "This import can no longer be undone")
+    assert reached == []
+    assert await _count("accounts", summary["created_account_ids"][0]) == 1
+
+
 async def test_a_change_landing_during_an_undo_makes_it_permanent(client, monkeypatch):
     """Undo would read the marker before a change landed and delete the records that change used"""
     headers, _, _ = await _setup_user_with_deps(client)
@@ -314,6 +347,45 @@ async def test_a_change_landing_during_an_undo_makes_it_permanent(client, monkey
 
     assert (resp.status_code, resp.json()["detail"]) == (409, "This import can no longer be undone")
     assert await _count("accounts", summary["created_account_ids"][0]) == 1
+
+
+async def test_an_undo_holds_no_change_marker_while_a_sync_rebuilds_its_accounts_balances(client, monkeypatch):
+    """Undo would hold the user's change marker while it waits for the balances of an account a bank sync is rebuilding
+
+    A sync applying a bank correction rebuilds the account's balances and marks the user's data
+    changed last, so an undo holding the marker first would leave the two waiting on each other.
+    Undo takes the marker last too: the sync's mark lands without waiting, and undo, finding the
+    data changed once the balances are free, refuses
+    """
+    headers, _, _ = await _setup_user_with_deps(client)
+    run_id, summary = await _import_everyday(client, headers)
+    everyday_id = uuid.UUID(summary["created_account_ids"][0])
+
+    original = run_history_module.load_locked_run
+    undo_pid = []
+
+    async def record_pid(db, locked_run_id):
+        undo_pid.append(await db.scalar(text("SELECT pg_backend_pid()")))
+        return await original(db, locked_run_id)
+
+    monkeypatch.setattr(run_history_module, "load_locked_run", record_pid)
+    async with asyncio.timeout(10), TestSession() as sync:
+        sync_pid = await sync.scalar(text("SELECT pg_backend_pid()"))
+        owner_id = await sync.scalar(text("SELECT owner_id FROM import_runs WHERE id = :id"), {"id": run_id})
+        await recompute_account_snapshots(sync, {everyday_id: date(2026, 4, 10)})
+        undo = asyncio.create_task(_undo(client, headers, run_id))
+        while not undo_pid:
+            await asyncio.sleep(0.01)
+        await _wait_until_blocked(sync_pid, undo_pid[0])
+
+        # Bounded well inside the deadlock check, so a mark held behind the undo fails here
+        await sync.execute(text("SET LOCAL lock_timeout = '500ms'"))
+        await mark_user_cache_changed(sync, owner_id)
+        await sync.commit()
+        resp = await undo
+
+    assert (resp.status_code, resp.json()["detail"]) == (409, "This import can no longer be undone")
+    assert await _count("accounts", everyday_id) == 1
 
 
 async def test_two_undos_at_once_delete_the_import_once(client, monkeypatch):

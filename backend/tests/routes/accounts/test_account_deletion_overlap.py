@@ -94,13 +94,20 @@ async def _setup(client):
     return headers, account_id, category_id, merchant_id, transaction.json()["id"], other_account_id
 
 
-@pytest.mark.parametrize(("change", "module", "status"), [
-    ("create", creation_module, 201),
-    ("edit", update_module, 200),
-    ("delete", deletion_module, 204),
-])
+@pytest.mark.parametrize(
+    ("change", "module", "status"),
+    [
+        ("create", creation_module, 201),
+        ("edit", update_module, 200),
+        ("delete", deletion_module, 204),
+    ],
+)
 async def test_an_account_delete_waits_for_a_transaction_change_that_reached_the_account_first(
-    client, monkeypatch, change, module, status,
+    client,
+    monkeypatch,
+    change,
+    module,
+    status,
 ):
     """The transaction change lands and answers, then the delete takes the account and everything in it."""
     headers, account_id, category_id, merchant_id, transaction_id, _ = await _setup(client)
@@ -141,7 +148,12 @@ async def test_an_account_delete_waits_for_a_transaction_change_that_reached_the
     _record_pid(monkeypatch, account_deletion_module, "check_account_access", pids, entered)
 
     changed, removed = await _overlap(
-        transaction_change, delete_account, first_held=held, release=release, second_entered=entered, pids=pids,
+        transaction_change,
+        delete_account,
+        first_held=held,
+        release=release,
+        second_entered=entered,
+        pids=pids,
     )
 
     assert changed.status_code == status, changed.text
@@ -166,19 +178,31 @@ async def test_a_change_reaching_an_account_being_deleted_is_refused_as_not_foun
             return await client.patch(f"/transactions/{staying_id}", json={"account_id": deleting_id}, headers=headers)
         if change == "bulk move":
             return await client.patch(
-                "/transactions/bulk", json={"transaction_ids": [staying_id], "account_id": deleting_id}, headers=headers,
+                "/transactions/bulk",
+                json={"transaction_ids": [staying_id], "account_id": deleting_id},
+                headers=headers,
             )
         if change == "transfer":
             return await _create_transaction(
-                client, headers, other_id, await _get_system_category_id(client, headers, "Transfer"),
-                merchant_id=merchant_id, counterparty_account_scope="tracked", counterparty_account_id=deleting_id,
+                client,
+                headers,
+                other_id,
+                await _get_system_category_id(client, headers, "Transfer"),
+                merchant_id=merchant_id,
+                counterparty_account_scope="tracked",
+                counterparty_account_id=deleting_id,
             )
         return await client.patch(f"/accounts/{deleting_id}", json={"name": "Renamed"}, headers=headers)
 
     _record_pid(monkeypatch, account_permissions_module, "_get_account_or_404", pids, entered)
 
     removed, refused = await _overlap(
-        delete_account, write_to_the_account, first_held=held, release=release, second_entered=entered, pids=pids,
+        delete_account,
+        write_to_the_account,
+        first_held=held,
+        release=release,
+        second_entered=entered,
+        pids=pids,
     )
 
     assert removed.status_code == 204, removed.text
@@ -190,8 +214,13 @@ async def test_editing_a_transfer_that_records_an_account_being_deleted_waits_fo
     """The delete is refused for the transfer recording the account, then the edit goes ahead."""
     headers, deleting_id, _, merchant_id, _, other_id = await _setup(client)
     transfer = await _create_transaction(
-        client, headers, other_id, await _get_system_category_id(client, headers, "Transfer"),
-        merchant_id=merchant_id, counterparty_account_scope="tracked", counterparty_account_id=deleting_id,
+        client,
+        headers,
+        other_id,
+        await _get_system_category_id(client, headers, "Transfer"),
+        merchant_id=merchant_id,
+        counterparty_account_scope="tracked",
+        counterparty_account_id=deleting_id,
     )
     assert transfer.status_code == 201, transfer.text
     held, release, entered = asyncio.Event(), asyncio.Event(), asyncio.Event()
@@ -202,7 +231,10 @@ async def test_editing_a_transfer_that_records_an_account_being_deleted_waits_fo
     removed, edited = await _overlap(
         delete_account,
         lambda: client.patch(f"/transactions/{transfer.json()['id']}", json={"amount": -7000}, headers=headers),
-        first_held=held, release=release, second_entered=entered, pids=pids,
+        first_held=held,
+        release=release,
+        second_entered=entered,
+        pids=pids,
     )
 
     assert removed.status_code == 409, removed.text
@@ -210,7 +242,7 @@ async def test_editing_a_transfer_that_records_an_account_being_deleted_waits_fo
 
 
 async def test_an_account_delete_overlapping_an_import_undo_still_deletes_the_account(client, monkeypatch):
-    """The undo takes the change marker before its rows, so the two meet in a circle the delete gives way in."""
+    """The undo takes its rows first and the change marker last, so the delete queues behind it and then deletes the account."""
     headers, account_id, _ = await _setup_user_with_deps(client)
     payload = _csv_payload(["-4.50"])
     payload["accounts"] = [{"source": "Everyday", "account_id": account_id}]
@@ -234,7 +266,10 @@ async def test_an_account_delete_overlapping_an_import_undo_still_deletes_the_ac
     undone, removed = await _overlap(
         lambda: client.post(f"/transactions/import/runs/{run_id}/undo", headers=headers),
         lambda: client.delete(f"/accounts/{account_id}", headers=headers),
-        first_held=held, release=release, second_entered=entered, pids=pids,
+        first_held=held,
+        release=release,
+        second_entered=entered,
+        pids=pids,
     )
 
     assert undone.status_code in (200, 409), undone.text

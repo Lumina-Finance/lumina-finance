@@ -16,9 +16,9 @@ from app.services.cache_state import mark_cache_changed_for_scope
 
 _DEADLOCK_SQLSTATE = "40P01"
 
-# Undoing an import locks the change marker before its rows, the reverse of every other writer, so a
-# delete overlapping one can still be picked to break a deadlock. The undo has given way by the
-# time the delete runs again
+# The delete locks in the order the other ledger writers do, and the import undo takes the change marker
+# last as they do. A writer locking in another order could still get the delete picked to break a
+# deadlock, and that writer has given way by the time the delete runs again
 _DELETE_ATTEMPTS = 2
 
 # Every transaction the delete removes or the commit's foreign key check reads, in id order, without

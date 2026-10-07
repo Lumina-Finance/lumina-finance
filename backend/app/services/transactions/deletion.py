@@ -147,9 +147,9 @@ async def bulk_delete_transactions(
     await delete_locked_transactions(
         db,
         Transaction.id.in_(requested_ids),
-        accounts,
         [(transaction.account_id, transaction.dt) for transaction in transactions],
     )
+    await mark_accounts_changed(db, accounts)
     await db.commit()
 
     return BulkDeleteTransactionsResponse(
@@ -161,18 +161,18 @@ async def bulk_delete_transactions(
 async def delete_locked_transactions(
     db: AsyncSession,
     condition: ColumnElement[bool],
-    accounts: list[Account],
     deleted_days: list[tuple[uuid.UUID, date]],
 ) -> None:
-    """Delete transactions the caller has already locked and checked, without committing
+    """Delete transactions the caller has already locked and checked, without committing or marking the cache
 
     Their tag assignments and the rows go by the condition rather than by an id list, so a set of
-    any size is two statements. The balances are rebuilt from each account's earliest deleted day
+    any size is two statements. The balances are rebuilt from each account's earliest deleted day.
+    The caller marks the accounts changed once its other writes are done, so the cache rows are the
+    last locks it takes, as every ledger write takes them
 
     Args:
         db: Active database session
         condition: Selects exactly the locked transactions
-        accounts: Every account the transactions are in, already checked for write access
         deleted_days: The account and date of each deleted transaction
 
     Returns:
@@ -192,7 +192,18 @@ async def delete_locked_transactions(
 
     await recompute_account_snapshots(db, snapshot_starts)
 
-    # One mark per scope rather than one per transaction, since every row in a scope shares it
+
+async def mark_accounts_changed(db: AsyncSession, accounts: list[Account]) -> None:
+    """Mark the cache of each scope these accounts are in changed, without committing
+
+    Args:
+        db: Active database session
+        accounts: The accounts a write changed
+
+    Returns:
+        None
+    """
+    # One mark per scope rather than one per account, since every account in a scope shares it
     for owner_id, group_id in {(account.owner_id, account.group_id) for account in accounts}:
         await mark_cache_changed_for_scope(db, user_id=owner_id, group_id=group_id)
 
