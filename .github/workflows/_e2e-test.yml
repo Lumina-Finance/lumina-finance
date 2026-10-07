@@ -48,6 +48,7 @@ jobs:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # APP_URL gives passkeys their domain, as an operator's deploy does, so the passkey flows run
       - name: Write the operator env file
         run: |
           cat > docker/.env <<EOF
@@ -56,6 +57,7 @@ jobs:
           DB_NAME=${DB_NAME}
           DB_USER=${DB_USER}
           DB_PASSWORD=${DB_PASSWORD}
+          APP_URL=http://localhost:8080
           EOF
 
       - name: Start the stack
