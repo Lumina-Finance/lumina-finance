@@ -53,9 +53,9 @@ import {
   applyLedgerReviewOutcome,
   applyRestoredBankValue,
   applyReviewDecision,
+  putCachedBankLink,
   refreshBankLinkState,
   replaceCachedBankConnection,
-  replaceCachedBankLink,
 } from '@/api/cache/updates/bankSync';
 import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
 import { useAuth } from '@/hooks/useAuth';
@@ -359,15 +359,41 @@ export function useUnlinkBankAccount() {
 }
 
 /**
- * How Sync now runs. The link the server answers with already shows the sync in progress, which goes
- * straight into the cached list, so the status shows Syncing and the poll takes its fast pace without
- * waiting to read the list again. A refusal means the status shown is out of date, so the list is
- * read again instead
+ * Settles once the cached link list, as the poll keeps it, shows that a worker has started the
+ * account's requested sync, or that the account is no longer linked
+ */
+function waitForSyncStart(queryClient: QueryClient, accountId: string): Promise<void> {
+  const started = () => !queryClient
+    .getQueryData<BankLink[]>(bankSyncKeys.links())
+    ?.find((link) => link.account_id === accountId)
+    ?.sync.sync_requested;
+  if (started()) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    const unsubscribe = queryClient.getQueryCache().subscribe(() => {
+      if (!started()) return;
+      unsubscribe();
+      resolve();
+    });
+  });
+}
+
+/**
+ * How Sync now runs. The server queues the sync and answers with the link marked as requested, in the
+ * state it had, since the link reads as Syncing only once a worker runs the sync. The answer goes
+ * straight into the cached list, even one read before the link was made, which takes the poll to its
+ * fast pace without waiting to read the list again, and the request settles once the poll shows a
+ * worker started the sync, so a button pending on it says the sync is starting until it has. A
+ * refusal means the status shown is out of date, so the list is read again instead
  */
 export function syncBankAccountMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
-    mutationFn: (accountId: string) => runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => syncBankLink(accountId)),
-    onSuccess: (link) => replaceCachedBankLink(queryClient, link),
+    mutationFn: async (accountId: string) => {
+      const link = await runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => syncBankLink(accountId));
+      putCachedBankLink(queryClient, link);
+      await waitForSyncStart(queryClient, accountId);
+      return link;
+    },
     onError: () => invalidateBankLinks(queryClient),
     onSettled: () => invalidateBankSyncStatus(queryClient),
   });

@@ -85,12 +85,16 @@ export async function refreshBankLinkState(queryClient: QueryClient): Promise<vo
 
 /**
  * Puts a link the server answered with in place of the cached one, so the status shows what the
- * request did without waiting for the next poll
+ * request did without waiting for the next poll. A list read before the link was made, such as on
+ * another device, or restored from storage as the app opened, takes it last, where the server
+ * lists the newest, so the poll still follows it
  */
-export function replaceCachedBankLink(queryClient: QueryClient, link: BankLink): void {
-  queryClient.setQueryData<BankLink[]>(bankSyncKeys.links(), (links) =>
-    links?.map((cached) => (cached.account_id === link.account_id ? link : cached)),
-  );
+export function putCachedBankLink(queryClient: QueryClient, link: BankLink): void {
+  queryClient.setQueryData<BankLink[]>(bankSyncKeys.links(), (links) => {
+    if (!links) return links;
+    if (!links.some((cached) => cached.account_id === link.account_id)) return [...links, link];
+    return links.map((cached) => (cached.account_id === link.account_id ? link : cached));
+  });
 }
 
 /**

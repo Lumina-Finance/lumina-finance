@@ -8,23 +8,40 @@
  * or a paused worker leaving the button live, a failed read offering a link as if there were none,
  * a linked view missing a fact, its status or the running import, an import shown while a retry or a
  * stop holds it or dropped before it shows as done, a notice missing, worded unlike the issue, or shown for a link it doesn't apply to,
- * and a notice's action losing focus to Unlink when the modal opens at the bank link. Opening the
- * flow, the tooltip and unlinking run in the browser
+ * a notice's action losing focus to the link's own actions when the modal opens at the bank link,
+ * Sync now left live for something the server refuses or without the reason, a reason of two
+ * sentences ending without the full stop the others of two have, held back by a bank
+ * sign-in, left greyed once its requests free up, spinning while the worker is down, or dropping the
+ * focus it holds or the width it measures while the sync starts. Opening the flow, the tooltip,
+ * unlinking and pressing Sync now run in the browser
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Account } from '@/api/accounts'
-import type { AccountBankStatus, BankProvidersResponse } from '@/api/bank-sync'
+import type { AccountBankStatus, BankConnection, BankProvidersResponse } from '@/api/bank-sync'
 import { GROUP_ACCOUNT_LINK_REASON, LINKING_PAUSED_REASON } from '@/components/bank-link-flow/constants'
+import type { ActionFeedbackStatus } from '@/components/feedback/ActionButton'
 import { BankLinkSection } from '@/pages/accounts/detail/components/bank-link/Section'
 import { describeBankSync } from '@/pages/accounts/detail/components/bank-link/status'
-import { createAccount, createImport, createLink, createPreviousLink, createProviders, createStatus, createSync } from './fixtures'
+import { SYNC_PAUSED_REASON } from '@/pages/accounts/detail/components/bank-link/syncNow'
+import {
+  createAccount,
+  createConnection,
+  createImport,
+  createLink,
+  createPreviousLink,
+  createProviders,
+  createStatus,
+  createSync,
+} from './fixtures'
 
 const read = vi.hoisted(() => ({
   ownPersonal: true,
   status: undefined as AccountBankStatus | undefined,
   statusError: null as Error | null,
   providers: undefined as BankProvidersResponse | undefined,
+  connections: [] as BankConnection[],
+  syncFeedback: 'idle' as ActionFeedbackStatus,
 }))
 
 vi.mock('@/pages/accounts/detail/components/bank-link/useAccountBankLink', () => ({
@@ -39,8 +56,13 @@ vi.mock('@/pages/accounts/detail/components/bank-link/useAccountBankLink', () =>
 }))
 vi.mock('@/api/bank-sync', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/api/bank-sync')>()),
-  useBankConnections: () => ({ data: [] }),
+  useBankConnections: () => ({ data: read.connections }),
+  useSyncBankAccount: () => ({ mutateAsync: vi.fn() }),
 }))
+vi.mock('@/hooks/useActionFeedback', () => ({
+  useActionFeedback: () => ({ status: read.syncFeedback, isPending: read.syncFeedback !== 'idle', run: vi.fn() }),
+}))
+vi.mock('@/hooks/useToast', () => ({ useToast: () => ({ showToast: vi.fn() }) }))
 vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1', tz: 'America/Toronto' }, accessToken: 'token' }),
 }))
@@ -72,6 +94,17 @@ function getButton(markup: string, label: string): string {
   return markup.match(new RegExp(`<button(?:(?!</button>).)*${label}</button>`, 's'))?.[0] ?? ''
 }
 
+// Sync now's label sits inside its feedback wrapper, beside the copy it measures its width by, and
+// gives way to a spinner or a tick, which are labelled instead
+function getSyncNowButton(markup: string): string {
+  return markup.match(/<button(?:(?!<\/button>).)*(?:Sync now|aria-label="Starting sync"|aria-label="Sync started")(?:(?!<\/button>).)*<\/button>/s)?.[0] ?? ''
+}
+
+// Synced an hour ago and due again in three hours, which is what Sync now normally meets
+function linkSynced(sync = createSync()): AccountBankStatus {
+  return createStatus({ link: createLink({ state: sync.state === 'choose_account' ? 'choose_account' : 'active', sync }) })
+}
+
 beforeEach(() => {
   // Noon in Toronto, the clock the link fixtures are set against
   vi.useFakeTimers({ toFake: ['Date'] })
@@ -80,6 +113,8 @@ beforeEach(() => {
   read.status = createStatus()
   read.statusError = null
   read.providers = createProviders()
+  read.connections = [createConnection()]
+  read.syncFeedback = 'idle'
 })
 
 afterEach(() => {
@@ -208,10 +243,113 @@ describe('BankLinkSection', () => {
     expect(renderSection()).toContain(WARNING_NOTICE)
   })
 
-  it("marks a notice's action for the modal to focus ahead of Unlink", () => {
-    read.status = createStatus({ link: createLink({ state: 'choose_account', sync: createSync({ state: 'choose_account' }) }) })
+  it.each([
+    [
+      "a notice's action ahead of the link's own actions, passing over Sync now while the notice holds it",
+      createStatus({ link: createLink({ state: 'choose_account', sync: createSync({ state: 'choose_account' }) }) }),
+      ['Choose bank account', 'Unlink'],
+    ],
+    ['Sync now ahead of Unlink while a sync can run', linkSynced(), ['Sync now', 'Unlink']],
+    [
+      'Unlink alone while the import holds Sync now, since focus would open the reason over the section',
+      createStatus({ link: createLink({ import: createImport(), sync: createSync({ state: 'importing', last_success_at: null }) }) }),
+      ['Unlink'],
+    ],
+  ])('marks for the modal to focus %s', (_, status, expected) => {
+    read.status = status
     const markup = renderToStaticMarkup(<BankLinkSection account={createAccount()} sectionNumber="03" autoFocus />)
-    const marked = [...markup.matchAll(/<button[^>]*data-modal-initial-focus="true"[^>]*>(?:(?!<\/button>).)*?([A-Z][a-z]+(?: [a-z]+)*)<\/button>/gs)]
-    expect(marked.map((match) => match[1])).toEqual(['Choose bank account', 'Unlink'])
+    const marked = [
+      ...markup.matchAll(/<button[^>]*data-modal-initial-focus="true"[^>]*>(?:(?!<\/button>).)*?([A-Z][a-z]+(?: [a-z]+)*)(?:<\/span>)*<\/button>/gs),
+    ]
+    expect(marked.map((match) => match[1])).toEqual(expected)
+  })
+
+  it.each([
+    [
+      // A worker fetching the import's next part runs a sync too, which the import's own reason outranks
+      'an import runs',
+      createStatus({
+        link: createLink({ import: createImport(), sync: createSync({ state: 'importing', last_success_at: null, sync_running: true }) }),
+      }),
+      'The import is still running',
+    ],
+    ['a sync runs', linkSynced(createSync({ state: 'syncing', sync_running: true })), 'A sync is already running'],
+    [
+      'a sync runs under a bank sign-in, which shows over it, since a second sync would spend another request',
+      linkSynced(createSync({ state: 'bank_signin_needed', sync_running: true })),
+      'A sync is already running',
+    ],
+    ['the connection needs reconnecting', linkSynced(createSync({ state: 'reconnect_needed' })), 'Reconnect SimpleFIN in Settings before syncing'],
+    ['the bank account has to be chosen again', linkSynced(createSync({ state: 'choose_account' })), 'Choose the bank account again before syncing'],
+    [
+      'the review pause holds the sync',
+      linkSynced(createSync({ state: 'paused', paused: true, waiting_new_count: 105 })),
+      'Syncing is paused until 50 or fewer new items are waiting for review',
+    ],
+  ])('disables Sync now while %s, saying why', (_, status, reason) => {
+    read.status = status
+    const markup = renderSection()
+    expect(getSyncNowButton(markup)).toContain('aria-disabled="true"')
+    expect(markup).toContain(escaped(reason))
+  })
+
+  it('disables Sync now while the connection has spent its requests, saying when more are available', () => {
+    read.status = linkSynced()
+    read.connections = [createConnection({ request_budget: { limit: 20, used: 20, available_again_at: '2026-10-05T19:00:00Z' } })]
+    const markup = renderSection()
+    expect(getSyncNowButton(markup)).toContain('aria-disabled="true"')
+    expect(markup).toContain(escaped("This connection has used today's 20 SimpleFIN requests. More are available in 3 hours."))
+  })
+
+  it('offers Sync now again once the spent requests free up, though the connection still reads as spent', () => {
+    read.status = linkSynced()
+    read.connections = [createConnection({ request_budget: { limit: 20, used: 20, available_again_at: '2026-10-05T16:05:00Z' } })]
+    expect(renderSection()).toContain(escaped("This connection has used today's 20 SimpleFIN requests. More are available in 5 minutes."))
+
+    vi.setSystemTime(new Date('2026-10-05T16:05:00Z'))
+    const markup = renderSection()
+
+    expect(getSyncNowButton(markup)).not.toContain('aria-disabled')
+    expect(markup).not.toContain('More are available')
+  })
+
+  it.each([
+    ['idle', 'nothing asked for', createSync()],
+    ['idle', 'a sync asked for in any window, which nothing starts until the worker is back', createSync({ sync_requested: true })],
+    ['loading', 'this window waiting for the worker to start the sync', createSync({ sync_requested: true })],
+  ] as const)('disables Sync now while the sync worker is down, with %s feedback and %s, saying why', (feedback, _, sync) => {
+    read.syncFeedback = feedback
+    read.status = linkSynced(sync)
+    read.providers = createProviders({ sync_running: false })
+    const markup = renderSection()
+    expect(getSyncNowButton(markup)).toContain('aria-disabled="true"')
+    expect(getSyncNowButton(markup)).not.toContain('aria-label="Starting sync"')
+    expect(markup).toContain(escaped(SYNC_PAUSED_REASON))
+  })
+
+  it.each([
+    ['a synced link', createSync()],
+    ['a bank asking for its sign-in again, so the user can check straight after signing in', createSync({ state: 'bank_signin_needed' })],
+  ])('offers Sync now on %s', (_, sync) => {
+    read.status = linkSynced(sync)
+    const button = getSyncNowButton(renderSection())
+    expect(button).toContain('Sync now')
+    expect(button).not.toContain('aria-disabled')
+  })
+
+  it.each([
+    ['until a worker starts a sync asked for in any window', 'idle', createSync({ sync_requested: true }), 'Starting sync'],
+    ['while this window waits for the worker', 'loading', createSync({ sync_requested: true }), 'Starting sync'],
+    ['once the worker has started it', 'success', createSync({ state: 'syncing', sync_running: true }), 'Sync started'],
+  ] as const)('reads %s as the sync starting, keeping focus and the width of its label', (_, feedback, sync, label) => {
+    read.syncFeedback = feedback
+    read.status = linkSynced(sync)
+    const button = getSyncNowButton(renderSection())
+    expect(button).toContain(`aria-label="${label}"`)
+    expect(button).toContain(`aria-busy="${feedback !== 'success'}"`)
+    expect(button).not.toMatch(/ (aria-)?disabled/)
+
+    // The hidden label the width is measured from, kept for a button the modal opens while the sync starts
+    expect(button).toMatch(/<span[^>]* aria-hidden="true"[^>]*>(?:(?!<\/button>).)*Sync now/s)
   })
 })

@@ -22,6 +22,12 @@ interface ActionFeedbackButtonProps extends Omit<HTMLMotionProps<'button'>, 'chi
 
   /** Why the button is unavailable, shown in a tooltip beside the cursor, on keyboard focus and on a tap */
   disabledReason?: string | null
+
+  /**
+   * The hidden labels `useFittedButtonWidth` measures, kept in whatever the status, so a button that
+   * first shows its spinner still takes its label's width
+   */
+  measure?: ReactNode
 }
 
 const ActionFeedbackButton = forwardRef<HTMLButtonElement, ActionFeedbackButtonProps>(function ActionFeedbackButton(
@@ -31,6 +37,7 @@ const ActionFeedbackButton = forwardRef<HTMLButtonElement, ActionFeedbackButtonP
     disabled,
     disabledReason,
     loadingLabel = 'Loading',
+    measure,
     onBlur,
     onClick,
     onFocus,
@@ -72,6 +79,8 @@ const ActionFeedbackButton = forwardRef<HTMLButtonElement, ActionFeedbackButtonP
         {...props}
         aria-busy={status === 'loading'}
         {...reasonProps}
+        // The reason's own marking wins, and a caller's, such as a button held off while its sibling's request runs, stands otherwise
+        aria-disabled={reasonProps['aria-disabled'] ?? props['aria-disabled']}
         className={className}
         disabled={reason.isUnavailable ? undefined : disabled}
         ref={ref}
@@ -92,6 +101,7 @@ const ActionFeedbackButton = forwardRef<HTMLButtonElement, ActionFeedbackButtonP
             children
           )}
         </Crossfade>
+        {measure}
       </motion.button>
       {reason.tooltip}
     </>

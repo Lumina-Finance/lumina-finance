@@ -3,19 +3,29 @@ import { AnimatePresence } from 'motion/react'
 import { Link2, PauseCircle, TriangleAlert, Unlink } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import type { Account } from '@/api/accounts'
-import { REVIEW_PAUSE_COUNT, REVIEW_RESUME_COUNT, useBankConnections, type BankLink, type BankSyncState } from '@/api/bank-sync'
+import {
+  REVIEW_PAUSE_COUNT,
+  REVIEW_RESUME_COUNT,
+  useBankConnections,
+  type BankConnection,
+  type BankLink,
+  type BankProvidersResponse,
+  type BankSyncState,
+} from '@/api/bank-sync'
 import { BANK_CONNECTIONS_SETTINGS_PATH, GROUP_ACCOUNT_LINK_REASON, LINKING_PAUSED_REASON } from '@/components/bank-link-flow/constants'
 import { BankLinkFlowModal } from '@/components/bank-link-flow/Modal'
 import { Unfold } from '@/components/display/Unfold'
 import LoadFailure from '@/components/errors/LoadFailure'
 import { InfoCallout } from '@/components/InfoCallout'
 import LoadingRegion from '@/components/loading/Region'
+import { revealInScrollArea } from '@/components/modal/scrollArea'
 import { StepTransition } from '@/components/two-factor/StepTransition'
 import { useAuth } from '@/hooks/useAuth'
 import { getDisabledControlProps, useDisabledReason } from '@/hooks/useDisabledReason'
 import { ImportProgress } from '@/pages/accounts/detail/components/bank-link/ImportProgress'
 import type { BankSyncLabel } from '@/pages/accounts/detail/components/bank-link/status'
 import { SyncFact } from '@/pages/accounts/detail/components/bank-link/SyncFact'
+import { SyncNowButton } from '@/pages/accounts/detail/components/bank-link/SyncNowButton'
 import { UnlinkModal } from '@/pages/accounts/detail/components/bank-link/UnlinkModal'
 import { useAccountBankLink } from '@/pages/accounts/detail/components/bank-link/useAccountBankLink'
 import { useLingeringImport } from '@/pages/accounts/detail/components/bank-link/useLingeringImport'
@@ -34,8 +44,8 @@ const OPENING_FOCUS_DELAY_MS = 260
 /** Marks the control the modal focuses as it opens, in place of its first field */
 type InitialFocusProps = { 'data-modal-field-tab-stop'?: 'true'; 'data-modal-initial-focus'?: 'true' }
 
-// Marks each view's actions, the first of which takes focus when the view swaps in, ahead of the
-// Sync details icon among the facts above them
+// Marks each view's actions, the first not held back with its reason taking focus when the view swaps
+// in, ahead of the Sync details icon among the facts above them
 const ACTION_ATTRIBUTE = 'data-bank-link-action'
 const ACTION_PROPS = { [ACTION_ATTRIBUTE]: 'true' }
 
@@ -46,6 +56,8 @@ const IMPORT_STATES: ReadonlySet<BankSyncState> = new Set(['importing', 'import_
 type LinkedViewProps = {
   link: BankLink
   sync: BankSyncLabel
+  connection: BankConnection | undefined
+  providers: BankProvidersResponse | undefined
   initialFocus: InitialFocusProps
   onChooseBankAccount: () => void
   onUnlink: () => void
@@ -57,7 +69,7 @@ type LinkedViewProps = {
  * resumes the sync. The server leaves the review notices out while only the user can restart the
  * sync, so a stop's notice shows alone
  */
-function LinkedView({ link, sync, initialFocus, onChooseBankAccount, onUnlink }: LinkedViewProps) {
+function LinkedView({ link, sync, connection, providers, initialFocus, onChooseBankAccount, onUnlink }: LinkedViewProps) {
   const navigate = useNavigate()
   const shownImport = useLingeringImport(link.import)
   const { state, paused, review_warning: warned } = link.sync
@@ -137,9 +149,10 @@ function LinkedView({ link, sync, initialFocus, onChooseBankAccount, onUnlink }:
 
       {/* The bank balance goes here */}
 
-      {/* The link's actions, in one row that wraps */}
+      {/* The link's actions, in one row that wraps, each taking a full row on a phone */}
       <div className="flex flex-wrap items-center gap-2 pt-4">
-        <button type="button" className="app-secondary-button h-9 justify-center whitespace-nowrap px-3.5 text-sm" {...ACTION_PROPS} {...initialFocus} onClick={onUnlink}>
+        <SyncNowButton link={link} connection={connection} providers={providers} focusProps={{ ...ACTION_PROPS, ...initialFocus }} />
+        <button type="button" className="app-secondary-button h-9 w-full justify-center whitespace-nowrap px-3.5 text-sm sm:w-auto" {...ACTION_PROPS} {...initialFocus} onClick={onUnlink}>
           <Unlink size={14} aria-hidden />
           Unlink
         </button>
@@ -157,10 +170,17 @@ type BankLinkSectionProps = {
 }
 
 /**
- * Focuses the first action inside the element, if it holds one
+ * Focuses the first action inside the element that isn't held back with its reason, as the modal
+ * passes over a held field, since focus would open the reason over the section. With every action
+ * held, the first takes focus anyway, so it stays inside the dialog. A view that swaps in taller can
+ * leave the action below what the modal shows, so the modal's scroll area brings it into view
  */
 function focusFirstAction(container: HTMLElement | null) {
-  container?.querySelector<HTMLElement>(`[${ACTION_ATTRIBUTE}]`)?.focus({ preventScroll: true })
+  const actions = Array.from(container?.querySelectorAll<HTMLElement>(`[${ACTION_ATTRIBUTE}]`) ?? [])
+  const target = actions.find((action) => action.getAttribute('aria-disabled') !== 'true') ?? actions[0]
+  if (!target) return
+  target.focus({ preventScroll: true })
+  revealInScrollArea(target)
 }
 
 /**
@@ -258,6 +278,8 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
                   <LinkedView
                     link={link}
                     sync={syncLabel}
+                    connection={connections?.find((connection) => connection.id === link.connection_id)}
+                    providers={providers}
                     initialFocus={initialFocus}
                     onChooseBankAccount={openLinkFlow}
                     onUnlink={() => {

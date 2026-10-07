@@ -26,6 +26,23 @@ export function waitForMilliseconds(ms: number): Promise<void> {
 }
 
 /**
+ * Calls back once a moment has passed, such as when a spent request budget frees a request, so what
+ * it held back shows as available then rather than at the next read. The clock is checked again when
+ * the timer fires, in case it fires early. A moment already past, or none, calls nothing
+ *
+ * @returns What cancels the wait
+ */
+export function callWhenPassed(at: string | null, callback: () => void): () => void {
+  let timer: number | undefined
+  const remaining = () => (at === null ? 0 : Date.parse(at) - Date.now())
+  const wait = () => {
+    timer = window.setTimeout(() => (remaining() > 0 ? wait() : callback()), remaining())
+  }
+  if (remaining() > 0) wait()
+  return () => window.clearTimeout(timer)
+}
+
+/**
  * Waits out whatever remains of the minimum loading time since a start timestamp
  */
 export async function delayToMinimum(startMs: number, minimumMs: number = AUTH_LOADING_MIN_MS): Promise<void> {

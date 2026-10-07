@@ -277,6 +277,19 @@ export type BankSyncStatus = {
   /** The next sync is due before the connection's request budget frees a request, so it waits for one */
   waiting_on_budget: boolean;
 
+  /**
+   * A worker is syncing the link, which the state shows as syncing unless a state outranks it, such as
+   * a bank sign-in
+   */
+  sync_running: boolean;
+
+  /**
+   * The user asked to sync the link now, the sync is due and no worker has started it yet. The state
+   * stays the one before it, since it reads as syncing only once a worker runs it. A sync waiting for
+   * the request budget isn't due until a request frees up
+   */
+  sync_requested: boolean;
+
   /** New posted items awaiting their first review, the count the warning and the pause read */
   waiting_new_count: number;
 

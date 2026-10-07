@@ -1,19 +1,5 @@
 import { useEffect, useRef, type RefObject } from 'react'
-
-/**
- * Walks up from a touched node to the first ancestor inside the modal that can scroll vertically,
- * so the touch guard knows which element a drag should move and where its scroll boundaries are
- */
-function findScrollableAncestor(start: Node, boundary: HTMLElement): HTMLElement | null {
-  let node = start instanceof HTMLElement ? start : start.parentElement
-  while (node && node !== boundary.parentElement) {
-    const overflowY = window.getComputedStyle(node).overflowY
-    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) return node
-    if (node === boundary) break
-    node = node.parentElement
-  }
-  return null
-}
+import { findScrollableAncestor } from '@/components/modal/scrollArea'
 
 /**
  * Holds the page still behind a full-screen modal without overflow: hidden, which would strip a

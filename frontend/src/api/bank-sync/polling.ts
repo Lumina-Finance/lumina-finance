@@ -3,12 +3,13 @@ import { BANK_LINKS_ACTIVE_POLL_MS, BANK_LINKS_IDLE_POLL_MS } from '@/api/bank-s
 import type { BankLink } from '@/api/bank-sync/types';
 
 /**
- * Whether the app is fetching for a link right now, by a sync or the next part of its import. An
- * import waiting on the request budget is not, so it is read at the slower pace until its next part
- * starts
+ * Whether the app is fetching for a link right now, by a sync or the next part of its import, or is
+ * about to, for a due Sync now no worker has started yet. A sync running under a state shown over it,
+ * such as a bank sign-in, counts too. An import or a Sync now waiting on the request budget is not,
+ * so it is read at the slower pace until a request frees up
  */
 function isLinkBusy(link: BankLink): boolean {
-  return link.sync.state === 'syncing' || link.sync.state === 'importing';
+  return link.sync.state === 'syncing' || link.sync.state === 'importing' || link.sync.sync_running || link.sync.sync_requested;
 }
 
 /**

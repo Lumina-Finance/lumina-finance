@@ -10,6 +10,8 @@ export function createSyncStatus(overrides: Partial<BankSyncStatus> = {}): BankS
     last_failure: null,
     next_attempt_at: '2026-10-01T00:00:00Z',
     waiting_on_budget: false,
+    sync_running: false,
+    sync_requested: false,
     waiting_new_count: 0,
     paused: false,
     review_warning: false,

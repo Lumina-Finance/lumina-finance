@@ -199,6 +199,8 @@ export function buildLinkAnswer(accountId: string, status: Partial<BankLinkSyncS
       last_failure: null,
       next_attempt_at: null,
       waiting_on_budget: false,
+      sync_running: false,
+      sync_requested: false,
       waiting_new_count,
       paused: false,
       review_warning: false,
@@ -236,6 +238,9 @@ export interface SeededConnection {
   id: string
   accounts: { external_id: string; name: string; institution_name: string; linked_account_id: string | null; signin_needed: boolean }[]
   status: 'active' | 'credential_rejected'
+
+  /** The requests sent to the provider in the last 24 hours, of the most the connection may send */
+  request_budget: { limit: number; used: number; available_again_at: string | null }
 }
 
 /**
@@ -243,7 +248,7 @@ export interface SeededConnection {
  *
  * @throws When no Bridge address was handed over, or the Bridge refuses the call
  */
-async function controlBridge<T>(request: APIRequestContext, method: 'post' | 'patch' | 'put', path: string, data?: object): Promise<T> {
+async function controlBridge<T>(request: APIRequestContext, method: 'post' | 'patch' | 'put' | 'delete', path: string, data?: object): Promise<T> {
   if (FAKE_SIMPLEFIN_BRIDGE_URL === null) {
     throw new Error('E2E_FAKE_SIMPLEFIN_BRIDGE_URL is required for the bank specs: where this machine reaches the fake SimpleFIN Bridge the instance uses')
   }
@@ -338,6 +343,22 @@ export async function revokeBridgeAccess(request: APIRequestContext, scenarioId:
  */
 export async function breakBridge(request: APIRequestContext, scenarioId: string): Promise<void> {
   await controlBridge(request, 'put', `/${scenarioId}/fault`, { kind: 'html_error' })
+}
+
+/**
+ * Hold every request, the claim included, unanswered until its client gives up or the fault is
+ * cleared, so a sync stays running for as long as a test needs it to
+ */
+export async function stallBridge(request: APIRequestContext, scenarioId: string): Promise<void> {
+  await controlBridge(request, 'put', `/${scenarioId}/fault`, { kind: 'timeout' })
+}
+
+/**
+ * Answer requests normally again, freeing any a stall still holds, so the worker it held moves on to
+ * other tests' syncs rather than waiting out its read timeout
+ */
+export async function clearBridgeFault(request: APIRequestContext, scenarioId: string): Promise<void> {
+  await controlBridge(request, 'delete', `/${scenarioId}/fault`)
 }
 
 /**

@@ -1,8 +1,8 @@
 /**
  * Covers how often the signed-in app reads the bank link list, and how long a read stays fresh
  *
- * These tests catch a user with no links being polled, a running sync or import being read at the
- * slow pace so its progress lags, an import waiting on the request budget being read at the fast
+ * These tests catch a user with no links being polled, a running sync or import, or a Sync now about
+ * to start, being read at the slow pace so its progress lags, an import waiting on the request budget being read at the fast
  * pace for the hours it can wait, a refused read being asked again, a server failure taken for a
  * refusal and never asked again, either pace drifting from the two seconds and the minute the
  * feature promises, and a screen opening between polls reading the list again rather than taking
@@ -32,6 +32,16 @@ describe('bank link polling interval', () => {
   it('polls quickly while any one link syncs', () => {
     expect(getBankLinksPollInterval([createBankLink(), syncingLink()], null))
       .toBe(BANK_LINKS_ACTIVE_POLL_MS);
+  });
+
+  it('polls quickly while a Sync now waits for a worker to start it, so the sync shows as soon as it starts', () => {
+    expect(getBankLinksPollInterval([createBankLink({ sync: createSyncStatus({ sync_requested: true }) })], null))
+      .toBe(BANK_LINKS_ACTIVE_POLL_MS);
+  });
+
+  it('polls quickly while a sync runs under a bank sign-in, which shows over it', () => {
+    const link = createBankLink({ sync: createSyncStatus({ state: 'bank_signin_needed', sync_running: true }) });
+    expect(getBankLinksPollInterval([link], null)).toBe(BANK_LINKS_ACTIVE_POLL_MS);
   });
 
   it('polls quickly while an import runs', () => {
