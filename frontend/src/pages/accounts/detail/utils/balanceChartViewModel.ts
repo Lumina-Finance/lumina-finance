@@ -23,13 +23,18 @@ export type BalanceChartPeriodDelta = {
   pct: number | null
 }
 
+/** Which way the balance moved over the range, flat when it ended where it started or can't be measured */
+export type BalanceTrend = 'up' | 'down' | 'flat'
+
 export type BalanceChartSnapshot = {
   range: BalanceRange
   chartMode: BalanceChartMode
   currentBalance: number
   currency: string
   periodDelta: BalanceChartPeriodDelta | null
-  trendUp: boolean
+  trend: BalanceTrend
+  /** A plus or a true minus before the change, empty for a flat period since zero is unsigned */
+  deltaSign: '+' | '−' | ''
   deltaColor: string
   chartLineColor: string
   chartSeries: BalanceChartDataPoint[]
@@ -127,19 +132,20 @@ export function getBalanceChartSnapshot({
   const periodSeries = rezeroSeriesToPeriod(series)
   const chartSeries = chartMode === 'balance' ? series : periodSeries
   const periodDelta = getBalancePeriodDelta(series)
-  const trendUp = periodDelta !== null && periodDelta.absolute >= 0
+  const trend: BalanceTrend = periodDelta === null || periodDelta.absolute === 0
+    ? 'flat'
+    : periodDelta.absolute > 0 ? 'up' : 'down'
   const lineColor = currentBalance < 0 ? getValueMarkColor('negative') : getValueMarkColor('accent')
-  const deltaTone = trendUp ? 'positive' : 'negative'
 
   // The period change is written out as a figure and drawn as the line in change mode, so it
   // carries a colour for each: the figure keeps the contrast a number needs, the line matches
-  // every other chart
-  const deltaColor = periodDelta === null
+  // every other chart. A flat period is neutral, since nothing was gained or lost
+  const deltaColor = trend === 'flat'
     ? 'var(--app-text-muted)'
-    : trendUp
+    : trend === 'up'
       ? 'var(--app-positive)'
       : 'var(--app-negative)'
-  const deltaMarkColor = periodDelta === null ? 'var(--app-text-muted)' : getValueMarkColor(deltaTone)
+  const deltaMarkColor = getValueMarkColor(trend === 'up' ? 'positive' : 'negative')
 
   return {
     range,
@@ -147,9 +153,10 @@ export function getBalanceChartSnapshot({
     currentBalance,
     currency,
     periodDelta,
-    trendUp,
+    trend,
+    deltaSign: trend === 'up' ? '+' : trend === 'down' ? '−' : '',
     deltaColor,
-    chartLineColor: chartMode === 'change' && periodDelta !== null ? deltaMarkColor : lineColor,
+    chartLineColor: chartMode === 'change' && trend !== 'flat' ? deltaMarkColor : lineColor,
     chartSeries,
     chartDataKey: chartMode === 'balance' ? 'balance' : 'periodBalance',
     axisStartMs: calendarDateMs(fromDate),

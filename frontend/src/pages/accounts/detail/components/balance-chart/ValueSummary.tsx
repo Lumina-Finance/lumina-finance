@@ -11,6 +11,7 @@ type BalanceValueSummaryProps = {
  */
 export function BalanceValueSummary({ snapshot }: BalanceValueSummaryProps) {
   const { formatCurrency } = useMoneyFormatters()
+  const sign = snapshot.deltaSign
 
   return (
     <div className="mb-4">
@@ -22,14 +23,15 @@ export function BalanceValueSummary({ snapshot }: BalanceValueSummaryProps) {
       </p>
       {snapshot.periodDelta !== null && (
         <div className="mt-2 flex items-center gap-1.5 text-sm font-medium" style={{ color: snapshot.deltaColor }}>
-          {snapshot.trendUp ? <TrendingUp size={14} aria-hidden /> : <TrendingDown size={14} aria-hidden />}
-          <span>
-            {snapshot.trendUp ? '+' : '−'}
+          {snapshot.trend === 'up' && <TrendingUp size={14} aria-hidden />}
+          {snapshot.trend === 'down' && <TrendingDown size={14} aria-hidden />}
+          <span className="font-financial">
+            {sign}
             {formatCurrency(Math.abs(snapshot.periodDelta.absolute), snapshot.currency)}
             {snapshot.periodDelta.pct !== null && (
               <>
                 {' '}
-                ({snapshot.trendUp ? '+' : '−'}
+                ({sign}
                 {Math.abs(snapshot.periodDelta.pct).toFixed(1)}%)
               </>
             )}
