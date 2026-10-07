@@ -1,5 +1,6 @@
 import type { FormEvent, ReactNode } from 'react'
 import { X, type LucideIcon } from 'lucide-react'
+import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import { ModalShell, type ModalLevel } from '@/components/modal/Shell'
 
 // Chrome sizing per level. A stacked panel is narrower and its padding tighter, so it reads as the smaller
@@ -12,8 +13,8 @@ const CHROME = {
     railStyle: { background: 'var(--app-button-primary-bg)', color: 'var(--app-button-primary-text)' },
     railIconSize: 20,
     railLabelClassName: 'text-xs',
-    headerClassName: 'shrink-0 pb-5 pl-4 pr-5 pt-6 sm:pt-7 min-[1050px]:px-8',
-    bodyClassName: 'min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-8',
+    headerClassName: `shrink-0 pb-5 pt-6 sm:pt-7 ${MODAL_INSET_CLASS_NAME.page}`,
+    bodyClassName: `min-h-0 flex-1 overflow-y-auto pb-3 pt-4 ${MODAL_INSET_CLASS_NAME.page}`,
   },
   stacked: {
     panelClassName: 'flex max-h-[84vh] w-full overflow-hidden',
@@ -26,8 +27,8 @@ const CHROME = {
     },
     railIconSize: 18,
     railLabelClassName: 'text-[0.6875rem]',
-    headerClassName: 'shrink-0 pb-5 pl-4 pr-5 pt-6 min-[1050px]:px-7',
-    bodyClassName: 'min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-7',
+    headerClassName: `shrink-0 pb-5 pt-6 ${MODAL_INSET_CLASS_NAME.stacked}`,
+    bodyClassName: `min-h-0 flex-1 overflow-y-auto pb-3 pt-4 ${MODAL_INSET_CLASS_NAME.stacked}`,
   },
 } as const
 

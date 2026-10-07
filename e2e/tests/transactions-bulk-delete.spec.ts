@@ -81,3 +81,37 @@ test('opens the delete confirmation on Cancel and tabs through its actions as dr
   await page.keyboard.press('Shift+Tab')
   await expect(cancel).toBeFocused()
 })
+
+// The actions line up with the header above them at every width: Delete starts where the title starts
+// and Cancel ends where the close button ends, rather than sitting further in once the dialog fills
+// the screen
+test('lines the delete confirmation actions up with its header', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const date = daysFromTodayInTestTimezone(-1)
+  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000, date })
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
+  await page.getByRole('checkbox', { name: new RegExp(`^Select .+ on ${date}$`) }).check()
+  await page.getByRole('button', { name: 'Delete the selected transactions', exact: true }).click()
+
+  const confirm = page.getByRole('dialog', { name: 'Delete 1 transaction?', exact: true })
+  // Measured together and polled, since the panel scales in as it opens and edges read mid-animation
+  // drift apart by however far it has to go
+  const readEdgeOffsets = async () => {
+    const [title, close, remove, cancel] = await Promise.all([
+      confirm.getByRole('heading', { name: 'Delete 1 transaction?', exact: true }).boundingBox(),
+      confirm.getByRole('button', { name: 'Close', exact: true }).boundingBox(),
+      confirm.getByRole('button', { name: 'Delete', exact: true }).boundingBox(),
+      confirm.getByRole('button', { name: 'Cancel', exact: true }).boundingBox(),
+    ])
+    return {
+      left: Math.round(remove!.x - title!.x) || 0,
+      right: Math.round(cancel!.x + cancel!.width - (close!.x + close!.width)) || 0,
+    }
+  }
+
+  await expect.poll(readEdgeOffsets).toEqual({ left: 0, right: 0 })
+})
