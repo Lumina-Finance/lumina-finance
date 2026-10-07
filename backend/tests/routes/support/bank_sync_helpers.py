@@ -28,6 +28,8 @@ from app.models.bank_connection import (
     BankExternalAccount,
     BankImportKind,
     BankProvider,
+    BankProviderRequest,
+    ProviderRequestPurpose,
 )
 from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobStatus
@@ -458,6 +460,21 @@ async def _seed_job(connection: BankConnection, kind: BankSyncJobKind, **values)
         session.add(job)
         await session.commit()
     return job
+
+
+async def _spend_requests(connection: BankConnection, count: int, oldest: datetime) -> None:
+    """Commit requests sent a minute apart from the oldest, as the connection's budget counts them"""
+    async with TestSession() as session:
+        session.add_all(
+            BankProviderRequest(
+                owner_id=connection.owner_id,
+                connection_id=connection.id,
+                purpose=ProviderRequestPurpose.SYNC,
+                requested_at=oldest + timedelta(minutes=minute),
+            )
+            for minute in range(count)
+        )
+        await session.commit()
 
 
 async def _commit_running_job(

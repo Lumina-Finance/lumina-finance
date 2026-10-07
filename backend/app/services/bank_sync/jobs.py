@@ -53,13 +53,15 @@ async def enqueue_bank_sync_job(
     discover: bool = False,
     run_after: datetime | None = None,
     deferred_link_ids: Collection[uuid.UUID] = (),
+    requested_link_ids: Collection[uuid.UUID] = (),
 ) -> None:
     """Queue a sync of a connection, merging into the job already queued for it
 
     A connection has at most one queued job. New work for it merges in: the higher-priority kind
     wins, a request to rediscover the bank accounts is kept once either asks, a link either plans
-    last stays last, and the job runs at the earlier of the two times. A running job is left alone,
-    so the queued one runs after it. The caller commits
+    last stays last, a link either was asked to sync now stays asked, and the job runs at the
+    earlier of the two times. A running job is left alone, so the queued one runs after it. The
+    caller commits
 
     A time is kept as the same wait from the database's clock, which the claim compares it with, so
     a database clock running ahead of the app's can't have a job claimed before the app counts it
@@ -74,6 +76,7 @@ async def enqueue_bank_sync_job(
         run_after: When the job may run by the app's clock, or now when not given
         deferred_link_ids: The links to sync only once no other link is due, since a job just
             failed to bring them back whole
+        requested_link_ids: The links the user asked to sync now, whatever their next daily time
     """
     when = func.now()
     if run_after is not None:
@@ -86,6 +89,7 @@ async def enqueue_bank_sync_job(
         status=BankSyncJobStatus.QUEUED,
         run_after=when,
         deferred_link_ids=list(deferred_link_ids),
+        requested_link_ids=list(requested_link_ids),
     )
     await db.execute(
         queued.on_conflict_do_update(
@@ -102,6 +106,9 @@ async def enqueue_bank_sync_job(
                 # Each link once, whichever job deferred it
                 "deferred_link_ids": literal_column(
                     "ARRAY(SELECT DISTINCT unnest(bank_sync_jobs.deferred_link_ids || excluded.deferred_link_ids))"
+                ),
+                "requested_link_ids": literal_column(
+                    "ARRAY(SELECT DISTINCT unnest(bank_sync_jobs.requested_link_ids || excluded.requested_link_ids))"
                 ),
             },
         )

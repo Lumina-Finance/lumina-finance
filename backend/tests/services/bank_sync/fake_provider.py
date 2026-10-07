@@ -7,7 +7,7 @@ for that its outcome leaves out an error of its own, as the contract has every p
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import override
 from zoneinfo import ZoneInfo
 
@@ -15,9 +15,11 @@ from app.models.bank_connection import ConnectsFrom
 from app.models.bank_sync_job import ProviderErrorKind
 from app.services.bank_sync.providers.contract import (
     ClaimRefused,
+    ExternalAccount,
     FetchResult,
     ProviderAdapter,
     ProviderError,
+    ProviderRecord,
 )
 
 
@@ -108,3 +110,34 @@ class FakeProviderAdapter(ProviderAdapter):
         if isinstance(outcome, Exception):
             raise outcome
         return outcome
+
+
+def _bank_account(
+    external_id: str,
+    login_key: str = "CON-harbour",
+    records: Sequence[ProviderRecord] = (),
+    currency: str | None = "CAD",
+    currency_raw: str | None = None,
+) -> ExternalAccount:
+    """Return a bank account as the provider lists it, in its account's currency unless told otherwise, with the records a fetch brought back
+
+    The provider sends a currency's code as it is, unless told otherwise
+    """
+    return ExternalAccount(
+        external_id=external_id,
+        name=external_id,
+        institution_key="ORG-harbour",
+        institution_name="Harbour Bank",
+        login_key=login_key,
+        currency=currency,
+        currency_raw=currency_raw or currency,
+        balance=100_00,
+        available_balance=None,
+        balance_at=datetime(2026, 10, 4, tzinfo=UTC),
+        records=tuple(records),
+    )
+
+
+def _returned(*external_ids: str) -> FetchResult:
+    """Return a response bringing back each bank account whole"""
+    return FetchResult(accounts=tuple(_bank_account(external_id) for external_id in external_ids))

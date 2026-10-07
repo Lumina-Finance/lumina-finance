@@ -60,6 +60,7 @@ from app.services.bank_sync.review_decisions import (
     restore_bank_value,
 )
 from app.services.bank_sync.review_items import REVIEW_PAGE_SIZE, list_review_backlogs, list_review_items
+from app.services.bank_sync.sync_now import sync_account_now
 
 router = APIRouter(prefix="/bank-sync", tags=["bank-sync"])
 
@@ -319,6 +320,25 @@ async def delete_bank_link(
         The account unlinked
     """
     return await unlink_account(db, user, account_id)
+
+
+@bank_link_router.post("/sync", response_model=BankLinkResponse)
+async def sync_bank_link_now(
+    account_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Queue a sync of one of the user's linked accounts for straight away, whatever its next daily time
+
+    Args:
+        account_id: The linked account
+        user: Authenticated owner of the account
+        db: Active database session
+
+    Returns:
+        The link, whose status says the sync is requested until a worker starts it
+    """
+    return await sync_account_now(db, user, account_id)
 
 
 @bank_link_router.get("/import-range", response_model=BankImportRangeResponse)

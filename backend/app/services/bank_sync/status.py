@@ -3,7 +3,8 @@
 The first state that applies wins: what only the user can fix, an import, the review pause, a sync,
 an opening balance to confirm, the review warning, a retry, and otherwise synced. An import outranks
 the pause, since an import always runs to today whatever the backlog. The pause and the warning are
-the review block's own, so the block and the status never disagree
+the review block's own, so the block and the status never disagree. A sync shows only while a worker
+runs it, so a Sync now still queued leaves the state as it was and marks the sync requested
 """
 
 import uuid
@@ -11,7 +12,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bank_connection import BankAccountLink, BankConnection, BankImportKind, BankLinkState, OpeningAdjustmentState
@@ -62,7 +63,7 @@ async def read_link_statuses(db: AsyncSession, links: Sequence[BankAccountLink],
         return {}
     connections = list(await db.scalars(select(BankConnection).where(BankConnection.id.in_({link.connection_id for link in links}))))
     budgets = await read_request_budgets(db, connections, now=now)
-    syncing = await _read_links_syncing(db, now=now)
+    syncing, requested = await _read_job_links(db, now=now)
     account_ids = [link.account_id for link in links]
     needed = await read_actions_needed(db, account_ids)
     backlogs = await read_review_backlogs(db, account_ids, actions_needed=needed)
@@ -73,7 +74,8 @@ async def read_link_statuses(db: AsyncSession, links: Sequence[BankAccountLink],
         action = needed.get(link.account_id)
         import_state = _read_import_state(link, action, budget, syncing=link.id in syncing) if shows_import_progress(link) else None
         state = _choose_state(link, action, import_state, backlogs[link.account_id], syncing=link.id in syncing)
-        statuses[link.id] = LinkStatus(sync=_describe_sync(link, state, budget, backlogs[link.account_id]), import_state=import_state)
+        sync = _describe_sync(link, state, budget, backlogs[link.account_id], running=link.id in syncing, requested=link.id in requested)
+        statuses[link.id] = LinkStatus(sync=sync, import_state=import_state)
     return statuses
 
 
@@ -124,7 +126,9 @@ def _choose_state(
     return "synced"
 
 
-def _describe_sync(link: BankAccountLink, state: BankSyncState, budget: RequestBudget, backlog: ReviewBacklog) -> BankSyncStatusResponse:
+def _describe_sync(
+    link: BankAccountLink, state: BankSyncState, budget: RequestBudget, backlog: ReviewBacklog, *, running: bool, requested: bool
+) -> BankSyncStatusResponse:
     """Return a link's state with the facts its Sync details and notices word"""
     available_again_at = budget.available_again_at
     next_attempt_at = available_again_at if state == "import_waiting_on_budget" else link.next_attempt_at
@@ -136,20 +140,39 @@ def _describe_sync(link: BankAccountLink, state: BankSyncState, budget: RequestB
         else BankSyncFailureResponse(at=link.last_attempt_at, reason=link.last_failure_reason),
         next_attempt_at=next_attempt_at,
         waiting_on_budget=available_again_at is not None and link.next_attempt_at is not None and link.next_attempt_at < available_again_at,
+        sync_running=running,
+        sync_requested=requested,
         waiting_new_count=backlog.waiting_new,
         paused=backlog.paused,
         review_warning=backlog.warning,
     )
 
 
-async def _read_links_syncing(db: AsyncSession, *, now: datetime) -> set[uuid.UUID]:
-    """Return the links the owner's running jobs are syncing
+async def _read_job_links(db: AsyncSession, *, now: datetime) -> tuple[set[uuid.UUID], set[uuid.UUID]]:
+    """Return the links the owner's running jobs are syncing, and those a queued job is to sync now as the user asked
 
     A job records the links it covers once it has planned its window, so a job still listing the
-    bank accounts covers none yet. A job whose lease has run out was left by a worker that stopped,
-    so it syncs nothing until a worker claims it again
+    bank accounts covers none yet, apart from those the user asked it to sync, which it syncs from
+    the start. A job whose lease has run out was left by a worker that stopped, so it syncs nothing
+    until a worker claims it again. A queued job syncs nothing yet, so a link the user asked to sync
+    keeps its state until a worker starts the job. One waiting for the request budget to free a
+    request isn't due, and its links read as not asked for until it is, so they show the budget
+    holding them back rather than a sync about to start
     """
-    covered = await db.scalars(
-        select(BankSyncJob.covered_link_ids).where(BankSyncJob.status == BankSyncJobStatus.RUNNING, BankSyncJob.lease_expires_at > now)
+    rows = await db.execute(
+        select(BankSyncJob.status, BankSyncJob.covered_link_ids, BankSyncJob.requested_link_ids).where(
+            or_(
+                and_(BankSyncJob.status == BankSyncJobStatus.RUNNING, BankSyncJob.lease_expires_at > now),
+                # Due by the database's clock, which the claim reads it by
+                and_(BankSyncJob.status == BankSyncJobStatus.QUEUED, BankSyncJob.run_after <= func.now()),
+            )
+        )
     )
-    return {link_id for link_ids in covered if link_ids for link_id in link_ids}
+    syncing: set[uuid.UUID] = set()
+    requested: set[uuid.UUID] = set()
+    for status, covered, asked in rows:
+        if status == BankSyncJobStatus.QUEUED:
+            requested.update(asked)
+        else:
+            syncing.update(covered or (), asked)
+    return syncing, requested

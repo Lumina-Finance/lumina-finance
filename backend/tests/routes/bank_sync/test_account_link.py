@@ -98,6 +98,8 @@ async def test_account_bank_link_shows_its_imports_progress(client):
                 "last_failure": None,
                 "next_attempt_at": None,
                 "waiting_on_budget": False,
+                "sync_running": False,
+                "sync_requested": False,
                 "waiting_new_count": 3,
                 "paused": False,
                 "review_warning": False,

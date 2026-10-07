@@ -327,6 +327,15 @@ class BankSyncStatusResponse(BaseModel):
     # The next sync is due before the connection's request budget frees a request, so it waits for one
     waiting_on_budget: bool
 
+    # A worker is syncing the link, which the state shows as syncing unless a state outranks it, such
+    # as a bank sign-in
+    sync_running: bool
+
+    # The user asked to sync the link now, the sync is due and no worker has started it yet, so the
+    # state is still the one before it. A sync waiting for the request budget isn't due until a
+    # request frees up
+    sync_requested: bool
+
     # New items awaiting their first review, and whether they hold the sync or warn that they soon
     # will, as the review block says too. Neither while only the user can restart the sync
     waiting_new_count: int

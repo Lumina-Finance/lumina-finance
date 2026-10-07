@@ -8,7 +8,9 @@ transaction of its own before it is sent, and a job that finds the budget spent 
 for when a request frees. A link whose fetch failed is left out of the rest of the job, and the job
 it queues plans it only once no other link is due, so a link failing on every request can't take
 each request that frees ahead of links that can progress. A job holds no database connection while
-it waits on the provider
+it waits on the provider. A link the user asked to sync now is due whatever its next attempt, and
+one a job ends without an attempt for, such as one an import's earlier window didn't reach, passes
+to the job it queues next
 
 A bank account a fetch lists in a currency other than its account's isn't brought back whole, since
 its amounts would be read at the wrong precision, and the job queues the next one to list the bank
@@ -131,7 +133,9 @@ async def run_sync_job(job: ClaimedJob) -> None:
         connection = await db.get(BankConnection, job.connection_id)
         if connection is None:
             raise JobNotHeld(f"Bank sync job {job.id}'s connection was deleted")
-        deferred = await db.scalar(select(BankSyncJob.deferred_link_ids).where(BankSyncJob.id == job.id))
+        deferred, requested = (
+            await db.execute(select(BankSyncJob.deferred_link_ids, BankSyncJob.requested_link_ids).where(BankSyncJob.id == job.id))
+        ).one()
         timezone = resolve_timezone(await db.scalar(select(User.tz).where(User.id == job.owner_id)))
         currency_exponents = await get_all_currency_exponents(db)
 
@@ -147,7 +151,15 @@ async def run_sync_job(job: ClaimedJob) -> None:
             await _end_job(job, started_at=now, outbox=outbox)
         else:
             run = _JobRun(
-                job, connection, adapter, outbox=outbox, deferred=deferred, timezone=timezone, currency_exponents=currency_exponents, now=now
+                job,
+                connection,
+                adapter,
+                outbox=outbox,
+                deferred=deferred,
+                requested=requested,
+                timezone=timezone,
+                currency_exponents=currency_exponents,
+                now=now,
             )
             try:
                 await run.run()
@@ -202,11 +214,12 @@ class _JobRun:
         *,
         outbox: list[ActionEmail],
         deferred: Collection[uuid.UUID],
+        requested: Collection[uuid.UUID],
         timezone: ZoneInfo,
         currency_exponents: Mapping[str, int],
         now: datetime,
     ) -> None:
-        """Hold the job, its connection as read, its provider, where its emails go, the links it plans last, and the time it started"""
+        """Hold the job, its connection as read, its provider, where its emails go, the links it plans last or syncs now, and when it started"""
         self.job = job
         self.connection = connection
         self.adapter = adapter
@@ -225,9 +238,16 @@ class _JobRun:
         # The links a part of this job didn't bring back whole, left out of the rest of it
         self.failed: set[uuid.UUID] = set()
 
+        # The links the user asked to sync now, due whatever their next attempt. Those this job ends
+        # without an attempt for pass to the job it queues next
+        self.requested: set[uuid.UUID] = set(requested)
+
         # The links an earlier job couldn't bring back whole and this one hasn't yet, planned only
-        # once no other link is due
-        self.deferred: set[uuid.UUID] = set(deferred)
+        # once no other link is due. One the user asked to sync now is planned with the rest
+        self.deferred: set[uuid.UUID] = set(deferred) - self.requested
+
+        # The links this job recorded an attempt for, successful or failed
+        self.attempted: set[uuid.UUID] = set()
 
         # Each linked account's currency, which never changes, read with the links
         self.account_currencies: dict[uuid.UUID, str] = {}
@@ -282,7 +302,9 @@ class _JobRun:
 
     def _due(self, links: list[BankAccountLink]) -> list[LinkNeed]:
         """Return the links due to sync now, each with the first day it needs, leaving out those this job found failing"""
-        due = find_due_links(links, now=self.now, timezone=self.timezone, overlap_days=self.adapter.revisit_overlap_days)
+        due = find_due_links(
+            links, now=self.now, timezone=self.timezone, overlap_days=self.adapter.revisit_overlap_days, requested=self.requested
+        )
         return [need for need in due if need.link.id not in self.failed]
 
     def _plan(self, needs: list[LinkNeed]) -> SyncWindow | None:
@@ -530,6 +552,7 @@ class _JobRun:
                 await mark_user_status_changed(db, self.job.owner_id)
             await db.commit()
             self.outbox += emails
+            self.attempted |= {link.id for link in succeeded + failed}
         await send_action_emails(self.outbox)
         return moved
 
@@ -605,7 +628,9 @@ class _JobRun:
 
         The next one is queued to list the bank accounts first, whatever was asked, once a fetch
         found one in a currency other than its account's in a job that didn't list them, unless the
-        provider has since rejected the credential, which a listing would only spend a request on
+        provider has since rejected the credential, which a listing would only spend a request on.
+        It syncs now each link the user asked for that this one ends without an attempt for, such as
+        one an import's earlier window on the same connection didn't reach
 
         Args:
             error: What stopped the job, or None when it did all it could
@@ -625,6 +650,7 @@ class _JobRun:
             run_after=run_after,
             discover=discover or relist,
             deferred=self.failed | self.deferred,
+            requested=self.requested - self.attempted - {link.id for link in failed},
             sent_with=sent_with,
             failed=failed,
             attempted_at=attempted_at,
@@ -715,6 +741,7 @@ async def _end_job(
     run_after: datetime | None = None,
     discover: bool = False,
     deferred: Collection[uuid.UUID] = (),
+    requested: Collection[uuid.UUID] = (),
     sent_with: str | None = None,
     failed: Sequence[BankAccountLink] = (),
     attempted_at: datetime | None = None,
@@ -738,6 +765,7 @@ async def _end_job(
         run_after: When that job may run, or at once when not given
         discover: Whether that job lists the bank accounts first
         deferred: The links that job plans only once no other link is due
+        requested: The links that job syncs whatever their next attempt, as the user asked
         sent_with: The credential of the request whose answer ends the job, or None when none does
         failed: The links the error failed an attempt for, as the caller read them
         attempted_at: When the failed attempt's request was sent, or now when not given
@@ -770,6 +798,7 @@ async def _end_job(
                 discover=discover,
                 run_after=run_after,
                 deferred_link_ids=deferred,
+                requested_link_ids=requested,
             )
         await queue_next_retry(db, connection, ended_by=error, overdue=retry_overdue, started_at=started_at, now=now)
         await schedule_next_sync(db, connection, now=now)

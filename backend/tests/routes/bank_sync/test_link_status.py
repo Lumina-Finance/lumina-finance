@@ -4,14 +4,16 @@ The first state that applies wins, so each ordering case gives a link two states
 ranked higher. Read through the account's bank link, which the list of links shares
 """
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
+from sqlalchemy import update
 
 from app.models.bank_connection import BankLinkState, OpeningAdjustmentState
-from app.models.bank_sync_job import BankSyncJobKind
+from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobStatus
 from app.services.bank_sync import account_link
+from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     _commit_link,
     _commit_listed_connection,
@@ -99,7 +101,10 @@ async def _read_sync(client, headers, account_id) -> dict:
     ],
 )
 async def test_sync_status_shows_the_first_state_that_applies(client, link_values, connection_values, waiting, syncing, state):
-    """A link meeting two states shows the one ranked higher"""
+    """A link meeting two states shows the one ranked higher, and still says when a sync runs under a state ranked above it
+
+    Sync now reads that to refuse a second sync, which would spend another request
+    """
     headers, user_id = await _sign_up(client)
     account_id = await _new_account(client, headers, "Everyday")
     connection = await _commit_listed_connection(user_id, discovered_at=_NOW)
@@ -110,7 +115,9 @@ async def test_sync_status_shows_the_first_state_that_applies(client, link_value
     if syncing:
         await _commit_running_job(connection, link, now=_NOW)
 
-    assert (await _read_sync(client, headers, account_id))["state"] == state
+    sync = await _read_sync(client, headers, account_id)
+
+    assert (sync["state"], sync["sync_running"]) == (state, syncing)
 
 
 async def test_sync_status_reads_as_syncing_only_while_a_running_job_covers_the_link(client):
@@ -142,6 +149,60 @@ async def test_sync_status_reads_a_job_whose_lease_ran_out_as_not_syncing(client
     assert (await _read_sync(client, headers, account_id))["state"] == "synced"
 
 
+async def test_sync_status_reads_a_sync_asked_for_now_as_requested_until_a_worker_starts_it_then_as_syncing(client):
+    """Sync now on Everyday queues a job that syncs nothing yet, so Everyday keeps its state, and reads as Syncing once a worker runs it
+
+    The running job is still listing the bank accounts, so it covers no link yet, though it syncs
+    Everyday from the start. Savings, on the same connection, wasn't asked for
+    """
+    headers, user_id = await _sign_up(client)
+    everyday_id = await _new_account(client, headers, "Everyday")
+    savings_id = await _new_account(client, headers, "Savings")
+    connection = await _commit_listed_connection(user_id, "ACT-1", "ACT-2", discovered_at=_NOW)
+    everyday = await _commit_link(everyday_id, connection, "ACT-1", **_SYNCED)
+    await _commit_link(savings_id, connection, "ACT-2", **_SYNCED)
+    job = await _seed_job(connection, BankSyncJobKind.MANUAL, requested_link_ids=[everyday.id])
+
+    queued = await _read_sync(client, headers, everyday_id)
+    async with TestSession() as session:
+        await session.execute(
+            update(BankSyncJob)
+            .where(BankSyncJob.id == job.id)
+            .values(status=BankSyncJobStatus.RUNNING, lease_expires_at=_NOW + timedelta(minutes=10))
+        )
+        await session.commit()
+    running = await _read_sync(client, headers, everyday_id)
+
+    assert (queued["state"], queued["sync_running"], queued["sync_requested"]) == ("synced", False, True)
+    assert (running["state"], running["sync_running"], running["sync_requested"]) == ("syncing", True, False)
+    savings = await _read_sync(client, headers, savings_id)
+    assert (savings["state"], savings["sync_running"], savings["sync_requested"]) == ("synced", False, False)
+
+
+async def test_sync_status_reads_a_sync_asked_for_now_as_requested_only_while_it_is_due(client):
+    """The worker put Everyday's Sync now back to wait two hours for the request budget, so Everyday reads as not asked for until it's due
+
+    Read as requested all that time, the button would show the sync starting rather than the budget
+    holding it back, and the page would keep checking every 2 seconds
+    """
+    headers, user_id = await _sign_up(client)
+    account_id = await _new_account(client, headers, "Everyday")
+    connection = await _commit_listed_connection(user_id, discovered_at=_NOW)
+    everyday = await _commit_link(account_id, connection, **_SYNCED)
+    job = await _seed_job(
+        connection, BankSyncJobKind.MANUAL, requested_link_ids=[everyday.id], run_after=datetime.now(UTC) + timedelta(hours=2)
+    )
+
+    waiting = await _read_sync(client, headers, account_id)
+    async with TestSession() as session:
+        await session.execute(update(BankSyncJob).where(BankSyncJob.id == job.id).values(run_after=datetime.now(UTC) - timedelta(seconds=1)))
+        await session.commit()
+    due = await _read_sync(client, headers, account_id)
+
+    assert (waiting["state"], waiting["sync_requested"]) == ("synced", False)
+    assert (due["state"], due["sync_requested"]) == ("synced", True)
+
+
 async def test_sync_status_of_a_synced_link_says_when_it_next_syncs(client):
     """Everyday synced three hours ago and next syncs in 21 hours, and its successful attempt is no failure"""
     headers, user_id = await _sign_up(client)
@@ -157,6 +218,8 @@ async def test_sync_status_of_a_synced_link_says_when_it_next_syncs(client):
         "state": "synced",
         "last_failure": None,
         "waiting_on_budget": False,
+        "sync_running": False,
+        "sync_requested": False,
         "waiting_new_count": 0,
         "paused": False,
         "review_warning": False,

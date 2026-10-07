@@ -71,6 +71,7 @@ from app.services.cache_state.updates import mark_user_cache_changed, mark_user_
 from app.utils.dates import format_day, resolve_timezone
 
 ACCOUNT_ALREADY_LINKED = "This account is already linked to a bank"
+ACCOUNT_NOT_LINKED = "This account is not linked to a bank"
 BANK_ACCOUNT_ALREADY_LINKED = "That bank account is already linked to another account"
 
 
@@ -300,7 +301,7 @@ async def unlink_account(db: AsyncSession, user: User, account_id: uuid.UUID) ->
         .with_for_update()
     )
     if link is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="This account is not linked to a bank")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ACCOUNT_NOT_LINKED)
     await _end_links(db, [link], now=datetime.now(UTC))
     await mark_user_cache_changed(db, user.id)
     await db.commit()

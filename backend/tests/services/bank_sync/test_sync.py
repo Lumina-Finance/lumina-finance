@@ -74,8 +74,8 @@ from app.services.bank_sync import action_needed, availability, schedule, sync, 
 from app.services.bank_sync.availability import PROVIDER_ADAPTERS
 from app.services.bank_sync.connections import build_connection_responses
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
-from app.services.bank_sync.provider_requests import reserve_provider_request
-from app.services.bank_sync.providers.contract import ExternalAccount, FetchResult, ProviderError, ProviderRecord
+from app.services.bank_sync.provider_requests import read_request_budget, reserve_provider_request
+from app.services.bank_sync.providers.contract import FetchResult, ProviderError, ProviderRecord
 from app.services.bank_sync.review_pause import lift_review_pauses, lock_account_links
 from app.services.bank_sync.schedule import next_daily_sync, queue_scheduled_sync, schedule_next_sync
 from app.services.bank_sync.worker import enqueue_due_work, run_jobs
@@ -108,8 +108,9 @@ from tests.routes.support.bank_sync_helpers import (
     _owner_session,
     _queued_jobs,
     _seed_job,
+    _spend_requests,
 )
-from tests.services.bank_sync.fake_provider import FakeProviderAdapter
+from tests.services.bank_sync.fake_provider import FakeProviderAdapter, _bank_account, _returned
 from tests.services.bank_sync.stand_ins import FakeBridgeScenario, simplefin_adapter
 
 # Without clock changes, so the examples' windows are whole runs of 90 calendar days. The frozen
@@ -181,37 +182,6 @@ async def _link(connection: BankConnection, external_id: str, **values) -> BankA
 def _synced_through_yesterday(**values) -> dict:
     """Return the fields of a link whose import ended long ago and which yesterday's daily sync left complete through 3 October"""
     return {"import_start": date(2026, 1, 1), "checkpoint": date(2026, 10, 3), "last_success_at": _YESTERDAYS_SYNC, "importing": False} | values
-
-
-def _bank_account(
-    external_id: str,
-    login_key: str = "CON-harbour",
-    records: Sequence[ProviderRecord] = (),
-    currency: str | None = "CAD",
-    currency_raw: str | None = None,
-) -> ExternalAccount:
-    """Return a bank account as the provider lists it, in its account's currency unless told otherwise, with the records a fetch brought back
-
-    The provider sends a currency's code as it is, unless told otherwise
-    """
-    return ExternalAccount(
-        external_id=external_id,
-        name=external_id,
-        institution_key="ORG-harbour",
-        institution_name="Harbour Bank",
-        login_key=login_key,
-        currency=currency,
-        currency_raw=currency_raw or currency,
-        balance=100_00,
-        available_balance=None,
-        balance_at=datetime(2026, 10, 4, tzinfo=UTC),
-        records=tuple(records),
-    )
-
-
-def _returned(*external_ids: str) -> FetchResult:
-    """Return a response bringing back each bank account whole"""
-    return FetchResult(accounts=tuple(_bank_account(external_id) for external_id in external_ids))
 
 
 def _returned_with(records: dict[str, Sequence[ProviderRecord]]) -> FetchResult:
@@ -361,21 +331,6 @@ async def _schedule_next_sync(connection: BankConnection, now: datetime) -> None
     """Work out and commit the connection's next scheduled sync as its owner, as a job ending does"""
     async with _owner_session(connection.owner_id) as session:
         await schedule_next_sync(session, await session.get(BankConnection, connection.id), now=now)
-        await session.commit()
-
-
-async def _spend_requests(connection: BankConnection, count: int, oldest: datetime) -> None:
-    """Commit requests sent a minute apart from the oldest, as the connection's budget counts them"""
-    async with TestSession() as session:
-        session.add_all(
-            BankProviderRequest(
-                owner_id=connection.owner_id,
-                connection_id=connection.id,
-                purpose=ProviderRequestPurpose.SYNC,
-                requested_at=oldest + timedelta(minutes=minute),
-            )
-            for minute in range(count)
-        )
         await session.commit()
 
 
@@ -699,6 +654,90 @@ async def test_job_records_a_second_sync_the_same_day_as_the_links_last_success(
     assert _fetched(provider) == [_window(date(2026, 9, 20), _TODAY, pending=True)]
     async with TestSession() as session:
         assert (await session.execute(select(BankAccountLink.checkpoint, BankAccountLink.last_success_at))).one() == (_TODAY, frozen_now)
+
+
+async def test_job_syncs_a_link_asked_for_now_while_it_waits_to_retry_and_leaves_the_others_to_their_retry(
+    connection, provider, frozen_now, day_later
+):
+    """Everyday and Savings failed at 12:50 pm and retry at 1:20, and at 1 pm the user asks Everyday to sync now
+
+    Everyday is fetched alone and next syncs tomorrow, while Savings still retries at 1:20, which its
+    status reads as. Left out, Everyday would skip the account the user sees failing
+    """
+    retry_at = frozen_now + timedelta(minutes=20)
+    failed = _synced_through_yesterday(retry_count=1, last_failure_reason="SimpleFIN Bridge reported a problem", next_attempt_at=retry_at)
+    everyday = await _link(connection, "ACT-everyday", **failed)
+    savings = await _link(connection, "ACT-savings", **failed)
+    provider.outcomes = [_returned("ACT-everyday")]
+    await _seed_job(connection, BankSyncJobKind.MANUAL, requested_link_ids=[everyday.id])
+
+    assert await run_jobs(1) == 1
+
+    assert _fetched(provider) == [_window(date(2026, 9, 19), _TODAY, ["ACT-everyday"], pending=True)]
+    assert [(count, next_at) for *_, count, next_at in await _attempts(everyday, savings)] == [
+        (0, frozen_now + day_later),
+        (1, retry_at),
+    ]
+
+
+async def test_job_plans_a_link_asked_for_now_with_the_others_though_an_earlier_job_found_it_failing(connection, provider):
+    """Card failed in the job before, so it would wait for Everyday's window, but the user asked Card to sync now
+
+    So one request fetches both, where planning Card last would spend a second request on it
+    """
+    await _link(connection, "ACT-everyday", **_synced_through_yesterday())
+    card = await _link(connection, "ACT-card", **_synced_through_yesterday())
+    provider.outcomes = [_returned("ACT-card", "ACT-everyday")]
+    await _seed_job(connection, BankSyncJobKind.MANUAL, deferred_link_ids=[card.id], requested_link_ids=[card.id])
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [_window(date(2026, 9, 19), _TODAY, ["ACT-card", "ACT-everyday"], pending=True)]
+
+
+async def test_job_passes_a_link_asked_for_now_to_the_next_job_until_a_window_reaches_it(connection, provider, frozen_now, day_later):
+    """Savings, linked from 1 June, is importing when the user asks Everyday, next due in 20 hours, to sync now
+
+    Savings imports alone until its window reaches Everyday's re-read, in the job after the one asked
+    for, and Everyday joins it there and next syncs tomorrow. Dropped by the first job, Everyday
+    would wait for its daily sync
+    """
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday(next_attempt_at=frozen_now + timedelta(hours=20)))
+    savings = await _link(connection, "ACT-savings", import_start=date(2026, 6, 1), checkpoint=date(2026, 5, 31))
+    provider.outcomes = [_returned("ACT-savings"), _returned("ACT-savings", "ACT-everyday")]
+    await _seed_job(connection, BankSyncJobKind.MANUAL, requested_link_ids=[everyday.id])
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [
+        _window(date(2026, 6, 1), date(2026, 8, 29), ["ACT-savings"]),
+        _window(date(2026, 8, 30), _TODAY, ["ACT-savings", "ACT-everyday"], pending=True),
+    ]
+    assert await _checkpoints(everyday, savings) == [_TODAY, _TODAY]
+    assert (await _attempts(everyday))[0][4] == frozen_now + day_later
+
+
+async def test_job_syncing_a_link_asked_for_now_takes_in_one_due_within_12_hours_in_the_same_request(
+    connection, provider, frozen_now, day_later
+):
+    """The user asks Everyday to sync now while Savings is due in 6 hours, with 6 of the connection's 20 requests used
+
+    One request brings both up to date, so Savings next syncs a day on with Everyday and the
+    connection has used 7. Left to its own time, Savings would spend another request in 6 hours
+    """
+    everyday = await _link(connection, "ACT-everyday", **_synced_through_yesterday(next_attempt_at=frozen_now + timedelta(hours=20)))
+    savings = await _link(connection, "ACT-savings", **_synced_through_yesterday(next_attempt_at=frozen_now + timedelta(hours=6)))
+    await _spend_requests(connection, 6, frozen_now - timedelta(hours=10))
+    provider.outcomes = [_returned("ACT-everyday", "ACT-savings")]
+    await _seed_job(connection, BankSyncJobKind.MANUAL, requested_link_ids=[everyday.id])
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [_window(date(2026, 9, 19), _TODAY, ["ACT-everyday", "ACT-savings"], pending=True)]
+    assert [next_at for *_, next_at in await _attempts(everyday, savings)] == [frozen_now + day_later, frozen_now + day_later]
+    async with TestSession() as session:
+        budget = await read_request_budget(session, await session.get(BankConnection, connection.id), now=frozen_now)
+    assert (budget.used, budget.limit) == (7, _DAILY_REQUESTS)
 
 
 async def test_job_whose_request_fails_records_the_failure_and_moves_no_checkpoint(connection, monkeypatch, frozen_now):

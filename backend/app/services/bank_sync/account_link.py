@@ -50,7 +50,7 @@ async def read_account_bank_status(db: AsyncSession, user: User, account_id: uui
     account = await get_own_personal_account(db, account_id, user.id, not_own_detail=LINK_NOT_OWN_DETAIL)
     link = await db.scalar(select(BankAccountLink).where(BankAccountLink.account_id == account.id, LIVE_LINK))
     if link is not None:
-        [described] = await _describe_links(db, user, [link], now=datetime.now(UTC))
+        [described] = await describe_links(db, user, [link], now=datetime.now(UTC))
         return AccountBankStatusResponse(account_id=account.id, link=described, previous_link=None)
 
     # Every link left is unlinked, so each has the day it ended
@@ -93,11 +93,15 @@ async def list_bank_links(db: AsyncSession, user: User) -> list[BankLinkResponse
         .where(LIVE_LINK, own_personal_account_condition(user.id))
         .order_by(BankAccountLink.linked_at, BankAccountLink.id)
     )
-    return await _describe_links(db, user, links.all(), now=datetime.now(UTC))
+    return await describe_links(db, user, links.all(), now=datetime.now(UTC))
 
 
-async def _describe_links(db: AsyncSession, user: User, links: Sequence[BankAccountLink], *, now: datetime) -> list[BankLinkResponse]:
-    """Return live links as the app shows them, in the order given, with each import's progress while it shows one"""
+async def describe_links(db: AsyncSession, user: User, links: Sequence[BankAccountLink], *, now: datetime) -> list[BankLinkResponse]:
+    """Return live links as the app shows them, in the order given, with each import's progress while it shows one
+
+    Raises:
+        HTTPException 422: The profile's timezone no longer resolves, read only while an import runs
+    """
     statuses = await read_link_statuses(db, links, now=now)
     importing = [link for link in links if statuses[link.id].import_state is not None]
     items_found = await _count_items_found(db, importing)

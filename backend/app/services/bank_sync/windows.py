@@ -7,10 +7,12 @@ corrected, never before its import start. One request per connection fetches a w
 earliest need among the links due, at most as long as the provider allows, for every link whose need
 begins in it, so imports, routine syncs and catch-ups after any gap are one mechanism. Days are
 calendar days in the user's profile timezone. When each link is next due is worked out here for the
-schedule and the planner alike, so the two agree on it
+schedule and the planner alike, so the two agree on it. A link the user asked to sync now is due at
+once, whatever its next attempt
 """
 
-from collections.abc import Iterable
+import uuid
+from collections.abc import Collection, Iterable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
@@ -76,25 +78,35 @@ def next_due_at(link: BankAccountLink, *, now: datetime, timezone: ZoneInfo, ove
     return max(link.next_attempt_at or now, _midnight(_need_start(link, timezone, overlap_days), timezone))
 
 
-def find_due_links(links: Iterable[BankAccountLink], *, now: datetime, timezone: ZoneInfo, overlap_days: int) -> list[LinkNeed]:
+def find_due_links(
+    links: Iterable[BankAccountLink],
+    *,
+    now: datetime,
+    timezone: ZoneInfo,
+    overlap_days: int,
+    requested: Collection[uuid.UUID] = (),
+) -> list[LinkNeed]:
     """Return the links to sync now, each with the first day it needs
 
     A link joins once next_due_at falls within the next 12 hours and the first day it needs has
     started. A link waiting to retry joins only once its retry is due, so it isn't fetched ahead of
-    it with links due later today
+    it with links due later today. A link the user asked to sync now joins whatever its next attempt,
+    a retry's included, since a link that synced this morning would otherwise be skipped, though
+    never while it can't sync
 
     Args:
         links: The connection's links
         now: The current time
         timezone: The profile timezone, which days are counted in
         overlap_days: Days before its checkpoint that a routine sync re-reads
+        requested: The links the user asked to sync now
     """
     today = now.astimezone(timezone).date()
     due = []
     for link in links:
         due_at = next_due_at(link, now=now, timezone=timezone, overlap_days=overlap_days)
         due_by = now if is_waiting_to_retry(link) else now + DUE_WITHIN
-        if due_at is None or due_at > due_by:
+        if due_at is None or (due_at > due_by and link.id not in requested):
             continue
         start = _need_start(link, timezone, overlap_days)
         if start <= today:

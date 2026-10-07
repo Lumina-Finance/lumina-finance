@@ -123,6 +123,10 @@ class BankSyncJob(Base):
     # the budget frees ahead of links that can progress
     deferred_link_ids: Mapped[list[uuid.UUID]] = mapped_column(ARRAY(Uuid), nullable=False, default=list, server_default="{}")
 
+    # The links the user asked to sync now, which the job syncs whatever their next daily time, and
+    # which a queued job's status reads as requested until a worker starts it
+    requested_link_ids: Mapped[list[uuid.UUID]] = mapped_column(ARRAY(Uuid), nullable=False, default=list, server_default="{}")
+
     # The kind of the last failure the provider adapter reported
     last_error_kind: Mapped[str | None] = mapped_column(VARCHAR(32))
 
