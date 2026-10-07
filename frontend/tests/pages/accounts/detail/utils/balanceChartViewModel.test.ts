@@ -98,7 +98,8 @@ describe('balance chart view model helpers', () => {
     expect(snapshot.chartDataKey).toBe('periodBalance')
     expect(snapshot.chartSeries.map((point) => point.periodBalance)).toEqual([0, 0, 1_500])
     expect(snapshot.periodDelta).toEqual({ absolute: 1_500, pct: 15 })
-    expect(snapshot.trendUp).toBe(true)
+    expect(snapshot.trend).toBe('up')
+    expect(snapshot.deltaSign).toBe('+')
 
     // The same rise is a figure and a line, so it carries the text green and the chart green at once
     expect(snapshot.deltaColor).toBe('var(--app-positive)')
@@ -140,7 +141,8 @@ describe('balance chart view model helpers', () => {
       granularity: 'day',
     })
 
-    expect(falling.trendUp).toBe(false)
+    expect(falling.trend).toBe('down')
+    expect(falling.deltaSign).toBe('−')
     expect(falling.deltaColor).toBe('var(--app-negative)')
     expect(falling.chartLineColor).toBe('var(--app-chart-negative)')
 
@@ -159,5 +161,27 @@ describe('balance chart view model helpers', () => {
     expect(singleDay.periodDelta).toBeNull()
     expect(singleDay.deltaColor).toBe('var(--app-text-muted)')
     expect(singleDay.chartLineColor).toBe('var(--app-accent)')
+  })
+
+  it('shows a period that ended where it started as an unsigned, neutral zero', () => {
+    const flat = getBalanceChartSnapshot({
+      snapshots: [
+        { account_id: 'account', dt: '2026-06-01', balance: 10_000 },
+        { account_id: 'account', dt: '2026-06-03', balance: 10_000 },
+      ],
+      range: '7D',
+      chartMode: 'change',
+      currentBalance: 10_000,
+      currency: 'USD',
+      fromDate: new Date(2026, 5, 1),
+      toDate: new Date(2026, 5, 3),
+      granularity: 'day',
+    })
+
+    expect(flat.periodDelta).toEqual({ absolute: 0, pct: 0 })
+    expect(flat.trend).toBe('flat')
+    expect(flat.deltaSign).toBe('')
+    expect(flat.deltaColor).toBe('var(--app-text-muted)')
+    expect(flat.chartLineColor).toBe('var(--app-accent)')
   })
 })
