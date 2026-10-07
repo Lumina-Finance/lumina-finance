@@ -78,7 +78,7 @@ async def delete_expired_oidc_authorization_requests(db: AsyncSession) -> None:
         OidcAuthorizationRequest.expires_at < sa_func.now()
     )
 
-    # Abandoned roundtrips are never cleaned up otherwise, so prune them opportunistically
+    # The scheduled cleanup prunes these too, and this stays for the Lambda runtime, which has no schedule yet
     await db.execute(expired_delete_query)
 
 

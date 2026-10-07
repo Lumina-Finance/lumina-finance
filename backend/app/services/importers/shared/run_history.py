@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import load_only
 from sqlalchemy.sql.elements import BindParameter
 
+from app.config.imports import IMPORT_UNDO_WINDOW
 from app.models.account import Account
 from app.models.budget import BaseBudget
 from app.models.cache_state import UserCacheState
@@ -24,7 +25,6 @@ from app.models.user import User
 from app.schemas.import_run import ImportUndoResponse, LastImportResponse
 from app.services.cache_state import mark_user_cache_changed
 from app.services.importers.shared.run_locking import load_locked_change_marker, load_locked_run
-from app.services.importers.shared.run_staging import IMPORT_UNDO_WINDOW
 from app.services.transactions.bulk_access import load_locked_run_transactions, load_writable_accounts
 from app.services.transactions.deletion import delete_locked_transactions
 
@@ -64,24 +64,32 @@ async def get_last_import(db: AsyncSession, user: User) -> LastImportResponse | 
         The last import with what undoing it deletes, or None when there is none it can undo
     """
     changed_at = select(UserCacheState.changed_at).where(UserCacheState.user_id == user.id).scalar_subquery()
-    run = (await db.execute(
-        select(ImportRun)
-        .options(load_only(ImportRun.source, ImportRun.file_name, ImportRun.committed_at, ImportRun.summary))
-        .where(
-            ImportRun.owner_id == user.id,
-            ImportRun.committed_at >= datetime.now(UTC) - IMPORT_UNDO_WINDOW,
-            ImportRun.committed_at == changed_at,
+    run = (
+        (
+            await db.execute(
+                select(ImportRun)
+                .options(load_only(ImportRun.source, ImportRun.file_name, ImportRun.committed_at, ImportRun.summary))
+                .where(
+                    ImportRun.owner_id == user.id,
+                    ImportRun.committed_at >= datetime.now(UTC) - IMPORT_UNDO_WINDOW,
+                    ImportRun.committed_at == changed_at,
+                )
+                .limit(1)
+            )
         )
-        .limit(1)
-    )).scalars().first()
+        .scalars()
+        .first()
+    )
     if run is None:
         return None
 
-    counts = dict((await db.execute(
-        select(Transaction.account_id, func.count())
-        .where(Transaction.import_run_id == run.id)
-        .group_by(Transaction.account_id)
-    )).all())
+    counts = dict(
+        (
+            await db.execute(
+                select(Transaction.account_id, func.count()).where(Transaction.import_run_id == run.id).group_by(Transaction.account_id)
+            )
+        ).all()
+    )
     if _has_group_account((await _load_accounts(db, set(counts))).values()):
         return None
 
@@ -139,7 +147,8 @@ async def undo_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> Im
     # leaves them out
     if _has_group_account(accounts_by_id.values()):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Imports into group accounts can't be undone",
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Imports into group accounts can't be undone",
         )
     # An account the import created goes with it, whether or not the import archived it
     created = _created_ids(run.summary)
@@ -185,10 +194,7 @@ async def _load_accounts(db: AsyncSession, account_ids: set[uuid.UUID]) -> dict[
 def _created_ids(summary: dict[str, Any] | None) -> dict[str, set[uuid.UUID]]:
     """Return what a run's stored summary says it created, by kind, budgets included"""
     summary = summary or {}
-    created = {
-        kind: {uuid.UUID(value) for value in summary.get(field, [])}
-        for kind, field in _CREATED_ID_FIELDS.items()
-    }
+    created = {kind: {uuid.UUID(value) for value in summary.get(field, [])} for kind, field in _CREATED_ID_FIELDS.items()}
     created["budgets"] = {uuid.UUID(budget["base_budget_id"]) for budget in summary.get("budgets", [])}
     return created
 

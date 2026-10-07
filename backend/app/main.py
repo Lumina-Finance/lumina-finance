@@ -1,7 +1,8 @@
 """Application entrypoint"""
 
+import asyncio
 import logging
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,13 +31,14 @@ from app.routes.transactions import router as transaction_router
 from app.routes.users import router as user_router
 from app.services.auth.oidc_providers import sync_oidc_providers
 from app.services.email import build_email_sender, set_email_sender
+from app.services.maintenance.expired_records import prune_expired_records_on_schedule
 
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
-    """Verify the runtime and its encryption key, then seed OIDC providers before serving"""
+    """Verify the runtime and its encryption key, seed OIDC providers, then prune expired records while serving"""
     await verify_app_role_is_unprivileged()
 
     # The seeding below rewrites the OIDC client secret under whatever key resolved, so a
@@ -55,7 +57,20 @@ async def _lifespan(_app: FastAPI):
         logger.info("OIDC sign-in enabled for: %s", enabled_slugs)
     else:
         logger.info("OIDC sign-in is not configured")
-    yield
+
+    # Only a long-running server can keep a timer going. A Lambda process is frozen between
+    # invocations, so that runtime calls prune_expired_records from its own scheduler instead
+    if RUNTIME != "server":
+        yield
+        return
+
+    pruning = asyncio.create_task(prune_expired_records_on_schedule())
+    try:
+        yield
+    finally:
+        pruning.cancel()
+        with suppress(asyncio.CancelledError):
+            await pruning
 
 
 app = FastAPI(title="Lumina Finance API", lifespan=_lifespan)

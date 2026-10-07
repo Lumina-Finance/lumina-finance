@@ -23,7 +23,7 @@ async def delete_expired_mfa_challenges(db: AsyncSession) -> None:
     """
     expired_delete_query = delete(MfaChallenge).where(MfaChallenge.expires_at < sa_func.now())
 
-    # Unconsumed challenges are never cleaned up otherwise, so prune them opportunistically
+    # The scheduled cleanup prunes these too, and this stays for the Lambda runtime, which has no schedule yet
     await db.execute(expired_delete_query)
 
 
