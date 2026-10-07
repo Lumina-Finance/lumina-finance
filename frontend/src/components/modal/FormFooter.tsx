@@ -1,12 +1,9 @@
+import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import type { ModalLevel } from '@/components/modal/Shell'
 
-// The stacked level is the narrower panel, so its actions sit tighter to the edge to match its body
-// padding. The justify side is applied separately below, since a footer drawn with the primary on
-// the left swaps it for sm:justify-between rather than adding to it
-const FOOTER_BASE_CLASS_NAME = {
-  page: 'grid shrink-0 grid-cols-2 gap-3 px-6 py-4 sm:flex sm:px-8 min-[1050px]:py-5',
-  stacked: 'grid shrink-0 grid-cols-2 gap-3 px-6 py-4 sm:flex sm:px-7 min-[1050px]:py-5',
-} as const
+// The justify side is applied separately below, since a footer drawn with the primary on the left
+// swaps it for sm:justify-between rather than adding to it
+const FOOTER_BASE_CLASS_NAME = 'grid shrink-0 grid-cols-2 gap-3 py-4 sm:flex min-[1050px]:py-5'
 
 interface ModalFormFooterProps {
   submitLabel: string
@@ -83,7 +80,7 @@ export function ModalFormFooter({
 
   return (
     <div
-      className={`${FOOTER_BASE_CLASS_NAME[level]} ${primaryOnLeft ? 'sm:justify-between' : 'sm:justify-end'} ${error ? 'items-center' : ''}`}
+      className={`${FOOTER_BASE_CLASS_NAME} ${MODAL_INSET_CLASS_NAME[level]} ${primaryOnLeft ? 'sm:justify-between' : 'sm:justify-end'} ${error ? 'items-center' : ''}`}
       style={{ borderTop: '1px solid var(--app-border)' }}
     >
       {primaryOnLeft ? (
