@@ -22,7 +22,7 @@ import {
   invalidateBulkUpdatedTransactionData,
   invalidateFinancialTransactionData,
   invalidatePatchedTransactionData,
-  invalidateReviewOfDeletedBankTransaction,
+  invalidateReviewOfDeletedBankTransactions,
   invalidateReviewOfEditedBankTransactions,
   invalidateTransactionAccountData,
   readBulkEditAsPatch,
@@ -293,16 +293,20 @@ export function applyTransactionDeletion(
   transactionId: string,
   accountId: string | undefined,
 ) {
-  // Read from the cache before the row is removed from it
-  invalidateReviewOfDeletedBankTransaction(queryClient, findCachedTransaction(queryClient, transactionId))
   applyTransactionsDeletion(queryClient, [transactionId], uniqueIds([accountId]))
 }
 
 /**
  * Removes deleted transactions from the cached lists and refreshes the aggregate views of the
- * accounts they were in, once for the whole set
+ * accounts they were in, once for the whole set, and the review inbox when any of them came from
+ * the bank
  */
 function applyTransactionsDeletion(queryClient: QueryClient, transactionIds: string[], accountIds: string[]) {
+  // Read from the cache before the rows are removed from it
+  invalidateReviewOfDeletedBankTransactions(
+    queryClient,
+    transactionIds.map((transactionId) => findCachedTransaction(queryClient, transactionId)),
+  )
   removeTransactionsFromLists(queryClient, transactionIds)
   invalidateTransactions(queryClient)
   invalidateFinancialTransactionData(queryClient, accountIds)

@@ -316,16 +316,17 @@ export function invalidateReviewOfEditedBankTransactions(
 }
 
 /**
- * Refreshes the review inbox once a bank-imported transaction is deleted, which deletes any item
- * waiting about it too
+ * Refreshes the review inbox once a bank-imported transaction is deleted, alone or among others,
+ * which deletes any item waiting about it too
  *
- * @param transaction - The transaction as cached before the deletion, undefined when the cache never held it
+ * @param transactions - The deleted transactions as cached before the deletion, any of them unknown to
+ * the cache left undefined
  */
-export function invalidateReviewOfDeletedBankTransaction(
+export function invalidateReviewOfDeletedBankTransactions(
   queryClient: QueryClient,
-  transaction: Pick<Transaction, 'bank_source'> | undefined,
+  transactions: ReadonlyArray<Pick<Transaction, 'bank_source'> | undefined>,
 ): void {
-  invalidateReviewIfFromBank(queryClient, [transaction])
+  invalidateReviewIfFromBank(queryClient, transactions)
 }
 
 /**

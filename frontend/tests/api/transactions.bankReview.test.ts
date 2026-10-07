@@ -5,10 +5,10 @@
  * deletes the item too
  *
  * These tests catch the review block still showing a deleted transaction's removal, an edited
- * transaction's old amount or date, or the item of one moved out of its account, whether the edit was
- * to one transaction, to several or to one the cache never held, and a change that leaves every item
- * as it was, to a manual transaction or to a bank one's category, reading every loaded page of the
- * inbox again for nothing
+ * transaction's old amount or date, or the item of one moved out of its account, whether the edit or
+ * deletion was to one transaction or to several, or the edit to one the cache never held, and a change
+ * that leaves every item as it was, to a manual transaction or to a bank one's category, reading every
+ * loaded page of the inbox again for nothing
  */
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -21,7 +21,12 @@ import type { Transaction } from '@/api/transactions/types'
 const { authenticatedFetchMock } = vi.hoisted(() => ({ authenticatedFetchMock: vi.fn() }))
 vi.mock('@/api/client', () => ({ authenticatedFetch: authenticatedFetchMock }))
 
-import { useBulkUpdateTransactions, useDeleteTransaction, useUpdateTransaction } from '@/api/transactions/hooks'
+import {
+  useBulkDeleteTransactions,
+  useBulkUpdateTransactions,
+  useDeleteTransaction,
+  useUpdateTransaction,
+} from '@/api/transactions/hooks'
 
 // An Uber trip the bank no longer reports, its removal waiting in the review block
 const SOURCE: TransactionBankSource = {
@@ -82,14 +87,16 @@ function renderMutations() {
   let update!: ReturnType<typeof useUpdateTransaction>
   let bulkUpdate!: ReturnType<typeof useBulkUpdateTransactions>
   let remove!: ReturnType<typeof useDeleteTransaction>
+  let bulkRemove!: ReturnType<typeof useBulkDeleteTransactions>
   function Harness() {
     update = useUpdateTransaction()
     bulkUpdate = useBulkUpdateTransactions()
     remove = useDeleteTransaction()
+    bulkRemove = useBulkDeleteTransactions()
     return null
   }
   renderToStaticMarkup(createElement(QueryClientProvider, { client }, createElement(Harness)))
-  return { update, bulkUpdate, remove }
+  return { update, bulkUpdate, remove, bulkRemove }
 }
 
 function isReviewStale(): boolean | undefined {
@@ -138,6 +145,14 @@ describe('the waiting bank items after a change to a bank-imported transaction',
     expect(isReviewStale()).toBe(true)
   })
 
+  it('are read again after a bulk delete reaching it among others', async () => {
+    authenticatedFetchMock.mockResolvedValue({ transactions_deleted: 2, affected_account_ids: ['everyday'] })
+
+    await renderMutations().bulkRemove.mutateAsync({ transactionIds: ['coffee', 'uber'] })
+
+    expect(isReviewStale()).toBe(true)
+  })
+
   it('are left as they are after an edit to its category, alone or in bulk', async () => {
     const { update, bulkUpdate } = renderMutations()
 
@@ -151,8 +166,8 @@ describe('the waiting bank items after a change to a bank-imported transaction',
 })
 
 describe('the waiting bank items after a change to a manual transaction', () => {
-  it('are left as they are after an edit, a bulk edit or a deletion', async () => {
-    const { update, bulkUpdate, remove } = renderMutations()
+  it('are left as they are after an edit, a bulk edit, a deletion or a bulk deletion', async () => {
+    const { update, bulkUpdate, remove, bulkRemove } = renderMutations()
 
     authenticatedFetchMock.mockResolvedValue({ ...MANUAL, amount: -1900 })
     await update.mutateAsync({ id: 'coffee', patch: { amount: -1900 } })
@@ -160,6 +175,11 @@ describe('the waiting bank items after a change to a manual transaction', () => 
     await bulkUpdate.mutateAsync({ transaction_ids: ['coffee'], dt: '2026-10-01' })
     authenticatedFetchMock.mockResolvedValue(undefined)
     await remove.mutateAsync('coffee')
+
+    // The deletion dropped the coffee from the cache, so it goes back for the bulk delete to read
+    client.setQueryData(transactionKeys.list({}), [BANK_IMPORTED, MANUAL])
+    authenticatedFetchMock.mockResolvedValue({ transactions_deleted: 1, affected_account_ids: ['everyday'] })
+    await bulkRemove.mutateAsync({ transactionIds: ['coffee'] })
 
     expect(isReviewStale()).toBe(false)
   })
