@@ -2,12 +2,14 @@
 
 import secrets
 import uuid
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
+from app.config.two_factor import TWO_FACTOR_STAGING_EXPIRE_SECONDS
 from app.models.auth import RecoveryCode
 from app.services.auth.secret_hashing import hash_secret, is_secret_valid
 
@@ -23,6 +25,15 @@ if len(_WORDS) != _EXPECTED_WORD_COUNT:
 _RECOVERY_CODE_COUNT = 10
 _WORDS_PER_CODE = 4
 _RECOVERY_CODE_DIGITS = 3
+
+
+def staging_cutoff() -> datetime:
+    """Return the instant a staged authenticator, passkey or recovery batch created earlier has expired by
+
+    Shared by the confirm steps, which refuse anything older, and the cleanup, which deletes it, so a
+    staged factor stops working at the same moment whether or not its row is gone yet
+    """
+    return datetime.now(UTC) - timedelta(seconds=TWO_FACTOR_STAGING_EXPIRE_SECONDS)
 
 
 def _build_recovery_code() -> str:
@@ -127,7 +138,10 @@ async def has_active_recovery_codes(db: AsyncSession, user_id: uuid.UUID) -> boo
 
 
 async def has_pending_recovery_codes(db: AsyncSession, user_id: uuid.UUID) -> bool:
-    """Return whether a staged batch exists, the signal that enrolment was confirmed
+    """Return whether an unexpired staged batch exists, the signal that enrolment was confirmed
+
+    A batch older than the staging lifetime counts as absent, so every step that acknowledges one refuses
+    it even before cleanup deletes it
 
     Args:
         db: Active database session
@@ -138,7 +152,9 @@ async def has_pending_recovery_codes(db: AsyncSession, user_id: uuid.UUID) -> bo
     """
     # Probe for a single row rather than counting the whole batch
     result = await db.execute(
-        select(RecoveryCode.id).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(True)).limit(1)
+        select(RecoveryCode.id)
+        .where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(True), RecoveryCode.created_at >= staging_cutoff())
+        .limit(1)
     )
     return result.first() is not None
 

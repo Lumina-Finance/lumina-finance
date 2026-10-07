@@ -1,13 +1,11 @@
 """Two-factor enrolment and management flows spanning TOTP and recovery codes"""
 
 import uuid
-from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config.two_factor import TWO_FACTOR_STAGING_EXPIRE_SECONDS
 from app.models.auth import RecoveryCode, TotpCredential, WebauthnCredential
 from app.models.user import User
 from app.services.auth.recovery_codes import (
@@ -17,6 +15,7 @@ from app.services.auth.recovery_codes import (
     generate_recovery_codes,
     has_active_recovery_codes,
     has_pending_recovery_codes,
+    staging_cutoff,
 )
 from app.services.auth.sessions import delete_all_user_auth_sessions
 from app.services.auth.step_up import verify_step_up
@@ -42,15 +41,15 @@ SECOND_FACTOR_PASSKEY = "passkey"
 async def prune_stale_factor_staging(db: AsyncSession, user_id: uuid.UUID | None = None) -> None:
     """Delete expired pending authenticators, passkeys and recovery codes, for one user or everyone
 
-    A staged factor stays confirmable for as long as its row exists, so deleting it is what ends
-    it. Login sweeps the user's own before checking their factors, and the scheduled cleanup sweeps
+    A staged factor is already refused once it expires, so deleting it only clears leftover rows.
+    Login sweeps the user's own before checking their factors, and the scheduled cleanup sweeps
     everyone's. Confirmed factors and active recovery codes are preserved. The caller commits
 
     Args:
         db: Active database session
         user_id: User whose stale staged rows are cleared, or None for every user's
     """
-    cutoff = datetime.now(UTC) - timedelta(seconds=TWO_FACTOR_STAGING_EXPIRE_SECONDS)
+    cutoff = staging_cutoff()
     for model, is_staged in (
         (WebauthnCredential, WebauthnCredential.confirmed_at.is_(None)),
         (TotpCredential, TotpCredential.confirmed_at.is_(None)),
@@ -172,7 +171,11 @@ async def complete_totp_enrollment(db: AsyncSession, user_id: uuid.UUID) -> None
     was_forced_reenrollment = user.second_factor_reenrollment_required
 
     await _enable_totp(db, user_id)
-    await activate_pending_recovery_codes(db, user_id)
+
+    # Cleanup can sweep the batch between the check above and here, and promoting none would delete
+    # the active codes and enable two-factor with no codes saved, so that rolls the whole step back
+    if not await activate_pending_recovery_codes(db, user_id):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Confirm an authenticator code first")
 
     # A forced re-enrol grants only a re-enrol session, so completing it signs out everywhere and sends
     # the user back to a fresh login with the new factor
@@ -284,5 +287,7 @@ async def confirm_recovery_codes(db: AsyncSession, user_id: uuid.UUID) -> None:
     if not await has_pending_recovery_codes(db, user_id):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No pending recovery codes to confirm")
 
-    await activate_pending_recovery_codes(db, user_id)
+    # Promoting none, after the batch was swept since the check above, would leave the account with no codes
+    if not await activate_pending_recovery_codes(db, user_id):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No pending recovery codes to confirm")
     await db.commit()

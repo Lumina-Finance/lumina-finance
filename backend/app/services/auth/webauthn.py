@@ -45,6 +45,7 @@ from app.services.auth.recovery_codes import (
     generate_recovery_codes,
     has_active_recovery_codes,
     has_pending_recovery_codes,
+    staging_cutoff,
 )
 from app.services.auth.sessions import delete_all_user_auth_sessions
 
@@ -77,6 +78,16 @@ async def build_passkey_registration_options(db: AsyncSession, user_id: uuid.UUI
         The ceremony options serialized as JSON for the browser
     """
     await delete_expired_webauthn_challenges(db)
+
+    # A passkey whose acknowledgement expired can never be confirmed, so drop it here, or the browser
+    # would refuse to register the same authenticator again as already enrolled
+    await db.execute(
+        delete(WebauthnCredential).where(
+            WebauthnCredential.user_id == user_id,
+            WebauthnCredential.confirmed_at.is_(None),
+            WebauthnCredential.created_at < staging_cutoff(),
+        )
+    )
 
     # Exclude every credential the user already holds, including a staged one, so the same authenticator
     # cannot be enrolled twice while a first passkey is still pending acknowledgement
