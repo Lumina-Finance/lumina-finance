@@ -6,6 +6,8 @@ import type { TotpSetupResponse } from '@/api/two-factor';
 interface TotpEnrollmentModalProps {
   open: boolean;
   onClose: () => void;
+  /** Closes enrolment and reopens the enable step-up, since only it can mint a fresh secret */
+  onRestart: () => void;
   /** Secret already minted after the enable step-up ran, so enrolment does not mint its own */
   initialSetup?: TotpSetupResponse;
   /** Set to stacked where this opens over the multi-factor modal rather than straight from a page */
@@ -17,10 +19,10 @@ interface TotpEnrollmentModalProps {
  * user acknowledges their recovery codes. The enable step-up ran and minted the secret before this
  * opened, so a wrong current factor was refused at its own prompt
  */
-export function TotpEnrollmentModal({ open, onClose, initialSetup, level = 'page' }: TotpEnrollmentModalProps) {
+export function TotpEnrollmentModal({ open, onClose, onRestart, initialSetup, level = 'page' }: TotpEnrollmentModalProps) {
   return (
     <ModalContentPanel open={open} onClose={onClose} titleId={TOTP_ENROLLMENT_TITLE_ID} level={level}>
-      <TotpEnrollment onComplete={onClose} initialSetup={initialSetup} />
+      <TotpEnrollment onComplete={onClose} onRestart={onRestart} initialSetup={initialSetup} />
     </ModalContentPanel>
   );
 }

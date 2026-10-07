@@ -106,6 +106,7 @@ export function PasskeyReenrollment({ onComplete }: PasskeyReenrollmentProps) {
         description={RECOVERY_CODES_DESCRIPTION}
         onConfirm={acknowledgeRecoveryCodes}
         onClose={() => setPendingRecoveryCodes(null)}
+        onRestart={() => setPendingRecoveryCodes(null)}
       />
     </div>
   );

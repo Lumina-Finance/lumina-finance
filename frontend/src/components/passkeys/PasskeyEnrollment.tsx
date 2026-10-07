@@ -3,6 +3,7 @@ import { KeyRound } from 'lucide-react';
 import { useConfirmPasskeyRegistration, useRegisterPasskey } from '@/api/passkeys';
 import type { StepUpPayload } from '@/api/two-factor';
 import { RecoveryCodesPanel } from '@/components/two-factor/RecoveryCodesPanel';
+import { SetupRestart } from '@/components/two-factor/SetupRestart';
 import { StepTransition } from '@/components/two-factor/StepTransition';
 import { getPasskeyRegistrationMessage, isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors';
 
@@ -31,6 +32,7 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
   const [savedAcknowledged, setSavedAcknowledged] = useState(false);
   const [lockoutAcknowledged, setLockoutAcknowledged] = useState(false);
+  const [activateFailed, setActivateFailed] = useState(false);
 
   /**
    * Runs the registration ceremony, staging the recovery codes to acknowledge when a batch is issued
@@ -67,8 +69,18 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
       await confirmRegistration.mutateAsync();
       onComplete();
     } catch {
-      setError('Could not finish setup. Try again.');
+      setActivateFailed(true);
     }
+  };
+
+  /**
+   * Returns to naming the passkey, so registering again stages a fresh one with its own recovery codes
+   */
+  const startAgain = () => {
+    setRecoveryCodes(null);
+    setSavedAcknowledged(false);
+    setLockoutAcknowledged(false);
+    setActivateFailed(false);
   };
 
   return (
@@ -105,22 +117,20 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
             </label>
           </div>
 
-          {error && (
-            <p className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
-              {error}
-            </p>
+          {activateFailed ? (
+            <SetupRestart onStartAgain={startAgain} />
+          ) : (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={handleActivate}
+                disabled={!savedAcknowledged || !lockoutAcknowledged || confirmRegistration.isPending}
+                className={`app-primary-button transition-all duration-300 ${confirmRegistration.isPending ? 'app-primary-button-loading' : 'w-full'}`}
+              >
+                {confirmRegistration.isPending ? <div className="app-spinner" /> : 'Done'}
+              </button>
+            </div>
           )}
-
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={handleActivate}
-              disabled={!savedAcknowledged || !lockoutAcknowledged || confirmRegistration.isPending}
-              className={`app-primary-button transition-all duration-300 ${confirmRegistration.isPending ? 'app-primary-button-loading' : 'w-full'}`}
-            >
-              {confirmRegistration.isPending ? <div className="app-spinner" /> : 'Done'}
-            </button>
-          </div>
         </div>
       ) : (
         <div className="space-y-5">

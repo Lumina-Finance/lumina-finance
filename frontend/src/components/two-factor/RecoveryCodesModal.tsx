@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { RecoveryCodesPanel } from '@/components/two-factor/RecoveryCodesPanel';
+import { SetupRestart } from '@/components/two-factor/SetupRestart';
 import { ModalContentPanel } from '@/components/modal/ContentPanel';
 import type { ModalLevel } from '@/components/modal/Shell';
 import { delayToMinimum } from '@/utils/timing';
@@ -14,6 +15,8 @@ interface RecoveryCodesModalProps {
   onConfirm: () => Promise<void>;
   /** Dismisses without activating, leaving the current codes in force */
   onClose: () => void;
+  /** Drops this batch and begins the step that issued it again, since a failed confirm can't be retried */
+  onRestart: () => void;
   /** Overrides the body text, since first-time issuance reads differently from a rotation */
   description?: string;
   /** Set to stacked where this opens over the multi-factor modal rather than straight from a page */
@@ -29,13 +32,14 @@ export function RecoveryCodesModal({
   codes,
   onConfirm,
   onClose,
+  onRestart,
   description = DEFAULT_DESCRIPTION,
   level = 'page',
 }: RecoveryCodesModalProps) {
   const [acknowledged, setAcknowledged] = useState(false);
   const [lockoutAcknowledged, setLockoutAcknowledged] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const [error, setError] = useState('');
+  const [failed, setFailed] = useState(false);
 
   const ready = acknowledged && lockoutAcknowledged;
 
@@ -44,16 +48,15 @@ export function RecoveryCodesModal({
     setAcknowledged(false);
     setLockoutAcknowledged(false);
     setConfirming(false);
-    setError('');
+    setFailed(false);
   };
 
   /**
-   * Activates the staged codes, surfacing a retryable error on failure
+   * Activates the staged codes, offering a fresh start on failure
    */
   const handleConfirm = async () => {
     if (!ready || confirming) return;
 
-    setError('');
     setConfirming(true);
     const start = Date.now();
     try {
@@ -62,7 +65,7 @@ export function RecoveryCodesModal({
       reset();
     } catch {
       await delayToMinimum(start);
-      setError('Could not save your new codes. Try again.');
+      setFailed(true);
       setConfirming(false);
     }
   };
@@ -73,6 +76,14 @@ export function RecoveryCodesModal({
   const handleClose = () => {
     reset();
     onClose();
+  };
+
+  /**
+   * Resets the transient state and hands back to the parent to issue a new batch
+   */
+  const handleStartAgain = () => {
+    reset();
+    onRestart();
   };
 
   return (
@@ -110,22 +121,20 @@ export function RecoveryCodesModal({
         </label>
       </div>
 
-      {error && (
-        <p className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
-          {error}
-        </p>
+      {failed ? (
+        <SetupRestart onStartAgain={handleStartAgain} />
+      ) : (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={!ready || confirming}
+            className={`app-primary-button transition-all duration-300 ${confirming ? 'app-primary-button-loading' : 'w-full'}`}
+          >
+            {confirming ? <div className="app-spinner" /> : 'Done'}
+          </button>
+        </div>
       )}
-
-      <div className="flex justify-center">
-        <button
-          type="button"
-          onClick={handleConfirm}
-          disabled={!ready || confirming}
-          className={`app-primary-button transition-all duration-300 ${confirming ? 'app-primary-button-loading' : 'w-full'}`}
-        >
-          {confirming ? <div className="app-spinner" /> : 'Done'}
-        </button>
-      </div>
     </ModalContentPanel>
   );
 }
