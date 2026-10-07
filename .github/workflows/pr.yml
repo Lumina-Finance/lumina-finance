@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request cancels the checks still running for its earlier push
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   changes:
     name: Detect changed areas
@@ -51,7 +56,7 @@ jobs:
     uses: ./.github/workflows/_backend-lint.yml
 
   backend-test:
-    needs: [changes, backend-lint]
+    needs: changes
     if: ${{ needs.changes.outputs.backend == 'true' || needs.changes.outputs.lockfiles == 'true' }}
     uses: ./.github/workflows/_backend-test.yml
 
@@ -61,29 +66,25 @@ jobs:
     uses: ./.github/workflows/_frontend-lint.yml
 
   frontend-test:
-    needs: [changes, frontend-lint]
+    needs: changes
     if: ${{ needs.changes.outputs.frontend == 'true' || needs.changes.outputs.lockfiles == 'true' }}
     uses: ./.github/workflows/_frontend-test.yml
 
   frontend-build:
-    needs: [changes, frontend-test]
+    needs: changes
     if: ${{ needs.changes.outputs.frontend == 'true' || needs.changes.outputs.lockfiles == 'true' }}
     uses: ./.github/workflows/_frontend-build.yml
 
-  # Allow checks skipped by path filters, but block failed checks and cancelled runs
+  # The image build starts alongside lint and unit tests rather than after them, so the browser
+  # suite that follows it, the longest check, starts sooner. The PR gate still blocks merging on
+  # any failed job
   docker-build:
-    needs: [changes, backend-lint, backend-test, frontend-lint, frontend-test, frontend-build]
+    needs: changes
     if: >-
-      ${{ !cancelled()
-        && needs.backend-lint.result != 'failure'
-        && needs.backend-test.result != 'failure'
-        && needs.frontend-lint.result != 'failure'
-        && needs.frontend-test.result != 'failure'
-        && needs.frontend-build.result != 'failure'
-        && (needs.changes.outputs.backend == 'true'
-            || needs.changes.outputs.frontend == 'true'
-            || needs.changes.outputs.docker == 'true'
-            || needs.changes.outputs.lockfiles == 'true') }}
+      ${{ needs.changes.outputs.backend == 'true'
+        || needs.changes.outputs.frontend == 'true'
+        || needs.changes.outputs.docker == 'true'
+        || needs.changes.outputs.lockfiles == 'true' }}
     uses: ./.github/workflows/_docker-build.yml
     secrets: inherit
 
