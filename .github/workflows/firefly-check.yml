@@ -208,7 +208,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
-          node-version: "26.5"
+          node-version: "26.10"
           cache: npm
           cache-dependency-path: e2e/package-lock.json
 
