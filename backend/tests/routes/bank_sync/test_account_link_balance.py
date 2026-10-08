@@ -8,13 +8,17 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
-from sqlalchemy import update
 
-from app.models.bank_connection import BankConnection, BankExternalAccount, BankLinkState
+from app.models.bank_connection import BankLinkState
 from app.services.bank_sync import account_link
-from tests.conftest import TestSession
-from tests.routes.support.bank_sync_helpers import _commit_link, _commit_listed_connection, _new_account, _sign_up
-from tests.routes.support.transaction_helpers import _create_transaction, _get_system_category_id
+from tests.routes.support.bank_sync_helpers import (
+    _commit_bank_balance,
+    _commit_link,
+    _commit_listed_connection,
+    _new_account,
+    _record_ledger,
+    _sign_up,
+)
 
 # Noon on October 5 in Toronto, the zone _sign_up stores
 _NOW = datetime(2026, 10, 5, 12, 0, tzinfo=ZoneInfo("America/Toronto"))
@@ -27,26 +31,6 @@ _BALANCE_AT = datetime(2026, 10, 3, 18, 0, tzinfo=ZoneInfo("America/Toronto"))
 def _pinned_now(pin_clock):
     """Pin the time the account link route describes the link at"""
     pin_clock(_NOW, account_link)
-
-
-async def _commit_bank_balance(connection: BankConnection, **values) -> None:
-    """Commit the balance the connection's bank account was last listed with, as of _BALANCE_AT unless told otherwise"""
-    async with TestSession() as session:
-        await session.execute(
-            update(BankExternalAccount)
-            .where(BankExternalAccount.connection_id == connection.id)
-            .values(**{"available_balance": None, "balance_at": _BALANCE_AT, **values})
-        )
-        await session.commit()
-
-
-async def _record_ledger(client, headers, account_id, *rows: tuple[str, int]) -> None:
-    """Record each dated amount on the account through the route, income as Salary and spending as Groceries"""
-    salary_id = await _get_system_category_id(client, headers, "Salary")
-    groceries_id = await _get_system_category_id(client, headers, "Groceries")
-    for day, amount in rows:
-        created = await _create_transaction(client, headers, account_id, salary_id if amount > 0 else groceries_id, dt=day, amount=amount)
-        assert created.status_code == 201, created.text
 
 
 async def _synced_account(client, *ledger: tuple[str, int], tz: str | None = None, **bank) -> tuple[dict, str]:
@@ -62,7 +46,7 @@ async def _synced_account(client, *ledger: tuple[str, int], tz: str | None = Non
     account_id = await _new_account(client, headers, "Everyday")
     await _record_ledger(client, headers, account_id, *ledger)
     connection = await _commit_listed_connection(user_id, discovered_at=_NOW)
-    await _commit_bank_balance(connection, **bank)
+    await _commit_bank_balance(connection, **{"balance_at": _BALANCE_AT, **bank})
     await _commit_link(account_id, connection, importing=False, last_success_at=_NOW - timedelta(hours=1))
     return headers, account_id
 
@@ -169,7 +153,7 @@ async def test_bank_balance_isnt_shown_without_a_synced_bank_account_balance(cli
     headers, user_id = await _sign_up(client)
     account_id = await _new_account(client, headers, "Everyday")
     connection = await _commit_listed_connection(user_id, discovered_at=_NOW)
-    await _commit_bank_balance(connection, balance=125000, **bank_values)
+    await _commit_bank_balance(connection, **{"balance_at": _BALANCE_AT, "balance": 125000, **bank_values})
     await _commit_link(account_id, connection, **{"importing": False, "last_success_at": _NOW - timedelta(hours=1), **link_values})
 
     assert await _read_balance(client, headers, account_id) is None

@@ -6,7 +6,7 @@ personal accounts are linked, so any other account is refused or left out as lin
 """
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -26,14 +26,14 @@ from app.schemas.bank_sync import (
 )
 from app.services.accounts.access import get_own_personal_account, own_personal_account_condition
 from app.services.bank_sync.availability import LINK_NOT_OWN_DETAIL, LIVE_LINK, PROVIDER_ADAPTERS
-from app.services.bank_sync.balance_comparison import compare_bank_balance
+from app.services.bank_sync.balance_comparison import compare_bank_balance, describe_opening_adjustment
 from app.services.bank_sync.status import read_link_statuses
 from app.services.bank_sync.windows import LinkNeed, plan_window
 from app.utils.dates import resolve_timezone
 
 
 async def read_account_bank_status(db: AsyncSession, user: User, account_id: uuid.UUID) -> AccountBankStatusResponse:
-    """Return an account's live link with its import's progress, sync status and bank balance, or what the account was last linked to
+    """Return an account's live link with its import's progress, sync status, bank balance and opening adjustment, or what it was last linked to
 
     Args:
         db: Active database session
@@ -52,9 +52,19 @@ async def read_account_bank_status(db: AsyncSession, user: User, account_id: uui
     account = await get_own_personal_account(db, account_id, user.id, not_own_detail=LINK_NOT_OWN_DETAIL)
     link = await db.scalar(select(BankAccountLink).where(BankAccountLink.account_id == account.id, LIVE_LINK))
     if link is not None:
-        [described] = await describe_links(db, user, [link], now=datetime.now(UTC))
         balance = await compare_bank_balance(db, link, tz=user.tz)
-        return AccountBankStatusResponse(account_id=account.id, link=described, previous_link=None, balance=balance)
+        offer = describe_opening_adjustment(link, balance)
+
+        # The status asks for the opening balance only while the offer shows, so the two agree once the
+        # ledger closes the gap by hand, until a review decision or a sync ends the offer
+        [described] = await describe_links(db, user, [link], now=datetime.now(UTC), hidden_offers=() if offer else (link.id,))
+        return AccountBankStatusResponse(
+            account_id=account.id,
+            link=described,
+            previous_link=None,
+            balance=balance,
+            opening_adjustment=offer,
+        )
 
     # Every link left is unlinked, so each has the day it ended
     previous = await db.scalar(
@@ -73,13 +83,17 @@ async def read_account_bank_status(db: AsyncSession, user: User, account_id: uui
             unlinked_at=previous.unlinked_at,
         ),
         balance=None,
+        opening_adjustment=None,
     )
 
 
 async def list_bank_links(db: AsyncSession, user: User) -> list[BankLinkResponse]:
     """Return the user's live links on their own personal accounts, oldest first, with each import's progress and sync status
 
-    A link waiting for its bank account to be chosen again is live, and an unlinked one isn't
+    A link waiting for its bank account to be chosen again is live, and an unlinked one isn't. An
+    offered link reads as an opening balance to confirm even once the ledger closes its gap by hand,
+    since telling would take a bank and a ledger read per offered link, and no screen shows this
+    list's status. The account's own read, which compares the balances anyway, follows the offer
 
     Args:
         db: Active database session
@@ -100,13 +114,17 @@ async def list_bank_links(db: AsyncSession, user: User) -> list[BankLinkResponse
     return await describe_links(db, user, links.all(), now=datetime.now(UTC))
 
 
-async def describe_links(db: AsyncSession, user: User, links: Sequence[BankAccountLink], *, now: datetime) -> list[BankLinkResponse]:
+async def describe_links(
+    db: AsyncSession, user: User, links: Sequence[BankAccountLink], *, now: datetime, hidden_offers: Collection[uuid.UUID] = ()
+) -> list[BankLinkResponse]:
     """Return live links as the app shows them, in the order given, with each import's progress while it shows one
+
+    Offered links whose offer the caller found nothing to show read on past the opening balance
 
     Raises:
         HTTPException 422: The profile's timezone no longer resolves, read only while an import runs
     """
-    statuses = await read_link_statuses(db, links, now=now)
+    statuses = await read_link_statuses(db, links, now=now, hidden_offers=hidden_offers)
     importing = [link for link in links if statuses[link.id].import_state is not None]
     items_found = await _count_items_found(db, importing)
     timezone = resolve_timezone(user.tz) if importing else None

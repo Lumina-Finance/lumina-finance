@@ -46,7 +46,7 @@ async def delete_transaction_for_user(
         None
 
     Raises:
-        HTTPException 409: The transaction is bank-imported and its account is linked
+        HTTPException 422: The transaction is bank-imported and its account is linked
     """
     # Take the same row lock before tag deletion so an edit and delete cannot interleave
     txn = await check_transaction_access(

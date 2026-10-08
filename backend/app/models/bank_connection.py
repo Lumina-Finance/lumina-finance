@@ -93,10 +93,10 @@ class OpeningAdjustmentState(enum.StrEnum):
 
     NOT_READY = "not_ready"
     OFFERED = "offered"
-    ACCEPTED = "accepted"
+    RECORDED = "recorded"
     SKIPPED = "skipped"
 
-    # Nothing to offer: the balances matched, or the bank gave no usable balance
+    # Nothing to offer: the balances matched once the import was reviewed
     NONE = "none"
 
 
@@ -313,6 +313,10 @@ class BankAccountLink(Base):
     # While the link's latest import is under way. Syncs take an import to today whatever the review
     # backlog, and the pause applies once it ends. Every link starts with one
     importing: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+
+    # When the latest import ended, on the database's clock, which stamps each bank transaction it
+    # receives, so the items an import brought are those received by then
+    import_ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     signin_needed_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     catchup_requested_start: Mapped[date | None] = mapped_column(Date)
 

@@ -44,7 +44,7 @@ async def test_deleting_a_bank_imported_transaction_is_refused_while_its_account
 
     refused = await _delete(client, ledger, coffee_id)
 
-    assert refused.status_code == 409, refused.text
+    assert refused.status_code == 422, refused.text
     assert refused.json()["detail"] == DELETE_REFUSED
     assert await _dates_in(ledger.everyday_id) == [COFFEE_DAY]
     assert await _still_stored(record_id)
@@ -95,6 +95,6 @@ async def test_deleting_waits_for_a_link_being_made_and_is_then_refused(client):
         await linking.commit()
     deleted = await asyncio.wait_for(deleting, 10)
 
-    assert deleted.status_code == 409, deleted.text
+    assert deleted.status_code == 422, deleted.text
     assert deleted.json()["detail"] == DELETE_REFUSED
     assert await _dates_in(ledger.everyday_id) == [COFFEE_DAY]

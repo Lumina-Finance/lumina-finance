@@ -1,6 +1,7 @@
 """Waiting for a request to queue behind a row lock"""
 
 import asyncio
+from collections.abc import Sequence
 
 from sqlalchemy import text
 
@@ -26,15 +27,30 @@ _QUEUED_BEHIND = text(
 
 
 async def _wait_until_waiting_on(blocker_pid: int, request: asyncio.Future, waiters: int = 1):
-    """Wait until this many backends queue behind a lock the blocker holds, or the request has already answered
+    """Wait until this many backends queue behind a lock the blocker holds, failing if the request answers first
 
-    Several requests gathered into one future count as one request that answers when all of them have
+    A request that answers without queueing never met the lock, so the test would pass without the
+    race it is there for. Several requests gathered into one future count as one request that answers
+    when all of them have
     """
     async with asyncio.timeout(5), TestSession() as observer:
-        while not request.done():
+        while True:
+            if request.done():
+                raise AssertionError(f"The request answered without queueing behind the lock: {request.result()!r}")
             if await observer.scalar(_QUEUED_BEHIND, {"pid": blocker_pid}) >= waiters:
                 return
             await asyncio.sleep(0.01)
+
+
+async def _cancel_unfinished(requests: Sequence[asyncio.Task]) -> None:
+    """Cancel the requests still running and wait for them to stop
+
+    A test that fails while its requests queue behind a lock, such as one a deadlock picks as its
+    victim, would otherwise leave them running into the next test
+    """
+    for request in requests:
+        request.cancel()
+    await asyncio.gather(*requests, return_exceptions=True)
 
 
 async def _wait_until_blocked(blocker_pid: int, blocked_pid: int) -> None:

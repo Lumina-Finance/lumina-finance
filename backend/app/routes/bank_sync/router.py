@@ -32,6 +32,7 @@ from app.schemas.bank_sync import (
     LinkBankAccountRequest,
     ReconnectBankConnectionRequest,
     ReconnectBankConnectionResponse,
+    RecordOpeningAdjustmentRequest,
     RestoreBankValueRequest,
     UnlinkResponse,
     UpdateBankConnectionRequest,
@@ -49,6 +50,7 @@ from app.services.bank_sync.links import (
     list_bank_accounts_for_account,
     unlink_account,
 )
+from app.services.bank_sync.opening_adjustment import record_opening_adjustment, skip_opening_adjustment
 from app.services.bank_sync.pending_items import list_pending_transactions
 from app.services.bank_sync.review_decisions import (
     accept_bank_change,
@@ -339,6 +341,46 @@ async def sync_bank_link_now(
         The link, whose status says the sync is requested until a worker starts it
     """
     return await sync_account_now(db, user, account_id)
+
+
+@bank_link_router.post("/opening-adjustment/record", response_model=AccountBankStatusResponse)
+async def record_offered_opening_adjustment(
+    account_id: uuid.UUID,
+    request: RecordOpeningAdjustmentRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Record the opening adjustment one of the user's linked accounts offers, for the amount given
+
+    Args:
+        account_id: The linked account
+        request: The amount to record, the one offered or the user's own
+        user: Authenticated owner of the account
+        db: Active database session
+
+    Returns:
+        The account's bank link, with the balances taking in the adjustment and no offer left
+    """
+    return await record_opening_adjustment(db, user, account_id, request.amount)
+
+
+@bank_link_router.post("/opening-adjustment/skip", response_model=AccountBankStatusResponse)
+async def skip_offered_opening_adjustment(
+    account_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Skip the opening adjustment one of the user's linked accounts offers, recording nothing
+
+    Args:
+        account_id: The linked account
+        user: Authenticated owner of the account
+        db: Active database session
+
+    Returns:
+        The account's bank link, with no offer left
+    """
+    return await skip_opening_adjustment(db, user, account_id)
 
 
 @bank_link_router.get("/import-range", response_model=BankImportRangeResponse)

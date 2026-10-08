@@ -4,11 +4,12 @@ import uuid
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, SecretStr, model_validator
+from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 
 from app.models.bank_connection import BankImportKind, BankLinkState, BankProvider, ConnectsFrom, UnavailableReason
 from app.models.bank_transaction import EditableBankField
 from app.schemas.names import TrimmedName
+from app.utils.money import MAX_MINOR_UNITS, MIN_MINOR_UNITS
 
 # Running while a sync is fetching the import's next part or could fetch it now. Waiting while a
 # failed attempt waits to retry, the bank needs a sign-in, or the provider refused the connection's
@@ -393,6 +394,32 @@ class BankBalanceResponse(BaseModel):
     difference: int | None
 
 
+class OpeningAdjustmentResponse(BaseModel):
+    """The one-time offer to record the gap between the bank's balance and the ledger's once the import is reviewed"""
+
+    # The bank's balance minus the ledger's, in minor units signed as the ledger keeps them, which
+    # closes the balances' difference
+    amount: int
+
+    # The day before the import start, the latest day the bank doesn't supply
+    adjustment_date: date
+
+
+class RecordOpeningAdjustmentRequest(BaseModel):
+    """The opening adjustment to record, the amount offered or one the user entered in its place"""
+
+    # Signed minor units, as the ledger keeps them
+    amount: int = Field(ge=MIN_MINOR_UNITS, le=MAX_MINOR_UNITS)
+
+    @field_validator("amount")
+    @classmethod
+    def _refuse_zero(cls, amount: int) -> int:
+        """Refuse an adjustment of nothing, which skipping stands for"""
+        if amount == 0:
+            raise ValueError("Enter an amount other than zero")
+        return amount
+
+
 class AccountBankStatusResponse(BaseModel):
     """An account's live link to a bank account, or what it was last linked to when it has none"""
 
@@ -402,6 +429,9 @@ class AccountBankStatusResponse(BaseModel):
 
     # Only for a live link that has synced and follows its bank account as the provider lists it
     balance: BankBalanceResponse | None
+
+    # Only while the opening adjustment is offered and the balances compare
+    opening_adjustment: OpeningAdjustmentResponse | None
 
 
 class UnlinkResponse(BaseModel):

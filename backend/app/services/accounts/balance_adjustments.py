@@ -69,10 +69,47 @@ async def record_account_starting_balance(
     # Taken after the row lock above, which already holds back a link request
     await refuse_days_a_bank_supplies(db, user, {account.id: [adjustment_date]})
 
-    signed_amount = amount if account.account_kind == AccountKind.ASSET else -amount
+    await add_balance_adjustment(
+        db,
+        account,
+        user=user,
+        amount=amount if account.account_kind == AccountKind.ASSET else -amount,
+        adjustment_date=adjustment_date,
+        note=_STARTING_BALANCE_NOTE,
+    )
 
-    # The account holds nothing else yet, so the amount is its whole balance
-    refuse_unstorable_balance(account.name, signed_amount)
+
+async def add_balance_adjustment(
+    db: AsyncSession,
+    account: Account,
+    *,
+    user: User,
+    amount: int,
+    adjustment_date: date,
+    note: str,
+    import_run_id: uuid.UUID | None = None,
+) -> None:
+    """Add a balance adjustment to an account and rebuild its balances from the adjustment's date, without committing
+
+    The adjustment is a Balance Adjustment transaction to the Myself merchant. The caller has run
+    whatever checks its date has to pass
+
+    Args:
+        db: Active database session
+        account: Account the adjustment lands in
+        user: User the adjustment is recorded by
+        amount: Signed minor units, as the ledger keeps them, so a liability's debt is negative
+        adjustment_date: The date it is recorded on
+        note: Why it was recorded, which the transaction shows
+        import_run_id: Import run that recorded it, which undoing the import deletes it with
+
+    Raises:
+        HTTPException: The amount is outside the range an account balance can hold, or the Balance
+            Adjustment category or the Myself merchant is not configured
+    """
+    # A starting balance is the account's whole balance, and any other adjustment is a single amount
+    # the column has to hold, so one check covers every caller
+    refuse_unstorable_balance(account.name, amount)
     db.add(
         Transaction(
             created_by_user_id=user.id,
@@ -80,10 +117,11 @@ async def record_account_starting_balance(
             dt=adjustment_date,
             category_id=await _get_system_balance_adjustment_category_id(db),
             merchant_id=await _get_self_merchant_id(db),
-            amount=signed_amount,
+            amount=amount,
             currency=account.currency,
             fx_rate=None,
-            notes=_STARTING_BALANCE_NOTE,
+            notes=note,
+            import_run_id=import_run_id,
         )
     )
     await db.flush()
@@ -163,22 +201,15 @@ async def zero_account_balance_for_archive(
     if current_balance == 0:
         return False
 
-    db.add(
-        Transaction(
-            created_by_user_id=user.id,
-            account_id=account.id,
-            dt=archive_date,
-            category_id=await _get_system_balance_adjustment_category_id(db),
-            merchant_id=await _get_self_merchant_id(db),
-            amount=-current_balance,
-            currency=account.currency,
-            fx_rate=None,
-            notes=_ARCHIVE_BALANCE_ADJUSTMENT_NOTE,
-            import_run_id=import_run_id,
-        )
+    await add_balance_adjustment(
+        db,
+        account,
+        user=user,
+        amount=-current_balance,
+        adjustment_date=archive_date,
+        note=_ARCHIVE_BALANCE_ADJUSTMENT_NOTE,
+        import_run_id=import_run_id,
     )
-    await db.flush()
-    await recompute_account_snapshots(db, {account.id: archive_date})
     return True
 
 

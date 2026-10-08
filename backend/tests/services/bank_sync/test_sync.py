@@ -16,7 +16,9 @@ did. An attempt left unrecorded shows a sync that never happened, a retry sent e
 retrying can't fix spends requests for nothing, and one never queued leaves an account stale. An
 account that keeps syncing past 100 new items waiting buries the user in review, one paused by
 corrections or a pause on another account stops for nothing, and an import the pause stops part way
-leaves a gap in the history. A bank change to a transaction already in the ledger that reaches it
+leaves a gap in the history. An opening adjustment offered while the import's items still wait
+closes a gap reviewing them would have, and one a later sync's balance never offers leaves the
+ledger apart from the bank for good. A bank change to a transaction already in the ledger that reaches it
 without review when set to review, overwrites a value the user edited or kept, or moves it without
 its balances, changes the user's money unseen, and a correction opened again for what the user
 already decided keeps asking the same question. Something only the user can fix that isn't marked,
@@ -3376,6 +3378,61 @@ async def test_job_a_review_queues_by_lifting_the_pause_catches_the_account_up_f
     assert _fetched(provider) == [_window(date(2026, 8, 30), _TODAY, pending=True)]
     assert await _checkpoints(link) == [_TODAY]
     assert await _pauses(link) == [(False, False)]
+
+
+async def _offer_states(*links: BankAccountLink) -> list[str]:
+    """Return where each link's opening adjustment stands, as committed"""
+    async with TestSession() as session:
+        return [await session.scalar(select(BankAccountLink.opening_adjustment_state).where(BankAccountLink.id == link.id)) for link in links]
+
+
+async def test_job_offers_the_opening_adjustment_as_an_import_bringing_nothing_to_review_ends(connection, provider):
+    """Everyday's import from today brings nothing new, and SimpleFIN's balance is 100.00 as of 10 am today in Brisbane
+
+    The ledger holds nothing, so 100.00 is offered as the import ends
+    """
+    await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-1")
+    link = await _link(connection, "ACT-1", import_start=_TODAY, checkpoint=date(2026, 10, 3))
+    provider.outcomes = [_returned("ACT-1")]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _pauses(link) == [(False, False)]
+    assert await _offer_states(link) == ["offered"]
+
+
+async def test_job_holds_the_offer_while_the_imports_items_wait(connection, provider):
+    """Everyday's import from 1 October ends today with 3 coffees from 2 October waiting, stored as it ended, so nothing is offered"""
+    await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-1")
+    link = await _link(connection, "ACT-1", import_start=date(2026, 10, 1), checkpoint=date(2026, 9, 30))
+    provider.outcomes = [_returned_with({"ACT-1": _new_records(3)})]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _waiting(link) == 3
+    assert await _offer_states(link) == ["not_ready"]
+
+
+async def test_job_offers_the_adjustment_once_a_later_sync_reads_a_balance_it_can_compare(connection, provider, frozen_now):
+    """Everyday's import from today ends with SimpleFIN's balance sent with more decimals than CAD holds, so nothing can be offered
+
+    The next sync reads 100.00, and offers it
+    """
+    await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-1")
+    link = await _link(connection, "ACT-1", import_start=_TODAY, checkpoint=date(2026, 10, 3))
+    provider.outcomes = [FetchResult(accounts=(replace(_bank_account("ACT-1"), balance=None),)), _returned("ACT-1")]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+    await _run_jobs_until_none_is_due()
+    held = await _offer_states(link)
+
+    await _bring_next_syncs_round(connection, frozen_now)
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+    await _run_jobs_until_none_is_due()
+
+    assert held == ["not_ready"]
+    assert await _offer_states(link) == ["offered"]
 
 
 # The day the bank first dated the coffee _record sends, which the user added to the ledger

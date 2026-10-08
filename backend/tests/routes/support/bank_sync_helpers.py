@@ -44,6 +44,7 @@ from tests.conftest import ScopedSession, TestSession
 from tests.fake_simplefin_bridge import FakeBridgeTransport
 from tests.routes.support.account_helpers import _create_account
 from tests.routes.support.auth_helpers import SIGNUP_PAYLOAD, _create_user, _get_auth_header
+from tests.routes.support.transaction_helpers import _create_transaction, _get_system_category_id
 
 BANK_ACCOUNT_ID = "ACT-1"
 LINK_START = date(2026, 9, 1)
@@ -130,6 +131,33 @@ async def _commit_listed_connection(owner_id: uuid.UUID, *external_ids: str, dis
         session.add_all([_build_external_account(connection, external_id) for external_id in external_ids or (BANK_ACCOUNT_ID,)])
         await session.commit()
     return connection
+
+
+async def _commit_bank_balance(connection: BankConnection, **values) -> None:
+    """Commit the balance the connection's bank accounts were last listed with, with no available balance unless told"""
+    async with TestSession() as session:
+        await session.execute(
+            update(BankExternalAccount)
+            .where(BankExternalAccount.connection_id == connection.id)
+            .values(**{"available_balance": None, **values})
+        )
+        await session.commit()
+
+
+async def _record_ledger(client, headers, account_id, *rows: tuple[str, int]) -> list[str]:
+    """Record each dated amount on the account through the route, income as Salary and spending as Groceries
+
+    Returns:
+        The transactions' ids, in the order given
+    """
+    salary_id = await _get_system_category_id(client, headers, "Salary")
+    groceries_id = await _get_system_category_id(client, headers, "Groceries")
+    recorded = []
+    for day, amount in rows:
+        created = await _create_transaction(client, headers, account_id, salary_id if amount > 0 else groceries_id, dt=day, amount=amount)
+        assert created.status_code == 201, created.text
+        recorded.append(created.json()["id"])
+    return recorded
 
 
 async def _new_account(client, headers, name: str, **fields) -> str:

@@ -3,14 +3,17 @@
 The bank's figure is its balance as of its balance date, from the latest listing or sync that read
 the bank account. The ledger's is the account's balance at the end of that date in the owner's profile
 timezone, so transactions dated later, future-dated ones included, are left out. The comparison only
-informs: a difference never adjusts the ledger or changes a total
+informs: a difference never adjusts the ledger or changes a total, apart from the one opening
+adjustment the user may record once the import is reviewed, which closes it
 """
+
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.bank_connection import BankAccountLink, BankExternalAccount, BankLinkState
-from app.schemas.bank_sync import BankBalanceResponse
+from app.models.bank_connection import BankAccountLink, BankExternalAccount, BankLinkState, OpeningAdjustmentState
+from app.schemas.bank_sync import BankBalanceResponse, OpeningAdjustmentResponse
 from app.services.accounts.snapshots import get_current_balances
 from app.utils.dates import resolve_timezone
 
@@ -48,7 +51,7 @@ async def compare_bank_balance(db: AsyncSession, link: BankAccountLink, *, tz: s
     if bank_account is None or bank_account.balance_at is None:
         return None
 
-    balance_day = bank_account.balance_at.astimezone(resolve_timezone(tz)).date()
+    balance_day = read_balance_day(bank_account.balance_at, tz=tz)
     ledger_balances = await get_current_balances(db, [link.account_id], balance_day)
     ledger_balance = ledger_balances.get(link.account_id, 0)
     return BankBalanceResponse(
@@ -59,3 +62,33 @@ async def compare_bank_balance(db: AsyncSession, link: BankAccountLink, *, tz: s
         ledger_balance=ledger_balance,
         difference=None if bank_account.balance is None else ledger_balance - bank_account.balance,
     )
+
+
+def read_balance_day(balance_at: datetime, *, tz: str) -> date:
+    """Return the owner's day the bank's balance is as of, whose end the ledger is compared at
+
+    Raises:
+        HTTPException 422: The profile's timezone no longer resolves
+    """
+    return balance_at.astimezone(resolve_timezone(tz)).date()
+
+
+def opening_adjustment_date(link: BankAccountLink) -> date:
+    """Return the day the link's opening adjustment is recorded on: the day before the import start, the latest the bank doesn't supply"""
+    return link.import_start - timedelta(days=1)
+
+
+def describe_opening_adjustment(link: BankAccountLink, balance: BankBalanceResponse | None) -> OpeningAdjustmentResponse | None:
+    """Return the opening adjustment the link offers, the amount that brings the ledger to the bank's balance
+
+    Args:
+        link: A live link
+        balance: What compare_bank_balance returned for it
+
+    Returns:
+        The offer while the link makes one and its balances compare and differ, otherwise None,
+        since a ledger brought to the bank's balance by hand leaves nothing to record
+    """
+    if link.opening_adjustment_state != OpeningAdjustmentState.OFFERED or balance is None or not balance.difference:
+        return None
+    return OpeningAdjustmentResponse(amount=-balance.difference, adjustment_date=opening_adjustment_date(link))

@@ -128,7 +128,7 @@ def upgrade() -> None:
             name="ck_bank_account_links_import_kind",
         ),
         sa.CheckConstraint(
-            "opening_adjustment_state IN ('not_ready', 'offered', 'accepted', 'skipped', 'none')",
+            "opening_adjustment_state IN ('not_ready', 'offered', 'recorded', 'skipped', 'none')",
             name="ck_bank_account_links_opening_adjustment_state",
         ),
         sa.CheckConstraint("(state = 'unlinked') = (unlinked_at IS NOT NULL)", name="ck_bank_account_links_unlinked_at"),

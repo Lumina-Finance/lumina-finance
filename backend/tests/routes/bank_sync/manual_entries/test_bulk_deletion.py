@@ -36,7 +36,7 @@ async def test_a_bulk_delete_reaching_a_bank_imported_transaction_is_refused_who
 
     refused = await _bulk_delete(client, ledger, [manual_id, imported_id])
 
-    assert refused.status_code == 409, refused.text
+    assert refused.status_code == 422, refused.text
     assert refused.json()["detail"] == BULK_DELETE_REFUSED
     assert await _dates_in(ledger.savings_id) == [COFFEE_DAY]
     assert await _dates_in(ledger.everyday_id) == [COFFEE_DAY]

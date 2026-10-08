@@ -13,7 +13,8 @@ write left it. A repeated action answers as the first did without writing again,
 removal, which finds nothing left and answers that the item wasn't found. Adding or dismissing can
 leave 50 or fewer new items waiting, which lifts the account's review pause and queues its sync, so
 every action first locks the connection that sync would need, then the account's links, the order
-every writer takes connections, links, bank transactions and their ledger transactions in
+every writer takes connections, links, bank transactions and their ledger transactions in. Either
+can also leave none of the import's items waiting, which offers the account's opening adjustment
 """
 
 import uuid
@@ -38,6 +39,7 @@ from app.permissions import check_transaction_access
 from app.schemas.bank_review import AddReviewItemRequest
 from app.schemas.transaction import CreateTransactionRequest, TransactionResponse, UpdateTransactionRequest
 from app.services.accounts.access import get_own_personal_account, own_personal_account_condition
+from app.services.bank_sync.opening_adjustment import offer_opening_adjustments
 from app.services.bank_sync.review_pause import lift_review_pauses, lock_account_links
 from app.services.bank_sync.review_state import EDITABLE_COLUMNS, align_with_bank, bank_values, edited_fields
 from app.services.cache_state import mark_user_cache_changed
@@ -120,6 +122,7 @@ async def add_review_item_to_ledger(db: AsyncSession, user: User, item_id: uuid.
     await db.flush()
 
     await lift_review_pauses(db, user.id, links)
+    await offer_opening_adjustments(db, links, tz=user.tz)
     await mark_user_cache_changed(db, user.id)
     await db.commit()
     await db.refresh(txn)
@@ -152,6 +155,7 @@ async def dismiss_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) 
     await db.flush()
 
     await lift_review_pauses(db, user.id, links)
+    await offer_opening_adjustments(db, links, tz=user.tz)
     await mark_user_cache_changed(db, user.id)
     await db.commit()
 

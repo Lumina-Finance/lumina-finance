@@ -1,7 +1,8 @@
 """A linked account's sync status: the one state every surface shows, and the facts its Sync details word
 
 The first state that applies wins, so each ordering case gives a link two states and expects the one
-ranked higher. Read through the account's bank link, which the list of links shares
+ranked higher. Read through the account's bank link, which the list of links shares, apart from an
+offer the account's read finds nothing to show
 """
 
 from datetime import UTC, datetime, timedelta
@@ -15,6 +16,7 @@ from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobSt
 from app.services.bank_sync import account_link
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
+    _commit_bank_balance,
     _commit_link,
     _commit_listed_connection,
     _commit_running_job,
@@ -114,6 +116,9 @@ async def test_sync_status_shows_the_first_state_that_applies(client, link_value
     await _commit_waiting_items(link, waiting)
     if syncing:
         await _commit_running_job(connection, link, now=_NOW)
+
+    # SimpleFIN's balance sits 250.00 above the empty ledger, so an offered link shows its offer
+    await _commit_bank_balance(connection, balance=25000, balance_at=_NOW - timedelta(hours=3))
 
     sync = await _read_sync(client, headers, account_id)
 

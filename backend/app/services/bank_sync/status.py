@@ -1,14 +1,14 @@
 """A live link's sync status: the one state every surface shows, worked out here so they all agree
 
 The first state that applies wins: what only the user can fix, an import, the review pause, a sync,
-an opening balance to confirm, the review warning, a retry, and otherwise synced. An import outranks
+an opening balance to confirm while its offer shows, the review warning, a retry, and otherwise synced. An import outranks
 the pause, since an import always runs to today whatever the backlog. The pause and the warning are
 the review block's own, so the block and the status never disagree. A sync shows only while a worker
 runs it, so a Sync now still queued leaves the state as it was and marks the sync requested
 """
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -48,13 +48,17 @@ def shows_import_progress(link: BankAccountLink) -> bool:
     return link.importing and link.state == BankLinkState.ACTIVE and link.import_kind != BankImportKind.RECONNECT
 
 
-async def read_link_statuses(db: AsyncSession, links: Sequence[BankAccountLink], *, now: datetime) -> dict[uuid.UUID, LinkStatus]:
+async def read_link_statuses(
+    db: AsyncSession, links: Sequence[BankAccountLink], *, now: datetime, hidden_offers: Collection[uuid.UUID] = ()
+) -> dict[uuid.UUID, LinkStatus]:
     """Return each live link's sync status, reading what the links need together
 
     Args:
         db: The owner's session
         links: Live links, each with its connection
         now: The current time, which the request budgets are read at
+        hidden_offers: Offered links whose offer the caller found nothing to show, such as a gap the
+            ledger has since closed by hand, which read on past the opening balance
 
     Returns:
         Each link's status, by link id
@@ -73,7 +77,9 @@ async def read_link_statuses(db: AsyncSession, links: Sequence[BankAccountLink],
         budget = budgets[link.connection_id]
         action = needed.get(link.account_id)
         import_state = _read_import_state(link, action, budget, syncing=link.id in syncing) if shows_import_progress(link) else None
-        state = _choose_state(link, action, import_state, backlogs[link.account_id], syncing=link.id in syncing)
+        state = _choose_state(
+            link, action, import_state, backlogs[link.account_id], syncing=link.id in syncing, offer_shown=link.id not in hidden_offers
+        )
         sync = _describe_sync(link, state, budget, backlogs[link.account_id], running=link.id in syncing, requested=link.id in requested)
         statuses[link.id] = LinkStatus(sync=sync, import_state=import_state)
     return statuses
@@ -100,10 +106,12 @@ def _choose_state(
     backlog: ReviewBacklog,
     *,
     syncing: bool,
+    offer_shown: bool,
 ) -> BankSyncState:
     """Return the first state that applies to a live link
 
-    An import held by a retry shows the retry, which says when the import goes on
+    An import held by a retry shows the retry, which says when the import goes on, and an offer the
+    caller found nothing to show doesn't ask for the opening balance
     """
     if action is not None:
         return _ACTION_STATES[action.kind]
@@ -117,7 +125,7 @@ def _choose_state(
         return "paused"
     if syncing:
         return "syncing"
-    if link.opening_adjustment_state == OpeningAdjustmentState.OFFERED:
+    if link.opening_adjustment_state == OpeningAdjustmentState.OFFERED and offer_shown:
         return "opening_balance"
     if backlog.warning:
         return "review_warning"

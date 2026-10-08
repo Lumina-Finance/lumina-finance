@@ -69,7 +69,8 @@ async def apply_review_pauses(db: AsyncSession, links: Sequence[BankAccountLink]
     """End the imports a sync just brought through today, then pause or resume each link no import is running on
 
     The caller locked the links and stored what the sync brought back for them, so each count takes
-    in the whole batch, and commits
+    in the whole batch, and commits. An import ends at the database's time for the transaction, the
+    time every bank transaction it stored is stamped as received with
 
     Args:
         db: The links' owner's session
@@ -80,9 +81,12 @@ async def apply_review_pauses(db: AsyncSession, links: Sequence[BankAccountLink]
         Whether a link changed, so the caller tells the owner's open pages
     """
     changed = False
+    ended_at = None
     for link in links:
         if link.importing and link.checkpoint >= today:
+            ended_at = ended_at or await db.scalar(select(func.now()))
             link.importing = False
+            link.import_ended_at = ended_at
             changed = True
 
     settled = [link for link in links if not link.importing]

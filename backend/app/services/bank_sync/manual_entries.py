@@ -164,7 +164,7 @@ async def refuse_deleting_bank_imports(db: AsyncSession, transactions: Sequence[
             several, as it does a move of several
 
     Raises:
-        HTTPException 409: A bank-imported transaction's account is linked, naming the provider it
+        HTTPException 422: A bank-imported transaction's account is linked, naming the provider it
             came from and the account
     """
     rows = await db.execute(
@@ -185,7 +185,7 @@ async def refuse_deleting_bank_imports(db: AsyncSession, transactions: Sequence[
                 if in_bulk
                 else f"Imported from {provider_name}. While {link.account_name} is linked, edit it rather than deleting it"
             )
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=detail)
 
 
 async def refuse_archiving_a_linked_account(db: AsyncSession, account: Account) -> None:
