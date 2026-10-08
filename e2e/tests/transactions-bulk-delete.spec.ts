@@ -115,3 +115,59 @@ test('lines the delete confirmation actions up with its header', async ({ page, 
 
   await expect.poll(readEdgeOffsets).toEqual({ left: 0, right: 0 })
 })
+
+// A refused delete shows its error without splitting the actions: on a phone Delete and Cancel stay side
+// by side as equal halves of one row under a full-width error, and from 640px the error sits between
+// them on their row, as before
+test('keeps the delete confirmation actions on one row when it shows an error', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const date = daysFromTodayInTestTimezone(-1)
+  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000, date })
+
+  await page.route(/\/transactions\/bulk\/delete$/, (route) => route.fulfill({
+    status: 409,
+    contentType: 'application/json',
+    body: JSON.stringify({ detail: 'These transactions changed. Please try again.' }),
+  }))
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
+  await page.getByRole('checkbox', { name: new RegExp(`^Select .+ on ${date}$`) }).check()
+  await page.getByRole('button', { name: 'Delete the selected transactions', exact: true }).click()
+
+  const confirm = page.getByRole('dialog', { name: 'Delete 1 transaction?', exact: true })
+  const remove = confirm.getByRole('button', { name: 'Delete', exact: true })
+  await remove.click()
+  const error = confirm.getByRole('alert')
+  await expect(error).toBeVisible()
+
+  const phone = page.viewportSize()!.width < 640
+  // Polled, since the buttons settle back from their pending state after the refusal lands
+  const readLayout = async () => {
+    const [errorBox, removeBox, cancelBox] = await Promise.all([
+      error.boundingBox(),
+      remove.boundingBox(),
+      confirm.getByRole('button', { name: 'Cancel', exact: true }).boundingBox(),
+    ])
+    const actionsOnOneRow = Math.round(removeBox!.y) === Math.round(cancelBox!.y)
+    if (phone) {
+      return {
+        actionsOnOneRow,
+        equalHalves: Math.round(removeBox!.width) === Math.round(cancelBox!.width),
+        errorAboveActions: errorBox!.y + errorBox!.height <= removeBox!.y,
+        errorSpansActions: Math.round(errorBox!.width) === Math.round(cancelBox!.x + cancelBox!.width - removeBox!.x),
+      }
+    }
+    return {
+      actionsOnOneRow,
+      errorBetweenActions: removeBox!.x + removeBox!.width <= errorBox!.x && errorBox!.x + errorBox!.width <= cancelBox!.x,
+      errorOnActionsRow: errorBox!.y < removeBox!.y + removeBox!.height && removeBox!.y < errorBox!.y + errorBox!.height,
+    }
+  }
+
+  await expect.poll(readLayout).toEqual(phone
+    ? { actionsOnOneRow: true, equalHalves: true, errorAboveActions: true, errorSpansActions: true }
+    : { actionsOnOneRow: true, errorBetweenActions: true, errorOnActionsRow: true })
+})
