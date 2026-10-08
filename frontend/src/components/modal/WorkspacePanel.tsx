@@ -119,6 +119,7 @@ export function ModalWorkspacePanel({
           <div
             className="flex flex-1 flex-col px-4 pb-6 pt-4 sm:px-6 min-[1050px]:min-h-0 min-[1050px]:overflow-y-auto min-[1050px]:py-5"
             data-tooltip-bounds
+            data-dropdown-bounds
           >
             {children}
           </div>
