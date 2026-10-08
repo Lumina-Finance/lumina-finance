@@ -5,7 +5,7 @@
  * These tests catch the other accounts on the connection miscounted, including one waiting for its
  * bank account to be chosen again, the connection named by its provider rather than its nickname,
  * Disconnect offered before the connection has loaded, and the confirm button losing its danger
- * colour. Choosing and confirming run in the browser
+ * colour or its place before Cancel. Choosing and confirming run in the browser
  */
 import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -62,7 +62,8 @@ describe('UnlinkModal', () => {
     expect(markup).toContain('Everyday Chequing at Harbour Bank')
     expect(getRadio(markup, 'Unlink this account')).toContain('aria-checked="true"')
     expect(getRadio(markup, 'Disconnect SimpleFIN')).toContain('aria-checked="false"')
-    expect(markup).toMatch(/<button[^>]*app-danger-button[^>]*>(?:(?!<\/button>).)*Unlink<\/button>/s)
+    expect(markup).toMatch(/<button[^>]*app-danger-button[^>]*>(?:(?!<\/button>).)*opacity:1[^>]*>Unlink<\/span>/s)
+    expect(markup).toMatch(/opacity:0[^>]*>Disconnect<\/span><\/button>/)
   })
 
   it('keeps the connection ready for another link when no other account uses it', () => {
@@ -83,5 +84,11 @@ describe('UnlinkModal', () => {
   it('names the provider and holds back Disconnect until the connection loads', () => {
     const markup = renderDialog(undefined)
     expect(getRadio(markup, 'Disconnect SimpleFIN')).toContain('disabled=""')
+  })
+
+  it('puts Unlink before Cancel, as every confirmation that changes records does', () => {
+    expect(renderDialog(createConnection())).toMatch(
+      />Unlink<\/span><span[^>]*>Disconnect<\/span><\/button>.*>Cancel<\/button>/s,
+    )
   })
 })

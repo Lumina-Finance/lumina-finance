@@ -98,18 +98,21 @@ export function UnlinkModal({ open, account, link, connection, level = 'page', o
         <ModalFormFooter
           submitLabel={scope === 'account' ? 'Unlink' : 'Disconnect'}
           submitDisabled={busy}
-          submitWidthClassName="w-full sm:w-32"
+          submitWidthClassName="w-full sm:w-auto"
+          submitLabels={['Unlink', 'Disconnect']}
           tone="danger"
           error={error}
           level={level}
           onCancel={onClose}
           onPrimary={confirm}
+          primaryOnLeft
         />
       )}
     >
       <div className="space-y-3 pb-2">
         <div className="space-y-3" role="radiogroup" aria-label="What to unlink">
-          {/* The dialog opens on the chosen scope, so arrow keys move between the two from there */}
+          {/* The dialog opens on the chosen scope, which comes before Cancel in the dialog and so takes the
+              first focus from it, and arrow keys move between the two from there */}
           <ChoiceCard selected={scope === 'account'} initialFocus={scope === 'account'} disabled={busy} onSelect={() => setScope('account')}>
             <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>Unlink this account</span>
             <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>

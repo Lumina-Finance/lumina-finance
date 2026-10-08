@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { FormError } from '@/components/forms/FormError'
 import { PendingLabel } from '@/components/loading/PendingLabel'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import type { ModalLevel } from '@/components/modal/Shell'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+import { useFittedButtonWidth } from '@/hooks/useFittedButtonWidth'
 
 // The justify side is applied separately below, since a footer drawn with the primary on the left
 // swaps it for sm:justify-between rather than adding to it
@@ -51,6 +52,13 @@ interface ModalFormFooterProps {
 
   /** Draws the primary action red, for a submission that removes something */
   tone?: 'primary' | 'danger'
+
+  /**
+   * Every label the primary button can show, for one whose label changes while the modal is open. The
+   * labels fade into each other and the button's width eases between them, in place of `submitWidthClassName`
+   * and a snap. Left out by a button with one label
+   */
+  submitLabels?: readonly string[]
 }
 
 /**
@@ -73,8 +81,18 @@ export function ModalFormFooter({
   onPrimary,
   primaryOnLeft = false,
   tone = 'primary',
+  submitLabels,
 }: ModalFormFooterProps) {
-  const primaryRef = useRef<HTMLButtonElement>(null)
+  const primaryRef = useRef<HTMLButtonElement | null>(null)
+  const fitted = useFittedButtonWidth(submitLabels ?? submitLabel)
+  const { buttonRef: fittedRef } = fitted
+  const setPrimary = useCallback(
+    (node: HTMLButtonElement | null) => {
+      primaryRef.current = node
+      fittedRef.current = node
+    },
+    [fittedRef],
+  )
   const primaryHadFocus = useRef(false)
 
   // Disabling a focused button drops focus to the page, which leaves the next Tab starting from the top of
@@ -108,7 +126,8 @@ export function ModalFormFooter({
   )
   const primaryButton = (
     <DisabledReasonButton
-      ref={primaryRef}
+      ref={setPrimary}
+      style={submitLabels ? fitted.style : undefined}
       type={onPrimary ? 'button' : 'submit'}
       onClick={() => {
         primaryHadFocus.current = true
@@ -118,12 +137,26 @@ export function ModalFormFooter({
       disabled={submitDisabled || (submitUnavailable && !submitReason)}
       disabledReason={submitDisabled ? undefined : (submitReason ?? submitBlockedReason)}
       aria-busy={submitDisabled}
-      className={`${tone === 'danger' ? 'app-danger-button' : 'app-primary-button'} shrink-0${submitDisabled ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : ` ${submitWidthClassName}`}`}
+      className={`${tone === 'danger' ? 'app-danger-button' : 'app-primary-button'} shrink-0${submitLabels ? ' relative' : ''}${submitDisabled ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : ` ${submitLabels ? 'w-full sm:w-(--fit-width)' : submitWidthClassName}`}`}
     >
       {/* The spinner replaces the label, so it carries the label as its own name and a screen reader still
           says which action is in flight */}
+      {submitLabels && fitted.measure}
       <PendingLabel pending={submitDisabled} name={submitLabel}>
-        {submitLabel}
+        {submitLabels ? (
+          submitLabels.map((label) => (
+            <span
+              key={label}
+              aria-hidden={label !== submitLabel}
+              className="absolute inset-0 flex items-center justify-center transition-opacity motion-reduce:transition-none"
+              style={{ opacity: label === submitLabel ? 1 : 0 }}
+            >
+              {label}
+            </span>
+          ))
+        ) : (
+          submitLabel
+        )}
       </PendingLabel>
     </DisabledReasonButton>
   )
