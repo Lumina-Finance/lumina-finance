@@ -18,7 +18,8 @@ vi.mock('@/api/client', () => ({
 }));
 
 import { ApiError } from '@/api/auth';
-import { dismissHistoryReminderMutationOptions } from '@/api/bank-sync/hooks';
+import { dismissBankReminderMutationOptions } from '@/api/bank-sync/hooks';
+import { dismissCutOffDay, dismissHistoryReminder } from '@/api/bank-sync/requests';
 import type { AccountBankStatus } from '@/api/bank-sync/types';
 import { accountKeys, bankSyncKeys, transactionKeys } from '@/api/cache/queryKeys';
 import { createBankLink } from './fixtures';
@@ -29,14 +30,14 @@ const statusKey = bankSyncKeys.accountStatus('account-1');
 const linksKey = bankSyncKeys.links();
 const untouchedKeys: QueryKey[] = [transactionKeys.list({}), accountKeys.detail('account-1'), bankSyncKeys.accountStatus('account-2')];
 
-// Everyday's import from Jun 1 got history from Jun 9
+// Everyday's import from Jun 1 got history from Jun 9, and Oct 3 brought back as many as SimpleFIN sends at once
 const REMINDER = { requested_start: '2026-06-01', earliest_returned: '2026-06-09' };
 
-/** Everyday's bank link, showing the reminder unless told otherwise */
+/** Everyday's bank link, showing both reminders unless told otherwise */
 function createStatus(overrides: Parameters<typeof createBankLink>[0] = {}): AccountBankStatus {
   return {
     account_id: 'account-1',
-    link: createBankLink({ history_reminder: REMINDER, ...overrides }),
+    link: createBankLink({ history_reminder: REMINDER, cut_off_day: '2026-10-03', ...overrides }),
     previous_link: null,
     balance: null,
     opening_adjustment: null,
@@ -52,10 +53,19 @@ function expectInvalidated(keys: QueryKey[], invalidated: boolean): void {
 const dismissals = [
   [
     'the history reminder',
-    () => new MutationObserver(queryClient, dismissHistoryReminderMutationOptions(queryClient)).mutate({ accountId: 'account-1', reminder: REMINDER }),
+    () => new MutationObserver(queryClient, dismissBankReminderMutationOptions(queryClient, dismissHistoryReminder))
+      .mutate({ accountId: 'account-1', reminder: REMINDER }),
     '/accounts/account-1/bank-link/history-reminder/dismiss',
     '{"requested_start":"2026-06-01","earliest_returned":"2026-06-09"}',
     createStatus({ history_reminder: null }),
+  ],
+  [
+    'the cut-off day',
+    () => new MutationObserver(queryClient, dismissBankReminderMutationOptions(queryClient, dismissCutOffDay))
+      .mutate({ accountId: 'account-1', day: '2026-10-03' }),
+    '/accounts/account-1/bank-link/cut-off-day/dismiss',
+    '{"day":"2026-10-03"}',
+    createStatus({ cut_off_day: null }),
   ],
 ] as const;
 

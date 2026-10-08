@@ -27,7 +27,7 @@ import { getDisabledControlProps, useDisabledReason } from '@/hooks/useDisabledR
 import { BalancePanel } from '@/pages/accounts/detail/components/bank-link/BalancePanel'
 import { ImportProgress } from '@/pages/accounts/detail/components/bank-link/ImportProgress'
 import { OpeningAdjustmentOffer } from '@/pages/accounts/detail/components/bank-link/OpeningAdjustmentOffer'
-import { HistoryReminder } from '@/pages/accounts/detail/components/bank-link/Reminder'
+import { CutOffDayReminder, HistoryReminder, REMINDER_ATTRIBUTE } from '@/pages/accounts/detail/components/bank-link/Reminder'
 import type { BankSyncLabel } from '@/pages/accounts/detail/components/bank-link/status'
 import { SyncFact } from '@/pages/accounts/detail/components/bank-link/SyncFact'
 import { SyncNowButton } from '@/pages/accounts/detail/components/bank-link/SyncNowButton'
@@ -75,14 +75,14 @@ type LinkedViewProps = {
 
 /**
  * A live link: its facts and status, the import while it is the status, a notice for anything holding
- * its sync back, the reminder that history may be missing, the bank's balance beside the ledger's
+ * its sync back, the reminders that history may be missing, the bank's balance beside the ledger's
  * once it has synced, with the opening adjustment offer at its foot while there is one, and the
  * actions on the link. A notice's own action comes first, since it is what resumes the sync. The
  * server leaves the review notices out while only the user can restart the sync, so a stop's notice
- * shows alone. The reminder holds nothing back, so the offer shows beside it. Neither the offer's
- * buttons nor the reminder's ✕ are among the view's actions, so the modal opening at the bank link
- * never starts on Skip or Dismiss, and an answer or a dismissal moves focus on to the link's actions,
- * Sync now first, as what held it folds away
+ * shows alone. A reminder holds nothing back, so the offer shows beside it. Neither the offer's
+ * buttons nor a reminder's ✕ are among the view's actions, so the modal opening at the bank link never
+ * starts on Skip or Dismiss, and an answer or a dismissal moves focus on to the link's actions, Sync
+ * now first, as what held it folds away, or from one reminder to the next
  */
 function LinkedView({
   link,
@@ -97,6 +97,7 @@ function LinkedView({
   onUnlink,
 }: LinkedViewProps) {
   const navigate = useNavigate()
+  const viewRef = useRef<HTMLDivElement>(null)
   const actionsRef = useRef<HTMLDivElement>(null)
   const shownImport = useLingeringImport(link.import)
   const { state, paused, review_warning: warned } = link.sync
@@ -105,8 +106,22 @@ function LinkedView({
   // An import that has just ended stays a moment as done, whatever the status has moved on to
   const showsImport = shownImport !== null && (shownImport.state === 'complete' || IMPORT_STATES.has(state))
 
+  // A dismissed reminder folds away with the ✕ holding focus, which moves on to the next reminder's ✕,
+  // or with none left, to the link's actions
+  const moveOnFromReminder = (reminder: HTMLElement) => {
+    const later = Array.from(viewRef.current?.querySelectorAll<HTMLElement>(`[${REMINDER_ATTRIBUTE}]`) ?? [])
+      .find((other) => reminder.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING)
+    const dismiss = later?.querySelector<HTMLElement>('button')
+    if (!dismiss) {
+      focusFirstAction(actionsRef.current)
+      return
+    }
+    dismiss.focus({ preventScroll: true })
+    revealInScrollArea(dismiss)
+  }
+
   return (
-    <div>
+    <div ref={viewRef}>
       <IdentityFacts
         className=""
         facts={[
@@ -178,8 +193,13 @@ function LinkedView({
               accountId={link.account_id}
               providerName={link.provider_name}
               reminder={link.history_reminder}
-              onDismissed={() => focusFirstAction(actionsRef.current)}
+              onDismissed={moveOnFromReminder}
             />
+          </Unfold>
+        )}
+        {link.cut_off_day && (
+          <Unfold key="cut-off-day">
+            <CutOffDayReminder accountId={link.account_id} providerName={link.provider_name} day={link.cut_off_day} onDismissed={moveOnFromReminder} />
           </Unfold>
         )}
         {balance && (

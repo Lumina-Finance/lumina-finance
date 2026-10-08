@@ -34,3 +34,14 @@ export function describeHistoryReminder(reminder: BankHistoryReminder, providerN
     body: `${providerName} returned transactions from ${unbrokenDate(reminder.earliest_returned)}, not ${requested}. ${HISTORY_LIMIT_NOTE}`,
   }
 }
+
+/**
+ * What the reminder says about a day kept though it brought back as many transactions as the
+ * provider sends at once, counted across the connection's accounts, so it never names a number
+ */
+export function describeCutOffDay(day: string, providerName: string): ReminderCopy {
+  return {
+    title: 'Some transactions may be missing',
+    body: `${providerName} returned as many transactions for ${unbrokenDate(day)} as it sends at once, so some from that day may be missing.`,
+  }
+}

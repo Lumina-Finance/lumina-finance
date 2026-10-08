@@ -467,20 +467,36 @@ export async function linkToSampleBankAccount(
   return { scenario, connection }
 }
 
+/** A transaction for the Bridge to send: booked on a day, as YYYY-MM-DD, or pending with no day */
+export type BridgeTransaction = { amount: string; description: string } & ({ posted: string } | { pending: true })
+
 /**
- * Link an account to Everyday Chequing at Harbour Bank, a bank account holding no transactions and a
- * balance of 100.00, on a connection of its own, importing from the given day
+ * Add transactions to a bank account in one call, as for 1,000 or more in a range.
+ */
+export async function addBridgeTransactions(
+  request: APIRequestContext,
+  scenarioId: string,
+  accountId: string,
+  transactions: BridgeTransaction[],
+): Promise<void> {
+  await controlBridge(request, 'post', `/${scenarioId}/accounts/${accountId}/transactions`, { transactions })
+}
+
+/**
+ * Link an account to Everyday Chequing at Harbour Bank, a bank account with a balance of 100.00 that
+ * holds no transactions but any given, on a connection of its own, importing from the given day
  *
  * @returns The scenario the connection reaches
  */
 export async function linkToEmptyBankAccount(
   request: APIRequestContext,
   user: TestUser,
-  options: { accountId: string; startDate: string },
+  options: { accountId: string; startDate: string; transactions?: BridgeTransaction[] },
 ): Promise<{ scenario: BridgeScenario }> {
   const scenario = await createEmptyBridgeScenario(request)
   const connId = await addBridgeBankLogin(request, scenario.id, 'Harbour Bank')
   const externalAccountId = await addBridgeBankAccount(request, scenario.id, { connId, name: 'Everyday Chequing', currency: 'CAD' })
+  if (options.transactions) await addBridgeTransactions(request, scenario.id, externalAccountId, options.transactions)
   const connection = await claimSetupToken(request, user, scenario.setupToken)
   await linkBankAccount(request, user, { accountId: options.accountId, connectionId: connection.id, externalAccountId, startDate: options.startDate })
   return { scenario }

@@ -49,6 +49,7 @@ const WAITING_LINK = {
     review_warning: false,
   },
   history_reminder: null,
+  cut_off_day: null,
 }
 
 describe('the link flow wording', () => {

@@ -136,6 +136,14 @@ export function dismissHistoryReminder({ accountId, reminder }: { accountId: str
 }
 
 /**
+ * Dismisses the reminder that some of a day's transactions may be missing, and returns the account's
+ * bank link without it. A later day raised meanwhile stays, and the answer carries it
+ */
+export function dismissCutOffDay({ accountId, day }: { accountId: string; day: string }) {
+  return post<AccountBankStatus>(`/accounts/${accountId}/bank-link/cut-off-day/dismiss`, { day });
+}
+
+/**
  * Records the offered opening adjustment for the amount given, in minor units signed as the ledger
  * keeps them, and returns the account's bank link with no offer left
  */

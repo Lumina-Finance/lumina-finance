@@ -18,6 +18,7 @@ import {
   createBankLink,
   deleteBankConnection,
   deleteBankLink,
+  dismissCutOffDay,
   dismissHistoryReminder,
   fetchAccountBankStatus,
   fetchBankConnections,
@@ -40,7 +41,7 @@ import {
   updateReviewPreferences,
   type ReviewResolution,
 } from '@/api/bank-sync/requests';
-import type { BankLink, BankProviderId, BankReviewItem } from '@/api/bank-sync/types';
+import type { AccountBankStatus, BankLink, BankProviderId, BankReviewItem } from '@/api/bank-sync/types';
 import {
   invalidateAccountBankLink,
   invalidateBankLinks,
@@ -48,8 +49,8 @@ import {
 } from '@/api/cache/invalidation';
 import { bankSyncKeys } from '@/api/cache/queryKeys';
 import {
+  applyAccountBankStatus,
   applyBankLinkChanges,
-  applyBankReminderDismissal,
   applyBulkApprovalOutcome,
   applyLedgerReviewOutcome,
   applyOpeningAdjustmentAnswer,
@@ -397,22 +398,30 @@ export function useSyncBankAccount() {
 }
 
 /**
- * How the history reminder's ✕ runs. The account's bank link the server answers with folds the
- * reminder away, or shows a newer one raised meanwhile. A failure reads the account's bank link again,
- * so the reminder shown is the server's
+ * How a reminder's ✕ in the Bank link section runs, sending the request that dismisses that kind of
+ * reminder. The account's bank link the server answers with folds the reminder away, or shows a newer
+ * one raised meanwhile. A failure reads the account's bank link again, so the reminder shown is the
+ * server's
  */
-export function dismissHistoryReminderMutationOptions(queryClient: QueryClient) {
+export function dismissBankReminderMutationOptions<Payload extends { accountId: string }>(
+  queryClient: QueryClient,
+  dismiss: (payload: Payload) => Promise<AccountBankStatus>,
+) {
   return mutationOptions({
-    mutationFn: (payload: Parameters<typeof dismissHistoryReminder>[0]) =>
-      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => dismissHistoryReminder(payload)),
-    onSuccess: (status) => applyBankReminderDismissal(queryClient, status),
+    mutationFn: (payload: Payload) => runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => dismiss(payload)),
+    onSuccess: (status) => applyAccountBankStatus(queryClient, status),
     onError: (_error, { accountId }) => invalidateAccountBankLink(queryClient, accountId),
   });
 }
 
 export function useDismissHistoryReminder() {
   const queryClient = useQueryClient();
-  return useMutation(dismissHistoryReminderMutationOptions(queryClient));
+  return useMutation(dismissBankReminderMutationOptions(queryClient, dismissHistoryReminder));
+}
+
+export function useDismissCutOffDay() {
+  const queryClient = useQueryClient();
+  return useMutation(dismissBankReminderMutationOptions(queryClient, dismissCutOffDay));
 }
 
 /**

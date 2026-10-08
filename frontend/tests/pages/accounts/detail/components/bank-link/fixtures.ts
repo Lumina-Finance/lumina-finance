@@ -87,6 +87,7 @@ export function createLink(overrides: Partial<BankLink> = {}): BankLink {
     import: null,
     sync: createSync(),
     history_reminder: null,
+    cut_off_day: null,
     ...overrides,
   }
 }

@@ -379,6 +379,12 @@ export type BankLink = BankAccountLink & {
 
   /** The last import or catch-up that fell short, null when none did or the user dismissed it */
   history_reminder: BankHistoryReminder | null;
+
+  /**
+   * The latest day kept though it brought back as many transactions as the provider sends at once,
+   * so some of that day's may be missing, as YYYY-MM-DD. Null when no day did or the user dismissed it
+   */
+  cut_off_day: string | null;
 };
 
 /**

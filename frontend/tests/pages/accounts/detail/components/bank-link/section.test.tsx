@@ -10,8 +10,8 @@
  * stop holds it or dropped before it shows as done, a notice missing, worded unlike the issue, or shown for a link it doesn't apply to,
  * a notice's action losing focus to the link's own actions when the modal opens at the bank link,
  * the opening adjustment offer missing from the balance panel's foot or shown with nothing offered,
- * the history reminder missing, worded unlike the issue, holding the offer back, still while its
- * dismissal runs, or taking the focus the modal gives the link's actions,
+ * a history or cut-off day reminder missing, worded unlike the issue, holding the offer back, spinning
+ * for the other's dismissal, or taking the focus the modal gives the link's actions,
  * Sync now left live for something the server refuses or without the reason, a reason of two
  * sentences ending without the full stop the others of two have, held back by a bank
  * sign-in, left greyed once its requests free up, spinning while the worker is down, or dropping the
@@ -45,7 +45,7 @@ const read = vi.hoisted(() => ({
   providers: undefined as BankProvidersResponse | undefined,
   connections: [] as BankConnection[],
   syncFeedback: 'idle' as ActionFeedbackStatus,
-  dismissing: null as 'history' | null,
+  dismissing: null as 'history' | 'cut-off-day' | null,
 }))
 
 vi.mock('@/pages/accounts/detail/components/bank-link/useAccountBankLink', () => ({
@@ -65,6 +65,7 @@ vi.mock('@/api/bank-sync', async (importOriginal) => ({
   useRecordOpeningAdjustment: () => ({ isPending: false, mutate: vi.fn() }),
   useSkipOpeningAdjustment: () => ({ isPending: false, mutate: vi.fn() }),
   useDismissHistoryReminder: () => ({ isPending: read.dismissing === 'history', mutate: vi.fn() }),
+  useDismissCutOffDay: () => ({ isPending: read.dismissing === 'cut-off-day', mutate: vi.fn() }),
 }))
 vi.mock('@/hooks/useMoneyFormatters', async () => {
   const { formatCurrency, formatMovedAmount } = await import('@/utils/formatCurrency')
@@ -249,29 +250,41 @@ describe('BankLinkSection', () => {
     expect(markup).toContain(`>${title}</p>`)
     expect(markup).toContain(`>${escaped(body)}</p>`)
     expect(markup.match(/aria-label="Dismiss"/g)).toHaveLength(1)
+    expect(markup).not.toContain('Some transactions may be missing')
   })
 
-  it('shows the reminder ahead of the balances, with the opening adjustment offer still at their foot', () => {
+  it('reminds of a day that brought back as many transactions as the provider sends at once, with a ✕ to dismiss it', () => {
+    read.status = createStatus({ link: createLink({ cut_off_day: '2026-10-03' }) })
+    const markup = renderSection()
+    expect(markup).toContain('>Some transactions may be missing</p>')
+    expect(markup).toContain(`>SimpleFIN returned as many transactions for ${unbroken('Oct 3, 2026')} as it sends at once, so some from that day may be missing.</p>`)
+    expect(markup.match(/aria-label="Dismiss"/g)).toHaveLength(1)
+    expect(markup).not.toContain('history the bank keeps')
+  })
+
+  it('shows both reminders ahead of the balances, with the opening adjustment offer still at their foot', () => {
     read.status = createStatus({
       link: createLink({
         sync: createSync({ state: 'opening_balance' }),
         history_reminder: { requested_start: '2026-06-01', earliest_returned: null },
+        cut_off_day: '2026-10-03',
       }),
       balance: { amount: 125000, available: null, available_unreadable: false, balance_date: '2026-10-03T22:00:00Z', ledger_balance: 100000, difference: -25000 },
       opening_adjustment: { amount: 25000, adjustment_date: '2026-05-31' },
     })
     const markup = renderSection(createAccount({ current_balance: 100000 }))
-    const order = ['No history returned yet', 'As of ', 'Record the difference'].map((text) => markup.indexOf(text))
+    const order = ['No history returned yet', 'Some transactions may be missing', 'As of ', 'Record the difference'].map((text) => markup.indexOf(text))
     expect(order.every((index) => index >= 0)).toBe(true)
     expect(order).toEqual([...order].sort((a, b) => a - b))
   })
 
-  it('spins the ✕ while its dismissal runs', () => {
-    read.status = createStatus({ link: createLink({ history_reminder: { requested_start: '2026-06-01', earliest_returned: null } }) })
-    const idle = [...renderSection().matchAll(/<button[^>]*aria-label="Dismiss"[^>]*aria-busy="(true|false)"/g)].map((match) => match[1])
+  it('spins only the ✕ of the reminder being dismissed', () => {
+    read.status = createStatus({
+      link: createLink({ history_reminder: { requested_start: '2026-06-01', earliest_returned: null }, cut_off_day: '2026-10-03' }),
+    })
     read.dismissing = 'history'
     const busy = [...renderSection().matchAll(/<button[^>]*aria-label="Dismiss"[^>]*aria-busy="(true|false)"/g)].map((match) => match[1])
-    expect([idle, busy]).toEqual([['false'], ['true']])
+    expect(busy).toEqual(['true', 'false'])
   })
 
   it('shows the failure when the link cannot load, rather than offering a link', () => {

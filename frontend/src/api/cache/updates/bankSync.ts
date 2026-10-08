@@ -289,35 +289,33 @@ export function applyRestoredBankValue(
 }
 
 /**
+ * Updates the views an answer in the Bank link section changes that leaves the ledger as it was, such
+ * as dismissing a reminder
+ *
+ * The account's bank link the server answered with takes the cached one's place, so what was answered
+ * folds away straight away, or a newer reminder raised meanwhile shows, and the link list, which holds
+ * the status and the reminders too, is read again
+ */
+export function applyAccountBankStatus(queryClient: QueryClient, status: AccountBankStatus): void {
+  queryClient.setQueryData(bankSyncKeys.accountStatus(status.account_id), status);
+  invalidateBankLinks(queryClient);
+}
+
+/**
  * Updates the views an answer to the opening adjustment offer changes
  *
- * The account's bank link the server answered with takes the cached one's place, so the offer folds
- * away straight away, and the link list is read again for the status it no longer shows. A recorded
- * adjustment is a new ledger transaction, which the transaction lists and the account's figures
- * take in, and Difference with them
+ * The offer folds away as any answer's does. A recorded adjustment is a new ledger transaction, which
+ * the transaction lists and the account's figures take in, and Difference with them
  */
 export function applyOpeningAdjustmentAnswer(
   queryClient: QueryClient,
   status: AccountBankStatus,
   recorded: boolean,
 ): void {
-  queryClient.setQueryData(bankSyncKeys.accountStatus(status.account_id), status);
-  invalidateBankLinks(queryClient);
+  applyAccountBankStatus(queryClient, status);
   if (!recorded) return;
   invalidateTransactions(queryClient);
   invalidateFinancialTransactionData(queryClient, [status.account_id]);
-}
-
-/**
- * Updates the views dismissing a reminder in the Bank link section changes
- *
- * The account's bank link the server answered with takes the cached one's place, so the reminder
- * folds away straight away, or a newer one raised meanwhile shows, and the link list, which holds
- * the reminders too, is read again
- */
-export function applyBankReminderDismissal(queryClient: QueryClient, status: AccountBankStatus): void {
-  queryClient.setQueryData(bankSyncKeys.accountStatus(status.account_id), status);
-  invalidateBankLinks(queryClient);
 }
 
 /**

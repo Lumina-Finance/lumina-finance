@@ -67,6 +67,7 @@ export {
   useClaimSetupToken,
   useDisconnectBankConnection,
   useDiscoveredBankAccounts,
+  useDismissCutOffDay,
   useDismissHistoryReminder,
   useImportRange,
   useLinkBankAccount,
