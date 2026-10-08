@@ -103,11 +103,11 @@ function LinkedView({
   const navigate = useNavigate()
   const viewRef = useRef<HTMLDivElement>(null)
   const actionsRef = useRef<HTMLDivElement>(null)
-  const shownImport = useLingeringImport(link.import)
+  const shownImport = useLingeringImport(link.import, link.state)
   const { state, paused, review_warning: warned } = link.sync
   const waiting = link.sync.waiting_new_count.toLocaleString()
 
-  // An import that has just ended stays a moment as done, whatever the status has moved on to
+  // An import that has just finished stays a moment as done, whatever the status has moved on to
   const showsImport = shownImport !== null && (shownImport.state === 'complete' || IMPORT_STATES.has(state))
 
   // A dismissed reminder folds away with the ✕ holding focus, which moves on to the next reminder's ✕,

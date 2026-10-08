@@ -1,10 +1,11 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, formatDateLabel, formatToday, signUpUser, todayInTestTimezone, type TestUser } from '../support/api'
 import { chooseFromDropdown, fact, logInViaApi, openModal, openPage } from '../support/app'
 import {
   addBridgeBankAccount,
   addBridgeBankLogin,
+  buildLinkAnswer,
   changeProviders,
   claimSetupToken,
   clearBridgeFault,
@@ -119,6 +120,36 @@ function recordEntrance(): Promise<EntranceFrame[]> {
     }
     requestAnimationFrame(record)
   })
+}
+
+/**
+ * Opens a new account's Bank link section on a link part way through its first import, from Jan 1, 2026
+ * with one of its two windows stored. The page reads the link from the returned answer in place of the
+ * server, again on each request, so a test moves the import on by changing it. While a link imports, the
+ * app shell reads the user's links every 2 seconds, and a change among them reads the account's link again
+ */
+async function openImportingLink(page: Page, request: APIRequestContext): Promise<{ dialog: Locator; accountId: string; answer: { link: object } }> {
+  const user = await signUpUser(request)
+  const everyday = await createAccount(request, user, { name: 'Everyday' })
+  const synced = buildLinkAnswer(everyday.id)
+  const answer: { link: object } = {
+    link: {
+      ...synced,
+      import: { kind: 'initial', state: 'running', requested_start: '2026-01-01', windows_total: 2, windows_done: 1, items_found: 12, earliest_returned_date: null },
+      sync: { ...synced.sync, state: 'importing' },
+    },
+  }
+  await page.route(`${API_BASE_URL}/bank-sync/links`, (route) => route.fulfill({ json: [answer.link] }))
+  await page.route(`${API_BASE_URL}/accounts/${everyday.id}/bank-link`, (route) => route.fulfill({
+    json: { account_id: everyday.id, link: answer.link, previous_link: null },
+  }))
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${everyday.id}`)
+  await page.getByRole('button', { name: /^Bank sync: / }).click()
+  const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  await expect(dialog.getByText(/^Importing from /)).toBeVisible()
+  return { dialog, accountId: everyday.id, answer }
 }
 
 // A read the page sends as a test ends can still be on its way through a changed answer when the page
@@ -406,6 +437,30 @@ test('holds the loading Bank link section at its real height while the dialog sc
   const heldWhileScaling = frames.filter((frame) => frame.held && frame.scale < 1)
   expect(heldWhileScaling.length, JSON.stringify(frames)).toBeGreaterThan(0)
   for (const frame of heldWhileScaling) expect(frame.coverHeight, JSON.stringify(frame)).toBeCloseTo(frame.contentHeight, 1)
+})
+
+// The link's reads are answered here, since the worker can't be held part way through an import, nor made
+// to lose track of the bank account while one runs
+test('shows an import that finishes as imported and done before folding it away', async ({ page, request }) => {
+  const { dialog, accountId, answer } = await openImportingLink(page, request)
+  answer.link = buildLinkAnswer(accountId)
+
+  await expect(dialog.getByText(/^Imported from /)).toBeVisible()
+  await expect(dialog.getByText('12 found · Done')).toBeVisible()
+  await expect(dialog.getByRole('progressbar', { name: 'Import' })).toHaveAttribute('aria-valuenow', '2')
+  await expect(dialog.getByRole('progressbar', { name: 'Import' })).toHaveCount(0)
+})
+
+test('drops an import cut short by its bank account needing to be chosen again without reading as done', async ({ page, request }) => {
+  const { dialog, accountId, answer } = await openImportingLink(page, request)
+  const link = buildLinkAnswer(accountId)
+  answer.link = { ...link, state: 'choose_account', sync: { ...link.sync, state: 'choose_account' } }
+  await expect(dialog.getByRole('button', { name: 'Choose bank account' })).toBeVisible()
+
+  // Counted once, as the notice shows, since an import shown as done would fold away by itself a moment
+  // later. The import still running folds away
+  expect(await dialog.getByText(/^Imported from /).count()).toBe(0)
+  await expect(dialog.getByRole('progressbar', { name: 'Import' })).toHaveCount(0)
 })
 
 test('opens the link flow on the new account’s page when the new-account prompt chooses linking', async ({ page, request }) => {
