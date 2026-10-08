@@ -10,8 +10,8 @@ import {
   signUpUser,
   type TestUser,
 } from '../support/api'
-import { fact, logInViaApi, openPage } from '../support/app'
-import { linkToSampleBankAccount, WORKER_RESULT_TIMEOUT_MS } from '../support/bankSync'
+import { fact, logInViaApi } from '../support/app'
+import { errorToast, linkToSampleBankAccount, openBankLink } from '../support/bankSync'
 import { contrastOf, MIN_TEXT_CONTRAST, MINUS, readBoxes } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 
@@ -41,21 +41,6 @@ async function linkWithGap(request: APIRequestContext): Promise<Setup> {
   await createTransaction(request, user, { accountId: account.id, categoryName: 'Salary', amount: 100000, date: adjustmentDate })
   await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING, balances: { balance: '1250.00' } })
   return { user, accountId: account.id, adjustmentDate }
-}
-
-/**
- * Opens the account's page and, once the identity card's Bank sync fact reads as given, its edit
- * modal at the Bank link section through that fact
- */
-async function openBankLink(page: Page, accountId: string, status: string | RegExp): Promise<Locator> {
-  await openPage(page, `/accounts/${accountId}`)
-  const name = typeof status === 'string' ? `Bank sync: ${status}. Open bank link` : new RegExp(`^Bank sync: ${status.source} Open bank link$`)
-  const bankSync = page.getByRole('button', { name })
-  await expect(bankSync).toBeVisible({ timeout: WORKER_RESULT_TIMEOUT_MS })
-  await bankSync.click()
-  const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
-  await expect(dialog).toBeVisible()
-  return dialog
 }
 
 /** Links Everyday with its gap, logs in and opens the offer */
@@ -89,11 +74,6 @@ function watchAnswers(page: Page): string[] {
     }
   })
   return sent
-}
-
-/** A toast saying why something failed, which is announced as an alert */
-function errorToast(page: Page, text: string): Locator {
-  return page.getByRole('alert').filter({ hasText: text })
 }
 
 /** The account's ledger transactions as stored, as their dates and amounts, smallest amount first, and their notes */

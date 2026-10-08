@@ -10,11 +10,13 @@
  * stop holds it or dropped before it shows as done, a notice missing, worded unlike the issue, or shown for a link it doesn't apply to,
  * a notice's action losing focus to the link's own actions when the modal opens at the bank link,
  * the opening adjustment offer missing from the balance panel's foot or shown with nothing offered,
+ * the history reminder missing, worded unlike the issue, holding the offer back, still while its
+ * dismissal runs, or taking the focus the modal gives the link's actions,
  * Sync now left live for something the server refuses or without the reason, a reason of two
  * sentences ending without the full stop the others of two have, held back by a bank
  * sign-in, left greyed once its requests free up, spinning while the worker is down, or dropping the
  * focus it holds or the width it measures while the sync starts. Opening the flow, the tooltip,
- * unlinking and pressing Sync now run in the browser
+ * unlinking, pressing Sync now and dismissing a reminder run in the browser
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -43,6 +45,7 @@ const read = vi.hoisted(() => ({
   providers: undefined as BankProvidersResponse | undefined,
   connections: [] as BankConnection[],
   syncFeedback: 'idle' as ActionFeedbackStatus,
+  dismissing: null as 'history' | null,
 }))
 
 vi.mock('@/pages/accounts/detail/components/bank-link/useAccountBankLink', () => ({
@@ -61,6 +64,7 @@ vi.mock('@/api/bank-sync', async (importOriginal) => ({
   useSyncBankAccount: () => ({ mutateAsync: vi.fn() }),
   useRecordOpeningAdjustment: () => ({ isPending: false, mutate: vi.fn() }),
   useSkipOpeningAdjustment: () => ({ isPending: false, mutate: vi.fn() }),
+  useDismissHistoryReminder: () => ({ isPending: read.dismissing === 'history', mutate: vi.fn() }),
 }))
 vi.mock('@/hooks/useMoneyFormatters', async () => {
   const { formatCurrency, formatMovedAmount } = await import('@/utils/formatCurrency')
@@ -101,6 +105,12 @@ function escaped(text: string): string {
   return text.replaceAll("'", '&#x27;')
 }
 
+// Writes a date as the reminders do, with non-breaking spaces, so a phone never wraps it between its
+// month and its day
+function unbroken(date: string): string {
+  return date.replaceAll(' ', ' ')
+}
+
 // Static rendering marks where one text node meets the next, which text is matched without
 function renderSection(account: Account = createAccount()): string {
   return renderToStaticMarkup(<BankLinkSection account={account} sectionNumber="03" />).replaceAll('<!-- -->', '')
@@ -131,6 +141,7 @@ beforeEach(() => {
   read.providers = createProviders()
   read.connections = [createConnection()]
   read.syncFeedback = 'idle'
+  read.dismissing = null
 })
 
 afterEach(() => {
@@ -219,6 +230,50 @@ describe('BankLinkSection', () => {
     expect(renderSection()).not.toContain('Record the difference')
   })
 
+  it.each([
+    [
+      'less history than it asked for',
+      { requested_start: '2026-06-01', earliest_returned: '2026-06-09' },
+      'Less history than requested',
+      `SimpleFIN returned transactions from ${unbroken('Jun 9, 2026')}, not ${unbroken('Jun 1, 2026')}. This is likely a limit on how much history the bank keeps.`,
+    ],
+    [
+      'no history at all',
+      { requested_start: '2026-06-01', earliest_returned: null },
+      'No history returned yet',
+      `SimpleFIN hasn't returned any transactions from ${unbroken('Jun 1, 2026')} yet. This is likely a limit on how much history the bank keeps.`,
+    ],
+  ])('reminds of an import or catch-up that returned %s in the issue\'s words, with a ✕ to dismiss it', (_, reminder, title, body) => {
+    read.status = createStatus({ link: createLink({ history_reminder: reminder }) })
+    const markup = renderSection()
+    expect(markup).toContain(`>${title}</p>`)
+    expect(markup).toContain(`>${escaped(body)}</p>`)
+    expect(markup.match(/aria-label="Dismiss"/g)).toHaveLength(1)
+  })
+
+  it('shows the reminder ahead of the balances, with the opening adjustment offer still at their foot', () => {
+    read.status = createStatus({
+      link: createLink({
+        sync: createSync({ state: 'opening_balance' }),
+        history_reminder: { requested_start: '2026-06-01', earliest_returned: null },
+      }),
+      balance: { amount: 125000, available: null, available_unreadable: false, balance_date: '2026-10-03T22:00:00Z', ledger_balance: 100000, difference: -25000 },
+      opening_adjustment: { amount: 25000, adjustment_date: '2026-05-31' },
+    })
+    const markup = renderSection(createAccount({ current_balance: 100000 }))
+    const order = ['No history returned yet', 'As of ', 'Record the difference'].map((text) => markup.indexOf(text))
+    expect(order.every((index) => index >= 0)).toBe(true)
+    expect(order).toEqual([...order].sort((a, b) => a - b))
+  })
+
+  it('spins the ✕ while its dismissal runs', () => {
+    read.status = createStatus({ link: createLink({ history_reminder: { requested_start: '2026-06-01', earliest_returned: null } }) })
+    const idle = [...renderSection().matchAll(/<button[^>]*aria-label="Dismiss"[^>]*aria-busy="(true|false)"/g)].map((match) => match[1])
+    read.dismissing = 'history'
+    const busy = [...renderSection().matchAll(/<button[^>]*aria-label="Dismiss"[^>]*aria-busy="(true|false)"/g)].map((match) => match[1])
+    expect([idle, busy]).toEqual([['false'], ['true']])
+  })
+
   it('shows the failure when the link cannot load, rather than offering a link', () => {
     read.status = undefined
     read.statusError = new Error('Failed to fetch')
@@ -234,6 +289,7 @@ describe('BankLinkSection', () => {
     expect(markup).toContain('Synced 1 hour ago</span>')
     expect(markup).not.toContain('role="progressbar"')
     for (const notice of NOTICES) expect(markup).not.toContain(escaped(notice))
+    expect(markup).not.toContain('aria-label="Dismiss"')
   })
 
   it.each([

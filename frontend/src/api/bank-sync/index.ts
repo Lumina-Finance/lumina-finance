@@ -6,6 +6,7 @@ export type {
   BankConnection,
   BankConnectionStatus,
   BankField,
+  BankHistoryReminder,
   BankImportKind,
   BankImportProgress,
   BankImportRange,

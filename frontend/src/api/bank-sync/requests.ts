@@ -5,6 +5,7 @@ import type {
   AddReviewItemPayload,
   BankAccountLink,
   BankConnection,
+  BankHistoryReminder,
   BankImportRange,
   BankLink,
   BankProviderId,
@@ -126,8 +127,12 @@ export function syncBankLink(accountId: string) {
   return post<BankLink>(`/accounts/${accountId}/bank-link/sync`);
 }
 
-export function dismissHistoryReminder(accountId: string) {
-  return post<BankLink>(`/accounts/${accountId}/bank-link/history-reminder/dismiss`);
+/**
+ * Dismisses the history reminder as it showed, and returns the account's bank link without it. A
+ * newer reminder raised meanwhile stays, and the answer carries it
+ */
+export function dismissHistoryReminder({ accountId, reminder }: { accountId: string; reminder: BankHistoryReminder }) {
+  return post<AccountBankStatus>(`/accounts/${accountId}/bank-link/history-reminder/dismiss`, reminder);
 }
 
 /**

@@ -27,6 +27,7 @@ import { getDisabledControlProps, useDisabledReason } from '@/hooks/useDisabledR
 import { BalancePanel } from '@/pages/accounts/detail/components/bank-link/BalancePanel'
 import { ImportProgress } from '@/pages/accounts/detail/components/bank-link/ImportProgress'
 import { OpeningAdjustmentOffer } from '@/pages/accounts/detail/components/bank-link/OpeningAdjustmentOffer'
+import { HistoryReminder } from '@/pages/accounts/detail/components/bank-link/Reminder'
 import type { BankSyncLabel } from '@/pages/accounts/detail/components/bank-link/status'
 import { SyncFact } from '@/pages/accounts/detail/components/bank-link/SyncFact'
 import { SyncNowButton } from '@/pages/accounts/detail/components/bank-link/SyncNowButton'
@@ -74,12 +75,14 @@ type LinkedViewProps = {
 
 /**
  * A live link: its facts and status, the import while it is the status, a notice for anything holding
- * its sync back, the bank's balance beside the ledger's once it has synced, with the opening
- * adjustment offer at its foot while there is one, and the actions on the link. A notice's own action
- * comes first, since it is what resumes the sync. The server leaves the review notices out while only
- * the user can restart the sync, so a stop's notice shows alone. The offer's buttons aren't among the
- * view's actions, so the modal opening at the bank link never starts on Skip, and an answer moves
- * focus on to the link's actions, Sync now first, as the offer folds away
+ * its sync back, the reminder that history may be missing, the bank's balance beside the ledger's
+ * once it has synced, with the opening adjustment offer at its foot while there is one, and the
+ * actions on the link. A notice's own action comes first, since it is what resumes the sync. The
+ * server leaves the review notices out while only the user can restart the sync, so a stop's notice
+ * shows alone. The reminder holds nothing back, so the offer shows beside it. Neither the offer's
+ * buttons nor the reminder's ✕ are among the view's actions, so the modal opening at the bank link
+ * never starts on Skip or Dismiss, and an answer or a dismissal moves focus on to the link's actions,
+ * Sync now first, as what held it folds away
  */
 function LinkedView({
   link,
@@ -167,6 +170,16 @@ function LinkedView({
         {warned && (
           <Unfold key="warning">
             <InfoCallout tone="review" icon={TriangleAlert}>{waiting} new to review. Sync pauses at {REVIEW_PAUSE_COUNT}.</InfoCallout>
+          </Unfold>
+        )}
+        {link.history_reminder && (
+          <Unfold key="history-reminder">
+            <HistoryReminder
+              accountId={link.account_id}
+              providerName={link.provider_name}
+              reminder={link.history_reminder}
+              onDismissed={() => focusFirstAction(actionsRef.current)}
+            />
           </Unfold>
         )}
         {balance && (

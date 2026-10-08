@@ -8,6 +8,7 @@
 import { expect, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import { asUser, findReferenceId, todayInTestTimezone, type TestUser } from './api'
+import { openPage } from './app'
 import { API_BASE_URL, FAKE_SIMPLEFIN_BRIDGE_URL } from './target'
 
 /** Sep 21 of today's year, a bank date the app shows without a year */
@@ -227,6 +228,26 @@ export async function answerLinksWith(
 // Long enough for the worker, which claims queued jobs every 5 seconds, to run one and save its result
 export const WORKER_RESULT_TIMEOUT_MS = 60_000
 
+/**
+ * Opens the account's page and, once the identity card's Bank sync fact reads as given, its edit
+ * modal at the Bank link section through that fact
+ */
+export async function openBankLink(page: Page, accountId: string, status: string | RegExp): Promise<Locator> {
+  await openPage(page, `/accounts/${accountId}`)
+  const name = typeof status === 'string' ? `Bank sync: ${status}. Open bank link` : new RegExp(`^Bank sync: ${status.source} Open bank link$`)
+  const bankSync = page.getByRole('button', { name })
+  await expect(bankSync).toBeVisible({ timeout: WORKER_RESULT_TIMEOUT_MS })
+  await bankSync.click()
+  const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  await expect(dialog).toBeVisible()
+  return dialog
+}
+
+/** A toast saying why something failed, which is announced as an alert */
+export function errorToast(page: Page, text: string): Locator {
+  return page.getByRole('alert').filter({ hasText: text })
+}
+
 export interface BridgeScenario {
   id: string
 
@@ -444,6 +465,25 @@ export async function linkToSampleBankAccount(
     startDate: options.startDate ?? todayInTestTimezone(),
   })
   return { scenario, connection }
+}
+
+/**
+ * Link an account to Everyday Chequing at Harbour Bank, a bank account holding no transactions and a
+ * balance of 100.00, on a connection of its own, importing from the given day
+ *
+ * @returns The scenario the connection reaches
+ */
+export async function linkToEmptyBankAccount(
+  request: APIRequestContext,
+  user: TestUser,
+  options: { accountId: string; startDate: string },
+): Promise<{ scenario: BridgeScenario }> {
+  const scenario = await createEmptyBridgeScenario(request)
+  const connId = await addBridgeBankLogin(request, scenario.id, 'Harbour Bank')
+  const externalAccountId = await addBridgeBankAccount(request, scenario.id, { connId, name: 'Everyday Chequing', currency: 'CAD' })
+  const connection = await claimSetupToken(request, user, scenario.setupToken)
+  await linkBankAccount(request, user, { accountId: options.accountId, connectionId: connection.id, externalAccountId, startDate: options.startDate })
+  return { scenario }
 }
 
 /**

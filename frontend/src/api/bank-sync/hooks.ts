@@ -49,6 +49,7 @@ import {
 import { bankSyncKeys } from '@/api/cache/queryKeys';
 import {
   applyBankLinkChanges,
+  applyBankReminderDismissal,
   applyBulkApprovalOutcome,
   applyLedgerReviewOutcome,
   applyOpeningAdjustmentAnswer,
@@ -395,16 +396,23 @@ export function useSyncBankAccount() {
   return useMutation(syncBankAccountMutationOptions(queryClient));
 }
 
+/**
+ * How the history reminder's ✕ runs. The account's bank link the server answers with folds the
+ * reminder away, or shows a newer one raised meanwhile. A failure reads the account's bank link again,
+ * so the reminder shown is the server's
+ */
+export function dismissHistoryReminderMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    mutationFn: (payload: Parameters<typeof dismissHistoryReminder>[0]) =>
+      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => dismissHistoryReminder(payload)),
+    onSuccess: (status) => applyBankReminderDismissal(queryClient, status),
+    onError: (_error, { accountId }) => invalidateAccountBankLink(queryClient, accountId),
+  });
+}
+
 export function useDismissHistoryReminder() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (accountId: string) =>
-      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => dismissHistoryReminder(accountId)),
-    onSuccess: () => {
-      invalidateBankLinks(queryClient);
-      invalidateBankSyncStatus(queryClient);
-    },
-  });
+  return useMutation(dismissHistoryReminderMutationOptions(queryClient));
 }
 
 /**

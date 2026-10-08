@@ -86,6 +86,7 @@ export function createLink(overrides: Partial<BankLink> = {}): BankLink {
     state: 'active',
     import: null,
     sync: createSync(),
+    history_reminder: null,
     ...overrides,
   }
 }

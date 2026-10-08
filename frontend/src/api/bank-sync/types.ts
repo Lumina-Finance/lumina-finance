@@ -376,6 +376,21 @@ export type BankLink = BankAccountLink & {
    */
   import: BankImportProgress | null;
   sync: BankSyncStatus;
+
+  /** The last import or catch-up that fell short, null when none did or the user dismissed it */
+  history_reminder: BankHistoryReminder | null;
+};
+
+/**
+ * The reminder an import or catch-up raises when it returns less history than it asked for. Unverified,
+ * since a quiet account can simply have had no activity early on
+ */
+export type BankHistoryReminder = {
+  /** The first day the import or catch-up asked from, as YYYY-MM-DD */
+  requested_start: string;
+
+  /** The earliest booked day it got, more than a week after the requested start, or null when it got none */
+  earliest_returned: string | null;
 };
 
 /**

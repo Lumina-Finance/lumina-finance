@@ -1,0 +1,209 @@
+import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
+
+import { asUser, createAccount, daysFromTodayInTestTimezone, formatDateLabel, signUpUser, type TestUser } from '../support/api'
+import { logInViaApi } from '../support/app'
+import {
+  errorToast,
+  linkToEmptyBankAccount,
+  linkToSampleBankAccount,
+  openBankLink,
+  WORKER_RESULT_TIMEOUT_MS,
+  type ReviewPage,
+} from '../support/bankSync'
+import { contrastOf, MIN_TEXT_CONTRAST, readBoxes } from '../support/selectors'
+import { API_BASE_URL } from '../support/target'
+
+// The reminder a linked account's Bank link section shows once its import returned less history than
+// it asked for, or none, run by the worker against the fake SimpleFIN Bridge. Everyday imports the
+// sample chequing account from 45 days ago, whose earliest transaction is 33 days old, or an empty
+// bank account from 30 days ago, which leaves the opening adjustment to confirm too. Which imports and
+// catch-ups fall short, the reminder's words for each and the cache writes behind a dismissal are
+// covered by backend and unit tests
+const SAMPLE_CHEQUING = 'Everyday Chequing'
+const LESS_HISTORY = 'Less history than requested'
+const NO_HISTORY = 'No history returned yet'
+const LIMIT_NOTE = 'This is likely a limit on how much history the bank keeps.'
+const DISMISS_FAILED_MESSAGE = 'The reminder could not be dismissed. Please try again.'
+
+// Whatever the status reads once the import has ended
+const ANY_STATUS = /.+\./
+
+type HistoryReminder = { requested_start: string; earliest_returned: string | null }
+
+type Setup = { user: TestUser; accountId: string; reminder: HistoryReminder }
+
+/** Reads the account's history reminder as the server shows it */
+async function readReminder(request: APIRequestContext, user: TestUser, accountId: string): Promise<HistoryReminder | null> {
+  const response = await request.get(`${API_BASE_URL}/accounts/${accountId}/bank-link`, { headers: asUser(user) })
+  expect(response.status()).toBe(200)
+  return ((await response.json()) as { link: { history_reminder: HistoryReminder | null } | null }).link?.history_reminder ?? null
+}
+
+/** Signs up with Everyday, links it as given and waits for the worker to end its import, which raises the reminder */
+async function linkFallingShort(request: APIRequestContext, link: (user: TestUser, accountId: string) => Promise<unknown>): Promise<Setup> {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  await link(user, account.id)
+  let reminder: HistoryReminder | null = null
+  await expect.poll(async () => {
+    reminder = await readReminder(request, user, account.id)
+    return reminder !== null
+  }, { timeout: WORKER_RESULT_TIMEOUT_MS }).toBe(true)
+  return { user, accountId: account.id, reminder: reminder! }
+}
+
+/** Links Everyday to the sample chequing account from 45 days ago, which returns history from 33 days ago */
+async function linkGettingLess(request: APIRequestContext): Promise<Setup> {
+  return linkFallingShort(request, (user, accountId) =>
+    linkToSampleBankAccount(request, user, { accountId, bankAccountName: SAMPLE_CHEQUING, startDate: daysFromTodayInTestTimezone(-45) }))
+}
+
+/** Links Everyday to an empty bank account from 30 days ago, which returns nothing */
+async function linkGettingNothing(request: APIRequestContext): Promise<Setup> {
+  return linkFallingShort(request, (user, accountId) => linkToEmptyBankAccount(request, user, { accountId, startDate: daysFromTodayInTestTimezone(-30) }))
+}
+
+/** The earliest day of the bank items the account's import brought in for review */
+async function readEarliestItem(request: APIRequestContext, { user, accountId }: Setup): Promise<string> {
+  const response = await request.get(`${API_BASE_URL}/bank-review/items?account_id=${accountId}`, { headers: asUser(user) })
+  expect(response.status()).toBe(200)
+  return ((await response.json()) as ReviewPage).items.map(({ bank }) => bank.date).sort()[0]
+}
+
+/** The reminder in the Bank link section, named by its title */
+function reminderNote(dialog: Locator, title: string): Locator {
+  return dialog.getByRole('note', { name: title })
+}
+
+/** The bodies of the dismissals the page sends */
+function watchDismissals(page: Page): string[] {
+  const sent: string[] = []
+  page.on('request', (request) => {
+    if (request.url().endsWith('/bank-link/history-reminder/dismiss')) sent.push(request.postData() ?? '')
+  })
+  return sent
+}
+
+// A request held or refused here can still be on its way to the page when a test ends, which would
+// otherwise surface as an error outside any test
+test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+})
+
+test('reminds that the import returned less history than it asked for, naming the day its history starts', async ({ page, request }) => {
+  const setup = await linkGettingLess(request)
+  const earliest = await readEarliestItem(request, setup)
+  await logInViaApi(page, setup.user)
+
+  const dialog = await openBankLink(page, setup.accountId, ANY_STATUS)
+
+  const note = reminderNote(dialog, LESS_HISTORY)
+  await expect(note).toContainText(
+    `SimpleFIN returned transactions from ${formatDateLabel(earliest)}, not ${formatDateLabel(daysFromTodayInTestTimezone(-45))}. ${LIMIT_NOTE}`,
+  )
+  await expect(note.getByRole('button', { name: 'Dismiss' })).toBeVisible()
+})
+
+test('opens the bank link on Sync now rather than on the reminder\'s ✕ above it', async ({ page, request }) => {
+  const setup = await linkGettingLess(request)
+  await logInViaApi(page, setup.user)
+
+  const dialog = await openBankLink(page, setup.accountId, ANY_STATUS)
+
+  await expect(dialog.getByRole('button', { name: 'Sync now' })).toBeFocused()
+})
+
+test('dismisses the reminder it showed for good, moving focus on to Sync now', async ({ page, request }) => {
+  const setup = await linkGettingLess(request)
+  const sent = watchDismissals(page)
+  await logInViaApi(page, setup.user)
+  const dialog = await openBankLink(page, setup.accountId, ANY_STATUS)
+  const note = reminderNote(dialog, LESS_HISTORY)
+
+  await note.getByRole('button', { name: 'Dismiss' }).click()
+
+  await expect(dialog.getByRole('button', { name: 'Sync now' })).toBeFocused()
+  await expect(note).toBeHidden()
+  expect(sent).toEqual([JSON.stringify(setup.reminder)])
+  expect(await readReminder(request, setup.user, setup.accountId)).toBeNull()
+
+  // Neither the edit modal opened again nor the page loaded again shows it
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  await page.getByRole('button', { name: /^Bank sync: .+ Open bank link$/ }).click()
+  await expect(dialog.getByRole('button', { name: 'Unlink' })).toBeVisible()
+  await expect(dialog.getByText(LESS_HISTORY)).toHaveCount(0)
+  const again = await openBankLink(page, setup.accountId, ANY_STATUS)
+  await expect(again.getByRole('button', { name: 'Unlink' })).toBeVisible()
+  await expect(again.getByText(LESS_HISTORY)).toHaveCount(0)
+})
+
+test('keeps the reminder when a dismissal never reaches the server, saying something went wrong', async ({ page, request }) => {
+  const setup = await linkGettingLess(request)
+  await logInViaApi(page, setup.user)
+  const dialog = await openBankLink(page, setup.accountId, ANY_STATUS)
+  await page.route(`${API_BASE_URL}/accounts/${setup.accountId}/bank-link/history-reminder/dismiss`, (route) => route.abort('failed'), { times: 1 })
+  const note = reminderNote(dialog, LESS_HISTORY)
+
+  await note.getByRole('button', { name: 'Dismiss' }).click()
+
+  await expect(errorToast(page, DISMISS_FAILED_MESSAGE)).toBeVisible()
+  await expect(note).toBeVisible()
+  expect(await readReminder(request, setup.user, setup.accountId)).toEqual(setup.reminder)
+})
+
+test('says why the server refuses a dismissal once the account was unlinked in another window, showing it unlinked', async ({ page, request }) => {
+  const setup = await linkGettingLess(request)
+  await logInViaApi(page, setup.user)
+  const dialog = await openBankLink(page, setup.accountId, ANY_STATUS)
+  let unlinkedElsewhere = 0
+  await page.route(`${API_BASE_URL}/accounts/${setup.accountId}/bank-link/history-reminder/dismiss`, async (route) => {
+    unlinkedElsewhere = (await request.delete(`${API_BASE_URL}/accounts/${setup.accountId}/bank-link`, { headers: asUser(setup.user) })).status()
+    await route.continue()
+  }, { times: 1 })
+
+  await reminderNote(dialog, LESS_HISTORY).getByRole('button', { name: 'Dismiss' }).click()
+
+  await expect(errorToast(page, 'This account is not linked to a bank')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Reconnect bank account' })).toBeVisible()
+  await expect(dialog.getByText(LESS_HISTORY)).toHaveCount(0)
+  expect(unlinkedElsewhere).toBe(200)
+})
+
+test('shows the reminder of an import that got nothing above the opening adjustment offer, each whole on a phone', async ({ page, request }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  const setup = await linkGettingNothing(request)
+  await logInViaApi(page, setup.user)
+
+  const dialog = await openBankLink(page, setup.accountId, 'Opening balance to confirm')
+
+  const note = reminderNote(dialog, NO_HISTORY)
+  await expect(note).toContainText(`SimpleFIN hasn't returned any transactions from ${formatDateLabel(daysFromTodayInTestTimezone(-30))} yet. ${LIMIT_NOTE}`)
+  const record = dialog.getByRole('button', { name: 'Record adjustment' })
+  await expect(record).toBeVisible()
+
+  // The ✕ sits in the reminder's corner beside the title, and the offer follows below the reminder
+  const [box, title, dismiss, recordBox] = await readBoxes(page, [note, note.getByText(NO_HISTORY), note.getByRole('button', { name: 'Dismiss' }), record])
+  expect(dismiss.x).toBeGreaterThanOrEqual(title.x + title.width)
+  expect(dismiss.x + dismiss.width).toBeLessThanOrEqual(box.x + box.width)
+  expect(dismiss.y).toBeGreaterThanOrEqual(box.y)
+  expect(recordBox.y).toBeGreaterThan(box.y + box.height)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+})
+
+for (const colorScheme of ['light', 'dark'] as const) {
+  test(`keeps the reminder readable in the ${colorScheme} theme`, async ({ page, request }) => {
+    await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
+    const setup = await linkGettingNothing(request)
+    await logInViaApi(page, setup.user)
+    const dialog = await openBankLink(page, setup.accountId, 'Opening balance to confirm')
+    if (colorScheme === 'dark') await expect(page.locator('html')).toHaveClass(/\bdark\b/)
+    else await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
+
+    const note = reminderNote(dialog, NO_HISTORY)
+    for (const text of [note.getByText(NO_HISTORY, { exact: true }), note.getByText(LIMIT_NOTE, { exact: false })]) {
+      await expect(text).toBeVisible()
+      expect(await contrastOf(text)).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
+    }
+  })
+}

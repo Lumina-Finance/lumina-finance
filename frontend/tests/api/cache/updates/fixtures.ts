@@ -31,6 +31,7 @@ export function createBankLink(overrides: Partial<BankLink> = {}): BankLink {
       paused: false,
       review_warning: false,
     },
+    history_reminder: null,
     ...overrides,
   };
 }

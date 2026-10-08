@@ -309,6 +309,18 @@ export function applyOpeningAdjustmentAnswer(
 }
 
 /**
+ * Updates the views dismissing a reminder in the Bank link section changes
+ *
+ * The account's bank link the server answered with takes the cached one's place, so the reminder
+ * folds away straight away, or a newer one raised meanwhile shows, and the link list, which holds
+ * the reminders too, is read again
+ */
+export function applyBankReminderDismissal(queryClient: QueryClient, status: AccountBankStatus): void {
+  queryClient.setQueryData(bankSyncKeys.accountStatus(status.account_id), status);
+  invalidateBankLinks(queryClient);
+}
+
+/**
  * Drops bank data that belonged to a deleted account, whose link, waiting items and pending rows the
  * server deleted with it. A cached bulk preview is dropped rather than refetched, since it would
  * list the deleted account's items until it did
