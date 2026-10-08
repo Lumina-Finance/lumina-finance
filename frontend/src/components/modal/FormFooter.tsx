@@ -44,9 +44,11 @@ export function ModalFormFooter({
   primaryOnLeft = false,
   tone = 'primary',
 }: ModalFormFooterProps) {
+  // Below sm an error between the buttons would split them across rows, so it is drawn first on a row of
+  // its own, while it stays between them in the DOM and in the single row from sm
   const errorMessage = error && (
     <p
-      className={`col-span-2 text-sm font-medium sm:col-span-1 ${primaryOnLeft ? '' : 'sm:mr-auto'}`}
+      className={`col-span-2 text-sm font-medium sm:col-span-1 ${primaryOnLeft ? 'order-first sm:order-none' : 'sm:mr-auto'}`}
       role="alert"
       style={{ color: 'var(--app-negative)' }}
     >
