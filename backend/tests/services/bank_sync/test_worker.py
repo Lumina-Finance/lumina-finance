@@ -11,6 +11,7 @@ worker needs before it starts are covered last
 
 import asyncio
 import contextlib
+import json
 import os
 import subprocess
 import sys
@@ -27,6 +28,7 @@ from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState, BankProvider
 from app.models.bank_pending_transaction import BankPendingTransaction
 from app.models.bank_sync_job import BankSyncHeartbeat, BankSyncJob, BankSyncJobKind, BankSyncJobStatus
+from app.models.base import Base
 from app.models.user import User
 from app.services.bank_sync import availability, worker
 from app.services.bank_sync.jobs import ClaimedJob, finish_job, lock_covered_links, lock_held_job
@@ -442,6 +444,53 @@ def test_worker_imports_without_the_token_signing_keys():
         text=True,
     )
     assert completed.returncode == 0, completed.stderr
+
+
+# Calls run_jobs in a clean interpreter, as a hosted runner does, with a claim that prints the tables
+# the metadata holds when it is made and finds nothing due. A session that never connects stands in
+_WORKER_TABLES_SCRIPT = """
+import asyncio, contextlib, json
+from types import SimpleNamespace
+from app.models.base import Base
+from app.services.bank_sync import worker
+from app.services.email import set_email_sender
+from app.services.email.senders import LoggingEmailSender
+
+async def commit():
+    pass
+
+@contextlib.asynccontextmanager
+async def session():
+    yield SimpleNamespace(commit=commit)
+
+async def claim_nothing(_db):
+    print(json.dumps(sorted(Base.metadata.tables)))
+
+set_email_sender(LoggingEmailSender())
+worker.async_session = session
+worker.claim_bank_sync_job = claim_nothing
+asyncio.run(worker.run_jobs(1))
+"""
+
+
+def test_worker_registers_every_table_before_running_jobs():
+    """A job changing the ledger fails unless its runner has every model, since flushing needs them all
+
+    An auto-approved correction changes a ledger transaction, whose flush resolves its foreign key to
+    the import runs, which nothing the sync imports declares. Both the self-hosted worker and a hosted
+    runner run jobs through run_jobs. A clean interpreter is what makes this meaningful, since this
+    process registered every model long ago
+    """
+    completed = subprocess.run(  # noqa: S603
+        [sys.executable, "-c", _WORKER_TABLES_SCRIPT],
+        cwd=_BACKEND_DIR,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert set(json.loads(completed.stdout)) == set(Base.metadata.tables)
 
 
 async def test_worker_installs_the_email_sender_its_settings_name_before_running_jobs(monkeypatch):

@@ -7,8 +7,9 @@ import pkgutil
 def import_all_models() -> None:
     """Import every model module so the metadata holds the full schema
 
-    Alembic autogenerate, the test schema build, the seed scripts and the encrypted column
-    discovery all read the metadata, and a model module nothing imports is absent from it.
+    Alembic autogenerate, the test schema build, the seed scripts, the encrypted column
+    discovery and the bank sync worker's flushes all read the metadata, and a model module
+    nothing imports is absent from it.
     Walking the package is what keeps a new model file from having to be added to a
     separate list in each of them, where one list omitting it goes unnoticed
     """

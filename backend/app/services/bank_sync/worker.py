@@ -26,6 +26,7 @@ from app.config.bank_sync import BANK_SYNC_WORKER_CONCURRENCY, warn_if_test_orig
 from app.database import async_session, current_user_id_ctx, engine, verify_app_role_is_unprivileged
 from app.db.encryption_key import verify_key_matches_data
 from app.db.rls.functions import LIST_DUE_BANK_CONNECTIONS, MIGRATION_REVISIONS, RECORD_BANK_SYNC_SCAN
+from app.models import import_all_models
 from app.models.bank_sync_job import ProviderErrorKind
 from app.services.bank_sync.heartbeat import is_sync_worker_running
 from app.services.bank_sync.jobs import ClaimedJob, JobNotHeld, claim_bank_sync_job
@@ -110,6 +111,11 @@ async def run_jobs(max_jobs: int, deadline: datetime | None = None) -> int:
             action-needed email the jobs started would otherwise be lost
     """
     get_email_sender()
+
+    # A job that changes the ledger, as an auto-approved correction or removal does, flushes rows whose
+    # foreign keys name tables nothing the sync imports declares, such as the import runs a transaction
+    # points to. The app's routes load every model between them, and neither runner of jobs has any
+    import_all_models()
     claimed = 0
     while claimed < max_jobs and (deadline is None or datetime.now(UTC) + JOB_TIME_LIMIT <= deadline):
         async with async_session() as db:
