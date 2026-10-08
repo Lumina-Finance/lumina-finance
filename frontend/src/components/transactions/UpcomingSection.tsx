@@ -29,6 +29,10 @@ const DAY_TOTAL_MIX = {
 } as CSSProperties
 export const UPCOMING_DAY_TOTAL_COLOUR = 'var(--upcoming-day-total)'
 
+// The light theme's row hover is the same cream as the box's shading, so rows inside take the hover made for
+// that shading, which shows on it in both themes
+const ROW_HOVER_ON_THE_SHADING = { '--app-hover-soft': 'var(--app-hover-on-surface-soft)' } as CSSProperties
+
 // Runs the header across the checkbox rail like a day heading, indented as a day heading is outside
 // selection. It holds nothing to tick, so its icon stays put when the rail opens and sits over the ticks
 // rather than leaving an empty slot beside it
@@ -154,7 +158,7 @@ export function UpcomingSection({
         <motion.div
           ref={sectionRef}
           className={`${gridClassName} relative isolate`}
-          style={{ scrollMarginTop: stickyTop, overflowAnchor: 'none', ...DAY_TOTAL_MIX }}
+          style={{ scrollMarginTop: stickyTop, overflowAnchor: 'none', ...DAY_TOTAL_MIX, ...ROW_HOVER_ON_THE_SHADING }}
           initial={
             prefersReducedMotion
               ? { opacity: 0, marginBottom: SECTION_GAP_BELOW }
