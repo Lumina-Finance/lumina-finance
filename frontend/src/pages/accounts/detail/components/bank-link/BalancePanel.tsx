@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
+import { AnimatePresence } from 'motion/react'
 import type { BankBalance } from '@/api/bank-sync'
+import { Unfold } from '@/components/display/Unfold'
 import { LabelWithHint } from '@/components/tooltips/LabelWithHint'
 import { useAuth } from '@/hooks/useAuth'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
@@ -55,6 +57,9 @@ type BalancePanelProps = {
   balance: BankBalance
   currency: string
   providerName: string
+
+  /** What the balances ask of the user, under a hairline at the panel's foot, which unfolds as it comes and goes */
+  footer?: ReactNode
 }
 
 /**
@@ -63,9 +68,10 @@ type BalancePanelProps = {
  * in the account's currency shows as unavailable, with nothing to compare, and an available balance
  * that can't is marked unavailable in the caption rather than left out. On phones each balance takes
  * a row, label on the left and amount on the right. On wider screens the balances share a row in
- * equal columns, and those too long to fit side by side move to another row
+ * equal columns, and those too long to fit side by side move to another row. A footer, such as the
+ * opening adjustment offer, sits under the caption with no box or heading of its own
  */
-export function BalancePanel({ balance, currency, providerName }: BalancePanelProps) {
+export function BalancePanel({ balance, currency, providerName, footer }: BalancePanelProps) {
   const { formatCurrency, formatMovedAmount } = useMoneyFormatters()
   const { user } = useAuth()
   const { amount, difference } = balance
@@ -106,6 +112,13 @@ export function BalancePanel({ balance, currency, providerName }: BalancePanelPr
           </CaptionPart>
         )}
       </p>
+      <AnimatePresence initial={false}>
+        {footer && (
+          <Unfold key="footer" clipsOnlyWhileChanging>
+            <div className="border-t pt-4" style={{ borderColor: 'var(--app-border)' }}>{footer}</div>
+          </Unfold>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

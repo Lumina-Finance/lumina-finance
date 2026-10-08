@@ -43,3 +43,14 @@ export function invalidateBankReviewItems(queryClient: QueryClient) {
 export function invalidateBankLinks(queryClient: QueryClient) {
   invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.links(), exact: true }]);
 }
+
+/**
+ * Invalidates one account's bank link, with its balances and any offer it makes, and the link list
+ * showing its status
+ */
+export function invalidateAccountBankLink(queryClient: QueryClient, accountId: string) {
+  invalidateTargets(queryClient, [
+    { queryKey: bankSyncKeys.accountStatus(accountId), exact: true },
+    { queryKey: bankSyncKeys.links(), exact: true },
+  ]);
+}

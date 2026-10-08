@@ -104,7 +104,7 @@ export function createPreviousLink(overrides: Partial<PreviousBankLink> = {}): P
 
 /** Builds Everyday's read of its link: never linked, unless told otherwise */
 export function createStatus(overrides: Partial<AccountBankStatus> = {}): AccountBankStatus {
-  return { account_id: 'account-1', link: null, previous_link: null, balance: null, ...overrides }
+  return { account_id: 'account-1', link: null, previous_link: null, balance: null, opening_adjustment: null, ...overrides }
 }
 
 /** Builds a working SimpleFIN connection with no nickname, reaching the given bank accounts */

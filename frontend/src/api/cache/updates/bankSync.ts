@@ -1,5 +1,6 @@
 import type { InfiniteData, QueryClient } from '@tanstack/react-query';
 import {
+  invalidateBankLinks,
   invalidateBankReview,
   invalidateBankReviewItems,
   invalidateBankSyncStatus,
@@ -13,6 +14,7 @@ import {
   replaceCachedTransaction,
 } from '@/api/cache/updates/transactions';
 import type {
+  AccountBankStatus,
   BankConnection,
   BankLink,
   BankReviewCounts,
@@ -284,6 +286,26 @@ export function applyRestoredBankValue(
     [transaction.account_id],
   );
   invalidateBankReviewItems(queryClient);
+}
+
+/**
+ * Updates the views an answer to the opening adjustment offer changes
+ *
+ * The account's bank link the server answered with takes the cached one's place, so the offer folds
+ * away straight away, and the link list is read again for the status it no longer shows. A recorded
+ * adjustment is a new ledger transaction, which the transaction lists and the account's figures
+ * take in, and Difference with them
+ */
+export function applyOpeningAdjustmentAnswer(
+  queryClient: QueryClient,
+  status: AccountBankStatus,
+  recorded: boolean,
+): void {
+  queryClient.setQueryData(bankSyncKeys.accountStatus(status.account_id), status);
+  invalidateBankLinks(queryClient);
+  if (!recorded) return;
+  invalidateTransactions(queryClient);
+  invalidateFinancialTransactionData(queryClient, [status.account_id]);
 }
 
 /**

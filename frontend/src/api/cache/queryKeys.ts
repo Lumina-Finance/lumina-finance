@@ -176,7 +176,6 @@ export const bankSyncKeys = {
   accountAll: ['bank-sync', 'account'] as const,
   accountStatus: (accountId: string) => ['bank-sync', 'account', accountId] as const,
   importRange: (accountId: string, provider: string | null) => ['bank-sync', 'account', accountId, 'import-range', provider] as const,
-  openingAdjustment: (accountId: string) => ['bank-sync', 'account', accountId, 'opening-adjustment'] as const,
   reviewPreferences: (accountId: string) => ['bank-sync', 'account', accountId, 'review-preferences'] as const,
   reviewAll: ['bank-sync', 'review'] as const,
   reviewItemsAll: ['bank-sync', 'review', 'items'] as const,

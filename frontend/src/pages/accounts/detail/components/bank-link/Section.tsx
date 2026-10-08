@@ -12,6 +12,7 @@ import {
   type BankLink,
   type BankProvidersResponse,
   type BankSyncState,
+  type OpeningAdjustment,
 } from '@/api/bank-sync'
 import { BANK_CONNECTIONS_SETTINGS_PATH, GROUP_ACCOUNT_LINK_REASON, LINKING_PAUSED_REASON } from '@/components/bank-link-flow/constants'
 import { BankLinkFlowModal } from '@/components/bank-link-flow/Modal'
@@ -25,6 +26,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { getDisabledControlProps, useDisabledReason } from '@/hooks/useDisabledReason'
 import { BalancePanel } from '@/pages/accounts/detail/components/bank-link/BalancePanel'
 import { ImportProgress } from '@/pages/accounts/detail/components/bank-link/ImportProgress'
+import { OpeningAdjustmentOffer } from '@/pages/accounts/detail/components/bank-link/OpeningAdjustmentOffer'
 import type { BankSyncLabel } from '@/pages/accounts/detail/components/bank-link/status'
 import { SyncFact } from '@/pages/accounts/detail/components/bank-link/SyncFact'
 import { SyncNowButton } from '@/pages/accounts/detail/components/bank-link/SyncNowButton'
@@ -58,6 +60,7 @@ const IMPORT_STATES: ReadonlySet<BankSyncState> = new Set(['importing', 'import_
 type LinkedViewProps = {
   link: BankLink
   balance: BankBalance | null
+  openingAdjustment: OpeningAdjustment | null
 
   /** The account's currency, which a live link's bank account shares */
   currency: string
@@ -71,12 +74,27 @@ type LinkedViewProps = {
 
 /**
  * A live link: its facts and status, the import while it is the status, a notice for anything holding
- * its sync back, the bank's balance beside the ledger's once it has synced, and the actions on the
- * link. A notice's own action comes first, since it is what resumes the sync. The server leaves the
- * review notices out while only the user can restart the sync, so a stop's notice shows alone
+ * its sync back, the bank's balance beside the ledger's once it has synced, with the opening
+ * adjustment offer at its foot while there is one, and the actions on the link. A notice's own action
+ * comes first, since it is what resumes the sync. The server leaves the review notices out while only
+ * the user can restart the sync, so a stop's notice shows alone. The offer's buttons aren't among the
+ * view's actions, so the modal opening at the bank link never starts on Skip, and an answer moves
+ * focus on to the link's actions, Sync now first, as the offer folds away
  */
-function LinkedView({ link, balance, currency, sync, connection, providers, initialFocus, onChooseBankAccount, onUnlink }: LinkedViewProps) {
+function LinkedView({
+  link,
+  balance,
+  openingAdjustment,
+  currency,
+  sync,
+  connection,
+  providers,
+  initialFocus,
+  onChooseBankAccount,
+  onUnlink,
+}: LinkedViewProps) {
   const navigate = useNavigate()
+  const actionsRef = useRef<HTMLDivElement>(null)
   const shownImport = useLingeringImport(link.import)
   const { state, paused, review_warning: warned } = link.sync
   const waiting = link.sync.waiting_new_count.toLocaleString()
@@ -153,13 +171,26 @@ function LinkedView({ link, balance, currency, sync, connection, providers, init
         )}
         {balance && (
           <Unfold key="balance" clipsOnlyWhileChanging>
-            <BalancePanel balance={balance} currency={currency} providerName={link.provider_name} />
+            <BalancePanel
+              balance={balance}
+              currency={currency}
+              providerName={link.provider_name}
+              footer={openingAdjustment && (
+                <OpeningAdjustmentOffer
+                  accountId={link.account_id}
+                  offer={openingAdjustment}
+                  currency={currency}
+                  providerName={link.provider_name}
+                  onAnswered={() => focusFirstAction(actionsRef.current)}
+                />
+              )}
+            />
           </Unfold>
         )}
       </AnimatePresence>
 
       {/* The link's actions, in one row that wraps, each taking a full row on a phone */}
-      <div className="flex flex-wrap items-center gap-2 pt-4">
+      <div ref={actionsRef} className="flex flex-wrap items-center gap-2 pt-4">
         <SyncNowButton link={link} connection={connection} providers={providers} focusProps={{ ...ACTION_PROPS, ...initialFocus }} />
         <button type="button" className="app-secondary-button h-9 w-full justify-center whitespace-nowrap px-3.5 text-sm sm:w-auto" {...ACTION_PROPS} {...initialFocus} onClick={onUnlink}>
           <Unlink size={14} aria-hidden />
@@ -287,6 +318,7 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
                   <LinkedView
                     link={link}
                     balance={status?.balance ?? null}
+                    openingAdjustment={status?.opening_adjustment ?? null}
                     currency={account.currency}
                     sync={syncLabel}
                     connection={connections?.find((connection) => connection.id === link.connection_id)}

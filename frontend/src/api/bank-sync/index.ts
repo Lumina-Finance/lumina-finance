@@ -40,8 +40,7 @@ export type {
   DiscoveredBankAccounts,
   EditableBankField,
   LinkBankAccountPayload,
-  OpeningAdjustmentOffer,
-  OpeningAdjustmentState,
+  OpeningAdjustment,
   PendingBankTransaction,
   PreviousBankLink,
   ReconnectConnectionResult,
@@ -55,7 +54,6 @@ export type {
 export type { ReviewResolution } from '@/api/bank-sync/requests';
 
 export {
-  useAcceptOpeningAdjustment,
   useAccountBankStatus,
   useAddReviewItem,
   useApplyBulkApproval,
@@ -71,9 +69,9 @@ export {
   useDismissHistoryReminder,
   useImportRange,
   useLinkBankAccount,
-  useOpeningAdjustment,
   usePendingBankTransactions,
   useReconnectBankConnection,
+  useRecordOpeningAdjustment,
   useRenameBankConnection,
   useResolveReviewItem,
   useRestoreBankValue,

@@ -18,7 +18,6 @@ import type {
   DiscoveredBankAccounts,
   EditableBankField,
   LinkBankAccountPayload,
-  OpeningAdjustmentOffer,
   PendingBankTransaction,
   ReconnectConnectionResult,
   ReviewPreferences,
@@ -131,19 +130,20 @@ export function dismissHistoryReminder(accountId: string) {
   return post<BankLink>(`/accounts/${accountId}/bank-link/history-reminder/dismiss`);
 }
 
-export function fetchOpeningAdjustment(accountId: string) {
-  return authenticatedFetch<OpeningAdjustmentOffer>(`/accounts/${accountId}/bank-link/opening-adjustment`);
+/**
+ * Records the offered opening adjustment for the amount given, in minor units signed as the ledger
+ * keeps them, and returns the account's bank link with no offer left
+ */
+export function recordOpeningAdjustment({ accountId, amount }: { accountId: string; amount: number }) {
+  return post<AccountBankStatus>(`/accounts/${accountId}/bank-link/opening-adjustment/record`, { amount });
 }
 
 /**
- * Records the offered opening adjustment, with the amount in minor units
+ * Skips the offered opening adjustment, recording nothing, and returns the account's bank link with
+ * no offer left
  */
-export function acceptOpeningAdjustment({ accountId, amount }: { accountId: string; amount: number }) {
-  return post<OpeningAdjustmentOffer>(`/accounts/${accountId}/bank-link/opening-adjustment/accept`, { amount });
-}
-
 export function skipOpeningAdjustment(accountId: string) {
-  return post<OpeningAdjustmentOffer>(`/accounts/${accountId}/bank-link/opening-adjustment/skip`);
+  return post<AccountBankStatus>(`/accounts/${accountId}/bank-link/opening-adjustment/skip`);
 }
 
 export function fetchReviewPreferences(accountId: string) {

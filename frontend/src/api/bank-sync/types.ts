@@ -415,6 +415,9 @@ export type AccountBankStatus = {
 
   /** Only for a live link that has synced and follows its bank account as the provider lists it */
   balance: BankBalance | null;
+
+  /** Only while the opening adjustment is offered and the balances compare */
+  opening_adjustment: OpeningAdjustment | null;
 };
 
 export type ReviewDecision = 'review' | 'trust';
@@ -615,21 +618,16 @@ export type TransactionBankSource = {
   review_item_id: string | null;
 };
 
-export type OpeningAdjustmentState = 'not_ready' | 'offered' | 'accepted' | 'skipped' | 'none';
-
-export type OpeningAdjustmentOffer = {
-  state: OpeningAdjustmentState;
-
-  /** Provider balance minus ledger balance as of the balance date, in minor units */
+/**
+ * The one-time offer, once the import is reviewed, to record the gap between the bank's balance and
+ * the ledger's as an opening adjustment
+ */
+export type OpeningAdjustment = {
+  /** The bank's balance minus the ledger's on the balance date, in minor units signed as the ledger keeps them */
   amount: number;
+
+  /** The day before the import start, the latest day the bank doesn't supply, as YYYY-MM-DD */
   adjustment_date: string;
-  balance_date: string;
-
-  /** Minor units */
-  bank_balance: number;
-
-  /** Minor units */
-  ledger_balance: number;
 };
 
 export type UnlinkResult = {

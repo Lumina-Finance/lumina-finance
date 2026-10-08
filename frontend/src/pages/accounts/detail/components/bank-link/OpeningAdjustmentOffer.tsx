@@ -1,0 +1,197 @@
+import { useId, useRef, useState, type KeyboardEvent } from 'react'
+import { ApiError } from '@/api/auth'
+import { useRecordOpeningAdjustment, useSkipOpeningAdjustment, type OpeningAdjustment } from '@/api/bank-sync'
+import { CurrencyUnavailableTooltip } from '@/components/currency/CurrencyUnavailableTooltip'
+import ActionFeedbackButton from '@/components/feedback/ActionButton'
+import { useCurrencyListState } from '@/hooks/useCurrencyListState'
+import { useFittedButtonWidth } from '@/hooks/useFittedButtonWidth'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
+import { useMoneyInput } from '@/hooks/useMoneyInput'
+import { useToast } from '@/hooks/useToast'
+import {
+  ANSWER_FAILED_MESSAGE,
+  describeSign,
+  holdsSign,
+  readRecordedAmount,
+  SIGNED_AMOUNT_MESSAGE,
+  ZERO_AMOUNT_MESSAGE,
+} from '@/pages/accounts/detail/components/bank-link/openingAdjustment'
+import { AccountIdentityFieldLabelRow } from '@/pages/accounts/detail/components/edit-identity/controls/FieldLabelRow'
+import { formatDateLabel } from '@/utils/date'
+import { getAmountSign, signMovedAmount } from '@/utils/negativeAmount'
+import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent, fromMinorUnits } from '@/utils/moneyInput'
+
+const SKIP_LABEL = 'Skip'
+const RECORD_LABEL = 'Record adjustment'
+const BUTTON_CLASS = 'relative w-full whitespace-nowrap sm:w-(--fit-width)'
+
+type OpeningAdjustmentOfferProps = {
+  accountId: string
+  offer: OpeningAdjustment
+
+  /** The account's currency, which a live link's bank account shares */
+  currency: string
+  providerName: string
+
+  /** Moves focus on once an answer goes through, since the offer folds away with the button holding it */
+  onAnswered: () => void
+}
+
+/**
+ * The one-time offer, once the initial import is reviewed, to record the gap between the bank's
+ * balance and the ledger's as an opening adjustment dated the day before the import start. It sits at
+ * the foot of the balance panel under the gap it closes, with the offered amount to keep or type over,
+ * and folds away once answered, leaving the balances
+ *
+ * Record adjustment refuses a blank or zero amount with a message beside the field, and the field
+ * says why it refuses a typed or pasted sign, recording the amount it keeps if pressed. A press while
+ * either answer runs does nothing, and the buttons keep the focus they hold, as Sync now does, until
+ * an answer goes through and focus inside the offer moves on. A refused answer says why in a toast,
+ * and the account's bank link is read again, which folds the offer away if it was answered elsewhere.
+ * Enter in the field records nothing, since the offer sits inside the account's edit form, whose Save
+ * Enter would otherwise press. While the currency list lacks the account's currency, the amount and
+ * Record adjustment lock, with the reason beside the label, as other stored amounts do
+ */
+export function OpeningAdjustmentOffer({ accountId, offer, currency, providerName, onAnswered }: OpeningAdjustmentOfferProps) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const amountId = useId()
+  const signId = useId()
+  const { currencies } = useMoneyFormatters()
+  const { showToast } = useToast()
+  const record = useRecordOpeningAdjustment()
+  const skip = useSkipOpeningAdjustment()
+  const { buttonRef: skipRef, style: skipStyle, measure: skipMeasure } = useFittedButtonWidth(SKIP_LABEL)
+  const { buttonRef: recordRef, style: recordStyle, measure: recordMeasure } = useFittedButtonWidth(RECORD_LABEL)
+  const currencyState = useCurrencyListState()
+  const symbol = currencies.find((entry) => entry.id === currency)?.symbol ?? ''
+
+  // Without the currency's decimal places the offered amount can be neither shown nor read back, so
+  // the amount and Record adjustment lock until the currency list has them. Skip records nothing
+  const knownExponent = findCurrencyExponent(currencies, currency)
+  const locked = knownExponent === null
+  const exponent = knownExponent ?? DEFAULT_MINOR_UNIT_EXPONENT
+
+  // The offered amount until the field is typed in, so an offer read again with another amount shows it
+  const [typed, setTyped] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const amountInput = useMoneyInput({
+    value: typed ?? (locked ? '' : fromMinorUnits(Math.abs(offer.amount), exponent)),
+    exponent,
+    onChange: (value, text) => {
+      setTyped(value)
+
+      // The field refuses text holding a sign and keeps its value, so the refused text is read to say
+      // why. Settling on blur reports no text, which leaves the message as it was
+      if (text !== undefined) setError(holdsSign(text) ? SIGNED_AMOUNT_MESSAGE : null)
+    },
+  })
+  const busy = record.isPending || skip.isPending
+  const prefix = signMovedAmount(getAmountSign(offer.amount), symbol)
+
+  const reportError = (cause: unknown) =>
+    showToast({ status: 'error', text: cause instanceof ApiError ? cause.message : ANSWER_FAILED_MESSAGE })
+
+  // Focus elsewhere stays where the person put it while the answer ran
+  const moveFocusOn = () => {
+    if (rootRef.current?.contains(document.activeElement)) onAnswered()
+  }
+
+  const recordOffer = () => {
+    const amount = readRecordedAmount(amountInput.value, exponent, offer.amount)
+    if (amount === null) {
+      setError(ZERO_AMOUNT_MESSAGE)
+      return
+    }
+    setError(null)
+    record.mutate({ accountId, amount }, { onSuccess: moveFocusOn, onError: reportError })
+  }
+
+  const skipOffer = () => {
+    setError(null)
+    skip.mutate(accountId, { onSuccess: moveFocusOn, onError: reportError })
+  }
+
+  // Deleting in a field the refused text left blank changes no text, so no change arrives to clear
+  // the message, yet it is still the person taking the sign back
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') event.preventDefault()
+    if ((event.key === 'Backspace' || event.key === 'Delete') && error === SIGNED_AMOUNT_MESSAGE) setError(null)
+  }
+
+  return (
+    <div ref={rootRef} className="space-y-3">
+      <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+        Record the difference as an opening adjustment on {formatDateLabel(offer.adjustment_date)}, so your ledger starts at {providerName}&apos;s balance.
+      </p>
+      {/* The label row spans the answers too, so the message beside the label keeps to one line
+          wherever the amount and the answers share a row */}
+      <div>
+        <AccountIdentityFieldLabelRow
+          label={(
+            <span className="inline-flex items-center gap-2">
+              Adjustment amount
+              <CurrencyUnavailableTooltip unavailable={locked} currencyState={currencyState} label="Adjustment amount unavailable" />
+            </span>
+          )}
+          htmlFor={amountId}
+          error={error ?? undefined}
+        />
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="relative min-w-0 sm:flex-1">
+            {prefix && (
+              <span
+                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-base"
+                style={{ color: 'var(--app-text-subtle)' }}
+                aria-hidden
+              >
+                {prefix}
+              </span>
+            )}
+            <input
+              id={amountId}
+              className={`app-input disabled:cursor-not-allowed disabled:opacity-60 ${error ? 'app-input-error' : ''}`}
+              // Clear of the sign and symbol, however many characters they take
+              style={prefix ? { paddingLeft: `calc(1.5rem + ${prefix.length}ch)` } : undefined}
+              aria-describedby={signId}
+              aria-invalid={error ? true : undefined}
+              disabled={locked}
+              readOnly={busy}
+              {...amountInput}
+              onKeyDown={handleKeyDown}
+            />
+            {/* The sign beside the field is drawn, so the field's description says it in words */}
+            <span id={signId} className="sr-only">{describeSign(offer.amount)}</span>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <ActionFeedbackButton
+              ref={skipRef}
+              type="button"
+              status={skip.isPending ? 'loading' : 'idle'}
+              loadingLabel="Skipping"
+              className={`app-secondary-button ${BUTTON_CLASS}`}
+              style={skipStyle}
+              measure={skipMeasure}
+              aria-disabled={record.isPending || undefined}
+              onClick={busy ? undefined : skipOffer}
+            >
+              {SKIP_LABEL}
+            </ActionFeedbackButton>
+            <ActionFeedbackButton
+              ref={recordRef}
+              type="button"
+              status={record.isPending ? 'loading' : 'idle'}
+              loadingLabel="Recording adjustment"
+              className={`app-primary-button ${BUTTON_CLASS}`}
+              style={recordStyle}
+              measure={recordMeasure}
+              aria-disabled={skip.isPending || locked || undefined}
+              onClick={busy || locked ? undefined : recordOffer}
+            >
+              {RECORD_LABEL}
+            </ActionFeedbackButton>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

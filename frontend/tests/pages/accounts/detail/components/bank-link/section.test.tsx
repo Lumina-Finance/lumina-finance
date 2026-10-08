@@ -9,6 +9,7 @@
  * a linked view missing a fact, its status or the running import, an import shown while a retry or a
  * stop holds it or dropped before it shows as done, a notice missing, worded unlike the issue, or shown for a link it doesn't apply to,
  * a notice's action losing focus to the link's own actions when the modal opens at the bank link,
+ * the opening adjustment offer missing from the balance panel's foot or shown with nothing offered,
  * Sync now left live for something the server refuses or without the reason, a reason of two
  * sentences ending without the full stop the others of two have, held back by a bank
  * sign-in, left greyed once its requests free up, spinning while the worker is down, or dropping the
@@ -58,7 +59,22 @@ vi.mock('@/api/bank-sync', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/api/bank-sync')>()),
   useBankConnections: () => ({ data: read.connections }),
   useSyncBankAccount: () => ({ mutateAsync: vi.fn() }),
+  useRecordOpeningAdjustment: () => ({ isPending: false, mutate: vi.fn() }),
+  useSkipOpeningAdjustment: () => ({ isPending: false, mutate: vi.fn() }),
 }))
+vi.mock('@/hooks/useMoneyFormatters', async () => {
+  const { formatCurrency, formatMovedAmount } = await import('@/utils/formatCurrency')
+  const currencies = [{ id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 }]
+  return {
+    useMoneyFormatters: () => ({
+      currencies,
+      formatCurrency: (amount: number, currency: string) => formatCurrency(amount, currency, currencies),
+      formatMovedAmount: (amount: number, currency: string) => formatMovedAmount(amount, currency, currencies),
+    }),
+  }
+})
+vi.mock('@/hooks/useCurrencyListState', () => ({ useCurrencyListState: () => 'ready' }))
+vi.mock('@/components/currency/CurrencyUnavailableTooltip', () => ({ CurrencyUnavailableTooltip: () => null }))
 vi.mock('@/hooks/useActionFeedback', () => ({
   useActionFeedback: () => ({ status: read.syncFeedback, isPending: read.syncFeedback !== 'idle', run: vi.fn() }),
 }))
@@ -180,6 +196,27 @@ describe('BankLinkSection', () => {
     expect(markup).toMatch(/role="progressbar"[^>]*aria-valuemax="2"[^>]*aria-valuenow="1"/)
     expect(getButton(markup, 'Unlink')).not.toBe('')
     expect(markup).not.toContain('Link bank account')
+  })
+
+  it('offers the opening adjustment at the foot of the balance panel only while there is one', () => {
+    const balance = {
+      amount: 125000,
+      available: null,
+      available_unreadable: false,
+      balance_date: '2026-10-03T22:00:00Z',
+      ledger_balance: 100000,
+      difference: -25000,
+    }
+    const link = createLink({ sync: createSync({ state: 'opening_balance' }) })
+    read.status = createStatus({ link, balance, opening_adjustment: { amount: 25000, adjustment_date: '2026-05-31' } })
+    const markup = renderSection(createAccount({ current_balance: 100000 }))
+
+    expect(markup).toContain('Opening balance to confirm')
+    expect(markup).toMatch(/As of .*Record the difference as an opening adjustment on May 31, 2026, so your ledger starts at SimpleFIN&#x27;s balance\./s)
+
+    // Skipped, the gap stays and the status no longer asks for the opening balance
+    read.status = createStatus({ link: createLink({ sync: createSync({ state: 'synced' }) }), balance, opening_adjustment: null })
+    expect(renderSection()).not.toContain('Record the difference')
   })
 
   it('shows the failure when the link cannot load, rather than offering a link', () => {

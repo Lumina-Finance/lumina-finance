@@ -1,12 +1,14 @@
 /**
  * Covers the bank link section's balance panel: the bank's balance beside the ledger's, the ledger
- * against the bank, and the caption with the balance date and any available balance
+ * against the bank, the caption with the balance date and any available balance, and the footer
+ * under it
  *
  * These tests catch a match that reads as a gap or offers the tooltip, a gap without its sign, its
  * warning colour or its tooltip, a gap signed the wrong way round, a card's negative balances written
  * as positive, an available balance shown when the bank gives none or dropped when it does, a
  * balance that can't be read exactly shown as an amount or compared, and an available balance that
- * can't be read exactly dropped from the caption as if the bank gave none
+ * can't be read exactly dropped from the caption as if the bank gave none, and a footer set above the
+ * caption, or leaving anything behind when there is none
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -117,5 +119,14 @@ describe('bank balance panel', () => {
 
     expect(readCaption(markup)).toMatch(/^As of Oct 3, 6:00\sp\.m\. · Available balance unavailable/)
     expect(readTooltips(markup)).toEqual(['Why the available balance is unavailable'])
+  })
+
+  it('puts a footer under the caption, and nothing there without one', () => {
+    const footer = <p data-testid="footer">Offer</p>
+    const markup = renderToStaticMarkup(<BalancePanel balance={createBalance()} currency="CAD" providerName="SimpleFIN" footer={footer} />)
+    const withoutFooter = renderToStaticMarkup(<BalancePanel balance={createBalance()} currency="CAD" providerName="SimpleFIN" footer={null} />)
+
+    expect(markup).toMatch(/As of .*data-testid="footer"/s)
+    expect(withoutFooter).toBe(renderPanel(createBalance()))
   })
 })

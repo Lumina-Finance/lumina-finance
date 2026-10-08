@@ -1,0 +1,51 @@
+import { toMinorUnits } from '@/utils/moneyInput'
+
+// The messages share the label's line, as the new-account prompt's does, so they stay short enough to
+// fit beside it on a phone and the field never moves when one shows
+
+/** What Record adjustment says for a blank or zero amount, which records nothing */
+export const ZERO_AMOUNT_MESSAGE = 'Enter more than zero'
+
+/** What the amount says when a sign is typed or pasted into it, which it refuses, since the offer's sign stands beside it */
+export const SIGNED_AMOUNT_MESSAGE = 'Leave out the sign'
+
+/** What an answer the server didn't give says, while one it refused gives the server's reason */
+export const ANSWER_FAILED_MESSAGE = 'Oops, something went wrong. Please try again.'
+
+// A hyphen, a true minus or a plus, none of which the amount takes
+const SIGN = /[-−+]/
+
+/**
+ * The offer's sign in words, for the amount's description, since the sign beside the field is drawn
+ *
+ * @param offered - The offered amount in minor units, signed as the ledger keeps them, never zero
+ */
+export function describeSign(offered: number): string {
+  return offered < 0 ? 'Your ledger records this amount as negative.' : 'Your ledger records this amount as positive.'
+}
+
+/**
+ * Whether text typed or pasted into the amount holds a sign, which the amount refuses since the
+ * offer's sign stands beside it
+ *
+ * @param text - The field's text as typed, before the field refuses it
+ */
+export function holdsSign(text: string): boolean {
+  return SIGN.test(text)
+}
+
+/**
+ * The amount an answer records, signed as the offer is, or null for one that is blank or zero
+ *
+ * The field holds only the amount's size, with the offer's sign shown beside it, so an amount typed
+ * over the offered one closes the same gap by a different amount
+ *
+ * @param value - The field's money value
+ * @param exponent - Decimal places of the account's currency
+ * @param offered - The offered amount in minor units, signed as the ledger keeps them
+ */
+export function readRecordedAmount(value: string, exponent: number, offered: number): number | null {
+  const size = toMinorUnits(value, exponent)
+  if (!size) return null
+  return offered < 0 ? -size : size
+}

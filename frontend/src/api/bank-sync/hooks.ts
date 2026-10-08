@@ -12,7 +12,6 @@ import {
 import { BANK_DISCOVERY_POLL_MS } from '@/api/bank-sync/constants';
 import { getBankLinksPollInterval, getBankLinksStaleTime, isRefusedRead } from '@/api/bank-sync/polling';
 import {
-  acceptOpeningAdjustment,
   addReviewItem,
   applyBulkApproval,
   claimSetupToken,
@@ -27,12 +26,12 @@ import {
   fetchBulkApprovalPreview,
   fetchDiscoveredBankAccounts,
   fetchImportRange,
-  fetchOpeningAdjustment,
   fetchPendingBankTransactions,
   fetchReviewBacklogs,
   fetchReviewPage,
   fetchReviewPreferences,
   reconnectBankConnection,
+  recordOpeningAdjustment,
   resolveReviewItem,
   restoreBankValue,
   skipOpeningAdjustment,
@@ -43,6 +42,7 @@ import {
 } from '@/api/bank-sync/requests';
 import type { BankLink, BankProviderId, BankReviewItem } from '@/api/bank-sync/types';
 import {
+  invalidateAccountBankLink,
   invalidateBankLinks,
   invalidateBankSyncStatus,
 } from '@/api/cache/invalidation';
@@ -51,6 +51,7 @@ import {
   applyBankLinkChanges,
   applyBulkApprovalOutcome,
   applyLedgerReviewOutcome,
+  applyOpeningAdjustmentAnswer,
   applyRestoredBankValue,
   applyReviewDecision,
   putCachedBankLink,
@@ -196,16 +197,6 @@ export function useImportRange(accountId: string, provider: BankProviderId | nul
   return useQuery({
     queryKey: bankSyncKeys.importRange(accountId, provider),
     queryFn: provider ? () => fetchImportRange(accountId, provider) : skipToken,
-    enabled: !!accessToken && enabled,
-    staleTime: BANK_DATA_STALE_TIME_MS,
-  });
-}
-
-export function useOpeningAdjustment(accountId: string, enabled: boolean) {
-  const { accessToken } = useAuth();
-  return useQuery({
-    queryKey: bankSyncKeys.openingAdjustment(accountId),
-    queryFn: () => fetchOpeningAdjustment(accountId),
     enabled: !!accessToken && enabled,
     staleTime: BANK_DATA_STALE_TIME_MS,
   });
@@ -416,22 +407,40 @@ export function useDismissHistoryReminder() {
   });
 }
 
-export function useAcceptOpeningAdjustment() {
+/**
+ * How Record adjustment runs. The account's bank link the server answers with folds the offer away.
+ * A refusal means the offer shown is out of date, answered elsewhere or no longer offered, so the
+ * account's bank link and the link list are read again
+ */
+export function recordOpeningAdjustmentMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    mutationFn: (payload: Parameters<typeof recordOpeningAdjustment>[0]) =>
+      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => recordOpeningAdjustment(payload)),
+    onSuccess: (status) => applyOpeningAdjustmentAnswer(queryClient, status, true),
+    onError: (_error, { accountId }) => invalidateAccountBankLink(queryClient, accountId),
+  });
+}
+
+export function useRecordOpeningAdjustment() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (payload: Parameters<typeof acceptOpeningAdjustment>[0]) =>
-      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => acceptOpeningAdjustment(payload)),
-    onSuccess: (_offer, { accountId }) => applyLedgerReviewOutcome(queryClient, [accountId], () => false),
+  return useMutation(recordOpeningAdjustmentMutationOptions(queryClient));
+}
+
+/**
+ * How Skip runs, as Record adjustment does without recording anything
+ */
+export function skipOpeningAdjustmentMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    mutationFn: (accountId: string) =>
+      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => skipOpeningAdjustment(accountId)),
+    onSuccess: (status) => applyOpeningAdjustmentAnswer(queryClient, status, false),
+    onError: (_error, accountId) => invalidateAccountBankLink(queryClient, accountId),
   });
 }
 
 export function useSkipOpeningAdjustment() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (accountId: string) =>
-      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => skipOpeningAdjustment(accountId)),
-    onSuccess: () => invalidateBankSyncStatus(queryClient),
-  });
+  return useMutation(skipOpeningAdjustmentMutationOptions(queryClient));
 }
 
 export function useUpdateReviewPreferences() {
