@@ -318,10 +318,19 @@ class BankAccountLink(Base):
     # receives, so the items an import brought are those received by then
     import_ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     signin_needed_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # The first day the running import or catch-up asked from: an import's start, or the first day a
+    # catch-up over more than a week lacked. None while neither runs
     catchup_requested_start: Mapped[date | None] = mapped_column(Date)
 
-    # The earliest booked date the provider returned, which tells whether the import reached its start
+    # The earliest booked date the provider returned to the running import or catch-up from its first
+    # day on, which tells whether it reached that day. None until one arrives
     earliest_booked_date: Mapped[date | None] = mapped_column(Date)
+
+    # The reminder the last import or catch-up that fell short raised: the first day it asked from,
+    # and the earliest booked date it got, or None when it got none. None when none was raised
+    history_reminder_start: Mapped[date | None] = mapped_column(Date)
+    history_reminder_earliest: Mapped[date | None] = mapped_column(Date)
 
     # Belongs to the import or catch-up that raised the incomplete-history reminder, so a later
     # one that falls short clears it to raise its own

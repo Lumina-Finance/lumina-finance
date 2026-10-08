@@ -29,6 +29,7 @@ from app.schemas.bank_sync import (
     BankProvidersResponse,
     CreateBankConnectionRequest,
     DiscoveredBankAccountsResponse,
+    DismissHistoryReminderRequest,
     LinkBankAccountRequest,
     ReconnectBankConnectionRequest,
     ReconnectBankConnectionResponse,
@@ -43,6 +44,7 @@ from app.services.bank_sync.availability import list_providers
 from app.services.bank_sync.bulk_approval import apply_bulk_approval, preview_bulk_approval
 from app.services.bank_sync.claim import claim_connection, reconnect_connection
 from app.services.bank_sync.connections import list_connections, rename_connection
+from app.services.bank_sync.history_reminder import dismiss_history_reminder
 from app.services.bank_sync.import_range import get_import_range
 from app.services.bank_sync.links import (
     disconnect_connection,
@@ -381,6 +383,27 @@ async def skip_offered_opening_adjustment(
         The account's bank link, with no offer left
     """
     return await skip_opening_adjustment(db, user, account_id)
+
+
+@bank_link_router.post("/history-reminder/dismiss", response_model=AccountBankStatusResponse)
+async def dismiss_bank_history_reminder(
+    account_id: uuid.UUID,
+    request: DismissHistoryReminderRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Dismiss the reminder that one of the user's linked accounts' import or catch-up returned less history than it asked for
+
+    Args:
+        account_id: The linked account
+        request: The reminder as it showed
+        user: Authenticated owner of the account
+        db: Active database session
+
+    Returns:
+        The account's bank link, without the reminder unless a newer one replaced it
+    """
+    return await dismiss_history_reminder(db, user, account_id, request)
 
 
 @bank_link_router.get("/import-range", response_model=BankImportRangeResponse)

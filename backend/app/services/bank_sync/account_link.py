@@ -19,6 +19,7 @@ from app.models.bank_transaction import BankTransaction
 from app.models.user import User
 from app.schemas.bank_sync import (
     AccountBankStatusResponse,
+    BankHistoryReminderResponse,
     BankImportProgressResponse,
     BankImportState,
     BankLinkResponse,
@@ -149,9 +150,17 @@ async def describe_links(
                 state=link.state,
                 import_progress=progress,
                 sync=status.sync,
+                history_reminder=_describe_history_reminder(link),
             )
         )
     return described
+
+
+def _describe_history_reminder(link: BankAccountLink) -> BankHistoryReminderResponse | None:
+    """Return the reminder the link's last import or catch-up that fell short raised, unless the user dismissed it"""
+    if link.history_reminder_start is None or link.history_reminder_dismissed:
+        return None
+    return BankHistoryReminderResponse(requested_start=link.history_reminder_start, earliest_returned=link.history_reminder_earliest)
 
 
 def _describe_import(

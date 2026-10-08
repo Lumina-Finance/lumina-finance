@@ -460,10 +460,11 @@ def _restart_for_new_bank_account(link: BankAccountLink) -> None:
     """Make a link waiting in Choose bank account active again as a choose-again import
 
     Its sync record belonged to the bank account as the provider listed it before, so none of it
-    carries over. The review pause counts the account's waiting items, so it stays, and the new
-    import runs to today whatever the pause says. An opening adjustment recorded or skipped stays
-    answered, while one not answered waits again until the new import ends and its items are
-    reviewed, since the balance it closes is the chosen bank account's
+    carries over, its reminders about history that bank account may not have returned included,
+    since the new import raises its own. The review pause counts the account's waiting items, so it
+    stays, and the new import runs to today whatever the pause says. An opening adjustment recorded
+    or skipped stays answered, while one not answered waits again until the new import ends and its
+    items are reviewed, since the balance it closes is the chosen bank account's
     """
     if link.opening_adjustment_state not in (OpeningAdjustmentState.RECORDED, OpeningAdjustmentState.SKIPPED):
         link.opening_adjustment_state = OpeningAdjustmentState.NOT_READY
@@ -479,6 +480,9 @@ def _restart_for_new_bank_account(link: BankAccountLink) -> None:
     link.signin_needed_since = None
     link.catchup_requested_start = None
     link.earliest_booked_date = None
+    link.history_reminder_start = None
+    link.history_reminder_earliest = None
+    link.history_reminder_dismissed = False
 
 
 def _linked_elsewhere(

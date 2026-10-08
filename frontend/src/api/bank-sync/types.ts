@@ -371,8 +371,8 @@ export type BankLink = BankAccountLink & {
   state: BankLinkState;
 
   /**
-   * Null when no import runs, while the link waits for its bank account to be chosen again, and for
-   * the catch-up after a reconnect, whose first day the server doesn't record. Never `complete`
+   * Null while the link shows no import's progress: no import runs, it waits for its bank account to
+   * be chosen again, or it catches up after a reconnect. Never `complete`
    */
   import: BankImportProgress | null;
   sync: BankSyncStatus;

@@ -104,6 +104,7 @@ async def test_account_bank_link_shows_its_imports_progress(client):
                 "paused": False,
                 "review_warning": False,
             },
+            "history_reminder": None,
         },
         "previous_link": None,
         "balance": None,

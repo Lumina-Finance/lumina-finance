@@ -344,16 +344,41 @@ class BankSyncStatusResponse(BaseModel):
     review_warning: bool
 
 
+class BankHistoryReminderResponse(BaseModel):
+    """The reminder an import or catch-up raises when it returns less history than it asked for
+
+    Unverified, since a quiet account can simply have had no activity early on
+    """
+
+    # The first day the import or catch-up asked from
+    requested_start: date
+
+    # The earliest booked date it got, more than a week after the requested start, or None when it
+    # got none
+    earliest_returned: date | None
+
+
 class BankLinkResponse(BankAccountLinkResponse):
     """A live link with its import and sync status, as the account's page and the list of links show it"""
 
     # Choose account while the provider lists the bank account differently, until the user chooses it again
     state: Literal[BankLinkState.ACTIVE, BankLinkState.CHOOSE_ACCOUNT]
 
-    # Sent as "import", which Python keeps as a keyword. None when no import is running, and for the
-    # catch-up after a reconnect, whose first day isn't recorded
+    # Sent as "import", which Python keeps as a keyword. None while the link shows no import's
+    # progress: no import runs, it waits for its bank account to be chosen again, or it catches up
+    # after a reconnect
     import_progress: BankImportProgressResponse | None = Field(serialization_alias="import")
     sync: BankSyncStatusResponse
+
+    # The last import or catch-up that fell short, None when none did or the user dismissed it
+    history_reminder: BankHistoryReminderResponse | None
+
+
+class DismissHistoryReminderRequest(BaseModel):
+    """The history reminder the user dismissed, as it showed, so a newer one raised meanwhile stays"""
+
+    requested_start: date
+    earliest_returned: date | None
 
 
 class PreviousBankLinkResponse(BaseModel):

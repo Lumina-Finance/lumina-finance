@@ -18,10 +18,14 @@ account that keeps syncing past 100 new items waiting buries the user in review,
 corrections or a pause on another account stops for nothing, and an import the pause stops part way
 leaves a gap in the history. An opening adjustment offered while the import's items still wait
 closes a gap reviewing them would have, and one a later sync's balance never offers leaves the
-ledger apart from the bank for good. A bank change to a transaction already in the ledger that reaches it
-without review when set to review, overwrites a value the user edited or kept, or moves it without
-its balances, changes the user's money unseen, and a correction opened again for what the user
-already decided keeps asking the same question. Something only the user can fix that isn't marked,
+ledger apart from the bank for good. Days a catch-up re-reads counted as reaching its first day
+hide the gap after them, and an import or catch-up that gets less history than it asked for
+without a reminder leaves a gap in the ledger nobody notices, while one reminding of a quiet first
+week or a catch-up of a few days nags. A bank change
+to a transaction already in the ledger that reaches it without review when set to review,
+overwrites a value the user edited or kept, or moves it without its balances, changes the user's
+money unseen, and a correction opened again for what the user already decided keeps asking the
+same question. Something only the user can fix that isn't marked,
 or isn't emailed, leaves accounts silently stale, while one emailed twice, marked from a refusal of
 a credential since replaced, or whose failed email undoes the sync, nags or misleads the user
 
@@ -3432,6 +3436,317 @@ async def test_job_offers_the_adjustment_once_a_later_sync_reads_a_balance_it_ca
     await _run_jobs_until_none_is_due()
 
     assert held == ["not_ready"]
+    assert await _offer_states(link) == ["offered"]
+
+
+# A link with no reminder about the history its imports and catch-ups returned
+_NO_REMINDER = (None, None, False)
+
+
+async def _noted_history(link: BankAccountLink) -> tuple[date | None, date | None]:
+    """Return what the link's running import or catch-up has noted, as committed: the first day it asked from and the earliest booked date"""
+    columns = (BankAccountLink.catchup_requested_start, BankAccountLink.earliest_booked_date)
+    async with TestSession() as session:
+        return tuple((await session.execute(select(*columns).where(BankAccountLink.id == link.id))).one())
+
+
+async def _history_reminders(*links: BankAccountLink) -> list[tuple[date | None, date | None, bool]]:
+    """Return each link's history reminder as committed: the first day asked from, the earliest booked date and whether it was dismissed"""
+    columns = (BankAccountLink.history_reminder_start, BankAccountLink.history_reminder_earliest, BankAccountLink.history_reminder_dismissed)
+    async with TestSession() as session:
+        return [tuple((await session.execute(select(*columns).where(BankAccountLink.id == link.id))).one()) for link in links]
+
+
+@pytest.mark.parametrize("import_kind", [BankImportKind.INITIAL, BankImportKind.RELINK, BankImportKind.CHOOSE_AGAIN])
+@pytest.mark.parametrize(
+    ("earliest", "reminder"),
+    [(date(2026, 6, 8), _NO_REMINDER), (date(2026, 6, 9), (date(2026, 6, 1), date(2026, 6, 9), False))],
+    ids=["7_days_after_the_start", "8_days_after_the_start"],
+)
+async def test_job_reminds_once_an_import_ends_if_its_earliest_transaction_is_over_7_days_after_its_start(
+    connection, provider, import_kind, earliest, reminder
+):
+    """Everyday, in Phoenix, is linked, relinked or chosen again from 1 June, and the earliest transaction its import gets is 8 or 9 June
+
+    The first window sends a July transaction ahead of the earliest one. Only 9 June, more than 7 days
+    after the start, raises the reminder, as the import ends on 3 October, Phoenix's today though
+    it's already 4 October in UTC
+    """
+    await _set_owner_timezone(connection, _PHOENIX)
+    link = await _link(connection, "ACT-1", import_kind=import_kind, import_start=date(2026, 6, 1), checkpoint=date(2026, 5, 31))
+    provider.outcomes = [
+        _returned_with({"ACT-1": [_record("TRN-july", date(2026, 7, 1)), _record("TRN-earliest", earliest)]}),
+        _returned_with({"ACT-1": [_record("TRN-september", date(2026, 9, 15))]}),
+    ]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [
+        _window(date(2026, 6, 1), date(2026, 8, 29), timezone=_PHOENIX),
+        _window(date(2026, 8, 30), date(2026, 10, 3), pending=True, timezone=_PHOENIX),
+    ]
+    assert await _history_reminders(link) == [reminder]
+
+
+async def test_job_reminds_once_an_import_ends_having_got_no_booked_transaction(connection, provider):
+    """Everyday's import from 1 June gets only a transaction the bank says it removed and a hold still pending, so no history came back"""
+    link = await _link(connection, "ACT-1", import_start=date(2026, 6, 1), checkpoint=date(2026, 5, 31))
+    provider.outcomes = [
+        _returned_with({"ACT-1": [_record("TRN-removed", date(2026, 6, 2), removed=True)]}),
+        _returned_with({"ACT-1": [_pending_record("TRN-hold")]}),
+    ]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert len(provider.fetches) == 2
+    assert await _history_reminders(link) == [(date(2026, 6, 1), None, False)]
+
+
+@pytest.mark.parametrize("import_kind", [BankImportKind.INITIAL, BankImportKind.RELINK, BankImportKind.CHOOSE_AGAIN])
+@pytest.mark.parametrize(
+    ("import_start", "reminder"),
+    [(date(2026, 9, 26), _NO_REMINDER), (date(2026, 9, 25), (date(2026, 9, 25), None, False))],
+    ids=["from_7_days_ago", "from_8_days_ago"],
+)
+async def test_job_reminds_of_an_import_that_got_nothing_only_when_it_asked_from_over_7_days_ago(
+    connection, provider, import_kind, import_start, reminder
+):
+    """Everyday, in Phoenix, is linked, relinked or chosen again from 26 or 25 September, and its import gets nothing
+
+    Today is 3 October there, already 4 October in UTC. An import from 26 September covers 7 days to
+    today, within the week's grace a quiet account's first days get, so it raises nothing. One from
+    25 September covers 8, and raises the reminder
+    """
+    await _set_owner_timezone(connection, _PHOENIX)
+    link = await _link(connection, "ACT-1", import_kind=import_kind, import_start=import_start, checkpoint=import_start - timedelta(days=1))
+    provider.outcomes = [_returned("ACT-1")]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [_window(import_start, date(2026, 10, 3), pending=True, timezone=_PHOENIX)]
+    assert await _history_reminders(link) == [reminder]
+
+
+@pytest.mark.parametrize(
+    ("first", "reminder"),
+    [(date(2026, 7, 31), (date(2026, 8, 1), date(2026, 8, 20), False)), (date(2026, 8, 1), _NO_REMINDER)],
+    ids=["reread_31_july", "on_1_august"],
+)
+async def test_job_reminds_once_the_catch_up_after_a_reconnect_gets_history_from_over_7_days_after_the_day_it_asked_from(
+    connection, provider, first, reminder
+):
+    """Everyday's connection was rejected through August, complete through 31 July, and is now reconnected
+
+    The catch-up asks from 1 August, re-reading the 14 days before, and gets a transaction from 31
+    July or 1 August besides 20 August's. A re-read day's history says nothing of the gap after it,
+    so 31 July's leaves 20 August the earliest and raises the reminder. 1 August's reaches the day
+    asked from
+    """
+    link = await _link(
+        connection,
+        "ACT-1",
+        import_kind=BankImportKind.RECONNECT,
+        import_start=date(2026, 1, 1),
+        checkpoint=date(2026, 7, 31),
+        last_success_at=datetime(2026, 7, 31, 9, tzinfo=_BRISBANE),
+    )
+    records = [_record("TRN-first", first), _record("TRN-september", date(2026, 9, 2)), _record("TRN-august", date(2026, 8, 20))]
+    provider.outcomes = [_returned_with({"ACT-1": records})]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [_window(date(2026, 7, 17), _TODAY, pending=True)]
+    assert await _history_reminders(link) == [reminder]
+
+
+async def test_job_reminds_once_the_catch_up_a_lifted_review_pause_queues_gets_history_from_over_7_days_after_the_day_it_asked_from(
+    connection, provider
+):
+    """Everyday was paused for review on 31 May, complete through that day, and a review now lifts the pause
+
+    The catch-up asks from 1 June and takes two windows. The first gets nothing and the second's
+    earliest transaction is 20 August, so the reminder names 1 June, the day the catch-up asked from,
+    not the second window's first day
+    """
+    link = await _link(
+        connection,
+        "ACT-1",
+        import_start=date(2026, 1, 1),
+        checkpoint=date(2026, 5, 31),
+        last_success_at=datetime(2026, 5, 31, 9, tzinfo=_BRISBANE),
+        importing=False,
+        paused=True,
+    )
+    item_ids = await _commit_waiting_items(link, 51)
+    provider.outcomes = [_returned("ACT-1"), _returned_with({"ACT-1": [_record("TRN-august", date(2026, 8, 20))]})]
+    async with _owner_session(connection.owner_id) as session:
+        links = await lock_account_links(session, [link.account_id])
+        await _dismiss_items(session, item_ids[:1])
+        await lift_review_pauses(session, connection.owner_id, links)
+        await session.commit()
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [_window(date(2026, 5, 17), date(2026, 8, 14)), _window(date(2026, 8, 15), _TODAY, pending=True)]
+    assert await _history_reminders(link) == [(date(2026, 6, 1), date(2026, 8, 20), False)]
+
+
+@pytest.mark.parametrize(
+    ("checkpoint", "reminder"),
+    [(date(2026, 9, 25), _NO_REMINDER), (date(2026, 9, 24), (date(2026, 9, 25), None, False))],
+    ids=["7_days_to_catch_up", "8_days_to_catch_up"],
+)
+async def test_job_reminds_only_when_the_catch_up_after_failed_syncs_asks_from_over_7_days_ago(connection, provider, checkpoint, reminder):
+    """Everyday, in Phoenix, synced through its checkpoint and every sync since failed. Today is 3 October there, already 4 October in UTC
+
+    Neither catch-up gets a transaction. One asking from 26 September covers 7 days to today, within
+    the week's grace, so it raises nothing however quiet the account. One asking from 25 September
+    covers 8, and raises the reminder
+    """
+    await _set_owner_timezone(connection, _PHOENIX)
+    link = await _link(
+        connection,
+        "ACT-1",
+        **_synced_through_yesterday(
+            checkpoint=checkpoint,
+            last_success_at=datetime(checkpoint.year, checkpoint.month, checkpoint.day, 9, tzinfo=_PHOENIX),
+            last_failure_reason="SimpleFIN Bridge reported a problem",
+        ),
+    )
+    provider.outcomes = [_returned("ACT-1")]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _checkpoints(link) == [date(2026, 10, 3)]
+    assert await _history_reminders(link) == [reminder]
+
+
+async def test_job_reminds_once_the_catch_up_after_a_bank_sign_in_gets_history_from_over_7_days_after_the_day_it_asked_from(
+    connection, provider
+):
+    """Everyday's bank asked for a sign-in after its sync on 10 September, and the user has signed in since
+
+    The catch-up asks from 11 September, and the earliest transaction it gets is 25 September
+    """
+    await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-1")
+    link = await _link(
+        connection,
+        "ACT-1",
+        **_synced_through_yesterday(
+            checkpoint=date(2026, 9, 10),
+            last_success_at=datetime(2026, 9, 10, 9, tzinfo=_BRISBANE),
+            signin_needed_since=datetime(2026, 9, 11, 9, tzinfo=_BRISBANE),
+        ),
+    )
+    provider.outcomes = [_returned_with({"ACT-1": [_record("TRN-late", date(2026, 9, 25))]})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _signin_marks(link) == [None]
+    assert await _history_reminders(link) == [(date(2026, 9, 11), date(2026, 9, 25), False)]
+
+
+async def test_job_reminds_once_the_catch_up_after_the_worker_stopped_gets_no_transaction(connection, provider, frozen_now, day_later):
+    """The worker stopped after Everyday's sync at 1 pm on 24 September, and restarts ten days later
+
+    The catch-up the first scan queues asks from 25 September and gets nothing
+    """
+    stopped_at = frozen_now - timedelta(days=10)
+    link = await _link(
+        connection,
+        "ACT-1",
+        **_synced_through_yesterday(checkpoint=date(2026, 9, 24), last_success_at=stopped_at, next_attempt_at=stopped_at + day_later),
+    )
+    await _set_next_sync(connection, stopped_at + day_later)
+    provider.outcomes = [_returned("ACT-1")]
+
+    await enqueue_due_work()
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [_window(date(2026, 9, 10), _TODAY, pending=True)]
+    assert await _history_reminders(link) == [(date(2026, 9, 25), None, False)]
+
+
+async def test_job_leaves_a_raised_reminder_the_user_dismissed_as_the_next_sync_gets_nothing_either(connection, provider, frozen_now):
+    """Everyday's catch-up after failed syncs asks from 21 September and gets nothing, raising the reminder, which the user dismisses
+
+    The catch-up stops noting what it returned once it raises the reminder, so the next scheduled
+    sync, which gets nothing either, isn't a catch-up falling short and leaves the reminder dismissed
+    """
+    link = await _link(
+        connection,
+        "ACT-1",
+        **_synced_through_yesterday(checkpoint=date(2026, 9, 20), last_success_at=datetime(2026, 9, 20, 9, tzinfo=_BRISBANE)),
+    )
+    provider.outcomes = [_returned("ACT-1"), _returned("ACT-1")]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+    await _run_jobs_until_none_is_due()
+    raised = await _history_reminders(link)
+    async with TestSession() as session:
+        await session.execute(update(BankAccountLink).where(BankAccountLink.id == link.id).values(history_reminder_dismissed=True))
+        await session.commit()
+
+    await _bring_next_syncs_round(connection, frozen_now)
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+    await _run_jobs_until_none_is_due()
+
+    assert len(provider.fetches) == 2
+    assert raised == [(date(2026, 9, 21), None, False)]
+    assert await _history_reminders(link) == [(date(2026, 9, 21), None, True)]
+
+
+@pytest.mark.parametrize(
+    ("returned", "reminder"),
+    [
+        ([], (date(2026, 9, 21), None, False)),
+        ([_record("TRN-on-time", date(2026, 9, 22))], (date(2026, 6, 1), date(2026, 6, 9), True)),
+    ],
+    ids=["falls_short", "reaches_back"],
+)
+async def test_job_raises_a_later_catch_ups_own_reminder_over_one_the_user_dismissed(connection, provider, returned, reminder):
+    """Everyday's import from 1 June got history from 9 June, and the user dismissed its reminder
+
+    Its catch-up after failed syncs asks from 21 September. One getting nothing raises its own
+    reminder, which shows. One whose earliest transaction is 22 September reached back far enough,
+    so the dismissed reminder stays as it was. Either way the catch-up stops noting what it returned
+    """
+    link = await _link(
+        connection,
+        "ACT-1",
+        **_synced_through_yesterday(
+            import_start=date(2026, 6, 1),
+            checkpoint=date(2026, 9, 20),
+            last_success_at=datetime(2026, 9, 20, 9, tzinfo=_BRISBANE),
+            history_reminder_start=date(2026, 6, 1),
+            history_reminder_earliest=date(2026, 6, 9),
+            history_reminder_dismissed=True,
+        ),
+    )
+    provider.outcomes = [_returned_with({"ACT-1": returned})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _history_reminders(link) == [reminder]
+    assert await _noted_history(link) == (None, None)
+
+
+async def test_job_offers_the_opening_adjustment_beside_the_reminder_of_an_import_that_got_nothing(connection, provider):
+    """Everyday's import from 1 September gets no transaction, so it raises the reminder, and the opening adjustment doesn't wait on it"""
+    await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-1")
+    link = await _link(connection, "ACT-1", import_start=date(2026, 9, 1), checkpoint=date(2026, 8, 31))
+    provider.outcomes = [_returned("ACT-1")]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _history_reminders(link) == [(date(2026, 9, 1), None, False)]
     assert await _offer_states(link) == ["offered"]
 
 

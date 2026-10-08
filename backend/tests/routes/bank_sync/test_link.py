@@ -292,6 +292,55 @@ async def test_choose_again_can_take_the_old_bank_account_through_another_connec
     ]
 
 
+@pytest.mark.parametrize(
+    "earlier",
+    [pytest.param({"state": BankLinkState.CHOOSE_ACCOUNT}, id="choose-again"), pytest.param({"state": BankLinkState.UNLINKED}, id="relink")],
+)
+async def test_choose_again_and_relink_carry_over_no_reminder_about_the_earlier_bank_accounts_history(client, earlier):
+    """Everyday's earlier link to ACT-old waits to choose its bank account again, or was unlinked
+
+    It reminded, dismissed or not, that its import got history from 9 June rather than 1 June, and
+    was noting a catch-up from 20 September. The import that linking ACT-1 starts raises its own
+    reminder, so the live link starts with none
+    """
+    headers, _, account_id, connection = await _linkable(client)
+    async with TestSession() as session:
+        account = await session.get_one(Account, uuid.UUID(account_id))
+        session.add(
+            _build_bank_link(
+                account,
+                connection,
+                "ACT-old",
+                importing=False,
+                unlinked_at=_NOW if earlier["state"] == BankLinkState.UNLINKED else None,
+                catchup_requested_start=date(2026, 9, 20),
+                earliest_booked_date=date(2026, 9, 25),
+                history_reminder_start=date(2026, 6, 1),
+                history_reminder_earliest=date(2026, 6, 9),
+                history_reminder_dismissed=True,
+                **earlier,
+            )
+        )
+        await session.commit()
+
+    linked = await _link(client, headers, account_id, connection.id, start_date=_TODAY - timedelta(days=10))
+
+    assert linked.status_code == 201, linked.text
+    async with TestSession() as session:
+        live = (
+            await session.execute(
+                select(
+                    BankAccountLink.history_reminder_start,
+                    BankAccountLink.history_reminder_earliest,
+                    BankAccountLink.history_reminder_dismissed,
+                    BankAccountLink.catchup_requested_start,
+                    BankAccountLink.earliest_booked_date,
+                ).where(BankAccountLink.account_id == uuid.UUID(account_id), BankAccountLink.state == BankLinkState.ACTIVE)
+            )
+        ).one()
+    assert tuple(live) == (None, None, False, None, None)
+
+
 async def test_link_through_a_provider_withdrawn_from_new_connections_still_links(client, monkeypatch):
     """Withdrawing SimpleFIN's offer stops only new connections, so an existing one links further accounts"""
     monkeypatch.setattr(availability, "OFFERED_PROVIDERS", frozenset())

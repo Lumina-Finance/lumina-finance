@@ -73,6 +73,7 @@ from app.services.bank_sync.action_needed import (
 )
 from app.services.bank_sync.availability import ENABLED_ADAPTERS, LINK_LISTING, PROVIDER_ADAPTERS
 from app.services.bank_sync.discovery import apply_discovery, store_fetched_balances
+from app.services.bank_sync.history_reminder import note_history_returned, raise_history_reminders
 from app.services.bank_sync.ingestion import store_booked_records
 from app.services.bank_sync.jobs import ClaimedJob, JobNotHeld, enqueue_bank_sync_job, finish_job, lock_covered_links, lock_held_job
 from app.services.bank_sync.opening_adjustment import offer_opening_adjustments
@@ -502,11 +503,13 @@ class _JobRun:
         A link brought back whole is no longer waiting on a bank sign-in, even when re-reading days it
         has doesn't count as a success, since its bank login answered. One that failed on a bank
         sign-in is marked as waiting on one, and when that starts its bank login's state, the login's
-        email goes out once the part's save commits. Last, an import the part brought through today
-        ends, and each link no import is running on pauses or resumes by its account's review
-        backlog, the whole part counted, then offers its opening adjustment once it is ready for it,
-        or ends an offer whose gap has closed, on the balance the part stored. A link that failed
-        wasn't brought back whole, so its import keeps running and the pause leaves it as it was
+        email goes out once the part's save commits. Each link brought back whole notes the history
+        its import or catch-up has returned, and one the part brought through today raises the
+        reminder if it fell short. Last, an import the part brought through today ends, and each link
+        no import is running on pauses or resumes by its account's review backlog, the whole part
+        counted, then offers its opening adjustment once it is ready for it, or ends an offer whose
+        gap has closed, on the balance the part stored. A link that failed wasn't brought back whole,
+        so its import keeps running and the pause leaves it as it was
 
         Args:
             part: The days fetched, and the links they were fetched for
@@ -533,6 +536,7 @@ class _JobRun:
             # A part ending today is the job's last write, so the job's end tells the owner's pages of it
             if self._asks_for_pending(part):
                 await store_pending_records(db, deliveries, observed_at=sent_at)
+            note_history_returned(deliveries, today=self.today)
             for link in whole:
                 if first_missing_day(link) < part.first_day:
                     continue
@@ -550,6 +554,7 @@ class _JobRun:
             clear_signin_needed(whole)
             signin_needed = [link for link in failed if failures[link.id].kind == ProviderErrorKind.BANK_LOGIN_NEEDED]
             emails = await flag_signin_needed(db, connection, signin_needed, at=sent_at)
+            reminded = raise_history_reminders(whole, today=self.today)
             paused_or_imported = await apply_review_pauses(db, whole, today=self.today)
             offered = await offer_opening_adjustments(db, whole, tz=self.timezone.key)
 
@@ -557,7 +562,7 @@ class _JobRun:
             # saved before it permanent. Anything else here changes only what their pages show
             if stored.ledger_changed:
                 await mark_user_cache_changed(db, self.job.owner_id)
-            elif stored.changed or balances_changed or succeeded or failed or paused_or_imported or offered:
+            elif stored.changed or balances_changed or succeeded or failed or reminded or paused_or_imported or offered:
                 await mark_user_status_changed(db, self.job.owner_id)
             await db.commit()
             self.outbox += emails
