@@ -222,7 +222,7 @@ test('reads as synced once the import finishes', async ({ page, request }) => {
   await expect(fact(dialog, /^Difference/)).toHaveText('None')
   await expect(dialog.getByRole('button', { name: 'Record adjustment' })).toHaveCount(0)
 
-  // Nothing stops the sync, so no notice offers an action ahead of Unlink
+  // Nothing stops the sync, so no notice offers an action ahead of the link's own
   await expect(dialog.getByRole('button', { name: 'Open settings' })).toHaveCount(0)
   await expect(dialog.getByRole('button', { name: 'Choose bank account' })).toHaveCount(0)
 })
@@ -383,7 +383,7 @@ test('stops on a rejected connection, with a notice that leads to Settings to re
   const openSettings = dialog.getByRole('button', { name: 'Open settings' })
   await expect(notice).toBeVisible()
 
-  // The notice's action is what resumes the sync, so the modal opens on it rather than on Unlink
+  // The notice's action is what resumes the sync, so the modal opens on it rather than on Review settings
   await expect(openSettings).toBeFocused()
 
   // Beside the text from 640px, and on its own row under it on a phone

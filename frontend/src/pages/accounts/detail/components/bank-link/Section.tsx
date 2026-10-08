@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { AnimatePresence } from 'motion/react'
-import { Link2, PauseCircle, TriangleAlert, Unlink } from 'lucide-react'
+import { Link2, PauseCircle, SlidersHorizontal, TriangleAlert, Unlink } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import type { Account } from '@/api/accounts'
 import {
@@ -28,6 +28,7 @@ import { BalancePanel } from '@/pages/accounts/detail/components/bank-link/Balan
 import { ImportProgress } from '@/pages/accounts/detail/components/bank-link/ImportProgress'
 import { OpeningAdjustmentOffer } from '@/pages/accounts/detail/components/bank-link/OpeningAdjustmentOffer'
 import { CutOffDayReminder, HistoryReminder, REMINDER_ATTRIBUTE } from '@/pages/accounts/detail/components/bank-link/Reminder'
+import { ReviewSettingsModal } from '@/pages/accounts/detail/components/bank-link/ReviewSettingsModal'
 import type { BankSyncLabel } from '@/pages/accounts/detail/components/bank-link/status'
 import { SyncFact } from '@/pages/accounts/detail/components/bank-link/SyncFact'
 import { SyncNowButton } from '@/pages/accounts/detail/components/bank-link/SyncNowButton'
@@ -42,6 +43,7 @@ import { DATE_FORMATS, formatDate, formatDateLabel } from '@/utils/date'
 const ARCHIVED_REASON = 'Archived accounts are read-only'
 const LOADING_OVERLAY_CLASS = 'absolute inset-0 z-10 flex items-center justify-center bg-[var(--app-bg)]'
 const NOTICE_ACTION_CLASS = 'app-primary-button h-9 w-full justify-center whitespace-nowrap px-4 text-sm sm:w-auto'
+const LINK_ACTION_CLASS = 'app-secondary-button h-9 w-full justify-center whitespace-nowrap px-3.5 text-sm sm:w-auto'
 
 // Long enough for the modal to have opened and put focus in its first field
 const OPENING_FOCUS_DELAY_MS = 260
@@ -70,6 +72,7 @@ type LinkedViewProps = {
   providers: BankProvidersResponse | undefined
   initialFocus: InitialFocusProps
   onChooseBankAccount: () => void
+  onReviewSettings: () => void
   onUnlink: () => void
 }
 
@@ -94,6 +97,7 @@ function LinkedView({
   providers,
   initialFocus,
   onChooseBankAccount,
+  onReviewSettings,
   onUnlink,
 }: LinkedViewProps) {
   const navigate = useNavigate()
@@ -225,7 +229,11 @@ function LinkedView({
       {/* The link's actions, in one row that wraps, each taking a full row on a phone */}
       <div ref={actionsRef} className="flex flex-wrap items-center gap-2 pt-4">
         <SyncNowButton link={link} connection={connection} providers={providers} focusProps={{ ...ACTION_PROPS, ...initialFocus }} />
-        <button type="button" className="app-secondary-button h-9 w-full justify-center whitespace-nowrap px-3.5 text-sm sm:w-auto" {...ACTION_PROPS} {...initialFocus} onClick={onUnlink}>
+        <button type="button" className={LINK_ACTION_CLASS} {...ACTION_PROPS} {...initialFocus} onClick={onReviewSettings}>
+          <SlidersHorizontal size={14} aria-hidden />
+          Review settings
+        </button>
+        <button type="button" className={LINK_ACTION_CLASS} {...ACTION_PROPS} {...initialFocus} onClick={onUnlink}>
           <Unlink size={14} aria-hidden />
           Unlink
         </button>
@@ -258,7 +266,8 @@ function focusFirstAction(container: HTMLElement | null) {
 
 /**
  * The account's bank link in its edit modal: linking it, relinking it after an unlink, its import and
- * status while linked, and unlinking it. Every change here applies at once, not on saving the modal
+ * status while linked, its review settings, and unlinking it. Every change here applies at once, not on
+ * saving the modal
  */
 export function BankLinkSection({ account, sectionNumber, autoFocus = false }: BankLinkSectionProps) {
   const { user } = useAuth()
@@ -270,6 +279,10 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
   // Held past the unlink itself, so the dialog can finish closing once the link is gone
   const [unlinking, setUnlinking] = useState<BankLink | null>(null)
   const [unlinkOpen, setUnlinkOpen] = useState(false)
+
+  // Mounted afresh for each opening, so the dialog never starts on choices an earlier one left unsaved
+  const [reviewSettingsOpen, setReviewSettingsOpen] = useState(false)
+  const [reviewSettingsKey, setReviewSettingsKey] = useState(0)
 
   const link = status?.link ?? null
   const previous = status?.previous_link ?? null
@@ -358,6 +371,10 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
                     providers={providers}
                     initialFocus={initialFocus}
                     onChooseBankAccount={openLinkFlow}
+                    onReviewSettings={() => {
+                      setReviewSettingsKey((key) => key + 1)
+                      setReviewSettingsOpen(true)
+                    }}
                     onUnlink={() => {
                       setUnlinking(link)
                       setUnlinkOpen(true)
@@ -376,6 +393,16 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
           account={account}
           onClose={() => setLinkFlowOpen(false)}
           onExitComplete={restoreLostFocus}
+        />
+      )}
+
+      {ownPersonal && (
+        <ReviewSettingsModal
+          key={reviewSettingsKey}
+          open={reviewSettingsOpen}
+          accountId={account.id}
+          level="stacked"
+          onClose={() => setReviewSettingsOpen(false)}
         />
       )}
 

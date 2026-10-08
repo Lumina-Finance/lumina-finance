@@ -154,14 +154,14 @@ test('links an account from its page, from choosing the bank account to its impo
     await expect(fact(dialog, 'Status')).toHaveText(/^Importing · \d+ of \d+/)
 
     // The Link button the flow opened from has gone, so focus moves to the linked view's first live
-    // action. Sync now is greyed for the running import, so focus passes over it
-    const unlink = dialog.getByRole('button', { name: 'Unlink' })
-    await expect(unlink).toBeFocused()
+    // action. Sync now is greyed for the running import, so focus passes over it to Review settings
+    const reviewSettings = dialog.getByRole('button', { name: 'Review settings' })
+    await expect(reviewSettings).toBeFocused()
     await expect(dialog.getByRole('button', { name: 'Sync now' })).toHaveAttribute('aria-disabled', 'true')
 
     // The linked view is taller than the one it replaced, which on a phone pushes the action below
     // what the modal shows. The modal's own area scrolls to show it whole, leaving the page where it was
-    await expect(unlink).toBeInViewport({ ratio: 1 })
+    await expect(reviewSettings).toBeInViewport({ ratio: 1 })
     expect(await page.evaluate(() => window.scrollY)).toBe(pageScroll)
   } finally {
     // Frees the worker the held request keeps waiting, which would otherwise hold up other tests' syncs
@@ -273,7 +273,7 @@ test('unlinks the account alone, then reconnects it with the relink wording', as
   await openPage(page, `/accounts/${everyday.id}`)
 
   // Opened once today's import is over, so Sync now is live and takes the focus, where the import
-  // would have it pass to Unlink. The opening adjustment offered for the gap from the empty ledger
+  // would have it pass to Review settings. The opening adjustment offered for the gap from the empty ledger
   // doesn't take it either
   const bankSync = page.getByRole('button', { name: 'Bank sync: Opening balance to confirm. Open bank link' })
   await expect(bankSync).toBeVisible({ timeout: WORKER_RESULT_TIMEOUT_MS })
@@ -321,7 +321,7 @@ test('unlinks the account alone, then reconnects it with the relink wording', as
   await expect(fact(dialog, 'Bank account')).toHaveText(SAMPLE_CHEQUING)
 })
 
-test('opens at the bank link with Unlink focused while Sync now is held back with its reason', async ({ page, request }) => {
+test('opens at the bank link with Review settings focused while Sync now is held back with its reason', async ({ page, request }) => {
   const user = await signUpUser(request)
   const [everyday, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Everyday' }),
@@ -348,7 +348,7 @@ test('opens at the bank link with Unlink focused while Sync now is held back wit
   const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
 
   // Focus passes over Sync now, since it would open the reason over the section
-  await expect(dialog.getByRole('button', { name: 'Unlink' })).toBeFocused()
+  await expect(dialog.getByRole('button', { name: 'Review settings' })).toBeFocused()
   await expect(dialog.getByRole('button', { name: 'Sync now' })).toHaveAttribute('aria-disabled', 'true')
 })
 

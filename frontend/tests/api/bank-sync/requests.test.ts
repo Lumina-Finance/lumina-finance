@@ -26,6 +26,7 @@ import {
   reconnectBankConnection,
   resolveReviewItem,
   restoreBankValue,
+  updateReviewPreferences,
 } from '@/api/bank-sync/requests';
 
 beforeEach(() => {
@@ -145,6 +146,18 @@ describe('bank sync writes', () => {
     expect(authenticatedFetchMock).toHaveBeenCalledWith('/bank-sync/transaction-sources/transaction-1/restore', {
       method: 'POST',
       body: JSON.stringify({ field: 'amount' }),
+    });
+  });
+
+  it("replaces all three of an account's review choices at once", async () => {
+    await updateReviewPreferences({
+      accountId: 'account-1',
+      preferences: { new_transactions: 'review', corrections: 'trust', removals: 'review' },
+    });
+
+    expect(authenticatedFetchMock).toHaveBeenCalledWith('/accounts/account-1/review-preferences', {
+      method: 'PUT',
+      body: JSON.stringify({ new_transactions: 'review', corrections: 'trust', removals: 'review' }),
     });
   });
 });

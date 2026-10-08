@@ -204,12 +204,17 @@ export function useImportRange(accountId: string, provider: BankProviderId | nul
   });
 }
 
-export function useReviewPreferences(accountId: string) {
+/**
+ * Reads whether each kind of bank data arriving for one of the user's own personal accounts waits for
+ * review. Pass `enabled` false while nothing shows the choices, and for any other account, which the
+ * server refuses
+ */
+export function useReviewPreferences(accountId: string, enabled: boolean) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: bankSyncKeys.reviewPreferences(accountId),
     queryFn: () => fetchReviewPreferences(accountId),
-    enabled: !!accessToken,
+    enabled: enabled && !!accessToken,
   });
 }
 
