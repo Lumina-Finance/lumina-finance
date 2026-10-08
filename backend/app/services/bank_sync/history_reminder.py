@@ -12,7 +12,12 @@ more than a week after the first day, the grace a quiet account's first days get
 came back from a first day more than a week before today. Its reminder replaces any earlier one,
 dismissed or not, and stays until the user dismisses it. An import or catch-up from a week ago or
 less can't fall short by more than the grace, so it raises nothing however quiet the account, and a
-catch-up that short isn't noted at all
+catch-up that short isn't noted at all.
+
+A single day that still brings back as many transactions as the provider sends at once is kept,
+though some of its transactions may be missing, so each link it brought back whole gets a reminder
+of its own, naming the latest such day. Re-reading that day or an earlier one doesn't raise it
+again once dismissed, and a later one does
 """
 
 import uuid
@@ -23,12 +28,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bank_connection import BankAccountLink
 from app.models.user import User
-from app.schemas.bank_sync import AccountBankStatusResponse, DismissHistoryReminderRequest
+from app.schemas.bank_sync import AccountBankStatusResponse, DismissCutOffDayRequest, DismissHistoryReminderRequest
 from app.services.bank_sync.account_link import read_account_bank_status
 from app.services.bank_sync.links import lock_live_link
 from app.services.bank_sync.providers.contract import ProviderRecord
 from app.services.bank_sync.windows import first_missing_day
-from app.services.cache_state import mark_user_cache_changed
+from app.services.cache_state import mark_user_status_changed
 
 # How much later than the first day asked for the earliest booked date can be before an import or
 # catch-up falls short, since a quiet account often has no activity in its first days
@@ -90,6 +95,28 @@ def raise_history_reminders(links: Iterable[BankAccountLink], *, today: date) ->
     return raised
 
 
+def flag_cut_off_day(links: Iterable[BankAccountLink], day: date) -> bool:
+    """Flag a day kept though its response may have been cut short on each link it brought back whole, unless a link has a later one
+
+    The provider's limit counts every bank account in the response, so any of them may be missing
+    transactions from that day
+
+    Args:
+        links: Links the day's part brought back whole, locked
+        day: The day
+
+    Returns:
+        Whether a link's reminder changed, so the caller tells the owner's pages
+    """
+    flagged = False
+    for link in links:
+        if link.cut_off_day is None or day > link.cut_off_day:
+            link.cut_off_day = day
+            link.cut_off_day_dismissed = False
+            flagged = True
+    return flagged
+
+
 async def dismiss_history_reminder(
     db: AsyncSession, user: User, account_id: uuid.UUID, request: DismissHistoryReminderRequest
 ) -> AccountBankStatusResponse:
@@ -97,7 +124,8 @@ async def dismiss_history_reminder(
 
     Only the reminder the user saw is dismissed. One already dismissed, or replaced by a newer one
     meanwhile, answers as the account stands, so a double submission dismisses it once and a newer
-    reminder stays
+    reminder stays. A dismissal changes none of the user's data, so the data mark an import's undo
+    compares with stays where it was
 
     Args:
         db: Active database session
@@ -117,6 +145,37 @@ async def dismiss_history_reminder(
     shown = (link.history_reminder_start, link.history_reminder_earliest)
     if not link.history_reminder_dismissed and shown == (request.requested_start, request.earliest_returned):
         link.history_reminder_dismissed = True
-        await mark_user_cache_changed(db, user.id)
+        await mark_user_status_changed(db, user.id)
+        await db.commit()
+    return await read_account_bank_status(db, user, account.id)
+
+
+async def dismiss_cut_off_day(
+    db: AsyncSession, user: User, account_id: uuid.UUID, request: DismissCutOffDayRequest
+) -> AccountBankStatusResponse:
+    """Dismiss the reminder about a day that may be missing transactions, which hides it until a later day raises it
+
+    Only the day the user saw is dismissed. One already dismissed, or replaced by a later day
+    meanwhile, answers as the account stands. Like the history reminder's, the dismissal leaves an
+    import's undo as it was
+
+    Args:
+        db: Active database session
+        user: The account's owner
+        account_id: The linked account
+        request: The day the reminder named
+
+    Returns:
+        The account's bank link
+
+    Raises:
+        HTTPException 403: The account is visible but isn't the user's own personal account
+        HTTPException 404: The user can't see the account, or it isn't linked
+        HTTPException 422: The profile's timezone no longer resolves
+    """
+    account, link = await lock_live_link(db, user, account_id)
+    if not link.cut_off_day_dismissed and link.cut_off_day == request.day:
+        link.cut_off_day_dismissed = True
+        await mark_user_status_changed(db, user.id)
         await db.commit()
     return await read_account_bank_status(db, user, account.id)

@@ -340,6 +340,12 @@ class BankAccountLink(Base):
         default=False,
         server_default="false",
     )
+
+    # The latest day kept although its response may have been cut short, as a single day that still
+    # brought back as many transactions as the provider sends at once, and whether the user dismissed
+    # its reminder. Only a later day raises it again
+    cut_off_day: Mapped[date | None] = mapped_column(Date)
+    cut_off_day_dismissed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     opening_adjustment_state: Mapped[str] = mapped_column(
         VARCHAR(16),
         nullable=False,

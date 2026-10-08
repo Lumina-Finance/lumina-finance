@@ -373,12 +373,22 @@ class BankLinkResponse(BankAccountLinkResponse):
     # The last import or catch-up that fell short, None when none did or the user dismissed it
     history_reminder: BankHistoryReminderResponse | None
 
+    # The latest day kept though it brought back as many transactions as the provider sends at once,
+    # so some of that day's may be missing. None when no day did or the user dismissed it
+    cut_off_day: date | None
+
 
 class DismissHistoryReminderRequest(BaseModel):
     """The history reminder the user dismissed, as it showed, so a newer one raised meanwhile stays"""
 
     requested_start: date
     earliest_returned: date | None
+
+
+class DismissCutOffDayRequest(BaseModel):
+    """The day whose reminder the user dismissed, so a later day raised meanwhile stays"""
+
+    day: date
 
 
 class PreviousBankLinkResponse(BaseModel):

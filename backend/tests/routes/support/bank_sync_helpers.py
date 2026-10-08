@@ -44,7 +44,7 @@ from tests.conftest import ScopedSession, TestSession
 from tests.fake_simplefin_bridge import FakeBridgeTransport
 from tests.routes.support.account_helpers import _create_account
 from tests.routes.support.auth_helpers import SIGNUP_PAYLOAD, _create_user, _get_auth_header
-from tests.routes.support.transaction_helpers import _create_transaction, _get_system_category_id
+from tests.routes.support.transaction_helpers import _create_transaction, _get_system_category_id, _import_transactions
 
 BANK_ACCOUNT_ID = "ACT-1"
 LINK_START = date(2026, 9, 1)
@@ -596,6 +596,35 @@ async def _changed_at(client, headers) -> str | None:
     status = await client.get("/me/cache-status", headers=headers)
     assert status.status_code == 200, status.text
     return status.json()["personal"]["changed_at"]
+
+
+async def _import_a_file(client, headers) -> None:
+    """Import a file holding a $4.50 coffee into a new Wallet account, which the user can then undo for a while"""
+    imported = await _import_transactions(
+        client,
+        headers,
+        {
+            "accounts": [{"source": "Wallet", "create": {"name": "Wallet", "account_type": "checking", "currency": "CAD"}}],
+            "categories": [{"source": "Coffee", "create": {"name": "Coffee", "kind": "expense"}}],
+            "rows": [
+                {
+                    "account_source": "Wallet",
+                    "category_source": "Coffee",
+                    "dt": "2026-09-15",
+                    "amount": "-4.50",
+                    "merchant_name": "Harbour Coffee",
+                }
+            ],
+        },
+    )
+    assert imported.status_code == 201, imported.text
+
+
+async def _undoable_import(client, headers) -> dict | None:
+    """Return the import the user can still undo, or None when there is none"""
+    last = await client.get("/transactions/import/last", headers=headers)
+    assert last.status_code == 200, last.text
+    return last.json()
 
 
 class _PausedBridge(httpx.AsyncBaseTransport):

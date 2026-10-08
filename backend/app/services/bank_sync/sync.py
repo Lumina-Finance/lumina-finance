@@ -73,7 +73,7 @@ from app.services.bank_sync.action_needed import (
 )
 from app.services.bank_sync.availability import ENABLED_ADAPTERS, LINK_LISTING, PROVIDER_ADAPTERS
 from app.services.bank_sync.discovery import apply_discovery, store_fetched_balances
-from app.services.bank_sync.history_reminder import note_history_returned, raise_history_reminders
+from app.services.bank_sync.history_reminder import flag_cut_off_day, note_history_returned, raise_history_reminders
 from app.services.bank_sync.ingestion import store_booked_records
 from app.services.bank_sync.jobs import ClaimedJob, JobNotHeld, enqueue_bank_sync_job, finish_job, lock_covered_links, lock_held_job
 from app.services.bank_sync.opening_adjustment import offer_opening_adjustments
@@ -398,9 +398,10 @@ class _JobRun:
         """Fetch the window and write what it found, noting each link a part didn't bring back whole
 
         SimpleFIN has no paging, so a response that may have been cut short is set aside and its days
-        fetched again in halves, down to a single day, which is kept however long. Parts are written
-        as they come back, earliest first, so those fetched before the budget ran out or a request
-        failed keep their progress
+        fetched again in halves, down to a single day, which is kept however long, and the links it
+        brought back whole remind the user that some of that day's transactions may be missing.
+        Parts are written as they come back, earliest first, so those fetched before the budget ran
+        out or a request failed keep their progress
 
         Returns:
             Whether the last part written, which ends where the window does, moved a checkpoint, or
@@ -441,7 +442,7 @@ class _JobRun:
                 elif link.id not in self.failed:
                     self.failed.add(link.id)
                     failures[link.id] = failure
-            moved = await self._write(part, synced, failures, sent_with=credential, sent_at=sent_at)
+            moved = await self._write(part, synced, failures, sent_with=credential, sent_at=sent_at, cut_off=result.possibly_cut_off)
         return moved
 
     async def _fetch_part(self, part: SyncWindow) -> tuple[FetchResult, str, datetime] | None:
@@ -483,6 +484,7 @@ class _JobRun:
         *,
         sent_with: str,
         sent_at: datetime,
+        cut_off: bool,
     ) -> bool:
         """Store the records and pending items of each link brought back whole, move checkpoints and record attempts, if the job still holds it
 
@@ -505,8 +507,9 @@ class _JobRun:
         sign-in is marked as waiting on one, and when that starts its bank login's state, the login's
         email goes out once the part's save commits. Each link brought back whole notes the history
         its import or catch-up has returned, and one the part brought through today raises the
-        reminder if it fell short. Last, an import the part brought through today ends, and each link
-        no import is running on pauses or resumes by its account's review backlog, the whole part
+        reminder if it fell short, as a single day that may have been cut short does on each link it
+        brought back whole. Last, an import the part brought through today ends, and each link no
+        import is running on pauses or resumes by its account's review backlog, the whole part
         counted, then offers its opening adjustment once it is ready for it, or ends an offer whose
         gap has closed, on the balance the part stored. A link that failed wasn't brought back whole,
         so its import keeps running and the pause leaves it as it was
@@ -517,6 +520,7 @@ class _JobRun:
             failures: Why the response failed each link it hadn't already failed in this job, by link id
             sent_with: The credential the request went out with
             sent_at: When the request went out, which its records were observed at
+            cut_off: The response may have been cut short, which only a single day's is when written
 
         Returns:
             Whether a checkpoint moved
@@ -555,6 +559,8 @@ class _JobRun:
             signin_needed = [link for link in failed if failures[link.id].kind == ProviderErrorKind.BANK_LOGIN_NEEDED]
             emails = await flag_signin_needed(db, connection, signin_needed, at=sent_at)
             reminded = raise_history_reminders(whole, today=self.today)
+            if cut_off:
+                reminded = flag_cut_off_day(whole, part.first_day) or reminded
             paused_or_imported = await apply_review_pauses(db, whole, today=self.today)
             offered = await offer_opening_adjustments(db, whole, tz=self.timezone.key)
 

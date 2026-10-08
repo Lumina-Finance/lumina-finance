@@ -29,6 +29,7 @@ from app.schemas.bank_sync import (
     BankProvidersResponse,
     CreateBankConnectionRequest,
     DiscoveredBankAccountsResponse,
+    DismissCutOffDayRequest,
     DismissHistoryReminderRequest,
     LinkBankAccountRequest,
     ReconnectBankConnectionRequest,
@@ -44,7 +45,7 @@ from app.services.bank_sync.availability import list_providers
 from app.services.bank_sync.bulk_approval import apply_bulk_approval, preview_bulk_approval
 from app.services.bank_sync.claim import claim_connection, reconnect_connection
 from app.services.bank_sync.connections import list_connections, rename_connection
-from app.services.bank_sync.history_reminder import dismiss_history_reminder
+from app.services.bank_sync.history_reminder import dismiss_cut_off_day, dismiss_history_reminder
 from app.services.bank_sync.import_range import get_import_range
 from app.services.bank_sync.links import (
     disconnect_connection,
@@ -404,6 +405,27 @@ async def dismiss_bank_history_reminder(
         The account's bank link, without the reminder unless a newer one replaced it
     """
     return await dismiss_history_reminder(db, user, account_id, request)
+
+
+@bank_link_router.post("/cut-off-day/dismiss", response_model=AccountBankStatusResponse)
+async def dismiss_bank_cut_off_day(
+    account_id: uuid.UUID,
+    request: DismissCutOffDayRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Dismiss the reminder that one of the user's linked accounts may be missing transactions from a day
+
+    Args:
+        account_id: The linked account
+        request: The day the reminder named
+        user: Authenticated owner of the account
+        db: Active database session
+
+    Returns:
+        The account's bank link, without the reminder unless a later day replaced it
+    """
+    return await dismiss_cut_off_day(db, user, account_id, request)
 
 
 @bank_link_router.get("/import-range", response_model=BankImportRangeResponse)

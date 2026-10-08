@@ -483,6 +483,8 @@ def _restart_for_new_bank_account(link: BankAccountLink) -> None:
     link.history_reminder_start = None
     link.history_reminder_earliest = None
     link.history_reminder_dismissed = False
+    link.cut_off_day = None
+    link.cut_off_day_dismissed = False
 
 
 def _linked_elsewhere(

@@ -292,16 +292,12 @@ async def test_choose_again_can_take_the_old_bank_account_through_another_connec
     ]
 
 
-@pytest.mark.parametrize(
-    "earlier",
-    [pytest.param({"state": BankLinkState.CHOOSE_ACCOUNT}, id="choose-again"), pytest.param({"state": BankLinkState.UNLINKED}, id="relink")],
-)
-async def test_choose_again_and_relink_carry_over_no_reminder_about_the_earlier_bank_accounts_history(client, earlier):
-    """Everyday's earlier link to ACT-old waits to choose its bank account again, or was unlinked
+async def test_choose_again_carries_over_no_reminder_about_the_earlier_bank_accounts_history(client):
+    """Everyday's earlier link to ACT-old waits to choose its bank account again
 
-    It reminded, dismissed or not, that its import got history from 9 June rather than 1 June, and
-    was noting a catch-up from 20 September. The import that linking ACT-1 starts raises its own
-    reminder, so the live link starts with none
+    It reminded, dismissed or not, that its import got history from 9 June rather than 1 June and
+    that 2 October may be missing transactions, and was noting a catch-up from 20 September. The
+    import that linking ACT-1 starts raises its own reminders, so the live link starts with none
     """
     headers, _, account_id, connection = await _linkable(client)
     async with TestSession() as session:
@@ -312,13 +308,14 @@ async def test_choose_again_and_relink_carry_over_no_reminder_about_the_earlier_
                 connection,
                 "ACT-old",
                 importing=False,
-                unlinked_at=_NOW if earlier["state"] == BankLinkState.UNLINKED else None,
+                state=BankLinkState.CHOOSE_ACCOUNT,
                 catchup_requested_start=date(2026, 9, 20),
                 earliest_booked_date=date(2026, 9, 25),
                 history_reminder_start=date(2026, 6, 1),
                 history_reminder_earliest=date(2026, 6, 9),
                 history_reminder_dismissed=True,
-                **earlier,
+                cut_off_day=date(2026, 10, 2),
+                cut_off_day_dismissed=True,
             )
         )
         await session.commit()
@@ -333,12 +330,14 @@ async def test_choose_again_and_relink_carry_over_no_reminder_about_the_earlier_
                     BankAccountLink.history_reminder_start,
                     BankAccountLink.history_reminder_earliest,
                     BankAccountLink.history_reminder_dismissed,
+                    BankAccountLink.cut_off_day,
+                    BankAccountLink.cut_off_day_dismissed,
                     BankAccountLink.catchup_requested_start,
                     BankAccountLink.earliest_booked_date,
                 ).where(BankAccountLink.account_id == uuid.UUID(account_id), BankAccountLink.state == BankLinkState.ACTIVE)
             )
         ).one()
-    assert tuple(live) == (None, None, False, None, None)
+    assert tuple(live) == (None, None, False, None, False, None, None)
 
 
 async def test_link_through_a_provider_withdrawn_from_new_connections_still_links(client, monkeypatch):

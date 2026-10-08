@@ -151,6 +151,7 @@ async def describe_links(
                 import_progress=progress,
                 sync=status.sync,
                 history_reminder=_describe_history_reminder(link),
+                cut_off_day=None if link.cut_off_day_dismissed else link.cut_off_day,
             )
         )
     return described

@@ -21,7 +21,7 @@ closes a gap reviewing them would have, and one a later sync's balance never off
 ledger apart from the bank for good. Days a catch-up re-reads counted as reaching its first day
 hide the gap after them, and an import or catch-up that gets less history than it asked for
 without a reminder leaves a gap in the ledger nobody notices, while one reminding of a quiet first
-week or a catch-up of a few days nags. A bank change
+week, a catch-up of a few days or a cut-short day the user already dismissed nags. A bank change
 to a transaction already in the ledger that reaches it without review when set to review,
 overwrites a value the user edited or kept, or moves it without its balances, changes the user's
 money unseen, and a correction opened again for what the user already decided keeps asking the
@@ -3457,6 +3457,13 @@ async def _history_reminders(*links: BankAccountLink) -> list[tuple[date | None,
         return [tuple((await session.execute(select(*columns).where(BankAccountLink.id == link.id))).one()) for link in links]
 
 
+async def _cut_off_days(*links: BankAccountLink) -> list[tuple[date | None, bool]]:
+    """Return the latest day each link kept though it may have been cut short, and whether its reminder was dismissed, as committed"""
+    columns = (BankAccountLink.cut_off_day, BankAccountLink.cut_off_day_dismissed)
+    async with TestSession() as session:
+        return [tuple((await session.execute(select(*columns).where(BankAccountLink.id == link.id))).one()) for link in links]
+
+
 @pytest.mark.parametrize("import_kind", [BankImportKind.INITIAL, BankImportKind.RELINK, BankImportKind.CHOOSE_AGAIN])
 @pytest.mark.parametrize(
     ("earliest", "reminder"),
@@ -3735,6 +3742,124 @@ async def test_job_raises_a_later_catch_ups_own_reminder_over_one_the_user_dismi
 
     assert await _history_reminders(link) == [reminder]
     assert await _noted_history(link) == (None, None)
+
+
+async def test_job_reminds_each_link_a_day_kept_though_cut_short_was_fetched_for(connection, provider):
+    """Everyday and Savings, in Phoenix, import from 2 October, and each day alone still comes back with 1,000 transactions
+
+    SimpleFIN's limit counts both bank accounts, so either may be missing some, and both name 3
+    October, the latest day kept, which is Phoenix's today though it's already 4 October in UTC
+    """
+    await _set_owner_timezone(connection, _PHOENIX)
+    both = ("ACT-everyday", "ACT-savings")
+    everyday = await _link(connection, "ACT-everyday", import_start=date(2026, 10, 2), checkpoint=date(2026, 10, 1))
+    savings = await _link(connection, "ACT-savings", import_start=date(2026, 10, 2), checkpoint=date(2026, 10, 1))
+    provider.outcomes = [_cut_off(*both) for _ in range(3)]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [
+        _window(date(2026, 10, 2), date(2026, 10, 3), both, pending=True, timezone=_PHOENIX),
+        _window(date(2026, 10, 2), date(2026, 10, 2), both, timezone=_PHOENIX),
+        _window(date(2026, 10, 3), date(2026, 10, 3), both, pending=True, timezone=_PHOENIX),
+    ]
+    assert await _cut_off_days(everyday, savings) == [(date(2026, 10, 3), False), (date(2026, 10, 3), False)]
+
+
+async def test_job_reminds_only_the_links_a_day_kept_though_cut_short_brought_back_whole(connection, provider):
+    """Everyday and Savings import from today, which alone comes back with 1,000 transactions, and Savings fails in it
+
+    Only Everyday was brought back whole, so only Everyday names today. Savings' import waits for
+    its retry, which reads the day again
+    """
+    everyday = await _link(connection, "ACT-everyday", import_start=_TODAY, checkpoint=date(2026, 10, 3))
+    savings = await _link(connection, "ACT-savings", import_start=_TODAY, checkpoint=date(2026, 10, 3))
+    provider.outcomes = [
+        FetchResult(accounts=(_bank_account("ACT-everyday"),), account_errors={"ACT-savings": _reported_a_problem()}, possibly_cut_off=True)
+    ]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [_window(_TODAY, _TODAY, ("ACT-everyday", "ACT-savings"), pending=True)]
+    assert await _cut_off_days(everyday, savings) == [(_TODAY, False), (None, False)]
+
+
+@pytest.mark.parametrize(
+    ("dismissed_day", "after"),
+    [(date(2026, 10, 2), (date(2026, 10, 3), False)), (date(2026, 10, 3), (date(2026, 10, 3), True)), (_TODAY, (_TODAY, True))],
+    ids=["an_earlier_day_dismissed", "that_day_dismissed", "a_later_day_dismissed"],
+)
+async def test_job_rereading_a_day_kept_though_cut_short_reminds_again_only_past_the_day_dismissed(
+    connection, provider, frozen_now, dismissed_day, after
+):
+    """Sync now re-reads Everyday, imported from 3 October and synced through today an hour ago, and 3 October alone still comes back cut short
+
+    The user dismissed the reminder for an earlier day, that day or a later one, and only the
+    earlier day's gives way to a reminder for 3 October
+    """
+    link = await _link(
+        connection,
+        "ACT-1",
+        import_start=date(2026, 10, 3),
+        checkpoint=_TODAY,
+        last_success_at=frozen_now - timedelta(hours=1),
+        importing=False,
+        cut_off_day=dismissed_day,
+        cut_off_day_dismissed=True,
+    )
+    provider.outcomes = [_cut_off("ACT-1"), _cut_off("ACT-1"), _returned("ACT-1")]
+    await _seed_job(connection, BankSyncJobKind.MANUAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [
+        _window(date(2026, 10, 3), _TODAY, pending=True),
+        _window(date(2026, 10, 3), date(2026, 10, 3)),
+        _window(_TODAY, _TODAY, pending=True),
+    ]
+    assert await _cut_off_days(link) == [after]
+
+
+@pytest.mark.parametrize(
+    ("dismissed_day", "told"), [(date(2026, 10, 2), True), (date(2026, 10, 3), False)], ids=["raises_it", "changes_nothing"]
+)
+async def test_job_tells_the_owners_pages_as_a_part_storing_nothing_new_reminds_of_a_day_cut_short(
+    connection, monkeypatch, frozen_now, dismissed_day, told
+):
+    """Sync now re-reads Everyday as above, and 3 October alone comes back cut short with nothing new
+
+    That half raising the reminder is all it changes, and the owner's open pages hear of it while
+    the later half is still out. Once the user has dismissed 3 October's, the half changes nothing,
+    so they hear nothing
+    """
+    await _link(
+        connection,
+        "ACT-1",
+        import_start=date(2026, 10, 3),
+        checkpoint=_TODAY,
+        last_success_at=frozen_now - timedelta(hours=1),
+        importing=False,
+        cut_off_day=dismissed_day,
+        cut_off_day_dismissed=True,
+    )
+    provider = _HeldProvider(held=(1, 3))
+    provider.outcomes = [_cut_off("ACT-1"), _cut_off("ACT-1"), _returned("ACT-1")]
+    monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
+    await _seed_job(connection, BankSyncJobKind.MANUAL)
+
+    async with asyncio.timeout(_WAIT_SECONDS):
+        running = asyncio.create_task(run_jobs(1))
+        await provider.sending[1].wait()
+        told_as_it_started = await _told_at(connection)
+        provider.release[1].set()
+        await provider.sending[3].wait()
+        told_after_the_earlier_half = await _told_at(connection)
+        provider.release[3].set()
+        await running
+
+    assert (told_after_the_earlier_half > told_as_it_started) is told
 
 
 async def test_job_offers_the_opening_adjustment_beside_the_reminder_of_an_import_that_got_nothing(connection, provider):
