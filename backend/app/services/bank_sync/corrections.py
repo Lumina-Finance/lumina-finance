@@ -11,11 +11,13 @@ narrows the same one, closing it once the bank is back to the values decided or 
 the user last declined. Trusted, a changed date or amount the user hasn't edited is applied to the
 ledger row, an edited one keeps the user's value, and a changed description is only stored, since
 the ledger has no description and a changed description never changes the merchant in this release.
+A description the user kept over the bank's stays theirs, as an edited date or amount does.
 An amount that can't be stored exactly can't be applied, so it opens a correction even when trusted.
 A correction already waiting keeps waiting whatever the preference says, so a change while it is
 open joins it. A date or amount the bank changes to the value the ledger already holds needs no
-decision, and the field is aligned with the bank again. Aligning a field, here or by accepting a
-change, ends what the user declined before, so the bank sending those values again asks again.
+decision, and neither does a description the bank changes back to the one the user kept, so the
+field is aligned with the bank again. Aligning a field, here or by accepting a change, ends what the
+user declined before, so the bank sending those values again asks again.
 
 A removal is the provider saying the transaction no longer exists. Set to review, it opens a
 removal and the ledger row keeps counting until the user decides. It takes the place of a correction
@@ -155,8 +157,11 @@ def _settle(
             continue
         columns = EDITABLE_COLUMNS.get(field)
         if columns is None:
-            # The ledger has no description, so a trusted change to it is only stored
-            if not trusted:
+            # The ledger has no description, so the one the user kept stands in for the ledger's
+            # value: the bank sending it again aligns it, and a trusted change is only stored
+            if value == record.kept_description:
+                align_with_bank(record, [field])
+            elif not trusted:
                 left[field] = decided[field]
             continue
         bank = getattr(record, columns.observed)

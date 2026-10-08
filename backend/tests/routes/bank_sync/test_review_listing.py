@@ -255,6 +255,38 @@ async def test_review_list_shows_each_kind_with_the_values_its_review_compares(c
     }
 
 
+async def test_review_list_shows_the_description_the_user_kept_as_the_current_one(client):
+    """The user kept SQ *BLUE BOTTLE over the bank's BLUE BOTTLE COFFEE, and a correction to BLUE BOTTLE CAFE now waits
+
+    The comparison's current description is the one kept, not the bank's from before the
+    correction, which the user declined
+    """
+    headers, user_id, account_id = await _everyday(client)
+    async with TestSession() as session:
+        account = await session.get_one(Account, uuid.UUID(account_id))
+        category = _build_category(user_id)
+        session.add(category)
+        await session.commit()
+    await _commit_open_item(
+        account,
+        category.id,
+        OpenReviewKind.CORRECTION,
+        ledger=(date(2026, 10, 3), -1250),
+        aligned=(date(2026, 10, 3), -1250),
+        description="BLUE BOTTLE CAFE",
+        previous_values={"description": "BLUE BOTTLE COFFEE"},
+        kept_description="SQ *BLUE BOTTLE",
+    )
+
+    [item] = (await _review_page(client, headers))["items"]
+
+    assert (item["changed_fields"], item["current"]["description"], item["bank"]["description"]) == (
+        ["description"],
+        "SQ *BLUE BOTTLE",
+        "BLUE BOTTLE CAFE",
+    )
+
+
 async def test_review_list_protects_only_the_edited_fields_a_correction_changes(client):
     """An edited amount isn't protected from a new description or a removal, and an edited date is from a new date
 

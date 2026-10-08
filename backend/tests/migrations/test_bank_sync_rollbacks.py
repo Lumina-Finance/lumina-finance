@@ -1,9 +1,10 @@
-"""Bank sync migration rollbacks refuse while their tables hold data
+"""Bank sync migration rollbacks refuse while their tables hold data, and leave the tables they keep as they found them
 
 Dropping a bank sync table would delete stored credentials, links and decisions that nothing can
 rebuild, so each downgrade refuses while its tables hold a row, names what would be lost, and
 drops them once they are empty. Seeding is plain SQL, so a later change to a model can't break
-the insert into a database built only up to the revision under test
+the insert into a database built only up to the revision under test. A rollback that drops a
+column puts back the checks the column joined, which Postgres would otherwise drop with it
 """
 
 from uuid import UUID
@@ -141,6 +142,10 @@ _ROLLBACKS = [
     ),
 ]
 
+# The revision that adds the description a user kept over the bank's, and the one before it
+_KEPT_DESCRIPTION_REVISION = "8d86357d118a"
+_BEFORE_KEPT_DESCRIPTION_REVISION = "c4d7a2e9f1b6"
+
 
 async def _execute(database_name: str, statements: tuple[str, ...]) -> int:
     """Run statements against a generated database in one transaction
@@ -199,3 +204,41 @@ async def test_bank_sync_rollback_while_its_tables_hold_rows_is_refused(revision
         assert await _functions_present(_DATABASE_NAME, functions) == set(functions)
     finally:
         await _drop_database(_DATABASE_NAME)
+
+
+async def _bank_transactions_shape(database_name: str) -> tuple[list[str], str | None]:
+    """Return the columns of a generated database's bank transactions, and the check that only accepted ones carry review state"""
+    engine = _create_engine_for_database(database_name)
+    try:
+        async with engine.connect() as connection:
+            columns = await connection.scalars(
+                text("SELECT column_name FROM information_schema.columns WHERE table_name = 'bank_transactions' ORDER BY column_name")
+            )
+            check = await connection.scalar(
+                text("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'ck_bank_transactions_review_state'")
+            )
+            return list(columns), check
+    finally:
+        await engine.dispose()
+
+
+async def test_kept_description_rollback_restores_the_bank_transactions_it_found():
+    """Rolling back drops the kept descriptions and puts the review state check back as it was, and upgrading again adds both"""
+    await _recreate_database(_DATABASE_NAME)
+    try:
+        _run_alembic_upgrade(_DATABASE_NAME, revision=_BEFORE_KEPT_DESCRIPTION_REVISION)
+        before = await _bank_transactions_shape(_DATABASE_NAME)
+        _run_alembic_upgrade(_DATABASE_NAME, revision=_KEPT_DESCRIPTION_REVISION)
+        upgraded = await _bank_transactions_shape(_DATABASE_NAME)
+        rolled_back = _run_alembic(_DATABASE_NAME, "downgrade", "-1")
+        after_rollback = await _bank_transactions_shape(_DATABASE_NAME)
+        _run_alembic_upgrade(_DATABASE_NAME, revision=_KEPT_DESCRIPTION_REVISION)
+        upgraded_again = await _bank_transactions_shape(_DATABASE_NAME)
+    finally:
+        await _drop_database(_DATABASE_NAME)
+
+    assert rolled_back.returncode == 0, rolled_back.stdout + rolled_back.stderr
+    assert "kept_description" in upgraded[0]
+    assert upgraded != before
+    assert after_rollback == before
+    assert upgraded_again == upgraded

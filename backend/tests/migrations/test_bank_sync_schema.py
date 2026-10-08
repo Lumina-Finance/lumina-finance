@@ -353,6 +353,18 @@ async def test_bank_transaction_previous_values_belong_to_an_accepted_record(ses
     await _add(session, corrected)
 
 
+async def test_bank_transaction_kept_description_belongs_to_an_accepted_record(session):
+    """A description the user kept over the bank's is kept on an accepted record, never on one still waiting"""
+    everyday, ledger_row = await _everyday_with_ledger_row(session)
+    waiting = _build_bank_transaction(everyday, "TRN-1")
+    waiting.kept_description = "SQ *BLUE BOTTLE"
+    kept = _build_bank_transaction(everyday, "TRN-2", transaction=ledger_row)
+    kept.kept_description = "SQ *BLUE BOTTLE"
+
+    await _refused(session, waiting, "ck_bank_transactions_review_state")
+    await _add(session, kept)
+
+
 async def test_bank_transaction_removal_is_opened_only_once_the_provider_reported_it_on_an_accepted_record(session):
     """A removal needs the time the provider reported it, and only an accepted record holds that time"""
     everyday, ledger_row = await _everyday_with_ledger_row(session)

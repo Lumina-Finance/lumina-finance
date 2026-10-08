@@ -3881,6 +3881,13 @@ _COFFEE_DAY = date(2026, 10, 2)
 # The bank values Keep current value declined when the bank changed the coffee to $4.75
 _DECLINED_AT_4_75 = {"date": "2026-10-02", "amount": -4_75, "description": "POS 4411 COFFEE"}
 
+# The coffee's bank transaction once the user kept POS 4411 COFFEE over the bank's BLUE BOTTLE COFFEE
+_KEPT_POS_4411 = {
+    "description": "BLUE BOTTLE COFFEE",
+    "kept_description": "POS 4411 COFFEE",
+    "declined_observation": {"date": "2026-10-02", "amount": -4_50, "description": "BLUE BOTTLE COFFEE"},
+}
+
 # How a correction stands: whether one is open, and the bank values from before it
 _CORRECTION = (BankTransaction.open_kind, BankTransaction.previous_values)
 
@@ -4437,6 +4444,69 @@ async def test_job_asks_again_when_the_bank_revises_an_amount_it_cant_store_exac
 
     assert await _bank_transactions(*_CORRECTION, BankTransaction.raw_amount) == [(OpenReviewKind.CORRECTION, {"amount": "-4.755"}, "-4.756")]
     assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_50)]
+
+
+@pytest.mark.parametrize("trusted", [False, True], ids=["review", "trusted"])
+async def test_job_opens_nothing_when_the_bank_goes_back_to_the_description_the_user_kept(connection, provider, trusted):
+    """The user kept POS 4411 COFFEE when the bank renamed the coffee BLUE BOTTLE COFFEE, and the bank now sends POS 4411 COFFEE again
+
+    Whether corrections are reviewed or trusted, the description is stored with no correction. The
+    ledger follows the bank's description again, and what the user declined no longer stands, so the
+    bank sending BLUE BOTTLE COFFEE later would ask again
+    """
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    if trusted:
+        await _trust(link, "corrections")
+    await _accept_coffee(link, **_KEPT_POS_4411)
+    provider.outcomes = [_returned_with({"ACT-1": [_record("TRN-coffee")]})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    columns = (*_CORRECTION, BankTransaction.description, BankTransaction.kept_description, BankTransaction.declined_observation)
+    assert await _bank_transactions(*columns) == [(None, None, "POS 4411 COFFEE", None, None)]
+
+
+@pytest.mark.parametrize(
+    ("trusted", "correction"),
+    [(False, (OpenReviewKind.CORRECTION, {"description": "BLUE BOTTLE COFFEE"})), (True, (None, None))],
+    ids=["review", "trusted"],
+)
+async def test_job_compares_a_new_bank_description_with_the_one_the_user_kept(connection, provider, trusted, correction):
+    """The user kept POS 4411 COFFEE when the bank renamed the coffee BLUE BOTTLE COFFEE, and the bank now sends BLUE BOTTLE CAFE
+
+    Set to review, a correction opens proposing BLUE BOTTLE CAFE, and trusted, the description is
+    only stored. Either way the ledger keeps POS 4411 COFFEE, as it keeps a date or amount the user kept
+    """
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    if trusted:
+        await _trust(link, "corrections")
+    await _accept_coffee(link, **_KEPT_POS_4411)
+    provider.outcomes = [_returned_with({"ACT-1": [_record("TRN-coffee", description="BLUE BOTTLE CAFE")]})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _bank_transactions(*_CORRECTION, BankTransaction.description, BankTransaction.kept_description) == [
+        (*correction, "BLUE BOTTLE CAFE", "POS 4411 COFFEE")
+    ]
+
+
+async def test_job_applying_a_trusted_amount_keeps_the_description_the_user_kept(connection, provider):
+    """With corrections trusted, the bank changes the coffee to $4.75 after the user kept POS 4411 COFFEE over its BLUE BOTTLE COFFEE
+
+    The ledger takes $4.75, and the description kept stays the ledger's, since the bank didn't change it
+    """
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    await _trust(link, "corrections")
+    await _accept_coffee(link, **_KEPT_POS_4411)
+    provider.outcomes = [_returned_with({"ACT-1": [_record("TRN-coffee", amount=-4_75, raw_amount="-4.75", description="BLUE BOTTLE COFFEE")]})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_75)]
+    assert await _bank_transactions(*_CORRECTION, BankTransaction.kept_description) == [(None, None, "POS 4411 COFFEE")]
 
 
 async def test_job_follows_each_accounts_own_choice_for_corrections(connection, provider):

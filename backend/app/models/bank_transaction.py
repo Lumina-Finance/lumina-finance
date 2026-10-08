@@ -87,11 +87,11 @@ class BankTransaction(Base):
             "(disposition = 'accepted') = (transaction_id IS NOT NULL) AND (disposition = 'accepted') = (aligned_date IS NOT NULL)",
             name="ck_bank_transactions_accepted",
         ),
-        # Only an accepted record has ledger values to align with, a correction or removal to review,
-        # or a removal reported
+        # Only an accepted record has ledger values to align with, a description kept, a correction or
+        # removal to review, or a removal reported
         CheckConstraint(
-            "disposition = 'accepted' OR (aligned_amount IS NULL AND open_kind IS NULL "
-            "AND previous_values IS NULL AND declined_observation IS NULL AND removed_at IS NULL)",
+            "disposition = 'accepted' OR (aligned_amount IS NULL AND open_kind IS NULL AND previous_values IS NULL "
+            "AND declined_observation IS NULL AND removed_at IS NULL AND kept_description IS NULL)",
             name="ck_bank_transactions_review_state",
         ),
         # A removal is reviewed only once the provider has reported it
@@ -144,11 +144,16 @@ class BankTransaction(Base):
     # before it, while the observation holds the proposal. A removal opened over a correction keeps
     # them, since that correction is still undecided. The declined values map every
     # CorrectableBankField. Dates are ISO text, and an amount the bank sent that couldn't be stored
-    # exactly is the text it sent. The ledger has no description column, so the approved
-    # description is read from here
+    # exactly is the text it sent
     open_kind: Mapped[str | None] = mapped_column(VARCHAR(16))
     previous_values: Mapped[dict[str, Any] | None] = mapped_column(_JSON)
     declined_observation: Mapped[dict[str, Any] | None] = mapped_column(_JSON)
+
+    # The bank description the user kept with Keep current value over a later one, while the bank's
+    # latest differs from it. The ledger has no description column, so this stands in for the
+    # ledger's own value, as the ledger row's date and amount do for theirs. Null while the ledger
+    # follows the bank's description: its latest, or its value from before a correction waiting on it
+    kept_description: Mapped[str | None] = mapped_column(Text)
 
     # When the provider reported the transaction removed from its feed, kept after the user keeps it
     # so the same removal delivered again opens nothing, and cleared once the provider sends the

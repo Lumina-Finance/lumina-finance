@@ -321,6 +321,24 @@ async def test_approving_applies_the_previewed_corrections_and_removal_in_one_sa
     assert "user_cache_states" in _writes(statements)[-1]
 
 
+async def test_approving_a_new_bank_description_ends_the_one_the_user_kept(client):
+    """The user kept COUNTDOWN AKL over the bank's COUNTDOWN AUCKLAND, and the bank now sends COUNTDOWN 123 AUCKLAND with its -45.10
+
+    Approving makes the ledger follow the bank's description, as accepting it alone does, so
+    COUNTDOWN AKL sent again later is a change to ask about
+    """
+    everyday = await _everyday_waiting(
+        client, previous_values={"amount": -4210, "description": "COUNTDOWN AUCKLAND"}, kept_description="COUNTDOWN AKL"
+    )
+
+    approved = await _approve(client, everyday.headers, await _preview(client, everyday.headers))
+
+    assert approved.status_code == status.HTTP_200_OK, approved.text
+    assert everyday.countdown.item_id in _outcome(approved)[1]
+    stored = await _stored_item(everyday.countdown.item_id)
+    assert (stored.open_kind, stored.kept_description) == (None, None)
+
+
 async def test_approving_waits_for_a_sync_changing_a_correction_and_leaves_it_waiting(client):
     """The bank sends -46.10 for Countdown while the approval waits, so Countdown stays waiting with it and the others apply"""
     everyday = await _everyday_waiting(client)

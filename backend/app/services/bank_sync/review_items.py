@@ -32,7 +32,7 @@ from app.schemas.bank_sync import BankValues
 from app.services.accounts.access import check_own_personal_accounts, own_personal_account_condition
 from app.services.bank_sync.availability import PROVIDER_ADAPTERS
 from app.services.bank_sync.review_pause import read_review_backlogs
-from app.services.bank_sync.review_state import edited_fields
+from app.services.bank_sync.review_state import approved_description, edited_fields
 
 # The most items one page holds, so an import that leaves hundreds waiting loads a page at a time
 REVIEW_PAGE_SIZE = 50
@@ -181,18 +181,13 @@ def build_review_item(record: BankTransaction, ledger_date: date | None, ledger_
             needs_merchant_or_category=True,
         )
 
-    # The ledger holds the approved date and amount, and a correction keeps the description the
-    # bank sent before it. A removal changes no field, though it keeps a correction it took the
-    # place of for later
+    # The ledger holds the approved date and amount, and the record the description they were
+    # decided with. A removal changes no field, though it keeps a correction it took the place of
+    # for later
     previous = record.previous_values or {}
     changed = [field for field in get_args(CorrectableBankField) if field in previous and record.open_kind == OpenReviewKind.CORRECTION]
     current = bank.model_copy(
-        update={
-            "date": ledger_date,
-            "amount": ledger_amount,
-            "raw_amount": None,
-            "description": previous.get("description", record.description),
-        }
+        update={"date": ledger_date, "amount": ledger_amount, "raw_amount": None, "description": approved_description(record)}
     )
     return BankReviewItemResponse(
         **item,

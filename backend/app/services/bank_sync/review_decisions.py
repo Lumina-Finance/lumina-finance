@@ -41,7 +41,7 @@ from app.schemas.transaction import CreateTransactionRequest, TransactionRespons
 from app.services.accounts.access import get_own_personal_account, own_personal_account_condition
 from app.services.bank_sync.opening_adjustment import offer_opening_adjustments
 from app.services.bank_sync.review_pause import lift_review_pauses, lock_account_links
-from app.services.bank_sync.review_state import EDITABLE_COLUMNS, align_with_bank, bank_values, edited_fields
+from app.services.bank_sync.review_state import EDITABLE_COLUMNS, align_with_bank, approved_description, bank_values, edited_fields
 from app.services.cache_state import mark_user_cache_changed
 from app.services.transactions.creation import insert_transaction
 from app.services.transactions.deletion import delete_transaction
@@ -167,9 +167,10 @@ async def accept_bank_change(db: AsyncSession, user: User, item_id: uuid.UUID) -
     balances are rebuilt from the earlier of its old and new dates. Fields the correction doesn't
     change keep the ledger's values. Each field written is aligned with the bank, so a value the user
     had edited is replaced and no longer counts as edited. The bank's description has no ledger
-    field, so accepting it only closes the correction. Values the user declined before no longer
-    stand, so the bank sending them again asks again. A correction already decided answers with
-    the transaction as it stands, so a double submission accepts it once
+    field, so accepting it only closes the correction and ends any description the user kept, so
+    the ledger follows the bank's. Values the user declined before no longer stand, so the bank
+    sending them again asks again. A correction already decided answers with the transaction as it
+    stands, so a double submission accepts it once
 
     Args:
         db: Active database session
@@ -229,7 +230,7 @@ async def write_bank_change(db: AsyncSession, user: User, record: BankTransactio
     txn = await check_transaction_access(db, record.transaction_id, user.id, PermissionLevel.WRITE, lock_for_update=True)
     bank = {EDITABLE_COLUMNS[field].ledger: getattr(record, EDITABLE_COLUMNS[field].observed) for field in changed}
     await apply_transaction_update(db, user, txn, UpdateTransactionRequest(**bank))
-    align_with_bank(record, changed)
+    align_with_bank(record, record.previous_values)
     record.open_kind = None
     record.previous_values = None
     await db.flush()
@@ -246,8 +247,10 @@ async def keep_current_value(db: AsyncSession, user: User, item_id: uuid.UUID) -
 
     The bank's values stay stored as its latest, and the changed date and amount are aligned with
     them, so the ledger's own count as edited and a trusted correction later leaves them alone. The
-    values declined are remembered, so the bank sending them again opens nothing until accepting a
-    change, a trusted correction applying one, or the bank matching the ledger aligns a field and
+    ledger has no description, so the one it was decided with is kept in its place while the bank's
+    differs, and a trusted correction leaves that alone too. The values declined are remembered, so
+    the bank sending them again opens nothing until accepting a change, a trusted correction
+    applying one, or the bank matching the ledger or the description kept aligns a field and
     replaces them. A correction already decided answers with the transaction as it stands, so a
     double submission keeps it once
 
@@ -268,7 +271,11 @@ async def keep_current_value(db: AsyncSession, user: User, item_id: uuid.UUID) -
     if record.open_kind == OpenReviewKind.REMOVAL:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_REMOVAL_WAITING_DETAIL)
     if record.open_kind == OpenReviewKind.CORRECTION:
+        kept = approved_description(record)
         align_with_bank(record, record.previous_values)
+
+        # The ledger keeps the description it was decided with, as it keeps its date and amount
+        record.kept_description = kept if kept != record.description else None
         record.declined_observation = bank_values(record)
         record.open_kind = None
         record.previous_values = None

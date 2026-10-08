@@ -2,10 +2,11 @@
 
 Accepting writes the bank's values for the changed fields to the same ledger transaction, which
 keeps its id and bank source, and rebuilds its balances from the earliest date it touches. Keeping
-leaves the ledger as it is and remembers the values declined. Either closes the correction in one
-save with the cache mark last. A decision applied twice moves money twice or overwrites the first,
-one that loses a sync's write made at the same moment decides values the bank no longer sends, and
-one reaching another user's item changes their ledger
+leaves the ledger as it is and remembers the values declined and the description kept, which the
+ledger has no column for. Either closes the correction in one save with the cache mark last. A
+decision applied twice moves money twice or overwrites the first, one that loses a sync's write made
+at the same moment decides values the bank no longer sends, one that forgets a kept description
+brings it back as a correction, and one reaching another user's item changes their ledger
 """
 
 import asyncio
@@ -192,10 +193,11 @@ async def test_keeping_the_current_value_leaves_the_ledger_and_remembers_the_val
     assert kept.json()["bank_source"] == _blue_bottle_source(edited_fields=["amount"])
     assert await _ledger_rows(correction.account_id) == [(BANK_DATE, -450)]
     stored = await _stored_item(correction.item_id)
-    assert (stored.open_kind, stored.previous_values, stored.aligned_amount, stored.declined_observation) == (
+    assert (stored.open_kind, stored.previous_values, stored.aligned_amount, stored.kept_description, stored.declined_observation) == (
         None,
         None,
         -475,
+        None,
         {"date": BANK_DATE.isoformat(), "amount": -475, "description": _BLUE_BOTTLE},
     )
     assert await _review_page(client, correction.headers) == EMPTY_REVIEW_PAGE
@@ -251,6 +253,52 @@ async def test_deciding_a_new_bank_description_closes_the_correction_and_leaves_
     assert (stored.open_kind, stored.previous_values, stored.declined_observation) == (None, None, declined)
     assert await _review_page(client, correction.headers) == EMPTY_REVIEW_PAGE
     assert await _ledger_rows(correction.account_id) == [(BANK_DATE, -450)]
+
+
+@pytest.mark.parametrize(
+    ("decision", "kept_before", "kept_after"),
+    [
+        ("accept-change", _BLUE_BOTTLE, None),
+        ("keep-current", None, "BLUE BOTTLE COFFEE"),
+        ("keep-current", _BLUE_BOTTLE, _BLUE_BOTTLE),
+    ],
+    ids=["accepted", "kept", "kept_again"],
+)
+async def test_deciding_a_new_bank_description_keeps_the_one_decided_before_or_follows_the_bank(client, decision, kept_before, kept_after):
+    """The bank's BLUE BOTTLE COFFEE is now BLUE BOTTLE CAFE, after the user kept SQ *BLUE BOTTLE over BLUE BOTTLE COFFEE or kept nothing
+
+    Accepting makes the ledger follow the bank's description, so one kept before and sent again
+    would be a change to ask about. Keeping holds on to the description decided before, so the bank
+    sending it again opens nothing: BLUE BOTTLE COFFEE, or the SQ *BLUE BOTTLE the user kept over it
+    """
+    correction = await _correction_waiting(
+        client,
+        description="BLUE BOTTLE CAFE",
+        observed_amount=-450,
+        previous_values={"description": "BLUE BOTTLE COFFEE"},
+        kept_description=kept_before,
+    )
+
+    decided = await _decide(client, correction, decision)
+
+    assert decided.status_code == 200, decided.text
+    stored = await _stored_item(correction.item_id)
+    assert (stored.open_kind, stored.kept_description) == (None, kept_after)
+
+
+async def test_accepting_a_new_amount_leaves_the_description_the_user_kept(client):
+    """The user kept SQ *BLUE BOTTLE over the bank's BLUE BOTTLE COFFEE, and accepts the bank's later change to -4.75
+
+    The correction doesn't change the description, so the ledger keeps SQ *BLUE BOTTLE and the bank
+    sending it again still opens nothing
+    """
+    correction = await _correction_waiting(client, description="BLUE BOTTLE COFFEE", kept_description=_BLUE_BOTTLE)
+
+    accepted = await _decide(client, correction, "accept-change")
+
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()["amount"] == -475
+    assert (await _stored_item(correction.item_id)).kept_description == _BLUE_BOTTLE
 
 
 async def test_accepting_waits_for_an_edit_to_the_ledger_row_and_rebuilds_balances_from_its_date(client):
