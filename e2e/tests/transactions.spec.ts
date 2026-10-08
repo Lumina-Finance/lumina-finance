@@ -64,7 +64,7 @@ async function openListWithUpcomingAndToday(page: Page, request: APIRequestConte
 
   // Today's row settles the list first, so anything read about the upcoming row is read from a loaded list
   await expectTransactionRow(page, todayId, '-$10.00')
-  return { upcomingId, upcoming: page.getByRole('button', { name: /Upcoming/ }) }
+  return { upcomingId, todayId, upcoming: page.getByRole('button', { name: /Upcoming/ }) }
 }
 
 test('keeps future-dated transactions in a collapsed Upcoming section until it is opened', async ({ page, request }) => {
@@ -108,6 +108,58 @@ test('unticks upcoming transactions when the Upcoming section closes', async ({ 
   await page.getByRole('button', { name: 'Edit the selected transactions', exact: true }).click()
   await expect(page.getByRole('dialog', { name: 'Edit 1 transaction', exact: true })).toBeVisible()
 })
+
+test('shows a hover on an upcoming row in the light theme', async ({ page, request, hasTouch }) => {
+  // Rows show a hover only to a pointer that can hover, which the touch screens in the tablet and phone projects lack
+  test.skip(hasTouch, 'A touch screen has no hover')
+  // Reduced motion opens the section at once, so the rows have stopped moving when their colours are read
+  await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' })
+  const { upcomingId, todayId, upcoming } = await openListWithUpcomingAndToday(page, request)
+  await upcoming.click()
+  await expectTransactionRow(page, upcomingId, '-$45.00')
+
+  // A hovered upcoming row stands out from the section's shading at least as much as a hovered row in the
+  // main list stands out from the page
+  const mainListChange = await hoverChange(page, page.getByTestId(`transaction-row-${todayId}`))
+  expect(mainListChange).toBeGreaterThan(0)
+  expect(await hoverChange(page, page.getByTestId(`transaction-row-${upcomingId}`))).toBeGreaterThanOrEqual(mainListChange)
+})
+
+/**
+ * Returns how far the colour drawn at the top edge of a row's background moves once the pointer is on the row,
+ * as the sum of the change in each colour channel. The point sits in the row's own padding, above its text
+ */
+async function hoverChange(page: Page, rowButton: Locator): Promise<number> {
+  // The background belongs to the row around the button, which also holds the checkbox in selection
+  const point = await rowButton.evaluate((button) => {
+    const rect = button.parentElement!.getBoundingClientRect()
+    return { x: rect.left + rect.width / 2, y: rect.top + 3 }
+  })
+  await page.mouse.move(0, 0)
+  const before = await colourAt(page, point.x, point.y)
+  await page.mouse.move(point.x, point.y)
+  // The hover fades in, so the colour is read once the row is hovered and its fade has ended
+  await expect.poll(() => rowButton.evaluate(({ parentElement: row }) => row!.matches(':hover') && row!.getAnimations().length === 0)).toBe(true)
+  const after = await colourAt(page, point.x, point.y)
+  await page.mouse.move(0, 0)
+  return after.reduce((sum, channel, index) => sum + Math.abs(channel - before[index]), 0)
+}
+
+/** Reads the colour the page draws at a point, as its red, green and blue channels */
+async function colourAt(page: Page, x: number, y: number): Promise<number[]> {
+  const shot = await page.screenshot({ clip: { x, y, width: 1, height: 1 } })
+  return page.evaluate(async (data) => {
+    const image = new Image()
+    image.src = `data:image/png;base64,${data}`
+    await image.decode()
+    const canvas = document.createElement('canvas')
+    canvas.width = 1
+    canvas.height = 1
+    const context = canvas.getContext('2d')!
+    context.drawImage(image, 0, 0)
+    return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)]
+  }, shot.toString('base64'))
+}
 
 test('keeps the open Upcoming header on screen through a long run of upcoming transactions', async ({ page, request }) => {
   const user = await signUpUser(request)
