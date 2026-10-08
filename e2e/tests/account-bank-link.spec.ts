@@ -85,6 +85,42 @@ async function chooseFirstStart(flow: Locator): Promise<void> {
   await flow.getByRole('radiogroup', { name: 'Start' }).getByRole('radio').first().click()
 }
 
+/** One frame of a dialog's entrance, with the heights on screen of the Bank link section's loading cover and of what it covers */
+type EntranceFrame = { scale: number; held: boolean; coverHeight: number; contentHeight: number }
+
+/**
+ * Records every frame from the one the Bank link section's loading cover first shows in until its
+ * dialog has finished scaling in, or until a few seconds have passed. Runs in the page, since the
+ * entrance lasts a fraction of a second
+ */
+function recordEntrance(): Promise<EntranceFrame[]> {
+  const RECORDING_LIMIT_MS = 5_000
+  return new Promise((resolve) => {
+    const frames: EntranceFrame[] = []
+    const startedAt = performance.now()
+    const record = () => {
+      const spinner = document.querySelector('[role="status"][aria-label="Loading bank link"]')
+
+      // The cover lays its spinner over what it covers, which is its first child
+      const cover = spinner?.parentElement?.parentElement
+      const dialog = spinner?.closest<HTMLElement>('[role="dialog"]')
+      if (cover && dialog) {
+        const scale = dialog.getBoundingClientRect().width / dialog.offsetWidth
+        frames.push({
+          scale,
+          held: cover.style.height !== '',
+          coverHeight: cover.getBoundingClientRect().height,
+          contentHeight: cover.firstElementChild!.getBoundingClientRect().height,
+        })
+        if (scale === 1) return resolve(frames)
+      }
+      if (performance.now() - startedAt > RECORDING_LIMIT_MS) return resolve(frames)
+      requestAnimationFrame(record)
+    }
+    requestAnimationFrame(record)
+  })
+}
+
 // A read the page sends as a test ends can still be on its way through a changed answer when the page
 // closes, which would fail a test whose checks all passed
 test.afterEach(async ({ page }) => {
@@ -350,6 +386,26 @@ test('opens at the bank link with Review settings focused while Sync now is held
   // Focus passes over Sync now, since it would open the reason over the section
   await expect(dialog.getByRole('button', { name: 'Review settings' })).toBeFocused()
   await expect(dialog.getByRole('button', { name: 'Sync now' })).toHaveAttribute('aria-disabled', 'true')
+})
+
+// The Bank link section holds its height while it loads, and the dialog opens around it scaling up from
+// a little smaller. A height read off the screen mid-entrance came out short by the dialog's scale and was
+// kept, clipping the section until the hold ended and then letting it jump. The link's read is held for
+// the whole entrance, so nothing under the cover changes size while the height held is compared with it
+test('holds the loading Bank link section at its real height while the dialog scales in', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const everyday = await createAccount(request, user, { name: 'Everyday' })
+  await page.route(`${API_BASE_URL}/accounts/${everyday.id}/bank-link`, () => {})
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${everyday.id}`)
+
+  const entrance = page.evaluate(recordEntrance)
+  await page.getByRole('button', { name: /^Bank sync: / }).click()
+  const frames = await entrance
+
+  const heldWhileScaling = frames.filter((frame) => frame.held && frame.scale < 1)
+  expect(heldWhileScaling.length, JSON.stringify(frames)).toBeGreaterThan(0)
+  for (const frame of heldWhileScaling) expect(frame.coverHeight, JSON.stringify(frame)).toBeCloseTo(frame.contentHeight, 1)
 })
 
 test('opens the link flow on the new account’s page when the new-account prompt chooses linking', async ({ page, request }) => {

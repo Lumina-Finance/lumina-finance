@@ -97,21 +97,14 @@ export default function LoadingRegion<T>({
     const element = contentRef.current
     if (!heightHeld || !element) return undefined
 
-    let frameId: number | null = null
-    const updateHeight = () => {
-      if (frameId !== null) window.cancelAnimationFrame(frameId)
-      frameId = window.requestAnimationFrame(() => {
-        frameId = null
-        setContentHeight(element.getBoundingClientRect().height)
-      })
-    }
-
-    updateHeight()
-    const observer = new ResizeObserver(updateHeight)
+    // The layout height rather than the box on screen, which a dialog still scaling in shrinks. The
+    // observer reports only layout changes, so a height read part way through that entrance would be
+    // held short of the content, clipping it, until the content next changed size. Observing also
+    // reports the height the content already has, which is the first one held
+    const observer = new ResizeObserver(([entry]) => setContentHeight(entry.borderBoxSize[0].blockSize))
     observer.observe(element)
 
     return () => {
-      if (frameId !== null) window.cancelAnimationFrame(frameId)
       observer.disconnect()
       // Dropped rather than kept, since the content is free to change size while nothing is
       // measuring it and the next load would open at a height it no longer has
