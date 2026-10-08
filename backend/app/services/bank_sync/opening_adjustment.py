@@ -24,18 +24,14 @@ from fastapi import HTTPException, status
 from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankLinkState, OpeningAdjustmentState
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
 from app.models.user import User
 from app.schemas.bank_sync import AccountBankStatusResponse
-from app.services.accounts.access import get_own_personal_account
 from app.services.accounts.balance_adjustments import add_balance_adjustment
 from app.services.bank_sync.account_link import read_account_bank_status
-from app.services.bank_sync.availability import LINK_NOT_OWN_DETAIL
 from app.services.bank_sync.balance_comparison import compare_bank_balance, opening_adjustment_date, read_balance_day
-from app.services.bank_sync.links import ACCOUNT_NOT_LINKED
-from app.services.bank_sync.review_pause import lock_account_links
+from app.services.bank_sync.links import lock_live_link
 from app.services.cache_state import mark_user_cache_changed
 
 # The note the recorded adjustment carries
@@ -114,7 +110,7 @@ async def record_opening_adjustment(db: AsyncSession, user: User, account_id: uu
             to offer, it was skipped, or the link waits for its bank account to be chosen again
         HTTPException 422: The profile's timezone no longer resolves
     """
-    account, link = await _lock_offer(db, user, account_id)
+    account, link = await lock_live_link(db, user, account_id)
     if link.opening_adjustment_state != OpeningAdjustmentState.RECORDED:
         _refuse_unless_offered(link, NOTHING_TO_RECORD)
 
@@ -149,29 +145,11 @@ async def skip_opening_adjustment(db: AsyncSession, user: User, account_id: uuid
             to offer, it was recorded, or the link waits for its bank account to be chosen again
         HTTPException 422: The profile's timezone no longer resolves
     """
-    account, link = await _lock_offer(db, user, account_id)
+    account, link = await lock_live_link(db, user, account_id)
     if link.opening_adjustment_state != OpeningAdjustmentState.SKIPPED:
         _refuse_unless_offered(link, NOTHING_TO_SKIP)
         await _answer(db, user, link, OpeningAdjustmentState.SKIPPED)
     return await read_account_bank_status(db, user, account.id)
-
-
-async def _lock_offer(db: AsyncSession, user: User, account_id: uuid.UUID) -> tuple[Account, BankAccountLink]:
-    """Lock the links of one of the user's own personal accounts, and return the account with its live link
-
-    The links are locked after their connections, as every writer takes them, so a sync or a review
-    decision writing the link finishes first, and a second answer waits for the first and finds it
-
-    Raises:
-        HTTPException 403: The account is visible but isn't the user's own personal account
-        HTTPException 404: The user can't see the account, or it isn't linked
-    """
-    account = await get_own_personal_account(db, account_id, user.id, not_own_detail=LINK_NOT_OWN_DETAIL)
-    links = await lock_account_links(db, [account.id])
-    link = next((link for link in links if link.state != BankLinkState.UNLINKED), None)
-    if link is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ACCOUNT_NOT_LINKED)
-    return account, link
 
 
 def _refuse_unless_offered(link: BankAccountLink, detail: str) -> None:

@@ -68,6 +68,7 @@ from app.services.bank_sync.jobs import enqueue_bank_sync_job
 from app.services.bank_sync.pending import replace_pending_transactions
 from app.services.bank_sync.provider_requests import read_request_budget
 from app.services.bank_sync.providers.contract import ProviderAdapter
+from app.services.bank_sync.review_pause import lock_account_links
 from app.services.cache_state.updates import mark_user_cache_changed, mark_user_status_changed
 from app.utils.dates import format_day, resolve_timezone
 
@@ -309,6 +310,24 @@ async def unlink_account(db: AsyncSession, user: User, account_id: uuid.UUID) ->
     await mark_user_cache_changed(db, user.id)
     await db.commit()
     return UnlinkResponse(unlinked_account_ids=[link.account_id])
+
+
+async def lock_live_link(db: AsyncSession, user: User, account_id: uuid.UUID) -> tuple[Account, BankAccountLink]:
+    """Lock the links of one of the user's own personal accounts, and return the account with its live link
+
+    The links are locked after their connections, as every writer takes them, so a sync or a review
+    decision writing the link finishes first, and a second answer waits for the first and finds it
+
+    Raises:
+        HTTPException 403: The account is visible but isn't the user's own personal account
+        HTTPException 404: The user can't see the account, or it isn't linked
+    """
+    account = await get_own_personal_account(db, account_id, user.id, not_own_detail=LINK_NOT_OWN_DETAIL)
+    links = await lock_account_links(db, [account.id])
+    link = next((link for link in links if link.state != BankLinkState.UNLINKED), None)
+    if link is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ACCOUNT_NOT_LINKED)
+    return account, link
 
 
 async def disconnect_connection(db: AsyncSession, user: User, connection_id: uuid.UUID) -> UnlinkResponse:
