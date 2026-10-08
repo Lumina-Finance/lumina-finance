@@ -79,7 +79,7 @@ export default function MarqueeText({
         {children}
       </span>
       <span
-        className={`app-marquee-text-track pointer-events-none absolute left-0 top-0 inline-block w-max max-w-none whitespace-nowrap opacity-0 ${trackClassName}`}
+        className={`app-marquee-text-track pointer-events-none absolute left-0 top-0 inline-block w-max max-w-none whitespace-nowrap ${trackClassName}`}
         aria-hidden
       >
         {children}
