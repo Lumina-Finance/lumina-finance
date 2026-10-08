@@ -66,8 +66,11 @@ export function useDropdownPosition({
     if (!wrapper) return
 
     const rect = wrapper.getBoundingClientRect()
+    // A dialog marks the body between its title and its buttons, which the box stays inside
+    const bounds = wrapper.closest('[data-dropdown-bounds]')?.getBoundingClientRect() ?? null
     const next = getDropdownBoxPosition({
       anchorRect: rect,
+      bounds: bounds && { bottom: bounds.bottom, top: bounds.top },
       headHeight: rect.height,
       held: heldDirection.current,
       searchable,
