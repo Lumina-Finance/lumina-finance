@@ -122,19 +122,23 @@ test('unticks upcoming transactions when the Upcoming section closes', async ({ 
   await expect(page.getByRole('dialog', { name: 'Edit 1 transaction', exact: true })).toBeVisible()
 })
 
-test('shows a hover on an upcoming row in the light theme', async ({ page, request }) => {
-  // Reduced motion opens the section at once, so the rows have stopped moving when their colours are read
-  await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' })
-  const { upcomingId, todayId, upcoming } = await openListWithUpcomingAndToday(page, request)
-  await upcoming.click()
-  await expectTransactionRow(page, upcomingId, '−$45.00')
+for (const selecting of [false, true]) {
+  const where = selecting ? 'in selection mode ' : ''
+  test(`shows a hover on an upcoming row ${where}in the light theme`, async ({ page, request }) => {
+    // Reduced motion opens the section at once, so the rows have stopped moving when their colours are read
+    await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' })
+    const { upcomingId, todayId, upcoming } = await openListWithUpcomingAndToday(page, request)
+    await upcoming.click()
+    await expectTransactionRow(page, upcomingId, `${MINUS}$45.00`)
+    if (selecting) await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
 
-  // A hovered upcoming row stands out from the section's shading at least as much as a hovered row in the
-  // main list stands out from the page
-  const mainListChange = await hoverChange(page, page.getByTestId(`transaction-row-${todayId}`))
-  expect(mainListChange).toBeGreaterThan(0)
-  expect(await hoverChange(page, page.getByTestId(`transaction-row-${upcomingId}`))).toBeGreaterThanOrEqual(mainListChange)
-})
+    // A hovered upcoming row stands out from the section's shading at least as much as a hovered row in the
+    // main list stands out from the page
+    const mainListChange = await hoverChange(page, page.getByTestId(`transaction-row-${todayId}`))
+    expect(mainListChange).toBeGreaterThan(0)
+    expect(await hoverChange(page, page.getByTestId(`transaction-row-${upcomingId}`))).toBeGreaterThanOrEqual(mainListChange)
+  })
+}
 
 /**
  * Returns how far the colour drawn at the top edge of a row's background moves once the pointer is on the row,
