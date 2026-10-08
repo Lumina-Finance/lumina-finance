@@ -19,7 +19,13 @@ async function readLastSuccess(request: APIRequestContext, user: TestUser, accou
 test('reaches Synced in a background tab without the window being focused, spending one request', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
-  const { connection } = await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
+
+  // The bank's balance matches the empty ledger, so no opening balance waits to be confirmed
+  const { connection } = await linkToSampleBankAccount(request, user, {
+    accountId: account.id,
+    bankAccountName: SAMPLE_CHEQUING,
+    balances: { balance: '0.00' },
+  })
 
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${account.id}`)

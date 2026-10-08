@@ -299,6 +299,18 @@ export async function expectTransactionRow(page: Page, id: string, amount: strin
   await expect(visibleAmount).toHaveText(amount)
 }
 
+/**
+ * The boxes of the elements given, read at one instant, so a modal still scrolling to a section
+ * moves them all alike
+ */
+export async function readBoxes(page: Page, locators: Locator[]): Promise<{ x: number; y: number; width: number; height: number }[]> {
+  const elements = await Promise.all(locators.map((locator) => locator.elementHandle()))
+  return page.evaluate((targets) => targets.map((target) => {
+    const { x, y, width, height } = target!.getBoundingClientRect()
+    return { x, y, width, height }
+  }), elements)
+}
+
 /** What WCAG AA asks of small text against what is behind it */
 export const MIN_TEXT_CONTRAST = 4.5
 

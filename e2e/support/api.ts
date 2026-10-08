@@ -159,6 +159,15 @@ export function formatToday(): string {
 }
 
 /**
+ * A date as the app writes a day with its year, such as Oct 5, 2026
+ *
+ * @param date - The date as YYYY-MM-DD
+ */
+export function formatDateLabel(date: string): string {
+  return new Intl.DateTimeFormat('en-CA', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${date}T00:00:00Z`))
+}
+
+/**
  * The date a number of days from today, in the timezone the browser and the seeded data share
  *
  * Steps whole calendar days in UTC, where no daylight saving change can skip or repeat one

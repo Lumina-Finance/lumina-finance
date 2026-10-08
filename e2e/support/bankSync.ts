@@ -419,19 +419,28 @@ export async function linkBankAccount(
  * importing from the given day, today unless told otherwise.
  *
  * @param bankAccountName - Everyday Chequing or Rewards Visa
+ * @param balances - Balances the Bridge sends for the bank account in place of the sample's, set
+ * before the link so its first import reads them, each kept exactly as given
  * @returns The scenario the connection reaches, and the connection
  */
 export async function linkToSampleBankAccount(
   request: APIRequestContext,
   user: TestUser,
-  options: { accountId: string; bankAccountName: string; startDate?: string },
+  options: {
+    accountId: string
+    bankAccountName: string
+    startDate?: string
+    balances?: { balance?: string; available_balance?: string }
+  },
 ): Promise<{ scenario: BridgeScenario; connection: SeededConnection }> {
   const scenario = await createSampleBridgeScenario(request)
   const connection = await claimSetupToken(request, user, scenario.setupToken)
+  const externalAccountId = connection.accounts.find((bankAccount) => bankAccount.name === options.bankAccountName)!.external_id
+  if (options.balances) await changeBridgeBalances(request, scenario.id, externalAccountId, options.balances)
   await linkBankAccount(request, user, {
     accountId: options.accountId,
     connectionId: connection.id,
-    externalAccountId: connection.accounts.find((bankAccount) => bankAccount.name === options.bankAccountName)!.external_id,
+    externalAccountId,
     startDate: options.startDate ?? todayInTestTimezone(),
   })
   return { scenario, connection }

@@ -15,7 +15,6 @@ import {
   addBridgeBankLogin,
   breakBridge,
   buildLinkAnswer,
-  changeBridgeBalances,
   changeBridgeBankAccountId,
   claimSetupToken,
   createBridgeSetupToken,
@@ -30,7 +29,7 @@ import {
   type BridgeScenario,
   type SeededConnection,
 } from '../support/bankSync'
-import { MINUS } from '../support/selectors'
+import { MINUS, readBoxes } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 
 // A linked account's bank sync status, as its page shows it once the worker has met each situation
@@ -40,6 +39,10 @@ import { API_BASE_URL } from '../support/target'
 // link read answered here instead. Sync details' wording is covered by the status unit tests
 const SAMPLE_BANK = 'Harbour Bank'
 const SAMPLE_CHEQUING = 'Everyday Chequing'
+
+// What a link reads as once its import is reviewed with a gap between the balances, until the
+// opening adjustment offered for it is answered
+const OPENING_BALANCE_STATUS = 'Opening balance to confirm'
 
 // The width from which a notice's action sits beside its text rather than under it
 const NOTICE_ROW_MIN_WIDTH = 640
@@ -189,8 +192,8 @@ async function linkIntoFault(
 }
 
 /**
- * Claims a connection to the sample bank login, has the Bridge send Everyday Chequing's balances as
- * given, then links the account to it, so the link's first sync reads those balances
+ * Links the account to the sample bank login's Everyday Chequing with the Bridge sending its balances
+ * as given, so the link's first sync reads those balances
  */
 async function linkWithBalances(
   request: APIRequestContext,
@@ -198,11 +201,7 @@ async function linkWithBalances(
   accountId: string,
   balances: { balance?: string; available_balance?: string },
 ): Promise<void> {
-  const scenario = await createSampleBridgeScenario(request)
-  const connection = await claimSetupToken(request, user, scenario.setupToken)
-  const chequingId = connection.accounts.find((bankAccount) => bankAccount.name === SAMPLE_CHEQUING)!.external_id
-  await changeBridgeBalances(request, scenario.id, chequingId, balances)
-  await linkBankAccount(request, user, { accountId, connectionId: connection.id, externalAccountId: chequingId, startDate: todayInTestTimezone() })
+  await linkToSampleBankAccount(request, user, { accountId, bankAccountName: SAMPLE_CHEQUING, balances })
 }
 
 // A read answered here can still be on its way to the page when a test ends, which would otherwise
@@ -214,10 +213,14 @@ test.afterEach(async ({ page }) => {
 test('reads as synced once the import finishes', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
-  await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
+
+  // The bank's balance matches the empty ledger, so there is no opening balance to confirm
+  await linkWithBalances(request, user, account.id, { balance: '0.00' })
 
   const dialog = await openBankLink(page, user, account.id, /Synced (just now|\d+ minutes? ago)\./)
   await expect(fact(dialog, 'Status')).toHaveText(/^Synced/)
+  await expect(fact(dialog, /^Difference/)).toHaveText('None')
+  await expect(dialog.getByRole('button', { name: 'Record adjustment' })).toHaveCount(0)
 
   // Nothing stops the sync, so no notice offers an action ahead of Unlink
   await expect(dialog.getByRole('button', { name: 'Open settings' })).toHaveCount(0)
@@ -232,18 +235,19 @@ test('compares the bank balance with the ledger at the end of its balance date',
   await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
 
   // SimpleFIN gives the balance as of now, so the ledger keeps yesterday's transaction and leaves out
-  // tomorrow's
-  const dialog = await openBankLink(page, user, account.id, /Synced (just now|\d+ minutes? ago)\./)
+  // tomorrow's, and so does the opening adjustment offered for the gap
+  const dialog = await openBankLink(page, user, account.id, OPENING_BALANCE_STATUS)
   await expect(fact(dialog, 'SimpleFIN')).toHaveText('$2,418.36')
   await expect(fact(dialog, 'Ledger')).toHaveText('($50.00)')
   await expect(fact(dialog, /^Difference/)).toHaveText(`${MINUS}$2,468.36`)
+  await expect(dialog.getByRole('textbox', { name: 'Adjustment amount' })).toHaveValue('2468.36')
   const caption = dialog.getByText(/^As of /)
   await expect(caption).toBeVisible()
   await expect(caption).not.toContainText('available')
 
   // Balances of a common size share a row in equal columns from the width a notice's action moves
   // beside its text, and take a row each on a phone
-  const figures = await Promise.all(['SimpleFIN', 'Ledger', /^Difference/].map(async (label) => (await fact(dialog, label).boundingBox())!))
+  const figures = await readBoxes(page, ['SimpleFIN', 'Ledger', /^Difference/].map((label) => fact(dialog, label)))
   const spread = (values: number[]) => Math.max(...values) - Math.min(...values)
   if (page.viewportSize()!.width >= NOTICE_ROW_MIN_WIDTH) {
     expect(spread(figures.map(({ y }) => y))).toBeLessThan(0.5)
@@ -289,7 +293,7 @@ test('keeps each balance whole with its sign, and the caption\'s dot with the pa
   // Twelve digits leave three balances too wide to sit side by side, so they move to another row
   // rather than splitting a figure or leaving its sign on a line of its own, and on a phone the
   // caption wraps without ending a line on the dot before the available balance
-  const dialog = await openBankLink(page, user, account.id, /Synced (just now|\d+ minutes? ago)\./)
+  const dialog = await openBankLink(page, user, account.id, OPENING_BALANCE_STATUS)
   const figures: [Locator, string][] = [
     [fact(dialog, 'SimpleFIN'), '$123,456,789,012.34'],
     [fact(dialog, 'Ledger'), '($111,111,111,111.00)'],
@@ -311,7 +315,7 @@ test('marks an available balance that can\'t be read exactly in the caption, kee
   await linkWithBalances(request, user, account.id, { available_balance: '2318.365' })
 
   // On a phone the caption wraps, and the dot goes to the next line with the part it introduces
-  const dialog = await openBankLink(page, user, account.id, /Synced (just now|\d+ minutes? ago)\./)
+  const dialog = await openBankLink(page, user, account.id, OPENING_BALANCE_STATUS)
   const caption = dialog.getByText(/^As of /)
   await expect(caption).toContainText('Available balance unavailable')
   expect((await readLines(caption)).filter((line) => line.endsWith('·'))).toEqual([])

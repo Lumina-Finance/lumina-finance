@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { asUser, createAccount, formatToday, signUpUser, todayInTestTimezone, type TestUser } from '../support/api'
+import { asUser, createAccount, formatDateLabel, formatToday, signUpUser, todayInTestTimezone, type TestUser } from '../support/api'
 import { chooseFromDropdown, fact, logInViaApi, openModal, openPage } from '../support/app'
 import {
   addBridgeBankAccount,
@@ -235,7 +235,7 @@ test('keeps the start within the range and never chooses Custom date on its own'
   // The step opens with its focus inside and nothing chosen, Custom date included
   await expect(flow.getByText('Choose where history starts')).toBeVisible()
   const custom = flow.getByRole('radio', { name: /^Custom date/ })
-  await expect(custom).toContainText(`Any day from ${new Intl.DateTimeFormat('en-CA', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${firstOfMonthsAgo(12)}T00:00:00Z`))}`)
+  await expect(custom).toContainText(`Any day from ${formatDateLabel(firstOfMonthsAgo(12))}`)
   await expect(flow.getByRole('radio', { checked: true })).toHaveCount(0)
 
   const submit = flow.getByRole('button', { name: 'Link and import' })
@@ -273,11 +273,13 @@ test('unlinks the account alone, then reconnects it with the relink wording', as
   await openPage(page, `/accounts/${everyday.id}`)
 
   // Opened once today's import is over, so Sync now is live and takes the focus, where the import
-  // would have it pass to Unlink
-  const bankSync = page.getByRole('button', { name: /^Bank sync: Synced / })
+  // would have it pass to Unlink. The opening adjustment offered for the gap from the empty ledger
+  // doesn't take it either
+  const bankSync = page.getByRole('button', { name: 'Bank sync: Opening balance to confirm. Open bank link' })
   await expect(bankSync).toBeVisible({ timeout: WORKER_RESULT_TIMEOUT_MS })
   await bankSync.click()
   const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  await expect(dialog.getByRole('button', { name: 'Record adjustment' })).toBeVisible()
   await expect(dialog.getByRole('button', { name: 'Sync now' })).toBeFocused()
 
   // A linked account has no bank account to choose, so none are listed for it
