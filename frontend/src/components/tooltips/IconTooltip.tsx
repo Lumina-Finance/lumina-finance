@@ -2,11 +2,10 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Info, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { joinClassNames } from '@/utils/classNames'
 import { FX_TONE_CLASS, type IconTooltipFxTone } from '@/components/tooltips/fxToneClass'
-import { getTooltipCoverBottom } from '@/utils/tooltipPosition'
+import { getIconTooltipOffset, getIconTooltipPlacement, getTooltipCoverBottom, type IconTooltipPlacement } from '@/utils/tooltipPosition'
 
 export type IconTooltipLevel = 'info' | 'warn' | 'important'
 
-type IconTooltipPlacement = 'top' | 'bottom'
 type IconTooltipIcon = LucideIcon | 'fx'
 
 interface IconTooltipProps {
@@ -90,86 +89,31 @@ const TOOLTIP_CLOSED_CLASS = 'pointer-events-none opacity-0 group-hover:pointer-
 const TOOLTIP_OPEN_CLASS = 'pointer-events-auto opacity-100'
 const TOOLTIP_FOCUS_OPEN_CLASS = 'peer-focus-visible:pointer-events-auto peer-focus-visible:opacity-100'
 
-function getAvailablePlacement({
-  preferredPlacement,
-  triggerRect,
-  tooltipRect,
-  boundaryRect,
-  coverBottom,
-}: {
-  preferredPlacement: IconTooltipPlacement
-  triggerRect: DOMRect
-  tooltipRect: DOMRect
-  boundaryRect?: DOMRect
-  coverBottom: number
-}): IconTooltipPlacement {
-  const viewportPadding = 8
-  const boundaryTop = Math.max(
-    viewportPadding,
-    boundaryRect ? boundaryRect.top + viewportPadding : viewportPadding,
-    coverBottom,
-  )
-  const boundaryBottom = Math.min(
-    window.innerHeight - viewportPadding,
-    boundaryRect ? boundaryRect.bottom - viewportPadding : window.innerHeight - viewportPadding,
-  )
-  const topWouldClip = triggerRect.top - tooltipRect.height < boundaryTop
-  const bottomWouldClip = triggerRect.bottom + tooltipRect.height > boundaryBottom
-
-  if (preferredPlacement === 'top') {
-    return topWouldClip && !bottomWouldClip ? 'bottom' : 'top'
-  }
-
-  return bottomWouldClip && !topWouldClip ? 'top' : 'bottom'
-}
-
-function getHorizontalOffset({
-  triggerRect,
-  tooltipRect,
-  boundaryRect,
-}: {
-  triggerRect: DOMRect
-  tooltipRect: DOMRect
-  boundaryRect?: DOMRect
-}): number {
-  const viewportPadding = 8
-  const pageContentRect = document.getElementById('app-page-content')?.getBoundingClientRect()
-  const boundaryLeft = Math.max(
-    viewportPadding,
-    pageContentRect ? pageContentRect.left + viewportPadding : viewportPadding,
-    boundaryRect ? boundaryRect.left + viewportPadding : viewportPadding,
-  )
-  const boundaryRight = Math.min(
-    window.innerWidth - viewportPadding,
-    pageContentRect ? pageContentRect.right - viewportPadding : window.innerWidth - viewportPadding,
-    boundaryRect ? boundaryRect.right - viewportPadding : window.innerWidth - viewportPadding,
-  )
-  const triggerCenter = triggerRect.left + triggerRect.width / 2
-  const tooltipLeft = triggerCenter - tooltipRect.width / 2
-  const tooltipRight = triggerCenter + tooltipRect.width / 2
-
-  if (tooltipLeft < boundaryLeft) return boundaryLeft - tooltipLeft
-  if (tooltipRight > boundaryRight) return boundaryRight - tooltipRight
-  return 0
-}
-
 type TooltipPosition = { left: number; top: number }
 
-/** Picks the side of the trigger the panel opens on, the preferred one unless only the other has room */
+// The side of the trigger the panel opens on, and how far it moves up or down from the trigger's edge on
+// that side to clear what the trigger explains
+type TooltipSide = ReturnType<typeof getIconTooltipPlacement>
+
+/**
+ * Picks the side of the trigger the panel opens on, the preferred one unless only the other has room, or
+ * beyond the whole of what the trigger explains when it sits inside an element marked `data-tooltip-subject`
+ */
 function getTooltipSide(
   trigger: HTMLElement,
   tooltip: HTMLElement,
   preferredPlacement: IconTooltipPlacement,
   sideBoundary: IconTooltipSideBoundary,
-): IconTooltipPlacement {
+): TooltipSide {
   const triggerRect = trigger.getBoundingClientRect()
-  const boundaryRect = sideBoundary === 'bounds' ? trigger.closest('[data-tooltip-bounds]')?.getBoundingClientRect() : undefined
-  return getAvailablePlacement({
-    preferredPlacement,
-    triggerRect,
-    tooltipRect: tooltip.getBoundingClientRect(),
-    boundaryRect,
+  return getIconTooltipPlacement({
+    preferred: preferredPlacement,
+    icon: triggerRect,
+    tooltipHeight: tooltip.getBoundingClientRect().height,
+    subject: trigger.closest('[data-tooltip-subject]')?.getBoundingClientRect(),
+    surface: sideBoundary === 'bounds' ? trigger.closest('[data-tooltip-bounds]')?.getBoundingClientRect() : undefined,
     coverBottom: getTooltipCoverBottom(trigger, triggerRect),
+    screenHeight: window.innerHeight,
   })
 }
 
@@ -180,13 +124,17 @@ function getTooltipSide(
  * it measures from, as a frosted toolbar's backdrop filter does. The panel's current place on screen,
  * against the coordinates it was given, shows where that box starts, so the result is written in its terms
  */
-function getTooltipPosition(trigger: HTMLElement, tooltip: HTMLElement, placement: IconTooltipPlacement): TooltipPosition {
+function getTooltipPosition(trigger: HTMLElement, tooltip: HTMLElement, side: TooltipSide): TooltipPosition {
   const triggerRect = trigger.getBoundingClientRect()
   const tooltipRect = tooltip.getBoundingClientRect()
-  const boundaryRect = trigger.closest('[data-tooltip-bounds]')?.getBoundingClientRect()
-  const left = triggerRect.left + triggerRect.width / 2 - tooltipRect.width / 2
-    + getHorizontalOffset({ triggerRect, tooltipRect, boundaryRect })
-  const top = placement === 'top' ? triggerRect.top - tooltipRect.height : triggerRect.bottom
+  const left = triggerRect.left + triggerRect.width / 2 - tooltipRect.width / 2 + getIconTooltipOffset({
+    icon: triggerRect,
+    tooltipWidth: tooltipRect.width,
+    surface: trigger.closest('[data-tooltip-bounds]')?.getBoundingClientRect(),
+    page: document.getElementById('app-page-content')?.getBoundingClientRect(),
+    screenWidth: window.innerWidth,
+  })
+  const top = side.placement === 'top' ? triggerRect.top + side.shift - tooltipRect.height : triggerRect.bottom + side.shift
   const originLeft = tooltipRect.left - (parseFloat(tooltip.style.left) || 0)
   const originTop = tooltipRect.top - (parseFloat(tooltip.style.top) || 0)
   return { left: left - originLeft, top: top - originTop }
@@ -200,7 +148,10 @@ function getTooltipPosition(trigger: HTMLElement, tooltip: HTMLElement, placemen
  * `data-tooltip-cover`, and shifts sideways to stay within them. While it shows it keeps that side, and
  * it is placed again with the trigger on any scroll or resize, and whenever the trigger moves on its
  * own, as it does during a dialog's entrance. It hides while its trigger is scrolled out of view, and it
- * closes on any pointer down outside the trigger
+ * closes on any pointer down outside the trigger. A trigger inside an element marked with
+ * `data-tooltip-subject`, such as a fact whose value sits under its label, opens the panel above or
+ * below that whole element, so the panel never covers what it explains, and picks its side again as
+ * anything around it scrolls while it shows
  *
  * The panel is as wide as its content up to 13rem, so a short note sits in a small panel rather than
  * one with a ragged gap beside it. A caller passing its own width takes that width instead. A note
@@ -239,13 +190,19 @@ export default function IconTooltip({
   const tooltipRef = useRef<HTMLSpanElement>(null)
 
   // The side is picked once as the panel shows and kept until it hides, so a panel that opened above its
-  // trigger never swaps over what the trigger labels as the page moves
-  const sideRef = useRef<IconTooltipPlacement | null>(null)
+  // trigger never swaps over what the trigger labels as the page moves. A panel beside what it explains
+  // covers it on neither side, so it picks again each time, and one that showed above a fact goes below
+  // it once scrolling leaves no room above
+  const sideRef = useRef<TooltipSide | null>(null)
   const isPlaced = isShown || isHovered
   const updatePlacement = useCallback(() => {
-    if (!triggerRef.current || !tooltipRef.current) return
-    sideRef.current ??= getTooltipSide(triggerRef.current, tooltipRef.current, placement, sideBoundary)
-    setPosition(getTooltipPosition(triggerRef.current, tooltipRef.current, sideRef.current))
+    const trigger = triggerRef.current
+    const tooltip = tooltipRef.current
+    if (!trigger || !tooltip) return
+    if (!sideRef.current || trigger.closest('[data-tooltip-subject]')) {
+      sideRef.current = getTooltipSide(trigger, tooltip, placement, sideBoundary)
+    }
+    setPosition(getTooltipPosition(trigger, tooltip, sideRef.current))
   }, [placement, sideBoundary])
 
   // A fixed panel stays where it was put while the page under it moves, so it follows the trigger for as

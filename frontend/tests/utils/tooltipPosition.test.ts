@@ -1,11 +1,77 @@
 /**
- * Covers the bars a tooltip opening upwards keeps clear of
+ * Covers where an icon's tooltip opens and the bars it keeps clear of
  *
  * These tests catch the page's stuck bars pushing a tooltip in a dialog below its icon, when the
- * dialog is drawn over those bars
+ * dialog is drawn over those bars, and an icon's tooltip in a dialog's narrow column pushed out of the
+ * column, where it is cut off, to clear the sidebar's edge behind the dialog, or one in a card kept
+ * clear of the sidebar alone and left reaching past the card's left side. Last, they catch an icon's
+ * tooltip covering the value of the fact it explains when it has no room on its preferred side, and one
+ * beside no fact leaving the side it prefers when the other has no room either
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getTooltipCoverBottom } from '@/utils/tooltipPosition'
+import { getIconTooltipOffset, getIconTooltipPlacement, getTooltipCoverBottom } from '@/utils/tooltipPosition'
+
+describe('the sideways shift of an icon’s tooltip', () => {
+  // A 1280px screen with the sidebar expanded, and a tooltip as wide as a long note makes it
+  const sidebarEdge = { page: { left: 260, right: 1280 }, screenWidth: 1280 }
+  const tooltipWidth = 224
+
+  it('keeps clear of the sidebar where the surface around the icon leaves room', () => {
+    // An icon near the left of a dialog's wide body, which lies across the sidebar's edge behind it
+    const offset = getIconTooltipOffset({ icon: { left: 294, width: 12 }, tooltipWidth, surface: { left: 189, right: 861 }, ...sidebarEdge })
+
+    // Centred it would start at 188, so it starts at the sidebar's edge and the margin instead
+    expect(offset).toBe(80)
+  })
+
+  it('stays inside a narrow column lying across the sidebar’s edge rather than clearing that edge', () => {
+    const offset = getIconTooltipOffset({ icon: { left: 310, width: 12 }, tooltipWidth, surface: { left: 160, right: 448 }, ...sidebarEdge })
+
+    // Centred it would start at 204, and held right of the sidebar's edge at 268 it would end at 492,
+    // past the column's 440. It goes only as far right as the column leaves room for
+    expect(offset).toBe(12)
+  })
+
+  it('keeps clear of the sidebar with no surface around the icon', () => {
+    // An icon just past the sidebar's edge, where centred it would start at 164
+    expect(getIconTooltipOffset({ icon: { left: 270, width: 12 }, tooltipWidth, ...sidebarEdge })).toBe(104)
+  })
+
+  it('stays inside a card that starts right of the sidebar’s edge', () => {
+    // An icon near the left of a card in the page, where centred it would start at 304, clear of the
+    // sidebar's edge but left of the card's 408
+    const offset = getIconTooltipOffset({ icon: { left: 410, width: 12 }, tooltipWidth, surface: { left: 400, right: 800 }, ...sidebarEdge })
+
+    expect(offset).toBe(104)
+  })
+})
+
+describe('the side an icon’s tooltip opens on', () => {
+  // A fact whose label carries the icon and whose value sits under it, in a surface 600px tall on an
+  // 800px screen, with a tooltip 190px tall that prefers to open above
+  const screen = { preferred: 'top', tooltipHeight: 190, coverBottom: 0, screenHeight: 800 } as const
+  const surface = { top: 0, bottom: 600 }
+  const factAt = (top: number) => ({ icon: { top: top + 2, bottom: top + 14 }, subject: { top, bottom: top + 38 } })
+
+  it('keeps to the preferred side, above the whole fact, where it fits', () => {
+    expect(getIconTooltipPlacement({ ...screen, ...factAt(300), surface })).toEqual({ placement: 'top', shift: -2 })
+  })
+
+  it('opens below the whole fact, clear of its value, where there is no room above', () => {
+    expect(getIconTooltipPlacement({ ...screen, ...factAt(100), surface })).toEqual({ placement: 'bottom', shift: 24 })
+  })
+
+  it('opens below the whole fact even where the surface leaves no room below either', () => {
+    expect(getIconTooltipPlacement({ ...screen, ...factAt(100), surface: { top: 0, bottom: 300 } }))
+      .toEqual({ placement: 'bottom', shift: 24 })
+  })
+
+  it('keeps to the preferred side, from the icon, without a fact around it where neither side fits', () => {
+    const { icon } = factAt(100)
+
+    expect(getIconTooltipPlacement({ ...screen, icon, surface: { top: 0, bottom: 300 } })).toEqual({ placement: 'top', shift: 0 })
+  })
+})
 
 // A list toolbar stuck across the top of a phone screen, and an info icon a little way under it
 const STUCK_TOOLBAR = { left: 0, right: 390, top: 0, bottom: 120 }

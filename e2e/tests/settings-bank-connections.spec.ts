@@ -17,6 +17,7 @@ import {
   revokeBridgeAccess,
   waitForConnection,
 } from '../support/bankSync'
+import { readBoxes } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 
 // The section lists the user's bank connections and looks after each one in its own modal. Connections
@@ -66,6 +67,24 @@ function fact(dialog: Locator, label: string): Locator {
 
 function toast(page: Page, text: string): Locator {
   return page.getByRole('status').filter({ hasText: text })
+}
+
+/**
+ * Where an open note stands, read at one instant: wholly inside the box that cuts off whatever leaves
+ * it, and clear of the value it explains
+ */
+async function placeOfNote(note: Locator, clip: Locator, value: Locator): Promise<{ inFull: boolean; clearOfValue: boolean }> {
+  const [box, bounds, explained] = await readBoxes(note.page(), [note, clip, value])
+  return {
+    inFull: box.x >= bounds.x
+      && box.y >= bounds.y
+      && box.x + box.width <= bounds.x + bounds.width
+      && box.y + box.height <= bounds.y + bounds.height,
+    clearOfValue: box.y + box.height <= explained.y
+      || box.y >= explained.y + explained.height
+      || box.x + box.width <= explained.x
+      || box.x >= explained.x + explained.width,
+  }
 }
 
 /**
@@ -476,6 +495,95 @@ test("lists the connection's facts one to a row beside its institutions from 105
   await expect.poll(layout).toBe('one to a row')
   await page.setViewportSize({ width: 1049, height: page.viewportSize()!.height })
   await expect.poll(layout).toBe('two to a row')
+})
+
+test("opens every note beside a connection's facts in full and clear of the fact's value, stacked or in the column", async ({ page, request }) => {
+  test.skip(test.info().project.name !== 'desktop', 'It sets its own window sizes')
+  const user = await signUpUser(request)
+  const [household, scenario] = await Promise.all([
+    createAccount(request, user, { name: 'Household' }),
+    createEmptyBridgeScenario(request),
+  ])
+  const login = await addBridgeBankLogin(request, scenario.id, SAMPLE_BANK)
+  await addBridgeBankAccount(request, scenario.id, { connId: login, name: SAMPLE_CHEQUING, currency: 'CAD' })
+  const connection = await claimSetupToken(request, user, scenario.setupToken)
+
+  // A bank login waiting on a sign-in gives the status a note too, beside the two facts that always have one
+  await requireBridgeBankSignIn(request, scenario.id, login)
+  await linkBankAccount(request, user, {
+    accountId: household.id,
+    connectionId: connection.id,
+    externalAccountId: connection.accounts[0].external_id,
+    startDate: todayInTestTimezone(),
+  })
+  await waitForConnection(request, user, connection.id, (current) => current.accounts.some((bankAccount) => bankAccount.signin_needed))
+  const notes = [
+    { icon: 'Status details', label: 'Status', text: new RegExp(`^Sign in to ${SAMPLE_BANK} again`) },
+    { icon: 'About institutions linked', label: 'Institutions linked', text: /^Counts each institution/ },
+    { icon: 'About requests, 24 hours', label: 'Requests, 24 hours', text: /^Lumina Finance makes up to/ },
+  ]
+
+  // From 1050px the facts are a column beside the institutions, which scrolls and so cuts off whatever
+  // leaves it. The sidebar's edge behind the dialog lies inside the column at both widths, but a note
+  // held right of it would still fit the column at 1440px and doesn't at 1050px. Below 1050px the facts
+  // are stacked above the institutions, two to a row, and the dialog is what cuts a note off
+  const sizes = [
+    { width: 1050, height: 800, clippedBy: 'column' },
+    { width: 1440, height: 900, clippedBy: 'column' },
+    { width: 768, height: 1024, clippedBy: 'dialog' },
+  ] as const
+  await page.setViewportSize(sizes[0])
+  const section = await openBankConnections(page, user)
+  const dialog = await openConnection(page, section, 'SimpleFIN')
+
+  // The dialog grows into place as it opens. A click retried on an icon still moving scrolls the column
+  // sideways, the column slides back as the note is placed, and the press ends beside the icon
+  await expect(dialog).toHaveCSS('transform', 'none')
+  for (const { clippedBy, ...size } of sizes) {
+    await page.setViewportSize(size)
+    const clip = clippedBy === 'column' ? dialog.getByRole('complementary') : dialog
+    for (const { icon, label, text } of notes) {
+      const trigger = dialog.getByRole('button', { name: icon })
+      await trigger.click()
+      // The note is placed in the same update that opens it
+      await expect(trigger).toHaveAttribute('aria-expanded', 'true')
+      const note = dialog.locator('.app-tooltip-panel').filter({ hasText: text })
+      await expect.poll(() => placeOfNote(note, clip, fact(dialog, label)), {
+        message: `${icon} at ${size.width}x${size.height}`,
+      }).toEqual({ inFull: true, clearOfValue: true })
+
+      // Closed again with the pointer off it, so it never covers the next icon
+      await trigger.click()
+      await page.mouse.move(0, 0)
+    }
+  }
+})
+
+test("opens a fact's note below its value where the dialog leaves no room above the fact", async ({ page, request }) => {
+  test.skip(test.info().project.name !== 'desktop', 'It sets its own window size')
+  const user = await signUpUser(request)
+  const scenario = await createSampleBridgeScenario(request)
+  await claimSetupToken(request, user, scenario.setupToken)
+
+  // A phone on its side, where the facts are stacked above the institutions and the dialog scrolls
+  await page.setViewportSize({ width: 844, height: 390 })
+  const section = await openBankConnections(page, user)
+  const dialog = await openConnection(page, section, 'SimpleFIN')
+  await expect(dialog).toHaveCSS('transform', 'none')
+
+  // Scrolled until the fact is at the top of the dialog, or as near as the dialog goes
+  const value = fact(dialog, 'Institutions linked')
+  await value.evaluate((element) => element.parentElement!.scrollIntoView({ block: 'start', behavior: 'instant' }))
+  const trigger = dialog.getByRole('button', { name: 'About institutions linked' })
+  await trigger.click()
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true')
+
+  const note = dialog.locator('.app-tooltip-panel').filter({ hasText: /^Counts each institution/ })
+  await expect.poll(() => placeOfNote(note, dialog, value)).toEqual({ inFull: true, clearOfValue: true })
+
+  // Below the value, since above the fact it would run off the dialog's top
+  const [opened, explained] = await readBoxes(page, [note, value])
+  expect(opened.y).toBeGreaterThanOrEqual(explained.y + explained.height)
 })
 
 test('cuts a long institution name short before its count, keeping the whole name', async ({ page, request }) => {

@@ -149,6 +149,41 @@ async function isCovering(cover: Locator, covered: Locator): Promise<boolean> {
 }
 
 /**
+ * Whether a note covers any part of the bank's balance, the ledger's or the difference, label or figure
+ */
+async function coversAnyBalance(dialog: Locator, note: Locator): Promise<boolean> {
+  for (const label of ['SimpleFIN', 'Ledger', /^Difference/]) {
+    if (await isCovering(note, fact(dialog, label).locator('..'))) return true
+  }
+  return false
+}
+
+/**
+ * Links a new account with an empty ledger to the sample chequing account, so the balances differ,
+ * and opens its Bank link in a window of the given size. It returns once the modal has focused the
+ * section's first action and jumped down to the section, either of which undoes a scroll made earlier
+ */
+async function openBalancesThatDiffer(page: Page, request: APIRequestContext, size: { width: number; height: number }): Promise<Locator> {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
+
+  // The jump is instant without motion, so it has ended once it has started
+  await page.setViewportSize(size)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const dialog = await openBankLink(page, user, account.id, OPENING_BALANCE_STATUS)
+  const difference = fact(dialog, /^Difference/)
+  await expect(difference).toHaveText(`${MINUS}$2,418.36`)
+  await expect(dialog.getByRole('button', { name: 'Sync now' })).toBeFocused()
+  await expect.poll(() => difference.evaluate((element) => {
+    let body = element.parentElement!
+    while (getComputedStyle(body).overflowY !== 'auto') body = body.parentElement!
+    return body.scrollTop
+  })).toBeGreaterThan(0)
+  return dialog
+}
+
+/**
  * Opens the account's page and, once the identity card's Bank sync fact reads as expected, its edit
  * modal at the Bank link section through that fact
  *
@@ -258,7 +293,8 @@ test('compares the bank balance with the ledger at the end of its balance date',
   }
 
   // The reason for the gap opens as the keyboard reaches its button, as it does on hover, clear of the
-  // balance it explains, and shows whole, reaching past the panel where it needs the room
+  // balances it explains, labels included, even where each takes a row, and shows whole, reaching past
+  // the panel where it needs the room
   const why = dialog.getByRole('button', { name: 'Why the balances differ' })
   await why.focus()
   await page.keyboard.press('Shift+Tab')
@@ -266,7 +302,7 @@ test('compares the bank balance with the ledger at the end of its balance date',
   await expect(why).toBeFocused()
   const reason = dialog.locator('.app-tooltip-panel').filter({ hasText: 'Most gaps come from' })
   await expect(reason.locator('..')).toHaveCSS('opacity', '1')
-  expect(await isCovering(reason, fact(dialog, /^Difference/))).toBe(false)
+  await expect.poll(() => coversAnyBalance(dialog, reason)).toBe(false)
   await expect.poll(() => readClippingBoxes(reason)).toEqual([])
 })
 
@@ -282,6 +318,45 @@ test('shows a bank balance that can\'t be read exactly as unavailable, its reaso
   const reason = dialog.locator('.app-tooltip-panel').filter({ hasText: 'can\'t be read exactly' })
   await expect(reason.locator('..')).toHaveCSS('opacity', '1')
   expect(await isCovering(reason, bankBalance)).toBe(false)
+})
+
+test('opens the reason for a gap below the difference where the dialog leaves no room above it', async ({ page, request }) => {
+  test.skip(test.info().project.name !== 'desktop', 'It sets its own window size')
+
+  // A short window, where each balance's value sits under its label and the dialog's body scrolls
+  const dialog = await openBalancesThatDiffer(page, request, { width: 1280, height: 480 })
+  const difference = fact(dialog, /^Difference/)
+
+  // Scrolled until the difference is at the top of the dialog's body
+  await difference.evaluate((element) => element.parentElement!.scrollIntoView({ block: 'start', behavior: 'instant' }))
+  await dialog.getByRole('button', { name: 'Why the balances differ' }).click()
+  const reason = dialog.locator('.app-tooltip-panel').filter({ hasText: 'Most gaps come from' })
+  await expect(reason.locator('..')).toHaveCSS('opacity', '1')
+  expect(await isCovering(reason, difference)).toBe(false)
+  await expect.poll(() => readClippingBoxes(reason)).toEqual([])
+
+  // Below the value, since above the balance it would run off the top of the dialog's body
+  const [opened, explained] = await readBoxes(page, [reason, difference])
+  expect(opened.y).toBeGreaterThanOrEqual(explained.y + explained.height)
+})
+
+test('moves the reason for a gap below the balances as the dialog body scrolls them to its top', async ({ page, request }) => {
+  test.skip(test.info().project.name !== 'desktop', 'It sets its own window size')
+
+  // A small phone, where each balance takes a row. The reason opens above the three while they have
+  // room above them
+  const dialog = await openBalancesThatDiffer(page, request, { width: 390, height: 667 })
+  await dialog.getByRole('button', { name: 'Why the balances differ' }).click()
+  const reason = dialog.locator('.app-tooltip-panel').filter({ hasText: 'Most gaps come from' })
+  await expect(reason.locator('..')).toHaveCSS('opacity', '1')
+  const [opened, bankBalance] = await readBoxes(page, [reason, fact(dialog, 'SimpleFIN').locator('..')])
+  expect(opened.y + opened.height).toBeLessThanOrEqual(bankBalance.y)
+
+  // Scrolled with the reason open until the difference is at the top of the dialog's body, which leaves
+  // the reason no room above the balances
+  await fact(dialog, /^Difference/).evaluate((element) => element.parentElement!.scrollIntoView({ block: 'start', behavior: 'instant' }))
+  await expect.poll(() => readClippingBoxes(reason)).toEqual([])
+  expect(await coversAnyBalance(dialog, reason)).toBe(false)
 })
 
 test('keeps each balance whole with its sign, and the caption\'s dot with the part it introduces', async ({ page, request }) => {
@@ -339,9 +414,18 @@ test('reads as retrying at the time of the retry when the Bridge fails', async (
   await expect.poll(() => readClippingBoxes(details)).toEqual([])
   expect(await readClippingBoxes(dialog.getByRole('button', { name: 'Unlink', exact: true }), FOCUS_RING_PX)).toEqual([])
 
-  // With the status scrolled to the foot of the modal, where they'd fall out of sight, they open above it
-  await showDetails.click()
+  // Scrolling the status to the foot of the modal leaves them where they opened beside it, since they
+  // explain nothing marked around them. Opened again there, where they'd fall out of sight, they open
+  // above it. Two frames let any placing on the scroll land first
+  const offsetFromIcon = async () => {
+    const [opened, icon] = await readBoxes(page, [details, showDetails])
+    return opened.y - icon.y
+  }
+  const openedAt = await offsetFromIcon()
   await fact(dialog, 'Status').evaluate((status) => status.scrollIntoView({ block: 'end' }))
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+  expect(await offsetFromIcon()).toBeCloseTo(openedAt, 0)
+  await showDetails.click()
   await showDetails.click()
   await expect.poll(() => readClippingBoxes(details)).toEqual([])
 })

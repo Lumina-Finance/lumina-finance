@@ -68,8 +68,10 @@ type BalancePanelProps = {
  * in the account's currency shows as unavailable, with nothing to compare, and an available balance
  * that can't is marked unavailable in the caption rather than left out. On phones each balance takes
  * a row, label on the left and amount on the right. On wider screens the balances share a row in
- * equal columns, and those too long to fit side by side move to another row. A footer, such as the
- * opening adjustment offer, sits under the caption with no box or heading of its own
+ * equal columns, and those too long to fit side by side move to another row. An explanation beside a
+ * balance is about the comparison, so it opens above all the balances, or below them where there is
+ * no room above, and covers none of them. A footer, such as the opening adjustment offer, sits under
+ * the caption with no box or heading of its own
  */
 export function BalancePanel({ balance, currency, providerName, footer }: BalancePanelProps) {
   const { formatCurrency, formatMovedAmount } = useMoneyFormatters()
@@ -79,7 +81,7 @@ export function BalancePanel({ balance, currency, providerName, footer }: Balanc
 
   return (
     <div className="rounded-xl p-4" style={{ background: 'var(--app-surface-soft)' }}>
-      <dl className="flex flex-col gap-y-2 sm:flex-row sm:flex-wrap sm:gap-x-5 sm:gap-y-3">
+      <dl className="flex flex-col gap-y-2 sm:flex-row sm:flex-wrap sm:gap-x-5 sm:gap-y-3" data-tooltip-subject>
         {amount === null
           ? (
               <BalanceFact

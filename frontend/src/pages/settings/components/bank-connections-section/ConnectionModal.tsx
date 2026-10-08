@@ -29,12 +29,16 @@ import { DATE_FORMATS, formatDate } from '@/utils/date'
 /**
  * One fact about the connection, labelled like the facts in an account's Bank link section, with an
  * optional explanation beside its label
+ *
+ * The explanation beside the label opens above the fact, and a note beside the value, such as the
+ * status's, opens below it. Each goes to the other side of the whole fact where its own has no room,
+ * so neither covers the value
  */
 function ConnectionFact({ label, hint, wide = false, children }: { label: string; hint?: ReactNode; wide?: boolean; children: ReactNode }) {
   return (
-    <div className={`min-w-0 ${wide ? 'sm:max-[1050px]:col-span-2' : ''}`}>
+    <div className={`min-w-0 ${wide ? 'sm:max-[1050px]:col-span-2' : ''}`} data-tooltip-subject>
       <dt className="flex items-center gap-1 text-xs font-medium uppercase" style={{ color: 'var(--app-text-muted)' }}>
-        <LabelWithHint label={label} hint={hint} />
+        <LabelWithHint label={label} hint={hint} hintPlacement="top" />
       </dt>
       <dd className="mt-0.5 min-w-0 text-sm font-medium" style={{ color: 'var(--app-text)' }}>{children}</dd>
     </div>
