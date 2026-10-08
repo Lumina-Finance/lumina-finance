@@ -216,8 +216,7 @@ export default function CalendarPopover({ open, anchorRef, value, onSelect, onCl
 
         event.preventDefault()
         const active = document.activeElement instanceof HTMLElement ? document.activeElement : null
-        const tabStops = getFocusableElements(grid).filter((element) => element.tabIndex >= 0)
-        getNextTabStop(tabStops, active, event.shiftKey)?.focus()
+        getNextTabStop(getFocusableElements(grid), active, event.shiftKey)?.focus()
         break
       }
       case 'ArrowLeft':
