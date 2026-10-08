@@ -418,6 +418,18 @@ async def _review_page(client, headers, **params) -> dict:
     return page.json()
 
 
+async def _save_review_preferences(client, headers, account_id, choices: dict) -> httpx.Response:
+    """Save the account's three review choices through the route, returning its answer"""
+    return await client.put(f"/accounts/{account_id}/review-preferences", json=choices, headers=headers)
+
+
+async def _read_review_preferences(client, headers, account_id) -> dict:
+    """Return the account's review choices, read through the route"""
+    response = await client.get(f"/accounts/{account_id}/review-preferences", headers=headers)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
 async def _stored_item(item_id: uuid.UUID) -> BankTransaction:
     """Return a review item's bank transaction as stored, read as the table owner"""
     async with TestSession() as session:

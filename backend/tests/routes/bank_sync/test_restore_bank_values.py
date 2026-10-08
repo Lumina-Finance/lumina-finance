@@ -15,14 +15,12 @@ from datetime import UTC, date, datetime
 import pytest
 from sqlalchemy import func, select, update
 
-from app.models.account_review_preference import ReviewDecision
 from app.models.bank_connection import BankAccountLink
 from app.models.bank_transaction import BankTransactionDisposition, OpenReviewKind
 from app.models.transaction import Transaction
 from app.services.bank_sync import review_decisions
 from app.services.bank_sync.ingestion import store_booked_records
 from app.services.bank_sync.providers.contract import ProviderRecord
-from app.services.bank_sync.review_preferences import update_review_preferences
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     BANK_DATE,
@@ -37,6 +35,7 @@ from tests.routes.support.bank_sync_helpers import (
     _ledger_rows,
     _owner_session,
     _review_page,
+    _save_review_preferences,
     _stored_item,
 )
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
@@ -111,11 +110,11 @@ def _bank_sends(amount: int) -> ProviderRecord:
     )
 
 
-async def _trust_corrections(imported: _Imported) -> None:
-    """Commit Everyday's choice to apply bank corrections without review, as its owner"""
-    async with _owner_session(imported.ledger.user_id) as session:
-        await update_review_preferences(session, imported.ledger.user_id, uuid.UUID(imported.account_id), corrections=ReviewDecision.TRUST)
-        await session.commit()
+async def _trust_corrections(client, imported: _Imported) -> None:
+    """Save Everyday's choice to apply bank corrections without review, through the route"""
+    choices = {"new_transactions": "review", "corrections": "trust", "removals": "review"}
+    saved = await _save_review_preferences(client, imported.headers, imported.account_id, choices)
+    assert saved.status_code == 200, saved.text
 
 
 async def test_restoring_the_amount_writes_the_banks_amount_and_its_sign_to_the_same_transaction(client):
@@ -167,7 +166,7 @@ async def test_a_restored_amount_takes_the_banks_latest_and_follows_trusted_corr
     """
     imported = await _bank_imported(client, observed_amount=-4510)
     await _commit_link(imported.ledger, imported.account_id)
-    await _trust_corrections(imported)
+    await _trust_corrections(client, imported)
 
     restored = await _restore(client, imported, "amount")
     async with _owner_session(imported.ledger.user_id) as syncing:
@@ -332,7 +331,7 @@ async def test_a_restore_waiting_on_a_sync_restores_the_value_the_sync_stored(cl
     """
     imported = await _bank_imported(client)
     await _commit_link(imported.ledger, imported.account_id)
-    await _trust_corrections(imported)
+    await _trust_corrections(client, imported)
 
     async with asyncio.timeout(10), _owner_session(imported.ledger.user_id) as syncing:
         link = await syncing.scalar(
