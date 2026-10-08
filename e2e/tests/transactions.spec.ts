@@ -343,3 +343,24 @@ test('preserves transaction action names through save and delete confirmation', 
   await expect(dialog).toBeHidden()
   await expect(page.getByTestId(`transaction-row-${id}`)).toBeHidden()
 })
+
+test('leaves the date in Add Transaction with one Tab, past its calendar icon', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+  const date = dialog.getByRole('group', { name: 'Date', exact: true })
+  const day = date.getByRole('textbox', { name: 'Day', exact: true })
+
+  await day.click()
+  await day.press('Control+a')
+  await page.keyboard.type('5')
+  await page.keyboard.press('Tab')
+  // The calendar icon is out of the Tab order, so one press leaves the field, and leaving it tidies the day
+  await expect(dialog.getByRole('button', { name: 'Open calendar', exact: true })).not.toBeFocused()
+  await expect.poll(() => date.evaluate((group) => group.contains(document.activeElement))).toBe(false)
+  await expect(day).toHaveValue('05')
+
+  await page.keyboard.press('Shift+Tab')
+  await expect(day).toBeFocused()
+})

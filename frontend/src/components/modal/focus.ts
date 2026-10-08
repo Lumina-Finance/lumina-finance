@@ -31,10 +31,13 @@ export function getModalFieldTabStops(container: HTMLElement) {
 
 /**
  * Returns every control inside the container that Tab can reach, in the order Tab reaches them
+ *
+ * A control taken out of the Tab order, such as a date field's calendar icon, is left out as the browser
+ * leaves it out, since a dialog that stopped on it would hold focus inside the field it belongs to
  */
 export function getFocusableElements(container: HTMLElement) {
   return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
-    .filter(isVisibleElement)
+    .filter((element) => element.tabIndex >= 0 && isVisibleElement(element))
 }
 
 /**
