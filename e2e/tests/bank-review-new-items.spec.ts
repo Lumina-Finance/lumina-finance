@@ -488,6 +488,39 @@ for (const colorScheme of ['light', 'dark'] as const) {
   })
 }
 
+// Below 1050 the form sits further from the right edge than the left, and the footer once padded both
+// sides alike, so Keep window open started further in than the title and the form's numbered sections,
+// and Add to ledger stopped short of where the fields end. The footer stacks its items below 640 and sets
+// them in a row from there, so each layout is checked once
+for (const width of [390, 1049]) {
+  test(`lines the footer up with the form above it at ${width}px`, async ({ page, request }) => {
+    const { everyday } = await start(page, request)
+    await answerReview(page, [countdown(everyday.id)])
+    await page.setViewportSize({ width, height: page.viewportSize()!.height })
+    await openPage(page, '/transactions')
+
+    const dialog = await openReview(page, 'COUNTDOWN 123 AUCKLAND')
+    const form = formOf(dialog)
+    // Measured together and polled, since the dialog scales in as it opens and edges read mid-animation
+    // drift apart by however far it has to go. Keep window open's whole label is the footer's left item,
+    // and Amount ends the fields
+    const readEdgeOffsets = async () => {
+      const [keepOpen, add, title, amount] = await Promise.all([
+        dialog.locator('label', { has: page.getByRole('checkbox', { name: /Keep window open/ }) }).boundingBox(),
+        form.add.boundingBox(),
+        dialog.getByRole('heading', { name: DIALOG_NAME, exact: true }).boundingBox(),
+        form.amount.boundingBox(),
+      ])
+      return {
+        left: Math.round(keepOpen!.x - title!.x) || 0,
+        right: Math.round(add!.x + add!.width - (amount!.x + amount!.width)) || 0,
+      }
+    }
+
+    await expect.poll(readEdgeOffsets).toEqual({ left: 0, right: 0 })
+  })
+}
+
 // A short phone screen, where the card heading the form leaves most of the form below the fold
 test.describe('on a short phone screen', () => {
   test.beforeEach(async ({ page }) => {

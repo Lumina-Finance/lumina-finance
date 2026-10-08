@@ -1,3 +1,4 @@
+import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import { ReviewDecisionButton } from '@/components/transactions/bank-review/DecisionButton'
 import TransactionKeepOpenOption from '@/components/transactions/transaction-modal/controls/KeepOpenOption'
 
@@ -26,7 +27,7 @@ export default function TransactionReviewFooter({
 }: TransactionReviewFooterProps) {
   return (
     <div
-      className="flex shrink-0 flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:px-8 min-[1050px]:py-5"
+      className={`flex shrink-0 flex-col gap-3 py-4 sm:flex-row sm:items-center min-[1050px]:py-5 ${MODAL_INSET_CLASS_NAME.page}`}
       style={{ borderTop: '1px solid var(--app-border)' }}
     >
       <TransactionKeepOpenOption
