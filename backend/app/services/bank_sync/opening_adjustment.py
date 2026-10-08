@@ -32,7 +32,7 @@ from app.services.accounts.balance_adjustments import add_balance_adjustment
 from app.services.bank_sync.account_link import read_account_bank_status
 from app.services.bank_sync.balance_comparison import compare_bank_balance, opening_adjustment_date, read_balance_day
 from app.services.bank_sync.links import lock_live_link
-from app.services.cache_state import mark_user_cache_changed
+from app.services.cache_state import mark_user_cache_changed, mark_user_status_changed
 
 # The note the recorded adjustment carries
 OPENING_ADJUSTMENT_NOTE = "Opening adjustment"
@@ -121,7 +121,9 @@ async def record_opening_adjustment(db: AsyncSession, user: User, account_id: uu
         await add_balance_adjustment(
             db, account, user=user, amount=amount, adjustment_date=opening_adjustment_date(link), note=OPENING_ADJUSTMENT_NOTE
         )
-        await _answer(db, user, link, OpeningAdjustmentState.RECORDED)
+        link.opening_adjustment_state = OpeningAdjustmentState.RECORDED
+        await mark_user_cache_changed(db, user.id)
+        await db.commit()
     return await read_account_bank_status(db, user, account.id)
 
 
@@ -148,7 +150,11 @@ async def skip_opening_adjustment(db: AsyncSession, user: User, account_id: uuid
     account, link = await lock_live_link(db, user, account_id)
     if link.opening_adjustment_state != OpeningAdjustmentState.SKIPPED:
         _refuse_unless_offered(link, NOTHING_TO_SKIP)
-        await _answer(db, user, link, OpeningAdjustmentState.SKIPPED)
+        link.opening_adjustment_state = OpeningAdjustmentState.SKIPPED
+        # A skip changes none of the user's data, so the data mark an import's undo compares with
+        # stays where it was
+        await mark_user_status_changed(db, user.id)
+        await db.commit()
     return await read_account_bank_status(db, user, account.id)
 
 
@@ -160,10 +166,3 @@ def _refuse_unless_offered(link: BankAccountLink, detail: str) -> None:
     """
     if link.opening_adjustment_state != OpeningAdjustmentState.OFFERED or link.state != BankLinkState.ACTIVE:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
-
-
-async def _answer(db: AsyncSession, user: User, link: BankAccountLink, answer: OpeningAdjustmentState) -> None:
-    """Record the answer on the locked link, mark the owner's cache and commit"""
-    link.opening_adjustment_state = answer
-    await mark_user_cache_changed(db, user.id)
-    await db.commit()

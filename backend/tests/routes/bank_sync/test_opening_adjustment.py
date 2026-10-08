@@ -3,8 +3,10 @@
 The offer is the bank's balance minus the ledger's at the end of the bank's balance date in the
 profile timezone, so one made while the import's items still wait, from a balance older than the
 imported transactions, or in the wrong timezone gets the amount wrong, and one recorded twice or
-with the starting balance's liability sign moves the ledger away from the bank. Once recorded or
-skipped the offer never returns, and only the owner's own personal account can answer it
+with the starting balance's liability sign moves the ledger away from the bank. An answer that marks
+the user's data changed ends the undo of their last import, which only recording, as it adds to the
+ledger, should. Once recorded or skipped the offer never returns, and only the owner's own personal
+account can answer it
 """
 
 import asyncio
@@ -32,12 +34,14 @@ from tests.routes.support.bank_sync_helpers import (
     _commit_other_users_account,
     _commit_review_item,
     _commit_waiting_items,
+    _import_a_file,
     _link,
     _new_account,
     _new_group_account,
     _record_ledger,
     _sign_up,
     _stored_item,
+    _undoable_import,
 )
 from tests.routes.support.lock_helpers import _cancel_unfinished, _wait_until_waiting_on
 from tests.routes.support.merchant_helpers import _get_system_merchant_id
@@ -430,6 +434,26 @@ async def test_skipping_records_nothing_and_the_offer_never_returns(client):
     assert await _adjustments(everyday.account_id) == []
     assert (await _read_status(client, everyday))["opening_adjustment"] is None
     assert await _offer_state(everyday.link) == OpeningAdjustmentState.SKIPPED
+
+
+@pytest.mark.parametrize(("answer", "undoable"), [("skip", True), ("record", False)], ids=["skip", "record"])
+async def test_only_recording_ends_the_undo_of_the_last_import(client, answer, undoable):
+    """The user imported a file, then skipped or recorded Everyday's offered 250.00
+
+    A skip changes none of their data, so the import can still be undone. Recording adds a ledger
+    transaction, which makes the import permanent
+    """
+    everyday = await _offering_everyday(client, ("2026-09-15", 100000))
+    await _import_a_file(client, everyday.headers)
+
+    if answer == "skip":
+        answered = await _skip(client, everyday.headers, everyday.account_id)
+    else:
+        answered = await _record(client, everyday.headers, everyday.account_id, 25000)
+
+    assert answered.status_code == 200, answered.text
+    assert answered.json()["opening_adjustment"] is None
+    assert (await _undoable_import(client, everyday.headers) is not None) is undoable
 
 
 @pytest.mark.parametrize(
