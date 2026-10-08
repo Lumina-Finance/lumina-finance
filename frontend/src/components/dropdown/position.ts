@@ -95,6 +95,15 @@ export function isSameDropdownBoxPosition(
     && a.width === b.width
 }
 
+/**
+ * The upper and lower edges of the part of the page the box stays between, such as a dialog's body,
+ * so it never covers the dialog's title above or its buttons below
+ */
+export interface DropdownBounds {
+  bottom: number
+  top: number
+}
+
 /** Which way the box is growing, held for as long as one opening lasts */
 export interface DropdownBoxDirection {
   openAbove: boolean
@@ -103,6 +112,9 @@ export interface DropdownBoxDirection {
 
 interface DropdownBoxPositionParams {
   anchorRect: DropdownAnchorRect
+
+  /** Where the box stays between, or null outside a dialog, where only the screen bounds it */
+  bounds: DropdownBounds | null
 
   /** Height of the collapsed head, which the list has to share the box with */
   headHeight: number
@@ -157,14 +169,21 @@ const DROPDOWN_BOX_CHROME = 14
 
 const DROPDOWN_VIEWPORT_PADDING = 12
 
+// The least list a box kept inside its bounds may be left with: three option rows of 36px. A field
+// scrolled hard against the edge of a dialog's body would otherwise open to a sliver, so there the
+// box takes the room the screen has instead, over the dialog's title or buttons
+const DROPDOWN_MIN_BOUNDED_LIST_HEIGHT = 108
+
 /**
  * Places the whole control and works out how much of it the option list may take
  *
  * The control is one box holding the head and the list, so it is pinned by whichever of the head's
- * own edges the list grows away from, and it never leaves the visible viewport.
+ * own edges the list grows away from, and it never leaves the visible viewport, nor its bounds while
+ * they leave the list room for a few options.
  */
 export function getDropdownBoxPosition({
   anchorRect,
+  bounds,
   headHeight,
   held,
   searchable,
@@ -196,8 +215,18 @@ export function getDropdownBoxPosition({
   // slot's own size counts as room the box already occupies on all four sides. Measured from the
   // edge the box would be pinned by rather than from the slot, which are the same thing except for
   // a slot hanging off the screen, where the box has already been moved to sit inside it
-  const spaceBelow = viewportBottom - anchorRect.top - DROPDOWN_VIEWPORT_PADDING
-  const spaceAbove = anchorRect.bottom - viewport.offsetTop - DROPDOWN_VIEWPORT_PADDING
+  const screenBelow = viewportBottom - anchorRect.top - DROPDOWN_VIEWPORT_PADDING
+  const screenAbove = anchorRect.bottom - viewport.offsetTop - DROPDOWN_VIEWPORT_PADDING
+
+  // Inside a dialog, only the room between its title and its buttons, wherever that leaves the list a
+  // few options on one side or the other
+  const listChrome = headHeight + DROPDOWN_BOX_CHROME + (searchable ? DROPDOWN_SEARCH_HEIGHT : 0)
+  const boundedBelow = bounds && Math.min(screenBelow, bounds.bottom - anchorRect.top - DROPDOWN_VIEWPORT_PADDING)
+  const boundedAbove = bounds && Math.min(screenAbove, anchorRect.bottom - bounds.top - DROPDOWN_VIEWPORT_PADDING)
+  const staysInBounds = boundedBelow !== null && boundedAbove !== null
+    && Math.max(boundedBelow, boundedAbove) - listChrome >= DROPDOWN_MIN_BOUNDED_LIST_HEIGHT
+  const spaceBelow = staysInBounds ? boundedBelow : screenBelow
+  const spaceAbove = staysInBounds ? boundedAbove : screenAbove
   const spaceRight = viewportRight - left - DROPDOWN_VIEWPORT_PADDING
   const spaceLeft = rightEdge - viewport.offsetLeft - DROPDOWN_VIEWPORT_PADDING
 
@@ -222,10 +251,7 @@ export function getDropdownBoxPosition({
     left,
 
     // What is left once the head, any search field and the box's own border and padding are paid for
-    listMaxHeight: Math.max(
-      0,
-      boxMaxHeight - headHeight - DROPDOWN_BOX_CHROME - (searchable ? DROPDOWN_SEARCH_HEIGHT : 0),
-    ),
+    listMaxHeight: Math.max(0, boxMaxHeight - listChrome),
 
     openAbove,
     openLeftward,

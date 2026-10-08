@@ -119,7 +119,7 @@ export function ModalTitledPanel({
         </div>
       </div>
 
-      <div className={chrome.bodyClassName} data-tooltip-bounds>{children}</div>
+      <div className={chrome.bodyClassName} data-tooltip-bounds data-dropdown-bounds>{children}</div>
 
       {footer}
     </>

@@ -1,7 +1,7 @@
 /**
  * Tests where the open drop-down sits, how much of it the option list gets and how wide it opens,
- * so a change catches a box growing off the screen, a head that shifts as the box opens, or a list
- * clipped by its own box
+ * so a change catches a box growing off the screen or over a dialog's title or buttons, a head that
+ * shifts as the box opens, or a list clipped by its own box
  */
 import { describe, expect, it } from 'vitest'
 import { getDropdownBoxPosition, isSameDropdownBoxPosition } from '@/components/dropdown/position'
@@ -15,7 +15,7 @@ const viewport = {
   width: 800,
 }
 
-const head = { headHeight: 40, held: null, searchable: false }
+const head = { bounds: null, headHeight: 40, held: null, searchable: false }
 
 describe('drop-down box placement', () => {
   it('pins the box by the head’s upper edge when the list grows downward', () => {
@@ -77,6 +77,71 @@ describe('drop-down box placement', () => {
     // would have opening downward out of habit
     expect(position.openAbove).toBe(true)
     expect(position.boxMaxHeight).toBe(328)
+  })
+
+  it('keeps the box inside a dialog’s body, clear of its title and buttons', () => {
+    // Category in Add Transaction on a 1280x800 window, where the body runs from under the title at
+    // 172 to the top of the buttons at 643
+    const bounds = { bottom: 643, top: 172 }
+    const position = getDropdownBoxPosition({
+      ...head,
+      bounds,
+      searchable: true,
+      anchorRect: { bottom: 423, left: 20, top: 385, width: 200 },
+      viewport: { ...viewport, height: 800, layoutHeight: 800 },
+    })
+
+    // The screen has 411 above and 403 below, so on its own the box would open upward over the
+    // title. Inside the body it has 246 below and 239 above, so it opens down and ends above the
+    // buttons, with 150px of list
+    expect(position.openAbove).toBe(false)
+    expect(position.top + position.boxMaxHeight).toBeLessThanOrEqual(bounds.bottom)
+    expect(position.listMaxHeight).toBe(150)
+  })
+
+  it('opens upward inside a dialog’s body without reaching over its title', () => {
+    const bounds = { bottom: 862, top: 233 }
+    const position = getDropdownBoxPosition({
+      ...head,
+      bounds,
+      searchable: true,
+      anchorRect: { bottom: 579, left: 20, top: 541, width: 200 },
+      viewport: { ...viewport, height: 1080, layoutHeight: 1080 },
+    })
+
+    // 309 below the head inside the body against 334 above it
+    expect(position.openAbove).toBe(true)
+    expect(579 - position.boxMaxHeight).toBeGreaterThanOrEqual(bounds.top)
+  })
+
+  it('stays inside a dialog’s body for a field just under its title, where only the room below is enough', () => {
+    const bounds = { bottom: 450, top: 172 }
+    const position = getDropdownBoxPosition({
+      ...head,
+      bounds,
+      searchable: true,
+      anchorRect: { bottom: 230, left: 20, top: 190, width: 200 },
+      viewport: { ...viewport, height: 800, layoutHeight: 800 },
+    })
+
+    // 46 above the head inside the body holds no list, but the 248 below does, so the box stays in
+    // the body and ends above the buttons rather than taking the screen's 400
+    expect(position.openAbove).toBe(false)
+    expect(position.top + position.boxMaxHeight).toBeLessThanOrEqual(bounds.bottom)
+  })
+
+  it('takes the room the screen has when a dialog’s body would leave fewer than three options', () => {
+    const position = getDropdownBoxPosition({
+      ...head,
+      bounds: { bottom: 420, top: 300 },
+      anchorRect: { bottom: 370, left: 20, top: 330, width: 200 },
+      viewport,
+    })
+
+    // The body leaves 78 below and 58 above, too little for any list, so the box opens over the
+    // dialog's edges into the 358 the screen has above
+    expect(position.openAbove).toBe(true)
+    expect(position.boxMaxHeight).toBe(358)
   })
 
   it('keeps the way an open box is already growing while the page moves under it', () => {

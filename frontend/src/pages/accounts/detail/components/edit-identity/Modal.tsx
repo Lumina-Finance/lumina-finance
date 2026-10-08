@@ -291,7 +291,7 @@ export default function EditAccountIdentityModal({
             onClose={requestClose}
           />
 
-          <div className="min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-7">
+          <div className="min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-7" data-dropdown-bounds>
             <div className="space-y-5">
               <AccountIdentitySection
                 form={form}

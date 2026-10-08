@@ -78,7 +78,7 @@ export default function TaxAdvantagedCategoryDetailsModal({
       {/* The stylesheet pins every modal panel to the full viewport height below 1050px, so the body
           has to keep scrolling until that rule stops applying. Letting it overflow visible any earlier
           puts content past the bottom of a fixed-height panel with no way to reach it */}
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-5 min-[1050px]:overflow-visible">
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-5 min-[1050px]:overflow-visible" data-dropdown-bounds>
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-3 min-[620px]:grid-cols-[minmax(0,3fr)_minmax(0,7fr)]">
             <div className="grid min-w-0 grid-cols-2 gap-2">
