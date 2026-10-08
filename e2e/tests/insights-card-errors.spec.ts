@@ -6,6 +6,9 @@ import { CARDS, PATHS, card, createExpenseInApp, expectContained, expectGeometry
 for (const longDetail of [false, true]) {
   test(`insights same-key failed refetch replaces cached data and preserves recovery geometry (${longDetail ? 'long' : 'ordinary'} detail)`, async ({ page, request }) => {
     const rich = await seedRichInsights(request)
+    // The refetch must ask for the same range as the first load, which ends today, so the date is held
+    // still in case the run crosses midnight, while timers continue normally
+    await page.clock.setFixedTime(new Date())
     const successful = new Set<string>()
     const firstUrls = new Map<string, string>()
     const attempts = new Map<string, number>()
