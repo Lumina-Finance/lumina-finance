@@ -106,6 +106,26 @@ describe('dropdown box placement', () => {
     expect(position.listMaxHeight).toBe(150)
   })
 
+  it('keeps the box inside a dialog’s body when the panel around it leaves fewer than five rows', () => {
+    // The same Category field, with the dialog's panel around the body as every bounded field has
+    const bounds = { bottom: 643, top: 172 }
+    const position = getDropdownBoxPosition({
+      ...head,
+      bounds,
+      searchable: true,
+      anchorRect: { bottom: 423, left: 20, top: 385, width: 200 },
+      panel: { bottom: 744, left: 0, right: 800, top: 56 },
+      viewport: { ...viewport, height: 800, layoutHeight: 800 },
+    })
+
+    // The 150px list is under five rows, so the box is placed again against the whole screen, where
+    // the body still holds it: it opens down and ends above the buttons rather than upward over the
+    // title
+    expect(position.openAbove).toBe(false)
+    expect(position.top + position.boxMaxHeight).toBeLessThanOrEqual(bounds.bottom)
+    expect(position.listMaxHeight).toBe(150)
+  })
+
   it('opens upward inside a dialog’s body without reaching over its title', () => {
     const bounds = { bottom: 862, top: 233 }
     const position = getDropdownBoxPosition({
