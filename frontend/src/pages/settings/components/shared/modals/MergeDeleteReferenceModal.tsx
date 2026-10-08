@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import type { LucideIcon } from 'lucide-react'
+import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { waitForMilliseconds } from '@/utils/timing'
@@ -125,7 +126,7 @@ export default function MergeDeleteReferenceModal<TItem>({
       closeDisabled={isSubmitting}
       footer={(
           <div
-            className="flex shrink-0 flex-col-reverse gap-3 px-6 py-5 sm:flex-row sm:items-center sm:justify-end sm:px-8"
+            className={`flex shrink-0 flex-col-reverse gap-3 py-5 sm:flex-row sm:items-center sm:justify-end ${MODAL_INSET_CLASS_NAME.page}`}
             style={{ borderTop: '1px solid var(--app-border)' }}
           >
             {formError && (

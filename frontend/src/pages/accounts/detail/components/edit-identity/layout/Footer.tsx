@@ -1,4 +1,5 @@
 import { Trash2 } from 'lucide-react'
+import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import type { DeleteStage } from '@/pages/accounts/detail/components/edit-identity/types'
 
 type EditModalFooterProps = {
@@ -21,7 +22,7 @@ export function EditModalFooter({
 }: EditModalFooterProps) {
   return (
     <div
-      className="flex shrink-0 items-center gap-3 px-6 py-4 sm:px-7 min-[1050px]:py-5"
+      className={`flex shrink-0 items-center gap-3 py-4 min-[1050px]:py-5 ${MODAL_INSET_CLASS_NAME.stacked}`}
       style={{ borderTop: '1px solid var(--app-border)' }}
     >
       <button

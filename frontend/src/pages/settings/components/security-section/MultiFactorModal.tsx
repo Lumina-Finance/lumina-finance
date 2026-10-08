@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Fingerprint, KeyRound, Plus, RefreshCw, ShieldCheck, Smartphone } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
+import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset';
 import { PasskeyRow } from '@/components/passkeys/PasskeyRow';
 import { ModalContentPanel } from '@/components/modal/ContentPanel';
 import { ModalTitledPanel } from '@/components/modal/TitledPanel';
@@ -139,7 +140,7 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
         RailIcon={ShieldCheck}
         railLabel="Security"
         footer={
-          <div className="flex shrink-0 justify-end px-6 py-4" style={{ borderTop: '1px solid var(--app-border)' }}>
+          <div className={`flex shrink-0 justify-end py-4 ${MODAL_INSET_CLASS_NAME.page}`} style={{ borderTop: '1px solid var(--app-border)' }}>
             <button
               type="button"
               onClick={handleClose}

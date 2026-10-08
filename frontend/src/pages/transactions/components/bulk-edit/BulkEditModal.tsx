@@ -1,6 +1,7 @@
 import { useId, useMemo, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { PencilLine } from 'lucide-react'
+import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import { useCategories } from '@/api/categories'
 import { useInfiniteMerchants } from '@/api/merchants'
 import { useInfiniteTags } from '@/api/tags'
@@ -405,7 +406,7 @@ export function BulkEditModal({
       railLabel="Bulk edit"
       footer={
         <div
-          className="flex shrink-0 items-center justify-end gap-2 px-4 py-4 min-[1050px]:px-8"
+          className={`flex shrink-0 items-center justify-end gap-2 py-4 ${MODAL_INSET_CLASS_NAME.page}`}
           style={{ borderTop: '1px solid var(--app-border)' }}
         >
           <button type="button" className="app-secondary-button h-9 px-3 text-sm" onClick={onClose}>
