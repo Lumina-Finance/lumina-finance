@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Check, Trash2 } from 'lucide-react'
+import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 
 interface TransactionModalFooterProps {
   editing: boolean
@@ -77,7 +78,7 @@ export default function TransactionModalFooter({
 
   return (
     <div
-      className="flex shrink-0 flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:px-8 min-[1050px]:py-5"
+      className={`flex shrink-0 flex-col gap-3 py-4 sm:flex-row sm:items-center min-[1050px]:py-5 ${MODAL_INSET_CLASS_NAME.page}`}
       style={{ borderTop: '1px solid var(--app-border)' }}
     >
       {editing && !readOnly ? (
@@ -143,7 +144,7 @@ export default function TransactionModalFooter({
         <div className="min-w-0 sm:max-w-xs">
           <label
             htmlFor="txn-keep-open"
-            className="flex cursor-pointer items-center gap-3 rounded-xl px-1 py-1"
+            className="-ml-1 flex cursor-pointer items-center gap-3 rounded-xl px-1 py-1"
           >
             <input
               id="txn-keep-open"

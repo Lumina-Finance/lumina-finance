@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type React from 'react'
+import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import { useCreateBaseBudget } from '@/api/budgets'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
@@ -30,7 +31,7 @@ const CREATE_FIELD_IDS: BudgetEditorModalFieldIds = {
   categoryError: 'categoryIds-error',
 }
 
-const CREATE_FOOTER_CLASS_NAME = 'grid shrink-0 grid-cols-2 gap-3 px-6 py-4 sm:flex sm:justify-end sm:px-8 min-[1050px]:py-5'
+const CREATE_FOOTER_CLASS_NAME = `grid shrink-0 grid-cols-2 gap-3 py-4 sm:flex sm:justify-end min-[1050px]:py-5 ${MODAL_INSET_CLASS_NAME.page}`
 
 /**
  * Manages create-budget form state, validation, and submission through the shared editor modal shell
