@@ -23,11 +23,6 @@ export function card(page: Page, index: number): Locator {
   return page.locator('.app-card').filter({ has: page.getByRole('button', { name: `${CARDS[index].calculation} calculation`, exact: true }) })
 }
 
-/** Locate the body through the tooltip boundary and shared loading-content wrapper */
-function body(page: Page, index: number): Locator {
-  return card(page, index).locator(':scope > [data-tooltip-bounds] > div:first-child > div')
-}
-
 /**
  * Recognize only the configured API origin and complete prefixed path
  * @param url - Actual browser request address
@@ -53,13 +48,15 @@ export async function seedRichInsights(request: APIRequestContext) {
   const headers = { Authorization: `Bearer ${user.accessToken}` }
   const categoryId = await findReferenceId(request, user, 'categories', 'Groceries')
   await createTransaction(request, user, { accountId: account.id, categoryName: 'Salary', amount: 400000 })
-  for (let index = 0; index < 8; index += 1) {
+  // Sent together, since one after another they take most of a busy host's time limit for the test,
+  // and the ranking orders the merchants by their amounts rather than by when they were made
+  await Promise.all(Array.from({ length: 8 }, async (_, index) => {
     const response = await request.post(`${API_BASE_URL}/merchants`, {
       headers, data: { name: `Insights ${index} long descriptive merchant for household shopping and services` },
     })
     expect(response.status()).toBe(201)
     const merchant = await response.json() as { id: string }
-    for (const amount of [-10000 - index * 100, 500]) {
+    await Promise.all([-10000 - index * 100, 500].map(async (amount) => {
       const transaction = await request.post(`${API_BASE_URL}/transactions`, {
         headers, data: {
           account_id: index % 2 === 0 ? account.id : second.id, category_id: categoryId,
@@ -67,8 +64,8 @@ export async function seedRichInsights(request: APIRequestContext) {
         },
       })
       expect(transaction.status()).toBe(201)
-    }
-  }
+    }))
+  }))
   return { user, account }
 }
 
@@ -97,65 +94,71 @@ export async function expectLoaded(page: Page, successfulPaths: Set<string>): Pr
  * @throws When a fixed dimension or wide merchant row alignment differs
  */
 export async function expectGeometry(page: Page): Promise<(number | null)[]> {
-  const wideBodies = await page.evaluate(() => matchMedia('(min-width: 750px)').matches)
-  const wideMerchants = await page.evaluate(() => matchMedia('(min-width: 1300px)').matches)
-  const measured: (number | null)[] = []
-  for (let index = 0; index < CARDS.length; index += 1) {
-    const widget = card(page, index)
-    await expect(widget).toHaveCount(1)
-    await widget.scrollIntoViewIfNeeded()
-    const target = index < 3 ? body(page, index) : widget
-    await expect(target).toHaveCount(1)
-    await expect(target).toBeVisible()
-    const fixed = index === 0 ? 360 : index === 1 ? 390 : index === 2 ? (wideBodies ? 430 : null)
-      : index === 3 ? 560 : (wideMerchants ? 560 : null)
-    if (fixed === null) {
-      expect((await target.boundingBox())!.height).toBeGreaterThan(0)
-      measured.push(null)
-    } else {
-      await expect.poll(async () => Math.abs((await target.boundingBox())!.height - fixed)).toBeLessThanOrEqual(1)
-      measured.push((await target.boundingBox())!.height)
-    }
+  // Every card is read in one call. A round trip per card and per check, repeated for each state and
+  // width a test measures, adds up on a busy host to more than the whole test's time limit
+  const read = () => page.evaluate((calculations) => {
+    const wideBodies = matchMedia('(min-width: 750px)').matches
+    const wideMerchants = matchMedia('(min-width: 1300px)').matches
+    const boxes = calculations.map((calculation, index) => {
+      const cards = [...document.querySelectorAll('.app-card')]
+        .filter((element) => element.querySelector(`button[aria-label="${calculation} calculation"]`))
+      const targets = cards.length !== 1 ? []
+        : index < 3 ? [...cards[0].querySelectorAll(':scope > [data-tooltip-bounds] > div:first-child > div')] : cards
+      if (targets.length !== 1) return { shown: false, height: 0, top: 0 }
+      const box = targets[0].getBoundingClientRect()
+      const shown = box.width > 0 && box.height > 0 && getComputedStyle(targets[0]).visibility !== 'hidden'
+      return { shown, height: box.height, top: box.top }
+    })
+    return { wideBodies, wideMerchants, boxes }
+  }, CARDS.map((contract) => contract.calculation))
+  type Reading = Awaited<ReturnType<typeof read>>
+  const fixedHeights = ({ wideBodies, wideMerchants }: Reading) =>
+    [360, 390, wideBodies ? 430 : null, 560, wideMerchants ? 560 : null]
+  const problems = (reading: Reading) => {
+    const fixed = fixedHeights(reading)
+    const found = reading.boxes.flatMap(({ shown, height }, index) => {
+      if (!shown) return [`${CARDS[index].calculation} is not shown`]
+      if (fixed[index] !== null && Math.abs(height - fixed[index]) > 1) {
+        return [`${CARDS[index].calculation} is ${height}px tall rather than ${fixed[index]}px`]
+      }
+      return []
+    })
+    const [distribution, ranking] = reading.boxes.slice(3)
+    if (reading.wideMerchants && Math.abs(distribution.top - ranking.top) > 1) found.push('The merchant cards do not share a row')
+    return found
   }
-  if (wideMerchants) {
-    const distribution = (await card(page, 3).boundingBox())!
-    const ranking = (await card(page, 4).boundingBox())!
-    expect(Math.abs(distribution.y - ranking.y)).toBeLessThanOrEqual(1)
-    expect(Math.abs(distribution.height - ranking.height)).toBeLessThanOrEqual(1)
-  }
-  return measured
+  let reading!: Reading
+  await expect.poll(async () => problems(reading = await read())).toEqual([])
+  const fixed = fixedHeights(reading)
+  return reading.boxes.map(({ height }, index) => (fixed[index] === null ? null : height))
 }
 
 /**
  * Verify recovery controls fit their outer card and every intermediate clipping ancestor
- * @param control - Actual error heading or recovery button
- * @param widget - Its outer card
+ * @param control - Actual error heading or recovery button, inside its outer card
  * @throws When the control is hidden or extends beyond its paint bounds
  */
-export async function expectContained(control: Locator, widget: Locator): Promise<void> {
+export async function expectContained(control: Locator): Promise<void> {
   await expect(control).toBeVisible()
-  const outer = await widget.elementHandle()
-  expect(outer).not.toBeNull()
-  try {
-    await expect.poll(() => control.evaluate((element, cardElement) => {
-      const target = element.getBoundingClientRect()
-      const violations: string[] = []
-      for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
-        const rect = ancestor.getBoundingClientRect()
-        const style = getComputedStyle(ancestor)
-        const clipsX = ancestor === cardElement || ['hidden', 'clip', 'scroll', 'auto'].includes(style.overflowX)
-        const clipsY = ancestor === cardElement || ['hidden', 'clip', 'scroll', 'auto'].includes(style.overflowY)
-        if ((clipsX && (target.left < rect.left - 1 || target.right > rect.right + 1))
-          || (clipsY && (target.top < rect.top - 1 || target.bottom > rect.bottom + 1))) {
-          violations.push(JSON.stringify({ tag: ancestor.tagName, target: target.toJSON(), bounds: rect.toJSON() }))
-        }
-        if (ancestor === cardElement) break
+  // The card is found from the control inside the page, which saves a round trip for its handle and one
+  // to release it on every check
+  await expect.poll(() => control.evaluate((element) => {
+    const cardElement = element.closest('.app-card')
+    const target = element.getBoundingClientRect()
+    const violations: string[] = []
+    for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
+      const rect = ancestor.getBoundingClientRect()
+      const style = getComputedStyle(ancestor)
+      const clipsX = ancestor === cardElement || ['hidden', 'clip', 'scroll', 'auto'].includes(style.overflowX)
+      const clipsY = ancestor === cardElement || ['hidden', 'clip', 'scroll', 'auto'].includes(style.overflowY)
+      if ((clipsX && (target.left < rect.left - 1 || target.right > rect.right + 1))
+        || (clipsY && (target.top < rect.top - 1 || target.bottom > rect.bottom + 1))) {
+        violations.push(JSON.stringify({ tag: ancestor.tagName, target: target.toJSON(), bounds: rect.toJSON() }))
       }
-      return violations
-    }, outer!)).toEqual([])
-  } finally {
-    await outer!.dispose()
-  }
+      if (ancestor === cardElement) break
+    }
+    return violations
+  })).toEqual([])
 }
 
 /**

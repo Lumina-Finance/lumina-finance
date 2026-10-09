@@ -26,12 +26,15 @@ for (const longDetail of [false, true]) {
         failures.add(path)
         await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ detail }) })
       } else {
-        const response = await route.fetch()
-        expect(response.ok()).toBe(true)
+        // Passed straight on rather than fetched through the runner, which on a busy host adds a slow
+        // relay to every load the test waits for. The page's own responses say which succeeded
         firstUrls.set(path, route.request().url())
-        successful.add(path)
-        await route.fulfill({ response })
+        await route.continue()
       }
+    })
+    page.on('response', (response) => {
+      const path = PATHS.find((candidate) => matchesApi(response.url(), candidate))
+      if (path && !failRefetch && response.ok()) successful.add(path)
     })
     await logIn(page, rich.user)
     await expectSignedIn(page)
@@ -52,9 +55,9 @@ for (const longDetail of [false, true]) {
       await expect(heading).toBeVisible()
       await expect(widget.getByRole('alert')).toContainText(detail)
       await expect(widget.getByRole('status', { name: CARDS[index].loading, exact: true })).toHaveCount(0)
-      await expectContained(heading, widget)
-      await expectContained(widget.getByRole('button', { name: 'Reload', exact: true }), widget)
-      await expectContained(widget.getByRole('button', { name: 'Copy error details', exact: true }), widget)
+      await expectContained(heading)
+      await expectContained(widget.getByRole('button', { name: 'Reload', exact: true }))
+      await expectContained(widget.getByRole('button', { name: 'Copy error details', exact: true }))
       if (index === 0) await expect(widget.getByRole('button', { name: 'Ending Net Worth calculation', exact: true })).toHaveCount(0)
       if (index === 1) await expect(widget.getByRole('button', { name: 'Net Cash Flow calculation', exact: true })).toHaveCount(0)
       if (index === 2) await expect(widget.getByRole('button', { name: 'Latest Savings Rate calculation', exact: true })).toHaveCount(0)
