@@ -128,6 +128,7 @@ describe('the cache boundary when a session starts', () => {
     subscriptions.push(next.subscribe(() => {}));
     expect(next.getCurrentResult().isError).toBe(true);
     expect(next.getCurrentResult().isFetching).toBe(false);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // The first load's three attempts, and none more at the boundary
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });

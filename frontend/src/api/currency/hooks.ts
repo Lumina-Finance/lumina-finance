@@ -9,13 +9,14 @@ import { currencyKeys } from '@/api/cache/queryKeys';
  * Exported so a test can assert on these rather than restate them, since a test spelling them out
  * itself would keep passing after someone changed the real ones.
  *
- * The app renders no screen until this query settles, so it has to settle, and quickly. The last four
- * options are what make that true, and each is set here rather than left to the shared default: the
- * shared retry would put a second full request timeout in front of the failure; the shared network
- * mode leaves the query paused rather than failed while the browser reports itself offline, which
- * never settles at all; retryOnMount would send a query that already failed back to pending whenever
- * the route subtree remounts, which is on most navigations; and a refetch on window focus would do
- * the same when the user came back to the tab. The last of those does follow the shared default
+ * The app renders no screen until this query settles, so it has to settle, and quickly. The last five
+ * options are what make that true, and each is set here rather than left to the shared default. Three
+ * attempts of at most five seconds each, back to back, give a slow server room to answer while
+ * bounding the wait at fifteen seconds, where the shared retry allows two and waits between them;
+ * the shared network mode leaves the query paused rather than failed while the browser reports
+ * itself offline, which never settles at all; retryOnMount would send a query that already failed
+ * back to pending whenever the route subtree remounts, which is on most navigations; and a refetch
+ * on window focus would do the same when the user came back to the tab. The last of those does follow the shared default
  * today, and is repeated here because the app depends on it and a change made in one place should
  * not quietly reach this
  *
@@ -27,7 +28,8 @@ export const currencyQueryOptions = {
   queryFn: fetchCurrencies,
   staleTime: Infinity,
   gcTime: Infinity,
-  retry: false,
+  retry: 2,
+  retryDelay: 0,
   retryOnMount: false,
   networkMode: 'always',
   refetchOnWindowFocus: false,

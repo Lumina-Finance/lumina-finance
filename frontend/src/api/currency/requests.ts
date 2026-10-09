@@ -5,12 +5,13 @@ import type { Currency } from '@/api/currency/types';
 // only say it is still loading and would say so forever. Aborting turns that into a failure the app
 // can report and the user can act on
 //
-// It is also how long the app itself waits, since no screen can render an amount before this list
-// arrives: App.tsx holds everything behind its loading screen until this settles one way or the
-// other, and shows the recovery screen when it fails. That is why the bound lives here rather than in
-// a timer beside that loading screen, where it would have to be reset every time a component
-// remounted. The sign-up and provider-callback pages sit outside that gate and read the list to fill
-// a currency picker rather than to format an amount, and this is what stops those hanging too
+// It bounds each of the query's three attempts, and those are also how long the app itself waits,
+// since no screen can render an amount before this list arrives: App.tsx holds everything behind
+// its loading screen until this settles one way or the other, and shows the recovery screen when it
+// fails. That is why the bound lives here rather than in a timer beside that loading screen, where it
+// would have to be reset every time a component remounted. The sign-up and provider-callback pages
+// sit outside that gate and read the list to fill a currency picker rather than to format an amount,
+// and this is what stops those hanging too
 const CURRENCY_REQUEST_TIMEOUT_MS = 5_000;
 
 /**
