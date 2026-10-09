@@ -7,6 +7,8 @@ import {
   linkToEmptyBankAccount,
   linkToSampleBankAccount,
   openBankLink,
+  openBankLinkHoldingRead,
+  READ_LINK_STATUS,
   WORKER_RESULT_TIMEOUT_MS,
   type ReviewPage,
 } from '../support/bankSync'
@@ -168,6 +170,40 @@ test('says why the server refuses a dismissal once the account was unlinked in a
   await expect(dialog.getByRole('button', { name: 'Reconnect bank account' })).toBeVisible()
   await expect(dialog.getByText(LESS_HISTORY)).toHaveCount(0)
   expect(unlinkedElsewhere).toBe(200)
+})
+
+// A read of the link can come back without the reminder before its dismissal answers, as one the server
+// answered once the account was unlinked in another window does. The modal reads the link again as it
+// opens, and that read is held until the account has been unlinked, while the dismissal's refusal is
+// held until the reminder has gone
+test('says why the server refused a dismissal whose reminder a read of the link had already folded away', async ({ page, request }) => {
+  const setup = await linkGettingLess(request)
+  const linkUrl = `${API_BASE_URL}/accounts/${setup.accountId}/bank-link`
+  const dismissUrl = `${linkUrl}/history-reminder/dismiss`
+  let unlinked = () => {}
+  const unlinkedElsewhere = new Promise<void>((resolve) => { unlinked = resolve })
+  let answerRefusal = () => {}
+  const refusalReleased = new Promise<void>((resolve) => { answerRefusal = resolve })
+  let unlinkStatus = 0
+  await page.route(dismissUrl, async (route) => {
+    unlinkStatus = (await request.delete(linkUrl, { headers: asUser(setup.user) })).status()
+    unlinked()
+    const response = await route.fetch()
+    await refusalReleased
+    await route.fulfill({ response })
+  })
+  await logInViaApi(page, setup.user)
+  const dialog = await openBankLinkHoldingRead(page, setup.accountId, READ_LINK_STATUS, unlinkedElsewhere)
+
+  await reminderNote(dialog, LESS_HISTORY).getByRole('button', { name: 'Dismiss' }).click()
+  await expect(dialog.getByRole('button', { name: 'Reconnect bank account' })).toBeVisible()
+  await expect(dialog.getByText(LESS_HISTORY)).toHaveCount(0)
+
+  const refused = page.waitForResponse(dismissUrl)
+  answerRefusal()
+  expect((await refused).status()).toBe(404)
+  await expect(errorToast(page, 'This account is not linked to a bank')).toBeVisible()
+  expect(unlinkStatus).toBe(200)
 })
 
 test('shows the reminder of an import that got nothing above the opening adjustment offer, each whole on a phone', async ({ page, request }) => {

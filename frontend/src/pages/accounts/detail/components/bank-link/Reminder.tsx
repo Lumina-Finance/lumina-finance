@@ -21,15 +21,10 @@ type ReminderProps = {
   onDismissed: (reminder: HTMLElement) => void
 }
 
-type DismissCallbacks = {
-  onSuccess: () => void
-  onError: (cause: unknown) => void
-}
-
 type DismissibleReminderProps = {
   copy: ReminderCopy
   dismissing: boolean
-  dismiss: (callbacks: DismissCallbacks) => void
+  dismiss: () => Promise<unknown>
   onDismissed: (reminder: HTMLElement) => void
 }
 
@@ -52,13 +47,17 @@ function DismissibleReminder({ copy, dismissing, dismiss, onDismissed }: Dismiss
     if (!isPresent && rootRef.current?.contains(document.activeElement)) onDismissed(rootRef.current)
   }, [isPresent, onDismissed])
 
-  const run = () => dismiss({
-    // Focus elsewhere stays where the person put it while the dismissal ran
-    onSuccess: () => {
-      if (rootRef.current?.contains(document.activeElement)) onDismissed(rootRef.current)
-    },
-    onError: (cause) => showToast({ status: 'error', text: cause instanceof ApiError ? cause.message : DISMISS_FAILED_MESSAGE }),
-  })
+  // The answer is awaited here rather than through the mutation's own callbacks, which are dropped once
+  // the reminder has gone, so a refusal still says why after a read of the link has left it out
+  const run = () => {
+    void dismiss().then(
+      // Focus elsewhere stays where the person put it while the dismissal ran
+      () => {
+        if (rootRef.current?.contains(document.activeElement)) onDismissed(rootRef.current)
+      },
+      (cause: unknown) => showToast({ status: 'error', text: cause instanceof ApiError ? cause.message : DISMISS_FAILED_MESSAGE }),
+    )
+  }
 
   return (
     <div ref={rootRef} {...{ [REMINDER_ATTRIBUTE]: 'true' }}>
@@ -79,7 +78,7 @@ export function HistoryReminder({ accountId, providerName, reminder, onDismissed
     <DismissibleReminder
       copy={describeHistoryReminder(reminder, providerName)}
       dismissing={dismissal.isPending}
-      dismiss={(callbacks) => dismissal.mutate({ accountId, reminder }, callbacks)}
+      dismiss={() => dismissal.mutateAsync({ accountId, reminder })}
       onDismissed={onDismissed}
     />
   )
@@ -95,7 +94,7 @@ export function CutOffDayReminder({ accountId, providerName, day, onDismissed }:
     <DismissibleReminder
       copy={describeCutOffDay(day, providerName)}
       dismissing={dismissal.isPending}
-      dismiss={(callbacks) => dismissal.mutate({ accountId, day }, callbacks)}
+      dismiss={() => dismissal.mutateAsync({ accountId, day })}
       onDismissed={onDismissed}
     />
   )
