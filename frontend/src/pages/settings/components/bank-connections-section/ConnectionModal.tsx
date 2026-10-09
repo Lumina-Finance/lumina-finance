@@ -3,7 +3,13 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { AlertTriangle, Check, PencilLine, RefreshCw, Unplug } from 'lucide-react'
 import { useAccounts } from '@/api/accounts'
 import { ApiError } from '@/api/auth'
-import { useBankProviders, useDisconnectBankConnection, type BankConnection, type ConnectionBankAccount } from '@/api/bank-sync'
+import {
+  useBankProviders,
+  useDisconnectBankConnection,
+  useRenameBankConnection,
+  type BankConnection,
+  type ConnectionBankAccount,
+} from '@/api/bank-sync'
 import { BankLinkFlowModal, type BankLinkTarget } from '@/components/bank-link-flow/Modal'
 import { SyncStatusDot } from '@/components/display/SyncStatusDot'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
@@ -84,12 +90,16 @@ interface ConnectionModalProps {
  *
  * One credential reaches every bank account on the connection, so a bank account has no health of its
  * own here. The list says which account each one keeps up to date, and links a free one from here too
+ *
+ * A rename or a disconnect on its way holds the modal open, so what comes of it is said beside the
+ * connection it was for
  */
 export function ConnectionModal({ open, connection, accountNameFor, onReconnect, onClose, onExitComplete, onDisconnected }: ConnectionModalProps) {
   const prefersReducedMotion = useReducedMotion()
   const { showToast } = useToast()
   const { user } = useAuth()
   const disconnect = useDisconnectBankConnection()
+  const rename = useRenameBankConnection()
   const { data: providers } = useBankProviders()
   const { data: accounts } = useAccounts()
   const provider = providers?.providers.find((entry) => entry.id === connection.provider)
@@ -275,11 +285,20 @@ export function ConnectionModal({ open, connection, accountNameFor, onReconnect,
     <ModalWorkspacePanel
       open={open}
       onClose={onClose}
-      closeDisabled={disconnect.isPending}
+      closeDisabled={disconnect.isPending || rename.isPending}
       onExitComplete={onExitComplete}
       titleId="bank-connection-title"
       eyebrow="Bank connection"
-      title={<NicknameTitle connection={connection} titleId="bank-connection-title" editing={renaming} onEditingChange={setRenaming} prefersReducedMotion={prefersReducedMotion} />}
+      title={(
+        <NicknameTitle
+          connection={connection}
+          rename={rename}
+          titleId="bank-connection-title"
+          editing={renaming}
+          onEditingChange={setRenaming}
+          prefersReducedMotion={prefersReducedMotion}
+        />
+      )}
       facts={facts}
       actions={actions}
       partsLabel={`Institutions · ${linkedCount} of ${countNoun(bankAccountCount, 'bank account')} linked`}

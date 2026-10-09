@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Check, X } from 'lucide-react'
 import { ApiError } from '@/api/auth'
-import { CONNECTION_NICKNAME_MAX_LENGTH, useRenameBankConnection, type BankConnection } from '@/api/bank-sync'
+import { CONNECTION_NICKNAME_MAX_LENGTH, type BankConnection, type useRenameBankConnection } from '@/api/bank-sync'
 import { useToast } from '@/hooks/useToast'
 import { EASE } from '@/pages/settings/components/bank-connections-section/constants'
 import { connectionName } from '@/utils/bankSync'
@@ -10,12 +10,14 @@ import { connectionName } from '@/utils/bankSync'
 // Crossfades the title and its field so neither snaps in, as a passkey's rename does
 const FIELD_TRANSITION = { duration: 0.18, ease: EASE }
 
+/** The connection's rename, which the modal holds so that it stays open while one is on its way */
+type RenameMutation = ReturnType<typeof useRenameBankConnection>
+
 /**
  * The nickname field, which starts from the current nickname each time it opens
  */
-function NicknameField({ connection, onDone }: { connection: BankConnection; onDone: () => void }) {
+function NicknameField({ connection, rename, onDone }: { connection: BankConnection; rename: RenameMutation; onDone: () => void }) {
   const { showToast } = useToast()
-  const rename = useRenameBankConnection()
   const [draft, setDraft] = useState(connection.nickname ?? '')
 
   const save = () => {
@@ -65,6 +67,7 @@ function NicknameField({ connection, onDone }: { connection: BankConnection; onD
 
 interface NicknameTitleProps {
   connection: BankConnection
+  rename: RenameMutation
   titleId: string
   editing: boolean
   onEditingChange: (editing: boolean) => void
@@ -76,7 +79,7 @@ interface NicknameTitleProps {
  * into the nickname field while the modal's Rename is in use. Saving a blank nickname clears it, so the
  * provider's name comes back
  */
-export function NicknameTitle({ connection, titleId, editing, onEditingChange, prefersReducedMotion }: NicknameTitleProps) {
+export function NicknameTitle({ connection, rename, titleId, editing, onEditingChange, prefersReducedMotion }: NicknameTitleProps) {
   const transition = prefersReducedMotion ? { duration: 0 } : FIELD_TRANSITION
 
   return (
@@ -97,7 +100,7 @@ export function NicknameTitle({ connection, titleId, editing, onEditingChange, p
             exit={{ opacity: 0 }}
             transition={transition}
           >
-            <NicknameField connection={connection} onDone={() => onEditingChange(false)} />
+            <NicknameField connection={connection} rename={rename} onDone={() => onEditingChange(false)} />
           </motion.div>
         ) : (
           <motion.h2

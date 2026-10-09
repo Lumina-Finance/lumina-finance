@@ -12,6 +12,7 @@ import {
   createBridgeSetupToken,
   createEmptyBridgeScenario,
   createSampleBridgeScenario,
+  errorToast,
   linkBankAccount,
   requireBridgeBankSignIn,
   revokeBridgeAccess,
@@ -269,6 +270,37 @@ test("renames a connection, and a blank nickname brings back the provider's name
   await page.keyboard.press('Enter')
   await expect(dialog.getByRole('heading', { name: 'SimpleFIN' })).toBeVisible()
   await expect(fact(dialog, 'Provider')).toHaveCount(0)
+})
+
+// A rename on its way holds the modal open, as a disconnect does, so word that it failed comes beside the
+// connection it was for. The rename is held here until the modal has been asked to close, then fails
+test('keeps the modal open while a rename is on its way, saying there if it fails', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const scenario = await createSampleBridgeScenario(request)
+  await claimSetupToken(request, user, scenario.setupToken)
+  const isRename = (url: URL) => /\/bank-sync\/connections\/[^/]+$/.test(url.pathname)
+  let failRename = () => {}
+  const renameFails = new Promise<void>((resolve) => { failRename = resolve })
+  await page.route(isRename, async (route) => {
+    if (route.request().method() !== 'PATCH') return route.fallback()
+    await renameFails
+    await route.abort('failed')
+  })
+  const section = await openBankConnections(page, user)
+  const dialog = await openConnection(page, section, 'SimpleFIN')
+
+  await dialog.getByRole('button', { name: 'Rename' }).click()
+  await dialog.getByRole('textbox', { name: 'Connection nickname' }).fill('Joint banks')
+  const renameSent = page.waitForRequest((sent) => sent.method() === 'PATCH' && isRename(new URL(sent.url())))
+  await page.keyboard.press('Enter')
+  await renameSent
+  await expect(dialog.getByRole('button', { name: 'Close' })).toBeDisabled()
+  await page.keyboard.press('Escape')
+
+  failRename()
+  await expect(errorToast(page, 'Could not rename this connection. Please try again.')).toBeVisible()
+  await expect(dialog.getByRole('textbox', { name: 'Connection nickname' })).toHaveValue('Joint banks')
+  await expect(connectionRow(section, 'SimpleFIN')).toHaveCount(1)
 })
 
 test("shows a connection's facts", async ({ page, request }) => {
