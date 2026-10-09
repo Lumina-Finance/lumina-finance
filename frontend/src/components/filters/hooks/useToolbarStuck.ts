@@ -36,9 +36,10 @@ export function useToolbarStuck(): ToolbarStuckState {
 
     // Shrinking the root's top edge by the nav offset makes the sentinel read as hidden exactly when
     // the toolbar reaches the pane's top line instead of when it touches the viewport edge
+    // A busy page can hand over several changes at once, oldest first, so only the last one is current
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        sentinelIntersecting = entry.isIntersecting
+      (entries) => {
+        sentinelIntersecting = entries[entries.length - 1].isIntersecting
         updateStuck()
       },
       { rootMargin: `-${TOOLBAR_DOCK_OFFSET_PX}px 0px 0px 0px`, threshold: 0 },

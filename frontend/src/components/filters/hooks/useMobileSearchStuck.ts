@@ -27,9 +27,10 @@ export function useMobileSearchStuck(): MobileSearchStuckState {
       setMobileSearchStuck(mobileQuery.matches && !sentinelIntersecting)
     }
 
+    // A busy page can hand over several changes at once, oldest first, so only the last one is current
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        sentinelIntersecting = entry.isIntersecting
+      (entries) => {
+        sentinelIntersecting = entries[entries.length - 1].isIntersecting
         updateStuck()
       },
       { threshold: 0 },

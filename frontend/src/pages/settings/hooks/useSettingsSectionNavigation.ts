@@ -159,8 +159,9 @@ export function useSettingsSectionNavigation() {
     const sentinel = mobileSettingsStickySentinelRef.current
     if (!sentinel) return undefined
 
+    // A busy page can hand over several changes at once, oldest first, so only the last one is current
     const observer = new IntersectionObserver(
-      ([entry]) => setSettingsMenuStuck(!entry.isIntersecting),
+      (entries) => setSettingsMenuStuck(!entries[entries.length - 1].isIntersecting),
       { threshold: 0 },
     )
 
