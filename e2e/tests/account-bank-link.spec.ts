@@ -13,7 +13,10 @@ import {
   createEmptyBridgeScenario,
   createSampleBridgeScenario,
   linkBankAccount,
+  linkToSampleBankAccount,
+  runClockUntil,
   stallBridge,
+  stopClock,
   WORKER_RESULT_TIMEOUT_MS,
   type SeededConnection,
 } from '../support/bankSync'
@@ -29,6 +32,7 @@ const SAMPLE_CHEQUING = 'Everyday Chequing'
 const SAMPLE_VISA = 'Rewards Visa'
 const LINKING_PAUSED = "Bank sync isn't running right now. You can link accounts once it's back."
 const ARCHIVED = 'Archived accounts are read-only'
+
 
 // Either side of where a modal stops filling the screen and sits in the middle of it, at a laptop's height
 const WIDEST_FULL_SCREEN_MODAL_SIZE = { width: 1049, height: 800 }
@@ -93,7 +97,10 @@ async function chooseFirstStart(flow: Locator): Promise<void> {
 
 /**
  * Links Everyday to the sample chequing account from its edit modal, which stays open behind the
- * message confirming the link once the link flow closes
+ * message confirming the link once the link flow closes. The page's clock stops as the link is made and,
+ * once the server has answered it, moves on only until the flow has gone and the message has come in, so
+ * the message stays up however long a busy machine takes over the checks on it. Modals still come and go
+ * on the clock as it moves
  */
 async function linkFromEditAccount(page: Page, request: APIRequestContext): Promise<{ dialog: Locator; message: Locator }> {
   const user = await signUpUser(request)
@@ -102,6 +109,8 @@ async function linkFromEditAccount(page: Page, request: APIRequestContext): Prom
     createSampleBridgeScenario(request),
   ])
   await claimSetupToken(request, user, scenario.setupToken)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.clock.install()
   const dialog = await openBankLink(page, user, everyday.id, 'Not linked')
   await dialog.getByRole('button', { name: 'Link bank account' }).click()
 
@@ -109,10 +118,14 @@ async function linkFromEditAccount(page: Page, request: APIRequestContext): Prom
   await flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_CHEQUING}`) }).click()
   await flow.getByRole('button', { name: 'Continue' }).click()
   await chooseFirstStart(flow)
+  await stopClock(page)
+  const linked = page.waitForResponse((answer) =>
+    answer.url() === `${API_BASE_URL}/accounts/${everyday.id}/bank-link` && answer.request().method() === 'POST')
   await flow.getByRole('button', { name: 'Link and import' }).click()
+  expect((await linked).ok()).toBe(true)
   const message = toast(page, 'Linked. Importing history now.')
-  await expect(message).toBeVisible()
-  await expect(flow).toBeHidden()
+  await runClockUntil(page, async () => await flow.isHidden() && await message.isVisible()
+    && await message.evaluate((element) => getComputedStyle(element).opacity) === '1')
   return { dialog, message }
 }
 
@@ -280,7 +293,7 @@ test("keeps the link's message clear of Cancel and Save Changes where the edit m
 
   // With the modal gone from under it, the message goes back down to the corner while it still shows
   await cancel.click()
-  await expect(dialog).toBeHidden()
+  await runClockUntil(page, () => dialog.isHidden())
   await expect.poll(() => readMessageInset(message)).toEqual(MESSAGE_IN_CORNER)
 })
 

@@ -228,6 +228,64 @@ export async function answerLinksWith(
 // Long enough for the worker, which claims queued jobs every 5 seconds, to run one and save its result
 export const WORKER_RESULT_TIMEOUT_MS = 60_000
 
+// One frame on a page's clock, as the browser spaces animation frames
+const CLOCK_FRAME_MS = 16
+
+/**
+ * Stops the page's clock where it has got to, which a test installs before opening the page, so its
+ * timers and animation frames move only as `runClockUntil` moves them. A test that reads what it waits on
+ * frame by frame, or keeps a message up for longer than a busy machine takes to reach it, then gets the
+ * same frames and the same time however slowly the machine runs
+ *
+ * The clock can only be stopped at a time of day, which runs on while the call is on its way, and stopping
+ * it short of that fails. So the time of day is held first and the clock stopped at it, and only then let
+ * go. Stopping it at a later time instead would move the page's own clock past the browser's, and a fade
+ * the browser runs from a start the page sets would wait that long to begin, holding a message out or a
+ * closing dialog in
+ */
+export async function stopClock(page: Page): Promise<void> {
+  const timeOfDay = Date.now()
+  await page.clock.setFixedTime(timeOfDay)
+  await page.clock.pauseAt(timeOfDay)
+  await page.clock.setSystemTime(timeOfDay)
+}
+
+// How long a stopped clock moves on, at most, for a page to reach the state a test waits for. It is the
+// page's own time, which a busy machine slows along with everything the page does
+const CLOCK_RUN_LIMIT_MS = 10_000
+
+/**
+ * Moves a stopped clock on a frame at a time until the page has reached a state. The browser lays the
+ * page out and draws it after each frame, as it does after a frame's callbacks, so what the page measures
+ * as it draws, such as a size it watches, has come in before the next frame
+ *
+ * A state the page reaches on its own timers and frames is reached however slowly the machine runs. One
+ * that also waits on something off the page's clock gets only the real time the steps take, and moves
+ * the clock on meanwhile. A server's answer can outlast them, a few seconds where the steps are long, so
+ * a test waits for it before moving the clock on. An animation the browser runs in real time, as a
+ * modal's exit is, moves the clock on a step for each frame it lasts
+ *
+ * @param reached - Whether the page is in the state the test waits for yet
+ * @param stepMs - How far the clock moves at a time. Longer than a frame, it takes fewer steps on a busy
+ * machine to reach a state that waits on time passing rather than on any frame in particular, the
+ * frames in between all running at once without the page drawn
+ */
+export async function runClockUntil(page: Page, reached: () => Promise<boolean>, stepMs = CLOCK_FRAME_MS): Promise<void> {
+  for (let ran = 0; ran < CLOCK_RUN_LIMIT_MS; ran += stepMs) {
+    await page.clock.runFor(stepMs)
+    await page.evaluate(() => new Promise<void>((resolve) => {
+      // A size watched from now on is first reported as the browser next lays the page out and draws it
+      const watcher = new ResizeObserver(() => {
+        watcher.disconnect()
+        resolve()
+      })
+      watcher.observe(document.documentElement)
+    }))
+    if (await reached()) return
+  }
+  expect(await reached(), `reached within ${CLOCK_RUN_LIMIT_MS} ms on the page's clock`).toBe(true)
+}
+
 /**
  * Opens the account's page and, once the identity card's Bank sync fact reads as given, its edit
  * modal at the Bank link section through that fact
