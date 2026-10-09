@@ -13,6 +13,7 @@ import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
 import {
   answerLinksWith,
   answerReviewItems,
+  fetchOnOwnConnection,
   pageOf,
   reviewBlock,
   reviewItem,
@@ -106,11 +107,9 @@ async function answerReview(page: Page, items: ReviewItem[], perPage = items.len
       return route.fulfill({ status: 204 })
     }
 
-    // Retried, since the instance now and then drops a reused connection, which the browser would retry
-    const response = await route.fetch({
+    const response = await fetchOnOwnConnection(route, {
       url: `${API_BASE_URL}/transactions`,
       postData: { ...body, account_id: item.account_id, currency: TEST_CURRENCY },
-      maxRetries: 2,
     })
     if (response.ok()) {
       review.created.push(((await response.json()) as { id: string }).id)

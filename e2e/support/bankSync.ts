@@ -5,7 +5,7 @@
  * reads that the instance can't yet produce, such as a transaction imported from a bank.
  */
 
-import { expect, type APIRequestContext, type Locator, type Page, type Request } from '@playwright/test'
+import { expect, type APIRequestContext, type APIResponse, type Locator, type Page, type Request, type Route } from '@playwright/test'
 
 import { asUser, findReferenceId, todayInTestTimezone, type TestUser } from './api'
 import { openPage } from './app'
@@ -147,6 +147,18 @@ export const BANK_SOURCE: BankSource = {
 }
 
 /**
+ * Sends a request the page made on to the instance, changed as given, on a connection of its own. The
+ * instance closes a connection left idle for its keep-alive, and a request sent on one as it closes
+ * is hung up on, which the browser would send again on a new one but a route's fetch doesn't
+ */
+export async function fetchOnOwnConnection(
+  route: Route,
+  change: Pick<NonNullable<Parameters<Route['fetch']>[0]>, 'url' | 'postData'> = {},
+): Promise<APIResponse> {
+  return route.fetch({ ...change, headers: { ...(await route.request().allHeaders()), connection: 'close' } })
+}
+
+/**
  * Answers the app's reads of these transactions as imported from the bank, each with its source,
  * since nothing links an account on the server for a sync to import one
  */
@@ -156,8 +168,7 @@ export async function answerAsBankImported(page: Page, sources: Record<string, B
   await page.route(isTransactionRead, async (route) => {
     if (route.request().method() !== 'GET') return route.fallback()
 
-    // Retried, since the instance now and then drops a reused connection, which the browser would retry
-    const response = await route.fetch({ maxRetries: 2 })
+    const response = await fetchOnOwnConnection(route)
     const body = await response.json() as { id: string } | { id: string }[]
     const markImported = (transaction: { id: string }) =>
       Object.hasOwn(sources, transaction.id) ? { ...transaction, bank_source: sources[transaction.id] } : transaction
