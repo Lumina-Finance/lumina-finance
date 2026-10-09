@@ -1,11 +1,11 @@
-import { useEffect, useRef } from 'react'
-import { useIsPresent } from 'motion/react'
+import { useRef } from 'react'
 import { History } from 'lucide-react'
 import { ApiError } from '@/api/auth'
 import { useDismissCutOffDay, useDismissHistoryReminder, type BankHistoryReminder } from '@/api/bank-sync'
 import { InfoCallout } from '@/components/InfoCallout'
 import { useToast } from '@/hooks/useToast'
 import { describeCutOffDay, describeHistoryReminder, DISMISS_FAILED_MESSAGE, type ReminderCopy } from '@/pages/accounts/detail/components/bank-link/reminders'
+import { useMoveFocusOnFold } from '@/pages/accounts/detail/components/bank-link/useMoveFocusOnFold'
 
 /** Marks each reminder, so focus leaving one that folds away can find the next */
 export const REMINDER_ATTRIBUTE = 'data-bank-link-reminder'
@@ -39,13 +39,7 @@ function DismissibleReminder({ copy, dismissing, dismiss, onDismissed }: Dismiss
   const rootRef = useRef<HTMLDivElement>(null)
   const { showToast } = useToast()
 
-  // A read of the link the server answered once the dismissal had gone through can leave the reminder
-  // out before the dismissal itself answers. Focus still in it then moves on as it starts to fold away,
-  // rather than falling to the page once it has gone
-  const isPresent = useIsPresent()
-  useEffect(() => {
-    if (!isPresent && rootRef.current?.contains(document.activeElement)) onDismissed(rootRef.current)
-  }, [isPresent, onDismissed])
+  useMoveFocusOnFold(rootRef, onDismissed)
 
   // The answer is awaited here rather than through the mutation's own callbacks, which are dropped once
   // the reminder has gone, so a refusal still says why after a read of the link has left it out

@@ -11,7 +11,14 @@ import {
   type TestUser,
 } from '../support/api'
 import { fact, logInViaApi } from '../support/app'
-import { errorToast, linkToSampleBankAccount, openBankLink, waitForEntrance } from '../support/bankSync'
+import {
+  errorToast,
+  linkToSampleBankAccount,
+  openBankLink,
+  openBankLinkHoldingRead,
+  waitForEntrance,
+  WORKER_RESULT_TIMEOUT_MS,
+} from '../support/bankSync'
 import { contrastOf, MIN_TEXT_CONTRAST, MINUS, readBoxes } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 
@@ -277,6 +284,95 @@ test('folds the offer away when an answer finds it skipped in another window, sa
   await expect(offer.sentence).toBeHidden()
   expect(skippedElsewhere).toBe(200)
   expect(await countLedgerTransactions(request, setup.user)).toBe(1)
+})
+
+// A read of the link can come back without the offer before an answer to it does, as one the server
+// answered once the offer was skipped in another window does. The modal reads the link again as it
+// opens, and that read is held until the offer has been skipped, while the answer's refusal is held
+// until the offer has gone
+test('says why the server refused an answer whose offer a read of the link had already folded away', async ({ page, request }) => {
+  const setup = await linkWithGap(request)
+  const linkUrl = `${API_BASE_URL}/accounts/${setup.accountId}/bank-link`
+  const recordUrl = `${linkUrl}/opening-adjustment/record`
+  let skipped = () => {}
+  const skippedElsewhere = new Promise<void>((resolve) => { skipped = resolve })
+  let answerRefusal = () => {}
+  const refusalReleased = new Promise<void>((resolve) => { answerRefusal = resolve })
+  let skipStatus = 0
+  await page.route(recordUrl, async (route) => {
+    skipStatus = (await request.post(`${linkUrl}/opening-adjustment/skip`, { headers: asUser(setup.user) })).status()
+    skipped()
+    const response = await route.fetch()
+    await refusalReleased
+    await route.fulfill({ response })
+  })
+  await logInViaApi(page, setup.user)
+  const dialog = await openBankLinkHoldingRead(page, setup.accountId, OPENING_BALANCE_STATUS, skippedElsewhere, WORKER_RESULT_TIMEOUT_MS)
+
+  await dialog.getByRole('button', { name: 'Record adjustment' }).click()
+  await expect(offerText(dialog, setup.adjustmentDate)).toHaveCount(0)
+
+  const refused = page.waitForResponse(recordUrl)
+  answerRefusal()
+  expect((await refused).status()).toBe(409)
+  await expect(errorToast(page, 'There is no opening balance to confirm')).toBeVisible()
+  expect(skipStatus).toBe(200)
+  expect(await countLedgerTransactions(request, setup.user)).toBe(1)
+})
+
+// The offer can fold away with the button holding focus before the answer comes back, as a read of the
+// link the server answered once the answer had reached it leaves the offer out. The modal reads the link
+// again as it opens, and that read is held until Skip has reached the server, while Skip's own answer is
+// held until the offer has gone
+test('moves focus on from an answer whose offer folds away before it answers', async ({ page, request }) => {
+  const setup = await linkWithGap(request)
+  const skipUrl = `${API_BASE_URL}/accounts/${setup.accountId}/bank-link/opening-adjustment/skip`
+  let skipReached = () => {}
+  const reached = new Promise<void>((resolve) => { skipReached = resolve })
+  let answerSkip = () => {}
+  const answerReleased = new Promise<void>((resolve) => { answerSkip = resolve })
+  await page.route(skipUrl, async (route) => {
+    const response = await route.fetch()
+    skipReached()
+    await answerReleased
+    await route.fulfill({ response })
+  })
+  await logInViaApi(page, setup.user)
+  const dialog = await openBankLinkHoldingRead(page, setup.accountId, OPENING_BALANCE_STATUS, reached, WORKER_RESULT_TIMEOUT_MS)
+
+  // The modal opens with Sync now focused, after the offer's buttons
+  const syncNow = dialog.getByRole('button', { name: 'Sync now' })
+  await expect(syncNow).toBeFocused()
+  await page.keyboard.press('Shift+Tab')
+  await page.keyboard.press('Shift+Tab')
+  await expect(dialog.getByRole('button', { name: 'Skip', exact: true })).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(offerText(dialog, setup.adjustmentDate)).toHaveCount(0)
+  await expect(syncNow).toBeFocused()
+
+  const answered = page.waitForResponse(skipUrl)
+  answerSkip()
+  expect((await answered).status()).toBe(200)
+})
+
+// A read of the link can fold the offer away while focus is elsewhere in the modal, as one the server
+// answered once the offer was skipped in another window does. The modal reads the link again as it
+// opens, and that read is held until the offer has been skipped
+test('leaves focus where the person put it when a read of the link folds the offer away', async ({ page, request }) => {
+  const setup = await linkWithGap(request)
+  let skipped = () => {}
+  const skippedElsewhere = new Promise<void>((resolve) => { skipped = resolve })
+  await logInViaApi(page, setup.user)
+  const dialog = await openBankLinkHoldingRead(page, setup.accountId, OPENING_BALANCE_STATUS, skippedElsewhere, WORKER_RESULT_TIMEOUT_MS)
+  await expect(dialog.getByRole('button', { name: 'Sync now' })).toBeFocused()
+  const name = dialog.getByLabel('Account name')
+  await name.click()
+
+  const skip = await request.post(`${API_BASE_URL}/accounts/${setup.accountId}/bank-link/opening-adjustment/skip`, { headers: asUser(setup.user) })
+  expect(skip.status()).toBe(200)
+  skipped()
+  await expect(offerText(dialog, setup.adjustmentDate)).toHaveCount(0)
+  await expect(name).toBeFocused()
 })
 
 for (const colorScheme of ['light', 'dark'] as const) {

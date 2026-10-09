@@ -16,6 +16,7 @@ import {
   SIGNED_AMOUNT_MESSAGE,
   ZERO_AMOUNT_MESSAGE,
 } from '@/pages/accounts/detail/components/bank-link/openingAdjustment'
+import { useMoveFocusOnFold } from '@/pages/accounts/detail/components/bank-link/useMoveFocusOnFold'
 import { AccountIdentityFieldLabelRow } from '@/pages/accounts/detail/components/edit-identity/controls/FieldLabelRow'
 import { formatDateLabel } from '@/utils/date'
 import { getAmountSign, signMovedAmount } from '@/utils/negativeAmount'
@@ -33,7 +34,10 @@ type OpeningAdjustmentOfferProps = {
   currency: string
   providerName: string
 
-  /** Moves focus on once an answer goes through, since the offer folds away with the button holding it */
+  /**
+   * Moves focus on once an answer goes through, or a read of the link leaves the offer out first, since
+   * the offer folds away with the button holding it
+   */
   onAnswered: () => void
 }
 
@@ -46,11 +50,12 @@ type OpeningAdjustmentOfferProps = {
  * Record adjustment refuses a blank or zero amount with a message beside the field, and the field
  * says why it refuses a typed or pasted sign, recording the amount it keeps if pressed. A press while
  * either answer runs does nothing, and the buttons keep the focus they hold, as Sync now does, until
- * an answer goes through and focus inside the offer moves on. A refused answer says why in a toast,
- * and the account's bank link is read again, which folds the offer away if it was answered elsewhere.
- * Enter in the field records nothing, since the offer sits inside the account's edit form, whose Save
- * Enter would otherwise press. While the currency list lacks the account's currency, the amount and
- * Record adjustment lock, with the reason beside the label, as other stored amounts do
+ * an answer goes through, or a read of the link leaves the offer out first, and focus inside the offer
+ * moves on. A refused answer says why in a toast, and the account's bank link is read again, which
+ * folds the offer away if it was answered elsewhere. Enter in the field records nothing, since the
+ * offer sits inside the account's edit form, whose Save Enter would otherwise press. While the
+ * currency list lacks the account's currency, the amount and Record adjustment lock, with the reason
+ * beside the label, as other stored amounts do
  */
 export function OpeningAdjustmentOffer({ accountId, offer, currency, providerName, onAnswered }: OpeningAdjustmentOfferProps) {
   const rootRef = useRef<HTMLDivElement>(null)
@@ -87,13 +92,21 @@ export function OpeningAdjustmentOffer({ accountId, offer, currency, providerNam
   })
   const busy = record.isPending || skip.isPending
   const prefix = signMovedAmount(getAmountSign(offer.amount), symbol)
+  useMoveFocusOnFold(rootRef, onAnswered)
 
   const reportError = (cause: unknown) =>
     showToast({ status: 'error', text: cause instanceof ApiError ? cause.message : ANSWER_FAILED_MESSAGE })
 
-  // Focus elsewhere stays where the person put it while the answer ran
-  const moveFocusOn = () => {
-    if (rootRef.current?.contains(document.activeElement)) onAnswered()
+  // The answer is awaited here rather than through the mutation's own callbacks, which are dropped once
+  // the offer has gone, so a refusal still says why after a read of the link has left it out. Focus
+  // elsewhere stays where the person put it while the answer ran
+  const answer = (send: () => Promise<unknown>) => {
+    void send().then(
+      () => {
+        if (rootRef.current?.contains(document.activeElement)) onAnswered()
+      },
+      reportError,
+    )
   }
 
   const recordOffer = () => {
@@ -103,12 +116,12 @@ export function OpeningAdjustmentOffer({ accountId, offer, currency, providerNam
       return
     }
     setError(null)
-    record.mutate({ accountId, amount }, { onSuccess: moveFocusOn, onError: reportError })
+    answer(() => record.mutateAsync({ accountId, amount }))
   }
 
   const skipOffer = () => {
     setError(null)
-    skip.mutate(accountId, { onSuccess: moveFocusOn, onError: reportError })
+    answer(() => skip.mutateAsync(accountId))
   }
 
   // Deleting in a field the refused text left blank changes no text, so no change arrives to clear
