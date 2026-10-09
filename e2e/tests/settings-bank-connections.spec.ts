@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import { createAccount, formatToday, signUpUser, todayInTestTimezone, type TestUser } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
@@ -30,6 +30,9 @@ const SAMPLE_CHEQUING = 'Everyday Chequing'
 const SAMPLE_VISA = 'Rewards Visa'
 const ADDING_PAUSED = "Bank sync isn't running right now. You can add one once it's back."
 const LINKING_PAUSED = "Bank sync isn't running right now. You can link accounts once it's back."
+
+// A sideways swipe well past the 16px the status's closed note reaches beyond the facts column's edge
+const SIDEWAYS_SWIPE_PX = 40
 
 /**
  * The first day of the month a number of months before this one, as YYYY-MM-DD
@@ -98,6 +101,29 @@ async function changeAnswer<T>(page: Page, path: string, change: (body: T) => vo
     await change(body)
     await route.fulfill({ response, json: body })
   })
+}
+
+/**
+ * Claims a connection to Harbour Bank whose bank login needs signing in again, which the import a
+ * link to Household queues finds, so its status reads Bank sign-in needed with a note beside it
+ */
+async function claimConnectionNeedingSignIn(request: APIRequestContext, user: TestUser): Promise<void> {
+  const [household, scenario] = await Promise.all([
+    createAccount(request, user, { name: 'Household' }),
+    createEmptyBridgeScenario(request),
+  ])
+  const login = await addBridgeBankLogin(request, scenario.id, SAMPLE_BANK)
+  await addBridgeBankAccount(request, scenario.id, { connId: login, name: SAMPLE_CHEQUING, currency: 'CAD' })
+  const connection = await claimSetupToken(request, user, scenario.setupToken)
+
+  await requireBridgeBankSignIn(request, scenario.id, login)
+  await linkBankAccount(request, user, {
+    accountId: household.id,
+    connectionId: connection.id,
+    externalAccountId: connection.accounts[0].external_id,
+    startDate: todayInTestTimezone(),
+  })
+  await waitForConnection(request, user, connection.id, (current) => current.accounts.some((bankAccount) => bankAccount.signin_needed))
 }
 
 // A read the page sends as a test ends can still be on its way through a changed answer when the page
@@ -446,23 +472,7 @@ test('reconnects a rejected connection, and shows the account to choose again un
 
 test('shows a bank that needs signing in to on the connection and its institution', async ({ page, request }) => {
   const user = await signUpUser(request)
-  const [household, scenario] = await Promise.all([
-    createAccount(request, user, { name: 'Household' }),
-    createEmptyBridgeScenario(request),
-  ])
-  const login = await addBridgeBankLogin(request, scenario.id, SAMPLE_BANK)
-  await addBridgeBankAccount(request, scenario.id, { connId: login, name: SAMPLE_CHEQUING, currency: 'CAD' })
-  const connection = await claimSetupToken(request, user, scenario.setupToken)
-
-  // The import the link queues meets the bank login's problem
-  await requireBridgeBankSignIn(request, scenario.id, login)
-  await linkBankAccount(request, user, {
-    accountId: household.id,
-    connectionId: connection.id,
-    externalAccountId: connection.accounts[0].external_id,
-    startDate: todayInTestTimezone(),
-  })
-  await waitForConnection(request, user, connection.id, (current) => current.accounts.some((bankAccount) => bankAccount.signin_needed))
+  await claimConnectionNeedingSignIn(request, user)
   const section = await openBankConnections(page, user)
 
   await expect(connectionRow(section, 'SimpleFIN')).toContainText('Bank sign-in needed')
@@ -500,23 +510,9 @@ test("lists the connection's facts one to a row beside its institutions from 105
 test("opens every note beside a connection's facts in full and clear of the fact's value, stacked or in the column", async ({ page, request }) => {
   test.skip(test.info().project.name !== 'desktop', 'It sets its own window sizes')
   const user = await signUpUser(request)
-  const [household, scenario] = await Promise.all([
-    createAccount(request, user, { name: 'Household' }),
-    createEmptyBridgeScenario(request),
-  ])
-  const login = await addBridgeBankLogin(request, scenario.id, SAMPLE_BANK)
-  await addBridgeBankAccount(request, scenario.id, { connId: login, name: SAMPLE_CHEQUING, currency: 'CAD' })
-  const connection = await claimSetupToken(request, user, scenario.setupToken)
 
   // A bank login waiting on a sign-in gives the status a note too, beside the two facts that always have one
-  await requireBridgeBankSignIn(request, scenario.id, login)
-  await linkBankAccount(request, user, {
-    accountId: household.id,
-    connectionId: connection.id,
-    externalAccountId: connection.accounts[0].external_id,
-    startDate: todayInTestTimezone(),
-  })
-  await waitForConnection(request, user, connection.id, (current) => current.accounts.some((bankAccount) => bankAccount.signin_needed))
+  await claimConnectionNeedingSignIn(request, user)
   const notes = [
     { icon: 'Status details', label: 'Status', text: new RegExp(`^Sign in to ${SAMPLE_BANK} again`) },
     { icon: 'About institutions linked', label: 'Institutions linked', text: /^Counts each institution/ },
@@ -536,8 +532,8 @@ test("opens every note beside a connection's facts in full and clear of the fact
   const section = await openBankConnections(page, user)
   const dialog = await openConnection(page, section, 'SimpleFIN')
 
-  // The dialog grows into place as it opens. A click retried on an icon still moving scrolls the column
-  // sideways, the column slides back as the note is placed, and the press ends beside the icon
+  // The dialog grows into place as it opens, and a press aimed at an icon before it has settled lands
+  // beside the icon by the time it arrives, leaving the note closed
   await expect(dialog).toHaveCSS('transform', 'none')
   for (const { clippedBy, ...size } of sizes) {
     await page.setViewportSize(size)
@@ -557,6 +553,34 @@ test("opens every note beside a connection's facts in full and clear of the fact
       await page.mouse.move(0, 0)
     }
   }
+})
+
+test("keeps a connection's facts column from scrolling sideways, so the status note's icon stays under the pointer", async ({ page, request }) => {
+  test.skip(test.info().project.name !== 'desktop', 'The facts sit in a column beside the institutions from 1050px, which one width shows')
+  const user = await signUpUser(request)
+
+  // Only the status's note, opening from after the longest status, reaches past the column's edge while closed
+  await claimConnectionNeedingSignIn(request, user)
+  const section = await openBankConnections(page, user)
+  const dialog = await openConnection(page, section, 'SimpleFIN')
+  await expect(dialog).toHaveCSS('transform', 'none')
+  const column = dialog.getByRole('complementary')
+  const icon = dialog.getByRole('button', { name: 'Status details' })
+  const atRest = (await icon.boundingBox())!
+
+  // A trackpad swipe across the column, further than the closed note reaches past its edge. The
+  // gesture has played out once the browser answers, and the column has scrolled by the next frame
+  const columnBox = (await column.boundingBox())!
+  const browser = await page.context().newCDPSession(page)
+  await browser.send('Input.synthesizeScrollGesture', {
+    x: columnBox.x + columnBox.width / 2,
+    y: columnBox.y + columnBox.height / 2,
+    xDistance: -SIDEWAYS_SWIPE_PX,
+    yDistance: 0,
+    gestureSourceType: 'mouse',
+  })
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+  expect(await icon.boundingBox()).toEqual(atRest)
 })
 
 test("opens a fact's note below its value where the dialog leaves no room above the fact", async ({ page, request }) => {

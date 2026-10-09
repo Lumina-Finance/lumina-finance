@@ -79,9 +79,12 @@ export function ModalWorkspacePanel({
       onExitComplete={onExitComplete}
     >
       <div className="flex min-h-0 w-full flex-col overflow-y-auto min-[1050px]:grid min-[1050px]:h-[580px] min-[1050px]:max-h-[86vh] min-[1050px]:grid-cols-[18rem_minmax(0,1fr)] min-[1050px]:overflow-hidden">
+        {/* Once it is a column, the thing's pane scrolls up and down only. A closed tooltip is faded rather
+            than gone, so one centred on an icon near the column's right edge still reaches past it, and
+            would otherwise let the column slide sideways from under the icon */}
         <aside
           data-tooltip-bounds
-          className="flex min-w-0 shrink-0 flex-col border-b px-4 pb-5 pt-5 sm:px-6 sm:pt-6 min-[1050px]:min-h-0 min-[1050px]:overflow-y-auto min-[1050px]:border-b-0 min-[1050px]:border-r min-[1050px]:px-6 min-[1050px]:pb-6 min-[1050px]:pt-7"
+          className="flex min-w-0 shrink-0 flex-col border-b px-4 pb-5 pt-5 sm:px-6 sm:pt-6 min-[1050px]:min-h-0 min-[1050px]:overflow-y-auto min-[1050px]:overflow-x-hidden min-[1050px]:border-b-0 min-[1050px]:border-r min-[1050px]:px-6 min-[1050px]:pb-6 min-[1050px]:pt-7"
           style={{ background: 'var(--app-surface-soft)', borderColor: 'var(--app-border)' }}
         >
           <div className="flex items-start justify-between gap-4">
