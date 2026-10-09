@@ -70,8 +70,22 @@ async def _setup_schema():
             # Starting from a new database puts every run on the same path as the
             # first one. Reusing it leaves the previous run's objects for the schema
             # drop below to lock, and across parallel workers that exhausts the
-            # cluster's lock table. FORCE closes connections a dead run left open
-            await conn.execute(text(f'DROP DATABASE IF EXISTS "{WORKER_DB_NAME}" WITH (FORCE)'))
+            # cluster's lock table. Connections a dead run left open are closed first, and only
+            # client ones: an autovacuum worker may be cleaning the database, it runs as a superuser
+            # this role may not terminate, so FORCE would fail on it, while the drop stops it by itself
+            await conn.execute(
+                text(
+                    """
+                    SELECT pg_terminate_backend(pid)
+                    FROM pg_stat_activity
+                    WHERE datname = :database_name
+                      AND pid <> pg_backend_pid()
+                      AND backend_type = 'client backend'
+                    """,
+                ),
+                {"database_name": WORKER_DB_NAME},
+            )
+            await conn.execute(text(f'DROP DATABASE IF EXISTS "{WORKER_DB_NAME}"'))
             await conn.execute(text(f'CREATE DATABASE "{WORKER_DB_NAME}"'))
     finally:
         await maintenance_engine.dispose()
