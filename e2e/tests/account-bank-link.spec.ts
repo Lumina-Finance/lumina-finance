@@ -175,7 +175,9 @@ function recordEntrance(): Promise<EntranceFrame[]> {
  * Opens a new account's Bank link section on a link part way through its first import, from Jan 1, 2026
  * with one of its two windows stored. The page reads the link from the returned answer in place of the
  * server, again on each request, so a test moves the import on by changing it. While a link imports, the
- * app shell reads the user's links every 2 seconds, and a change among them reads the account's link again
+ * app shell reads the user's links every 2 seconds, and a change among them reads the account's link again.
+ * The section shows for an account with no link only once the page knows linking is on offer, so the page
+ * has read the providers too before a test takes the link away
  */
 async function openImportingLink(page: Page, request: APIRequestContext): Promise<{ dialog: Locator; accountId: string; answer: { link: object } }> {
   const user = await signUpUser(request)
@@ -194,10 +196,12 @@ async function openImportingLink(page: Page, request: APIRequestContext): Promis
   }))
 
   await logInViaApi(page, user)
+  const providersRead = page.waitForResponse(`${API_BASE_URL}/bank-sync/providers`)
   await openPage(page, `/accounts/${everyday.id}`)
   await page.getByRole('button', { name: /^Bank sync: / }).click()
   const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
   await expect(dialog.getByText(/^Importing from /)).toBeVisible()
+  await (await providersRead).finished()
   return { dialog, accountId: everyday.id, answer }
 }
 
