@@ -274,7 +274,9 @@ async function controlBridge<T>(request: APIRequestContext, method: 'post' | 'pa
     throw new Error('E2E_FAKE_SIMPLEFIN_BRIDGE_URL is required for the bank specs: where this machine reaches the fake SimpleFIN Bridge the instance uses')
   }
 
-  const response = await request[method](`${FAKE_SIMPLEFIN_BRIDGE_URL}/control/scenarios${path}`, { data })
+  // Each on a connection of its own. The fake closes a connection left idle for its keep-alive of 5
+  // seconds, and a request sent on one as it closes is hung up on rather than answered
+  const response = await request[method](`${FAKE_SIMPLEFIN_BRIDGE_URL}/control/scenarios${path}`, { data, headers: { connection: 'close' } })
   if (!response.ok()) {
     throw new Error(`the fake SimpleFIN Bridge answered ${method.toUpperCase()} ${path} with ${response.status()}: ${await response.text()}`)
   }
