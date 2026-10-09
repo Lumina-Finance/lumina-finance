@@ -22,7 +22,7 @@ import {
   SEP_21,
   stopClock,
 } from '../support/bankSync'
-import { contrastOf, MIN_TEXT_CONTRAST, MINUS } from '../support/selectors'
+import { contrastOf, MIN_TEXT_CONTRAST, MINUS, readBoxes } from '../support/selectors'
 
 // Bank items waiting for review show in a block above the transaction list, outside the ledger.
 //
@@ -720,20 +720,21 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expect(rows).toHaveCount(4)
     await expect(toggle).toHaveAttribute('aria-expanded', 'false')
 
-    // Within the page and above the first transaction, with no sideways scroll at any width
+    // Within the page and above the first transaction, with no sideways scroll at any width. The two are
+    // measured together, since the page can still be settling above them
     const firstTransaction = page.getByTestId(/^transaction-row-/).first()
-    const [blockBox, transactionBox] = [await block.boundingBox(), await firstTransaction.boundingBox()]
+    const [blockBox, transactionBox] = await readBoxes(page, [block, firstTransaction])
     const viewportWidth = page.viewportSize()!.width
-    expect(blockBox!.x).toBeGreaterThanOrEqual(0)
-    expect(blockBox!.x + blockBox!.width).toBeLessThanOrEqual(viewportWidth)
-    expect(blockBox!.y + blockBox!.height).toBeLessThanOrEqual(transactionBox!.y)
+    expect(blockBox.x).toBeGreaterThanOrEqual(0)
+    expect(blockBox.x + blockBox.width).toBeLessThanOrEqual(viewportWidth)
+    expect(blockBox.y + blockBox.height).toBeLessThanOrEqual(transactionBox.y)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
 
     // Each amount sits beside its text rather than over it, a long description wrapping instead
     for (const row of await rows.all()) {
       const [text, amount] = [await row.getByTestId('review-item-text').boundingBox(), await row.getByTestId('review-item-amount').boundingBox()]
       expect(amount!.x).toBeGreaterThanOrEqual(text!.x + text!.width)
-      expect(amount!.x + amount!.width).toBeLessThanOrEqual(blockBox!.x + blockBox!.width)
+      expect(amount!.x + amount!.width).toBeLessThanOrEqual(blockBox.x + blockBox.width)
     }
     // The caret ends the header's first row, a button at least 24px each way with no words to read
     const toggleBox = (await toggle.boundingBox())!

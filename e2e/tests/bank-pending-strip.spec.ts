@@ -3,7 +3,7 @@ import { expect, test, type APIRequestContext, type Locator, type Page, type Res
 import { createAccount, createGroup, createTransaction, signUpUser, todayInTestTimezone, type SeededAccount } from '../support/api'
 import { filterTransactions, logInViaApi, openPage } from '../support/app'
 import { answerLinksWith, isRead, pageOf, reviewItem, SEP_21 } from '../support/bankSync'
-import { contrastOf, MIN_TEXT_CONTRAST, MINUS } from '../support/selectors'
+import { contrastOf, MIN_TEXT_CONTRAST, MINUS, readBoxes } from '../support/selectors'
 
 // Transactions the bank hasn't posted yet show in a muted strip under the review block, read-only
 // and outside the ledger.
@@ -313,15 +313,16 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await toggle.click()
     await expect(rows).toHaveCount(2)
 
-    // Under the review block and above the first transaction, within the page, with no sideways scroll at any width
+    // Under the review block and above the first transaction, within the page, with no sideways scroll at
+    // any width. The three are measured together, since the page can still be settling above them
     const block = page.getByRole('region', { name: 'Waiting for review' })
     const firstTransaction = page.getByTestId(/^transaction-row-/).first()
-    const [blockBox, stripBox, transactionBox] = [await block.boundingBox(), await strip.boundingBox(), await firstTransaction.boundingBox()]
+    const [blockBox, stripBox, transactionBox] = await readBoxes(page, [block, strip, firstTransaction])
     const viewportWidth = page.viewportSize()!.width
-    expect(stripBox!.y).toBeGreaterThanOrEqual(blockBox!.y + blockBox!.height)
-    expect(stripBox!.y + stripBox!.height).toBeLessThanOrEqual(transactionBox!.y)
-    expect(stripBox!.x).toBeGreaterThanOrEqual(0)
-    expect(stripBox!.x + stripBox!.width).toBeLessThanOrEqual(viewportWidth)
+    expect(stripBox.y).toBeGreaterThanOrEqual(blockBox.y + blockBox.height)
+    expect(stripBox.y + stripBox.height).toBeLessThanOrEqual(transactionBox.y)
+    expect(stripBox.x).toBeGreaterThanOrEqual(0)
+    expect(stripBox.x + stripBox.width).toBeLessThanOrEqual(viewportWidth)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
 
     // Each amount sits beside its text rather than over it, a long description wrapping instead
@@ -331,7 +332,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await uber.getByText(`${MINUS}$18.00`).boundingBox(),
     ]
     expect(amount!.x).toBeGreaterThanOrEqual(description!.x + description!.width)
-    expect(amount!.x + amount!.width).toBeLessThanOrEqual(stripBox!.x + stripBox!.width)
+    expect(amount!.x + amount!.width).toBeLessThanOrEqual(stripBox.x + stripBox.width)
     expect((await toggle.boundingBox())!.height).toBeGreaterThanOrEqual(24)
 
     // The toggle's words are measured as they first show, then again over the tint a pointer that
