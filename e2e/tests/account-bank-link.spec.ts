@@ -495,16 +495,28 @@ test('opens at the bank link with Review settings focused while Sync now is held
 // The Bank link section holds its height while it loads, and the dialog opens around it scaling up from
 // a little smaller. A height read off the screen mid-entrance came out short by the dialog's scale and was
 // kept, clipping the section until the hold ended and then letting it jump. The link's read is held for
-// the whole entrance, so nothing under the cover changes size while the height held is compared with it
+// the whole entrance, so nothing under the cover changes size while the height held is compared with it.
+// The page's clock stops once the page shows the fact, before the dialog opens, and moves on a frame at a
+// time, so the recording starts however long the click takes to land and holds every frame of the
+// entrance however rarely a busy machine draws one. Motion isn't reduced, as it is for other tests on the
+// page's clock, since the height is held only to ease the section's move, which reduced motion leaves out
 test('holds the loading Bank link section at its real height while the dialog scales in', async ({ page, request }) => {
   const user = await signUpUser(request)
   const everyday = await createAccount(request, user, { name: 'Everyday' })
   await page.route(`${API_BASE_URL}/accounts/${everyday.id}/bank-link`, () => {})
+  await page.clock.install()
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${everyday.id}`)
+  const bankSync = page.getByRole('button', { name: /^Bank sync: / })
+  await expect(bankSync).toBeVisible()
+  await stopClock(page)
 
-  const entrance = page.evaluate(recordEntrance)
-  await page.getByRole('button', { name: /^Bank sync: / }).click()
+  let recorded = false
+  const entrance = page.evaluate(recordEntrance).finally(() => {
+    recorded = true
+  })
+  await bankSync.click()
+  await runClockUntil(page, async () => recorded)
   const frames = await entrance
 
   const heldWhileScaling = frames.filter((frame) => frame.held && frame.scale < 1)
