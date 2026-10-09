@@ -23,14 +23,15 @@ for (const size of [{ width: 1280, height: 800 }, { width: 1920, height: 1080 }]
       dialog.getByRole('button', { name: 'Cancel', exact: true }),
       dialog.getByRole('button', { name: 'Add Transaction', exact: true }),
     ]
-    // The dialog's own entrance plays even with reduced motion, so its edges are read once they stop moving
+    // The dialog's own entrance plays even with reduced motion, so its edges are read once it has ended. Motion
+    // scales and fades the dialog frame by frame from script, so two readings taken within one frame match
+    // while it is still growing in, and the browser lists no animation for it to wait on
+    await expect.poll(() => dialog.evaluate((element) => {
+      const { opacity, transform } = getComputedStyle(element)
+      return opacity === '1' && (transform === 'none' || transform === 'matrix(1, 0, 0, 1, 0, 0)')
+    })).toBe(true)
     const edgeBoxes = () => Promise.all(edges.map((edge) => edge.boundingBox()))
-    let closedAt = await edgeBoxes()
-    await expect.poll(async () => {
-      const previous = closedAt
-      closedAt = await edgeBoxes()
-      return JSON.stringify(closedAt) === JSON.stringify(previous)
-    }).toBe(true)
+    const closedAt = await edgeBoxes()
 
     await dialog.getByRole('combobox', { name: 'Category', exact: true }).click()
     await expect(page.getByRole('option').first()).toBeVisible()
