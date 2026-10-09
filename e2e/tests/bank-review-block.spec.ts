@@ -643,12 +643,11 @@ test("stops going to a marker's item once the page it would be on fails to load"
   await expect(toggle).toHaveAttribute('aria-expanded', 'true')
 
   // The app tries a failed read twice. A search still under way opens the block again as soon as it
-  // closes, so it is closed until the search has ended, which it must
+  // closes, so it is closed once the search has ended, which it must
+  await expect(block).toHaveAttribute('data-going-to-item', 'false')
   await expect.poll(() => secondPageFailures).toBeGreaterThanOrEqual(2)
-  await expect(async () => {
-    if (await toggle.getAttribute('aria-expanded') === 'true') await toggle.click()
-    await expect(toggle).toHaveAttribute('aria-expanded', 'false', { timeout: 1000 })
-  }).toPass({ timeout: 15_000 })
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
   await expect(block.getByRole('listitem')).toHaveCount(4)
 })
 

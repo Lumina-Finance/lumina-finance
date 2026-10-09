@@ -305,6 +305,7 @@ export const BankReviewSection = memo(function BankReviewSection({
                 loadMoreSentinelRef={sentinelRef}
                 skipEnterAnimation={skipAppendedEnter}
                 highlightedId={highlight?.itemId ?? null}
+                isGoingToItem={jump !== null}
                 registerRow={registerRow}
                 onOpenItem={openItem}
                 canBulkApprove={(counts?.correction ?? 0) + (counts?.removal ?? 0) > 0}

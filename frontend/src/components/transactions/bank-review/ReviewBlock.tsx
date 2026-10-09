@@ -82,6 +82,9 @@ type BankReviewBlockProps = {
   /** The item a Needs review marker just went to, ringed for a moment so the eye finds it */
   highlightedId: string | null
 
+  /** Set while a Needs review marker's request is still going to its item */
+  isGoingToItem: boolean
+
   /** Takes each row as it mounts and null as it goes, for scrolling to and focusing an item */
   registerRow: (itemId: string, row: HTMLDivElement | null) => void
 
@@ -124,6 +127,7 @@ export function BankReviewBlock({
   loadMoreSentinelRef,
   skipEnterAnimation,
   highlightedId,
+  isGoingToItem,
   registerRow,
   onOpenItem,
   canBulkApprove,
@@ -162,6 +166,10 @@ export function BankReviewBlock({
   return (
     <section
       aria-labelledby={titleId}
+
+      // Read by a browser test waiting for a marker's request to end, since closing the block until
+      // then opens it again
+      data-going-to-item={isGoingToItem ? 'true' : 'false'}
       className="overflow-hidden rounded-2xl border border-dashed"
       style={{ borderColor: 'var(--app-review-border)', background: 'var(--app-review-bg)' }}
     >

@@ -57,6 +57,7 @@ function renderBlock(
     loadMoreSentinelRef: () => {},
     skipEnterAnimation: false,
     highlightedId: null,
+    isGoingToItem: false,
     registerRow: () => {},
     onOpenItem: () => {},
     prefersReducedMotion: true,
