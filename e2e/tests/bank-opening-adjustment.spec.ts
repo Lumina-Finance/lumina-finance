@@ -60,6 +60,19 @@ async function openOffer(page: Page, request: APIRequestContext): Promise<{ setu
   return { setup, offer }
 }
 
+/**
+ * Waits for the dialog to finish scaling in. Motion scales it frame by frame from script, which leaves the
+ * browser no animation to wait on, and a distance read before it ends comes out short by the scale
+ */
+async function waitForEntrance(dialog: Locator): Promise<void> {
+  await expect.poll(() => dialog.evaluate((element) => {
+    for (let node: Element | null = element; node; node = node.parentElement) {
+      if (getComputedStyle(node).transform !== 'none') return false
+    }
+    return true
+  })).toBe(true)
+}
+
 /** The offer's sentence, naming the day before the import start as the app writes a day with its year */
 function offerText(dialog: Locator, adjustmentDate: string): Locator {
   return dialog.getByText(`Record the difference as an opening adjustment on ${formatDateLabel(adjustmentDate)}, so your ledger starts at SimpleFIN's balance.`)
@@ -126,6 +139,7 @@ test('keeps the amount and the answers in place on a phone when a message shows 
     const [sentence, ...controls] = await readBoxes(page, [offer.sentence, offer.amount, offer.skip, offer.record])
     return controls.map(({ y }) => Math.round(y - sentence.y))
   }
+  await waitForEntrance(offer.dialog)
   const before = await placed()
 
   await offer.amount.fill('0')
