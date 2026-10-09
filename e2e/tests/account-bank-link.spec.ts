@@ -36,6 +36,9 @@ const LINKING_PAUSED = "Bank sync isn't running right now. You can link accounts
 const ARCHIVED = 'Archived accounts are read-only'
 
 
+// Well past when a Bank link section that loads after its modal has opened moves focus to its action
+const OPENING_FOCUS_PASSED_MS = 1_000
+
 // Either side of where a modal stops filling the screen and sits in the middle of it, at a laptop's height
 const WIDEST_FULL_SCREEN_MODAL_SIZE = { width: 1049, height: 800 }
 const NARROWEST_CENTRED_MODAL_SIZE = { width: 1050, height: 800 }
@@ -74,7 +77,7 @@ async function openBankLink(page: Page, user: TestUser, accountId: string, statu
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${accountId}`)
   await page.getByRole('button', { name: `Bank sync: ${status}. Open bank link` }).click()
-  const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
   await expect(dialog).toBeVisible()
   return dialog
 }
@@ -193,7 +196,7 @@ async function openImportingLink(page: Page, request: APIRequestContext): Promis
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${everyday.id}`)
   await page.getByRole('button', { name: /^Bank sync: / }).click()
-  const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
   await expect(dialog.getByText(/^Importing from /)).toBeVisible()
   return { dialog, accountId: everyday.id, answer }
 }
@@ -485,7 +488,7 @@ test('unlinks the account alone, then reconnects it with the relink wording', as
   const bankSync = page.getByRole('button', { name: 'Bank sync: Opening balance to confirm. Open bank link' })
   await expect(bankSync).toBeVisible({ timeout: WORKER_RESULT_TIMEOUT_MS })
   await bankSync.click()
-  const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
   await expect(dialog.getByRole('button', { name: 'Record adjustment' })).toBeVisible()
   await expect(dialog.getByRole('button', { name: 'Sync now' })).toBeFocused()
 
@@ -552,11 +555,68 @@ test('opens at the bank link with Review settings focused while Sync now is held
   await openPage(page, `/accounts/${everyday.id}`)
   await providersRead
   await page.getByRole('button', { name: /^Bank sync: / }).click()
-  const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
 
   // Focus passes over Sync now, since it would open the reason over the section
   await expect(dialog.getByRole('button', { name: 'Review settings' })).toBeFocused()
   await expect(dialog.getByRole('button', { name: 'Sync now' })).toHaveAttribute('aria-disabled', 'true')
+})
+
+/**
+ * Opens Everyday's edit modal through the Bank sync fact with the link's read held, so the Bank link
+ * section shows its action only once `showSection` lets the read through, after the modal has opened
+ * and put focus in Account Name. The section then moves focus to its action a moment later unless the
+ * person has moved it first. The page's clock is installed for the test to stop once focus is where the
+ * person put it, so that moment comes only as `showSection` moves the clock on, however slowly the read
+ * lands
+ */
+async function openBeforeLinkLoads(page: Page, request: APIRequestContext): Promise<{ dialog: Locator; showSection: () => Promise<void> }> {
+  const user = await signUpUser(request)
+  const everyday = await createAccount(request, user, { name: 'Everyday' })
+  const linkUrl = `${API_BASE_URL}/accounts/${everyday.id}/bank-link`
+  let answerRead = () => {}
+  const readReleased = new Promise<void>((resolve) => { answerRead = resolve })
+  await page.route(linkUrl, async (route) => {
+    await readReleased
+    await route.fallback()
+  })
+  await page.clock.install()
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${everyday.id}`)
+  await page.getByRole('button', { name: /^Bank sync: / }).click()
+  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
+  await expect(dialog.getByLabel('Account name')).toBeFocused()
+
+  const showSection = async () => {
+    const read = page.waitForResponse((answer) => answer.url() === linkUrl && answer.request().method() === 'GET')
+    answerRead()
+    await read
+    await runClockUntil(page, () => dialog.getByRole('button', { name: 'Link bank account' }).isVisible())
+    await page.clock.runFor(OPENING_FOCUS_PASSED_MS)
+  }
+  return { dialog, showSection }
+}
+
+test('leaves focus in Account Name when typing starts there before the Bank link section loads', async ({ page, request }) => {
+  const { dialog, showSection } = await openBeforeLinkLoads(page, request)
+  const name = dialog.getByLabel('Account name')
+  await page.keyboard.press('End')
+  await page.keyboard.type(' Plus')
+  await expect(name).toHaveValue('Everyday Plus')
+  await stopClock(page)
+
+  await showSection()
+  await expect(name).toBeFocused()
+})
+
+test('leaves focus in Account Name when a press lands there before the Bank link section loads', async ({ page, request }) => {
+  const { dialog, showSection } = await openBeforeLinkLoads(page, request)
+  const name = dialog.getByLabel('Account name')
+  await name.click()
+  await stopClock(page)
+
+  await showSection()
+  await expect(name).toBeFocused()
 })
 
 // The Bank link section holds its height while it loads, and the dialog opens around it scaling up from
@@ -622,10 +682,10 @@ test('opens the link flow on the new account’s page when the new-account promp
   await logInViaApi(page, user)
   await openPage(page, '/accounts')
 
-  const create = await openModal(page, ['Add Account', 'Add account'], 'Add Account')
-  await chooseFromDropdown(create, 'Account Type', 'Checking')
-  await create.getByLabel('Account Name').fill('Everyday')
-  await create.getByRole('button', { name: 'Create Account' }).click()
+  const create = await openModal(page, ['Add account'], 'Add account')
+  await chooseFromDropdown(create, 'Account type', 'Checking')
+  await create.getByLabel('Account name').fill('Everyday')
+  await create.getByRole('button', { name: 'Create account' }).click()
 
   const prompt = page.getByRole('dialog', { name: 'Keep it up to date' })
   await expect(prompt.getByText('Everyday created')).toBeVisible()
@@ -658,7 +718,7 @@ test.describe('the reason on Link bank account while bank sync is not running', 
   })
 
   test('shows on hover, and Escape puts it away while the modal stays open', async ({ page }) => {
-    const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+    const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
     const link = dialog.getByRole('button', { name: 'Link bank account' })
     await expect(link).toHaveAttribute('aria-disabled', 'true')
     await expect(link).toHaveAccessibleDescription(LINKING_PAUSED)
@@ -712,7 +772,7 @@ test('disconnects the whole connection from the Unlink dialog, unlinking the acc
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${everyday.id}`)
   await page.getByRole('button', { name: /^Bank sync: / }).click()
-  const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
   await dialog.getByRole('button', { name: 'Unlink' }).click()
 
   const unlink = page.getByRole('dialog', { name: 'Unlink bank account' })

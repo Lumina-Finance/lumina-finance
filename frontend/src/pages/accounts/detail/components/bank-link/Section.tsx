@@ -303,8 +303,19 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
   const initialFocus: InitialFocusProps = autoFocus ? { 'data-modal-field-tab-stop': 'true', 'data-modal-initial-focus': 'true' } : {}
 
   // The modal focuses the marked control as it opens. One that shows only once the link has loaded
-  // misses that, so it waits for the modal to have opened and put focus in its first field instead
+  // misses that, so it waits for the modal to have opened and put focus in its first field instead.
+  // A press or a key before then has put focus where the person wants it, so it stays there
   const [focusOnShow, setFocusOnShow] = useState(autoFocus && !showsControls)
+  useEffect(() => {
+    if (!focusOnShow) return undefined
+    const keepTheirFocus = () => setFocusOnShow(false)
+    document.addEventListener('pointerdown', keepTheirFocus, true)
+    document.addEventListener('keydown', keepTheirFocus, true)
+    return () => {
+      document.removeEventListener('pointerdown', keepTheirFocus, true)
+      document.removeEventListener('keydown', keepTheirFocus, true)
+    }
+  }, [focusOnShow])
   useEffect(() => {
     if (!focusOnShow || !showsControls) return undefined
     const timer = window.setTimeout(() => {
