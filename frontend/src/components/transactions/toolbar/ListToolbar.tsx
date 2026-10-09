@@ -263,6 +263,7 @@ export default function TransactionListToolbar({
         toolbarStuckSentinelRef={shell.toolbarStuckSentinelRef}
         desktopInlineLayout={shell.desktopInlineLayout}
         isToolbarStuck={shell.isToolbarStuck}
+        isMobileSearchStuck={shell.mobileSearchStuck}
       >
         <GlassSearchField
           value={search}

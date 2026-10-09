@@ -26,6 +26,9 @@ const SHORT_WINDOW_HEIGHT = 600
 // How far below the sticky bars the bank icon is scrolled to, too close for the panel to fit above it
 const ICON_UNDER_BARS_PX = 2
 
+// How far below the search and filter bars the app sticks a day heading
+const HEADING_GAP_UNDER_BARS_PX = 4
+
 // How far inside the tooltip panel's edges a point is read to find what covers it, clear of the
 // border's antialiasing
 const PANEL_EDGE_INSET_PX = 2
@@ -268,22 +271,34 @@ test('opens the tooltip below the bank icon when the icon sits just under the st
   const marker = row.getByRole('button', { name: 'From SimpleFIN, edited', exact: true })
   await expect(marker).toBeVisible()
 
-  // Scrolled until the row's day heading has stuck under the search and filter bars and the bank
-  // icon sits just under the heading. Retried while the bars settle into their stuck size
-  await expect(async () => {
-    const gap = await marker.evaluate((icon, iconGap) => {
-      const heading = [...document.querySelectorAll<HTMLElement>('*')]
-        .filter((element) => getComputedStyle(element).position === 'sticky' && !element.contains(icon)
-          && element.compareDocumentPosition(icon) & Node.DOCUMENT_POSITION_FOLLOWING)
-        .at(-1)!
-      window.scrollBy({ top: heading.getBoundingClientRect().top - parseFloat(getComputedStyle(heading).top), behavior: 'instant' })
-      window.scrollBy({ top: icon.getBoundingClientRect().top - heading.getBoundingClientRect().bottom - iconGap, behavior: 'instant' })
-      return icon.getBoundingClientRect().top - heading.getBoundingClientRect().bottom
-    }, ICON_UNDER_BARS_PX)
-    // Within a pixel, since the page scrolls by whole pixels and the icon can sit on a half one
-    expect(gap).toBeGreaterThanOrEqual(ICON_UNDER_BARS_PX - 1)
-    expect(gap).toBeLessThanOrEqual(ICON_UNDER_BARS_PX + 1)
-  }).toPass()
+  // The row's day heading is the last sticky element before the bank icon, and the search and filter
+  // bars it sticks under mark themselves as covering the list
+  const heading = await marker.evaluateHandle((icon) => [...document.querySelectorAll<HTMLElement>('*')]
+    .filter((element) => getComputedStyle(element).position === 'sticky' && !element.contains(icon)
+      && element.compareDocumentPosition(icon) & Node.DOCUMENT_POSITION_FOLLOWING)
+    .at(-1)!)
+  const bars = page.locator('[data-tooltip-cover]')
+
+  // Scrolled until the heading has stuck under the bars and the bank icon sits just under the heading
+  await marker.evaluate((icon, { element, iconGap }) => {
+    window.scrollBy({ top: element.getBoundingClientRect().top - parseFloat(getComputedStyle(element).top), behavior: 'instant' })
+    window.scrollBy({ top: icon.getBoundingClientRect().top - element.getBoundingClientRect().bottom - iconGap, behavior: 'instant' })
+  }, { element: heading, iconGap: ICON_UNDER_BARS_PX })
+
+  // Sticking eases the bars into their stuck size, and the heading follows once the app publishes
+  // where they now end, so the gap is read once the bars have stuck, nothing in them is easing and
+  // the heading sticks where the app places it under them
+  await expect(bars).toHaveAttribute('data-stuck', 'true')
+  await expect.poll(() => bars.evaluate((element, { stuckHeading, headingGap }) => {
+    const isEasing = element.getAnimations({ subtree: true })
+      .some((animation) => animation instanceof CSSTransition && animation.playState === 'running')
+    const placed = Math.ceil(element.getBoundingClientRect().height) + parseFloat(getComputedStyle(element).top) + headingGap
+    return !isEasing && parseFloat(getComputedStyle(stuckHeading).top) === placed
+  }, { stuckHeading: heading, headingGap: HEADING_GAP_UNDER_BARS_PX })).toBe(true)
+  const gap = await marker.evaluate((icon, element) => icon.getBoundingClientRect().top - element.getBoundingClientRect().bottom, heading)
+  // Within a pixel, since the page scrolls by whole pixels and the icon can sit on a half one
+  expect(gap).toBeGreaterThanOrEqual(ICON_UNDER_BARS_PX - 1)
+  expect(gap).toBeLessThanOrEqual(ICON_UNDER_BARS_PX + 1)
 
   // There is no room above the icon below the bars, so the panel opens under it, every line readable
   await getTransactionRowButton(row).focus()

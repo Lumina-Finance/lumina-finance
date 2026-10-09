@@ -38,6 +38,7 @@ export default function AccountListToolbar({
         toolbarStuckSentinelRef={shell.toolbarStuckSentinelRef}
         desktopInlineLayout={shell.desktopInlineLayout}
         isToolbarStuck={shell.isToolbarStuck}
+        isMobileSearchStuck={shell.mobileSearchStuck}
       >
         <GlassSearchField
           value={search}
