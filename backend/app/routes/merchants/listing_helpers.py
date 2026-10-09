@@ -4,15 +4,17 @@ import uuid
 from collections.abc import Sequence
 from datetime import date, timedelta
 
-from sqlalchemy import Date, Integer, Numeric, cast, func, literal, select
+from sqlalchemy import Date, Integer, Numeric, cast, func, literal, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.account import Account
 from app.models.category import Category
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction
 from app.routes.merchants.access_helpers import require_group_member
 from app.routes.merchants.scope_filter_helpers import get_merchant_list_scope_filter
 from app.services.categories.transfer_rules import BALANCE_ADJUSTMENT_CATEGORY_NAME
+from app.services.transactions.access_helpers import accessible_account_ids_subquery
 from app.utils.sql_search_helpers import escape_like_search_text
 
 # How long a transaction takes to count for half of what it counted the day it was recorded. The
@@ -60,18 +62,6 @@ async def get_merchants_for_user(
     """
     usage_cutoff = today - timedelta(days=MERCHANT_USAGE_CUTOFF_DAYS)
 
-    # Subtracting one date from another gives whole days in Postgres, and SQLAlchemy casts the
-    # divisor so the division keeps its fraction instead of truncating to whole half-lives
-    transaction_age_days = cast(literal(today, Date) - Transaction.dt, Integer)
-    usage_weight = func.power(0.5, transaction_age_days / float(MERCHANT_USAGE_HALF_LIFE_DAYS))
-
-    # Summing no rows gives null, which Postgres sorts ahead of every number under DESC, so a
-    # merchant nobody has used would lead the list without this
-    decayed_usage_score = func.round(
-        cast(func.coalesce(func.sum(usage_weight), 0.0), Numeric),
-        MERCHANT_USAGE_SCORE_DECIMAL_PLACES,
-    )
-
     # Balance adjustments are written by the app rather than the user, and they carry the shared
     # Myself merchant, so counting them would let opening a few accounts push that merchant to the
     # top of a ranking meant to reflect who the user actually transacts with
@@ -80,20 +70,50 @@ async def get_merchants_for_user(
         Category.name == BALANCE_ADJUSTMENT_CATEGORY_NAME,
     )
 
-    # Score each merchant's transactions, the date bound living in the join condition so merchants
-    # with nothing to count are kept and ranked last. Bounding both ends in one comparison drops
-    # transactions past the cutoff and transactions dated ahead of the user's today, which would
-    # otherwise weigh more than one recorded now
+    # Score each of the user's accounts in turn, then add the accounts' scores together. The shared
+    # system merchants carry every user's transactions, and reached through the merchant instead,
+    # row-level security would check each of them and discard everyone else's, so the list would
+    # slow down as the app's usage grew. The per-account score is lateral and grouped, so the
+    # database cannot fold it into one join and can only ever reach transactions account by account.
+    # Bounding both ends of the date in one comparison drops transactions past the cutoff and
+    # transactions dated ahead of the user's today, which would otherwise weigh more than one
+    # recorded now
+    #
+    # Subtracting one date from another gives whole days in Postgres, and SQLAlchemy casts the
+    # divisor so the division keeps its fraction instead of truncating to whole half-lives
+    transaction_age_days = cast(literal(today, Date) - Transaction.dt, Integer)
+    usage_weight = func.power(0.5, transaction_age_days / float(MERCHANT_USAGE_HALF_LIFE_DAYS))
+    account_scores = (
+        select(Transaction.merchant_id, func.sum(usage_weight).label("score"))
+        .where(
+            Transaction.account_id == Account.id,
+            Transaction.dt.between(usage_cutoff, today),
+            Transaction.category_id.notin_(balance_adjustment_category_ids),
+        )
+        .group_by(Transaction.merchant_id)
+        .lateral()
+    )
+    usage_scores = (
+        select(account_scores.c.merchant_id, func.sum(account_scores.c.score).label("score"))
+        .select_from(Account)
+        .join(account_scores, true())
+        .where(Account.id.in_(accessible_account_ids_subquery(user_id)))
+        .group_by(account_scores.c.merchant_id)
+        .subquery()
+    )
+
+    # Summing no rows gives null, which Postgres sorts ahead of every number under DESC, so a
+    # merchant nobody has used would lead the list without this
+    decayed_usage_score = func.round(
+        cast(func.coalesce(usage_scores.c.score, 0.0), Numeric),
+        MERCHANT_USAGE_SCORE_DECIMAL_PLACES,
+    )
+
+    # Merchants with nothing to count are kept and ranked last
     merchant_query = (
         select(Merchant)
-        .outerjoin(
-            Transaction,
-            (Transaction.merchant_id == Merchant.id)
-            & Transaction.dt.between(usage_cutoff, today)
-            & Transaction.category_id.notin_(balance_adjustment_category_ids),
-        )
+        .outerjoin(usage_scores, usage_scores.c.merchant_id == Merchant.id)
         .where(get_merchant_list_scope_filter(user_id, group_id))
-        .group_by(Merchant.id)
     )
 
     if group_id is not None:
