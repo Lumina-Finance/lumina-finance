@@ -1,4 +1,5 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
+import { useIsPresent } from 'motion/react'
 import { History } from 'lucide-react'
 import { ApiError } from '@/api/auth'
 import { useDismissCutOffDay, useDismissHistoryReminder, type BankHistoryReminder } from '@/api/bank-sync'
@@ -13,7 +14,10 @@ type ReminderProps = {
   accountId: string
   providerName: string
 
-  /** Moves focus on once a dismissal goes through, since the reminder folds away with the ✕ holding it */
+  /**
+   * Moves focus on once a dismissal goes through, or a read of the link leaves the reminder out first,
+   * since the reminder folds away with the ✕ holding it
+   */
   onDismissed: (reminder: HTMLElement) => void
 }
 
@@ -32,13 +36,21 @@ type DismissibleReminderProps = {
 /**
  * A reminder that history may be missing, in the review notices' colours, which the ✕ dismisses for
  * the import, catch-up or day that raised it. A press while it runs does nothing, and the ✕ keeps the
- * focus it holds until the dismissal goes through and focus inside moves on. A newer reminder in the
- * answer takes its place. A refused dismissal says why in a toast, and the account's bank link is
- * read again
+ * focus it holds until the dismissal goes through, or a read of the link leaves the reminder out first,
+ * and focus inside moves on. A newer reminder in the answer takes its place. A refused dismissal says
+ * why in a toast, and the account's bank link is read again
  */
 function DismissibleReminder({ copy, dismissing, dismiss, onDismissed }: DismissibleReminderProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const { showToast } = useToast()
+
+  // A read of the link the server answered once the dismissal had gone through can leave the reminder
+  // out before the dismissal itself answers. Focus still in it then moves on as it starts to fold away,
+  // rather than falling to the page once it has gone
+  const isPresent = useIsPresent()
+  useEffect(() => {
+    if (!isPresent && rootRef.current?.contains(document.activeElement)) onDismissed(rootRef.current)
+  }, [isPresent, onDismissed])
 
   const run = () => dismiss({
     // Focus elsewhere stays where the person put it while the dismissal ran

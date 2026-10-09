@@ -5,7 +5,7 @@
  * reads that the instance can't yet produce, such as a transaction imported from a bank.
  */
 
-import { expect, type APIRequestContext, type Locator, type Page } from '@playwright/test'
+import { expect, type APIRequestContext, type Locator, type Page, type Request } from '@playwright/test'
 
 import { asUser, findReferenceId, todayInTestTimezone, type TestUser } from './api'
 import { openPage } from './app'
@@ -344,10 +344,57 @@ export async function openBankLink(page: Page, accountId: string, status: string
     }
   })
   await bankSync.click()
-  const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
   await expect(dialog).toBeVisible()
   await expect.poll(() => page.evaluate(() => (window as Window & { modalScrolled?: boolean }).modalScrolled === true)).toBe(true)
   return dialog
+}
+
+/** Whatever the Bank sync fact reads once the page has read the link, rather than Checking… */
+export const READ_LINK_STATUS = /(?!Checking…).+\./
+
+/**
+ * Opens the account's page and, once the identity card's Bank sync fact reads as given, its edit modal
+ * through that fact, holding the read of the bank link the modal makes as it opens until `released`
+ * settles. The page has read the link by the time the fact reads as given, so the modal opens on what
+ * that read found, and the held read brings in whatever the server holds by the time it is let through
+ *
+ * @param status - The label the fact should come to show, as `bankSyncFact` reads it
+ * @param timeout - How long the fact may take to come to show it, where the worker has yet to finish
+ */
+export async function openBankLinkHoldingRead(
+  page: Page,
+  accountId: string,
+  status: string | RegExp,
+  released: Promise<unknown>,
+  timeout?: number,
+): Promise<Locator> {
+  const linkUrl = `${API_BASE_URL}/accounts/${accountId}/bank-link`
+  let holding = false
+  const letThrough = new Set<Request>()
+  const landed = (sent: Request) => letThrough.delete(sent)
+  page.on('requestfinished', landed)
+  page.on('requestfailed', landed)
+  await page.route(linkUrl, async (route) => {
+    if (holding) await released
+    else letThrough.add(route.request())
+    await route.fallback()
+  })
+  await openPage(page, `/accounts/${accountId}`)
+  const bankSync = bankSyncFact(page, status)
+  await expect(bankSync).toBeVisible({ timeout })
+  holding = true
+  const reread = page.waitForRequest((sent) => sent.url() === linkUrl && sent.method() === 'GET')
+
+  // The page reads the link again whenever its poll of the link list finds it changed. A read let
+  // through before the hold would bring in what the server held then, and the modal's own read would
+  // join it rather than go out held, so the modal opens once every such read has landed
+  await expect.poll(() => letThrough.size).toBe(0)
+  page.off('requestfinished', landed)
+  page.off('requestfailed', landed)
+  await bankSync.click()
+  await reread
+  return page.getByRole('dialog', { name: 'Edit account', exact: true })
 }
 
 /** A toast saying why something failed, which is announced as an alert */

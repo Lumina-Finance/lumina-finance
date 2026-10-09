@@ -2,7 +2,14 @@ import { expect, test, type APIRequestContext, type Locator, type Page } from '@
 
 import { asUser, createAccount, daysFromTodayInTestTimezone, formatDateLabel, signUpUser, todayInTestTimezone, type TestUser } from '../support/api'
 import { logInViaApi } from '../support/app'
-import { linkToEmptyBankAccount, openBankLink, WORKER_RESULT_TIMEOUT_MS, type BridgeTransaction } from '../support/bankSync'
+import {
+  linkToEmptyBankAccount,
+  openBankLink,
+  openBankLinkHoldingRead,
+  READ_LINK_STATUS,
+  WORKER_RESULT_TIMEOUT_MS,
+  type BridgeTransaction,
+} from '../support/bankSync'
 import { API_BASE_URL } from '../support/target'
 
 // The reminder a linked account's Bank link section shows once a day alone still brings back as many
@@ -93,4 +100,35 @@ test('dismisses each reminder for good, focus moving from one ✕ to the next an
   await expect(again.getByRole('button', { name: 'Unlink' })).toBeVisible()
   await expect(again.getByText(CUT_OFF)).toHaveCount(0)
   await expect(again.getByText(NO_HISTORY)).toHaveCount(0)
+})
+
+// A reminder can fold away before its dismissal answers, as a read of the link the server answers once
+// the dismissal has gone through comes back without it. The modal reads the link again as it opens, and
+// that read is held until the dismissal has reached the server, while the dismissal's own answer is held
+// until the reminder has gone
+test('moves focus on from a ✕ whose reminder folds away before its dismissal answers', async ({ page, request }) => {
+  const setup = await linkCutShort(request)
+  const dismissUrl = `${API_BASE_URL}/accounts/${setup.accountId}/bank-link/history-reminder/dismiss`
+  let dismissalReached = () => {}
+  const reached = new Promise<void>((resolve) => { dismissalReached = resolve })
+  let answerDismissal = () => {}
+  const answerReleased = new Promise<void>((resolve) => { answerDismissal = resolve })
+  await page.route(dismissUrl, async (route) => {
+    const response = await route.fetch()
+    dismissalReached()
+    await answerReleased
+    await route.fulfill({ response })
+  })
+  await logInViaApi(page, setup.user)
+  const dialog = await openBankLinkHoldingRead(page, setup.accountId, READ_LINK_STATUS, reached)
+  const history = reminderNote(dialog, NO_HISTORY)
+
+  await history.getByRole('button', { name: 'Dismiss' }).click()
+  await expect(history).toBeHidden()
+  await expect(reminderNote(dialog, CUT_OFF).getByRole('button', { name: 'Dismiss' })).toBeFocused()
+
+  const answered = page.waitForResponse(dismissUrl)
+  answerDismissal()
+  expect((await answered).status()).toBe(200)
+  expect((await readReminders(request, setup.user, setup.accountId)).history_reminder).toBeNull()
 })
