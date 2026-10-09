@@ -3,7 +3,7 @@ import { expect, test, type APIRequestContext, type Locator, type Page, type Rou
 import { asUser, createAccount, createTransaction, signUpUser, type TestUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
 import { answerAsBankImported, BANK_SOURCE, type BankSource } from '../support/bankSync'
-import { expectPendingAction, expectTransactionRow, MINUS } from '../support/selectors'
+import { expectPendingAction, expectTransactionRow, MINUS, readBoxes } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 
 // The edit modal of a bank-imported transaction shows the bank's description and, under each field
@@ -69,9 +69,12 @@ function restoreAction(dialog: Locator, field: 'date' | 'amount'): Locator {
   return dialog.locator(`button[aria-describedby~="txn-${field}-bank-value"]`)
 }
 
-/** Assert the first box sits below the second and starts within its left and right edges */
+/**
+ * Assert the first box sits below the second and starts within its left and right edges. The two are
+ * measured together, since the dialog can still be scaling in around them
+ */
 async function expectUnder(caption: Locator, field: Locator): Promise<void> {
-  const [captionBox, fieldBox] = [(await caption.boundingBox())!, (await field.boundingBox())!]
+  const [captionBox, fieldBox] = await readBoxes(caption.page(), [caption, field])
   expect(captionBox.y).toBeGreaterThanOrEqual(fieldBox.y + fieldBox.height - 1)
   expect(captionBox.x).toBeGreaterThanOrEqual(fieldBox.x - 1)
   expect(captionBox.x).toBeLessThan(fieldBox.x + fieldBox.width)
@@ -292,7 +295,7 @@ test('restores the bank date under an edited date, which stays restored once the
 
   // Beside the amount, the date's column is too narrow for the value and the action together, so the
   // action takes a line of its own. Stacked on a phone, both fit on one line
-  const [dateBox, amountBox] = [(await date.boundingBox())!, (await dialog.getByRole('textbox', { name: 'Amount', exact: true }).boundingBox())!]
+  const [dateBox, amountBox] = await readBoxes(page, [date, dialog.getByRole('textbox', { name: 'Amount', exact: true })])
   expect(await expectActionPlacement(dialog, 'date')).toBe(amountBox.x >= dateBox.x + dateBox.width)
   await expect(date.getByRole('textbox', { name: 'Day' })).toHaveValue('13')
 
