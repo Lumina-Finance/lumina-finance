@@ -16,6 +16,9 @@ const BANK_DESCRIPTION = 'HARBOUR CAFE #12 VANCOUVER'
 const RESTORE_FAILED = 'Could not restore the bank value. Please try again.'
 const UNSTORABLE_REASON = 'The bank\'s amount has more decimal places than CAD allows, so it can\'t be restored.'
 
+// How far below the edge of the modal's body the action sits before the keyboard reaches it
+const ACTION_OUT_OF_VIEW_PX = 6
+
 /** A bank source sending these values, with these fields edited in the ledger */
 function bankSource(values: Partial<BankSource['bank_values']>, editedFields: BankSource['edited_fields']): BankSource {
   return {
@@ -430,14 +433,20 @@ test('greys out Restore bank value on an amount the currency can\'t hold, saying
   await expect(dialog.getByRole('alert')).toHaveCount(0)
   expect(restores).toBe(0)
 
-  // Reached from the amount by the keyboard, it shows the reason under it
-  await amount.focus()
+  // Reached from the amount by the keyboard, it shows the reason under it. Where the modal's body scrolls,
+  // it is first scrolled to leave the action just out of view below, so the press scrolls it in
+  await restore.evaluate((action, outOfView) => {
+    let body = action.parentElement!
+    while (!/auto|scroll/.test(getComputedStyle(body).overflowY)) body = body.parentElement!
+    body.scrollTop += action.getBoundingClientRect().bottom - body.getBoundingClientRect().bottom - outOfView
+  }, ACTION_OUT_OF_VIEW_PX)
+  await amount.evaluate((field) => field.focus({ preventScroll: true }))
   await page.keyboard.press('Tab')
   await expect(restore).toBeFocused()
   await expect(reason).toHaveCSS('opacity', '1')
 
   // Its focus ring keeps its full strength, since only the label fades, and whole, since every box that
-  // clips the action leaves room for the 2px Chrome draws the ring outside it
+  // clips the action leaves room for the 2px Chrome draws the ring outside it, the body it scrolled in too
   const ring = await restore.evaluate((button) => {
     const rect = button.getBoundingClientRect()
     let opacity = 1
