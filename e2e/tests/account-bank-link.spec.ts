@@ -35,6 +35,9 @@ const SAMPLE_VISA = 'Rewards Visa'
 const LINKING_PAUSED = "Bank sync isn't running right now. You can link accounts once it's back."
 const ARCHIVED = 'Archived accounts are read-only'
 
+// How far the page's clock moves at a time while the import test waits on what takes seconds of it,
+// such as the link's next read, with motion reduced so that nothing is read frame by frame
+const IMPORT_CLOCK_STEP_MS = 100
 
 // Well past when a Bank link section that loads after its modal has opened moves focus to its action
 const OPENING_FOCUS_PASSED_MS = 1_000
@@ -657,15 +660,23 @@ test('holds the loading Bank link section at its real height while the dialog sc
 })
 
 // The link's reads are answered here, since the worker can't be held part way through an import, nor made
-// to lose track of the bank account while one runs
+// to lose track of the bank account while one runs. The finished import shows for a moment of the page's
+// own time, so the page's clock stops before the import finishes and moves on only until it shows, keeping
+// it up however long a busy machine takes over the checks on it, and then on until it folds away
 test('shows an import that finishes as imported and done before folding it away', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.clock.install()
   const { dialog, accountId, answer } = await openImportingLink(page, request)
+  const progress = dialog.getByRole('progressbar', { name: 'Import' })
+  await stopClock(page)
   answer.link = buildLinkAnswer(accountId)
 
+  await runClockUntil(page, () => dialog.getByText('12 found · Done').isVisible(), IMPORT_CLOCK_STEP_MS)
   await expect(dialog.getByText(/^Imported from /)).toBeVisible()
   await expect(dialog.getByText('12 found · Done')).toBeVisible()
-  await expect(dialog.getByRole('progressbar', { name: 'Import' })).toHaveAttribute('aria-valuenow', '2')
-  await expect(dialog.getByRole('progressbar', { name: 'Import' })).toHaveCount(0)
+  await expect(progress).toHaveAttribute('aria-valuenow', '2')
+  await runClockUntil(page, async () => await progress.count() === 0, IMPORT_CLOCK_STEP_MS)
+  await expect(progress).toHaveCount(0)
 })
 
 test('drops an import cut short by its bank account needing to be chosen again without reading as done', async ({ page, request }) => {
