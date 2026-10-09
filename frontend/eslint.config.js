@@ -109,6 +109,20 @@ const restrictedStackingLevels = [
   },
 ]
 
+// A busy page can hand an IntersectionObserver several changes in one call, oldest first, so a callback
+// that reads the first entry acts on a state that has already passed and may never be told again
+const LATEST_ENTRY_MESSAGE = 'Read the last entry an IntersectionObserver hands over, which is the current one'
+const restrictedObserverEntries = [
+  {
+    selector: "NewExpression[callee.name='IntersectionObserver'] > :function > ArrayPattern",
+    message: LATEST_ENTRY_MESSAGE,
+  },
+  {
+    selector: "NewExpression[callee.name='IntersectionObserver'] :function MemberExpression[computed=true][property.value=0]",
+    message: LATEST_ENTRY_MESSAGE,
+  },
+]
+
 export default defineConfig([
   globalIgnores(['dist']),
   {
@@ -125,7 +139,7 @@ export default defineConfig([
     },
     rules: {
       'no-restricted-imports': ['error', { patterns: restrictedImportPatterns }],
-      'no-restricted-syntax': ['error', ...restrictedStackingLevels],
+      'no-restricted-syntax': ['error', ...restrictedStackingLevels, ...restrictedObserverEntries],
     },
   },
   {

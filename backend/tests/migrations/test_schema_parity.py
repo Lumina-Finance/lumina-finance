@@ -269,7 +269,9 @@ async def _drop_database(database_name: str) -> None:
 
 async def _terminate_database_connections(conn: AsyncConnection, database_name: str) -> None:
     """Terminate open connections to a generated parity database"""
-    # Close active connections so PostgreSQL can drop the generated database
+    # Close active connections so PostgreSQL can drop the generated database. Only client connections:
+    # an autovacuum worker may be cleaning the new database, it runs as a superuser this role may not
+    # terminate, and the drop stops it by itself
     await conn.execute(
         text(
             """
@@ -277,6 +279,7 @@ async def _terminate_database_connections(conn: AsyncConnection, database_name: 
             FROM pg_stat_activity
             WHERE datname = :database_name
               AND pid <> pg_backend_pid()
+              AND backend_type = 'client backend'
             """,
         ),
         {"database_name": database_name},

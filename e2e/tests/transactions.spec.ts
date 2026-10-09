@@ -224,6 +224,64 @@ async function isShowingOnTop(locator: Locator): Promise<boolean> {
   })
 }
 
+test('loads the next page when the browser reports the end of the list leaving and coming back at once', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday Chequing' })
+  // One more than the fifteen a page holds, so the oldest arrives only with the second page
+  const ids: string[] = []
+  for (let day = 0; day >= -15; day -= 1) {
+    ids.push(await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000, date: daysFromTodayInTestTimezone(day) }))
+  }
+
+  // A busy page hands several changes to an observer in one call, oldest first. This holds back the
+  // changes to the end of the list until the test lets them through together, so the call is the same
+  // on every run, and passes every other observer's on as they come
+  await page.addInitScript(() => {
+    const pending: (() => void)[] = []
+    const NativeObserver = window.IntersectionObserver
+    window.IntersectionObserver = class extends NativeObserver {
+      constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+        let held: IntersectionObserverEntry[] = []
+        super((entries, observer) => {
+          const listEnd = entries.filter((entry) => (entry.target as HTMLElement).dataset.testid === 'transaction-list-end')
+          const others = entries.filter((entry) => !listEnd.includes(entry))
+          if (others.length > 0) callback(others, observer)
+          if (listEnd.length === 0) return
+          if (held.length === 0) pending.push(release)
+          held.push(...listEnd)
+        }, options)
+        const release = () => {
+          const batch = held
+          held = []
+          if (batch.length > 0) callback(batch, this)
+        }
+        // The hook replaces its observer whenever its inputs change, so only a live observer's changes stay held
+        const disconnect = this.disconnect.bind(this)
+        this.disconnect = () => {
+          held = []
+          if (pending.includes(release)) pending.splice(pending.indexOf(release), 1)
+          disconnect()
+        }
+      }
+    }
+    Object.assign(window, {
+      heldIntersections: () => pending.length,
+      releaseIntersections: () => pending.splice(0).forEach((release) => release()),
+    })
+  })
+  await page.setViewportSize({ ...page.viewportSize()!, height: 600 })
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  await expectTransactionRow(page, ids[0], '-$10.00')
+
+  // The end of the first page starts out of view, which the observer reports as soon as it watches it
+  await expect.poll(() => page.evaluate(() => (window as unknown as { heldIntersections: () => number }).heldIntersections())).toBe(1)
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+  await page.evaluate(() => (window as unknown as { releaseIntersections: () => void }).releaseIntersections())
+  await expect(page.getByTestId(`transaction-row-${ids[ids.length - 1]}`)).toBeAttached()
+})
+
 test('moves an upcoming transaction into the list when its day comes while the page is open', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday Chequing' })

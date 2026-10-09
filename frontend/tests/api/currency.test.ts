@@ -62,6 +62,25 @@ describe('the currency query when it cannot load', () => {
     return { observer, unsubscribe: observer.subscribe(() => {}) };
   }
 
+  it('loads the list when a later attempt answers, as a slow server may only on its third', async () => {
+    const currencies = [{ id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 }];
+    fetchMock
+      .mockRejectedValueOnce(new DOMException('The operation timed out', 'TimeoutError'))
+      .mockRejectedValueOnce(new DOMException('The operation timed out', 'TimeoutError'))
+      .mockResolvedValueOnce(new Response(JSON.stringify(currencies)));
+    const client = new QueryClient();
+    const { observer, unsubscribe } = mount(client);
+
+    try {
+      await vi.waitFor(() => expect(observer.getCurrentResult().isSuccess).toBe(true));
+      expect(observer.getCurrentResult().data).toEqual(currencies);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    } finally {
+      unsubscribe();
+      client.clear();
+    }
+  });
+
   it('stays failed across a remount rather than fetching again', async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 500 });
     const client = new QueryClient();
@@ -76,8 +95,8 @@ describe('the currency query when it cannot load', () => {
 
     expect(result.isError).toBe(true);
     expect(result.isPending).toBe(false);
-    // One call for the whole sequence: no retry on the failure, and none on the remount either
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Three attempts for the whole sequence, and none more on the remount
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('fails rather than pausing while the browser reports itself offline', async () => {
@@ -99,7 +118,7 @@ describe('the currency query when it cannot load', () => {
 
   it('recovers on explicit retry without another automatic request', async () => {
     const currencies = [{ id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 }];
-    fetchMock.mockResolvedValueOnce(new Response(null, { status: 503 }));
+    fetchMock.mockImplementation(async () => new Response(null, { status: 503 }));
     const client = new QueryClient();
     const { observer, unsubscribe } = mount(client);
 
@@ -111,14 +130,14 @@ describe('the currency query when it cannot load', () => {
       const retry = observer.refetch();
       expect(observer.getCurrentResult().isFetching).toBe(true);
       const repeatedRetry = observer.refetch();
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(4);
       finishRetry(new Response(JSON.stringify(currencies)));
       await Promise.all([retry, repeatedRetry]);
 
       expect(observer.getCurrentResult().data).toEqual(currencies);
       expect(observer.getCurrentResult().error).toBeNull();
       expect(observer.getCurrentResult().isFetching).toBe(false);
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(4);
     } finally {
       unsubscribe();
       client.clear();
@@ -136,12 +155,12 @@ describe('the currency query when it cannot load', () => {
       await observer.refetch();
       expect(observer.getCurrentResult().isError).toBe(true);
       expect(observer.getCurrentResult().isFetching).toBe(false);
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(6);
 
       fetchMock.mockResolvedValueOnce(new Response(JSON.stringify([{ id: 'CAD' }])));
       await observer.refetch();
       expect(observer.getCurrentResult().isSuccess).toBe(true);
-      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(fetchMock).toHaveBeenCalledTimes(7);
     } finally {
       unsubscribe();
       client.clear();
@@ -164,7 +183,7 @@ describe('retrying an incomplete currency list', () => {
 
     try {
       expect(fetchMock).not.toHaveBeenCalled();
-      fetchMock.mockResolvedValueOnce(new Response(null, { status: 503 }));
+      fetchMock.mockImplementation(async () => new Response(null, { status: 503 }));
       await tooltip.refetch({ cancelRefetch: false });
       expect(field.getCurrentResult().data).toEqual([usd]);
       // ProtectedRoute uses this flag so failed refreshes do not unmount the edited form
@@ -175,7 +194,7 @@ describe('retrying an incomplete currency list', () => {
       fetchMock.mockReturnValueOnce(new Promise<Response>((resolve) => { finish = resolve; }));
       const retry = tooltip.refetch({ cancelRefetch: false });
       const repeatedRetry = field.refetch({ cancelRefetch: false });
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(4);
       finish(new Response(JSON.stringify([usd, cad])));
       await Promise.all([retry, repeatedRetry]);
       expect(field.getCurrentResult().data).toEqual([usd, cad]);

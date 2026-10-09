@@ -135,8 +135,20 @@ async function expectEnabledOnlyOnceSettled(sector: Locator) {
 /** Hovers a point inside the real filled SVG sector rather than the donut hole in its bounding box */
 async function hoverSector(page: Page, sector: Locator, categoryName: string) {
   const path = sector.locator('path')
-  const insidePoint = () => path.evaluate((element) => {
+  // On a busy host the chart can still move on screen after the sector is enabled, which would leave
+  // the pointer over a neighbouring sector. The point is only taken once the sector has held its place
+  // and its shape for ten frames in a row, so the pointer lands where it was aimed
+  const settledPoint = () => path.evaluate(async (element) => {
     const shape = element as SVGGeometryElement
+    const placement = () => {
+      const rect = shape.getBoundingClientRect()
+      return `${shape.getAttribute('d')} ${rect.x} ${rect.y} ${rect.width} ${rect.height}`
+    }
+    const first = placement()
+    for (let frame = 0; frame < 10; frame++) {
+      await new Promise((resolve) => requestAnimationFrame(resolve))
+      if (placement() !== first) return null
+    }
     const bounds = shape.getBBox()
     const transform = shape.getScreenCTM()
     const screenBounds = shape.getBoundingClientRect()
@@ -156,12 +168,12 @@ async function hoverSector(page: Page, sector: Locator, categoryName: string) {
     return null
   })
   await sector.scrollIntoViewIfNeeded()
-  await expect.poll(insidePoint).not.toBeNull()
-  const point = await insidePoint()
-  expect(point).not.toBeNull()
-  await path.hover({ position: point! })
-  await expect(page.locator('.app-chart-tooltip-default-content').filter({ has: page.getByText(categoryName, { exact: true }) })).toBeVisible()
-  return point!
+  const tooltip = page.locator('.app-chart-tooltip-default-content').filter({ has: page.getByText(categoryName, { exact: true }) })
+  const settled: { point?: { x: number, y: number } | null } = {}
+  await expect.poll(async () => (settled.point = await settledPoint())).not.toBeNull()
+  await path.hover({ position: settled.point! })
+  await expect(tooltip).toBeVisible()
+  return settled.point!
 }
 
 /** Activates a real sector after its hover tooltip has updated */

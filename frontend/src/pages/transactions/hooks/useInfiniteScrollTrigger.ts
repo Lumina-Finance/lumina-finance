@@ -34,7 +34,8 @@ export function useInfiniteScrollTrigger({
     if (!el) return
     let timeoutId: ReturnType<typeof setTimeout> | null = null
     const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) {
+      // A busy page can hand over several changes at once, oldest first, so only the last one is current
+      if (entries[entries.length - 1].isIntersecting) {
         if (timeoutId === null) {
           setPendingFetch(true)
           timeoutId = setTimeout(() => {

@@ -545,7 +545,7 @@ export default function TransactionListSection({
                 onEditTransaction={onEditTransaction}
               />
 
-              <div ref={sentinelRef} aria-hidden style={{ height: 1 }} />
+              <div ref={sentinelRef} data-testid="transaction-list-end" aria-hidden style={{ height: 1 }} />
               {isFetchingNextPage || showPendingFetch ? (
                 <p className="py-4 text-center text-sm" style={{ color: 'var(--app-text-subtle)' }}>
                   Loading more transactions...

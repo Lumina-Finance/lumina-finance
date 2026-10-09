@@ -105,6 +105,11 @@ jobs:
           E2E_BASE_URL: http://localhost:8080
         run: npm test -- --project=${{ matrix.project }}
 
+      # The report shows only what the browser saw, so a failed request is explained by the app's own log
+      - name: Dump container logs
+        if: failure()
+        run: docker compose -f docker/compose.yml logs || true
+
       # Setup failures do not produce an E2E report
       - name: Keep the report from a failed run
         if: ${{ failure() && steps.e2e-tests.outcome == 'failure' }}

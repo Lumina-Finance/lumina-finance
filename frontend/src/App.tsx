@@ -97,8 +97,9 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
   // screen below paints its amounts once and correctly, rather than at a guessed scale that then jumps
   //
   // The wait is bounded by the request rather than by a timer here, so it survives this component
-  // remounting on every navigation and needs nothing reset. useCurrencies aborts at five seconds and
-  // does not retry, so this is pending for at most that long and then either has the list or has failed
+  // remounting on every navigation and needs nothing reset. useCurrencies makes three attempts that
+  // each abort at five seconds, so this is pending for at most fifteen and then either has the list
+  // or has failed
   const { isPending: currenciesPending, isLoadingError: currencyListUnavailable, error: currencyError } = useCurrencies();
   const ready = !loading && minTimePassed && !currenciesPending;
 

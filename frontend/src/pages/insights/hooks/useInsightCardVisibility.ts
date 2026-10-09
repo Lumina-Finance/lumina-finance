@@ -17,8 +17,9 @@ export function useInsightCardVisibility() {
       return () => window.cancelAnimationFrame(frameId)
     }
 
-    const observer = new IntersectionObserver(([entry]) => {
-      setIsVisible(entry.isIntersecting)
+    // A busy page can hand over several changes at once, oldest first, so only the last one is current
+    const observer = new IntersectionObserver((entries) => {
+      setIsVisible(entries[entries.length - 1].isIntersecting)
     })
 
     observer.observe(element)
