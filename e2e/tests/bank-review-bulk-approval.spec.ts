@@ -297,7 +297,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     expect(approveLeft).toBeLessThan((await dialog.getByRole('button', { name: 'Cancel' }).boundingBox())?.x ?? 0)
 
     const texts = [
-      dialog.getByText('Everything below is applied at once, following your review settings. Nothing else in your ledger changes.'),
+      dialog.getByText('Everything below is applied at once. Nothing else in your ledger changes.'),
       ...await groupsIn(dialog).locator('span span').all(),
       dialog.getByRole('note'),
       ...await dialog.getByRole('listitem').locator('span span').all(),

@@ -191,7 +191,7 @@ export function BulkApprovalModal({ open, scope, accountFor, today, onClose }: B
       <LoadingRegion loading={isLoading} label="Working out what would change" animateLoadingHeight>
         <div className="min-h-32 space-y-4 pb-2">
           <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            Everything below is applied at once, following your review settings. Nothing else in your ledger changes.
+            Everything below is applied at once. Nothing else in your ledger changes.
           </p>
 
           {!isLoading && previewError && <LoadFailure error={previewError} subject="Bulk approval" />}
