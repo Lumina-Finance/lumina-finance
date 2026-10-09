@@ -18,7 +18,9 @@ import {
   pageOf,
   reviewBlock,
   reviewItem,
+  runClockUntil,
   SEP_21,
+  stopClock,
 } from '../support/bankSync'
 import { contrastOf, MIN_TEXT_CONTRAST, MINUS } from '../support/selectors'
 
@@ -32,6 +34,11 @@ import { contrastOf, MIN_TEXT_CONTRAST, MINUS } from '../support/selectors'
 type Backlog = { account_id: string; waiting_new_count: number; paused: boolean; review_warning: boolean }
 
 type Accounts = { user: TestUser; everyday: SeededAccount; visa: SeededAccount; savings: SeededAccount }
+
+type IntersectionHold = { holdIntersections: () => void; heldFromNewWatcher: () => boolean; releaseIntersections: () => void }
+
+// Past the second the block waits, with the end of the list near, before it loads the next page
+const LOAD_WAIT_PASSED_MS = 1_500
 
 /** Answers the backlogs with what `answer` returns for the accounts asked for, all accounts being none */
 async function answerBacklogs(page: Page, answer: (accountIds: string[]) => Backlog[]): Promise<void> {
@@ -53,6 +60,80 @@ function readGate(): { close: () => void; open: () => void; passed: () => Promis
     open: () => open(),
     passed: () => gate,
   }
+}
+
+/** Answers the review list with 1,500 new items on the account, 50 to a page */
+async function answerLongBacklog(page: Page, accountId: string): Promise<void> {
+  await answerReviewItems(page, (_, cursor) => {
+    const index = cursor ? Number(cursor.replace('page-', '')) : 0
+    return {
+      items: Array.from({ length: 50 }, (_, offset) => reviewItem(`item-${index * 50 + offset}`, 'new', accountId)),
+      counts: { new: 1500, correction: 0, removal: 0 },
+      next_cursor: index < 29 ? `page-${index + 1}` : null,
+    }
+  })
+}
+
+/**
+ * Lets the reports the page gets of what has come near the screen be held back from `holdIntersections`
+ * on, as a page too busy to be laid out again gets none, until `releaseIntersections` sends them. Chrome
+ * sends the reports of one layout to the watchers of an element in no set order, so they are sent the
+ * newest watcher's first, each watcher's in the order they were made. Only what watches from now on is
+ * held, and a report for something that has stopped watching meanwhile is dropped, as Chrome drops it
+ */
+async function holdableIntersections(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const Native = window.IntersectionObserver
+    let held: { watcher: number; report: () => void }[] | null = null
+    let watchers = 0
+    let firstNewWatcher = 0
+    window.IntersectionObserver = class extends Native {
+      constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+        const watcher = watchers++
+        let watching = true
+        super((entries, observer) => {
+          const report = () => {
+            if (watching) callback(entries, observer)
+          }
+          if (held) held.push({ watcher, report })
+          else report()
+        }, options)
+        const disconnect = this.disconnect.bind(this)
+        this.disconnect = () => {
+          watching = false
+          disconnect()
+        }
+      }
+    }
+    const hold: IntersectionHold = {
+      holdIntersections: () => {
+        held = []
+        firstNewWatcher = watchers
+      },
+      heldFromNewWatcher: () => (held ?? []).some(({ watcher }) => watcher >= firstNewWatcher),
+      releaseIntersections: () => {
+        const reports = held ?? []
+        held = null
+        for (const { report } of reports.sort((first, second) => second.watcher - first.watcher)) report()
+      },
+    }
+    Object.assign(window, hold)
+  })
+}
+
+/** Holds back the reports `holdableIntersections` can hold */
+async function holdIntersections(page: Page): Promise<void> {
+  await page.evaluate(() => (window as unknown as IntersectionHold).holdIntersections())
+}
+
+/** Whether a report has been held back for something that started watching since `holdIntersections` */
+async function heldFromNewWatcher(page: Page): Promise<boolean> {
+  return page.evaluate(() => (window as unknown as IntersectionHold).heldFromNewWatcher())
+}
+
+/** Sends the reports held back since `holdIntersections`, and lets later ones through */
+async function releaseIntersections(page: Page): Promise<void> {
+  await page.evaluate(() => (window as unknown as IntersectionHold).releaseIntersections())
 }
 
 /** Signs up with Everyday, a Visa card and Savings, Everyday holding a $42.50 grocery spend today */
@@ -277,14 +358,7 @@ test('moves focus on from a retry that succeeds only while the retry has it, to 
 
 test('shows the first 4 of a 1,500 item backlog, and loads the rest a page at a time once opened', async ({ page, request }) => {
   const { everyday } = await start(page, request)
-  await answerReviewItems(page, (_, cursor) => {
-    const index = cursor ? Number(cursor.replace('page-', '')) : 0
-    return {
-      items: Array.from({ length: 50 }, (_, offset) => reviewItem(`item-${index * 50 + offset}`, 'new', everyday.id)),
-      counts: { new: 1500, correction: 0, removal: 0 },
-      next_cursor: index < 29 ? `page-${index + 1}` : null,
-    }
-  })
+  await answerLongBacklog(page, everyday.id)
 
   // Each page is noted as it is asked for, and the second is held until the block has said it is loading
   const cursors: (string | null)[] = []
@@ -327,6 +401,43 @@ test('shows the first 4 of a 1,500 item backlog, and loads the rest a page at a 
   await expect(rows).toHaveCount(4)
   await expect(loading).toBeHidden()
   await expect(block.getByRole('button', { name: 'Show all 1,500' })).toBeFocused()
+})
+
+// The rows Show all adds grow in from nothing, so the end of the list is near for a moment and the
+// block starts its wait to load the next page. A busy page can reach the end of that wait before it is
+// laid out again with the rows grown. The page's clock stops before Show all, so the rows stay folded
+// until it moves on, and word of where the end of the list has gone is held back while the wait runs
+// out, then reaches the block's last look before the watch that started the wait hears of it
+test('loads no more of a 1,500 item backlog when the end of the list has moved away by the end of the wait, however late word of it comes', async ({ page, request }) => {
+  const { everyday } = await start(page, request)
+  await answerLongBacklog(page, everyday.id)
+  const cursors: (string | null)[] = []
+  await page.route(isRead('/bank-review/items'), async (route) => {
+    cursors.push(new URL(route.request().url()).searchParams.get('cursor'))
+    await route.fallback()
+  })
+  await page.clock.install()
+  await openPage(page, '/transactions')
+
+  const block = reviewBlock(page)
+  const rows = block.getByRole('listitem')
+  await expect(rows).toHaveCount(4)
+  await holdableIntersections(page)
+  await stopClock(page)
+
+  await block.getByRole('button', { name: 'Show all 1,500' }).click()
+  const loading = block.getByRole('status')
+  await expect(loading).toHaveText('Loading more items…')
+
+  // The block's last look at the end of the list, which it takes as the wait runs out, is answered as
+  // the page is next laid out, held back with the rest
+  await holdIntersections(page)
+  await page.clock.runFor(LOAD_WAIT_PASSED_MS)
+  await expect.poll(() => heldFromNewWatcher(page)).toBe(true)
+  await releaseIntersections(page)
+  await runClockUntil(page, async () => !(await loading.isVisible()))
+  await expect(rows).toHaveCount(50)
+  expect(cursors).toEqual([null])
 })
 
 test('closes once four or fewer items wait, so it shows only the first four when more come back', async ({ page, request }) => {
