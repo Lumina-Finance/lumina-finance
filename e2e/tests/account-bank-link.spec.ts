@@ -17,6 +17,7 @@ import {
   WORKER_RESULT_TIMEOUT_MS,
   type SeededConnection,
 } from '../support/bankSync'
+import { expectMessageInCorner, isUncovered, MESSAGE_IN_CORNER, readBoxes, readMessageInset } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 
 // An account links to a bank account from its own page, through the Bank link section of its edit
@@ -28,6 +29,10 @@ const SAMPLE_CHEQUING = 'Everyday Chequing'
 const SAMPLE_VISA = 'Rewards Visa'
 const LINKING_PAUSED = "Bank sync isn't running right now. You can link accounts once it's back."
 const ARCHIVED = 'Archived accounts are read-only'
+
+// Either side of where a modal stops filling the screen and sits in the middle of it, at a laptop's height
+const WIDEST_FULL_SCREEN_MODAL_SIZE = { width: 1049, height: 800 }
+const NARROWEST_CENTRED_MODAL_SIZE = { width: 1050, height: 800 }
 
 /**
  * The first day of the month a number of months before this one, as YYYY-MM-DD
@@ -84,6 +89,31 @@ function watchListings(page: Page): string[] {
  */
 async function chooseFirstStart(flow: Locator): Promise<void> {
   await flow.getByRole('radiogroup', { name: 'Start' }).getByRole('radio').first().click()
+}
+
+/**
+ * Links Everyday to the sample chequing account from its edit modal, which stays open behind the
+ * message confirming the link once the link flow closes
+ */
+async function linkFromEditAccount(page: Page, request: APIRequestContext): Promise<{ dialog: Locator; message: Locator }> {
+  const user = await signUpUser(request)
+  const [everyday, scenario] = await Promise.all([
+    createAccount(request, user, { name: 'Everyday' }),
+    createSampleBridgeScenario(request),
+  ])
+  await claimSetupToken(request, user, scenario.setupToken)
+  const dialog = await openBankLink(page, user, everyday.id, 'Not linked')
+  await dialog.getByRole('button', { name: 'Link bank account' }).click()
+
+  const flow = page.getByRole('dialog', { name: 'Link bank account' })
+  await flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_CHEQUING}`) }).click()
+  await flow.getByRole('button', { name: 'Continue' }).click()
+  await chooseFirstStart(flow)
+  await flow.getByRole('button', { name: 'Link and import' }).click()
+  const message = toast(page, 'Linked. Importing history now.')
+  await expect(message).toBeVisible()
+  await expect(flow).toBeHidden()
+  return { dialog, message }
 }
 
 /** One frame of a dialog's entrance, with the heights on screen of the Bank link section's loading cover and of what it covers */
@@ -234,6 +264,36 @@ test('links an account from its page, from choosing the bank account to its impo
     // Frees the worker the held request keeps waiting, which would otherwise hold up other tests' syncs
     await clearBridgeFault(request, scenario.id)
   }
+})
+
+test("keeps the link's message clear of Cancel and Save Changes where the edit modal fills the screen, and back in the corner once it closes", async ({ page, request }) => {
+  test.skip(test.info().project.name === 'tablet', 'The modal sits in the middle of the screen from 1050px, which the tablet is')
+  // The desktop narrows to the widest screen the modal still fills
+  if (test.info().project.name === 'desktop') await page.setViewportSize(WIDEST_FULL_SCREEN_MODAL_SIZE)
+  const { dialog, message } = await linkFromEditAccount(page, request)
+  const cancel = dialog.getByRole('button', { name: 'Cancel', exact: true })
+  const save = dialog.getByRole('button', { name: 'Save Changes', exact: true })
+
+  // Read while the message still shows, since both come out from under it once it goes
+  await expect(message).toBeInViewport({ ratio: 1 })
+  await expect.poll(async () => await message.isVisible() && await isUncovered(cancel) && await isUncovered(save)).toBe(true)
+
+  // With the modal gone from under it, the message goes back down to the corner while it still shows
+  await cancel.click()
+  await expect(dialog).toBeHidden()
+  await expect.poll(() => readMessageInset(message)).toEqual(MESSAGE_IN_CORNER)
+})
+
+test("leaves the link's message in the corner, clear of Cancel and Save Changes, where the edit modal sits in the middle", async ({ page, request }) => {
+  test.skip(test.info().project.name === 'phone', 'The modal fills the screen below 1050px, which the phone is')
+  // The desktop narrows to the narrowest screen the modal sits in the middle of, where the message in the
+  // corner comes closest to its buttons
+  if (test.info().project.name === 'desktop') await page.setViewportSize(NARROWEST_CENTRED_MODAL_SIZE)
+  const { dialog, message } = await linkFromEditAccount(page, request)
+
+  await expectMessageInCorner(message)
+  expect(await isUncovered(dialog.getByRole('button', { name: 'Cancel', exact: true }))).toBe(true)
+  expect(await isUncovered(dialog.getByRole('button', { name: 'Save Changes', exact: true }))).toBe(true)
 })
 
 test("lists the bank accounts that can't be linked with the reason for each", async ({ page, request }) => {

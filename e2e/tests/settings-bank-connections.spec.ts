@@ -17,7 +17,7 @@ import {
   revokeBridgeAccess,
   waitForConnection,
 } from '../support/bankSync'
-import { readBoxes } from '../support/selectors'
+import { expectMessageInCorner, readBoxes } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 
 // The section lists the user's bank connections and looks after each one in its own modal. Connections
@@ -328,6 +328,8 @@ test('links a bank account from the connection, importing from the start chosen'
   await expect(dialog.getByRole('status').filter({ hasText: 'Linking…' })).toBeVisible()
   await expect(toast(page, 'Linked. Importing history now.')).toBeVisible()
   await expect(flow).toBeHidden()
+  // The connection fills the screen on a phone but has no footer, so the message stays in the corner
+  await expectMessageInCorner(toast(page, 'Linked. Importing history now.'))
   await expect(dialog.getByRole('link', { name: 'Household' })).toBeVisible()
   await expect(dialog.getByRole('region', { name: SAMPLE_BANK })).toContainText('1 of 2 linked')
 

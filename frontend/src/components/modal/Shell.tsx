@@ -94,7 +94,7 @@ export function ModalShell({
   useEffect(() => {
     if (!open) return
 
-    registerOpenModal(token)
+    registerOpenModal(token, { panel: panelRef.current })
     return () => unregisterOpenModal(token)
   }, [open, token])
 

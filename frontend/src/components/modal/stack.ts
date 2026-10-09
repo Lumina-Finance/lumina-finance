@@ -9,15 +9,19 @@ const PAGE_BEHIND_MODAL_CLASS = 'app-behind-modal'
 
 // Tokens for the modals currently open, the top-most last. One stack drives everything that depends on
 // that order: which modal Escape closes, and which panels below it stop taking input
-const openModalLayers: { token: string; blurPage: boolean; inertPage: boolean }[] = []
+const openModalLayers: { token: string; blurPage: boolean; inertPage: boolean; panel: HTMLElement | null }[] = []
 
 const stackListeners = new Set<() => void>()
 
 /**
- * Adds a dialog to the open stack with its own page blur and inert policy
+ * Adds a dialog to the open stack with its own page blur and inert policy, and the panel it draws, if
+ * any, for what has to find its way around the top-most one
  */
-export function registerOpenModal(token: string, { blurPage = true, inertPage = true } = {}) {
-  openModalLayers.push({ token, blurPage, inertPage })
+export function registerOpenModal(
+  token: string,
+  { blurPage = true, inertPage = true, panel = null }: { blurPage?: boolean; inertPage?: boolean; panel?: HTMLElement | null } = {},
+) {
+  openModalLayers.push({ token, blurPage, inertPage, panel })
   syncPageBehindModals()
   notifyStackListeners()
 }
@@ -38,6 +42,17 @@ export function unregisterOpenModal(token: string) {
  */
 export function isTopMostModal(token: string) {
   return openModalLayers[openModalLayers.length - 1]?.token === token
+}
+
+/**
+ * Finds the footer of the top-most open modal, with the panel it sits in, for what floats over the page
+ * and has to keep clear of its actions. A modal marks its footer with data-modal-footer, and one without
+ * a footer, such as the import progress overlay, has nothing to keep clear of
+ */
+export function findTopMostModalFooter(): { footer: HTMLElement; panel: HTMLElement } | null {
+  const panel = openModalLayers[openModalLayers.length - 1]?.panel
+  const footer = panel?.querySelector<HTMLElement>('[data-modal-footer]')
+  return panel && footer ? { footer, panel } : null
 }
 
 /**

@@ -311,6 +311,53 @@ export async function readBoxes(page: Page, locators: Locator[]): Promise<{ x: n
   }), elements)
 }
 
+/**
+ * Returns whether nothing is drawn over the element at its centre or near any of its four edges, so
+ * something covering only part of it, such as an open list, still counts as covering it. The points
+ * stay clear of the corners, which a pill button's rounding leaves outside the button
+ */
+export async function isUncovered(locator: Locator): Promise<boolean> {
+  return locator.evaluate((element) => {
+    const box = element.getBoundingClientRect()
+    const middleX = box.left + box.width / 2
+    const middleY = box.top + box.height / 2
+    const inset = box.height / 2
+    const points = [
+      [middleX, middleY],
+      [middleX, box.top + 2],
+      [middleX, box.bottom - 2],
+      [box.left + inset, middleY],
+      [box.right - inset, middleY],
+    ]
+    return points.every(([x, y]) => {
+      const shown = document.elementFromPoint(x, y)
+      return shown !== null && element.contains(shown)
+    })
+  })
+}
+
+// How far in from the screen's right and bottom edges the app shows a message when nothing is in its way
+export const MESSAGE_IN_CORNER = { right: 20, bottom: 20 }
+
+/**
+ * How far in from the screen's right and bottom edges the message sits
+ */
+export async function readMessageInset(message: Locator): Promise<{ right: number; bottom: number }> {
+  return message.evaluate((element) => {
+    const box = element.getBoundingClientRect()
+    const screen = document.documentElement
+    return { right: Math.round(screen.clientWidth - box.right), bottom: Math.round(screen.clientHeight - box.bottom) }
+  })
+}
+
+/**
+ * Asserts the message sits in the screen's bottom-right corner, read once it has finished coming in
+ */
+export async function expectMessageInCorner(message: Locator): Promise<void> {
+  await expect(message).toHaveCSS('opacity', '1')
+  expect(await readMessageInset(message)).toEqual(MESSAGE_IN_CORNER)
+}
+
 /** What WCAG AA asks of small text against what is behind it */
 export const MIN_TEXT_CONTRAST = 4.5
 
