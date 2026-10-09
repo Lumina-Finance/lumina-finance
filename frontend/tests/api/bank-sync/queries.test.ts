@@ -6,9 +6,17 @@
  * that opens, a read that failed on the way not being tried once more, a screen opening moments
  * after a read asking for the list again, a Sync now answer waiting for the next poll to show, a
  * Sync now reading as started before a worker has started it, including on a link made after the
- * list was read, and a refused Sync now leaving an out-of-date status in place
+ * list was read, a refused Sync now leaving an out-of-date status in place, a tab in the background
+ * reading the list on the poll's timer, a tab the user comes back to showing what it read before it
+ * went to the background until the next tick, and a user with no links read on every return
  */
-import { MutationObserver, QueryClient, QueryObserver } from '@tanstack/react-query';
+import {
+  environmentManager,
+  focusManager,
+  MutationObserver,
+  QueryClient,
+  QueryObserver,
+} from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBankLink, createSyncStatus } from './fixtures';
 
@@ -21,8 +29,12 @@ vi.mock('@/api/client', () => ({
 }));
 
 import { ApiError } from '@/api/auth/errors';
-import { BANK_LINKS_ACTIVE_POLL_MS } from '@/api/bank-sync/constants';
-import { bankLinksQueryOptions, syncBankAccountMutationOptions } from '@/api/bank-sync/hooks';
+import { BANK_LINKS_ACTIVE_POLL_MS, BANK_LINKS_IDLE_POLL_MS } from '@/api/bank-sync/constants';
+import {
+  bankLinksHeartbeatQueryOptions,
+  bankLinksQueryOptions,
+  syncBankAccountMutationOptions,
+} from '@/api/bank-sync/hooks';
 import { getBankLinksPollInterval } from '@/api/bank-sync/polling';
 import type { BankLink } from '@/api/bank-sync/types';
 import { bankSyncKeys } from '@/api/cache/queryKeys';
@@ -78,6 +90,79 @@ describe('the link list read', () => {
     await mountReader();
 
     expect(authenticatedFetchMock.mock.calls).toEqual([['/bank-sync/links']]);
+  });
+});
+
+describe('the heartbeat, as the user leaves the tab and comes back', () => {
+  const FIVE_MINUTES_MS = 5 * 60 * 1000;
+  let wasServer: boolean;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+
+    // The app turns reading again on coming back off for every query, so only the heartbeat's own
+    // choice counts
+    queryClient = new QueryClient({ defaultOptions: { queries: { retryDelay: 0, refetchOnWindowFocus: false } } });
+
+    // The library runs the poll's timer only where it takes itself to be in a browser, which these
+    // tests aren't, and hears the tab coming back only through a mounted client
+    wasServer = environmentManager.isServer();
+    environmentManager.setIsServer(() => false);
+    queryClient.mount();
+  });
+
+  afterEach(() => {
+    queryClient.unmount();
+    focusManager.setFocused(undefined);
+    environmentManager.setIsServer(() => wasServer);
+  });
+
+  /** Mounts the heartbeat with the tab in view, once its first read has settled */
+  async function mountHeartbeat() {
+    const observer = new QueryObserver(queryClient, bankLinksHeartbeatQueryOptions);
+    unsubscribes.push(observer.subscribe(() => {}));
+    await vi.advanceTimersByTimeAsync(0);
+    return observer;
+  }
+
+  /** Moves the tab to the background or brings it back, once whatever that starts has settled */
+  async function setTabInView(inView: boolean): Promise<void> {
+    focusManager.setFocused(inView);
+    await vi.advanceTimersByTimeAsync(0);
+  }
+
+  it('reads once a minute while the tab is in view, and not at all over five minutes in the background', async () => {
+    authenticatedFetchMock.mockResolvedValue([createBankLink()]);
+
+    await mountHeartbeat();
+    await vi.advanceTimersByTimeAsync(BANK_LINKS_IDLE_POLL_MS);
+    expect(authenticatedFetchMock).toHaveBeenCalledTimes(2);
+
+    await setTabInView(false);
+    await vi.advanceTimersByTimeAsync(FIVE_MINUTES_MS);
+    expect(authenticatedFetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('reads at once when the user comes back within a minute of the last read, so a link needing attention shows before the next tick', async () => {
+    authenticatedFetchMock.mockResolvedValue([createBankLink()]);
+    const observer = await mountHeartbeat();
+
+    await setTabInView(false);
+    authenticatedFetchMock.mockResolvedValue([createBankLink({ sync: createSyncStatus({ state: 'reconnect_needed' }) })]);
+    await vi.advanceTimersByTimeAsync(BANK_LINKS_IDLE_POLL_MS / 2);
+
+    await setTabInView(true);
+    expect(authenticatedFetchMock).toHaveBeenCalledTimes(2);
+    expect(observer.getCurrentResult().data?.map((link) => link.sync.state)).toEqual(['reconnect_needed']);
+  });
+
+  it('reads nothing when a user with no links comes back, since nothing polls for them', async () => {
+    authenticatedFetchMock.mockResolvedValue([]);
+    await mountHeartbeat();
+
+    await setTabInView(false);
+    await setTabInView(true);
+    expect(authenticatedFetchMock).toHaveBeenCalledOnce();
   });
 });
 

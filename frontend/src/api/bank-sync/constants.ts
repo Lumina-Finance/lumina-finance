@@ -11,11 +11,11 @@ export const REVIEW_RESUME_COUNT = 50;
 export const REVIEW_PAGE_SIZE = 50;
 
 // The link list is read this often while one of the user's syncs or imports runs, so progress moves
-// visibly and a finished sync shows as finished even in a background tab
+// visibly while the user watches
 export const BANK_LINKS_ACTIVE_POLL_MS = 2 * 1000;
 
 // Otherwise it is read this often while any link exists, to notice an automatic sync coming due while
-// the app is open
+// the tab is in view
 export const BANK_LINKS_IDLE_POLL_MS = 60 * 1000;
 
 // A connection or link flow waiting on a listing of its bank accounts checks back this often

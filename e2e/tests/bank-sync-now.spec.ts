@@ -1,8 +1,8 @@
-import { expect, test, type APIRequestContext } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
 import { asUser, createAccount, signUpUser, type TestUser } from '../support/api'
 import { fact, logInViaApi, openPage } from '../support/app'
-import { linkToSampleBankAccount, readConnection, WORKER_RESULT_TIMEOUT_MS } from '../support/bankSync'
+import { isRead, linkToSampleBankAccount, readConnection, WORKER_RESULT_TIMEOUT_MS } from '../support/bankSync'
 import { API_BASE_URL } from '../support/target'
 
 // Sync now on a linked account, run by the worker against the fake SimpleFIN Bridge. What disables
@@ -16,7 +16,20 @@ async function readLastSuccess(request: APIRequestContext, user: TestUser, accou
   return ((await response.json()) as { link: { sync: { last_success_at: string | null } } }).link.sync.last_success_at
 }
 
-test('reaches Synced in a background tab without the window being focused, spending one request', async ({ page, request }) => {
+/**
+ * Moves the tab to the background or brings it back, as the browser does when the user switches
+ * tabs: the page's visibility changes, and the visibilitychange event it hears bubbles as the
+ * browser's does
+ */
+async function setTabHidden(page: Page, hidden: boolean): Promise<void> {
+  await page.evaluate((isHidden) => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (isHidden ? 'hidden' : 'visible') })
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => isHidden })
+    document.dispatchEvent(new Event('visibilitychange', { bubbles: true }))
+  }, hidden)
+}
+
+test('checks nothing in a background tab while the sync runs, and shows it Synced on coming back, spending one request', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
 
@@ -44,24 +57,25 @@ test('reaches Synced in a background tab without the window being focused, spend
   await expect(syncNow).toHaveAccessibleName('Starting sync')
   await expect(syncNow).toBeFocused()
 
-  // The user moves to another tab, so this one runs in the background and its window isn't focused
-  // again. The app reads the tab's visibility, which this sets as the browser would
-  await page.evaluate(() => {
-    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' })
-    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true })
-    document.dispatchEvent(new Event('visibilitychange'))
+  // The user moves to another tab, so this one goes to the background, where nothing it shows needs
+  // the link list read on the timer
+  await setTabHidden(page, true)
+  const linkReads: string[] = []
+  page.on('request', (sent) => {
+    if (isRead('/bank-sync/links')(new URL(sent.url()))) linkReads.push(sent.url())
   })
 
-  // Only the background poll can find the worker started the sync. The status read Synced just now
-  // before it too, so the sync is known to have finished once the server's last success moves
-  await expect(syncNow).toHaveAccessibleName('Sync started', { timeout: WORKER_RESULT_TIMEOUT_MS })
-  await expect(syncNow).toHaveAccessibleName('Sync now', { timeout: WORKER_RESULT_TIMEOUT_MS })
-  await expect(syncNow).toBeFocused()
+  // The status read Synced just now before the sync too, so the sync is known to have finished once
+  // the server's last success moves
   await expect.poll(() => readLastSuccess(request, user, account.id), { timeout: WORKER_RESULT_TIMEOUT_MS }).not.toBe(syncedBefore)
+  expect(linkReads).toEqual([])
 
-  // The background tab's poll then finds the sync over. A button greyed for the sync running keeps
-  // the name Sync now, so only the status and the button's state show the dialog got there
-  await expect(fact(dialog, 'Status')).toHaveText(/^Synced just now/, { timeout: WORKER_RESULT_TIMEOUT_MS })
+  // Coming back reads the list, which finds the sync over. A button greyed for the sync running
+  // keeps the name Sync now, so only the status and the button's state show the dialog got there
+  await setTabHidden(page, false)
+  await expect(syncNow).toHaveAccessibleName('Sync now')
+  await expect(syncNow).toBeFocused()
+  await expect(fact(dialog, 'Status')).toHaveText(/^Synced just now/)
   await expect(syncNow).not.toHaveAttribute('aria-disabled', 'true')
 
   // The request is counted before the sync records its success

@@ -1,17 +1,22 @@
 /**
- * Covers how often the signed-in app reads the bank link list, and how long a read stays fresh
+ * Covers how often the signed-in app reads the bank link list, whether it reads it on coming back to
+ * the tab, and how long a read stays fresh
  *
  * These tests catch a user with no links being polled, a running sync or import, or a Sync now about
  * to start, being read at the slow pace so its progress lags, an import waiting on the request budget being read at the fast
- * pace for the hours it can wait, a refused read being asked again, a server failure taken for a
- * refusal and never asked again, either pace drifting from the two seconds and the minute the
- * feature promises, and a screen opening between polls reading the list again rather than taking
- * the polled copy
+ * pace for the hours it can wait, a refused read being asked again, including each time the user
+ * comes back to the tab, a server failure taken for a refusal and never asked again, either pace
+ * drifting from the two seconds and the minute the feature promises, and a screen opening between
+ * polls reading the list again rather than taking the polled copy
  */
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '@/api/auth/errors';
 import { BANK_LINKS_ACTIVE_POLL_MS, BANK_LINKS_IDLE_POLL_MS } from '@/api/bank-sync/constants';
-import { getBankLinksPollInterval, getBankLinksStaleTime } from '@/api/bank-sync/polling';
+import {
+  getBankLinksPollInterval,
+  getBankLinksRefetchOnReturn,
+  getBankLinksStaleTime,
+} from '@/api/bank-sync/polling';
 import { createBankLink, createImportingBankLink, createSyncStatus } from './fixtures';
 
 const syncingLink = () => createBankLink({ sync: createSyncStatus({ state: 'syncing' }) });
@@ -64,6 +69,12 @@ describe('bank link polling interval', () => {
 
   it('reads every two seconds while a sync runs and every minute otherwise', () => {
     expect([BANK_LINKS_ACTIVE_POLL_MS, BANK_LINKS_IDLE_POLL_MS]).toEqual([2000, 60000]);
+  });
+});
+
+describe('reading the bank link list on coming back to the tab', () => {
+  it('leaves a first read the server refused alone when the user comes back', () => {
+    expect(getBankLinksRefetchOnReturn(undefined, new ApiError('Not Found', 404))).toBe(false);
   });
 });
 

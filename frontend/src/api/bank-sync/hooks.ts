@@ -10,7 +10,12 @@ import {
   type QueryClient,
 } from '@tanstack/react-query';
 import { BANK_DISCOVERY_POLL_MS } from '@/api/bank-sync/constants';
-import { getBankLinksPollInterval, getBankLinksStaleTime, isRefusedRead } from '@/api/bank-sync/polling';
+import {
+  getBankLinksPollInterval,
+  getBankLinksRefetchOnReturn,
+  getBankLinksStaleTime,
+  isRefusedRead,
+} from '@/api/bank-sync/polling';
 import {
   addReviewItem,
   applyBulkApproval,
@@ -131,6 +136,17 @@ export const bankLinksQueryOptions = queryOptions({
 });
 
 /**
+ * How the heartbeat reads the link list: on the poll's timer while the tab is in view, and not while
+ * it is in the background, where nothing the user sees needs it. Coming back to the tab reads the
+ * list at once, so a sync or import that moved on meanwhile shows without waiting for the next tick
+ */
+export const bankLinksHeartbeatQueryOptions = queryOptions({
+  ...bankLinksQueryOptions,
+  refetchInterval: (query) => getBankLinksPollInterval(query.state.data, query.state.error),
+  refetchOnWindowFocus: (query) => getBankLinksRefetchOnReturn(query.state.data, query.state.error),
+});
+
+/**
  * Reads every link with its status
  *
  * Only the heartbeat in the signed-in shell polls, so the list is read on one timer however many
@@ -139,10 +155,8 @@ export const bankLinksQueryOptions = queryOptions({
 export function useBankLinks({ poll = false, enabled = true }: { poll?: boolean; enabled?: boolean } = {}) {
   const { accessToken } = useAuth();
   return useQuery({
-    ...bankLinksQueryOptions,
+    ...(poll ? bankLinksHeartbeatQueryOptions : bankLinksQueryOptions),
     enabled: enabled && !!accessToken,
-    refetchInterval: poll ? (query) => getBankLinksPollInterval(query.state.data, query.state.error) : false,
-    refetchIntervalInBackground: poll,
   });
 }
 
@@ -157,11 +171,11 @@ export function useBankLinksByAccount(): Map<string, BankLink> {
 /**
  * Keeps bank sync status current for the signed-in user, from the app shell
  *
- * The one reader that polls the link list: quickly while one of the user's syncs or imports runs,
- * including while the tab is in the background so a finished sync never sticks on Syncing, slowly
- * while any link exists, and not at all without links. Each change it reads refreshes whatever the
- * worker made stale, and a link that brought in data refreshes the review inbox, the pending strip
- * and the transaction lists
+ * The one reader that polls the link list while the tab is in view: quickly while one of the user's
+ * syncs or imports runs, slowly while any link exists, and not at all without links. A tab in the
+ * background stops polling, and coming back to it reads the list at once, so a finished sync never
+ * sticks on Syncing. Each change it reads refreshes whatever the worker made stale, and a link that
+ * brought in data refreshes the review inbox, the pending strip and the transaction lists
  */
 export function useBankSyncHeartbeat(enabled: boolean) {
   const queryClient = useQueryClient();
@@ -177,9 +191,9 @@ export function useBankSyncHeartbeat(enabled: boolean) {
 
 /**
  * Reads one of the user's own personal accounts' link. It needs no poll of its own: the app shell's
- * poll of the link list reads the same link at the same pace, in a background tab too, and refreshes
- * this read whenever the link changes. Pass `enabled` false for any other account, which the server
- * refuses
+ * poll of the link list reads the same link at the same pace, and again on coming back to the tab,
+ * and refreshes this read whenever the link changes. Pass `enabled` false for any other account,
+ * which the server refuses
  */
 export function useAccountBankStatus(accountId: string, enabled: boolean) {
   const { accessToken } = useAuth();
@@ -357,8 +371,9 @@ export function useUnlinkBankAccount() {
 }
 
 /**
- * Settles once the cached link list, as the poll keeps it, shows that a worker has started the
- * account's requested sync, or that the account is no longer linked
+ * Settles once the cached link list, as the heartbeat keeps it, shows that a worker has started the
+ * account's requested sync, or that the account is no longer linked. In a tab in the background that
+ * is the read made on coming back to it
  */
 function waitForSyncStart(queryClient: QueryClient, accountId: string): Promise<void> {
   const started = () => !queryClient
@@ -380,9 +395,10 @@ function waitForSyncStart(queryClient: QueryClient, accountId: string): Promise<
  * How Sync now runs. The server queues the sync and answers with the link marked as requested, in the
  * state it had, since the link reads as Syncing only once a worker runs the sync. The answer goes
  * straight into the cached list, even one read before the link was made, which takes the poll to its
- * fast pace without waiting to read the list again, and the request settles once the poll shows a
- * worker started the sync, so a button pending on it says the sync is starting until it has. A
- * refusal means the status shown is out of date, so the list is read again instead
+ * fast pace without waiting to read the list again, and the request settles once a read of the list
+ * shows a worker started the sync: the poll's, or in a tab in the background the read made on coming
+ * back to it, so a button pending on it says the sync is starting until then. A refusal means the
+ * status shown is out of date, so the list is read again instead
  */
 export function syncBankAccountMutationOptions(queryClient: QueryClient) {
   return mutationOptions({

@@ -21,8 +21,8 @@ export function isRefusedRead(error: Error | null): boolean {
 }
 
 /**
- * How often the link list is read: quickly while a sync or import runs, slowly while any link
- * exists, and never for a user with no links
+ * How often the link list is read while the tab is in view: quickly while a sync or import runs,
+ * slowly while any link exists, and never for a user with no links
  *
  * Before the first read succeeds there are no links to go by, so a read that failed on the way is
  * tried again at the slow pace, while one the server refused is left alone
@@ -31,6 +31,16 @@ export function getBankLinksPollInterval(links: BankLink[] | undefined, error: E
   if (!links) return error && !isRefusedRead(error) ? BANK_LINKS_IDLE_POLL_MS : false;
   if (links.length === 0) return false;
   return links.some(isLinkBusy) ? BANK_LINKS_ACTIVE_POLL_MS : BANK_LINKS_IDLE_POLL_MS;
+}
+
+/**
+ * Whether coming back to the tab reads the link list at once. A tab in the background doesn't poll,
+ * so wherever the poll would read, the list is read on coming back however recently it last was, and
+ * a change made meanwhile shows without waiting for the next tick. Where nothing polls, coming back
+ * reads nothing either
+ */
+export function getBankLinksRefetchOnReturn(links: BankLink[] | undefined, error: Error | null): 'always' | false {
+  return getBankLinksPollInterval(links, error) === false ? false : 'always';
 }
 
 /**
