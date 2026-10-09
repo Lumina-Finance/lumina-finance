@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
-import { createAccount, formatToday, signUpUser, todayInTestTimezone, type TestUser } from '../support/api'
+import { asUser, createAccount, formatToday, signUpUser, todayInTestTimezone, type TestUser } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
 import {
   addBridgeBankAccount,
@@ -16,6 +16,7 @@ import {
   requireBridgeBankSignIn,
   revokeBridgeAccess,
   waitForConnection,
+  WORKER_RESULT_TIMEOUT_MS,
 } from '../support/bankSync'
 import { expectMessageInCorner, readBoxes } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
@@ -425,17 +426,23 @@ test('reconnects a rejected connection, and shows the account to choose again un
   ])
   const connection = await claimSetupToken(request, user, scenario.setupToken)
   const visa = connection.accounts.find((bankAccount) => bankAccount.name === SAMPLE_VISA)!
+  const linkTo = (accountId: string, bankAccount: string) => linkBankAccount(request, user, {
+    accountId,
+    connectionId: connection.id,
+    externalAccountId: connection.accounts.find((entry) => entry.name === bankAccount)!.external_id,
+    startDate: todayInTestTimezone(),
+  })
 
-  // Linking queues each import without asking the Bridge, so the worker meets the revoked access
+  // A rejected connection takes no new link, so the Visa links first and its import ends while SimpleFIN
+  // still accepts the connection. Linking queues Household's import without asking the Bridge, so that
+  // import is the one job left to meet the revoked access, and it can only run once Household is linked
+  await linkTo(travelVisa.id, SAMPLE_VISA)
+  await expect.poll(async () => {
+    const response = await request.get(`${API_BASE_URL}/accounts/${travelVisa.id}/bank-link`, { headers: asUser(user) })
+    return ((await response.json()) as { link: { sync: { last_success_at: string | null } } }).link.sync.last_success_at
+  }, { timeout: WORKER_RESULT_TIMEOUT_MS }).not.toBeNull()
   await revokeBridgeAccess(request, scenario.id)
-  for (const [accountId, bankAccount] of [[household.id, SAMPLE_CHEQUING], [travelVisa.id, SAMPLE_VISA]]) {
-    await linkBankAccount(request, user, {
-      accountId,
-      connectionId: connection.id,
-      externalAccountId: connection.accounts.find((entry) => entry.name === bankAccount)!.external_id,
-      startDate: todayInTestTimezone(),
-    })
-  }
+  await linkTo(household.id, SAMPLE_CHEQUING)
   await waitForConnection(request, user, connection.id, (current) => current.status === 'credential_rejected')
 
   // SimpleFIN lists the Visa differently after the reconnect, so its account has to choose it again
