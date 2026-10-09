@@ -22,10 +22,10 @@ import {
   createSampleBridgeScenario,
   linkBankAccount,
   linkToSampleBankAccount,
+  openBankLink,
   requireBridgeBankSignIn,
   revokeBridgeAccess,
   waitForConnection,
-  WORKER_RESULT_TIMEOUT_MS,
   type BridgeScenario,
   type SeededConnection,
 } from '../support/bankSync'
@@ -171,7 +171,8 @@ async function openBalancesThatDiffer(page: Page, request: APIRequestContext, si
   // The jump is instant without motion, so it has ended once it has started
   await page.setViewportSize(size)
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  const dialog = await openBankLink(page, user, account.id, OPENING_BALANCE_STATUS)
+  await logInViaApi(page, user)
+  const dialog = await openBankLink(page, account.id, OPENING_BALANCE_STATUS)
   const difference = fact(dialog, /^Difference/)
   await expect(difference).toHaveText(`${MINUS}$2,418.36`)
   await expect(dialog.getByRole('button', { name: 'Sync now' })).toBeFocused()
@@ -180,26 +181,6 @@ async function openBalancesThatDiffer(page: Page, request: APIRequestContext, si
     while (getComputedStyle(body).overflowY !== 'auto') body = body.parentElement!
     return body.scrollTop
   })).toBeGreaterThan(0)
-  return dialog
-}
-
-/**
- * Opens the account's page and, once the identity card's Bank sync fact reads as expected, its edit
- * modal at the Bank link section through that fact
- *
- * @param status - The label the fact should come to show, which may take the worker a while. A
- * pattern ends with the period that ends the label's sentence in the fact's name, since a label
- * ending in p.m. has one already
- */
-async function openBankLink(page: Page, user: TestUser, accountId: string, status: string | RegExp): Promise<Locator> {
-  await logInViaApi(page, user)
-  await openPage(page, `/accounts/${accountId}`)
-  const name = typeof status === 'string' ? `Bank sync: ${status}. Open bank link` : new RegExp(`^Bank sync: ${status.source} Open bank link$`)
-  const bankSync = page.getByRole('button', { name })
-  await expect(bankSync).toBeVisible({ timeout: WORKER_RESULT_TIMEOUT_MS })
-  await bankSync.click()
-  const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
-  await expect(dialog).toBeVisible()
   return dialog
 }
 
@@ -252,7 +233,8 @@ test('reads as synced once the import finishes', async ({ page, request }) => {
   // The bank's balance matches the empty ledger, so there is no opening balance to confirm
   await linkWithBalances(request, user, account.id, { balance: '0.00' })
 
-  const dialog = await openBankLink(page, user, account.id, /Synced (just now|\d+ minutes? ago)\./)
+  await logInViaApi(page, user)
+  const dialog = await openBankLink(page, account.id, /Synced (just now|\d+ minutes? ago)\./)
   await expect(fact(dialog, 'Status')).toHaveText(/^Synced/)
   await expect(fact(dialog, /^Difference/)).toHaveText('None')
   await expect(dialog.getByRole('button', { name: 'Record adjustment' })).toHaveCount(0)
@@ -271,7 +253,8 @@ test('compares the bank balance with the ledger at the end of its balance date',
 
   // SimpleFIN gives the balance as of now, so the ledger keeps yesterday's transaction and leaves out
   // tomorrow's, and so does the opening adjustment offered for the gap
-  const dialog = await openBankLink(page, user, account.id, OPENING_BALANCE_STATUS)
+  await logInViaApi(page, user)
+  const dialog = await openBankLink(page, account.id, OPENING_BALANCE_STATUS)
   await expect(fact(dialog, 'SimpleFIN')).toHaveText('$2,418.36')
   await expect(fact(dialog, 'Ledger')).toHaveText('($50.00)')
   await expect(fact(dialog, /^Difference/)).toHaveText(`${MINUS}$2,468.36`)
@@ -311,7 +294,8 @@ test('shows a bank balance that can\'t be read exactly as unavailable, its reaso
   const account = await createAccount(request, user, { name: 'Everyday' })
   await linkWithBalances(request, user, account.id, { balance: '2418.365' })
 
-  const dialog = await openBankLink(page, user, account.id, /Synced (just now|\d+ minutes? ago)\./)
+  await logInViaApi(page, user)
+  const dialog = await openBankLink(page, account.id, /Synced (just now|\d+ minutes? ago)\./)
   const bankBalance = fact(dialog, /^SimpleFIN/)
   await expect(bankBalance).toHaveText('Unavailable')
   await dialog.getByRole('button', { name: 'Why the balance is unavailable' }).click()
@@ -368,7 +352,8 @@ test('keeps each balance whole with its sign, and the caption\'s dot with the pa
   // Twelve digits leave three balances too wide to sit side by side, so they move to another row
   // rather than splitting a figure or leaving its sign on a line of its own, and on a phone the
   // caption wraps without ending a line on the dot before the available balance
-  const dialog = await openBankLink(page, user, account.id, OPENING_BALANCE_STATUS)
+  await logInViaApi(page, user)
+  const dialog = await openBankLink(page, account.id, OPENING_BALANCE_STATUS)
   const figures: [Locator, string][] = [
     [fact(dialog, 'SimpleFIN'), '$123,456,789,012.34'],
     [fact(dialog, 'Ledger'), '($111,111,111,111.00)'],
@@ -390,7 +375,8 @@ test('marks an available balance that can\'t be read exactly in the caption, kee
   await linkWithBalances(request, user, account.id, { available_balance: '2318.365' })
 
   // On a phone the caption wraps, and the dot goes to the next line with the part it introduces
-  const dialog = await openBankLink(page, user, account.id, OPENING_BALANCE_STATUS)
+  await logInViaApi(page, user)
+  const dialog = await openBankLink(page, account.id, OPENING_BALANCE_STATUS)
   const caption = dialog.getByText(/^As of /)
   await expect(caption).toContainText('Available balance unavailable')
   expect((await readLines(caption)).filter((line) => line.endsWith('·'))).toEqual([])
@@ -402,7 +388,8 @@ test('reads as retrying at the time of the retry when the Bridge fails', async (
   await linkIntoFault(request, user, account.id, (scenarioId) => breakBridge(request, scenarioId))
 
   // The time's own period ends the sentence in the fact's name, with no second one after it
-  const dialog = await openBankLink(page, user, account.id, /Retrying at (\w{3} \d{1,2}, )?\d{1,2}:\d{2}\s[ap]\.m\./)
+  await logInViaApi(page, user)
+  const dialog = await openBankLink(page, account.id, /Retrying at (\w{3} \d{1,2}, )?\d{1,2}:\d{2}\s[ap]\.m\./)
   await expect(fact(dialog, 'Status')).toHaveText(/^Retrying at /)
 
   // The details show whole, reaching past the section where they need the room, and so does the ring
@@ -460,7 +447,8 @@ test('stops on a rejected connection, with a notice that leads to Settings to re
   const { connection } = await linkIntoFault(request, user, account.id, (scenarioId) => revokeBridgeAccess(request, scenarioId))
   await waitForConnection(request, user, connection.id, (current) => current.status === 'credential_rejected')
 
-  const dialog = await openBankLink(page, user, account.id, 'Reconnect needed')
+  await logInViaApi(page, user)
+  const dialog = await openBankLink(page, account.id, 'Reconnect needed')
   const notice = dialog.getByText(
     'SimpleFIN Bridge rejected the connection this account uses. Automatic sync is stopped for every account on it until you reconnect it in Settings with a new setup token.',
   )
@@ -499,7 +487,8 @@ test('stops on a bank asking for its sign-in, saying where to sign in again', as
   })
   await waitForConnection(request, user, connection.id, (current) => current.accounts.some((bankAccount) => bankAccount.signin_needed))
 
-  const dialog = await openBankLink(page, user, account.id, 'Bank sign-in needed')
+  await logInViaApi(page, user)
+  const dialog = await openBankLink(page, account.id, 'Bank sign-in needed')
   await expect(dialog.getByText('Sign in to your bank again in SimpleFIN Bridge.', { exact: true })).toBeVisible()
 })
 
@@ -518,7 +507,8 @@ test('asks for the bank account again once SimpleFIN lists it differently, openi
   })
   expect(reconnected.ok()).toBe(true)
 
-  const dialog = await openBankLink(page, user, account.id, 'Choose bank account')
+  await logInViaApi(page, user)
+  const dialog = await openBankLink(page, account.id, 'Choose bank account')
   await expect(dialog.getByText(
     "SimpleFIN now lists Everyday Chequing differently, so Lumina Finance can't tell whether it's the same account. Choose its bank account again to resume syncing.",
   )).toBeVisible()

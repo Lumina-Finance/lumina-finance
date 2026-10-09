@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
-import { asUser, createAccount, formatDateLabel, formatToday, signUpUser, todayInTestTimezone, type TestUser } from '../support/api'
+import { asUser, createAccount, formatDateLabel, formatToday, signUpUser, todayInTestTimezone } from '../support/api'
 import { chooseFromDropdown, fact, logInViaApi, openModal, openPage } from '../support/app'
 import {
   addBridgeBankAccount,
@@ -14,6 +14,7 @@ import {
   createSampleBridgeScenario,
   linkBankAccount,
   linkToSampleBankAccount,
+  openBankLink,
   runClockUntil,
   stallBridge,
   stopClock,
@@ -111,7 +112,8 @@ async function linkFromEditAccount(page: Page, request: APIRequestContext): Prom
   await claimSetupToken(request, user, scenario.setupToken)
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.clock.install()
-  const dialog = await openBankLink(page, user, everyday.id, 'Not linked')
+  await logInViaApi(page, user)
+  const dialog = await openBankLink(page, everyday.id, 'Not linked')
   await dialog.getByRole('button', { name: 'Link bank account' }).click()
 
   const flow = page.getByRole('dialog', { name: 'Link bank account' })
@@ -208,7 +210,8 @@ test('links an account from its page, from choosing the bank account to its impo
     createSampleBridgeScenario(request),
   ])
   const connection = await claimSetupToken(request, user, scenario.setupToken)
-  const dialog = await openBankLink(page, user, everyday.id, 'Not linked')
+  await logInViaApi(page, user)
+  const dialog = await openBankLink(page, everyday.id, 'Not linked')
 
   const linkButton = dialog.getByRole('button', { name: 'Link bank account' })
   await expect(linkButton).toBeInViewport()
@@ -327,7 +330,8 @@ test("lists the bank accounts that can't be linked with the reason for each", as
     externalAccountId: externalIdOf(connection, SAMPLE_CHEQUING),
     startDate: todayInTestTimezone(),
   })
-  const dialog = await openBankLink(page, user, everyday.id, 'Not linked')
+  await logInViaApi(page, user)
+  const dialog = await openBankLink(page, everyday.id, 'Not linked')
   await dialog.getByRole('button', { name: 'Link bank account' }).click()
   const flow = page.getByRole('dialog', { name: 'Link bank account' })
 
@@ -347,7 +351,8 @@ test("lists the bank accounts that can't be linked with the reason for each", as
 test('sends an account with no connection to settings first', async ({ page, request }) => {
   const user = await signUpUser(request)
   const everyday = await createAccount(request, user, { name: 'Everyday' })
-  const dialog = await openBankLink(page, user, everyday.id, 'Not linked')
+  await logInViaApi(page, user)
+  const dialog = await openBankLink(page, everyday.id, 'Not linked')
   await dialog.getByRole('button', { name: 'Link bank account' }).click()
   const flow = page.getByRole('dialog', { name: 'Link bank account' })
 
@@ -366,7 +371,8 @@ test('keeps the start within the range and never chooses Custom date on its own'
     createSampleBridgeScenario(request),
   ])
   await claimSetupToken(request, user, scenario.setupToken)
-  const dialog = await openBankLink(page, user, everyday.id, 'Not linked')
+  await logInViaApi(page, user)
+  const dialog = await openBankLink(page, everyday.id, 'Not linked')
   await dialog.getByRole('button', { name: 'Link bank account' }).click()
   const flow = page.getByRole('dialog', { name: 'Link bank account' })
   await flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_CHEQUING}`) }).click()
@@ -586,7 +592,8 @@ test.describe('the reason on Link bank account while bank sync is not running', 
     await changeProviders(page, (body) => {
       body.sync_running = false
     })
-    await openBankLink(page, user, everyday.id, 'Not linked')
+    await logInViaApi(page, user)
+    await openBankLink(page, everyday.id, 'Not linked')
   })
 
   test('shows on hover, and Escape puts it away while the modal stays open', async ({ page }) => {
@@ -617,7 +624,8 @@ test('holds linking back on an archived account with the reason beside it, listi
   const archived = await request.patch(`${API_BASE_URL}/accounts/${everyday.id}`, { headers: asUser(user), data: { is_archived: true } })
   expect(archived.ok()).toBe(true)
   const listings = watchListings(page)
-  const dialog = await openBankLink(page, user, everyday.id, 'Not linked')
+  await logInViaApi(page, user)
+  const dialog = await openBankLink(page, everyday.id, 'Not linked')
 
   const link = dialog.getByRole('button', { name: 'Link bank account' })
   await expect(link).toBeFocused()
@@ -667,7 +675,8 @@ test('lists the bank accounts of the connection switched to, dropping the one ch
   await addBridgeBankAccount(request, lakeside.id, { connId: login, name: 'Joint Savings', currency: 'CAD' })
   await claimSetupToken(request, user, sample.setupToken)
   await claimSetupToken(request, user, lakeside.setupToken, 'Lakeside')
-  const dialog = await openBankLink(page, user, everyday.id, 'Not linked')
+  await logInViaApi(page, user)
+  const dialog = await openBankLink(page, everyday.id, 'Not linked')
   await dialog.getByRole('button', { name: 'Link bank account' }).click()
   const flow = page.getByRole('dialog', { name: 'Link bank account' })
 

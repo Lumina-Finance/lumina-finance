@@ -287,17 +287,53 @@ export async function runClockUntil(page: Page, reached: () => Promise<boolean>,
 }
 
 /**
+ * The identity card's Bank sync fact reading as given
+ *
+ * @param status - The label the fact shows. A pattern ends with the period that ends the label's
+ * sentence in the fact's name, since a label ending in p.m. has one already
+ */
+export function bankSyncFact(page: Page, status: string | RegExp): Locator {
+  const name = typeof status === 'string' ? `Bank sync: ${status}. Open bank link` : new RegExp(`^Bank sync: ${status.source} Open bank link$`)
+  return page.getByRole('button', { name })
+}
+
+/**
  * Opens the account's page and, once the identity card's Bank sync fact reads as given, its edit
- * modal at the Bank link section through that fact
+ * modal at the Bank link section through that fact. Returns once the modal's scroll to the section has
+ * ended, which it asks for a moment after opening and eases into where its content runs past what it
+ * shows by then. A press on a control before then has the browser bring the control into view on the
+ * way, which stops the modal short of the section
+ *
+ * @param status - The label the fact should come to show, which may take the worker a while, as
+ * `bankSyncFact` reads it
  */
 export async function openBankLink(page: Page, accountId: string, status: string | RegExp): Promise<Locator> {
   await openPage(page, `/accounts/${accountId}`)
-  const name = typeof status === 'string' ? `Bank sync: ${status}. Open bank link` : new RegExp(`^Bank sync: ${status.source} Open bank link$`)
-  const bankSync = page.getByRole('button', { name })
+  const bankSync = bankSyncFact(page, status)
   await expect(bankSync).toBeVisible({ timeout: WORKER_RESULT_TIMEOUT_MS })
+
+  // Listening from before the modal opens, so a scroll that ends however soon is heard. A scroll asked
+  // for where the modal's content already sits, as where it fits when the moment comes, goes nowhere and
+  // ends as it is asked for, even if the section grows past the bottom afterwards
+  await page.evaluate(() => {
+    const scrolled = () => {
+      (window as Window & { modalScrolled?: boolean }).modalScrolled = true
+    }
+    document.addEventListener('scrollend', (event) => {
+      if (event.target instanceof Element && event.target.closest('[role="dialog"]')) scrolled()
+    }, { capture: true })
+    const scrollTo = Element.prototype.scrollTo
+    Element.prototype.scrollTo = function (this: Element, ...asked: unknown[]) {
+      const top = typeof asked[0] === 'number' ? asked[1] as number : (asked[0] as ScrollToOptions | undefined)?.top
+      const reachable = Math.max(0, Math.min(top ?? this.scrollTop, this.scrollHeight - this.clientHeight))
+      if (this.closest('[role="dialog"]') && Math.abs(reachable - this.scrollTop) < 1) scrolled()
+      Reflect.apply(scrollTo, this, asked)
+    }
+  })
   await bankSync.click()
   const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
   await expect(dialog).toBeVisible()
+  await expect.poll(() => page.evaluate(() => (window as Window & { modalScrolled?: boolean }).modalScrolled === true)).toBe(true)
   return dialog
 }
 
