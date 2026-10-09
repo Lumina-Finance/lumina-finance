@@ -18,6 +18,7 @@ import {
   runClockUntil,
   stallBridge,
   stopClock,
+  waitForEntrance,
   WORKER_RESULT_TIMEOUT_MS,
   type SeededConnection,
 } from '../support/bankSync'

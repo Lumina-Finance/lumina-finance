@@ -287,6 +287,19 @@ export async function runClockUntil(page: Page, reached: () => Promise<boolean>,
 }
 
 /**
+ * Waits for the dialog to finish scaling in. Motion scales it frame by frame from script, which leaves the
+ * browser no animation to wait on, and a distance or place read before it ends comes out off by the scale
+ */
+export async function waitForEntrance(dialog: Locator): Promise<void> {
+  await expect.poll(() => dialog.evaluate((element) => {
+    for (let node: Element | null = element; node; node = node.parentElement) {
+      if (getComputedStyle(node).transform !== 'none') return false
+    }
+    return true
+  })).toBe(true)
+}
+
+/**
  * The identity card's Bank sync fact reading as given
  *
  * @param status - The label the fact shows. A pattern ends with the period that ends the label's

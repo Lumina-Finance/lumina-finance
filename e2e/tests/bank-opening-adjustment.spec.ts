@@ -11,7 +11,7 @@ import {
   type TestUser,
 } from '../support/api'
 import { fact, logInViaApi } from '../support/app'
-import { errorToast, linkToSampleBankAccount, openBankLink } from '../support/bankSync'
+import { errorToast, linkToSampleBankAccount, openBankLink, waitForEntrance } from '../support/bankSync'
 import { contrastOf, MIN_TEXT_CONTRAST, MINUS, readBoxes } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 
@@ -58,19 +58,6 @@ async function openOffer(page: Page, request: APIRequestContext): Promise<{ setu
   }
   await expect(offer.sentence).toBeVisible()
   return { setup, offer }
-}
-
-/**
- * Waits for the dialog to finish scaling in. Motion scales it frame by frame from script, which leaves the
- * browser no animation to wait on, and a distance read before it ends comes out short by the scale
- */
-async function waitForEntrance(dialog: Locator): Promise<void> {
-  await expect.poll(() => dialog.evaluate((element) => {
-    for (let node: Element | null = element; node; node = node.parentElement) {
-      if (getComputedStyle(node).transform !== 'none') return false
-    }
-    return true
-  })).toBe(true)
 }
 
 /** The offer's sentence, naming the day before the import start as the app writes a day with its year */
