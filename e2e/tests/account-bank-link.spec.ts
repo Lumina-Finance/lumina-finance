@@ -580,6 +580,7 @@ async function openBeforeLinkLoads(page: Page, request: APIRequestContext): Prom
     await readReleased
     await route.fallback()
   })
+  await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.clock.install()
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${everyday.id}`)

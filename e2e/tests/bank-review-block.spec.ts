@@ -407,7 +407,9 @@ test('shows the first 4 of a 1,500 item backlog, and loads the rest a page at a 
 // block starts its wait to load the next page. A busy page can reach the end of that wait before it is
 // laid out again with the rows grown. The page's clock stops before Show all, so the rows stay folded
 // until it moves on, and word of where the end of the list has gone is held back while the wait runs
-// out, then reaches the block's last look before the watch that started the wait hears of it
+// out, then reaches the block's last look before the watch that started the wait hears of it. Motion
+// isn't reduced, as it is for other tests on the page's clock, since reduced motion shows the rows at
+// full height at once and leaves the end of the list nowhere near
 test('loads no more of a 1,500 item backlog when the end of the list has moved away by the end of the wait, however late word of it comes', async ({ page, request }) => {
   const { everyday } = await start(page, request)
   await answerLongBacklog(page, everyday.id)
