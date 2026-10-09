@@ -198,6 +198,32 @@ async function openImportingLink(page: Page, request: APIRequestContext): Promis
   return { dialog, accountId: everyday.id, answer }
 }
 
+/**
+ * Holds back every render React puts off for later, as a busy machine can, until `releaseRenders`. React
+ * runs those off a message it posts to itself, so the message waits. One a press or a change to shared
+ * state needs at once doesn't wait for a message, and runs straight away still
+ */
+async function holdRenders(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const held: (() => void)[] = []
+    const post = MessagePort.prototype.postMessage
+    MessagePort.prototype.postMessage = function (this: MessagePort, ...message: unknown[]) {
+      held.push(() => Reflect.apply(post, this, message))
+    }
+    Object.assign(window, {
+      releaseRenders: () => {
+        MessagePort.prototype.postMessage = post
+        for (const send of held) send()
+      },
+    })
+  })
+}
+
+/** Lets the renders `holdRenders` held back run, in the order they were put off */
+async function releaseRenders(page: Page): Promise<void> {
+  await page.evaluate(() => (window as Window & { releaseRenders?: () => void }).releaseRenders!())
+}
+
 // A read the page sends as a test ends can still be on its way through a changed answer when the page
 // closes, which would fail a test whose checks all passed
 test.afterEach(async ({ page }) => {
@@ -281,6 +307,40 @@ test('links an account from its page, from choosing the bank account to its impo
     // Frees the worker the held request keeps waiting, which would otherwise hold up other tests' syncs
     await clearBridgeFault(request, scenario.id)
   }
+})
+
+// The old view says it has faded out before React takes it off the page, in a render of its own, and a
+// busy machine can draw a frame in between. Focus is looked after once the view has gone, not on that
+// frame, where it still sits on a control about to go and would then fall to the page. Renders are held
+// until frames have passed since the fade ended, so the frame comes first unless a render the page needs
+// at once takes the old view along sooner
+test('moves focus to Link bank account once the link it sat by is undone elsewhere, however late the old view leaves', async ({ page, request }) => {
+  const { dialog, accountId } = await openImportingLink(page, request)
+  const reviewSettings = dialog.getByRole('button', { name: 'Review settings' })
+  await expect(reviewSettings).toBeFocused()
+
+  // Undone in another tab. The app shell's next read of the links finds none, and reads the account's again
+  await holdRenders(page)
+  await page.route(`${API_BASE_URL}/bank-sync/links`, (route) => route.fulfill({ json: [] }))
+  await page.route(`${API_BASE_URL}/accounts/${accountId}/bank-link`, (route) => route.fulfill({
+    json: { account_id: accountId, link: null, previous_link: null },
+  }))
+  const linkButton = dialog.getByRole('button', { name: 'Link bank account' })
+  await expect(linkButton).toBeAttached()
+
+  // The old view has faded out once nothing of it shows through, and has said so by the frame after. A
+  // render the page needs at once takes along any held back, so the view can also have gone already
+  await expect.poll(() => dialog.evaluate((panel) => {
+    const button = Array.from(panel.querySelectorAll('button')).find((control) => control.textContent?.trim() === 'Review settings')
+    let opacity = 1
+    for (let box: Element | null = button ?? null; box; box = box.parentElement) opacity *= Number(getComputedStyle(box).opacity)
+    return button ? opacity : 0
+  })).toBe(0)
+  await page.evaluate(() => new Promise((settle) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(settle)))))
+  await releaseRenders(page)
+
+  await expect(reviewSettings).not.toBeAttached()
+  await expect(linkButton).toBeFocused()
 })
 
 test("keeps the link's message clear of Cancel and Save Changes where the edit modal fills the screen, and back in the corner once it closes", async ({ page, request }) => {

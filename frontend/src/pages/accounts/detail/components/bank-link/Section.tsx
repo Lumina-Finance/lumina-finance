@@ -316,12 +316,18 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false }: B
 
   // Linking and unlinking swap the view, taking away the control the dialog opened from, so focus would
   // fall to the page once the dialog or the old view has gone. It moves to the new view's action
-  // instead, after the dialog has put focus back wherever it still could
-  const restoreLostFocus = () => {
-    window.requestAnimationFrame(() => {
+  // instead, after the dialog has put focus back wherever it still could. Motion reports an exit before
+  // React takes what left off the page, in a render a busy machine can draw a frame ahead of, so the
+  // check waits for that render, which the report's own update joins, rather than for the next frame
+  const [exitsReported, setExitsReported] = useState(0)
+  const restoreLostFocus = () => setExitsReported((count) => count + 1)
+  useEffect(() => {
+    if (exitsReported === 0) return undefined
+    const frame = window.requestAnimationFrame(() => {
       if (document.activeElement === null || document.activeElement === document.body) focusFirstAction(contentRef.current)
     })
-  }
+    return () => window.cancelAnimationFrame(frame)
+  }, [exitsReported])
 
   return (
     <EditModalSection number={sectionNumber} title="Bank link">
