@@ -511,11 +511,11 @@ for (const { project, width } of [{ project: 'phone', width: null }, { project: 
     const dialog = await openReview(page, COUNTDOWN.description)
     const form = formOf(dialog)
     // Measured together and polled, since the dialog scales in as it opens and edges read mid-animation
-    // drift apart by however far it has to go. Keep window open's whole label is the footer's left item,
-    // and Amount ends the fields
+    // drift apart by however far it has to go. Keep window open's checkbox starts the footer, as it does
+    // in the Add Transaction footer, and Amount ends the fields
     const readEdgeOffsets = async () => {
       const [keepOpen, add, title, amount] = await Promise.all([
-        dialog.locator('label', { has: page.getByRole('checkbox', { name: /Keep window open/ }) }).boundingBox(),
+        dialog.getByRole('checkbox', { name: /Keep window open/ }).boundingBox(),
         form.add.boundingBox(),
         dialog.getByRole('heading', { name: DIALOG_NAME, exact: true }).boundingBox(),
         form.amount.boundingBox(),
