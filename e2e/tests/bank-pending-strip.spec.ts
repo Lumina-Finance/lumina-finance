@@ -21,6 +21,9 @@ const PHONE_LAYOUT_BELOW_PX = 640
 
 const HOUR_MS = 60 * 60 * 1000
 
+// How long the strip stays open after the bank was asked, long enough for its rows to move past just now
+const CHECK_AGE_MS = 5 * 60 * 1000
+
 // The reads of bank items the list's accounts hold, which only the user's own personal accounts have
 const BANK_ITEM_READS = ['/bank-sync/pending', '/bank-review/items', '/bank-review/backlogs']
 
@@ -179,6 +182,23 @@ test("shows only an account's own pending transactions on its page, leaving out 
   await expect(rows).toHaveCount(2)
   await expect(rows.first()).toContainText('Sep 23 · Pending · Checked 3 hours ago')
   await expect(strip).not.toContainText('Everyday')
+})
+
+// Asked as the page's clock starts, since a real sync can't be timed to it
+test('words when the bank was last asked anew as minutes pass with the strip open', async ({ page, request }) => {
+  const { everyday } = await start(page, request)
+  const checkedAt = new Date()
+  await answerPending(page, () => [pendingTransaction('uber', everyday.id, { observed_at: checkedAt.toISOString() })])
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.clock.install({ time: checkedAt })
+  await openPage(page, '/transactions')
+  const strip = pendingStrip(page)
+  const row = strip.getByRole('listitem')
+  await strip.getByRole('button', { name: /^1 pending/ }).click()
+  await expect(row).toContainText('Checked just now')
+
+  await page.clock.runFor(CHECK_AGE_MS)
+  await expect(row).toContainText('Checked 5 minutes ago')
 })
 
 test('reads neither pending transactions nor review items for a list filtered to group accounts alone', async ({ page, request }) => {

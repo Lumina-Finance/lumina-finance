@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { ChevronDown, Clock } from 'lucide-react'
 import type { PendingBankTransaction } from '@/api/bank-sync'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
+import { useRelativeTimeRefresh } from '@/hooks/useRelativeTimeRefresh'
 import { ReadFailureNotice, type BankReadFailure } from '@/components/transactions/bank-review/ReadFailureNotice'
 import type { ReviewItemAccount } from '@/components/transactions/bank-review/ReviewBlock'
 import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
@@ -50,6 +51,7 @@ export function BankPendingStrip({
 }: BankPendingStripProps) {
   const { formatMovedAmount } = useMoneyFormatters()
   const listId = useId()
+  useRelativeTimeRefresh(() => transactions.map((transaction) => formatRelativeTime(transaction.observed_at)).join('\n'))
   const { collapsed, enterTransition, leave } = REVIEW_MOTION[prefersReducedMotion ? 'reduced' : 'full']
 
   // Transactions that load on a retry take focus on the strip's toggle, so focus doesn't drop to the

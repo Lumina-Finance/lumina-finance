@@ -13,11 +13,13 @@ import {
   createEmptyBridgeScenario,
   createSampleBridgeScenario,
   errorToast,
+  isRead,
   linkBankAccount,
   requireBridgeBankSignIn,
   revokeBridgeAccess,
   waitForConnection,
   WORKER_RESULT_TIMEOUT_MS,
+  type SeededConnection,
 } from '../support/bankSync'
 import { expectMessageInCorner, readBoxes } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
@@ -25,8 +27,8 @@ import { API_BASE_URL } from '../support/target'
 // The section lists the user's bank connections and looks after each one in its own modal. Connections
 // are claimed from the fake SimpleFIN Bridge the instance syncs with, and the worker brings them to the
 // states it reports, such as rejected or waiting on a bank sign-in. Only what a deployment decides,
-// such as which providers it offers, whether its worker is running and an institution limit, is
-// answered here instead
+// such as which providers it offers, whether its worker is running and an institution limit, and a
+// request budget spent as the page's clock starts, are answered here instead
 const SAMPLE_BANK = 'Harbour Bank'
 const SAMPLE_CHEQUING = 'Everyday Chequing'
 const SAMPLE_VISA = 'Rewards Visa'
@@ -35,6 +37,11 @@ const LINKING_PAUSED = "Bank sync isn't running right now. You can link accounts
 
 // A sideways swipe well past the 16px the status's closed note reaches beyond the facts column's edge
 const SIDEWAYS_SWIPE_PX = 40
+
+// How long after a spent request budget a request frees up, and how long the connection stays open
+// meanwhile, long enough for the wait it gives to count down
+const REQUEST_FREES_UP_AFTER_MS = 10 * 60 * 1000
+const BUDGET_OPEN_MS = 5 * 60 * 1000
 
 /**
  * The first day of the month a number of months before this one, as YYYY-MM-DD
@@ -369,6 +376,40 @@ test("shows a connection's facts", async ({ page, request }) => {
   await expect(fact(dialog, 'Institutions linked')).toHaveText('1 · no limit')
   await expect(fact(dialog, 'Requests, 24 hours')).toHaveText(/^\d+ of 20$/)
   await expect(dialog.getByRole('region', { name: 'Institutions · 1 of 2 bank accounts linked' })).toBeVisible()
+})
+
+test('words when a spent request budget frees up anew as minutes pass with the connection open', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const scenario = await createSampleBridgeScenario(request)
+  await claimSetupToken(request, user, scenario.setupToken, 'Joint banks')
+  const spentAt = new Date()
+  const availableAgainAt = new Date(spentAt.getTime() + REQUEST_FREES_UP_AFTER_MS).toISOString()
+  await page.route(isRead('/bank-sync/connections'), async (route) => {
+    const response = await route.fetch()
+    const connections = (await response.json() as SeededConnection[]).map((connection) => ({
+      ...connection,
+      request_budget: { ...connection.request_budget, used: connection.request_budget.limit, available_again_at: availableAgainAt },
+    }))
+    await route.fulfill({ response, json: connections })
+  })
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.clock.install({ time: spentAt })
+  const section = await openBankConnections(page, user)
+  const dialog = await openConnection(page, section, 'Joint banks')
+  const trigger = dialog.getByRole('button', { name: 'About requests, 24 hours' })
+  const note = dialog.locator('.app-tooltip-panel').filter({ hasText: /^Lumina Finance makes up to/ })
+
+  // The dialog grows into place as it opens, and a press aimed at the icon before it has settled
+  // lands beside it
+  await expect(dialog).toHaveCSS('transform', 'none')
+  await trigger.click()
+  await expect(note).toContainText('Automatic syncs wait until one frees up in 10 minutes.')
+  await trigger.click()
+  await page.mouse.move(0, 0)
+
+  await page.clock.runFor(BUDGET_OPEN_MS)
+  await trigger.click()
+  await expect(note).toContainText('Automatic syncs wait until one frees up in 5 minutes.')
 })
 
 test('links a bank account from the connection, importing from the start chosen', async ({ page, request }) => {

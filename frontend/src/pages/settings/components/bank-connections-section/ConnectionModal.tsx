@@ -17,6 +17,7 @@ import { ModalWorkspacePanel } from '@/components/modal/WorkspacePanel'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { LabelWithHint } from '@/components/tooltips/LabelWithHint'
 import { useAuth } from '@/hooks/useAuth'
+import { useRelativeTimeRefresh } from '@/hooks/useRelativeTimeRefresh'
 import { useToast } from '@/hooks/useToast'
 import { EASE, INSTITUTION_SEARCH_AFTER, LINKING_HOLD_MS } from '@/pages/settings/components/bank-connections-section/constants'
 import { InstitutionList, InstitutionRow } from '@/pages/settings/components/bank-connections-section/InstitutionList'
@@ -152,6 +153,7 @@ export function ConnectionModal({ open, connection, accountNameFor, onReconnect,
   const institutionLimit = provider?.institution_limit ?? null
   const institutionsInUse = provider?.institutions_in_use ?? []
   const allowance = describeInstitutionAllowance(provider, connection.provider_name)
+  useRelativeTimeRefresh(() => describeRequestBudget(connection))
 
   // Linking waits for the worker that imports the history, while renaming, reconnecting and
   // disconnecting carry on without it
