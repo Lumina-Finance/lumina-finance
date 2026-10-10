@@ -53,7 +53,7 @@ const ICON_HOVER_CLASS = 'group-hover:[&>*:first-child]:fill-current group-hover
 const ICON_ACTIVE_CLASS = '[&>*:first-child]:fill-current [&>*:not(:first-child)]:stroke-[var(--app-bg)]'
 const ROOT_CLASS = 'group relative inline-flex'
 const FX_ROOT_CLASS = 'shrink-0 items-center align-middle leading-none'
-const FX_TRIGGER_CLASS = 'inline-flex h-4 cursor-pointer appearance-none items-center justify-center rounded-[4px] border px-[3px] text-[0.625rem] font-bold leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent-soft)]'
+const FX_TRIGGER_CLASS = 'inline-flex h-4 cursor-pointer appearance-none items-center justify-center rounded-[4px] border px-[3px] text-[0.625rem] font-bold leading-none transition-colors app-focus-ring'
 const FX_TONE_CLASS: Record<IconTooltipFxTone, { idle: string; active: string }> = {
   blue: {
     idle: 'border-[color-mix(in_srgb,#2563eb_48%,transparent)] bg-[color-mix(in_srgb,#2563eb_13%,var(--app-bg))] text-[#2563eb] group-hover:border-[#2563eb] group-hover:bg-[#2563eb] group-hover:text-white',

@@ -24,6 +24,16 @@
     --app-accent: #8A5F25;
     --app-accent-soft: #9b6c2c1a;
     --app-accent-border: #9b6c2c38;
+    /* The one keyboard focus colour, the accent mixed toward the page so it reads lighter than the
+       accent itself while still clearing 3:1 against every surface it sits on in both themes. A
+       control with no border of its own takes it as an outline with a gap. A field turns its own
+       border this colour and doubles it from the inside, so it never draws a second frame, and
+       neither adds anything to the control's size, so focusing never moves anything */
+    --app-focus-ring: #A17E4F;
+    --app-focus-outline: 2px solid var(--app-focus-ring);
+    --app-focus-offset: 2px;
+    --app-focus-border: inset 0 0 0 1px var(--app-focus-ring);
+    --app-focus-border-error: inset 0 0 0 1px var(--app-negative);
     --app-input-bg: #FFFFFF;
     --app-input-border: #4b372338;
 
@@ -117,6 +127,7 @@
     --app-accent: #C9A96A;
     --app-accent-soft: #c9a96a1f;
     --app-accent-border: #c9a96a38;
+    --app-focus-ring: #8F794D;
     --app-input-bg: #241F19;
     --app-input-border: #d2b47833;
     --app-input-border-hover: #d2b47859;
@@ -532,9 +543,10 @@
   }
 
   .app-input:focus {
-    border-color: var(--app-accent-border);
+    border-color: var(--app-focus-ring);
     background: var(--app-input-bg);
-    box-shadow: 0 0 0 2px var(--app-accent-soft);
+    box-shadow: var(--app-focus-border);
+    outline: none;
   }
 
   .app-input-error,
@@ -543,10 +555,21 @@
     background: var(--app-negative-soft);
   }
 
+  /* The same focus for a field frame drawn with utilities rather than app-input, such as the inline
+     editors in Settings, or for a bordered button. Important on the border, since the frame's own
+     hover utility would otherwise win over it while the pointer rests on a focused field */
+  .app-field-focus:focus-within,
+  .app-field-focus-visible:focus-visible {
+    border-color: var(--app-focus-ring) !important;
+    box-shadow: var(--app-focus-border);
+  }
+
+  /* A rejected field keeps its red while focused, so the focus doubles a red border rather than
+     turning it the focus colour and hiding that it was rejected */
   .app-input-error:focus {
-    border-color: var(--app-negative-border);
+    border-color: var(--app-negative);
     background: var(--app-negative-soft);
-    box-shadow: 0 0 0 2px var(--app-negative-soft);
+    box-shadow: var(--app-focus-border-error);
   }
 
   /* The segmented date control mirrors app-input as a flex row so the year, month, and day inputs sit
@@ -564,8 +587,8 @@
   }
 
   .app-date-field:focus-within {
-    border-color: var(--app-accent-border);
-    box-shadow: 0 0 0 2px var(--app-accent-soft);
+    border-color: var(--app-focus-ring);
+    box-shadow: var(--app-focus-border);
   }
 
   .app-date-field.app-input-error {
@@ -574,7 +597,8 @@
   }
 
   .app-date-field.app-input-error:focus-within {
-    box-shadow: 0 0 0 2px var(--app-negative-soft);
+    border-color: var(--app-negative);
+    box-shadow: var(--app-focus-border-error);
   }
 
   .app-date-field-segment {
@@ -679,8 +703,8 @@
   }
 
   .app-dropdown-glass:focus-within {
-    border-color: var(--app-accent-border);
-    box-shadow: 0 0 0 2px var(--app-accent-soft);
+    border-color: var(--app-focus-ring);
+    box-shadow: var(--app-focus-border);
   }
 
   /* Floating rather than open, so it keeps this look for the whole of the collapse as well. Keying it
@@ -697,6 +721,7 @@
     border-color: var(--app-border-strong);
     background: var(--app-dropdown-bg);
     box-shadow: var(--app-shadow-soft);
+    outline: none;
   }
 
   /* Before rejected rather than after it, so a field that is both still shows that it was rejected.
@@ -716,13 +741,10 @@
     border-color: var(--app-negative-border);
   }
 
-  .app-dropdown-glass.app-dropdown-glass-error:focus-within {
-    box-shadow: 0 0 0 2px var(--app-negative-soft);
-  }
-
-  /* Floating, a rejected box keeps its colour and takes the shadow back off the ring above */
-  .app-dropdown-glass.app-dropdown-glass-floating.app-dropdown-glass-error {
-    box-shadow: var(--app-shadow-soft);
+  /* Not while floating, whose shadow lifts it off the page and which draws no focus at all */
+  .app-dropdown-glass.app-dropdown-glass-error:not(.app-dropdown-glass-floating):focus-within {
+    border-color: var(--app-negative);
+    box-shadow: var(--app-focus-border-error);
   }
 
   .app-dropdown-head {
@@ -1174,8 +1196,8 @@
   }
 
   .app-breakdown-sector:focus-visible {
-    outline: 2px solid var(--app-accent);
-    outline-offset: 3px;
+    outline: var(--app-focus-outline);
+    outline-offset: var(--app-focus-offset);
   }
 
   .app-range-seg-option:hover {
@@ -1378,8 +1400,8 @@
   }
 
   .app-primary-button:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px var(--app-accent-soft);
+    outline: var(--app-focus-outline);
+    outline-offset: var(--app-focus-offset);
   }
 
   .app-secondary-button {
@@ -1407,8 +1429,8 @@
   }
 
   .app-secondary-button:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px var(--app-accent-soft);
+    outline: var(--app-focus-outline);
+    outline-offset: var(--app-focus-offset);
   }
 
   /* Draws the eye to a just-linked provider badge after returning from the provider */
@@ -1453,8 +1475,8 @@
   }
 
   .app-danger-button:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px var(--app-negative-soft);
+    outline: var(--app-focus-outline);
+    outline-offset: var(--app-focus-offset);
   }
 
   /* Liquid-glass variants of the toolbar controls, sharing the filter pill and insights range
@@ -1469,6 +1491,11 @@
     color: var(--app-text);
     border-color: var(--app-border-strong);
     background: var(--app-input-bg);
+  }
+
+  .app-glass-input:focus {
+    border-color: var(--app-focus-ring);
+    box-shadow: var(--app-focus-border);
   }
 
   .app-glass-input::placeholder {
@@ -1502,8 +1529,8 @@
   }
 
   .app-glass-button-primary:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px var(--app-accent-soft);
+    outline: var(--app-focus-outline);
+    outline-offset: var(--app-focus-offset);
   }
 
   /* Neutral glass counterpart of the secondary button, sharing the filter pill surface */
@@ -1534,8 +1561,8 @@
   }
 
   .app-glass-button:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px var(--app-accent-soft);
+    outline: var(--app-focus-outline);
+    outline-offset: var(--app-focus-offset);
   }
 
   /* Square icon-button member of the glass family for the floating mobile menu toggle, sharing the
@@ -1559,8 +1586,8 @@
   }
 
   .app-glass-icon-button:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px var(--app-accent-soft);
+    outline: var(--app-focus-outline);
+    outline-offset: var(--app-focus-offset);
   }
 
   .app-primary-button-loading {
@@ -1596,8 +1623,8 @@
   }
 
   .app-segmented-option:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 2px var(--app-accent-soft);
+    outline: var(--app-focus-outline);
+    outline-offset: var(--app-focus-offset);
   }
 
   .app-segmented-option-active {
@@ -1609,6 +1636,13 @@
     position: relative;
     overflow: hidden;
     isolation: isolate;
+  }
+
+  /* The selector clips its sliding indicator and has only 2px of padding, room for the ring but not
+     its gap, so the ring sits against the option's edge. Inside the edge it would fall on the
+     selected option's tint, which it doesn't clear 3:1 against in the light theme */
+  .app-time-selector .app-segmented-option:focus-visible {
+    outline-offset: 0;
   }
 
   .app-time-selector-indicator {
@@ -1791,8 +1825,14 @@
   }
 
   .app-icon-button:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px var(--app-accent-soft);
+    outline: var(--app-focus-outline);
+    outline-offset: var(--app-focus-offset);
+  }
+
+  /* The same ring for a control that has no class of its own above */
+  .app-focus-ring:focus-visible {
+    outline: var(--app-focus-outline);
+    outline-offset: var(--app-focus-offset);
   }
 
   .app-spinner {

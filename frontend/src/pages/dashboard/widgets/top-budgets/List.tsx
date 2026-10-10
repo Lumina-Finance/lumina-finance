@@ -31,7 +31,7 @@ function TopBudgetRow({ budget, showDivider }: TopBudgetRowProps) {
   return (
     <Link
       to={`/budgets?budget=${encodeURIComponent(budget.base_budget_id)}`}
-      className="block px-1 py-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent-soft)]"
+      className="block px-1 py-2 transition-colors duration-150 app-focus-ring"
       style={{
         borderBottom: showDivider ? '1px solid var(--app-border)' : undefined,
       }}
