@@ -13,7 +13,7 @@ from app.models.auth_token import AuthToken
 from app.models.base import AuthTokenKind
 from app.models.user import User
 from tests.conftest import TestSession
-from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _seed_currency
+from tests.routes.support import SIGNUP_PAYLOAD, _clears_cookie, _create_user, _seed_currency
 
 # --- Helpers ---
 
@@ -357,6 +357,7 @@ async def test_previous_refresh_token_after_grace_returns_401(client):
 
     assert resp.status_code == 401
     assert resp.json()["detail"] == "Refresh token is not active"
+    assert _clears_cookie(resp, "refresh_token")
 
 
 async def test_rotated_away_refresh_token_returns_409_without_clearing_cookie(client):
@@ -377,7 +378,7 @@ async def test_rotated_away_refresh_token_returns_409_without_clearing_cookie(cl
 
     assert third_resp.status_code == 409
     assert third_resp.json()["detail"] == "Refresh token was already rotated"
-    assert "refresh_token" not in third_resp.cookies
+    assert "set-cookie" not in third_resp.headers
 
 
 async def test_concurrent_refresh_keeps_only_current_and_previous_refresh_tokens(client):
@@ -444,7 +445,7 @@ async def test_concurrent_current_and_previous_refresh_tokens_do_not_deadlock(cl
     for response in (previous_response, current_response):
         if response.status_code == 409:
             assert response.json()["detail"] == "Refresh token was already rotated"
-            assert "refresh_token" not in response.cookies
+            assert "set-cookie" not in response.headers
 
     async with TestSession() as session:
         token_result = await session.execute(select(AuthToken))
@@ -470,6 +471,7 @@ async def test_refresh_invalid_cookie_returns_401(client):
 
     assert resp.status_code == 401
     assert resp.json()["detail"] == "Invalid or expired refresh token"
+    assert _clears_cookie(resp, "refresh_token")
 
 
 async def test_access_token_as_refresh_cookie_returns_401(client):
@@ -526,6 +528,7 @@ async def test_refresh_token_with_mismatched_session_claim_returns_401(client):
 
     assert resp.status_code == 401
     assert resp.json()["detail"] == "Invalid token"
+    assert _clears_cookie(resp, "refresh_token")
 
 
 async def test_refresh_token_with_mismatched_subject_claim_returns_401(client):
@@ -568,6 +571,7 @@ async def test_refresh_rejects_expired_session_with_active_token_row(client):
 
     assert resp.status_code == 401
     assert resp.json()["detail"] == "Session is not active"
+    assert _clears_cookie(resp, "refresh_token")
 
 
 async def test_refresh_revokes_old_access_token(client):

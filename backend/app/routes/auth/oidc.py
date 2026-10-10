@@ -1,6 +1,7 @@
 """OIDC sign-in and provider linking routes"""
 
 import uuid
+from collections.abc import Awaitable, Callable
 from typing import Annotated
 
 import jwt
@@ -15,14 +16,14 @@ from app.routes.auth.cookie_helpers import (
     OIDC_BINDING_COOKIE_KEY,
     OIDC_REAUTH_STEPUP_COOKIE_KEY,
     clear_oidc_login_binding_cookie,
-    clear_oidc_reauth_stepup_cookie,
+    removing_cookie_on_failure,
     set_oidc_login_binding_cookie,
     set_oidc_reauth_stepup_cookie,
 )
 from app.routes.auth.token_helpers import (
     decode_oidc_onboarding_token,
     issue_and_store_tokens,
-    verify_reauth_stepup_proof,
+    spend_reauth_stepup_proof,
 )
 from app.schemas.auth import (
     AuthResponse,
@@ -72,18 +73,19 @@ def _build_identity_summary(identity: OidcIdentity, provider: OidcProvider) -> O
     )
 
 
-async def _authorize_provider_management(
+async def _manage_provider[T](
     db: AsyncSession,
     user: User,
     response: Response,
     step_up: StepUpRequest | None,
     reauth_stepup_proof: str | None,
-) -> None:
-    """Authorize linking or unlinking a provider via password step-up or a fresh reauth proof
+    action: Callable[[], Awaitable[T]],
+) -> T:
+    """Authorize linking or unlinking a provider via password step-up or a fresh reauth proof, then do it
 
     An account with a password steps up with it. A passwordless account has none, so it presents the
-    proof a fresh provider reauth minted instead. The proof is single use, so it is cleared here
-    whatever the outcome
+    proof a fresh provider reauth minted instead. The proof is single use, so it is removed whatever
+    the outcome, including when the link or unlink itself is refused
 
     Args:
         db: Active database session
@@ -91,19 +93,22 @@ async def _authorize_provider_management(
         response: FastAPI response object for clearing a spent proof cookie
         step_up: Password and current factor, sent by an account that has a password
         reauth_stepup_proof: Proof cookie, sent by a passwordless account after a reauth
+        action: The link or unlink the authorization is for
+
+    Returns:
+        Whatever the action returns
 
     Raises:
-        HTTPException: Neither authorization is present or valid
+        HTTPException: Neither authorization is present or valid, or the action failed
     """
     if reauth_stepup_proof is not None:
-        clear_oidc_reauth_stepup_cookie(response)
-        verify_reauth_stepup_proof(user.id, reauth_stepup_proof)
-        return
+        return await spend_reauth_stepup_proof(user.id, response, reauth_stepup_proof, action)
 
     if step_up is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required")
 
     await verify_sensitive_action_step_up(db, user, step_up.password, code=step_up.code, passkey=step_up.passkey)
+    return await action()
 
 
 @router.get("/providers", response_model=OidcProvidersResponse)
@@ -185,10 +190,11 @@ async def oidc_callback_route(
         HTTPException: The roundtrip, binding, exchange, or token does not verify, or the
             email collides with an account it cannot be linked to
     """
-    # The binding cookie is single-use, so clear it whatever the outcome of this callback
+    # The binding cookie is single-use, so remove it whatever the outcome of this callback, a refused
+    # one included
     clear_oidc_login_binding_cookie(response)
-
-    result = await complete_oidc_sign_in(db, data.code, data.state, oidc_login_binding)
+    with removing_cookie_on_failure(clear_oidc_login_binding_cookie):
+        result = await complete_oidc_sign_in(db, data.code, data.state, oidc_login_binding)
 
     if isinstance(result, OidcOnboardingClaims):
         onboarding_token = create_oidc_onboarding_token(
@@ -297,8 +303,9 @@ async def link_oidc_route(
     if provider is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown sign-in provider")
 
-    await _authorize_provider_management(db, user, response, data, oidc_reauth_stepup)
-    authorization_url = await begin_oidc_link(db, user, provider)
+    authorization_url = await _manage_provider(
+        db, user, response, data, oidc_reauth_stepup, lambda: begin_oidc_link(db, user, provider)
+    )
     return OidcAuthorizeResponse(authorization_url=authorization_url)
 
 
@@ -414,8 +421,9 @@ async def remove_oidc_identity_route(
         HTTPException: The step-up fails, the identity is not the user's, or removing it
             would leave the account with no way to sign in
     """
-    await _authorize_provider_management(db, user, response, data, oidc_reauth_stepup)
-    await unlink_oidc_identity(db, user, identity_id)
+    await _manage_provider(
+        db, user, response, data, oidc_reauth_stepup, lambda: unlink_oidc_identity(db, user, identity_id)
+    )
 
 
 def _decode_onboarding_claims(onboarding_token: str) -> OidcOnboardingClaims:
