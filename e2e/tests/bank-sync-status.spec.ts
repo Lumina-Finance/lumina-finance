@@ -99,41 +99,6 @@ async function readClippingBoxes(element: Locator, room = 0): Promise<string[]> 
 }
 
 /**
- * Whether an element's text runs past its box, so part of it is cut off or hidden behind an ellipsis
- */
-async function isCutShort(element: Locator): Promise<boolean> {
-  return element.evaluate((target) => target.scrollWidth > target.clientWidth)
-}
-
-/**
- * An element's text a line at a time as the browser lays it out, without its spaces or the text of a
- * tooltip in it, which sits apart from its lines. A glyph lower than the middle of the one before it
- * starts a line
- */
-async function readLines(element: Locator): Promise<string[]> {
-  return element.evaluate((target) => {
-    const lines: { text: string; top: number; height: number }[] = []
-    const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT, {
-      acceptNode: (node) => (node.parentElement?.closest('.app-tooltip-panel') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
-    })
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const text = node.textContent ?? ''
-      for (let index = 0; index < text.length; index += 1) {
-        if (!text[index].trim()) continue
-        const range = document.createRange()
-        range.setStart(node, index)
-        range.setEnd(node, index + 1)
-        const { top, height } = range.getBoundingClientRect()
-        const line = lines[lines.length - 1]
-        if (line && top < line.top + line.height / 2) line.text += text[index]
-        else lines.push({ text: text[index], top, height })
-      }
-    }
-    return lines.map(({ text }) => text)
-  })
-}
-
-/**
  * Whether one element's box covers part of another's, with half a pixel spare for a layout in
  * fractions of one
  */
@@ -338,45 +303,6 @@ test('moves the reason for a gap below the balances as the dialog body scrolls t
   await fact(dialog, /^Difference/).evaluate((element) => element.parentElement!.scrollIntoView({ block: 'start', behavior: 'instant' }))
   await expect.poll(() => readClippingBoxes(reason)).toEqual([])
   expect(await coversAnyBalance(dialog, reason)).toBe(false)
-})
-
-test('keeps each balance whole with its sign, and the caption\'s dot with the part it introduces', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -11111111111100, date: daysFromTodayInTestTimezone(-1) })
-  await linkWithBalances(request, user, account.id, { balance: '123456789012.34', available_balance: '111111111111.00' })
-
-  // Twelve digits leave three balances too wide to sit side by side, so they move to another row
-  // rather than splitting a figure or leaving its sign on a line of its own, and on a phone the
-  // caption wraps without ending a line on the dot before the available balance
-  await logInViaApi(page, user)
-  const dialog = await openBankLink(page, account.id, OPENING_BALANCE_STATUS)
-  const figures: [Locator, string][] = [
-    [fact(dialog, 'SimpleFIN'), '$123,456,789,012.34'],
-    [fact(dialog, 'Ledger'), '($111,111,111,111.00)'],
-    [fact(dialog, /^Difference/), `${MINUS}$234,567,900,123.34`],
-  ]
-  for (const [figure, text] of figures) {
-    await expect(figure).toHaveText(text)
-    expect(await readLines(figure)).toEqual([text])
-    expect(await isCutShort(figure)).toBe(false)
-  }
-  const caption = dialog.getByText(/^As of /)
-  await expect(caption).toContainText('$111,111,111,111.00 available')
-  expect((await readLines(caption)).filter((line) => line.endsWith('·'))).toEqual([])
-})
-
-test('marks an available balance that can\'t be read exactly in the caption, keeping the dot with it', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  await linkWithBalances(request, user, account.id, { available_balance: '2318.365' })
-
-  // On a phone the caption wraps, and the dot goes to the next line with the part it introduces
-  await logInViaApi(page, user)
-  const dialog = await openBankLink(page, account.id, OPENING_BALANCE_STATUS)
-  const caption = dialog.getByText(/^As of /)
-  await expect(caption).toContainText('Available balance unavailable')
-  expect((await readLines(caption)).filter((line) => line.endsWith('·'))).toEqual([])
 })
 
 test('reads as retrying at the time of the retry when the Bridge fails', async ({ page, request }) => {

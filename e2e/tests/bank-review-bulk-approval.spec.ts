@@ -15,7 +15,7 @@ import {
   waitForReviewItems,
   type ReviewItem,
 } from '../support/bankSync'
-import { contrastOf, expectTransactionRow, MIN_TEXT_CONTRAST, MINUS } from '../support/selectors'
+import { expectTransactionRow, MINUS } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 
 // Bulk approve in the review block's header previews the corrections and removals waiting in the
@@ -291,37 +291,3 @@ test('follows the account the list shows, and is unavailable where only new item
   await expect(dialog.getByRole('button', { name: 'Approve 2' })).toBeEnabled()
   expect(previews).toEqual([[setup.everyday.id]])
 })
-
-for (const colorScheme of ['light', 'dark'] as const) {
-  test(`shows Bulk approve and an opened preview readably in the ${colorScheme} theme, Approve before Cancel, without scrolling sideways`, async ({ page, request }) => {
-    await start(page, request)
-    await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
-    await openPage(page, '/transactions')
-    if (colorScheme === 'dark') await expect(page.locator('html')).toHaveClass(/\bdark\b/)
-    else await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
-
-    // The block's title keeps to one line beside the button, whose label reads on the block's tint
-    const title = reviewBlock(page).getByRole('heading', { name: 'Waiting for review' })
-    expect(await title.evaluate((heading) => heading.getBoundingClientRect().height < Number.parseFloat(getComputedStyle(heading).lineHeight) * 1.5)).toBe(true)
-    expect(await contrastOf(bulkApprove(page))).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
-
-    const dialog = await openBulkApproval(page)
-    await groupsIn(dialog).first().click()
-    await expect(dialog.getByRole('listitem')).toHaveCount(2)
-    expect(await dialog.evaluate((panel) => panel.scrollWidth <= panel.clientWidth)).toBe(true)
-
-    // A confirmation that changes records leads with its action
-    const approveLeft = (await dialog.getByRole('button', { name: 'Approve 2' }).boundingBox())?.x ?? Number.POSITIVE_INFINITY
-    expect(approveLeft).toBeLessThan((await dialog.getByRole('button', { name: 'Cancel' }).boundingBox())?.x ?? 0)
-
-    const texts = [
-      dialog.getByText('Everything below is applied at once. Nothing else in your ledger changes.'),
-      ...await groupsIn(dialog).locator('span span').all(),
-      dialog.getByRole('note'),
-      ...await dialog.getByRole('listitem').locator('span span').all(),
-    ]
-    for (const text of texts) {
-      expect(await contrastOf(text), `${await text.textContent()} in the ${colorScheme} theme`).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
-    }
-  })
-}

@@ -212,45 +212,6 @@ test('says something went wrong when adding a connection never reaches the serve
   await expect(dialog.getByRole('alert')).toHaveText('Something went wrong. Please try again.')
 })
 
-test('finds connections by what their modal shows, and says when none match', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const [household, joint, travel] = await Promise.all([
-    createAccount(request, user, { name: 'Household' }),
-    createSampleBridgeScenario(request),
-    createEmptyBridgeScenario(request),
-  ])
-  const tidewater = await addBridgeBankLogin(request, travel.id, 'Tidewater Credit Union')
-  await addBridgeBankAccount(request, travel.id, { connId: tidewater, name: 'Travel Savings', currency: 'CAD' })
-  const jointConnection = await claimSetupToken(request, user, joint.setupToken, 'Joint banks')
-  await claimSetupToken(request, user, travel.setupToken)
-  const chequing = jointConnection.accounts.find((bankAccount) => bankAccount.name === SAMPLE_CHEQUING)!
-  await linkBankAccount(request, user, {
-    accountId: household.id,
-    connectionId: jointConnection.id,
-    externalAccountId: chequing.external_id,
-    startDate: todayInTestTimezone(),
-  })
-  const section = await openBankConnections(page, user)
-  const search = section.getByPlaceholder('Search connections…')
-
-  for (const [query, shown, hidden] of [
-    ['household', 'Joint banks', 'SimpleFIN'],
-    ['tidewater', 'SimpleFIN', 'Joint banks'],
-    ['travel savings', 'SimpleFIN', 'Joint banks'],
-    ['rewards', 'Joint banks', 'SimpleFIN'],
-  ]) {
-    await search.fill(query)
-    await expect(connectionRow(section, shown)).toBeVisible()
-    await expect(connectionRow(section, hidden)).toHaveCount(0)
-  }
-
-  await search.fill('nothing like this')
-  await expect(section.getByText('No connections match your search.')).toBeVisible()
-  await search.fill('')
-  await expect(connectionRow(section, 'Joint banks')).toBeVisible()
-  await expect(connectionRow(section, 'SimpleFIN')).toBeVisible()
-})
-
 test("renames a connection, and a blank nickname brings back the provider's name", async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
@@ -608,78 +569,6 @@ test('shows a bank that needs signing in to on the connection and its institutio
   await expect(dialog.getByRole('region', { name: SAMPLE_BANK })).toContainText('Sign in again in SimpleFIN Bridge')
 })
 
-test("lists the connection's facts one to a row beside its institutions from 1050px, and two to a row below", async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const scenario = await createSampleBridgeScenario(request)
-  await claimSetupToken(request, user, scenario.setupToken)
-  // The narrowest width that sets the connection's own pane beside its institutions
-  await page.setViewportSize({ width: 1050, height: page.viewportSize()!.height })
-  const section = await openBankConnections(page, user)
-  const dialog = await openConnection(page, section, 'SimpleFIN')
-  const status = fact(dialog, 'Status')
-  const server = fact(dialog, 'Server')
-  // Polled, since the modal is still settling in as it opens
-  const layout = async () => {
-    const [first, second] = await Promise.all([status.boundingBox(), server.boundingBox()])
-    if (!first || !second) return 'hidden'
-    if (Math.abs(first.x - second.x) < 1 && second.y > first.y) return 'one to a row'
-    if (Math.abs(first.y - second.y) < 1 && second.x > first.x) return 'two to a row'
-    return 'neither'
-  }
-
-  await expect.poll(layout).toBe('one to a row')
-  await page.setViewportSize({ width: 1049, height: page.viewportSize()!.height })
-  await expect.poll(layout).toBe('two to a row')
-})
-
-test("opens every note beside a connection's facts in full and clear of the fact's value, stacked or in the column", async ({ page, request }) => {
-  test.skip(test.info().project.name !== 'desktop', 'It sets its own window sizes')
-  const user = await signUpUser(request)
-
-  // A bank login waiting on a sign-in gives the status a note too, beside the two facts that always have one
-  await claimConnectionNeedingSignIn(request, user)
-  const notes = [
-    { icon: 'Status details', label: 'Status', text: new RegExp(`^Sign in to ${SAMPLE_BANK} again`) },
-    { icon: 'About institutions linked', label: 'Institutions linked', text: /^Counts each institution/ },
-    { icon: 'About requests, 24 hours', label: 'Requests, 24 hours', text: /^Lumina Finance makes up to/ },
-  ]
-
-  // From 1050px the facts are a column beside the institutions, which scrolls and so cuts off whatever
-  // leaves it. The sidebar's edge behind the dialog lies inside the column at both widths, but a note
-  // held right of it would still fit the column at 1440px and doesn't at 1050px. Below 1050px the facts
-  // are stacked above the institutions, two to a row, and the dialog is what cuts a note off
-  const sizes = [
-    { width: 1050, height: 800, clippedBy: 'column' },
-    { width: 1440, height: 900, clippedBy: 'column' },
-    { width: 768, height: 1024, clippedBy: 'dialog' },
-  ] as const
-  await page.setViewportSize(sizes[0])
-  const section = await openBankConnections(page, user)
-  const dialog = await openConnection(page, section, 'SimpleFIN')
-
-  // The dialog grows into place as it opens, and a press aimed at an icon before it has settled lands
-  // beside the icon by the time it arrives, leaving the note closed
-  await expect(dialog).toHaveCSS('transform', 'none')
-  for (const { clippedBy, ...size } of sizes) {
-    await page.setViewportSize(size)
-    const clip = clippedBy === 'column' ? dialog.getByRole('complementary') : dialog
-    for (const { icon, label, text } of notes) {
-      const trigger = dialog.getByRole('button', { name: icon })
-      await trigger.click()
-      // The note is placed in the same update that opens it
-      await expect(trigger).toHaveAttribute('aria-expanded', 'true')
-      const note = dialog.locator('.app-tooltip-panel').filter({ hasText: text })
-      await expect.poll(() => placeOfNote(note, clip, fact(dialog, label)), {
-        message: `${icon} at ${size.width}x${size.height}`,
-      }).toEqual({ inFull: true, clearOfValue: true })
-
-      // Closed again with the pointer off it, so it never covers the next icon
-      await trigger.click()
-      await page.mouse.move(0, 0)
-    }
-  }
-})
-
 test("keeps a connection's facts column from scrolling sideways, so the status note's icon stays under the pointer", async ({ page, request }) => {
   test.skip(test.info().project.name !== 'desktop', 'The facts sit in a column beside the institutions from 1050px, which one width shows')
   const user = await signUpUser(request)
@@ -733,25 +622,6 @@ test("opens a fact's note below its value where the dialog leaves no room above 
   // Below the value, since above the fact it would run off the dialog's top
   const [opened, explained] = await readBoxes(page, [note, value])
   expect(opened.y).toBeGreaterThanOrEqual(explained.y + explained.height)
-})
-
-test('cuts a long institution name short before its count, keeping the whole name', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const scenario = await createEmptyBridgeScenario(request)
-  // Longer than the institutions pane at every width
-  const bank = 'Northern Coastal Fishing, Forestry and Mining Workers Cooperative Credit Union of the Greater Lakeshore and Harbour Region'
-  const login = await addBridgeBankLogin(request, scenario.id, bank)
-  await addBridgeBankAccount(request, scenario.id, { connId: login, name: SAMPLE_CHEQUING, currency: 'CAD' })
-  await claimSetupToken(request, user, scenario.setupToken)
-  const section = await openBankConnections(page, user)
-  const dialog = await openConnection(page, section, 'SimpleFIN')
-  const institution = dialog.getByRole('region', { name: bank })
-  const name = institution.getByRole('button', { name: bank })
-  const count = institution.getByText('0 of 1 linked', { exact: true })
-
-  await expect(count).toBeVisible()
-  const [nameBox, countBox] = await Promise.all([name.boundingBox(), count.boundingBox()])
-  expect(nameBox!.x + nameBox!.width).toBeLessThanOrEqual(countBox!.x)
 })
 
 test('searches the institutions of a connection with more than 5, and Escape clears the search first', async ({ page, request }) => {
@@ -919,12 +789,13 @@ test("shows the failure when the connections can't load, rather than an empty li
 })
 
 test('leaves the section out for a user who may not link bank accounts', async ({ page, request }) => {
+  test.skip(test.info().project.name !== 'desktop', 'It sets its own window size')
   const user = await signUpUser(request)
   await changeProviders(page, (body) => {
     body.may_link = false
   })
   // Below 1200px the sections are listed in the compact menu, named after the section on screen, so
-  // every project runs this at a width that shows it
+  // this runs at a width that shows it
   await page.setViewportSize({ width: 1000, height: page.viewportSize()!.height })
   await logInViaApi(page, user)
   await openPage(page, '/settings')

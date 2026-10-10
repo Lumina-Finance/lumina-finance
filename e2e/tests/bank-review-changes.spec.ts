@@ -303,6 +303,7 @@ test('lines the comparison actions up with its header', async ({ page, request }
 })
 
 test('gives each value column room for a bank description on one line at 1440 wide', async ({ page, request }) => {
+  test.skip(test.info().project.name !== 'desktop', 'It sets its own window size')
   await startWithCorrection(page, request)
   await page.setViewportSize({ width: 1440, height: 900 })
   await openPage(page, '/transactions')

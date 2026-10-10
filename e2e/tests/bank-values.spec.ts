@@ -296,6 +296,7 @@ test('says a restore failed, leaving the field and its bank value to try again',
 })
 
 test('brings a failed restore into view above the footer, from an action at the foot of a short screen', async ({ page, request }) => {
+  test.skip(test.info().project.name !== 'phone', 'Only a phone screen is short enough')
   const { id } = await startWithImported(page, request, '-42.10', { amount: -4000 })
   await failRestores(page, id)
   await page.setViewportSize({ width: 390, height: 667 })

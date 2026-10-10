@@ -207,6 +207,7 @@ test('says why the server refused a dismissal whose reminder a read of the link 
 })
 
 test('shows the reminder of an import that got nothing above the opening adjustment offer, each whole on a phone', async ({ page, request }) => {
+  test.skip(test.info().project.name !== 'phone', 'It checks the layout a phone gets')
   await page.setViewportSize({ width: 390, height: 844 })
   const setup = await linkGettingNothing(request)
   await logInViaApi(page, setup.user)

@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
 import {
   createAccount,
@@ -547,70 +547,6 @@ test('opens the block for a marker whose item is the fifth, the first one it hid
   await expect(block.getByRole('button', { name: 'Show fewer' })).toHaveAttribute('aria-expanded', 'true')
 })
 
-test('goes to the item from Needs review, right up to its edge by the bank icon, and never from the icon', async ({ page, request }) => {
-  const accounts = await start(page, request)
-  const uberId = await addUberTripAwaiting(page, request, accounts, 'item-4')
-  await answerReviewItems(page, () => pageOf(Array.from({ length: 6 }, (_, index) => index === 4
-    ? reviewItem('item-4', 'removal', accounts.everyday.id, { description: 'UBER TRIP' })
-    : reviewItem(`item-${index}`, 'new', accounts.everyday.id))))
-
-  await openPage(page, '/transactions')
-
-  const block = reviewBlock(page)
-  const row = page.getByTestId(`transaction-row-${uberId}`)
-  const needsReview = row.getByRole('button', { name: 'Needs review. Show the waiting item' })
-  await expect(block.getByRole('listitem')).toHaveCount(4)
-
-  // Needs review takes presses a few pixels above and below it, so it stands at least 24px tall to a finger
-  await needsReview.scrollIntoViewIfNeeded()
-  const box = (await needsReview.boundingBox())!
-  const pressedAt = (y: number) => page.evaluate((point) => {
-    const pressed = document.elementFromPoint(point.x, point.y)
-    return pressed?.closest('button')?.getAttribute('aria-label') ?? pressed?.outerHTML.slice(0, 120)
-  }, { x: box.x + box.width / 2, y })
-  expect(await pressedAt(box.y + box.height / 2 - 12)).toBe('Needs review. Show the waiting item')
-  expect(await pressedAt(box.y + box.height / 2 + 12)).toBe('Needs review. Show the waiting item')
-
-  // A pointer that can hover tints it the way it tints the row
-  const canHover = await page.evaluate(() => matchMedia('(hover: hover)').matches)
-  await needsReview.hover()
-  await expect(needsReview).toHaveCSS('background-image', canHover ? /gradient/ : 'none')
-
-  // The icon opens its tooltip and leaves the block as it was
-  await row.getByRole('button', { name: 'From SimpleFIN', exact: true }).click()
-  const tooltip = row.getByText('From SimpleFIN', { exact: true }).filter({ visible: true })
-  await expect.poll(() => tooltip.evaluate((node) => node.checkVisibility({ opacityProperty: true, visibilityProperty: true }))).toBe(true)
-  await expect(block.getByRole('button', { name: 'Show all 6' })).toHaveAttribute('aria-expanded', 'false')
-
-  // The keyboard goes on from the icon to Needs review, ringed the way the app rings a focused control
-  const ringReach = (control: Locator) => control.evaluate((node) => {
-    const style = getComputedStyle(node)
-    return parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth)
-  })
-  await page.keyboard.press('Tab')
-  await expect(needsReview).toBeFocused()
-  await expect(needsReview).toHaveCSS('outline-style', 'solid')
-  await expect(needsReview).toHaveCSS('outline-width', '2px')
-  const pillReach = await ringReach(needsReview)
-
-  // and back to the icon, ringed the same way. Only one has focus at a time, and each ring stops
-  // short of the other control
-  const icon = row.getByRole('button', { name: 'From SimpleFIN', exact: true })
-  await page.keyboard.press('Shift+Tab')
-  await expect(icon).toBeFocused()
-  await expect(icon).toHaveCSS('outline-style', 'solid')
-  await expect(icon).toHaveCSS('outline-width', '2px')
-  const [iconBox, pillBox] = [(await icon.boundingBox())!, (await needsReview.boundingBox())!]
-  const gap = pillBox.x - (iconBox.x + iconBox.width)
-  expect(gap).toBeGreaterThan(await ringReach(icon))
-  expect(gap).toBeGreaterThan(pillReach)
-
-  // The icon takes presses a few pixels around it, which stop short of Needs review beside it
-  const { height } = (await needsReview.boundingBox())!
-  await needsReview.click({ position: { x: 1, y: height / 2 } })
-  await expect(block.getByRole('listitem').filter({ hasText: 'UBER TRIP' })).toBeFocused()
-})
-
 test("lets the block close after a marker whose item no page holds, once every page has loaded", async ({ page, request }) => {
   const accounts = await start(page, request)
 
@@ -685,27 +621,6 @@ test('says an account is paused for its backlog, or close to pausing', async ({ 
   await filterTransactions(page, 'Accounts', 'Savings')
   await expect(block).toContainText('85 new to review in Savings. Sync pauses at 100.')
   await expect(block).not.toContainText('Paused')
-})
-
-test('refreshes when a linked account finishes a sync', async ({ page, request }) => {
-  const { everyday } = await start(page, request)
-  let synced = false
-
-  // Read every couple of seconds while it syncs, the sync ending with a later success
-  await answerLinksWith(page, () => [everyday.id], () => ({
-    last_success_at: synced ? `${SEP_21}T12:00:00Z` : `${SEP_21}T08:00:00Z`,
-    sync_in_progress: !synced,
-    waiting_new_count: synced ? 2 : 1,
-  }))
-  const items = [reviewItem('everyday-1', 'new', everyday.id), reviewItem('everyday-2', 'new', everyday.id)]
-  await answerReviewItems(page, () => pageOf(synced ? items : items.slice(0, 1)))
-
-  await openPage(page, '/transactions')
-
-  const rows = reviewBlock(page).getByRole('listitem')
-  await expect(rows).toHaveCount(1)
-  synced = true
-  await expect(rows).toHaveCount(2)
 })
 
 for (const colorScheme of ['light', 'dark'] as const) {

@@ -129,6 +129,7 @@ test('shows the answers whole, beside the amount from the width they fit there a
 })
 
 test('keeps the amount and the answers in place on a phone when a message shows beside the label', async ({ page, request }) => {
+  test.skip(test.info().project.name !== 'phone', 'It checks the layout a phone gets')
   await page.setViewportSize({ width: 390, height: 844 })
   const { offer } = await openOffer(page, request)
 

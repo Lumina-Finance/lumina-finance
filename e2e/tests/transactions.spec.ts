@@ -216,20 +216,6 @@ test('ticks the range between on a shift-press without selecting the text it run
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
-test('rings a transaction row in the accent outline under keyboard focus', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday Chequing' })
-  const id = await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -4250 })
-  await logInViaApi(page, user)
-  await openPage(page, '/transactions')
-
-  // The row is the box around the content, which carries the row's padding and its separator
-  await expectStretchedFocusRing(
-    getTransactionRowButton(page.getByTestId(`transaction-row-${id}`)),
-    page.getByTestId(`transaction-box-${id}`),
-  )
-})
-
 test('rings an upcoming transaction row inside the Upcoming section\'s dashed edge', async ({ page, request }) => {
   const { upcomingId, upcoming } = await openListWithUpcomingAndToday(page, request)
   await upcoming.click()

@@ -387,9 +387,9 @@ test('moves focus to Link bank account once the link it sat by is undone elsewhe
 })
 
 test("keeps the link's message clear of Cancel and Save Changes where the edit modal fills the screen, and back in the corner once it closes", async ({ page, request }) => {
-  test.skip(test.info().project.name === 'tablet', 'The modal sits in the middle of the screen from 1050px, which the tablet is')
-  // The desktop narrows to the widest screen the modal still fills
-  if (test.info().project.name === 'desktop') await page.setViewportSize(WIDEST_FULL_SCREEN_MODAL_SIZE)
+  test.skip(test.info().project.name !== 'desktop', 'It sets its own window size')
+  // The widest screen the modal still fills, which stands for every screen it fills
+  await page.setViewportSize(WIDEST_FULL_SCREEN_MODAL_SIZE)
   const { dialog, message } = await linkFromEditAccount(page, request)
   const cancel = dialog.getByRole('button', { name: 'Cancel', exact: true })
   const save = dialog.getByRole('button', { name: 'Save Changes', exact: true })
@@ -405,10 +405,10 @@ test("keeps the link's message clear of Cancel and Save Changes where the edit m
 })
 
 test("leaves the link's message in the corner, clear of Cancel and Save Changes, where the edit modal sits in the middle", async ({ page, request }) => {
-  test.skip(test.info().project.name === 'phone', 'The modal fills the screen below 1050px, which the phone is')
-  // The desktop narrows to the narrowest screen the modal sits in the middle of, where the message in the
-  // corner comes closest to its buttons
-  if (test.info().project.name === 'desktop') await page.setViewportSize(NARROWEST_CENTRED_MODAL_SIZE)
+  test.skip(test.info().project.name !== 'desktop', 'It sets its own window size')
+  // The narrowest screen the modal sits in the middle of, where the message in the corner comes closest
+  // to its buttons
+  await page.setViewportSize(NARROWEST_CENTRED_MODAL_SIZE)
   const { dialog, message } = await linkFromEditAccount(page, request)
 
   await expectMessageInCorner(message)

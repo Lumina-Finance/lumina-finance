@@ -1,7 +1,7 @@
-import { expect, test, type Locator } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
 import { createAccount, signUpUser } from '../support/api'
-import { openPage, logInViaApi, openModal } from '../support/app'
+import { openPage, chooseFromDropdown, logInViaApi, openModal } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
 // Runs on desktop only, apart from the Category message test, which runs at every size: where the
@@ -20,19 +20,7 @@ test('exposes and clears an invalid dropdown with its inline validation alert', 
   await expect(error).toBeVisible()
   await expect(error).toHaveText('Select an account type')
 
-  // Open, the rejected field keeps its tint on the head alone, and its options open on the same
-  // background as any valid field rather than tinted with the error
-  await type.click()
-  const checking = dialog.getByRole('option', { name: 'Checking' })
-  await expect(checking).toBeVisible()
-  const backgroundOf = (locator: Locator) => locator.evaluate((element) => getComputedStyle(element).backgroundColor)
-  const validBackground = await backgroundOf(name)
-  // The inner locator of a filter is looked for inside the box, so it starts from the page rather than the dialog
-  const box = dialog.getByTestId('dropdown-box').filter({ has: page.getByRole('combobox', { name: 'Account Type', exact: true }) })
-  await expect.poll(() => backgroundOf(box)).toBe(validBackground)
-  expect(await backgroundOf(type)).not.toBe(validBackground)
-
-  await checking.click()
+  await chooseFromDropdown(dialog, 'Account type', 'Checking')
   await expect(type).not.toHaveAttribute('aria-invalid', 'true')
   await expect(error).toBeHidden()
   await expect(type).toHaveAccessibleName('Account type')

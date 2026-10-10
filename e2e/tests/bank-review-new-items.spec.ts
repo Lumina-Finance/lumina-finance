@@ -465,11 +465,13 @@ for (const colorScheme of ['light', 'dark'] as const) {
 // Below 1050 the form sits further from the right edge than the left, and the footer once padded both
 // sides alike, so Keep window open started further in than the title and the form's numbered sections,
 // and Add to ledger stopped short of where the fields end. The footer stacks its items below 640 and sets
-// them in a row from there, so each layout is checked once
-for (const width of [390, 1049]) {
-  test(`lines the footer up with the form above it at ${width}px`, async ({ page, request }) => {
+// them in a row from there, so each layout is checked once: stacked on the phone, and in a row at the
+// widest screen the dialog fills
+for (const { project, width } of [{ project: 'phone', width: null }, { project: 'desktop', width: 1049 }] as const) {
+  test(`lines the footer up with the form above it on the ${project}`, async ({ page, request }) => {
+    test.skip(test.info().project.name !== project, 'Each layout of the footer is checked at one width')
     await start(page, request, [COUNTDOWN])
-    await page.setViewportSize({ width, height: page.viewportSize()!.height })
+    if (width) await page.setViewportSize({ width, height: page.viewportSize()!.height })
     await openPage(page, '/transactions')
 
     const dialog = await openReview(page, COUNTDOWN.description)
