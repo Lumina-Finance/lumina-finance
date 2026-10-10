@@ -13,7 +13,9 @@ import {
   CREATE_CATEGORY_VALUE,
   CREATE_MERCHANT_VALUE,
   EMPTY_COLUMN_MAP,
+  getImportAccountNameTooLongError,
   getTooManyMappingsError,
+  IMPORT_ACCOUNT_NAME_MAX_LENGTH,
   MAX_IMPORT_MAPPINGS,
 } from '@/pages/imports/constants'
 import type { ColumnMap, CsvRow, ImportAccountSource, ImportFileDraft } from '@/pages/imports/types'
@@ -186,6 +188,20 @@ describe('refusing an account mapping answer', () => {
     expect(result.errors).toContain('Choose account type: Blank Source')
     expect(result.errors).toContain('Choose account currency: Blank Source')
     expect(result.errors).toContain('Choose an account type this app supports: Bad Type Source')
+  })
+
+  it('refuses a new account whose name is longer than an account name holds, and only a new one', () => {
+    const tooLong = 'A'.repeat(IMPORT_ACCOUNT_NAME_MAX_LENGTH + 1)
+    const longest = 'B'.repeat(IMPORT_ACCOUNT_NAME_MAX_LENGTH)
+    const mapped = 'C'.repeat(IMPORT_ACCOUNT_NAME_MAX_LENGTH + 1)
+    const result = build({
+      accountSources: [tooLong, longest, mapped].map((name) => createSource(name, { label: name, matchText: name })),
+      accountMappings: { [tooLong]: CREATE_ACCOUNT_VALUE, [longest]: CREATE_ACCOUNT_VALUE, [mapped]: ACCOUNT.id },
+      accountCreateTypes: { [tooLong]: 'checking', [longest]: 'checking' },
+      accountCreateCurrencies: { [tooLong]: 'CAD', [longest]: 'CAD' },
+    })
+
+    expect(result.errors).toEqual([getImportAccountNameTooLongError(tooLong)])
   })
 })
 

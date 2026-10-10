@@ -3,10 +3,10 @@ import type { Category } from '@/api/categories'
 import type { JournalImportPayload } from '@/api/provider-imports'
 import {
   CREATE_ACCOUNT_VALUE,
+  getImportAccountNameTooLongError,
   getImportNoRowsError,
   getTooManyMappingsError,
   MAX_IMPORT_MAPPINGS,
-  IMPORT_ACCOUNT_NAME_MAX_LENGTH,
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportAccountCreateDetails, ImportCategoryKind, ImportCategoryRename, ImportFileDraft } from '@/pages/imports/types'
 import { FIREFLY_TYPE_DEPOSIT } from '@/pages/imports/firefly/constants'
@@ -111,7 +111,7 @@ export function buildFireflyImportPayload({
       // An existing account only the accounts export lists takes no rows, so its state is not checked
       takesRows: hasRows || details === null,
       refusesGroupAccount: true,
-      getNameTooLongError: getFireflyAccountNameTooLongError,
+      getNameTooLongError: getImportAccountNameTooLongError,
     }, addError)
     if (!choice || !isSent) continue
 
@@ -212,10 +212,6 @@ function buildFireflyImportRows(
   }
 
   return { rows: payloadRows, rowAccountSources, writtenCategorySources }
-}
-
-function getFireflyAccountNameTooLongError(label: string) {
-  return `Map to an existing account, since a new account name holds at most ${IMPORT_ACCOUNT_NAME_MAX_LENGTH} characters: ${label}`
 }
 
 function cleanOptional(value: string | undefined) {
