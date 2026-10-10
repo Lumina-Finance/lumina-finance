@@ -26,10 +26,10 @@ import { contrastOf, MIN_TEXT_CONTRAST, MINUS, readBoxes } from '../support/sele
 
 // Bank items waiting for review show in a block above the transaction list, outside the ledger.
 //
-// Nothing links an account on the server for a sync to bring items in, so each test answers the
-// review list with the items it needs. The backlogs are the server's own, which read nothing
-// waiting, unless a test answers them too, and the link list isn't served yet, so the one test that
-// needs a sync to finish answers it
+// Each test answers the review list with the items it needs, such as removals, a backlog of 1,500 or
+// a page that fails, which a sync from the fake SimpleFIN Bridge can't bring in. The backlogs are the
+// server's own, which read nothing waiting, unless a test answers them too, and the one test that
+// needs a sync running answers the link list
 
 type Backlog = { account_id: string; waiting_new_count: number; paused: boolean; review_warning: boolean }
 

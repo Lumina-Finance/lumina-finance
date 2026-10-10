@@ -6,9 +6,9 @@ import { answerAsBankImported, BANK_SOURCE } from '../support/bankSync'
 import { getTransactionRowButton } from '../support/selectors'
 
 // A bank-imported row carries a muted bank icon naming its provider, and a dot once the user has
-// edited a value the bank supplied. Nothing links an account on the server for a sync to import a
-// transaction, so each test answers the app's reads with the source the server attaches. No link is
-// answered either, since the marker comes with the transaction and stays once the account is unlinked
+// edited a value the bank supplied. Each test answers the app's reads with the source the server
+// attaches, so it sets the source exactly without linking and syncing an account. No link is answered,
+// since the marker comes with the transaction and stays once the account is unlinked
 const EDITED_NOTE = 'You edited a value the bank supplied'
 
 // A control's strokes against the page, the least WCAG asks of anything that isn't text

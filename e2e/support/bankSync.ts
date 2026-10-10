@@ -1,8 +1,9 @@
 /**
  * Bank connections for the bank specs: scenarios on the fake SimpleFIN Bridge the instance claims setup
  * tokens from, set up through its control API, and the app's own bank requests made as a user, so a
- * spec starts from the connections and failures it means to test. Stand-ins answer the app's bank
- * reads that the instance can't yet produce, such as a transaction imported from a bank.
+ * spec starts from the connections and failures it means to test. The instance links accounts and
+ * its worker imports from the fake, so stand-ins answer the app's bank reads only where the fake can't
+ * produce what a test needs, such as a removal, or can't produce it at the exact point the test needs
  */
 
 import { expect, type APIRequestContext, type APIResponse, type Locator, type Page, type Request, type Route } from '@playwright/test'
@@ -110,7 +111,8 @@ export function pageOf(items: ReviewItem[]): ReviewPage {
 /**
  * Answers the review list with what `answer` returns for the accounts and cursor asked for, all
  * accounts being none, or fails it with the status returned. An answer still to settle holds the read
- * until it does. Nothing links an account on the server for a sync to bring items in
+ * until it does. It stands in for what a sync from the fake can't bring in, such as a removal, a
+ * backlog of hundreds or a page that fails
  */
 export async function answerReviewItems(
   page: Page,
@@ -159,8 +161,8 @@ export async function fetchOnOwnConnection(
 }
 
 /**
- * Answers the app's reads of these transactions as imported from the bank, each with its source,
- * since nothing links an account on the server for a sync to import one
+ * Answers the app's reads of these transactions as imported from the bank, each with its source, for a
+ * test that needs a source exactly as given without linking and syncing an account
  */
 export async function answerAsBankImported(page: Page, sources: Record<string, BankSource>): Promise<void> {
   const isTransactionRead = (url: URL) => url.href.startsWith(`${API_BASE_URL}/transactions?`)

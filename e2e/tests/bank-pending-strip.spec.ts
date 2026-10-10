@@ -8,9 +8,10 @@ import { contrastOf, MIN_TEXT_CONTRAST, MINUS, readBoxes } from '../support/sele
 // Transactions the bank hasn't posted yet show in a muted strip under the review block, read-only
 // and outside the ledger.
 //
-// Nothing links an account on the server for a sync to store any, so each test answers the pending
-// list with what it needs, except the one that reads the server's own empty list. The link list
-// isn't served yet, so the test that needs a sync to finish answers it
+// Each test answers the pending list with what it needs, except the one that reads the server's own
+// empty list, since a sync would report every transaction as of the moment it ran rather than the
+// times and days a test sets. The test that needs a sync to finish answers the link list too, so the
+// sync ends when the test says
 
 const THIS_YEAR = todayInTestTimezone().slice(0, 4)
 const SEP_23 = `${THIS_YEAR}-09-23`
