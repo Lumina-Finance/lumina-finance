@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import {
   asUser,
   createAccount,
+  createGroup,
   createTransaction,
   daysFromTodayInTestTimezone,
   formatToday,
@@ -19,7 +20,8 @@ import { API_BASE_URL } from '../support/target'
 // the account can't be archived until it is unlinked.
 //
 // Each test links its account on the server through the fake SimpleFIN Bridge, so the server refuses
-// what the browser should, and the requests sent show which refusals were the browser's own
+// what the browser should, and the requests sent show which refusals were the browser's own. Those
+// checking that archiving waits only on a link that can be read link nothing
 const SAMPLE_CHEQUING = 'Everyday Chequing'
 
 // A sample item dated 9 days before the Bridge's today, which an import from 10 days back brings in
@@ -70,6 +72,14 @@ async function readTooltipOpacity(text: Locator): Promise<string> {
     if (!tooltip) throw new Error('the text is not inside a cursor tooltip')
     return getComputedStyle(tooltip).opacity
   })
+}
+
+/** Opens the account's Edit modal from its page */
+async function openEditAccount(page: Page): Promise<Locator> {
+  await page.getByRole('button', { name: 'Edit account', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
+  await expect(dialog).toBeVisible()
+  return dialog
 }
 
 /**
@@ -414,6 +424,53 @@ test('holds Archive back until the link has been read, so a linked account is ne
   releaseRead()
   await expect(archive).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
   await expect(archiveInstead).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
+})
+
+// The link is read only for the user's own personal accounts, so archiving one in a group never waits on it
+test('offers Archive on a group account, whose link is never read', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const groupId = await createGroup(request, user, 'Household')
+  const account = await createAccount(request, user, { name: 'Shared', groupId })
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  const dialog = await openEditAccount(page)
+  await dialog.getByRole('button', { name: 'Delete account', exact: true }).click()
+
+  await expect(dialog.getByRole('switch', { name: /^Archive account/ })).toBeEnabled()
+  await expect(dialog.getByRole('button', { name: 'Archive instead', exact: true })).toBeEnabled()
+})
+
+// The server refuses to archive a linked account with its reason, so a link that can't be read leaves it to
+test('offers Archive once the link fails to load', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  await page.route(`${API_BASE_URL}/accounts/${account.id}/bank-link`, (route) =>
+    route.fulfill({ status: 500, json: { detail: 'Internal Server Error' } }))
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  await expect(page.getByRole('button', { name: "Bank sync: Couldn't check. Open bank link" })).toBeVisible()
+  const dialog = await openEditAccount(page)
+  await dialog.getByRole('button', { name: 'Delete account', exact: true }).click()
+
+  await expect(dialog.getByRole('switch', { name: /^Archive account/ })).toBeEnabled()
+  await expect(dialog.getByRole('button', { name: 'Archive instead', exact: true })).toBeEnabled()
+})
+
+// An archived account can't be linked, so bringing it back never waits on its link
+test('offers to bring an archived account back while its link is still being read', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const archived = await request.patch(`${API_BASE_URL}/accounts/${account.id}`, { headers: asUser(user), data: { is_archived: true } })
+  expect(archived.ok()).toBe(true)
+
+  // Never answered, so the link is still being read whenever the switch is checked
+  await page.route(`${API_BASE_URL}/accounts/${account.id}/bank-link`, () => {})
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  const dialog = await openEditAccount(page)
+
+  await expect(dialog.getByRole('switch', { name: /^Archive account/ })).toBeChecked()
+  await expect(dialog.getByRole('switch', { name: /^Archive account/ })).toBeEnabled()
 })
 
 test('greys out Delete on a bank transaction with its reason while the account is linked, and deletes it once unlinked', async ({ page, request }) => {
