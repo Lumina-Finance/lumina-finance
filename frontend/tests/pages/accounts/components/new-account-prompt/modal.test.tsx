@@ -4,8 +4,9 @@
  * deployment lets link nothing
  *
  * These tests catch linking offered to a user who fails the bank-linking check or on a deployment with
- * no provider, a group account or one with nothing to link to left able to choose linking or without
- * the reason, a rejected connection counted as one that can link, Keep it manual chosen by default
+ * no provider, a group account, one with nothing to link to or one asked while bank sync isn't
+ * running left able to choose linking or without the reason, a rejected connection counted as one
+ * that can link, Keep it manual chosen by default
  * when linking is available, its starting balance shown before it is chosen, a liability's field not
  * asking for the amount owed, and the prompt opening before the bank reads settle. Choosing,
  * continuing and the balance's typing run in the browser
@@ -15,7 +16,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { BankConnection, BankProvidersResponse } from '@/api/bank-sync'
-import { GROUP_ACCOUNT_LINK_REASON, NOTHING_TO_LINK_REASON } from '@/components/bank-link-flow/constants'
+import { GROUP_ACCOUNT_LINK_REASON, LINKING_PAUSED_REASON, NOTHING_TO_LINK_REASON } from '@/components/bank-link-flow/constants'
 import NewAccountPromptModal from '@/pages/accounts/components/new-account-prompt/Modal'
 import { createAccount, createConnection, createProviders } from './fixtures'
 
@@ -103,6 +104,22 @@ describe('NewAccountPromptModal', () => {
     const link = getRadio(renderPrompt(), 'Link a bank account')
     expect(link).toContain('disabled=""')
     expect(link).toContain(NOTHING_TO_LINK_REASON)
+  })
+
+  it('refuses linking while bank sync is not running, keeping it manual with its starting balance', () => {
+    reads.providers = { ...createProviders(), sync_running: false }
+    const markup = renderPrompt()
+    const link = getRadio(markup, 'Link a bank account')
+    expect(link).toContain('disabled=""')
+    expect(link).toContain(escaped(LINKING_PAUSED_REASON))
+    expect(getRadio(markup, 'Keep it manual')).toContain('aria-checked="true"')
+    expect(markup).toContain('Starting balance')
+  })
+
+  it('says bank sync is not running ahead of there being nothing to link, as the account page does', () => {
+    reads.providers = { ...createProviders({ offered: false }), sync_running: false }
+    reads.connections = []
+    expect(getRadio(renderPrompt(), 'Link a bank account')).toContain(escaped(LINKING_PAUSED_REASON))
   })
 
   it('offers linking through a working connection after its provider stops taking new ones', () => {

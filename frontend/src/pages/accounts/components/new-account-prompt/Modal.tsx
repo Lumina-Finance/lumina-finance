@@ -6,7 +6,7 @@ import { StartingBalanceNotSavedError, useRecordStartingBalance, type AccountsOv
 import { ApiError } from '@/api/auth'
 import { useBankConnections, useBankProviders } from '@/api/bank-sync'
 import { ChoiceCard } from '@/components/bank-link-flow/ChoiceCard'
-import { GROUP_ACCOUNT_LINK_REASON, NOTHING_TO_LINK_REASON } from '@/components/bank-link-flow/constants'
+import { GROUP_ACCOUNT_LINK_REASON, LINKING_PAUSED_REASON, NOTHING_TO_LINK_REASON } from '@/components/bank-link-flow/constants'
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import { Unfold } from '@/components/display/Unfold'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
@@ -81,16 +81,18 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
   const balanceError = typedMinus ? 'Must be zero or higher' : undefined
 
   // Linking is offered to a user the bank-linking check allows, on a deployment with a provider. It is
-  // refused, saying why, for a group account, and when there is no working connection to link through
-  // and no provider open to a new one. A failed read leaves the account manual rather than holding
-  // the prompt back
+  // refused, saying why, for a group account, while bank sync isn't running, as the account page's
+  // Link bank account is, and when there is no working connection to link through and no provider
+  // open to a new one. A failed read leaves the account manual rather than holding the prompt back
   const offersLink = providers !== undefined && providers.may_link && providers.providers.length > 0
   const hasWorkingConnection = connections?.some((connection) => connection.status === 'active') ?? false
   const linkReason = !(user !== null && isOwnPersonalAccount(account, user.id))
     ? GROUP_ACCOUNT_LINK_REASON
-    : !hasWorkingConnection && !providers?.providers.some((provider) => provider.offered)
-      ? NOTHING_TO_LINK_REASON
-      : null
+    : providers?.sync_running === false
+      ? LINKING_PAUSED_REASON
+      : !hasWorkingConnection && !providers?.providers.some((provider) => provider.offered)
+        ? NOTHING_TO_LINK_REASON
+        : null
   const choice: KeepUpToDate = !offersLink ? 'manual' : chosen ?? (linkReason ? 'manual' : 'bank')
   const ready = !providersPending && (!offersLink || !connectionsPending)
 
