@@ -56,12 +56,9 @@ export function ImportHeaderMappingTable({
   const labelNamespace = useId()
   const targetHeadingId = `${labelNamespace}-target`
 
-  // The wrapper scrolls sideways only while the table is wider than the viewport. Past that it stops
-  // clipping entirely, because overflow-x cannot be auto while overflow-y stays visible, and
-  // clipping vertically cuts off a row's tooltip where it reaches past the edge of the table
   return (
-    <div className="overflow-x-auto lg:overflow-visible" data-tooltip-bounds>
-      <table className="w-full table-fixed min-w-[48rem] text-left text-[0.9375rem]">
+    <div className="import-table-scroll" data-tooltip-bounds>
+      <table className="import-table w-full table-fixed text-left text-[0.9375rem]">
         <colgroup>
           <col className="w-[26%]" />
           <col className="w-[30%]" />
