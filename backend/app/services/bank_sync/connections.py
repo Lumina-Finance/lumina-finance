@@ -178,7 +178,12 @@ async def build_connection_responses(
                 accounts=accounts,
                 choose_again_links=choose_again[connection.id],
                 discovery_pending=connection.id in discovering,
-                request_budget=BankRequestBudgetResponse(limit=budget.limit, used=budget.used, available_again_at=budget.available_again_at),
+                request_budget=BankRequestBudgetResponse(
+                    limit=budget.limit,
+                    used=budget.used,
+                    available_again_at=budget.available_again_at,
+                    held_by_provider=budget.held_by_provider,
+                ),
             )
         )
     return responses

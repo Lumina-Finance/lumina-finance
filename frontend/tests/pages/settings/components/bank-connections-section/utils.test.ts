@@ -46,7 +46,7 @@ function connection(overrides: Partial<BankConnection> = {}): BankConnection {
     accounts: [],
     choose_again_links: [],
     discovery_pending: false,
-    request_budget: { limit: 20, used: 0, available_again_at: null },
+    request_budget: { limit: 20, used: 0, available_again_at: null, held_by_provider: false },
     ...overrides,
   }
 }
@@ -165,20 +165,20 @@ describe('bank connection requests', () => {
   })
 
   it('names the cap Lumina Finance keeps each connection under', () => {
-    expect(describeRequestBudget(connection({ request_budget: { limit: 20, used: 3, available_again_at: null } }))).toBe(
+    expect(describeRequestBudget(connection({ request_budget: { limit: 20, used: 3, available_again_at: null, held_by_provider: false } }))).toBe(
       'Lumina Finance makes up to 20 requests a day for each connection. Automatic syncs and Sync now share them across every account linked through it.',
     )
   })
 
   it('counts a cap of one in the singular', () => {
-    expect(describeRequestBudget(connection({ request_budget: { limit: 1, used: 0, available_again_at: null } }))).toContain('up to 1 request a day')
+    expect(describeRequestBudget(connection({ request_budget: { limit: 1, used: 0, available_again_at: null, held_by_provider: false } }))).toContain('up to 1 request a day')
   })
 
   it('says when automatic syncs pick up once the requests are spent', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-10-05T12:00:00Z'))
 
-    expect(describeRequestBudget(connection({ request_budget: { limit: 20, used: 20, available_again_at: '2026-10-05T16:00:00Z' } }))).toMatch(
+    expect(describeRequestBudget(connection({ request_budget: { limit: 20, used: 20, available_again_at: '2026-10-05T16:00:00Z', held_by_provider: false } }))).toMatch(
       / Automatic syncs wait until one frees up in 4 hours\.$/,
     )
   })

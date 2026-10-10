@@ -13,7 +13,7 @@ import pytest
 from sqlalchemy import update
 
 from app.models.account import Account
-from app.models.bank_connection import BankAccountLink, BankLinkState, BankProviderRequest
+from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState, BankProviderRequest
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobStatus
 from app.services.bank_sync import availability
 from tests.conftest import TestSession
@@ -27,7 +27,7 @@ from tests.routes.support.bank_sync_helpers import (
 )
 from tests.routes.support.query_helpers import _get_with_selects
 
-_BUDGET_FREE = {"limit": 20, "used": 0, "available_again_at": None}
+_BUDGET_FREE = {"limit": 20, "used": 0, "available_again_at": None, "held_by_provider": False}
 
 
 async def _create_usd_account(client, headers, name: str) -> uuid.UUID:
@@ -82,7 +82,7 @@ async def test_connections_list_describes_each_connection_and_its_bank_accounts(
         False,
     )
     # The oldest of the 20 requests was 20 hours ago, so one frees in 4 hours
-    assert first["request_budget"]["used"] == 20
+    assert (first["request_budget"]["used"], first["request_budget"]["held_by_provider"]) == (20, False)
     assert datetime.fromisoformat(first["request_budget"]["available_again_at"]) == now + timedelta(hours=4)
     assert [
         (account["external_id"], account["custom_currency"], account["linked_account_id"], account["eligible_account_ids"])
@@ -94,6 +94,28 @@ async def test_connections_list_describes_each_connection_and_its_bank_accounts(
     ]
     assert (second["nickname"], second["status"], second["request_budget"]) == (None, "credential_rejected", _BUDGET_FREE)
     assert [(account["external_id"], account["eligible_account_ids"]) for account in second["accounts"]] == [("ACT-kept", [str(savings_id)])]
+
+
+async def test_connections_list_says_when_the_providers_quota_signal_holds_the_next_request(client):
+    """SimpleFIN said its quota was spent after 4 of the connection's 20 requests, so its limit, not the connection's own, holds the next one"""
+    headers, user_id = await _sign_up(client)
+    now = datetime.now(UTC)
+    harbour = await _commit_bank_connection(user_id, created_at=now - timedelta(days=2))
+    async with TestSession() as session:
+        session.add_all(
+            BankProviderRequest(owner_id=user_id, connection_id=harbour.id, purpose="sync", requested_at=now - timedelta(hours=hours))
+            for hours in range(1, 5)
+        )
+        await session.execute(
+            update(BankConnection).where(BankConnection.id == harbour.id).values(request_budget_spent_until=now + timedelta(hours=20))
+        )
+        await session.commit()
+
+    response = await client.get("/bank-sync/connections", headers=headers)
+
+    assert response.status_code == 200, response.text
+    [listed] = response.json()
+    assert (listed["request_budget"]["used"], listed["request_budget"]["held_by_provider"]) == (20, True)
 
 
 @pytest.mark.parametrize(

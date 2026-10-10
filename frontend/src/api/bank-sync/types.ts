@@ -65,6 +65,9 @@ export type BankRequestBudget = {
 
   /** ISO timestamp when the oldest counted request leaves the window, null while requests remain */
   available_again_at: string | null;
+
+  /** Whether the provider's word that its quota is spent, rather than the connection's own limit, holds the next request back */
+  held_by_provider: boolean;
 };
 
 export type BankConnectionStatus = 'active' | 'credential_rejected';

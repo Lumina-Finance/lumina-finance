@@ -95,6 +95,10 @@ class BankRequestBudgetResponse(BaseModel):
     # When the next request can be sent once the budget is spent, null while one is free
     available_again_at: datetime | None
 
+    # Whether the provider's word that its quota is spent, rather than the connection's own limit over
+    # the last 24 hours, holds the next request back
+    held_by_provider: bool
+
 
 class ConnectionBankAccountResponse(BaseModel):
     """A bank account a connection last listed"""

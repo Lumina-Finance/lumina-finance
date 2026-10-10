@@ -46,7 +46,7 @@ export function createConnection(overrides: Partial<BankConnection> = {}): BankC
     accounts: [],
     choose_again_links: [],
     discovery_pending: false,
-    request_budget: { limit: 24, used: 1, available_again_at: null },
+    request_budget: { limit: 24, used: 1, available_again_at: null, held_by_provider: false },
     ...overrides,
   }
 }

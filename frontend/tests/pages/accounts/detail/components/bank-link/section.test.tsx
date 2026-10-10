@@ -13,7 +13,8 @@
  * the opening adjustment offer missing from the balance panel's foot or shown with nothing offered,
  * a history or cut-off day reminder missing, worded unlike the issue, holding the offer back, spinning
  * for the other's dismissal, or taking the focus the modal gives the link's actions,
- * Sync now left live for something the server refuses or without the reason, a reason of two
+ * Sync now left live for something the server refuses or without the reason, a spent budget blamed
+ * on the wrong request limit, a reason of two
  * sentences ending without the full stop the others of two have, held back by a bank
  * sign-in, left greyed once its requests free up, spinning while the worker is down, or dropping the
  * focus it holds or the width it measures while the sync starts. Opening the flow, the tooltip,
@@ -405,16 +406,24 @@ describe('BankLinkSection', () => {
 
   it('disables Sync now while the connection has spent its requests, saying when more are available', () => {
     read.status = linkSynced()
-    read.connections = [createConnection({ request_budget: { limit: 20, used: 20, available_again_at: '2026-10-05T19:00:00Z' } })]
+    read.connections = [createConnection({ request_budget: { limit: 20, used: 20, available_again_at: '2026-10-05T19:00:00Z', held_by_provider: false } })]
     const markup = renderSection()
     expect(getSyncNowButton(markup)).toContain('aria-disabled="true"')
-    expect(markup).toContain(escaped("This connection has used today's 20 SimpleFIN requests. More are available in 3 hours."))
+    expect(markup).toContain(escaped('This connection has used its 20 SimpleFIN requests in the last 24 hours. More are available in 3 hours.'))
+  })
+
+  it("disables Sync now while SimpleFIN's own limit holds the connection's requests, saying so", () => {
+    read.status = linkSynced()
+    read.connections = [createConnection({ request_budget: { limit: 20, used: 20, available_again_at: '2026-10-05T19:00:00Z', held_by_provider: true } })]
+    const markup = renderSection()
+    expect(getSyncNowButton(markup)).toContain('aria-disabled="true"')
+    expect(markup).toContain(escaped('SimpleFIN says this connection has reached its request limit. More are available in 3 hours.'))
   })
 
   it('offers Sync now again once the spent requests free up, though the connection still reads as spent', () => {
     read.status = linkSynced()
-    read.connections = [createConnection({ request_budget: { limit: 20, used: 20, available_again_at: '2026-10-05T16:05:00Z' } })]
-    expect(renderSection()).toContain(escaped("This connection has used today's 20 SimpleFIN requests. More are available in 5 minutes."))
+    read.connections = [createConnection({ request_budget: { limit: 20, used: 20, available_again_at: '2026-10-05T16:05:00Z', held_by_provider: false } })]
+    expect(renderSection()).toContain(escaped('This connection has used its 20 SimpleFIN requests in the last 24 hours. More are available in 5 minutes.'))
 
     vi.setSystemTime(new Date('2026-10-05T16:05:00Z'))
     const markup = renderSection()

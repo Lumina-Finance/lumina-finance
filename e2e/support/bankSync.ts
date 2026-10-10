@@ -426,7 +426,7 @@ export interface SeededConnection {
   status: 'active' | 'credential_rejected'
 
   /** The requests sent to the provider in the last 24 hours, of the most the connection may send */
-  request_budget: { limit: number; used: number; available_again_at: string | null }
+  request_budget: { limit: number; used: number; available_again_at: string | null; held_by_provider: boolean }
 }
 
 /**

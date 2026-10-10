@@ -5,6 +5,7 @@ import {
   type BankImportProgress,
   type BankLink,
   type BankProvidersResponse,
+  type BankRequestBudget,
 } from '@/api/bank-sync'
 import type { SyncStatusTone } from '@/components/display/SyncStatusDot'
 import { DATE_FORMATS, formatDate, formatDateLabel, getTodayYmd } from '@/utils/date'
@@ -47,13 +48,24 @@ function formatAttemptTime(iso: string, timeZone: string | undefined): string {
 }
 
 /**
+ * Whose request limit the next sync waits on: the provider's once it has said its quota is spent,
+ * otherwise the connection's own over the last 24 hours, which it also reads as until the connection
+ * is read, since that's the usual one
+ */
+function describeBudgetWait(providerName: string, budget: BankRequestBudget | undefined): string {
+  return budget?.held_by_provider
+    ? `Next sync is waiting on ${providerName}'s request limit`
+    : `Next sync is waiting on this connection's 24-hour ${providerName} request limit`
+}
+
+/**
  * A live link's state as the server chose it, worded with its facts. The server sends each state with
  * the facts its wording needs: an import its progress, an import waiting on the request budget and a
  * retry their times, and a retry its failure. A failure is added
  * wherever the state's first line doesn't already give it, apart from a fetch under way, and what
  * happens next only where the state doesn't say, so no line repeats another
  */
-function describeLinkSync(link: BankLink, timeZone: string | undefined): BankSyncLabel {
+function describeLinkSync(link: BankLink, timeZone: string | undefined, budget: BankRequestBudget | undefined): BankSyncLabel {
   const { sync } = link
   const label = (tone: SyncStatusTone, text: string, details: (string | null)[], pulse = false): BankSyncLabel => ({
     label: text,
@@ -66,7 +78,7 @@ function describeLinkSync(link: BankLink, timeZone: string | undefined): BankSyn
   const synced = sync.last_success_at ? `Synced ${formatRelativeTime(sync.last_success_at)}` : 'Not synced yet'
   const failure = sync.last_failure ? `Last attempt failed ${formatRelativeTime(sync.last_failure.at)}: ${sync.last_failure.reason}` : null
   const next = sync.waiting_on_budget
-    ? `Next sync is waiting on today's ${link.provider_name} request budget`
+    ? describeBudgetWait(link.provider_name, budget)
     : sync.next_attempt_at ? `Next sync ${formatRelativeFutureTime(sync.next_attempt_at)}` : null
   const importing = (progress: BankImportProgress) => `Importing · ${progress.windows_done} of ${progress.windows_total}`
   const waiting = sync.waiting_new_count.toLocaleString()
@@ -111,12 +123,20 @@ function describeLinkSync(link: BankLink, timeZone: string | undefined): BankSyn
  * @param status - The account's link, undefined until read
  * @param failed - Whether reading the link failed
  * @param timeZone - The user's profile zone, which decides whether a retry falls today
+ * @param budget - The request budget of the link's connection, which says whose limit a next sync
+ * waiting on it waits on, undefined until read
  */
-export function describeBankSync(ownPersonal: boolean, status: AccountBankStatus | undefined, failed: boolean, timeZone?: string): BankSyncLabel {
+export function describeBankSync(
+  ownPersonal: boolean,
+  status: AccountBankStatus | undefined,
+  failed: boolean,
+  timeZone?: string,
+  budget?: BankRequestBudget,
+): BankSyncLabel {
   if (!ownPersonal) return { label: 'Manual only', tone: 'off', pulse: false, details: [] }
   if (!status) return { label: failed ? "Couldn't check" : 'Checking…', tone: 'off', pulse: false, details: [] }
   if (!status.link) return { label: 'Not linked', tone: 'off', pulse: false, details: [] }
-  return describeLinkSync(status.link, timeZone)
+  return describeLinkSync(status.link, timeZone, budget)
 }
 
 /**

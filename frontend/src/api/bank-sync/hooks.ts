@@ -93,13 +93,16 @@ export function useBankProviders() {
 
 /**
  * Reads the user's connections, checking back while one is waiting on a listing of its bank accounts
+ *
+ * @param enabled - Whether to read them, for a caller that needs them only some of the time. A read
+ * already cached still answers while it's off
  */
-export function useBankConnections() {
+export function useBankConnections(enabled = true) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: bankSyncKeys.connections(),
     queryFn: fetchBankConnections,
-    enabled: !!accessToken,
+    enabled: !!accessToken && enabled,
     staleTime: BANK_DATA_STALE_TIME_MS,
     refetchInterval: (query) =>
       query.state.data?.some((connection) => connection.discovery_pending) ? BANK_DISCOVERY_POLL_MS : false,

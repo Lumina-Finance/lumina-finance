@@ -51,7 +51,10 @@ export function describeSyncNowBlock(
 
   const budget = connection?.request_budget
   if (budget?.available_again_at && Date.parse(budget.available_again_at) > Date.now()) {
-    return `This connection has used today's ${budget.limit} ${link.provider_name} requests. More are available ${formatRelativeFutureTime(budget.available_again_at)}.`
+    const when = formatRelativeFutureTime(budget.available_again_at)
+    return budget.held_by_provider
+      ? `${link.provider_name} says this connection has reached its request limit. More are available ${when}.`
+      : `This connection has used its ${budget.limit} ${link.provider_name} requests in the last 24 hours. More are available ${when}.`
   }
   return null
 }

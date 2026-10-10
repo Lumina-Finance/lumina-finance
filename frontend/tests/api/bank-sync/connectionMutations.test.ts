@@ -37,7 +37,7 @@ function connection(overrides: Partial<BankConnection> = {}): BankConnection {
     accounts: [],
     choose_again_links: [],
     discovery_pending: false,
-    request_budget: { limit: 20, used: 0, available_again_at: null },
+    request_budget: { limit: 20, used: 0, available_again_at: null, held_by_provider: false },
     ...overrides,
   };
 }
