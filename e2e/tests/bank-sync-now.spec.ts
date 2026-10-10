@@ -20,8 +20,10 @@ import { API_BASE_URL } from '../support/target'
 // apart from its reason keeping up with the time while the page stays open
 const SAMPLE_CHEQUING = 'Everyday Chequing'
 
-// When the connection's spent requests free up after the page opens, and how long it then stays open
-const REQUEST_FREES_UP_AFTER_MS = 10 * 60 * 1000
+// When the connection's spent requests free up after the page opens, and how long it then stays open.
+// The wait is worded to the nearest minute, so 10 minutes 15 seconds reads "in 10 minutes", and five
+// minutes on "in 5 minutes", each for 45 seconds of real time passing under the page's clock
+const REQUEST_FREES_UP_AFTER_MS = (10 * 60 + 15) * 1000
 const BANK_LINK_OPEN_MS = 5 * 60 * 1000
 
 // Long enough before the page opens that its Synced label reads the same throughout, so only the
