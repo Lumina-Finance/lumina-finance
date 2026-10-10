@@ -102,18 +102,28 @@ export function FilterGlassPanel({
   }, [seedDraftFromFilters, onOpenChange])
 
   // The glass is taken out of flow so its bloom overlays the page, so the wrapper is pinned to the
-  // collapsed head size to hold the toolbar slot. Remeasured while collapsed since the count badge
-  // changes the head width
+  // collapsed head size to hold the toolbar slot. Remeasured while collapsed when the count badge
+  // changes the head width, and when the desktop toolbar, hidden on a narrow page where the head
+  // measures as nothing, shows once the window widens
   useLayoutEffect(() => {
     const head = headRef.current
     const content = headContentRef.current
-    if (open || !head || !content) return
-    // Measure the content span rather than the head, which stretches to the glass width and would
-    // otherwise feed its own width back into the next measurement
-    setCollapsedSize({
-      width: Math.ceil(content.scrollWidth) + COLLAPSED_HEAD_CHROME,
-      height: Math.ceil(head.offsetHeight) + 2,
-    })
+    if (open || !head || !content) return undefined
+
+    const measure = () => {
+      // Measure the content span rather than the head, which stretches to the glass width and would
+      // otherwise feed its own width back into the next measurement
+      const next = {
+        width: Math.ceil(content.scrollWidth) + COLLAPSED_HEAD_CHROME,
+        height: Math.ceil(head.offsetHeight) + 2,
+      }
+      setCollapsedSize((current) => (current.width === next.width && current.height === next.height ? current : next))
+    }
+
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(content)
+    return () => observer.disconnect()
   }, [open, activeFacetCount])
 
   // Measure unconstrained content so adding chips grows the pane without feeding the animated
