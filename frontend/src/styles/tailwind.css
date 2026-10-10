@@ -51,8 +51,8 @@
     --app-negative-border: #9a3c344d;
     /* Filled destructive buttons need a darker red than negative text to keep white labels readable */
     --app-danger-fill: #9A3C34;
-    --app-button-primary-bg: #7F541C;
-    --app-button-primary-bg-hover: #8F6124;
+    --app-button-primary-bg: #6E4818;
+    --app-button-primary-bg-hover: #7A5220;
     --app-button-primary-text: #FFF8EC;
     --app-nav-bg: #F8F4EC;
     --app-shadow-soft: 0 2px 20px #1c151012, 0 1px 4px #1c15100a;

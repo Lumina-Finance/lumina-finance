@@ -108,3 +108,22 @@ describe('text colour contrast', () => {
     expect(contrast(solid(tokens, '--app-text-subtle'), page)).toBeLessThan(contrast(solid(tokens, '--app-text-muted'), page))
   })
 })
+
+describe('primary button label contrast', () => {
+  // The fill is 82% of the button colour at rest and 88% of the hover colour over whatever it sits on
+  // (.app-primary-button and .app-glass-button-primary). A dialog's panel is the page colour
+  const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) => {
+    const tokens = THEMES[theme]
+    const backdrops = { ...surfaces(tokens), field: solid(tokens, '--app-input-bg') }
+    return (['rest', 'hover'] as const).flatMap((state) =>
+      Object.entries(backdrops).map(([surface, backdrop]) => ({ theme, state, surface, backdrop })))
+  })
+
+  it.each(cases)('reads at 4.5:1 or better in the $theme theme at $state on the $surface', ({ theme, state, backdrop }) => {
+    const tokens = THEMES[theme]
+    const fill = state === 'rest'
+      ? paint(solid(tokens, '--app-button-primary-bg'), 0.82, backdrop)
+      : paint(solid(tokens, '--app-button-primary-bg-hover'), 0.88, backdrop)
+    expect(contrast(solid(tokens, '--app-button-primary-text'), fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+  })
+})
