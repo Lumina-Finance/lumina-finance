@@ -27,6 +27,8 @@ describe('toggle switch', () => {
         isArchived={false}
         isArchiving={false}
         isArchiveBlocked={false}
+        isLinkLoading={false}
+        archiveLinkedReason={null}
         currentBalance={0}
         currency="CAD"
         onToggle={() => {}}

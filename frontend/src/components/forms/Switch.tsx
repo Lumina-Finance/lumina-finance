@@ -9,12 +9,16 @@ export function Switch({
   id,
   checked,
   disabled,
+  unavailable,
   describedBy,
   onChange,
 }: {
   id: string
   checked: boolean
   disabled?: boolean
+
+  /** Holds the switch off while it stays focusable, so the reason it is off can reach a keyboard and a screen reader */
+  unavailable?: boolean
   describedBy?: string
   onChange: (checked: boolean) => void
 }) {
@@ -26,8 +30,11 @@ export function Switch({
         role="switch"
         checked={checked}
         disabled={disabled}
+        aria-disabled={unavailable || undefined}
         aria-describedby={describedBy}
-        onChange={(event) => onChange(event.target.checked)}
+        onChange={(event) => {
+          if (!unavailable) onChange(event.target.checked)
+        }}
         className="app-switch-input sr-only"
       />
       <span className="app-switch-track" aria-hidden />

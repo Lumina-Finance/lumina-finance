@@ -3143,7 +3143,7 @@
   }
 
   @media (hover: hover) {
-    label:hover .app-switch-input:not(:disabled) + .app-switch-track {
+    label:hover .app-switch-input:not(:disabled):not([aria-disabled="true"]) + .app-switch-track {
       --app-switch-off: color-mix(in srgb, var(--app-border-strong) 70%, var(--app-text));
       --app-switch-on: color-mix(in srgb, var(--app-accent) 60%, var(--app-text));
     }

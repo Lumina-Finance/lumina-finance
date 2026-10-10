@@ -30,6 +30,9 @@ type DeleteAccountPanelProps = {
   /** Disables the archive shortcut for the same reason the archive switch is locked */
   isArchiveBlocked: boolean
 
+  /** Disables the archive shortcut until the account's bank link has been read, as the switch is */
+  isLinkLoading: boolean
+
   /** Why the account can't be archived while it is linked, which the archive switch shows under its row */
   archiveLinkedReason: string | null
   onArchiveInstead: () => void
@@ -51,6 +54,7 @@ export function DeleteAccountPanel({
   nameError,
   blockedReason,
   isArchiveBlocked,
+  isLinkLoading,
   archiveLinkedReason,
   onArchiveInstead,
   onContinue,
@@ -129,8 +133,8 @@ export function DeleteAccountPanel({
                               className="app-focus-inset group -mx-2 inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:cursor-not-allowed"
                               style={{ color: 'var(--app-text-muted)' }}
                               onClick={onArchiveInstead}
-                              disabled={isBusy}
-                              disabledReason={!isBusy ? archiveReason : undefined}
+                              disabled={isBusy || isLinkLoading}
+                              disabledReason={!isBusy && !isLinkLoading ? archiveReason : undefined}
                               // The archive section above already prints this reason, so it describes the button
                               reasonShownById={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archiveBlockedReason}
                             >

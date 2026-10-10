@@ -17,6 +17,9 @@ type AccountArchiveSectionProps = {
   /** Locks the switch off while later-dated transactions would leave the archived balance off zero */
   isArchiveBlocked: boolean
 
+  /** Locks the switch until the account's bank link has been read, since a link holds archiving back */
+  isLinkLoading: boolean
+
   /** Why the account can't be archived while it is linked, printed under the switch like the other reason */
   archiveLinkedReason: string | null
   currentBalance: number
@@ -33,6 +36,7 @@ export function AccountArchiveSection({
   isArchived,
   isArchiving,
   isArchiveBlocked,
+  isLinkLoading,
   archiveLinkedReason,
   currentBalance,
   currency,
@@ -66,7 +70,8 @@ export function AccountArchiveSection({
         <Switch
           id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archive}
           checked={isArchived}
-          disabled={unavailableReason !== null}
+          disabled={(unavailableReason !== null && archiveLinkedReason === null) || isLinkLoading}
+          unavailable={archiveLinkedReason !== null}
           describedBy={unavailableReason ? EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archiveBlockedReason : undefined}
           onChange={onToggle}
         />

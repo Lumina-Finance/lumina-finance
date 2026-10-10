@@ -47,7 +47,7 @@ const FIELD_ROW_MIN_WIDTH = 640
  * since the modal takes its default from the accounts it has loaded by the time it opens
  */
 async function openAddTransaction(page: Page, accountName: string): Promise<Locator> {
-  const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+  const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
   await chooseFromDropdown(dialog, 'Account', accountName)
   return dialog
 }
@@ -234,7 +234,7 @@ test('lets an edit keep a date the linked account’s bank supplies, and refuses
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${account.id}`)
   const row = page.getByTestId(`transaction-row-${id}`)
-  const dialog = page.getByRole('dialog', { name: 'Edit Transaction', exact: true })
+  const dialog = page.getByRole('dialog', { name: 'Edit transaction', exact: true })
   const message = dialog.getByRole('alert').filter({ hasText: "SimpleFIN supplies this account's transactions from Jan 1, 2026 to today" })
 
   // Changing only the notes dates nothing anew, so it saves where the transaction already sits
@@ -282,7 +282,7 @@ test('keeps a bank transaction in its linked account, refusing the move on the a
   const correctedDate = daysFromTodayInTestTimezone(-3)
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${account.id}`)
-  const dialog = page.getByRole('dialog', { name: 'Edit Transaction', exact: true })
+  const dialog = page.getByRole('dialog', { name: 'Edit transaction', exact: true })
   const refusal = dialog.getByRole('alert').filter({ hasText: MOVE_REFUSAL })
 
   const sentDates: unknown[] = []
@@ -331,7 +331,7 @@ test('greys out Archive with its reason while the account is linked, and offers 
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${account.id}`)
 
-  const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
   const archive = dialog.getByRole('switch', { name: /^Archive account/ })
   const warning = dialog.getByText('Balance will be set to zero')
   await page.getByRole('button', { name: 'Edit account', exact: true }).click()
@@ -345,8 +345,19 @@ test('greys out Archive with its reason while the account is linked, and offers 
   const archiveReason = dialog.getByText(ARCHIVE_LINKED_REASON, { exact: true })
   await expect(archiveReason).toBeVisible()
 
-  // Forced, because the switch is marked unavailable and pressing it anyway is what is checked
+  // A press can't change the switch, so pointing at its row leaves the track as it rests. The hover rule
+  // sets the fill properties at once, so reading them needs no wait for the colour to transition
   const row = dialog.getByText('Archive account', { exact: true })
+  const trackFill = () =>
+    archive.evaluate((input) => {
+      const style = getComputedStyle(input.nextElementSibling as Element)
+      return [style.getPropertyValue('--app-switch-off'), style.getPropertyValue('--app-switch-on'), style.backgroundColor]
+    })
+  const restingFill = await trackFill()
+  await row.hover()
+  expect(await trackFill()).toEqual(restingFill)
+
+  // Forced, because the switch is marked unavailable and pressing it anyway is what is checked
   await row.click({ force: true })
   await expect(archive).not.toBeChecked()
   await expect(warning).toBeHidden()
@@ -368,7 +379,7 @@ test('greys out Archive with its reason while the account is linked, and offers 
   await page.addInitScript(() => localStorage.removeItem('lumina:query-cache'))
   await openPage(page, `/accounts/${account.id}`)
 
-  // The switch reads as available before any link is read too, so the read has to arrive first
+  // The switch is held back until the link is read, so the read has to arrive first
   await expect(page.getByRole('button', { name: /^Bank sync: Not linked/ })).toBeVisible()
   await page.getByRole('button', { name: 'Edit account', exact: true }).click()
   await expect(archive).not.toHaveAttribute('aria-disabled')
@@ -376,6 +387,33 @@ test('greys out Archive with its reason while the account is linked, and offers 
   await dialog.getByText('Archive account', { exact: true }).click()
   await expect(archive).toBeChecked()
   await expect(warning).toBeVisible()
+})
+
+test('holds Archive back until the link has been read, so a linked account is never offered it', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
+
+  // The page and its edit modal share one read of the link, held until both controls have been checked
+  let releaseRead = () => {}
+  const readReleased = new Promise<void>((resolve) => { releaseRead = resolve })
+  await page.route(`${API_BASE_URL}/accounts/${account.id}/bank-link`, async (route) => {
+    await readReleased
+    await route.fallback()
+  })
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  await page.getByRole('button', { name: 'Edit account', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
+  const archive = dialog.getByRole('switch', { name: /^Archive account/ })
+  await dialog.getByRole('button', { name: 'Delete account', exact: true }).click()
+  const archiveInstead = dialog.getByRole('button', { name: 'Archive instead', exact: true })
+  await expect(archive).toBeDisabled()
+  await expect(archiveInstead).toBeDisabled()
+
+  releaseRead()
+  await expect(archive).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
+  await expect(archiveInstead).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
 })
 
 test('greys out Delete on a bank transaction with its reason while the account is linked, and deletes it once unlinked', async ({ page, request }) => {
@@ -389,7 +427,7 @@ test('greys out Delete on a bank transaction with its reason while the account i
   const { id } = await addImportedItem(request, user, account.id, SAMPLE_COFFEE)
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${account.id}`)
-  const dialog = page.getByRole('dialog', { name: 'Edit Transaction', exact: true })
+  const dialog = page.getByRole('dialog', { name: 'Edit transaction', exact: true })
   const remove = dialog.getByTestId('transaction-delete')
 
   // Every delete sent, so one the browser should have held back shows up
