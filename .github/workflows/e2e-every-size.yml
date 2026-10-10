@@ -1,0 +1,26 @@
+name: Browser suite at every size
+
+# Pull requests run the arm64 browser suite at desktop only. This runs it at every size on both
+# architectures each week, between Wednesday's last merge and Thursday's release, so a size-dependent
+# failure on arm64 shows up before the release is cut. It can also be started by hand, such as before
+# an off-cycle patch release
+on:
+  schedule:
+    # Thursdays at midnight in Toronto during standard time, 01:00 during daylight time
+    - cron: "0 5 * * 4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docker-build:
+    uses: ./.github/workflows/_docker-build.yml
+    secrets: inherit
+
+  e2e-test:
+    needs: docker-build
+    uses: ./.github/workflows/_e2e-test.yml
+    with:
+      every-size-on-arm64: true
+    secrets: inherit

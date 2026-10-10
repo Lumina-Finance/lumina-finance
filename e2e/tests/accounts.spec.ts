@@ -4,6 +4,8 @@ import { createAccount, createTransaction, signUpUser } from '../support/api'
 import { openPage, chooseFromDropdown, logInViaApi, openModal } from '../support/app'
 import { expectPendingAction, whileApiRequestHeld } from '../support/selectors'
 
+// Runs on desktop only: creating, recording and editing accounts give the same result at every size
+
 const ACCOUNT_NAME = 'Everyday Chequing'
 
 test('starts a new user with no accounts and creates one through the modal', async ({ page, request }) => {

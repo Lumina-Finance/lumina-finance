@@ -2,6 +2,9 @@ import { expect, test, type Locator } from '@playwright/test'
 
 import { createAccount, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
+import { AT_EVERY_SIZE } from '../support/sizes'
+
+// Runs at every size: the chart switch is capped at the screen's width
 
 /**
  * Guards the Balance and Change switch above an account's balance chart. It was a fixed width sized for
@@ -18,7 +21,7 @@ function measure(control: Locator) {
   }))
 }
 
-test('shows both options in full in English and in a longer translation', async ({ page, request }) => {
+test('shows both options in full in English and in a longer translation', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await logInViaApi(page, user)

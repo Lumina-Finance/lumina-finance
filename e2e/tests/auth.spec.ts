@@ -5,6 +5,8 @@ import { expectSignedIn, logIn, waitForPageReady } from '../support/app'
 import { navigate } from '../support/insights'
 import { API_BASE_URL } from '../support/target'
 
+// Runs on desktop only: signing up, in and out give the same result at every size
+
 test('signs a new user up through the form', async ({ page }) => {
   const email = `e2e-${crypto.randomUUID()}@example.com`
 

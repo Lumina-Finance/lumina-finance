@@ -3,6 +3,8 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 import { countLedgerTransactions, createAccount, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
 
+// Runs on desktop only: how an interrupted save recovers is the same at every size
+
 const COMMIT_URL = /\/transactions\/import\/runs\/[^/]+\/commit$/
 
 // One category is new to the user and answered create, so the first save creates it and the

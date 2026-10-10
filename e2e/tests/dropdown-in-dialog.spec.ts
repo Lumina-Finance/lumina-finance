@@ -7,6 +7,8 @@ import { expect, test, type Locator } from '@playwright/test'
 import { createAccount, signUpUser } from '../support/api'
 import { logInViaApi, openModal, openPage } from '../support/app'
 
+// Runs on desktop only: it sets the window sizes it checks itself
+
 for (const size of [{ width: 1280, height: 800 }, { width: 1920, height: 1080 }]) {
   test(`keeps the title and buttons of Add Transaction in view with Category open at ${size.width}x${size.height}`, async ({ page, request }) => {
     const user = await signUpUser(request)

@@ -3,6 +3,8 @@ import { expect, test } from '@playwright/test'
 import { createAccount, signUpUser } from '../support/api'
 import { logInViaApi, openModal, openPage } from '../support/app'
 
+// Runs on desktop only: the dropdown's tab order is the same at every size
+
 /**
  * Guards focus on the shared dropdown. Its press animation used to put a second, silent Tab stop on
  * the box around its button

@@ -2,6 +2,10 @@ import { expect, test } from '@playwright/test'
 
 import { createAccount, signUpUser } from '../support/api'
 import { openPage, chooseFromDropdown, logInViaApi, openModal } from '../support/app'
+import { AT_EVERY_SIZE } from '../support/sizes'
+
+// Runs on desktop only, apart from the Category message test, which runs at every size: where the
+// message sits depends on the width
 
 test('exposes and clears an invalid dropdown with its inline validation alert', async ({ page, request }) => {
   const user = await signUpUser(request)
@@ -23,7 +27,7 @@ test('exposes and clears an invalid dropdown with its inline validation alert', 
   await expect(type).toHaveText('Checking')
 })
 
-test('keeps the transaction Category message on its label line without moving the field', async ({ page, request }) => {
+test('keeps the transaction Category message on its label line without moving the field', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   await createAccount(request, user, { name: 'Validation account' })
   await logInViaApi(page, user)

@@ -8,6 +8,8 @@ import { asUser, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
+// Runs on desktop only: it sets the phone size it checks itself
+
 const LONG_NAME = 'The Extraordinarily Long Named Neighbourhood Artisan Bakery and Delicatessen Incorporated of Greater Springfield'
 const SHORT_NAME = 'Corner Market'
 

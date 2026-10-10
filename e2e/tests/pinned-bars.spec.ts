@@ -6,6 +6,10 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
+import { AT_EVERY_SIZE } from '../support/sizes'
+
+// Runs on desktop only, apart from the section menu and Shift+Tab tests, which run at every size:
+// the pinned bars change with the width. The others set their own sizes
 
 /**
  * How far the right end of a control reaches past the left edge of the phone menu button, while the two
@@ -47,7 +51,7 @@ async function waitForScrollToRest(page: Page): Promise<void> {
   }))
 }
 
-test('brings each chosen settings section to rest below the pinned section menu', async ({ page, request }) => {
+test('brings each chosen settings section to rest below the pinned section menu', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   await logInViaApi(page, user)
   await openPage(page, '/settings')
@@ -124,7 +128,7 @@ for (const { place, date } of [
   { place: 'list', date: undefined },
   { place: 'open Upcoming section', date: daysFromTodayInTestTimezone(3) },
 ]) {
-  test(`scrolls a transaction row in the ${place} reached with Shift+Tab out from under the pinned bars`, async ({ page, request }) => {
+  test(`scrolls a transaction row in the ${place} reached with Shift+Tab out from under the pinned bars`, AT_EVERY_SIZE, async ({ page, request }) => {
     const user = await signUpUser(request)
     const account = await createAccount(request, user, { name: 'Focus account', startingBalance: 1000 })
     // One day's worth of rows, so the rows walked through all sit under the same pinned heading

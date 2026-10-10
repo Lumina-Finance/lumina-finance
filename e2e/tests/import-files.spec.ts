@@ -3,6 +3,8 @@ import { expect, test } from '@playwright/test'
 import { signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
 
+// Runs on desktop only: where focus lands after a keyboard upload is the same at every size
+
 const CSV = ['Date,Amount,Category,Merchant', '2024-03-15,-12.34,Groceries,Unknown'].join('\n')
 
 // The upload card goes away once the file is staged, so a keyboard user would otherwise be left on

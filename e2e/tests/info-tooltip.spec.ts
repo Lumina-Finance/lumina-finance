@@ -2,6 +2,9 @@ import { expect, test } from '@playwright/test'
 
 import { createAccount, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
+import { AT_EVERY_SIZE } from '../support/sizes'
+
+// Runs at every size: a touch screen opens the tooltip by tap rather than by click
 
 /**
  * Guards a press on a control inside an open info tooltip. The open panel used to take pointer input
@@ -11,7 +14,7 @@ import { logInViaApi, openPage } from '../support/app'
 
 // The tablet and phone projects are touch screens with no hover. The desktop one presses with a mouse
 // that hovers on its way to the link, where the panel opens across the sticky toolbar below it
-test('follows a link inside an open info tooltip', async ({ page, request, hasTouch }) => {
+test('follows a link inside an open info tooltip', AT_EVERY_SIZE, async ({ page, request, hasTouch }) => {
   const user = await signUpUser(request)
   await createAccount(request, user, { name: 'Everyday' })
   await logInViaApi(page, user)

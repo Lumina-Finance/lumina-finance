@@ -2,6 +2,9 @@ import { expect, test, type Locator } from '@playwright/test'
 
 import { createAccount, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
+import { AT_EVERY_SIZE } from '../support/sizes'
+
+// Runs at every size: the file's detail line and Remove button have to fit at every width
 
 // No header row, four columns and one byte that isn't UTF-8, so the reader adds its note about the byte
 const CSV = Buffer.concat([
@@ -20,7 +23,7 @@ async function top(locator: Locator): Promise<number> {
   return (await locator.boundingBox())!.y
 }
 
-test('shows a staged file\'s whole name, its row count and its warning, with the remove button by the name', async ({ page, request }) => {
+test('shows a staged file\'s whole name, its row count and its warning, with the remove button by the name', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday chequing' })
   await logInViaApi(page, user)

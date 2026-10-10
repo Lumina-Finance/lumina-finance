@@ -4,6 +4,8 @@ import { signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
+// Runs on desktop only: renaming a tag gives the same result at every size
+
 test('shows a renamed tag without reloading when its id and list position stay the same', async ({ page, request }) => {
   const user = await signUpUser(request)
   const headers = { Authorization: `Bearer ${user.accessToken}` }

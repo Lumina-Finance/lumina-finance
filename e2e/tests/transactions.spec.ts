@@ -3,8 +3,12 @@ import { expect, test, type APIRequestContext, type Locator, type Page } from '@
 import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser, startOfDayInTestTimezone } from '../support/api'
 import { openPage, chooseFromDropdown, filterByCategory, logInViaApi, openModal } from '../support/app'
 import { expectPendingAction, expectTransactionRow, whileApiRequestHeld } from '../support/selectors'
+import { AT_EVERY_SIZE } from '../support/sizes'
 
-test('filters the list down to one category', async ({ page, request }) => {
+// Runs on desktop only, apart from the category filter and Upcoming header tests, which run at
+// every size: filters show as a sheet on a phone, and the header pins differently by layout
+
+test('filters the list down to one category', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday Chequing' })
 
@@ -109,9 +113,7 @@ test('unticks upcoming transactions when the Upcoming section closes', async ({ 
   await expect(page.getByRole('dialog', { name: 'Edit 1 transaction', exact: true })).toBeVisible()
 })
 
-test('shows a hover on an upcoming row in the light theme', async ({ page, request, hasTouch }) => {
-  // Rows show a hover only to a pointer that can hover, which the touch screens in the tablet and phone projects lack
-  test.skip(hasTouch, 'A touch screen has no hover')
+test('shows a hover on an upcoming row in the light theme', async ({ page, request }) => {
   // Reduced motion opens the section at once, so the rows have stopped moving when their colours are read
   await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' })
   const { upcomingId, todayId, upcoming } = await openListWithUpcomingAndToday(page, request)
@@ -161,7 +163,7 @@ async function colourAt(page: Page, x: number, y: number): Promise<number[]> {
   }, shot.toString('base64'))
 }
 
-test('keeps the open Upcoming header on screen through a long run of upcoming transactions', async ({ page, request }) => {
+test('keeps the open Upcoming header on screen through a long run of upcoming transactions', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday Chequing' })
   const ids: string[] = []

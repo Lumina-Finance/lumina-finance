@@ -4,6 +4,8 @@ import { signUpUser, TEST_PASSWORD } from '../support/api'
 import { expectSignedIn, logInViaApi, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
+// Runs on desktop only: two-step setup gives the same result at every size
+
 const RESTART_MESSAGE = 'Oops, something went wrong. Please start again.'
 
 /**

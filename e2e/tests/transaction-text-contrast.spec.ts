@@ -4,6 +4,9 @@ import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, 
 import { logInViaApi, openPage } from '../support/app'
 import { faintestText } from '../support/contrast'
 import { API_BASE_URL } from '../support/target'
+import { AT_EVERY_SIZE } from '../support/sizes'
+
+// Runs at every size: transaction rows take their own layouts below 1300px
 
 /**
  * Guards the contrast of a transaction row on an archived account. The row used to be faded as a whole,
@@ -12,7 +15,7 @@ import { API_BASE_URL } from '../support/target'
 
 for (const colorScheme of ['light', 'dark'] as const) {
   // The same row on both lists that show it, the read-only label with it
-  test(`draws every text on an archived account's row at full contrast in the ${colorScheme} theme`, async ({ page, request }) => {
+  test(`draws every text on an archived account's row at full contrast in the ${colorScheme} theme`, AT_EVERY_SIZE, async ({ page, request }) => {
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
     const user = await signUpUser(request)
     const account = await createAccount(request, user, { name: 'Everyday' })

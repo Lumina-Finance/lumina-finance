@@ -10,6 +10,11 @@ import {
 import { openPage, logInViaApi, openModal } from '../support/app'
 import { expectPendingAction, whileApiRequestHeld } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
+import { AT_EVERY_SIZE } from '../support/sizes'
+
+// Runs on desktop only, apart from the month boundary and Edit Budget buttons tests, which run at
+// every size: the period history turns from a table into cards, and the buttons into halves on a
+// phone
 
 // Format stored calendar dates without applying the test runner's own timezone
 const PERIOD_DATE = new Intl.DateTimeFormat('en-CA', {
@@ -34,7 +39,7 @@ async function expectHistoricalPeriod(dialog: Locator, label: string): Promise<v
   }
 }
 
-test('preserves seeded budget history across a month boundary', async ({ page, request }) => {
+test('preserves seeded budget history across a month boundary', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday Chequing' })
 
@@ -121,7 +126,7 @@ test('keeps budget actions named during creation and editing', async ({ page, re
   await expect(page.getByRole('dialog', { name: 'Selectors budget edited', exact: true })).toBeVisible()
 })
 
-test('shows the Edit Budget Cancel and Save Changes buttons in one row, as halves on a phone', async ({ page, request }) => {
+test('shows the Edit Budget Cancel and Save Changes buttons in one row, as halves on a phone', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const id = await createMonthlyBudget(request, user, {
     name: 'Footer budget',

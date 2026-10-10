@@ -3,6 +3,8 @@ import { expect, test } from '@playwright/test'
 import { countLedgerTransactions, createAccount, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
 
+// Runs on desktop only: how the file is read is the same at every size
+
 // A semicolon file with no comma in it, so read by comma it is one column
 const CSV = [
   'Date;Merchant;Amount',

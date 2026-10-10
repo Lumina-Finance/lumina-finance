@@ -2,6 +2,9 @@ import { expect, test, type Locator } from '@playwright/test'
 
 import { createAccount, signUpUser } from '../support/api'
 import { logInViaApi, openModal, openPage } from '../support/app'
+import { AT_EVERY_SIZE } from '../support/sizes'
+
+// Runs at every size: the footer has to line up with the header at every width
 
 /**
  * Reads how far the footer's actions sit from the header's edges, left from where the title starts and
@@ -25,7 +28,7 @@ function readEdgeOffsets(dialog: Locator, title: string, first: Locator, last: L
 
 // The transaction dialog draws its own footer, which lines up with its header at every width, so its
 // keep-open checkbox starts where the title starts and its submit action ends where the close button ends
-test('lines the Add Transaction footer up with its header', async ({ page, request }) => {
+test('lines the Add Transaction footer up with its header', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   await createAccount(request, user, { name: 'Everyday' })
 
@@ -40,7 +43,7 @@ test('lines the Add Transaction footer up with its header', async ({ page, reque
 
 // The account edit dialog sits on the narrower stacked panel and draws its own footer, which still lines
 // up with its header: Delete starts where the title starts and Save Changes ends where Close ends
-test('lines the Edit Account footer up with its header', async ({ page, request }) => {
+test('lines the Edit Account footer up with its header', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
 

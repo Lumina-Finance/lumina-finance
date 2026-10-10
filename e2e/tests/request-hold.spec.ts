@@ -4,6 +4,8 @@ import { signUpUser } from '../support/api'
 import { whileApiRequestHeld } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 
+// Runs on desktop only: it tests a helper on a page of its own, so the size plays no part
+
 // Keep a real response in flight after dispatch to expose premature post-save assertions
 const NETWORK_LATENCY_MS = 1_000
 

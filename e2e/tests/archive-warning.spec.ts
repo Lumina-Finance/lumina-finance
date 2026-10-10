@@ -2,6 +2,9 @@ import { expect, test } from '@playwright/test'
 
 import { createAccount, createTransaction, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
+import { AT_EVERY_SIZE } from '../support/sizes'
+
+// Runs at every size: the warning has to fit above the dialog's footer, which depends on the screen
 
 /**
  * Guards the archive warning in the account edit dialog. It grows in at the foot of the dialog's
@@ -9,7 +12,7 @@ import { logInViaApi, openPage } from '../support/app'
  * out of sight under the footer
  */
 
-test('brings the whole archive warning into view above the footer', async ({ page, request }) => {
+test('brings the whole archive warning into view above the footer', AT_EVERY_SIZE, async ({ page, request }) => {
   // A short window, so the sections above the switch fill the dialog
   await page.setViewportSize({ width: page.viewportSize()!.width, height: 600 })
   const user = await signUpUser(request)

@@ -4,10 +4,13 @@ import { signUpUser, TEST_TIMEZONE } from '../support/api'
 import { expectSignedIn, logIn } from '../support/app'
 import { CARDS, PATHS, card, expectGeometry, expectLoaded, matchesApi, navigate, seedRichInsights } from '../support/insights'
 import { BASE_URL } from '../support/target'
+import { AT_EVERY_SIZE } from '../support/sizes'
+
+// Runs at every size: card heights change with the screen
 
 const BOUNDARY_WIDTHS = [749, 750, 1299, 1300]
 
-test('insights geometry holds across sparse, loading, rich data and exact responsive boundaries', async ({ page, browser, request }, testInfo) => {
+test('insights geometry holds across sparse, loading, rich data and exact responsive boundaries', AT_EVERY_SIZE, async ({ page, browser, request }, testInfo) => {
   const sparseUser = await signUpUser(request)
   const rich = await seedRichInsights(request)
   const sparseContext = await browser.newContext({

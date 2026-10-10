@@ -3,6 +3,8 @@ import { expect, test, type Page, type Request, type Response } from '@playwrigh
 import { countLedgerTransactions, createAccount, signUpUser } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
 
+// Runs on desktop only: what the import keeps between files is the same at every size
+
 /**
  * Guards the CSV import's record of a finished import, whose answers could be changed and whose file
  * could be removed, and the fresh start a file uploaded after it makes. A column the user had answered

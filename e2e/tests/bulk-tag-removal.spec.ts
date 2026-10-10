@@ -4,6 +4,8 @@ import { createAccount, findReferenceId, signUpUser, todayInTestTimezone } from 
 import { openPage, logInViaApi, waitForPageReady } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
+// Runs on desktop only: bulk tag edits are read back through the API, the same at every size
+
 for (const mode of ['add', 'replace', 'clear'] as const) {
   test(`${mode} tags on the selected transactions without changing unselected rows`, async ({ page, request }) => {
     const user = await signUpUser(request)
