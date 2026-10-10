@@ -75,7 +75,7 @@ class CreateAccountRequest(BaseModel):
     name: str = Field(min_length=1, max_length=256)
     institution_id: uuid.UUID | None = None
     currency: str = Field(min_length=3, max_length=3)
-    credit_limit: int | None = None  # Only valid on liability accounts
+    credit_limit: int | None = Field(None, ge=0)  # Only valid on liability accounts
     starting_balance: int | None = None  # Signed initial balance adjustment in minor units
     is_archived: bool = False
     group_id: uuid.UUID | None = None
@@ -87,7 +87,7 @@ class UpdateAccountRequest(BaseModel):
     tax_advantaged_category_id: uuid.UUID | None = None
     name: str | None = Field(None, min_length=1, max_length=256)
     institution_id: uuid.UUID | None = None
-    credit_limit: int | None = None  # Only valid on liability accounts
+    credit_limit: int | None = Field(None, ge=0)  # Only valid on liability accounts
     is_archived: bool | None = None
 
 
