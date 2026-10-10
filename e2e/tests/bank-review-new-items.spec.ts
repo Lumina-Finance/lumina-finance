@@ -1,25 +1,25 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import {
+  asUser,
+  countLedgerTransactions,
   createAccount,
   createGroup,
   daysFromTodayInTestTimezone,
   signUpUser,
-  TEST_CURRENCY,
   type SeededAccount,
   type TestUser,
 } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
 import {
-  answerLinksWith,
-  answerReviewItems,
   fetchOnOwnConnection,
-  pageOf,
+  isRead,
+  linkToEmptyBankAccount,
+  readReviewItems,
+  readTransaction,
   reviewBlock,
-  reviewItem,
-  SEP_21,
-  type BankValues,
-  type ReviewItem,
+  waitForReviewItems,
+  type BridgeTransaction,
 } from '../support/bankSync'
 import { contrastOf, expectTransactionRow, MIN_TEXT_CONTRAST, MINUS } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
@@ -27,27 +27,19 @@ import { API_BASE_URL } from '../support/target'
 // A new bank item opens from its row in the review block in the transaction modal, which files it
 // into the ledger or dismisses it.
 //
-// Nothing links an account on the server for a sync to bring items in, so each test answers the review
-// list with the items it needs and settles each decision itself. Add to ledger goes on to the server as
-// the manual create the item's account and currency make it, so the ledger shows a real transaction.
-// The link list isn't served yet, so it is answered with a link for Everyday, which also puts the days
-// its bank supplies off limits to a manual entry
+// Everyday links to an empty bank account at Harbour Bank on the fake SimpleFIN Bridge, which sends
+// the transactions each test needs, and the worker imports them for review, so every decision goes to
+// the server and what it saved is read back. Only what the server doesn't give is answered in its
+// place: a failed or unanswered decision, and pages of two items for a list too short to need a second
 
 type Accounts = { user: TestUser; everyday: SeededAccount; savings: SeededAccount }
 
-/** A decision sent on an item, with what it carried */
-type Decision = { itemId: string; action: string; body: Record<string, unknown> | null }
-
-/** How the next decision fails: a status the server answers with, or no answer at all */
-type Refusal = { status: number; detail: string } | 'network' | null
-
-/**
- * The items still waiting, every decision sent on them, and the transactions added, with what holds
- * every page after the first until it settles
- */
-type Review = { waiting: ReviewItem[]; decisions: Decision[]; created: string[]; refusal: Refusal; laterPages: Promise<unknown> }
-
 const DIALOG_NAME = 'Review bank item'
+
+// Each a day apart from the others, so the review list, newest first, holds them in this order
+const COUNTDOWN = { posted: daysFromTodayInTestTimezone(-2), amount: '-42.10', description: 'COUNTDOWN 123 AUCKLAND' } as const
+const HARBOUR = { posted: daysFromTodayInTestTimezone(-4), amount: '-12.50', description: 'HARBOUR COFFEE' } as const
+const CAFE = { posted: daysFromTodayInTestTimezone(-6), amount: '-8.75', description: 'CAFE ROMA' } as const
 
 // Where the modal has room for the card beside it, and below which it takes the whole screen
 const ASIDE_MIN_WIDTH = 1320
@@ -58,66 +50,18 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
 
-/** Signs up with Everyday, linked to Chequing at Example Bank, and Savings */
-async function start(page: Page, request: APIRequestContext): Promise<Accounts> {
+/**
+ * Signs up with Savings and with Everyday, linked to Everyday Chequing at Harbour Bank from ten days
+ * ago, and waits for the worker to bring in the transactions the bank sends for review
+ */
+async function start(page: Page, request: APIRequestContext, transactions: BridgeTransaction[]): Promise<Accounts> {
   const user = await signUpUser(request)
   const everyday = await createAccount(request, user, { name: 'Everyday' })
   const savings = await createAccount(request, user, { name: 'Savings', accountType: 'savings' })
-  await answerLinksWith(page, () => [everyday.id])
+  await linkToEmptyBankAccount(request, user, { accountId: everyday.id, startDate: daysFromTodayInTestTimezone(-10), transactions })
+  await waitForReviewItems(request, user, everyday.id, (items) => items.length === transactions.length)
   await logInViaApi(page, user)
   return { user, everyday, savings }
-}
-
-/** The bank's $42.10 grocery spend on Sep 21, sent with no merchant or category */
-function countdown(accountId: string, bank: Partial<BankValues> = {}): ReviewItem {
-  return reviewItem('countdown', 'new', accountId, { description: 'COUNTDOWN 123 AUCKLAND', amount: -4210, ...bank })
-}
-
-/**
- * Answers the review list with what is still waiting, `perPage` items to a page, and settles each
- * decision on an item the way the server would, refusing it instead while `refusal` says how. Dismiss
- * takes the item off the list, and Add to ledger creates its transaction through the manual create
- * before taking it off
- *
- * A page's cursor is the last item it held, so the next page starts after that item even once it has
- * been decided
- */
-async function answerReview(page: Page, items: ReviewItem[], perPage = items.length): Promise<Review> {
-  const review: Review = { waiting: [...items], decisions: [], created: [], refusal: null, laterPages: Promise.resolve() }
-  await answerReviewItems(page, async (_, cursor) => {
-    if (cursor !== null) await review.laterPages
-    const rest = items.slice(items.findIndex((item) => item.id === cursor) + 1).filter((item) => review.waiting.includes(item))
-    const shown = rest.slice(0, perPage)
-    return { ...pageOf(review.waiting), items: shown, next_cursor: rest.length > perPage ? shown[perPage - 1].id : null }
-  })
-  await page.route((url) => url.href.startsWith(`${API_BASE_URL}/bank-review/items/`), async (route) => {
-    const request = route.request()
-    const [, itemId, action] = /\/bank-review\/items\/([^/]+)\/([a-z-]+)$/.exec(new URL(request.url()).pathname) ?? []
-    const item = review.waiting.find((waiting) => waiting.id === itemId)
-    if (request.method() !== 'POST' || !item) return route.fulfill({ status: 404, json: { detail: 'Review item not found' } })
-
-    const body = request.postDataJSON() as Record<string, unknown> | null
-    review.decisions.push({ itemId, action, body })
-    if (review.refusal === 'network') return route.abort()
-    if (review.refusal) return route.fulfill({ status: review.refusal.status, json: { detail: review.refusal.detail } })
-
-    const settle = () => { review.waiting = review.waiting.filter((waiting) => waiting !== item) }
-    if (action === 'dismiss') {
-      settle()
-      return route.fulfill({ status: 204 })
-    }
-
-    const response = await fetchOnOwnConnection(route, {
-      url: `${API_BASE_URL}/transactions`,
-      postData: { ...body, account_id: item.account_id, currency: TEST_CURRENCY },
-    })
-    if (response.ok()) {
-      review.created.push(((await response.json()) as { id: string }).id)
-      settle()
-    }
-    return route.fulfill({ response })
-  })
-  return review
 }
 
 /** Opens a new item from its row in the review block, and answers with the review dialog */
@@ -168,22 +112,47 @@ async function expectMerchantAndCategoryEmpty(dialog: Locator): Promise<void> {
   await expect(category).not.toHaveAttribute('aria-invalid', 'true')
 }
 
+/** Collects the action of each decision the page sends on an item from now on, such as add or dismiss */
+function watchDecisions(page: Page): string[] {
+  const actions: string[] = []
+  page.on('request', (sent) => {
+    const [, action] = /\/bank-review\/items\/[^/]+\/([a-z-]+)$/.exec(sent.url()) ?? []
+    if (sent.method() === 'POST' && action) actions.push(action)
+  })
+  return actions
+}
+
+/** Presses Add to ledger, and answers with the id of the ledger transaction the server added */
+async function addToLedger(page: Page, dialog: Locator): Promise<string> {
+  const added = page.waitForResponse((response) => response.request().method() === 'POST' && /\/bank-review\/items\/[^/]+\/add$/.test(response.url()))
+  await formOf(dialog).add.click()
+  const response = await added
+  expect(response.status()).toBe(201)
+  return ((await response.json()) as { id: string }).id
+}
+
+/** The bank's descriptions of the items still waiting in the account, newest first */
+async function readWaiting(request: APIRequestContext, user: TestUser, accountId: string): Promise<string[]> {
+  return (await readReviewItems(request, user, accountId)).map((item) => item.bank.description)
+}
+
 test('opens a new item as the bank sent it beside its filing card, and adds nothing until a merchant and category are chosen', async ({ page, request }) => {
-  const { everyday } = await start(page, request)
-  const review = await answerReview(page, [countdown(everyday.id)])
+  const { user, everyday } = await start(page, request, [COUNTDOWN])
   await openPage(page, '/transactions')
 
-  const dialog = await openReview(page, 'COUNTDOWN 123 AUCKLAND')
+  const dialog = await openReview(page, COUNTDOWN.description)
   const form = formOf(dialog)
+  const decisions = watchDecisions(page)
   await expect(dialog.getByText('New from SimpleFIN', { exact: true })).toBeVisible()
 
   // An expense, since the money went out, for the bank's amount on its date in the account it came to,
   // which stays put
+  const [year, month, day] = COUNTDOWN.posted.split('-')
   await expect(dialog.getByRole('tab', { name: 'Expense', exact: true })).toHaveAttribute('aria-selected', 'true')
   await expect(form.amount).toHaveValue('42.10')
-  await expect(form.year).toHaveValue(SEP_21.slice(0, 4))
-  await expect(form.month).toHaveValue('09')
-  await expect(form.day).toHaveValue('21')
+  await expect(form.year).toHaveValue(year)
+  await expect(form.month).toHaveValue(month)
+  await expect(form.day).toHaveValue(day)
   await expect(form.account).toContainText('Everyday')
   await expect(form.account).toHaveAttribute('aria-disabled', 'true')
   await expect(form.account).toHaveAccessibleDescription(/A bank item stays in the account whose bank sent it/)
@@ -195,9 +164,9 @@ test('opens a new item as the bank sent it beside its filing card, and adds noth
 
   // The card's fields are covered with the card, leaving what the link and the item's account bring it
   const card = filingCard(page)
-  await expect(card).toContainText('Example Bank')
-  await expect(card).toContainText('Chequing')
-  await expect(card).toContainText('COUNTDOWN 123 AUCKLAND')
+  await expect(card).toContainText('Harbour Bank')
+  await expect(card).toContainText('Everyday Chequing')
+  await expect(card).toContainText(COUNTDOWN.description)
 
   // The bank's description starts the notes, which the user may change
   await expect(form.notes).toHaveValue(COUNTDOWN.description)
@@ -207,56 +176,51 @@ test('opens a new item as the bank sent it beside its filing card, and adds noth
   await expect(form.category).toHaveAttribute('aria-invalid', 'true')
   await expect(dialog.getByText('Select or create a merchant', { exact: true })).toBeVisible()
   await expect(dialog.getByText('Select a category', { exact: true })).toBeVisible()
-  expect(review.decisions).toEqual([])
+  expect(decisions).toEqual([])
   await expect(dialog).toBeVisible()
+  expect(await readWaiting(request, user, everyday.id)).toEqual([COUNTDOWN.description])
 })
 
 test('adds an item with its amount changed, and with the window kept open goes on through the new items until none are left', async ({ page, request }) => {
-  const { everyday } = await start(page, request)
-  const review = await answerReview(page, [
-    countdown(everyday.id, { date: daysFromTodayInTestTimezone(-3) }),
-    reviewItem('uber', 'correction', everyday.id, { description: 'UBER TRIP' }),
-    reviewItem('harbour', 'new', everyday.id, { description: 'HARBOUR COFFEE' }),
-  ])
+  const { user, everyday } = await start(page, request, [COUNTDOWN, HARBOUR])
   await openPage(page, '/transactions')
 
-  const dialog = await openReview(page, 'COUNTDOWN 123 AUCKLAND')
+  const dialog = await openReview(page, COUNTDOWN.description)
   const form = formOf(dialog)
   await chooseFromDropdown(dialog, 'Merchant', 'Unknown')
   await chooseFromDropdown(dialog, 'Category', 'Groceries')
   await form.amount.fill('40.00')
   await form.keepOpen.check()
 
-  // Three days ago is a day Everyday's bank supplies, which a manual entry may not take, and a review may
-  await form.add.click()
+  // Two days ago is a day Everyday's bank supplies, which a manual entry may not take, and a review may
+  const id = await addToLedger(page, dialog)
 
-  // The next new item, past the correction between them, in a fresh form with the window still open
-  await expect(filingCard(page)).toContainText('HARBOUR COFFEE')
+  // The next new item, in a fresh form with the window still open
+  await expect(filingCard(page)).toContainText(HARBOUR.description)
   await expect(form.amount).toHaveValue('12.50')
   await expectMerchantAndCategoryEmpty(dialog)
   await expect(form.keepOpen).toBeChecked()
-  expect(review.decisions).toEqual([{ itemId: 'countdown', action: 'add', body: expect.objectContaining({ amount: -4000 }) }])
-  expect(review.created).toHaveLength(1)
   // Behind the open dialog, which takes the page out of the accessibility tree
-  await expect(page.getByTestId('review-count')).toHaveText('2')
-  await expect(page.getByTestId(`transaction-row-${review.created[0]}`)).toBeVisible()
+  await expect(page.getByTestId('review-count')).toHaveText('1')
+  await expect(page.getByTestId(`transaction-row-${id}`)).toBeVisible()
 
   // Nothing new is left after it, so the window closes
   await dismissItem(dialog)
   await expect(dialog).toBeHidden()
-  const rows = reviewBlock(page).getByRole('listitem')
-  await expect(rows).toHaveCount(1)
-  await expect(rows.first()).toContainText('UBER TRIP')
-  await expectTransactionRow(page, review.created[0], `${MINUS}$40.00`)
+  await expect(reviewBlock(page)).toBeHidden()
+  await expectTransactionRow(page, id, `${MINUS}$40.00`)
+
+  // Saved on the bank's day with the amount the user changed, which counts as their edit
+  expect(await readTransaction(request, user, id)).toMatchObject({ dt: COUNTDOWN.posted, amount: -4000, bank_source: { edited_fields: ['amount'] } })
+  expect(await readWaiting(request, user, everyday.id)).toEqual([])
 })
 
 test('records money in from Savings as one transfer that names Savings, kept as money in, and closes with the window not kept open', async ({ page, request }) => {
-  const { user, everyday, savings } = await start(page, request)
-  await createAccount(request, user, { name: 'Household', groupId: await createGroup(request, user, 'Family') })
-  const review = await answerReview(page, [
-    reviewItem('savings', 'new', everyday.id, { description: 'TFR FROM SAVINGS', amount: 50000 }),
-    reviewItem('harbour', 'new', everyday.id, { description: 'HARBOUR COFFEE' }),
+  const { user, everyday, savings } = await start(page, request, [
+    { posted: daysFromTodayInTestTimezone(-2), amount: '500.00', description: 'TFR FROM SAVINGS' },
+    HARBOUR,
   ])
+  await createAccount(request, user, { name: 'Household', groupId: await createGroup(request, user, 'Family') })
   await openPage(page, '/transactions')
 
   const dialog = await openReview(page, 'TFR FROM SAVINGS')
@@ -279,19 +243,19 @@ test('records money in from Savings as one transfer that names Savings, kept as 
   await expect(dialog.getByRole('option', { name: 'Household' })).toHaveCount(0)
   await dialog.getByRole('option', { name: 'Savings' }).click()
   await chooseFromDropdown(dialog, 'Merchant', 'Unknown')
-  await form.add.click()
+  const id = await addToLedger(page, dialog)
 
   await expect(dialog).toBeHidden()
-  expect(review.decisions).toEqual([{
-    itemId: 'savings',
-    action: 'add',
-    body: expect.objectContaining({ amount: 50000, counterparty_account_id: savings.id, counterparty_account_scope: 'tracked' }),
-  }])
-  await expect(page.getByTestId(`transaction-row-${review.created[0]}`)).toContainText('Savings')
+  await expect(page.getByTestId(`transaction-row-${id}`)).toContainText('Savings')
   await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(1)
   const rows = reviewBlock(page).getByRole('listitem')
   await expect(rows).toHaveCount(1)
-  await expect(rows.first()).toContainText('HARBOUR COFFEE')
+  await expect(rows.first()).toContainText(HARBOUR.description)
+
+  // Saved as money in from Savings, on Everyday's side alone
+  expect(await readTransaction(request, user, id)).toMatchObject({ amount: 50000, counterparty_account_id: savings.id, counterparty_account_scope: 'tracked' })
+  expect(await countLedgerTransactions(request, user)).toBe(1)
+  expect(await readWaiting(request, user, everyday.id)).toEqual([HARBOUR.description])
 })
 
 test('dismisses only on a second press, by mouse or keyboard, and takes the first back when the user moves on', async ({ page, request }) => {
@@ -332,15 +296,10 @@ test('dismisses only on a second press, by mouse or keyboard, and takes the firs
 })
 
 test('dismisses items without reading the ledger again, going on to the next while the window is kept open', async ({ page, request }) => {
-  const { everyday } = await start(page, request)
-  const review = await answerReview(page, [
-    countdown(everyday.id),
-    reviewItem('harbour', 'new', everyday.id, { description: 'HARBOUR COFFEE' }),
-    reviewItem('cafe', 'new', everyday.id, { description: 'CAFE ROMA' }),
-  ])
+  const { user, everyday } = await start(page, request, [COUNTDOWN, HARBOUR, CAFE])
   await openPage(page, '/transactions')
 
-  const dialog = await openReview(page, 'COUNTDOWN 123 AUCKLAND')
+  const dialog = await openReview(page, COUNTDOWN.description)
   const form = formOf(dialog)
   const ledgerReads: string[] = []
   page.on('request', (sent) => {
@@ -356,76 +315,91 @@ test('dismisses items without reading the ledger again, going on to the next whi
   await expect(dialog).toBeHidden()
   const rows = reviewBlock(page).getByRole('listitem')
   await expect(rows).toHaveCount(1)
-  await expect(rows.first()).toContainText('CAFE ROMA')
-  expect(review.decisions).toEqual([
-    { itemId: 'countdown', action: 'dismiss', body: null },
-    { itemId: 'harbour', action: 'dismiss', body: null },
-  ])
+  await expect(rows.first()).toContainText(CAFE.description)
   expect(ledgerReads).toEqual([])
+
+  // Both left review without reaching the ledger
+  expect(await readWaiting(request, user, everyday.id)).toEqual([CAFE.description])
+  expect(await countLedgerTransactions(request, user)).toBe(0)
 })
 
 test('goes on from the last new item loaded to the first on the next page', async ({ page, request }) => {
-  const { everyday } = await start(page, request)
-  const review = await answerReview(page, [
-    reviewItem('harbour', 'new', everyday.id, { description: 'HARBOUR COFFEE' }),
-    countdown(everyday.id),
-    reviewItem('cafe', 'new', everyday.id, { description: 'CAFE ROMA' }),
-  ], 2)
+  const { user, everyday } = await start(page, request, [COUNTDOWN, HARBOUR, CAFE])
 
-  // The next page is held until a decision is sent, so the next item can only be found from the list
-  // as it stands once the decision is made
-  review.laterPages = page.waitForRequest((sent) =>
-    sent.method() === 'POST' && sent.url().startsWith(`${API_BASE_URL}/bank-review/items/`))
+  // Two items to a page, and every page after the first held until a decision is sent, so the next
+  // item can only be found from the list as it stands once the decision is made
+  const decided = page.waitForRequest((sent) => sent.method() === 'POST' && sent.url().startsWith(`${API_BASE_URL}/bank-review/items/`))
+  await page.route(isRead('/bank-review/items'), async (route) => {
+    const url = new URL(route.request().url())
+    if (url.searchParams.has('cursor')) await decided
+    url.searchParams.set('limit', '2')
+    await route.fulfill({ response: await fetchOnOwnConnection(route, { url: url.href }) })
+  })
   await openPage(page, '/transactions')
   await expect(reviewBlock(page).getByRole('listitem')).toHaveCount(2)
 
-  const dialog = await openReview(page, 'COUNTDOWN 123 AUCKLAND')
+  const dialog = await openReview(page, HARBOUR.description)
   const form = formOf(dialog)
   await form.keepOpen.check()
   await dismissItem(dialog)
 
-  await expect(filingCard(page)).toContainText('CAFE ROMA')
+  await expect(filingCard(page)).toContainText(CAFE.description)
   await expect(dialog).toBeVisible()
-  expect(review.decisions).toEqual([{ itemId: 'countdown', action: 'dismiss', body: null }])
+  expect(await readWaiting(request, user, everyday.id)).toEqual([COUNTDOWN.description, CAFE.description])
 })
 
 test('keeps the item open and says what went wrong when a decision fails', async ({ page, request }) => {
-  const { everyday } = await start(page, request)
-  const review = await answerReview(page, [countdown(everyday.id)])
+  const { user, everyday } = await start(page, request, [COUNTDOWN])
+
+  // Decisions fail as the server never would, with an error or with no answer at all, until a test
+  // lets them through
+  let failure: 'error' | 'no answer' | null = 'error'
+  await page.route((url) => url.href.startsWith(`${API_BASE_URL}/bank-review/items/`), (route) => {
+    if (failure === 'error') return route.fulfill({ status: 500, json: { detail: 'Something went wrong' } })
+    if (failure === 'no answer') return route.abort()
+    return route.fallback()
+  })
   await openPage(page, '/transactions')
 
-  const dialog = await openReview(page, 'COUNTDOWN 123 AUCKLAND')
+  const dialog = await openReview(page, COUNTDOWN.description)
   const form = formOf(dialog)
   const dismissFailed = dialog.getByText('Could not dismiss this item. Please try again.', { exact: true })
   await dismissItem(dialog)
   await expect(dismissFailed).toBeVisible()
 
-  // The server's own words when it refuses the item
+  // The app's own words when no answer comes
   await chooseFromDropdown(dialog, 'Merchant', 'Unknown')
   await chooseFromDropdown(dialog, 'Category', 'Groceries')
-  review.refusal = { status: 409, detail: serverMessage }
-  await form.add.click()
-  await expect(dialog.getByText(serverMessage, { exact: true })).toBeVisible()
-  await expect(dismissFailed).toBeHidden()
-
-  // And the app's when no answer comes
-  review.refusal = 'network'
+  failure = 'no answer'
   await form.add.click()
   await expect(dialog.getByText('Something went wrong. Please try again.', { exact: true })).toBeVisible()
+  await expect(dismissFailed).toBeHidden()
 
+  // Closed, the item still waits
   await dialog.getByRole('button', { name: 'Close', exact: true }).click()
   await expect(dialog).toBeHidden()
   await expect(reviewBlock(page).getByRole('listitem')).toHaveCount(1)
-  expect(review.created).toEqual([])
+
+  // And the server's own words when it refuses the item, dismissed meanwhile on another device
+  const [item] = await readReviewItems(request, user, everyday.id)
+  expect((await request.post(`${API_BASE_URL}/bank-review/items/${item.id}/dismiss`, { headers: asUser(user) })).status()).toBe(204)
+  failure = null
+  await openReview(page, COUNTDOWN.description)
+  await chooseFromDropdown(dialog, 'Merchant', 'Unknown')
+  await chooseFromDropdown(dialog, 'Category', 'Groceries')
+  await form.add.click()
+  await expect(dialog.getByText("This item was dismissed, so it can't be added to the ledger", { exact: true })).toBeVisible()
+  await expect(dialog).toBeVisible()
+  expect(await countLedgerTransactions(request, user)).toBe(0)
 })
 
 test('opens an amount its currency cannot hold empty, and adds the item once one is entered', async ({ page, request }) => {
-  const { everyday } = await start(page, request)
-  const review = await answerReview(page, [countdown(everyday.id, { amount: null, raw_amount: '-42.105' })])
+  const { user } = await start(page, request, [{ ...COUNTDOWN, amount: '-42.105' }])
   await openPage(page, '/transactions')
 
-  const dialog = await openReview(page, 'COUNTDOWN 123 AUCKLAND')
+  const dialog = await openReview(page, COUNTDOWN.description)
   const form = formOf(dialog)
+  const decisions = watchDecisions(page)
   await expect(dialog.getByRole('tab', { name: 'Expense', exact: true })).toHaveAttribute('aria-selected', 'true')
   await expect(form.amount).toHaveValue('')
 
@@ -433,25 +407,26 @@ test('opens an amount its currency cannot hold empty, and adds the item once one
   await chooseFromDropdown(dialog, 'Category', 'Groceries')
   await form.add.click()
   await expect(dialog.getByText('Enter an amount', { exact: true })).toBeVisible()
-  expect(review.decisions).toEqual([])
+  expect(decisions).toEqual([])
 
   await form.amount.fill('42.11')
-  await form.add.click()
+  const id = await addToLedger(page, dialog)
   await expect(dialog).toBeHidden()
-  expect(review.decisions).toEqual([{ itemId: 'countdown', action: 'add', body: expect.objectContaining({ amount: -4211 }) }])
-  await expectTransactionRow(page, review.created[0], `${MINUS}$42.11`)
+  await expectTransactionRow(page, id, `${MINUS}$42.11`)
+
+  // The amount the user entered stands in for the bank's, so it counts as their edit
+  expect(await readTransaction(request, user, id)).toMatchObject({ amount: -4211, bank_source: { edited_fields: ['amount'] } })
 })
 
 for (const colorScheme of ['light', 'dark'] as const) {
   test(`hangs the filing card beside the form or heads it, readable in the ${colorScheme} theme`, async ({ page, request }) => {
-    const { everyday } = await start(page, request)
-    await answerReview(page, [countdown(everyday.id)])
+    await start(page, request, [COUNTDOWN])
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
     await openPage(page, '/transactions')
 
     if (colorScheme === 'dark') await expect(page.locator('html')).toHaveClass(/\bdark\b/)
     else await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
-    const dialog = await openReview(page, 'COUNTDOWN 123 AUCKLAND')
+    const dialog = await openReview(page, COUNTDOWN.description)
     const card = filingCard(page)
     const amount = formOf(dialog).amount
     const viewport = page.viewportSize()!
@@ -474,11 +449,11 @@ for (const colorScheme of ['light', 'dark'] as const) {
 
     const texts = [
       page.getByText('SimpleFIN', { exact: true }).filter({ visible: true }),
-      card.getByText('Example Bank', { exact: true }),
+      card.getByText('Harbour Bank', { exact: true }),
       card.getByText('New', { exact: true }),
-      card.getByText('Chequing', { exact: true }),
+      card.getByText('Everyday Chequing', { exact: true }),
       card.getByText('Description from SimpleFIN', { exact: true }),
-      card.getByText('COUNTDOWN 123 AUCKLAND', { exact: true }),
+      card.getByText(COUNTDOWN.description, { exact: true }),
       ...await card.locator('dt, dd').all(),
     ]
     for (const text of texts) {
@@ -493,12 +468,11 @@ for (const colorScheme of ['light', 'dark'] as const) {
 // them in a row from there, so each layout is checked once
 for (const width of [390, 1049]) {
   test(`lines the footer up with the form above it at ${width}px`, async ({ page, request }) => {
-    const { everyday } = await start(page, request)
-    await answerReview(page, [countdown(everyday.id)])
+    await start(page, request, [COUNTDOWN])
     await page.setViewportSize({ width, height: page.viewportSize()!.height })
     await openPage(page, '/transactions')
 
-    const dialog = await openReview(page, 'COUNTDOWN 123 AUCKLAND')
+    const dialog = await openReview(page, COUNTDOWN.description)
     const form = formOf(dialog)
     // Measured together and polled, since the dialog scales in as it opens and edges read mid-animation
     // drift apart by however far it has to go. Keep window open's whole label is the footer's left item,
@@ -528,44 +502,38 @@ test.describe('on a short phone screen', () => {
   })
 
   test('starts on the first field to fill in, the amount where the bank’s can’t be used', async ({ page, request }) => {
-    const { everyday } = await start(page, request)
-    await answerReview(page, [
-      countdown(everyday.id),
-      reviewItem('harbour', 'new', everyday.id, { description: 'HARBOUR COFFEE', amount: null, raw_amount: '-12.505' }),
-    ])
+    await start(page, request, [COUNTDOWN, { ...HARBOUR, amount: '-12.505' }])
     await openPage(page, '/transactions')
 
-    const dialog = await openReview(page, 'COUNTDOWN 123 AUCKLAND')
+    const dialog = await openReview(page, COUNTDOWN.description)
     await expect(formOf(dialog).merchant).toBeFocused()
     await dialog.getByRole('button', { name: 'Close', exact: true }).click()
     await expect(dialog).toBeHidden()
 
-    await openReview(page, 'HARBOUR COFFEE')
+    await openReview(page, HARBOUR.description)
     await expect(formOf(dialog).amount).toBeFocused()
   })
 
   test('shows the next item from the top of its form, wherever the last one was scrolled to', async ({ page, request }) => {
-    const { everyday } = await start(page, request)
-    await answerReview(page, [countdown(everyday.id), reviewItem('harbour', 'new', everyday.id, { description: 'HARBOUR COFFEE' })])
+    await start(page, request, [COUNTDOWN, HARBOUR])
     await openPage(page, '/transactions')
 
-    const dialog = await openReview(page, 'COUNTDOWN 123 AUCKLAND')
+    const dialog = await openReview(page, COUNTDOWN.description)
     const form = formOf(dialog)
     await form.keepOpen.check()
     await form.amount.scrollIntoViewIfNeeded()
     await expect(filingCard(page)).not.toBeInViewport()
     await dismissItem(dialog)
 
-    await expect(filingCard(page)).toContainText('HARBOUR COFFEE')
+    await expect(filingCard(page)).toContainText(HARBOUR.description)
     await expect(filingCard(page)).toBeInViewport()
   })
 
   test('brings the first field Add still needs into view, and focuses it', async ({ page, request }) => {
-    const { everyday } = await start(page, request)
-    await answerReview(page, [countdown(everyday.id)])
+    await start(page, request, [COUNTDOWN])
     await openPage(page, '/transactions')
 
-    const dialog = await openReview(page, 'COUNTDOWN 123 AUCKLAND')
+    const dialog = await openReview(page, COUNTDOWN.description)
     const form = formOf(dialog)
     await form.add.click()
 
@@ -574,8 +542,11 @@ test.describe('on a short phone screen', () => {
   })
 
   test('brings a failed decision’s message into view', async ({ page, request }) => {
-    const { everyday } = await start(page, request)
-    const review = await answerReview(page, [countdown(everyday.id)])
+    await start(page, request, [COUNTDOWN])
+
+    // The dismissal fails as the server never would
+    await page.route((url) => url.href.startsWith(`${API_BASE_URL}/bank-review/items/`), (route) =>
+      route.fulfill({ status: 500, json: { detail: 'Something went wrong' } }))
     await openPage(page, '/transactions')
 
     const dialog = await openReview(page, COUNTDOWN.description)

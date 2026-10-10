@@ -1,62 +1,72 @@
-import { expect, test, type APIRequestContext, type Locator, type Page, type Route } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
-import { asUser, createAccount, createTransaction, signUpUser, type TestUser } from '../support/api'
+import { createAccount, daysFromTodayInTestTimezone, formatDateLabel, signUpUser, type TestUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
-import { answerAsBankImported, BANK_SOURCE, type BankSource } from '../support/bankSync'
+import { addImportedItem, editTransaction, linkToEmptyBankAccount, readTransaction } from '../support/bankSync'
 import { expectPendingAction, expectTransactionRow, MINUS, readBoxes } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 
 // The edit modal of a bank-imported transaction shows the bank's description and, under each field
-// the user edited, the bank's value with Restore bank value. Nothing links an account on the server
-// for a sync to import a transaction, so each test answers the app's reads with the source the server
-// attaches, and answers a restore by writing the bank's value to the real transaction, as the server
-// does, then answering with the source as the restore left it. That stand-in tests the modal alone:
-// the real restore route, its refusals and its locking are left to the backend route tests
+// the user edited, the bank's value with Restore bank value.
+//
+// Everyday links to an empty bank account at Harbour Bank on the fake SimpleFIN Bridge, whose one
+// transaction the user adds to the ledger as the bank sent it and then edits, so every restore goes to
+// the server and what it saved is read back. Only a failed restore, which the server can't be made to
+// give, is answered in its place
 const BANK_DESCRIPTION = 'HARBOUR CAFE #12 VANCOUVER'
 const RESTORE_FAILED = 'Could not restore the bank value. Please try again.'
 const UNSTORABLE_REASON = 'The bank\'s amount has more decimal places than CAD allows, so it can\'t be restored.'
 
+// The day the bank booked the transaction on, and the earlier one a test moves it to
+const BANK_DATE = daysFromTodayInTestTimezone(-3)
+const EDITED_DATE = daysFromTodayInTestTimezone(-5)
+
 // How far below the edge of the modal's body the action sits before the keyboard reaches it
 const ACTION_OUT_OF_VIEW_PX = 6
 
-/** A bank source sending these values, with these fields edited in the ledger */
-function bankSource(values: Partial<BankSource['bank_values']>, editedFields: BankSource['edited_fields']): BankSource {
-  return {
-    ...BANK_SOURCE,
-    bank_values: { ...BANK_SOURCE.bank_values, description: BANK_DESCRIPTION, ...values },
-    edited_fields: editedFields,
-  }
+/**
+ * Signs up with Everyday, linked to Everyday Chequing at Harbour Bank, which sends `amount` on the
+ * bank's day. The user adds it to the ledger as the bank sent it, or with `added` minor units where
+ * the bank's amount can't be held, then makes the edit given. Answers with the transaction's id
+ */
+async function startWithImported(
+  page: Page,
+  request: APIRequestContext,
+  amount: string,
+  edit: { dt?: string; amount?: number },
+  added?: number,
+): Promise<{ user: TestUser; id: string }> {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  await linkToEmptyBankAccount(request, user, {
+    accountId: account.id,
+    startDate: daysFromTodayInTestTimezone(-10),
+    transactions: [{ posted: BANK_DATE, amount, description: BANK_DESCRIPTION }],
+  })
+  const { id } = await addImportedItem(request, user, account.id, BANK_DESCRIPTION, added)
+  if (Object.keys(edit).length > 0) await editTransaction(request, user, id, edit)
+  await logInViaApi(page, user)
+  return { user, id }
 }
 
 /**
- * Answers a restore of the transaction by writing the bank's value for the field to it through the
- * real server and taking the field out of its source's edited ones, so every later read agrees. The
- * answer waits on the returned release, for a test that looks at the modal while it restores
+ * Holds the page's restores of the transaction's bank values until the returned release, for a test
+ * that looks at the modal while one is under way, then sends them on to the server
  */
-async function answerRestores(
-  page: Page,
-  request: APIRequestContext,
-  user: TestUser,
-  sources: Record<string, BankSource>,
-  id: string,
-): Promise<() => void> {
+async function holdRestores(page: Page, id: string): Promise<() => void> {
   let release!: () => void
   const held = new Promise<void>((resolve) => { release = resolve })
-  await page.route(`${API_BASE_URL}/bank-sync/transaction-sources/${id}/restore`, async (route: Route) => {
-    if (route.request().method() !== 'POST') return route.fallback()
-    const { field } = route.request().postDataJSON() as { field: 'date' | 'amount' }
+  await page.route(`${API_BASE_URL}/bank-sync/transaction-sources/${id}/restore`, async (route) => {
     await held
-
-    const { bank_values: bank } = sources[id]
-    const response = await request.patch(`${API_BASE_URL}/transactions/${id}`, {
-      headers: asUser(user),
-      data: field === 'date' ? { dt: bank.date } : { amount: bank.amount },
-    })
-    expect(response.ok(), `writing the bank's ${field} answered ${response.status()}: ${await response.text()}`).toBe(true)
-    sources[id] = { ...sources[id], edited_fields: sources[id].edited_fields.filter((edited) => edited !== field) }
-    await route.fulfill({ json: { ...await response.json(), bank_source: sources[id] } })
+    await route.fallback()
   })
   return release
+}
+
+/** Fails the page's restores of the transaction's bank values with a server error */
+async function failRestores(page: Page, id: string): Promise<void> {
+  await page.route(`${API_BASE_URL}/bank-sync/transaction-sources/${id}/restore`, (route) =>
+    route.fulfill({ status: 500, json: { detail: 'Internal Server Error' } }))
 }
 
 /** Opens the edit modal of the transaction from its row */
@@ -120,20 +130,9 @@ test.afterEach(async ({ page }) => {
 })
 
 test('restores the bank amount under an edited amount, bringing back its sign and direction', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-
   // The bank sent money out, which the user turned into money in
-  const id = await createTransaction(request, user, {
-    accountId: account.id,
-    categoryName: 'Groceries',
-    amount: 4210,
-    date: BANK_SOURCE.bank_values.date,
-  })
-  const sources = { [id]: bankSource({ amount: -4210 }, ['amount']) }
-  await answerAsBankImported(page, sources)
-  const release = await answerRestores(page, request, user, sources, id)
-  await logInViaApi(page, user)
+  const { user, id } = await startWithImported(page, request, '-42.10', { amount: 4210 })
+  const release = await holdRestores(page, id)
   await openPage(page, '/transactions')
   await expect(page.getByTestId(`transaction-row-${id}`).getByTestId('bank-edited-dot').filter({ visible: true })).toBeVisible()
 
@@ -178,24 +177,12 @@ test('restores the bank amount under an edited amount, bringing back its sign an
   await expect(dialog).toBeHidden()
   await expectTransactionRow(page, id, `${MINUS}$42.10`)
   await expect(page.getByTestId(`transaction-row-${id}`).getByTestId('bank-edited-dot').filter({ visible: true })).toHaveCount(0)
+  expect(await readTransaction(request, user, id)).toMatchObject({ amount: -4210, bank_source: { edited_fields: [] } })
 })
 
 test('restores money coming in, bringing back the Credit direction', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-
   // The bank sent money in, which the user turned into money out
-  const id = await createTransaction(request, user, {
-    accountId: account.id,
-    categoryName: 'Groceries',
-    amount: -5000,
-    date: BANK_SOURCE.bank_values.date,
-  })
-  const sources = { [id]: bankSource({ amount: 5000 }, ['amount']) }
-  await answerAsBankImported(page, sources)
-  const release = await answerRestores(page, request, user, sources, id)
-  release()
-  await logInViaApi(page, user)
+  const { user, id } = await startWithImported(page, request, '50.00', { amount: -5000 })
   await openPage(page, '/transactions')
 
   const dialog = await openTransaction(page, id)
@@ -206,25 +193,16 @@ test('restores money coming in, bringing back the Credit direction', async ({ pa
   await expect(dialog.getByRole('tab', { name: 'Credit', exact: true })).toHaveAttribute('aria-selected', 'true')
   await expect(dialog.getByRole('textbox', { name: 'Amount', exact: true })).toHaveValue('50.00')
   await expect(dialog.locator('#txn-amount-bank-value')).toHaveCount(0)
+  expect(await readTransaction(request, user, id)).toMatchObject({ amount: 5000, bank_source: { edited_fields: [] } })
 })
 
 test('restores one of two edited fields, holding the other back while it restores', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  const id = await createTransaction(request, user, {
-    accountId: account.id,
-    categoryName: 'Groceries',
-    amount: -4000,
-    date: '2026-01-13',
-  })
-  const sources = { [id]: bankSource({ amount: -4210 }, ['date', 'amount']) }
-  await answerAsBankImported(page, sources)
-  const release = await answerRestores(page, request, user, sources, id)
-  await logInViaApi(page, user)
+  const { user, id } = await startWithImported(page, request, '-42.10', { dt: EDITED_DATE, amount: -4000 })
+  const release = await holdRestores(page, id)
   await openPage(page, '/transactions')
 
   const dialog = await openTransaction(page, id)
-  await expect(dialog.locator('#txn-date-bank-value')).toHaveText('Bank: Jan 15, 2026')
+  await expect(dialog.locator('#txn-date-bank-value')).toHaveText(`Bank: ${formatDateLabel(BANK_DATE)}`)
   await expect(dialog.locator('#txn-amount-bank-value')).toHaveText(`Bank: ${MINUS}$42.10`)
 
   // Only the amount reads Restoring, and the date's action waits for it
@@ -240,25 +218,14 @@ test('restores one of two edited fields, holding the other back while it restore
   // The amount is restored and the date is still the user's own, with its action back
   await expect(dialog.locator('#txn-amount-bank-value')).toHaveCount(0)
   await expect(dialog.getByRole('textbox', { name: 'Amount', exact: true })).toHaveValue('42.10')
-  await expect(dialog.locator('#txn-date-bank-value')).toHaveText('Bank: Jan 15, 2026')
-  await expect(dialog.getByRole('group', { name: 'Date' }).getByRole('textbox', { name: 'Day' })).toHaveValue('13')
+  await expect(dialog.locator('#txn-date-bank-value')).toHaveText(`Bank: ${formatDateLabel(BANK_DATE)}`)
+  await expect(dialog.getByRole('group', { name: 'Date' }).getByRole('textbox', { name: 'Day' })).toHaveValue(EDITED_DATE.slice(8))
   await expect(restoreDate).toBeEnabled()
+  expect(await readTransaction(request, user, id)).toMatchObject({ dt: EDITED_DATE, amount: -4210, bank_source: { edited_fields: ['date'] } })
 })
 
 test('saves an edit made after a restore in the same modal, compared with the restored value', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  const id = await createTransaction(request, user, {
-    accountId: account.id,
-    categoryName: 'Groceries',
-    amount: 4210,
-    date: BANK_SOURCE.bank_values.date,
-  })
-  const sources = { [id]: bankSource({ amount: -4210 }, ['amount']) }
-  await answerAsBankImported(page, sources)
-  const release = await answerRestores(page, request, user, sources, id)
-  release()
-  await logInViaApi(page, user)
+  const { user, id } = await startWithImported(page, request, '-42.10', { amount: 4210 })
   await openPage(page, '/transactions')
 
   const dialog = await openTransaction(page, id)
@@ -271,28 +238,17 @@ test('saves an edit made after a restore in the same modal, compared with the re
   await dialog.getByTestId('transaction-submit').click()
   await expect(dialog).toBeHidden()
   await expectTransactionRow(page, id, '+$42.10')
+  expect(await readTransaction(request, user, id)).toMatchObject({ amount: 4210, bank_source: { edited_fields: ['amount'] } })
 })
 
 test('restores the bank date under an edited date, which stays restored once the modal reopens', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  const id = await createTransaction(request, user, {
-    accountId: account.id,
-    categoryName: 'Groceries',
-    amount: BANK_SOURCE.bank_values.amount!,
-    date: '2026-01-13',
-  })
-  const sources = { [id]: bankSource({}, ['date']) }
-  await answerAsBankImported(page, sources)
-  const release = await answerRestores(page, request, user, sources, id)
-  release()
-  await logInViaApi(page, user)
+  const { user, id } = await startWithImported(page, request, '-42.50', { dt: EDITED_DATE })
   await openPage(page, '/transactions')
 
   const dialog = await openTransaction(page, id)
   const date = dialog.getByRole('group', { name: 'Date' })
   const caption = dialog.locator('#txn-date-bank-value')
-  await expect(caption).toHaveText('Bank: Jan 15, 2026')
+  await expect(caption).toHaveText(`Bank: ${formatDateLabel(BANK_DATE)}`)
   await expectUnder(caption, date)
   await expect(dialog.locator('#txn-amount-bank-value')).toHaveCount(0)
 
@@ -300,33 +256,24 @@ test('restores the bank date under an edited date, which stays restored once the
   // action takes a line of its own. Stacked on a phone, both fit on one line
   const [dateBox, amountBox] = await readBoxes(page, [date, dialog.getByRole('textbox', { name: 'Amount', exact: true })])
   expect(await expectActionPlacement(dialog, 'date')).toBe(amountBox.x >= dateBox.x + dateBox.width)
-  await expect(date.getByRole('textbox', { name: 'Day' })).toHaveValue('13')
+  await expect(date.getByRole('textbox', { name: 'Day' })).toHaveValue(EDITED_DATE.slice(8))
 
   await restoreAction(dialog, 'date').click()
-  await expect(date.getByRole('textbox', { name: 'Day' })).toHaveValue('15')
+  await expect(date.getByRole('textbox', { name: 'Day' })).toHaveValue(BANK_DATE.slice(8))
   await expect(caption).toHaveCount(0)
   await expect(date.getByRole('textbox', { name: 'Year' })).toBeFocused()
 
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(dialog).toBeHidden()
   const reopened = await openTransaction(page, id)
-  await expect(reopened.getByRole('group', { name: 'Date' }).getByRole('textbox', { name: 'Day' })).toHaveValue('15')
+  await expect(reopened.getByRole('group', { name: 'Date' }).getByRole('textbox', { name: 'Day' })).toHaveValue(BANK_DATE.slice(8))
   await expect(reopened.getByRole('button', { name: 'Restore bank value' })).toHaveCount(0)
+  expect(await readTransaction(request, user, id)).toMatchObject({ dt: BANK_DATE, bank_source: { edited_fields: [] } })
 })
 
 test('says a restore failed, leaving the field and its bank value to try again', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  const id = await createTransaction(request, user, {
-    accountId: account.id,
-    categoryName: 'Groceries',
-    amount: -4000,
-    date: BANK_SOURCE.bank_values.date,
-  })
-  await answerAsBankImported(page, { [id]: bankSource({ amount: -4210 }, ['amount']) })
-  await page.route(`${API_BASE_URL}/bank-sync/transaction-sources/${id}/restore`, (route) =>
-    route.fulfill({ status: 500, json: { detail: 'Internal Server Error' } }))
-  await logInViaApi(page, user)
+  const { id } = await startWithImported(page, request, '-42.10', { amount: -4000 })
+  await failRestores(page, id)
   await openPage(page, '/transactions')
 
   const dialog = await openTransaction(page, id)
@@ -349,19 +296,9 @@ test('says a restore failed, leaving the field and its bank value to try again',
 })
 
 test('brings a failed restore into view above the footer, from an action at the foot of a short screen', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  const id = await createTransaction(request, user, {
-    accountId: account.id,
-    categoryName: 'Groceries',
-    amount: -4000,
-    date: BANK_SOURCE.bank_values.date,
-  })
-  await answerAsBankImported(page, { [id]: bankSource({ amount: -4210 }, ['amount']) })
-  await page.route(`${API_BASE_URL}/bank-sync/transaction-sources/${id}/restore`, (route) =>
-    route.fulfill({ status: 500, json: { detail: 'Internal Server Error' } }))
+  const { id } = await startWithImported(page, request, '-42.10', { amount: -4000 })
+  await failRestores(page, id)
   await page.setViewportSize({ width: 390, height: 667 })
-  await logInViaApi(page, user)
   await openPage(page, '/transactions')
 
   // The form scrolls until the amount's action sits just above the footer, where the failure would
@@ -392,21 +329,12 @@ test('brings a failed restore into view above the footer, from an action at the 
 })
 
 test('greys out Restore bank value on an amount the currency can\'t hold, saying why', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  const id = await createTransaction(request, user, {
-    accountId: account.id,
-    categoryName: 'Groceries',
-    amount: -4250,
-    date: BANK_SOURCE.bank_values.date,
-  })
-  await answerAsBankImported(page, { [id]: bankSource({ amount: null, raw_amount: '-42.505' }, ['amount']) })
+  // Added with an amount of the user's own, which counts as their edit
+  const { id } = await startWithImported(page, request, '-42.505', {}, -4250)
   let restores = 0
-  await page.route(`${API_BASE_URL}/bank-sync/transaction-sources/${id}/restore`, (route) => {
-    restores += 1
-    return route.abort()
+  page.on('request', (sent) => {
+    if (sent.url() === `${API_BASE_URL}/bank-sync/transaction-sources/${id}/restore`) restores += 1
   })
-  await logInViaApi(page, user)
   await openPage(page, '/transactions')
 
   // The bank's amount shows exactly as sent, and the action shows greyed out, described by why

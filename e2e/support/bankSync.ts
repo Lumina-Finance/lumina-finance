@@ -687,10 +687,103 @@ export async function linkToEmptyBankAccount(
 }
 
 /**
+ * Read the items waiting for review in a linked account, as the review list's first page holds them,
+ * newest first
+ */
+export async function readReviewItems(request: APIRequestContext, user: TestUser, accountId: string): Promise<ReviewItem[]> {
+  const response = await request.get(`${API_BASE_URL}/bank-review/items?account_id=${accountId}`, { headers: asUser(user) })
+  expect(response.status()).toBe(200)
+  return ((await response.json()) as ReviewPage).items
+}
+
+/**
+ * Wait for the worker to bring the items waiting in a linked account to what a spec needs, such as the
+ * new items an import brought in or a correction a sync found
+ *
+ * @param reached - Whether the items waiting, newest first, are what the spec needs yet
+ * @returns The items waiting once they are
+ */
+export async function waitForReviewItems(
+  request: APIRequestContext,
+  user: TestUser,
+  accountId: string,
+  reached: (items: ReviewItem[]) => boolean,
+): Promise<ReviewItem[]> {
+  let items: ReviewItem[] = []
+  await expect.poll(async () => {
+    items = await readReviewItems(request, user, accountId)
+    return reached(items)
+  }, { timeout: WORKER_RESULT_TIMEOUT_MS }).toBe(true)
+  return items
+}
+
+/** A link's sync as the list of links reads it, as far as a spec waits on it */
+type LinkSync = { state: string; sync_running: boolean; sync_requested: boolean }
+
+/**
+ * Sync a linked account now, as Sync now does, once its import and any sync already under way are
+ * over, so the worker reads what the Bridge sends from then on
+ *
+ * @throws When the server refuses the sync
+ */
+export async function syncBankLinkNow(request: APIRequestContext, user: TestUser, accountId: string): Promise<void> {
+  await expect.poll(async () => {
+    const response = await request.get(`${API_BASE_URL}/bank-sync/links`, { headers: asUser(user) })
+    expect(response.status()).toBe(200)
+    const link = ((await response.json()) as { account_id: string; sync: LinkSync }[]).find((entry) => entry.account_id === accountId)
+    return link !== undefined && link.sync.state !== 'importing' && !link.sync.sync_running && !link.sync.sync_requested
+  }, { timeout: WORKER_RESULT_TIMEOUT_MS }).toBe(true)
+
+  const response = await request.post(`${API_BASE_URL}/accounts/${accountId}/bank-link/sync`, { headers: asUser(user) })
+  if (response.status() !== 200) {
+    throw new Error(`syncing account ${accountId} answered ${response.status()}: ${await response.text()}`)
+  }
+}
+
+/** A ledger transaction as the server holds it, as far as a bank spec reads it back */
+export type SavedTransaction = {
+  id: string
+  dt: string
+  amount: number
+  counterparty_account_id: string | null
+  counterparty_account_scope: string | null
+  bank_source: BankSource | null
+}
+
+/**
+ * Read a ledger transaction as the server holds it, to check what a review or a restore saved
+ */
+export async function readTransaction(request: APIRequestContext, user: TestUser, id: string): Promise<SavedTransaction> {
+  const response = await request.get(`${API_BASE_URL}/transactions/${id}`, { headers: asUser(user) })
+  expect(response.status()).toBe(200)
+  return (await response.json()) as SavedTransaction
+}
+
+/**
+ * Edit a ledger transaction's date or amount as the user does, which a bank-imported one then counts as
+ * edited
+ *
+ * @throws When the edit is refused
+ */
+export async function editTransaction(
+  request: APIRequestContext,
+  user: TestUser,
+  id: string,
+  change: { dt?: string; amount?: number },
+): Promise<void> {
+  const response = await request.patch(`${API_BASE_URL}/transactions/${id}`, { headers: asUser(user), data: change })
+  if (!response.ok()) {
+    throw new Error(`editing transaction ${id} answered ${response.status()}: ${await response.text()}`)
+  }
+}
+
+/**
  * Wait for the worker to import a linked account's bank item, then add it to the ledger in Groceries
  * with the bank's date and amount, as reviewing it does.
  *
  * @param description - The bank's description of the item
+ * @param amount - The amount to add it with in minor units, in place of one the account's currency
+ * can't hold
  * @returns The bank-imported transaction's id and date
  * @throws When adding it does not answer 201
  */
@@ -699,22 +792,17 @@ export async function addImportedItem(
   user: TestUser,
   accountId: string,
   description: string,
+  amount?: number,
 ): Promise<{ id: string; date: string }> {
-  let item: ReviewItem | undefined
-  await expect.poll(async () => {
-    const response = await request.get(`${API_BASE_URL}/bank-review/items?account_id=${accountId}`, { headers: asUser(user) })
-    item = ((await response.json()) as ReviewPage).items.find((entry) => entry.bank.description === description)
-    return item !== undefined
-  }, { timeout: WORKER_RESULT_TIMEOUT_MS }).toBe(true)
-
-  const { id, bank } = item!
+  const isItem = (entry: ReviewItem) => entry.bank.description === description
+  const { id, bank } = (await waitForReviewItems(request, user, accountId, (items) => items.some(isItem))).find(isItem)!
   const [categoryId, merchantId] = await Promise.all([
     findReferenceId(request, user, 'categories', 'Groceries'),
     findReferenceId(request, user, 'merchants', 'Unknown'),
   ])
   const response = await request.post(`${API_BASE_URL}/bank-review/items/${id}/add`, {
     headers: asUser(user),
-    data: { dt: bank.date, amount: bank.amount, category_id: categoryId, merchant_id: merchantId },
+    data: { dt: bank.date, amount: amount ?? bank.amount, category_id: categoryId, merchant_id: merchantId },
   })
   if (response.status() !== 201) {
     throw new Error(`adding the bank item ${description} answered ${response.status()}: ${await response.text()}`)
