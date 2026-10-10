@@ -120,3 +120,28 @@ test('keeps budget actions named during creation and editing', async ({ page, re
   await expect(edit).toBeHidden()
   await expect(page.getByRole('dialog', { name: 'Selectors budget edited', exact: true })).toBeVisible()
 })
+
+test('shows the Edit Budget Cancel and Save Changes buttons in one row, as halves on a phone', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const id = await createMonthlyBudget(request, user, {
+    name: 'Footer budget',
+    categoryNames: ['Groceries'],
+    overallLimit: 50_000,
+    periodStart: budgetPeriodStart(),
+  })
+  await logInViaApi(page, user)
+  await openPage(page, '/budgets')
+  await page.getByTestId(`budget-card-${id}`).click()
+  await page.getByRole('dialog', { name: 'Footer budget', exact: true }).getByRole('button', { name: 'Edit', exact: true }).click()
+  const edit = page.getByRole('dialog', { name: 'Edit Budget', exact: true })
+  // Both read in one go, since the dialog may still be sliding in
+  const [cancel, save] = await edit.getByTestId('budget-submit').evaluate((submit) => {
+    const cancelButton = [...submit.parentElement!.querySelectorAll('button')].find((button) => button.textContent === 'Cancel')!
+    return [cancelButton.getBoundingClientRect().toJSON(), submit.getBoundingClientRect().toJSON()] as DOMRect[]
+  })
+
+  // One row, Cancel first, and below the width where both sit together at the right, two equal halves
+  expect(Math.abs(save.y - cancel.y)).toBeLessThan(2)
+  expect(cancel.x).toBeLessThan(save.x)
+  if (page.viewportSize()!.width < 640) expect(Math.abs(save.width - cancel.width)).toBeLessThan(2)
+})

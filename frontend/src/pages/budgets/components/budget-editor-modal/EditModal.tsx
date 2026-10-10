@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type React from 'react'
-import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import { useUpdateBaseBudget, useUpdateBudget, type BaseBudget, type Budget } from '@/api/budgets'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
@@ -31,8 +30,6 @@ const EDIT_FIELD_IDS: BudgetEditorModalFieldIds = {
   categorySearch: 'budget-edit-category-search',
   categoryError: 'budget-edit-category-error',
 }
-
-const EDIT_FOOTER_CLASS_NAME = `flex shrink-0 flex-col-reverse gap-3 py-4 sm:flex-row sm:justify-end min-[1050px]:py-5 ${MODAL_INSET_CLASS_NAME.stacked}`
 
 const EDIT_INITIAL_TOUCHED = {
   name: false,
@@ -343,7 +340,7 @@ export default function BudgetEditModal({
       onSubmit={handleSubmit}
       footer={(
         <BudgetEditorModalFooter
-          className={EDIT_FOOTER_CLASS_NAME}
+          level="stacked"
           isPending={isPending}
           submitDisabled={!canSave}
           submitLabel="Save Changes"
