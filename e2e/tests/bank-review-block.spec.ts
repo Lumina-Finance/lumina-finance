@@ -674,7 +674,7 @@ test('says an account is paused for its backlog, or close to pausing', async ({ 
 })
 
 for (const colorScheme of ['light', 'dark'] as const) {
-  test(`sits above the list and keeps its text readable in the ${colorScheme} theme`, async ({ page, request }) => {
+  test(`${colorScheme === 'light' ? 'sits above the list and keeps' : 'keeps'} its text readable in the ${colorScheme} theme`, async ({ page, request }) => {
     const { everyday, visa } = await start(page, request)
     const items = [
       reviewItem('visa-1', 'correction', visa.id, { description: 'COUNTDOWN 123 WITH A LONGER BANK DESCRIPTION THAN MOST', amount: -2310 }),
@@ -696,25 +696,33 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expect(rows).toHaveCount(4)
     await expect(toggle).toHaveAttribute('aria-expanded', 'false')
 
-    // Within the page and above the first transaction, with no sideways scroll at any width. The two are
-    // measured together, since the page can still be settling above them
-    const firstTransaction = page.getByTestId(/^transaction-row-/).first()
-    const [blockBox, transactionBox] = await readBoxes(page, [block, firstTransaction])
-    const viewportWidth = page.viewportSize()!.width
-    expect(blockBox.x).toBeGreaterThanOrEqual(0)
-    expect(blockBox.x + blockBox.width).toBeLessThanOrEqual(viewportWidth)
-    expect(blockBox.y + blockBox.height).toBeLessThanOrEqual(transactionBox.y)
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+    // The layout is the same in either theme, so it is measured in the light one only
+    if (colorScheme === 'light') {
+      // Within the page and above the first transaction, with no sideways scroll at any width. The two
+      // are measured together, since the page can still be settling above them
+      const firstTransaction = page.getByTestId(/^transaction-row-/).first()
+      const [blockBox, transactionBox] = await readBoxes(page, [block, firstTransaction])
+      const viewportWidth = page.viewportSize()!.width
+      expect(blockBox.x).toBeGreaterThanOrEqual(0)
+      expect(blockBox.x + blockBox.width).toBeLessThanOrEqual(viewportWidth)
+      expect(blockBox.y + blockBox.height).toBeLessThanOrEqual(transactionBox.y)
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
 
-    // Each amount sits beside its text rather than over it, a long description wrapping instead
-    for (const row of await rows.all()) {
-      const [text, amount] = [await row.getByTestId('review-item-text').boundingBox(), await row.getByTestId('review-item-amount').boundingBox()]
-      expect(amount!.x).toBeGreaterThanOrEqual(text!.x + text!.width)
-      expect(amount!.x + amount!.width).toBeLessThanOrEqual(blockBox.x + blockBox.width)
+      // Each amount sits beside its text rather than over it, a long description wrapping instead
+      for (const row of await rows.all()) {
+        const [text, amount] = [await row.getByTestId('review-item-text').boundingBox(), await row.getByTestId('review-item-amount').boundingBox()]
+        expect(amount!.x).toBeGreaterThanOrEqual(text!.x + text!.width)
+        expect(amount!.x + amount!.width).toBeLessThanOrEqual(blockBox.x + blockBox.width)
+      }
+
+      // The caret ends the header's first row, a button at least 24px each way with no words to read
+      const toggleBox = (await toggle.boundingBox())!
+      expect(Math.min(toggleBox.width, toggleBox.height)).toBeGreaterThanOrEqual(24)
     }
-    // The caret ends the header's first row, a button at least 24px each way with no words to read
-    const toggleBox = (await toggle.boundingBox())!
-    expect(Math.min(toggleBox.width, toggleBox.height)).toBeGreaterThanOrEqual(24)
+
+    // The toggle is a secondary button like Bulk approve beside it, and its words are measured below
+    // under a pointer, which restyles it
+    await toggle.hover()
 
     const texts = [
       block.getByRole('heading', { name: 'Waiting for review' }),

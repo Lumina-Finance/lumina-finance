@@ -450,7 +450,7 @@ test('opens an amount its currency cannot hold empty, and adds the item once one
 })
 
 for (const colorScheme of ['light', 'dark'] as const) {
-  test(`hangs the filing card beside the form or heads it, readable in the ${colorScheme} theme`, async ({ page, request }) => {
+  test(`${colorScheme === 'light' ? 'hangs the filing card beside the form or heads it, readable' : 'keeps the filing card readable'} in the ${colorScheme} theme`, async ({ page, request }) => {
     await start(page, request, [COUNTDOWN])
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
     await openPage(page, '/transactions')
@@ -462,21 +462,24 @@ for (const colorScheme of ['light', 'dark'] as const) {
     const amount = formOf(dialog).amount
     const viewport = page.viewportSize()!
 
-    // Beside the dialog, level with its top, wherever there is room, and otherwise at the head of the
-    // form inside it. A phone gives the dialog its whole screen. Read once the dialog has settled
-    await expect(async () => {
-      const [dialogBox, cardBox, amountBox] = await Promise.all([dialog, card, amount].map((part) => part.boundingBox()))
-      if (viewport.width >= ASIDE_MIN_WIDTH) {
-        expect(cardBox!.x).toBeGreaterThan(dialogBox!.x + dialogBox!.width)
-        expect(cardBox!.x + cardBox!.width).toBeLessThanOrEqual(viewport.width)
-        expect(Math.abs(cardBox!.y - dialogBox!.y)).toBeLessThan(40)
-      } else {
-        expect(cardBox!.y + cardBox!.height).toBeLessThanOrEqual(amountBox!.y)
-      }
-      if (viewport.width < FULL_SCREEN_BELOW) expect(dialogBox).toEqual({ x: 0, y: 0, width: viewport.width, height: viewport.height })
-    }).toPass()
-    await expect(dialog.getByRole('region', { name: 'SimpleFIN filing card' })).toHaveCount(viewport.width >= ASIDE_MIN_WIDTH ? 0 : 1)
-    expect(await dialog.evaluate((panel) => panel.scrollWidth <= panel.clientWidth)).toBe(true)
+    // The layout is the same in either theme, so it is measured in the light one only
+    if (colorScheme === 'light') {
+      // Beside the dialog, level with its top, wherever there is room, and otherwise at the head of the
+      // form inside it. A phone gives the dialog its whole screen. Read once the dialog has settled
+      await expect(async () => {
+        const [dialogBox, cardBox, amountBox] = await Promise.all([dialog, card, amount].map((part) => part.boundingBox()))
+        if (viewport.width >= ASIDE_MIN_WIDTH) {
+          expect(cardBox!.x).toBeGreaterThan(dialogBox!.x + dialogBox!.width)
+          expect(cardBox!.x + cardBox!.width).toBeLessThanOrEqual(viewport.width)
+          expect(Math.abs(cardBox!.y - dialogBox!.y)).toBeLessThan(40)
+        } else {
+          expect(cardBox!.y + cardBox!.height).toBeLessThanOrEqual(amountBox!.y)
+        }
+        if (viewport.width < FULL_SCREEN_BELOW) expect(dialogBox).toEqual({ x: 0, y: 0, width: viewport.width, height: viewport.height })
+      }).toPass()
+      await expect(dialog.getByRole('region', { name: 'SimpleFIN filing card' })).toHaveCount(viewport.width >= ASIDE_MIN_WIDTH ? 0 : 1)
+      expect(await dialog.evaluate((panel) => panel.scrollWidth <= panel.clientWidth)).toBe(true)
+    }
 
     const texts = [
       page.getByText('SimpleFIN', { exact: true }).filter({ visible: true }),

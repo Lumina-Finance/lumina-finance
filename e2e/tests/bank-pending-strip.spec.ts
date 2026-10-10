@@ -323,7 +323,7 @@ test("reads the server's pending transactions for every account and for several 
 })
 
 for (const colorScheme of ['light', 'dark'] as const) {
-  test(`sits under the review block and above the list, its text readable in the ${colorScheme} theme`, async ({ page, request }) => {
+  test(`${colorScheme === 'light' ? 'sits under the review block and above the list, its' : 'keeps its'} text readable in the ${colorScheme} theme`, async ({ page, request }) => {
     const { everyday, visa } = await start(page, request)
     await page.route(isRead('/bank-review/items'), (route) => route.fulfill({ json: pageOf([reviewItem('everyday-1', 'new', everyday.id)], { new: 1 }) }))
     await answerPending(page, () => [
@@ -342,27 +342,30 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await toggle.click()
     await expect(rows).toHaveCount(2)
 
-    // Under the review block and above the first transaction, within the page, with no sideways scroll at
-    // any width. The three are measured together, since the page can still be settling above them
-    const block = page.getByRole('region', { name: 'Waiting for review' })
-    const firstTransaction = page.getByTestId(/^transaction-row-/).first()
-    const [blockBox, stripBox, transactionBox] = await readBoxes(page, [block, strip, firstTransaction])
-    const viewportWidth = page.viewportSize()!.width
-    expect(stripBox.y).toBeGreaterThanOrEqual(blockBox.y + blockBox.height)
-    expect(stripBox.y + stripBox.height).toBeLessThanOrEqual(transactionBox.y)
-    expect(stripBox.x).toBeGreaterThanOrEqual(0)
-    expect(stripBox.x + stripBox.width).toBeLessThanOrEqual(viewportWidth)
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
-
-    // Each amount sits beside its text rather than over it, a long description wrapping instead
+    // The layout is the same in either theme, so it is measured in the light one only
     const uber = rows.filter({ hasText: 'UBER TRIP' })
-    const [description, amount] = [
-      await uber.getByText('UBER TRIP WITH A LONGER BANK DESCRIPTION THAN MOST').boundingBox(),
-      await uber.getByText(`${MINUS}$18.00`).boundingBox(),
-    ]
-    expect(amount!.x).toBeGreaterThanOrEqual(description!.x + description!.width)
-    expect(amount!.x + amount!.width).toBeLessThanOrEqual(stripBox.x + stripBox.width)
-    expect((await toggle.boundingBox())!.height).toBeGreaterThanOrEqual(24)
+    if (colorScheme === 'light') {
+      // Under the review block and above the first transaction, within the page, with no sideways scroll
+      // at any width. The three are measured together, since the page can still be settling above them
+      const block = page.getByRole('region', { name: 'Waiting for review' })
+      const firstTransaction = page.getByTestId(/^transaction-row-/).first()
+      const [blockBox, stripBox, transactionBox] = await readBoxes(page, [block, strip, firstTransaction])
+      const viewportWidth = page.viewportSize()!.width
+      expect(stripBox.y).toBeGreaterThanOrEqual(blockBox.y + blockBox.height)
+      expect(stripBox.y + stripBox.height).toBeLessThanOrEqual(transactionBox.y)
+      expect(stripBox.x).toBeGreaterThanOrEqual(0)
+      expect(stripBox.x + stripBox.width).toBeLessThanOrEqual(viewportWidth)
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+
+      // Each amount sits beside its text rather than over it, a long description wrapping instead
+      const [description, amount] = [
+        await uber.getByText('UBER TRIP WITH A LONGER BANK DESCRIPTION THAN MOST').boundingBox(),
+        await uber.getByText(`${MINUS}$18.00`).boundingBox(),
+      ]
+      expect(amount!.x).toBeGreaterThanOrEqual(description!.x + description!.width)
+      expect(amount!.x + amount!.width).toBeLessThanOrEqual(stripBox.x + stripBox.width)
+      expect((await toggle.boundingBox())!.height).toBeGreaterThanOrEqual(24)
+    }
 
     // The toggle's words are measured as they first show, then again over the tint a pointer that
     // can hover gives it
