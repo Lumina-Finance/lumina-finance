@@ -258,4 +258,4 @@ async def validate_transaction_counterparty_account(
 
     # Read access is enough, since recording an account writes nothing to it. Archived
     # accounts stay recordable, because archiving happens after the money moved
-    await check_account_access(db, counterparty_account_id, user_id, PermissionLevel.READ)
+    await check_account_access(db, counterparty_account_id, user_id, PermissionLevel.READ, lock_against_delete=True)

@@ -176,7 +176,7 @@ async def _load_move_target(db: AsyncSession, user: User, account_id: uuid.UUID)
     Raises:
         HTTPException: The account refuses the write or is archived
     """
-    account = await check_account_access(db, account_id, user.id, PermissionLevel.WRITE)
+    account = await check_account_access(db, account_id, user.id, PermissionLevel.WRITE, lock_against_delete=True)
     validate_transaction_account_is_not_archived(account)
     return account
 

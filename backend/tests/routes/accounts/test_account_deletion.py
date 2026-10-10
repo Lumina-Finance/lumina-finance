@@ -5,6 +5,7 @@ from tests.routes.accounts._account_helpers import (
     _create_second_user,
 )
 from tests.routes.support import _create_account, _create_user, _get_auth_header, _get_system_merchant_id
+from tests.routes.transactions._helpers import _create_tag, _create_transaction, _setup_user_with_deps
 
 # --- DELETE /accounts/{account_id} ---
 
@@ -116,3 +117,15 @@ async def test_delete_account_holding_the_transfer_returns_204(client):
     resp = await client.delete(f"/accounts/{holder_id}", headers=headers)
 
     assert resp.status_code == 204
+
+
+async def test_delete_account_takes_its_transactions_tags_with_it(client):
+    """A tag on one of its transactions goes with the account rather than refusing the delete."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    tag_id = (await _create_tag(client, headers)).json()["id"]
+    tagged = await _create_transaction(client, headers, account_id, category_id, tag_ids=[tag_id])
+    assert tagged.status_code == 201, tagged.text
+
+    resp = await client.delete(f"/accounts/{account_id}", headers=headers)
+
+    assert resp.status_code == 204, resp.text
