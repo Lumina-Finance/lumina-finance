@@ -148,10 +148,12 @@ test("accepts a bank change over an amount the user edited, writing the bank's a
   expect(await readReviewItems(request, user, everyday.id)).toEqual([])
 })
 
-test('keeps the current value, which then counts as edited, clearing the marker without reading the ledger again', async ({ page, request }) => {
+test("keeps the current value, which then counts as edited, clearing the marker and keeping the day's total without reading the ledger again", async ({ page, request }) => {
   const { user, everyday, id } = await startWithCorrection(page, request)
   await openPage(page, '/transactions')
   const row = page.getByTestId(`transaction-row-${id}`)
+  const dayTotal = page.getByTestId('day-total')
+  await expect(dayTotal).toHaveText(`${MINUS}$42.10`)
 
   const dialog = await openComparison(page, COUNTDOWN, 'Review bank change')
   const ledgerReads = watchLedgerReads(page)
@@ -163,28 +165,13 @@ test('keeps the current value, which then counts as edited, clearing the marker 
   await expectTransactionRow(page, id, `${MINUS}$42.10`)
   await expect(needsReview(row)).toHaveCount(0)
   await expect(row.getByRole('button', { name: 'From SimpleFIN, edited', exact: true })).toBeVisible()
+
+  // The day's total still counts the row, though the server answers with a copy of the kept transaction
+  // that leaves out the converted amounts the total sums
+  await expect(dayTotal).toHaveText(`${MINUS}$42.10`)
   expect(ledgerReads).toEqual([])
   expect(await readTransaction(request, user, id)).toMatchObject({ amount: -4210, bank_source: { edited_fields: ['amount'] } })
   expect(await readReviewItems(request, user, everyday.id)).toEqual([])
-})
-
-test("keeps an amount the user edited over a bank change, leaving the day's total at that amount", async ({ page, request }) => {
-  const { id } = await startWithCorrection(page, request, -4000)
-  await openPage(page, '/transactions')
-  const row = page.getByTestId(`transaction-row-${id}`)
-  const dayTotal = page.getByTestId('day-total')
-  await expect(dayTotal).toHaveText(`${MINUS}$40.00`)
-
-  const dialog = await openComparison(page, COUNTDOWN, 'Review bank change')
-  await dialog.getByRole('button', { name: 'Keep current value' }).click()
-  await expect(toast(page, 'Current values kept.')).toBeVisible()
-  await expect(dialog).toBeHidden()
-  await expect(needsReview(row)).toHaveCount(0)
-
-  // Read once rather than waited on, since the marker leaves with the same change to the row the
-  // total is worked out from, and reading the list again later would put a wrong total right
-  expect(await dayTotal.textContent()).toBe(`${MINUS}$40.00`)
-  await expectTransactionRow(page, id, `${MINUS}$40.00`)
 })
 
 test('removes a transaction the bank no longer reports, reading the ledger again', async ({ page, request }) => {
