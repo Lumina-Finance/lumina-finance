@@ -211,8 +211,10 @@ export function InstitutionRow({ entry, defaultOpen, prefersReducedMotion }: { e
   return (
     <section aria-label={entry.name}>
       {/* The toggle stretches an overlay across the whole row, so the pointer can open it anywhere while
-          keyboards and screen readers meet one button. The hint sits above that overlay */}
-      <div className="group/row relative flex w-full items-start px-1">
+          keyboards and screen readers meet one button. The hint sits above that overlay. The row reaches
+          past its edge by the room its padding keeps for the overlay's focus ring, as the bank accounts
+          below do, so the count ends on the edge they end on, clear of the ring */}
+      <div className="group/row relative -mr-1 flex items-start px-1">
         <button
           type="button"
           className="app-marquee-trigger flex min-w-0 items-center gap-2.5 py-3.5 text-left after:absolute after:inset-0 after:rounded-lg after:content-[''] focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--app-accent)]"
