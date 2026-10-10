@@ -3,6 +3,10 @@ import { formatList } from '@/utils/formatList';
 export const REFRESH_ALREADY_ROTATED_STATUS = 409;
 export const REFRESH_ALREADY_ROTATED_DETAIL = 'Refresh token was already rotated';
 
+// What a proxy in front of the app answers with its own page when the app is slow or out of reach.
+// The app sends these too, such as a 502 for a provider it couldn't reach, but always with a detail
+const GATEWAY_STATUSES = new Set([502, 503, 504]);
+
 interface ApiErrorOptions {
   attemptsRemaining?: number;
   detail?: string;
@@ -34,6 +38,15 @@ export class ApiError extends Error {
     this.detail = options.detail;
     this.fieldErrors = options.fieldErrors;
   }
+}
+
+/**
+ * Whether a failed request carries the app's own answer. One that doesn't may still have been
+ * carried out: the browser never got an answer, or a proxy gave up waiting on the app and answered
+ * with its own page while the app went on
+ */
+export function isAnsweredByApp(error: unknown): error is ApiError {
+  return error instanceof ApiError && !(GATEWAY_STATUSES.has(error.status) && error.detail === undefined);
 }
 
 /**

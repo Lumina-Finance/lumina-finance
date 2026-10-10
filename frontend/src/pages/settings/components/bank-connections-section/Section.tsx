@@ -30,7 +30,11 @@ import { useMeasuredHeight } from '@/pages/settings/components/shared/hooks/useM
  */
 export function BankConnectionsSection() {
   const prefersReducedMotion = useReducedMotion()
-  const { data: connections, error: connectionsError } = useBankConnections()
+
+  // When a claim last ended without the app's answer, so the list is read again while the server may
+  // still be saving that connection
+  const [claimUnansweredAt, setClaimUnansweredAt] = useState<number | null>(null)
+  const { data: connections, error: connectionsError } = useBankConnections({ claimUnansweredAt })
   const { data: providers, error: providersError } = useBankProviders()
   const { data: accounts } = useAccounts()
   const accountNameFor = (accountId: string) => accounts?.find((account) => account.id === accountId)?.name
@@ -196,6 +200,7 @@ export function BankConnectionsSection() {
         reconnecting={reconnecting}
         level={reconnecting ? 'stacked' : 'page'}
         onClose={() => setConnectOpen(false)}
+        onClaimUnanswered={() => setClaimUnansweredAt(Date.now())}
       />
     </section>
   )

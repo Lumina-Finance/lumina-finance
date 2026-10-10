@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Locator, type Page, type Route } from '@playwright/test'
 
 import { asUser, createAccount, formatToday, signUpUser, todayInTestTimezone, type TestUser } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openPage, watchServerRequests } from '../support/app'
@@ -22,7 +22,7 @@ import {
   type SeededConnection,
 } from '../support/bankSync'
 import { expectMessageInCorner, readBoxes } from '../support/selectors'
-import { API_BASE_URL } from '../support/target'
+import { API_BASE_URL, BASE_URL } from '../support/target'
 
 // The section lists the user's bank connections and looks after each one in its own modal. Connections
 // are claimed from the fake SimpleFIN Bridge the instance syncs with, and the worker brings them to the
@@ -34,6 +34,12 @@ const SAMPLE_CHEQUING = 'Everyday Chequing'
 const SAMPLE_VISA = 'Rewards Visa'
 const ADDING_PAUSED = "Bank sync isn't running right now. You can add one once it's back."
 const LINKING_PAUSED = "Bank sync isn't running right now. You can link accounts once it's back."
+
+// Where a connection is claimed, and the list read
+const CONNECTIONS_URL = `${API_BASE_URL}/bank-sync/connections`
+
+// What a proxy answers in place of a request the server behind it took too long to answer
+const GATEWAY_TIMEOUT_PAGE = '<html><body><h1>504 Gateway Time-out</h1></body></html>'
 
 // A sideways swipe well past the 16px the status's closed note reaches beyond the facts column's edge
 const SIDEWAYS_SWIPE_PX = 40
@@ -217,19 +223,68 @@ test("shows that SimpleFIN Bridge couldn't be reached beside the form's actions"
   await expect(token).not.toHaveAttribute('aria-invalid')
 })
 
-test('says something went wrong when adding a connection never reaches the server', async ({ page, request }) => {
+test('says to check the connections when Connect loses its answer, and lists the connection the server saved', async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   const section = await openBankConnections(page, user)
-  await page.route(`${API_BASE_URL}/bank-sync/connections`, (route) =>
-    route.request().method() === 'POST' ? route.abort() : route.fallback())
+
+  // The claim reaches the server, which saves the connection, and its answer is lost on the way, as
+  // when the request outlives its time limit or a phone loses its connection
+  await page.route(CONNECTIONS_URL, async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    await route.fetch()
+    await route.abort()
+  })
 
   await section.getByRole('button', { name: 'Add a connection' }).click()
   const dialog = page.getByRole('dialog', { name: 'Add a connection' })
   await dialog.getByRole('textbox', { name: 'Setup token' }).fill(scenario.setupToken)
   await dialog.getByRole('button', { name: 'Connect' }).click()
 
-  await expect(dialog.getByRole('alert')).toHaveText('Something went wrong. Please try again.')
+  await expect(dialog.getByRole('alert')).toContainText('check your connections')
+  await dialog.getByRole('button', { name: 'Cancel' }).click()
+  await expect(connectionRow(section, 'SimpleFIN')).toContainText('0 of 2')
+})
+
+test('keeps reading the connections after a gateway timeout, so a connection the server saves later shows', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const scenario = await createSampleBridgeScenario(request)
+  const section = await openBankConnections(page, user)
+  const failedClaims: string[] = []
+  page.on('requestfailed', (failed) => {
+    if (failed.method() === 'POST' && failed.url() === CONNECTIONS_URL) failedClaims.push(failed.failure()?.errorText ?? '')
+  })
+
+  // A proxy answers 504 at once, and the claim reaches the server only after the list has been read
+  // again, as when the server finishes a claim the proxy in front of it stopped waiting for. A proxy on
+  // the app's own origin sends no cross-origin headers, but this instance serves the API from another
+  // origin, so the page needs the ones the server would send to read the 504 at all
+  let holdClaim: (route: Route) => void = () => {}
+  const claimed = new Promise<Route>((resolve) => { holdClaim = resolve })
+  await page.route(CONNECTIONS_URL, async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    holdClaim(route)
+    await route.fulfill({
+      status: 504,
+      headers: { 'access-control-allow-origin': new URL(BASE_URL).origin, 'access-control-allow-credentials': 'true' },
+      contentType: 'text/html',
+      body: GATEWAY_TIMEOUT_PAGE,
+    })
+  })
+  const reread = page.waitForResponse((response) =>
+    response.request().method() === 'GET' && isRead('/bank-sync/connections')(new URL(response.url())))
+
+  await section.getByRole('button', { name: 'Add a connection' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Add a connection' })
+  await dialog.getByRole('textbox', { name: 'Setup token' }).fill(scenario.setupToken)
+  await dialog.getByRole('button', { name: 'Connect' }).click()
+
+  await expect(dialog.getByRole('alert')).toContainText('check your connections')
+  await reread
+  await (await claimed).fetch()
+  await dialog.getByRole('button', { name: 'Cancel' }).click()
+  await expect(connectionRow(section, 'SimpleFIN')).toContainText('0 of 2')
+  expect(failedClaims).toEqual([])
 })
 
 test("renames a connection, and a blank nickname brings back the provider's name", async ({ page, request }) => {

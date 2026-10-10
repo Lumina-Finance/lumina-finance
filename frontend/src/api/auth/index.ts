@@ -2,6 +2,7 @@ export {
   ApiError,
   buildApiError,
   getSessionRestoreFailure,
+  isAnsweredByApp,
   isRefreshAlreadyRotatedError,
   NO_EXPLANATION_MESSAGE,
   type ApiFieldError,

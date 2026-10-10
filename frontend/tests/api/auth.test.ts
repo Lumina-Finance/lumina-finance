@@ -2,8 +2,9 @@
  * Covers auth API request functions that manage login, signup, refresh, and logout
  *
  * These tests catch regressions where auth endpoints lose cookie credentials,
- * JSON headers, bearer logout headers, or backend error details, and where restoring the
- * session on page load signs the user out over a server error rather than a refused session
+ * JSON headers, bearer logout headers, or backend error details, where restoring the
+ * session on page load signs the user out over a server error rather than a refused session, and
+ * where a proxy's page is taken for the app's own answer, or the app's answer for a proxy's page
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { API_BASE } from '@/api/config';
@@ -11,6 +12,7 @@ import {
   ApiError,
   confirmSignup,
   getSessionRestoreFailure,
+  isAnsweredByApp,
   login,
   logout,
   refresh,
@@ -320,5 +322,15 @@ describe('restoring the session on page load', () => {
   it('tells a refused session apart from one that lost a rotation race', () => {
     expect(getSessionRestoreFailure(new ApiError('Session is not active', 401))).toBe('rejected');
     expect(getSessionRestoreFailure(new ApiError('Refresh token was already rotated', 409))).toBe('rotated');
+  });
+});
+
+describe("telling the app's own answer from a proxy's page", () => {
+  it.each([
+    ['takes a gateway status without a detail for a proxy page', new ApiError('Request failed (504)', 504), false],
+    ['takes a gateway status with a detail for the app answering', new ApiError('Bridge unreachable', 502, { detail: 'Bridge unreachable' }), true],
+    ['takes another status without a detail for the app answering', new ApiError('Session expired', 401), true],
+  ])('%s', (_title, error, answered) => {
+    expect(isAnsweredByApp(error)).toBe(answered);
   });
 });

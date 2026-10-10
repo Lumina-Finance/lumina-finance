@@ -2,10 +2,12 @@
  * Covers how the connection requests behave through the query cache the app runs on
  *
  * These tests catch a setup token waiting, with its form's Cancel held, for a connection the
- * browser says it lacks, and a rename showing the old name until the list is read again
+ * browser says it lacks, a refused claim leaving out a connection an earlier try saved unseen, and a
+ * rename showing the old name until the list is read again
  */
 import { MutationObserver, onlineManager, QueryClient } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '@/api/auth/errors';
 
 const { authenticatedFetchMock } = vi.hoisted(() => ({
   authenticatedFetchMock: vi.fn(),
@@ -78,6 +80,21 @@ describe('a setup token sent while offline', () => {
 
     expect(observer.getCurrentResult()).toMatchObject({ status: 'error', isPaused: false });
     expect(await sent).toBeInstanceOf(TypeError);
+  });
+});
+
+describe('a claim the server refused', () => {
+  it('reads the connections again, since an earlier try with the same token may have saved one unseen', async () => {
+    const refusal = 'This setup token has already been used. Create a new one in SimpleFIN Bridge';
+    queryClient.setQueryData(bankSyncKeys.connections(), []);
+    authenticatedFetchMock.mockRejectedValue(new ApiError(refusal, 422, { detail: refusal }));
+    const observer = new MutationObserver(queryClient, claimSetupTokenMutationOptions(queryClient));
+
+    const sent = observer.mutate({ provider: 'simplefin', setup_token: 'token' }).catch(() => undefined);
+    await vi.runAllTimersAsync();
+    await sent;
+
+    expect(queryClient.getQueryState(bankSyncKeys.connections())?.isInvalidated).toBe(true);
   });
 });
 

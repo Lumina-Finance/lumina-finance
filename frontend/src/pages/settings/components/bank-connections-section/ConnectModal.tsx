@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Landmark } from 'lucide-react'
-import { ApiError } from '@/api/auth'
+import { isAnsweredByApp } from '@/api/auth'
 import {
   CONNECTION_NICKNAME_MAX_LENGTH,
   useClaimSetupToken,
@@ -27,6 +27,16 @@ const FIELD_IDS = {
   setupToken: 'bank-connection-setup-token',
 } as const
 
+// A reconnect sent again with the same token is safe, since the server refuses it for a connection
+// already working again
+const UNANSWERED_RECONNECT_MESSAGE = 'Something went wrong. Please try again.'
+
+// The server carries on with a claim whose own answer never reached the browser, lost on the way or
+// replaced by a proxy's page, so it may have saved the connection and spent the setup token, which
+// works only once. Sent again, the token is refused as used, and a new one would add the same
+// connection twice
+const UNANSWERED_CLAIM_MESSAGE = 'Oops, something went wrong. Please check your connections before you create a new setup token.'
+
 interface ConnectModalProps {
   open: boolean
 
@@ -39,6 +49,9 @@ interface ConnectModalProps {
   /** Stacked when opened from a connection's own modal */
   level?: ModalLevel
   onClose: () => void
+
+  /** Told when a claim ends without the app's answer, while the server may still be saving its connection */
+  onClaimUnanswered: () => void
 }
 
 /**
@@ -51,7 +64,7 @@ interface ConnectModalProps {
  * its reason sits on that field, and anything else, such as the Bridge being out of reach, sits beside
  * the actions. Callers remount it with a key for each opening, so nothing typed carries over
  */
-export function ConnectModal({ open, providers, reconnecting, level = 'page', onClose }: ConnectModalProps) {
+export function ConnectModal({ open, providers, reconnecting, level = 'page', onClose, onClaimUnanswered }: ConnectModalProps) {
   const { showToast } = useToast()
   const { user } = useAuth()
   const claim = useClaimSetupToken()
@@ -66,12 +79,16 @@ export function ConnectModal({ open, providers, reconnecting, level = 'page', on
   const providerName = reconnecting?.provider_name ?? provider?.name ?? 'SimpleFIN'
   const site = providerSite({ provider: reconnecting?.provider ?? providerId ?? 'simplefin', provider_name: providerName })
 
-  const reportError = (cause: unknown) => {
-    if (cause instanceof ApiError && cause.status === 422) {
+  const reportError = (cause: unknown, unansweredMessage: string) => {
+    if (!isAnsweredByApp(cause)) {
+      setError(unansweredMessage)
+      return
+    }
+    if (cause.status === 422) {
       setTokenError(cause.message)
       return
     }
-    setError(cause instanceof ApiError ? cause.message : 'Something went wrong. Please try again.')
+    setError(cause.message)
   }
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -89,7 +106,7 @@ export function ConnectModal({ open, providers, reconnecting, level = 'page', on
             showToast({ status: 'success', text: describeReconnected(result) })
             onClose()
           },
-          onError: reportError,
+          onError: (cause) => reportError(cause, UNANSWERED_RECONNECT_MESSAGE),
         },
       )
       return
@@ -102,7 +119,10 @@ export function ConnectModal({ open, providers, reconnecting, level = 'page', on
           showToast({ status: 'success', text: describeConnected(connection) })
           onClose()
         },
-        onError: reportError,
+        onError: (cause) => {
+          if (!isAnsweredByApp(cause)) onClaimUnanswered()
+          reportError(cause, UNANSWERED_CLAIM_MESSAGE)
+        },
       },
     )
   }

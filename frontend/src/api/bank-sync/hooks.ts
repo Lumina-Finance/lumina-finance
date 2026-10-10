@@ -11,6 +11,7 @@ import {
 } from '@tanstack/react-query';
 import { BANK_DISCOVERY_POLL_MS } from '@/api/bank-sync/constants';
 import {
+  getBankConnectionsPollInterval,
   getBankLinksPollInterval,
   getBankLinksRefetchOnReturn,
   getBankLinksStaleTime,
@@ -92,17 +93,20 @@ export function useBankProviders() {
 }
 
 /**
- * Reads the user's connections, checking back while one is waiting on a listing of its bank accounts
+ * Reads the user's connections, checking back while one is waiting on a listing of its bank accounts,
+ * and for a while after a claim the app didn't answer
+ *
+ * @param claimUnansweredAt - When a claim from this screen last ended without the app's answer, in
+ * epoch milliseconds
  */
-export function useBankConnections() {
+export function useBankConnections({ claimUnansweredAt = null }: { claimUnansweredAt?: number | null } = {}) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: bankSyncKeys.connections(),
     queryFn: fetchBankConnections,
     enabled: !!accessToken,
     staleTime: BANK_DATA_STALE_TIME_MS,
-    refetchInterval: (query) =>
-      query.state.data?.some((connection) => connection.discovery_pending) ? BANK_DISCOVERY_POLL_MS : false,
+    refetchInterval: (query) => getBankConnectionsPollInterval(query.state.data, claimUnansweredAt, Date.now()),
   });
 }
 
@@ -294,13 +298,17 @@ export function useBulkApprovalPreview(accountIds: string[] | undefined, enabled
 /**
  * Sends a setup token even while the browser reports being offline, so a request that cannot go
  * fails at once with a message rather than waiting, with its Cancel held, for a connection
+ *
+ * A failed claim reads the connections again too, since the server carries on with one whose own
+ * answer never reached the browser and may have saved its connection, and a token refused as used
+ * may have been saved by an earlier try whose answer was lost
  */
 export function claimSetupTokenMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
     mutationFn: (payload: Parameters<typeof claimSetupToken>[0]) =>
       runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => claimSetupToken(payload)),
     networkMode: 'always',
-    onSuccess: () => invalidateBankSyncStatus(queryClient),
+    onSettled: () => invalidateBankSyncStatus(queryClient),
   });
 }
 

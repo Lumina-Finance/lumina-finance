@@ -1,6 +1,31 @@
 import { ApiError } from '@/api/auth/errors';
-import { BANK_LINKS_ACTIVE_POLL_MS, BANK_LINKS_IDLE_POLL_MS } from '@/api/bank-sync/constants';
-import type { BankLink } from '@/api/bank-sync/types';
+import {
+  BANK_DISCOVERY_POLL_MS,
+  BANK_LINKS_ACTIVE_POLL_MS,
+  BANK_LINKS_IDLE_POLL_MS,
+  UNANSWERED_CLAIM_POLL_MS,
+  UNANSWERED_CLAIM_WATCH_MS,
+} from '@/api/bank-sync/constants';
+import type { BankConnection, BankLink } from '@/api/bank-sync/types';
+
+/**
+ * How often the connections are read: while one waits on a listing of its bank accounts, and for a
+ * while after a claim the app didn't answer, so a connection the server saves after all shows
+ *
+ * @param connections - The connections as last read, undefined until read
+ * @param claimUnansweredAt - When a claim last ended without the app's answer, in epoch milliseconds,
+ * or null when none has
+ * @param now - The current time, in epoch milliseconds
+ */
+export function getBankConnectionsPollInterval(
+  connections: BankConnection[] | undefined,
+  claimUnansweredAt: number | null,
+  now: number,
+): number | false {
+  if (connections?.some((connection) => connection.discovery_pending)) return BANK_DISCOVERY_POLL_MS;
+  if (claimUnansweredAt !== null && now < claimUnansweredAt + UNANSWERED_CLAIM_WATCH_MS) return UNANSWERED_CLAIM_POLL_MS;
+  return false;
+}
 
 /**
  * Whether the app is fetching for a link right now, by a sync or the next part of its import, or is

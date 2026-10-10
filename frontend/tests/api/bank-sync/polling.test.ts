@@ -1,17 +1,24 @@
 /**
  * Covers how often the signed-in app reads the bank link list, whether it reads it on coming back to
- * the tab, and how long a read stays fresh
+ * the tab, how long a read stays fresh, and how long the connections are read after a claim
  *
  * These tests catch a user with no links being polled, a running sync or import, or a Sync now about
  * to start, being read at the slow pace so its progress lags, an import waiting on the request budget being read at the fast
  * pace for the hours it can wait, a refused read being asked again, including each time the user
- * comes back to the tab, a server failure taken for a refusal and never asked again, and a user with
- * no links keeping an old read so a link made on another device never shows
+ * comes back to the tab, a server failure taken for a refusal and never asked again, a user with
+ * no links keeping an old read so a link made on another device never shows, and the connections read
+ * for good after a claim the app didn't answer
  */
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '@/api/auth/errors';
-import { BANK_LINKS_ACTIVE_POLL_MS, BANK_LINKS_IDLE_POLL_MS } from '@/api/bank-sync/constants';
 import {
+  BANK_LINKS_ACTIVE_POLL_MS,
+  BANK_LINKS_IDLE_POLL_MS,
+  UNANSWERED_CLAIM_POLL_MS,
+  UNANSWERED_CLAIM_WATCH_MS,
+} from '@/api/bank-sync/constants';
+import {
+  getBankConnectionsPollInterval,
   getBankLinksPollInterval,
   getBankLinksRefetchOnReturn,
   getBankLinksStaleTime,
@@ -76,5 +83,18 @@ describe('reading the bank link list on coming back to the tab', () => {
 describe('bank link freshness', () => {
   it('keeps a read with no links fresh for as long as an idle poll would', () => {
     expect(getBankLinksStaleTime([])).toBe(BANK_LINKS_IDLE_POLL_MS);
+  });
+});
+
+describe('connections polling after a claim the app did not answer', () => {
+  const claimUnansweredAt = Date.UTC(2026, 9, 10, 12);
+
+  it('reads the connections again while the server may still be saving the claimed one', () => {
+    expect(getBankConnectionsPollInterval([], claimUnansweredAt, claimUnansweredAt + UNANSWERED_CLAIM_WATCH_MS - 1))
+      .toBe(UNANSWERED_CLAIM_POLL_MS);
+  });
+
+  it('stops once the claim has had as long as it could take', () => {
+    expect(getBankConnectionsPollInterval([], claimUnansweredAt, claimUnansweredAt + UNANSWERED_CLAIM_WATCH_MS)).toBe(false);
   });
 });

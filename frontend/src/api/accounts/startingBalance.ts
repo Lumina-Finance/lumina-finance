@@ -1,10 +1,6 @@
-import { ApiError } from '@/api/auth/errors';
+import { ApiError, isAnsweredByApp } from '@/api/auth/errors';
 import { fetchAccount, recordStartingBalance } from '@/api/accounts/requests';
 import type { Account } from '@/api/accounts/types';
-
-// A proxy answering with one of these may have passed the save on before giving up, so the answer
-// says no more about whether it landed than a dropped connection does
-const UNANSWERED_STATUSES = new Set([502, 503, 504]);
 
 // A second save is refused with this once the first has landed, which is how a save sent again
 // after an unanswered one finds out it had been saved after all. Reading the account tells that
@@ -25,10 +21,6 @@ export class StartingBalanceUnsettledError extends Error {
     super('Whether the starting balance was saved is unknown');
     this.name = 'StartingBalanceUnsettledError';
   }
-}
-
-function isUnanswered(error: unknown): boolean {
-  return !(error instanceof ApiError) || UNANSWERED_STATUSES.has(error.status);
 }
 
 function isRefused(error: unknown): boolean {
@@ -54,7 +46,7 @@ export async function recordStartingBalanceSettled(
   try {
     return await recordStartingBalance(variables);
   } catch (error) {
-    const unanswered = isUnanswered(error);
+    const unanswered = !isAnsweredByApp(error);
     if (!unanswered && !isRefused(error)) throw error;
 
     let account: Account;
