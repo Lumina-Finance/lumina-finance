@@ -32,6 +32,7 @@ import { API_BASE_URL } from '../support/target'
 // the transactions each test needs, and the worker imports them for review, so every decision goes to
 // the server and what it saved is read back. Only what the server doesn't give is answered in its
 // place: a failed or unanswered decision, and pages of two items for a list too short to need a second
+// page
 
 type Accounts = { user: TestUser; everyday: SeededAccount; savings: SeededAccount }
 
