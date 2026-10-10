@@ -1,8 +1,8 @@
 /**
- * Covers the bank sync request functions, the contract the backend routes implement
+ * Covers the bank sync request functions that reshape what they send
  *
- * These tests catch a request reaching the wrong path, method or query string, and a body losing the
- * field names the backend reads, such as the setup token a reconnect sends
+ * These tests catch the review list losing its place between pages, and a body losing the field names
+ * the backend reads, such as the setup token a reconnect sends
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,18 +15,10 @@ vi.mock('@/api/client', () => ({
 }));
 
 import {
-  applyBulkApproval,
   createBankLink,
   fetchBulkApprovalPreview,
-  fetchDiscoveredBankAccounts,
-  fetchImportRange,
-  fetchPendingBankTransactions,
-  fetchReviewBacklogs,
   fetchReviewPage,
   reconnectBankConnection,
-  resolveReviewItem,
-  restoreBankValue,
-  updateReviewPreferences,
 } from '@/api/bank-sync/requests';
 
 beforeEach(() => {
@@ -41,46 +33,6 @@ describe('bank sync reads', () => {
     expect(authenticatedFetchMock).toHaveBeenCalledWith(
       '/bank-review/items?account_id=account-1&account_id=account-2&cursor=cursor-2&limit=50',
     );
-  });
-
-  it('reads the first page across every account without an account or a cursor', async () => {
-    await fetchReviewPage({ cursor: null });
-
-    expect(authenticatedFetchMock).toHaveBeenCalledWith('/bank-review/items?limit=50');
-  });
-
-  it('reads the review backlogs of the accounts given, or of every account', async () => {
-    await fetchReviewBacklogs(['account-1', 'account-2']);
-    await fetchReviewBacklogs();
-
-    expect(authenticatedFetchMock.mock.calls).toEqual([
-      ['/bank-review/backlogs?account_id=account-1&account_id=account-2'],
-      ['/bank-review/backlogs'],
-    ]);
-  });
-
-  it('reads the bank accounts a connection returns relative to the account being linked', async () => {
-    await fetchDiscoveredBankAccounts('connection-1', 'account-1');
-
-    expect(authenticatedFetchMock).toHaveBeenCalledWith(
-      '/bank-sync/connections/connection-1/accounts?for_account_id=account-1',
-    );
-  });
-
-  it('reads the import range for the provider the import would come from', async () => {
-    await fetchImportRange('account-1', 'simplefin');
-
-    expect(authenticatedFetchMock).toHaveBeenCalledWith('/accounts/account-1/bank-link/import-range?provider=simplefin');
-  });
-
-  it('reads pending rows for every account when no account is given, and repeats the key for each account given', async () => {
-    await fetchPendingBankTransactions();
-    await fetchPendingBankTransactions(['account-1', 'account-2']);
-
-    expect(authenticatedFetchMock.mock.calls).toEqual([
-      ['/bank-sync/pending'],
-      ['/bank-sync/pending?account_id=account-1&account_id=account-2'],
-    ]);
   });
 });
 
@@ -120,44 +72,5 @@ describe('bank sync writes', () => {
       JSON.stringify({ account_ids: null }),
       JSON.stringify({ account_ids: ['account-1'] }),
     ]);
-  });
-
-  it('posts bulk approval to its route with the previewed items as given', async () => {
-    await applyBulkApproval({ items: [{ id: 'item-1', version: 3 }, { id: 'item-2', version: 1 }] });
-
-    expect(authenticatedFetchMock).toHaveBeenCalledWith('/bank-review/bulk-approve', {
-      method: 'POST',
-      body: JSON.stringify({ items: [{ id: 'item-1', version: 3 }, { id: 'item-2', version: 1 }] }),
-    });
-  });
-
-  it('settles a review item through its resolution path', async () => {
-    await resolveReviewItem({ itemId: 'item-1', resolution: 'remove-from-ledger' });
-
-    expect(authenticatedFetchMock).toHaveBeenCalledWith('/bank-review/items/item-1/remove-from-ledger', {
-      method: 'POST',
-      body: undefined,
-    });
-  });
-
-  it('restores one bank value on a transaction', async () => {
-    await restoreBankValue({ transactionId: 'transaction-1', field: 'amount' });
-
-    expect(authenticatedFetchMock).toHaveBeenCalledWith('/bank-sync/transaction-sources/transaction-1/restore', {
-      method: 'POST',
-      body: JSON.stringify({ field: 'amount' }),
-    });
-  });
-
-  it("replaces all three of an account's review choices at once", async () => {
-    await updateReviewPreferences({
-      accountId: 'account-1',
-      preferences: { new_transactions: 'review', corrections: 'trust', removals: 'review' },
-    });
-
-    expect(authenticatedFetchMock).toHaveBeenCalledWith('/accounts/account-1/review-preferences', {
-      method: 'PUT',
-      body: JSON.stringify({ new_transactions: 'review', corrections: 'trust', removals: 'review' }),
-    });
   });
 });

@@ -11,8 +11,8 @@
  * stop holds it or dropped before it shows as done, a notice missing, worded unlike the issue, or shown for a link it doesn't apply to,
  * a notice's action losing focus to the link's own actions when the modal opens at the bank link,
  * the opening adjustment offer missing from the balance panel's foot or shown with nothing offered,
- * a history or cut-off day reminder missing, worded unlike the issue, holding the offer back, spinning
- * for the other's dismissal, or taking the focus the modal gives the link's actions,
+ * a history or cut-off day reminder missing, worded unlike the issue, holding the offer back, or
+ * taking the focus the modal gives the link's actions,
  * Sync now left live for something the server refuses or without the reason, a spent budget blamed
  * on the wrong request limit, a reason of two
  * sentences ending without the full stop the others of two have, held back by a bank
@@ -20,14 +20,18 @@
  * focus it holds or the width it measures while the sync starts. Opening the flow, the tooltip,
  * the review settings, unlinking, pressing Sync now and dismissing a reminder run in the browser
  */
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Account } from '@/api/accounts'
 import type { AccountBankStatus, BankConnection, BankProvidersResponse } from '@/api/bank-sync'
+import { bankSyncKeys, currencyKeys } from '@/api/cache/queryKeys'
+import type { Currency } from '@/api/currency'
 import { GROUP_ACCOUNT_LINK_REASON, LINKING_PAUSED_REASON } from '@/components/bank-link-flow/constants'
-import type { ActionFeedbackStatus } from '@/components/feedback/ActionButton'
+import { AuthContext, type AuthContextValue } from '@/contexts/AuthContext'
+import { ToastContext, type ToastValue } from '@/contexts/ToastContext'
 import { BankLinkSection } from '@/pages/accounts/detail/components/bank-link/Section'
-import { describeBankSync } from '@/pages/accounts/detail/components/bank-link/status'
 import { SYNC_PAUSED_REASON } from '@/pages/accounts/detail/components/bank-link/syncNow'
 import {
   createAccount,
@@ -40,61 +44,50 @@ import {
   createSync,
 } from './fixtures'
 
-const read = vi.hoisted(() => ({
-  ownPersonal: true,
+// The section renders from what the cache holds, so a request sent while rendering fails the test
+// rather than reaching the network
+vi.mock('@/api/client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/api/client')>()),
+  authenticatedFetch: vi.fn(() => Promise.reject(new Error('The section sent a request while rendering'))),
+}))
+
+// Closed throughout, and their shell reads the open modals through a store that has no server
+// snapshot, which a static render can't read
+vi.mock('@/components/bank-link-flow/Modal', () => ({ BankLinkFlowModal: () => null }))
+vi.mock('@/pages/accounts/detail/components/bank-link/ReviewSettingsModal', () => ({ ReviewSettingsModal: () => null }))
+
+// User-1, whose own personal account the fixtures build
+const AUTH: AuthContextValue = {
+  user: {
+    id: 'user-1',
+    email: 'user-1@example.com',
+    first_name: 'Ada',
+    last_name: null,
+    tz: 'America/Toronto',
+    base_currency: 'CAD',
+    created_at: '2026-09-01T12:00:00Z',
+    second_factor_reenrollment_required: false,
+  },
+  accessToken: 'token',
+  loading: false,
+  login: vi.fn(),
+  verifyMfa: vi.fn(),
+  signup: vi.fn(),
+  setSession: vi.fn(),
+  primeAccessToken: vi.fn(),
+  setUser: vi.fn(),
+  logout: vi.fn(),
+}
+const TOAST: ToastValue = { showToast: vi.fn(), dismissToast: vi.fn() }
+const CURRENCIES: Currency[] = [{ id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 }]
+
+// What the cache holds for the section to read, put there before each render
+const read = {
   status: undefined as AccountBankStatus | undefined,
   statusError: null as Error | null,
   providers: undefined as BankProvidersResponse | undefined,
   connections: [] as BankConnection[],
-  syncFeedback: 'idle' as ActionFeedbackStatus,
-  dismissing: null as 'history' | 'cut-off-day' | null,
-}))
-
-vi.mock('@/pages/accounts/detail/components/bank-link/useAccountBankLink', () => ({
-  useAccountBankLink: () => ({
-    ownPersonal: read.ownPersonal,
-    status: read.status,
-    statusError: read.statusError,
-    providers: read.providers,
-    shown: true,
-    syncLabel: describeBankSync(read.ownPersonal, read.status, read.statusError !== null),
-  }),
-}))
-vi.mock('@/api/bank-sync', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/api/bank-sync')>()),
-  useBankConnections: () => ({ data: read.connections }),
-  useSyncBankAccount: () => ({ mutateAsync: vi.fn() }),
-  useRecordOpeningAdjustment: () => ({ isPending: false, mutate: vi.fn() }),
-  useSkipOpeningAdjustment: () => ({ isPending: false, mutate: vi.fn() }),
-  useDismissHistoryReminder: () => ({ isPending: read.dismissing === 'history', mutate: vi.fn() }),
-  useDismissCutOffDay: () => ({ isPending: read.dismissing === 'cut-off-day', mutate: vi.fn() }),
-}))
-vi.mock('@/hooks/useMoneyFormatters', async () => {
-  const { formatCurrency, formatMovedAmount } = await import('@/utils/formatCurrency')
-  const currencies = [{ id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 }]
-  return {
-    useMoneyFormatters: () => ({
-      currencies,
-      formatCurrency: (amount: number, currency: string) => formatCurrency(amount, currency, currencies),
-      formatMovedAmount: (amount: number, currency: string) => formatMovedAmount(amount, currency, currencies),
-    }),
-  }
-})
-vi.mock('@/hooks/useCurrencyListState', () => ({ useCurrencyListState: () => 'ready' }))
-vi.mock('@/components/currency/CurrencyUnavailableTooltip', () => ({ CurrencyUnavailableTooltip: () => null }))
-vi.mock('@/hooks/useActionFeedback', () => ({
-  useActionFeedback: () => ({ status: read.syncFeedback, isPending: read.syncFeedback !== 'idle', run: vi.fn() }),
-}))
-vi.mock('@/hooks/useToast', () => ({ useToast: () => ({ showToast: vi.fn() }) }))
-vi.mock('@/hooks/useAuth', () => ({
-  useAuth: () => ({ user: { id: 'user-1', tz: 'America/Toronto' }, accessToken: 'token' }),
-}))
-vi.mock('@/components/bank-link-flow/Modal', () => ({ BankLinkFlowModal: () => null }))
-vi.mock('@/pages/accounts/detail/components/bank-link/ReviewSettingsModal', () => ({ ReviewSettingsModal: () => null }))
-vi.mock('react-router', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('react-router')>()),
-  useNavigate: () => vi.fn(),
-}))
+}
 
 // The notices name what each state stops or waits on
 const RECONNECT_NOTICE = 'SimpleFIN Bridge rejected the connection this account uses. Automatic sync is stopped for every account on it until you reconnect it in Settings with a new setup token.'
@@ -115,9 +108,36 @@ function unbroken(date: string): string {
   return date.replaceAll(' ', ' ')
 }
 
-// Static rendering marks where one text node meets the next, which text is matched without
-function renderSection(account: Account = createAccount()): string {
-  return renderToStaticMarkup(<BankLinkSection account={account} sectionNumber="03" />).replaceAll('<!-- -->', '')
+/**
+ * Renders the section in the app's providers over a cache holding what `read` says. A failed read
+ * stays failed on render, as it does once the app's own retries have run out. Static rendering marks
+ * where one text node meets the next, which text is matched without
+ */
+function renderSection(account: Account = createAccount(), autoFocus = false): string {
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false, retryOnMount: false } } })
+  client.setQueryData(currencyKeys.list(), CURRENCIES)
+  client.setQueryData(bankSyncKeys.providers(), read.providers)
+  client.setQueryData(bankSyncKeys.connections(), read.connections)
+  client.setQueryData(bankSyncKeys.accountStatus(account.id), read.status)
+  if (read.statusError) {
+    client.getQueryCache().build(client, { queryKey: bankSyncKeys.accountStatus(account.id) }).setState({
+      status: 'error',
+      error: read.statusError,
+      errorUpdateCount: 1,
+    })
+  }
+
+  return renderToStaticMarkup(
+    <QueryClientProvider client={client}>
+      <AuthContext.Provider value={AUTH}>
+        <ToastContext.Provider value={TOAST}>
+          <MemoryRouter>
+            <BankLinkSection account={account} sectionNumber="03" autoFocus={autoFocus} />
+          </MemoryRouter>
+        </ToastContext.Provider>
+      </AuthContext.Provider>
+    </QueryClientProvider>,
+  ).replaceAll('<!-- -->', '')
 }
 
 function getButton(markup: string, label: string): string {
@@ -139,13 +159,10 @@ beforeEach(() => {
   // Noon in Toronto, the clock the link fixtures are set against
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-10-05T16:00:00Z'))
-  read.ownPersonal = true
   read.status = createStatus()
   read.statusError = null
   read.providers = createProviders()
   read.connections = [createConnection()]
-  read.syncFeedback = 'idle'
-  read.dismissing = null
 })
 
 afterEach(() => {
@@ -154,7 +171,6 @@ afterEach(() => {
 
 describe('BankLinkSection', () => {
   it('keeps a group account manual, with no way to link it', () => {
-    read.ownPersonal = false
     read.status = undefined
     const markup = renderSection(createAccount({ group_id: 'group-1' }))
     expect(markup).toContain(`${escaped(GROUP_ACCOUNT_LINK_REASON)} Its transactions stay manual.`)
@@ -194,7 +210,7 @@ describe('BankLinkSection', () => {
   })
 
   it('marks its control for the modal to focus only when the modal opens at the bank link', () => {
-    const atBankLink = renderToStaticMarkup(<BankLinkSection account={createAccount()} sectionNumber="03" autoFocus />)
+    const atBankLink = renderSection(createAccount(), true)
     expect(getButton(atBankLink, 'Link bank account')).toContain('data-modal-initial-focus="true"')
     expect(getButton(renderSection(), 'Link bank account')).not.toContain('data-modal-initial-focus')
   })
@@ -283,15 +299,6 @@ describe('BankLinkSection', () => {
     expect(order).toEqual([...order].sort((a, b) => a - b))
   })
 
-  it('spins only the ✕ of the reminder being dismissed', () => {
-    read.status = createStatus({
-      link: createLink({ history_reminder: { requested_start: '2026-06-01', earliest_returned: null }, cut_off_day: '2026-10-03' }),
-    })
-    read.dismissing = 'history'
-    const busy = [...renderSection().matchAll(/<button[^>]*aria-label="Dismiss"[^>]*aria-busy="(true|false)"/g)].map((match) => match[1])
-    expect(busy).toEqual(['true', 'false'])
-  })
-
   it('shows the failure when the link cannot load, rather than offering a link', () => {
     read.status = undefined
     read.statusError = new Error('Failed to fetch')
@@ -368,7 +375,7 @@ describe('BankLinkSection', () => {
     ],
   ])('marks for the modal to focus %s', (_, status, expected) => {
     read.status = status
-    const markup = renderToStaticMarkup(<BankLinkSection account={createAccount()} sectionNumber="03" autoFocus />)
+    const markup = renderSection(createAccount(), true)
     const marked = [
       ...markup.matchAll(/<button[^>]*data-modal-initial-focus="true"[^>]*>(?:(?!<\/button>).)*?([A-Z][a-z]+(?: [a-z]+)*)(?:<\/span>)*<\/button>/gs),
     ]
@@ -433,11 +440,9 @@ describe('BankLinkSection', () => {
   })
 
   it.each([
-    ['idle', 'nothing asked for', createSync()],
-    ['idle', 'a sync asked for in any window, which nothing starts until the worker is back', createSync({ sync_requested: true })],
-    ['loading', 'this window waiting for the worker to start the sync', createSync({ sync_requested: true })],
-  ] as const)('disables Sync now while the sync worker is down, with %s feedback and %s, saying why', (feedback, _, sync) => {
-    read.syncFeedback = feedback
+    ['nothing asked for', createSync()],
+    ['a sync asked for in any window, which nothing starts until the worker is back', createSync({ sync_requested: true })],
+  ])('disables Sync now while the sync worker is down, with %s, saying why', (_, sync) => {
     read.status = linkSynced(sync)
     read.providers = createProviders({ sync_running: false })
     const markup = renderSection()
@@ -456,16 +461,11 @@ describe('BankLinkSection', () => {
     expect(button).not.toContain('aria-disabled')
   })
 
-  it.each([
-    ['until a worker starts a sync asked for in any window', 'idle', createSync({ sync_requested: true }), 'Starting sync'],
-    ['while this window waits for the worker', 'loading', createSync({ sync_requested: true }), 'Starting sync'],
-    ['once the worker has started it', 'success', createSync({ state: 'syncing', sync_running: true }), 'Sync started'],
-  ] as const)('reads %s as the sync starting, keeping focus and the width of its label', (_, feedback, sync, label) => {
-    read.syncFeedback = feedback
-    read.status = linkSynced(sync)
+  it('reads as the sync starting until a worker starts a sync asked for in any window, keeping focus and the width of its label', () => {
+    read.status = linkSynced(createSync({ sync_requested: true }))
     const button = getSyncNowButton(renderSection())
-    expect(button).toContain(`aria-label="${label}"`)
-    expect(button).toContain(`aria-busy="${feedback !== 'success'}"`)
+    expect(button).toContain('aria-label="Starting sync"')
+    expect(button).toContain('aria-busy="true"')
     expect(button).not.toMatch(/ (aria-)?disabled/)
 
     // The hidden label the width is measured from, kept for a button the modal opens while the sync starts

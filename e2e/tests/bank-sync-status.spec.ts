@@ -427,9 +427,8 @@ test('stops on a rejected connection, with a notice that leads to Settings to re
 
   await logInViaApi(page, user)
   const dialog = await openBankLink(page, account.id, 'Reconnect needed')
-  const notice = dialog.getByText(
-    'SimpleFIN Bridge rejected the connection this account uses. Automatic sync is stopped for every account on it until you reconnect it in Settings with a new setup token.',
-  )
+  // The notice's full wording is the Bank link section's unit tests' to hold
+  const notice = dialog.getByText(/^SimpleFIN Bridge rejected the connection this account uses\./)
   const openSettings = dialog.getByRole('button', { name: 'Open settings' })
   await expect(notice).toBeVisible()
 
@@ -487,9 +486,7 @@ test('asks for the bank account again once SimpleFIN lists it differently, openi
 
   await logInViaApi(page, user)
   const dialog = await openBankLink(page, account.id, 'Choose bank account')
-  await expect(dialog.getByText(
-    "SimpleFIN now lists Everyday Chequing differently, so Lumina Finance can't tell whether it's the same account. Choose its bank account again to resume syncing.",
-  )).toBeVisible()
+  await expect(dialog.getByText(/^SimpleFIN now lists Everyday Chequing differently/)).toBeVisible()
   await dialog.getByRole('button', { name: 'Choose bank account', exact: true }).click()
   await expect(page.getByRole('dialog', { name: 'Choose bank account again' })).toBeVisible()
 })

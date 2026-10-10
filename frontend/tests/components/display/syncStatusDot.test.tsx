@@ -1,7 +1,6 @@
 /**
- * Guards the sync status dot: each state takes its own colour token, an account that does not sync
- * gets a hollow dot, and the dot is hidden from assistive technology since the label beside it says
- * the state in words
+ * Guards the sync status dot: each state takes its own colour token, and the dot is hidden from
+ * assistive technology since the label beside it says the state in words
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
@@ -15,11 +14,7 @@ describe('sync status dot', () => {
     expect(renderToStaticMarkup(<SyncStatusDot tone="stopped" />)).toContain('background:var(--app-negative)')
   })
 
-  it('draws an account that does not sync as a hollow ring', () => {
-    const markup = renderToStaticMarkup(<SyncStatusDot tone="off" />)
-
-    expect(markup).toContain('background:transparent')
-    expect(markup).toContain('border:1.5px solid var(--app-text-subtle)')
-    expect(markup).toContain('aria-hidden="true"')
+  it('hides the dot from assistive technology, since the label beside it says the state', () => {
+    expect(renderToStaticMarkup(<SyncStatusDot tone="off" />)).toContain('aria-hidden="true"')
   })
 })

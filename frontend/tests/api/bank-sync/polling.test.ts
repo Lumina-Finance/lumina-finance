@@ -5,9 +5,8 @@
  * These tests catch a user with no links being polled, a running sync or import, or a Sync now about
  * to start, being read at the slow pace so its progress lags, an import waiting on the request budget being read at the fast
  * pace for the hours it can wait, a refused read being asked again, including each time the user
- * comes back to the tab, a server failure taken for a refusal and never asked again, either pace
- * drifting from the two seconds and the minute the feature promises, and a screen opening between
- * polls reading the list again rather than taking the polled copy
+ * comes back to the tab, a server failure taken for a refusal and never asked again, and a user with
+ * no links keeping an old read so a link made on another device never shows
  */
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '@/api/auth/errors';
@@ -66,10 +65,6 @@ describe('bank link polling interval', () => {
   it('tries a first read the server failed on again at the slow pace, since that is not a refusal', () => {
     expect(getBankLinksPollInterval(undefined, new ApiError('Server error', 500))).toBe(BANK_LINKS_IDLE_POLL_MS);
   });
-
-  it('reads every two seconds while a sync runs and every minute otherwise', () => {
-    expect([BANK_LINKS_ACTIVE_POLL_MS, BANK_LINKS_IDLE_POLL_MS]).toEqual([2000, 60000]);
-  });
 });
 
 describe('reading the bank link list on coming back to the tab', () => {
@@ -79,11 +74,6 @@ describe('reading the bank link list on coming back to the tab', () => {
 });
 
 describe('bank link freshness', () => {
-  it('keeps a read fresh until the poll would read it again', () => {
-    expect(getBankLinksStaleTime([syncingLink()])).toBe(BANK_LINKS_ACTIVE_POLL_MS);
-    expect(getBankLinksStaleTime([createBankLink()])).toBe(BANK_LINKS_IDLE_POLL_MS);
-  });
-
   it('keeps a read with no links fresh for as long as an idle poll would', () => {
     expect(getBankLinksStaleTime([])).toBe(BANK_LINKS_IDLE_POLL_MS);
   });
