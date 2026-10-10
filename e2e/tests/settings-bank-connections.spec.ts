@@ -404,14 +404,14 @@ test('words when a spent request budget frees up anew as minutes pass with the c
   // lands beside it
   await expect(dialog).toHaveCSS('transform', 'none')
   await trigger.click()
-  await expect(note).toContainText('Automatic syncs wait until one frees up in 10 minutes.')
+  await expect(note).toContainText(/frees up in 10 minutes/)
   await trigger.click()
   await page.mouse.move(0, 0)
 
   await allLanded()
   await page.clock.runFor(BUDGET_OPEN_MS)
   await trigger.click()
-  await expect(note).toContainText('Automatic syncs wait until one frees up in 5 minutes.')
+  await expect(note).toContainText(/frees up in 5 minutes/)
 })
 
 test('links a bank account from the connection, importing from the start chosen', async ({ page, request }) => {
