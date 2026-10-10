@@ -130,6 +130,9 @@ export function DropdownBox({
       // floating, where sinking a full-height list reads as it collapsing early rather than as a
       // control being pressed
       whileTap={placed || disabled || shouldReduceMotion ? undefined : { scale: DROPDOWN_PRESS_SCALE }}
+      // A press animation makes Motion put the box in the Tab order unless it already has a place
+      // there, and the head inside is the one stop the field needs
+      tabIndex={-1}
       transition={DROPDOWN_SPRING}
     >
       {children}
