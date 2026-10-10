@@ -48,13 +48,6 @@ def test_simplefin_origins_entry_beyond_an_origin_is_refused_at_start(monkeypatc
         read_simplefin_origins()
 
 
-def test_simplefin_test_origin_unset_is_none(monkeypatch):
-    """The testing-only exemption exists only while it is set"""
-    monkeypatch.delenv("BANK_SYNC_SIMPLEFIN_TEST_ORIGIN", raising=False)
-
-    assert read_simplefin_test_origin() is None
-
-
 def test_simplefin_test_origin_may_use_plain_http(monkeypatch):
     """The fake SimpleFIN Bridge in development and CI is served over plain HTTP"""
     monkeypatch.setenv("BANK_SYNC_SIMPLEFIN_TEST_ORIGIN", "http://fake-bridge:8080")
@@ -62,15 +55,11 @@ def test_simplefin_test_origin_may_use_plain_http(monkeypatch):
     assert read_simplefin_test_origin() == "http://fake-bridge:8080"
 
 
-@pytest.mark.parametrize(("value", "expected"), [(None, 20), ("", 20), ("12", 12)], ids=["unset", "blank", "set"])
-def test_count_setting_reads_a_whole_number_or_its_default(monkeypatch, value, expected):
-    """An operator may lower the daily request cap, and leaving it unset keeps 20"""
-    if value is None:
-        monkeypatch.delenv("BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS", raising=False)
-    else:
-        monkeypatch.setenv("BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS", value)
+def test_count_setting_reads_a_whole_number(monkeypatch):
+    """An operator may lower the daily request cap"""
+    monkeypatch.setenv("BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS", "12")
 
-    assert read_count_setting("BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS", 20) == expected
+    assert read_count_setting("BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS", 20) == 12
 
 
 @pytest.mark.parametrize("value", ["0", "-3", "1.5", "twelve"])

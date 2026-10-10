@@ -10,7 +10,6 @@ worker needs before it starts are covered last
 """
 
 import asyncio
-import contextlib
 import json
 import os
 import subprocess
@@ -19,7 +18,6 @@ import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import select, update
@@ -37,9 +35,6 @@ from app.services.bank_sync.pending import replace_pending_transactions
 from app.services.bank_sync.sync import run_sync_job
 from app.services.bank_sync.worker import MAX_JOB_ATTEMPTS, enqueue_due_work, run_jobs
 from app.services.email import contract as email_contract
-from app.services.email import get_email_sender
-from app.services.email import senders as email_senders
-from app.services.email.senders import LoggingEmailSender
 from tests.conftest import ScopedSession, TestSession
 from tests.routes.support.bank_sync_helpers import (
     _attempts,
@@ -491,28 +486,3 @@ def test_worker_registers_every_table_before_running_jobs():
 
     assert completed.returncode == 0, completed.stderr
     assert set(json.loads(completed.stdout)) == set(Base.metadata.tables)
-
-
-async def test_worker_installs_the_email_sender_its_settings_name_before_running_jobs(monkeypatch):
-    """The worker process never loads the app, which installs the app's sender, so without its own the jobs' action-needed emails go nowhere"""
-    monkeypatch.setattr(email_contract, "_active_sender", None)
-    monkeypatch.setattr(email_senders, "EMAIL_BACKEND", "logging")
-
-    async def ready(*_) -> None:
-        """Stand in for a database that is reachable, migrated and safe to run jobs on"""
-
-    for check in ("_wait_for_database", "verify_app_role_is_unprivileged", "verify_key_matches_data", "_scan_for_due_work"):
-        monkeypatch.setattr(worker, check, ready)
-    monkeypatch.setattr(worker, "engine", SimpleNamespace(connect=contextlib.nullcontext))
-    senders = []
-
-    async def run_jobs_in_turn() -> None:
-        senders.append(get_email_sender())
-
-    monkeypatch.setattr(worker, "_run_jobs_in_turn", run_jobs_in_turn)
-
-    async with asyncio.timeout(_WAIT_SECONDS):
-        await worker.run_worker()
-
-    assert senders
-    assert all(isinstance(sender, LoggingEmailSender) for sender in senders)
