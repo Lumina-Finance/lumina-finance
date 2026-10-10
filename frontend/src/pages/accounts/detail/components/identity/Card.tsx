@@ -3,7 +3,8 @@ import type { Account } from '@/api/accounts'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { InstitutionLogo } from '@/pages/accounts/components/InstitutionLogo'
-import { BankSyncFact } from '@/pages/accounts/detail/components/bank-link/BankSyncFact'
+import { SyncFact } from '@/pages/accounts/detail/components/bank-link/SyncFact'
+import { useAccountBankLink } from '@/pages/accounts/detail/components/bank-link/useAccountBankLink'
 import { ACCOUNT_KIND_LABEL } from '@/pages/accounts/detail/constants/accountDetail'
 import { humanizeAccountType } from '@/utils/formatAccountType'
 import { IdentityFacts } from './Facts'
@@ -30,7 +31,13 @@ export default function AccountIdentityCard({
   onOpenBankSync: () => void
 }) {
   const { formatCurrency } = useMoneyFormatters()
+  const { ownPersonal, status, statusError, shown: showsBankSync, syncLabel } = useAccountBankLink(account)
   const linkedTaxAdvantagedCategoryId = account.group_id === null ? account.tax_advantaged_category_id : null
+
+  // An account with no institution of its own names the bank it is linked to. Until its link is read,
+  // the line stays empty rather than saying it has none
+  const linkUnread = ownPersonal && status === undefined && statusError === null
+  const institutionName = account.institution?.name ?? status?.link?.institution_name ?? (linkUnread ? null : 'No institution')
 
   const identityFacts = [
     { label: 'Kind', value: ACCOUNT_KIND_LABEL[account.account_kind] ?? account.account_kind },
@@ -56,12 +63,13 @@ export default function AccountIdentityCard({
       <InstitutionLogo institution={account.institution} variant="detail" />
 
       <h1 className="mt-4 font-serif text-[1.375rem] font-semibold leading-tight">{account.name}</h1>
-      <p className="mt-1 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-        {account.institution?.name ?? 'No institution'}
+      <p className="mt-1 min-h-5 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+        {institutionName}
       </p>
 
       <IdentityFacts facts={identityFacts}>
-        <BankSyncFact account={account} onOpen={onOpenBankSync} />
+        {/* A way into the edit modal's Bank link section, where everything about the link is managed */}
+        {showsBankSync && <SyncFact name="Bank sync" sync={syncLabel} onOpen={onOpenBankSync} />}
       </IdentityFacts>
       {account.notes && <IdentityNotes notes={account.notes} />}
 

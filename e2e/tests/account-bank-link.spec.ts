@@ -5,6 +5,7 @@ import { chooseFromDropdown, fact, logInViaApi, openModal, openPage } from '../s
 import {
   addBridgeBankAccount,
   addBridgeBankLogin,
+  bankSyncFact,
   buildLinkAnswer,
   changeProviders,
   claimSetupToken,
@@ -15,6 +16,7 @@ import {
   linkBankAccount,
   linkToSampleBankAccount,
   openBankLink,
+  READ_LINK_STATUS,
   runClockUntil,
   stallBridge,
   stopClock,
@@ -860,4 +862,32 @@ test('lists the bank accounts of the connection switched to, dropping the one ch
   await expect(flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_CHEQUING}`) })).toHaveCount(0)
   await expect(flow.getByRole('radio', { checked: true })).toHaveCount(0)
   await expect(flow.getByRole('button', { name: 'Continue' })).toBeDisabled()
+})
+
+// The identity card names the account's own institution, so the bank's shows there only where the
+// account has none. Each look waits for the page to have read the link, which the bank's name comes in
+test("names the linked bank's institution on the identity card until the account has one of its own", async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const everyday = await createAccount(request, user, { name: 'Everyday' })
+  await linkToSampleBankAccount(request, user, { accountId: everyday.id, bankAccountName: SAMPLE_CHEQUING })
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${everyday.id}`)
+  const card = page.locator('section').filter({ has: page.getByRole('button', { name: 'Edit account' }) })
+  await expect(bankSyncFact(page, READ_LINK_STATUS)).toBeVisible()
+  await expect(card.getByText(SAMPLE_BANK, { exact: true })).toBeVisible()
+  await expect(card.getByText('No institution')).toHaveCount(0)
+
+  const ownName = `Own Credit Union ${crypto.randomUUID()}`
+  const created = await request.post(`${API_BASE_URL}/institutions`, {
+    headers: asUser(user),
+    data: { name: ownName, country_code: 'CA', website: 'https://example.com' },
+  })
+  expect(created.status()).toBe(201)
+  const { id: institutionId } = await created.json() as { id: string }
+  const changed = await request.patch(`${API_BASE_URL}/accounts/${everyday.id}`, { headers: asUser(user), data: { institution_id: institutionId } })
+  expect(changed.status()).toBe(200)
+  await openPage(page, `/accounts/${everyday.id}`)
+  await expect(bankSyncFact(page, READ_LINK_STATUS)).toBeVisible()
+  await expect(card.getByText(ownName, { exact: true })).toBeVisible()
+  await expect(card.getByText(SAMPLE_BANK, { exact: true })).toHaveCount(0)
 })
