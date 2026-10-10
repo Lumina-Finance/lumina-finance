@@ -168,6 +168,25 @@ test('keeps the current value, which then counts as edited, clearing the marker 
   expect(await readReviewItems(request, user, everyday.id)).toEqual([])
 })
 
+test("keeps an amount the user edited over a bank change, leaving the day's total at that amount", async ({ page, request }) => {
+  const { id } = await startWithCorrection(page, request, -4000)
+  await openPage(page, '/transactions')
+  const row = page.getByTestId(`transaction-row-${id}`)
+  const dayTotal = page.getByTestId('day-total')
+  await expect(dayTotal).toHaveText(`${MINUS}$40.00`)
+
+  const dialog = await openComparison(page, COUNTDOWN, 'Review bank change')
+  await dialog.getByRole('button', { name: 'Keep current value' }).click()
+  await expect(toast(page, 'Current values kept.')).toBeVisible()
+  await expect(dialog).toBeHidden()
+  await expect(needsReview(row)).toHaveCount(0)
+
+  // Read once rather than waited on, since the marker leaves with the same change to the row the
+  // total is worked out from, and reading the list again later would put a wrong total right
+  expect(await dayTotal.textContent()).toBe(`${MINUS}$40.00`)
+  await expectTransactionRow(page, id, `${MINUS}$40.00`)
+})
+
 test('removes a transaction the bank no longer reports, reading the ledger again', async ({ page, request }) => {
   const { decisions } = await startWithRemoval(page, request)
   await openPage(page, '/transactions')
