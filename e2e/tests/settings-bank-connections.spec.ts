@@ -687,6 +687,43 @@ test('reconnects a rejected connection, and shows the account to choose again un
   await expect(mismatch.getByText(`SimpleFIN now lists ${SAMPLE_VISA} differently`)).toBeVisible()
 })
 
+test('says to try again when Reconnect loses its answer, and shows the connection working once the server has it', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const scenario = await createSampleBridgeScenario(request)
+  const connection = await claimSetupToken(request, user, scenario.setupToken)
+
+  // The connection works on the server throughout, as a reconnect that landed leaves it, and only the
+  // reads before Reconnect is sent say it was rejected. The server refuses to reconnect a working
+  // connection, so the reconnect is dropped on the way rather than sent, and the browser sees its
+  // answer lost
+  let reconnectSent = false
+  await changeAnswer<{ status: string }[]>(page, '/bank-sync/connections', (connections) => {
+    if (!reconnectSent) connections[0].status = 'credential_rejected'
+  })
+  await page.route(`${CONNECTIONS_URL}/${connection.id}/reconnect`, async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    reconnectSent = true
+    await route.abort()
+  })
+  const section = await openBankConnections(page, user)
+  const row = connectionRow(section, 'SimpleFIN')
+  await expect(row).toContainText('Reconnect needed')
+
+  const dialog = await openConnection(page, section, 'SimpleFIN')
+  await dialog.getByRole('button', { name: 'Reconnect', exact: true }).click()
+  const form = page.getByRole('dialog', { name: 'Reconnect SimpleFIN' })
+  await form.getByRole('textbox', { name: 'Setup token' }).fill(await createBridgeSetupToken(request, scenario.id))
+  await form.getByRole('button', { name: 'Reconnect', exact: true }).click()
+
+  await expect(form.getByRole('alert')).toHaveText('Something went wrong. Please try again.')
+  await form.getByRole('button', { name: 'Cancel' }).click()
+  await expect(form).toBeHidden()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  await expect(row).toContainText('OK')
+  await expect(row).not.toContainText('Reconnect needed')
+})
+
 test('shows a bank that needs signing in to on the connection and its institution', async ({ page, request }) => {
   const user = await signUpUser(request)
   await claimConnectionNeedingSignIn(request, user)

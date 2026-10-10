@@ -319,6 +319,10 @@ export function useClaimSetupToken() {
 
 /**
  * Sends a new setup token the way a claim does, failing at once while offline
+ *
+ * A failed reconnect reads the connection again too, since the server may have reconnected it
+ * though its answer never reached the browser. Only a success waits for those reads, so its toast
+ * lands with the section, while a failure shows its message and frees Cancel at once
  */
 export function reconnectBankConnectionMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
@@ -326,6 +330,9 @@ export function reconnectBankConnectionMutationOptions(queryClient: QueryClient)
       runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => reconnectBankConnection(payload)),
     networkMode: 'always',
     onSuccess: () => refreshBankLinkState(queryClient),
+    onError: () => {
+      void refreshBankLinkState(queryClient);
+    },
   });
 }
 

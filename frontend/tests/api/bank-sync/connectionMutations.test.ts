@@ -2,10 +2,11 @@
  * Covers how the connection requests behave through the query cache the app runs on
  *
  * These tests catch a setup token waiting, with its form's Cancel held, for a connection the
- * browser says it lacks, a refused claim leaving out a connection an earlier try saved unseen, and a
- * rename showing the old name until the list is read again
+ * browser says it lacks, a refused claim leaving out a connection an earlier try saved unseen, a
+ * failed reconnect holding its message back until the reads it starts end, and a rename showing the
+ * old name until the list is read again
  */
-import { MutationObserver, onlineManager, QueryClient } from '@tanstack/react-query';
+import { MutationObserver, onlineManager, QueryClient, QueryObserver } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '@/api/auth/errors';
 
@@ -95,6 +96,27 @@ describe('a claim the server refused', () => {
     await sent;
 
     expect(queryClient.getQueryState(bankSyncKeys.connections())?.isInvalidated).toBe(true);
+  });
+});
+
+describe('a reconnect that loses its answer', () => {
+  it('shows its failure while the reads it starts are still on their way', async () => {
+    queryClient.setQueryData(bankSyncKeys.connections(), [connection()]);
+    const heldRead = new QueryObserver(queryClient, {
+      queryKey: bankSyncKeys.connections(),
+      queryFn: () => new Promise<BankConnection[]>(() => {}),
+      staleTime: Infinity,
+    });
+    const unsubscribe = heldRead.subscribe(() => {});
+    authenticatedFetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    const observer = new MutationObserver(queryClient, reconnectBankConnectionMutationOptions(queryClient));
+
+    void observer.mutate({ connectionId: 'connection-1', setupToken: 'token' }).catch(() => undefined);
+    await vi.runAllTimersAsync();
+
+    expect(heldRead.getCurrentResult().isFetching).toBe(true);
+    expect(observer.getCurrentResult().status).toBe('error');
+    unsubscribe();
   });
 });
 
