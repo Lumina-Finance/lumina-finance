@@ -240,10 +240,12 @@ export function InstitutionRow({ entry, defaultOpen, prefersReducedMotion }: { e
         </span>
       </div>
       <AnimatePresence initial={false}>
+        {/* Clips beyond the row's edge by the room its padding keeps for a focus ring, so the bank
+            accounts end on the row's edge, as the hairlines between rows do, with a ring drawn whole */}
         {open && (
           <motion.div
             id={bodyId}
-            className="overflow-hidden"
+            className="-mr-1 overflow-hidden"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}

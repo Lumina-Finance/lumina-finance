@@ -636,6 +636,30 @@ test("opens a fact's note below its value where the dialog leaves no room above 
   expect(opened.y).toBeGreaterThanOrEqual(explained.y + explained.height)
 })
 
+// The linked account's tile draws its edge with its fill and Disconnect with its border, each on the
+// edge of its own box, so comparing the boxes compares what is drawn
+test("ends a linked account's tile on the edge the connection's actions end on, on a phone", async ({ page, request }) => {
+  test.skip(test.info().project.name !== 'phone', 'The institutions sit below the connection and its actions under 1050px, which only the phone project is')
+  const user = await signUpUser(request)
+  const [household, scenario] = await Promise.all([
+    createAccount(request, user, { name: 'Household' }),
+    createSampleBridgeScenario(request),
+  ])
+  const connection = await claimSetupToken(request, user, scenario.setupToken)
+  await linkBankAccount(request, user, {
+    accountId: household.id,
+    connectionId: connection.id,
+    externalAccountId: connection.accounts.find((bankAccount) => bankAccount.name === SAMPLE_CHEQUING)!.external_id,
+    startDate: todayInTestTimezone(),
+  })
+  const section = await openBankConnections(page, user)
+  const dialog = await openConnection(page, section, 'SimpleFIN')
+  await expect(dialog).toHaveCSS('transform', 'none')
+
+  const [tile, disconnect] = await readBoxes(page, [dialog.getByRole('link', { name: 'Household' }), dialog.getByRole('button', { name: 'Disconnect' })])
+  expect(tile.x + tile.width).toBeCloseTo(disconnect.x + disconnect.width, 0)
+})
+
 test('searches the institutions of a connection with more than 5, and Escape clears the search first', async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createEmptyBridgeScenario(request)
