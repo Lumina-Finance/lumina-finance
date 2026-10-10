@@ -1,6 +1,19 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { bankSyncKeys } from '@/api/cache/queryKeys';
-import { invalidateTargets } from '@/api/cache/invalidation/types';
+import { invalidateTargets, type InvalidationTarget } from '@/api/cache/invalidation/types';
+
+/**
+ * What bank sync shows of the user's data besides each account's bank link: the review inbox with its
+ * backlogs, any bulk approval preview, the pending rows, the link list and the connections. A review
+ * decision, sync, link or connection made in another tab or on another device changes them
+ */
+export const bankSyncTargets: InvalidationTarget[] = [
+  { queryKey: bankSyncKeys.reviewAll },
+  { queryKey: bankSyncKeys.bulkPreviews },
+  { queryKey: bankSyncKeys.pendingAll },
+  { queryKey: bankSyncKeys.links(), exact: true },
+  { queryKey: bankSyncKeys.connections(), exact: true },
+];
 
 /**
  * Invalidates what shows how links and connections stand: each account's bank link status, the

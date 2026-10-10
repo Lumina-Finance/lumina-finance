@@ -13,6 +13,7 @@ import {
   transactionOverviewKeys,
   userKeys,
 } from '@/api/cache/queryKeys';
+import { bankSyncTargets } from '@/api/cache/invalidation/bankSync';
 import { dashboardTargets } from '@/api/cache/invalidation/dashboard';
 import { insightsTargets } from '@/api/cache/invalidation/insights';
 import { referenceDataTargets } from '@/api/cache/invalidation/referenceData';
@@ -36,6 +37,7 @@ const aggregateTargets: InvalidationTarget[] = [
 const appDataTargets: InvalidationTarget[] = [
   ...aggregateTargets,
   ...referenceDataTargets,
+  ...bankSyncTargets,
   { queryKey: lastImportKeys.all },
   { queryKey: importLayoutKeys.all },
   { queryKey: importSourceKeys.all },
