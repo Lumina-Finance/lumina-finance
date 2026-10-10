@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Iterator
 from datetime import datetime, timedelta
 
@@ -49,6 +50,38 @@ def day_later(monkeypatch) -> timedelta:
     """
     monkeypatch.setattr(schedule, "randbelow", lambda limit: limit - 1)
     return timedelta(hours=24, minutes=30)
+
+
+class JobTimeLimits:
+    """The time limit of each job the worker has started, in the order they started"""
+
+    def __init__(self) -> None:
+        """Start with no job started"""
+        self.started: list[asyncio.Timeout] = []
+
+    def end_running(self) -> None:
+        """End the running job's time limit now, as though the job had run for all of it"""
+        self.started[-1].reschedule(asyncio.get_running_loop().time())
+
+
+@pytest.fixture
+def job_time_limits(monkeypatch) -> JobTimeLimits:
+    """Hand the test each job's time limit, to end once the job reaches the state the test needs
+
+    Each limit keeps its real length, so a slow host can't end a job before that state, and no test
+    waits one out. The worker's limits are told apart from other timeouts by their length
+    """
+    limits = JobTimeLimits()
+    start_timeout = asyncio.timeout
+
+    def timeout(delay: float | None) -> asyncio.Timeout:
+        started = start_timeout(delay)
+        if delay == worker.JOB_TIME_LIMIT.total_seconds():
+            limits.started.append(started)
+        return started
+
+    monkeypatch.setattr(asyncio, "timeout", timeout)
+    return limits
 
 
 @pytest.fixture

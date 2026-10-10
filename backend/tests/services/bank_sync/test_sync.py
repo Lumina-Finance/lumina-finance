@@ -78,7 +78,7 @@ from app.models.transaction_link import TransactionLink
 from app.models.user import User
 from app.schemas.transaction import UpdateTransactionRequest
 from app.services.accounts.snapshots import recompute_account_snapshots
-from app.services.bank_sync import action_needed, availability, schedule, sync, worker
+from app.services.bank_sync import action_needed, availability, schedule, sync
 from app.services.bank_sync.availability import PROVIDER_ADAPTERS
 from app.services.bank_sync.connections import build_connection_responses
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
@@ -1615,14 +1615,16 @@ async def test_job_whose_save_starting_a_state_fails_emails_nothing_and_the_next
 
 
 def _sender_hanging_on_the_second_email(sent: list[tuple[str, RenderedEmail]]) -> SimpleNamespace:
-    """Return a sender whose mail server takes the first email, noting it, and never answers the next"""
+    """Return a sender whose mail server takes the first email, noting it, and never answers the next, setting hanging as it starts to"""
+    hanging = asyncio.Event()
 
     async def send(recipient: str, message: RenderedEmail) -> None:
         if sent:
+            hanging.set()
             await asyncio.Event().wait()
         sent.append((recipient, message))
 
-    return SimpleNamespace(send=send)
+    return SimpleNamespace(send=send, hanging=hanging)
 
 
 def _unsent(caplog: pytest.LogCaptureFixture) -> list[str]:
@@ -1631,7 +1633,7 @@ def _unsent(caplog: pytest.LogCaptureFixture) -> list[str]:
 
 
 async def test_job_whose_mail_server_hangs_past_the_time_limit_logs_the_email_left_unsent_naming_no_one(
-    connection, provider, frozen_now, monkeypatch, caplog
+    connection, provider, frozen_now, monkeypatch, caplog, job_time_limits
 ):
     """The Chase and Amex logins both need a sign-in, and the mail server takes the Amex email but never answers the Chase one
 
@@ -1645,13 +1647,16 @@ async def test_job_whose_mail_server_hangs_past_the_time_limit_logs_the_email_le
     amex = await _link(connection, "ACT-amex", **_synced_through_yesterday())
     provider.outcomes = [FetchResult(request_error=_signin_needed())]
     sent = []
-    monkeypatch.setattr(email_contract, "_active_sender", _sender_hanging_on_the_second_email(sent))
-    monkeypatch.setattr(worker, "JOB_TIME_LIMIT", timedelta(seconds=3))
+    sender = _sender_hanging_on_the_second_email(sent)
+    monkeypatch.setattr(email_contract, "_active_sender", sender)
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
 
     with caplog.at_level(logging.WARNING, logger=action_needed.__name__):
         async with asyncio.timeout(_WAIT_SECONDS):
-            assert await run_jobs(1) == 1
+            running = asyncio.create_task(run_jobs(1))
+            await sender.hanging.wait()
+            job_time_limits.end_running()
+            assert await running == 1
 
     assert _emailed(sent, "ACT-amex", "ACT-chase-checking") == [_email(_SIGNIN_SUBJECT, "ACT-amex")]
     assert _unsent(caplog) == [
@@ -1662,7 +1667,9 @@ async def test_job_whose_mail_server_hangs_past_the_time_limit_logs_the_email_le
     assert [(status, error) for _, status, error, _ in await _jobs()] == [("failed", "bank_login_needed")]
 
 
-async def test_job_stopped_by_its_time_limit_has_already_sent_the_email_its_listing_saved(connection, monkeypatch, caplog, sent_action_emails):
+async def test_job_stopped_by_its_time_limit_has_already_sent_the_email_its_listing_saved(
+    connection, monkeypatch, caplog, sent_action_emails, job_time_limits
+):
     """The listing moves Everyday to Choose bank account, and Savings's fetch then outlasts the job's time limit
 
     The email went out as the listing's save committed, so the owner is told though the job then
@@ -1674,12 +1681,14 @@ async def test_job_stopped_by_its_time_limit_has_already_sent_the_email_its_list
     provider = _HeldProvider(held=(2,))
     provider.outcomes = [_returned("ACT-savings"), _returned("ACT-savings")]
     monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
-    monkeypatch.setattr(worker, "JOB_TIME_LIMIT", timedelta(seconds=3))
     await _seed_job(connection, BankSyncJobKind.MANUAL, discover=True)
 
     with caplog.at_level(logging.WARNING, logger=action_needed.__name__):
         async with asyncio.timeout(_WAIT_SECONDS):
-            assert await run_jobs(1) == 1
+            running = asyncio.create_task(run_jobs(1))
+            await provider.sending[2].wait()
+            job_time_limits.end_running()
+            assert await running == 1
 
     assert await _link_states(everyday) == ["choose_account"]
     assert _emailed(sent_action_emails, "ACT-everyday", "Everyday Chequing") == [_CHOOSE_EVERYDAY]
@@ -1688,7 +1697,7 @@ async def test_job_stopped_by_its_time_limit_has_already_sent_the_email_its_list
 
 
 async def test_job_stopped_by_its_time_limit_has_already_sent_the_email_a_part_saved(
-    connection, frozen_now, monkeypatch, caplog, sent_action_emails
+    connection, frozen_now, monkeypatch, caplog, sent_action_emails, job_time_limits
 ):
     """The first window of Everyday's and Chase Card's imports may be cut short, so the job fetches it again in halves
 
@@ -1706,12 +1715,14 @@ async def test_job_stopped_by_its_time_limit_has_already_sent_the_email_a_part_s
         _returned("ACT-everyday"),
     ]
     monkeypatch.setitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, provider)
-    monkeypatch.setattr(worker, "JOB_TIME_LIMIT", timedelta(seconds=3))
     await _seed_job(connection, BankSyncJobKind.INITIAL)
 
     with caplog.at_level(logging.WARNING, logger=action_needed.__name__):
         async with asyncio.timeout(_WAIT_SECONDS):
-            assert await run_jobs(1) == 1
+            running = asyncio.create_task(run_jobs(1))
+            await provider.sending[3].wait()
+            job_time_limits.end_running()
+            assert await running == 1
 
     assert provider.sent == 3
     assert await _signin_marks(card) == [frozen_now]

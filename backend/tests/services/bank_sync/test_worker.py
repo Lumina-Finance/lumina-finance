@@ -335,21 +335,21 @@ async def test_run_jobs_gives_up_on_a_job_interrupted_three_times_and_runs_the_q
 
 
 @pytest.mark.parametrize(("failure", "kind"), [("raises", "unknown"), ("hangs", "temporary")])
-async def test_run_jobs_records_a_job_that_fails_and_runs_the_next(connections, monkeypatch, failure, kind):
+async def test_run_jobs_records_a_job_that_fails_and_runs_the_next(connections, monkeypatch, job_time_limits, failure, kind):
     """A job that raises or runs past its time limit is recorded as failed, and the next job still runs"""
     failing = await _seed_job(connections[0], BankSyncJobKind.SCHEDULED)
     following = await _seed_job(connections[1], BankSyncJobKind.SCHEDULED)
 
     async def runner(job: ClaimedJob) -> None:
-        """Fail the first connection's job, and run the other"""
+        """Fail the first connection's job, hanging until its time limit ends, which it ends at once, and run the other"""
         if job.id == failing.id:
             if failure == "raises":
                 raise RuntimeError("Unexpected bank data")
-            await asyncio.sleep(_WAIT_SECONDS)
+            job_time_limits.end_running()
+            await asyncio.Event().wait()
         await run_sync_job(job)
 
     monkeypatch.setattr(worker, "run_sync_job", runner)
-    monkeypatch.setattr(worker, "JOB_TIME_LIMIT", timedelta(seconds=1))
 
     async with asyncio.timeout(_WAIT_SECONDS):
         assert await run_jobs(10) == 2
