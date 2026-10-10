@@ -2,7 +2,15 @@
  * Driving the parts of the app a spec passes through on its way to the behaviour it tests.
  */
 
-import { expect, type APIRequestContext, type CDPSession, type Locator, type Page, type Response } from '@playwright/test'
+import {
+  expect,
+  type APIRequestContext,
+  type CDPSession,
+  type Locator,
+  type Page,
+  type Request,
+  type Response,
+} from '@playwright/test'
 
 import { asUser, TEST_PASSWORD, type TestUser } from './api'
 import { waitForConfirmationLink } from './mail'
@@ -377,6 +385,26 @@ export async function reachTwoFactorChallenge(page: Page, user: TestUser): Promi
   await page.getByLabel('Password', { exact: true }).fill(user.password)
   await page.getByRole('button', { name: 'Log in' }).click()
   await expect(page.getByLabel('One-time code')).toBeVisible()
+}
+
+/**
+ * Watches the requests the page sends the server from now on, for a test that moves the page's clock
+ * on. A read still out as the clock moves re-renders the view it lands in, which would word a time
+ * anew whether or not the app keeps it current, so such a test waits for every one to land first
+ *
+ * @returns Waits until every request sent so far has landed
+ */
+export function watchServerRequests(page: Page): () => Promise<void> {
+  const inFlight = new Set<Request>()
+  page.on('request', (sent) => {
+    if (sent.url().startsWith(API_BASE_URL)) inFlight.add(sent)
+  })
+  const landed = (sent: Request) => {
+    inFlight.delete(sent)
+  }
+  page.on('requestfinished', landed)
+  page.on('requestfailed', landed)
+  return () => expect.poll(() => inFlight.size).toBe(0)
 }
 
 /**

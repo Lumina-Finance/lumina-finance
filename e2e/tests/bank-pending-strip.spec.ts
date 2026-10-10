@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Locator, type Page, type Response } from '@playwright/test'
 
 import { createAccount, createGroup, createTransaction, signUpUser, todayInTestTimezone, type SeededAccount } from '../support/api'
-import { filterTransactions, logInViaApi, openPage } from '../support/app'
+import { filterTransactions, logInViaApi, openPage, watchServerRequests } from '../support/app'
 import { answerLinksWith, isRead, pageOf, reviewItem, SEP_21 } from '../support/bankSync'
 import { contrastOf, MIN_TEXT_CONTRAST, MINUS, readBoxes } from '../support/selectors'
 
@@ -191,12 +191,14 @@ test('words when the bank was last asked anew as minutes pass with the strip ope
   await answerPending(page, () => [pendingTransaction('uber', everyday.id, { observed_at: checkedAt.toISOString() })])
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.clock.install({ time: checkedAt })
+  const allLanded = watchServerRequests(page)
   await openPage(page, '/transactions')
   const strip = pendingStrip(page)
   const row = strip.getByRole('listitem')
   await strip.getByRole('button', { name: /^1 pending/ }).click()
   await expect(row).toContainText('Checked just now')
 
+  await allLanded()
   await page.clock.runFor(CHECK_AGE_MS)
   await expect(row).toContainText('Checked 5 minutes ago')
 })

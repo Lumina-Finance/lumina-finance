@@ -9,7 +9,7 @@ import {
   todayInTestTimezone,
   type TestUser,
 } from '../support/api'
-import { fact, logInViaApi, openPage } from '../support/app'
+import { fact, logInViaApi, openPage, watchServerRequests } from '../support/app'
 import {
   addBridgeBankAccount,
   addBridgeBankLogin,
@@ -456,9 +456,11 @@ test('words how long ago the link synced anew as minutes pass with the page open
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.clock.install({ time: syncedAt })
   await logInViaApi(page, user)
+  const allLanded = watchServerRequests(page)
   await openPage(page, `/accounts/${account.id}`)
   await expect(page.getByRole('button', { name: 'Bank sync: Synced just now. Open bank link' })).toBeVisible()
 
+  await allLanded()
   await page.clock.runFor(SYNC_AGE_MS)
   await expect(page.getByRole('button', { name: 'Bank sync: Synced 5 minutes ago. Open bank link' })).toBeVisible()
 })

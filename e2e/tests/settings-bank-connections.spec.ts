@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, formatToday, signUpUser, todayInTestTimezone, type TestUser } from '../support/api'
-import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
+import { chooseFromDropdown, logInViaApi, openPage, watchServerRequests } from '../support/app'
 import {
   addBridgeBankAccount,
   addBridgeBankLogin,
@@ -394,6 +394,7 @@ test('words when a spent request budget frees up anew as minutes pass with the c
   })
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.clock.install({ time: spentAt })
+  const allLanded = watchServerRequests(page)
   const section = await openBankConnections(page, user)
   const dialog = await openConnection(page, section, 'Joint banks')
   const trigger = dialog.getByRole('button', { name: 'About requests, 24 hours' })
@@ -407,6 +408,7 @@ test('words when a spent request budget frees up anew as minutes pass with the c
   await trigger.click()
   await page.mouse.move(0, 0)
 
+  await allLanded()
   await page.clock.runFor(BUDGET_OPEN_MS)
   await trigger.click()
   await expect(note).toContainText('Automatic syncs wait until one frees up in 5 minutes.')
