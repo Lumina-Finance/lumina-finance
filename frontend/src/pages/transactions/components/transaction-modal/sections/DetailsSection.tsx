@@ -137,9 +137,8 @@ export default function TransactionDetailsSection({
           <div className="relative">
             {selectedCurrencySymbol && (
               <span
-                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
+                className="app-input-prefix pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
                 style={{
-                  color: 'var(--app-text-subtle)',
                   fontSize: '0.9375rem',
                   lineHeight: 1,
                 }}

@@ -11,7 +11,7 @@ import {
   getColumnSamples,
   getTargetForHeader,
 } from '@/pages/imports/utils'
-import { IMPORT_EXCLUDED_ROW_BACKGROUND } from '@/pages/imports/constants'
+import { IMPORT_EXCLUDED_ROW_BACKGROUND, IMPORT_EXCLUDED_ROW_FAINT_TEXT } from '@/pages/imports/constants'
 
 /**
  * Table mapping each column header found in the uploaded files to an app field, showing sample
@@ -97,14 +97,14 @@ export function ImportHeaderMappingTable({
                       {header}
                     </p>
                     {isIgnored && (
-                      <span className="text-[0.6875rem] font-semibold uppercase" style={{ color: 'var(--app-text-subtle)' }}>
+                      <span className="text-[0.6875rem] font-semibold uppercase" style={{ color: IMPORT_EXCLUDED_ROW_FAINT_TEXT }}>
                         Ignored
                       </span>
                     )}
                   </div>
                 </td>
                 <td className="max-w-[24rem] px-4 py-2.5 align-middle">
-                  <p className="truncate text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                  <p className="truncate text-sm" style={{ color: isIgnored ? IMPORT_EXCLUDED_ROW_FAINT_TEXT : 'var(--app-text-subtle)' }}>
                     {samples.length > 0 ? samples.join(', ') : 'No samples'}
                   </p>
                 </td>

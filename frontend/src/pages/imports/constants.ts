@@ -686,3 +686,7 @@ export const IMPORT_INSET_STYLE: CSSProperties = {
 
 // The shade of a table row the import leaves out, which stays listed so it can be brought back
 export const IMPORT_EXCLUDED_ROW_BACKGROUND = 'color-mix(in srgb, var(--app-bg) 88%, var(--app-text) 12%)'
+
+// Faint text on that shade, which is drawn in the muted colour since the faint one falls under the contrast text
+// needs there
+export const IMPORT_EXCLUDED_ROW_FAINT_TEXT = 'var(--app-text-muted)'

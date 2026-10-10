@@ -281,8 +281,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                 <div className="relative">
                   {selectedCurrencySymbol && (
                     <span
-                      className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
-                      style={{ color: 'var(--app-text-subtle)' }}
+                      className="app-input-prefix pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
                       aria-hidden
                     >
                       {selectedCurrencySymbol}
@@ -343,8 +342,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                         <div className="relative">
                           {selectedCurrencySymbol && (
                             <span
-                              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
-                              style={{ color: 'var(--app-text-subtle)' }}
+                              className="app-input-prefix pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
                               aria-hidden
                             >
                               {selectedCurrencySymbol}

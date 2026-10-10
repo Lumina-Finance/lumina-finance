@@ -605,6 +605,19 @@
     box-shadow: var(--app-focus-border-error);
   }
 
+  /* The currency symbol drawn inside the start of a money field, beside its input */
+  .app-input-prefix {
+    color: var(--app-text-subtle);
+  }
+
+  /* The red tint of a field in error takes faint text under the contrast text needs in the dark theme, so
+     the placeholder and the currency symbol step up to the muted colour while the field is in error */
+  .app-input-error::placeholder,
+  .app-input-error .app-date-field-segment::placeholder,
+  :has(> .app-input-error) > .app-input-prefix {
+    color: var(--app-text-muted);
+  }
+
   /* The segmented date control mirrors app-input as a flex row so the year, month, and day inputs sit
      inside one field frame, with focus-within standing in for the input focus ring */
   .app-date-field {
@@ -890,8 +903,17 @@
     background: color-mix(in srgb, var(--app-text) 6%, transparent);
   }
 
+  /* Faint text such as an option's description falls under the contrast text needs on a tinted row, so a
+     highlighted or chosen row draws it in the muted colour */
+  .app-dropdown-row-highlighted,
   .app-dropdown-row-selected {
-    background: var(--app-accent-soft);
+    --app-text-subtle: var(--app-text-muted);
+  }
+
+  /* A lighter tint of the accent than its soft fill, which is what keeps the bronze label and the muted
+     text on the row readable in both themes */
+  .app-dropdown-row-selected {
+    background: color-mix(in srgb, var(--app-accent) 6%, transparent);
     color: var(--app-accent);
     font-weight: 500;
   }
@@ -899,7 +921,7 @@
   /* The chosen row is also where the keyboard starts, so it needs to show both at once. Without this
      the cursor is invisible until it moves off the chosen row */
   .app-dropdown-row-selected.app-dropdown-row-highlighted {
-    background: color-mix(in srgb, var(--app-accent) 18%, transparent);
+    background: color-mix(in srgb, var(--app-accent) 10%, transparent);
   }
 
   .app-dropdown-row-disabled {

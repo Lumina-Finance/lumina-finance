@@ -169,6 +169,37 @@ describe('tinted state contrast', () => {
       text: ['--app-text', '--app-text-muted-on-warning'],
       fill: (tokens) => solid(tokens, '--app-warning-soft', solid(tokens, '--app-bg')),
     },
+    {
+      // .app-input-error, a field in a dialog, whose placeholder and money prefix step up to muted
+      name: 'a field in error',
+      text: ['--app-text', '--app-text-muted'],
+      fill: (tokens) => solid(tokens, '--app-negative-soft', solid(tokens, '--app-bg')),
+    },
+    {
+      // .app-dropdown-row-highlighted, 6% of the text colour over the open list's field-coloured panel
+      name: 'a highlighted dropdown row',
+      text: ['--app-text', '--app-text-muted'],
+      fill: (tokens) => paint(solid(tokens, '--app-text'), 0.06, solid(tokens, '--app-input-bg')),
+    },
+    {
+      // .app-dropdown-row-selected, 6% of the accent over the open list's field-coloured panel. A highlighted or
+      // chosen row draws faint text such as an option's description in muted
+      name: 'the chosen dropdown row',
+      text: ['--app-accent', '--app-text-muted'],
+      fill: (tokens) => paint(solid(tokens, '--app-accent'), 0.06, solid(tokens, '--app-input-bg')),
+    },
+    {
+      // .app-dropdown-row-selected.app-dropdown-row-highlighted, 10% of the accent over the panel
+      name: 'the chosen dropdown row while highlighted',
+      text: ['--app-accent', '--app-text-muted'],
+      fill: (tokens) => paint(solid(tokens, '--app-accent'), 0.10, solid(tokens, '--app-input-bg')),
+    },
+    {
+      // IMPORT_EXCLUDED_ROW_BACKGROUND, 12% of the text colour into the page, whose faint text is drawn in muted
+      name: 'an excluded Imports row',
+      text: ['--app-text-muted'],
+      fill: (tokens) => mix(solid(tokens, '--app-bg'), 0.88, solid(tokens, '--app-text')),
+    },
   ]
 
   const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) =>
