@@ -1,4 +1,3 @@
-import { API_BASE } from '@/api/config';
 import { ApiError, getSessionRestoreFailure, isRefreshAlreadyRotatedError } from '@/api/auth/errors';
 import type {
   AuthResponse,
@@ -12,6 +11,7 @@ import type {
   ResetPasswordVerifyPayload,
   SignupPayload,
 } from '@/api/auth/types';
+import { fetchFromServer } from '@/api/server';
 
 const REFRESH_ROTATION_RETRY_DELAY_MS = 100;
 const REFRESH_ROTATION_RETRY_TIMEOUT_MS = 5_000;
@@ -111,7 +111,7 @@ function clearRefreshRequestLock(lockValue: string | null): void {
  * Sends auth requests with the refresh cookie and normalizes backend error responses
  */
 async function requestAuth<T>(path: string, options: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetchFromServer(path, {
     ...options,
 
     // Auth endpoints need the httpOnly refresh cookie for session rotation

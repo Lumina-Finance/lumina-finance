@@ -1,5 +1,5 @@
-import { API_BASE } from '@/api/config';
 import type { Currency } from '@/api/currency/types';
+import { fetchFromServer } from '@/api/server';
 
 // A request left hanging is worse here than one that fails, since everything waiting on the list can
 // only say it is still loading and would say so forever. Aborting turns that into a failure the app
@@ -20,9 +20,7 @@ const CURRENCY_REQUEST_TIMEOUT_MS = 5_000;
  * @throws Error when the response is not ok, and a TimeoutError when the request outlives the timeout
  */
 export async function fetchCurrencies(): Promise<Currency[]> {
-  const res = await fetch(`${API_BASE}/currencies`, {
-    signal: AbortSignal.timeout(CURRENCY_REQUEST_TIMEOUT_MS),
-  });
+  const res = await fetchFromServer('/currencies', { timeoutMs: CURRENCY_REQUEST_TIMEOUT_MS });
   if (!res.ok) {
     throw new Error(`Failed to load currencies (${res.status})`);
   }

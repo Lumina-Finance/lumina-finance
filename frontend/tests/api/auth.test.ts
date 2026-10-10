@@ -17,6 +17,8 @@ import {
   signup,
 } from '@/api/auth';
 import type { AuthResponse } from '@/api/auth';
+import { REQUEST_TIMEOUT_MS } from '@/api/server';
+import { answerNever } from './fixtures';
 
 const authResponse: AuthResponse = {
   user: {
@@ -82,6 +84,7 @@ describe('auth API functions', () => {
         password: 'secret',
       }),
       credentials: 'include',
+      signal: expect.any(AbortSignal),
       headers: {
         'Content-Type': 'application/json',
       },
@@ -107,6 +110,7 @@ describe('auth API functions', () => {
         base_currency: 'CAD',
       }),
       credentials: 'include',
+      signal: expect.any(AbortSignal),
       headers: {
         'Content-Type': 'application/json',
       },
@@ -119,6 +123,7 @@ describe('auth API functions', () => {
     expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/auth/refresh`, {
       method: 'POST',
       credentials: 'include',
+      signal: expect.any(AbortSignal),
       headers: {
         'Content-Type': 'application/json',
       },
@@ -141,6 +146,7 @@ describe('auth API functions', () => {
     expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/auth/refresh`, {
       method: 'POST',
       credentials: 'include',
+      signal: expect.any(AbortSignal),
       headers: {
         'Content-Type': 'application/json',
       },
@@ -169,6 +175,7 @@ describe('auth API functions', () => {
     expect(fetchMock).toHaveBeenNthCalledWith(1, `${API_BASE}/auth/refresh`, {
       method: 'POST',
       credentials: 'include',
+      signal: expect.any(AbortSignal),
       headers: {
         'Content-Type': 'application/json',
       },
@@ -176,6 +183,7 @@ describe('auth API functions', () => {
     expect(fetchMock).toHaveBeenNthCalledWith(2, `${API_BASE}/auth/refresh`, {
       method: 'POST',
       credentials: 'include',
+      signal: expect.any(AbortSignal),
       headers: {
         'Content-Type': 'application/json',
       },
@@ -192,6 +200,7 @@ describe('auth API functions', () => {
         Authorization: 'Bearer access-token',
       },
       credentials: 'include',
+      signal: expect.any(AbortSignal),
     });
   });
 
@@ -235,6 +244,17 @@ describe('restoring the session on page load', () => {
 
     const request = restoreSession();
     await vi.advanceTimersByTimeAsync(1_000);
+
+    await expect(request).resolves.toEqual(authResponse);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('tries again when the server never answers the first attempt', async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementationOnce(answerNever);
+
+    const request = restoreSession();
+    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS + 1_000);
 
     await expect(request).resolves.toEqual(authResponse);
     expect(fetchMock).toHaveBeenCalledTimes(2);

@@ -112,9 +112,9 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
   // reload, since the session restore is held back that long, and longer again behind a slow server.
   // A valid session that answers slowly can see it too, cutting the minimum loading screen short
   //
-  // It buys more than it costs. The session request carries no timeout of its own, so a network that
-  // swallows packets leaves it pending forever, and waiting on it would strand that user on the
-  // loading screen with no reload button rather than on this screen with one. Every one of these
+  // It buys more than it costs. The session request only gives up once the shared request limit
+  // passes, so a network that swallows packets would hold that user on the loading screen with no
+  // reload button for that long, rather than on this screen with one. Every one of these
   // cases means the server is unreachable, and the screen saying so is the better answer to all of
   // them
 

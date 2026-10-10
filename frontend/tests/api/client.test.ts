@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, type AuthResponse } from '@/api/auth';
 import { API_BASE } from '@/api/config';
 import { authenticatedFetch, registerAuthBindings } from '@/api/client';
+import { REQUEST_TIMEOUT_MS } from '@/api/server';
+import { answerNever } from './fixtures';
 
 const refreshedAuthResponse: AuthResponse = {
   user: {
@@ -69,6 +71,7 @@ describe('authenticatedFetch', () => {
     expect(fetchMock).toHaveBeenNthCalledWith(3, `${API_BASE}/accounts/account_1`, {
       ...options,
       credentials: 'include',
+      signal: expect.any(AbortSignal),
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer new-access-token' },
     });
   });
@@ -220,6 +223,7 @@ describe('authenticatedFetch', () => {
     expect(onSessionLost).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenNthCalledWith(3, `${API_BASE}/accounts`, {
       credentials: 'include',
+      signal: expect.any(AbortSignal),
       headers: {
         'Content-Type': 'application/json',
         Authorization: 'Bearer new-access-token',
@@ -245,6 +249,21 @@ describe('authenticatedFetch', () => {
     // The request is sent once and never resent, so the failed attempt counts a single time
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(onSessionRefreshed).not.toHaveBeenCalled();
+    expect(onSessionLost).not.toHaveBeenCalled();
+  });
+
+  it('fails a resend the server never answers once the shared limit passes, keeping the session', async () => {
+    vi.useFakeTimers();
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(401, { detail: 'Expired access token' }, true))
+      .mockResolvedValueOnce(jsonResponse(200, refreshedAuthResponse))
+      .mockImplementationOnce(answerNever);
+
+    const request = authenticatedFetch('/transactions');
+    const settled = expect(request).rejects.toMatchObject({ name: 'TimeoutError' });
+    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+
+    await settled;
     expect(onSessionLost).not.toHaveBeenCalled();
   });
 });

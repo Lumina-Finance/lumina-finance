@@ -9,6 +9,10 @@ import type {
 
 const IMPORT_RUNS_PATH = '/transactions/import/runs';
 
+// How long a request that sends, writes or deletes an import's rows may go unanswered. These scale
+// with the file, so a large import on a slow connection can take far longer than an ordinary request
+const IMPORT_REQUEST_TIMEOUT_MS = 5 * 60_000;
+
 /**
  * Opens a run for an import about to be uploaded
  */
@@ -28,6 +32,7 @@ export function stageImportRunRows(runId: string, routes: ImportRunRoutes, batch
     method: 'POST',
     body: JSON.stringify(batch),
     signal,
+    timeoutMs: IMPORT_REQUEST_TIMEOUT_MS,
   });
 }
 
@@ -41,6 +46,7 @@ export function commitImportRun<TResponse>(runId: string, routes: ImportRunRoute
   return authenticatedFetch<TResponse>(`${IMPORT_RUNS_PATH}/${runId}/${routes.commit}`, {
     method: 'POST',
     signal,
+    timeoutMs: IMPORT_REQUEST_TIMEOUT_MS,
   });
 }
 
@@ -53,6 +59,7 @@ export function commitImportRun<TResponse>(runId: string, routes: ImportRunRoute
 export function deleteImportRun(runId: string) {
   return authenticatedFetch<void>(`${IMPORT_RUNS_PATH}/${runId}`, {
     method: 'DELETE',
+    timeoutMs: IMPORT_REQUEST_TIMEOUT_MS,
   });
 }
 
@@ -70,5 +77,6 @@ export function fetchLastImport() {
 export function undoImportRun(runId: string) {
   return authenticatedFetch<ImportUndoResult>(`${IMPORT_RUNS_PATH}/${runId}/undo`, {
     method: 'POST',
+    timeoutMs: IMPORT_REQUEST_TIMEOUT_MS,
   });
 }

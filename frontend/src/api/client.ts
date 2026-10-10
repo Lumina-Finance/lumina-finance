@@ -1,6 +1,6 @@
 import * as authApi from './auth';
 import { ApiError, type AuthResponse } from './auth';
-import { API_BASE } from './config';
+import { fetchFromServer, type ServerRequestInit } from './server';
 
 // Step-up 401s report how many tries remain before the shared lockout signs the user out everywhere
 const ATTEMPTS_REMAINING_HEADER = 'X-Auth-Attempts-Remaining';
@@ -37,7 +37,7 @@ function refreshOnce(): Promise<AuthResponse> {
 /**
  * Fetches authenticated API endpoints and retries once after refreshing expired tokens
  */
-export async function authenticatedFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function authenticatedFetch<T>(path: string, options: ServerRequestInit = {}): Promise<T> {
   if (!bindings) {
     throw new Error('authenticatedFetch called before auth bindings were registered');
   }
@@ -48,7 +48,7 @@ export async function authenticatedFetch<T>(path: string, options: RequestInit =
   }
 
   const makeRequest = (accessToken: string): Promise<Response> =>
-    fetch(`${API_BASE}${path}`, {
+    fetchFromServer(path, {
       ...options,
       credentials: 'include',
       headers: {

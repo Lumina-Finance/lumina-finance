@@ -35,7 +35,7 @@ describe('version API functions', () => {
         releaseUrl: 'https://example.com/releases/1.2.4',
       },
     });
-    expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/version`, { cache: 'no-store' });
+    expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/version`, { cache: 'no-store', signal: expect.any(AbortSignal) });
   });
 
   it('raises an error when version metadata fails to load', async () => {
