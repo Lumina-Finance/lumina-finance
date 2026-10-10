@@ -1,4 +1,4 @@
-import { ApiError, getSessionRestoreFailure, isRefreshAlreadyRotatedError } from '@/api/auth/errors';
+import { buildApiError, getSessionRestoreFailure, isRefreshAlreadyRotatedError } from '@/api/auth/errors';
 import type {
   AuthResponse,
   ForgotPasswordPayload,
@@ -123,9 +123,7 @@ async function requestAuth<T>(path: string, options: RequestInit): Promise<T> {
   });
 
   if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    const message = body?.detail ?? `Request failed (${res.status})`;
-    throw new ApiError(message, res.status, { detail: body?.detail });
+    throw buildApiError(res.status, await res.json().catch(() => null));
   }
 
   // The forgot and reset endpoints return 204 with no body, so res.json would throw

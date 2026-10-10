@@ -46,12 +46,12 @@ describe('currency API functions', () => {
   });
 
   it('raises an error when currencies fail to load', async () => {
-    fetchMock.mockResolvedValueOnce({
-      ok: false,
+    fetchMock.mockResolvedValueOnce(new Response('', { status: 500 }));
+
+    await expect(fetchCurrencies()).rejects.toMatchObject({
+      message: 'Oops, something went wrong. Please try again.',
       status: 500,
     });
-
-    await expect(fetchCurrencies()).rejects.toThrow('Failed to load currencies (500)');
   });
 
   // The whole app waits on this list behind its loading screen, so it gives up far sooner than the

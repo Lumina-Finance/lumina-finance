@@ -1,5 +1,6 @@
 export {
   ApiError,
+  buildApiError,
   getSessionRestoreFailure,
   isRefreshAlreadyRotatedError,
 } from '@/api/auth/errors';

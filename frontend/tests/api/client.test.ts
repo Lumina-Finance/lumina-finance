@@ -267,3 +267,30 @@ describe('authenticatedFetch', () => {
     expect(onSessionLost).not.toHaveBeenCalled();
   });
 });
+
+describe('what a refused request says', () => {
+  it.each([
+    ['no body', () => new Response('', { status: 500 })],
+    ['a JSON body with no explanation', () => jsonResponse(500, { error: 'boom' })],
+    ['a gateway page', () => new Response('<html>Bad Gateway</html>', { status: 502 })],
+  ])('says something went wrong, keeping the status, for %s', async (_label, respond) => {
+    fetchMock.mockResolvedValueOnce(respond());
+
+    const error = await authenticatedFetch('/tags', { method: 'POST' }).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).message).toBe('Oops, something went wrong. Please try again.');
+    expect((error as ApiError).detail).toBeUndefined();
+    expect((error as ApiError).status).toBe(respond().status);
+  });
+
+  it('passes on the sentence the server explained the refusal with', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(409, { detail: 'Tag with this name already exists' }));
+
+    await expect(authenticatedFetch('/tags', { method: 'POST' })).rejects.toMatchObject({
+      message: 'Tag with this name already exists',
+      detail: 'Tag with this name already exists',
+      status: 409,
+    });
+  });
+});

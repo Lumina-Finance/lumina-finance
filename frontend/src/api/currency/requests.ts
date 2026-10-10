@@ -1,3 +1,4 @@
+import { buildApiError } from '@/api/auth/errors';
 import type { Currency } from '@/api/currency/types';
 import { fetchFromServer } from '@/api/server';
 
@@ -17,12 +18,12 @@ const CURRENCY_REQUEST_TIMEOUT_MS = 5_000;
 /**
  * Fetches static ISO currency metadata used by money inputs and displays
  *
- * @throws Error when the response is not ok, and a TimeoutError when the request outlives the timeout
+ * @throws ApiError when the response is not ok, and a TimeoutError when the request outlives the timeout
  */
 export async function fetchCurrencies(): Promise<Currency[]> {
   const res = await fetchFromServer('/currencies', { timeoutMs: CURRENCY_REQUEST_TIMEOUT_MS });
   if (!res.ok) {
-    throw new Error(`Failed to load currencies (${res.status})`);
+    throw buildApiError(res.status, await res.json().catch(() => null));
   }
   return res.json();
 }

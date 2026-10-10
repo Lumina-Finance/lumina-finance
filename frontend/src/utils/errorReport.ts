@@ -30,8 +30,8 @@ export function buildErrorReport({ componentStack, error, occurredAt, path, user
   ];
 
   // A failed request carries its status and the backend's own explanation as fields, and neither is
-  // reliably in the message: the client invents a sentence from the status only when the body had no
-  // explanation, so quoting one hides the other
+  // reliably in the message: with no explanation in the body the message is the friendly sentence
+  // instead, so the report quotes both
   if (error instanceof ApiError) {
     lines.push(`Status: ${error.status}`);
     if (error.detail) lines.push(`Server said: ${error.detail}`);

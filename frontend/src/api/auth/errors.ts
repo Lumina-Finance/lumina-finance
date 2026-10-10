@@ -13,8 +13,8 @@ export class ApiError extends Error {
   attemptsRemaining?: number;
 
   // Set only where the response body carried a `detail`, so an empty one is the app's own way of
-  // knowing the backend offered no explanation. `message` cannot answer that: it falls back to a
-  // sentence the client invents from the status
+  // knowing the backend offered no explanation. `message` cannot answer that: it falls back to the
+  // friendly sentence the client shows when the server said nothing
   /** The backend's own explanation of the failure, where the response carried one */
   detail?: string;
 
@@ -54,4 +54,21 @@ export function getSessionRestoreFailure(error: unknown): SessionRestoreFailure 
   if (error instanceof ApiError && error.status === 401) return 'rejected';
   if (isRefreshAlreadyRotatedError(error)) return 'rotated';
   return 'unavailable';
+}
+
+// What a failed request shows when the server sent no explanation of its own, such as a 500 with an
+// empty body or a gateway's page. The status stays on the error for the copied report
+export const NO_EXPLANATION_MESSAGE = 'Oops, something went wrong. Please try again.';
+
+/**
+ * Builds the error a failed response stands for from its status and its parsed body, if any
+ *
+ * A sentence the server sent is the message. Anything else, including no body at all, gets the
+ * friendly sentence, since a status code is not something a user can act on
+ */
+export function buildApiError(status: number, body: unknown, options: Omit<ApiErrorOptions, 'detail'> = {}): ApiError {
+  const detail = typeof body === 'object' && body !== null ? (body as { detail?: unknown }).detail : undefined;
+  if (typeof detail === 'string' && detail.trim()) return new ApiError(detail, status, { ...options, detail });
+
+  return new ApiError(NO_EXPLANATION_MESSAGE, status, options);
 }

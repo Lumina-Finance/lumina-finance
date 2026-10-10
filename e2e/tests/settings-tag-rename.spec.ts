@@ -76,3 +76,22 @@ test('marks the Create Tag name field invalid when the name is taken or empty', 
   await expect(field).toHaveAttribute('aria-invalid', 'true')
   await expect(field).toHaveAccessibleDescription('Name is required.')
 })
+
+// A failure the server gave no explanation for, such as a 500 with an empty body, is told in the app's
+// own words rather than as a status code nobody wrote for the user
+test('says something went wrong when creating a tag fails with no explanation', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await page.route(`${API_BASE_URL}/tags`, async (route) => {
+    if (route.request().method() !== 'POST') return route.continue()
+    await route.fulfill({ status: 500, body: '' })
+  })
+
+  await logInViaApi(page, user)
+  await openPage(page, '/settings#tags')
+  await page.locator('#tags').getByRole('button', { name: 'Create tag', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Create Tag' })
+  await dialog.getByRole('textbox', { name: 'Tag Name', exact: true }).fill('Holiday')
+  await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+
+  await expect(dialog.getByRole('alert')).toHaveText('Oops, something went wrong. Please try again.')
+})

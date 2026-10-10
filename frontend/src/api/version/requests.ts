@@ -1,3 +1,4 @@
+import { buildApiError } from '@/api/auth/errors';
 import { fetchFromServer } from '@/api/server';
 import type { AppVersionInfo, AppVersionResponse } from '@/api/version/types';
 
@@ -9,7 +10,7 @@ import type { AppVersionInfo, AppVersionResponse } from '@/api/version/types';
 export async function fetchAppVersion(timeoutMs?: number): Promise<AppVersionInfo> {
   const response = await fetchFromServer('/version', { cache: 'no-store', timeoutMs });
   if (!response.ok) {
-    throw new Error(`Failed to load app version (${response.status})`);
+    throw buildApiError(response.status, await response.json().catch(() => null));
   }
 
   const appVersion = (await response.json()) as AppVersionResponse;
