@@ -58,7 +58,7 @@ export default function TaxAdvantagedCategoryDetailsModal({
       <div className="flex shrink-0 items-start justify-between gap-4 border-b p-5" style={{ borderColor: 'var(--app-border)' }}>
         <div className="min-w-0">
           <h4 id="tax-category-details-title" className="font-serif text-2xl font-medium tracking-tight">
-            TAC Details
+            Category details
           </h4>
           <p className="mt-1 text-sm" style={{ color: 'var(--app-text-muted)' }}>
             Edit category identity and lifetime contribution room.
@@ -69,7 +69,7 @@ export default function TaxAdvantagedCategoryDetailsModal({
           className="app-icon-button shrink-0"
           onClick={onClose}
           disabled={updatePending || planSaveStatus !== 'idle'}
-          aria-label="Close TAC details"
+          aria-label="Close category details"
         >
           <X size={18} aria-hidden />
         </button>
@@ -103,7 +103,7 @@ export default function TaxAdvantagedCategoryDetailsModal({
                 style={{ background: 'color-mix(in srgb, var(--app-input-bg) 55%, var(--app-bg))' }}
               >
                 <input
-                  aria-label="TAC name"
+                  aria-label="Category name"
                   id={NAME_FIELD_ID}
                   className="block h-7 min-w-0 flex-1 bg-transparent text-[0.9375rem] font-medium leading-7 outline-none"
                   maxLength={256}
