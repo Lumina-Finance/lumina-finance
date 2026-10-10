@@ -560,7 +560,7 @@ test("goes from a ledger row's Needs review marker to its item, loading the page
   await expect(ring).toHaveCSS('box-shadow', 'none')
 })
 
-test('opens the block for a marker whose item is the fifth, the first one it hides', async ({ page, request }) => {
+test('opens the block for a marker whose item is the fifth, the first one it hides, from Needs review and not from the bank icon before it', async ({ page, request }) => {
   const accounts = await start(page, request)
   const uberId = await addUberTripAwaiting(page, request, accounts, 'item-4')
   await answerReviewItems(page, () => pageOf(Array.from({ length: 6 }, (_, index) => index === 4
@@ -570,8 +570,22 @@ test('opens the block for a marker whose item is the fifth, the first one it hid
   await openPage(page, '/transactions')
 
   const block = reviewBlock(page)
+  const row = page.getByTestId(`transaction-row-${uberId}`)
   await expect(block.getByRole('listitem')).toHaveCount(4)
-  await showWaitingItem(page, uberId)
+
+  // The bank icon opens its tooltip and leaves the block as it was
+  const icon = row.getByRole('button', { name: 'From SimpleFIN', exact: true })
+  await icon.click()
+  const tooltip = row.getByText('From SimpleFIN', { exact: true }).filter({ visible: true })
+  await expect.poll(() => tooltip.evaluate((node) => node.checkVisibility({ opacityProperty: true, visibilityProperty: true }))).toBe(true)
+  await expect(icon).toBeFocused()
+  await expect(block.getByRole('button', { name: 'Show all 6' })).toHaveAttribute('aria-expanded', 'false')
+  await expect(block.getByRole('listitem')).toHaveCount(4)
+
+  // The keyboard goes on from the icon to Needs review, which goes to the item
+  await page.keyboard.press('Tab')
+  await expect(row.getByRole('button', { name: 'Needs review. Show the waiting item' })).toBeFocused()
+  await page.keyboard.press('Enter')
 
   await expect(block.getByRole('listitem').filter({ hasText: 'UBER TRIP' })).toBeFocused()
   await expect(block.getByRole('button', { name: 'Show fewer' })).toHaveAttribute('aria-expanded', 'true')

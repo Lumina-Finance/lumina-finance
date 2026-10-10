@@ -104,16 +104,19 @@ test('dismisses each reminder for good, focus moving from one ✕ to the next an
 
 // A reminder can fold away before its dismissal answers, as a read of the link the server answers once
 // the dismissal has gone through comes back without it. The modal reads the link again as it opens, and
-// that read is held until the dismissal has reached the server, while the dismissal's own answer is held
-// until the reminder has gone
-test('moves focus on from a ✕ whose reminder folds away before its dismissal answers', async ({ page, request }) => {
+// that read is held until the dismissal has reached the server, while the dismissal itself is held on
+// its way there until the ✕s have been looked at, and its answer until the reminder has gone
+test('spins only the dismissed reminder’s ✕, and moves focus on from it once its reminder folds away before its dismissal answers', async ({ page, request }) => {
   const setup = await linkCutShort(request)
   const dismissUrl = `${API_BASE_URL}/accounts/${setup.accountId}/bank-link/history-reminder/dismiss`
+  let sendDismissal = () => {}
+  const sendReleased = new Promise<void>((resolve) => { sendDismissal = resolve })
   let dismissalReached = () => {}
   const reached = new Promise<void>((resolve) => { dismissalReached = resolve })
   let answerDismissal = () => {}
   const answerReleased = new Promise<void>((resolve) => { answerDismissal = resolve })
   await page.route(dismissUrl, async (route) => {
+    await sendReleased
     const response = await route.fetch()
     dismissalReached()
     await answerReleased
@@ -122,10 +125,16 @@ test('moves focus on from a ✕ whose reminder folds away before its dismissal a
   await logInViaApi(page, setup.user)
   const dialog = await openBankLinkHoldingRead(page, setup.accountId, READ_LINK_STATUS, reached)
   const history = reminderNote(dialog, NO_HISTORY)
+  const historyDismiss = history.getByRole('button', { name: 'Dismiss' })
+  const cutOffDismiss = reminderNote(dialog, CUT_OFF).getByRole('button', { name: 'Dismiss' })
 
-  await history.getByRole('button', { name: 'Dismiss' }).click()
+  await historyDismiss.click()
+  await expect(historyDismiss).toHaveAttribute('aria-busy', 'true')
+  await expect(cutOffDismiss).not.toHaveAttribute('aria-busy', 'true')
+
+  sendDismissal()
   await expect(history).toBeHidden()
-  await expect(reminderNote(dialog, CUT_OFF).getByRole('button', { name: 'Dismiss' })).toBeFocused()
+  await expect(cutOffDismiss).toBeFocused()
 
   const answered = page.waitForResponse(dismissUrl)
   answerDismissal()

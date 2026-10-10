@@ -436,7 +436,7 @@ test("says which bank accounts can't be linked", async ({ page, request }) => {
   await expect(miles).toContainText("Can't be linked")
 })
 
-test('disconnects after asking again, then focuses the next connection', async ({ page, request }) => {
+test('finds a connection by its linked account or nickname, and disconnects it after asking again, then focuses the next connection', async ({ page, request }) => {
   const user = await signUpUser(request)
   const [household, joint, travel] = await Promise.all([
     createAccount(request, user, { name: 'Household' }),
@@ -452,6 +452,17 @@ test('disconnects after asking again, then focuses the next connection', async (
     startDate: todayInTestTimezone(),
   })
   const section = await openBankConnections(page, user)
+
+  const search = section.getByRole('textbox', { name: 'Search connections…' })
+  for (const [query, shown, hidden] of [['household', 'Joint banks', 'Travel cards'], ['travel', 'Travel cards', 'Joint banks']]) {
+    await search.fill(query)
+    await expect(connectionRow(section, shown)).toBeVisible()
+    await expect(connectionRow(section, hidden)).toHaveCount(0)
+  }
+  await search.fill('nothing like this')
+  await expect(section.getByText('No connections match your search.')).toBeVisible()
+  await search.fill('')
+  await expect(connectionRow(section, 'Travel cards')).toBeVisible()
   const dialog = await openConnection(page, section, 'Joint banks')
 
   await dialog.getByRole('button', { name: 'Disconnect' }).click()

@@ -16,8 +16,9 @@
  * Sync now left live for something the server refuses or without the reason, a spent budget blamed
  * on the wrong request limit, a reason of two
  * sentences ending without the full stop the others of two have, held back by a bank
- * sign-in, left greyed once its requests free up, spinning while the worker is down, or dropping the
- * focus it holds or the width it measures while the sync starts. Opening the flow, the tooltip,
+ * sign-in, left greyed once its requests free up, spinning while the worker is down, even for this
+ * window's press, held back by the sync its own press started rather than reading Sync started, or
+ * dropping the focus it holds or the width it measures while the sync starts. Opening the flow, the tooltip,
  * the review settings, unlinking, pressing Sync now and dismissing a reminder run in the browser
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -32,7 +33,7 @@ import { GROUP_ACCOUNT_LINK_REASON, LINKING_PAUSED_REASON } from '@/components/b
 import { AuthContext, type AuthContextValue } from '@/contexts/AuthContext'
 import { ToastContext, type ToastValue } from '@/contexts/ToastContext'
 import { BankLinkSection } from '@/pages/accounts/detail/components/bank-link/Section'
-import { SYNC_PAUSED_REASON } from '@/pages/accounts/detail/components/bank-link/syncNow'
+import { describeSyncNow, SYNC_PAUSED_REASON } from '@/pages/accounts/detail/components/bank-link/syncNow'
 import {
   createAccount,
   createConnection,
@@ -470,5 +471,19 @@ describe('BankLinkSection', () => {
 
     // The hidden label the width is measured from, kept for a button the modal opens while the sync starts
     expect(button).toMatch(/<span[^>]* aria-hidden="true"[^>]*>(?:(?!<\/button>).)*Sync now/s)
+  })
+})
+
+// What this window's own press shows lives in the button's state, which a static render can't drive
+describe('describeSyncNow', () => {
+  it("reads Sync started once the worker has started this window's sync, rather than as held back by it", () => {
+    const link = createLink({ sync: createSync({ state: 'syncing', sync_running: true }) })
+    expect(describeSyncNow('success', link, createConnection(), createProviders())).toEqual({ status: 'success', block: null })
+  })
+
+  it("stops reading as starting this window's sync once the worker is down, saying why instead", () => {
+    const link = createLink({ sync: createSync({ sync_requested: true }) })
+    const providers = createProviders({ sync_running: false })
+    expect(describeSyncNow('loading', link, createConnection(), providers)).toEqual({ status: 'idle', block: SYNC_PAUSED_REASON })
   })
 })
