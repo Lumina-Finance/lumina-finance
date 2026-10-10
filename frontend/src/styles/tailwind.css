@@ -46,6 +46,8 @@
     --app-warning: #D6B400;
     --app-warning-soft: #d6b40029;
     --app-warning-text: #6F5700;
+    /* Muted text on the warning tint, such as the archive warning's explanation, which the tint leaves readable here */
+    --app-text-muted-on-warning: var(--app-text-muted);
     --app-negative: #9A3C34;
     --app-negative-soft: #9a3c341a;
     --app-negative-border: #9a3c344d;
@@ -138,6 +140,9 @@
     --app-warning: #F5D547;
     --app-warning-soft: #f5d5472e;
     --app-warning-text: #F8E28A;
+    /* The muted colour falls short of the contrast text needs on the warning tint here, so it is drawn a quarter of
+       the way toward the full text colour, as an Upcoming day total is */
+    --app-text-muted-on-warning: color-mix(in srgb, var(--app-text-muted) 75%, var(--app-text));
     --app-negative: #D8776A;
     --app-negative-soft: #b8584e1f;
     --app-negative-border: #b8584e59;

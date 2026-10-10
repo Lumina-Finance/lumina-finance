@@ -64,7 +64,7 @@ function contrast(text: Rgb, surface: Rgb) {
 
 // The plain surfaces text sits on: the page, a card, and the tinted inset the Imports page draws its
 // panels in (IMPORT_INSET_STYLE, 58% of the input fill over the page). State tints laid over them, such
-// as a field in error or a chosen dropdown row, are not covered here
+// as a field in error or a chosen dropdown row, are checked under tinted state contrast below
 function surfaces(tokens: Tokens): Record<string, Rgb> {
   const page = solid(tokens, '--app-bg')
   return {
@@ -109,6 +109,21 @@ describe('text colour contrast', () => {
   })
 })
 
+/** Mixes two opaque colours the way color-mix in srgb does, with the given share of the first */
+function mix(first: Rgb, share: number, second: Rgb): Rgb {
+  return paint(first, share, second)
+}
+
+/** Reads an opaque colour token written as a hex value, another token, or a color-mix of two tokens */
+function resolve(tokens: Tokens, name: string): Rgb {
+  const value = tokens[name] ?? ''
+  const alias = /^var\((--[\w-]+)\)$/.exec(value)
+  if (alias) return resolve(tokens, alias[1])
+  const mixed = /^color-mix\(in srgb, var\((--[\w-]+)\) (\d+)%, var\((--[\w-]+)\)\)$/.exec(value)
+  if (mixed) return mix(resolve(tokens, mixed[1]), Number(mixed[2]) / 100, resolve(tokens, mixed[3]))
+  return solid(tokens, name)
+}
+
 describe('primary button label contrast', () => {
   // The fill is 82% of the button colour at rest and 88% of the hover colour over whatever it sits on
   // (.app-primary-button and .app-glass-button-primary). A dialog's panel is the page colour
@@ -148,6 +163,12 @@ describe('tinted state contrast', () => {
       text: ['--app-negative'],
       fill: (tokens) => solid(tokens, '--app-negative-soft', solid(tokens, '--app-input-bg')),
     },
+    {
+      // ArchiveBalanceWarning, inside the account dialog, whose panel is the page colour
+      name: 'the archive warning',
+      text: ['--app-text', '--app-text-muted-on-warning'],
+      fill: (tokens) => solid(tokens, '--app-warning-soft', solid(tokens, '--app-bg')),
+    },
   ]
 
   const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) =>
@@ -155,6 +176,7 @@ describe('tinted state contrast', () => {
 
   it.each(cases)('$token reads at 4.5:1 or better on $state in the $theme theme', ({ theme, token, fill }) => {
     const tokens = THEMES[theme]
-    expect(contrast(solid(tokens, token), fill(tokens))).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+    const text = resolve(tokens, token)
+    expect(contrast(text, fill(tokens))).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
   })
 })
