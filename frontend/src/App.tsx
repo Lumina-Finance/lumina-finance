@@ -76,7 +76,7 @@ let hasShownLoadingScreen = false;
 
 /** Redirect to /login if unauthenticated, or offer a reload if the server could not restore the session. Show loading screen on first visit. */
 function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, isInitialLoad }: { displayLocation: Location; onContentReady: () => void; pageTransitionPhase: PageTransitionPhase; isInitialLoad: boolean }) {
-  const { user, loading, sessionRestoreError } = useAuth();
+  const { user, loading, sessionRestoreError, setUser } = useAuth();
   const { navExpanded } = useNavCollapse();
   const pageTransitioning = pageTransitionPhase !== 'idle';
   const pageContentVisible = pageTransitionPhase === 'idle' || pageTransitionPhase === 'entering';
@@ -141,7 +141,7 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
     return () => cancelAnimationFrame(frame);
   }, [ready]);
 
-  useCacheValidation(user?.id, Boolean(user && ready && !currencyListUnavailable));
+  useCacheValidation(user?.id, Boolean(user && ready && !currencyListUnavailable), setUser);
 
   // Hold the route loader back until the chunk has stayed pending past the delay so
   // cached or fast navigations never flash the spinner, and clear the flag on

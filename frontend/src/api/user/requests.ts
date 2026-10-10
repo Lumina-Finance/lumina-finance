@@ -22,6 +22,13 @@ export function fetchCacheStatus() {
 }
 
 /**
+ * Fetches the current user's profile
+ */
+export function fetchProfile() {
+  return authenticatedFetch<User>('/me');
+}
+
+/**
  * Updates editable current-user profile fields
  */
 export function updateProfile(payload: UpdateProfilePayload) {

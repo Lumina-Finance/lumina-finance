@@ -14,6 +14,7 @@ export {
   changePassword,
   setPassword,
   fetchCacheStatus,
+  fetchProfile,
   fetchRunway,
   fetchRunwayAccounts,
   fetchRunwaySettings,
