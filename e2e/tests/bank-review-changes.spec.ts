@@ -132,6 +132,7 @@ test("accepts a bank change over an amount the user edited, writing the bank's a
   await openPage(page, '/transactions')
   const row = page.getByTestId(`transaction-row-${id}`)
   await expect(needsReview(row)).toBeVisible()
+  await expect(row.getByTestId('bank-edited-dot').filter({ visible: true })).toHaveCount(1)
 
   const dialog = await openComparison(page, COUNTDOWN, 'Review bank change')
   await dialog.getByRole('button', { name: 'Accept bank change' }).click()
