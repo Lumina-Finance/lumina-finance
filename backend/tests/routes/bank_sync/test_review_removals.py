@@ -1,8 +1,9 @@
 """Deciding a bank removal of a transaction in the ledger: removing it from the ledger or keeping it
 
 Removing deletes the ledger transaction, its bank transaction with it, and rebuilds its balances,
-and works while the account is linked. Keeping leaves the ledger as it is and closes the removal,
-which stays remembered so the same removal sent again opens nothing. Either is one save with the
+and works while the account is linked. Keeping leaves the ledger as it is, so a file imported just
+before it can still be undone, and closes the removal, which stays remembered so the same removal
+sent again opens nothing. Either is one save with the
 cache mark last. A removal applied after a sync brought the transaction back deletes one the bank
 still lists, one taking the ledger row before the bank transaction can deadlock with a sync, one
 reaching a transaction moved to another account deletes it from there, and one reaching another

@@ -2,8 +2,9 @@
 
 A sync already queued for the connection takes the request in. The request is refused with the
 reason the button shows while an import or a sync runs on the account, only the user can restart its
-sync, or the review pause holds it, and while the budget is spent, saying when a request frees up. A
-refusal that queues anything spends a request the user was told it wouldn't. The job running the
+sync, or the review pause holds it, and while the budget is spent, saying whether the connection's
+own limit or SimpleFIN's holds it and when a request frees up. A refusal that queues anything spends
+a request the user was told it wouldn't. The job running the
 sync is tested with the others, in the bank sync service tests
 """
 

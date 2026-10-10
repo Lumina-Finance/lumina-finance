@@ -2,11 +2,12 @@
 
 Accepting writes the bank's values for the changed fields to the same ledger transaction, which
 keeps its id and bank source, and rebuilds its balances from the earliest date it touches. Keeping
-leaves the ledger as it is and remembers the values declined and the description kept, which the
-ledger has no column for. Either closes the correction in one save with the cache mark last. A
-decision applied twice moves money twice or overwrites the first, one that loses a sync's write made
-at the same moment decides values the bank no longer sends, one that forgets a kept description
-brings it back as a correction, and one reaching another user's item changes their ledger
+leaves the ledger as it is, so a file imported just before it can still be undone, and remembers the
+values declined and the description kept, which the ledger has no column for. Either closes the
+correction in one save with the cache mark last. A decision applied twice moves money twice or
+overwrites the first, one that loses a sync's write made at the same moment decides values the bank
+no longer sends, one that forgets a kept description brings it back as a correction, and one
+reaching another user's item changes their ledger
 """
 
 import asyncio

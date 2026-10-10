@@ -5,8 +5,9 @@ worker's own sessions see them. A runner stand-in takes the place of the sync it
 needs a job to wait as though fetching, or to write what it found inside the job's fence. Without
 the fence a job that lost its lease would overwrite the next attempt's results, and an account
 unlinked mid-fetch would still get pending items, and a job that fails without its links recording
-why leaves their accounts looking fine and never retried. The heartbeat and what the self-hosted
-worker needs before it starts are covered last
+why leaves their accounts looking fine and never retried. A due connection that fails to queue is
+logged and left for the next scan, so it can't stop the other owners' syncs or the heartbeat. The
+heartbeat and what the self-hosted worker needs before it starts are covered last
 """
 
 import asyncio
@@ -446,9 +447,8 @@ async def test_enqueue_due_work_logs_and_skips_a_connection_that_fails_and_queue
         last_scan_at = await session.scalar(select(BankSyncHeartbeat.last_scan_at))
     assert queued == {connection.id for connection in connections[:3]} - set(failed)
     assert last_scan_at == frozen_now
-    assert [(record.levelname, record.getMessage()) for record in caplog.records if record.name == worker.logger.name] == [
-        ("ERROR", f"Queueing a scheduled sync of bank connection {failed[0]} failed")
-    ]
+    logged = [record for record in caplog.records if record.name == worker.logger.name]
+    assert [(record.levelname, record.args, record.exc_info is not None) for record in logged] == [("ERROR", (failed[0],), True)]
 
 
 async def test_enqueue_due_work_with_nothing_due_still_stamps_the_heartbeat(frozen_now):

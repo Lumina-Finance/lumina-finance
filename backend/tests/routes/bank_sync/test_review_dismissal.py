@@ -1,7 +1,8 @@
 """Dismissing a new bank item
 
 A dismissed item keeps only its identity and the dismissal, enough to stay dismissed when the bank
-sends it again, so the bank's values are cleared. A double-clicked Dismiss dismisses it once, and
+sends it again, so the bank's values are cleared. It changes nothing in the ledger, so a file
+imported just before it can still be undone. A double-clicked Dismiss dismisses it once, and
 only the user's own items on their own personal accounts can be dismissed. A dismissal that leaves
 50 or fewer new items waiting resumes the account's paused sync at once. One that took the item
 before the link could deadlock with a sync storing it, and one that took the link before the
