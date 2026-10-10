@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from sqlalchemy import update
 
-from app.models.bank_connection import BankLinkState, OpeningAdjustmentState
+from app.models.bank_connection import BankLinkState, BankProviderRequest, OpeningAdjustmentState
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobStatus
 from app.services.bank_sync import account_link
 from tests.conftest import TestSession
@@ -233,6 +233,7 @@ async def test_sync_status_of_a_synced_link_says_when_it_next_syncs(client):
         "state": "synced",
         "last_failure": None,
         "waiting_on_budget": False,
+        "held_by_provider": False,
         "sync_running": False,
         "sync_requested": False,
         "waiting_new_count": 0,
@@ -276,6 +277,35 @@ async def test_sync_status_says_whether_the_next_sync_waits_on_the_request_budge
 
     assert (sync["state"], sync["waiting_on_budget"]) == ("synced", waiting_on_budget)
     assert datetime.fromisoformat(sync["next_attempt_at"]) == next_sync
+
+
+@pytest.mark.parametrize(
+    ("sent", "held_by_provider"),
+    [
+        pytest.param(20, False, id="own-limit"),
+        pytest.param(4, True, id="simplefin-limit"),
+    ],
+)
+async def test_sync_status_says_whose_request_limit_holds_the_next_sync(client, sent, held_by_provider):
+    """SimpleFIN saying its quota is spent holds the next sync on its own limit after 4 of 20 requests, and on the connection's after 20"""
+    headers, user_id = await _sign_up(client)
+    account_id = await _new_account(client, headers, "Everyday")
+    connection = await _commit_listed_connection(user_id, discovered_at=_NOW)
+    await _commit_link(account_id, connection, **_SYNCED | {"next_attempt_at": _SPENT_UNTIL - timedelta(hours=1)})
+
+    # The oldest request leaves the 24 hours just as SimpleFIN's word that its quota is spent runs out
+    oldest = _SPENT_UNTIL - timedelta(hours=24)
+    async with TestSession() as session:
+        session.add_all(
+            BankProviderRequest(owner_id=user_id, connection_id=connection.id, purpose="sync", requested_at=oldest + timedelta(minutes=index))
+            for index in range(sent)
+        )
+        await session.commit()
+    await _update_connection(connection, request_budget_spent_until=_SPENT_UNTIL)
+
+    sync = await _read_sync(client, headers, account_id)
+
+    assert (sync["waiting_on_budget"], sync["held_by_provider"]) == (True, held_by_provider)
 
 
 async def test_sync_status_of_an_import_waiting_on_the_request_budget_says_when_its_next_part_can_run(client):

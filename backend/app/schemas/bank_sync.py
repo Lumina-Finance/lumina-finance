@@ -333,6 +333,10 @@ class BankSyncStatusResponse(BaseModel):
     # The next sync is due before the connection's request budget frees a request, so it waits for one
     waiting_on_budget: bool
 
+    # Whether the provider's word that its quota is spent, rather than the connection's own limit over
+    # the last 24 hours, holds the connection's next request back
+    held_by_provider: bool
+
     # A worker is syncing the link, which the state shows as syncing unless a state outranks it, such
     # as a bank sign-in
     sync_running: bool

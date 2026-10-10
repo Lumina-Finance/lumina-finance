@@ -148,6 +148,7 @@ def _describe_sync(
         else BankSyncFailureResponse(at=link.last_attempt_at, reason=link.last_failure_reason),
         next_attempt_at=next_attempt_at,
         waiting_on_budget=available_again_at is not None and link.next_attempt_at is not None and link.next_attempt_at < available_again_at,
+        held_by_provider=budget.held_by_provider,
         sync_running=running,
         sync_requested=requested,
         waiting_new_count=backlog.waiting_new,

@@ -42,6 +42,7 @@ const WAITING_LINK = {
     last_failure: null,
     next_attempt_at: null,
     waiting_on_budget: false,
+    held_by_provider: false,
     sync_running: false,
     sync_requested: false,
     waiting_new_count: 0,

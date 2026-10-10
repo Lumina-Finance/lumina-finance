@@ -281,6 +281,12 @@ export type BankSyncStatus = {
   waiting_on_budget: boolean;
 
   /**
+   * Whether the provider's word that its quota is spent, rather than the connection's own limit over
+   * the last 24 hours, holds the connection's next request back
+   */
+  held_by_provider: boolean;
+
+  /**
    * A worker is syncing the link, which the state shows as syncing unless a state outranks it, such as
    * a bank sign-in
    */

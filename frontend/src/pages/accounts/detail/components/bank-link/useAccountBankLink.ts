@@ -1,5 +1,5 @@
 import type { AccountsOverview } from '@/api/accounts'
-import { useAccountBankStatus, useBankConnections, useBankProviders } from '@/api/bank-sync'
+import { useAccountBankStatus, useBankProviders } from '@/api/bank-sync'
 import { useAuth } from '@/hooks/useAuth'
 import { useRelativeTimeRefresh } from '@/hooks/useRelativeTimeRefresh'
 import { describeBankSync, showsBankSync } from '@/pages/accounts/detail/components/bank-link/status'
@@ -16,17 +16,10 @@ export function useAccountBankLink(account: Pick<AccountsOverview, 'id' | 'owner
   const ownPersonal = user !== null && isOwnPersonalAccount(account, user.id)
   const { data: providers } = useBankProviders()
   const { data: status, error: statusError } = useAccountBankStatus(account.id, ownPersonal)
-
-  // Read only while the next sync waits on the request budget, since its connection's budget says
-  // whose limit holds it
-  const link = status?.link ?? null
-  const { data: connections } = useBankConnections(link?.sync.waiting_on_budget === true)
-  const budget = connections?.find((connection) => connection.id === link?.connection_id)?.request_budget
-
   const failed = statusError !== null
   const timeZone = user?.tz
-  const syncLabel = describeBankSync(ownPersonal, status, failed, timeZone, budget)
-  useRelativeTimeRefresh(() => JSON.stringify(describeBankSync(ownPersonal, status, failed, timeZone, budget)))
+  const syncLabel = describeBankSync(ownPersonal, status, failed, timeZone)
+  useRelativeTimeRefresh(() => JSON.stringify(describeBankSync(ownPersonal, status, failed, timeZone)))
 
   return {
     ownPersonal,
