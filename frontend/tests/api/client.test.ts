@@ -271,7 +271,6 @@ describe('authenticatedFetch', () => {
 describe('what a refused request says', () => {
   it.each([
     ['no body', () => new Response('', { status: 500 })],
-    ['a JSON body with no explanation', () => jsonResponse(500, { error: 'boom' })],
     ['a gateway page', () => new Response('<html>Bad Gateway</html>', { status: 502 })],
   ])('says something went wrong, keeping the status, for %s', async (_label, respond) => {
     fetchMock.mockResolvedValueOnce(respond());

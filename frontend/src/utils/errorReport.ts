@@ -35,6 +35,11 @@ export function buildErrorReport({ componentStack, error, occurredAt, path, user
   if (error instanceof ApiError) {
     lines.push(`Status: ${error.status}`);
     if (error.detail) lines.push(`Server said: ${error.detail}`);
+    // A validation refusal's message names only the fields, so the reasons the server gave each one
+    // are quoted here for whoever reads the report
+    for (const { field, message } of error.fieldErrors ?? []) {
+      lines.push(`Refused ${field || 'request'} because ${message}`);
+    }
   }
 
   lines.push(`Browser: ${userAgent}`);
