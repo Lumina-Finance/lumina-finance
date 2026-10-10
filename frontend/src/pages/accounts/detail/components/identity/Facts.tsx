@@ -15,7 +15,8 @@ type IdentityFactsProps = {
 
 /**
  * Renders account facts as small labels over values in two columns, as the identity card and the bank
- * link section set them out. A value too long for its column shows in full on hover
+ * link section set them out. A value too long for its column wraps onto further lines, so it shows
+ * whole on a phone too, where nothing can be hovered
  */
 export function IdentityFacts({ facts, children, className = 'mt-5' }: IdentityFactsProps) {
   return (
@@ -25,7 +26,7 @@ export function IdentityFacts({ facts, children, className = 'mt-5' }: IdentityF
           <dt className="text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
             {fact.label}
           </dt>
-          <dd className="mt-0.5 truncate text-sm font-medium" title={fact.value}>{fact.value}</dd>
+          <dd className="mt-0.5 break-words text-sm font-medium">{fact.value}</dd>
         </div>
       ))}
       {children}
