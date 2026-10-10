@@ -19,6 +19,7 @@ import {
   buildSignupPayload,
   getAuthErrorMessage,
   getCurrencyPlaceholder,
+  getRefusedAuthFields,
   getSubmitTouchedFields,
   isAuthFieldErrorKey,
   isAuthLockoutError,
@@ -220,6 +221,12 @@ export function useAuthFormWorkflow({
       setSubmitting(false)
       if (isAuthLockoutError(err)) {
         lockout.recordLockout()
+      }
+      // A field the server refused shows on that field, where the person will look to change it
+      const refusedFields = getRefusedAuthFields(err)
+      if (Object.keys(refusedFields).length > 0) {
+        setFieldErrors(refusedFields)
+        return
       }
       setError(getAuthErrorMessage(err))
       return

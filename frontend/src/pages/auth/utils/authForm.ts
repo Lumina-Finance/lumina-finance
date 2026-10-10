@@ -36,6 +36,13 @@ export const FADE_OUT_MS = 300
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+// The form's own wording for a field the server's validation refused, keyed by the request field.
+// A field without one shows the server's reason
+const FIELD_REFUSAL_MESSAGES: Partial<Record<keyof AuthFieldErrors, string>> = {
+  email: 'Enter a valid email address',
+  password: 'Password does not meet requirements',
+}
+
 const ERROR_MESSAGES: Record<string, string> = {
   'Invalid credentials': 'Incorrect email or password. Please try again.',
   'Email already registered': 'An account with this email already exists.',
@@ -184,8 +191,13 @@ export function isAuthSubmitDisabled(
  * Maps backend auth errors into user-facing messages while hiding unrecognised implementation details
  */
 export function getAuthErrorMessage(error: unknown): string {
-  const message = error instanceof ApiError ? error.message : ''
-  return ERROR_MESSAGES[message] ?? 'Something went wrong. Please try again.'
+  if (!(error instanceof ApiError)) return 'Something went wrong. Please try again.'
+
+  // A validation refusal already names each refused field, which a form without that field shows as
+  // it is rather than hiding behind the generic sentence
+  if (error.fieldErrors) return error.message
+
+  return ERROR_MESSAGES[error.message] ?? 'Something went wrong. Please try again.'
 }
 
 /**
@@ -217,4 +229,20 @@ export function getLockoutRemainingLabel(storedLockoutUntil: string | null, nowM
  */
 export function getLockoutExpiry(nowMs: number): number {
   return nowMs + LOCKOUT_MS
+}
+
+/**
+ * Reads the form fields a validation refusal named, in the form's own words where it has them, so
+ * each lands on its field rather than in the banner, such as an address on a domain the server does
+ * not accept
+ */
+export function getRefusedAuthFields(error: unknown): AuthFieldErrors {
+  const refused: AuthFieldErrors = {}
+  if (!(error instanceof ApiError)) return refused
+  for (const { field, message } of error.fieldErrors ?? []) {
+    if (!isAuthFieldErrorKey(field as keyof AuthFormValues)) continue
+    const key = field as keyof AuthFieldErrors
+    refused[key] ??= FIELD_REFUSAL_MESSAGES[key] ?? message
+  }
+  return refused
 }

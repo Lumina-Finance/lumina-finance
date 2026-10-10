@@ -14,6 +14,7 @@ import {
   getCurrencyPlaceholder,
   getLockoutExpiry,
   getLockoutRemainingLabel,
+  getRefusedAuthFields,
   getSubmitTouchedFields,
   isAuthFieldErrorKey,
   isAuthLockoutError,
@@ -109,5 +110,30 @@ describe('auth form helpers', () => {
     expect(getLockoutExpiry(1000)).toBe(1831000)
     expect(getLockoutRemainingLabel('1831000', 1000)).toBe('30:30')
     expect(getLockoutRemainingLabel('999', 1000)).toBeNull()
+  })
+
+  it("puts each field a validation refusal named on that field, in the form's words where it has them", () => {
+    const refusal = new ApiError("Oops, the email, first name and tz weren't accepted. Please check them and try again.", 422, {
+      fieldErrors: [
+        { field: 'email', message: 'value is not a valid email address' },
+        { field: 'first_name', message: 'String should have at most 100 characters' },
+        { field: 'tz', message: 'Invalid timezone' },
+      ],
+    })
+
+    expect(getRefusedAuthFields(refusal)).toEqual({
+      email: 'Enter a valid email address',
+      first_name: 'String should have at most 100 characters',
+    })
+    expect(getRefusedAuthFields(new ApiError('Invalid credentials', 401))).toEqual({})
+  })
+
+  it('names the refused fields in the banner of a form that has none of them', () => {
+    const message = "Oops, the token wasn't accepted. Please check it and try again."
+    const refusal = new ApiError(message, 422, {
+      fieldErrors: [{ field: 'token', message: 'Field required' }],
+    })
+
+    expect(getAuthErrorMessage(refusal)).toBe(message)
   })
 })

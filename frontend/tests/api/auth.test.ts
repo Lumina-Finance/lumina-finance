@@ -209,6 +209,29 @@ describe('auth API functions', () => {
     });
     await expect(request).rejects.toBeInstanceOf(ApiError);
   });
+
+  it('keeps the fields a refused signup named', async () => {
+    const payload = {
+      email: 'daniel@example.test',
+      password: 'correct horse battery',
+      first_name: 'Daniel',
+      tz: 'America/Toronto',
+      base_currency: 'CAD',
+    };
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 422,
+      json: async () => ({
+        detail: [{ loc: ['body', 'email'], msg: 'value is not a valid email address', type: 'value_error' }],
+      }),
+    });
+
+    await expect(signup(payload)).rejects.toMatchObject({
+      message: "Oops, the email wasn't accepted. Please check it and try again.",
+      fieldErrors: [{ field: 'email', message: 'value is not a valid email address' }],
+      status: 422,
+    });
+  });
 });
 
 describe('restoring the session on page load', () => {
