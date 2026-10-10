@@ -1,17 +1,10 @@
 import type { InsightsNetWorthResponse } from '@/api/insights'
 import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
 import type { NetWorthGroup, NetWorthPoint } from './netWorthChart'
+import { getChartGranularity } from '@/utils/chartGranularity'
 import { getCustomRangeDays } from './range'
 
 export type { NetWorthGroup, NetWorthPoint, NetWorthViewMode } from './netWorthChart'
-
-type NetWorthGranularity = 'day' | 'week' | 'month'
-
-function getNetWorthGranularity(dayCount: number): NetWorthGranularity {
-  if (dayCount <= 30) return 'day'
-  if (dayCount <= 90) return 'week'
-  return 'month'
-}
 
 /**
  * Builds the net worth card's groups, baseline, and chart series from the raw response, choosing
@@ -27,7 +20,7 @@ export function getNetWorthCardData(
   const groups = response.groups ?? []
   const points = response.points ?? []
   const dayCount = getCustomRangeDays(fromDate, toDate) ?? 1
-  const granularity = getNetWorthGranularity(dayCount)
+  const granularity = getChartGranularity(dayCount)
   return {
     groups: groups.map(([id, name, kind]) => ({ id, name, kind })),
     baseline: response.baseline ?? [],

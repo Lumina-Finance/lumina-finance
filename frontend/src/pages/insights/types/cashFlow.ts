@@ -1,4 +1,4 @@
-export type CashFlowGranularity = 'day' | 'week' | 'month'
+export type { ChartGranularity as CashFlowGranularity } from '@/utils/chartGranularity'
 
 export type CashFlowBarBucket = {
   label: string
