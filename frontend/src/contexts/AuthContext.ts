@@ -6,6 +6,8 @@ export interface AuthState {
   accessToken: string | null;
   /** True while the initial silent refresh is in flight */
   loading: boolean;
+  /** Why the page-load restore failed when the server could not answer, the session itself kept */
+  sessionRestoreError?: unknown;
 }
 
 export interface AuthContextValue extends AuthState {

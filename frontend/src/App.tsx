@@ -74,9 +74,9 @@ function scrollDocumentToTop() {
 // Module-level flag so the loading screen only shows once per app session
 let hasShownLoadingScreen = false;
 
-/** Redirect to /login if unauthenticated. Show loading screen on first visit. */
+/** Redirect to /login if unauthenticated, or offer a reload if the server could not restore the session. Show loading screen on first visit. */
 function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, isInitialLoad }: { displayLocation: Location; onContentReady: () => void; pageTransitionPhase: PageTransitionPhase; isInitialLoad: boolean }) {
-  const { user, loading } = useAuth();
+  const { user, loading, sessionRestoreError } = useAuth();
   const { navExpanded } = useNavCollapse();
   const pageTransitioning = pageTransitionPhase !== 'idle';
   const pageContentVisible = pageTransitionPhase === 'idle' || pageTransitionPhase === 'entering';
@@ -164,6 +164,12 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
     }, LOADING_ANIMATION_MIN_MS);
     return () => clearTimeout(timer);
   }, [shouldShowLoading]);
+
+  // The server could not answer the restore, which says nothing about the session, so the screen offers
+  // a reload that restores it once the server is back rather than the login page
+  if (!loading && !user && sessionRestoreError) {
+    return <Fallback componentStack={null} error={sessionRestoreError} preserveStoredData variant="screen" />;
+  }
 
   // No session and not loading — go straight to login
   if (!loading && !user) return <Navigate to="/login" replace />;

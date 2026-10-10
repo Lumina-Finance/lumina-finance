@@ -1,5 +1,5 @@
 import { API_BASE } from '@/api/config';
-import { ApiError, isRefreshAlreadyRotatedError } from '@/api/auth/errors';
+import { ApiError, getSessionRestoreFailure, isRefreshAlreadyRotatedError } from '@/api/auth/errors';
 import type {
   AuthResponse,
   ForgotPasswordPayload,
@@ -17,6 +17,10 @@ const REFRESH_ROTATION_RETRY_DELAY_MS = 100;
 const REFRESH_ROTATION_RETRY_TIMEOUT_MS = 5_000;
 const REFRESH_REQUEST_LOCK_MS = 3_000;
 const REFRESH_REQUEST_LOCK_KEY = 'lumina:refresh_request_lock_until';
+
+// A failed page-load restore that says nothing about the session, such as a gateway error during a
+// restart or a dropped request, is tried once more after this long before the app gives up
+const SESSION_RESTORE_RETRY_DELAY_MS = 1_000;
 
 /**
  * Resolves after the requested delay
@@ -229,6 +233,40 @@ export async function refresh(): Promise<AuthResponse> {
     }
   } finally {
     clearRefreshRequestLock(lockValue);
+  }
+}
+
+// Module-scoped so concurrent callers share a single restore. The refresh token is rotated on use, so a
+// second parallel refresh would race the first, look up a now-deleted jti, and 401, wiping the
+// just-issued cookie on the way out. The retry runs inside the shared restore, after the first attempt
+// has settled, so it never runs beside another refresh either
+let pendingSessionRestore: Promise<AuthResponse> | null = null;
+
+/**
+ * Restores the session on page load with the refresh cookie, trying once more when the first refresh
+ * fails without the server refusing the session
+ *
+ * @throws ApiError when the server refuses the session, when the refresh lost a rotation race to
+ * another page, or when the second attempt fails too, or the network error that ended the second
+ * attempt
+ */
+export function restoreSession(): Promise<AuthResponse> {
+  if (!pendingSessionRestore) {
+    pendingSessionRestore = refreshForRestore().finally(() => { pendingSessionRestore = null; });
+  }
+  return pendingSessionRestore;
+}
+
+/**
+ * Refreshes once, and once more after a failure that says nothing about the session
+ */
+async function refreshForRestore(): Promise<AuthResponse> {
+  try {
+    return await refresh();
+  } catch (error) {
+    if (getSessionRestoreFailure(error) !== 'unavailable') throw error;
+    await wait(SESSION_RESTORE_RETRY_DELAY_MS);
+    return refresh();
   }
 }
 
