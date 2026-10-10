@@ -27,13 +27,23 @@ import type {
 import type { Transaction } from '@/api/transactions/types';
 import { buildQueryString } from '@/api/utils/queryString';
 
+// How long a claim or a reconnect may go unanswered. The server answers each only after two requests
+// to the provider, taking the setup token and then listing the bank accounts, and lets each take 5
+// seconds to resolve the provider's host, 5 to connect and 30 for each wait on the answer, about 80 in
+// all for answers that arrive in one piece. The rest covers a host whose first addresses can't be
+// reached, since each further one gets its own 5 to connect
+const PROVIDER_REQUEST_TIMEOUT_MS = 2 * 60_000;
+
 /**
  * Sends a POST with an optional JSON body
+ *
+ * @param timeoutMs - How long to wait for an answer, when it differs from the shared request limit
  */
-function post<T>(path: string, body?: unknown): Promise<T> {
+function post<T>(path: string, body?: unknown, timeoutMs?: number): Promise<T> {
   return authenticatedFetch<T>(path, {
     method: 'POST',
     body: body === undefined ? undefined : JSON.stringify(body),
+    timeoutMs,
   });
 }
 
@@ -52,7 +62,7 @@ export function fetchBankConnections() {
  * Claims a SimpleFIN setup token, storing the credential it yields as a new connection
  */
 export function claimSetupToken(payload: ClaimSetupTokenPayload) {
-  return post<BankConnection>('/bank-sync/connections', payload);
+  return post<BankConnection>('/bank-sync/connections', payload, PROVIDER_REQUEST_TIMEOUT_MS);
 }
 
 /**
@@ -60,7 +70,7 @@ export function claimSetupToken(payload: ClaimSetupTokenPayload) {
  * the accounts linked through it
  */
 export function reconnectBankConnection({ connectionId, setupToken }: { connectionId: string; setupToken: string }) {
-  return post<ReconnectConnectionResult>(`/bank-sync/connections/${connectionId}/reconnect`, { setup_token: setupToken });
+  return post<ReconnectConnectionResult>(`/bank-sync/connections/${connectionId}/reconnect`, { setup_token: setupToken }, PROVIDER_REQUEST_TIMEOUT_MS);
 }
 
 /**
