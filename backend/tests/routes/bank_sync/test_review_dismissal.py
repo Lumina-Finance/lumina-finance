@@ -30,12 +30,14 @@ from tests.routes.support.bank_sync_helpers import (
     _commit_paused_link,
     _commit_review_item,
     _commit_waiting_items,
+    _import_a_file,
     _new_account,
     _new_group_account,
     _pause_state,
     _review_page,
     _sign_up,
     _stored_item,
+    _undoable_import,
 )
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
 from tests.routes.support.query_helpers import _recorded_statements, _writes
@@ -74,6 +76,20 @@ async def test_dismissing_keeps_only_the_items_identity_and_leaves_the_inbox(cli
     assert await _review_page(client, headers) == EMPTY_REVIEW_PAGE
     assert await _changed_at(client, headers) != before
     assert "user_cache_states" in _writes(statements)[-1]
+
+
+async def test_dismissing_leaves_a_file_imported_just_before_undoable(client):
+    """A dismissal changes nothing in the ledger, so the Wallet file imported before it can still be undone"""
+    headers, _ = await _sign_up(client)
+    account_id = await _new_account(client, headers, "Everyday")
+    item_id = await _commit_review_item(account_id)
+    await _import_a_file(client, headers)
+    assert await _undoable_import(client, headers) is not None
+
+    dismissed = await _dismiss(client, headers, item_id)
+
+    assert dismissed.status_code == 204, dismissed.text
+    assert await _undoable_import(client, headers) is not None
 
 
 async def test_a_double_clicked_dismiss_dismisses_the_item_once(client):

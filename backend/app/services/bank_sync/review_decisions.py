@@ -42,7 +42,7 @@ from app.services.accounts.access import get_own_personal_account, own_personal_
 from app.services.bank_sync.opening_adjustment import offer_opening_adjustments
 from app.services.bank_sync.review_pause import lift_review_pauses, lock_account_links
 from app.services.bank_sync.review_state import EDITABLE_COLUMNS, align_with_bank, approved_description, bank_values, edited_fields
-from app.services.cache_state import mark_user_cache_changed
+from app.services.cache_state import mark_user_cache_changed, mark_user_status_changed
 from app.services.transactions.creation import insert_transaction
 from app.services.transactions.deletion import delete_transaction
 from app.services.transactions.response_helpers import get_transaction_response
@@ -156,7 +156,10 @@ async def dismiss_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) 
 
     await lift_review_pauses(db, user.id, links)
     await offer_opening_adjustments(db, links, tz=user.tz)
-    await mark_user_cache_changed(db, user.id)
+
+    # A dismissal changes none of the ledger, so the data mark an import's undo compares with stays
+    # where it was
+    await mark_user_status_changed(db, user.id)
     await db.commit()
 
 
@@ -281,7 +284,9 @@ async def keep_current_value(db: AsyncSession, user: User, item_id: uuid.UUID) -
         record.previous_values = None
         await db.flush()
 
-        await mark_user_cache_changed(db, user.id)
+        # Keeping the current value changes none of the ledger, so the data mark an import's undo
+        # compares with stays where it was
+        await mark_user_status_changed(db, user.id)
         await db.commit()
     return await get_transaction_response(db, await db.get_one(Transaction, record.transaction_id))
 
@@ -355,7 +360,9 @@ async def keep_transaction(db: AsyncSession, user: User, item_id: uuid.UUID) -> 
         record.open_kind = OpenReviewKind.CORRECTION if record.previous_values else None
         await db.flush()
 
-        await mark_user_cache_changed(db, user.id)
+        # Keeping the transaction changes none of the ledger, so the data mark an import's undo
+        # compares with stays where it was
+        await mark_user_status_changed(db, user.id)
         await db.commit()
     return await get_transaction_response(db, await db.get_one(Transaction, record.transaction_id))
 

@@ -30,10 +30,12 @@ from tests.routes.support.bank_sync_helpers import (
     _changed_at,
     _commit_other_users_account,
     _commit_review_item,
+    _import_a_file,
     _ledger_rows,
     _new_group_account,
     _review_page,
     _stored_item,
+    _undoable_import,
 )
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
 from tests.routes.support.manual_entry_helpers import _commit_link, _Ledger, _ledger
@@ -204,6 +206,18 @@ async def test_keeping_the_current_value_leaves_the_ledger_and_remembers_the_val
     assert await _balances(correction.account_id) == [(BANK_DATE, -450)]
     assert await _changed_at(client, correction.headers) != before
     assert "user_cache_states" in _writes(statements)[-1]
+
+
+async def test_keeping_the_current_value_leaves_a_file_imported_just_before_undoable(client):
+    """Keeping -4.50 changes nothing in the ledger, so the Wallet file imported before it can still be undone"""
+    correction = await _correction_waiting(client)
+    await _import_a_file(client, correction.headers)
+    assert await _undoable_import(client, correction.headers) is not None
+
+    kept = await _decide(client, correction, "keep-current")
+
+    assert kept.status_code == 200, kept.text
+    assert await _undoable_import(client, correction.headers) is not None
 
 
 async def test_accepting_after_keeping_an_earlier_value_forgets_the_values_declined(client):

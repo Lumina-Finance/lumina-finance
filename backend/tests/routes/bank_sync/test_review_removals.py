@@ -32,12 +32,14 @@ from tests.routes.support.bank_sync_helpers import (
     _changed_at,
     _commit_other_users_account,
     _commit_review_item,
+    _import_a_file,
     _ledger_rows,
     _new_group_account,
     _record_bank_source,
     _review_page,
     _still_stored,
     _stored_item,
+    _undoable_import,
 )
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
 from tests.routes.support.manual_entry_helpers import _added_id, _commit_link, _Ledger, _ledger, _unlink
@@ -187,6 +189,18 @@ async def test_keeping_the_transaction_leaves_the_ledger_and_remembers_the_remov
     assert await _review_page(client, removal.headers) == EMPTY_REVIEW_PAGE
     assert await _changed_at(client, removal.headers) != before
     assert "user_cache_states" in _writes(statements)[-1]
+
+
+async def test_keeping_the_transaction_leaves_a_file_imported_just_before_undoable(client):
+    """Keeping the groceries changes nothing in the ledger, so the Wallet file imported before it can still be undone"""
+    removal = await _removal_waiting(client)
+    await _import_a_file(client, removal.headers)
+    assert await _undoable_import(client, removal.headers) is not None
+
+    kept = await _decide(client, removal, "keep-transaction")
+
+    assert kept.status_code == 200, kept.text
+    assert await _undoable_import(client, removal.headers) is not None
 
 
 async def test_keeping_the_transaction_brings_back_the_correction_the_removal_took_the_place_of(client):
