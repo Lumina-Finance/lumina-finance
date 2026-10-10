@@ -109,7 +109,7 @@ class Scenario:
     # Set once the fault is cleared or replaced, which frees the requests a timeout fault holds
     stalls_released: asyncio.Event = field(default_factory=asyncio.Event)
 
-    # Set once a timeout fault holds a request, so a test can free one only after it is held
+    # Set once the fault shown now holds a request, so a test can free one only after it is held
     request_held: asyncio.Event = field(default_factory=asyncio.Event)
 
     def change_fault(self, fault: Fault | None) -> None:
@@ -117,6 +117,7 @@ class Scenario:
         self.fault = fault
         self.stalls_released.set()
         self.stalls_released = asyncio.Event()
+        self.request_held.clear()
 
 
 @dataclass

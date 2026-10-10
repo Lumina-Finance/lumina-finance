@@ -64,29 +64,37 @@ async def _read_sync(client, headers, account_id) -> dict:
 
 
 @pytest.mark.parametrize(
-    ("link_values", "connection_values", "waiting", "syncing", "state"),
+    ("link_values", "connection_values", "waiting", "syncing", "state", "warned"),
     [
         pytest.param(
-            {"signin_needed_since": _NOW}, {"credential_rejected_at": _NOW}, 0, False, "reconnect_needed", id="reconnect-over-bank-sign-in"
+            {"signin_needed_since": _NOW},
+            {"credential_rejected_at": _NOW},
+            0,
+            False,
+            "reconnect_needed",
+            False,
+            id="reconnect-over-bank-sign-in",
         ),
         # The running job makes the import fetch, so the stopped state has to outrank a running import
-        pytest.param({}, {"credential_rejected_at": _NOW}, 0, True, "reconnect_needed", id="reconnect-over-import"),
-        pytest.param({"signin_needed_since": _NOW}, {}, 0, True, "bank_signin_needed", id="bank-sign-in-over-import"),
+        pytest.param({}, {"credential_rejected_at": _NOW}, 0, True, "reconnect_needed", False, id="reconnect-over-import"),
+        pytest.param({"signin_needed_since": _NOW}, {}, 0, True, "bank_signin_needed", False, id="bank-sign-in-over-import"),
         pytest.param(
             {"state": BankLinkState.CHOOSE_ACCOUNT, "importing": False, "paused": True},
             {},
             0,
             False,
             "choose_account",
+            False,
             id="choose-bank-account-over-pause",
         ),
-        pytest.param(_SYNCED | {"paused": True}, {}, 0, True, "paused", id="pause-over-sync"),
+        pytest.param(_SYNCED | {"paused": True}, {}, 0, True, "paused", False, id="pause-over-sync"),
         pytest.param(
             _SYNCED | {"opening_adjustment_state": OpeningAdjustmentState.OFFERED},
             {},
             0,
             True,
             "syncing",
+            False,
             id="sync-over-opening-balance",
         ),
         pytest.param(
@@ -95,17 +103,19 @@ async def _read_sync(client, headers, account_id) -> dict:
             80,
             False,
             "opening_balance",
+            True,
             id="opening-balance-over-review-warning",
         ),
-        pytest.param(_SYNCED | _RETRY, {}, 80, False, "review_warning", id="review-warning-over-retry"),
-        pytest.param(_SYNCED | _RETRY, {}, 0, False, "retrying", id="retry-over-synced"),
-        pytest.param(_RETRY, {}, 0, False, "retrying", id="import-held-by-a-retry-shows-the-retry"),
+        pytest.param(_SYNCED | _RETRY, {}, 80, False, "review_warning", True, id="review-warning-over-retry"),
+        pytest.param(_SYNCED | _RETRY, {}, 0, False, "retrying", False, id="retry-over-synced"),
+        pytest.param(_RETRY, {}, 0, False, "retrying", False, id="import-held-by-a-retry-shows-the-retry"),
     ],
 )
-async def test_sync_status_shows_the_first_state_that_applies(client, link_values, connection_values, waiting, syncing, state):
-    """A link meeting two states shows the one ranked higher, and still says when a sync runs under a state ranked above it
+async def test_sync_status_shows_the_first_state_that_applies(client, link_values, connection_values, waiting, syncing, state, warned):
+    """A link meeting two states shows the one ranked higher, and still says when a sync runs or the review warning applies under it
 
-    Sync now reads that to refuse a second sync, which would spend another request
+    Sync now reads that to refuse a second sync, which would spend another request, and the warning
+    notice reads the flag whatever state shows
     """
     headers, user_id = await _sign_up(client)
     account_id = await _new_account(client, headers, "Everyday")
@@ -122,7 +132,7 @@ async def test_sync_status_shows_the_first_state_that_applies(client, link_value
 
     sync = await _read_sync(client, headers, account_id)
 
-    assert (sync["state"], sync["sync_running"]) == (state, syncing)
+    assert (sync["state"], sync["sync_running"], sync["review_warning"]) == (state, syncing, warned)
 
 
 async def test_sync_status_reads_as_syncing_only_while_a_running_job_covers_the_link(client):

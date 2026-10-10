@@ -53,15 +53,15 @@ def day_later(monkeypatch) -> timedelta:
 
 
 class JobTimeLimits:
-    """The time limit of each job the worker has started, in the order they started"""
+    """The time limit of the job the worker started last, which runs until the next one starts"""
 
     def __init__(self) -> None:
         """Start with no job started"""
-        self.started: list[asyncio.Timeout] = []
+        self.running: asyncio.Timeout | None = None
 
     def end_running(self) -> None:
         """End the running job's time limit now, as though the job had run for all of it"""
-        self.started[-1].reschedule(asyncio.get_running_loop().time())
+        self.running.reschedule(asyncio.get_running_loop().time())
 
 
 @pytest.fixture
@@ -77,7 +77,7 @@ def job_time_limits(monkeypatch) -> JobTimeLimits:
     def timeout(delay: float | None) -> asyncio.Timeout:
         started = start_timeout(delay)
         if delay == worker.JOB_TIME_LIMIT.total_seconds():
-            limits.started.append(started)
+            limits.running = started
         return started
 
     monkeypatch.setattr(asyncio, "timeout", timeout)
