@@ -1,22 +1,14 @@
-import { useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Fragment, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useReducedMotion } from 'motion/react'
 import { ChevronDown, TriangleAlert } from 'lucide-react'
 import { SkippedRowsReviewContext } from '@/contexts/SkippedRowsReviewContext'
 import { IMPORT_INSET_STYLE, SKIPPED_TABLE_VISIBLE_LIMIT } from '@/pages/imports/constants'
 
-// The widest the frozen pair may grow to, measured with container units
-// against the horizontal scroller. It takes less where the reasons are short
-const FROZEN_GROUP_MAX_WIDTH = '30cqw'
-
-// Floor for the reason column on a narrow panel, where its share of the width
-// would leave too little to read a sentence in
-const REASON_COLUMN_MIN_WIDTH = '10rem'
-
 // Shown in place of blank values so empty cells still read as present
 const EMPTY_CELL_PLACEHOLDER = '–'
 
-// Caps the expanded table at roughly eight single-line rows plus the header,
-// after which the rows scroll vertically inside the panel
+// Caps the expanded table at roughly five rows, each with a one-line reason, plus the header, after
+// which the rows scroll vertically inside the panel
 const SKIPPED_TABLE_MAX_HEIGHT = '21rem'
 
 // The frozen cells blend into the panel and stand apart through text colour
@@ -31,8 +23,8 @@ const HEADER_ROW_Z_INDEX = 2
 const FROZEN_HEADER_Z_INDEX = 3
 
 /**
- * Builds the frozen lead cell style, whose width doubles as the sticky
- * offset of the frozen reason column beside it
+ * Builds the frozen lead cell style, whose right border marks the frozen edge
+ * so scrolling columns visibly slide beneath it
  */
 function buildFrozenLeadCellStyle(leadColumnWidth: string): CSSProperties {
   return {
@@ -42,22 +34,18 @@ function buildFrozenLeadCellStyle(leadColumnWidth: string): CSSProperties {
     minWidth: leadColumnWidth,
     maxWidth: leadColumnWidth,
     background: FROZEN_COLUMN_BACKGROUND,
+    borderRight: '1px solid var(--app-border)',
     zIndex: FROZEN_COLUMN_Z_INDEX,
   }
 }
 
-/**
- * Builds the frozen reason cell style, whose right border marks the edge of
- * the frozen group so scrolling columns visibly slide beneath it
- */
-function buildFrozenReasonCellStyle(leadColumnWidth: string): CSSProperties {
-  return {
-    position: 'sticky',
-    left: leadColumnWidth,
-    background: FROZEN_COLUMN_BACKGROUND,
-    borderRight: '1px solid var(--app-border)',
-    zIndex: FROZEN_COLUMN_Z_INDEX,
-  }
+// The reason spans the row under the values and holds still at the scroller's width, so it reads
+// at full width wherever the columns above it are scrolled to
+const REASON_LINE_STYLE: CSSProperties = {
+  position: 'sticky',
+  left: 0,
+  width: '100cqw',
+  color: 'var(--app-accent)',
 }
 
 // Header cells pin to the top of the vertical scroller, and the two frozen
@@ -70,25 +58,6 @@ const HEADER_CELL_STYLE: CSSProperties = {
   zIndex: HEADER_ROW_Z_INDEX,
 }
 
-/**
- * Sizes the reason content, asking for the longest reason on one line and
- * stopping at the frozen pair's cap, so short reasons leave no empty column
- * beside them and long ones wrap within the cap
- *
- * The sizing sits on this block rather than on the cell because the table lays
- * itself out from its content, and CSS leaves a minimum or a cap on a cell
- * undefined there, so the column could take the width of the longest reason on
- * one line. Without a width here at all, that layout squeezes the one column
- * that wraps down to its narrowest while the nowrap file columns take the rest
- */
-function buildReasonContentStyle(leadColumnWidth: string): CSSProperties {
-  return {
-    width: 'max-content',
-    minWidth: REASON_COLUMN_MIN_WIDTH,
-    maxWidth: `calc(${FROZEN_GROUP_MAX_WIDTH} - ${leadColumnWidth})`,
-  }
-}
-
 // The table uses separate borders because collapsed borders do not travel
 // with sticky cells, so each body cell draws its own divider
 const BODY_CELL_BORDER_STYLE: CSSProperties = {
@@ -96,8 +65,8 @@ const BODY_CELL_BORDER_STYLE: CSSProperties = {
 }
 
 /**
- * One skipped item shaped for the table: the frozen lead cell, the skip
- * reason beside it, and the scrolling values keyed by column header
+ * One skipped item shaped for the table: the frozen lead cell, the scrolling
+ * values keyed by column header, and the skip reason under them
  */
 export interface ImportSkippedTableRow {
   key: string
@@ -118,9 +87,13 @@ function RawCellValue({ value }: { value: string }) {
 /**
  * Collapsible panel listing rows the import has something to say about, keeping
  * only the count headline visible until expanded, then freezing the lead cell
- * and the note beside it on the left while every other column scrolls
- * horizontally beside them, capped to a visible sample with the hidden
- * remainder summarized underneath
+ * on the left while every other column scrolls horizontally beside it, with
+ * each row's note on a line of its own underneath, capped to a visible sample
+ * with the hidden remainder summarized underneath
+ *
+ * The note sits under the values rather than in a column of its own, so a long
+ * one reads in a few lines without making its row tall or taking the room the
+ * file's columns need, which a phone has little of
  */
 export function ImportSkippedTable({
   title,
@@ -141,7 +114,7 @@ export function ImportSkippedTable({
   toggleLabel: string
   leadHeader: string
 
-  /** Fixed width of the frozen lead column, which sets the note column's offset */
+  /** Fixed width of the frozen lead column */
   leadColumnWidth: string
   leadCellClassName: string
   headers: string[]
@@ -156,7 +129,7 @@ export function ImportSkippedTable({
   tone?: 'warning' | 'danger'
 
   /**
-   * What the frozen second column is headed. Reason is the right word for a refusal and the wrong
+   * What each row's note is called to a screen reader. Reason is the right word for a refusal and the wrong
    * one for a note against a row that imports as it stands
    */
   reasonHeader?: string
@@ -199,8 +172,6 @@ export function ImportSkippedTable({
   const hiddenCount = totalCount - visibleRows.length
 
   const frozenLeadCellStyle = buildFrozenLeadCellStyle(leadColumnWidth)
-  const frozenReasonCellStyle = buildFrozenReasonCellStyle(leadColumnWidth)
-  const reasonContentStyle = buildReasonContentStyle(leadColumnWidth)
 
   return (
     <div ref={panelRef} className="scroll-mt-4 rounded-lg px-4 py-3" style={IMPORT_INSET_STYLE}>
@@ -246,12 +217,6 @@ export function ImportSkippedTable({
                   >
                     {leadHeader}
                   </th>
-                  <th
-                    className="py-1.5 pr-4 align-top font-medium"
-                    style={{ ...frozenReasonCellStyle, ...HEADER_CELL_STYLE, zIndex: FROZEN_HEADER_Z_INDEX }}
-                  >
-                    {reasonHeader}
-                  </th>
                   {headers.map((header, headerIndex) => (
                     <th
                       key={header}
@@ -265,31 +230,33 @@ export function ImportSkippedTable({
               </thead>
               <tbody>
                 {visibleRows.map((row) => (
-                  <tr key={row.key}>
-                    <td
-                      className={`py-1.5 pr-3 align-top ${leadCellClassName}`}
-                      style={{ ...frozenLeadCellStyle, ...BODY_CELL_BORDER_STYLE, color: 'var(--app-accent)' }}
-                    >
-                      <div className="truncate">{row.lead}</div>
-                    </td>
-                    <td
-                      className="py-1.5 pr-4 align-top"
-                      style={{ ...frozenReasonCellStyle, ...BODY_CELL_BORDER_STYLE, color: 'var(--app-accent)' }}
-                    >
-                      <div className="whitespace-normal break-words text-pretty" style={reasonContentStyle}>
-                        {row.reason}
-                      </div>
-                    </td>
-                    {headers.map((header, headerIndex) => (
+                  <Fragment key={row.key}>
+                    <tr>
                       <td
-                        key={header}
-                        className={`whitespace-nowrap py-1.5 pr-4 align-top ${headerIndex === 0 ? 'pl-4' : ''}`}
-                        style={BODY_CELL_BORDER_STYLE}
+                        className={`py-1.5 pr-3 align-top ${leadCellClassName}`}
+                        style={{ ...frozenLeadCellStyle, ...BODY_CELL_BORDER_STYLE, color: 'var(--app-accent)' }}
                       >
-                        <RawCellValue value={row.cells[header] ?? ''} />
+                        <div className="truncate">{row.lead}</div>
                       </td>
-                    ))}
-                  </tr>
+                      {headers.map((header, headerIndex) => (
+                        <td
+                          key={header}
+                          className={`whitespace-nowrap py-1.5 pr-4 align-top ${headerIndex === 0 ? 'pl-4' : ''}`}
+                          style={BODY_CELL_BORDER_STYLE}
+                        >
+                          <RawCellValue value={row.cells[header] ?? ''} />
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td colSpan={headers.length + 1} className="pb-2">
+                        <div className="box-border whitespace-normal break-words pr-4 text-pretty" style={REASON_LINE_STYLE}>
+                          <span className="sr-only">{`${reasonHeader}: `}</span>
+                          <span>{row.reason}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  </Fragment>
                 ))}
               </tbody>
             </table>

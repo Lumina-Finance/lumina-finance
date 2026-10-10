@@ -8,7 +8,8 @@ const ROW_NUMBER_COLUMN_WIDTH = '3.5rem'
 
 /**
  * Collapsible panel listing the rows the import has something to say about, freezing which row each
- * one is and what was found on the left while every column of the uploaded file scrolls beside them
+ * one is on the left while every column of the uploaded file scrolls beside it, with what was found
+ * under each row
  *
  * Used for both kinds of row, so the tone and reason heading default to the rows left out and the
  * list of rows that import as they are passes both. What the collapse control calls the rows is
@@ -33,7 +34,7 @@ export function ImportRowProblemsTable({
   /** Whether these rows are refused or merely worth a look, which is the icon's colour */
   tone?: 'warning' | 'danger'
 
-  /** What the frozen second column is headed, for a list of notes rather than refusals */
+  /** What each row's note is called to a screen reader, for a list of notes rather than refusals */
   reasonHeader?: string
 
   /** Whether this list answers Review skipped rows on a finished import */

@@ -50,9 +50,9 @@ test('imports the rest of a CSV file and shows the row it leaves out on review',
   // keyboard user lands on it rather than back on Commit import
   await expect(page.getByRole('button', { name: 'Collapse skipped rows', exact: true })).toBeFocused()
   await expect(page.getByText('1 row was not imported', { exact: true })).toBeInViewport({ ratio: 1 })
-  await expect(page.getByRole('columnheader', { name: 'Reason', exact: true })).toBeInViewport({ ratio: 1 })
-  // The column mapping's examples also quote the cell, so the row is the one carrying its reason
-  await expect(page.getByRole('row')
+  await expect(page.getByRole('columnheader', { name: 'Row', exact: true })).toBeInViewport({ ratio: 1 })
+  // The column mapping's examples also quote the cell, so the table is the one carrying its reason
+  await expect(page.getByRole('table')
     .filter({ hasText: 'No such day' })
     .filter({ hasText: 'The date is not a real date in the format chosen above.' })).toBeVisible()
 })
