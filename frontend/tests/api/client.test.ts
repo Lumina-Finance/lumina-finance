@@ -42,6 +42,7 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
   registerAuthBindings({
     getAccessToken: () => 'old-access-token',
+    getAccessTokenExpiresAt: () => null,
     onSessionRefreshed,
     onSessionLost,
   });
@@ -157,8 +158,7 @@ describe('authenticatedFetch', () => {
     await expect(budgets).resolves.toEqual({ budgets: [] });
     expect(fetchMock.mock.calls.filter(([url]) => url === `${API_BASE}/auth/refresh`)).toHaveLength(1);
     expect(fetchMock).toHaveBeenCalledTimes(5);
-    expect(onSessionRefreshed).toHaveBeenCalledTimes(2);
-    expect(onSessionRefreshed).toHaveBeenCalledWith(refreshedAuthResponse);
+    expect(onSessionRefreshed).toHaveBeenCalledExactlyOnceWith(refreshedAuthResponse);
     expect(onSessionLost).not.toHaveBeenCalled();
     const retried = fetchMock.mock.calls.filter(([, options]) =>
       new Headers(options.headers).get('Authorization') === 'Bearer new-access-token');
@@ -265,6 +265,93 @@ describe('authenticatedFetch', () => {
 
     await settled;
     expect(onSessionLost).not.toHaveBeenCalled();
+  });
+});
+
+describe('a sign-in that has aged out', () => {
+  let accessToken: string;
+  let expiresAt: number | null;
+
+  beforeEach(() => {
+    accessToken = 'old-access-token';
+    expiresAt = Date.now() - 1_000;
+    registerAuthBindings({
+      getAccessToken: () => accessToken,
+      getAccessTokenExpiresAt: () => expiresAt,
+      onSessionRefreshed: (response) => {
+        onSessionRefreshed(response);
+        accessToken = response.access_token;
+        expiresAt = Date.now() + 900_000;
+      },
+      onSessionLost,
+    });
+  });
+
+  /** Lists each data request as its path and the sign-in it carried, leaving out the renewal */
+  function sentRequests() {
+    return fetchMock.mock.calls
+      .filter(([url]) => url !== `${API_BASE}/auth/refresh`)
+      .map(([url, options]) => [url, new Headers(options.headers).get('Authorization')]);
+  }
+
+  it('is renewed once before requests started together are sent, each once with the new sign-in', async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      url === `${API_BASE}/auth/refresh` ? jsonResponse(200, refreshedAuthResponse) : jsonResponse(200, {}));
+
+    await Promise.all([
+      authenticatedFetch('/accounts'),
+      authenticatedFetch('/merchants'),
+      authenticatedFetch('/cache-status'),
+    ]);
+
+    expect(fetchMock.mock.calls.filter(([url]) => url === `${API_BASE}/auth/refresh`)).toHaveLength(1);
+    expect(sentRequests().sort()).toEqual([
+      [`${API_BASE}/accounts`, 'Bearer new-access-token'],
+      [`${API_BASE}/cache-status`, 'Bearer new-access-token'],
+      [`${API_BASE}/merchants`, 'Bearer new-access-token'],
+    ]);
+    expect(onSessionRefreshed).toHaveBeenCalledExactlyOnceWith(refreshedAuthResponse);
+  });
+
+  // A request sent with seconds left could expire on its way, so the margin is half a minute
+  it('is renewed first when only seconds of its lifetime are left', async () => {
+    expiresAt = Date.now() + 10_000;
+    fetchMock.mockImplementation(async (url: string) =>
+      url === `${API_BASE}/auth/refresh` ? jsonResponse(200, refreshedAuthResponse) : jsonResponse(200, {}));
+
+    await authenticatedFetch('/accounts');
+
+    expect(sentRequests()).toEqual([[`${API_BASE}/accounts`, 'Bearer new-access-token']]);
+  });
+
+  it('is not renewed while a minute of its lifetime is left', async () => {
+    expiresAt = Date.now() + 60_000;
+    fetchMock.mockResolvedValue(jsonResponse(200, {}));
+
+    await authenticatedFetch('/accounts');
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(sentRequests()).toEqual([[`${API_BASE}/accounts`, 'Bearer old-access-token']]);
+  });
+
+  it('signs the user out and sends nothing when the renewal is refused', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(401, { detail: 'Session is not active' }));
+
+    await expect(authenticatedFetch('/accounts')).rejects.toMatchObject({ message: 'Session expired', status: 401 });
+
+    expect(onSessionLost).toHaveBeenCalledOnce();
+    expect(sentRequests()).toEqual([]);
+  });
+
+  it('still sends the request with the sign-in it has when the renewal fails for a while', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(503, { detail: 'Refresh temporarily unavailable' }))
+      .mockResolvedValueOnce(jsonResponse(200, { accounts: [] }));
+
+    await expect(authenticatedFetch('/accounts')).resolves.toEqual({ accounts: [] });
+
+    expect(onSessionLost).not.toHaveBeenCalled();
+    expect(sentRequests()).toEqual([[`${API_BASE}/accounts`, 'Bearer old-access-token']]);
   });
 });
 

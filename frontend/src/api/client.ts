@@ -7,6 +7,8 @@ const ATTEMPTS_REMAINING_HEADER = 'X-Auth-Attempts-Remaining';
 
 interface AuthBindings {
   getAccessToken: () => string | null;
+  /** When the access token stops being accepted on this device's clock, or null when unknown */
+  getAccessTokenExpiresAt: () => number | null;
   onSessionRefreshed: (response: AuthResponse) => void;
   onSessionLost: () => void;
 }
@@ -20,31 +22,72 @@ export function registerAuthBindings(b: AuthBindings): void {
   bindings = b;
 }
 
+// A token this close to expiring is renewed before a request rather than sent, so it cannot run out while
+// the request is on its way
+const EXPIRY_MARGIN_MS = 30_000;
+
 let pendingRefresh: Promise<AuthResponse> | null = null;
 
 /**
- * Shares one in-flight refresh request so parallel 401 responses do not refresh twice
+ * Shares one in-flight refresh request so parallel requests do not refresh twice, and applies the
+ * renewed session once, even when every request waiting on it has been abandoned
  */
 function refreshOnce(): Promise<AuthResponse> {
   if (!pendingRefresh) {
-    pendingRefresh = authApi.refresh().finally(() => {
-      pendingRefresh = null;
-    });
+    pendingRefresh = authApi.refresh()
+      .then((refreshed) => {
+        bindings?.onSessionRefreshed(refreshed);
+        return refreshed;
+      })
+      .finally(() => {
+        pendingRefresh = null;
+      });
   }
   return pendingRefresh;
 }
 
 /**
- * Fetches authenticated API endpoints and retries once after refreshing expired tokens
+ * Renews the session, ending it when the server refuses the renewal
+ *
+ * @throws ApiError "Session expired" when the refresh credentials were refused, or the refresh
+ *   failure itself when it says nothing about the session, such as a server error
+ */
+async function renewSession(onSessionLost: () => void): Promise<AuthResponse> {
+  try {
+    return await refreshOnce();
+  } catch (error) {
+    // Only rejected refresh credentials end the session; temporary failures remain retryable
+    if (error instanceof ApiError && error.status === 401) {
+      onSessionLost();
+      throw new ApiError('Session expired', 401);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Fetches authenticated API endpoints, renewing an aged-out token first and retrying once after a
+ * refused one is refreshed
  */
 export async function authenticatedFetch<T>(path: string, options: ServerRequestInit = {}): Promise<T> {
   if (!bindings) {
     throw new Error('authenticatedFetch called before auth bindings were registered');
   }
 
-  const token = bindings.getAccessToken();
+  let token = bindings.getAccessToken();
   if (!token) {
     throw new ApiError('Not authenticated', 401);
+  }
+
+  // A tab left open past the token's lifetime renews first, so its requests are not each refused
+  // and resent. Should the renewal fail for a while, the token it has may still be accepted
+  const expiresAt = bindings.getAccessTokenExpiresAt();
+  if (expiresAt !== null && Date.now() >= expiresAt - EXPIRY_MARGIN_MS) {
+    try {
+      token = (await renewSession(bindings.onSessionLost)).access_token;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) throw error;
+    }
   }
 
   const makeRequest = (accessToken: string): Promise<Response> =>
@@ -66,19 +109,7 @@ export async function authenticatedFetch<T>(path: string, options: ServerRequest
   const isExpiredTokenResponse = res.status === 401 && res.headers.get('WWW-Authenticate') !== null;
 
   if (isExpiredTokenResponse) {
-    let refreshed: AuthResponse;
-    try {
-      refreshed = await refreshOnce();
-    } catch (error) {
-      // Only rejected refresh credentials end the session; temporary failures remain retryable
-      if (error instanceof ApiError && error.status === 401) {
-        bindings.onSessionLost();
-        throw new ApiError('Session expired', 401);
-      }
-      throw error;
-    }
-
-    bindings.onSessionRefreshed(refreshed);
+    const refreshed = await renewSession(bindings.onSessionLost);
     res = await makeRequest(refreshed.access_token);
   }
 

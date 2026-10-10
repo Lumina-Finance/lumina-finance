@@ -61,18 +61,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
 
+  // When the access token stops being accepted, fixed when it arrives. Kept beside the state rather
+  // than in it, since the ref-sync effect above would otherwise replace it with a stale copy
+  const accessTokenExpiresAtRef = useRef<number | null>(null);
+  const noteAccessToken = useCallback((token: string | null) => {
+    if (token === stateRef.current.accessToken) return;
+    accessTokenExpiresAtRef.current = token ? authApi.getAccessTokenExpiresAt(token, Date.now()) : null;
+  }, []);
+
   // Child effects run before this provider's ref-sync effect, so any consumer that
   // fetches on the same render a new token arrives would still read the stale ref
   // Full state replacements therefore update the ref synchronously, like primeAccessToken
   const applyState = useCallback((next: AuthState) => {
+    noteAccessToken(next.accessToken);
     stateRef.current = next;
     setState(next);
-  }, []);
+  }, [noteAccessToken]);
 
   // Wire authenticatedFetch to our session lifecycle once on mount
   useEffect(() => {
     registerAuthBindings({
       getAccessToken: () => stateRef.current.accessToken,
+      getAccessTokenExpiresAt: () => accessTokenExpiresAtRef.current,
       onSessionRefreshed: (res) => {
         applyState({ user: res.user, accessToken: res.access_token, loading: false });
       },
@@ -180,9 +190,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Make the token usable by authenticated requests without setting `user`, so the signup
     // 2FA step can call the API while the auth page stays mounted instead of redirecting home
     // The ref is updated synchronously so getAccessToken sees the token before the effect runs
+    noteAccessToken(token);
     stateRef.current = { ...stateRef.current, accessToken: token };
     setState((prev) => ({ ...prev, accessToken: token }));
-  }, []);
+  }, [noteAccessToken]);
 
   const setUser = useCallback((user: User) => {
     setState((prev) => ({ ...prev, user }));

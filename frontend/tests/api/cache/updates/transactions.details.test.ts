@@ -48,7 +48,7 @@ beforeEach(() => {
   hookContext.client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
   fetchMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
-  registerAuthBindings({ getAccessToken: () => 'test-token', onSessionRefreshed: vi.fn(), onSessionLost: vi.fn() });
+  registerAuthBindings({ getAccessToken: () => 'test-token', getAccessTokenExpiresAt: () => null, onSessionRefreshed: vi.fn(), onSessionLost: vi.fn() });
 });
 
 afterEach(() => {
