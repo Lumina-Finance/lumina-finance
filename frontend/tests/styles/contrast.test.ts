@@ -127,3 +127,34 @@ describe('primary button label contrast', () => {
     expect(contrast(solid(tokens, '--app-button-primary-text'), fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
   })
 })
+
+describe('tinted state contrast', () => {
+  // Each state lays a tint over the surface it sits on, so the text in it is read against both together
+  type State = { name: string; text: string[]; fill: (tokens: Tokens) => Rgb }
+  const STATES: State[] = [
+    {
+      // RUNWAY_BAND_STYLE, each badge on the field-coloured row of the runway settings
+      name: 'the Healthy runway badge',
+      text: ['--app-positive'],
+      fill: (tokens) => solid(tokens, '--app-positive-soft', solid(tokens, '--app-input-bg')),
+    },
+    {
+      name: 'the Low runway badge',
+      text: ['--app-accent'],
+      fill: (tokens) => solid(tokens, '--app-accent-soft', solid(tokens, '--app-input-bg')),
+    },
+    {
+      name: 'the Risky runway badge',
+      text: ['--app-negative'],
+      fill: (tokens) => solid(tokens, '--app-negative-soft', solid(tokens, '--app-input-bg')),
+    },
+  ]
+
+  const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) =>
+    STATES.flatMap((state) => state.text.map((token) => ({ theme, token, state: state.name, fill: state.fill }))))
+
+  it.each(cases)('$token reads at 4.5:1 or better on $state in the $theme theme', ({ theme, token, fill }) => {
+    const tokens = THEMES[theme]
+    expect(contrast(solid(tokens, token), fill(tokens))).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+  })
+})
