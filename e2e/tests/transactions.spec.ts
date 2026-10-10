@@ -185,6 +185,7 @@ test('keeps the open Upcoming header on screen through a long run of upcoming tr
   const loadingMore = page.getByText(/^Loading more transactions/)
   const reachedEnd = page.getByText("You've reached the end.")
   await expect(loadingMore).toBeHidden()
+  // One scroll per page: each waits for that page to start and finish loading before the next
   while (!(await reachedEnd.isVisible())) {
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
     await expect(loadingMore.or(reachedEnd)).toBeVisible()
@@ -194,8 +195,10 @@ test('keeps the open Upcoming header on screen through a long run of upcoming tr
   const upcoming = page.getByRole('button', { name: /Upcoming/ })
   await upcoming.click()
 
-  // The section's body stops clipping its overflow once it has finished growing open, so the rows stop moving
+  // The section's body fades in fully as it finishes growing open, then stops clipping its overflow, so the
+  // rows have stopped moving. Its overflow alone reads visible for a moment before the opening starts
   const body = page.locator(`[id="${await upcoming.getAttribute('aria-controls')}"]`)
+  await expect(body).toHaveCSS('opacity', '1')
   await expect(body).toHaveCSS('overflow', 'visible')
   const firstUpcomingRow = page.getByTestId(`transaction-row-${ids[0]}`)
 
