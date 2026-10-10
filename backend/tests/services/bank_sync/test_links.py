@@ -8,7 +8,7 @@ account again must see an unlink or a discovery that moved the link meanwhile
 """
 
 import asyncio
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, timedelta
 
 import pytest
 from fastapi import HTTPException
@@ -28,6 +28,9 @@ from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import _build_account, _build_bank_link, _build_user, _commit_listed_connection, _seed_job
 from tests.routes.support.identity_helpers import _act_as
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
+
+# A month before the frozen clock's 3 October in Toronto, well inside the import range
+_START = date(2026, 9, 3)
 
 
 @pytest.fixture
@@ -164,17 +167,16 @@ class _PausedRead:
         return await self._read(db, user_id)
 
 
-async def test_link_waits_for_a_link_of_the_same_account_still_saving_and_is_refused(linkable, monkeypatch):
+async def test_link_waits_for_a_link_of_the_same_account_still_saving_and_is_refused(linkable, monkeypatch, frozen_now):
     """Two links of Everyday at once: the second waits for the first and is told the account is already linked"""
     user, account, connection = linkable
     paused = _PausedRead(links.read_linked_bank_accounts)
     monkeypatch.setattr(links, "read_linked_bank_accounts", paused)
-    start = datetime.now(UTC).date() - timedelta(days=30)
 
     async with asyncio.timeout(10):
-        first = asyncio.create_task(_link_as(user, account, connection, "ACT-1", start))
+        first = asyncio.create_task(_link_as(user, account, connection, "ACT-1", _START))
         await paused.reached.wait()
-        second = asyncio.create_task(_link_as(user, account, connection, "ACT-2", start))
+        second = asyncio.create_task(_link_as(user, account, connection, "ACT-2", _START))
         await _wait_until_waiting_on(paused.pid, second)
         paused.release.set()
         await first
@@ -185,7 +187,7 @@ async def test_link_waits_for_a_link_of_the_same_account_still_saving_and_is_ref
     assert await _link_states() == [("ACT-1", "active")]
 
 
-async def test_discovery_that_stops_listing_a_bank_account_waits_for_its_link_and_moves_it(linkable, monkeypatch):
+async def test_discovery_that_stops_listing_a_bank_account_waits_for_its_link_and_moves_it(linkable, monkeypatch, frozen_now):
     """A discovery that no longer finds ACT-1 while Everyday is being linked to it moves the new link to Choose bank account"""
     user, account, connection = linkable
     paused = _PausedRead(links.read_linked_bank_accounts)
@@ -195,11 +197,11 @@ async def test_discovery_that_stops_listing_a_bank_account_waits_for_its_link_an
         """Store a discovery that lists none of the connection's bank accounts, as the user"""
         async with _act_as(user.id) as db:
             discovered = await db.get_one(BankConnection, connection.id)
-            await apply_discovery(db, discovered, FetchResult(), now=datetime.now(UTC))
+            await apply_discovery(db, discovered, FetchResult(), now=frozen_now)
             await db.commit()
 
     async with asyncio.timeout(10):
-        linking = asyncio.create_task(_link_as(user, account, connection, "ACT-1", datetime.now(UTC).date() - timedelta(days=30)))
+        linking = asyncio.create_task(_link_as(user, account, connection, "ACT-1", _START))
         await paused.reached.wait()
         discovery = asyncio.create_task(discover_nothing())
         await _wait_until_waiting_on(paused.pid, discovery)
@@ -228,7 +230,7 @@ async def _link_kinds() -> list[tuple]:
         return [tuple(row) for row in rows]
 
 
-async def test_choose_again_finding_its_link_unlinked_meanwhile_links_afresh(linkable, monkeypatch):
+async def test_choose_again_finding_its_link_unlinked_meanwhile_links_afresh(linkable, monkeypatch, frozen_now):
     """Everyday is unlinked while choosing ACT-2 again, so the choice makes a new link as a relink and the ended one stays ended"""
     user, account, connection = linkable
     await _commit_choosing_link(account, connection)
@@ -241,7 +243,7 @@ async def test_choose_again_finding_its_link_unlinked_meanwhile_links_afresh(lin
             await unlink_account(db, user, account.id)
 
     async with asyncio.timeout(10):
-        choosing = asyncio.create_task(_link_as(user, account, connection, "ACT-2", datetime.now(UTC).date() - timedelta(days=30)))
+        choosing = asyncio.create_task(_link_as(user, account, connection, "ACT-2", _START))
         await paused.reached.wait()
         await unlink()
         paused.release.set()
@@ -250,7 +252,7 @@ async def test_choose_again_finding_its_link_unlinked_meanwhile_links_afresh(lin
     assert await _link_kinds() == [("ACT-1", "unlinked", "initial"), ("ACT-2", "active", "relink")]
 
 
-async def test_choose_again_finding_its_link_active_again_meanwhile_is_refused(linkable, monkeypatch):
+async def test_choose_again_finding_its_link_active_again_meanwhile_is_refused(linkable, monkeypatch, frozen_now):
     """A discovery lists ACT-1 again while Everyday chooses ACT-2, so the link is back on ACT-1 and the choice is refused"""
     user, account, connection = linkable
     await _commit_choosing_link(account, connection)
@@ -266,7 +268,7 @@ async def test_choose_again_finding_its_link_active_again_meanwhile_is_refused(l
         currency_raw="CAD",
         balance=None,
         available_balance=None,
-        balance_at=datetime.now(UTC),
+        balance_at=frozen_now,
     )
 
     async def list_act_1_again():
@@ -276,11 +278,11 @@ async def test_choose_again_finding_its_link_active_again_meanwhile_is_refused(l
         )
         async with _act_as(user.id) as db:
             discovered = await db.get_one(BankConnection, connection.id)
-            await apply_discovery(db, discovered, result, now=datetime.now(UTC))
+            await apply_discovery(db, discovered, result, now=frozen_now)
             await db.commit()
 
     async with asyncio.timeout(10):
-        choosing = asyncio.create_task(_link_as(user, account, connection, "ACT-2", datetime.now(UTC).date() - timedelta(days=30)))
+        choosing = asyncio.create_task(_link_as(user, account, connection, "ACT-2", _START))
         await paused.reached.wait()
         await list_act_1_again()
         paused.release.set()
