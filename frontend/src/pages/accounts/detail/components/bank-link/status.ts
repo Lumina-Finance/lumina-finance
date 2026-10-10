@@ -92,7 +92,7 @@ function describeLinkSync(link: BankLink, timeZone: string | undefined): BankSyn
       return label('working', importing(link.import!), [`Since ${formatDateLabel(link.import!.requested_start)}`], true)
     case 'import_waiting_on_budget':
       return label('working', importing(link.import!), [
-        `Next part at ${formatAttemptTime(sync.next_attempt_at!, timeZone)}, when the ${link.provider_name} request budget frees up`,
+        `Next part at ${formatAttemptTime(sync.next_attempt_at!, timeZone)}, when the ${link.provider_name} request limit allows another request`,
       ])
     case 'paused':
       return label('review', `Paused · ${waiting} new to review`, [`Resumes at ${REVIEW_RESUME_COUNT} or fewer`, failure])

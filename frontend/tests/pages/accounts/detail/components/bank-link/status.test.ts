@@ -132,7 +132,7 @@ describe('describeBankSync for a live link', () => {
         label: 'Importing · 1 of 2',
         tone: 'working',
         pulse: false,
-        details: ['Next part at 4:30 p.m., when the SimpleFIN request budget frees up'],
+        details: ['Next part at 4:30 p.m., when the SimpleFIN request limit allows another request'],
       },
     ],
     [
