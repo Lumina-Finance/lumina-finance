@@ -33,8 +33,8 @@ describe('dashboard fetch functions', () => {
     await fetchDashboardCredit();
     await fetchDashboardSavingsRate();
 
-    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(1, '/dashboard/credit');
-    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(2, '/dashboard/savings-rate');
+    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(1, '/dashboard/credit', expect.anything());
+    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(2, '/dashboard/savings-rate', expect.anything());
   });
 
   it('requests dashboard widgets with rolling day windows', async () => {
@@ -44,10 +44,12 @@ describe('dashboard fetch functions', () => {
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(
       1,
       '/dashboard/net-worth?window_days=120',
+      expect.anything(),
     );
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(
       2,
       '/dashboard/recent-activity?window_days=30',
+      expect.anything(),
     );
   });
 
@@ -58,10 +60,12 @@ describe('dashboard fetch functions', () => {
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(
       1,
       '/dashboard/spending-comparison?range=MTD',
+      expect.anything(),
     );
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(
       2,
       '/dashboard/spending-breakdown?range=YTD',
+      expect.anything(),
     );
   });
 });

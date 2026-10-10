@@ -32,7 +32,7 @@ export function useTaxAdvantagedCategories() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: taxAdvantagedCategoryKeys.list(),
-    queryFn: fetchTaxAdvantagedCategories,
+    queryFn: ({ signal }) => fetchTaxAdvantagedCategories(signal),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
   });
@@ -88,7 +88,7 @@ export function useTaxAdvantagedCategoryLimits(categoryId: string | undefined) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: taxAdvantagedCategoryKeys.limits(categoryId),
-    queryFn: () => fetchTaxAdvantagedCategoryLimits(categoryId),
+    queryFn: ({ signal }) => fetchTaxAdvantagedCategoryLimits(categoryId, signal),
     enabled: !!accessToken && !!categoryId,
     staleTime: 5 * 60 * 1000,
   });
@@ -144,7 +144,7 @@ export function useTaxAdvantagedCategory(categoryId: string | null | undefined) 
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: taxAdvantagedCategoryKeys.detail(categoryId),
-    queryFn: () => fetchTaxAdvantagedCategory(categoryId),
+    queryFn: ({ signal }) => fetchTaxAdvantagedCategory(categoryId, signal),
     enabled: !!accessToken && !!categoryId,
     staleTime: 5 * 60 * 1000,
   });

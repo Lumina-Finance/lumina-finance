@@ -165,6 +165,38 @@ describe('authenticatedFetch', () => {
     expect(retried.map(([url]) => url).sort()).toEqual([`${API_BASE}/accounts`, `${API_BASE}/budgets`]);
   });
 
+  it('finishes a shared refresh when one of the requests waiting on it is abandoned', async () => {
+    let releaseRefresh!: (response: Response) => void;
+    const refreshResponse = new Promise<Response>((resolve) => { releaseRefresh = resolve; });
+    let reportBothRefused!: () => void;
+    const bothRefused = new Promise<void>((resolve) => { reportBothRefused = resolve; });
+    let refused = 0;
+    fetchMock.mockImplementation(async (url: string, options: RequestInit) => {
+      if (url === `${API_BASE}/auth/refresh`) return refreshResponse;
+      options.signal?.throwIfAborted();
+      if (new Headers(options.headers).get('Authorization') === 'Bearer old-access-token') {
+        refused += 1;
+        if (refused === 2) reportBothRefused();
+        return jsonResponse(401, { detail: 'Expired access token' }, true);
+      }
+      return jsonResponse(200, { budgets: [] });
+    });
+    const leftPage = new AbortController();
+
+    const accounts = authenticatedFetch('/accounts', { signal: leftPage.signal }).catch((error: unknown) => error);
+    const budgets = authenticatedFetch('/budgets');
+    await bothRefused;
+    leftPage.abort(new DOMException('The page was left', 'AbortError'));
+    releaseRefresh(jsonResponse(200, refreshedAuthResponse));
+
+    expect(await accounts).toMatchObject({ name: 'AbortError' });
+    await expect(budgets).resolves.toEqual({ budgets: [] });
+    const refreshRequest = fetchMock.mock.calls.find(([url]) => url === `${API_BASE}/auth/refresh`);
+    expect(refreshRequest?.[1].signal?.aborted).toBe(false);
+    expect(onSessionRefreshed).toHaveBeenCalledExactlyOnceWith(refreshedAuthResponse);
+    expect(onSessionLost).not.toHaveBeenCalled();
+  });
+
   it('does not mark the session lost when refresh reports a rotation race', async () => {
     vi.useFakeTimers();
     fetchMock

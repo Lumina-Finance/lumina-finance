@@ -18,10 +18,11 @@ const CURRENCY_REQUEST_TIMEOUT_MS = 5_000;
 /**
  * Fetches static ISO currency metadata used by money inputs and displays
  *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  * @throws ApiError when the response is not ok, and a TimeoutError when the request outlives the timeout
  */
-export async function fetchCurrencies(): Promise<Currency[]> {
-  const res = await fetchFromServer('/currencies', { timeoutMs: CURRENCY_REQUEST_TIMEOUT_MS });
+export async function fetchCurrencies(signal?: AbortSignal): Promise<Currency[]> {
+  const res = await fetchFromServer('/currencies', { timeoutMs: CURRENCY_REQUEST_TIMEOUT_MS, signal });
   if (!res.ok) {
     throw buildApiError(res.status, await res.json().catch(() => null));
   }

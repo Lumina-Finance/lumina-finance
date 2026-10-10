@@ -49,24 +49,31 @@ export function deleteAccount(accountId: string) {
 
 /**
  * Fetches account overview rows for account lists and selectors
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchAccounts() {
-  return authenticatedFetch<AccountsOverview[]>('/accounts');
+export function fetchAccounts(signal?: AbortSignal) {
+  return authenticatedFetch<AccountsOverview[]>('/accounts', { signal });
 }
 
 /**
  * Fetches one account detail record by ID
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchAccount(accountId: string | undefined) {
-  return authenticatedFetch<Account>(`/accounts/${accountId}`);
+export function fetchAccount(accountId: string | undefined, signal?: AbortSignal) {
+  return authenticatedFetch<Account>(`/accounts/${accountId}`, { signal });
 }
 
 /**
  * Fetches account balance snapshots with optional range and granularity controls
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export function fetchAccountSnapshots(
   accountId: string | undefined,
   range: AccountSnapshotRange = {},
+  signal?: AbortSignal,
 ) {
   const { fromDate, toDate, granularity = 'day', includeAnchor = false } = range;
   return authenticatedFetch<AccountBalanceSnapshot[]>(
@@ -76,26 +83,38 @@ export function fetchAccountSnapshots(
       granularity: granularity === 'day' ? undefined : granularity,
       include_anchor: includeAnchor || undefined,
     })}`,
+    { signal },
   );
 }
 
 /**
  * Fetches account spending breakdown for a backend-defined calendar range
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export function fetchAccountSpendingBreakdown(
   accountId: string | undefined,
   range: SpendingRange,
+  signal?: AbortSignal,
 ) {
   return authenticatedFetch<AccountSpendingBreakdown>(
     `/accounts/${accountId}/spending-breakdown${buildQueryString({ range })}`,
+    { signal },
   );
 }
 
 /**
  * Fetches account monthly income and expense totals
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchAccountCashFlow(accountId: string | undefined, months: number = 6) {
+export function fetchAccountCashFlow(
+  accountId: string | undefined,
+  months: number = 6,
+  signal?: AbortSignal,
+) {
   return authenticatedFetch<AccountMonthlyCashFlow[]>(
     `/accounts/${accountId}/cash-flow${buildQueryString({ months })}`,
+    { signal },
   );
 }

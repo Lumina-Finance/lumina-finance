@@ -12,30 +12,38 @@ import type {
 
 /**
  * Fetches base budget definitions
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchBaseBudgets() {
-  return authenticatedFetch<BaseBudget[]>('/base-budgets');
+export function fetchBaseBudgets(signal?: AbortSignal) {
+  return authenticatedFetch<BaseBudget[]>('/base-budgets', { signal });
 }
 
 /**
  * Fetches budget periods
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchBudgets() {
-  return authenticatedFetch<Budget[]>('/budgets');
+export function fetchBudgets(signal?: AbortSignal) {
+  return authenticatedFetch<Budget[]>('/budgets', { signal });
 }
 
 /**
  * Fetches latest utilization for each active base budget
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchLatestBudgetUtilizations() {
-  return authenticatedFetch<LatestBudgetUtilization[]>('/budgets/latest-utilizations');
+export function fetchLatestBudgetUtilizations(signal?: AbortSignal) {
+  return authenticatedFetch<LatestBudgetUtilization[]>('/budgets/latest-utilizations', { signal });
 }
 
 /**
  * Fetches utilization for every stored period under a base budget in one batched request
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchBaseBudgetUtilizations(baseBudgetId: string) {
-  return authenticatedFetch<BudgetUtilization[]>(`/base-budgets/${baseBudgetId}/utilizations`);
+export function fetchBaseBudgetUtilizations(baseBudgetId: string, signal?: AbortSignal) {
+  return authenticatedFetch<BudgetUtilization[]>(`/base-budgets/${baseBudgetId}/utilizations`, { signal });
 }
 
 /**

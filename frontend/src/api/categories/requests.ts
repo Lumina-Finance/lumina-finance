@@ -8,9 +8,11 @@ import type {
 
 /**
  * Fetches the full category list available to the current user
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchCategories() {
-  return authenticatedFetch<Category[]>('/categories');
+export function fetchCategories(signal?: AbortSignal) {
+  return authenticatedFetch<Category[]>('/categories', { signal });
 }
 
 /**

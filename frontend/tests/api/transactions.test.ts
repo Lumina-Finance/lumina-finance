@@ -30,7 +30,7 @@ describe('transaction fetch functions', () => {
   it('requests transaction detail endpoints', async () => {
     await fetchTransaction('txn_123');
 
-    expect(authenticatedFetchMock).toHaveBeenCalledWith('/transactions/txn_123');
+    expect(authenticatedFetchMock).toHaveBeenCalledWith('/transactions/txn_123', expect.anything());
   });
 
   it('requests filtered transaction lists', async () => {
@@ -45,6 +45,7 @@ describe('transaction fetch functions', () => {
 
     expect(authenticatedFetchMock).toHaveBeenCalledWith(
       '/transactions?account_id=acc_123&q=coffee+shop&from_date=2026-01-01&to_date=2026-01-31&sort_by=dt&sort_order=desc',
+      expect.anything(),
     );
   });
 
@@ -53,6 +54,7 @@ describe('transaction fetch functions', () => {
 
     expect(authenticatedFetchMock).toHaveBeenCalledWith(
       '/transactions?category_id=cat_123&limit=50&offset=100',
+      expect.anything(),
     );
   });
 
@@ -65,6 +67,7 @@ describe('transaction fetch functions', () => {
 
     expect(authenticatedFetchMock).toHaveBeenCalledWith(
       '/transactions/overview?from_date=2026-02-01&to_date=2026-02-28&account_id=acc_123',
+      expect.anything(),
     );
   });
 });

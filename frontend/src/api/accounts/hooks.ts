@@ -129,7 +129,7 @@ export function useAccounts() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: accountKeys.list(),
-    queryFn: fetchAccounts,
+    queryFn: ({ signal }) => fetchAccounts(signal),
     enabled: !!accessToken,
     staleTime: getFxAwareStaleTime(ACCOUNT_FX_STALE_TIME_MS),
   });
@@ -142,7 +142,7 @@ export function useAccount(accountId: string | undefined) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: accountKeys.detail(accountId),
-    queryFn: () => fetchAccount(accountId),
+    queryFn: ({ signal }) => fetchAccount(accountId, signal),
     enabled: !!accessToken && !!accountId,
     staleTime: getFxAwareStaleTime(ACCOUNT_FX_STALE_TIME_MS),
   });
@@ -164,7 +164,7 @@ export function useAccountSnapshots(
       granularity,
       includeAnchor,
     }),
-    queryFn: () => fetchAccountSnapshots(accountId, range),
+    queryFn: ({ signal }) => fetchAccountSnapshots(accountId, range, signal),
     enabled: !!accessToken && !!accountId,
     staleTime: 5 * 60 * 1000,
   });
@@ -180,7 +180,7 @@ export function useAccountSpendingBreakdown(
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: accountKeys.spendingBreakdown(accountId, range),
-    queryFn: () => fetchAccountSpendingBreakdown(accountId, range),
+    queryFn: ({ signal }) => fetchAccountSpendingBreakdown(accountId, range, signal),
     enabled: !!accessToken && !!accountId,
     placeholderData: (previousData, previousQuery) =>
       previousQuery?.queryKey[1] === accountId ? previousData : undefined,
@@ -195,7 +195,7 @@ export function useAccountCashFlow(accountId: string | undefined, months: number
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: accountKeys.cashFlow(accountId, months),
-    queryFn: () => fetchAccountCashFlow(accountId, months),
+    queryFn: ({ signal }) => fetchAccountCashFlow(accountId, months, signal),
     enabled: !!accessToken && !!accountId,
     staleTime: 5 * 60 * 1000,
   });

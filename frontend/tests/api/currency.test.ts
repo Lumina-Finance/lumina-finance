@@ -226,3 +226,15 @@ describe('retrying an incomplete currency list', () => {
     }
   });
 });
+
+describe('a currency list the page no longer needs', () => {
+  it('stops when the load that asked for it is abandoned', async () => {
+    fetchMock.mockImplementationOnce(answerNever);
+    const load = new AbortController();
+
+    const request = fetchCurrencies(load.signal);
+    load.abort(new DOMException('Left the page', 'AbortError'));
+
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+  });
+});

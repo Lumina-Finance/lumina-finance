@@ -452,10 +452,9 @@ test('retains the displayed range during a pending change', async ({ page, drill
     if (intercepted) await finished
   }
 
-  const response = await breakdownRequest!.response()
-  expect(response, 'The released breakdown request must receive a response').not.toBeNull()
-  expect(response!.status()).toBe(200)
-  expect(await response!.finished(), 'The breakdown response must finish before returning').toBeNull()
+  // Leaving the card for the drilled list abandons its pending load, so the held request is stopped
+  // rather than left to download a breakdown nothing will show
+  expect(breakdownRequest!.failure()?.errorText, 'The abandoned breakdown request must be stopped').toBe('net::ERR_ABORTED')
 
   await page.goBack()
   await page.getByRole('button', { name: /^Insights date range:/ }).filter({ visible: true }).click()

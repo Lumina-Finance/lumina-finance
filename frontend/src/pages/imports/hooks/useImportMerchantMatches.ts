@@ -30,7 +30,7 @@ export function useImportMerchantMatches(importedMerchants: string[]) {
     refetch: refetchMatches,
   } = useQuery({
     queryKey: merchantKeys.nameMatches(importedMerchants),
-    queryFn: () => fetchMerchantNameMatches(importedMerchants),
+    queryFn: ({ signal }) => fetchMerchantNameMatches(importedMerchants, signal),
     enabled: Boolean(accessToken) && importedMerchants.length > 0,
   })
 

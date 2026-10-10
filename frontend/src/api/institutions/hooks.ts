@@ -16,7 +16,7 @@ export function useInstitutions() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: institutionKeys.list(),
-    queryFn: fetchInstitutions,
+    queryFn: ({ signal }) => fetchInstitutions(signal),
     enabled: !!accessToken,
     staleTime: 24 * 60 * 60 * 1000,
     gcTime: Infinity,

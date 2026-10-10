@@ -123,6 +123,15 @@ const restrictedObserverEntries = [
   },
 ]
 
+// A load the app abandons, such as a page left before its data arrives or a search typed over, only
+// stops its request when the query function hands the request its cancel signal
+const restrictedQueryFns = [
+  {
+    selector: "Property[key.name='queryFn']:not(:has(CallExpression Identifier[name='signal']))",
+    message: 'Take the signal from the query context and pass it to the request, so an abandoned load stops its request',
+  },
+]
+
 export default defineConfig([
   globalIgnores(['dist']),
   {
@@ -140,6 +149,12 @@ export default defineConfig([
     rules: {
       'no-restricted-imports': ['error', { patterns: restrictedImportPatterns }],
       'no-restricted-syntax': ['error', ...restrictedStackingLevels, ...restrictedObserverEntries],
+    },
+  },
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': ['error', ...restrictedStackingLevels, ...restrictedObserverEntries, ...restrictedQueryFns],
     },
   },
   {

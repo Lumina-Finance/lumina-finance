@@ -12,7 +12,7 @@ import { fetchOidcIdentities, fetchOidcProviders } from '@/api/oidc/requests';
 export function useOidcProviders() {
   return useQuery({
     queryKey: oidcKeys.providers(),
-    queryFn: fetchOidcProviders,
+    queryFn: ({ signal }) => fetchOidcProviders(signal),
   });
 }
 
@@ -22,7 +22,7 @@ export function useOidcProviders() {
 export function useOidcIdentities() {
   return useQuery({
     queryKey: oidcKeys.identities(),
-    queryFn: fetchOidcIdentities,
+    queryFn: ({ signal }) => fetchOidcIdentities(signal),
   });
 }
 

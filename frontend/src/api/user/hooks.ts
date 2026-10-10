@@ -48,7 +48,7 @@ export function useRunwayAccounts() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: userKeys.runwayAccounts(),
-    queryFn: fetchRunwayAccounts,
+    queryFn: ({ signal }) => fetchRunwayAccounts(signal),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
   });
@@ -74,7 +74,7 @@ export function useRunwaySettings() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: userKeys.runwaySettings(),
-    queryFn: fetchRunwaySettings,
+    queryFn: ({ signal }) => fetchRunwaySettings(signal),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
   });
@@ -100,7 +100,7 @@ export function useRunway() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: userKeys.runway(),
-    queryFn: fetchRunway,
+    queryFn: ({ signal }) => fetchRunway(signal),
     enabled: !!accessToken,
     staleTime: getFxAwareStaleTime(RUNWAY_FX_STALE_TIME_MS),
   });

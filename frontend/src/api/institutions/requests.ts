@@ -7,9 +7,11 @@ import type {
 
 /**
  * Fetches institutions available for account creation and account identity edits
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchInstitutions() {
-  return authenticatedFetch<Institution[]>('/institutions');
+export function fetchInstitutions(signal?: AbortSignal) {
+  return authenticatedFetch<Institution[]>('/institutions', { signal });
 }
 
 /**

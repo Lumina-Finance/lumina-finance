@@ -32,14 +32,14 @@ describe('account fetch functions', () => {
     await fetchAccounts();
     await fetchAccount('acc_123');
 
-    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(1, '/accounts');
-    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(2, '/accounts/acc_123');
+    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(1, '/accounts', expect.anything());
+    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(2, '/accounts/acc_123', expect.anything());
   });
 
   it('requests account snapshots with default options', async () => {
     await fetchAccountSnapshots('acc_123');
 
-    expect(authenticatedFetchMock).toHaveBeenCalledWith('/accounts/acc_123/snapshots');
+    expect(authenticatedFetchMock).toHaveBeenCalledWith('/accounts/acc_123/snapshots', expect.anything());
   });
 
   it('requests account snapshots with encoded range options', async () => {
@@ -52,6 +52,7 @@ describe('account fetch functions', () => {
 
     expect(authenticatedFetchMock).toHaveBeenCalledWith(
       '/accounts/acc_123/snapshots?from_date=2026-01-01&to_date=2026-06-12&granularity=month&include_anchor=true',
+      expect.anything(),
     );
   });
 
@@ -62,10 +63,12 @@ describe('account fetch functions', () => {
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(
       1,
       '/accounts/acc_123/spending-breakdown?range=MTD',
+      expect.anything(),
     );
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(
       2,
       '/accounts/acc_123/cash-flow?months=12',
+      expect.anything(),
     );
   });
 });

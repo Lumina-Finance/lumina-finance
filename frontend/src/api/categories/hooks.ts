@@ -25,7 +25,7 @@ export function useCategories() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: categoryKeys.list(),
-    queryFn: fetchCategories,
+    queryFn: ({ signal }) => fetchCategories(signal),
     enabled: !!accessToken,
     staleTime: Infinity,
     gcTime: Infinity,

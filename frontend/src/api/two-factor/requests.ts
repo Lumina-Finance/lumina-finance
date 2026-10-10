@@ -9,9 +9,11 @@ import type {
 
 /**
  * Reports whether the current user has two-factor authentication enabled
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchTotpStatus() {
-  return authenticatedFetch<TotpStatusResponse>('/auth/2fa/status');
+export function fetchTotpStatus(signal?: AbortSignal) {
+  return authenticatedFetch<TotpStatusResponse>('/auth/2fa/status', { signal });
 }
 
 /**

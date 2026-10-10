@@ -31,7 +31,7 @@ describe('merchant API functions', () => {
   it('requests merchant detail records by ID', async () => {
     await fetchMerchant('merchant_123');
 
-    expect(authenticatedFetchMock).toHaveBeenCalledWith('/merchants/merchant_123');
+    expect(authenticatedFetchMock).toHaveBeenCalledWith('/merchants/merchant_123', expect.anything());
   });
 
   it('creates merchants with default category and group fields', async () => {

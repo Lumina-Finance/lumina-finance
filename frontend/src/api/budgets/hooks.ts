@@ -25,7 +25,7 @@ export function useBaseBudgets() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: budgetKeys.baseBudgets(),
-    queryFn: fetchBaseBudgets,
+    queryFn: ({ signal }) => fetchBaseBudgets(signal),
     enabled: !!accessToken,
     staleTime: 5 * 60 * 1000,
   });
@@ -38,7 +38,7 @@ export function useBudgets() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: budgetKeys.periods(),
-    queryFn: fetchBudgets,
+    queryFn: ({ signal }) => fetchBudgets(signal),
     enabled: !!accessToken,
     staleTime: 5 * 60 * 1000,
   });
@@ -51,7 +51,7 @@ export function useLatestBudgetUtilizations() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: budgetKeys.latestUtilizations(),
-    queryFn: fetchLatestBudgetUtilizations,
+    queryFn: ({ signal }) => fetchLatestBudgetUtilizations(signal),
     enabled: !!accessToken,
     staleTime: getFxAwareStaleTime(BUDGET_FX_STALE_TIME_MS),
   });
@@ -64,7 +64,7 @@ export function useBaseBudgetUtilizations(baseBudgetId: string) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: budgetKeys.baseBudgetUtilizations(baseBudgetId),
-    queryFn: () => fetchBaseBudgetUtilizations(baseBudgetId),
+    queryFn: ({ signal }) => fetchBaseBudgetUtilizations(baseBudgetId, signal),
     enabled: !!accessToken,
     staleTime: getFxAwareStaleTime(BUDGET_FX_STALE_TIME_MS),
   });

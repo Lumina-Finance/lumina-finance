@@ -25,7 +25,7 @@ describe('merchant lookup API functions', () => {
   it('requests paginated merchants with default paging', async () => {
     await fetchMerchantsPage();
 
-    expect(authenticatedFetchMock).toHaveBeenCalledWith('/merchants?limit=20&offset=0');
+    expect(authenticatedFetchMock).toHaveBeenCalledWith('/merchants?limit=20&offset=0', expect.anything());
   });
 
   it('requests filtered merchants with encoded search text', async () => {
@@ -33,6 +33,7 @@ describe('merchant lookup API functions', () => {
 
     expect(authenticatedFetchMock).toHaveBeenCalledWith(
       '/merchants?group_id=group_123&q=coffee+shop&limit=25&offset=75',
+      expect.anything(),
     );
   });
 });

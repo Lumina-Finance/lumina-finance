@@ -31,7 +31,7 @@ describe('category API functions', () => {
   it('requests the full category list', async () => {
     await fetchCategories();
 
-    expect(authenticatedFetchMock).toHaveBeenCalledWith('/categories');
+    expect(authenticatedFetchMock).toHaveBeenCalledWith('/categories', expect.anything());
   });
 
   it('creates categories with kind and group scope fields', async () => {

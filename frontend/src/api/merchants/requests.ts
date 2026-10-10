@@ -11,8 +11,15 @@ import type {
 
 /**
  * Fetches one filtered merchant page for settings and transaction merchant selectors
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchMerchantsPage(filters: MerchantFilters = {}, pageSize = 20, offset = 0) {
+export function fetchMerchantsPage(
+  filters: MerchantFilters = {},
+  pageSize = 20,
+  offset = 0,
+  signal?: AbortSignal,
+) {
   return authenticatedFetch<Merchant[]>(
     '/merchants' +
       buildQueryString({
@@ -20,14 +27,17 @@ export function fetchMerchantsPage(filters: MerchantFilters = {}, pageSize = 20,
         limit: pageSize,
         offset,
       }),
+    { signal },
   );
 }
 
 /**
  * Fetches a merchant detail record by ID
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchMerchant(merchantId: string | null | undefined) {
-  return authenticatedFetch<Merchant>(`/merchants/${merchantId}`);
+export function fetchMerchant(merchantId: string | null | undefined, signal?: AbortSignal) {
+  return authenticatedFetch<Merchant>(`/merchants/${merchantId}`, { signal });
 }
 
 /**
@@ -74,10 +84,13 @@ export function mergeMerchant({ merchantId, payload }: MergeMerchantRequest) {
  *
  * A read sent as a POST, since a file's worth of payee values does not fit in a query string. The
  * import page asks this rather than holding every merchant a user has, which can run to thousands
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchMerchantNameMatches(names: string[]) {
+export function fetchMerchantNameMatches(names: string[], signal?: AbortSignal) {
   return authenticatedFetch<MerchantNameMatch[]>('/merchants/name-matches', {
     method: 'POST',
     body: JSON.stringify({ names }),
+    signal,
   });
 }

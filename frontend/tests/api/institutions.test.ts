@@ -30,7 +30,7 @@ describe('institution API functions', () => {
   it('requests institutions from the list endpoint', async () => {
     await fetchInstitutions();
 
-    expect(authenticatedFetchMock).toHaveBeenCalledWith('/institutions');
+    expect(authenticatedFetchMock).toHaveBeenCalledWith('/institutions', expect.anything());
   });
 
   it('creates institutions with country and website fields', async () => {

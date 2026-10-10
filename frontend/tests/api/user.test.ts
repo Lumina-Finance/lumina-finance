@@ -38,7 +38,7 @@ describe('user runway API functions', () => {
     await expect(fetchRunwayAccounts()).resolves.toEqual(['acc_123']);
     await updateRunwayAccounts(['acc_123', 'acc_456']);
 
-    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(1, '/me/runway-accounts');
+    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(1, '/me/runway-accounts', expect.anything());
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(2, '/me/runway-accounts', {
       method: 'PUT',
       body: JSON.stringify({ account_ids: ['acc_123', 'acc_456'] }),
@@ -123,6 +123,6 @@ describe('user runway API functions', () => {
       },
       fx_status: fxStatus,
     });
-    expect(authenticatedFetchMock).toHaveBeenCalledWith('/me/runway');
+    expect(authenticatedFetchMock).toHaveBeenCalledWith('/me/runway', expect.anything());
   });
 });

@@ -31,7 +31,7 @@ describe('tag API functions', () => {
   it('requests tag detail records by ID', async () => {
     await fetchTag('tag_123');
 
-    expect(authenticatedFetchMock).toHaveBeenCalledWith('/tags/tag_123');
+    expect(authenticatedFetchMock).toHaveBeenCalledWith('/tags/tag_123', expect.anything());
   });
 
   it('creates tags with group scope fields', async () => {
@@ -87,5 +87,13 @@ describe('tag API functions', () => {
         replacement_tag_id: 'tag_456',
       }),
     });
+  });
+
+  it('passes an abort signal on to the request', async () => {
+    const { signal } = new AbortController();
+
+    await fetchTag('tag_123', signal);
+
+    expect(authenticatedFetchMock).toHaveBeenCalledWith('/tags/tag_123', expect.objectContaining({ signal }));
   });
 });

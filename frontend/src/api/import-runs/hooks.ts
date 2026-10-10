@@ -37,7 +37,7 @@ export function useLastImport() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: lastImportKeys.all,
-    queryFn: fetchLastImport,
+    queryFn: ({ signal }) => fetchLastImport(signal),
     enabled: !!accessToken,
     staleTime: 0,
     refetchOnMount: 'always',
