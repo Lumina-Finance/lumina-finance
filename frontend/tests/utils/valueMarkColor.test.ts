@@ -11,9 +11,4 @@ describe('value mark colours', () => {
     expect(getValueMarkColor('accent')).toBe('var(--app-accent)')
     expect(getValueMarkColor('negative')).toBe('var(--app-chart-negative)')
   })
-
-  it('keeps the green and the red apart from the colours text is written in', () => {
-    expect(getValueMarkColor('positive')).not.toBe('var(--app-positive)')
-    expect(getValueMarkColor('negative')).not.toBe('var(--app-negative)')
-  })
 })

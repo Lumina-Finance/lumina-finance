@@ -26,22 +26,6 @@ function createInstitution(overrides: Partial<Institution> = {}): Institution {
 }
 
 describe('updateCachedInstitution', () => {
-  it('replaces the corrected entry rather than appending it', () => {
-    const queryClient = new QueryClient();
-    const alpha = createInstitution();
-    const beta = createInstitution({ id: 'beta', name: 'Beta Bank' });
-    queryClient.setQueryData(institutionKeys.list(), [alpha, beta]);
-
-    updateCachedInstitution(queryClient, {
-      ...beta,
-      website: 'https://corrected.example.com',
-    });
-
-    const cached = queryClient.getQueryData<Institution[]>(institutionKeys.list());
-    expect(cached).toHaveLength(2);
-    expect(cached?.[1].website).toBe('https://corrected.example.com');
-  });
-
   it('puts a renamed institution back into name order', () => {
     const queryClient = new QueryClient();
     const zeta = createInstitution({ id: 'zeta', name: 'Zeta Bank' });

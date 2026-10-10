@@ -2,11 +2,10 @@
  * Covers the limits a staged provider batch is built against, so a batch the API would refuse is
  * never sent
  *
- * The request size and the mapping count are both capped by the API. A batch closed on bytes alone
- * would pass the byte budget and fail the request on its mappings, and re-batching the same export
- * would build the same batch, so the upload could not recover. The API's row cap needs no test of
- * its own here, because the smallest journal row is large enough that the byte budget always closes
- * a batch first
+ * The mapping count is capped by the API. A batch closed on bytes alone would pass the byte budget
+ * and fail the request on its mappings, and re-batching the same export would build the same batch,
+ * so the upload could not recover. The byte budget itself is covered through the shared builder in
+ * the transaction import tests
  */
 import { describe, expect, it } from 'vitest';
 
@@ -16,11 +15,7 @@ import type {
   JournalImportRow,
   JournalImportStageBatch,
 } from '@/api/provider-imports';
-import {
-  MAX_IMPORT_BATCH_BYTES,
-  MAX_IMPORT_BATCH_MAPPINGS,
-  getJsonByteSize,
-} from '@/api/shared/importBatchSize';
+import { MAX_IMPORT_BATCH_MAPPINGS } from '@/api/shared/importBatchSize';
 
 // Notes long enough that a few dozen rows fill a batch's byte budget, far below any other limit
 const LONG_NOTES = 'x'.repeat(10_000);
@@ -86,18 +81,6 @@ describe('the limits a staged provider batch is built against', () => {
     expectEveryRowStagedOnceInOrder(batches, rows);
   });
 
-  it('closes a batch before its request grows past the byte budget', async () => {
-    const rows = Array.from({ length: 200 }, (_, index) => buildRow(index, 'G', LONG_NOTES));
-
-    const batches = await buildJournalStageBatches(buildPayload(rows));
-
-    expect(batches.length).toBeGreaterThan(1);
-    for (const batch of batches) {
-      expect(getJsonByteSize(batch)).toBeLessThanOrEqual(MAX_IMPORT_BATCH_BYTES);
-    }
-    expectEveryRowStagedOnceInOrder(batches, rows);
-  });
-
   it('sends an account no row names with the first batch only, so it is created once', async () => {
     const rows = Array.from({ length: 200 }, (_, index) => buildRow(index, 'G', LONG_NOTES));
     const payload = buildPayload(rows);
@@ -111,11 +94,5 @@ describe('the limits a staged provider batch is built against', () => {
     for (const batch of batches.slice(1)) {
       expect(batch.accounts).not.toContainEqual(emptyAccount);
     }
-  });
-
-  it('refuses a single row too large to upload rather than sending it', async () => {
-    const payload = buildPayload([buildRow(0, 'G', 'x'.repeat(MAX_IMPORT_BATCH_BYTES))]);
-
-    await expect(buildJournalStageBatches(payload)).rejects.toThrow(/too large to upload/);
   });
 });

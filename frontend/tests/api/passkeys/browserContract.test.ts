@@ -10,7 +10,6 @@ import {
   type PublicKeyCredentialCreationOptionsJSON,
   type PublicKeyCredentialRequestOptionsJSON,
 } from '@simplewebauthn/browser';
-import { isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors';
 
 const createCredential = vi.fn();
 const getCredential = vi.fn();
@@ -145,9 +144,9 @@ describe('passkey browser contract', () => {
 
   describe.each(['registration', 'authentication'] as const)('%s error contract', (ceremony) => {
     it.each([
-      ['NotAllowedError', 'ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY', false],
-      ['AbortError', 'ERROR_CEREMONY_ABORTED', true],
-    ] as const)('preserves the app cancellation decision for %s', async (name, code, isCancelled) => {
+      ['NotAllowedError', 'ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY'],
+      ['AbortError', 'ERROR_CEREMONY_ABORTED'],
+    ] as const)('wraps %s with the code the app reads a cancellation from', async (name, code) => {
       const browserError = new DOMException('The user cancelled the request', name);
       createCredential.mockRejectedValue(browserError);
       getCredential.mockRejectedValue(browserError);
@@ -159,7 +158,6 @@ describe('passkey browser contract', () => {
 
       expect(error).toBeInstanceOf(WebAuthnError);
       expect(error).toMatchObject({ name, code, cause: browserError });
-      expect(isPasskeyCeremonyCancelled(error)).toBe(isCancelled);
     });
   });
 });

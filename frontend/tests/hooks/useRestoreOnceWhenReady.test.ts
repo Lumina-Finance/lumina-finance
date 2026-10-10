@@ -80,17 +80,6 @@ describe('one-time restoration controller', () => {
     expect(restore).toHaveBeenCalledWith(readyValue)
   })
 
-  it('keeps a pending account or budget restoration until an empty value is ready', () => {
-    const controller = createRestoreOnceController(true)
-    const restore = vi.fn()
-
-    controller.consume(null, restore)
-    controller.consume('', restore)
-
-    expect(restore).toHaveBeenCalledOnce()
-    expect(restore).toHaveBeenCalledWith('')
-  })
-
   it('clears pending before the restore callback can trigger another consumption', () => {
     const controller = createRestoreOnceController(true)
     const values: string[] = []

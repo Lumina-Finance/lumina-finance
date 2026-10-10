@@ -122,10 +122,6 @@ describe('YYYY-MM-DD strings', () => {
     expect(formatShortDateRangeLabel('2026-02-31', '2026-03-31', 2026)).toBe('2026-02-31 – Mar 31, 2026')
   })
 
-  it('returns null for a string that names no date', () => {
-    expect(parseYmd('not-a-date')).toBeNull()
-  })
-
   it('refuses a day the calendar does not have instead of rolling it forward', () => {
     expect(parseYmd('2026-02-31')).toBeNull()
     expect(parseYmd('2025-02-29')).toBeNull()

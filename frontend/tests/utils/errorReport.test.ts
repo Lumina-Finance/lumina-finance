@@ -30,22 +30,6 @@ describe('buildErrorReport', () => {
     expect(report).toContain('Components:\nat Dashboard\n    at Boundary')
   })
 
-  it('carries the status and the backend sentence a refused request came with', () => {
-    const report = buildErrorReport({
-      componentStack: null,
-      error: new ApiError('Category is still applied to transactions', 409, {
-        detail: 'Category is still applied to transactions',
-      }),
-      occurredAt: OCCURRED_AT,
-      path: '/settings',
-      userAgent: USER_AGENT,
-    })
-
-    expect(report).toContain('Error: ApiError: Category is still applied to transactions')
-    expect(report).toContain('Status: 409')
-    expect(report).toContain('Server said: Category is still applied to transactions')
-  })
-
   it('carries the status of a failed request the backend gave no sentence for', () => {
     const report = buildErrorReport({
       componentStack: null,

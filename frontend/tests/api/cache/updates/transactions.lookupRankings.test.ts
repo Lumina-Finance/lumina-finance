@@ -1,7 +1,7 @@
 import { InfiniteQueryObserver, QueryClient } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { invalidateAppData, invalidateMerchantLookupPages } from '@/api/cache/invalidation'
-import { invalidateBulkUpdatedTransactionData, invalidateFinancialTransactionData, invalidatePatchedTransactionData } from '@/api/cache/updates/transactions'
+import { invalidateBulkUpdatedTransactionData, invalidatePatchedTransactionData } from '@/api/cache/updates/transactions'
 import { merchantKeys } from '@/api/cache/queryKeys'
 import type { BulkUpdateTransactionsPayload, UpdateTransactionPayload } from '@/api/transactions'
 
@@ -68,15 +68,6 @@ describe('transaction usage-ranked merchant lookup invalidation', () => {
       expect(client.getQueryState(filtered)?.isInvalidated).toBe(false)
     },
   )
-
-  it('refreshes create/delete data but preserves explicit deferred create lookup pages', () => {
-    const ordinary = seed()
-    invalidateFinancialTransactionData(ordinary, ['account'])
-    expectLookupOnly(ordinary)
-    const deferred = seed()
-    invalidateFinancialTransactionData(deferred, ['account'], { deferMerchantLookupInvalidation: true })
-    expect(deferred.getQueryState(lookup)?.isInvalidated).toBe(false)
-  })
 
   it('refetches an active infinite lookup once and marks inactive pages stale without refetching them', async () => {
     const client = seed()

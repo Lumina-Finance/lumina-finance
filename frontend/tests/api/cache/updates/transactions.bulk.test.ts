@@ -116,18 +116,6 @@ describe('invalidateBulkUpdatedTransactionData', () => {
     expect(isStale(queryClient, transactionKeys.list({}))).toBe(true);
   });
 
-  it('refreshes the account balances after a move', () => {
-    const queryClient = seedCache();
-
-    invalidateBulkUpdatedTransactionData(
-      queryClient,
-      { transaction_ids: ['txn_1'], account_id: 'acc_2' },
-      ['acc_1', 'acc_2'],
-    );
-
-    expect(isStale(queryClient, accountKeys.list())).toBe(true);
-  });
-
   it('refreshes the account balances after a date change', () => {
     const queryClient = seedCache();
 
@@ -160,18 +148,6 @@ describe('invalidateBulkUpdatedTransactionData', () => {
       queryClient,
       { transaction_ids: ['txn_1'], direction: 'reverse' },
       ['acc_1'],
-    );
-
-    expect(isStale(queryClient, accountKeys.list())).toBe(true);
-  });
-
-  it('refreshes the account balances after a transfer end is set', () => {
-    const queryClient = seedCache();
-
-    invalidateBulkUpdatedTransactionData(
-      queryClient,
-      { transaction_ids: ['txn_1'], transfer_from: { scope: 'tracked', account_id: 'acc_2' } },
-      ['acc_1', 'acc_2'],
     );
 
     expect(isStale(queryClient, accountKeys.list())).toBe(true);

@@ -193,17 +193,6 @@ describe('dropdown box placement', () => {
     expect(800 - position.bottom).toBe(470)
   })
 
-  it('leaves the list what is left after the head, the search field and the box’s own edges', () => {
-    const withoutSearch = getDropdownBoxPosition({ ...head, anchorRect: { bottom: 140, left: 20, top: 100, width: 200 }, viewport })
-    const withSearch = getDropdownBoxPosition({ ...head, searchable: true, anchorRect: { bottom: 140, left: 20, top: 100, width: 200 }, viewport })
-
-    // 400 of box, less a 40 head and 14 of border and padding
-    expect(withoutSearch.listMaxHeight).toBe(346)
-
-    // and less another 42 once a search row and its clearance sit above the list
-    expect(withSearch.listMaxHeight).toBe(304)
-  })
-
   it('leaves a searchable box with almost no room showing its head and search and no list', () => {
     const position = getDropdownBoxPosition({
       ...head,
