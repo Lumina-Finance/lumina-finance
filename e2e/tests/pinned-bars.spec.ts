@@ -4,7 +4,7 @@
  */
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { createAccount, createTransaction, signUpUser } from '../support/api'
+import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
 
 /**
@@ -52,9 +52,11 @@ test('brings each chosen settings section to rest below the pinned section menu'
   await logInViaApi(page, user)
   await openPage(page, '/settings')
 
-  // The section menu pins above the page below the side list's width, and the side list takes its place above it
+  // The section menu pins above the page below the side list's width, and the side list takes its place
+  // above it. Found by what it opens, since its name is whichever section is current
   const menu = page.locator('[aria-controls="settings-mobile-section-menu"]')
   const compact = await menu.isVisible()
+  const gap = compact ? 16 : 32
   for (const name of ['Security', 'Runway', 'Categories', 'Merchants', 'Tags', 'Tax-Advantaged Categories']) {
     if (compact) {
       await menu.click()
@@ -62,11 +64,17 @@ test('brings each chosen settings section to rest below the pinned section menu'
     } else {
       await page.getByRole('button', { name, exact: true }).click()
     }
-    await waitForScrollToRest(page)
 
-    const heading = (await page.getByRole('heading', { level: 2, name, exact: true }).boundingBox())!
-    const coveredTo = compact ? (await menu.boundingBox())!.y + (await menu.boundingBox())!.height : 0
-    expect(heading.y, name).toBeGreaterThanOrEqual(coveredTo + 8)
+    // Polled, since the smooth scroll may not have started yet. The last sections can't scroll up that
+    // far, so they only have to come to rest at the end of the page and still clear the menu
+    const heading = page.getByRole('heading', { level: 2, name, exact: true })
+    await expect.poll(async () => {
+      const top = (await heading.boundingBox())!.y
+      const menuBox = compact ? (await menu.boundingBox())! : undefined
+      const below = top - (menuBox ? menuBox.y + menuBox.height : 0)
+      const atEnd = await page.evaluate(() => Math.ceil(window.scrollY + window.innerHeight) >= document.documentElement.scrollHeight)
+      return atEnd ? below >= gap - 2 : Math.abs(below - gap) <= 2
+    }, { message: name }).toBe(true)
   }
 })
 
@@ -97,13 +105,14 @@ for (const { path, placeholder, lastSeeded } of [
 }
 
 /**
- * How far the focused row's top sits below the lowest pinned bar above it, the toolbar or a day heading
- * stuck below it, and whether its bottom is still inside the window
+ * How far the focused row's top sits below the lowest pinned bar above it, such as the toolbar and the day
+ * heading or Upcoming header stuck below it, and whether its bottom is still inside the window
  */
 async function focusedRowClearance(page: Page): Promise<{ belowBars: number, bottomInWindow: boolean }> {
   return page.evaluate(() => {
     const row = document.activeElement!.getBoundingClientRect()
-    const coveredTo = Math.max(0, ...[...document.querySelectorAll('.sticky')]
+    const coveredTo = Math.max(0, ...[...document.querySelectorAll('body *')]
+      .filter((element) => getComputedStyle(element).position === 'sticky')
       .map((bar) => bar.getBoundingClientRect())
       .filter((bar) => bar.top < row.top)
       .map((bar) => bar.bottom))
@@ -111,42 +120,55 @@ async function focusedRowClearance(page: Page): Promise<{ belowBars: number, bot
   })
 }
 
-test('scrolls a transaction row reached with Shift+Tab out from under the pinned bars', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Focus account', startingBalance: 1000 })
-  // One day's worth of rows, so the rows walked through all sit under the same pinned heading
-  for (let index = 0; index < 30; index += 1) {
-    await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -100 - index })
-  }
-  // Short enough at every width that the list runs well past the bottom of the window
-  await page.setViewportSize({ width: page.viewportSize()!.width, height: 700 })
-  await logInViaApi(page, user)
-  await openPage(page, '/transactions')
-  const rows = page.getByTestId(/^transaction-row-/)
-  // The second page of rows too, so there is list enough below the 12th row to scroll it up to the bars
-  await expect(rows.nth(14)).toBeAttached()
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
-  await expect(rows).toHaveCount(30)
+for (const { place, date } of [
+  { place: 'list', date: undefined },
+  { place: 'open Upcoming section', date: daysFromTodayInTestTimezone(3) },
+]) {
+  test(`scrolls a transaction row in the ${place} reached with Shift+Tab out from under the pinned bars`, async ({ page, request }) => {
+    const user = await signUpUser(request)
+    const account = await createAccount(request, user, { name: 'Focus account', startingBalance: 1000 })
+    // One day's worth of rows, so the rows walked through all sit under the same pinned heading
+    for (let index = 0; index < 30; index += 1) {
+      await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -100 - index, date })
+    }
+    // Short enough at every width that the list runs well past the bottom of the window
+    await page.setViewportSize({ width: page.viewportSize()!.width, height: 700 })
+    await logInViaApi(page, user)
+    await openPage(page, '/transactions')
+    if (date) {
+      // Fully open before the scroll below, or the page can still grow under it and miss the next page of rows
+      const upcoming = page.getByRole('button', { name: /Upcoming/ })
+      await upcoming.click()
+      const body = page.locator(`[id="${await upcoming.getAttribute('aria-controls')}"]`)
+      await expect(body).toHaveCSS('opacity', '1')
+      await expect(body).toHaveCSS('overflow', 'visible')
+    }
+    const rows = page.getByTestId(/^transaction-row-/)
+    // The second page of rows too, so there is list enough below the 12th row to scroll it up to the bars
+    await expect(rows.nth(14)).toBeAttached()
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
+    await expect(rows).toHaveCount(30)
 
-  // Rested with the 12th row's top level with the bottom of the bars, so the rows above it are under them
-  await rows.nth(11).focus()
-  await waitForScrollToRest(page)
-  await page.evaluate((by) => window.scrollBy(0, by), (await focusedRowClearance(page)).belowBars)
-  await waitForScrollToRest(page)
-
-  for (const row of [rows.nth(10), rows.nth(9)]) {
-    await page.keyboard.press('Shift+Tab')
-    await expect(row).toBeFocused()
+    // Rested with the 12th row's top level with the bottom of the bars, so the rows above it are under them
+    await rows.nth(11).focus()
     await waitForScrollToRest(page)
-    const clearance = await focusedRowClearance(page)
-    expect(clearance.belowBars).toBeGreaterThanOrEqual(0)
-    expect(clearance.bottomInWindow).toBe(true)
-  }
+    await page.evaluate((by) => window.scrollBy(0, by), (await focusedRowClearance(page)).belowBars)
+    await waitForScrollToRest(page)
 
-  // A row already clear of the bars leaves the page where it is
-  const restingAt = await page.evaluate(() => window.scrollY)
-  await page.keyboard.press('Tab')
-  await expect(rows.nth(10)).toBeFocused()
-  await waitForScrollToRest(page)
-  expect(await page.evaluate(() => window.scrollY)).toBe(restingAt)
-})
+    for (const row of [rows.nth(10), rows.nth(9)]) {
+      await page.keyboard.press('Shift+Tab')
+      await expect(row).toBeFocused()
+      await waitForScrollToRest(page)
+      const clearance = await focusedRowClearance(page)
+      expect(clearance.belowBars).toBeGreaterThanOrEqual(0)
+      expect(clearance.bottomInWindow).toBe(true)
+    }
+
+    // A row already clear of the bars leaves the page where it is
+    const restingAt = await page.evaluate(() => window.scrollY)
+    await page.keyboard.press('Tab')
+    await expect(rows.nth(10)).toBeFocused()
+    await waitForScrollToRest(page)
+    expect(await page.evaluate(() => window.scrollY)).toBe(restingAt)
+  })
+}

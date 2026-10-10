@@ -50,3 +50,6 @@ export const TRANSACTION_ROW_SCROLL_MARGIN_VARIABLE = '--transaction-row-scroll-
 
 // Falls back to zero for the import preview, which renders the same row outside this list
 export const TRANSACTION_ROW_SCROLL_MARGIN = `var(${TRANSACTION_ROW_SCROLL_MARGIN_VARIABLE}, 0px)`
+
+// The space left between the lowest pinned bar and a row the browser scrolls into view below it
+export const TRANSACTION_ROW_GAP_BELOW_PINNED_BARS_PX = 4

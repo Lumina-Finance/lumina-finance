@@ -16,6 +16,7 @@ import {
   TRANSACTION_CHECKBOX_RAIL_VARIABLE,
   TRANSACTION_CHECKBOX_RAIL_WIDTH,
   TRANSACTION_LIST_EASE,
+  TRANSACTION_ROW_GAP_BELOW_PINNED_BARS_PX,
   TRANSACTION_ROW_SCROLL_MARGIN_VARIABLE,
 } from '@/pages/transactions/constants/transactionList'
 import type { TransactionDateGroup, TransactionListAccount } from '@/pages/transactions/types/transactionList'
@@ -28,9 +29,6 @@ import { getTransactionReadOnlyReason } from '@/pages/transactions/utils/rowEdit
 // already dropped the column has nowhere to put its content but a second line
 const LIST_COLUMNS =
   'min-[1300px]:grid-cols-[2.75rem_fit-content(24rem)_fit-content(18rem)_minmax(0,1fr)_max-content_max-content]'
-
-// The space left between a pinned day heading and a row the browser scrolls into view below it
-const ROW_GAP_BELOW_DAY_HEADING_PX = 4
 
 /**
  * What a day heading needs while the list is in selection mode
@@ -257,7 +255,7 @@ export default function TransactionDateGroupList({
       style={{
         paddingLeft: TRANSACTION_CHECKBOX_RAIL,
         // A row scrolled into view clears the toolbar and the day heading pinned below it
-        [TRANSACTION_ROW_SCROLL_MARGIN_VARIABLE]: `${stickyTop + dayHeadingHeight + ROW_GAP_BELOW_DAY_HEADING_PX}px`,
+        [TRANSACTION_ROW_SCROLL_MARGIN_VARIABLE]: `${stickyTop + dayHeadingHeight + TRANSACTION_ROW_GAP_BELOW_PINNED_BARS_PX}px`,
       } as React.CSSProperties}
       initial={false}
       animate={{

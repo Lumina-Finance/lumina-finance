@@ -1,4 +1,4 @@
-import { useRef, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { CalendarClock } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { CollapsibleSection, CollapsibleSectionCount } from '@/components/collapsible-section/Section'
@@ -8,6 +8,8 @@ import {
   REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
   TRANSACTION_CHECKBOX_RAIL,
   TRANSACTION_LIST_EASE,
+  TRANSACTION_ROW_GAP_BELOW_PINNED_BARS_PX,
+  TRANSACTION_ROW_SCROLL_MARGIN_VARIABLE,
 } from '@/pages/transactions/constants/transactionList'
 import { formatShortDateRangeLabel } from '@/utils/date'
 
@@ -140,6 +142,15 @@ export function UpcomingSection({
 }) {
   const sectionRef = useRef<HTMLDivElement>(null)
   const prefersReducedMotion = useReducedMotion()
+  const [headerHeight, setHeaderHeight] = useState(0)
+
+  // Measured, since the dates wrap under the count when a range names years
+  const measureHeader = useCallback((header: HTMLButtonElement | null) => {
+    if (!header) return undefined
+    const observer = new ResizeObserver(() => setHeaderHeight(header.offsetHeight))
+    observer.observe(header)
+    return () => observer.disconnect()
+  }, [])
 
   // Closing from inside a long open section would leave the header above the screen once the rows go,
   // so the page first comes back to where the section starts, which is where the stuck header already is
@@ -199,6 +210,7 @@ export function UpcomingSection({
             }
             expanded={expanded}
             onToggle={handleToggle}
+            headerRef={measureHeader}
             className={gridClassName}
             bodyClassName={gridClassName}
             iconSlotWidth={UPCOMING_ICON_SLOT_WIDTH}
@@ -218,7 +230,20 @@ export function UpcomingSection({
             >
               {UPCOMING_EXPLANATION}
             </p>
-            <div className={gridClassName} style={UPCOMING_ROW_COLOURS}>
+            <div
+              className={gridClassName}
+              style={{
+                ...UPCOMING_ROW_COLOURS,
+                // A row scrolled into view clears the toolbar and this section's header pinned below it, in
+                // place of the day heading the rows outside the section clear
+                ...(stickyTop === undefined
+                  ? {}
+                  : {
+                      [TRANSACTION_ROW_SCROLL_MARGIN_VARIABLE]:
+                        `calc(${stickyTop + headerHeight + TRANSACTION_ROW_GAP_BELOW_PINNED_BARS_PX}px + ${BOX_TOP_HEIGHT})`,
+                    }),
+              }}
+            >
               <FadedRowsContext.Provider value>{children}</FadedRowsContext.Provider>
             </div>
           </CollapsibleSection>
