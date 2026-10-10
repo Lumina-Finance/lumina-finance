@@ -408,7 +408,7 @@ async def test_discovery_told_the_quota_is_spent_marks_the_budget_spent(db, scen
     assert await _discover(db, connection) is stored
 
     assert await read_request_budget(db, connection, now=_NOW) == RequestBudget(
-        limit=20, used=20, available_again_at=_NOW + timedelta(hours=24)
+        limit=20, used=20, available_again_at=_NOW + timedelta(hours=24), held_by_provider=True
     )
     assert bool(await _listed(connection)) is stored
 

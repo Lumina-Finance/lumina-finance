@@ -33,6 +33,10 @@ class RequestBudget:
     # When the next request can be sent once the budget is spent, or None while one is free
     available_again_at: datetime | None
 
+    # Whether the provider's word that its quota is spent holds the next request back past when the
+    # connection's own count frees one, which is so when fewer than the limit were sent
+    held_by_provider: bool = False
+
 
 class RequestBudgetSpent(Exception):
     """The connection has no request left in the last 24 hours"""
@@ -59,10 +63,12 @@ def summarize_request_budget(
         now: The current time
 
     Returns:
-        The limit, the count used and, once spent, when the next request frees up
+        The limit, the count used and, once spent, when the next request frees up and whether the
+        provider's word rather than the count holds it back
     """
     used = len(counted)
     available_again_at = None
+    held_by_provider = False
 
     # Enough of the oldest requests have to leave the 24 hours to bring the count below the
     # limit, which is more than one when the limit was lowered after they were sent
@@ -70,9 +76,10 @@ def summarize_request_budget(
         available_again_at = counted[used - limit] + REQUEST_BUDGET_WINDOW
 
     if spent_until is not None and spent_until > now:
+        held_by_provider = available_again_at is None or spent_until > available_again_at
         used = max(used, limit)
         available_again_at = max(available_again_at or spent_until, spent_until)
-    return RequestBudget(limit=limit, used=used, available_again_at=available_again_at)
+    return RequestBudget(limit=limit, used=used, available_again_at=available_again_at, held_by_provider=held_by_provider)
 
 
 async def read_request_budget(db: AsyncSession, connection: BankConnection, *, now: datetime) -> RequestBudget:

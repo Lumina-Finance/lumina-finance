@@ -44,8 +44,13 @@ _REFUSALS: dict[BankSyncState, str] = {
 # Why a sync can't start while a worker already syncs the account, whatever its state shows
 _SYNC_RUNNING = "A sync is already running"
 
-# Why a sync can't start while the connection's request budget is spent, and when it can
-_BUDGET_SPENT = "This connection has used today's {limit} {provider} requests. More are available {when}"
+# Why a sync can't start while the connection's request budget is spent, and when it can. The budget
+# counts the last 24 hours rather than a calendar day
+_BUDGET_SPENT = "This connection has used its {limit} {provider} requests in the last 24 hours. More are available {when}"
+
+# Why a sync can't start while the provider's word that its quota is spent holds the connection back
+# though it sent fewer than its limit, and when it can
+_PROVIDER_LIMIT = "{provider} says this connection has reached its request limit. More are available {when}"
 
 # The units a wait is told in, largest first, each with its length in seconds. A request leaves the
 # budget a day after it was sent, so hours tell any wait
@@ -85,9 +90,10 @@ async def sync_account_now(db: AsyncSession, user: User, account_id: uuid.UUID) 
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=refusal.format(provider=provider))
     budget = await read_request_budget(db, connection, now=now)
     if budget.available_again_at is not None:
+        spent = _PROVIDER_LIMIT if budget.held_by_provider else _BUDGET_SPENT
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=_BUDGET_SPENT.format(limit=budget.limit, provider=provider, when=_describe_wait(budget.available_again_at, now)),
+            detail=spent.format(limit=budget.limit, provider=provider, when=_describe_wait(budget.available_again_at, now)),
         )
 
     await enqueue_bank_sync_job(db, owner_id=user.id, connection_id=connection.id, kind=BankSyncJobKind.MANUAL, requested_link_ids=[link.id])

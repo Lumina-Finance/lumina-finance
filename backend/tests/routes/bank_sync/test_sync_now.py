@@ -208,7 +208,34 @@ async def test_sync_now_with_the_connections_requests_spent_says_when_one_frees(
     response = await _sync_now(client, headers, account_id)
 
     assert response.status_code == 429, response.text
-    assert response.json()["detail"] == f"This connection has used today's 20 SimpleFIN requests. More are available {when}"
+    assert response.json()["detail"] == f"This connection has used its 20 SimpleFIN requests in the last 24 hours. More are available {when}"
+    assert await _queued_requests() == []
+
+
+@pytest.mark.parametrize(
+    ("used", "detail"),
+    [
+        pytest.param(4, "SimpleFIN says this connection has reached its request limit. More are available in 3 hours", id="provider-limit"),
+        pytest.param(
+            20, "This connection has used its 20 SimpleFIN requests in the last 24 hours. More are available in 3 hours", id="own-limit-too"
+        ),
+    ],
+)
+async def test_sync_now_after_the_provider_said_its_quota_is_spent_says_whose_limit_holds_it_back(client, used, detail):
+    """SimpleFIN said its quota was spent, which holds requests back until the oldest one counted leaves the last day, in 3 hours
+
+    With 4 of the connection's 20 requests used, SimpleFIN's limit is what holds Sync now back. With
+    all 20 used, the connection's own limit frees a request at the same time, so it says that one
+    """
+    headers, account_id, connection, _ = await _link_everyday(client, **_SYNCED)
+    oldest = _NOW - timedelta(hours=21)
+    await _spend_requests(connection, used, oldest)
+    await _update_connection(connection, request_budget_spent_until=oldest + timedelta(hours=24))
+
+    response = await _sync_now(client, headers, account_id)
+
+    assert response.status_code == 429, response.text
+    assert response.json()["detail"] == detail
     assert await _queued_requests() == []
 
 

@@ -184,7 +184,9 @@ async def test_quota_spent_answer_marks_the_budget_spent_until_the_oldest_reques
     await mark_request_budget_spent(db, connection, now=_NOW)
 
     frees_at = oldest + timedelta(hours=24)
-    assert await read_request_budget(db, connection, now=_NOW) == RequestBudget(limit=20, used=20, available_again_at=frees_at)
+    assert await read_request_budget(db, connection, now=_NOW) == RequestBudget(
+        limit=20, used=20, available_again_at=frees_at, held_by_provider=True
+    )
     with pytest.raises(RequestBudgetSpent) as refused:
         await reserve_provider_request(db, connection, purpose=ProviderRequestPurpose.SYNC, now=frees_at - timedelta(seconds=1))
     assert refused.value.available_again_at == frees_at
