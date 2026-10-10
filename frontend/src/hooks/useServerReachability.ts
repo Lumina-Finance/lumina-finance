@@ -25,15 +25,8 @@ export function useServerReachability(): ServerReachability {
     if (!navigator.onLine) return;
 
     let cancelled = false;
-    let timer: number | undefined;
 
-    // The request carries no way to abort it, so the timeout races it rather than cancelling it.
-    // A probe left running against an unreachable server costs nothing on a screen this is
-    const expiry = new Promise<never>((_, reject) => {
-      timer = window.setTimeout(reject, PROBE_TIMEOUT_MS);
-    });
-
-    Promise.race([fetchAppVersion(), expiry])
+    fetchAppVersion(PROBE_TIMEOUT_MS)
       .then(() => {
         if (!cancelled) setReachability('reachable');
       })
@@ -43,7 +36,6 @@ export function useServerReachability(): ServerReachability {
 
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
     };
   }, []);
 

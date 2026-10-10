@@ -1,8 +1,8 @@
 import { ApiError } from '@/api/auth/errors';
 import type { AuthResponse } from '@/api/auth/types';
-import { API_BASE } from '@/api/config';
 import { OIDC_EMAIL_CONFLICT_CODE, OidcEmailConflictError } from '@/api/oidc/errors';
 import { authenticatedFetch } from '@/api/client';
+import { fetchFromServer } from '@/api/server';
 import type { StepUpPayload } from '@/api/two-factor/types';
 import type {
   OidcAuthorizeResponse,
@@ -22,7 +22,7 @@ import type {
  * The credentials flag rides along so the callback and signup steps can set the refresh cookie
  */
 async function requestOidc<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetchFromServer(path, {
     ...options,
     credentials: 'include',
     headers: options.body ? { 'Content-Type': 'application/json' } : undefined,

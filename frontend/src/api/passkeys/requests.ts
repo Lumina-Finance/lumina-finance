@@ -7,7 +7,7 @@ import type {
 import { ApiError } from '@/api/auth/errors';
 import type { AuthResponse } from '@/api/auth/types';
 import { authenticatedFetch } from '@/api/client';
-import { API_BASE } from '@/api/config';
+import { fetchFromServer } from '@/api/server';
 import type { Passkey, PasskeyConfig, RegisterPasskeyPayload, RegisterPasskeyResult } from '@/api/passkeys/types';
 import type { StepUpPayload } from '@/api/two-factor/types';
 
@@ -18,7 +18,7 @@ import type { StepUpPayload } from '@/api/two-factor/types';
  * user exists
  */
 export async function fetchPasskeyConfig(): Promise<PasskeyConfig> {
-  const response = await fetch(`${API_BASE}/auth/passkeys/config`);
+  const response = await fetchFromServer('/auth/passkeys/config');
   if (!response.ok) {
     throw new Error(`Failed to load passkey config (${response.status})`);
   }
@@ -32,7 +32,7 @@ export async function fetchPasskeyConfig(): Promise<PasskeyConfig> {
  * in yet, and the verify step needs to set the refresh cookie
  */
 export async function fetchPasskeyAuthenticationOptions(): Promise<PublicKeyCredentialRequestOptionsJSON> {
-  const response = await fetch(`${API_BASE}/auth/passkeys/authenticate/options`, {
+  const response = await fetchFromServer('/auth/passkeys/authenticate/options', {
     method: 'POST',
     credentials: 'include',
   });
@@ -46,7 +46,7 @@ export async function fetchPasskeyAuthenticationOptions(): Promise<PublicKeyCred
  * Verifies a sign-in assertion and resolves to the new session tokens
  */
 export async function authenticatePasskey(credential: AuthenticationResponseJSON): Promise<AuthResponse> {
-  const response = await fetch(`${API_BASE}/auth/passkeys/authenticate`, {
+  const response = await fetchFromServer('/auth/passkeys/authenticate', {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -86,7 +86,7 @@ export function fetchPasskeyRegistrationOptions(stepUp?: StepUpPayload) {
  * Begins the passkey second-factor step for a login that passed its password
  */
 export async function fetchPasskeyMfaOptions(mfaToken: string): Promise<PublicKeyCredentialRequestOptionsJSON> {
-  const response = await fetch(`${API_BASE}/auth/passkeys/mfa/options`, {
+  const response = await fetchFromServer('/auth/passkeys/mfa/options', {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -110,7 +110,7 @@ export async function verifyPasskeyMfa(
   mfaToken: string,
   credential: AuthenticationResponseJSON,
 ): Promise<AuthResponse> {
-  const response = await fetch(`${API_BASE}/auth/passkeys/mfa/verify`, {
+  const response = await fetchFromServer('/auth/passkeys/mfa/verify', {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -131,7 +131,7 @@ export async function verifyPasskeyMfa(
  * Begins the passkey second-factor step for a password reset holding a valid emailed token
  */
 export async function fetchPasskeyResetOptions(mfaToken: string): Promise<PublicKeyCredentialRequestOptionsJSON> {
-  const response = await fetch(`${API_BASE}/auth/passkeys/reset/options`, {
+  const response = await fetchFromServer('/auth/passkeys/reset/options', {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -155,7 +155,7 @@ export async function verifyPasskeyReset(
   payload: { token: string; new_password: string; mfa_token: string },
   credential: AuthenticationResponseJSON,
 ): Promise<void> {
-  const response = await fetch(`${API_BASE}/auth/passkeys/reset/verify`, {
+  const response = await fetchFromServer('/auth/passkeys/reset/verify', {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },

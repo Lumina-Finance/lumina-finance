@@ -39,7 +39,12 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
 });
 
 import { getImportFileName, settleStagedRun, useUndoImportRun } from '@/api/import-runs';
-import { useImportTransactions } from '@/api/transaction-imports';
+import { deleteImportRun, stageImportRunRows, undoImportRun } from '@/api/import-runs/requests';
+import { REQUEST_TIMEOUT_MS } from '@/api/server';
+
+// Any import's routes do here, since only the limit each request carries is under test
+const TRANSACTION_ROUTES = { rows: 'rows', commit: 'commit' };
+import { commitStagedImportRun, useImportTransactions } from '@/api/transaction-imports';
 
 const RUN_ID = 'run_1';
 
@@ -168,5 +173,24 @@ describe('naming an import by its files', () => {
     const name = getImportFileName(['a'.repeat(200) + '.csv', 'b'.repeat(200) + '.csv']);
     expect(name).toHaveLength(255);
     expect(name?.startsWith('a'.repeat(200))).toBe(true);
+  });
+});
+
+describe('giving a large import time to finish', () => {
+  // Each of these sends, writes or deletes rows of the whole file, which can outlast an ordinary
+  // request on a large file or a slow connection, and one cut off at the shared limit would fail an
+  // import that was about to land
+  it.each([
+    ['uploading a batch', () => stageImportRunRows('run_1', TRANSACTION_ROUTES, { rows: [] })],
+    ['saving', () => commitStagedImportRun('run_1')],
+    ['dropping a kept upload', () => deleteImportRun('run_1')],
+    ['undoing', () => undoImportRun('run_1')],
+  ])('waits longer than the shared request limit when %s', async (_label, send) => {
+    authenticatedFetchMock.mockResolvedValueOnce(undefined);
+
+    await send();
+
+    const [, options] = authenticatedFetchMock.mock.calls[0];
+    expect(options.timeoutMs).toBeGreaterThan(REQUEST_TIMEOUT_MS);
   });
 });

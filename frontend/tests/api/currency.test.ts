@@ -5,16 +5,21 @@
  * endpoint or ignore backend load failures
  */
 import { QueryClient, QueryObserver, onlineManager } from '@tanstack/react-query';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { API_BASE } from '@/api/config';
 import { fetchCurrencies } from '@/api/currency';
 import { currencyQueryOptions } from '@/api/currency/hooks';
+import { answerNever } from './fixtures';
 
 const fetchMock = vi.fn();
 
 beforeEach(() => {
   fetchMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('currency API functions', () => {
@@ -47,6 +52,19 @@ describe('currency API functions', () => {
     });
 
     await expect(fetchCurrencies()).rejects.toThrow('Failed to load currencies (500)');
+  });
+
+  // The whole app waits on this list behind its loading screen, so it gives up far sooner than the
+  // shared limit, and the recovery screen follows within seconds rather than minutes
+  it('gives up on a list the server never sends after five seconds', async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementationOnce(answerNever);
+
+    const request = fetchCurrencies();
+    const settled = expect(request).rejects.toMatchObject({ name: 'TimeoutError' });
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    await settled;
   });
 });
 

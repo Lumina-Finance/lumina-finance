@@ -8,7 +8,7 @@ import { appVersionKeys } from '@/api/cache/queryKeys';
 export function useAppVersion() {
   return useQuery({
     queryKey: appVersionKeys.version(),
-    queryFn: fetchAppVersion,
+    queryFn: () => fetchAppVersion(),
     staleTime: 15 * 60 * 1000,
     gcTime: Infinity,
   });
