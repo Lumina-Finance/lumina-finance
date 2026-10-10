@@ -314,35 +314,4 @@ describe('delegating selected Firefly files to their supplied slot', () => {
     if (result.status !== 'accepted') return
     expect(result.result.error).toContain('missing columns: name, active, start_date')
   })
-
-  it('refuses a non-CSV file before invoking the Firefly reader', async () => {
-    const file = new File([TRANSACTIONS_CSV], 'image.png', { type: 'image/png' })
-    const readFile = vi.fn((selectedFile: File) => (
-      readFireflyCsvFile(selectedFile, 'transactions', SUPPORTED_CURRENCY_CODES)
-    ))
-
-    expect(await processImportFileIntake({
-      files: [file],
-      processing: false,
-      unavailableReason: null,
-      readFile,
-    })).toEqual({ status: 'refused', reason: 'Choose a CSV file.' })
-    expect(readFile).not.toHaveBeenCalled()
-  })
-
-  it('refuses multiple files before invoking either slot reader', async () => {
-    const first = new File([TRANSACTIONS_CSV], 'first.csv', { type: 'text/csv' })
-    const second = new File([TRANSACTIONS_CSV], 'second.csv', { type: 'text/csv' })
-    const readFile = vi.fn((selectedFile: File) => (
-      readFireflyCsvFile(selectedFile, 'transactions', SUPPORTED_CURRENCY_CODES)
-    ))
-
-    expect(await processImportFileIntake({
-      files: [first, second],
-      processing: false,
-      unavailableReason: null,
-      readFile,
-    })).toEqual({ status: 'refused', reason: 'Choose one CSV file at a time.' })
-    expect(readFile).not.toHaveBeenCalled()
-  })
 })

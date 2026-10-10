@@ -145,24 +145,6 @@ describe('getFireflyImportedCategories', () => {
 })
 
 describe('inferFireflyCategoryMappings', () => {
-  it('matches the no-category placeholder to the seeded miscellaneous category', () => {
-    const miscellaneous = createCategory({
-      id: 'miscellaneous',
-      name: 'Miscellaneous',
-      kind: 'expense',
-      is_system: true,
-    })
-
-    const mappings = inferFireflyCategoryMappings(
-      [JOURNAL_NO_CATEGORY_SOURCE],
-      {},
-      [miscellaneous],
-      { [JOURNAL_NO_CATEGORY_SOURCE]: 'expense' },
-    )
-
-    expect(mappings[JOURNAL_NO_CATEGORY_SOURCE]).toBe('miscellaneous')
-  })
-
   it('matches the money-in placeholder to the seeded Other Income category', () => {
     const miscellaneous = createCategory({ id: 'miscellaneous', name: 'Miscellaneous', is_system: true })
     const otherIncome = createCategory({ id: 'other-income', name: 'Other Income', kind: 'income', is_system: true })

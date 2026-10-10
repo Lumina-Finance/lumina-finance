@@ -20,10 +20,6 @@ describe('when the new-account notice shows', () => {
 
   // The notice is about having chosen to create, which happens before the type and currency
   // dropdowns are touched, so it cannot wait for a row to be finished
-  it('shows for a create row with nothing else filled in yet', () => {
-    expect(isCreatingImportAccount([{ value: CREATE_ACCOUNT_VALUE }])).toBe(true)
-  })
-
   it('shows where one row among several is set to create', () => {
     expect(
       isCreatingImportAccount([

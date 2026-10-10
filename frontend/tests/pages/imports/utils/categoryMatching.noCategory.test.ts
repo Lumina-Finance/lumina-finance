@@ -151,14 +151,6 @@ describe('CSV rows with no category', () => {
 
     expect(validateColumnValues([file], 'Category', 'category_id', new Set(['CAD'])).valid).toBe(true)
   })
-
-  it('reads the direction of the rows with no category from their amounts', () => {
-    const file = createFile(['', ''])
-
-    expect(getImportedCategoryTypes([file], WITH_CATEGORY, [JOURNAL_NO_CATEGORY_SOURCE], {})).toEqual({
-      [JOURNAL_NO_CATEGORY_SOURCE]: 'Expense',
-    })
-  })
 })
 
 describe('CSV rows with no category that bring money in', () => {

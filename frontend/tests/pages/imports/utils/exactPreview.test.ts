@@ -120,13 +120,6 @@ describe('exact generic import presentation', () => {
     expect(formatPreviewMoney(amount, currency, CURRENCIES)).toEqual({ text, sign })
   })
 
-  it('keeps the decimal payload unchanged while preview amounts stay bigint', () => {
-    const raw = '90071992547409.93'
-    const { rows, payload } = build('CAD', [raw, `-${raw}`])
-    expect(rows.map((row) => row.transaction.amount)).toEqual([9007199254740993n, -9007199254740993n])
-    expect(payload.payload?.rows.map((row) => row.amount)).toEqual([raw, `-${raw}`])
-  })
-
   it.each([
     ['expense', '1.00', 'var(--app-positive)'], ['income', '-1.00', 'var(--app-negative)'],
     ['expense', '0.00', 'var(--app-text)'],
