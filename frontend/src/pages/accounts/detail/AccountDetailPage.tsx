@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useLocation, useNavigate, useParams } from 'react-router'
-import { useAccount, useAccounts, type Account } from '@/api/accounts'
+import { useAccount, useAccounts, useForgetDeletedAccount, type Account } from '@/api/accounts'
 import { useTaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import type { Transaction } from '@/api/transactions'
 import AccountIdentityCard from '@/pages/accounts/detail/components/identity/Card'
@@ -50,6 +50,8 @@ export default function AccountDetailPage() {
   const [showAccountEditModal, setShowAccountEditModal] = useState(wantsAccountEditModal)
   const [deleteExitPhase, setDeleteExitPhase] = useState<DeleteExitPhase>('idle')
   const [deletedAccountSnapshot, setDeletedAccountSnapshot] = useState<Account | null>(null)
+  const forgetDeletedAccount = useForgetDeletedAccount()
+  const deletedAccountIdRef = useRef<string | null>(null)
 
   // Taken off the history entry once it has been read, so a reload does not reopen the modal. This
   // answers to the arrival rather than to the modal being open, since the Edit button opens the
@@ -58,6 +60,12 @@ export default function AccountDetailPage() {
     if (!wantsAccountEditModal) return
     navigate(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: null })
   }, [location.hash, location.pathname, location.search, navigate, wantsAccountEditModal])
+
+  // The deleted account's queries stay cached while the page shows them on its way out, and go once
+  // it has left, however it leaves
+  useEffect(() => () => {
+    if (deletedAccountIdRef.current) forgetDeletedAccount(deletedAccountIdRef.current)
+  }, [forgetDeletedAccount])
 
   const visibleAccount = account ?? (deleteExitPhase !== 'idle' ? deletedAccountSnapshot : null)
   const linkedTaxAdvantagedCategoryId = visibleAccount?.group_id === null ? visibleAccount.tax_advantaged_category_id : null
@@ -120,6 +128,7 @@ export default function AccountDetailPage() {
   }
 
   const handleAccountDeleted = (deletedAccount: Account) => {
+    deletedAccountIdRef.current = deletedAccount.id
     setDeletedAccountSnapshot(deletedAccount)
     setShowAccountEditModal(false)
     setDeleteExitPhase('modal')

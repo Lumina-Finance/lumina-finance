@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getCachedAccount,
@@ -100,10 +101,25 @@ export function useDeleteAccount({ minimumPendingMs = 0 }: { minimumPendingMs?: 
       queryClient.setQueryData<AccountsOverview[]>(accountKeys.list(), (accounts) =>
         accounts?.filter((account) => account.id !== accountId) ?? accounts,
       );
-      queryClient.removeQueries({ queryKey: accountKeys.accountScope(accountId) });
-      invalidateAccountAggregateData(queryClient, accountId, context?.deletedAccount);
+      // Only the queries nothing is showing go now. The account's page keeps showing it while it
+      // animates out, and a query dropped from under it would be fetched again from a server that
+      // answers not found, so the page forgets the rest as it leaves (useForgetDeletedAccount)
+      queryClient.removeQueries({ queryKey: accountKeys.accountScope(accountId), type: 'inactive' });
+      invalidateAccountAggregateData(queryClient, accountId, context?.deletedAccount, { isDeleted: true });
     },
   });
+}
+
+/**
+ * Forgets a deleted account's cached queries, for its page to call once it is no longer on screen, so
+ * opening the account's address again asks the server rather than showing the old values
+ */
+export function useForgetDeletedAccount() {
+  const queryClient = useQueryClient();
+  return useCallback(
+    (accountId: string) => queryClient.removeQueries({ queryKey: accountKeys.accountScope(accountId) }),
+    [queryClient],
+  );
 }
 
 /**

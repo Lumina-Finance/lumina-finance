@@ -97,3 +97,38 @@ test('keeps the account save action named while an edit is pending', async ({ pa
   await expect(dialog).toBeHidden()
   await expect(page.getByRole('heading', { name: 'Account after edit', exact: true })).toBeVisible()
 })
+
+// A deleted account's page stays on screen while it animates out, and nothing on it may ask the server
+// about the account again, which answers every such request with not found
+test('asks nothing more about an account once it is deleted from its page', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: ACCOUNT_NAME })
+  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -500 })
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  await page.getByRole('button', { name: 'Edit account', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  await dialog.getByRole('button', { name: 'Delete account', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Continue', exact: true }).click()
+  const confirmation = dialog.getByLabel(`Type "${ACCOUNT_NAME}" to delete.`, { exact: true })
+  await confirmation.fill(ACCOUNT_NAME)
+
+  const isAboutAccount = (url: string) => url.includes(account.id)
+  let deleted = false
+  const askedAfterDelete: string[] = []
+  page.on('response', (response) => {
+    if (response.request().method() === 'DELETE' && isAboutAccount(response.url()) && response.ok()) deleted = true
+  })
+  page.on('request', (sent) => {
+    if (deleted && isAboutAccount(sent.url())) askedAfterDelete.push(`${sent.method()} ${sent.url()}`)
+  })
+  await confirmation.press('Enter')
+
+  await expect(page).toHaveURL(/\/accounts$/)
+  await expect(page.getByRole('heading', { name: 'My Accounts', exact: true })).toBeVisible()
+  // The account's page fades out over the list, and a request it sent late in that fade would still count
+  await expect(page.getByRole('heading', { name: ACCOUNT_NAME, exact: true })).toHaveCount(0)
+  expect(deleted).toBe(true)
+  expect(askedAfterDelete).toEqual([])
+})
