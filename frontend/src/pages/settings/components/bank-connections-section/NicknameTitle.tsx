@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, useIsPresent } from 'motion/react'
 import { Check, X } from 'lucide-react'
 import { ApiError } from '@/api/auth'
 import { CONNECTION_NICKNAME_MAX_LENGTH, type BankConnection, type useRenameBankConnection } from '@/api/bank-sync'
@@ -19,6 +19,12 @@ type RenameMutation = ReturnType<typeof useRenameBankConnection>
 function NicknameField({ connection, rename, onDone }: { connection: BankConnection; rename: RenameMutation; onDone: () => void }) {
   const { showToast } = useToast()
   const [draft, setDraft] = useState(connection.nickname ?? '')
+
+  // Once a nickname is saved, editing ends and the field fades out still holding the rename as it was
+  // while on its way. Leaving, it stops spinning, since the modal's close is already back, and stays
+  // disabled so nothing more is sent from it
+  const isPresent = useIsPresent()
+  const isSaving = rename.isPending && isPresent
 
   const save = () => {
     if (rename.isPending) return
@@ -55,8 +61,8 @@ function NicknameField({ connection, rename, onDone }: { connection: BankConnect
           }
         }}
       />
-      <button type="button" className="app-icon-button shrink-0" aria-label="Save nickname" aria-busy={rename.isPending} disabled={rename.isPending} onClick={save}>
-        {rename.isPending ? <div className="app-spinner" /> : <Check size={16} aria-hidden />}
+      <button type="button" className="app-icon-button shrink-0" aria-label="Save nickname" aria-busy={isSaving} disabled={rename.isPending} onClick={save}>
+        {isSaving ? <div className="app-spinner" /> : <Check size={16} aria-hidden />}
       </button>
       <button type="button" className="app-icon-button shrink-0" aria-label="Cancel renaming" disabled={rename.isPending} onClick={onDone}>
         <X size={16} aria-hidden />

@@ -303,6 +303,47 @@ test('keeps the modal open while a rename is on its way, saying there if it fail
   await expect(connectionRow(section, 'SimpleFIN')).toHaveCount(1)
 })
 
+// The field fades out once its rename is saved, which is too short a while to catch by polling, so the
+// dialog's look is read after every change to it, from the save going out until the field has gone
+test('stops Save spinning as soon as a rename is saved and the modal can close again', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const scenario = await createSampleBridgeScenario(request)
+  await claimSetupToken(request, user, scenario.setupToken)
+  const section = await openBankConnections(page, user)
+  const dialog = await openConnection(page, section, 'SimpleFIN')
+  await dialog.getByRole('button', { name: 'Rename' }).click()
+  await dialog.getByRole('textbox', { name: 'Connection nickname' }).fill('Joint banks')
+
+  await dialog.evaluate((panel) => {
+    const looks: string[] = []
+    const observedWindow = window as Window & { __renameLooks?: string[] }
+    observedWindow.__renameLooks = looks
+    // Save counts as spinning while it is marked busy. Its spinner fades out after that, which the label
+    // swap keeps drawing for a moment, so the spinner is checked once the field has gone
+    const read = () => {
+      const close = panel.querySelector('button[aria-label="Close"]') as HTMLButtonElement
+      const save = panel.querySelector('button[aria-label="Save nickname"]')
+      const spinning = save !== null && save.getAttribute('aria-busy') === 'true'
+      return `close ${close.disabled ? 'disabled' : 'enabled'}, save ${spinning ? 'spinning' : 'still'}`
+    }
+    looks.push(read())
+    new MutationObserver(() => {
+      const look = read()
+      if (looks.at(-1) !== look) looks.push(look)
+    }).observe(panel, { childList: true, subtree: true, attributes: true })
+  })
+  await page.keyboard.press('Enter')
+  const renamed = page.getByRole('dialog', { name: 'Joint banks', exact: true })
+  await expect(renamed.getByRole('heading', { name: 'Joint banks' })).toBeVisible()
+  await expect(renamed.getByRole('textbox', { name: 'Connection nickname' })).toHaveCount(0)
+  // Read once, since Save has left with the field and a spinner still drawn then is the failure
+  expect(await renamed.locator('.app-spinner').count()).toBe(0)
+
+  const looks = await page.evaluate(() => (window as Window & { __renameLooks?: string[] }).__renameLooks)
+  expect(looks).toContain('close disabled, save spinning')
+  expect(looks).not.toContain('close enabled, save spinning')
+})
+
 test("shows a connection's facts", async ({ page, request }) => {
   const user = await signUpUser(request)
   const [household, scenario] = await Promise.all([
