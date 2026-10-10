@@ -8,8 +8,9 @@ import {
   changeBridgeTransaction,
   linkToEmptyBankAccount,
   openBankLink,
+  readTransaction,
+  waitForReviewItems,
   WORKER_RESULT_TIMEOUT_MS,
-  type ReviewPage,
 } from '../support/bankSync'
 import { API_BASE_URL } from '../support/target'
 
@@ -258,20 +259,7 @@ test('applies a bank correction under Auto-approve all without a review item, wh
   await syncNow.click()
 
   // The new transaction waits for its merchant and category, and the correction is applied without one
-  const waiting = async () => {
-    const response = await request.get(`${API_BASE_URL}/bank-review/items?account_id=${account.id}`, { headers: asUser(user) })
-    expect(response.status()).toBe(200)
-    const { items, counts } = (await response.json()) as ReviewPage
-    return { counts, descriptions: items.map((item) => item.bank.description) }
-  }
-  const ledgerAmount = async () => {
-    const response = await request.get(`${API_BASE_URL}/transactions/${id}`, { headers: asUser(user) })
-    expect(response.status()).toBe(200)
-    return ((await response.json()) as { amount: number }).amount
-  }
-  await expect.poll(waiting, { timeout: WORKER_RESULT_TIMEOUT_MS }).toEqual({
-    counts: { new: 1, correction: 0, removal: 0 },
-    descriptions: ['CORNER BAKERY'],
-  })
-  await expect.poll(ledgerAmount, { timeout: WORKER_RESULT_TIMEOUT_MS }).toBe(-525)
+  const waiting = await waitForReviewItems(request, user, account.id, (items) => items.some((item) => item.bank.description === 'CORNER BAKERY'))
+  expect(waiting.map((item) => [item.kind, item.bank.description])).toEqual([['new', 'CORNER BAKERY']])
+  await expect.poll(async () => (await readTransaction(request, user, id)).amount, { timeout: WORKER_RESULT_TIMEOUT_MS }).toBe(-525)
 })
