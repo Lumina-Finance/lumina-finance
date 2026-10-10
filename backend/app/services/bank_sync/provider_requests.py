@@ -33,8 +33,8 @@ class RequestBudget:
     # When the next request can be sent once the budget is spent, or None while one is free
     available_again_at: datetime | None
 
-    # Whether the provider's word that its quota is spent holds the next request back past when the
-    # connection's own count frees one, which is so when fewer than the limit were sent
+    # Whether the provider's word that its quota is spent, rather than the connection's own count,
+    # holds the next request back, which is so only when fewer than the limit were sent
     held_by_provider: bool = False
 
 
@@ -75,8 +75,10 @@ def summarize_request_budget(
     if used >= limit:
         available_again_at = counted[used - limit] + REQUEST_BUDGET_WINDOW
 
+    # The provider's word lasts until the oldest request counted leaves the 24 hours, which a full
+    # count frees no earlier than, so it holds the next request back only below the limit
     if spent_until is not None and spent_until > now:
-        held_by_provider = available_again_at is None or spent_until > available_again_at
+        held_by_provider = available_again_at is None
         used = max(used, limit)
         available_again_at = max(available_again_at or spent_until, spent_until)
     return RequestBudget(limit=limit, used=used, available_again_at=available_again_at, held_by_provider=held_by_provider)
