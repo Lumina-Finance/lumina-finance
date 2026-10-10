@@ -32,7 +32,12 @@ from app.schemas.transaction import (
     TransferEnd,
 )
 from app.services.accounts.snapshots import recompute_account_snapshots
-from app.services.bank_sync.manual_entries import LedgerEdit, detach_moved_bank_imports, refuse_edits_a_bank_supplies
+from app.services.bank_sync.manual_entries import (
+    LedgerEdit,
+    detach_moved_bank_imports,
+    lock_bank_imports,
+    refuse_edits_a_bank_supplies,
+)
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.categories.transfer_rules import does_category_record_counterparty_account
 from app.services.transactions.access_helpers import accessible_account_ids_subquery
@@ -93,6 +98,9 @@ async def bulk_update_transactions(
     sent = data.model_fields_set
     requested_ids = list(dict.fromkeys(data.transaction_ids))
 
+    # A move takes each bank-imported transaction's bank transaction with it, which is locked first
+    if "account_id" in sent:
+        await lock_bank_imports(db, requested_ids)
     transactions = await load_locked_transactions(db, user, requested_ids)
 
     transaction_ids = [transaction.id for transaction in transactions]

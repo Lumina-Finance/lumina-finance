@@ -14,7 +14,12 @@ from app.models.user import User
 from app.permissions import check_account_access, check_transaction_access
 from app.schemas.transaction import TransactionResponse, UpdateTransactionRequest
 from app.services.accounts.snapshots import refuse_unstorable_balance
-from app.services.bank_sync.manual_entries import LedgerEdit, detach_moved_bank_imports, refuse_edits_a_bank_supplies
+from app.services.bank_sync.manual_entries import (
+    LedgerEdit,
+    detach_moved_bank_imports,
+    lock_bank_imports,
+    refuse_edits_a_bank_supplies,
+)
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.categories.transfer_rules import does_category_record_counterparty_account
 from app.services.transactions.accounts import (
@@ -56,6 +61,10 @@ async def update_transaction_and_get_response(
     Returns:
         Updated transaction response with related display data
     """
+    # A move takes a bank-imported transaction's bank transaction with it, which is locked first
+    if "account_id" in data.model_fields_set:
+        await lock_bank_imports(db, [transaction_id])
+
     # Lock the fresh row before access checks and validation; hold it through the commit
     txn = await check_transaction_access(
         db,

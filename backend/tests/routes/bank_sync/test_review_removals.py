@@ -6,7 +6,8 @@ which stays remembered so the same removal sent again opens nothing. Either is o
 cache mark last. A removal applied after a sync brought the transaction back deletes one the bank
 still lists, one taking the ledger row before the bank transaction can deadlock with a sync, one
 reaching a transaction moved to another account deletes it from there, and one reaching another
-user's item deletes from their ledger
+user's item deletes from their ledger. A delete or move of the transaction taking its ledger row
+before its bank transaction can deadlock with removing it
 """
 
 import asyncio
@@ -41,7 +42,7 @@ from tests.routes.support.bank_sync_helpers import (
     _stored_item,
     _undoable_import,
 )
-from tests.routes.support.lock_helpers import _wait_until_waiting_on
+from tests.routes.support.lock_helpers import _cancel_unfinished, _wait_until_waiting_on
 from tests.routes.support.manual_entry_helpers import _added_id, _commit_link, _Ledger, _ledger, _unlink
 from tests.routes.support.query_helpers import _recorded_statements, _writes
 from tests.routes.support.transaction_helpers import _create_transaction
@@ -115,6 +116,19 @@ async def _commit_coffee(removal: _Removal, day: date) -> None:
         session.add(coffee)
         await recompute_account_snapshots(session, {account.id: day})
         await session.commit()
+
+
+async def _take_out(client, removal: _Removal, how: str):
+    """Delete the groceries or move them to Savings, alone or in bulk, through the route"""
+    transaction_id, headers = removal.transaction_id, removal.headers
+    to_savings = {"account_id": removal.ledger.savings_id}
+    if how == "delete":
+        return await client.delete(f"/transactions/{transaction_id}", headers=headers)
+    if how == "bulk delete":
+        return await client.post("/transactions/bulk/delete", json={"transaction_ids": [transaction_id]}, headers=headers)
+    if how == "move":
+        return await client.patch(f"/transactions/{transaction_id}", json=to_savings, headers=headers)
+    return await client.patch("/transactions/bulk", json={"transaction_ids": [transaction_id]} | to_savings, headers=headers)
 
 
 async def _end_of_day_balances(account_id: str) -> list[int]:
@@ -377,6 +391,36 @@ async def test_removing_a_transaction_moved_out_of_its_account_while_unlinked_fi
     assert await _still_stored(coffee_record_id)
     assert coffee.status_code == 200, coffee.text
     assert coffee.json()["bank_source"]["provider"] == "simplefin"
+
+
+@pytest.mark.parametrize(("how", "answer"), [("delete", 204), ("bulk delete", 200), ("move", 200), ("bulk move", 200)])
+async def test_deleting_or_moving_a_transaction_as_its_removal_is_decided_queues_rather_than_deadlocking(client, how, answer):
+    """With Everyday unlinked, the user deletes the groceries or moves them to Savings as they remove them from the review list
+
+    Everyday is held as a link request holds it, so the delete or move has locked what it takes
+    before the account when removing arrives. It takes the bank transaction before the ledger row,
+    as removing does, so removing queues behind it and then finds no item rather than deadlocking
+    """
+    removal = await _removal_waiting(client)
+    await _unlink(client, removal.ledger, removal.account_id)
+
+    requests: list[asyncio.Task] = []
+    try:
+        async with asyncio.timeout(10), TestSession() as linking:
+            await linking.execute(select(Account.id).where(Account.id == uuid.UUID(removal.account_id)).with_for_update(key_share=True))
+            linking_pid = await linking.scalar(select(func.pg_backend_pid()))
+            requests.append(asyncio.create_task(_take_out(client, removal, how)))
+            await _wait_until_waiting_on(linking_pid, requests[0])
+            requests.append(asyncio.create_task(_decide(client, removal, "remove-from-ledger")))
+            await _wait_until_waiting_on(linking_pid, requests[1], waiters=2)
+            await linking.commit()
+            taken_out, removed = await asyncio.gather(*requests)
+    finally:
+        await _cancel_unfinished(requests)
+
+    assert taken_out.status_code == answer, taken_out.text
+    assert (removed.status_code, removed.json()["detail"]) == (404, "Review item not found")
+    assert not await _still_stored(removal.item_id)
 
 
 @pytest.mark.parametrize("decision", ["accept-change", "keep-current"])

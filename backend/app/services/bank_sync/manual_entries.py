@@ -136,6 +136,22 @@ async def refuse_edits_a_bank_supplies(db: AsyncSession, user: User, edits: Sequ
             _refuse_supplied_days(target_link, [edit.new_dt], today=today, name_account=name_accounts)
 
 
+async def lock_bank_imports(db: AsyncSession, transaction_ids: Iterable[uuid.UUID]) -> None:
+    """Lock the bank transactions of these ledger transactions in id order, before the caller locks the ledger transactions
+
+    A delete or a move takes a bank-imported transaction's bank transaction with it, and the sync
+    and the review decisions lock a bank transaction before its ledger transaction, so taking them
+    in that order here queues a delete or move behind a decision rather than deadlocking with it
+
+    Args:
+        db: Active database session
+        transaction_ids: The ledger transactions about to be deleted or moved
+    """
+    await db.execute(
+        select(BankTransaction.id).where(BankTransaction.transaction_id.in_(transaction_ids)).order_by(BankTransaction.id).with_for_update()
+    )
+
+
 async def detach_moved_bank_imports(db: AsyncSession, edits: Sequence[LedgerEdit]) -> None:
     """Delete the bank transaction of each bank-imported transaction these edits move to another account, with any review item open on it
 

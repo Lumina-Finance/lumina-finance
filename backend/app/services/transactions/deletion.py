@@ -15,7 +15,7 @@ from app.models.user import User
 from app.permissions import check_transaction_access
 from app.schemas.transaction import BulkDeleteTransactionsRequest, BulkDeleteTransactionsResponse
 from app.services.accounts.snapshots import recompute_account_snapshots
-from app.services.bank_sync.manual_entries import refuse_deleting_bank_imports
+from app.services.bank_sync.manual_entries import lock_bank_imports, refuse_deleting_bank_imports
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.transactions.accounts import (
     get_parent_account_for_transaction,
@@ -48,6 +48,9 @@ async def delete_transaction_for_user(
     Raises:
         HTTPException 422: The transaction is bank-imported and its account is linked
     """
+    # The delete takes a bank-imported transaction's bank transaction with it, which is locked first
+    await lock_bank_imports(db, [transaction_id])
+
     # Take the same row lock before tag deletion so an edit and delete cannot interleave
     txn = await check_transaction_access(
         db,
@@ -139,6 +142,7 @@ async def bulk_delete_transactions(
             reached one of the transactions first
     """
     requested_ids = list(dict.fromkeys(data.transaction_ids))
+    await lock_bank_imports(db, requested_ids)
     transactions = await load_locked_transactions(db, user, requested_ids)
     accounts = await load_writable_accounts(db, user, {t.account_id for t in transactions})
     _refuse_grouped_accounts(accounts)
