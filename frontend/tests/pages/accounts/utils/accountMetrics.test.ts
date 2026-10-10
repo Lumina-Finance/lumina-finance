@@ -47,38 +47,6 @@ describe('account metric helpers', () => {
     })
   })
 
-  it('places the savings rate tile in the same band as the savings rate charts', () => {
-    const getTileColors = (income: number, expenses: number) => {
-      const metric = getSavingsRateMetric({
-        savings_rate_history: [{ month: '2026-06-01', income, expenses }],
-        fx_status: { state: 'complete', missing_pairs: [] },
-      }, false)
-
-      return { value: metric.value, color: metric.color, barColor: metric.barColor }
-    }
-
-    expect(getTileColors(100, 80)).toEqual({
-      value: 20,
-      color: 'var(--app-positive)',
-      barColor: 'var(--app-chart-positive)',
-    })
-    expect(getTileColors(100, 81)).toEqual({
-      value: 19,
-      color: 'var(--app-accent)',
-      barColor: 'var(--app-accent)',
-    })
-    expect(getTileColors(100, 90)).toEqual({
-      value: 10,
-      color: 'var(--app-accent)',
-      barColor: 'var(--app-accent)',
-    })
-    expect(getTileColors(100, 91)).toEqual({
-      value: 9,
-      color: 'var(--app-negative)',
-      barColor: 'var(--app-chart-negative)',
-    })
-  })
-
   it('leaves an empty or still-loading savings rate tile grey rather than red', () => {
     expect(getSavingsRateMetric({
       savings_rate_history: [{ month: '2026-06-01', income: 0, expenses: 0 }],

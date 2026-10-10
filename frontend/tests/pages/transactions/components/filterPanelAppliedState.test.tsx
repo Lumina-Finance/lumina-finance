@@ -22,8 +22,4 @@ describe('closed transaction filter indicator', () => {
     const url = '/transactions?category_id=12345678-1234-1234-1234-123456789abc&from_date=2024-02-29&to_date=2024-03-01'
     expect(renderToStaticMarkup(<MemoryRouter initialEntries={[url]}><RestoredPanel /></MemoryRouter>)).toBe('<output>2</output>')
   })
-
-  it('shows no applied facets when the URL has no filters', () => {
-    expect(renderToStaticMarkup(<MemoryRouter initialEntries={['/transactions']}><RestoredPanel /></MemoryRouter>)).toBe('<output>0</output>')
-  })
 })

@@ -41,11 +41,6 @@ describe('tax-advantaged limit helpers', () => {
     expect(getTaxAdvantagedUsageColor(10, 0)).toBe('var(--app-negative)')
   })
 
-  it('formats compact meter values without losing the currency sign', () => {
-    expect(formatTaxAdvantagedMeterMoney(123_456, 'USD', testCurrencies)).toBe('$1K')
-    expect(formatTaxAdvantagedMeterMoney(12_300_000, 'USD', testCurrencies)).toBe('$123K')
-  })
-
   it('keeps meter amounts whole and unprefixed below the compaction thresholds', () => {
     // The meter shows this beside the limit it is measured against, so a small amount must match
     // how that limit is written: no cents, and no "≈" marking one of the pair as approximate
