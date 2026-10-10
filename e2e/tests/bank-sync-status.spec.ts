@@ -35,14 +35,18 @@ import { API_BASE_URL } from '../support/target'
 // A linked account's bank sync status, as its page shows it once the worker has met each situation
 // on the fake SimpleFIN Bridge: the identity card's Bank sync fact, the Bank link section's Status,
 // the notice for whatever stops the sync, with the action that resumes it, and the bank's balance
-// beside the ledger's once the link has synced. The dot's blink while a sync fetches is watched on a
-// link read answered here instead. Sync details' wording is covered by the status unit tests
+// beside the ledger's once the link has synced. The dot's blink while a sync fetches, and the time
+// since the last sync as the page stays open, are watched on a link read answered here instead. Sync
+// details' wording is covered by the status unit tests
 const SAMPLE_BANK = 'Harbour Bank'
 const SAMPLE_CHEQUING = 'Everyday Chequing'
 
 // What a link reads as once its import is reviewed with a gap between the balances, until the
 // opening adjustment offered for it is answered
 const OPENING_BALANCE_STATUS = 'Opening balance to confirm'
+
+// How long the page stays open after the link synced, long enough for its label to move past just now
+const SYNC_AGE_MS = 5 * 60 * 1000
 
 // The width from which a notice's action sits beside its text rather than under it
 const NOTICE_ROW_MIN_WIDTH = 640
@@ -440,6 +444,24 @@ for (const reducedMotion of ['no-preference', 'reduce'] as const) {
     expect(await isBlinking(fact(dialog, 'Status').getByTestId('sync-status-dot'))).toBe(blinks)
   })
 }
+
+// Answered here, synced as the page's clock starts, since a real sync can't be timed to it
+test('words how long ago the link synced anew as minutes pass with the page open', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const syncedAt = new Date()
+  await page.route(`${API_BASE_URL}/accounts/${account.id}/bank-link`, (route) => route.fulfill({
+    json: { account_id: account.id, link: buildLinkAnswer(account.id, { last_success_at: syncedAt.toISOString() }), previous_link: null },
+  }))
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.clock.install({ time: syncedAt })
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  await expect(page.getByRole('button', { name: 'Bank sync: Synced just now. Open bank link' })).toBeVisible()
+
+  await page.clock.runFor(SYNC_AGE_MS)
+  await expect(page.getByRole('button', { name: 'Bank sync: Synced 5 minutes ago. Open bank link' })).toBeVisible()
+})
 
 test('stops on a rejected connection, with a notice that leads to Settings to reconnect it', async ({ page, request }) => {
   const user = await signUpUser(request)
