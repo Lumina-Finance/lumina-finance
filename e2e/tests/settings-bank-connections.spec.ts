@@ -260,6 +260,34 @@ test("renames a connection, and a blank nickname brings back the provider's name
   await expect(fact(dialog, 'Provider')).toHaveCount(0)
 })
 
+// Rename is pressed the moment a saved rename gives it back, which brings back the field that saved while
+// it is still fading out, rather than a new one
+test('renames a connection again straight after a rename, from the field still fading out', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const scenario = await createSampleBridgeScenario(request)
+  await claimSetupToken(request, user, scenario.setupToken)
+  const section = await openBankConnections(page, user)
+  const dialog = await openConnection(page, section, 'SimpleFIN')
+
+  const renameButton = dialog.getByRole('button', { name: 'Rename' })
+  await renameButton.click()
+  await dialog.getByRole('textbox', { name: 'Connection nickname' }).fill('Joint banks')
+  await renameButton.evaluate((button: HTMLButtonElement) => {
+    new MutationObserver((_, observer) => {
+      if (button.disabled) return
+      observer.disconnect()
+      button.click()
+    }).observe(button, { attributes: true, attributeFilter: ['disabled'] })
+  })
+  await page.keyboard.press('Enter')
+
+  const field = page.getByRole('dialog', { name: 'Joint banks', exact: true }).getByRole('textbox', { name: 'Connection nickname' })
+  await expect(field).toBeEditable()
+  await field.fill('Travel cards')
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('dialog', { name: 'Travel cards', exact: true }).getByRole('heading', { name: 'Travel cards' })).toBeVisible()
+})
+
 // A rename on its way holds the modal open, as a disconnect does, so word that it failed comes beside the
 // connection it was for. The rename is held here until the modal has been asked to close, then fails
 test('keeps the modal open while a rename is on its way, saying there if it fails', async ({ page, request }) => {

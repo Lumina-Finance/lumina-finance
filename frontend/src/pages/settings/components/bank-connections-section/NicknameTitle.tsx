@@ -28,7 +28,8 @@ function NicknameField({ connection, rename, onDone }: { connection: BankConnect
 
   // Set as a save goes out, since the rename only reads as pending here on the field's next render, and
   // a key pressed before then, such as Escape straight after Enter, must already find the save on its
-  // way. A failed save clears it, leaving what was typed to try again
+  // way. It clears once the save comes back: a failed one leaves what was typed to try again, and Rename
+  // pressed again while this field fades out brings this same field back, ready to save again
   const saveSent = useRef(false)
 
   const save = () => {
@@ -43,8 +44,10 @@ function NicknameField({ connection, rename, onDone }: { connection: BankConnect
       {
         onSuccess: onDone,
         onError: (cause) => {
-          saveSent.current = false
           showToast({ status: 'error', text: cause instanceof ApiError ? cause.message : 'Could not rename this connection. Please try again.' })
+        },
+        onSettled: () => {
+          saveSent.current = false
         },
       },
     )
