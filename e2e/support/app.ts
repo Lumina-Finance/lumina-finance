@@ -68,9 +68,20 @@ export async function logInViaApi(page: Page, user: TestUser): Promise<void> {
   }, new URL(BASE_URL).origin)
 }
 
-/** Wait for a new document or an identified destination route to finish its entrance */
+/**
+ * Wait for a new document or an identified destination route to finish its entrance
+ *
+ * The app opens on its recovery screen instead when its start-up requests fail, such as a currency list
+ * slower than its limit on a busy host. That screen never becomes the page, so the wait fails as soon as
+ * it shows, naming it, rather than sitting out the whole test timeout
+ */
 export async function waitForPageReady(page: Page): Promise<void> {
-  await page.locator('#app-page-content[aria-busy="false"]').waitFor({ state: 'visible' })
+  const ready = page.locator('#app-page-content[aria-busy="false"]')
+  const recoveryScreen = page.getByRole('heading', { name: 'OK this was not in the plan' })
+  await ready.or(recoveryScreen).first().waitFor({ state: 'visible' })
+  if (await recoveryScreen.isVisible()) {
+    throw new Error('The app opened on its recovery screen instead of the page, so a start-up request such as the currency list failed or ran past its limit')
+  }
 }
 
 /** Navigate to an authenticated page and wait for its actual route readiness signal */
