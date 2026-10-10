@@ -78,17 +78,23 @@ async def enqueue_due_work() -> None:
 
     The due list comes through a definer function, since only the worker sees across users, and
     each sync is queued as its connection's owner, for once a request is free, merging into any job
-    already queued for it, as the schedule module describes
+    already queued for it, as the schedule module describes. A connection that fails to queue is
+    logged and skipped, so the rest are still queued and the heartbeat still stamped
     """
     now = datetime.now(UTC)
     async with async_session() as db:
         due = (await db.execute(text(f"SELECT connection_id, owner_id FROM {LIST_DUE_BANK_CONNECTIONS}(:now)"), {"now": now})).all()  # noqa: S608
 
     for connection_id, owner_id in due:
-        with _acting_as(owner_id):
-            async with async_session() as db:
-                await queue_scheduled_sync(db, connection_id, now=now)
-                await db.commit()
+        try:
+            with _acting_as(owner_id):
+                async with async_session() as db:
+                    await queue_scheduled_sync(db, connection_id, now=now)
+                    await db.commit()
+        except Exception:
+            # Best effort per connection: one that can't be queued is listed due again at the next
+            # scan, and stopping here would leave every later owner unsynced and the heartbeat stale
+            logger.exception("Queueing a scheduled sync of bank connection %s failed", connection_id)
 
     async with async_session() as db:
         await db.execute(text(f"SELECT {RECORD_BANK_SYNC_SCAN}(:now)"), {"now": now})

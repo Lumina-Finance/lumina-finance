@@ -20,7 +20,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from sqlalchemy import select, update
+from sqlalchemy import select, text, update
 
 from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState, BankProvider
@@ -32,6 +32,7 @@ from app.services.bank_sync import availability, worker
 from app.services.bank_sync.jobs import ClaimedJob, finish_job, lock_covered_links, lock_held_job
 from app.services.bank_sync.links import disconnect_connection, unlink_account
 from app.services.bank_sync.pending import replace_pending_transactions
+from app.services.bank_sync.schedule import queue_scheduled_sync
 from app.services.bank_sync.sync import run_sync_job
 from app.services.bank_sync.worker import MAX_JOB_ATTEMPTS, enqueue_due_work, run_jobs
 from app.services.email import contract as email_contract
@@ -411,6 +412,43 @@ async def test_enqueue_due_work_queues_each_due_connection_as_its_owner_and_stam
         (connection.id, connection.owner_id, "scheduled", "queued") for connection in connections[:2]
     )
     assert last_scan_at == frozen_now
+
+
+async def test_enqueue_due_work_logs_and_skips_a_connection_that_fails_and_queues_the_rest(connections, frozen_now, monkeypatch, caplog):
+    """Three owners' connections are due, and queueing the first one scanned fails in the database
+
+    That one is logged and left for the next scan, the other two get their scheduled jobs and the
+    heartbeat is stamped, so one broken connection can't stop every owner's syncs or show sync as down
+    """
+    async with TestSession() as session:
+        await session.execute(update(BankConnection).values(discovered_at=frozen_now - timedelta(days=1)))
+        await session.execute(
+            update(BankConnection)
+            .where(BankConnection.id.in_([connection.id for connection in connections[:3]]))
+            .values(next_sync_at=frozen_now - timedelta(minutes=5))
+        )
+        await session.commit()
+    failed: list[uuid.UUID] = []
+
+    async def _fail_the_first(db, connection_id, *, now):
+        """Fail in the database for the first connection, and queue the others as the scan would"""
+        if not failed:
+            failed.append(connection_id)
+            await db.execute(text("SELECT 1 / 0"))
+        await queue_scheduled_sync(db, connection_id, now=now)
+
+    monkeypatch.setattr(worker, "queue_scheduled_sync", _fail_the_first)
+
+    await enqueue_due_work()
+
+    async with TestSession() as session:
+        queued = set(await session.scalars(select(BankSyncJob.connection_id)))
+        last_scan_at = await session.scalar(select(BankSyncHeartbeat.last_scan_at))
+    assert queued == {connection.id for connection in connections[:3]} - set(failed)
+    assert last_scan_at == frozen_now
+    assert [(record.levelname, record.getMessage()) for record in caplog.records if record.name == worker.logger.name] == [
+        ("ERROR", f"Queueing a scheduled sync of bank connection {failed[0]} failed")
+    ]
 
 
 async def test_enqueue_due_work_with_nothing_due_still_stamps_the_heartbeat(frozen_now):
