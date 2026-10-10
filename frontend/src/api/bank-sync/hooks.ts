@@ -59,6 +59,7 @@ import {
   applyBulkApprovalOutcome,
   applyLedgerReviewOutcome,
   applyOpeningAdjustmentAnswer,
+  applyRefusedReviewDecision,
   applyRestoredBankValue,
   applyReviewDecision,
   putCachedBankLink,
@@ -492,19 +493,31 @@ export function useUpdateReviewPreferences() {
   });
 }
 
-export function useAddReviewItem() {
-  const queryClient = useQueryClient();
-  return useMutation({
+/**
+ * How Add to ledger runs. A refusal reads the inbox again, since the item may have been decided
+ * elsewhere or withdrawn by the bank since it was read
+ */
+export function addReviewItemMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
     mutationFn: (payload: Parameters<typeof addReviewItem>[0]) =>
       runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => addReviewItem(payload)),
     onSuccess: (transaction, { itemId }) =>
       applyLedgerReviewOutcome(queryClient, [transaction.account_id], (item) => item.id === itemId),
+    onError: () => applyRefusedReviewDecision(queryClient),
   });
 }
 
-export function useResolveReviewItem() {
+export function useAddReviewItem() {
   const queryClient = useQueryClient();
-  return useMutation({
+  return useMutation(addReviewItemMutationOptions(queryClient));
+}
+
+/**
+ * How a review item is settled without being added: a new item dismissed, or a correction or removal
+ * decided. A refusal reads the inbox again, as one of Add to ledger does
+ */
+export function resolveReviewItemMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
     mutationFn: (payload: Parameters<typeof resolveReviewItem>[0] & { accountId: string }) =>
       runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => resolveReviewItem(payload)),
     onSuccess: (transaction, { accountId, itemId, resolution }) => {
@@ -516,7 +529,13 @@ export function useResolveReviewItem() {
       // Nothing in the ledger changed, so its views keep their data rather than reloading
       return applyReviewDecision(queryClient, isDecided, transaction);
     },
+    onError: () => applyRefusedReviewDecision(queryClient),
   });
+}
+
+export function useResolveReviewItem() {
+  const queryClient = useQueryClient();
+  return useMutation(resolveReviewItemMutationOptions(queryClient));
 }
 
 /**

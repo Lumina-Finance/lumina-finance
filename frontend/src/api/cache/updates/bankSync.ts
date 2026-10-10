@@ -268,6 +268,17 @@ export async function applyReviewDecision(
 }
 
 /**
+ * Brings the inbox up to date after a review decision the server refused, which most often means
+ * the item changed since it was read: decided in another tab or on another device, or withdrawn by
+ * the bank. The inbox, any bulk approval preview, and the backlogs and the link list that carry the
+ * waiting counts are read again, so an item that no longer waits leaves the block
+ */
+export function applyRefusedReviewDecision(queryClient: QueryClient): void {
+  invalidateBankReviewItems(queryClient);
+  invalidateBankLinks(queryClient);
+}
+
+/**
  * Updates the views a restored bank date or amount changes
  *
  * The review inbox refetches too, since a waiting item shows its transaction's ledger date and
