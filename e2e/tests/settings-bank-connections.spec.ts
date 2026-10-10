@@ -112,6 +112,26 @@ async function changeAnswer<T>(page: Page, path: string, change: (body: T) => vo
   })
 }
 
+/** Whether a request goes to one connection's own address, where a rename is sent */
+function isRename(url: URL): boolean {
+  return /\/bank-sync\/connections\/[^/]+$/.test(url.pathname)
+}
+
+/**
+ * Holds each rename the page sends until the returned function is called, then fails it as though the
+ * server was never reached
+ */
+async function holdRenamesUntilFailed(page: Page): Promise<() => void> {
+  let fail = () => {}
+  const failed = new Promise<void>((resolve) => { fail = resolve })
+  await page.route(isRename, async (route) => {
+    if (route.request().method() !== 'PATCH') return route.fallback()
+    await failed
+    await route.abort('failed')
+  })
+  return fail
+}
+
 /**
  * Claims a connection to Harbour Bank whose bank login needs signing in again, which the import a
  * link to Household queues finds, so its status reads Bank sign-in needed with a note beside it
@@ -246,14 +266,7 @@ test('keeps the modal open while a rename is on its way, saying there if it fail
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   await claimSetupToken(request, user, scenario.setupToken)
-  const isRename = (url: URL) => /\/bank-sync\/connections\/[^/]+$/.test(url.pathname)
-  let failRename = () => {}
-  const renameFails = new Promise<void>((resolve) => { failRename = resolve })
-  await page.route(isRename, async (route) => {
-    if (route.request().method() !== 'PATCH') return route.fallback()
-    await renameFails
-    await route.abort('failed')
-  })
+  const failRename = await holdRenamesUntilFailed(page)
   const section = await openBankConnections(page, user)
   const dialog = await openConnection(page, section, 'SimpleFIN')
 
@@ -269,6 +282,29 @@ test('keeps the modal open while a rename is on its way, saying there if it fail
   await expect(errorToast(page, 'Could not rename this connection. Please try again.')).toBeVisible()
   await expect(dialog.getByRole('textbox', { name: 'Connection nickname' })).toHaveValue('Joint banks')
   await expect(connectionRow(section, 'SimpleFIN')).toHaveCount(1)
+})
+
+// Escape pressed straight after Enter reaches the field before it has rendered as saving, which a later
+// press no longer does, since the field is held back by then. The rename is held until both keys are in,
+// then fails
+test('keeps the nickname typed when Escape follows Enter straight away, so a failed rename can be tried again', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const scenario = await createSampleBridgeScenario(request)
+  await claimSetupToken(request, user, scenario.setupToken)
+  const failRename = await holdRenamesUntilFailed(page)
+  const section = await openBankConnections(page, user)
+  const dialog = await openConnection(page, section, 'SimpleFIN')
+
+  await dialog.getByRole('button', { name: 'Rename' }).click()
+  const field = dialog.getByRole('textbox', { name: 'Connection nickname' })
+  await field.fill('Joint banks')
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Escape')
+
+  failRename()
+  await expect(errorToast(page, 'Could not rename this connection. Please try again.')).toBeVisible()
+  await expect(field).toHaveValue('Joint banks')
+  await expect(field).toBeEnabled()
 })
 
 // The field fades out once its rename is saved, which is too short a while to catch by polling, so the

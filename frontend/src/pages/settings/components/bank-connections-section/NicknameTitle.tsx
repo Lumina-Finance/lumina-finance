@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { AnimatePresence, motion, useIsPresent } from 'motion/react'
 import { Check, X } from 'lucide-react'
 import { ApiError } from '@/api/auth'
@@ -26,19 +26,33 @@ function NicknameField({ connection, rename, onDone }: { connection: BankConnect
   const isPresent = useIsPresent()
   const isSaving = rename.isPending && isPresent
 
+  // Set as a save goes out, since the rename only reads as pending here on the field's next render, and
+  // a key pressed before then, such as Escape straight after Enter, must already find the save on its
+  // way. A failed save clears it, leaving what was typed to try again
+  const saveSent = useRef(false)
+
   const save = () => {
-    if (rename.isPending) return
+    if (saveSent.current) return
     if (draft.trim() === (connection.nickname ?? '')) {
       onDone()
       return
     }
+    saveSent.current = true
     rename.mutate(
       { connectionId: connection.id, nickname: draft.trim() },
       {
         onSuccess: onDone,
-        onError: (cause) => showToast({ status: 'error', text: cause instanceof ApiError ? cause.message : 'Could not rename this connection. Please try again.' }),
+        onError: (cause) => {
+          saveSent.current = false
+          showToast({ status: 'error', text: cause instanceof ApiError ? cause.message : 'Could not rename this connection. Please try again.' })
+        },
       },
     )
+  }
+
+  // Leaves the field, though not while a save is on its way, since a failed one comes back to it
+  const cancel = () => {
+    if (!saveSent.current) onDone()
   }
 
   return (
@@ -57,14 +71,14 @@ function NicknameField({ connection, rename, onDone }: { connection: BankConnect
           if (event.key === 'Escape') {
             // Leaves the field without closing the modal around it
             event.stopPropagation()
-            onDone()
+            cancel()
           }
         }}
       />
       <button type="button" className="app-icon-button shrink-0" aria-label="Save nickname" aria-busy={isSaving} disabled={rename.isPending} onClick={save}>
         {isSaving ? <div className="app-spinner" /> : <Check size={16} aria-hidden />}
       </button>
-      <button type="button" className="app-icon-button shrink-0" aria-label="Cancel renaming" disabled={rename.isPending} onClick={onDone}>
+      <button type="button" className="app-icon-button shrink-0" aria-label="Cancel renaming" disabled={rename.isPending} onClick={cancel}>
         <X size={16} aria-hidden />
       </button>
     </>
