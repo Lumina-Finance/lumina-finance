@@ -6,7 +6,7 @@
     /* Light — warm parchment */
     --app-bg: #F2EDE4;
     --app-surface-soft: #FBF8F0;
-    /* Shared hover feedback for rows and controls, plus transaction pending and focus backgrounds.
+    /* Shared hover feedback for rows and controls, plus transaction pending backgrounds.
        Kept apart from
        .app-dropdown-row-highlighted, which mixes the same proportion in both themes rather than
        taking this token, since pointing that rule at this token would carry the flat light value
@@ -1833,6 +1833,17 @@
   .app-focus-ring:focus-visible {
     outline: var(--app-focus-outline);
     outline-offset: var(--app-focus-offset);
+  }
+
+  /* A transaction row is focused through the button inside it, or its checkbox while selecting, and
+     neither fills the row, so the ring goes around the row itself. It is drawn inside the row's edges,
+     where the next row and the list's own edge cannot cover it */
+  .app-transaction-row:has(:focus-visible) {
+    outline: var(--app-focus-outline);
+    outline-offset: calc(var(--app-focus-offset) * -1);
+    /* A read-only row is drawn faded, and the fade would take the ring under 3:1, so a focused row is
+       shown whole while it holds focus. Important, since the fade is set inline by the row's animation */
+    opacity: 1 !important;
   }
 
   .app-spinner {

@@ -1,11 +1,13 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
+import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
+import { API_BASE_URL } from '../support/target'
 import { logInViaApi, openModal, openPage } from '../support/app'
 
 /**
  * Guards the keyboard focus indicator. It used to be a tint at about a tenth of the accent's strength,
- * which nobody could see, and the search fields drew none at all
+ * which nobody could see, the search fields drew none at all, and a focused transaction row showed only
+ * a cream tint on cream that stopped short of the row's edges
  */
 
 type FocusRing = {
@@ -156,7 +158,63 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await expectSharedRing(control, kind, kind === 'outline' ? '2px' : '0px')
     }
   })
+
+  // The ring goes around the row itself, inside its edges where the next row can't cover it, whether
+  // the row's own button or its checkbox while selecting holds focus
+  test(`shows keyboard focus around a whole transaction row in the ${colorScheme} theme`, async ({ page, request }) => {
+    await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
+    const rowButton = await seedOneTransaction(page, request)
+    const row = rowButton.locator('..')
+
+    await focusFromKeyboard(page, rowButton)
+    await expectSharedRing(row, 'outline', '-2px')
+
+    await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
+    const checkbox = row.getByRole('checkbox')
+    await focusFromKeyboard(page, checkbox)
+    await expect(checkbox).toBeFocused()
+    await expectSharedRing(row, 'outline', '-2px')
+  })
 }
+
+// A row opened with the mouse gets focus back when its dialog closes, and draws no ring for it
+test('leaves no focus ring on a transaction row opened with the mouse', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const rowButton = await seedOneTransaction(page, request)
+
+  await rowButton.click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(dialog).toBeHidden()
+
+  await expect(rowButton).toBeFocused()
+  expect(await readFocusRing(rowButton)).toBeNull()
+})
+
+// A row on an archived account is drawn faded, and the fade would take its ring under 3:1, so a focused
+// read-only row shows its ring at full strength
+test('shows keyboard focus at full strength on a read-only row', async ({ page, request }) => {
+  await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' })
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Old savings' })
+  const id = await createTransaction(request, user, {
+    accountId: account.id,
+    categoryName: 'Groceries',
+    amount: -1000,
+    date: daysFromTodayInTestTimezone(-1),
+  })
+  const archived = await request.patch(`${API_BASE_URL}/accounts/${account.id}`, { headers: asUser(user), data: { is_archived: true } })
+  expect(archived.status()).toBe(200)
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  const rowButton = page.getByTestId(`transaction-row-${id}`)
+  await expect(rowButton.getByText('Archived · Read-only', { exact: true }).filter({ visible: true }).first()).toBeVisible()
+  await expect.poll(() => rowButton.locator('..').evaluate((row) => Number(getComputedStyle(row).opacity))).toBeLessThan(1)
+
+  await focusFromKeyboard(page, rowButton)
+  await expectSharedRing(rowButton.locator('..'), 'outline', '-2px')
+})
 
 // The actions that appear while selecting grow in from nothing, clipped as they grow, and once in
 // place show their whole ring
