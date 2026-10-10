@@ -7,7 +7,8 @@
  * worded, coloured or blinking unlike the others or the prototype, a waiting import blinking as if it
  * were fetching, a detail line repeating the label or leaving out the failure or the next sync, a retry
  * or an import's next part timed by the UTC day rather than the user's, a relink's catch-up
- * described as an import from the link's first day, and a next sync blamed on the wrong request limit
+ * described as an import from the link's first day, and a next sync blamed on the wrong request limit,
+ * or on either one before its connection is read
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BankLink } from '@/api/bank-sync'
@@ -93,9 +94,9 @@ describe('describeBankSync for a live link', () => {
       { label: 'Synced 1 hour ago', tone: 'ok', pulse: false, details: [FAILURE_LINE, 'Next sync in 3 hours'] },
     ],
     [
-      'a synced link whose next sync waits on the request budget',
+      'a synced link whose next sync waits on the request budget, before its connection says whose limit holds it',
       { sync: createSync({ waiting_on_budget: true }) },
-      { label: 'Synced 1 hour ago', tone: 'ok', pulse: false, details: ["Next sync is waiting on this connection's 24-hour SimpleFIN request limit"] },
+      { label: 'Synced 1 hour ago', tone: 'ok', pulse: false, details: ['Next sync is waiting on a SimpleFIN request limit'] },
     ],
     [
       'a rejected connection',
@@ -173,11 +174,14 @@ describe('describeBankSync for a live link', () => {
     expect(describeLink(retrying('2026-10-06T13:00:00Z')).label).toBe('Retrying at Oct 6, 9:00 a.m.')
   })
 
-  it("says SimpleFIN's own limit holds the next sync once SimpleFIN has said its quota is spent", () => {
+  it.each([
+    ["the connection's own limit holds the next sync while SimpleFIN hasn't said its quota is spent", false, "Next sync is waiting on this connection's 24-hour SimpleFIN request limit"],
+    ["SimpleFIN's own limit holds the next sync once SimpleFIN has said its quota is spent", true, "Next sync is waiting on SimpleFIN's request limit"],
+  ])('says %s', (_case, heldByProvider, line) => {
     const status = createStatus({ link: createLink({ sync: createSync({ waiting_on_budget: true }) }) })
-    const budget = { limit: 20, used: 20, available_again_at: '2026-10-05T19:00:00Z', held_by_provider: true }
+    const budget = { limit: 20, used: 20, available_again_at: '2026-10-05T19:00:00Z', held_by_provider: heldByProvider }
 
-    expect(describeBankSync(true, status, false, TIME_ZONE, budget).details).toEqual(["Next sync is waiting on SimpleFIN's request limit"])
+    expect(describeBankSync(true, status, false, TIME_ZONE, budget).details).toEqual([line])
   })
 })
 

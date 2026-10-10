@@ -49,11 +49,12 @@ function formatAttemptTime(iso: string, timeZone: string | undefined): string {
 
 /**
  * Whose request limit the next sync waits on: the provider's once it has said its quota is spent,
- * otherwise the connection's own over the last 24 hours, which it also reads as until the connection
- * is read, since that's the usual one
+ * otherwise the connection's own over the last 24 hours. Until the connection is read it names
+ * neither, since either could be holding it
  */
 function describeBudgetWait(providerName: string, budget: BankRequestBudget | undefined): string {
-  return budget?.held_by_provider
+  if (!budget) return `Next sync is waiting on a ${providerName} request limit`
+  return budget.held_by_provider
     ? `Next sync is waiting on ${providerName}'s request limit`
     : `Next sync is waiting on this connection's 24-hour ${providerName} request limit`
 }
