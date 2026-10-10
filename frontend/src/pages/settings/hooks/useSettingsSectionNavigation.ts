@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
+import { BELOW_MOBILE_NAVIGATION_TOGGLE_ROOT_MARGIN } from '@/components/navigation/constants/data'
 import { SETTINGS_SECTIONS, type SettingsSectionId } from '@/pages/settings/settingsNavigation'
 
 const PROGRAMMATIC_SCROLL_SETTLE_MS = 600
@@ -181,7 +182,7 @@ export function useSettingsSectionNavigation() {
     // A busy page can hand over several changes at once, oldest first, so only the last one is current
     const observer = new IntersectionObserver(
       (entries) => setSettingsMenuStuck(!entries[entries.length - 1].isIntersecting),
-      { threshold: 0 },
+      { threshold: 0, rootMargin: BELOW_MOBILE_NAVIGATION_TOGGLE_ROOT_MARGIN },
     )
 
     observer.observe(sentinel)

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
+import { BELOW_MOBILE_NAVIGATION_TOGGLE_ROOT_MARGIN } from '@/components/navigation/constants/data'
 
 export type MobileSearchStuckState = {
   mobileSearchStickySentinelRef: RefObject<HTMLDivElement | null>
@@ -6,8 +7,8 @@ export type MobileSearchStuckState = {
 }
 
 /**
- * Tracks when the mobile search row has stuck to the viewport so the search field can leave room for
- * the fixed mobile navigation toggle pinned to the top-right corner
+ * Tracks when the mobile search row has reached the fixed mobile navigation toggle pinned to the top-right
+ * corner, so the search field leaves room for it before it passes under it and stays that wide once docked
  */
 export function useMobileSearchStuck(): MobileSearchStuckState {
   const mobileSearchStickySentinelRef = useRef<HTMLDivElement>(null)
@@ -33,7 +34,7 @@ export function useMobileSearchStuck(): MobileSearchStuckState {
         sentinelIntersecting = entries[entries.length - 1].isIntersecting
         updateStuck()
       },
-      { threshold: 0 },
+      { threshold: 0, rootMargin: BELOW_MOBILE_NAVIGATION_TOGGLE_ROOT_MARGIN },
     )
 
     observer.observe(sentinel)

@@ -4,7 +4,7 @@
  */
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { signUpUser } from '../support/api'
+import { createAccount, createTransaction, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
 
 /**
@@ -69,3 +69,29 @@ test('brings each chosen settings section to rest below the pinned section menu'
     expect(heading.y, name).toBeGreaterThanOrEqual(coveredTo + 8)
   }
 })
+
+for (const { path, placeholder, lastSeeded } of [
+  { path: '/transactions', placeholder: 'Search transactions...', lastSeeded: (page: Page) => page.getByTestId(/^transaction-row-/).nth(13) },
+  { path: '/accounts', placeholder: 'Search accounts...', lastSeeded: (page: Page) => page.getByText('Pinned bar account 13') },
+]) {
+  test(`keeps the ${path.slice(1)} search field clear of the menu button while its toolbar nears the top`, async ({ page, request }) => {
+    const user = await signUpUser(request)
+    // Enough accounts and rows below the toolbar that the page can scroll it up to the top on a small phone
+    for (let index = 0; index < 14; index += 1) {
+      const account = await createAccount(request, user, { name: `Pinned bar account ${index}`, startingBalance: 1000 })
+      await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -500 - index })
+    }
+    await page.setViewportSize({ width: 390, height: 667 })
+    await logInViaApi(page, user)
+    await openPage(page, path)
+    // The page reaches its full length only once the list has loaded, which the scroll below needs
+    await expect(lastSeeded(page)).toBeAttached()
+
+    // Rested with the toolbar just short of docking, where the field used to keep its full width
+    const search = page.getByPlaceholder(placeholder)
+    const fieldTop = (await search.boundingBox())!.y
+    await page.evaluate((by) => window.scrollBy(0, by), fieldTop - 28)
+    await expect.poll(async () => (await search.boundingBox())!.y).toBeLessThan(52)
+    await expect.poll(() => overlapWithMenuButton(page, search)).toBeLessThanOrEqual(0)
+  })
+}
