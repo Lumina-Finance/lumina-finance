@@ -1,5 +1,4 @@
 import { ImportFileSlot, ImportFilesStepLayout, ImportInfoCard, ImportStagedFileTable } from '@/pages/imports/components'
-import { formatBytes } from '@/pages/imports/utils'
 import { ACTUAL_EXPORT_DOCS_URL, ACTUAL_IMPORT_FILE_TYPE } from '@/pages/imports/actual/constants'
 import type { ActualImportWorkflow, ActualStagedFile } from '@/pages/imports/actual/hooks'
 
@@ -16,8 +15,8 @@ type ActualFilesStepProps = Pick<
 >
 
 function describeActualFile(file: ActualStagedFile) {
-  const budgetName = file.budgetName ? ` · ${file.budgetName}` : ''
-  return { detail: `${formatBytes(file.size)}${budgetName}`, tone: 'plain' as const, rowCount: file.rowCount }
+  const transactions = `${file.rowCount} transaction${file.rowCount === 1 ? '' : 's'}`
+  return { detail: file.budgetName ? `${transactions} · ${file.budgetName}` : transactions }
 }
 
 /**

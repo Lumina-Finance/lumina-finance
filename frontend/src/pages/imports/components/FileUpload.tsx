@@ -3,7 +3,7 @@ import { FileText, LoaderCircle, TriangleAlert, Upload, X } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { IMPORT_INSET_STYLE } from '@/pages/imports/constants'
 import type { ImportFileDraft, ImportUploadBlock } from '@/pages/imports/types'
-import { CSV_IMPORT_FILE_TYPE, formatBytes, selectDroppedImportFiles, type ImportFileSelection, type ImportFileType } from '@/pages/imports/utils'
+import { CSV_IMPORT_FILE_TYPE, selectDroppedImportFiles, type ImportFileSelection, type ImportFileType } from '@/pages/imports/utils'
 
 /**
  * Upload affordance shared by the import flows that animates between its idle
@@ -229,16 +229,16 @@ export function ImportUploadCard({
   )
 }
 
-/** What the staged-file table shows beneath one file's name, and how many rows it holds */
+/** What the staged-file list shows beneath one file's name: what it holds, and anything wrong with it */
 export interface ImportStagedFileSummary {
-  detail: string
-  tone: 'plain' | 'notice' | 'error'
-  rowCount: number
+  /** The file's counts, such as "2 rows · 4 columns", left out for a file that can't be used */
+  detail?: string
+  problem?: { text: string; tone: 'notice' | 'error' }
 }
 
 /**
- * Staged-file table shared by the CSV import flows, listing each upload's
- * metadata and row count with a remove action
+ * Staged-file list shared by the CSV import flows, listing each upload's
+ * counts and problems with a remove action
  */
 export function ImportStagedFileList({
   files,
@@ -251,7 +251,7 @@ export function ImportStagedFileList({
 }
 
 /**
- * Staged-file table for any kind of upload, with the flow saying what each file holds
+ * Staged-file list for any kind of upload, with the flow saying what each file holds
  */
 export function ImportStagedFileTable<TFile extends { id: string; name: string }>({
   files,
@@ -263,66 +263,60 @@ export function ImportStagedFileTable<TFile extends { id: string; name: string }
   onRemove: (file: TFile) => void
 }) {
   return (
-    <div className="overflow-hidden">
-      <div
-        className="grid grid-cols-[minmax(0,1fr)_4rem_2.25rem] items-center gap-3 px-3 py-2 text-xs font-semibold uppercase"
-        style={{ color: 'var(--app-text-subtle)', background: 'var(--app-input-bg)' }}
-      >
-        <span>File</span>
-        <span className="text-right">Rows</span>
-        <span aria-label="Actions" />
-      </div>
-      <div className="max-h-64 overflow-y-auto">
-        {files.map((file) => {
-          const summary = describe(file)
-          return (
-            <div
-              key={file.id}
-              className="grid grid-cols-[minmax(0,1fr)_4rem_2.25rem] items-center gap-3 px-3 py-3"
-            >
-              <div className="flex min-w-0 items-center gap-3">
-                <FileText size={17} className="shrink-0" style={{ color: 'var(--app-text-muted)' }} aria-hidden />
-                <div className="min-w-0">
-                  <p className="truncate text-[0.9375rem] font-medium">{file.name}</p>
-                  {/* A refusal wraps rather than truncating, since its end says how to fix the file */}
-                  <p className={`text-xs ${summary.tone === 'error' ? 'break-words' : 'truncate'}`} style={{ color: SUMMARY_TONE_COLORS[summary.tone] }}>
-                    {summary.detail}
-                  </p>
-                </div>
-              </div>
-              <span className="text-right text-[0.9375rem] font-medium tabular-nums">{summary.rowCount}</span>
-              <button
-                type="button"
-                className="app-icon-button"
-                onClick={() => onRemove(file)}
-                aria-label={`Remove ${file.name}`}
-              >
-                <X size={16} aria-hidden />
-              </button>
+    <div className="max-h-64 overflow-y-auto">
+      {files.map((file) => {
+        const { detail, problem } = describe(file)
+        return (
+          <div key={file.id} className="grid grid-cols-[17px_minmax(0,1fr)_2rem] items-start gap-x-3 px-3 py-3">
+            <FileText size={17} className="mt-0.5" style={{ color: 'var(--app-text-muted)' }} aria-hidden />
+            <div className="min-w-0">
+              {/* Wraps rather than truncating, since exports are often told apart by the end of their name */}
+              <p className="text-[0.9375rem] font-medium wrap-anywhere">{file.name}</p>
+              {detail && (
+                <p className="mt-0.5 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+                  {detail}
+                </p>
+              )}
+              {problem && (
+                <p
+                  className="mt-1.5 flex items-start gap-1.5 rounded-md px-2 py-1.5 text-xs"
+                  style={PROBLEM_TONE_STYLES[problem.tone]}
+                >
+                  <TriangleAlert size={13} strokeWidth={2.25} className="mt-px shrink-0" aria-hidden />
+                  <span className="min-w-0 wrap-anywhere">{problem.text}</span>
+                </p>
+              )}
             </div>
-          )
-        })}
-      </div>
+            {/* Drawn taller than the name's line without making it any taller */}
+            <button
+              type="button"
+              className="app-icon-button -my-1"
+              onClick={() => onRemove(file)}
+              aria-label={`Remove ${file.name}`}
+            >
+              <X size={16} aria-hidden />
+            </button>
+          </div>
+        )
+      })}
     </div>
   )
 }
 
 // A file that cannot be used is told apart from one that staged with something worth knowing about it
-const SUMMARY_TONE_COLORS: Record<ImportStagedFileSummary['tone'], string> = {
-  plain: 'var(--app-text-subtle)',
-  notice: 'var(--app-warning-text)',
-  error: 'var(--app-negative)',
+const PROBLEM_TONE_STYLES: Record<'notice' | 'error', { background: string; color: string }> = {
+  notice: { background: 'var(--app-warning-soft)', color: 'var(--app-warning-text)' },
+  error: { background: 'var(--app-negative-soft)', color: 'var(--app-negative)' },
 }
 
 /**
- * Formats one staged CSV file's size and column details, surfacing its error in their place, and
- * adding anything the reader had to say about a file that staged anyway
+ * Counts one staged CSV file's rows and columns, showing its error in their place, and adding
+ * anything the reader had to say about a file that staged anyway
  */
 function describeCsvFile(file: ImportFileDraft): ImportStagedFileSummary {
-  if (file.error) return { detail: file.error, tone: 'error', rowCount: file.rows.length }
+  if (file.error) return { problem: { text: file.error, tone: 'error' } }
 
-  const meta = `${formatBytes(file.size)} · ${file.headers.length} columns${file.hasHeaderRow ? '' : ' · no header row'}`
-  return file.notice
-    ? { detail: `${meta} · ${file.notice}`, tone: 'notice', rowCount: file.rows.length }
-    : { detail: meta, tone: 'plain', rowCount: file.rows.length }
+  const rows = `${file.rows.length} row${file.rows.length === 1 ? '' : 's'}`
+  const detail = `${rows} · ${file.headers.length} columns${file.hasHeaderRow ? '' : ' · no header row'}`
+  return file.notice ? { detail, problem: { text: file.notice, tone: 'notice' } } : { detail }
 }
