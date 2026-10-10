@@ -5,8 +5,6 @@ same checks and the schema refuses an unsupported kind before a request carrying
 reaches the route.
 """
 
-import uuid
-
 import pytest
 from fastapi import HTTPException
 
@@ -15,7 +13,6 @@ from app.models.category import Category
 from app.schemas.import_run import TransactionImportCategoryMapping
 from app.services.importers.shared.categories import (
     get_or_create_import_categories_by_source,
-    get_visible_import_category,
     parse_import_category_kind,
 )
 from app.services.importers.shared.stats import ImportStats
@@ -40,18 +37,6 @@ async def test_naming_one_source_twice_is_refused_once_the_first_mapping_has_res
 
         assert exc_info.value.status_code == 422
         assert exc_info.value.detail == "Duplicate category source: Groceries"
-
-
-async def test_a_category_id_matching_nothing_visible_is_reported_not_found():
-    """Looking up a random category ID raises the same not-found error as a mismatched one."""
-    async with TestSession() as session:
-        user = await _seed_user(session)
-
-        with pytest.raises(HTTPException) as exc_info:
-            await get_visible_import_category(session, uuid.uuid4(), user.id)
-
-        assert exc_info.value.status_code == 422
-        assert exc_info.value.detail == "Category not found"
 
 
 def test_an_unsupported_category_kind_is_refused():

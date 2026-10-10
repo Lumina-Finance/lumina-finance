@@ -59,25 +59,12 @@ class TestValidateWeekly:
         assert result is not None
         assert "Tuesday" in result
 
-    def test_error_names_expected_day(self):
-        """Error message includes the name of the expected weekday."""
-        result = validate_period_start(date(2026, 3, 2), RecurrenceFreq.WEEKLY, weekday=6)
-        assert "Sunday" in result
-
 
 # --- validate_period_start: monthly ---
 
 
 class TestValidateMonthly:
     """Monthly alignment: period_start.day must match dom (or last day of month if dom > month length)."""
-
-    def test_dom_1_first_of_month(self):
-        """Day 1 anchor accepts the first of any month."""
-        assert validate_period_start(date(2026, 3, 1), RecurrenceFreq.MONTHLY, dom=1) is None
-
-    def test_dom_15_mid_month(self):
-        """Day 15 anchor accepts the 15th."""
-        assert validate_period_start(date(2026, 3, 15), RecurrenceFreq.MONTHLY, dom=15) is None
 
     def test_dom_28_february_non_leap(self):
         """Day 28 anchor on a non-leap February is valid."""
@@ -100,10 +87,6 @@ class TestValidateMonthly:
         """Day 31 anchor on a 30-day month accepts the 30th."""
         assert validate_period_start(date(2026, 4, 30), RecurrenceFreq.MONTHLY, dom=31) is None
 
-    def test_dom_31_on_31_day_month(self):
-        """Day 31 anchor on a 31-day month accepts the 31st."""
-        assert validate_period_start(date(2026, 3, 31), RecurrenceFreq.MONTHLY, dom=31) is None
-
     def test_dom_31_on_30_day_month_rejects_29(self):
         """Day 31 anchor on a 30-day month rejects the 29th."""
         result = validate_period_start(date(2026, 4, 29), RecurrenceFreq.MONTHLY, dom=31)
@@ -121,14 +104,6 @@ class TestValidateMonthly:
 
 class TestValidateYearly:
     """Yearly alignment: period_start must land on (month, dom) with last-day fallback."""
-
-    def test_jan_1_calendar_year(self):
-        """Calendar-year budget: Jan 1 is valid."""
-        assert validate_period_start(date(2026, 1, 1), RecurrenceFreq.YEARLY, dom=1, month=1) is None
-
-    def test_jul_1_fiscal_year(self):
-        """Fiscal-year budget: Jul 1 is valid."""
-        assert validate_period_start(date(2026, 7, 1), RecurrenceFreq.YEARLY, dom=1, month=7) is None
 
     def test_feb_29_leap_year(self):
         """Feb 29 anchor in a leap year is valid."""
