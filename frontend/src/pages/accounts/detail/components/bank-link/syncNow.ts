@@ -1,4 +1,5 @@
 import { REVIEW_RESUME_COUNT, type BankConnection, type BankLink, type BankProvidersResponse } from '@/api/bank-sync'
+import type { ActionFeedbackStatus } from '@/components/feedback/ActionButton'
 import { formatRelativeFutureTime } from '@/utils/relativeTime'
 
 /** Why Sync now can't run while the bank sync worker is down, which would leave the sync queued until it's back */
@@ -57,4 +58,29 @@ export function describeSyncNowBlock(
       : `This connection has used its ${budget.limit} ${link.provider_name} requests in the last 24 hours. More are available ${when}.`
   }
   return null
+}
+
+/**
+ * What Sync now shows, and why it is held back while it shows nothing under way. It reads Starting
+ * sync while this press or another window's waits for a worker to start the sync. While the worker is
+ * down nothing starts it, so the button shows why instead
+ *
+ * @param feedback - What this window's own press shows
+ * @param link - The live link
+ * @param connection - Its connection, whose request budget a sync spends, undefined until read
+ * @param providers - Whether the bank sync worker is running, undefined until read
+ */
+export function describeSyncNow(
+  feedback: ActionFeedbackStatus,
+  link: BankLink,
+  connection: BankConnection | undefined,
+  providers: BankProvidersResponse | undefined,
+): { status: ActionFeedbackStatus; block: string | null } {
+  const status = chooseSyncNowStatus(feedback, link, isSyncWorkerDown(providers))
+  return { status, block: status === 'idle' ? describeSyncNowBlock(link, connection, providers) : null }
+}
+
+function chooseSyncNowStatus(feedback: ActionFeedbackStatus, link: BankLink, workerDown: boolean): ActionFeedbackStatus {
+  if (workerDown) return feedback === 'loading' ? 'idle' : feedback
+  return feedback === 'idle' && link.sync.sync_requested ? 'loading' : feedback
 }

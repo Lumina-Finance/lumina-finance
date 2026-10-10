@@ -2,13 +2,13 @@ import { useEffect, useReducer } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { ApiError } from '@/api/auth'
 import { useSyncBankAccount, type BankConnection, type BankLink, type BankProvidersResponse } from '@/api/bank-sync'
-import ActionFeedbackButton, { type ActionFeedbackStatus } from '@/components/feedback/ActionButton'
+import ActionFeedbackButton from '@/components/feedback/ActionButton'
 import { useActionFeedback } from '@/hooks/useActionFeedback'
 import { useDisabledReason } from '@/hooks/useDisabledReason'
 import { useFittedButtonWidth } from '@/hooks/useFittedButtonWidth'
 import { useRelativeTimeRefresh } from '@/hooks/useRelativeTimeRefresh'
 import { useToast } from '@/hooks/useToast'
-import { describeSyncNowBlock, isSyncWorkerDown, SYNC_FAILED_MESSAGE } from '@/pages/accounts/detail/components/bank-link/syncNow'
+import { describeSyncNow, describeSyncNowBlock, SYNC_FAILED_MESSAGE } from '@/pages/accounts/detail/components/bank-link/syncNow'
 import { callWhenPassed } from '@/utils/timing'
 
 const SYNC_NOW_LABEL = 'Sync now'
@@ -20,15 +20,6 @@ function renderLabel(label: string) {
       {label}
     </>
   )
-}
-
-/**
- * What the button shows: Starting sync while this press or another window's waits for a worker to
- * start the sync. While the worker is down nothing starts it, so the button shows why instead
- */
-function chooseStatus(feedback: ActionFeedbackStatus, link: BankLink, workerDown: boolean): ActionFeedbackStatus {
-  if (workerDown) return feedback === 'loading' ? 'idle' : feedback
-  return feedback === 'idle' && link.sync.sync_requested ? 'loading' : feedback
 }
 
 type SyncNowButtonProps = {
@@ -65,9 +56,8 @@ export function SyncNowButton({ link, connection, providers, focusProps }: SyncN
   useEffect(() => callWhenPassed(budgetFreesAt, renderAgain), [budgetFreesAt])
   useRelativeTimeRefresh(() => describeSyncNowBlock(link, connection, providers) ?? '')
 
-  const status = chooseStatus(feedback.status, link, isSyncWorkerDown(providers))
+  const { status, block } = describeSyncNow(feedback.status, link, connection, providers)
   const busy = status !== 'idle'
-  const block = busy ? null : describeSyncNowBlock(link, connection, providers)
   const { controlProps, tooltip } = useDisabledReason(block)
   const { 'data-modal-initial-focus': initialFocus, ...actionProps } = focusProps
 
