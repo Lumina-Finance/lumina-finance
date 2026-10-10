@@ -12,6 +12,7 @@ import {
   TRANSACTION_CHECKBOX_RAIL,
   TRANSACTION_CHECKBOX_RAIL_DURATION_S,
   TRANSACTION_CHECKBOX_RAIL_WIDTH,
+  TRANSACTION_ROW_SCROLL_MARGIN,
 } from '@/pages/transactions/constants/transactionList'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { FadedRowsContext } from '@/contexts/FadedRowsContext'
@@ -336,6 +337,7 @@ export function TransactionRowView({
           if (selection.isSelectable || event.shiftKey) selection.onToggle(event.shiftKey)
         }}
         className="block w-full min-w-0 flex-1 cursor-pointer px-3 text-left focus-visible:bg-[var(--app-hover-soft)] focus-visible:outline-none min-[1300px]:col-span-6 min-[1300px]:grid min-[1300px]:grid-cols-subgrid min-[1300px]:items-center min-[1300px]:gap-x-3"
+        style={{ scrollMarginTop: TRANSACTION_ROW_SCROLL_MARGIN }}
       >
       {/* Desktop row: each cell is a direct child of this button's subgrid, which spans the list's
           content tracks, so every row shares the same column tracks and stays aligned. The category

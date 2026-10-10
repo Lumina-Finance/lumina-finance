@@ -1,3 +1,4 @@
+import { useCallback, useState } from 'react'
 import type React from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { Category } from '@/api/categories'
@@ -15,6 +16,7 @@ import {
   TRANSACTION_CHECKBOX_RAIL_VARIABLE,
   TRANSACTION_CHECKBOX_RAIL_WIDTH,
   TRANSACTION_LIST_EASE,
+  TRANSACTION_ROW_SCROLL_MARGIN_VARIABLE,
 } from '@/pages/transactions/constants/transactionList'
 import type { TransactionDateGroup, TransactionListAccount } from '@/pages/transactions/types/transactionList'
 import { getTransactionDateGroupTotal } from '@/pages/transactions/utils/transactionDateGroups'
@@ -26,6 +28,9 @@ import { getTransactionReadOnlyReason } from '@/pages/transactions/utils/rowEdit
 // already dropped the column has nowhere to put its content but a second line
 const LIST_COLUMNS =
   'min-[1300px]:grid-cols-[2.75rem_fit-content(24rem)_fit-content(18rem)_minmax(0,1fr)_max-content_max-content]'
+
+// The space left between a pinned day heading and a row the browser scrolls into view below it
+const ROW_GAP_BELOW_DAY_HEADING_PX = 4
 
 /**
  * What a day heading needs while the list is in selection mode
@@ -104,6 +109,16 @@ export default function TransactionDateGroupList({
   onEditTransaction: (transaction: Transaction) => void
 }) {
   const { formatCurrency } = useMoneyFormatters()
+  const [dayHeadingHeight, setDayHeadingHeight] = useState(0)
+
+  // Every pinned heading is the same height, so the first one stands for them all. Measured rather than
+  // fixed, since its text grows with the browser's font size
+  const measureDayHeading = useCallback((heading: HTMLDivElement | null) => {
+    if (!heading) return undefined
+    const observer = new ResizeObserver(() => setDayHeadingHeight(heading.offsetHeight))
+    observer.observe(heading)
+    return () => observer.disconnect()
+  }, [])
 
   // Inside the open Upcoming section the headings stay in place, since its own header is what sticks
   // there, and a heading stuck at the same height would slide over it. Their totals take the section's
@@ -114,7 +129,7 @@ export default function TransactionDateGroupList({
     // transaction deleted) while the list stays mounted
     return (
       <AnimatePresence initial={false}>
-        {groups.map(({ dateLabel, transactions }) => {
+        {groups.map(({ dateLabel, transactions }, index) => {
           const dailyTotal = getTransactionDateGroupTotal(transactions, fixedAccount)
           let dailyColor = dailyTotal >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
           if (isUpcoming) dailyColor = UPCOMING_DAY_TOTAL_COLOUR
@@ -138,6 +153,7 @@ export default function TransactionDateGroupList({
               transition={{ duration: prefersReducedMotion ? 0 : 0.28, ease: TRANSACTION_LIST_EASE }}
             >
             <div
+              ref={!isUpcoming && index === 0 ? measureDayHeading : undefined}
               className={`${isUpcoming ? 'relative' : 'sticky z-20'} flex items-center justify-between rounded-lg py-2 pr-3 min-[1300px]:col-span-full`}
               style={{
                 top: isUpcoming ? undefined : stickyTop,
@@ -238,7 +254,11 @@ export default function TransactionDateGroupList({
   return (
     <motion.div
       className={`min-[1300px]:grid min-[1300px]:gap-x-3 ${LIST_COLUMNS}`}
-      style={{ paddingLeft: TRANSACTION_CHECKBOX_RAIL }}
+      style={{
+        paddingLeft: TRANSACTION_CHECKBOX_RAIL,
+        // A row scrolled into view clears the toolbar and the day heading pinned below it
+        [TRANSACTION_ROW_SCROLL_MARGIN_VARIABLE]: `${stickyTop + dayHeadingHeight + ROW_GAP_BELOW_DAY_HEADING_PX}px`,
+      } as React.CSSProperties}
       initial={false}
       animate={{
         [TRANSACTION_CHECKBOX_RAIL_VARIABLE]: isSelecting ? TRANSACTION_CHECKBOX_RAIL_WIDTH : '0rem',
