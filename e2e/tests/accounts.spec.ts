@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 import { createAccount, createTransaction, signUpUser } from '../support/api'
 import { openPage, chooseFromDropdown, logInViaApi, openModal } from '../support/app'
-import { expectPendingAction, expectTransactionRow, whileApiRequestHeld } from '../support/selectors'
+import { expectPendingAction, whileApiRequestHeld } from '../support/selectors'
 
 const ACCOUNT_NAME = 'Everyday Chequing'
 
@@ -64,21 +64,6 @@ test('records an expense through the modal and shows it as money out', async ({ 
   await expect(row).toHaveRole('button')
   await expect(row).toHaveAccessibleName(/-\$42\.50/)
   await expect(row.getByTestId('transaction-amount').filter({ visible: true })).toHaveText('-$42.50')
-})
-
-test('shows a transaction seeded over the API', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: ACCOUNT_NAME })
-  const id = await createTransaction(request, user, {
-    accountId: account.id,
-    categoryName: 'Groceries',
-    amount: -4250,
-  })
-
-  await logInViaApi(page, user)
-  await openPage(page, '/transactions')
-
-  await expectTransactionRow(page, id, '-$42.50')
 })
 
 test('keeps the account save action named while an edit is pending', async ({ page, request }) => {

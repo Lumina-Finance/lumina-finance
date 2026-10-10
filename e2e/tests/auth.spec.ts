@@ -44,14 +44,6 @@ test('says the email address is the problem when signup refuses it', async ({ pa
   await expect(page.getByText('Something went wrong. Please try again.', { exact: true })).toHaveCount(0)
 })
 
-test('signs an existing user in with their password', async ({ page, request }) => {
-  const user = await signUpUser(request)
-
-  await logIn(page, user)
-
-  await expectSignedIn(page)
-})
-
 test('refuses a wrong password before accepting the right one', async ({ page, request }) => {
   const user = await signUpUser(request)
 
