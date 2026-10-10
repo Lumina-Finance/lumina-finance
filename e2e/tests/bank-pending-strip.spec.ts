@@ -94,20 +94,26 @@ function isPhoneLayout(page: Page): boolean {
 
 /**
  * Answers the pending list with Everyday's Uber trip and coffee and Visa's hotel hold, reported three
- * days earlier, for the accounts asked for
+ * days earlier: all three for a read of every account, and an account's own for a read of that
+ * account alone. Which transactions a read holds is the server's to decide, which the backend tests
+ * check, so each read the tests make has its answer canned
  *
  * @returns The accounts each read asked for, in the order asked
  */
-async function answerThreePending(page: Page, { everyday, visa }: Accounts): Promise<string[][]> {
-  const pending = [
-    pendingTransaction('uber', everyday.id, { description: 'UBER TRIP' }),
-    pendingTransaction('coffee', everyday.id, { description: 'HARBOUR COFFEE', date: SEP_21, amount: -450 }),
-    pendingTransaction('hotel', visa.id, { description: 'HOTEL HOLD', date: SEP_20, amount: -24000, observed_at: hoursAgo(72) }),
-  ]
+async function answerThreePending(page: Page, { everyday, visa, savings }: Accounts): Promise<string[][]> {
+  const uber = pendingTransaction('uber', everyday.id, { description: 'UBER TRIP' })
+  const coffee = pendingTransaction('coffee', everyday.id, { description: 'HARBOUR COFFEE', date: SEP_21, amount: -450 })
+  const hotel = pendingTransaction('hotel', visa.id, { description: 'HOTEL HOLD', date: SEP_20, amount: -24000, observed_at: hoursAgo(72) })
+  const answers = new Map<string, PendingTransaction[]>([
+    ['', [uber, coffee, hotel]],
+    [everyday.id, [uber, coffee]],
+    [visa.id, [hotel]],
+    [savings.id, []],
+  ])
   const asked: string[][] = []
   await answerPending(page, (accountIds) => {
     asked.push(accountIds)
-    return pending.filter((transaction) => accountIds.length === 0 || accountIds.includes(transaction.account_id))
+    return answers.get(accountIds.join()) ?? []
   })
   return asked
 }
@@ -245,7 +251,7 @@ test('refreshes when a linked account finishes a sync, a posted transaction movi
   const coffee = pendingTransaction('coffee', everyday.id, { description: 'HARBOUR COFFEE', amount: -450 })
   await answerPending(page, () => (synced ? [coffee] : [pendingTransaction('uber', everyday.id, { description: 'UBER TRIP' }), coffee]))
   await page.route(isRead('/bank-review/items'), (route) => route.fulfill({
-    json: pageOf(synced ? [reviewItem('uber-posted', 'new', everyday.id, { description: 'UBER TRIP', amount: -1800 })] : []),
+    json: synced ? pageOf([reviewItem('uber-posted', 'new', everyday.id, { description: 'UBER TRIP', amount: -1800 })], { new: 1 }) : pageOf([]),
   }))
 
   await openPage(page, '/transactions')
@@ -319,7 +325,7 @@ test("reads the server's pending transactions for every account and for several 
 for (const colorScheme of ['light', 'dark'] as const) {
   test(`sits under the review block and above the list, its text readable in the ${colorScheme} theme`, async ({ page, request }) => {
     const { everyday, visa } = await start(page, request)
-    await page.route(isRead('/bank-review/items'), (route) => route.fulfill({ json: pageOf([reviewItem('everyday-1', 'new', everyday.id)]) }))
+    await page.route(isRead('/bank-review/items'), (route) => route.fulfill({ json: pageOf([reviewItem('everyday-1', 'new', everyday.id)], { new: 1 }) }))
     await answerPending(page, () => [
       pendingTransaction('uber', everyday.id, { description: 'UBER TRIP WITH A LONGER BANK DESCRIPTION THAN MOST' }),
       pendingTransaction('refund', visa.id, { description: 'HARBOUR REFUND', amount: 4250 }),

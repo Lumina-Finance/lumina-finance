@@ -36,7 +36,9 @@ import { API_BASE_URL } from '../support/target'
 // A test answers the review list with the items it needs, such as removals, a backlog of 1,500 or a
 // page that fails, which a sync from the fake SimpleFIN Bridge can't bring in. The one test that needs
 // only new items links Everyday to the fake, whose items the worker imports and syncs. The backlogs are
-// the server's own, which read nothing waiting, unless a test answers them too
+// the server's own, which read nothing waiting, unless a test answers them too. Answers are canned for
+// the accounts a test expects the page to ask about, so which items, counts and backlogs the server
+// picks for those accounts is left to the backend tests
 
 type Backlog = { account_id: string; waiting_new_count: number; paused: boolean; review_warning: boolean }
 
@@ -197,16 +199,21 @@ async function showWaitingItem(page: Page, transactionId: string): Promise<void>
 }
 
 test('shows each kind of item for the accounts the list shows, and only its own on an account page', async ({ page, request }) => {
-  const { everyday, visa } = await start(page, request)
-  const items = [
-    reviewItem('visa-1', 'correction', visa.id, { description: 'COUNTDOWN 123', amount: -2310 }),
-    reviewItem('everyday-1', 'new', everyday.id, { description: 'HARBOUR COFFEE' }),
-    reviewItem('everyday-2', 'removal', everyday.id, { description: 'UBER TRIP' }),
-  ]
+  const { everyday, visa, savings } = await start(page, request)
+  const correction = reviewItem('visa-1', 'correction', visa.id, { description: 'COUNTDOWN 123', amount: -2310 })
+  const answers = new Map([
+    ['', pageOf([
+      correction,
+      reviewItem('everyday-1', 'new', everyday.id, { description: 'HARBOUR COFFEE' }),
+      reviewItem('everyday-2', 'removal', everyday.id, { description: 'UBER TRIP' }),
+    ], { new: 1, correction: 1, removal: 1 })],
+    [visa.id, pageOf([correction], { correction: 1 })],
+    [savings.id, pageOf([])],
+  ])
   const asked: string[][] = []
   await answerReviewItems(page, (accountIds) => {
     asked.push(accountIds)
-    return pageOf(items.filter((item) => accountIds.length === 0 || accountIds.includes(item.account_id)))
+    return answers.get(accountIds.join()) ?? pageOf([])
   })
 
   await openPage(page, '/transactions')
@@ -251,7 +258,7 @@ test('says in the block that the waiting items could not load, sends Needs revie
     await gate.passed()
     return itemsFail
       ? route.fulfill({ status: 500, json: { detail: 'Something went wrong' } })
-      : route.fulfill({ json: pageOf([reviewItem('item-0', 'removal', accounts.everyday.id, { description: 'UBER TRIP' })]) })
+      : route.fulfill({ json: pageOf([reviewItem('item-0', 'removal', accounts.everyday.id, { description: 'UBER TRIP' })], { removal: 1 }) })
   })
   await answerBacklogs(page, () => {
     reads.backlogs += 1
@@ -307,7 +314,7 @@ test('says the pause status could not load while still showing the items, and re
   const gate = readGate()
   await answerReviewItems(page, () => {
     reads.items += 1
-    return pageOf([reviewItem('everyday-1', 'new', everyday.id)])
+    return pageOf([reviewItem('everyday-1', 'new', everyday.id)], { new: 1 })
   })
   await page.route(isRead('/bank-review/backlogs'), async (route) => {
     reads.backlogs += 1
@@ -347,7 +354,7 @@ test('moves focus on from a retry that succeeds only while the retry has it, to 
     await gate.passed()
     return readsFail
       ? route.fulfill({ status: 500, json: { detail: 'Something went wrong' } })
-      : route.fulfill({ json: pageOf([reviewItem('everyday-1', 'new', everyday.id)]) })
+      : route.fulfill({ json: pageOf([reviewItem('everyday-1', 'new', everyday.id)], { new: 1 }) })
   })
   await page.route(isRead('/bank-review/backlogs'), (route) => readsFail
     ? route.fulfill({ status: 500, json: { detail: 'Something went wrong' } })
@@ -558,7 +565,7 @@ test('opens the block for a marker whose item is the fifth, the first one it hid
   const uberId = await addUberTripAwaiting(page, request, accounts, 'item-4')
   await answerReviewItems(page, () => pageOf(Array.from({ length: 6 }, (_, index) => index === 4
     ? reviewItem('item-4', 'removal', accounts.everyday.id, { description: 'UBER TRIP' })
-    : reviewItem(`item-${index}`, 'new', accounts.everyday.id))))
+    : reviewItem(`item-${index}`, 'new', accounts.everyday.id)), { new: 5, removal: 1 }))
 
   await openPage(page, '/transactions')
 
@@ -575,7 +582,7 @@ test("lets the block close after a marker whose item no page holds, once every p
 
   // Decided on another device since the ledger was read, so the complete list lacks it
   const uberId = await addUberTripAwaiting(page, request, accounts, 'item-decided')
-  await answerReviewItems(page, () => pageOf(Array.from({ length: 6 }, (_, index) => reviewItem(`item-${index}`, 'new', accounts.everyday.id))))
+  await answerReviewItems(page, () => pageOf(Array.from({ length: 6 }, (_, index) => reviewItem(`item-${index}`, 'new', accounts.everyday.id)), { new: 6 }))
 
   await openPage(page, '/transactions')
 
@@ -624,16 +631,22 @@ test("stops going to a marker's item once the page it would be on fails to load"
 
 test('says an account is paused for its backlog, or close to pausing', async ({ page, request }) => {
   const { everyday, savings, visa } = await start(page, request)
-  const items = [reviewItem('everyday-1', 'new', everyday.id), reviewItem('savings-1', 'new', savings.id)]
-  await answerReviewItems(page, (accountIds) =>
-    pageOf(items.filter((item) => accountIds.length === 0 || accountIds.includes(item.account_id))))
-  const backlogs = [
-    { account_id: everyday.id, waiting_new_count: 105, paused: true, review_warning: false },
-    { account_id: savings.id, waiting_new_count: 85, paused: false, review_warning: true },
-    { account_id: visa.id, waiting_new_count: 0, paused: false, review_warning: false },
-  ]
-  await answerBacklogs(page, (accountIds) =>
-    backlogs.filter((backlog) => accountIds.length === 0 || accountIds.includes(backlog.account_id)))
+  const savingsItem = reviewItem('savings-1', 'new', savings.id)
+  const items = new Map([
+    ['', pageOf([reviewItem('everyday-1', 'new', everyday.id), savingsItem], { new: 2 })],
+    [savings.id, pageOf([savingsItem], { new: 1 })],
+  ])
+  await answerReviewItems(page, (accountIds) => items.get(accountIds.join()) ?? pageOf([]))
+  const savingsBacklog = { account_id: savings.id, waiting_new_count: 85, paused: false, review_warning: true }
+  const backlogs = new Map([
+    ['', [
+      { account_id: everyday.id, waiting_new_count: 105, paused: true, review_warning: false },
+      savingsBacklog,
+      { account_id: visa.id, waiting_new_count: 0, paused: false, review_warning: false },
+    ]],
+    [savings.id, [savingsBacklog]],
+  ])
+  await answerBacklogs(page, (accountIds) => backlogs.get(accountIds.join()) ?? [])
 
   await openPage(page, '/transactions')
 
@@ -655,7 +668,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
       reviewItem('everyday-2', 'removal', everyday.id, { description: 'UBER TRIP' }),
       ...Array.from({ length: 3 }, (_, index) => reviewItem(`everyday-${index + 3}`, 'new', everyday.id)),
     ]
-    await answerReviewItems(page, () => pageOf(items))
+    await answerReviewItems(page, () => pageOf(items, { new: 4, correction: 1, removal: 1 }))
     await answerBacklogs(page, () => [{ account_id: everyday.id, waiting_new_count: 105, paused: true, review_warning: false }])
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
 

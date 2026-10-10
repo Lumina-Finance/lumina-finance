@@ -1,6 +1,6 @@
-import { expect, test, type APIRequestContext, type Locator, type Page, type Route } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
-import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser, type SeededAccount, type TestUser } from '../support/api'
+import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser, type SeededAccount, type TestUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
 import {
   addImportedItem,
@@ -19,7 +19,6 @@ import {
   syncBankLinkNow,
   waitForReviewItems,
   type BankSource,
-  type ReviewItem,
 } from '../support/bankSync'
 import { contrastOf, expectTransactionRow, getAccountRow, MIN_TEXT_CONTRAST, MINUS } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
@@ -31,8 +30,8 @@ import { API_BASE_URL } from '../support/target'
 // Harbour Bank, the user adds the bank's Countdown spend to the ledger, the bank then changes its
 // amount, and a sync brings that in for review, so every decision on it goes to the server and what it
 // saved is read back. SimpleFIN never reports a removal, so a removal is answered in the server's
-// place on a manual transaction read as imported, its decisions written through the real server as
-// the transaction's delete or left alone
+// place on a manual transaction read as imported, and so are its decisions, with canned answers. What
+// removing or keeping does to the ledger is left to the backend tests
 
 const COUNTDOWN = 'COUNTDOWN 123 AUCKLAND'
 
@@ -68,9 +67,10 @@ async function startWithCorrection(page: Page, request: APIRequestContext, edite
 
 /**
  * Signs up with Everyday holding $100.00 and an $18.00 Uber trip on Sep 21, read as imported from
- * SimpleFIN with a removal of it waiting. Removing deletes the transaction through the real server and
- * keeping it leaves it be, each closing the removal. Answers with the transaction's id and each
- * decision sent
+ * SimpleFIN with a removal of it waiting. Each decision on the removal is answered as the server answers
+ * it, a removal with nothing and a keep with the transaction it kept, and the list is read as empty once
+ * one has been sent. What a decision does to the ledger is the server's to decide, which the backend
+ * tests check, so these answers are canned. Answers with the transaction's id and each decision sent
  */
 async function startWithRemoval(page: Page, request: APIRequestContext): Promise<Setup & { decisions: string[] }> {
   const user = await signUpUser(request)
@@ -78,27 +78,16 @@ async function startWithRemoval(page: Page, request: APIRequestContext): Promise
   const id = await createTransaction(request, user, { accountId: everyday.id, categoryName: 'Groceries', amount: -1800, date: SEP_21 })
   const bank = { ...BANK_SOURCE.bank_values, date: SEP_21, amount: -1800, description: 'UBER TRIP' }
   const item = reviewItem('removal', 'removal', everyday.id, bank, { transaction_id: id, current: bank })
-  const sources: Record<string, BankSource> = { [id]: { ...BANK_SOURCE, bank_values: bank, review_item_id: item.id } }
-  let waiting: ReviewItem[] = [item]
+  const source: BankSource = { ...BANK_SOURCE, bank_values: bank, review_item_id: item.id }
+  const kept = { ...await readTransaction(request, user, id), bank_source: { ...source, review_item_id: null } }
   const decisions: string[] = []
 
-  await answerAsBankImported(page, sources)
-  await answerReviewItems(page, () => pageOf(waiting))
-  await page.route((url) => url.href.startsWith(`${API_BASE_URL}/bank-review/items/`), async (route: Route) => {
-    const [, action] = /\/bank-review\/items\/removal\/([a-z-]+)$/.exec(new URL(route.request().url()).pathname) ?? []
-    if (route.request().method() !== 'POST' || waiting.length === 0 || !action) return route.fulfill({ status: 404, json: { detail: 'Review item not found' } })
-
+  await answerAsBankImported(page, { [id]: source })
+  await answerReviewItems(page, () => decisions.length === 0 ? pageOf([item], { removal: 1 }) : pageOf([]))
+  await page.route(`${API_BASE_URL}/bank-review/items/${item.id}/*`, (route) => {
+    const action = new URL(route.request().url()).pathname.split('/').at(-1)!
     decisions.push(action)
-    waiting = []
-    const headers = asUser(user)
-    if (action === 'remove-from-ledger') {
-      const response = await request.delete(`${API_BASE_URL}/transactions/${id}`, { headers })
-      expect(response.ok(), `deleting the transaction answered ${response.status()}`).toBe(true)
-      return route.fulfill({ status: 204 })
-    }
-    sources[id] = { ...sources[id], review_item_id: null }
-    const transaction = await request.get(`${API_BASE_URL}/transactions/${id}`, { headers })
-    return route.fulfill({ json: { ...await transaction.json(), bank_source: sources[id] } })
+    return action === 'remove-from-ledger' ? route.fulfill({ status: 204 }) : route.fulfill({ json: kept })
   })
   await logInViaApi(page, user)
   return { user, everyday, id, decisions }
@@ -178,8 +167,8 @@ test('keeps the current value, which then counts as edited, clearing the marker 
   expect(await readReviewItems(request, user, everyday.id)).toEqual([])
 })
 
-test('removes a transaction the bank no longer reports', async ({ page, request }) => {
-  const { id, decisions } = await startWithRemoval(page, request)
+test('removes a transaction the bank no longer reports, reading the ledger again', async ({ page, request }) => {
+  const { decisions } = await startWithRemoval(page, request)
   await openPage(page, '/transactions')
 
   const dialog = await openComparison(page, 'UBER TRIP', 'Review bank removal')
@@ -189,12 +178,16 @@ test('removes a transaction the bank no longer reports', async ({ page, request 
   await expect(gone).toHaveCount(3)
   for (const cell of await gone.all()) expect(await linesOf(cell)).toBe(1)
 
+  const ledgerReads = watchLedgerReads(page)
   await dialog.getByRole('button', { name: 'Remove from ledger' }).click()
   await expect(toast(page, 'Transaction removed from the ledger.')).toBeVisible()
   await expect(dialog).toBeHidden()
   expect(decisions).toEqual(['remove-from-ledger'])
-  await expect(page.getByTestId(`transaction-row-${id}`)).toHaveCount(0)
   await expect(reviewBlock(page)).toBeHidden()
+
+  // The server removes the transaction, so the ledger is read again to show it gone, as keeping one
+  // never reads it
+  expect(ledgerReads).not.toEqual([])
 })
 
 test('keeps a transaction the bank no longer reports, clearing the marker without reading the ledger again', async ({ page, request }) => {

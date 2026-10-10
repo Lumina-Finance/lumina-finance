@@ -102,10 +102,12 @@ export function reviewItem(
   }
 }
 
-/** One page holding every one of these items, counted by kind */
-export function pageOf(items: ReviewItem[]): ReviewPage {
-  const count = (kind: ReviewItemKind) => items.filter((item) => item.kind === kind).length
-  return { items, counts: { new: count('new'), correction: count('correction'), removal: count('removal') }, next_cursor: null }
+/**
+ * A canned last page holding these items, with the counts given and none of any kind left out. How
+ * the server counts what waits is left to the backend tests
+ */
+export function pageOf(items: ReviewItem[], counts: Partial<Record<ReviewItemKind, number>> = {}): ReviewPage {
+  return { items, counts: { new: 0, correction: 0, removal: 0, ...counts }, next_cursor: null }
 }
 
 /**
@@ -742,8 +744,6 @@ export async function syncBankLinkNow(request: APIRequestContext, user: TestUser
   }
 }
 
-/** A ledger transaction as the server holds it, as far as a bank spec reads it back */
-export type SavedTransaction = {
 /** Reads when the account last synced, as the server has it */
 export async function readLastSuccess(request: APIRequestContext, user: TestUser, accountId: string): Promise<string | null> {
   const response = await request.get(`${API_BASE_URL}/accounts/${accountId}/bank-link`, { headers: asUser(user) })
@@ -751,6 +751,8 @@ export async function readLastSuccess(request: APIRequestContext, user: TestUser
   return ((await response.json()) as { link: { sync: { last_success_at: string | null } } }).link.sync.last_success_at
 }
 
+/** A ledger transaction as the server holds it, as far as a bank spec reads it back */
+export type SavedTransaction = {
   id: string
   account_id: string
   dt: string
