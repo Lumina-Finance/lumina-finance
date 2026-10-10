@@ -1,6 +1,6 @@
 import { useId, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { ArrowRight, ChevronRight, CircleHelp } from 'lucide-react'
+import { ArrowRight, ChevronRight, CircleHelp, CornerDownRight } from 'lucide-react'
 import { Link } from 'react-router'
 import type { BankConnection, ConnectionBankAccount } from '@/api/bank-sync'
 import { LINKING_PAUSED_REASON } from '@/components/bank-link-flow/constants'
@@ -17,21 +17,26 @@ import {
 } from '@/pages/settings/components/bank-connections-section/utils'
 import { countNoun, providerSite } from '@/utils/bankSync'
 
-// Stacked on phones, bank account then account; side by side with an arrow between them from tablets up
-const MAPPING_ROW_CLASS = 'flex flex-col gap-2 py-2.5 min-[750px]:grid min-[750px]:grid-cols-[minmax(0,1fr)_1rem_minmax(0,1fr)] min-[750px]:items-center min-[750px]:gap-3'
+// On phones the bank account spans the row, with the arrow and the account under it; from tablets up
+// the three sit side by side
+const MAPPING_ROW_CLASS = 'grid grid-cols-[1rem_minmax(0,1fr)] items-center gap-2 py-2.5 min-[750px]:grid-cols-[minmax(0,1fr)_1rem_minmax(0,1fr)] min-[750px]:gap-3'
+const MAPPING_SOURCE_CLASS = 'col-span-2 min-w-0 text-sm min-[750px]:col-span-1'
 const TILE_CLASS = 'flex min-h-10 w-full min-w-0 items-center gap-2 rounded-lg px-3 text-sm'
 
 // Shown in place of an account whose name hasn't loaded yet
 const ACCOUNT_FALLBACK_NAME = 'Account'
 
+/**
+ * Points from the bank account to its account: turning in from under the bank account on phones, and
+ * across between the two from tablets up
+ */
 function MappingArrow({ muted = false }: { muted?: boolean }) {
+  const style = { color: muted ? 'var(--app-border-strong)' : 'var(--app-text-subtle)' }
   return (
-    <ArrowRight
-      size={16}
-      aria-hidden
-      className="hidden min-[750px]:block"
-      style={{ color: muted ? 'var(--app-border-strong)' : 'var(--app-text-subtle)' }}
-    />
+    <>
+      <CornerDownRight size={16} aria-hidden className="min-[750px]:hidden" style={style} />
+      <ArrowRight size={16} aria-hidden className="hidden min-[750px]:block" style={style} />
+    </>
   )
 }
 
@@ -89,7 +94,7 @@ function BankAccountRow({ bankAccount, canLink, overLimit, linkingPaused, linkin
 
   return (
     <div className={MAPPING_ROW_CLASS}>
-      <span className="min-w-0 text-sm">
+      <span className={MAPPING_SOURCE_CLASS}>
         <span id={nameId} className="block truncate" style={{ color: bankAccount.custom_currency ? 'var(--app-text-muted)' : 'var(--app-text)' }}>
           {bankAccount.name}
         </span>
@@ -99,8 +104,8 @@ function BankAccountRow({ bankAccount, canLink, overLimit, linkingPaused, linkin
       </span>
       {bankAccount.custom_currency && !linkedId ? (
         <>
-          <span aria-hidden className="hidden min-[750px]:block" />
-          <span className="text-xs min-[750px]:px-3" style={{ color: 'var(--app-text-muted)' }}>Can&apos;t be linked</span>
+          <span aria-hidden />
+          <span className="px-3 text-xs" style={{ color: 'var(--app-text-muted)' }}>Can&apos;t be linked</span>
         </>
       ) : (
         <>
@@ -359,7 +364,7 @@ export function InstitutionList({
           {chooseAgain.map((link) => (
             <li key={link.account_id}>
               <div className={MAPPING_ROW_CLASS}>
-                <span className="min-w-0 text-sm">
+                <span className={MAPPING_SOURCE_CLASS}>
                   <span className="block truncate" style={{ color: 'var(--app-text-muted)' }}>Was {link.external_account_name}</span>
                   <ProblemLine>Choose bank account</ProblemLine>
                 </span>
