@@ -5,7 +5,8 @@
  *
  * These tests catch linking offered to a user who fails the bank-linking check or on a deployment with
  * no provider, a group account, one with nothing to link to or one asked while bank sync isn't
- * running left able to choose linking or without the reason, a rejected connection counted as one
+ * running left able to choose linking or without the reason, a group account told it can link once
+ * bank sync is back, a rejected connection counted as one
  * that can link, Keep it manual chosen by default
  * when linking is available, its starting balance shown before it is chosen, a liability's field not
  * asking for the amount owed, and the prompt opening before the bank reads settle. Choosing,
@@ -116,10 +117,9 @@ describe('NewAccountPromptModal', () => {
     expect(markup).toContain('Starting balance')
   })
 
-  it('says bank sync is not running ahead of there being nothing to link, as the account page does', () => {
-    reads.providers = { ...createProviders({ offered: false }), sync_running: false }
-    reads.connections = []
-    expect(getRadio(renderPrompt(), 'Link a bank account')).toContain(escaped(LINKING_PAUSED_REASON))
+  it('refuses linking a group account for being one while bank sync is not running too', () => {
+    reads.providers = { ...createProviders(), sync_running: false }
+    expect(getRadio(renderPrompt(createAccount({ group_id: 'group-1' })), 'Link a bank account')).toContain(escaped(GROUP_ACCOUNT_LINK_REASON))
   })
 
   it('offers linking through a working connection after its provider stops taking new ones', () => {
