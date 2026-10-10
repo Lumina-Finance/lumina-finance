@@ -1791,10 +1791,16 @@
     background: transparent;
   }
 
+  /* The options share the width equally, as the highlight that slides between them assumes, and the control
+     is as wide as its longest label needs, so a longer translation widens it rather than being cut off */
   .app-balance-chart-mode-selector {
     position: relative;
     overflow: hidden;
     isolation: isolate;
+    display: inline-grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    align-items: center;
   }
 
   .app-balance-chart-mode-selector .app-segmented-option {

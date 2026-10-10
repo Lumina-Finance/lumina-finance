@@ -34,10 +34,10 @@ export function BalanceChartHeader({
       <BalanceChartModeSelector
         value={chartMode}
         onChange={onChartModeChange}
-        className="w-[9.5rem] shrink-0 min-[750px]:hidden"
+        className="min-w-[9.5rem] shrink-0 min-[750px]:hidden"
       />
       <div className="ml-auto hidden items-center gap-2 min-[750px]:flex">
-        <BalanceChartModeSelector value={chartMode} onChange={onChartModeChange} className="w-[9.5rem]" />
+        <BalanceChartModeSelector value={chartMode} onChange={onChartModeChange} className="min-w-[9.5rem] shrink-0" />
         <TimeRangeSelector
           value={range}
           options={BALANCE_RANGE_OPTIONS}

@@ -33,7 +33,7 @@ export function BalanceChartModeSelector({
   return (
     <div
       className={joinClassNames(
-        'app-segmented-control app-segmented-control-compact app-balance-chart-mode-selector min-w-0',
+        'app-segmented-control app-segmented-control-compact app-balance-chart-mode-selector',
         className,
       )}
       role="tablist"
@@ -63,7 +63,7 @@ export function BalanceChartModeSelector({
             aria-selected={active}
             onClick={() => onChange(option.value)}
             className={joinClassNames(
-              'app-segmented-option app-segmented-option-compact relative z-10 flex-1 px-3',
+              'app-segmented-option app-segmented-option-compact relative z-10 px-3',
               active && 'app-segmented-option-active',
             )}
           >
