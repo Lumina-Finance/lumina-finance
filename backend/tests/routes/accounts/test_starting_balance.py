@@ -235,11 +235,12 @@ async def test_record_starting_balance_on_a_new_group_account_uses_the_group_own
 
 
 async def test_record_starting_balance_on_an_account_shared_through_a_grant_returns_403(client):
-    """A member holding an admin grant on someone else's account is told it isn't theirs."""
+    """A member with an admin grant on an account of a group they don't administer is told it isn't theirs, though they run a group."""
     owner_headers = _get_auth_header(await _create_user(client))
     member_resp = await _create_second_user(client)
     member_headers = _get_auth_header(member_resp)
     member_id = member_resp.json()["user"]["id"]
+    await _create_group(client, member_headers)
     group_id = await _create_group(client, owner_headers)
     added = await client.post(f"/groups/{group_id}/members", json={"user_id": member_id}, headers=owner_headers)
     assert added.status_code == 201
