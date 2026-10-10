@@ -228,7 +228,10 @@ async def test_record_starting_balance_on_a_new_group_account_uses_the_group_own
 
     resp = await _record_starting_balance(client, member_headers, account_data["id"], 50_00)
 
+    # The account is read back as of the admin's own day, which is still the day before the owner's
+    # day the balance is dated, so the admin sees no balance yet
     assert resp.status_code == 200
+    assert (resp.json()["id"], resp.json()["current_balance"]) == (account_data["id"], 0)
     rows = await _account_transactions(account_data["id"])
     assert [(txn.dt, txn.amount, txn.notes) for txn, _ in rows] == [(owner_day, 50_00, "Starting balance")]
     assert await _group_changed_at(client, owner_headers, group_id) != before
