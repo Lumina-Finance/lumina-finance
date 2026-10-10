@@ -2,15 +2,18 @@
  * Covers auth API request functions that manage login, signup, refresh, and logout
  *
  * These tests catch regressions where auth endpoints lose cookie credentials,
- * JSON headers, bearer logout headers, or backend error details
+ * JSON headers, bearer logout headers, or backend error details, and where restoring the
+ * session on page load signs the user out over a server error rather than a refused session
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { API_BASE } from '@/api/config';
 import {
   ApiError,
+  getSessionRestoreFailure,
   login,
   logout,
   refresh,
+  restoreSession,
   signup,
 } from '@/api/auth';
 import type { AuthResponse } from '@/api/auth';
@@ -209,5 +212,66 @@ describe('auth API functions', () => {
       status: 401,
     });
     await expect(request).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+describe('restoring the session on page load', () => {
+  const failedResponse = (status: number) => ({ ok: false, status, json: async () => null });
+
+  it('loads signed in when a second attempt answers after a gateway error', async () => {
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValueOnce(failedResponse(502));
+
+    const request = restoreSession();
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    await expect(request).resolves.toEqual(authResponse);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('loads signed in when the browser drops the first attempt', async () => {
+    vi.useFakeTimers();
+    fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+    const request = restoreSession();
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    await expect(request).resolves.toEqual(authResponse);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('gives up after a second failure that does not refuse the session', async () => {
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValue(failedResponse(503));
+
+    const request = restoreSession();
+    const outcome = expect(request).rejects.toMatchObject({ status: 503 });
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    await outcome;
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('asks only once when the server refuses the session', async () => {
+    fetchMock.mockResolvedValueOnce(failedResponse(401));
+
+    await expect(restoreSession()).rejects.toMatchObject({ status: 401 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('shares one restore between callers, its retry included', async () => {
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValueOnce(failedResponse(502));
+
+    const requests = Promise.all([restoreSession(), restoreSession()]);
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    await expect(requests).resolves.toEqual([authResponse, authResponse]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('tells a refused session apart from one that lost a rotation race', () => {
+    expect(getSessionRestoreFailure(new ApiError('Session is not active', 401))).toBe('rejected');
+    expect(getSessionRestoreFailure(new ApiError('Refresh token was already rotated', 409))).toBe('rotated');
   });
 });

@@ -1,5 +1,6 @@
 export {
   ApiError,
+  getSessionRestoreFailure,
   isRefreshAlreadyRotatedError,
 } from '@/api/auth/errors';
 
@@ -24,6 +25,7 @@ export {
   logout,
   refresh,
   resetPassword,
+  restoreSession,
   signup,
   verifyMfa,
   verifyResetMfa,

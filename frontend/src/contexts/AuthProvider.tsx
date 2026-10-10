@@ -33,26 +33,16 @@ function getSessionRestoreDelayMs(): number {
   return isBrowserReload() ? RELOAD_SESSION_RESTORE_DELAY_MS : 0;
 }
 
-// Module-scoped so concurrent callers share a single /auth/refresh request
-// The refresh token is rotated on use, so a second parallel call would race
-// the first, look up a now-deleted jti, and 401 — wiping the just-issued
-// cookie on the way out
-let pendingSessionRestore: Promise<AuthResponse> | null = null;
-
-function restoreSession(): Promise<AuthResponse> {
-  if (!pendingSessionRestore) {
-    pendingSessionRestore = authApi.refresh().finally(() => { pendingSessionRestore = null; });
-  }
-  return pendingSessionRestore;
-}
-
 /**
  * Provides the authenticated session to the component tree: the current user, access token, and the
  * actions that start, refresh, or end it
  *
  * On mount, if a prior session flag is set, it silently attempts a token refresh to restore the
  * session, waiting briefly first after a browser reload so a refresh already in flight from before the
- * reload can finish rather than racing a second rotation. Starting a new session clears user queries
+ * reload can finish rather than racing a second rotation. Only the server refusing the session ends it,
+ * and a refresh that lost a rotation race keeps the flag and stops loading as before. A restore that
+ * fails for any other reason keeps the session flag and reports the error, so the app can offer a
+ * reload rather than the login page. Starting a new session clears user queries
  * and mutations while retaining public currency metadata. Ending a session clears both caches fully
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -102,16 +92,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let restoreTimer: ReturnType<typeof setTimeout> | null = null;
 
     const runRestore = () => {
-      restoreSession()
+      authApi.restoreSession()
         .then((res) => {
           if (!cancelled) {
             applyState({ user: res.user, accessToken: res.access_token, loading: false });
           }
         })
         .catch((error) => {
-          if (authApi.isRefreshAlreadyRotatedError(error)) {
+          const failure = authApi.getSessionRestoreFailure(error);
+          if (failure === 'rotated') {
             if (!cancelled) {
               setState((prev) => ({ ...prev, loading: false }));
+            }
+            return;
+          }
+
+          // A server error or a dropped request says nothing about the session, so the flag and the
+          // cache stay for a reload to restore it once the server answers
+          if (failure === 'unavailable') {
+            if (!cancelled) {
+              applyState({ user: null, accessToken: null, loading: false, sessionRestoreError: error });
             }
             return;
           }

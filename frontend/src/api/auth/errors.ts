@@ -39,3 +39,19 @@ export function isRefreshAlreadyRotatedError(error: unknown): error is ApiError 
     error.message === REFRESH_ALREADY_ROTATED_DETAIL
   );
 }
+
+/** Why restoring a session on page load failed */
+export type SessionRestoreFailure = 'rejected' | 'rotated' | 'unavailable';
+
+/**
+ * Reads a failed session restore as the server refusing the session, a refresh that lost a rotation
+ * race, or a failure that says nothing about the session, such as a gateway error or a dropped request
+ *
+ * The refresh route refuses a session only with 401, which also clears its cookie, so nothing else
+ * may sign the user out
+ */
+export function getSessionRestoreFailure(error: unknown): SessionRestoreFailure {
+  if (error instanceof ApiError && error.status === 401) return 'rejected';
+  if (isRefreshAlreadyRotatedError(error)) return 'rotated';
+  return 'unavailable';
+}
