@@ -290,6 +290,7 @@ export interface CreateTransactionOptions {
   /** Plain calendar date as YYYY-MM-DD, defaulting to today in the pinned zone */
   date?: string
   currency?: string
+  notes?: string
 }
 
 /**
@@ -323,6 +324,7 @@ export async function createTransaction(
       merchant_id: merchantId,
       amount: options.amount,
       currency: options.currency ?? TEST_CURRENCY,
+      notes: options.notes,
     },
   })
 

@@ -23,16 +23,6 @@ function render(
   )
 }
 
-// A row on an archived account, which fades on its own to say it can't be edited
-const readOnlyRent = createElement(TransactionRowView, {
-  transaction: { id: 'rent', dt: '2026-10-03', merchant_name: 'Rent', notes: null, tags: [], counterparty_account_scope: null },
-  amountPresentation: { text: '-$1,500.00', sign: -1 },
-  category: undefined,
-  readOnlyReason: 'Archived',
-  skipEnterAnimation: true,
-  onOpen: () => {},
-})
-
 // A refund on a groceries expense, which the list draws in the colour of money coming in
 const groceriesRefund = createElement(TransactionRowView, {
   transaction: { id: 'refund', dt: '2026-10-03', merchant_name: 'Grocer', notes: null, tags: [], counterparty_account_scope: null },
@@ -84,14 +74,5 @@ describe('UpcomingSection', () => {
 
     expect(markup).not.toContain('var(--app-positive)')
     expect(markup.match(/opacity:0.75/g)).toHaveLength(3)
-  })
-
-  it("keeps a read-only row at the section's muted colours instead of also lowering its opacity", () => {
-    expect(renderToStaticMarkup(readOnlyRent)).toContain('opacity:0.68')
-
-    const markup = render(['2026-10-03'], true, readOnlyRent)
-
-    expect(markup).toContain('Rent')
-    expect(markup).not.toContain('opacity:0.68')
   })
 })

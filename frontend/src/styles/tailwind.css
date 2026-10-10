@@ -1887,9 +1887,6 @@
   .app-transaction-row:has(:focus-visible) {
     outline: var(--app-focus-outline);
     outline-offset: calc(var(--app-focus-offset) * -1);
-    /* A read-only row is drawn faded, and the fade would take the ring under 3:1, so a focused row is
-       shown whole while it holds focus. Important, since the fade is set inline by the row's animation */
-    opacity: 1 !important;
   }
 
   .app-spinner {

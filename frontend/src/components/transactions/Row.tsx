@@ -15,7 +15,7 @@ import {
   TRANSACTION_ROW_SCROLL_MARGIN,
 } from '@/pages/transactions/constants/transactionList'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
-import { FadedRowsContext } from '@/contexts/FadedRowsContext'
+import { FADED_ROW_COLOURS, FadedRowsContext } from '@/contexts/FadedRowsContext'
 import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
 
 const MAX_VISIBLE_TAGS = 1
@@ -92,7 +92,7 @@ interface TransactionRowViewProps extends Omit<TransactionRowProps, 'transaction
   onOpen: () => void
 }
 
-// How far a faded section dims a row's category icon. Icons carry no text, so the contrast every text
+// How far a faded row dims its category icon. Icons carry no text, so the contrast every text
 // needs doesn't bound it, but a pale icon such as the white plate all but vanished on the light rows below this
 const FADED_CATEGORY_ICON_OPACITY = 0.75
 
@@ -143,7 +143,7 @@ function ReadOnlyReasonPill({ reason }: { reason: string }) {
   return (
     <span
       className="inline-flex w-fit max-w-full rounded-full border px-1.5 py-0.5 text-[0.6875rem] leading-none"
-      style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-subtle)' }}
+      style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}
     >
       <span className="min-w-0 truncate">{reason}</span>
     </span>
@@ -231,12 +231,14 @@ export function TransactionRowView({
   const hasAccountMeta = !!accountName || !!accountInstitution
   const readOnly = Boolean(readOnlyReason)
   const isInFadedSection = useContext(FadedRowsContext)
+  // A read-only row is faded the way a faded section fades its rows, and still says why beside its account
+  const isFaded = isInFadedSection || readOnly
   const formattedAmount = amountPresentation.text
-  // A faded section draws a refund or reversal in its muted text too, through the text token it remaps to
-  // the muted colour, and dims the category icon, which colour can't reach, so nothing in the row reads
-  // as strongly as one that counts
-  const transactionAmountColor = isInFadedSection ? 'var(--app-text)' : amountColor(category, amountPresentation.sign)
-  const categoryIconStyle = isInFadedSection ? { opacity: FADED_CATEGORY_ICON_OPACITY } : undefined
+  // A faded row draws a refund or reversal in its muted text too, through the text token it remaps to the
+  // muted colour, and dims the category icon, which colour can't reach, so nothing in the row reads as
+  // strongly as one that counts
+  const transactionAmountColor = isFaded ? 'var(--app-text)' : amountColor(category, amountPresentation.sign)
+  const categoryIconStyle = isFaded ? { opacity: FADED_CATEGORY_ICON_OPACITY } : undefined
 
   // Only the limit gets a title here, since a read-only row already explains itself through the
   // pill beside its account name
@@ -244,8 +246,7 @@ export function TransactionRowView({
     ? `Up to ${MAX_BULK_EDIT_TRANSACTIONS} transactions can be ticked at once`
     : undefined
 
-  // A ticked row is marked with a background rather than with opacity, which already says the row
-  // cannot be edited
+  // A ticked row is marked with a background, which leaves every text on it at full strength
   const selectionBackground = selection?.mark === 'selected'
     ? 'var(--app-accent-soft)'
     : selection?.mark === 'pending' ? 'var(--app-hover-soft)' : undefined
@@ -256,7 +257,7 @@ export function TransactionRowView({
       initial={skipEnterAnimation ? false : prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0, paddingTop: 0, paddingBottom: 0 }}
       // The row's whole vertical padding, set here rather than in a class, so it can animate from
       // zero and the row grows from a fully collapsed height
-      animate={{ opacity: readOnly && !isInFadedSection ? 0.68 : 1, height: 'auto', paddingTop: '0.625rem', paddingBottom: '0.625rem' }}
+      animate={{ opacity: 1, height: 'auto', paddingTop: '0.625rem', paddingBottom: '0.625rem' }}
       exit={
         prefersReducedMotion
           ? { opacity: 0, transition: { duration: 0 } }
@@ -280,6 +281,8 @@ export function TransactionRowView({
         // The row starts at the left edge of the rail rather than after it, so its background and its
         // separator cover the checkbox as well, while the padding puts its cells back on the tracks
         ...REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
+        // A faded section sets these on all of its rows already
+        ...(readOnly && !isInFadedSection ? FADED_ROW_COLOURS : {}),
         paddingLeft: TRANSACTION_CHECKBOX_RAIL,
       }}
     >

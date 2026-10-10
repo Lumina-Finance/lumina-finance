@@ -3,7 +3,7 @@ import { CalendarClock } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { CollapsibleSection, CollapsibleSectionCount } from '@/components/collapsible-section/Section'
 import { AppSlotMachineText } from '@/components/display/SlotMachineText'
-import { FadedRowsContext } from '@/contexts/FadedRowsContext'
+import { FADED_ROW_COLOURS, FadedRowsContext } from '@/contexts/FadedRowsContext'
 import {
   REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
   TRANSACTION_CHECKBOX_RAIL,
@@ -15,13 +15,6 @@ import { formatShortDateRangeLabel } from '@/utils/date'
 
 export const UPCOMING_EXPLANATION =
   "These haven't happened yet, so they won't count toward your balances, budgets or totals until their date."
-
-// Fades the upcoming rows by drawing their main text in the muted colour, which sets them apart from the
-// rows that count while keeping every line readable. Lowering their opacity instead took the muted and
-// subtle text below the contrast every text needs. A read-only row inside skips its own opacity fade for
-// the same reason, and still says why beside its account. The text colour is set as well as the token,
-// since text that inherits its colour took it from the page before the token changed
-const UPCOMING_ROW_COLOURS = { '--app-text': 'var(--app-text-muted)', color: 'var(--app-text)' } as CSSProperties
 
 // A day's total inside sits on its heading's bar, where the muted colour falls short of the contrast text needs
 // in the dark theme, so it is drawn a quarter of the way toward the full text colour. It is mixed on the
@@ -233,7 +226,7 @@ export function UpcomingSection({
             <div
               className={gridClassName}
               style={{
-                ...UPCOMING_ROW_COLOURS,
+                ...FADED_ROW_COLOURS,
                 // A row scrolled into view clears the toolbar and this section's header pinned below it, in
                 // place of the day heading the rows outside the section clear
                 ...(stickyTop === undefined
