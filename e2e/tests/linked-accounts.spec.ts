@@ -12,7 +12,7 @@ import {
   todayInTestTimezone,
 } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support/app'
-import { addImportedItem, answerLinksWith, linkToSampleBankAccount } from '../support/bankSync'
+import { addImportedItem, answerLinksWith, linkToSampleBankAccount, waitForEntrance } from '../support/bankSync'
 import { contrastOf, MIN_TEXT_CONTRAST } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 

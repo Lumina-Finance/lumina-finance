@@ -45,6 +45,9 @@ const OPENING_FOCUS_PASSED_MS = 1_000
 // Three frames on the page's clock, by when the frame after a fade has ended has passed
 const FRAMES_PAST_FADE_MS = 48
 
+// Three frames on the page's clock, each of which places a shown reason again
+const FOLLOWING_FRAMES_MS = 48
+
 // How far the page's clock moves at a time while a test waits for the app shell's next read of the
 // links, which comes every 2 seconds while a link imports
 const LINK_READ_CLOCK_STEP_MS = 100

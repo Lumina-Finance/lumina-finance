@@ -581,9 +581,11 @@ test("keeps a connection's facts column from scrolling sideways, so the status n
   const column = dialog.getByRole('complementary')
   const icon = dialog.getByRole('button', { name: 'Status details' })
   const atRest = (await icon.boundingBox())!
+  const drawnAtRest = await page.screenshot({ clip: atRest })
 
-  // A trackpad swipe across the column, further than the closed note reaches past its edge. The
-  // gesture has played out once the browser answers, and the column has scrolled by the next frame
+  // A trackpad swipe across the column, further than the closed note reaches past its edge. The browser
+  // answers once it has drawn the swipe, which the page itself learns of only at a later frame, so what
+  // is drawn where the icon sat is compared rather than where the page places the icon
   const columnBox = (await column.boundingBox())!
   const browser = await page.context().newCDPSession(page)
   await browser.send('Input.synthesizeScrollGesture', {
@@ -593,8 +595,7 @@ test("keeps a connection's facts column from scrolling sideways, so the status n
     yDistance: 0,
     gestureSourceType: 'mouse',
   })
-  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
-  expect(await icon.boundingBox()).toEqual(atRest)
+  expect(await page.screenshot({ clip: atRest })).toEqual(drawnAtRest)
 })
 
 test("opens a fact's note below its value where the dialog leaves no room above the fact", async ({ page, request }) => {
