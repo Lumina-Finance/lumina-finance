@@ -313,8 +313,8 @@ test('keeps the modal open while a rename is on its way, saying there if it fail
 })
 
 // Escape pressed straight after Enter reaches the field before it has rendered as saving, which a later
-// press no longer does, since the field is held back by then. The rename is held until both keys are in,
-// then fails
+// press no longer does, since the field is held back by then. Both keys go to the field in one task, so
+// it can't render in between, and the rename is held until both are in, then fails
 test('keeps the nickname typed when Escape follows Enter straight away, so a failed rename can be tried again', async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
@@ -326,8 +326,9 @@ test('keeps the nickname typed when Escape follows Enter straight away, so a fai
   await dialog.getByRole('button', { name: 'Rename' }).click()
   const field = dialog.getByRole('textbox', { name: 'Connection nickname' })
   await field.fill('Joint banks')
-  await page.keyboard.press('Enter')
-  await page.keyboard.press('Escape')
+  await field.evaluate((input) => {
+    for (const key of ['Enter', 'Escape']) input.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
+  })
 
   failRename()
   await expect(errorToast(page, 'Could not rename this connection. Please try again.')).toBeVisible()
