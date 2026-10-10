@@ -5,7 +5,8 @@ import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
 
 /**
  * Guards the CSV import's record of a finished import, whose answers could be changed and whose file
- * could be removed, and the fresh start a file uploaded after it makes
+ * could be removed, and the fresh start a file uploaded after it makes. A column the user had answered
+ * for came back as Do not import on the next file with the same heading
  */
 
 // The second row names a day February doesn't have, so the import leaves it out
@@ -181,4 +182,19 @@ test('keeps an account a finished import created as created on its record', asyn
   await expect(type).toContainText('Savings')
   await expect(currency).toBeDisabled()
   await expect(currency).toContainText('CAD')
+})
+
+test('guesses a new file\'s columns afresh after the user answered for the removed one', async ({ page, request }) => {
+  const { stage } = await openCsvImport(page, request)
+  await stage('first.csv', SECOND_FILE)
+  const dateField = page.getByRole('combobox', { name: 'Match To App Field Date', exact: true })
+  await expect(dateField).toContainText('Date')
+  await dateField.click()
+  await page.getByRole('option', { name: 'Do not import', exact: true }).click()
+  await expect(dateField).toContainText('Do not import')
+  await page.getByRole('button', { name: 'Remove first.csv', exact: true }).click()
+
+  await stage('second.csv', SECOND_FILE)
+  await expect(dateField).toContainText('Date')
+  await expect(page.getByRole('combobox', { name: 'Match To App Field Amount', exact: true })).toContainText('Amount')
 })

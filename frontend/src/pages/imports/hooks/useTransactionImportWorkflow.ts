@@ -955,7 +955,8 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     startWorkflowRun()
     setIsProcessingFiles(false)
     sourceFileRef.current = null
-    applyStagedFiles(files.filter((file) => file.id !== fileId))
+    // The next file's columns are read as on a first upload
+    applyStagedFiles(files.filter((file) => file.id !== fileId), { startFresh: true })
   }
 
   /**
