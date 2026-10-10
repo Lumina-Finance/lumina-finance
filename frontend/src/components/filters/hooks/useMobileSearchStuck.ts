@@ -17,7 +17,7 @@ export function useMobileSearchStuck(): MobileSearchStuckState {
     const sentinel = mobileSearchStickySentinelRef.current
     if (!sentinel) return undefined
 
-    const mobileQuery = window.matchMedia('(max-width: 1049px)')
+    const mobileQuery = window.matchMedia('(max-width: 1049.98px)')
     let sentinelIntersecting = true
 
     /**

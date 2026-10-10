@@ -27,7 +27,7 @@ export function ToolbarStickyShell({
   return (
     <>
       <div ref={mobileSearchStickySentinelRef} aria-hidden className="h-px min-[1050px]:hidden" />
-      <div ref={toolbarStuckSentinelRef} aria-hidden className="h-px max-[1049px]:hidden" />
+      <div ref={toolbarStuckSentinelRef} aria-hidden className="h-px max-[1050px]:hidden" />
       <div
         ref={toolbarRef}
         className={getToolbarStickyRowClass(desktopInlineLayout)}
