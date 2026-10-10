@@ -1,4 +1,5 @@
 """Account creation scope helpers"""
+
 import uuid
 from dataclasses import dataclass
 
@@ -52,7 +53,7 @@ async def resolve_account_creation_scope(
     return AccountCreationScope(
         owner_id=None,
         group_id=group_id,
-        anchor_tz=await _get_group_owner_timezone_or_404(db, group_id),
+        anchor_tz=await get_group_owner_timezone_or_404(db, group_id),
     )
 
 
@@ -100,7 +101,7 @@ def _raise_for_missing_group_admin_access(membership: GroupMember) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can create group accounts")
 
 
-async def _get_group_owner_timezone_or_404(db: AsyncSession, group_id: uuid.UUID) -> str:
+async def get_group_owner_timezone_or_404(db: AsyncSession, group_id: uuid.UUID) -> str:
     """Return the group owner's timezone or raise a not-found response
 
     Args:

@@ -12,7 +12,7 @@ from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
-from tests.routes.accounts._account_helpers import _create_second_user, _created_at_in_tz, _FixedClock
+from tests.routes.accounts._account_helpers import _create_second_user, _created_at_in_tz, _FixedClock, _signup_user
 from tests.routes.accounts._balance_snapshot_helpers import (
     _create_category,
     _create_group,
@@ -25,6 +25,7 @@ from tests.routes.support import (
     _get_auth_header,
     _get_system_merchant_id,
     _record_starting_balance,
+    _seed_currency,
 )
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
 
@@ -33,6 +34,13 @@ USER_TZ = "America/Toronto"
 
 ALREADY_HAS_TRANSACTIONS = "This account already has transactions, so a starting balance can't be recorded"
 NOT_OWN_ACCOUNT = "Starting balances can only be recorded on your own accounts"
+
+
+async def _group_changed_at(client, headers, group_id: str) -> str | None:
+    """Return when the group's data last changed, as a member's cache status reports it"""
+    status = await client.get("/me/cache-status", headers=headers)
+    assert status.status_code == 200, status.text
+    return status.json()["groups"].get(group_id, {}).get("changed_at")
 
 
 async def _account_transactions(account_id: str):
@@ -197,19 +205,33 @@ async def test_record_starting_balance_on_another_users_account_returns_404(clie
     assert await _account_transactions(account_id) == []
 
 
-async def test_record_starting_balance_on_a_group_account_returns_403_to_its_admin(client):
-    """Grouped resources are left out of the new flow, so even the group's admin is told it isn't theirs."""
-    headers = _get_auth_header(await _create_user(client))
-    group_id = await _create_group(client, headers)
-    account_id = (await _create_account(client, headers, group_id=group_id)).json()["id"]
+async def test_record_starting_balance_on_a_new_group_account_uses_the_group_owners_day(client, monkeypatch):
+    """A group admin's 50.00 on the group account they just created is dated in the group owner's timezone, not theirs."""
+    await _seed_currency()
 
-    # The admin can edit the account, so only the ownership rule refuses the starting balance
-    assert (await client.patch(f"/accounts/{account_id}", json={"name": "Shared"}, headers=headers)).status_code == 200
-    resp = await _record_starting_balance(client, headers, account_id, 100_00)
+    # Kiritimati and Honolulu stay 24 hours apart without daylight saving time, so the
+    # database creation timestamp falls on different local dates whenever this test runs
+    owner_headers = _get_auth_header(await _signup_user(client, email="owner@example.com", first_name="Owner", tz="Pacific/Kiritimati"))
+    member_resp = await _signup_user(client, email="member@example.com", first_name="Member", tz="Pacific/Honolulu")
+    member_headers = _get_auth_header(member_resp)
+    member_id = member_resp.json()["user"]["id"]
+    group_id = await _create_group(client, owner_headers)
+    assert (await client.post(f"/groups/{group_id}/members", json={"user_id": member_id}, headers=owner_headers)).status_code == 201
+    promoted = await client.patch(f"/groups/{group_id}/members/{member_id}", json={"is_admin": True}, headers=owner_headers)
+    assert promoted.status_code == 200
+    account_data = (await _create_account(client, member_headers, group_id=group_id)).json()
+    owner_day = _created_at_in_tz(account_data, "Pacific/Kiritimati")
+    assert owner_day != _created_at_in_tz(account_data, "Pacific/Honolulu")
+    created_at = datetime.fromisoformat(account_data["created_at"])
+    monkeypatch.setattr(importlib.import_module("app.routes.accounts.router"), "datetime", _FixedClock(created_at))
+    before = await _group_changed_at(client, owner_headers, group_id)
 
-    assert resp.status_code == 403
-    assert resp.json()["detail"] == NOT_OWN_ACCOUNT
-    assert await _account_transactions(account_id) == []
+    resp = await _record_starting_balance(client, member_headers, account_data["id"], 50_00)
+
+    assert resp.status_code == 200
+    rows = await _account_transactions(account_data["id"])
+    assert [(txn.dt, txn.amount, txn.notes) for txn, _ in rows] == [(owner_day, 50_00, "Starting balance")]
+    assert await _group_changed_at(client, owner_headers, group_id) != before
 
 
 async def test_record_starting_balance_on_an_account_shared_through_a_grant_returns_403(client):

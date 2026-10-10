@@ -34,7 +34,7 @@ async def record_account_starting_balance(
     amount: int,
     adjustment_date: date,
 ) -> None:
-    """Record the starting balance of a personal account that has no transactions yet
+    """Record the starting balance of an account that has no transactions yet
 
     The amount is the balance as the user states it, so a liability's, which is what is owed, is
     saved negated. The account row is locked before its transactions are looked for, so a
@@ -45,10 +45,10 @@ async def record_account_starting_balance(
 
     Args:
         db: Active database session
-        account: The user's own personal account, which receives the starting balance
+        account: The account receiving the starting balance, one the user owns or administers
         user: User recording the starting balance
         amount: Starting balance in minor units, above zero
-        adjustment_date: The user's today, which dates the adjustment
+        adjustment_date: The account owner's today, which dates the adjustment
 
     Raises:
         HTTPException: The account already has transactions, its bank supplies today, the amount is outside
