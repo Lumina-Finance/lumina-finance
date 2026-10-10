@@ -1,5 +1,5 @@
 /**
- * Tests the drop-down's keyboard policy, so a rewrite catches a key that stops opening the menu, a
+ * Tests the dropdown's keyboard policy, so a rewrite catches a key that stops opening the menu, a
  * highlight that lands on an option nobody can choose, or Enter committing the wrong row
  */
 import { describe, expect, it } from 'vitest'
@@ -15,7 +15,7 @@ const base = {
   selectedIndex: -1,
 }
 
-describe('drop-down keyboard policy', () => {
+describe('dropdown keyboard policy', () => {
   it('opens on Space from the pill and not from the search field', () => {
     expect(getDropdownKeyAction({ ...base, key: ' ' })).toEqual({ kind: 'open', highlightedIndex: 0 })
     expect(getDropdownKeyAction({ ...base, key: ' ', fromTrigger: false }))

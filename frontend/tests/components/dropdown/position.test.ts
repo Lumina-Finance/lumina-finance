@@ -1,5 +1,5 @@
 /**
- * Tests where the open drop-down sits, how much of it the option list gets and how wide it opens,
+ * Tests where the open dropdown sits, how much of it the option list gets and how wide it opens,
  * so a change catches a box growing off the screen or over a dialog's title or buttons, a head that
  * shifts as the box opens, or a list clipped by its own box
  */
@@ -17,7 +17,7 @@ const viewport = {
 
 const head = { bounds: null, headHeight: 40, held: null, searchable: false }
 
-describe('drop-down box placement', () => {
+describe('dropdown box placement', () => {
   it('pins the box by the head’s upper edge when the list grows downward', () => {
     expect(getDropdownBoxPosition({
       ...head,
