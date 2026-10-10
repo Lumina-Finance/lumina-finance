@@ -1,13 +1,20 @@
+import uuid
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from app.routes.merchants.listing_helpers import MERCHANT_USAGE_CUTOFF_DAYS
+from sqlalchemy import text
+
+from app.database import current_user_id_ctx
+from app.routes.merchants.listing_helpers import MERCHANT_USAGE_CUTOFF_DAYS, get_merchants_for_user
+from tests.conftest import ScopedSession
 from tests.routes.merchants._helpers import (
+    _create_group,
     _create_merchant,
+    _create_second_user,
     _get_system_category_id,
     _own_merchant_names,
 )
-from tests.routes.support import _create_user, _get_auth_header
+from tests.routes.support import _create_account, _create_user, _get_auth_header, _get_system_merchant_id
 
 # --- GET /merchants usage ranking ---
 
@@ -255,3 +262,74 @@ async def test_list_merchants_ignores_future_dated_transactions(client):
 
     assert resp.status_code == 200
     assert _own_merchant_names(resp) == ["Zulu Utility", "Alpha Utility"]
+
+
+def _transaction_rows_read(plan):
+    """Return how many transaction rows a plan's scans returned or removed with a filter"""
+    rows = 0
+    if plan.get("Relation Name") == "transactions":
+        read = plan["Actual Rows"] + plan.get("Rows Removed by Filter", 0)
+        rows += read * plan["Actual Loops"]
+    for child in plan.get("Plans", []):
+        rows += _transaction_rows_read(child)
+    return rows
+
+
+async def test_list_merchants_reads_only_the_users_own_transactions(client, monkeypatch):
+    """Everyone's usage of a shared merchant is not read to rank it for one user."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = uuid.UUID(signup_resp.json()["user"]["id"])
+    other_headers = _get_auth_header(await _create_second_user(client))
+    category_id = await _get_system_category_id(client, headers)
+    shared_merchant_id = await _get_system_merchant_id(client, headers)
+    account_id = await _create_checking_account(client, headers)
+    other_account_id = await _create_checking_account(client, other_headers)
+    await _record_merchant_transactions(client, headers, account_id, category_id, shared_merchant_id, 3, _user_today())
+    await _record_merchant_transactions(client, other_headers, other_account_id, category_id, shared_merchant_id, 5, _user_today())
+
+    # The query's plan as the app role runs it, row-level security included
+    identity_token = current_user_id_ctx.set(user_id)
+    try:
+        async with ScopedSession() as session:
+            execute = session.execute
+            plans = []
+
+            async def explain_then_execute(statement, *args, **kwargs):
+                compiled = statement.compile(dialect=session.bind.dialect, compile_kwargs={"literal_binds": True})
+                result = await execute(text(f"EXPLAIN (ANALYZE, FORMAT JSON) {compiled}"))
+                plans.append(result.scalar_one()[0]["Plan"])
+                return await execute(statement, *args, **kwargs)
+
+            monkeypatch.setattr(session, "execute", explain_then_execute)
+            await get_merchants_for_user(session, user_id, None, None, None, 0, _user_today())
+    finally:
+        current_user_id_ctx.reset(identity_token)
+
+    assert sum(_transaction_rows_read(plan) for plan in plans) == 3
+
+
+async def test_list_merchants_counts_usage_on_an_account_shared_with_the_user(client):
+    """A group account the user was given access to counts toward their ranking like their own."""
+    admin_headers = _get_auth_header(await _create_user(client))
+    member_resp = await _create_second_user(client)
+    member_headers = _get_auth_header(member_resp)
+    member_user_id = member_resp.json()["user"]["id"]
+    group_id = await _create_group(client, admin_headers)
+    await client.post(f"/groups/{group_id}/members", json={"user_id": member_user_id}, headers=admin_headers)
+    account_id = (await _create_account(client, admin_headers, group_id=group_id)).json()["id"]
+    grant_resp = await client.post(
+        f"/accounts/{account_id}/permissions",
+        json={"user_id": member_user_id, "level": "read"},
+        headers=admin_headers,
+    )
+    assert grant_resp.status_code == 201
+    category_id = await _get_system_category_id(client, admin_headers)
+    unknown_id = await _get_system_merchant_id(client, admin_headers, name="Unknown")
+    await _record_merchant_transactions(client, admin_headers, account_id, category_id, unknown_id, 1, _user_today())
+
+    resp = await client.get("/merchants", headers=member_headers)
+
+    # Unused, "Myself" would come first by name
+    names = [merchant["name"] for merchant in resp.json()]
+    assert names.index("Unknown") < names.index("Myself")
