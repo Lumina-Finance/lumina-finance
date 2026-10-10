@@ -54,9 +54,9 @@ export function useInfiniteScrollTrigger({
         if (timeoutId === null) {
           setPendingFetch(true)
           timeoutId = setTimeout(() => {
-            recheck = new IntersectionObserver(([entry]) => {
+            recheck = new IntersectionObserver((entries) => {
               stopWaiting()
-              if (entry.isIntersecting) fetchNextPageRef.current()
+              if (entries[entries.length - 1].isIntersecting) fetchNextPageRef.current()
             }, SENTINEL_OBSERVER_OPTIONS)
             recheck.observe(el)
           }, 1000)
