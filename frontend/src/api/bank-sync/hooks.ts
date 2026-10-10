@@ -63,6 +63,7 @@ import {
   applyRestoredBankValue,
   applyReviewDecision,
   putCachedBankLink,
+  putCachedReviewPreferences,
   refreshBankLinkState,
   replaceCachedBankConnection,
 } from '@/api/cache/updates/bankSync';
@@ -488,7 +489,7 @@ export function useUpdateReviewPreferences() {
     mutationFn: (payload: Parameters<typeof updateReviewPreferences>[0]) =>
       runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => updateReviewPreferences(payload)),
     onSuccess: (preferences, { accountId }) => {
-      queryClient.setQueryData(bankSyncKeys.reviewPreferences(accountId), preferences);
+      putCachedReviewPreferences(queryClient, accountId, preferences);
     },
   });
 }

@@ -21,6 +21,7 @@ import type {
   BankReviewItem,
   BankReviewPage,
   EditableBankField,
+  ReviewPreferences,
 } from '@/api/bank-sync/types';
 import type { Transaction } from '@/api/transactions/types';
 
@@ -106,6 +107,17 @@ export function replaceCachedBankConnection(queryClient: QueryClient, connection
   queryClient.setQueryData<BankConnection[]>(bankSyncKeys.connections(), (connections) =>
     connections?.map((cached) => (cached.id === connection.id ? connection : cached)),
   );
+}
+
+/**
+ * Puts an account's review preferences the server answered with in place of the cached ones
+ */
+export function putCachedReviewPreferences(
+  queryClient: QueryClient,
+  accountId: string,
+  preferences: ReviewPreferences,
+): void {
+  queryClient.setQueryData<ReviewPreferences>(bankSyncKeys.reviewPreferences(accountId), preferences);
 }
 
 /**
