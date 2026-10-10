@@ -95,8 +95,9 @@ describe('what one row of the merchant step reads as', () => {
 })
 
 describe('the payee values a file offers to answer', () => {
-  it('asks about two spellings of one payee once', () => {
-    const rows: CsvRow[] = [{ Merchant: 'Amazon' }, { Merchant: 'AMAZON' }, { Merchant: 'Bakery' }]
+  // The second pair lowercases alike only in PostgreSQL, whose lower() the commit matches merchants by
+  it.each([['Amazon', 'AMAZON'], ['İstanbul Kebap', 'ISTANBUL KEBAP']])('asks about %s and %s once', (spelling, otherSpelling) => {
+    const rows: CsvRow[] = [{ Merchant: spelling }, { Merchant: otherSpelling }, { Merchant: 'Zest Bakery' }]
     const file: ImportFileDraft = {
       id: 'file-1',
       name: 'Chequing.csv',
@@ -109,6 +110,24 @@ describe('the payee values a file offers to answer', () => {
 
     // Two rows would let one spelling be answered create and the other skip, with nothing to say
     // which answer the rows carrying either spelling take
-    expect(getImportedMerchants([file], 'Merchant')).toEqual(['Amazon', 'Bakery'])
+    expect(getImportedMerchants([file], 'Merchant')).toEqual([spelling, 'Zest Bakery'])
+  })
+
+  // PostgreSQL lowercases a final sigma as any other, so a capitalised word and its written ending
+  // are two merchants there
+  it('keeps apart spellings the database lowercases differently', () => {
+    const file: ImportFileDraft = {
+      id: 'file-1',
+      name: 'Chequing.csv',
+      size: 128,
+      headers: ['Merchant'],
+      hasHeaderRow: true,
+      rows: [{ Merchant: 'ΟΔΟΣ' }, { Merchant: 'οδος' }],
+      error: null,
+    }
+
+    const merchants = getImportedMerchants([file], 'Merchant')
+    expect(merchants).toHaveLength(2)
+    expect(merchants).toEqual(expect.arrayContaining(['ΟΔΟΣ', 'οδος']))
   })
 })
