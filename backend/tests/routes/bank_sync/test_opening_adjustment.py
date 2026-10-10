@@ -331,7 +331,8 @@ async def test_choosing_the_bank_account_again_waits_for_its_import_unless_the_o
 
     Choosing ACT-1 again starts a new import. A sync part has synced it while it runs when the user
     dismisses the item, and an offer not answered waits for the import to end rather than offering
-    250.00 from what it has brought so far. One recorded or skipped stays answered
+    250.00 from what it has brought so far. One recorded or skipped stays answered. The earlier
+    import's end is forgotten, so the new import's end is the one its items are judged by
     """
     pin_clock(_NOW, links, import_range)
     everyday = await _linked_everyday(client, ("2026-09-15", 100000), state=BankLinkState.CHOOSE_ACCOUNT, opening_adjustment_state=before)
@@ -346,6 +347,8 @@ async def test_choosing_the_bank_account_again_waits_for_its_import_unless_the_o
 
     assert chosen.status_code == 201, chosen.text
     assert await _offer_state(everyday.link) == after
+    async with TestSession() as session:
+        assert await session.scalar(select(BankAccountLink.import_ended_at).where(BankAccountLink.id == everyday.link.id)) is None
 
 
 @pytest.mark.parametrize(

@@ -3418,6 +3418,29 @@ async def test_job_holds_the_offer_while_the_imports_items_wait(connection, prov
     assert await _offer_states(link) == ["not_ready"]
 
 
+async def test_job_offers_the_adjustment_as_a_reconnects_catch_up_ends_with_its_own_items_waiting(connection, provider):
+    """Everyday's import ended with nothing left to review before its credential was replaced, and the catch-up brings 3 coffees
+
+    Only the import's items hold the offer back, so 100.00 is offered as the catch-up ends
+    """
+    await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-1")
+    link = await _link(
+        connection,
+        "ACT-1",
+        import_kind=BankImportKind.RECONNECT,
+        import_start=date(2026, 10, 1),
+        checkpoint=date(2026, 9, 30),
+        import_ended_at=func.now(),
+    )
+    provider.outcomes = [_returned_with({"ACT-1": _new_records(3)})]
+    await _seed_job(connection, BankSyncJobKind.INITIAL)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _waiting(link) == 3
+    assert await _offer_states(link) == ["offered"]
+
+
 async def test_job_offers_the_adjustment_once_a_later_sync_reads_a_balance_it_can_compare(connection, provider, frozen_now):
     """Everyday's import from today ends with SimpleFIN's balance sent with more decimals than CAD holds, so nothing can be offered
 

@@ -464,13 +464,15 @@ def _restart_for_new_bank_account(link: BankAccountLink) -> None:
     since the new import raises its own. The review pause counts the account's waiting items, so it
     stays, and the new import runs to today whatever the pause says. An opening adjustment recorded
     or skipped stays answered, while one not answered waits again until the new import ends and its
-    items are reviewed, since the balance it closes is the chosen bank account's
+    items are reviewed, since the balance it closes is the chosen bank account's. The earlier
+    import's end is forgotten, so the new import's end is the one its items are judged by
     """
     if link.opening_adjustment_state not in (OpeningAdjustmentState.RECORDED, OpeningAdjustmentState.SKIPPED):
         link.opening_adjustment_state = OpeningAdjustmentState.NOT_READY
     link.state = BankLinkState.ACTIVE
     link.import_kind = BankImportKind.CHOOSE_AGAIN
     link.importing = True
+    link.import_ended_at = None
     link.linked_at = func.now()
     link.last_success_at = None
     link.last_attempt_at = None

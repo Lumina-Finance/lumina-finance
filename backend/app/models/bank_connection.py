@@ -315,7 +315,9 @@ class BankAccountLink(Base):
     importing: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
 
     # When the latest import ended, on the database's clock, which stamps each bank transaction it
-    # receives, so the items an import brought are those received by then
+    # receives, so the items an import brought are those received by then. None until it ends.
+    # Choosing the bank account again starts a new import, so it clears this, while a reconnect's
+    # catch-up after the import ended leaves it
     import_ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     signin_needed_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

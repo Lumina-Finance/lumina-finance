@@ -70,7 +70,9 @@ async def apply_review_pauses(db: AsyncSession, links: Sequence[BankAccountLink]
 
     The caller locked the links and stored what the sync brought back for them, so each count takes
     in the whole batch, and commits. An import ends at the database's time for the transaction, the
-    time every bank transaction it stored is stamped as received with
+    time every bank transaction it stored is stamped as received with. A reconnect's catch-up after
+    the import ended keeps the import's end, so the items it brings don't hold back the opening
+    adjustment the import's items decide
 
     Args:
         db: The links' owner's session
@@ -84,9 +86,10 @@ async def apply_review_pauses(db: AsyncSession, links: Sequence[BankAccountLink]
     ended_at = None
     for link in links:
         if link.importing and link.checkpoint >= today:
-            ended_at = ended_at or await db.scalar(select(func.now()))
+            if link.import_ended_at is None:
+                ended_at = ended_at or await db.scalar(select(func.now()))
+                link.import_ended_at = ended_at
             link.importing = False
-            link.import_ended_at = ended_at
             changed = True
 
     settled = [link for link in links if not link.importing]
