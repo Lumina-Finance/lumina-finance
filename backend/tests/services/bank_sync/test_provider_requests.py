@@ -26,6 +26,7 @@ from app.services.bank_sync.provider_requests import (
 from tests.conftest import TestSession
 from tests.fake_simplefin_bridge import FakeBridgeTransport
 from tests.routes.support.bank_sync_helpers import _build_bank_connection, _build_user
+from tests.routes.support.lock_helpers import _wait_until_waiting_on
 from tests.services.bank_sync.stand_ins import FakeBridgeScenario, simplefin_adapter
 
 _NOW = datetime(2026, 10, 4, 12, 0, tzinfo=UTC)
@@ -148,18 +149,15 @@ async def test_reserve_by_two_senders_at_once_gives_the_last_request_to_one():
         connection = await _connection_with_requests(setup, *_example_requests(19))
         await setup.commit()
 
-    async with TestSession() as first, TestSession() as second, TestSession() as watcher:
+    async with TestSession() as first, TestSession() as second:
         await reserve_provider_request(first, connection, purpose=ProviderRequestPurpose.SYNC, now=_EXAMPLE_NOW)
-        second_pid = await second.scalar(text("SELECT pg_backend_pid()"))
+        first_pid = await first.scalar(text("SELECT pg_backend_pid()"))
         await second.execute(text("SET LOCAL lock_timeout = '5s'"))
         racing = asyncio.create_task(reserve_provider_request(second, connection, purpose=ProviderRequestPurpose.SYNC, now=_EXAMPLE_NOW))
 
         # The second sender has to be waiting on the first one's lock before the first commits,
         # so a missing lock fails here rather than letting both through
-        async with asyncio.timeout(5):
-            while not await watcher.scalar(text("SELECT wait_event_type = 'Lock' FROM pg_stat_activity WHERE pid = :pid"), {"pid": second_pid}):
-                await watcher.rollback()
-                await asyncio.sleep(0.05)
+        await _wait_until_waiting_on(first_pid, racing)
         await first.commit()
 
         with pytest.raises(RequestBudgetSpent):

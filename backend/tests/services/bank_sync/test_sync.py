@@ -118,6 +118,7 @@ from tests.routes.support.bank_sync_helpers import (
     _seed_job,
     _spend_requests,
 )
+from tests.routes.support.lock_helpers import _wait_until_waiting_on
 from tests.services.bank_sync.fake_provider import FakeProviderAdapter, _bank_account, _returned
 from tests.services.bank_sync.stand_ins import FakeBridgeScenario, simplefin_adapter
 
@@ -2239,19 +2240,6 @@ async def test_job_whose_listing_fails_records_it_and_fetches_nothing(connection
         savings_attempt,
     ]
     assert await _queued_jobs() == [("retry", timedelta(minutes=20), False)]
-
-
-async def _wait_until_waiting_on(blocker_pid: int, running: asyncio.Task) -> None:
-    """Wait until a backend waits on a lock the blocker holds, or the running task has finished"""
-    async with TestSession() as observer:
-        while not running.done():
-            if await observer.scalar(
-                text("SELECT EXISTS (SELECT 1 FROM pg_locks WHERE NOT granted AND :pid = ANY(pg_blocking_pids(pid)))"),
-                {"pid": blocker_pid},
-            ):
-                return
-            await observer.rollback()
-            await asyncio.sleep(0.02)
 
 
 async def test_job_finishing_waits_for_the_connection_before_locking_its_links(connection, monkeypatch):
