@@ -744,6 +744,13 @@ export async function syncBankLinkNow(request: APIRequestContext, user: TestUser
 
 /** A ledger transaction as the server holds it, as far as a bank spec reads it back */
 export type SavedTransaction = {
+/** Reads when the account last synced, as the server has it */
+export async function readLastSuccess(request: APIRequestContext, user: TestUser, accountId: string): Promise<string | null> {
+  const response = await request.get(`${API_BASE_URL}/accounts/${accountId}/bank-link`, { headers: asUser(user) })
+  expect(response.status()).toBe(200)
+  return ((await response.json()) as { link: { sync: { last_success_at: string | null } } }).link.sync.last_success_at
+}
+
   id: string
   account_id: string
   dt: string

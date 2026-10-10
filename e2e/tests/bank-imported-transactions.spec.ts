@@ -1,15 +1,23 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
-import { createAccount, createTransaction, signUpUser } from '../support/api'
+import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser, type SeededAccount, type TestUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
-import { answerAsBankImported, BANK_SOURCE } from '../support/bankSync'
+import { addImportedItem, editTransaction, linkToEmptyBankAccount } from '../support/bankSync'
 import { getTransactionRowButton } from '../support/selectors'
 
 // A bank-imported row carries a muted bank icon naming its provider, and a dot once the user has
-// edited a value the bank supplied. Each test answers the app's reads with the source the server
-// attaches, so it sets the source exactly without linking and syncing an account. No link is answered,
-// since the marker comes with the transaction and stays once the account is unlinked
+// edited a value the bank supplied.
+//
+// Everyday links to an empty bank account at Harbour Bank on the fake SimpleFIN Bridge from the day its
+// one transaction was booked. The user adds that transaction to the ledger as the bank sent it, and
+// changes its amount where a test needs the dot, so each row carries the source the server gives it
 const EDITED_NOTE = 'You edited a value the bank supplied'
+
+// The day the bank booked its $42.50 grocery spend, the first day Everyday imports from. A manual row
+// goes on an earlier day, since the bank supplies every day from this one on
+const BANK_DAYS_AGO = 3
+const BANK_DATE = daysFromTodayInTestTimezone(-BANK_DAYS_AGO)
+const BANK_DESCRIPTION = 'GROCER 123'
 
 // A control's strokes against the page, the least WCAG asks of anything that isn't text
 const MIN_GRAPHIC_CONTRAST = 3
@@ -143,28 +151,35 @@ async function expectTooltipClosed(row: Locator, firstLine: string): Promise<voi
   await expect.poll(() => isShown(row.getByText(firstLine, { exact: true }).filter({ visible: true }))).toBe(false)
 }
 
-// A stand-in can still be fetching for the page when a test ends, which would otherwise surface as an
-// error outside any test
-test.afterEach(async ({ page }) => {
-  await page.unrouteAll({ behavior: 'ignoreErrors' })
-})
-
-test('marks a bank-imported row with its provider on hover, focus or a press, leaving the row closed and a manual row unmarked', async ({ page, request }) => {
+/**
+ * Signs up with Everyday, linked to Everyday Chequing at Harbour Bank, whose $42.50 grocery spend the
+ * user adds to the ledger as the bank sent it, then changes to `editedAmount` minor units where given.
+ * Answers with the transaction's id
+ */
+async function startWithImported(
+  request: APIRequestContext,
+  editedAmount?: number,
+): Promise<{ user: TestUser; account: SeededAccount; id: string }> {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
-  const importedId = await createTransaction(request, user, {
+  await linkToEmptyBankAccount(request, user, {
     accountId: account.id,
-    categoryName: 'Groceries',
-    amount: BANK_SOURCE.bank_values.amount!,
-    date: BANK_SOURCE.bank_values.date,
+    startDate: BANK_DATE,
+    transactions: [{ posted: BANK_DATE, amount: '-42.50', description: BANK_DESCRIPTION }],
   })
+  const { id } = await addImportedItem(request, user, account.id, BANK_DESCRIPTION)
+  if (editedAmount !== undefined) await editTransaction(request, user, id, { amount: editedAmount })
+  return { user, account, id }
+}
+
+test('marks a bank-imported row with its provider on hover, focus or a press, leaving the row closed and a manual row unmarked', async ({ page, request }) => {
+  const { user, account, id: importedId } = await startWithImported(request)
   const manualId = await createTransaction(request, user, {
     accountId: account.id,
     categoryName: 'Groceries',
     amount: -1500,
-    date: BANK_SOURCE.bank_values.date,
+    date: daysFromTodayInTestTimezone(-(BANK_DAYS_AGO + 1)),
   })
-  await answerAsBankImported(page, { [importedId]: BANK_SOURCE })
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
 
@@ -219,15 +234,7 @@ test('marks a bank-imported row with its provider on hover, focus or a press, le
 })
 
 test('opens the tooltip from a press just off the bank icon, leaving the row closed', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  const id = await createTransaction(request, user, {
-    accountId: account.id,
-    categoryName: 'Groceries',
-    amount: BANK_SOURCE.bank_values.amount!,
-    date: BANK_SOURCE.bank_values.date,
-  })
-  await answerAsBankImported(page, { [id]: BANK_SOURCE })
+  const { user, id } = await startWithImported(request)
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
 
@@ -243,27 +250,19 @@ test('opens the tooltip from a press just off the bank icon, leaving the row clo
 })
 
 test('opens the tooltip below the bank icon when the icon sits just under the sticky bars', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  const id = await createTransaction(request, user, {
-    accountId: account.id,
-    categoryName: 'Groceries',
-    amount: -4000,
-    date: BANK_SOURCE.bank_values.date,
-  })
+  const { user, account, id } = await startWithImported(request, -4000)
 
-  // A day each before it, below it in the list, so the page runs on far enough to scroll its row up
-  // to the bars in a short window
+  // A day each before it, below it in the list and before the days the bank supplies, so the page runs
+  // on far enough to scroll its row up to the bars in a short window
   for (let day = 1; day <= OLDER_DAYS; day += 1) {
     await createTransaction(request, user, {
       accountId: account.id,
       categoryName: 'Groceries',
       amount: -1000,
-      date: `2026-01-${String(15 - day).padStart(2, '0')}`,
+      date: daysFromTodayInTestTimezone(-(BANK_DAYS_AGO + day)),
     })
   }
   await page.setViewportSize({ ...page.viewportSize()!, height: SHORT_WINDOW_HEIGHT })
-  await answerAsBankImported(page, { [id]: { ...BANK_SOURCE, edited_fields: ['amount'] } })
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
 
@@ -310,15 +309,7 @@ test('opens the tooltip below the bank icon when the icon sits just under the st
 })
 
 test('adds a dot and the edited note to a bank-imported row whose bank value the user changed', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  const id = await createTransaction(request, user, {
-    accountId: account.id,
-    categoryName: 'Groceries',
-    amount: -4000,
-    date: BANK_SOURCE.bank_values.date,
-  })
-  await answerAsBankImported(page, { [id]: { ...BANK_SOURCE, edited_fields: ['amount'] } })
+  const { user, id } = await startWithImported(request, -4000)
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
 

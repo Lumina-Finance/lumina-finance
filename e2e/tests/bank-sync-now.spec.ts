@@ -1,7 +1,7 @@
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
-import { asUser, createAccount, signUpUser, type TestUser } from '../support/api'
-import { fact, logInViaApi, openPage, watchServerRequests } from '../support/app'
+import { createAccount, signUpUser } from '../support/api'
+import { fact, logInViaApi, openPage, setTabHidden, watchServerRequests } from '../support/app'
 import {
   buildLinkAnswer,
   changeProviders,
@@ -10,6 +10,7 @@ import {
   isRead,
   linkToSampleBankAccount,
   readConnection,
+  readLastSuccess,
   WORKER_RESULT_TIMEOUT_MS,
   type SeededConnection,
 } from '../support/bankSync'
@@ -29,26 +30,6 @@ const BANK_LINK_OPEN_MS = 5 * 60 * 1000
 // Long enough before the page opens that its Synced label reads the same throughout, so only the
 // reason's own refresh can change what the button says
 const SYNCED_BEFORE_MS = 3 * 60 * 60 * 1000
-
-/** Reads when the account last synced, as the server has it */
-async function readLastSuccess(request: APIRequestContext, user: TestUser, accountId: string): Promise<string | null> {
-  const response = await request.get(`${API_BASE_URL}/accounts/${accountId}/bank-link`, { headers: asUser(user) })
-  expect(response.status()).toBe(200)
-  return ((await response.json()) as { link: { sync: { last_success_at: string | null } } }).link.sync.last_success_at
-}
-
-/**
- * Moves the tab to the background or brings it back, as the browser does when the user switches
- * tabs: the page's visibility changes, and the visibilitychange event it hears bubbles as the
- * browser's does
- */
-async function setTabHidden(page: Page, hidden: boolean): Promise<void> {
-  await page.evaluate((isHidden) => {
-    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (isHidden ? 'hidden' : 'visible') })
-    Object.defineProperty(document, 'hidden', { configurable: true, get: () => isHidden })
-    document.dispatchEvent(new Event('visibilitychange', { bubbles: true }))
-  }, hidden)
-}
 
 test('checks nothing in a background tab while the sync runs, and shows it Synced on coming back, spending one request', async ({ page, request }) => {
   const user = await signUpUser(request)

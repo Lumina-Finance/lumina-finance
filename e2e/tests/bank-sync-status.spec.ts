@@ -64,7 +64,11 @@ function isBlinking(dot: Locator): Promise<boolean> {
   return dot.evaluate(isBlinkRunning)
 }
 
-/** Answers the account's link as syncing, since a real sync finishes before the dot could be watched */
+/**
+ * Answers the account's link as syncing. A real sync would have to be held at the Bridge for as long as
+ * the dot is watched, keeping one of the worker's few runners from every other test's imports and syncs
+ * meanwhile
+ */
 async function answerSyncing(page: Page, accountId: string): Promise<void> {
   await page.route(`${API_BASE_URL}/accounts/${accountId}/bank-link`, (route) => route.fulfill({
     json: { account_id: accountId, link: buildLinkAnswer(accountId, { sync_in_progress: true }), previous_link: null },

@@ -505,6 +505,19 @@ export async function openModal(page: Page, buttonNames: string[], dialogName: s
 }
 
 /**
+ * Moves the tab to the background or brings it back, as the browser does when the user switches
+ * tabs: the page's visibility changes, and the visibilitychange event it hears bubbles as the
+ * browser's does
+ */
+export async function setTabHidden(page: Page, hidden: boolean): Promise<void> {
+  await page.evaluate((isHidden) => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (isHidden ? 'hidden' : 'visible') })
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => isHidden })
+    document.dispatchEvent(new Event('visibilitychange', { bubbles: true }))
+  }, hidden)
+}
+
+/**
  * Pick an option from one of the app's dropdowns.
  *
  * The dropdown is a button that opens a listbox rather than a native select, so this is two

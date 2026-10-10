@@ -1,35 +1,42 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
 import {
+  asUser,
   createAccount,
   createTransaction,
+  daysFromTodayInTestTimezone,
   signUpUser,
   todayInTestTimezone,
   type SeededAccount,
   type TestUser,
 } from '../support/api'
-import { filterTransactions, logInViaApi, openPage } from '../support/app'
+import { filterTransactions, logInViaApi, openPage, setTabHidden } from '../support/app'
 import {
+  addBridgeTransactions,
   answerAsBankImported,
-  answerLinksWith,
   answerReviewItems,
   BANK_SOURCE,
   isRead,
+  linkToEmptyBankAccount,
   pageOf,
+  readLastSuccess,
   reviewBlock,
   reviewItem,
   runClockUntil,
-  SEP_21,
   stopClock,
+  syncBankLinkNow,
+  waitForReviewItems,
+  WORKER_RESULT_TIMEOUT_MS,
 } from '../support/bankSync'
 import { contrastOf, MIN_TEXT_CONTRAST, MINUS, readBoxes } from '../support/selectors'
+import { API_BASE_URL } from '../support/target'
 
 // Bank items waiting for review show in a block above the transaction list, outside the ledger.
 //
-// Each test answers the review list with the items it needs, such as removals, a backlog of 1,500 or
-// a page that fails, which a sync from the fake SimpleFIN Bridge can't bring in. The backlogs are the
-// server's own, which read nothing waiting, unless a test answers them too, and the one test that
-// needs a sync running answers the link list
+// A test answers the review list with the items it needs, such as removals, a backlog of 1,500 or a
+// page that fails, which a sync from the fake SimpleFIN Bridge can't bring in. The one test that needs
+// only new items links Everyday to the fake, whose items the worker imports and syncs. The backlogs are
+// the server's own, which read nothing waiting, unless a test answers them too
 
 type Backlog = { account_id: string; waiting_new_count: number; paused: boolean; review_warning: boolean }
 
@@ -170,6 +177,18 @@ async function addUberTripAwaiting(page: Page, request: APIRequestContext, accou
     },
   })
   return uberId
+}
+
+/**
+ * Syncs the account now with the page's tab in the background, and brings the tab back once the worker
+ * has ended the sync, so the page reads the link list as it comes back and finds the sync over
+ */
+async function syncWithTabHidden(page: Page, request: APIRequestContext, user: TestUser, accountId: string): Promise<void> {
+  const before = await readLastSuccess(request, user, accountId)
+  await setTabHidden(page, true)
+  await syncBankLinkNow(request, user, accountId)
+  await expect.poll(() => readLastSuccess(request, user, accountId), { timeout: WORKER_RESULT_TIMEOUT_MS }).not.toBe(before)
+  await setTabHidden(page, false)
 }
 
 /** Follows a ledger row's Needs review marker to its waiting item */
@@ -455,16 +474,17 @@ test('loads no more of a 1,500 item backlog when the end of the list has moved a
 })
 
 test('closes once four or fewer items wait, so it shows only the first four when more come back', async ({ page, request }) => {
-  const { everyday } = await start(page, request)
-  const items = Array.from({ length: 6 }, (_, index) => reviewItem(`item-${index}`, 'new', everyday.id))
-
-  // Each sync that finishes reads the items again, which are then what `waiting` holds. The link is
-  // read every couple of seconds while it syncs, so the list is read again in place, never emptied
-  let waiting = items
-  let syncs = 0
-  await answerLinksWith(page, () => [everyday.id], () => ({ last_success_at: `${SEP_21}T0${syncs}:00:00Z`, sync_in_progress: true }))
-  await answerReviewItems(page, () => pageOf(waiting))
-
+  // Six new items from the bank, a day apart, imported by the worker
+  const user = await signUpUser(request)
+  const everyday = await createAccount(request, user, { name: 'Everyday' })
+  const grocer = (day: number) => ({ posted: daysFromTodayInTestTimezone(-day), amount: '-12.50', description: `GROCER ${day}` })
+  const { scenario, externalAccountId } = await linkToEmptyBankAccount(request, user, {
+    accountId: everyday.id,
+    startDate: daysFromTodayInTestTimezone(-10),
+    transactions: [1, 2, 3, 4, 5, 6].map(grocer),
+  })
+  const items = await waitForReviewItems(request, user, everyday.id, (waiting) => waiting.length === 6)
+  await logInViaApi(page, user)
   await openPage(page, '/transactions')
 
   const block = reviewBlock(page)
@@ -472,15 +492,18 @@ test('closes once four or fewer items wait, so it shows only the first four when
   await block.getByRole('button', { name: 'Show all 6' }).click()
   await expect(rows).toHaveCount(6)
 
-  // Two decided on another device leave 4, the most a closed block shows
-  waiting = items.slice(0, 4)
-  syncs += 1
+  // Two decided on another device leave 4, the most a closed block shows, read once a sync has ended
+  for (const item of items.slice(4)) {
+    const dismissed = await request.post(`${API_BASE_URL}/bank-review/items/${item.id}/dismiss`, { headers: asUser(user) })
+    expect(dismissed.status()).toBe(204)
+  }
+  await syncWithTabHidden(page, request, user, everyday.id)
   await expect(block.getByRole('button', { name: /^Show / })).toBeHidden()
   await expect(rows).toHaveCount(4)
 
   // Two more arriving bring back the first four of the 6
-  waiting = items
-  syncs += 1
+  await addBridgeTransactions(request, scenario.id, externalAccountId, [7, 8].map(grocer))
+  await syncWithTabHidden(page, request, user, everyday.id)
   await expect(block.getByRole('button', { name: 'Show all 6' })).toHaveAttribute('aria-expanded', 'false')
   await expect(rows).toHaveCount(4)
 })
