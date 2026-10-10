@@ -13,6 +13,8 @@ interface ModalFormFooterProps {
   submitWidthClassName: string
   /** Shown beside the actions when the submission failed, rather than against any one field */
   error?: string | null
+  /** Id for the message, so a field the failure is about can point to it as its description */
+  errorId?: string
   level?: ModalLevel
   onCancel: () => void
 
@@ -38,6 +40,7 @@ export function ModalFormFooter({
   submitDisabled,
   submitWidthClassName,
   error,
+  errorId,
   level = 'page',
   onCancel,
   onPrimary,
@@ -49,6 +52,7 @@ export function ModalFormFooter({
   const errorMessage = error && (
     <p
       className={`col-span-2 text-sm font-medium sm:col-span-1 ${primaryOnLeft ? 'order-first sm:order-none' : 'sm:mr-auto'}`}
+      id={errorId}
       role="alert"
       style={{ color: 'var(--app-negative)' }}
     >

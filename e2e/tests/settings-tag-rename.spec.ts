@@ -45,3 +45,34 @@ test('shows a renamed tag without reloading when its id and list position stay t
   expect(persisted.status()).toBe(200)
   expect(await persisted.json()).toMatchObject({ id, name: newName })
 })
+
+test('marks the Create Tag name field invalid when the name is taken or empty', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const name = `Holiday ${crypto.randomUUID()}`
+  const created = await request.post(`${API_BASE_URL}/tags`, { headers: { Authorization: `Bearer ${user.accessToken}` }, data: { name } })
+  expect(created.status()).toBe(201)
+
+  await logInViaApi(page, user)
+  await openPage(page, '/settings#tags')
+  await page.locator('#tags').getByRole('button', { name: 'Create tag', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Create Tag' })
+  const field = dialog.getByRole('textbox', { name: 'Tag Name', exact: true })
+  const create = dialog.getByRole('button', { name: 'Create', exact: true })
+
+  await field.fill(name)
+  await create.click()
+  await expect(dialog.getByRole('alert')).toHaveText('Tag with this name already exists')
+  await expect(field).toHaveAttribute('aria-invalid', 'true')
+  await expect(field).toHaveAccessibleDescription('Tag with this name already exists')
+
+  // Typing clears both the message and the mark
+  await field.press('End')
+  await field.pressSequentially('!')
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+  await expect(field).not.toHaveAttribute('aria-invalid', 'true')
+
+  await field.fill('')
+  await create.click()
+  await expect(field).toHaveAttribute('aria-invalid', 'true')
+  await expect(field).toHaveAccessibleDescription('Name is required.')
+})

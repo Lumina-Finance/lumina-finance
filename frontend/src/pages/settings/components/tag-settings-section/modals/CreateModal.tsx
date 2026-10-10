@@ -23,9 +23,10 @@ export default function TagCreateModal({
   const createTag = useCreateTag()
   const [name, setName] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
+  // Whether the failure is about the name, an empty one or one already taken, rather than the request
+  const [nameInvalid, setNameInvalid] = useState(false)
   const [createInProgress, setCreateInProgress] = useState(false)
   const isSubmitting = createTag.isPending || createInProgress
-
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -34,6 +35,7 @@ export default function TagCreateModal({
     const trimmed = name.trim()
     if (!trimmed) {
       setFormError('Name is required.')
+      setNameInvalid(true)
       return
     }
 
@@ -48,6 +50,7 @@ export default function TagCreateModal({
       .catch(async (error) => {
         await minimumLoading
         setFormError(error instanceof ApiError ? error.message : 'Failed to create tag.')
+        setNameInvalid(error instanceof ApiError && error.status === 409)
         setCreateInProgress(false)
       })
   }
@@ -69,6 +72,7 @@ export default function TagCreateModal({
           submitDisabled={isSubmitting}
           submitWidthClassName="w-full sm:w-28"
           error={formError}
+          errorId="create-tag-error"
           onCancel={onClose}
         />
       )}
@@ -86,17 +90,25 @@ export default function TagCreateModal({
         </div>
 
         <div className="min-w-0 space-y-3">
-          <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>
+          <p
+            id="create-tag-name-label"
+            className="flex h-4 items-center text-base font-bold leading-none"
+            style={{ color: 'var(--app-accent)' }}
+          >
             Tag Name
           </p>
           <div>
             <input
               id="create-tag-name"
-              className="app-input"
+              className={`app-input ${nameInvalid ? 'app-input-error' : ''}`}
+              aria-labelledby="create-tag-name-label"
+              aria-invalid={nameInvalid || undefined}
+              aria-describedby={nameInvalid ? 'create-tag-error' : undefined}
               value={name}
               onChange={(event) => {
                 setName(event.target.value)
                 setFormError(null)
+                setNameInvalid(false)
               }}
               maxLength={64}
               required
