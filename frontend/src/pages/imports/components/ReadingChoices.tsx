@@ -8,14 +8,19 @@ import { ImportDelimiterControl } from './FormatControls'
  * leave out at the end, with the first and last lines of the file showing which lines are skipped
  *
  * Shown for a refused file too, since most refusals of a bank export are fixed by one of these
+ *
+ * @param disabled - Shows the choices the file was read with without letting them change, for a file
+ *   a finished import was read from
  */
 export function ImportReadingChoices({
   file,
+  disabled,
   onDelimiterChange,
   onHeaderRowChange,
   onSkipLastRowsChange,
 }: {
   file: ImportFileDraft
+  disabled: boolean
   onDelimiterChange: (delimiter: ImportDelimiter) => void
   onHeaderRowChange: (headerRow: number) => void
   onSkipLastRowsChange: (skipLastRows: number) => void
@@ -32,7 +37,7 @@ export function ImportReadingChoices({
           label above its control */}
       <div className="flex flex-col gap-3">
         {delimiter && (
-          <ImportDelimiterControl delimiter={delimiter} hasError={Boolean(file.error) && !isSkipSuggested} onChange={onDelimiterChange} />
+          <ImportDelimiterControl delimiter={delimiter} hasError={Boolean(file.error) && !isSkipSuggested} disabled={disabled} onChange={onDelimiterChange} />
         )}
         {reading && (
           <div className="grid grid-cols-2 gap-3">
@@ -42,6 +47,7 @@ export function ImportReadingChoices({
               value={reading.headerRow}
               min={1}
               max={Math.max(1, lineCount - reading.skipLastRows)}
+              disabled={disabled}
               onCommit={onHeaderRowChange}
             />
             <ImportRowCountField
@@ -51,6 +57,7 @@ export function ImportReadingChoices({
               min={0}
               max={Math.max(0, lineCount - 1)}
               hasError={isSkipSuggested}
+              disabled={disabled}
               onCommit={onSkipLastRowsChange}
             />
           </div>
@@ -76,6 +83,7 @@ function ImportRowCountField({
   min,
   max,
   hasError = false,
+  disabled,
   onCommit,
 }: {
   reading: CsvReading
@@ -84,6 +92,7 @@ function ImportRowCountField({
   min: number
   max: number
   hasError?: boolean
+  disabled: boolean
   onCommit: (value: number) => void
 }) {
   const inputId = useId()
@@ -117,6 +126,7 @@ function ImportRowCountField({
         max={max}
         step={1}
         aria-invalid={hasError || undefined}
+        disabled={disabled}
         value={text}
         onChange={(event) => setText(event.target.value)}
         onBlur={commit}

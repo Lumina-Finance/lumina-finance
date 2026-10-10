@@ -29,6 +29,7 @@ type ImportCategoryMatchingStepProps = Pick<
   | 'categoriesFailed'
   | 'refetchCategories'
   | 'clearedCategorySourceLabels'
+  | 'importResult'
 >
 
 /**
@@ -52,6 +53,7 @@ export function ImportCategoryMatchingStep({
   categoriesFailed,
   refetchCategories,
   clearedCategorySourceLabels,
+  importResult,
 }: ImportCategoryMatchingStepProps) {
   return (
     <ImportCategoryMatchingLayout
@@ -90,6 +92,7 @@ export function ImportCategoryMatchingStep({
       categoriesLoading={categoriesLoading}
       categoriesFailed={categoriesFailed}
       refetchCategories={refetchCategories}
+      isImportFinished={Boolean(importResult)}
     >
       {/* Shown only beside the categories it names, so neither a load failure nor an empty step
           carries it */}

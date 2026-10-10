@@ -1399,6 +1399,38 @@
     }
   }
 
+  /* A finished import's page is its record, read rather than used, so every answer on it shows the
+     value it was made with at full strength. A disabled answer drops what would say it can still be
+     opened or chosen: the fade, the hover, the not-allowed cursor and a dropdown's chevron. Buttons,
+     such as Imported, keep their disabled look */
+  .import-record .app-dropdown-glass.app-dropdown-glass-disabled,
+  .import-record .app-segmented-control-disabled {
+    opacity: 1;
+  }
+
+  .import-record .app-dropdown-head:disabled,
+  .import-record .app-segmented-option:disabled,
+  .import-record .app-input:disabled {
+    cursor: default;
+  }
+
+  .import-record .app-dropdown-glass-disabled .app-dropdown-chevron {
+    visibility: hidden;
+  }
+
+  .import-record .app-segmented-option:disabled:hover {
+    color: var(--app-text-muted);
+    background: transparent;
+  }
+
+  .import-record .app-segmented-option-active:disabled:hover {
+    color: var(--app-accent);
+  }
+
+  .import-record .app-input:disabled:hover {
+    border-color: var(--app-input-border);
+  }
+
   /* An import table fits its columns to the window in the desktop layout, with nothing around it
      clipping, so a row's help opens in full. Below it, the table keeps the width its columns need and
      scrolls sideways inside its own box */
@@ -1693,6 +1725,12 @@
 
   .app-segmented-control-compact {
     @apply h-8 p-0.5;
+  }
+
+  /* A rule rather than a utility, so a finished import's record below can show the choice at full
+     strength instead */
+  .app-segmented-control-disabled {
+    opacity: 0.6;
   }
 
   .app-segmented-option {

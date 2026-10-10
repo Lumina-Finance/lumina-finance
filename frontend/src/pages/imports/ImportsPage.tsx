@@ -274,7 +274,14 @@ export default function ImportsPage() {
           </header>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-3 sm:px-8 xl:overflow-hidden">
-            <div className="flex min-h-full flex-col gap-8 xl:h-full xl:min-h-0 xl:flex-row">
+            {/* A finished CSV import is kept as its record, so its locked answers are shown to be read
+                rather than faded as unavailable */}
+            <div
+              className={[
+                'flex min-h-full flex-col gap-8 xl:h-full xl:min-h-0 xl:flex-row',
+                activeFlow === 'generic' && workflow.importResult && 'import-record',
+              ].filter(Boolean).join(' ')}
+            >
               <aside className="flex flex-col gap-8 xl:h-full xl:w-[340px] xl:shrink-0">
                 {/* First, so the way to undo the last import is in view without scrolling the steps below */}
                 <LastImportCard />
