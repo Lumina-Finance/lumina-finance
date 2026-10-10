@@ -453,7 +453,7 @@ test('finds a connection by its linked account or nickname, and disconnects it a
   })
   const section = await openBankConnections(page, user)
 
-  const search = section.getByRole('textbox', { name: 'Search connections…' })
+  const search = section.getByRole('textbox', { name: 'Search connections and institutions…' })
   for (const [query, shown, hidden] of [['household', 'Joint banks', 'Travel cards'], ['travel', 'Travel cards', 'Joint banks']]) {
     await search.fill(query)
     await expect(connectionRow(section, shown)).toBeVisible()
@@ -502,7 +502,7 @@ test('focuses the search once the only connection is disconnected', async ({ pag
 
   await expect(dialog).toBeHidden()
   await expect(section.getByText('No connections yet.')).toBeVisible()
-  await expect(section.getByPlaceholder('Search connections…')).toBeFocused()
+  await expect(section.getByPlaceholder('Search connections and institutions…')).toBeFocused()
 })
 
 test('reconnects a rejected connection, and shows the account to choose again under Mismatch detected', async ({ page, request }) => {
