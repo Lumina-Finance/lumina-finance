@@ -178,6 +178,12 @@ export function FilterGlassPanel({
     }
   }, [open, openWidth])
 
+  // Closing makes the body inert, which would drop focus held inside it to the page, so focus goes
+  // back to the pill that opened it
+  useLayoutEffect(() => {
+    if (!open && bodyViewportRef.current?.contains(document.activeElement)) headRef.current?.focus()
+  }, [open])
+
   // An outside press or Escape dismisses the panel and discards the draft
   useEffect(() => {
     if (!open) return
@@ -299,8 +305,11 @@ export function FilterGlassPanel({
           </button>
         )}
 
+        {/* Closed, the body is still mounted at no height, so it is kept out of focus and the
+            accessibility tree until it opens again */}
         <motion.div
           style={{ overflow: 'hidden' }}
+          inert={!open}
           initial={false}
           animate={{
             height: open && !isRetracting ? placement.height : 0,

@@ -5,7 +5,7 @@ import { logInViaApi, openPage } from '../support/app'
 
 /**
  * Guards the desktop Filters pill on both lists that carry it. Its press animation used to put a
- * second, silent Tab stop on its frame
+ * second, silent Tab stop on its frame, and its closed panel stayed in the Tab order at no height
  */
 
 const LISTS = [
@@ -42,6 +42,27 @@ for (const list of LISTS) {
       expect(await focusIsInside(glass)).toBe(false)
       await page.keyboard.press('Tab')
       await expect(pill).toBeFocused()
+    })
+
+    // Motion on, so focus is handed back while the panel is still closing
+    test('keeps its closed panel out of the Tab order', async ({ page, request }) => {
+      await openList(page, request, list.path)
+      const pill = page.getByRole('button', { name: list.filters, exact: true })
+      const glass = page.locator('.app-range-glass').filter({ has: pill })
+
+      await pill.focus()
+      await page.keyboard.press('Tab')
+      expect(await focusIsInside(glass)).toBe(false)
+
+      await pill.press('Enter')
+      await page.keyboard.press('Tab')
+      await expect(glass.getByRole('tab').first()).toBeFocused()
+
+      await page.keyboard.press('Escape')
+      await expect(pill).toHaveAttribute('aria-expanded', 'false')
+      await expect(pill).toBeFocused()
+      await page.keyboard.press('Tab')
+      expect(await focusIsInside(glass)).toBe(false)
     })
   })
 }
