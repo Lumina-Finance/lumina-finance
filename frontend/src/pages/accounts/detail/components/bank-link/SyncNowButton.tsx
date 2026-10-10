@@ -6,6 +6,7 @@ import ActionFeedbackButton, { type ActionFeedbackStatus } from '@/components/fe
 import { useActionFeedback } from '@/hooks/useActionFeedback'
 import { useDisabledReason } from '@/hooks/useDisabledReason'
 import { useFittedButtonWidth } from '@/hooks/useFittedButtonWidth'
+import { useRelativeTimeRefresh } from '@/hooks/useRelativeTimeRefresh'
 import { useToast } from '@/hooks/useToast'
 import { describeSyncNowBlock, isSyncWorkerDown, SYNC_FAILED_MESSAGE } from '@/pages/accounts/detail/components/bank-link/syncNow'
 import { callWhenPassed } from '@/utils/timing'
@@ -50,7 +51,8 @@ type SyncNowButtonProps = {
  * focus it holds, since a disabled one drops it to the page, which would stop Escape closing the
  * modal. Whatever holds the sync back disables it without the attribute too, with its reason in a
  * tooltip, and a press the server refuses says why in a toast. A spent request budget lets it go
- * once a request frees up, whether or not the connection has been read again since
+ * once a request frees up, whether or not the connection has been read again since, and its reason is
+ * worded again each minute until then, so when more requests are available stays current
  */
 export function SyncNowButton({ link, connection, providers, focusProps }: SyncNowButtonProps) {
   const sync = useSyncBankAccount()
@@ -61,6 +63,7 @@ export function SyncNowButton({ link, connection, providers, focusProps }: SyncN
   const [, renderAgain] = useReducer((count: number) => count + 1, 0)
   const budgetFreesAt = connection?.request_budget.available_again_at ?? null
   useEffect(() => callWhenPassed(budgetFreesAt, renderAgain), [budgetFreesAt])
+  useRelativeTimeRefresh(() => describeSyncNowBlock(link, connection, providers) ?? '')
 
   const status = chooseStatus(feedback.status, link, isSyncWorkerDown(providers))
   const busy = status !== 'idle'

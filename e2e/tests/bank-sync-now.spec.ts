@@ -1,13 +1,32 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
 import { asUser, createAccount, signUpUser, type TestUser } from '../support/api'
-import { fact, logInViaApi, openPage } from '../support/app'
-import { isRead, linkToSampleBankAccount, readConnection, WORKER_RESULT_TIMEOUT_MS } from '../support/bankSync'
+import { fact, logInViaApi, openPage, watchServerRequests } from '../support/app'
+import {
+  buildLinkAnswer,
+  changeProviders,
+  claimSetupToken,
+  createSampleBridgeScenario,
+  isRead,
+  linkToSampleBankAccount,
+  readConnection,
+  WORKER_RESULT_TIMEOUT_MS,
+  type SeededConnection,
+} from '../support/bankSync'
 import { API_BASE_URL } from '../support/target'
 
 // Sync now on a linked account, run by the worker against the fake SimpleFIN Bridge. What disables
-// the button and how it reads while the sync starts are covered by the Bank link section's unit tests
+// the button and how it reads while the sync starts are covered by the Bank link section's unit tests,
+// apart from its reason keeping up with the time while the page stays open
 const SAMPLE_CHEQUING = 'Everyday Chequing'
+
+// When the connection's spent requests free up after the page opens, and how long it then stays open
+const REQUEST_FREES_UP_AFTER_MS = 10 * 60 * 1000
+const BANK_LINK_OPEN_MS = 5 * 60 * 1000
+
+// Long enough before the page opens that its Synced label reads the same throughout, so only the
+// reason's own refresh can change what the button says
+const SYNCED_BEFORE_MS = 3 * 60 * 60 * 1000
 
 /** Reads when the account last synced, as the server has it */
 async function readLastSuccess(request: APIRequestContext, user: TestUser, accountId: string): Promise<string | null> {
@@ -45,7 +64,7 @@ test('checks nothing in a background tab while the sync runs, and shows it Synce
   const bankSync = page.getByRole('button', { name: /^Bank sync: Synced (just now|\d+ minutes? ago)\. Open bank link$/ })
   await expect(bankSync).toBeVisible({ timeout: WORKER_RESULT_TIMEOUT_MS })
   await bankSync.click()
-  const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
 
   // The one button, whatever it reads as the sync starts
   const syncNow = dialog.getByRole('button', { name: /^(Sync now|Starting sync|Sync started)$/ })
@@ -84,4 +103,50 @@ test('checks nothing in a background tab while the sync runs, and shows it Synce
   // Escape still closes the modal, since the button kept the focus throughout
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
+})
+
+// The link and its connection's spent budget are answered here, spent as the page's clock starts,
+// since the server's requests can't be timed to it. The worker is answered as running, so the spent
+// budget is what holds Sync now back
+test('words when more requests are available anew as minutes pass with the bank link open', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const scenario = await createSampleBridgeScenario(request)
+  const [account, connection] = await Promise.all([
+    createAccount(request, user, { name: 'Everyday' }),
+    claimSetupToken(request, user, scenario.setupToken),
+  ])
+  const spentAt = new Date()
+  const syncedAt = new Date(spentAt.getTime() - SYNCED_BEFORE_MS).toISOString()
+  const availableAgainAt = new Date(spentAt.getTime() + REQUEST_FREES_UP_AFTER_MS).toISOString()
+  await page.route(`${API_BASE_URL}/accounts/${account.id}/bank-link`, (route) => route.fulfill({
+    json: {
+      account_id: account.id,
+      link: { ...buildLinkAnswer(account.id, { last_success_at: syncedAt }), connection_id: connection.id },
+      previous_link: null,
+    },
+  }))
+  await page.route(isRead('/bank-sync/connections'), async (route) => {
+    const response = await route.fetch()
+    const connections = (await response.json() as SeededConnection[]).map((listed) => ({
+      ...listed,
+      request_budget: { ...listed.request_budget, used: listed.request_budget.limit, available_again_at: availableAgainAt },
+    }))
+    await route.fulfill({ response, json: connections })
+  })
+  await changeProviders(page, (body) => {
+    body.sync_running = true
+  })
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.clock.install({ time: spentAt })
+  await logInViaApi(page, user)
+  const allLanded = watchServerRequests(page)
+  await openPage(page, `/accounts/${account.id}`)
+  await page.getByRole('button', { name: 'Bank sync: Synced 3 hours ago. Open bank link' }).click()
+  const syncNow = page.getByRole('dialog', { name: 'Edit account', exact: true }).getByRole('button', { name: 'Sync now' })
+  const spent = (when: string) => `This connection has used its 20 SimpleFIN requests in the last 24 hours. More are available ${when}.`
+  await expect(syncNow).toHaveAccessibleDescription(spent('in 10 minutes'))
+
+  await allLanded()
+  await page.clock.runFor(BANK_LINK_OPEN_MS)
+  await expect(syncNow).toHaveAccessibleDescription(spent('in 5 minutes'))
 })
