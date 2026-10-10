@@ -1,5 +1,7 @@
-import { useState, type CSSProperties, type ReactNode } from 'react'
+import { useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useReducedMotion } from 'motion/react'
 import { ChevronDown, TriangleAlert } from 'lucide-react'
+import { SkippedRowsReviewContext } from '@/contexts/SkippedRowsReviewContext'
 import { IMPORT_INSET_STYLE, SKIPPED_TABLE_VISIBLE_LIMIT } from '@/pages/imports/constants'
 
 // The widest the frozen pair may grow to, measured with container units
@@ -131,6 +133,7 @@ export function ImportSkippedTable({
   totalCount,
   tone = 'danger',
   reasonHeader = 'Reason',
+  revealsOnReview = false,
 }: {
   title: string
 
@@ -157,9 +160,37 @@ export function ImportSkippedTable({
    * one for a note against a row that imports as it stands
    */
   reasonHeader?: string
+
+  /**
+   * Whether this list answers Review skipped rows on a finished import, by opening, scrolling to its
+   * top and taking focus. Only the list of rows the import left out does
+   */
+  revealsOnReview?: boolean
 }) {
   // Expanded by default so skipped items are in view before the commit
   const [expanded, setExpanded] = useState(true)
+
+  // Each request to review is answered once. The count seen at mount was answered before this list
+  // existed, so only a later one opens it
+  const reviewCount = useContext(SkippedRowsReviewContext)
+  const [answeredReviewCount, setAnsweredReviewCount] = useState(reviewCount)
+  const mountReviewCount = useRef(reviewCount)
+  if (revealsOnReview && reviewCount !== answeredReviewCount) {
+    setAnsweredReviewCount(reviewCount)
+    setExpanded(true)
+  }
+  const panelRef = useRef<HTMLDivElement>(null)
+  const toggleRef = useRef<HTMLButtonElement>(null)
+  const shouldReduceMotion = useReducedMotion()
+  useEffect(() => {
+    if (answeredReviewCount === mountReviewCount.current) return
+    // Waits a frame so the rows just opened count towards where the scroll lands
+    const frame = requestAnimationFrame(() => {
+      panelRef.current?.scrollIntoView({ behavior: shouldReduceMotion ? 'auto' : 'smooth', block: 'start' })
+      toggleRef.current?.focus({ preventScroll: true })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [answeredReviewCount, shouldReduceMotion])
 
   const visibleRows = rows.slice(0, SKIPPED_TABLE_VISIBLE_LIMIT)
 
@@ -172,11 +203,12 @@ export function ImportSkippedTable({
   const reasonContentStyle = buildReasonContentStyle(leadColumnWidth)
 
   return (
-    <div className="rounded-lg px-4 py-3" style={IMPORT_INSET_STYLE}>
+    <div ref={panelRef} className="scroll-mt-4 rounded-lg px-4 py-3" style={IMPORT_INSET_STYLE}>
       {/* The whole headline row toggles the panel so the target is bigger
           than the chevron alone */}
       <button
         type="button"
+        ref={toggleRef}
         className="flex w-full cursor-pointer items-center justify-between gap-3 text-left"
         onClick={() => setExpanded((current) => !current)}
         aria-expanded={expanded}

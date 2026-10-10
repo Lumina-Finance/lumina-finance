@@ -12,6 +12,7 @@ import {
   IMPORT_SCOPE_FAILURE_TITLE,
 } from './constants'
 import { ImportExpectationsCard, ImportLoadFailure, ImportProgressOverlay, ImportUndoNoticeCard, LastImportCard } from './components'
+import { SkippedRowsReviewContext } from '@/contexts/SkippedRowsReviewContext'
 import { getImportExpectations } from './expectations'
 import { useActualImportWorkflow } from './actual/hooks'
 import {
@@ -109,6 +110,10 @@ export default function ImportsPage() {
   const [overlayOnScreen, setOverlayOnScreen] = useState(false)
   const [overlayOpener, setOverlayOpener] = useState<HTMLElement | null>(null)
   const pageRef = useRef<HTMLDivElement>(null)
+  // Counted once the overlay has gone, when the page can scroll and the overlay has handed focus back, so
+  // the skipped rows list that answers it can take both
+  const [skippedReviewCount, setSkippedReviewCount] = useState(0)
+  const reviewsSkippedOnClose = useRef(false)
   if (importOverlayOpen && !overlayOnScreen) {
     setOverlayOpener(document.activeElement instanceof HTMLElement ? document.activeElement : null)
     setOverlayOnScreen(true)
@@ -283,53 +288,55 @@ export default function ImportsPage() {
               </aside>
 
               <div className="min-w-0 xl:h-full xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1">
-                <div className="space-y-8">
-                  {/* Shown whether or not a file is staged, since what the import does with one is worth
-                      knowing before choosing it. Keyed by flow so each source opens with its card collapsed.
-                      The undo notice sits close above it, as part of the same briefing */}
-                  <div className="space-y-3">
-                    <ImportUndoNoticeCard />
-                    <ImportExpectationsCard key={activeFlow} expectations={getImportExpectations(activeFlow, workflow.fixedAccount?.name ?? null)} />
+                <SkippedRowsReviewContext.Provider value={skippedReviewCount}>
+                  <div className="space-y-8">
+                    {/* Shown whether or not a file is staged, since what the import does with one is worth
+                        knowing before choosing it. Keyed by flow so each source opens with its card collapsed.
+                        The undo notice sits close above it, as part of the same briefing */}
+                    <div className="space-y-3">
+                      <ImportUndoNoticeCard />
+                      <ImportExpectationsCard key={activeFlow} expectations={getImportExpectations(activeFlow, workflow.fixedAccount?.name ?? null)} />
+                    </div>
+                    {activeFlow === 'actual' && (
+                      <>
+                        <ActualAccountMappingStep {...actualWorkflow} />
+                        <ActualCategoryMatchingStep {...actualWorkflow} />
+                        <ActualBudgetImportStep {...actualWorkflow} />
+                        <ActualPreviewStep {...actualWorkflow} />
+                      </>
+                    )}
+                    {activeFlow === 'firefly' && (
+                      <>
+                        <FireflyAccountMappingStep {...fireflyWorkflow} />
+                        <FireflyCategoryMatchingStep {...fireflyWorkflow} />
+                        <FireflyBudgetImportStep {...fireflyWorkflow} />
+                        <FireflyPreviewStep {...fireflyWorkflow} />
+                      </>
+                    )}
+                    {activeFlow === 'generic' && (
+                      <>
+                        <ImportColumnMappingStep {...workflow} />
+                        <ImportAccountMappingStep {...workflow} />
+                        <ImportCategoryMatchingStep {...workflow} />
+                        <ImportMerchantMatchingStep {...workflow} />
+                        <ImportAutoCreateStep
+                          index="06"
+                          title="Tag Handling"
+                          description="Tags are created when transactions are imported. If an imported tag matches an existing tag name, the transaction will use the existing tag."
+                          expanded={workflow.tagHandlingOpen}
+                          collapseLabel="Collapse tag handling"
+                          expandLabel="Expand tag handling"
+                          emptyTitle="No imported tags detected"
+                          emptyDescription="Map a tags column first."
+                          sourceLabel="Tag From File"
+                          rows={workflow.importedTags}
+                          onToggle={() => workflow.setTagHandlingOpen((current) => !current)}
+                        />
+                        <ImportPreviewStep {...workflow} />
+                      </>
+                    )}
                   </div>
-                  {activeFlow === 'actual' && (
-                    <>
-                      <ActualAccountMappingStep {...actualWorkflow} />
-                      <ActualCategoryMatchingStep {...actualWorkflow} />
-                      <ActualBudgetImportStep {...actualWorkflow} />
-                      <ActualPreviewStep {...actualWorkflow} />
-                    </>
-                  )}
-                  {activeFlow === 'firefly' && (
-                    <>
-                      <FireflyAccountMappingStep {...fireflyWorkflow} />
-                      <FireflyCategoryMatchingStep {...fireflyWorkflow} />
-                      <FireflyBudgetImportStep {...fireflyWorkflow} />
-                      <FireflyPreviewStep {...fireflyWorkflow} />
-                    </>
-                  )}
-                  {activeFlow === 'generic' && (
-                    <>
-                      <ImportColumnMappingStep {...workflow} />
-                      <ImportAccountMappingStep {...workflow} />
-                      <ImportCategoryMatchingStep {...workflow} />
-                      <ImportMerchantMatchingStep {...workflow} />
-                      <ImportAutoCreateStep
-                        index="06"
-                        title="Tag Handling"
-                        description="Tags are created when transactions are imported. If an imported tag matches an existing tag name, the transaction will use the existing tag."
-                        expanded={workflow.tagHandlingOpen}
-                        collapseLabel="Collapse tag handling"
-                        expandLabel="Expand tag handling"
-                        emptyTitle="No imported tags detected"
-                        emptyDescription="Map a tags column first."
-                        sourceLabel="Tag From File"
-                        rows={workflow.importedTags}
-                        onToggle={() => workflow.setTagHandlingOpen((current) => !current)}
-                      />
-                      <ImportPreviewStep {...workflow} />
-                    </>
-                  )}
-                </div>
+                </SkippedRowsReviewContext.Provider>
               </div>
             </div>
           </div>
@@ -351,9 +358,17 @@ export default function ImportsPage() {
         onReturnToImport={overlayWorkflow.closeImportOverlay}
         onReview={overlayWorkflow.importOverlayPhase === 'success'
           && overlayWorkflow.completedSkippedCount > 0
-          ? overlayWorkflow.closeImportOverlay
+          ? () => {
+            reviewsSkippedOnClose.current = true
+            overlayWorkflow.closeImportOverlay()
+          }
           : undefined}
-        onClosed={() => setOverlayOnScreen(false)}
+        onClosed={() => {
+          setOverlayOnScreen(false)
+          if (!reviewsSkippedOnClose.current) return
+          reviewsSkippedOnClose.current = false
+          setSkippedReviewCount((count) => count + 1)
+        }}
         onCancel={overlayWorkflow.canStopImport ? overlayWorkflow.cancelImport : undefined}
         onRetry={overlayWorkflow.canRetryImportCommit ? overlayWorkflow.retryImportCommit : undefined}
       />

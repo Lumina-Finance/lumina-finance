@@ -21,6 +21,7 @@ export function ImportRowProblemsTable({
   toggleLabel,
   tone = 'danger',
   reasonHeader = 'Reason',
+  revealsOnReview,
 }: {
   title: string
   rowProblems: ImportRowProblem[]
@@ -34,6 +35,9 @@ export function ImportRowProblemsTable({
 
   /** What the frozen second column is headed, for a list of notes rather than refusals */
   reasonHeader?: string
+
+  /** Whether this list answers Review skipped rows on a finished import */
+  revealsOnReview?: boolean
 }) {
   // Only the rows the table will show are shaped for it, and the count it summarizes the rest
   // against comes from the full list. A file whose every row is refused would otherwise rebuild a
@@ -57,6 +61,7 @@ export function ImportRowProblemsTable({
       totalCount={rowProblems.length}
       tone={tone}
       reasonHeader={reasonHeader}
+      revealsOnReview={revealsOnReview}
     />
   )
 }

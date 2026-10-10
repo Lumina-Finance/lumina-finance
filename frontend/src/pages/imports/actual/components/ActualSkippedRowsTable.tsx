@@ -38,6 +38,7 @@ export function ActualSkippedRowsTable({ title, rows, decimals }: {
       headers={SKIPPED_ROW_HEADERS}
       rows={tableRows}
       totalCount={rows.length}
+      revealsOnReview
     />
   )
 }

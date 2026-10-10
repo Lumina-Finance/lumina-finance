@@ -62,6 +62,7 @@ export function FireflyPreviewStep({
           rowProblems={skipped.rows}
           headers={fireflyHeaders}
           toggleLabel="skipped rows"
+          revealsOnReview
         />
       )}
 
