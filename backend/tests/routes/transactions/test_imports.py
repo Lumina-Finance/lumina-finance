@@ -97,6 +97,40 @@ async def test_import_transactions_creates_records_and_recomputes_snapshots(clie
     assert {"account_id": account_id, "dt": "2026-04-10", "balance": -1234} in snapshots_resp.json()
 
 
+@pytest.mark.parametrize("amount", ["90000000000000000.00", "-90000000000000000.00"])
+async def test_import_transactions_refuses_a_balance_too_large_to_store(client, amount):
+    """Rows whose running balance would leave the stored range either way are refused and nothing is saved."""
+    institution = await _seed_institution()
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    row = {
+        "account_source": "Savings",
+        "category_source": "Windfall",
+        "dt": "2026-04-10",
+        "amount": amount,
+    }
+
+    resp = await _import_run(client, headers, {
+        "accounts": [{
+            "source": "Savings",
+            "create": {
+                "name": "Savings",
+                "account_type": "savings",
+                "currency": "CAD",
+                "institution_id": str(institution.id),
+            },
+        }],
+        "categories": [{"source": "Windfall", "create": {"name": "Windfall", "kind": "income"}}],
+        "rows": [row, {**row, "dt": "2026-04-11"}],
+    })
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Savings would end up with a larger balance than an account can hold"
+    assert (await client.get("/transactions", headers=headers)).json() == []
+    assert (await client.get("/accounts", headers=headers)).json() == []
+    assert "Windfall" not in {category["name"] for category in (await client.get("/categories", headers=headers)).json()}
+
+
 async def test_import_transactions_reuses_existing_records(client):
     """Import reuses explicit mappings and existing merchant/tag names."""
     headers, account_id, category_id = await _setup_user_with_deps(client)

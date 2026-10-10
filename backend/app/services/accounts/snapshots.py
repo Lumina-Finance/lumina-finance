@@ -10,6 +10,7 @@ import uuid
 from collections.abc import Mapping, Sequence
 from datetime import date
 
+from fastapi import HTTPException, status
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -19,6 +20,7 @@ from app.models.group import Group
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.utils.dates import ACCOUNT_OWNER_PROFILE, resolve_timezone
+from app.utils.money import MAX_MINOR_UNITS, MIN_MINOR_UNITS
 
 PersonalOwner = aliased(User)
 GroupOwner = aliased(User)
@@ -92,6 +94,9 @@ async def recompute_account_snapshots(
 
     Returns:
         None
+
+    Raises:
+        HTTPException: An account's running balance would fall outside the range the column holds
     """
     if not snapshot_starts:
         return
@@ -158,6 +163,14 @@ async def _recompute_account_snapshots_from(
     # Walk forward through daily totals and write the running balance after each active day
     for row in deltas_result:
         running_balance += row.delta
+        # Each amount fits the column on its own, but their sum can leave it, and the insert would
+        # then fail as a server error instead of a refusal the caller can show
+        if not MIN_MINOR_UNITS <= running_balance <= MAX_MINOR_UNITS:
+            account_name = await db.scalar(select(Account.name).where(Account.id == account_id))
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"{account_name} would end up with a larger balance than an account can hold",
+            )
         db.add(AccountBalanceSnapshot(
             account_id=account_id,
             dt=row.dt,
