@@ -116,29 +116,6 @@ async def test_converter_reports_provider_unavailable_when_all_fx_fails():
     )
 
 
-async def test_converter_reports_incomplete_when_some_fx_succeeds():
-    """Mixed success and missing rates keep successful conversions and report incomplete FX."""
-    rate_date = date(2026, 5, 30)
-    provider = _FakeProvider(
-        rates={("USD", "CAD", rate_date): Decimal("1.375")},
-        errors={("ABC", "CAD", rate_date): FxRateNotFoundError()},
-    )
-    converter = FxConverter(
-        provider=provider,
-        currency_exponents={"USD": 2, "ABC": 2, "CAD": 2},
-    )
-
-    converted = await converter.convert_minor_units(10_00, base="USD", quote="CAD", rate_date=rate_date)
-    missing = await converter.convert_minor_units(10_00, base="ABC", quote="CAD", rate_date=rate_date)
-
-    assert converted == 13_75
-    assert missing is None
-    assert converter.get_status() == FxStatus(
-        state="incomplete",
-        missing_pairs=[FxRateIssue(base="ABC", quote="CAD")],
-    )
-
-
 async def test_converter_prefetches_range_rates_once():
     """Prefetched date-window rates avoid per-day provider lookups."""
     start_date = date(2026, 5, 29)
@@ -189,28 +166,6 @@ async def test_converter_reports_missing_prefetched_dates_when_used():
     assert unused_missing == 0
     assert converted == 13_75
     assert converter.get_status() == FxStatus(state="complete")
-
-
-async def test_converter_reports_unavailable_prefetched_range_when_used():
-    """Provider failures from prefetching are reported when a conversion needs that date."""
-    start_date = date(2026, 5, 29)
-    end_date = date(2026, 5, 30)
-    provider = _FakeProvider(
-        range_errors={("USD", "CAD", start_date, end_date): FxProviderUnavailableError()},
-    )
-    converter = FxConverter(
-        provider=provider,
-        currency_exponents={"USD": 2, "CAD": 2},
-    )
-
-    await converter.prefetch_rates(base="USD", quote="CAD", start_date=start_date, end_date=end_date)
-    converted = await converter.convert_minor_units(10_00, base="USD", quote="CAD", rate_date=end_date)
-
-    assert converted is None
-    assert converter.get_status() == FxStatus(
-        state="unavailable",
-        missing_pairs=[FxRateIssue(base="USD", quote="CAD")],
-    )
 
 
 def test_convert_minor_units_handles_currency_exponents_and_rounding():

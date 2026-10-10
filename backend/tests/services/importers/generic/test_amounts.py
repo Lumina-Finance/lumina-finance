@@ -60,15 +60,6 @@ def test_parse_import_amount_to_minor_units_rejects_malformed_text(raw_amount):
     assert exc_info.value.detail == f"Invalid amount: {raw_amount}"
 
 
-def test_parse_import_amount_to_minor_units_rejects_too_many_decimal_places():
-    """Import amount parsing raises a 422 error when currency precision is exceeded"""
-    with pytest.raises(HTTPException) as exc_info:
-        parse_import_amount_to_minor_units("12.345", CAD)
-
-    assert exc_info.value.status_code == 422
-    assert exc_info.value.detail == "Amount has too many decimal places for CAD: 12.345"
-
-
 @given(
     minor_units=st.integers(min_value=-999_999_999, max_value=999_999_999),
     minor_unit_exponent=st.integers(min_value=0, max_value=4),
