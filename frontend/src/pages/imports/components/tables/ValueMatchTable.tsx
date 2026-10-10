@@ -83,8 +83,8 @@ export function ImportValueMatchTable({
   const targetHeadingId = `${labelNamespace}-target`
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full table-fixed min-w-[48rem] text-left text-[0.9375rem]">
+    <div className="import-table-scroll">
+      <table className="import-table w-full table-fixed text-left text-[0.9375rem]">
         <colgroup>
           <col className={detailLabel ? 'w-[34%]' : 'w-[45%]'} />
           {detailLabel && <col className="w-64" />}
@@ -102,7 +102,8 @@ export function ImportValueMatchTable({
             const sourceLabelId = `${labelNamespace}-source-${index}`
             const creating = Boolean(createValue && row.value === createValue && !row.hideCreateBadge)
 
-            // The scrolling box clips a tooltip leaving it, so one opens toward the rows below or above
+            // Below the desktop layout the table's scrolling box clips a tooltip leaving it, so one opens
+            // toward the rows below or above
             const tooltipPlacement = index < rows.length / 2 ? 'bottom' : 'top'
 
             return (

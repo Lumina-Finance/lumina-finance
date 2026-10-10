@@ -1399,6 +1399,21 @@
     }
   }
 
+  /* An import table fits its columns to the window in the desktop layout, with nothing around it
+     clipping, so a row's help opens in full. Below it, the table keeps the width its columns need and
+     scrolls sideways inside its own box */
+  @media (width < 1050px) {
+    /* Positioned, so screen-reader-only text placed inside it can't widen the page past it */
+    .import-table-scroll {
+      position: relative;
+      overflow-x: auto;
+    }
+
+    .import-table-scroll > .import-table {
+      min-width: 48rem;
+    }
+  }
+
   @keyframes import-auto-fill-row {
     0% {
       background: color-mix(in srgb, var(--app-accent) 18%, transparent);
