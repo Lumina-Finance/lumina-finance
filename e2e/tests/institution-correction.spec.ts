@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { asUser, createAccount, signUpUser } from '../support/api'
+import { asUser, createAccount, createInstitution, signUpUser } from '../support/api'
 import { openPage, logInViaApi, openModal } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 import { AT_EVERY_SIZE } from '../support/sizes'
@@ -11,14 +11,10 @@ test('corrects the highlighted institution by keyboard and the original inline a
   const user = await signUpUser(request)
   const headers = asUser(user)
   const name = `E2E correction bank ${crypto.randomUUID()}`
-  const created = await request.post(`${API_BASE_URL}/institutions`, {
-    headers, data: { name, country_code: 'CA', website: 'https://example.com' },
-  })
-  expect(created.status()).toBe(201)
-  const institution = await created.json() as { id: string }
+  const institutionId = await createInstitution(request, user, name)
   const account = await createAccount(request, user, { name: 'Institution correction account' })
   const linked = await request.patch(`${API_BASE_URL}/accounts/${account.id}`, {
-    headers, data: { institution_id: institution.id },
+    headers, data: { institution_id: institutionId },
   })
   expect(linked.status()).toBe(200)
 
