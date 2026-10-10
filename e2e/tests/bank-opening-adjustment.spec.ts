@@ -35,6 +35,10 @@ const SIGNED_AMOUNT_MESSAGE = 'Leave out the sign'
 // The width from which the amount and the answers share a row
 const OFFER_ROW_MIN_WIDTH = 640
 
+// Far more frames than one message giving way to another takes, a fraction of a second, so a swap
+// that never settles fails rather than holding the test to its timeout
+const MESSAGE_SWAP_FRAME_LIMIT = 600
+
 type Setup = { user: TestUser; accountId: string; adjustmentDate: string }
 
 /** The offer's controls in the account's edit modal */
@@ -141,29 +145,37 @@ test('keeps the amount and the answers in place on a phone when a message shows 
   await expect(offer.zeroMessage).toBeVisible()
   expect(await placed()).toEqual(before)
 
-  // Every frame while one message gives way to the other: the field's place, where a click on an
-  // answer would otherwise land off, and whether two messages still showing cross, which neither
-  // could then be read through
+  // Every frame from the change until the new message shows on its own, whole and still: the field's
+  // place, where a click on an answer would otherwise land off, and whether two messages still showing
+  // cross, which neither could then be read through
   type Frame = { place: number; crossing: boolean }
-  const sampling = offer.sentence.evaluate((sentence, field) => new Promise<Frame[]>((resolve) => {
+  const sampling = offer.sentence.evaluate((sentence, { field, message, frameLimit }) => new Promise<{ frames: Frame[]; settled: boolean }>((resolve) => {
     const row = document.querySelector(`label[for="${field!.id}"]`)!.parentElement!
     const frames: Frame[] = []
-    const start = performance.now()
     const sample = () => {
-      const shown = [...row.querySelectorAll('p')]
-        .filter((message) => Number(getComputedStyle(message).opacity) > 0)
-        .map((message) => message.getBoundingClientRect())
+      const messages = [...row.querySelectorAll('p')]
+      const shown = messages
+        .filter((shownMessage) => Number(getComputedStyle(shownMessage).opacity) > 0)
+        .map((shownMessage) => shownMessage.getBoundingClientRect())
       const crossing = shown.some((a, i) => shown.slice(i + 1).some((b) =>
         a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom))
       frames.push({ place: Math.round(field!.getBoundingClientRect().top - sentence.getBoundingClientRect().top), crossing })
-      if (performance.now() - start < 600) requestAnimationFrame(sample)
-      else resolve(frames)
+
+      // Motion moves a message from script as well as through the browser, so a message counts as still
+      // once it reads at full strength and unmoved, with nothing the browser runs on the row
+      const [only] = messages
+      const style = only && getComputedStyle(only)
+      const settled = messages.length === 1 && only.textContent?.trim() === message && style.opacity === '1'
+        && ['none', 'matrix(1, 0, 0, 1, 0, 0)'].includes(style.transform)
+        && row.getAnimations({ subtree: true }).every((animation) => animation.playState !== 'running')
+      if (settled || frames.length >= frameLimit) resolve({ frames, settled })
+      else requestAnimationFrame(sample)
     }
     requestAnimationFrame(sample)
-  }), await offer.amount.elementHandle())
+  }), { field: await offer.amount.elementHandle(), message: SIGNED_AMOUNT_MESSAGE, frameLimit: MESSAGE_SWAP_FRAME_LIMIT })
   await offer.amount.fill('-1')
-  const frames = await sampling
-  await expect(offer.dialog.getByText(SIGNED_AMOUNT_MESSAGE)).toBeVisible()
+  const { frames, settled } = await sampling
+  expect(settled, `the new message settled within ${MESSAGE_SWAP_FRAME_LIMIT} frames`).toBe(true)
   await expect(offer.zeroMessage).toBeHidden()
   expect([...new Set(frames.map(({ place }) => place))]).toEqual([before[0]])
   expect(frames.filter(({ crossing }) => crossing)).toEqual([])

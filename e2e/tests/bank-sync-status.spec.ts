@@ -51,31 +51,24 @@ const SYNC_AGE_MS = 5 * 60 * 1000
 // The width from which a notice's action sits beside its text rather than under it
 const NOTICE_ROW_MIN_WIDTH = 640
 
-// Fainter than a dot ever is at rest, and well short of how faint a blink goes
-const BLINKING_OPACITY = 0.5
-
-// Three blinks of 1.4 seconds, read at least as often as one blink has frames, so a dot that blinks
-// is met at its faintest however slowly a busy browser draws its frames
-const BLINK_WATCH_MS = 4_200
-const BLINK_WATCH_READS = 90
-
 /**
- * Whether a status dot blinks: read every frame until it shows fainter than it ever is at rest, or
- * for three blinks and at least as many reads as one blink has frames without doing so
+ * Whether a status dot blinks: whether the browser is running a fade on it that repeats without end,
+ * as the dot's blink does and nothing else on it does
  */
-async function isBlinking(dot: Locator): Promise<boolean> {
-  return dot.evaluate((element, { faint, watchMs, reads }) => new Promise<boolean>((resolve) => {
-    const end = performance.now() + watchMs
-    let count = 0
-    const read = () => {
-      count += 1
-      // Parsed rather than converted, so a dot taken off the page, which has no opacity, never reads as faint
-      if (Number.parseFloat(getComputedStyle(element).opacity) < faint) resolve(true)
-      else if (performance.now() >= end && count >= reads) resolve(false)
-      else requestAnimationFrame(read)
-    }
-    read()
-  }), { faint: BLINKING_OPACITY, watchMs: BLINK_WATCH_MS, reads: BLINK_WATCH_READS })
+function isBlinkRunning(dot: Element): boolean {
+  return dot.getAnimations().some((animation) =>
+    animation.playState === 'running' && animation.effect?.getComputedTiming().iterations === Number.POSITIVE_INFINITY)
+}
+
+function isBlinking(dot: Locator): Promise<boolean> {
+  return dot.evaluate(isBlinkRunning)
+}
+
+/** Answers the account's link as syncing, since a real sync finishes before the dot could be watched */
+async function answerSyncing(page: Page, accountId: string): Promise<void> {
+  await page.route(`${API_BASE_URL}/accounts/${accountId}/bank-link`, (route) => route.fulfill({
+    json: { account_id: accountId, link: buildLinkAnswer(accountId, { sync_in_progress: true }), previous_link: null },
+  }))
 }
 
 // How far an app button's focus ring spreads outside it
@@ -407,43 +400,78 @@ test('reads as retrying at the time of the retry when the Bridge fails', async (
 
   // Scrolling the status to the foot of the modal leaves them where they opened beside it, since they
   // explain nothing marked around them. Opened again there, where they'd fall out of sight, they open
-  // above it. Two frames let any placing on the scroll land first
+  // above it. Read once the scroll has gone out to the page's listeners, and a message sent after them
+  // has come back, so a render React queued from one, in a message of its own, has run first. Where
+  // the status already sits at the foot, as on a screen tall enough for the whole modal, nothing
+  // scrolls and there's nothing to wait for
   const offsetFromIcon = async () => {
     const [opened, icon] = await readBoxes(page, [details, showDetails])
     return opened.y - icon.y
   }
   const openedAt = await offsetFromIcon()
-  await fact(dialog, 'Status').evaluate((status) => status.scrollIntoView({ block: 'end' }))
-  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+  await fact(dialog, 'Status').evaluate((status) => new Promise<void>((resolve) => {
+    const onScroll = () => {
+      const channel = new MessageChannel()
+      channel.port1.onmessage = () => resolve()
+      channel.port2.postMessage(null)
+    }
+    document.addEventListener('scroll', onScroll, { capture: true, once: true })
+    const before = status.getBoundingClientRect().top
+    status.scrollIntoView({ block: 'end' })
+    if (status.getBoundingClientRect().top === before) {
+      document.removeEventListener('scroll', onScroll, { capture: true })
+      resolve()
+    }
+  }))
   expect(await offsetFromIcon()).toBeCloseTo(openedAt, 0)
   await showDetails.click()
   await showDetails.click()
   await expect.poll(() => readClippingBoxes(details)).toEqual([])
 })
 
-for (const reducedMotion of ['no-preference', 'reduce'] as const) {
-  test(`blinks the status dot while a sync fetches, in the modal as on the card, with ${reducedMotion} motion`, async ({ page, request }) => {
-    await page.emulateMedia({ reducedMotion })
-    const user = await signUpUser(request)
-    const account = await createAccount(request, user, { name: 'Everyday' })
+test('blinks the status dot while a sync fetches, in the modal as on the card', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  await answerSyncing(page, account.id)
 
-    // Answered here, since a real sync finishes before the dot could be watched
-    await page.route(`${API_BASE_URL}/accounts/${account.id}/bank-link`, (route) => route.fulfill({
-      json: { account_id: account.id, link: buildLinkAnswer(account.id, { sync_in_progress: true }), previous_link: null },
-    }))
-    const blinks = reducedMotion === 'no-preference'
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  const bankSync = page.getByRole('button', { name: 'Bank sync: Syncing. Open bank link' })
+  await expect.poll(() => isBlinking(bankSync.getByTestId('sync-status-dot'))).toBe(true)
 
-    await logInViaApi(page, user)
-    await openPage(page, `/accounts/${account.id}`)
-    const bankSync = page.getByRole('button', { name: 'Bank sync: Syncing. Open bank link' })
-    expect(await isBlinking(bankSync.getByTestId('sync-status-dot'))).toBe(blinks)
+  // The modal opens with the link already read, which its first view mustn't hold still
+  await bankSync.click()
+  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
+  await expect.poll(() => isBlinking(fact(dialog, 'Status').getByTestId('sync-status-dot'))).toBe(true)
+})
 
-    // The modal opens with the link already read, which its first view mustn't hold still
-    await bankSync.click()
-    const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
-    expect(await isBlinking(fact(dialog, 'Status').getByTestId('sync-status-dot'))).toBe(blinks)
-  })
-}
+// A dot starts or stops its blink once it has rendered, in work React finishes before it renders
+// anything after it, and a blink starts by the frame after. So each dot is checked once a later press
+// has rendered, the card's once the modal has opened and the modal's once Sync details has, a press
+// landing only once the page has drawn twice without moving
+test('holds the status dot still while a sync fetches for anyone who asks for reduced motion, in the modal as on the card', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  await answerSyncing(page, account.id)
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  const bankSync = page.getByRole('button', { name: 'Bank sync: Syncing. Open bank link' })
+
+  // Held on to, since the open modal takes the card out of what the page offers to assistive technology
+  const cardDot = (await bankSync.getByTestId('sync-status-dot').elementHandle())!
+  await bankSync.click()
+  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
+  await expect(dialog).toBeVisible()
+  expect(await cardDot.evaluate(isBlinkRunning)).toBe(false)
+
+  const showDetails = dialog.getByRole('button', { name: 'Sync details' })
+  await showDetails.click()
+  await expect(showDetails).toHaveAttribute('aria-expanded', 'true')
+  expect(await isBlinking(fact(dialog, 'Status').getByTestId('sync-status-dot'))).toBe(false)
+})
 
 // Answered here, synced as the page's clock starts, since a real sync can't be timed to it
 test('words how long ago the link synced anew as minutes pass with the page open', async ({ page, request }) => {

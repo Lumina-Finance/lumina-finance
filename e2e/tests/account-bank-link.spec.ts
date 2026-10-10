@@ -42,6 +42,13 @@ const IMPORT_CLOCK_STEP_MS = 100
 // Well past when a Bank link section that loads after its modal has opened moves focus to its action
 const OPENING_FOCUS_PASSED_MS = 1_000
 
+// Three frames on the page's clock, by when the frame after a fade has ended has passed
+const FRAMES_PAST_FADE_MS = 48
+
+// How far the page's clock moves at a time while a test waits for the app shell's next read of the
+// links, which comes every 2 seconds while a link imports
+const LINK_READ_CLOCK_STEP_MS = 100
+
 // Either side of where a modal stops filling the screen and sits in the middle of it, at a laptop's height
 const WIDEST_FULL_SCREEN_MODAL_SIZE = { width: 1049, height: 800 }
 const NARROWEST_CENTRED_MODAL_SIZE = { width: 1050, height: 800 }
@@ -224,14 +231,29 @@ async function holdRenders(page: Page): Promise<void> {
       releaseRenders: () => {
         MessagePort.prototype.postMessage = post
         for (const send of held) send()
+        return held.length
       },
     })
   })
 }
 
-/** Lets the renders `holdRenders` held back run, in the order they were put off */
-async function releaseRenders(page: Page): Promise<void> {
-  await page.evaluate(() => (window as Window & { releaseRenders?: () => void }).releaseRenders!())
+/**
+ * Lets the renders `holdRenders` held back run, in the order they were put off
+ *
+ * @returns How many messages were held back, none meaning the hold held nothing
+ */
+async function releaseRenders(page: Page): Promise<number> {
+  return page.evaluate(() => (window as Window & { releaseRenders?: () => number }).releaseRenders!())
+}
+
+/** How strongly Review settings shows through the views around it, none once it has gone */
+function readReviewSettingsOpacity(dialog: Locator): Promise<number> {
+  return dialog.evaluate((panel) => {
+    const button = Array.from(panel.querySelectorAll('button')).find((control) => control.textContent?.trim() === 'Review settings')
+    let opacity = 1
+    for (let box: Element | null = button ?? null; box; box = box.parentElement) opacity *= Number(getComputedStyle(box).opacity)
+    return button ? opacity : 0
+  })
 }
 
 // A read the page sends as a test ends can still be on its way through a changed answer when the page
@@ -321,36 +343,47 @@ test('links an account from its page, from choosing the bank account to its impo
 
 // The old view says it has faded out before React takes it off the page, in a render of its own, and a
 // busy machine can draw a frame in between. Focus is looked after once the view has gone, not on that
-// frame, where it still sits on a control about to go and would then fall to the page. Renders are held
-// until frames have passed since the fade ended, so the frame comes first unless a render the page needs
-// at once takes the old view along sooner
+// frame, where it still sits on a control about to go and would then fall to the page. Renders are held,
+// and the page's clock stopped, so frames pass only as the test moves it on, and they pass with the old
+// view still on the page. Motion isn't reduced, as it is for other tests on the page's clock, since the
+// fade is what the report of the old view's exit waits for
 test('moves focus to Link bank account once the link it sat by is undone elsewhere, however late the old view leaves', async ({ page, request }) => {
+  await page.clock.install()
   const { dialog, accountId } = await openImportingLink(page, request)
   const reviewSettings = dialog.getByRole('button', { name: 'Review settings' })
   await expect(reviewSettings).toBeFocused()
 
-  // Undone in another tab. The app shell's next read of the links finds none, and reads the account's again
+  // Undone in another tab. The app shell's next read of the links finds none, and reads the account's
+  // again. Every other read the page sends from then waits until focus has moved, since an answer
+  // renders at once and would take the held renders along, the old view's exit among them
   await holdRenders(page)
+  await stopClock(page)
+  let releaseReads = () => {}
+  const readsReleased = new Promise<void>((resolve) => { releaseReads = resolve })
+  await page.route(`${API_BASE_URL}/**`, async (route) => {
+    await readsReleased
+    await route.fallback()
+  })
   await page.route(`${API_BASE_URL}/bank-sync/links`, (route) => route.fulfill({ json: [] }))
   await page.route(`${API_BASE_URL}/accounts/${accountId}/bank-link`, (route) => route.fulfill({
     json: { account_id: accountId, link: null, previous_link: null },
   }))
   const linkButton = dialog.getByRole('button', { name: 'Link bank account' })
-  await expect(linkButton).toBeAttached()
+  await runClockUntil(page, async () => (await linkButton.count()) === 1, LINK_READ_CLOCK_STEP_MS)
 
-  // The old view has faded out once nothing of it shows through, and has said so by the frame after. A
-  // render the page needs at once takes along any held back, so the view can also have gone already
-  await expect.poll(() => dialog.evaluate((panel) => {
-    const button = Array.from(panel.querySelectorAll('button')).find((control) => control.textContent?.trim() === 'Review settings')
-    let opacity = 1
-    for (let box: Element | null = button ?? null; box; box = box.parentElement) opacity *= Number(getComputedStyle(box).opacity)
-    return button ? opacity : 0
-  })).toBe(0)
-  await page.evaluate(() => new Promise((settle) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(settle)))))
-  await releaseRenders(page)
+  // The old view has faded out once nothing of it shows through, and says so on the frame after, so a
+  // look at focus a frame later would still find it on Review settings
+  await runClockUntil(page, async () => (await readReviewSettingsOpacity(dialog)) === 0)
+  await page.clock.runFor(FRAMES_PAST_FADE_MS)
 
+  // The hold has kept the old view on the page through those frames, and held what takes it off
+  expect(await reviewSettings.count()).toBe(1)
+  expect(await releaseRenders(page)).toBeGreaterThan(0)
+
+  await runClockUntil(page, async () => (await reviewSettings.count()) === 0 && await linkButton.evaluate((button) => button === document.activeElement))
   await expect(reviewSettings).not.toBeAttached()
   await expect(linkButton).toBeFocused()
+  releaseReads()
 })
 
 test("keeps the link's message clear of Cancel and Save Changes where the edit modal fills the screen, and back in the corner once it closes", async ({ page, request }) => {

@@ -873,16 +873,17 @@ test('holds Link and import back with the reason when bank sync stops as the lin
   await expect(submit).toHaveAttribute('aria-disabled', 'true')
   await expect(submit).toHaveAccessibleDescription(LINKING_PAUSED)
 
-  // Waits out the moment a press that got through would have sent the link
-  const linkSent = page
-    .waitForRequest((sent) => sent.url() === `${API_BASE_URL}/accounts/${household.id}/bank-link` && sent.method() === 'POST', { timeout: 1_500 })
-    .then(
-      () => true,
-      () => false,
-    )
+  // A press that got through would send the link before the page takes the next press, so the links
+  // sent are counted once Cancel has closed the flow
+  let linksSent = 0
+  page.on('request', (sent) => {
+    if (sent.url() === `${API_BASE_URL}/accounts/${household.id}/bank-link` && sent.method() === 'POST') linksSent += 1
+  })
   await submit.click({ force: true })
-  expect(await linkSent).toBe(false)
   await expect(flow).toBeVisible()
+  await flow.getByRole('button', { name: 'Cancel' }).click()
+  await expect(flow).toBeHidden()
+  expect(linksSent).toBe(0)
 })
 
 test('disables Add a connection when no provider is open to new connections', async ({ page, request }) => {

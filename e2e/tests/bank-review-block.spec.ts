@@ -35,7 +35,13 @@ type Backlog = { account_id: string; waiting_new_count: number; paused: boolean;
 
 type Accounts = { user: TestUser; everyday: SeededAccount; visa: SeededAccount; savings: SeededAccount }
 
-type IntersectionHold = { holdIntersections: () => void; heldFromNewWatcher: () => boolean; releaseIntersections: () => void }
+/**
+ * Whose reports are held back: any for something that started watching since `holdIntersections`, and
+ * any for something already watching then
+ */
+type HeldReports = { fromNewWatcher: boolean; fromEarlierWatcher: boolean }
+
+type IntersectionHold = { holdIntersections: () => void; readHeld: () => HeldReports; releaseIntersections: () => void }
 
 // Past the second the block waits, with the end of the list near, before it loads the next page
 const LOAD_WAIT_PASSED_MS = 1_500
@@ -110,7 +116,10 @@ async function holdableIntersections(page: Page): Promise<void> {
         held = []
         firstNewWatcher = watchers
       },
-      heldFromNewWatcher: () => (held ?? []).some(({ watcher }) => watcher >= firstNewWatcher),
+      readHeld: () => ({
+        fromNewWatcher: (held ?? []).some(({ watcher }) => watcher >= firstNewWatcher),
+        fromEarlierWatcher: (held ?? []).some(({ watcher }) => watcher < firstNewWatcher),
+      }),
       releaseIntersections: () => {
         const reports = held ?? []
         held = null
@@ -126,9 +135,9 @@ async function holdIntersections(page: Page): Promise<void> {
   await page.evaluate(() => (window as unknown as IntersectionHold).holdIntersections())
 }
 
-/** Whether a report has been held back for something that started watching since `holdIntersections` */
-async function heldFromNewWatcher(page: Page): Promise<boolean> {
-  return page.evaluate(() => (window as unknown as IntersectionHold).heldFromNewWatcher())
+/** Whose reports have been held back since `holdIntersections` */
+async function readHeld(page: Page): Promise<HeldReports> {
+  return page.evaluate(() => (window as unknown as IntersectionHold).readHeld())
 }
 
 /** Sends the reports held back since `holdIntersections`, and lets later ones through */
@@ -350,8 +359,9 @@ test('moves focus on from a retry that succeeds only while the retry has it, to 
   gate.open()
   await expect(block.getByRole('listitem')).toHaveCount(1)
 
-  // Two frames on from the rows arriving, by when any move of focus that came with them has run
-  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+  // The failure leaves the page in a render after the one that brought the rows, which React starts
+  // only once it has run what came with them, any move of focus included
+  await expect(itemsFailure).not.toBeAttached()
   await expect(block.getByRole('listitem')).not.toBeFocused()
   expect(await page.evaluate(() => document.activeElement?.hasAttribute('data-focus-went-here') ?? false)).toBe(true)
 })
@@ -432,10 +442,12 @@ test('loads no more of a 1,500 item backlog when the end of the list has moved a
   await expect(loading).toHaveText('Loading more items…')
 
   // The block's last look at the end of the list, which it takes as the wait runs out, is answered as
-  // the page is next laid out, held back with the rest
+  // the page is next laid out, held back with the rest. Both are held, so the order they come in is
+  // the one released: the last look's, then the watch's that started the wait, which heard of the
+  // rows growing as the clock moved on
   await holdIntersections(page)
   await page.clock.runFor(LOAD_WAIT_PASSED_MS)
-  await expect.poll(() => heldFromNewWatcher(page)).toBe(true)
+  await expect.poll(() => readHeld(page)).toEqual({ fromNewWatcher: true, fromEarlierWatcher: true })
   await releaseIntersections(page)
   await runClockUntil(page, async () => !(await loading.isVisible()))
   await expect(rows).toHaveCount(50)
