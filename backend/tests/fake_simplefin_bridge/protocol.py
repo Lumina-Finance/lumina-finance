@@ -127,12 +127,12 @@ async def _fault_response(scenario: Scenario, request: Request) -> Response | No
         case FaultKind.HTML_ERROR:
             return HTMLResponse(HTML_ERROR_PAGE, status_code=fault.status)
         case FaultKind.TIMEOUT:
-            await _stall(request, scenario.stalls_released)
+            await _stall(request, scenario)
             return Response(status_code=504)
     return None
 
 
-async def _stall(request: Request, released: asyncio.Event) -> None:
+async def _stall(request: Request, scenario: Scenario) -> None:
     """Hold the request until its client gives up, the fault is cleared, or for the whole stall at most
 
     Ending at the disconnect leaves no stalled request behind to hold up stopping the server. Ending
@@ -144,7 +144,8 @@ async def _stall(request: Request, released: asyncio.Event) -> None:
         while (await request.receive())["type"] != "http.disconnect":
             pass
 
-    waits = [asyncio.create_task(disconnected()), asyncio.create_task(released.wait())]
+    waits = [asyncio.create_task(disconnected()), asyncio.create_task(scenario.stalls_released.wait())]
+    scenario.request_held.set()
     try:
         await asyncio.wait(waits, timeout=TIMEOUT_STALL_SECONDS, return_when=asyncio.FIRST_COMPLETED)
     finally:

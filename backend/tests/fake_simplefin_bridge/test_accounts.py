@@ -3,6 +3,7 @@ import asyncio
 import httpx
 import pytest
 
+from tests.fake_simplefin_bridge import state
 from tests.fake_simplefin_bridge._helpers import (
     DAY_SECONDS,
     _add_account,
@@ -130,8 +131,8 @@ async def test_accounts_timeout_fault_frees_the_request_it_holds_once_cleared(br
     access_url = await _claim_access_url(bridge, setup_token)
     await bridge.put(f"/control/scenarios/{scenario_id}/fault", json={"kind": "timeout"})
     held = asyncio.create_task(bridge.get(f"{access_url}/accounts", params={"version": "2"}, timeout=10))
-    await asyncio.sleep(0.2)
-    assert not held.done()
+    async with asyncio.timeout(2):
+        await state.bridge.scenarios[scenario_id].request_held.wait()
 
     cleared = await bridge.delete(f"/control/scenarios/{scenario_id}/fault")
 
