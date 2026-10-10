@@ -29,6 +29,51 @@ def own_personal_account_condition(user_id: uuid.UUID) -> ColumnElement[bool]:
     return (Account.owner_id == user_id) & Account.group_id.is_(None)
 
 
+def own_or_administered_account_condition(user_id: uuid.UUID) -> ColumnElement[bool]:
+    """Return the condition an account meets when it is the user's own personal account or a group account they administer
+
+    Only a group's admins create its accounts, so a flow that sets a new account up takes theirs as
+    well. A permission grant, even an admin one, doesn't make an account the user's own
+    """
+    administered_groups = select(GroupMember.group_id).where(GroupMember.user_id == user_id, GroupMember.is_admin.is_(True))
+    return own_personal_account_condition(user_id) | Account.group_id.in_(administered_groups)
+
+
+async def get_account_meeting(
+    db: AsyncSession,
+    account_id: uuid.UUID,
+    user_id: uuid.UUID,
+    condition: ColumnElement[bool],
+    *,
+    refused_detail: str,
+) -> Account:
+    """Return the account when it meets the condition a flow sets on whose accounts it takes
+
+    An account the user can see that fails the condition is refused saying why. One they can't see
+    is not found, as for any other account request
+
+    Args:
+        db: Active database session
+        account_id: Account identifier from the request
+        user_id: User acting on the account
+        condition: What makes an account one the flow takes for this user
+        refused_detail: Why the flow refuses a visible account that fails the condition
+
+    Returns:
+        The account
+
+    Raises:
+        HTTPException: The account isn't visible to the user, or is visible but fails the condition
+    """
+    account = await db.scalar(select(Account).where(Account.id == account_id, condition))
+    if account is not None:
+        return account
+
+    # Not found for an account the user can't see, so only a visible one is refused as not their own
+    await check_account_access(db, account_id, user_id, PermissionLevel.READ)
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=refused_detail)
+
+
 async def get_own_personal_account(
     db: AsyncSession,
     account_id: uuid.UUID,
@@ -55,13 +100,7 @@ async def get_own_personal_account(
         HTTPException: The account isn't visible to the user, or is visible but isn't their own
             personal account
     """
-    account = await db.scalar(select(Account).where(Account.id == account_id, own_personal_account_condition(user_id)))
-    if account is not None:
-        return account
-
-    # Not found for an account the user can't see, so only a visible one is refused as not their own
-    await check_account_access(db, account_id, user_id, PermissionLevel.READ)
-    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=not_own_detail)
+    return await get_account_meeting(db, account_id, user_id, own_personal_account_condition(user_id), refused_detail=not_own_detail)
 
 
 async def check_own_personal_accounts(

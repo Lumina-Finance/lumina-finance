@@ -3,19 +3,14 @@
 import uuid
 from datetime import date, datetime
 
-from fastapi import HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.base import PermissionLevel
-from app.models.group import GroupMember
 from app.models.user import User
-from app.permissions import check_account_access
 from app.routes.accounts.creation_scope_helpers import get_group_owner_timezone_or_404
 from app.routes.accounts.response_loading_helpers import get_account_for_response
 from app.schemas.account import RecordStartingBalanceRequest
-from app.services.accounts.access import own_personal_account_condition
+from app.services.accounts.access import get_account_meeting, own_or_administered_account_condition
 from app.services.accounts.balance_adjustments import record_account_starting_balance
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.utils.dates import ACCOUNT_OWNER_PROFILE, resolve_timezone
@@ -46,7 +41,9 @@ async def record_starting_balance_for_user(
         HTTPException: The account isn't visible to the user, isn't one they own or administer, its
             owner's timezone isn't recognized, or it can't take a starting balance
     """
-    account = await _get_account_taking_starting_balance(db, account_id, user.id)
+    account = await get_account_meeting(
+        db, account_id, user.id, own_or_administered_account_condition(user.id), refused_detail=_NOT_OWN_ACCOUNT_DETAIL
+    )
     await record_account_starting_balance(
         db,
         account,
@@ -60,40 +57,6 @@ async def record_starting_balance_for_user(
     await db.commit()
 
     return await get_account_for_response(db, user, account_id, now.date())
-
-
-async def _get_account_taking_starting_balance(db: AsyncSession, account_id: uuid.UUID, user_id: uuid.UUID) -> Account:
-    """Return the account when it is the user's own personal account or a group account they administer
-
-    Only a group's admins can create its accounts, so they are the ones who state a new group
-    account's starting balance. A permission grant, even an admin one, doesn't make an account the
-    user's own
-
-    Args:
-        db: Active database session
-        account_id: Account identifier from the route path
-        user_id: User recording the starting balance
-
-    Returns:
-        The account
-
-    Raises:
-        HTTPException: The account isn't visible to the user, or is visible but isn't one they own
-            or administer
-    """
-    administered_groups = select(GroupMember.group_id).where(GroupMember.user_id == user_id, GroupMember.is_admin.is_(True))
-    account = await db.scalar(
-        select(Account).where(
-            Account.id == account_id,
-            own_personal_account_condition(user_id) | Account.group_id.in_(administered_groups),
-        ),
-    )
-    if account is not None:
-        return account
-
-    # Not found for an account the user can't see, so only a visible one is refused as not their own
-    await check_account_access(db, account_id, user_id, PermissionLevel.READ)
-    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_NOT_OWN_ACCOUNT_DETAIL)
 
 
 async def _account_owners_today(db: AsyncSession, account: Account, now: datetime) -> date:
