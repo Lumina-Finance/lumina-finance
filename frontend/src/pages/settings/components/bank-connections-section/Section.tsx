@@ -95,7 +95,7 @@ export function BankConnectionsSection() {
             <GlassSearchField
               value={search}
               onValueChange={setSearch}
-              placeholder="Search connections and institutions…"
+              placeholder="Find a connection or institution…"
               wrapperClassName="flex-1"
             />
             <DisabledReasonButton
