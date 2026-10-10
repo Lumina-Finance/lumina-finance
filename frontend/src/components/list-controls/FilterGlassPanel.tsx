@@ -247,6 +247,9 @@ export function FilterGlassPanel({
         animate={{ width: open ? horizontalPlacement.width : collapsedSize.width }}
         transition={transition}
         whileTap={open || shouldReduceMotion ? undefined : { scale: 0.94 }}
+        // A press animation makes Motion put the frame in the Tab order unless it already has a
+        // place there, and the button inside is the one stop the pill needs
+        tabIndex={-1}
       >
         <button
           ref={headRef}

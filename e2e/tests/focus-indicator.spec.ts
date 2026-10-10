@@ -139,6 +139,8 @@ for (const colorScheme of ['light', 'dark'] as const) {
     const toolbar = [
       { control: page.getByRole('textbox', { name: /Search transactions/ }), kind: 'border' },
       { control: page.getByRole('button', { name: 'Select transactions', exact: true }), kind: 'outline' },
+      // The phone toolbar has no Filters pill, only a button that opens a sheet
+      ...page.viewportSize()!.width >= 750 ? [{ control: page.getByRole('button', { name: 'Transaction filters', exact: true }), kind: 'outline' as const }] : [],
     ] as const
     for (const { control, kind } of toolbar) {
       await focusFromKeyboard(page, control)

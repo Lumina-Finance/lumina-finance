@@ -998,6 +998,17 @@
     backdrop-filter: blur(20px) saturate(160%);
   }
 
+  /* The head fills the glass, which clips anything drawn past its edge, so the head's focus ring is
+     drawn around the glass in place of the head's own */
+  .app-range-glass:has(> .app-range-glass-head:focus-visible) {
+    outline: var(--app-focus-outline);
+    outline-offset: var(--app-focus-offset);
+  }
+
+  .app-range-glass-head:focus-visible {
+    outline: none;
+  }
+
   /* The mobile control spans the full width instead of hugging its content like the sidebar pill */
   .app-range-glass-full {
     width: 100%;
