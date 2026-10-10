@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
-import { asUser, createAccount, createInstitution, formatDateLabel, formatToday, signUpUser, todayInTestTimezone } from '../support/api'
+import { asUser, createAccount, createGroup, createInstitution, formatDateLabel, formatToday, signUpUser, todayInTestTimezone } from '../support/api'
 import { chooseFromDropdown, fact, logInViaApi, openModal, openPage } from '../support/app'
 import {
   addBridgeBankAccount,
@@ -890,4 +890,50 @@ test("names the linked bank's institution on the identity card until the account
   await expect(bankSyncFact(page, READ_LINK_STATUS)).toBeVisible()
   await expect(card.getByText(ownName, { exact: true })).toBeVisible()
   await expect(card.getByText(SAMPLE_BANK, { exact: true })).toHaveCount(0)
+})
+
+// The bank's name comes in with the account's bank link, so until that read lands the card can't tell
+// whether the account has an institution, and names none. The read is held until both have been looked for
+test('names no institution on the identity card while its bank link is being read', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const everyday = await createAccount(request, user, { name: 'Everyday' })
+  await linkToSampleBankAccount(request, user, { accountId: everyday.id, bankAccountName: SAMPLE_CHEQUING })
+  const linkUrl = `${API_BASE_URL}/accounts/${everyday.id}/bank-link`
+  let release = () => {}
+  const released = new Promise<void>((resolve) => { release = resolve })
+  await page.route(linkUrl, async (route) => {
+    await released
+    await route.fallback()
+  })
+  await logInViaApi(page, user)
+  const held = page.waitForRequest((sent) => sent.url() === linkUrl && sent.method() === 'GET')
+  await openPage(page, `/accounts/${everyday.id}`)
+  await held
+  const card = identityCard(page)
+  await expect(card.getByRole('heading', { name: 'Everyday', exact: true })).toBeVisible()
+  await expect(card.getByText(SAMPLE_BANK, { exact: true })).toHaveCount(0)
+  await expect(card.getByText('No institution', { exact: true })).toHaveCount(0)
+
+  release()
+  await expect(card.getByText(SAMPLE_BANK, { exact: true })).toBeVisible()
+  await expect(card.getByText('No institution', { exact: true })).toHaveCount(0)
+})
+
+// An account of the user's own says so once its bank link is read and found to be none, and a group
+// account, whose link the page never reads, straight away
+test("says an account with no institution and no bank link has none, whether it's the user's own or a group's", async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const groupId = await createGroup(request, user, 'Household')
+  const accounts = await Promise.all([
+    createAccount(request, user, { name: 'Everyday' }),
+    createAccount(request, user, { name: 'Shared bills', groupId }),
+  ])
+  await logInViaApi(page, user)
+
+  for (const account of accounts) {
+    await openPage(page, `/accounts/${account.id}`)
+    const card = identityCard(page)
+    await expect(card.getByRole('heading', { name: account.name, exact: true })).toBeVisible()
+    await expect(card.getByText('No institution', { exact: true })).toBeVisible()
+  }
 })
