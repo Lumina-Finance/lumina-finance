@@ -745,8 +745,11 @@ export async function syncBankLinkNow(request: APIRequestContext, user: TestUser
 /** A ledger transaction as the server holds it, as far as a bank spec reads it back */
 export type SavedTransaction = {
   id: string
+  account_id: string
   dt: string
   amount: number
+  category_id: string
+  merchant_id: string | null
   counterparty_account_id: string | null
   counterparty_account_scope: string | null
   bank_source: BankSource | null

@@ -6,6 +6,7 @@ import {
   createAccount,
   createGroup,
   daysFromTodayInTestTimezone,
+  findReferenceId,
   signUpUser,
   type SeededAccount,
   type TestUser,
@@ -40,6 +41,9 @@ const DIALOG_NAME = 'Review bank item'
 const COUNTDOWN = { posted: daysFromTodayInTestTimezone(-2), amount: '-42.10', description: 'COUNTDOWN 123 AUCKLAND' } as const
 const HARBOUR = { posted: daysFromTodayInTestTimezone(-4), amount: '-12.50', description: 'HARBOUR COFFEE' } as const
 const CAFE = { posted: daysFromTodayInTestTimezone(-6), amount: '-8.75', description: 'CAFE ROMA' } as const
+
+// The day a user moves Countdown's spend to, the day before the bank booked it
+const EDITED_DATE = daysFromTodayInTestTimezone(-3)
 
 // Where the modal has room for the card beside it, and below which it takes the whole screen
 const ASIDE_MIN_WIDTH = 1320
@@ -181,18 +185,21 @@ test('opens a new item as the bank sent it beside its filing card, and adds noth
   expect(await readWaiting(request, user, everyday.id)).toEqual([COUNTDOWN.description])
 })
 
-test('adds an item with its amount changed, and with the window kept open goes on through the new items until none are left', async ({ page, request }) => {
+test('adds an item with its date and amount changed, and with the window kept open goes on through the new items until none are left', async ({ page, request }) => {
   const { user, everyday } = await start(page, request, [COUNTDOWN, HARBOUR])
   await openPage(page, '/transactions')
 
+  // The date typed over the bank's, a part at a time as a user types it
   const dialog = await openReview(page, COUNTDOWN.description)
   const form = formOf(dialog)
+  await form.year.click()
+  await page.keyboard.type(EDITED_DATE.replaceAll('-', ''))
   await chooseFromDropdown(dialog, 'Merchant', 'Unknown')
   await chooseFromDropdown(dialog, 'Category', 'Groceries')
   await form.amount.fill('40.00')
   await form.keepOpen.check()
 
-  // Two days ago is a day Everyday's bank supplies, which a manual entry may not take, and a review may
+  // Three days ago is a day Everyday's bank supplies, which a manual entry may not take, and a review may
   const id = await addToLedger(page, dialog)
 
   // The next new item, in a fresh form with the window still open
@@ -210,8 +217,16 @@ test('adds an item with its amount changed, and with the window kept open goes o
   await expect(reviewBlock(page)).toBeHidden()
   await expectTransactionRow(page, id, `${MINUS}$40.00`)
 
-  // Saved on the bank's day with the amount the user changed, which counts as their edit
-  expect(await readTransaction(request, user, id)).toMatchObject({ dt: COUNTDOWN.posted, amount: -4000, bank_source: { edited_fields: ['amount'] } })
+  // Saved in Everyday under the merchant and category chosen, on the day and with the amount the user
+  // changed, which count as their edits
+  expect(await readTransaction(request, user, id)).toMatchObject({
+    account_id: everyday.id,
+    dt: EDITED_DATE,
+    amount: -4000,
+    category_id: await findReferenceId(request, user, 'categories', 'Groceries'),
+    merchant_id: await findReferenceId(request, user, 'merchants', 'Unknown'),
+    bank_source: { edited_fields: ['date', 'amount'] },
+  })
   expect(await readWaiting(request, user, everyday.id)).toEqual([])
 })
 
@@ -252,8 +267,15 @@ test('records money in from Savings as one transfer that names Savings, kept as 
   await expect(rows).toHaveCount(1)
   await expect(rows.first()).toContainText(HARBOUR.description)
 
-  // Saved as money in from Savings, on Everyday's side alone
-  expect(await readTransaction(request, user, id)).toMatchObject({ amount: 50000, counterparty_account_id: savings.id, counterparty_account_scope: 'tracked' })
+  // Saved as money in from Savings under the merchant and category chosen, on Everyday's side alone
+  expect(await readTransaction(request, user, id)).toMatchObject({
+    account_id: everyday.id,
+    amount: 50000,
+    category_id: await findReferenceId(request, user, 'categories', 'Transfer'),
+    merchant_id: await findReferenceId(request, user, 'merchants', 'Unknown'),
+    counterparty_account_id: savings.id,
+    counterparty_account_scope: 'tracked',
+  })
   expect(await countLedgerTransactions(request, user)).toBe(1)
   expect(await readWaiting(request, user, everyday.id)).toEqual([HARBOUR.description])
 })
@@ -394,7 +416,7 @@ test('keeps the item open and says what went wrong when a decision fails', async
 })
 
 test('opens an amount its currency cannot hold empty, and adds the item once one is entered', async ({ page, request }) => {
-  const { user } = await start(page, request, [{ ...COUNTDOWN, amount: '-42.105' }])
+  const { user, everyday } = await start(page, request, [{ ...COUNTDOWN, amount: '-42.105' }])
   await openPage(page, '/transactions')
 
   const dialog = await openReview(page, COUNTDOWN.description)
@@ -414,8 +436,16 @@ test('opens an amount its currency cannot hold empty, and adds the item once one
   await expect(dialog).toBeHidden()
   await expectTransactionRow(page, id, `${MINUS}$42.11`)
 
-  // The amount the user entered stands in for the bank's, so it counts as their edit
-  expect(await readTransaction(request, user, id)).toMatchObject({ amount: -4211, bank_source: { edited_fields: ['amount'] } })
+  // The amount the user entered stands in for the bank's, so it counts as their edit, and the item is
+  // saved in Everyday on the bank's day under the merchant and category chosen
+  expect(await readTransaction(request, user, id)).toMatchObject({
+    account_id: everyday.id,
+    dt: COUNTDOWN.posted,
+    amount: -4211,
+    category_id: await findReferenceId(request, user, 'categories', 'Groceries'),
+    merchant_id: await findReferenceId(request, user, 'merchants', 'Unknown'),
+    bank_source: { edited_fields: ['amount'] },
+  })
 })
 
 for (const colorScheme of ['light', 'dark'] as const) {
