@@ -61,7 +61,7 @@ export default function TaxAdvantagedCategoriesSection({
   }
 
   return (
-    <section id="tax-advantaged-categories" className="scroll-mt-8">
+    <section id="tax-advantaged-categories">
       <SettingsSectionHeader
         title="Tax-Advantaged Categories"
         description="Create category-level limits before assigning accounts to them."

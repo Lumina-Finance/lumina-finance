@@ -3,6 +3,12 @@ import { useLocation, useNavigate } from 'react-router'
 import { SETTINGS_SECTIONS, type SettingsSectionId } from '@/pages/settings/settingsNavigation'
 
 const PROGRAMMATIC_SCROLL_SETTLE_MS = 600
+const COMPACT_MENU_QUERY = '(max-width: 1199.98px)'
+
+// Space left above a section the page scrolls to: below the pinned section menu where it shows, or
+// from the top of the window beside the side list
+const SECTION_GAP_BELOW_MENU_PX = 16
+const SECTION_GAP_WITHOUT_MENU_PX = 32
 
 /**
  * Owns settings section scroll spy state, mobile menu state, and section navigation
@@ -18,6 +24,19 @@ export function useSettingsSectionNavigation() {
   const skipScrollSpyRef = useRef(false)
 
   /**
+   * Scrolls a section to just below whatever stays pinned above it, measured rather than fixed since the
+   * section menu sits lower in the wider layouts
+   */
+  function scrollToSection(element: HTMLElement) {
+    const menu = mobileSettingsMenuRef.current
+    // The menu sits inside its sticky shell, so its own offset is where its bottom lands once pinned
+    const offset = window.matchMedia(COMPACT_MENU_QUERY).matches && menu
+      ? menu.offsetTop + menu.offsetHeight + SECTION_GAP_BELOW_MENU_PX
+      : SECTION_GAP_WITHOUT_MENU_PX
+    window.scrollTo({ top: window.scrollY + element.getBoundingClientRect().top - offset, behavior: 'smooth' })
+  }
+
+  /**
    * Scrolls to a section while suppressing scroll-spy updates during the smooth-scroll settle window
    */
   function navigateToSection(id: SettingsSectionId) {
@@ -26,7 +45,7 @@ export function useSettingsSectionNavigation() {
 
     skipScrollSpyRef.current = true
     setActiveSection(id)
-    element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    scrollToSection(element)
     window.setTimeout(() => { skipScrollSpyRef.current = false }, PROGRAMMATIC_SCROLL_SETTLE_MS)
   }
 
@@ -66,7 +85,7 @@ export function useSettingsSectionNavigation() {
 
       skipScrollSpyRef.current = true
       setActiveSection(section.id)
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      scrollToSection(element)
       settleTimer = window.setTimeout(() => {
         skipScrollSpyRef.current = false
       }, PROGRAMMATIC_SCROLL_SETTLE_MS)
@@ -91,7 +110,7 @@ export function useSettingsSectionNavigation() {
         frameId = null
         if (skipScrollSpyRef.current) return
 
-        const isCompactMenu = window.matchMedia('(max-width: 1199.98px)').matches
+        const isCompactMenu = window.matchMedia(COMPACT_MENU_QUERY).matches
         const compactMenuBottom = mobileSettingsMenuRef.current?.getBoundingClientRect().bottom ?? 0
         const activationLine = isCompactMenu
           ? compactMenuBottom + 24

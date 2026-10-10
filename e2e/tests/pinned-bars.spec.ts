@@ -30,3 +30,42 @@ test('keeps the pinned settings section menu clear of the menu button just below
   await expect(menu).toBeInViewport()
   await expect.poll(() => overlapWithMenuButton(page, menu)).toBeLessThanOrEqual(-8)
 })
+
+/** Resolve once the page has held still for ten frames, so a smooth scroll has come to rest */
+async function waitForScrollToRest(page: Page): Promise<void> {
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    let last = window.scrollY
+    let stillFrames = 0
+    const tick = () => {
+      if (window.scrollY === last) stillFrames += 1
+      else stillFrames = 0
+      last = window.scrollY
+      if (stillFrames >= 10) resolve()
+      else requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  }))
+}
+
+test('brings each chosen settings section to rest below the pinned section menu', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/settings')
+
+  // The section menu pins above the page below the side list's width, and the side list takes its place above it
+  const menu = page.locator('[aria-controls="settings-mobile-section-menu"]')
+  const compact = await menu.isVisible()
+  for (const name of ['Security', 'Runway', 'Categories', 'Merchants', 'Tags', 'Tax-Advantaged Categories']) {
+    if (compact) {
+      await menu.click()
+      await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name, exact: true }).click()
+    } else {
+      await page.getByRole('button', { name, exact: true }).click()
+    }
+    await waitForScrollToRest(page)
+
+    const heading = (await page.getByRole('heading', { level: 2, name, exact: true }).boundingBox())!
+    const coveredTo = compact ? (await menu.boundingBox())!.y + (await menu.boundingBox())!.height : 0
+    expect(heading.y, name).toBeGreaterThanOrEqual(coveredTo + 8)
+  }
+})

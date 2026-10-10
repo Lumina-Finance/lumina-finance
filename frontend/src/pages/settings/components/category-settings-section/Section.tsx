@@ -90,7 +90,7 @@ export default function CategorySettingsSection() {
   }
 
   return (
-    <section id="categories" className="scroll-mt-8">
+    <section id="categories">
       <SettingsSectionHeader
         title="Categories"
         description="Review system categories and manage custom categories."

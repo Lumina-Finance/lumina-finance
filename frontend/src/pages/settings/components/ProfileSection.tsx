@@ -55,7 +55,7 @@ export default function ProfileSection({
     : user?.base_currency ?? ''
 
   return (
-    <section id="profile" className="scroll-mt-8">
+    <section id="profile">
       <SettingsSectionHeader
         title="Profile"
         description="Your name and localization defaults."

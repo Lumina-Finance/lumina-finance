@@ -103,7 +103,7 @@ export default function MerchantSettingsSection() {
   }
 
   return (
-    <section id="merchants" className="scroll-mt-8">
+    <section id="merchants">
       <SettingsSectionHeader
         title="Merchants"
         description="Manage merchant names and their default categories."

@@ -31,7 +31,7 @@ export default function RunwaySection({
   actions,
 }: RunwaySectionProps) {
   return (
-    <section id="runway" className="scroll-mt-8">
+    <section id="runway">
       <SettingsSectionHeader
         title="Runway"
         description={
