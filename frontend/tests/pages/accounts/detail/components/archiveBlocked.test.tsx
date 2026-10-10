@@ -10,14 +10,14 @@ const RENDERED_REASON = ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON.replaceAll(
 
 const LINKED_REASON = 'Unlink it first.'
 
-function renderArchiveSection(isArchiveBlocked: boolean, archiveLinkedReason: string | null = null) {
+function renderArchiveSection(isArchiveBlocked: boolean, archiveLinkedReason: string | null = null, isLinkLoading = false) {
   return renderToStaticMarkup(
     <AccountArchiveSection
       sectionNumber="02"
       isArchived={false}
       isArchiving={false}
       isArchiveBlocked={isArchiveBlocked}
-      isLinkLoading={false}
+      isLinkLoading={isLinkLoading}
       archiveLinkedReason={archiveLinkedReason}
       currentBalance={0}
       currency="CAD"
@@ -26,7 +26,7 @@ function renderArchiveSection(isArchiveBlocked: boolean, archiveLinkedReason: st
   )
 }
 
-function renderDeletePanel(isArchiveBlocked: boolean, archiveLinkedReason: string | null = null) {
+function renderDeletePanel(isArchiveBlocked: boolean, archiveLinkedReason: string | null = null, isLinkLoading = false) {
   const account = { name: 'Chequing', is_archived: false } as Account
   return renderToStaticMarkup(
     <DeleteAccountPanel
@@ -37,7 +37,7 @@ function renderDeletePanel(isArchiveBlocked: boolean, archiveLinkedReason: strin
       deleteLoading={false}
       isBusy={false}
       isArchiveBlocked={isArchiveBlocked}
-      isLinkLoading={false}
+      isLinkLoading={isLinkLoading}
       archiveLinkedReason={archiveLinkedReason}
       onArchiveInstead={() => {}}
       onContinue={() => {}}
@@ -94,5 +94,20 @@ describe('archive held back by a link', () => {
     expect(button).toContain('aria-disabled="true"')
     expect(button).toContain('aria-describedby="edit-account-archive-blocked-reason"')
     expect(button).not.toContain('disabled=""')
+  })
+})
+
+describe('archive held back while the link is read', () => {
+  it('disables the switch and the archive shortcut alike, neither faded nor given a reason', () => {
+    const section = renderArchiveSection(false, null, true)
+    expect(section).toMatch(/<input[^>]*role="switch"[^>]*disabled=""/)
+    expect(section).not.toContain('opacity-60')
+    expect(section).not.toContain('aria-describedby')
+
+    // Only the button's own classes, since its label fades on its own for a link's reason
+    const button = getArchiveInsteadButton(renderDeletePanel(false, null, true)).match(/^<button[^>]*>/)?.[0] ?? ''
+    expect(button).toContain('disabled=""')
+    expect(button).not.toContain('opacity-60')
+    expect(button).not.toContain('aria-describedby')
   })
 })

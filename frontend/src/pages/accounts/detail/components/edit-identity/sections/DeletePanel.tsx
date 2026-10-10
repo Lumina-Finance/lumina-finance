@@ -129,8 +129,10 @@ export function DeleteAccountPanel({
                             <DisabledReasonButton
                               // The padding gives the ring room between it and the icon and text, and the ring sits
                               // inside the button's edge. The side margins hand the padding's room back so the label
-                              // lines up as before, and the two boxes around it clip with matching side room
-                              className="app-focus-inset group -mx-2 inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:cursor-not-allowed"
+                              // lines up as before, and the two boxes around it clip with matching side room.
+                              // A link still being read holds it back without fading it, as it does the switch,
+                              // since it is only a moment
+                              className={`app-focus-inset group -mx-2 inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium aria-disabled:cursor-not-allowed ${isLinkLoading && !isBusy ? '' : 'disabled:cursor-not-allowed disabled:opacity-60'}`}
                               style={{ color: 'var(--app-text-muted)' }}
                               onClick={onArchiveInstead}
                               disabled={isBusy || isLinkLoading}
