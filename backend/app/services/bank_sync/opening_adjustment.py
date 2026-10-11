@@ -3,13 +3,20 @@
 History before the import start may be missing from the ledger, incomplete or entered differently, so
 the ledger's balance may not match the bank's once the import is in. Once the import has ended and no
 item it brought is still waiting for review, the link offers one adjustment: the bank's balance minus
-the ledger's, as the balance comparison works them out on the bank's balance date. The bank's balance
-has to be one it gave exactly and dated after the last transaction the import brought, since an older
-one doesn't take in everything the import did. Until then the link waits, and each sync and each
-review decision on a new item looks again. A ledger that already matches the bank is never offered
-one, and an offer whose gap closes before it is answered, such as by the user recording the
-difference by hand, shows nothing and ends at the next look. Items later syncs bring don't hold the
-offer back, and the review pause and the reminder about history the bank may not have don't either.
+the ledger's, as the balance comparison works them out on the bank's balance date, less what
+approving the account's items still waiting for review would change by then, such as new items and
+corrections later syncs brought. The bank's balance already holds them, so counting them as the gap
+would count them twice once they are approved. The bank's
+balance has to be one it gave exactly and dated after the last transaction the import brought, since
+an older one doesn't take in everything the import did. Until then the link waits, and each sync and
+each review decision on a new item looks again. A ledger that will match the bank once the items
+waiting are approved is never offered one, and an offer whose gap closes before it is answered, such
+as by the user recording the difference by hand, shows nothing and ends at the next look. The
+offer is read afresh each time, so approving an item leaves it as it was, while dismissing or keeping
+one moves it. An item dated by the bank's balance date whose bank amount the account's currency can't
+hold leaves what approving it changes unknown, so the link isn't offered one, and an offer shows
+nothing, until it is decided. The review pause and the reminder about history the bank may not have
+don't hold the offer back.
 
 Recording adds a Balance Adjustment dated the day before the import start, the latest day the bank
 doesn't supply, so the check on the days a bank supplies never applies to it. Recording or skipping
@@ -25,13 +32,19 @@ from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bank_connection import BankAccountLink, BankLinkState, OpeningAdjustmentState
-from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
+from app.models.bank_transaction import BankTransaction
 from app.models.user import User
 from app.schemas.bank_sync import AccountBankStatusResponse
 from app.services.accounts.balance_adjustments import add_balance_adjustment
 from app.services.bank_sync.account_link import read_account_bank_status
-from app.services.bank_sync.balance_comparison import compare_bank_balance, opening_adjustment_date, read_balance_day
+from app.services.bank_sync.balance_comparison import (
+    compare_bank_balance,
+    opening_adjustment_date,
+    read_balance_day,
+    work_out_opening_adjustment,
+)
 from app.services.bank_sync.links import lock_live_link
+from app.services.bank_sync.review_state import AWAITING_REVIEW
 from app.services.cache_state import mark_user_cache_changed, mark_user_status_changed
 
 # The note the recorded adjustment carries
@@ -45,9 +58,10 @@ NOTHING_TO_SKIP = "There is no opening balance to skip"
 async def offer_opening_adjustments(db: AsyncSession, links: Sequence[BankAccountLink], *, tz: str) -> bool:
     """Offer the opening adjustment on each of these links that is ready for it, or settle that it has none to offer
 
-    An offer whose ledger now matches the bank ends with nothing to offer, so the status stops asking
-    for it. The caller locked the links and wrote what it decided, so the items waiting and the ledger
-    take it in, and commits
+    An offer whose ledger now matches the bank once the items waiting are approved ends with nothing
+    to offer, so the status stops asking for it, and one whose items waiting change the ledger by an
+    amount not known yet stands. The caller locked the links and wrote what it decided, so the items
+    waiting and the ledger take it in, and commits
 
     Args:
         db: The links' owner's session
@@ -63,8 +77,8 @@ async def offer_opening_adjustments(db: AsyncSession, links: Sequence[BankAccoun
     changed = False
     for link in links:
         if link.opening_adjustment_state == OpeningAdjustmentState.OFFERED:
-            balance = await compare_bank_balance(db, link, tz=tz)
-            if balance is not None and balance.difference == 0:
+            offer = await work_out_opening_adjustment(db, link, await compare_bank_balance(db, link, tz=tz), tz=tz)
+            if offer is not None and offer.amount == 0:
                 link.opening_adjustment_state = OpeningAdjustmentState.NONE
                 changed = True
             continue
@@ -74,7 +88,7 @@ async def offer_opening_adjustments(db: AsyncSession, links: Sequence[BankAccoun
         # Items a link of the account brought before an import ended, each stamped as received on the
         # database's clock that ended it
         brought = (BankTransaction.account_id == link.account_id, BankTransaction.received_at <= link.import_ended_at)
-        if await db.scalar(select(exists().where(*brought, BankTransaction.disposition == BankTransactionDisposition.AWAITING_REVIEW))):
+        if await db.scalar(select(exists().where(*brought, AWAITING_REVIEW))):
             continue
         balance = await compare_bank_balance(db, link, tz=tz)
         if balance is None or balance.difference is None:
@@ -84,7 +98,10 @@ async def offer_opening_adjustments(db: AsyncSession, links: Sequence[BankAccoun
         last_imported = await db.scalar(select(func.max(BankTransaction.observed_date)).where(*brought))
         if last_imported is not None and read_balance_day(balance.balance_date, tz=tz) <= last_imported:
             continue
-        link.opening_adjustment_state = OpeningAdjustmentState.OFFERED if balance.difference else OpeningAdjustmentState.NONE
+        offer = await work_out_opening_adjustment(db, link, balance, tz=tz)
+        if offer is None:
+            continue
+        link.opening_adjustment_state = OpeningAdjustmentState.OFFERED if offer.amount else OpeningAdjustmentState.NONE
         changed = True
     return changed
 

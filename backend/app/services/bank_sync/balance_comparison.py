@@ -4,17 +4,23 @@ The bank's figure is its balance as of its balance date, from the latest listing
 the bank account. The ledger's is the account's balance at the end of that date in the owner's profile
 timezone, so transactions dated later, future-dated ones included, are left out. The comparison only
 informs: a difference never adjusts the ledger or changes a total, apart from the one opening
-adjustment the user may record once the import is reviewed, which closes it
+adjustment the user may record once the import is reviewed. The bank's balance already holds the
+items still waiting for review, so the adjustment leaves out what approving them would change by
+that date, and the ledger matches the bank once they are approved
 """
 
+import uuid
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bank_connection import BankAccountLink, BankExternalAccount, BankLinkState, OpeningAdjustmentState
+from app.models.bank_transaction import BankTransaction
+from app.models.transaction import Transaction
 from app.schemas.bank_sync import BankBalanceResponse, OpeningAdjustmentResponse
 from app.services.accounts.snapshots import get_current_balances
+from app.services.bank_sync.review_state import IS_REVIEW_ITEM, LedgerEntry, approved_entry
 from app.utils.dates import resolve_timezone
 
 
@@ -78,17 +84,89 @@ def opening_adjustment_date(link: BankAccountLink) -> date:
     return link.import_start - timedelta(days=1)
 
 
-def describe_opening_adjustment(link: BankAccountLink, balance: BankBalanceResponse | None) -> OpeningAdjustmentResponse | None:
-    """Return the opening adjustment the link offers, the amount that brings the ledger to the bank's balance
+async def describe_opening_adjustment(
+    db: AsyncSession, link: BankAccountLink, balance: BankBalanceResponse | None, *, tz: str
+) -> OpeningAdjustmentResponse | None:
+    """Return the opening adjustment the link offers, which brings the ledger to the bank's balance once the items waiting are approved
 
     Args:
+        db: The owner's session
         link: A live link
         balance: What compare_bank_balance returned for it
+        tz: The owner's profile timezone
 
     Returns:
-        The offer while the link makes one and its balances compare and differ, otherwise None,
+        The offer while the link makes one and it has an amount other than zero, otherwise None,
         since a ledger brought to the bank's balance by hand leaves nothing to record
+
+    Raises:
+        HTTPException 422: The profile's timezone no longer resolves
     """
-    if link.opening_adjustment_state != OpeningAdjustmentState.OFFERED or balance is None or not balance.difference:
+    if link.opening_adjustment_state != OpeningAdjustmentState.OFFERED:
         return None
-    return OpeningAdjustmentResponse(amount=-balance.difference, adjustment_date=opening_adjustment_date(link))
+    offer = await work_out_opening_adjustment(db, link, balance, tz=tz)
+    return offer if offer is not None and offer.amount else None
+
+
+async def work_out_opening_adjustment(
+    db: AsyncSession, link: BankAccountLink, balance: BankBalanceResponse | None, *, tz: str
+) -> OpeningAdjustmentResponse | None:
+    """Return the adjustment that brings the link's ledger to the bank's balance once the account's items waiting for review are approved
+
+    Args:
+        db: The owner's session
+        link: A live link
+        balance: What compare_bank_balance returned for it
+        tz: The owner's profile timezone
+
+    Returns:
+        The adjustment, whose amount may be zero, or None while the balances don't compare or what
+        approving the items waiting would change isn't known
+
+    Raises:
+        HTTPException 422: The profile's timezone no longer resolves
+    """
+    if balance is None or balance.difference is None:
+        return None
+    waiting = await sum_waiting_changes(db, link.account_id, through=read_balance_day(balance.balance_date, tz=tz))
+    if waiting is None:
+        return None
+    return OpeningAdjustmentResponse(
+        amount=-balance.difference - waiting, waiting_amount=waiting, adjustment_date=opening_adjustment_date(link)
+    )
+
+
+async def sum_waiting_changes(db: AsyncSession, account_id: uuid.UUID, *, through: date) -> int | None:
+    """Return how much approving the account's items waiting for review as the bank sent them would move its balance at the end of a day
+
+    Each item counts as the ledger row approving it leaves less the row it has now, each only when
+    dated by the end of the day, so an item dated later moves nothing and one moved past the day
+    gives its amount back
+
+    Args:
+        db: The owner's session
+        account_id: The account
+        through: The last day the balance takes in
+
+    Returns:
+        Signed minor units, or None when an item dated by the end of the day has a bank amount the
+        account's currency can't hold, since the amount the user gives it isn't known yet
+    """
+    rows = await db.execute(
+        select(BankTransaction, Transaction.dt, Transaction.amount)
+        .outerjoin(Transaction, Transaction.id == BankTransaction.transaction_id)
+        .where(BankTransaction.account_id == account_id, IS_REVIEW_ITEM)
+    )
+    total = 0
+    for record, ledger_date, ledger_amount in rows:
+        ledger = None if record.transaction_id is None else LedgerEntry(ledger_date, ledger_amount)
+        approved = approved_entry(record, ledger)
+        if approved is not None and approved.amount is None and approved.dt <= through:
+            return None
+        total += _amount_through(approved, through) - _amount_through(ledger, through)
+    return total
+
+
+def _amount_through(entry: LedgerEntry | None, through: date) -> int:
+    """Return a ledger row's amount when it is dated by the end of the day, otherwise zero"""
+    return entry.amount if entry is not None and entry.dt <= through else 0

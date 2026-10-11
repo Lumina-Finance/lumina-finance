@@ -3423,7 +3423,8 @@ async def test_job_holds_the_offer_while_the_imports_items_wait(connection, prov
 async def test_job_offers_the_adjustment_as_a_reconnects_catch_up_ends_with_its_own_items_waiting(connection, provider):
     """Everyday's import ended with nothing left to review before its credential was replaced, and the catch-up brings 3 coffees
 
-    Only the import's items hold the offer back, so 100.00 is offered as the catch-up ends
+    Only the import's items hold the offer back, so 113.50 is offered as the catch-up ends, leaving
+    out the 13.50 adding the coffees will take off the ledger
     """
     await _list_under(connection, "CON-harbour", "Harbour Bank", "ACT-1")
     link = await _link(

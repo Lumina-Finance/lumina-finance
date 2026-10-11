@@ -54,10 +54,11 @@ async def read_account_bank_status(db: AsyncSession, user: User, account_id: uui
     link = await db.scalar(select(BankAccountLink).where(BankAccountLink.account_id == account.id, LIVE_LINK))
     if link is not None:
         balance = await compare_bank_balance(db, link, tz=user.tz)
-        offer = describe_opening_adjustment(link, balance)
+        offer = await describe_opening_adjustment(db, link, balance, tz=user.tz)
 
-        # The status asks for the opening balance only while the offer shows, so the two agree once the
-        # ledger closes the gap by hand, until a review decision or a sync ends the offer
+        # The status asks for the opening balance only while the offer shows, so the two agree while an
+        # item waiting has an amount not known yet, and once the ledger closes the gap by hand, until a
+        # review decision or a sync ends the offer
         [described] = await describe_links(db, user, [link], now=datetime.now(UTC), hidden_offers=() if offer else (link.id,))
         return AccountBankStatusResponse(
             account_id=account.id,

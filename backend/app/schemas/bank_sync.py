@@ -440,11 +440,19 @@ class BankBalanceResponse(BaseModel):
 
 
 class OpeningAdjustmentResponse(BaseModel):
-    """The one-time offer to record the gap between the bank's balance and the ledger's once the import is reviewed"""
+    """The one-time offer to record the gap between the bank's balance and the ledger's once the import is reviewed
 
-    # The bank's balance minus the ledger's, in minor units signed as the ledger keeps them, which
-    # closes the balances' difference
+    It leaves out what the items still waiting for review would change, which the bank's balance
+    already holds
+    """
+
+    # The bank's balance minus the ledger's and waiting_amount, in minor units signed as the ledger
+    # keeps them, which closes the balances' difference once the items waiting are approved
     amount: int
+
+    # How much approving the items waiting as the bank sent them would move the ledger by the bank's
+    # balance date, in signed minor units, zero when nothing waits or nothing it changes is dated by then
+    waiting_amount: int
 
     # The day before the import start, the latest day the bank doesn't supply
     adjustment_date: date
