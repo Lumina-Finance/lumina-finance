@@ -20,7 +20,8 @@ leaves a gap in the history. An opening adjustment offered while the import's it
 closes a gap reviewing them would have, and one a later sync's balance never offers leaves the
 ledger apart from the bank for good. Days a catch-up re-reads counted as reaching its first day
 hide the gap after them, and an import or catch-up that gets less history than it asked for
-without a reminder leaves a gap in the ledger nobody notices, while one reminding of a quiet first
+without a reminder leaves a gap in the ledger nobody notices, as does an import that gets nothing
+without reminding at once, however recent its start, while one reminding of a quiet first
 week, a catch-up of a few days or a cut-short day the user already dismissed nags, as does one
 saying nothing came back once a later sync has brought history from the day it asked from. A
 bank change to a transaction already in the ledger that reaches it without review when set to
@@ -3534,30 +3535,20 @@ async def test_job_reminds_once_an_import_ends_having_got_no_booked_transaction(
     assert await _history_reminders(link) == [(date(2026, 6, 1), None, False)]
 
 
-@pytest.mark.parametrize("import_kind", [BankImportKind.INITIAL, BankImportKind.RELINK, BankImportKind.CHOOSE_AGAIN])
-@pytest.mark.parametrize(
-    ("import_start", "reminder"),
-    [(date(2026, 9, 26), _NO_REMINDER), (date(2026, 9, 25), (date(2026, 9, 25), None, False))],
-    ids=["from_7_days_ago", "from_8_days_ago"],
-)
-async def test_job_reminds_of_an_import_that_got_nothing_only_when_it_asked_from_over_7_days_ago(
-    connection, provider, import_kind, import_start, reminder
-):
-    """Everyday, in Phoenix, is linked, relinked or chosen again from 26 or 25 September, and its import gets nothing
+async def test_job_reminds_as_an_import_from_today_ends_having_got_nothing(connection, provider):
+    """Everyday, in Phoenix, is linked from today, 3 October there though already 4 October in UTC, and its import gets nothing
 
-    Today is 3 October there, already 4 October in UTC. An import from 26 September covers 7 days to
-    today, within the week's grace a quiet account's first days get, so it raises nothing. One from
-    25 September covers 8, and raises the reminder
+    However short the history it asked for, an import that gets nothing raises the reminder as it ends
     """
     await _set_owner_timezone(connection, _PHOENIX)
-    link = await _link(connection, "ACT-1", import_kind=import_kind, import_start=import_start, checkpoint=import_start - timedelta(days=1))
+    link = await _link(connection, "ACT-1", import_start=date(2026, 10, 3), checkpoint=date(2026, 10, 2))
     provider.outcomes = [_returned("ACT-1")]
     await _seed_job(connection, BankSyncJobKind.INITIAL)
 
     await _run_jobs_until_none_is_due()
 
-    assert _fetched(provider) == [_window(import_start, date(2026, 10, 3), pending=True, timezone=_PHOENIX)]
-    assert await _history_reminders(link) == [reminder]
+    assert _fetched(provider) == [_window(date(2026, 10, 3), date(2026, 10, 3), pending=True, timezone=_PHOENIX)]
+    assert await _history_reminders(link) == [(date(2026, 10, 3), None, False)]
 
 
 @pytest.mark.parametrize(

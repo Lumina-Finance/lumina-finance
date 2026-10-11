@@ -9,12 +9,10 @@ start, or the first day the link lacked. As its parts are stored it keeps the ea
 the provider returned from that first day on. Days re-read before it don't count, since history
 from before a gap says nothing of it. Once it reaches today it falls short when that date is
 more than a week after the first day, the grace a quiet account's first days get, or when nothing
-came back from a first day more than a week before today. Its reminder replaces any earlier one,
-dismissed or not, and stays until the user dismisses it. One saying nothing came back also ends
-once a later sync brings back booked history from its first day on, since what it says is no
-longer true. An import or catch-up from a week ago or
-less can't fall short by more than the grace, so it raises nothing however quiet the account, and a
-catch-up that short isn't noted at all.
+came back at all, however recent the first day. A catch-up over a week or less isn't noted, so it
+raises nothing however quiet the account. A reminder replaces any earlier one, dismissed or not,
+and stays until the user dismisses it. One saying nothing came back also ends once a later sync
+brings back booked history from its first day on, since what it says is no longer true.
 
 A single day that still brings back as many transactions as the provider sends at once is kept,
 though some of its transactions may be missing, so each link it brought back whole gets a reminder
@@ -113,10 +111,8 @@ def raise_history_reminders(links: Iterable[BankAccountLink], *, today: date) ->
         requested_start = link.catchup_requested_start
         if requested_start is None or link.checkpoint < today:
             continue
-        # Nothing back reads as nothing through today, which only an import or catch-up asking from
-        # further back than the grace can fall short by
         earliest = link.earliest_booked_date
-        if (today if earliest is None else earliest) - requested_start > HISTORY_GRACE:
+        if earliest is None or earliest - requested_start > HISTORY_GRACE:
             link.history_reminder_start = requested_start
             link.history_reminder_earliest = earliest
             link.history_reminder_dismissed = False
