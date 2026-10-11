@@ -180,23 +180,35 @@ test('keeps the open Upcoming header on screen through a long run of upcoming tr
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
   // The list loads fifteen at a time, a page each time the end comes into view, so the oldest past row arrives
-  // only once the end has been reached for every page
-  await expect(async () => {
+  // only once the end has been reached for every page. Each scroll waits for the page before it to land, and
+  // the list may load the next one on its own while its end is still in view
+  const loadingMore = page.getByText(/^Loading more transactions/)
+  const reachedEnd = page.getByText("You've reached the end.")
+  await expect(loadingMore).toBeHidden()
+  // One scroll per page: each waits for that page to start and finish loading before the next
+  while (!(await reachedEnd.isVisible())) {
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
-    await expect(page.getByTestId(`transaction-row-${pastIds[pastIds.length - 1]}`)).toBeAttached({ timeout: 1000 })
-  }).toPass()
+    await expect(loadingMore.or(reachedEnd)).toBeVisible()
+    await expect(loadingMore).toBeHidden()
+  }
+  await expect(page.getByTestId(`transaction-row-${pastIds[pastIds.length - 1]}`)).toBeAttached()
   const upcoming = page.getByRole('button', { name: /Upcoming/ })
   await upcoming.click()
 
+  // The section's body fades in fully as it finishes growing open, then stops clipping its overflow, so the
+  // rows have stopped moving. Its overflow alone reads visible for a moment before the opening starts
+  const body = page.locator(`[id="${await upcoming.getAttribute('aria-controls')}"]`)
+  await expect(body).toHaveCSS('opacity', '1')
+  await expect(body).toHaveCSS('overflow', 'visible')
+  const firstUpcomingRow = page.getByTestId(`transaction-row-${ids[0]}`)
+
   // Into the middle of the run, with upcoming rows filling the window and no past row on it. The browser's own
   // scroll anchoring holds a past row in place as the section closes, which would bring the header back
-  // without the section's help. Retried while the section is still growing open, which moves the rows
-  await expect(async () => {
-    await page.getByTestId(`transaction-row-${ids[8]}`).evaluate((row) => row.scrollIntoView({ block: 'start' }))
-    await expect(page.getByTestId(`transaction-row-${pastIds[0]}`)).not.toBeInViewport({ timeout: 500 })
-    // The section's first row has left the screen, so its header is only showing because it sticks
-    await expect(page.getByTestId(`transaction-row-${ids[0]}`)).not.toBeInViewport({ timeout: 500 })
-  }).toPass()
+  // without the section's help
+  await page.getByTestId(`transaction-row-${ids[8]}`).evaluate((row) => row.scrollIntoView({ block: 'start' }))
+  await expect(page.getByTestId(`transaction-row-${pastIds[0]}`)).not.toBeInViewport()
+  // The section's first row has left the screen, so its header is only showing because it sticks
+  await expect(firstUpcomingRow).not.toBeInViewport()
   await expect.poll(() => isShowingOnTop(upcoming)).toBe(true)
 
   // Clicked where it shows on screen, so nothing but the section moves the page before the click

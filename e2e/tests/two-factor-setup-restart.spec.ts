@@ -22,6 +22,9 @@ async function failFinishingAuthenticatorSetup(page: Page): Promise<void> {
  * scope is the screen holding the setup, since settings keeps its own Done button behind the dialog
  */
 async function reachFailedFinish(screen: Locator): Promise<void> {
+  // The key replaces a loading spinner above the code field and pushes Confirm down, so a click made
+  // before it shows can land where the button was
+  await expect(screen.getByRole('button', { name: 'Copy key' })).toBeVisible()
   await screen.getByLabel('One-time code').pressSequentially('123456')
   await screen.getByRole('button', { name: 'Confirm' }).click()
   await screen.getByLabel("I've saved my recovery codes").check()
