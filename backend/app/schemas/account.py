@@ -88,8 +88,8 @@ class CreateAccountRequest(BaseModel):
         default=None,
         deprecated=True,
         description=(
-            "Only accepted as null or zero, as out-of-date pages send it; "
-            "record a starting balance with POST /accounts/{account_id}/starting-balance"
+            "Only accepted as null or zero, as out-of-date pages send it. "
+            "Record a starting balance with POST /accounts/{account_id}/starting-balance"
         ),
     )
     is_archived: bool = False
