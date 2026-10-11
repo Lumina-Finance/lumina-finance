@@ -21,10 +21,11 @@ closes a gap reviewing them would have, and one a later sync's balance never off
 ledger apart from the bank for good. Days a catch-up re-reads counted as reaching its first day
 hide the gap after them, and an import or catch-up that gets less history than it asked for
 without a reminder leaves a gap in the ledger nobody notices, while one reminding of a quiet first
-week, a catch-up of a few days or a cut-short day the user already dismissed nags. A bank change
-to a transaction already in the ledger that reaches it without review when set to review,
-overwrites a value the user edited or kept, or moves it without its balances, changes the user's
-money unseen, and a correction opened again for what the user already decided keeps asking the
+week, a catch-up of a few days or a cut-short day the user already dismissed nags, as does one
+saying nothing came back once a later sync has brought history from the day it asked from. A
+bank change to a transaction already in the ledger that reaches it without review when set to
+review, overwrites a value the user edited or kept, or moves it without its balances, changes the
+user's money unseen, and a correction opened again for what the user already decided keeps asking the
 same question. Something only the user can fix that isn't marked,
 or isn't emailed, leaves accounts silently stale, while one emailed twice, marked from a refusal of
 a credential since replaced, or whose failed email undoes the sync, nags or misleads the user
@@ -3764,6 +3765,35 @@ async def test_job_raises_a_later_catch_ups_own_reminder_over_one_the_user_dismi
 
     assert await _history_reminders(link) == [reminder]
     assert await _noted_history(link) == (None, None)
+
+
+@pytest.mark.parametrize(
+    ("returned", "reminder"),
+    [
+        ([_record("TRN-coffee", date(2026, 9, 25))], _NO_REMINDER),
+        ([_pending_record("TRN-hold"), _record("TRN-removed", date(2026, 10, 2), removed=True)], (date(2026, 9, 25), None, False)),
+        ([_record("TRN-reread", date(2026, 9, 24))], (date(2026, 9, 25), None, False)),
+    ],
+    ids=["booked_from_the_day_asked_from", "only_pending_or_removed", "only_before_the_day_asked_from"],
+)
+async def test_job_hides_the_reminder_that_nothing_came_back_once_a_sync_gets_booked_history_from_the_day_it_asked_from(
+    connection, provider, returned, reminder
+):
+    """Everyday's catch-up asked from 25 September and got nothing, so it shows No history returned yet
+
+    Today's sync re-reads from 19 September. A booked transaction from 25 September, the day the
+    catch-up asked from, hides the reminder. A hold still pending, a transaction the bank removed, or
+    a booked one from 24 September, the day before, says nothing of the days it lacked, so the
+    reminder stays
+    """
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday(history_reminder_start=date(2026, 9, 25)))
+    provider.outcomes = [_returned_with({"ACT-1": returned})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert _fetched(provider) == [_window(date(2026, 9, 19), _TODAY, pending=True)]
+    assert await _history_reminders(link) == [reminder]
 
 
 async def test_job_reminds_each_link_a_day_kept_though_cut_short_was_fetched_for(connection, provider):

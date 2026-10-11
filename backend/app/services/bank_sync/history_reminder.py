@@ -10,7 +10,9 @@ the provider returned from that first day on. Days re-read before it don't count
 from before a gap says nothing of it. Once it reaches today it falls short when that date is
 more than a week after the first day, the grace a quiet account's first days get, or when nothing
 came back from a first day more than a week before today. Its reminder replaces any earlier one,
-dismissed or not, and stays until the user dismisses it. An import or catch-up from a week ago or
+dismissed or not, and stays until the user dismisses it. One saying nothing came back also ends
+once a later sync brings back booked history from its first day on, since what it says is no
+longer true. An import or catch-up from a week ago or
 less can't fall short by more than the grace, so it raises nothing however quiet the account, and a
 catch-up that short isn't noted at all.
 
@@ -58,10 +60,39 @@ def note_history_returned(deliveries: Iterable[tuple[BankAccountLink, Sequence[P
             if link.checkpoint >= link.import_start and today - first_day <= HISTORY_GRACE:
                 continue
             link.catchup_requested_start = first_day
-        asked_from = link.catchup_requested_start
-        booked = [record.date for record in records if not record.pending and not record.removed and record.date >= asked_from]
+        booked = _booked_dates(records, since=link.catchup_requested_start)
         if booked and (link.earliest_booked_date is None or min(booked) < link.earliest_booked_date):
             link.earliest_booked_date = min(booked)
+
+
+def clear_no_history_reminders(deliveries: Iterable[tuple[BankAccountLink, Sequence[ProviderRecord]]]) -> bool:
+    """Clear the reminder that nothing came back on each link the part returned booked history for from the reminder's first day on
+
+    Whichever sync brings that history, the reminder's claim no longer holds. A routine sync's
+    re-read days before the first day say nothing of the days after it, so they don't count. A
+    dismissed reminder is cleared too, which changes nothing the user sees. A reminder that less
+    history came back is never cleared this way
+
+    Args:
+        deliveries: Each link brought back whole, locked, with the records the part returned for it
+
+    Returns:
+        Whether a reminder was cleared, so the caller tells the owner's pages
+    """
+    cleared = False
+    for link, records in deliveries:
+        first_day = link.history_reminder_start
+        if first_day is None or link.history_reminder_earliest is not None or not _booked_dates(records, since=first_day):
+            continue
+        link.history_reminder_start = None
+        link.history_reminder_dismissed = False
+        cleared = True
+    return cleared
+
+
+def _booked_dates(records: Iterable[ProviderRecord], *, since: date) -> list[date]:
+    """Return the dates of the records the bank booked from a day on, leaving out those still pending and those it removed"""
+    return [record.date for record in records if not record.pending and not record.removed and record.date >= since]
 
 
 def raise_history_reminders(links: Iterable[BankAccountLink], *, today: date) -> bool:

@@ -379,7 +379,8 @@ class BankLinkResponse(BankAccountLinkResponse):
     import_progress: BankImportProgressResponse | None = Field(serialization_alias="import")
     sync: BankSyncStatusResponse
 
-    # The last import or catch-up that fell short, None when none did or the user dismissed it
+    # The last import or catch-up that fell short, None when none did or the user dismissed it, or
+    # when it got nothing and a later sync has since brought booked history from the day it asked from
     history_reminder: BankHistoryReminderResponse | None
 
     # The latest day kept though it brought back as many transactions as the provider sends at once,

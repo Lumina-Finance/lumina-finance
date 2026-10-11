@@ -330,12 +330,14 @@ class BankAccountLink(Base):
     earliest_booked_date: Mapped[date | None] = mapped_column(Date)
 
     # The reminder the last import or catch-up that fell short raised: the first day it asked from,
-    # and the earliest booked date it got, or None when it got none. None when none was raised
+    # and the earliest booked date it got, or None when it got none. None when none was raised, or
+    # when one that got none was cleared by a later sync bringing booked history from that first day on
     history_reminder_start: Mapped[date | None] = mapped_column(Date)
     history_reminder_earliest: Mapped[date | None] = mapped_column(Date)
 
     # Belongs to the import or catch-up that raised the incomplete-history reminder, so a later
-    # one that falls short clears it to raise its own
+    # one that falls short clears it to raise its own, and a later sync that brings booked history
+    # from the first day of a reminder that got none clears it with that reminder
     history_reminder_dismissed: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,

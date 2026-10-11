@@ -385,7 +385,10 @@ export type BankLink = BankAccountLink & {
   import: BankImportProgress | null;
   sync: BankSyncStatus;
 
-  /** The last import or catch-up that fell short, null when none did or the user dismissed it */
+  /**
+   * The last import or catch-up that fell short, null when none did or the user dismissed it, or when
+   * it got nothing and a later sync has since brought booked history from the day it asked from
+   */
   history_reminder: BankHistoryReminder | null;
 
   /**
