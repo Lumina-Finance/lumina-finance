@@ -51,12 +51,11 @@ from app.services.bank_sync.review_decisions import (
     write_bank_change,
 )
 from app.services.bank_sync.review_items import REVIEW_NOT_OWN_DETAIL, build_review_item
+from app.services.bank_sync.review_state import AWAITING_REVIEW, LedgerEntry, approved_entry
 from app.services.cache_state import mark_user_cache_changed
 
 # The kinds bulk approval applies, in the order the preview lists their groups
 _GROUP_KINDS = (OpenReviewKind.CORRECTION, OpenReviewKind.REMOVAL)
-
-_AWAITING_REVIEW = BankTransaction.disposition == BankTransactionDisposition.AWAITING_REVIEW
 
 
 async def preview_bulk_approval(
@@ -97,13 +96,10 @@ async def preview_bulk_approval(
         if record.open_kind == OpenReviewKind.CORRECTION and not is_bank_change_storable(record):
             continue
         items[record.open_kind].append(build_review_item(record, ledger_date, ledger_amount))
-        net_effects[record.open_kind][currency] += _balance_change(record, ledger_amount)
+        net_effects[record.open_kind][currency] += _balance_change(record, LedgerEntry(ledger_date, ledger_amount))
 
     excluded_count = await db.scalar(
-        select(func.count())
-        .select_from(BankTransaction)
-        .join(Account, Account.id == BankTransaction.account_id)
-        .where(*scope, _AWAITING_REVIEW)
+        select(func.count()).select_from(BankTransaction).join(Account, Account.id == BankTransaction.account_id).where(*scope, AWAITING_REVIEW)
     )
     return BulkApprovalPreviewResponse(
         groups=[
@@ -180,10 +176,7 @@ async def apply_bulk_approval(db: AsyncSession, user: User, request: ApplyBulkAp
     )
 
 
-def _balance_change(record: BankTransaction, ledger_amount: int) -> int:
+def _balance_change(record: BankTransaction, ledger: LedgerEntry) -> int:
     """Return how much approving an open correction or removal moves its account's balance, in signed minor units"""
-    if record.open_kind == OpenReviewKind.REMOVAL:
-        return -ledger_amount
-    if "amount" in record.previous_values:
-        return record.observed_amount - ledger_amount
-    return 0
+    approved = approved_entry(record, ledger)
+    return (0 if approved is None else approved.amount) - ledger.amount

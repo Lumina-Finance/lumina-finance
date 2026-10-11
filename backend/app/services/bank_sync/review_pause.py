@@ -31,10 +31,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
 from app.models.bank_sync_job import BankSyncJobKind
-from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
+from app.models.bank_transaction import BankTransaction
 from app.services.bank_sync.action_needed import ActionNeeded, read_actions_needed
 from app.services.bank_sync.availability import LIVE_LINK
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
+from app.services.bank_sync.review_state import AWAITING_REVIEW
 
 # A sync that leaves this many new items waiting for review pauses the account
 PAUSE_AT = 100
@@ -209,10 +210,7 @@ async def _count_waiting_new(db: AsyncSession, account_ids: Collection[uuid.UUID
         return {}
     rows = await db.execute(
         select(BankTransaction.account_id, func.count())
-        .where(
-            BankTransaction.account_id.in_(account_ids),
-            BankTransaction.disposition == BankTransactionDisposition.AWAITING_REVIEW,
-        )
+        .where(BankTransaction.account_id.in_(account_ids), AWAITING_REVIEW)
         .group_by(BankTransaction.account_id)
     )
     return {account_id: count for account_id, count in rows.all()}

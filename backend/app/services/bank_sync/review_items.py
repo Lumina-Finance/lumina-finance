@@ -32,7 +32,7 @@ from app.schemas.bank_sync import BankValues
 from app.services.accounts.access import check_own_personal_accounts, own_personal_account_condition
 from app.services.bank_sync.availability import PROVIDER_ADAPTERS
 from app.services.bank_sync.review_pause import read_review_backlogs
-from app.services.bank_sync.review_state import approved_description, edited_fields
+from app.services.bank_sync.review_state import AWAITING_REVIEW, IS_REVIEW_ITEM, approved_description, edited_fields
 
 # The most items one page holds, so an import that leaves hundreds waiting loads a page at a time
 REVIEW_PAGE_SIZE = 50
@@ -43,12 +43,7 @@ REVIEW_NOT_OWN_DETAIL = "Bank items aren't listed for accounts shared with a gro
 # Separates the bank date and the id of the last item a page returned, which its cursor carries
 _CURSOR_SEPARATOR = "_"
 
-_AWAITING_REVIEW = BankTransaction.disposition == BankTransactionDisposition.AWAITING_REVIEW
-
-# A bank transaction is an item while it awaits its first review or has a correction or removal open
-_IS_REVIEW_ITEM = _AWAITING_REVIEW | BankTransaction.open_kind.is_not(None)
-
-_KIND = case((_AWAITING_REVIEW, "new"), else_=BankTransaction.open_kind)
+_KIND = case((AWAITING_REVIEW, "new"), else_=BankTransaction.open_kind)
 
 
 async def list_review_items(
@@ -77,7 +72,7 @@ async def list_review_items(
         HTTPException 404: An account isn't visible to the user
         HTTPException 422: The cursor isn't one a page returned
     """
-    scope = [_IS_REVIEW_ITEM, own_personal_account_condition(user.id)]
+    scope = [IS_REVIEW_ITEM, own_personal_account_condition(user.id)]
     if account_ids is not None:
         await check_own_personal_accounts(db, account_ids, user.id, not_own_detail=REVIEW_NOT_OWN_DETAIL)
         scope.append(BankTransaction.account_id.in_(account_ids))

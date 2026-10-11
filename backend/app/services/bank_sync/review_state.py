@@ -1,15 +1,30 @@
 """The rules that read a bank transaction's review state
 
-Which ledger fields count as edited, the bank values a correction compares and stores, and the
-description the ledger row was decided with are worked out here from the stored record, so the
-transaction responses, ingestion and the review actions all apply the same rule
+Which bank transactions wait for review, which ledger fields count as edited, the bank values a
+correction compares and stores, the description the ledger row was decided with, and the ledger row
+approving a waiting item leaves are worked out here from the stored record, so the transaction
+responses, ingestion, the review actions and the balances that look ahead to them all apply the same
+rule
 """
 
 from collections.abc import Collection
 from datetime import date
 from typing import Any, NamedTuple
 
-from app.models.bank_transaction import BankTransaction, CorrectableBankField, EditableBankField
+from app.models.bank_transaction import (
+    BankTransaction,
+    BankTransactionDisposition,
+    CorrectableBankField,
+    EditableBankField,
+    OpenReviewKind,
+)
+
+# A new bank transaction awaiting its first review
+AWAITING_REVIEW = BankTransaction.disposition == BankTransactionDisposition.AWAITING_REVIEW
+
+# A bank transaction is an item waiting for review while it awaits its first review or has a
+# correction or removal open
+IS_REVIEW_ITEM = AWAITING_REVIEW | BankTransaction.open_kind.is_not(None)
 
 
 class EditableColumns(NamedTuple):
@@ -24,6 +39,37 @@ EDITABLE_COLUMNS: dict[EditableBankField, EditableColumns] = {
     "date": EditableColumns("dt", "aligned_date", "observed_date"),
     "amount": EditableColumns("amount", "aligned_amount", "observed_amount"),
 }
+
+
+class LedgerEntry(NamedTuple):
+    """A ledger row's date and its amount in signed minor units, which is None for a bank amount the account's currency can't hold"""
+
+    dt: date
+    amount: int | None
+
+
+def approved_entry(record: BankTransaction, ledger: LedgerEntry | None) -> LedgerEntry | None:
+    """Return the ledger row a waiting item leaves once approved as the bank sent it
+
+    Adding a new item writes the bank's date and amount, accepting a correction writes the bank's
+    value for each field it changes, and removing deletes the row
+
+    Args:
+        record: A bank transaction waiting for review
+        ledger: Its ledger row, which a new item doesn't have yet
+
+    Returns:
+        The row as approving leaves it, or None for a removal
+    """
+    if record.disposition == BankTransactionDisposition.AWAITING_REVIEW:
+        return LedgerEntry(record.observed_date, record.observed_amount)
+    if record.open_kind == OpenReviewKind.REMOVAL:
+        return None
+    changed = record.previous_values
+    return LedgerEntry(
+        dt=record.observed_date if "date" in changed else ledger.dt,
+        amount=record.observed_amount if "amount" in changed else ledger.amount,
+    )
 
 
 def edited_fields(record: BankTransaction, ledger_date: date, ledger_amount: int) -> list[EditableBankField]:
