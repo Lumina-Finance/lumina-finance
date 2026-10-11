@@ -14,6 +14,7 @@ from app.models.currency import Currency
 from app.models.user import User
 from app.schemas.auth import SignupRequest
 from app.services.auth.password_helpers import hash_password
+from app.services.auth.registration import reject_closed_registration
 from app.services.auth.user_lookup import find_user_id_by_email
 
 
@@ -31,8 +32,11 @@ async def signup(db: AsyncSession, data: SignupRequest) -> User:
         Newly created user
 
     Raises:
-        HTTPException: Email is already registered or base currency is invalid
+        HTTPException: Registration is closed, the email is already registered or the base currency
+            is invalid
     """
+    reject_closed_registration()
+
     user_id = uuid.uuid4()
     # Stamp the new user as the current identity before any query so their own row
     # passes the self-only users policy when it is inserted and read back

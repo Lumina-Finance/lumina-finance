@@ -33,6 +33,7 @@ from app.services.auth.oidc_client import (
     verify_provider_id_token,
 )
 from app.services.auth.oidc_providers import get_enabled_oidc_provider_by_id
+from app.services.auth.registration import reject_closed_registration
 from app.services.auth.signup import reject_missing_base_currency, reject_registered_email
 from app.services.auth.token_hashing import hash_token
 from app.services.auth.user_lookup import find_user_id_by_email
@@ -74,9 +75,7 @@ async def delete_expired_oidc_authorization_requests(db: AsyncSession) -> None:
     Args:
         db: Active database session
     """
-    expired_delete_query = delete(OidcAuthorizationRequest).where(
-        OidcAuthorizationRequest.expires_at < sa_func.now()
-    )
+    expired_delete_query = delete(OidcAuthorizationRequest).where(OidcAuthorizationRequest.expires_at < sa_func.now())
 
     # The scheduled cleanup prunes these too, and this stays for the Lambda runtime, which has no schedule yet
     await db.execute(expired_delete_query)
@@ -98,9 +97,7 @@ async def begin_oidc_sign_in(db: AsyncSession, provider: OidcProvider) -> tuple[
     # The binding secret is handed to the browser as a cookie and its hash is stored, so the
     # callback proves it runs in the same browser that started the flow
     binding_token = secrets.token_urlsafe(32)
-    authorization_url = await _begin_authorization(
-        db, provider, OIDC_PURPOSE_LOGIN, browser_binding_hash=hash_token(binding_token)
-    )
+    authorization_url = await _begin_authorization(db, provider, OIDC_PURPOSE_LOGIN, browser_binding_hash=hash_token(binding_token))
     return authorization_url, binding_token
 
 
@@ -165,9 +162,7 @@ async def _begin_authorization(
     )
 
 
-async def complete_oidc_sign_in(
-    db: AsyncSession, code: str, state: str, browser_binding_token: str | None
-) -> User | OidcOnboardingClaims:
+async def complete_oidc_sign_in(db: AsyncSession, code: str, state: str, browser_binding_token: str | None) -> User | OidcOnboardingClaims:
     """Finish a sign-in roundtrip and resolve which account it belongs to
 
     The stored roundtrip is consumed and committed before the provider is contacted, so a
@@ -188,8 +183,9 @@ async def complete_oidc_sign_in(
 
     Raises:
         HTTPException: The roundtrip is unknown or expired, the binding secret is missing
-            or wrong, the provider rejects the exchange, the token does not verify, or the
-            email is missing, unverified when verification is required, or already registered
+            or wrong, the provider rejects the exchange, the token does not verify, the email is
+            missing, unverified when verification is required, or already registered, or a new
+            user would be onboarded while registration is closed
     """
     request_row = await _consume_authorization_request(db, state, OIDC_PURPOSE_LOGIN)
 
@@ -221,6 +217,9 @@ async def complete_oidc_sign_in(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": OIDC_EMAIL_CONFLICT_CODE, "email": email},
         )
+
+    # Everything past here leads to a new account, so a closed instance refuses before the profile form
+    reject_closed_registration()
 
     # Whether an unverified provider email can create an account is an operator policy. Some
     # self-hosted providers do not verify email addresses, or report them as verified without
@@ -268,12 +267,13 @@ async def complete_oidc_signup(
         The newly created user
 
     Raises:
-        HTTPException: The provider vanished, the email or subject was claimed meanwhile,
-            or the base currency is invalid
+        HTTPException: Registration is closed, the provider vanished, the email or subject was
+            claimed meanwhile, or the base currency is invalid
     """
-    provider_query = select(OidcProvider).where(
-        OidcProvider.slug == onboarding.provider_slug, OidcProvider.enabled
-    )
+    # An onboarding token issued while registration was open outlives a change of setting
+    reject_closed_registration()
+
+    provider_query = select(OidcProvider).where(OidcProvider.slug == onboarding.provider_slug, OidcProvider.enabled)
 
     # The provider must still be enabled when signup completes, not just when it began
     provider = (await db.execute(provider_query)).scalar_one_or_none()
@@ -323,9 +323,7 @@ async def complete_oidc_signup(
         await db.commit()
     except IntegrityError as error:
         await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Sign-in already linked to an account"
-        ) from error
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Sign-in already linked to an account") from error
 
     await db.refresh(user)
     return user
@@ -385,9 +383,7 @@ async def _exchange_and_verify_roundtrip(
         code_verifier=request_row.code_verifier,
         redirect_uri=get_oidc_redirect_uri(),
     )
-    claims = await verify_provider_id_token(
-        token_response["id_token"], metadata, provider.client_id, request_row.nonce, max_age=max_age
-    )
+    claims = await verify_provider_id_token(token_response["id_token"], metadata, provider.client_id, request_row.nonce, max_age=max_age)
 
     access_token = token_response.get("access_token")
     if not claims.get("email") and access_token:
@@ -407,9 +403,7 @@ async def is_oidc_provider_linked(db: AsyncSession, user: User, provider_id: uui
     Returns:
         Whether the account can re-authenticate through this provider
     """
-    linked_query = select(OidcIdentity.id).where(
-        OidcIdentity.user_id == user.id, OidcIdentity.provider_id == provider_id
-    )
+    linked_query = select(OidcIdentity.id).where(OidcIdentity.user_id == user.id, OidcIdentity.provider_id == provider_id)
     return (await db.execute(linked_query)).first() is not None
 
 
@@ -432,9 +426,7 @@ async def begin_oidc_reauth(db: AsyncSession, user: User, provider: OidcProvider
     Raises:
         HTTPException: The provider's discovery document cannot be fetched
     """
-    return await _begin_authorization(
-        db, provider, OIDC_PURPOSE_REAUTH, user_id=user.id, prompt="login", max_age=OIDC_REAUTH_MAX_AGE_SECONDS
-    )
+    return await _begin_authorization(db, provider, OIDC_PURPOSE_REAUTH, user_id=user.id, prompt="login", max_age=OIDC_REAUTH_MAX_AGE_SECONDS)
 
 
 async def complete_oidc_reauth(db: AsyncSession, user: User, code: str, state: str) -> None:
@@ -458,9 +450,7 @@ async def complete_oidc_reauth(db: AsyncSession, user: User, code: str, state: s
     if request_row.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Single sign-on failed")
 
-    provider, claims = await _exchange_and_verify_roundtrip(
-        db, request_row, code, max_age=OIDC_REAUTH_MAX_AGE_SECONDS
-    )
+    provider, claims = await _exchange_and_verify_roundtrip(db, request_row, code, max_age=OIDC_REAUTH_MAX_AGE_SECONDS)
 
     # The step-up only holds if the account re-authenticated as an identity it already owns, so a
     # different subject at the same provider cannot stand in for the account
@@ -469,9 +459,7 @@ async def complete_oidc_reauth(db: AsyncSession, user: User, code: str, state: s
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Single sign-on failed")
 
 
-async def complete_oidc_link(
-    db: AsyncSession, user: User, code: str, state: str
-) -> tuple[OidcIdentity, OidcProvider]:
+async def complete_oidc_link(db: AsyncSession, user: User, code: str, state: str) -> tuple[OidcIdentity, OidcProvider]:
     """Finish a link roundtrip and attach the verified provider subject to the account
 
     Args:
@@ -502,18 +490,14 @@ async def complete_oidc_link(
     existing_identity = await _find_identity(db, provider.id, subject)
     if existing_identity is not None:
         detail = (
-            "Provider already linked to this account"
-            if existing_identity.user_id == user.id
-            else "Sign-in already linked to another account"
+            "Provider already linked to this account" if existing_identity.user_id == user.id else "Sign-in already linked to another account"
         )
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
 
     # A first link also records OIDC as an auth provider for the account, once across all providers
     # The lookup runs before the identity is added so the identity insert is deferred to the commit,
     # where a parallel link of the same subject is caught as a conflict rather than autoflushing early
-    auth_identity_query = select(AuthIdentity).where(
-        AuthIdentity.user_id == user.id, AuthIdentity.auth_provider == AuthProvider.OIDC
-    )
+    auth_identity_query = select(AuthIdentity).where(AuthIdentity.user_id == user.id, AuthIdentity.auth_provider == AuthProvider.OIDC)
     is_first_oidc_link = (await db.execute(auth_identity_query)).scalar_one_or_none() is None
 
     identity = OidcIdentity(
@@ -532,9 +516,7 @@ async def complete_oidc_link(
         await db.commit()
     except IntegrityError as error:
         await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Sign-in already linked to another account"
-        ) from error
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Sign-in already linked to another account") from error
 
     await db.refresh(identity)
     return identity, provider
@@ -581,9 +563,7 @@ async def unlink_oidc_identity(db: AsyncSession, user: User, identity_id: uuid.U
     if identity is None or identity.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Linked sign-in not found")
 
-    other_identities_query = select(sa_func.count()).where(
-        OidcIdentity.user_id == user.id, OidcIdentity.id != identity_id
-    )
+    other_identities_query = select(sa_func.count()).where(OidcIdentity.user_id == user.id, OidcIdentity.id != identity_id)
     other_identity_count = (await db.execute(other_identities_query)).scalar_one()
 
     # The account must keep at least one way to sign in, otherwise this unlink is a lockout
@@ -598,9 +578,7 @@ async def unlink_oidc_identity(db: AsyncSession, user: User, identity_id: uuid.U
 
     # The auth identity records OIDC as a sign-in method, so it goes when the last link does
     if other_identity_count == 0:
-        auth_identity_query = select(AuthIdentity).where(
-            AuthIdentity.user_id == user.id, AuthIdentity.auth_provider == AuthProvider.OIDC
-        )
+        auth_identity_query = select(AuthIdentity).where(AuthIdentity.user_id == user.id, AuthIdentity.auth_provider == AuthProvider.OIDC)
         auth_identity = (await db.execute(auth_identity_query)).scalar_one_or_none()
         if auth_identity is not None:
             await db.delete(auth_identity)
@@ -608,9 +586,7 @@ async def unlink_oidc_identity(db: AsyncSession, user: User, identity_id: uuid.U
     await db.commit()
 
 
-async def _consume_authorization_request(
-    db: AsyncSession, state: str, purpose: str
-) -> OidcAuthorizationRequest:
+async def _consume_authorization_request(db: AsyncSession, state: str, purpose: str) -> OidcAuthorizationRequest:
     """Spend the stored roundtrip a callback names and return it
 
     Args:
@@ -656,9 +632,7 @@ async def _find_identity(db: AsyncSession, provider_id: uuid.UUID, subject: str)
     Returns:
         The matching identity row when the subject has signed in before
     """
-    identity_query = select(OidcIdentity).where(
-        OidcIdentity.provider_id == provider_id, OidcIdentity.subject == subject
-    )
+    identity_query = select(OidcIdentity).where(OidcIdentity.provider_id == provider_id, OidcIdentity.subject == subject)
 
     # Look up the returning sign-in by the provider's permanent subject identifier
     result = await db.execute(identity_query)

@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import jwt
+import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
@@ -12,6 +13,7 @@ from app.models.auth_session import AuthSession
 from app.models.auth_token import AuthToken
 from app.models.base import AuthTokenKind
 from app.models.user import User
+from app.services.auth import registration
 from tests.conftest import TestSession
 from tests.routes.support import SIGNUP_PAYLOAD, _clears_cookie, _create_user, _seed_currency
 
@@ -113,6 +115,29 @@ async def test_signup_duplicate_email_returns_409(client):
 
     assert resp.status_code == 409
     assert resp.json()["detail"] == "Email already registered"
+
+
+async def test_signup_closed_registration_creates_no_user(client, closed_registration):
+    """A sign-up request while registration is closed is refused before any account exists"""
+    await _seed_currency()
+    resp = await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Registration is closed on this instance"
+
+    async with TestSession() as session:
+        users = (await session.execute(select(User))).scalars().all()
+    assert users == []
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+async def test_registration_status_reports_setting(client, monkeypatch, enabled):
+    """The login page offers sign-up only when the public status route reports it open"""
+    monkeypatch.setattr(registration, "REGISTRATION_ENABLED", enabled)
+    resp = await client.get("/auth/registration")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"enabled": enabled}
 
 
 async def test_signup_without_last_name_succeeds(client):
@@ -628,13 +653,15 @@ async def test_expired_tokens_purged_on_token_issuance(client):
         session.add(auth_session)
         await session.flush()
 
-        session.add(AuthToken(
-            jti=expired_jti,
-            user_id=user.id,
-            session_id=auth_session.id,
-            token_kind=AuthTokenKind.ACCESS,
-            expires_at=datetime.now(UTC) - timedelta(hours=1),
-        ))
+        session.add(
+            AuthToken(
+                jti=expired_jti,
+                user_id=user.id,
+                session_id=auth_session.id,
+                token_kind=AuthTokenKind.ACCESS,
+                expires_at=datetime.now(UTC) - timedelta(hours=1),
+            )
+        )
         await session.commit()
 
     # 2 valid signup tokens + 1 expired = 3 total
@@ -644,7 +671,8 @@ async def test_expired_tokens_purged_on_token_issuance(client):
 
     # Login triggers token issuance, which purges expired rows
     login_resp = await client.post(
-        "/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]},
+        "/auth/login",
+        json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]},
     )
     assert login_resp.status_code == 200
 
