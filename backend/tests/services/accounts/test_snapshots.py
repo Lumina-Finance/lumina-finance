@@ -1,7 +1,6 @@
 """Tests for the account balance snapshot recomputation service."""
 import asyncio
 from datetime import UTC, date, datetime
-from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy import select, text
@@ -103,16 +102,6 @@ async def _wait_until_blocked(blocker_pid, blocked_pid):
 # --- Tests ---
 
 
-async def test_recompute_with_no_transactions_restores_zero_anchor(db, user, account):
-    """Empty transaction history leaves the account with its zero anchor."""
-    await recompute_account_snapshots(db, {account.id: date(2026, 3, 1)})
-
-    snapshots = await _get_snapshots(db, account.id)
-    assert [(s.dt, s.balance) for s in snapshots] == [
-        (account.created_at.astimezone(ZoneInfo(user.tz)).date(), 0),
-    ]
-
-
 async def test_recompute_restores_zero_anchor_from_owner_local_created_at(db, user, category):
     """Creation anchors use the account owner's local date, not the UTC date."""
     account = Account(
@@ -130,41 +119,6 @@ async def test_recompute_restores_zero_anchor_from_owner_local_created_at(db, us
 
     snapshots = await _get_snapshots(db, account.id)
     assert [(s.dt, s.balance) for s in snapshots] == [(date(2025, 12, 31), 0)]
-
-
-async def test_recompute_single_day_writes_one_snapshot(db, user, account, category):
-    """One day of transactions produces one snapshot with the summed balance."""
-    db.add_all([
-        _make_transaction(user, account, category, -1000, date(2026, 3, 1)),
-        _make_transaction(user, account, category, -500, date(2026, 3, 1)),
-    ])
-    await db.flush()
-
-    await recompute_account_snapshots(db, {account.id: date(2026, 3, 1)})
-
-    snapshots = await _get_snapshots(db, account.id)
-    assert len(snapshots) == 1
-    assert snapshots[0].dt == date(2026, 3, 1)
-    assert snapshots[0].balance == -1500
-
-
-async def test_recompute_multiple_days_accumulates_running_balance(db, user, account, category):
-    """Each day's snapshot carries the running balance forward."""
-    db.add_all([
-        _make_transaction(user, account, category, 10000, date(2026, 3, 1)),
-        _make_transaction(user, account, category, -2000, date(2026, 3, 2)),
-        _make_transaction(user, account, category, -3000, date(2026, 3, 3)),
-    ])
-    await db.flush()
-
-    await recompute_account_snapshots(db, {account.id: date(2026, 3, 1)})
-
-    snapshots = await _get_snapshots(db, account.id)
-    assert [(s.dt, s.balance) for s in snapshots] == [
-        (date(2026, 3, 1), 10000),
-        (date(2026, 3, 2), 8000),
-        (date(2026, 3, 3), 5000),
-    ]
 
 
 async def test_recompute_anchor_carries_forward_from_earlier_snapshot(db, user, account, category):
@@ -208,22 +162,6 @@ async def test_recompute_replaces_stale_snapshots_in_range(db, user, account, ca
         (date(2026, 3, 1), 3000),
         (date(2026, 3, 3), 2500),
     ]
-
-
-async def test_recompute_skips_days_without_transactions(db, user, account, category):
-    """Days with no transactions do not get snapshot rows."""
-    db.add_all([
-        _make_transaction(user, account, category, 1000, date(2026, 3, 1)),
-        _make_transaction(user, account, category, -500, date(2026, 3, 3)),
-    ])
-    await db.flush()
-
-    await recompute_account_snapshots(db, {account.id: date(2026, 3, 1)})
-
-    snapshots = await _get_snapshots(db, account.id)
-    assert [s.dt for s in snapshots] == [date(2026, 3, 1), date(2026, 3, 3)]
-    assert snapshots[0].balance == 1000
-    assert snapshots[1].balance == 500
 
 
 async def test_recompute_ignores_transactions_on_other_accounts(

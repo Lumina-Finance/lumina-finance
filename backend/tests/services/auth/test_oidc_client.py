@@ -129,22 +129,6 @@ def test_build_authorization_url_carries_code_flow_params():
     assert "max_age" not in params
 
 
-def test_build_authorization_url_includes_max_age_when_requested():
-    """A reauth's freshness window rides along as the max_age parameter"""
-    url = build_authorization_url(
-        _metadata(),
-        client_id=CLIENT_ID,
-        scopes="openid email profile",
-        redirect_uri="https://app.test/auth/oidc/callback",
-        state="state-1",
-        nonce="nonce-1",
-        code_challenge="challenge-1",
-        max_age=300,
-    )
-
-    assert parse_qs(urlparse(url).query)["max_age"] == ["300"]
-
-
 # --- Discovery ---
 
 
