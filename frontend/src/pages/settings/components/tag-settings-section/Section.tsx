@@ -96,7 +96,7 @@ export default function TagSettingsSection() {
   }
 
   return (
-    <section id="tags" className="scroll-mt-8">
+    <section id="tags">
       <SettingsSectionHeader
         title="Tags"
         description="Manage reusable labels for transaction organization."

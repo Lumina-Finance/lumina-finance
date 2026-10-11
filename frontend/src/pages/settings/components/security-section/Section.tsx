@@ -41,7 +41,7 @@ export default function SecuritySection({
   const showMismatch = form.confirmPassword.length > 0 && !confirmMatches
 
   return (
-    <section id="security" className="scroll-mt-8">
+    <section id="security">
       <SettingsSectionHeader
         title="Security"
         description="Manage your account email, password, and two-factor authentication."

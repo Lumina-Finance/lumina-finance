@@ -26,6 +26,16 @@ export const PRIMARY_NAVIGATION_ITEMS: NavigationItem[] = [
 
 export const MOBILE_MENU_FADE_MS = 260
 
+// The phone layout's menu button, fixed to the top right corner. The bars that pin to the top of a page
+// read its bottom edge from here rather than from the button, which only mounts once the app reveals
+export const MOBILE_NAVIGATION_TOGGLE_TOP_PX = 8
+export const MOBILE_NAVIGATION_TOGGLE_SIZE_PX = 44
+
+// Shrinks the window a pinned bar's sentinel is watched against to the part below the menu button, so
+// the bar makes room for the button before passing under it rather than once it reaches the very top
+export const BELOW_MOBILE_NAVIGATION_TOGGLE_ROOT_MARGIN =
+  `-${MOBILE_NAVIGATION_TOGGLE_TOP_PX + MOBILE_NAVIGATION_TOGGLE_SIZE_PX}px 0px 0px 0px`
+
 export const THEME_TOGGLE_SPRING = {
   type: 'spring',
   stiffness: 500,

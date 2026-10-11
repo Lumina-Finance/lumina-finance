@@ -2,7 +2,11 @@ import { useCallback, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { Theme } from '@/types'
 import { AnimatedMobileMenuIcon } from '@/components/navigation/parts/MobileMenuIcon'
-import { MOBILE_MENU_FADE_MS } from '@/components/navigation/constants/data'
+import {
+  MOBILE_MENU_FADE_MS,
+  MOBILE_NAVIGATION_TOGGLE_SIZE_PX,
+  MOBILE_NAVIGATION_TOGGLE_TOP_PX,
+} from '@/components/navigation/constants/data'
 import { NavigationBrand } from '@/components/navigation/parts/Brand'
 import { NavigationLinks } from '@/components/navigation/parts/Links'
 import { NavigationThemeToggle } from '@/components/navigation/parts/ThemeToggle'
@@ -48,7 +52,12 @@ export function MobileNavigation({
         aria-controls="mobile-primary-navigation"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((open) => !open)}
-        className="app-glass-icon-button fixed right-4 top-2 z-navigation-toggle h-11 w-11 min-[1050px]:hidden"
+        className="app-glass-icon-button fixed right-4 z-navigation-toggle min-[1050px]:hidden"
+        style={{
+          top: MOBILE_NAVIGATION_TOGGLE_TOP_PX,
+          width: MOBILE_NAVIGATION_TOGGLE_SIZE_PX,
+          height: MOBILE_NAVIGATION_TOGGLE_SIZE_PX,
+        }}
       >
         <AnimatedMobileMenuIcon isOpen={isOpen} shouldReduceMotion={shouldReduceMotion} />
       </button>

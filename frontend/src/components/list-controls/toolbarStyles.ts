@@ -39,7 +39,7 @@ export const FILTER_GLASS_SPRING = { type: 'spring', stiffness: 420, damping: 34
 export function getSearchFieldWrapperClassName(mobileSearchStuck: boolean, desktopInlineLayout: boolean): string {
   return joinClassNames(
     'transition-[margin-right] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
-    mobileSearchStuck ? 'max-[1049px]:mr-14' : 'max-[1049px]:mr-0',
+    mobileSearchStuck ? 'max-[1050px]:mr-14' : 'max-[1050px]:mr-0',
     desktopInlineLayout && 'min-[750px]:min-w-80 min-[750px]:flex-1',
   )
 }

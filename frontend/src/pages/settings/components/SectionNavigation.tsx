@@ -85,7 +85,7 @@ export function SettingsMobileSectionMenu({
       >
         <div
           ref={menuRef}
-          className={`relative transition-[margin-right] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${menuStuck ? 'max-[1049px]:mr-16' : 'max-[1049px]:mr-0'}`}
+          className={`relative transition-[margin-right] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${menuStuck ? 'max-[1050px]:mr-16' : 'max-[1050px]:mr-0'}`}
         >
           <button
             type="button"

@@ -1,4 +1,4 @@
-import { useId, useState, type CSSProperties, type ReactNode } from 'react'
+import { useId, useState, type CSSProperties, type ReactNode, type Ref } from 'react'
 import { ChevronDown, type LucideIcon } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 import { AppSlotMachineText } from '@/components/display/SlotMachineText'
@@ -32,6 +32,9 @@ type CollapsibleSectionProps = {
   // How wide the slot the icon sits at the start of is, so a list can start the label level with its
   // own text while the icon stays put. The icon's own width when not given
   iconSlotWidth?: string
+
+  // The header button, for an owner that measures it, such as one keeping rows clear of it while it sticks
+  headerRef?: Ref<HTMLButtonElement>
   children: ReactNode
 }
 
@@ -72,6 +75,7 @@ export function CollapsibleSection({
   bodyClassName = '',
   headerStyle,
   iconSlotWidth,
+  headerRef,
   children,
 }: CollapsibleSectionProps) {
   const bodyId = useId()
@@ -100,6 +104,7 @@ export function CollapsibleSection({
           part sits on the first line, so a summary that wraps keeps the label and chevron level with its
           first line rather than centred between its lines */}
       <button
+        ref={headerRef}
         type="button"
         className="sticky left-0 z-10 col-span-full flex w-full max-w-[100cqw] items-start gap-3 py-2 text-left transition-colors hover:text-[var(--app-text)]"
         style={{

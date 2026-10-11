@@ -42,3 +42,14 @@ export const REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL = {
   marginLeft: `calc(-1 * ${TRANSACTION_CHECKBOX_RAIL})`,
   width: `calc(100% + ${TRANSACTION_CHECKBOX_RAIL})`,
 }
+
+// Set on the list from the measured toolbar and day heading heights, and read by each row's click target
+// as the room it keeps above itself when the browser scrolls it into view, so a row reached from the
+// keyboard comes to rest below the bars pinned over the list rather than behind them
+export const TRANSACTION_ROW_SCROLL_MARGIN_VARIABLE = '--transaction-row-scroll-margin' as const
+
+// Falls back to zero for the import preview, which renders the same row outside this list
+export const TRANSACTION_ROW_SCROLL_MARGIN = `var(${TRANSACTION_ROW_SCROLL_MARGIN_VARIABLE}, 0px)`
+
+// The space left between the lowest pinned bar and a row the browser scrolls into view below it
+export const TRANSACTION_ROW_GAP_BELOW_PINNED_BARS_PX = 4
