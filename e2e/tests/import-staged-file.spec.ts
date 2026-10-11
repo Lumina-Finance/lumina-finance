@@ -45,3 +45,31 @@ test('shows a staged file\'s whole name, its row count and its warning, with the
   const remove = page.getByRole('button', { name: `Remove ${name}`, exact: true })
   expect(Math.abs(await top(remove) - await top(fileName))).toBeLessThan(8)
 })
+
+test('refuses an unreadable CSV file on the upload card, without staging it', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday chequing' })
+  await logInViaApi(page, user)
+  await openPage(page, `/settings/imports?account=${account.id}`)
+
+  const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')
+  await expect(upload).toBeEnabled()
+  await upload.setInputFiles({ name: 'bank-export.csv', mimeType: 'text/csv', buffer: Buffer.from('Date,Amount\n2026-03-01,\0-5.00\n') })
+
+  await expect(page.getByRole('alert').filter({ hasText: /not readable/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove bank-export.csv', exact: true })).toHaveCount(0)
+})
+
+test('keeps a CSV file with an unclosed quote staged, so another separator can be tried', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday chequing' })
+  await logInViaApi(page, user)
+  await openPage(page, `/settings/imports?account=${account.id}`)
+
+  const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')
+  await expect(upload).toBeEnabled()
+  await upload.setInputFiles({ name: 'statement.csv', mimeType: 'text/csv', buffer: Buffer.from('Date;Memo;Amount\n2026-03-01;"Lunch;-12.00\n') })
+
+  await expect(page.getByRole('button', { name: 'Remove statement.csv', exact: true })).toBeVisible()
+  await expect(page.getByText('Separator', { exact: true })).toBeVisible()
+})

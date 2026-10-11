@@ -121,13 +121,13 @@ describe('deciding a file is not a readable table', () => {
     // read, so counting the replacements the decoder wrote would let the file through
     const draft = await stage('D\u0000a\u0000t\u0000e\u0000,\u0000A\u0000m\u0000t\u0000\n')
 
-    expect(draft.error).toContain('not readable as text')
+    expect(draft.error).toContain('This file is not readable.')
   })
 
   it('refuses a file that is mostly characters the decoder could not read', async () => {
     const draft = await stage(`${'\uFFFD'.repeat(40)},${'\uFFFD'.repeat(40)}\n`)
 
-    expect(draft.error).toContain('not readable as text')
+    expect(draft.error).toContain('This file is not readable.')
   })
 
   it('stages a file with a few unreadable characters, saying how many', async () => {
