@@ -165,6 +165,7 @@
     /* Items waiting for review. Light mode keeps the card neutral and marks it with an ochre dashed edge,
        since a yellow wash turns sickly on the cream background; dark mode can carry a faint wash */
     --app-review-bg: #fbf8f0;
+       since a yellow wash turns sickly on the cream background. Dark mode can carry a faint wash */
     --app-review-border: #a8840080;
     --app-review-count-bg: #6f5700;
     --app-review-count-text: #fbf8f0;

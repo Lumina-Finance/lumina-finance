@@ -1,7 +1,7 @@
 """Linking an account: the clock's boundaries and the locks a link takes
 
 The fresh-discovery age and the ends of the import range are boundaries checked here to the second,
-under a clock frozen for every module; a route test pins only the modules it names. The locks matter only while another party is
+under a clock frozen for every module. A route test pins only the modules it names. The locks matter only while another party is
 mid-flight: a second link of the same account must wait and see the first, a discovery that stops
 listing the bank account must wait and move the new link with the others, and choosing a bank
 account again must see an unlink or a discovery that moved the link meanwhile

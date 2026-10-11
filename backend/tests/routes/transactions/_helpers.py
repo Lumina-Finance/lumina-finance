@@ -4,8 +4,8 @@ from app.models.institution import Institution
 from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header, sign_up_confirmed
 
-# Shared with the bank-sync tests, so they live in support; imported as themselves to keep this
-# package's tests importing them from here
+# Shared with the bank-sync tests, so they live in support. They're imported as themselves to keep
+# this package's tests importing them from here
 from tests.routes.support.transaction_helpers import _create_transaction as _create_transaction
 from tests.routes.support.transaction_helpers import _get_system_category_id as _get_system_category_id
 from tests.routes.support.transaction_helpers import _import_journal as _import_journal

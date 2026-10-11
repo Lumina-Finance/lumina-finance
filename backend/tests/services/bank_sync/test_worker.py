@@ -241,7 +241,7 @@ async def test_job_finishing_after_a_link_changed_mid_fetch_writes_nothing_for_t
 
 @pytest.mark.parametrize("ending", ["unlink_savings", "disconnect"])
 async def test_job_finishing_after_an_unlink_or_disconnect_mid_fetch_writes_nothing_for_those_accounts(connections, monkeypatch, ending):
-    """Savings unlinked while the job fetched gets nothing and Everyday's results are kept; disconnected, neither gets anything"""
+    """Savings unlinked while the job fetched gets nothing and Everyday's results are kept. After a disconnect neither gets anything"""
     connection = connections[0]
     (everyday, savings), _ = await _seed_links(connection, "ACT-1", "ACT-2")
     job = await _seed_job(connection, BankSyncJobKind.SCHEDULED)

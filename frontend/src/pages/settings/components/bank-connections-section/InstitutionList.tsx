@@ -17,7 +17,7 @@ import {
 } from '@/pages/settings/components/bank-connections-section/utils'
 import { countNoun, providerSite } from '@/utils/bankSync'
 
-// On phones the bank account spans the row, with the arrow and the account under it; from tablets up
+// On phones the bank account spans the row, with the arrow and the account under it. From tablets up
 // the three sit side by side
 const MAPPING_ROW_CLASS = 'grid grid-cols-[1rem_minmax(0,1fr)] items-center gap-2 py-2.5 min-[750px]:grid-cols-[minmax(0,1fr)_1rem_minmax(0,1fr)] min-[750px]:gap-3'
 const MAPPING_SOURCE_CLASS = 'col-span-2 min-w-0 text-sm min-[750px]:col-span-1'

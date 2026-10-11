@@ -250,8 +250,8 @@ def _build_bank_transaction(
 ) -> BankTransaction:
     """Return an unsaved bank transaction the bank sent for an account
 
-    Given its ledger row, the record is accepted and aligned with the bank's date and amount;
-    otherwise it awaits review
+    Given its ledger row, the record is accepted and aligned with the bank's date and amount.
+    Otherwise it awaits review
     """
     accepted = transaction is not None
     return BankTransaction(

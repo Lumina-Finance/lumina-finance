@@ -2,7 +2,7 @@
 
 Guards which accounts stop, retry or carry on when SimpleFIN Bridge reports a problem. A wrong
 mapping either stops a working connection or keeps sending requests Bridge has refused, which can
-get the user's token disabled. The fake SimpleFIN Bridge produces each problem it can; a recording
+get the user's token disabled. The fake SimpleFIN Bridge produces each problem it can, and a recording
 stand-in answers the rest
 """
 
