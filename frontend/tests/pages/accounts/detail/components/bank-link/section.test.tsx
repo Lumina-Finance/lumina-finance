@@ -11,7 +11,7 @@
  * stop holds it or dropped before it shows as done, a notice missing, worded unlike the issue, or shown for a link it doesn't apply to,
  * a notice's action losing focus to the link's own actions when the modal opens at the bank link,
  * the opening adjustment offer missing from the balance panel's foot or shown with nothing offered,
- * a history or cut-off day reminder missing, worded unlike the issue, holding the offer back, or
+ * a history or cut-off day reminder missing, worded wrongly for what came back, holding the offer back, or
  * taking the focus the modal gives the link's actions,
  * Sync now left live for something the server refuses or without the reason, a spent budget blamed
  * on the wrong request limit, a reason of two
@@ -264,9 +264,9 @@ describe('BankLinkSection', () => {
       'no history at all',
       { requested_start: '2026-06-01', earliest_returned: null },
       'No history returned yet',
-      `SimpleFIN hasn't returned any transactions from ${unbroken('Jun 1, 2026')} yet. This is likely a limit on how much history the bank keeps.`,
+      `SimpleFIN hasn't returned any posted transactions from ${unbroken('Jun 1, 2026')} yet. If you used this account since then, some may be missing.`,
     ],
-  ])('reminds of an import or catch-up that returned %s in the issue\'s words, with a ✕ to dismiss it', (_, reminder, title, body) => {
+  ])('reminds of an import or catch-up that returned %s, never blaming the bank\'s history limit when nothing came back, with a ✕ to dismiss it', (_, reminder, title, body) => {
     read.status = createStatus({ link: createLink({ history_reminder: reminder }) })
     const markup = renderSection()
     expect(markup).toContain(`>${title}</p>`)

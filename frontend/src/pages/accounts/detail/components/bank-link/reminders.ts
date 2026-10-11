@@ -24,9 +24,11 @@ function unbrokenDate(ymd: string): string {
 export function describeHistoryReminder(reminder: BankHistoryReminder, providerName: string): ReminderCopy {
   const requested = unbrokenDate(reminder.requested_start)
   if (reminder.earliest_returned === null) {
+    // Says nothing of why, since a short outage or a quiet account gets nothing back as well as a
+    // bank's history limit does
     return {
       title: 'No history returned yet',
-      body: `${providerName} hasn't returned any transactions from ${requested} yet. ${HISTORY_LIMIT_NOTE}`,
+      body: `${providerName} hasn't returned any posted transactions from ${requested} yet. If you used this account since then, some may be missing.`,
     }
   }
   return {

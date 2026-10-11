@@ -215,7 +215,7 @@ test('shows the reminder of an import that got nothing above the opening adjustm
   const dialog = await openBankLink(page, setup.accountId, 'Opening balance to confirm')
 
   const note = reminderNote(dialog, NO_HISTORY)
-  await expect(note).toContainText(`SimpleFIN hasn't returned any transactions from ${formatDateLabel(daysFromTodayInTestTimezone(-30))} yet. ${LIMIT_NOTE}`)
+  await expect(note).toContainText(`SimpleFIN hasn't returned any posted transactions from ${formatDateLabel(daysFromTodayInTestTimezone(-30))} yet.`)
   const record = dialog.getByRole('button', { name: 'Record adjustment' })
   await expect(record).toBeVisible()
 
@@ -238,7 +238,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     else await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
 
     const note = reminderNote(dialog, NO_HISTORY)
-    for (const text of [note.getByText(NO_HISTORY, { exact: true }), note.getByText(LIMIT_NOTE, { exact: false })]) {
+    for (const text of [note.getByText(NO_HISTORY, { exact: true }), note.getByText(/hasn't returned any posted transactions/)]) {
       await expect(text).toBeVisible()
       expect(await contrastOf(text)).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
     }
