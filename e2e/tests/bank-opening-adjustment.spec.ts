@@ -12,11 +12,15 @@ import {
 } from '../support/api'
 import { fact, logInViaApi } from '../support/app'
 import {
+  addBridgeTransactions,
+  changeBridgeBalances,
   errorToast,
   linkToSampleBankAccount,
   openBankLink,
   openBankLinkHoldingRead,
+  syncBankLinkNow,
   waitForEntrance,
+  waitForReviewItems,
   WORKER_RESULT_TIMEOUT_MS,
 } from '../support/bankSync'
 import { contrastOf, MIN_TEXT_CONTRAST, MINUS, readBoxes } from '../support/selectors'
@@ -26,7 +30,9 @@ import { API_BASE_URL } from '../support/target'
 // review, at the foot of the Bank link section's balance panel, run by the worker against the fake
 // SimpleFIN Bridge. Everyday holds 1,000.00 from yesterday, and SimpleFIN's balance is 1,250.00, so
 // the link imports from today, nothing comes in to review, and 250.00 is offered, dated yesterday.
-// The offer's words, its sign and the cache writes behind each answer are covered by unit tests
+// The offer's words, its sign and the cache writes behind each answer are covered by unit tests, and
+// the amount it leaves out for each kind of item waiting for review by the server's tests, so the
+// browser checks only that the amount left out reaches the page
 const SAMPLE_CHEQUING = 'Everyday Chequing'
 const OPENING_BALANCE_STATUS = 'Opening balance to confirm'
 const ZERO_AMOUNT_MESSAGE = 'Enter more than zero'
@@ -39,7 +45,7 @@ const OFFER_ROW_MIN_WIDTH = 640
 // that never settles fails rather than holding the test to its timeout
 const MESSAGE_SWAP_FRAME_LIMIT = 600
 
-type Setup = { user: TestUser; accountId: string; adjustmentDate: string }
+type Setup = { user: TestUser; accountId: string; adjustmentDate: string; scenarioId: string; bankAccountId: string }
 
 /** The offer's controls in the account's edit modal */
 type Offer = { dialog: Locator; sentence: Locator; amount: Locator; skip: Locator; record: Locator; zeroMessage: Locator }
@@ -50,8 +56,13 @@ async function linkWithGap(request: APIRequestContext): Promise<Setup> {
   const account = await createAccount(request, user, { name: 'Everyday' })
   const adjustmentDate = daysFromTodayInTestTimezone(-1)
   await createTransaction(request, user, { accountId: account.id, categoryName: 'Salary', amount: 100000, date: adjustmentDate })
-  await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING, balances: { balance: '1250.00' } })
-  return { user, accountId: account.id, adjustmentDate }
+  const { scenario, connection } = await linkToSampleBankAccount(request, user, {
+    accountId: account.id,
+    bankAccountName: SAMPLE_CHEQUING,
+    balances: { balance: '1250.00' },
+  })
+  const bankAccountId = connection.accounts.find((bankAccount) => bankAccount.name === SAMPLE_CHEQUING)!.external_id
+  return { user, accountId: account.id, adjustmentDate, scenarioId: scenario.id, bankAccountId }
 }
 
 /** Links Everyday with its gap, logs in and opens the offer */
@@ -71,9 +82,9 @@ async function openOffer(page: Page, request: APIRequestContext): Promise<{ setu
   return { setup, offer }
 }
 
-/** The offer's sentence, naming the day before the import start as the app writes a day with its year */
+/** The offer's sentences, naming the day before the import start as the app writes a day with its year */
 function offerText(dialog: Locator, adjustmentDate: string): Locator {
-  return dialog.getByText(`Record the difference as an opening adjustment on ${formatDateLabel(adjustmentDate)}, so your ledger starts at SimpleFIN's balance.`)
+  return dialog.getByText(`Record an opening adjustment on ${formatDateLabel(adjustmentDate)}`)
 }
 
 /** The bodies of the answers the page sends */
@@ -111,6 +122,25 @@ test('offers the gap under the balances, starting from the offered amount', asyn
   await expect(offer.zeroMessage).toBeHidden()
   const [caption, sentence] = await readBoxes(page, [offer.dialog.getByText(/^As of /), offer.sentence])
   expect(sentence.y).toBeGreaterThan(caption.y + caption.height)
+})
+
+test('keeps the offer when a sync brings an item to review, naming the amount of the item it leaves out', async ({ page, request }) => {
+  const { setup, offer } = await openOffer(page, request)
+  await expect(offer.amount).toHaveValue('250.00')
+
+  // SimpleFIN's balance takes in a 4.50 coffee from today, which waits for review
+  await addBridgeTransactions(request, setup.scenarioId, setup.bankAccountId, [
+    { posted: daysFromTodayInTestTimezone(0), amount: '-4.50', description: 'HARBOUR COFFEE' },
+  ])
+  await changeBridgeBalances(request, setup.scenarioId, setup.bankAccountId, { balance: '1245.50' })
+  await syncBankLinkNow(request, setup.user, setup.accountId)
+  await waitForReviewItems(request, setup.user, setup.accountId, (items) => items.some((item) => item.bank.description === 'HARBOUR COFFEE'))
+
+  await page.reload()
+  const dialog = await openBankLink(page, setup.accountId, OPENING_BALANCE_STATUS)
+  await expect(fact(dialog, /^Difference/)).toHaveText(`${MINUS}$245.50`)
+  await expect(dialog.getByRole('textbox', { name: 'Adjustment amount' })).toHaveValue('250.00')
+  await expect(dialog.getByText(/items waiting for review .*\$4\.50/)).toBeVisible()
 })
 
 test('shows the answers whole, beside the amount from the width they fit there and a row each under it on a phone', async ({ page, request }) => {

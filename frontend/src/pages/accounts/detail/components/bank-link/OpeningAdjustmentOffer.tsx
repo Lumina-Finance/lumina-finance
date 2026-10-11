@@ -44,8 +44,10 @@ type OpeningAdjustmentOfferProps = {
 /**
  * The one-time offer, once the initial import is reviewed, to record the gap between the bank's
  * balance and the ledger's as an opening adjustment dated the day before the import start. It sits at
- * the foot of the balance panel under the gap it closes, with the offered amount to keep or type over,
- * and folds away once answered, leaving the balances
+ * the foot of the balance panel under the balances and their difference, with the offered amount to
+ * keep or type over, and folds away once answered, leaving the balances. It says which way the offered
+ * amount moves the ledger's balance, and while items waiting for review would move it, by how much,
+ * since the offer leaves them out and so differs from the difference shown above it
  *
  * Record adjustment refuses a blank or zero amount with a message beside the field, and the field
  * says why it refuses a typed or pasted sign, recording the amount it keeps if pressed. A press while
@@ -61,7 +63,7 @@ export function OpeningAdjustmentOffer({ accountId, offer, currency, providerNam
   const rootRef = useRef<HTMLDivElement>(null)
   const amountId = useId()
   const signId = useId()
-  const { currencies } = useMoneyFormatters()
+  const { currencies, formatCurrency } = useMoneyFormatters()
   const { showToast } = useToast()
   const record = useRecordOpeningAdjustment()
   const skip = useSkipOpeningAdjustment()
@@ -92,6 +94,11 @@ export function OpeningAdjustmentOffer({ accountId, offer, currency, providerNam
   })
   const busy = record.isPending || skip.isPending
   const prefix = signMovedAmount(getAmountSign(offer.amount), symbol)
+
+  // How approving the items waiting for review would move the ledger's balance, which the offer leaves
+  // out, as a direction in words and an unsigned amount
+  const waitingDirection = offer.waiting_amount < 0 ? 'lower' : 'raise'
+  const waitingSize = formatCurrency(Math.abs(offer.waiting_amount), currency)
   useMoveFocusOnFold(rootRef, onAnswered)
 
   const reportError = (cause: unknown) =>
@@ -134,7 +141,9 @@ export function OpeningAdjustmentOffer({ accountId, offer, currency, providerNam
   return (
     <div ref={rootRef} className="space-y-3">
       <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-        Record the difference as an opening adjustment on {formatDateLabel(offer.adjustment_date)}, so your ledger starts at {providerName}&apos;s balance.
+        Record an opening adjustment on {formatDateLabel(offer.adjustment_date)}, to bring your ledger&apos;s balance in line with {providerName}&apos;s.
+        {' '}{offer.amount < 0 ? 'This lowers your ledger\'s balance.' : 'This raises your ledger\'s balance.'}
+        {offer.waiting_amount !== 0 && ` Approving the items waiting for review would ${waitingDirection} your ledger's balance by ${waitingSize}, so this leaves them out. Review them first if you entered any of them by hand.`}
       </p>
       {/* The label row spans the answers too, so the message beside the label keeps to one line
           wherever the amount and the answers share a row */}

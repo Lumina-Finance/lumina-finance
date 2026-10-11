@@ -1,16 +1,19 @@
 /**
- * Covers the opening adjustment offer at the foot of the balance panel: its sentence, the offered
+ * Covers the opening adjustment offer at the foot of the balance panel: its sentences, the offered
  * amount it starts from with the offer's sign beside it, its two answers, the amount an answer
  * records, and the signs the amount refuses
  *
- * These tests catch the sentence worded unlike the issue, its date given as the server sends it or
- * with the wrong provider, the field starting blank, signed in the field, or with no sign beside it,
- * a sign a screen reader never hears or hears the wrong way round, a card's negative offer shown as
- * positive, a currency without cents shown in cents, an amount shown or recordable while the
- * currency's decimal places are unknown, a message shown before anything is recorded, an amount
- * typed over the offer recorded with the wrong sign, a blank or zero amount sent rather than
- * refused, and a hyphen, true minus or plus taken without saying why. Recording, skipping, the
- * messages for a zero amount and a typed sign, and a refused answer run in the browser
+ * These tests catch the sentence asking for the adjustment with its date given as the server sends
+ * it or with the wrong provider, the ledger's balance said to move the wrong way, the items waiting
+ * for review left unmentioned, said to move it the wrong way, by the wrong amount, with a doubled
+ * sign or in the wrong currency, or mentioned while they move nothing, the field starting blank,
+ * signed in the field, or with no sign beside it, a sign a screen reader never hears or hears the
+ * wrong way round, a card's negative offer shown as positive, a currency without cents shown in
+ * cents, an amount shown or recordable while the currency's decimal places are unknown, a message
+ * shown before anything is recorded, an amount typed over the offer recorded with the wrong sign, a
+ * blank or zero amount sent rather than refused, and a hyphen, true minus or plus taken without
+ * saying why. Recording, skipping, the messages for a zero amount and a typed sign, and a refused
+ * answer run in the browser
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -22,7 +25,15 @@ const CURRENCIES: Currency[] = [
   { id: 'JPY', name: 'Japanese Yen', symbol: '¥', minor_unit_exponent: 0 },
 ]
 
-vi.mock('@/hooks/useMoneyFormatters', () => ({ useMoneyFormatters: () => ({ currencies: CURRENCIES }) }))
+vi.mock('@/hooks/useMoneyFormatters', async () => {
+  const { formatCurrency } = await vi.importActual<typeof import('@/utils/formatCurrency')>('@/utils/formatCurrency')
+  return {
+    useMoneyFormatters: () => ({
+      currencies: CURRENCIES,
+      formatCurrency: (minorUnits: number, currency: string) => formatCurrency(minorUnits, currency, CURRENCIES),
+    }),
+  }
+})
 vi.mock('@/hooks/useCurrencyListState', () => ({ useCurrencyListState: () => 'ready' }))
 vi.mock('@/components/currency/CurrencyUnavailableTooltip', () => ({
   CurrencyUnavailableTooltip: ({ unavailable, label }: { unavailable: boolean; label: string }) => (unavailable ? label : null),
@@ -46,6 +57,11 @@ function renderOffer(offer: OpeningAdjustment, currency = 'CAD'): string {
   ).replaceAll('<!-- -->', '').replaceAll('&#x27;', '\'')
 }
 
+/** The text of the offer's paragraph, above the amount */
+function readSentences(markup: string): string {
+  return markup.match(/<p[^>]*>([^<]*)<\/p>/)?.[1] ?? ''
+}
+
 /** The sign and symbol shown beside the field, and the field's value */
 function readField(markup: string): [string, string] {
   const prefix = markup.match(/<span[^>]*aria-hidden="true"[^>]*>([^<]*)<\/span><input/)?.[1] ?? ''
@@ -67,17 +83,31 @@ function readAttributes(markup: string, label?: string): string {
 }
 
 describe('the opening adjustment offer', () => {
-  it('asks to record the difference on the day before the import start, in the issue\'s words', () => {
-    const markup = renderOffer({ amount: 25000, adjustment_date: '2026-05-31' })
+  it('asks to record an opening adjustment on the day before the import start, with its amount and two answers', () => {
+    const markup = renderOffer({ amount: 25000, waiting_amount: 0, adjustment_date: '2026-05-31' })
 
-    expect(markup).toContain(
-      'Record the difference as an opening adjustment on May 31, 2026, so your ledger starts at SimpleFIN\'s balance.',
-    )
+    expect(readSentences(markup)).toMatch(/^Record an opening adjustment on May 31, 2026, [^.]*SimpleFIN's\./)
     expect(markup).toMatch(/<label[^>]*><span[^>]*>Adjustment amount<\/span><\/label>/)
     expect(markup).toContain('>Skip<')
     expect(markup).toContain('>Record adjustment<')
     expect(markup).not.toContain(ZERO_AMOUNT_MESSAGE)
   })
+
+  it.each([
+    { amount: 25000, waiting: 0, currency: 'CAD', direction: 'raises', note: null },
+    { amount: -2000, waiting: 0, currency: 'CAD', direction: 'lowers', note: null },
+    { amount: 26350, waiting: -1350, currency: 'CAD', direction: 'raises', note: 'would lower your ledger\'s balance by CA$13.50' },
+    { amount: 23000, waiting: 2000, currency: 'CAD', direction: 'raises', note: 'would raise your ledger\'s balance by CA$20.00' },
+    { amount: -3000, waiting: -450, currency: 'JPY', direction: 'lowers', note: 'would lower your ledger\'s balance by ¥450' },
+  ])(
+    'says an offer of $amount in $currency $direction the ledger\'s balance, and what $waiting waiting for review would move it by',
+    ({ amount, waiting, currency, direction, note }) => {
+      const sentences = readSentences(renderOffer({ amount, waiting_amount: waiting, adjustment_date: '2026-05-31' }, currency))
+
+      expect(sentences.match(/This (raises|lowers) your ledger's balance\./g)).toEqual([`This ${direction} your ledger's balance.`])
+      expect(sentences.match(/would (raise|lower) your ledger's balance by [^,]*/)?.[0] ?? null).toBe(note)
+    },
+  )
 
   it.each([
     { amount: 25000, currency: 'CAD', shown: ['+$', '250.00'], described: 'Your ledger records this amount as positive.' },
@@ -86,7 +116,7 @@ describe('the opening adjustment offer', () => {
   ])(
     'starts from the offered $amount in $currency, its size in the field and its sign beside it and in its description',
     ({ amount, currency, shown, described }) => {
-      const markup = renderOffer({ amount, adjustment_date: '2026-05-31' }, currency)
+      const markup = renderOffer({ amount, waiting_amount: 0, adjustment_date: '2026-05-31' }, currency)
 
       expect(readField(markup)).toEqual(shown)
       expect(readDescription(markup)).toBe(described)
@@ -94,7 +124,7 @@ describe('the opening adjustment offer', () => {
   )
 
   it('locks the amount and Record adjustment, showing no amount, while the currency\'s decimal places are unknown', () => {
-    const markup = renderOffer({ amount: -3000, adjustment_date: '2026-05-31' }, 'XYZ')
+    const markup = renderOffer({ amount: -3000, waiting_amount: 0, adjustment_date: '2026-05-31' }, 'XYZ')
 
     expect(readField(markup)).toEqual([MINUS, ''])
     expect(readAttributes(markup)).toContain('disabled=""')

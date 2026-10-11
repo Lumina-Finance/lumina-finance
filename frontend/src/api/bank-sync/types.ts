@@ -652,11 +652,21 @@ export type TransactionBankSource = {
 
 /**
  * The one-time offer, once the import is reviewed, to record the gap between the bank's balance and
- * the ledger's as an opening adjustment
+ * the ledger's as an opening adjustment, leaving out the items still waiting for review, which the
+ * bank's balance already holds
  */
 export type OpeningAdjustment = {
-  /** The bank's balance minus the ledger's on the balance date, in minor units signed as the ledger keeps them */
+  /**
+   * The bank's balance minus the ledger's on the balance date, less waiting_amount, in minor units
+   * signed as the ledger keeps them
+   */
   amount: number;
+
+  /**
+   * How much approving the items waiting for review as the bank sent them would move the ledger by
+   * the balance date, in signed minor units, zero when nothing waiting changes it
+   */
+  waiting_amount: number;
 
   /** The day before the import start, the latest day the bank doesn't supply, as YYYY-MM-DD */
   adjustment_date: string;

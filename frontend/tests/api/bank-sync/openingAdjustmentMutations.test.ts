@@ -37,7 +37,7 @@ function createStatus(overrides: Partial<AccountBankStatus> = {}): AccountBankSt
     link: null,
     previous_link: null,
     balance: null,
-    opening_adjustment: { amount: 25000, adjustment_date: '2026-05-31' },
+    opening_adjustment: { amount: 25000, waiting_amount: 0, adjustment_date: '2026-05-31' },
     ...overrides,
   };
 }

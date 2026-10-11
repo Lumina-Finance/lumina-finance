@@ -242,15 +242,15 @@ describe('BankLinkSection', () => {
       difference: -25000,
     }
     const link = createLink({ sync: createSync({ state: 'opening_balance' }) })
-    read.status = createStatus({ link, balance, opening_adjustment: { amount: 25000, adjustment_date: '2026-05-31' } })
+    read.status = createStatus({ link, balance, opening_adjustment: { amount: 25000, waiting_amount: 0, adjustment_date: '2026-05-31' } })
     const markup = renderSection(createAccount({ current_balance: 100000 }))
 
     expect(markup).toContain('Opening balance to confirm')
-    expect(markup).toMatch(/As of .*Record the difference as an opening adjustment on May 31, 2026, so your ledger starts at SimpleFIN&#x27;s balance\./s)
+    expect(markup).toMatch(/As of .*Record an opening adjustment on May 31, 2026/s)
 
     // Skipped, the gap stays and the status no longer asks for the opening balance
     read.status = createStatus({ link: createLink({ sync: createSync({ state: 'synced' }) }), balance, opening_adjustment: null })
-    expect(renderSection()).not.toContain('Record the difference')
+    expect(renderSection()).not.toContain('Record an opening adjustment')
   })
 
   it.each([
@@ -292,10 +292,10 @@ describe('BankLinkSection', () => {
         cut_off_day: '2026-10-03',
       }),
       balance: { amount: 125000, available: null, available_unreadable: false, balance_date: '2026-10-03T22:00:00Z', ledger_balance: 100000, difference: -25000 },
-      opening_adjustment: { amount: 25000, adjustment_date: '2026-05-31' },
+      opening_adjustment: { amount: 25000, waiting_amount: 0, adjustment_date: '2026-05-31' },
     })
     const markup = renderSection(createAccount({ current_balance: 100000 }))
-    const order = ['No history returned yet', 'Some transactions may be missing', 'As of ', 'Record the difference'].map((text) => markup.indexOf(text))
+    const order = ['No history returned yet', 'Some transactions may be missing', 'As of ', 'Record an opening adjustment'].map((text) => markup.indexOf(text))
     expect(order.every((index) => index >= 0)).toBe(true)
     expect(order).toEqual([...order].sort((a, b) => a - b))
   })
