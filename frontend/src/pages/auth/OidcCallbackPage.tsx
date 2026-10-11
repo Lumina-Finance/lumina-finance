@@ -10,6 +10,7 @@ import {
   completeOidcSignup,
   isOidcOnboardingRequired,
   OidcEmailConflictError,
+  RegistrationClosedError,
   useRefreshOidcIdentities,
   type OidcOnboardingResponse,
 } from '@/api/oidc'
@@ -147,6 +148,12 @@ const OidcCallbackPage = () => {
         // unlike the terminal failure view every other error lands on
         if (callbackError instanceof OidcEmailConflictError) {
           setConflictEmail(callbackError.email)
+          return
+        }
+
+        // A newcomer on a closed instance goes back to the login page, which says why
+        if (callbackError instanceof RegistrationClosedError) {
+          navigate('/login', { replace: true, state: { registrationClosed: true } })
           return
         }
         setError(callbackError.message || 'Single sign-on failed.')
@@ -291,6 +298,11 @@ function OidcOnboardingForm({ onboarding, onBackToLogin }: OidcOnboardingFormPro
       setSession(response)
       navigate('/', { replace: true })
     } catch (signupError) {
+      // Registration closed while the form was open, so no account can be finished here
+      if (signupError instanceof RegistrationClosedError) {
+        navigate('/login', { replace: true, state: { registrationClosed: true } })
+        return
+      }
       setError(signupError instanceof Error ? signupError.message : 'Could not finish signing up.')
       setSubmitting(false)
     }

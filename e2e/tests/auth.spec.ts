@@ -10,7 +10,9 @@ import { API_BASE_URL } from '../support/target'
 test('signs a new user up through the form', async ({ page }) => {
   const email = `e2e-${crypto.randomUUID()}@example.com`
 
-  await page.goto('/signup')
+  // Starting from the login page proves it offers sign-up while registration is open
+  await page.goto('/login')
+  await page.getByRole('button', { name: 'Sign up' }).click()
   await page.getByLabel('First name').fill('Test')
   await page.getByLabel('Email').fill(email)
   await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD)

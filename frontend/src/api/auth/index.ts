@@ -17,6 +17,7 @@ export type {
   LoginResult,
   MfaRequiredResponse,
   MfaVerifyPayload,
+  RegistrationStatus,
   ResetPasswordPayload,
   ResetPasswordResult,
   ResetPasswordVerifyPayload,
@@ -25,6 +26,7 @@ export type {
 } from '@/api/auth/types';
 
 export {
+  fetchRegistrationStatus,
   forgotPassword,
   isMfaRequired,
   login,
@@ -36,3 +38,5 @@ export {
   verifyMfa,
   verifyResetMfa,
 } from '@/api/auth/requests';
+
+export { useRegistrationStatus } from '@/api/auth/hooks';

@@ -1,7 +1,8 @@
 import { useRef } from 'react';
-import { useLocation } from 'react-router';
+import { Navigate, useLocation } from 'react-router';
 import { KeyRound } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
+import { useRegistrationStatus } from '@/api/auth';
 import { useCurrencies } from '@/api/currency';
 import { useOidcProviders } from '@/api/oidc';
 import { MfaChallenge } from '@/components/two-factor/MfaChallenge';
@@ -17,7 +18,7 @@ import { AuthTextField } from '@/pages/auth/components/fields/TextField';
 import { PasswordRequirements } from '@/components/PasswordRequirements';
 import { AUTH_VIEW_TRANSITION, SIGNUP_FIELD_ANIMATION } from '@/pages/auth/constants/authAnimations';
 import { useAuthFormWorkflow } from '@/pages/auth/hooks/useAuthFormWorkflow';
-import { getAuthMode } from '@/pages/auth/utils/authForm';
+import { getAuthMode, REGISTRATION_CLOSED_NOTICE } from '@/pages/auth/utils/authForm';
 import { getBrowserTimeZone } from '@/utils/date';
 import { isNewPasswordValid } from '@/utils/passwordPolicy';
 import { buildTimezoneOptions } from '@/utils/timezoneOptions';
@@ -35,8 +36,10 @@ const AuthPage = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mode = getAuthMode(location.pathname);
 
-  // A provider sign-in that collided with an existing account hands its email over here
-  const prefillEmail = (location.state as { prefillEmail?: string } | null)?.prefillEmail;
+  // A provider sign-in that collided with an existing account hands its email over here, and one
+  // refused because registration is closed says so
+  const handoff = location.state as { prefillEmail?: string; registrationClosed?: boolean } | null;
+  const prefillEmail = handoff?.prefillEmail;
   const isLogin = mode === 'login';
   const isSignup = mode === 'signup';
   const isForgot = mode === 'forgot';
@@ -98,6 +101,12 @@ const AuthPage = () => {
 
   const { data: oidcProviders = [] } = useOidcProviders();
 
+  // Sign-up stays hidden until the server answers on this visit, so a closed instance never flashes
+  // it, even to a browser that remembers it open
+  const { data: registration, isFetchedAfterMount: registrationKnown } = useRegistrationStatus();
+  const registrationOpen = registrationKnown && registration?.enabled === true;
+  const registrationClosed = registrationKnown && registration?.enabled === false;
+
   // Provider sign-in also onboards new users, so the buttons show on signup as well
   const showPasskeyButton = isLogin && canUsePasskeys;
   const showOidcButtons = (isLogin || isSignup) && oidcProviders.length > 0;
@@ -113,6 +122,11 @@ const AuthPage = () => {
     : isForgot
       ? 'Remembered your password? '
       : 'Already have an account? ';
+  const showSwitchPrompt = !isLogin || registrationOpen;
+
+  if (isSignup && registrationClosed) {
+    return <Navigate to="/login" replace />;
+  }
 
   return (
     <motion.div
@@ -136,7 +150,9 @@ const AuthPage = () => {
       >
         <AuthAnimatedTitle mode={mode} />
 
-        <AuthErrorBanner error={displayError} />
+        <AuthErrorBanner
+          error={displayError || (handoff?.registrationClosed ? REGISTRATION_CLOSED_NOTICE : null)}
+        />
         {isSignup && (
           <CurrencyRetryWarning
             failed={currenciesError && currencies.length === 0}
@@ -360,17 +376,19 @@ const AuthPage = () => {
                 </div>
               )}
 
-              <p className="mt-5 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                {switchPrompt}
-                <button
-                  type="button"
-                  onClick={switchMode}
-                  className="font-medium underline underline-offset-2 transition-colors duration-200"
-                  style={{ color: 'var(--app-accent)' }}
-                >
-                  {isLogin ? 'Sign up' : 'Log in'}
-                </button>
-              </p>
+              {showSwitchPrompt && (
+                <p className="mt-5 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                  {switchPrompt}
+                  <button
+                    type="button"
+                    onClick={switchMode}
+                    className="font-medium underline underline-offset-2 transition-colors duration-200"
+                    style={{ color: 'var(--app-accent)' }}
+                  >
+                    {isLogin ? 'Sign up' : 'Log in'}
+                  </button>
+                </p>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

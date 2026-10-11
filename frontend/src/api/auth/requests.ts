@@ -6,6 +6,7 @@ import type {
   LoginResult,
   MfaRequiredResponse,
   MfaVerifyPayload,
+  RegistrationStatus,
   ResetPasswordPayload,
   ResetPasswordResult,
   ResetPasswordVerifyPayload,
@@ -167,6 +168,13 @@ export function signup(payload: SignupPayload): Promise<AuthResponse> {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+/**
+ * Reads whether the instance accepts new accounts, before anyone is signed in
+ */
+export function fetchRegistrationStatus(signal?: AbortSignal): Promise<RegistrationStatus> {
+  return requestAuth('/auth/registration', { method: 'GET', signal });
 }
 
 /**

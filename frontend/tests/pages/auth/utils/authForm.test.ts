@@ -107,6 +107,11 @@ describe('auth form helpers', () => {
     expect(isAuthLockoutError(genericError)).toBe(false)
     expect(getAuthErrorMessage(new ApiError('Invalid credentials', 401))).toBe('Incorrect email or password. Please try again.')
     expect(getAuthErrorMessage(genericError)).toBe('Something went wrong. Please try again.')
+
+    // A sign-up form left open after registration closed must say so rather than invite a retry
+    expect(getAuthErrorMessage(new ApiError('Registration is closed on this instance', 403))).toBe(
+      'Registration is closed on this instance.',
+    )
     expect(getLockoutExpiry(1000)).toBe(1831000)
     expect(getLockoutRemainingLabel('1831000', 1000)).toBe('30:30')
     expect(getLockoutRemainingLabel('999', 1000)).toBeNull()
