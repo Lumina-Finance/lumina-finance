@@ -7,8 +7,8 @@ def refuse_while_tables_hold_rows(connection: Connection, losses: dict[str, str]
     """Raise before a downgrade drops tables that still hold rows, naming what would be lost
 
     A downgrade that drops a table drops its rows with it, and nothing can bring them back,
-    so it refuses instead and leaves the operator to restore a backup or remove the data
-    deliberately
+    so it refuses instead and leaves whoever runs the downgrade to restore a backup or remove the
+    data deliberately
 
     Args:
         connection: Connection the downgrade runs on

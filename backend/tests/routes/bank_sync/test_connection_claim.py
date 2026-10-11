@@ -252,7 +252,7 @@ async def test_claim_with_a_token_over_the_length_cap_is_refused_before_anything
 
 
 async def test_claim_with_simplefin_withdrawn_is_refused(client, scenario: FakeBridgeScenario, monkeypatch):
-    """An operator withdrawing SimpleFIN's offer refuses new connections"""
+    """New connections are refused once the environment withdraws SimpleFIN's offer"""
     monkeypatch.setattr(availability, "OFFERED_PROVIDERS", frozenset())
     headers, _ = await _sign_up(client)
 

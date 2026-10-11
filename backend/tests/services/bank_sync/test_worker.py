@@ -1,13 +1,13 @@
 """The bank sync worker's two operations: enqueueing due work, and claiming and running jobs
 
-Each is called on its own here, the way a hosted runner calls them, against jobs committed where the
+Each is called on its own here, as the worker's loop calls them, against jobs committed where the
 worker's own sessions see them. A runner stand-in takes the place of the sync itself where a test
 needs a job to wait as though fetching, or to write what it found inside the job's fence. Without
 the fence a job that lost its lease would overwrite the next attempt's results, and an account
 unlinked mid-fetch would still get pending items, and a job that fails without its links recording
 why leaves their accounts looking fine and never retried. A due connection that fails to queue is
 logged and left for the next scan, so it can't stop the other owners' syncs or the heartbeat. The
-heartbeat and what the self-hosted worker needs before it starts are covered last
+heartbeat and what the worker needs before it starts are covered last
 """
 
 import asyncio
@@ -279,7 +279,7 @@ async def test_job_finishing_after_an_unlink_or_disconnect_mid_fetch_writes_noth
 async def test_run_jobs_claims_no_more_than_its_count_and_nothing_that_could_run_past_its_deadline(
     connections, frozen_now, max_jobs, time_left, claimed
 ):
-    """A hosted runner's call returns within its limits and leaves the rest queued for its next call
+    """A call returns within its job count and deadline and leaves the rest queued for the next call
 
     A job may run for 5 minutes, so one is claimed only while the deadline is at least that far off
     """
@@ -479,7 +479,7 @@ def test_worker_imports_without_the_token_signing_keys():
     assert completed.returncode == 0, completed.stderr
 
 
-# Calls run_jobs in a clean interpreter, as a hosted runner does, with a claim that prints the tables
+# Calls run_jobs in a clean interpreter, as the worker process does, with a claim that prints the tables
 # the metadata holds when it is made and finds nothing due. A session that never connects stands in
 _WORKER_TABLES_SCRIPT = """
 import asyncio, contextlib, json
@@ -510,9 +510,9 @@ def test_worker_registers_every_table_before_running_jobs():
     """A job changing the ledger fails unless its runner has every model, since flushing needs them all
 
     An auto-approved correction changes a ledger transaction, whose flush resolves its foreign key to
-    the import runs, which nothing the sync imports declares. Both the self-hosted worker and a hosted
-    runner run jobs through run_jobs. A clean interpreter is what makes this meaningful, since this
-    process registered every model long ago
+    the import runs, which nothing the sync imports declares. The worker runs every job through
+    run_jobs. A clean interpreter is what makes this meaningful, since this process registered every
+    model long ago
     """
     completed = subprocess.run(  # noqa: S603
         [sys.executable, "-c", _WORKER_TABLES_SCRIPT],

@@ -1,10 +1,10 @@
 """Bank sync settings tests
 
-Guards the origins SimpleFIN requests may reach: an operator's own server must add to SimpleFIN
-Bridge rather than replace it, which would leave every Bridge connection needing a reconnect, and an
-entry that also carried credentials, a path or plain HTTP would widen what the outbound guard lets
-through. Also guards the counts an operator sets, such as the daily request cap and how many jobs the
-self-hosted worker runs at once, which share one reader
+Guards the origins SimpleFIN requests may reach: a server set in the environment must add to
+SimpleFIN Bridge rather than replace it, which would leave every Bridge connection needing a
+reconnect, and an entry that also carried credentials, a path or plain HTTP would widen what the
+outbound guard lets through. Also guards the counts the environment sets, such as the daily request
+cap and how many jobs the worker runs at once, which share one reader
 """
 
 import pytest
@@ -22,7 +22,7 @@ def test_simplefin_origins_unset_allows_only_simplefin_bridge(monkeypatch):
 
 
 def test_simplefin_origins_added_keep_simplefin_bridge(monkeypatch):
-    """An operator's own servers, with or without a port, are allowed beside SimpleFIN Bridge"""
+    """Servers set in the environment, with or without a port, are allowed beside SimpleFIN Bridge"""
     monkeypatch.setenv("BANK_SYNC_SIMPLEFIN_ORIGINS", "https://simplefin.example:8443, https://sfin.example/")
 
     assert read_simplefin_origins() == [*_BRIDGE_ORIGINS, "https://simplefin.example:8443", "https://sfin.example/"]
@@ -56,7 +56,7 @@ def test_simplefin_test_origin_may_use_plain_http(monkeypatch):
 
 
 def test_count_setting_reads_a_whole_number(monkeypatch):
-    """An operator may lower the daily request cap"""
+    """The environment may lower the daily request cap"""
     monkeypatch.setenv("BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS", "12")
 
     assert read_count_setting("BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS", 20) == 12

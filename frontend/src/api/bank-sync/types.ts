@@ -35,8 +35,7 @@ export type BankProvider = {
 
   /**
    * How many institutions the user may link through this provider across all their connections, or
-   * null when the deployment sets no limit. The hosted version charges per institution each month for
-   * some providers, so a plan sets it there. The provider itself may still limit what it allows
+   * null for no limit. The provider itself may still limit what it allows
    */
   institution_limit: number | null;
 
@@ -45,7 +44,7 @@ export type BankProvider = {
 };
 
 export type BankProvidersResponse = {
-  /** The single "may this user link bank accounts" check, always true on self-hosted deployments */
+  /** The single "may this user link bank accounts" check, which every linking request also makes */
   may_link: boolean;
 
   /**

@@ -175,7 +175,7 @@ def test_link_eligibility_refuses_a_new_institution_past_the_limit(in_use, messa
 
 
 def test_link_eligibility_without_an_institution_limit_takes_any_institution():
-    """Self-hosted deployments set no limit, so any number of institutions can be linked"""
+    """With no institution limit, any number of institutions can be linked"""
     allowance = InstitutionAllowance(limit=None, in_use={"harbour": "Harbour Bank", "northgate": "Northgate Credit Union"})
 
     unavailable = find_unavailability(

@@ -1,8 +1,8 @@
 """Which bank providers a deployment offers, who may link bank accounts, and which accounts can take one
 
 Group-owned accounts are left out of bank linking here and nowhere else, through the own personal
-account condition, so grouped support can be added in one place later. Hosted plans are wired into
-the bank-linking check and the institution limit when they are built
+account condition, so grouped support can be added in one place later. Whether a user may link
+bank accounts, and how many institutions they may link, are each answered by one function here
 """
 
 import uuid
@@ -25,7 +25,7 @@ from app.services.bank_sync.providers.contract import ProviderAdapter, is_iso_cu
 from app.services.bank_sync.providers.simplefin.adapter import SimpleFinAdapter
 
 # Every provider adapter Lumina has, enabled here or not, so the name of the provider a connection
-# or transaction came from stays readable after an operator disables it
+# or transaction came from stays readable after the environment disables it
 PROVIDER_ADAPTERS: dict[BankProvider, type[ProviderAdapter]] = {adapter.provider_id: adapter for adapter in (SimpleFinAdapter,)}
 
 # Each provider's deployment settings: whether it is enabled at all, and whether it is offered for
@@ -82,8 +82,7 @@ def is_offered(provider: BankProvider) -> bool:
 def may_link_bank_accounts(user_id: uuid.UUID) -> bool:
     """Return whether a user may link bank accounts, which the provider list and every linking request check
 
-    Always true on self-hosted deployments. Hosted plans that leave bank linking out answer here
-    once a plans project builds them
+    Every user may, so it always returns true
     """
     return True
 
@@ -113,9 +112,7 @@ def get_enabled_adapter(provider: BankProvider) -> ProviderAdapter:
 def get_institution_limit(user_id: uuid.UUID, provider: BankProvider) -> int | None:
     """Return how many institutions a user may link through a provider across their connections
 
-    None, meaning no limit, on self-hosted deployments and for providers that only need the user's
-    own credential. Hosted plans set it for providers charged per institution each month once a
-    plans project builds them
+    Always None, meaning no limit, since every provider here only needs the user's own credential
     """
     return None
 

@@ -66,7 +66,7 @@ _SERVER_NOT_ALLOWED_MESSAGE = "This Lumina Finance server is not set up to conta
 
 
 class SimpleFinAdapter(ProviderAdapter):
-    """SimpleFIN, reached through SimpleFIN Bridge or an operator's own SimpleFIN server"""
+    """SimpleFIN, reached through SimpleFIN Bridge or another SimpleFIN server set in the environment"""
 
     provider_id = BankProvider.SIMPLEFIN
     provider_name = "SimpleFIN"
@@ -210,7 +210,7 @@ class SimpleFinAdapter(ProviderAdapter):
         try:
             response = await self._guard.send("GET", accounts_url, headers=_HEADERS, params=params, auth=auth)
 
-        # The operator has stopped allowing the server this connection was made with, or a
+        # The environment no longer allows the server this connection was made with, or a
         # development instance allows only its fake Bridge. Neither says anything about the
         # credential, so the connection isn't marked for reconnecting and its owner isn't emailed
         except OriginRefused:

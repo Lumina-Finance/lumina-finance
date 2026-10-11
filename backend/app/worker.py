@@ -1,6 +1,6 @@
 """Bank sync worker process, run as `python -m app.worker`
 
-With no arguments it runs the self-hosted bank sync worker until stopped. With `check-health` it
+With no arguments it runs the bank sync worker until stopped. With `check-health` it
 exits 0 while the worker's heartbeat is fresh and 1 otherwise, for the container health check
 """
 

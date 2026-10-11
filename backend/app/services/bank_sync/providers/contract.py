@@ -2,7 +2,7 @@
 
 An adapter owns its provider's authentication, account discovery, fetch format and identity rules,
 and hands the engine only these types, so the engine never reads a provider's wire format. The same
-contract serves the self-hosted worker and a hosted transport
+contract serves the app's requests and the worker's jobs
 """
 
 import re

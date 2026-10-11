@@ -9,12 +9,12 @@ from app.config.env import optional_bool_env, optional_csv_env
 
 logger = logging.getLogger(__name__)
 
-# SimpleFIN Bridge's two servers, always allowed. A self-hosted operator adds their own SimpleFIN
-# servers beside them, so connections already made through the Bridge keep working
+# SimpleFIN Bridge's two servers, always allowed. Servers set in the environment are added beside
+# them, so connections already made through the Bridge keep working
 _SIMPLEFIN_BRIDGE_ORIGINS = ["https://beta-bridge.simplefin.org", "https://bridge.simplefin.org"]
 
-# Jobs the self-hosted worker runs at once unless the operator sets another number, so one slow
-# bank doesn't hold up every other connection's sync
+# Jobs the worker runs at once unless the environment sets another number, so one slow bank
+# doesn't hold up every other connection's sync
 _DEFAULT_WORKER_CONCURRENCY = 2
 
 
@@ -75,7 +75,7 @@ def read_count_setting(key: str, default: int, *, maximum: int | None = None) ->
 
 
 def read_simplefin_origins() -> list[str]:
-    """Return the origins SimpleFIN requests may reach: SimpleFIN Bridge's, then any the operator adds
+    """Return the origins SimpleFIN requests may reach: SimpleFIN Bridge's, then any the environment adds
 
     Raises:
         RuntimeError: An added entry is not an HTTPS origin
@@ -113,14 +113,14 @@ BANK_SYNC_SIMPLEFIN_ORIGINS = read_simplefin_origins()
 # Testing only: while set, the one origin SimpleFIN requests may reach, exempt from the HTTPS and
 # public address checks, so development instances and browser tests reach a fake SimpleFIN Bridge on
 # a private network and nothing else, not even a real connection restored from production. Unset by
-# default and kept out of the self-hosting docs, and the app and the bank sync worker each warn as
-# they start while it is set
+# default and kept out of the environment variable docs, and the app and the bank sync worker each
+# warn as they start while it is set
 BANK_SYNC_SIMPLEFIN_TEST_ORIGIN = read_simplefin_test_origin()
 
-# How many jobs the self-hosted worker runs at once, each on a different connection
+# How many jobs the worker runs at once, each on a different connection
 BANK_SYNC_WORKER_CONCURRENCY = read_count_setting("BANK_SYNC_WORKER_CONCURRENCY", _DEFAULT_WORKER_CONCURRENCY)
 
-# Whether SimpleFIN is available at all. Self-hosted deployments enable every provider by default
+# Whether SimpleFIN is available at all. Every provider is enabled unless the environment turns it off
 BANK_SYNC_SIMPLEFIN_ENABLED = optional_bool_env("BANK_SYNC_SIMPLEFIN_ENABLED", True)
 
 # Whether new SimpleFIN connections may be made. Withdrawing the offer leaves existing connections

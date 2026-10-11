@@ -125,7 +125,7 @@ async def test_setup_token_that_is_not_a_claim_url_is_refused_before_anything_is
 
 
 async def test_setup_token_for_a_server_not_added_names_its_host():
-    """A token pointing at a server the operator hasn't added is refused before anything is sent"""
+    """A token pointing at a server the environment hasn't added is refused before anything is sent"""
     bridge = RecordingBridge()
 
     with pytest.raises(ClaimRefused) as refusal:

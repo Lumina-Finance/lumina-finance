@@ -74,8 +74,8 @@ class BankSyncJob(Base):
     The date window isn't stored: the job works it out from its links' checkpoints when it runs.
     A connection has at most one running and one queued job, and new work merges into the queued
     one. A claim sets a lease and moves the attempt number, so a runner that outlived its lease
-    can tell it no longer holds the job. Nothing here depends on a queue service, so a hosted
-    transport can dispatch the same rows
+    can tell it no longer holds the job. These rows are the whole queue, so nothing here depends on
+    a queue service
     """
 
     __tablename__ = "bank_sync_jobs"

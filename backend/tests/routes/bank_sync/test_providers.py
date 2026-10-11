@@ -73,7 +73,7 @@ async def test_providers_on_a_default_install_offer_simplefin_with_12_months_and
 
 
 async def test_providers_report_a_withdrawn_provider_as_not_offered(client, monkeypatch):
-    """An operator withdrawing SimpleFIN's offer still lists it, so existing connections keep its facts"""
+    """SimpleFIN stays listed once the environment withdraws its offer, so existing connections keep its facts"""
     monkeypatch.setattr(availability, "OFFERED_PROVIDERS", frozenset())
     headers, _ = await _sign_up(client)
     await _record_heartbeat(minutes_ago=0)

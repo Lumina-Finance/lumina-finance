@@ -145,7 +145,7 @@ async def test_failed_request_fails_every_account_with_its_typed_error(respond, 
 
 
 async def test_access_url_on_a_server_no_longer_allowed_fails_without_reading_as_rejected():
-    """The operator stopped allowing the connection's server, or a development instance allows only its fake Bridge
+    """The environment no longer allows the connection's server, or a development instance allows only its fake Bridge
 
     Nothing is sent, and the failure isn't a rejected credential, which would stop the connection
     and email its owner to reconnect, a real user included on a development instance restored from

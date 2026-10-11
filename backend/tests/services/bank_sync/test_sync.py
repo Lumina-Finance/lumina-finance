@@ -29,7 +29,7 @@ same question. Something only the user can fix that isn't marked,
 or isn't emailed, leaves accounts silently stale, while one emailed twice, marked from a refusal of
 a credential since replaced, or whose failed email undoes the sync, nags or misleads the user
 
-The daily schedule, and the due scan that queues it, called on its own as a hosted runner calls it,
+The daily schedule, and the due scan that queues it, called on its own as the worker's loop calls it,
 come last. A link synced through today that is fetched again before tomorrow spends a request for
 nothing, one whose next sync is never set stops syncing, and a schedule that counts a paused or
 unchosen link, or queues a sync before a request frees, sends what the review pause or the budget
@@ -2015,7 +2015,7 @@ async def test_job_sends_nothing_for_a_rejected_connection(connection, provider,
 
 
 async def test_job_for_a_provider_turned_off_records_why_and_sends_nothing(connection, monkeypatch):
-    """An operator turned SimpleFIN off: the job fails with a reason the account's sync details can show"""
+    """With SimpleFIN turned off in the environment, the job fails with a reason the account's sync details can show"""
     await _link(connection, "ACT-1", **_synced_through_yesterday())
     monkeypatch.delitem(availability.ENABLED_ADAPTERS, BankProvider.SIMPLEFIN, raising=False)
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)

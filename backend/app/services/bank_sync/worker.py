@@ -1,7 +1,7 @@
-"""Running bank sync jobs: the two operations every runner calls, and the self-hosted worker's loop
+"""Running bank sync jobs: the two operations every runner calls, and the worker's loop
 
 Enqueueing due work and running jobs are each callable on their own and keep nothing between
-calls, so the self-hosted worker's loop and a hosted runner on its own schedule share them. Each
+calls, so the worker's loop calls each on a cadence of its own, and so can any other caller. Each
 sees across users only through the worker's definer functions, and runs everything else as the
 owning user under row-level security
 """
@@ -49,7 +49,7 @@ JOB_TIME_LIMIT = timedelta(minutes=5)
 # queued job, so after this many attempts it is recorded as failed instead of run
 MAX_JOB_ATTEMPTS = 3
 
-# The self-hosted worker's fixed cadence: how often it scans for due work, how often it checks
+# The worker's fixed cadence: how often it scans for due work, how often it checks
 # for a queued job while it has none to run, and how often it tries the database while waiting
 # to start
 _SCAN_INTERVAL = timedelta(minutes=5)
@@ -180,7 +180,7 @@ async def check_worker_health() -> bool:
 
 
 async def run_worker() -> None:
-    """Run the self-hosted worker until it is stopped
+    """Run the worker until it is stopped
 
     Waits until the database is reachable and migrated, then scans for due work every 5 minutes
     while BANK_SYNC_WORKER_CONCURRENCY runners claim and run jobs. The claim never hands two
