@@ -35,7 +35,7 @@ const UNANSWERED_RECONNECT_MESSAGE = 'Something went wrong. Please try again.'
 // replaced by a proxy's page, so it may have saved the connection and spent the setup token, which
 // works only once. Sent again, the token is refused as used, and a new one would add the same
 // connection twice
-const UNANSWERED_CLAIM_MESSAGE = 'Oops, something went wrong. Please check your connections before you create a new setup token.'
+const UNANSWERED_CLAIM_MESSAGE = 'Oops, the connection may have been added. Please check before you create a new setup token.'
 
 interface ConnectModalProps {
   open: boolean

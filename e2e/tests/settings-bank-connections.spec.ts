@@ -241,7 +241,7 @@ test('says to check the connections when Connect loses its answer, and lists the
   await dialog.getByRole('textbox', { name: 'Setup token' }).fill(scenario.setupToken)
   await dialog.getByRole('button', { name: 'Connect' }).click()
 
-  await expect(dialog.getByRole('alert')).toContainText('check your connections')
+  await expect(dialog.getByRole('alert')).toContainText('the connection may have been added')
   await dialog.getByRole('button', { name: 'Cancel' }).click()
   await expect(connectionRow(section, 'SimpleFIN')).toContainText('0 of 2')
 })
@@ -279,7 +279,7 @@ test('keeps reading the connections after a gateway timeout, so a connection the
   await dialog.getByRole('textbox', { name: 'Setup token' }).fill(scenario.setupToken)
   await dialog.getByRole('button', { name: 'Connect' }).click()
 
-  await expect(dialog.getByRole('alert')).toContainText('check your connections')
+  await expect(dialog.getByRole('alert')).toContainText('the connection may have been added')
   await reread
   await (await claimed).fetch()
   await dialog.getByRole('button', { name: 'Cancel' }).click()
