@@ -912,6 +912,13 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
           // The workflow can be reset while the file is being read, and a file staged into the flow
           // that replaced it is one the user believes they discarded
           if (!isCurrentWorkflowRun(workflowRun)) return
+          // A file refused before a separator or other reading choice was worked out can't be put right
+          // by changing them, so it is refused on the upload card rather than staged. The staged file
+          // offers those choices whenever it has either
+          if (draft.error && !draft.reading && !draft.delimiter) {
+            setFileIntakeError(draft.error)
+            return
+          }
           sourceFileRef.current = selectedFile
           applyStagedFiles([draft])
         } finally {

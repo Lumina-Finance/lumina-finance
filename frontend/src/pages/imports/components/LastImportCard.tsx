@@ -23,9 +23,10 @@ const COLUMN_GAP = '-2rem'
 /**
  * The last saved import, with a way to undo it while it still can be
  *
- * Only the last import can be undone, only for a few days after it was saved and only while nothing
- * else has changed, so this shows nothing once there is none to undo. Left out until it arrives, so a new user never sees it flash,
- * and grown into place when it does, so the steps below slide down rather than jump
+ * Only the last import can be undone, only within the backend's undo window after it was saved
+ * (`IMPORT_UNDO_WINDOW`, whose end the server sends as `undo_until`) and only while nothing else has
+ * changed, so this shows nothing once there is none to undo. Left out until it arrives, so a new user
+ * never sees it flash, and grown into place when it does, so the steps below slide down rather than jump
  */
 export function LastImportCard({ className = '' }: { className?: string }) {
   const lastImport = useLastImport()

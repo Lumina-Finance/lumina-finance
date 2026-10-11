@@ -109,7 +109,7 @@ const TABLE_START_SEARCH_ROWS = 20
 const READING_PREVIEW_ROWS = 4
 const SINGLE_COLUMN_ERROR = 'Only one column was found. Check this is a CSV whose fields are separated by a comma or semicolon.'
 export const SINGLE_COLUMN_SEPARATOR_ERROR = 'Only one column was found. Choose the separator your file uses under Separator.'
-const UNREADABLE_TEXT_ERROR = 'This file is not readable as text. Export it as a CSV encoded in UTF-8 and upload it again.'
+const UNREADABLE_TEXT_ERROR = 'This file is not readable. Export it as a CSV encoded in UTF-8 and upload it again.'
 
 /**
  * What a staged file carries once its records have been read, or why it cannot be used
