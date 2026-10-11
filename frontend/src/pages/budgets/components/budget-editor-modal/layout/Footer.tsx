@@ -1,5 +1,13 @@
+import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
+import type { ModalLevel } from '@/components/modal/Shell'
+
+// Cancel and the main action as two equal halves below sm and together on the right from it, the same
+// for adding and editing a budget
+const FOOTER_CLASS_NAME = 'grid shrink-0 grid-cols-2 gap-3 py-4 sm:flex sm:justify-end min-[1050px]:py-5'
+
 interface BudgetEditorModalFooterProps {
-  className: string
+  // The modal level the footer sits in, which sets how far its edges are inset
+  level: ModalLevel
   isPending: boolean
   submitDisabled: boolean
   submitLabel: string
@@ -10,7 +18,7 @@ interface BudgetEditorModalFooterProps {
  * Renders shared budget form actions with the pending-state spinner treatment
  */
 export default function BudgetEditorModalFooter({
-  className,
+  level,
   isPending,
   submitDisabled,
   submitLabel,
@@ -18,7 +26,7 @@ export default function BudgetEditorModalFooter({
 }: BudgetEditorModalFooterProps) {
   return (
     <div
-      className={className}
+      className={`${FOOTER_CLASS_NAME} ${MODAL_INSET_CLASS_NAME[level]}`}
       style={{ borderTop: '1px solid var(--app-border)' }}
     >
       <button type="button" className="app-secondary-button w-full sm:w-auto" onClick={onClose} disabled={isPending}>

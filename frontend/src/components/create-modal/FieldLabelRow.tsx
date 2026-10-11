@@ -7,9 +7,10 @@ const ACTION_SLOT_EASE = [0.25, 0.1, 0.25, 1] as const
 
 interface CreateModalFieldLabelRowProps {
   accessory?: ReactNode
-  // Rendered opposite the label, replacing it with the error message while one is present. A caller
-  // that supplies this stacks the row on narrow layouts, since the label and the action need their own
-  // lines until there is room to sit side by side
+  // Rendered opposite the label, replacing it with the error message while one is present. While it
+  // shows, the row stacks on narrow layouts, since the label and the action need their own lines until
+  // there is room to sit side by side. A message fits on the label's line, so the row stays one line
+  // without the action, the same as a field that has none
   action?: ReactNode
   error?: string | false
   htmlFor?: string
@@ -32,13 +33,13 @@ export default function CreateModalFieldLabelRow({
   label,
   optionGroupId,
 }: CreateModalFieldLabelRowProps) {
-  const hasActionSlot = action !== undefined
+  const stacksOnNarrowLayouts = Boolean(action) && !error
 
   return (
     <div
       className={joinClassNames(
         'mb-1.5 flex items-start justify-between gap-3',
-        hasActionSlot && 'flex-col gap-1.5 sm:flex-row sm:items-end sm:gap-3',
+        stacksOnNarrowLayouts && 'flex-col gap-1.5 sm:flex-row sm:items-end sm:gap-3',
       )}
     >
       <div className="flex min-w-0 items-center gap-1.5">
