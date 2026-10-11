@@ -10,6 +10,27 @@ const FX_REFRESHED_AT_KEY_PREFIX = 'lumina:fx-refreshed-at'
 const FX_REFRESH_INTERVAL_MS = 12 * 60 * 60 * 1000
 const CACHE_STATUS_RETRY_INTERVAL_MS = 60 * 1000
 
+// Shared by every mounted component, since the dialogues that hold the check sit far below the
+// app shell that runs it
+let holdCount = 0
+const releaseListeners = new Set<() => void>()
+
+/**
+ * Holds every cache check back while `held` is true, so a dialogue that defers its own refresh
+ * until it closes keeps the data under it as it was. A check skipped meanwhile runs once the last
+ * hold ends, so a change made elsewhere still reaches the page
+ */
+export function useHoldCacheValidation(held: boolean) {
+  useEffect(() => {
+    if (!held) return
+    holdCount += 1
+    return () => {
+      holdCount -= 1
+      if (holdCount === 0) releaseListeners.forEach((listener) => listener())
+    }
+  }, [held])
+}
+
 /**
  * Revalidates cached app and FX data on mount, focus, and the next calculation owner's midnight,
  * comparing server changes and owner-local dates with this window's last result for `userId`
@@ -17,8 +38,9 @@ const CACHE_STATUS_RETRY_INTERVAL_MS = 60 * 1000
  * Personal data invalidates the app cache when its server timestamp differs from this window's copy,
  * even if another window shares the same login session. A new owner-local date also refreshes calculations
  * without requiring a transaction edit. FX data refreshes at most once every twelve
- * hours, or immediately when app data was just invalidated. Overlapping validate calls are coalesced.
- * A server change also fetches the profile again and hands it to `onProfileRefreshed`
+ * hours, or immediately when app data was just invalidated. Overlapping validate calls are coalesced,
+ * and calls made while `useHoldCacheValidation` holds the check become one call when it ends. A server
+ * change also fetches the profile again and hands it to `onProfileRefreshed`
  */
 export function useCacheValidation(
   userId: string | undefined,
@@ -33,6 +55,7 @@ export function useCacheValidation(
     if (!enabled || !userId) return
     let midnightTimer: ReturnType<typeof setTimeout> | undefined
     let active = true
+    let skippedWhileHeld = false
 
     const scheduleMidnightCheck = (nextBoundaryAt: string) => {
       if (!active) return
@@ -62,6 +85,10 @@ export function useCacheValidation(
     }
 
     const validate = async () => {
+      if (holdCount > 0) {
+        skippedWhileHeld = true
+        return
+      }
       if (validatingRef.current) {
         pendingValidationRef.current = true
         return
@@ -87,7 +114,14 @@ export function useCacheValidation(
       }
     }
 
+    const onRelease = () => {
+      if (!skippedWhileHeld) return
+      skippedWhileHeld = false
+      void validate()
+    }
+
     void validate()
+    releaseListeners.add(onRelease)
     const unsubscribeFocus = focusManager.subscribe((focused) => {
       if (focused) void validate()
     })
@@ -108,6 +142,7 @@ export function useCacheValidation(
     return () => {
       active = false
       clearTimeout(midnightTimer)
+      releaseListeners.delete(onRelease)
       unsubscribeFocus()
       window.removeEventListener('focus', onWindowFocus)
       window.removeEventListener('storage', onStorageChange)

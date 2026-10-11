@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, type MutableRefObject } from 'react'
 import { useRefreshCreatedTransactions } from '@/api/transactions'
+import { useHoldCacheValidation } from '@/hooks/useCacheValidation'
 
 interface UseDeferredTransactionRefreshOptions {
   open: boolean
@@ -17,11 +18,15 @@ interface DeferredTransactionRefreshState {
  * Defers transaction, account and credit refresh for a session of one or more creates until the
  * modal closes, so it refreshes once, on dismiss, instead of refetching behind the open modal
  * after every save
+ *
+ * The check for changes made elsewhere waits for the close too. The running balance adds the
+ * session's creates to the balance loaded before them, so a reload while open counts them twice
  */
 export function useDeferredTransactionRefresh({
   open,
   onClose,
 }: UseDeferredTransactionRefreshOptions): DeferredTransactionRefreshState {
+  useHoldCacheValidation(open)
   const refreshCreatedTransactions = useRefreshCreatedTransactions()
   const createdAccountIdsRef = useRef<Set<string>>(new Set())
   const openRef = useRef(open)
