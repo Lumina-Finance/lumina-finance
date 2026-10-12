@@ -47,13 +47,15 @@ const levelConfig: Record<IconTooltipLevel, { Icon: LucideIcon; color: string }>
   },
 }
 
-const ICON_TRIGGER_CLASS = 'inline-flex cursor-pointer appearance-none border-0 bg-transparent p-0'
+// Keyboard focus shows what hovering shows, the filled icon and the open tooltip, so the trigger draws
+// no ring of its own
+const ICON_TRIGGER_CLASS = 'inline-flex cursor-pointer appearance-none border-0 bg-transparent p-0 focus-visible:outline-none'
 const ICON_CLASS = 'transition-colors [&>*:first-child]:transition-colors [&>*:not(:first-child)]:transition-colors'
 const ICON_HOVER_CLASS = 'group-hover:[&>*:first-child]:fill-current group-hover:[&>*:not(:first-child)]:stroke-[var(--app-bg)]'
 const ICON_ACTIVE_CLASS = '[&>*:first-child]:fill-current [&>*:not(:first-child)]:stroke-[var(--app-bg)]'
 const ROOT_CLASS = 'group relative inline-flex'
 const FX_ROOT_CLASS = 'shrink-0 items-center align-middle leading-none'
-const FX_TRIGGER_CLASS = 'inline-flex h-4 cursor-pointer appearance-none items-center justify-center rounded-[4px] border px-[3px] text-[0.625rem] font-bold leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent-soft)]'
+const FX_TRIGGER_CLASS = 'inline-flex h-4 cursor-pointer appearance-none items-center justify-center rounded-[4px] border px-[3px] text-[0.625rem] font-bold leading-none transition-colors focus-visible:outline-none'
 const FX_TONE_CLASS: Record<IconTooltipFxTone, { idle: string; active: string }> = {
   blue: {
     idle: 'border-[color-mix(in_srgb,#2563eb_48%,transparent)] bg-[color-mix(in_srgb,#2563eb_13%,var(--app-bg))] text-[#2563eb] group-hover:border-[#2563eb] group-hover:bg-[#2563eb] group-hover:text-white',
@@ -154,6 +156,8 @@ export default function IconTooltip({
   const Icon = isFxIcon ? DefaultIcon : IconOverride ?? DefaultIcon
   const [isOpen, setIsOpen] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
+  const [isKeyboardFocused, setIsKeyboardFocused] = useState(false)
+  const isShown = isOpen || isKeyboardFocused
   const [actualPlacement, setActualPlacement] = useState<IconTooltipPlacement>(placement)
   const [horizontalOffset, setHorizontalOffset] = useState(0)
   const rootRef = useRef<HTMLSpanElement>(null)
@@ -192,12 +196,12 @@ export default function IconTooltip({
 
   const fxToneClass = FX_TONE_CLASS[fxTone]
   const triggerClassName = isFxIcon
-    ? joinClassNames(FX_TRIGGER_CLASS, isOpen ? fxToneClass.active : fxToneClass.idle)
+    ? joinClassNames(FX_TRIGGER_CLASS, isShown ? fxToneClass.active : fxToneClass.idle)
     : ICON_TRIGGER_CLASS
-  const iconClassName = joinClassNames(ICON_CLASS, ICON_HOVER_CLASS, isOpen && ICON_ACTIVE_CLASS)
+  const iconClassName = joinClassNames(ICON_CLASS, ICON_HOVER_CLASS, isShown && ICON_ACTIVE_CLASS)
   const tooltipWrapperClassName = joinClassNames(
     TOOLTIP_WRAPPER_CLASS,
-    isOpen && TOOLTIP_OPEN_CLASS,
+    isShown && TOOLTIP_OPEN_CLASS,
     placementClass[actualPlacement],
   )
   const rootClassName = joinClassNames(ROOT_CLASS, isFxIcon && FX_ROOT_CLASS)
@@ -208,6 +212,10 @@ export default function IconTooltip({
       className={rootClassName}
       onMouseEnter={interactive ? () => setIsHovered(true) : undefined}
       onMouseLeave={interactive ? () => setIsHovered(false) : undefined}
+      onFocus={(event) => setIsKeyboardFocused(event.target.matches(':focus-visible'))}
+      onBlur={(event) => {
+        if (!rootRef.current?.contains(event.relatedTarget as Node | null)) setIsKeyboardFocused(false)
+      }}
     >
       <button
         ref={triggerRef}
@@ -237,11 +245,12 @@ export default function IconTooltip({
       </button>
       <span
         ref={tooltipRef}
+        role={interactive ? undefined : 'tooltip'}
         className={tooltipWrapperClassName}
-        inert={interactive && !isOpen && !isHovered}
+        inert={interactive && !isShown && !isHovered}
         style={{
           transform: `translateX(calc(-50% + ${horizontalOffset}px))`,
-          visibility: interactive && !isOpen && !isHovered ? 'hidden' : undefined,
+          visibility: interactive && !isShown && !isHovered ? 'hidden' : undefined,
         }}
       >
         <span

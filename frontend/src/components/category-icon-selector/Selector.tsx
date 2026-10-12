@@ -97,7 +97,7 @@ function useAppDarkMode() {
  * Renders the shared category icon picker button and positions the emoji picker against the active row or button
  */
 export default function CategoryIconSelector({
-  buttonClassName = 'group flex h-9 w-9 items-center justify-center rounded-md border p-1 text-xl leading-none transition-colors duration-150 hover:border-[var(--app-border-strong)] focus-visible:border-[var(--app-accent-border)] focus-visible:outline-none',
+  buttonClassName = 'group flex h-9 w-9 items-center justify-center rounded-md border p-1 text-xl leading-none transition-colors duration-150 hover:border-[var(--app-border-strong)] app-field-focus-visible focus-visible:outline-none',
   categoryName,
   hasError = false,
   id,

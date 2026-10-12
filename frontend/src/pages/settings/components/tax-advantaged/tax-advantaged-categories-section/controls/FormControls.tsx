@@ -126,7 +126,7 @@ export function CompactCurrencyInput({
 
   return (
     <div
-      className="group flex h-9 w-full min-w-0 items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors duration-150 hover:border-[var(--app-border)] focus-within:border-[var(--app-accent-border)]"
+      className="group flex h-9 w-full min-w-0 items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors duration-150 hover:border-[var(--app-border)] app-field-focus"
       style={{ background: 'color-mix(in srgb, var(--app-input-bg) 55%, var(--app-bg))' }}
     >
       {symbol && (

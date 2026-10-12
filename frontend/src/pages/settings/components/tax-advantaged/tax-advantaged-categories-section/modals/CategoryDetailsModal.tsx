@@ -99,7 +99,7 @@ export default function TaxAdvantagedCategoryDetailsModal({
             <div className="min-w-0">
               <label htmlFor={NAME_FIELD_ID} className="app-label mb-0.5 block text-xs">Name</label>
               <div
-                className="group flex h-8 w-full items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors duration-150 hover:border-[var(--app-border)] focus-within:border-[var(--app-accent-border)]"
+                className="group flex h-8 w-full items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors duration-150 hover:border-[var(--app-border)] app-field-focus"
                 style={{ background: 'color-mix(in srgb, var(--app-input-bg) 55%, var(--app-bg))' }}
               >
                 <input

@@ -51,6 +51,9 @@ export default function TransactionListToolbar({
   // Set from the desktop edit button's own onAnimationStart and onAnimationComplete, so the wrap
   // layout hook holds its measurement still for exactly the span its width is changing
   const [isEditActionAnimating, setIsEditActionAnimating] = useState(false)
+  // Whether the edit and delete actions have finished growing in. They are clipped only while they
+  // grow or shrink, so at rest a focused one shows its whole focus ring, which sits outside its edge
+  const [editActionsAtRest, setEditActionsAtRest] = useState(false)
 
   // Selection mode swaps the row's own controls, and the wrap layout measures boxes rather than
   // contents, so it is told rather than left to notice
@@ -159,17 +162,23 @@ export default function TransactionListToolbar({
   // with it, so the space closes with the button instead of sitting at a fixed width until the box
   // unmounts and the row's gap snaps shut behind it
   const desktopEditAction = (
-    <AnimatePresence initial={false}>
+    <AnimatePresence initial={false} onExitComplete={() => setEditActionsAtRest(false)}>
       {isSelecting && onEditSelection && (
         <motion.div
           key="edit-action"
-          className="overflow-hidden"
+          className={editActionsAtRest ? undefined : 'overflow-hidden'}
           initial={{ width: 0, opacity: 0 }}
           animate={{ width: 'auto', opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
           transition={{ duration: prefersReducedMotion ? 0 : 0.16, ease: TRANSACTION_LIST_EASE }}
-          onAnimationStart={() => setIsEditActionAnimating(true)}
-          onAnimationComplete={() => setIsEditActionAnimating(false)}
+          onAnimationStart={() => {
+            setIsEditActionAnimating(true)
+            setEditActionsAtRest(false)
+          }}
+          onAnimationComplete={() => {
+            setIsEditActionAnimating(false)
+            setEditActionsAtRest(true)
+          }}
         >
           <div className="flex items-center">
             {renderEditAction('app-glass-button h-11 w-11 shrink-0 px-0 mr-3 min-[750px]:w-auto min-[750px]:px-4')}
