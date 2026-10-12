@@ -70,7 +70,13 @@ const FX_TONE_CLASS: Record<IconTooltipFxTone, { idle: string; active: string }>
     active: 'border-[var(--app-text-muted)] bg-[var(--app-text-muted)] text-white opacity-100',
   },
 }
-const TOOLTIP_WRAPPER_CLASS = 'pointer-events-none absolute left-1/2 z-20 p-2 opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100'
+// Above the list toolbars, which stick at z-30 over the page as it scrolls, so a panel that opens
+// across a toolbar is drawn over it rather than under it
+const TOOLTIP_WRAPPER_CLASS = 'absolute left-1/2 z-40 p-2 transition-opacity duration-150'
+// Closed, the panel shows and takes pointer input only while hovered. Open, it does both whatever the
+// pointer, since a touch screen has no hover. The two are kept apart because classes setting the same
+// property are ordered by the stylesheet, not by the class list
+const TOOLTIP_CLOSED_CLASS = 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100'
 const TOOLTIP_OPEN_CLASS = 'pointer-events-auto opacity-100'
 
 function getAvailablePlacement({
@@ -201,7 +207,7 @@ export default function IconTooltip({
   const iconClassName = joinClassNames(ICON_CLASS, ICON_HOVER_CLASS, isShown && ICON_ACTIVE_CLASS)
   const tooltipWrapperClassName = joinClassNames(
     TOOLTIP_WRAPPER_CLASS,
-    isShown && TOOLTIP_OPEN_CLASS,
+    isShown ? TOOLTIP_OPEN_CLASS : TOOLTIP_CLOSED_CLASS,
     placementClass[actualPlacement],
   )
   const rootClassName = joinClassNames(ROOT_CLASS, isFxIcon && FX_ROOT_CLASS)
