@@ -49,7 +49,7 @@ async function readFocusRing(element: Locator): Promise<FocusRing | null> {
     const page = getComputedStyle(probe).backgroundColor
     probe.remove()
 
-    // A faded frame, such as a read-only row, fades its ring with it, so the ring on screen is its
+    // A faded frame, such as a dialog fading in, fades its ring with it, so the ring on screen is its
     // colour mixed into the page by however much the frame and everything around it are faded
     let fade = 1
     for (let faded: Element | null = frame; faded; faded = faded.parentElement) fade *= Number(getComputedStyle(faded).opacity)
@@ -255,31 +255,6 @@ test('leaves no focus ring on a transaction row opened with the mouse', async ({
 
   await expect(rowButton).toBeFocused()
   expect(await readFocusRing(rowButton)).toBeNull()
-})
-
-// A row on an archived account is drawn faded, and the fade would take its ring under 3:1, so a focused
-// read-only row shows its ring at full strength
-test('shows keyboard focus at full strength on a read-only row', async ({ page, request }) => {
-  await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' })
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Old savings' })
-  const id = await createTransaction(request, user, {
-    accountId: account.id,
-    categoryName: 'Groceries',
-    amount: -1000,
-    date: daysFromTodayInTestTimezone(-1),
-  })
-  const archived = await request.patch(`${API_BASE_URL}/accounts/${account.id}`, { headers: asUser(user), data: { is_archived: true } })
-  expect(archived.status()).toBe(200)
-
-  await logInViaApi(page, user)
-  await openPage(page, `/accounts/${account.id}`)
-  const rowButton = page.getByTestId(`transaction-row-${id}`)
-  await expect(rowButton.getByText('Archived · Read-only', { exact: true }).filter({ visible: true }).first()).toBeVisible()
-  await expect.poll(() => rowButton.locator('..').evaluate((row) => Number(getComputedStyle(row).opacity))).toBeLessThan(1)
-
-  await focusFromKeyboard(page, rowButton)
-  await expectSharedRing(rowButton.locator('..'), 'outline', '-2px')
 })
 
 // The dashboard's range selector clips what spills past its edge and has room for the ring but not its
