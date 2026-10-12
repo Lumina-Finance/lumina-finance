@@ -46,13 +46,15 @@
     --app-warning: #D6B400;
     --app-warning-soft: #d6b40029;
     --app-warning-text: #6F5700;
+    /* Muted text on the warning tint, such as the archive warning's explanation, which the tint leaves readable here */
+    --app-text-muted-on-warning: var(--app-text-muted);
     --app-negative: #9A3C34;
     --app-negative-soft: #9a3c341a;
     --app-negative-border: #9a3c344d;
     /* Filled destructive buttons need a darker red than negative text to keep white labels readable */
     --app-danger-fill: #9A3C34;
-    --app-button-primary-bg: #7F541C;
-    --app-button-primary-bg-hover: #8F6124;
+    --app-button-primary-bg: #6E4818;
+    --app-button-primary-bg-hover: #7A5220;
     --app-button-primary-text: #FFF8EC;
     --app-nav-bg: #F8F4EC;
     --app-shadow-soft: 0 2px 20px #1c151012, 0 1px 4px #1c15100a;
@@ -131,13 +133,16 @@
     --app-input-bg: #241F19;
     --app-input-border: #d2b47833;
     --app-input-border-hover: #d2b47859;
-    --app-positive: #6CA07B;
-    --app-positive-soft: #6ca07b24;
+    --app-positive: #72A781;
+    --app-positive-soft: #72a78124;
     --app-chart-positive: #5D8F6D;
     --app-chart-negative: #AB5E56;
     --app-warning: #F5D547;
     --app-warning-soft: #f5d5472e;
     --app-warning-text: #F8E28A;
+    /* The muted colour falls short of the contrast text needs on the warning tint here, so it is drawn a quarter of
+       the way toward the full text colour, as an Upcoming day total is */
+    --app-text-muted-on-warning: color-mix(in srgb, var(--app-text-muted) 75%, var(--app-text));
     --app-negative: #D8776A;
     --app-negative-soft: #b8584e1f;
     --app-negative-border: #b8584e59;
@@ -600,6 +605,19 @@
     box-shadow: var(--app-focus-border-error);
   }
 
+  /* The currency symbol drawn inside the start of a money field, beside its input */
+  .app-input-prefix {
+    color: var(--app-text-subtle);
+  }
+
+  /* The red tint of a field in error takes faint text under the contrast text needs in the dark theme, so
+     the placeholder and the currency symbol step up to the muted colour while the field is in error */
+  .app-input-error::placeholder,
+  .app-input-error .app-date-field-segment::placeholder,
+  :has(> .app-input-error) > .app-input-prefix {
+    color: var(--app-text-muted);
+  }
+
   /* The segmented date control mirrors app-input as a flex row so the year, month, and day inputs sit
      inside one field frame, with focus-within standing in for the input focus ring */
   .app-date-field {
@@ -885,8 +903,17 @@
     background: color-mix(in srgb, var(--app-text) 6%, transparent);
   }
 
+  /* Faint text such as an option's description falls under the contrast text needs on a tinted row, so a
+     highlighted or chosen row draws it in the muted colour */
+  .app-dropdown-row-highlighted,
   .app-dropdown-row-selected {
-    background: var(--app-accent-soft);
+    --app-text-subtle: var(--app-text-muted);
+  }
+
+  /* A lighter tint of the accent than its soft fill, which is what keeps the bronze label and the muted
+     text on the row readable in both themes */
+  .app-dropdown-row-selected {
+    background: color-mix(in srgb, var(--app-accent) 6%, transparent);
     color: var(--app-accent);
     font-weight: 500;
   }
@@ -894,7 +921,7 @@
   /* The chosen row is also where the keyboard starts, so it needs to show both at once. Without this
      the cursor is invisible until it moves off the chosen row */
   .app-dropdown-row-selected.app-dropdown-row-highlighted {
-    background: color-mix(in srgb, var(--app-accent) 18%, transparent);
+    background: color-mix(in srgb, var(--app-accent) 10%, transparent);
   }
 
   .app-dropdown-row-disabled {

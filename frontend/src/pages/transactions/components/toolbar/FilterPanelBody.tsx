@@ -454,8 +454,7 @@ function SectionEditor({
               <div className="relative">
                 {amountSymbol && (
                   <span
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm"
-                    style={{ color: 'var(--app-text-subtle)' }}
+                    className="app-input-prefix pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm"
                   >
                     {amountSymbol}
                   </span>
@@ -478,8 +477,7 @@ function SectionEditor({
               <div className="relative">
                 {amountSymbol && (
                   <span
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm"
-                    style={{ color: 'var(--app-text-subtle)' }}
+                    className="app-input-prefix pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm"
                   >
                     {amountSymbol}
                   </span>

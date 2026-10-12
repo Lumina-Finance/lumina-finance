@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { EyeOff } from 'lucide-react'
 import { Checkbox } from '@/components/forms/Checkbox'
-import { IMPORT_EXCLUDED_ROW_BACKGROUND } from '@/pages/imports/constants'
+import { IMPORT_EXCLUDED_ROW_BACKGROUND, IMPORT_EXCLUDED_ROW_FAINT_TEXT } from '@/pages/imports/constants'
 
 /**
  * One column of the budget selection table after the checkbox and the budget name
@@ -112,7 +112,7 @@ export function ImportBudgetSelectionTable<Budget extends { name: string; isArch
                   <span className="inline-flex max-w-full min-w-0 items-center gap-2">
                     <span className={`truncate ${strike}`}>{budget.name}</span>
                     {!checked && (
-                      <span className="shrink-0 text-[0.6875rem] font-semibold uppercase" style={{ color: 'var(--app-text-subtle)' }}>
+                      <span className="shrink-0 text-[0.6875rem] font-semibold uppercase" style={{ color: IMPORT_EXCLUDED_ROW_FAINT_TEXT }}>
                         Not imported
                       </span>
                     )}
