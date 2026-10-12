@@ -39,11 +39,11 @@ describe('version API functions', () => {
   });
 
   it('raises an error when version metadata fails to load', async () => {
-    fetchMock.mockResolvedValueOnce({
-      ok: false,
+    fetchMock.mockResolvedValueOnce(new Response('', { status: 503 }));
+
+    await expect(fetchAppVersion()).rejects.toMatchObject({
+      message: 'Oops, something went wrong. Please try again.',
       status: 503,
     });
-
-    await expect(fetchAppVersion()).rejects.toThrow('Failed to load app version (503)');
   });
 });

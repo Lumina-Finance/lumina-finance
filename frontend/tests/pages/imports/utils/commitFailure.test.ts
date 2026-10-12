@@ -20,11 +20,11 @@ function commitError(status: number, message = 'Import failed.') {
 
 describe('what is left after an import stops', () => {
   it('keeps the staged file when a server fault stopped the commit', () => {
-    const failure = getImportCommitFailure(commitError(503, 'Request failed (503)'), false)
+    const failure = getImportCommitFailure(commitError(503, 'Oops, something went wrong. Please try again.'), false)
 
     expect(failure.retryableRunId).toBe(RUN_ID)
     expect(failure.discardableRunId).toBeNull()
-    expect(failure.message).toBe('Request failed (503)')
+    expect(failure.message).toBe('Oops, something went wrong. Please try again.')
   })
 
   // The run is held for the length of the write, so a second commit arriving during the first is

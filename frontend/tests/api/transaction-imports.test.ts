@@ -226,7 +226,7 @@ describe('staging a transaction import', () => {
 
   it('keeps the run when the commit fails, so it can be committed again', async () => {
     const payload = buildImportPayload([buildImportRow()]);
-    mockRunCalls(new ApiError('Request failed (503)', 503));
+    mockRunCalls(new ApiError('Oops, something went wrong. Please try again.', 503));
 
     const error = await runTransactionImport(payload).catch((thrown: unknown) => thrown);
 

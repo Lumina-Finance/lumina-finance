@@ -4,7 +4,7 @@ import type {
   PublicKeyCredentialCreationOptionsJSON,
   PublicKeyCredentialRequestOptionsJSON,
 } from '@simplewebauthn/browser';
-import { ApiError } from '@/api/auth/errors';
+import { buildApiError } from '@/api/auth/errors';
 import type { AuthResponse } from '@/api/auth/types';
 import { authenticatedFetch } from '@/api/client';
 import { fetchFromServer } from '@/api/server';
@@ -20,7 +20,7 @@ import type { StepUpPayload } from '@/api/two-factor/types';
 export async function fetchPasskeyConfig(): Promise<PasskeyConfig> {
   const response = await fetchFromServer('/auth/passkeys/config');
   if (!response.ok) {
-    throw new Error(`Failed to load passkey config (${response.status})`);
+    throw buildApiError(response.status, await response.json().catch(() => null));
   }
   return response.json();
 }
@@ -37,7 +37,7 @@ export async function fetchPasskeyAuthenticationOptions(): Promise<PublicKeyCred
     credentials: 'include',
   });
   if (!response.ok) {
-    throw new ApiError(`Failed to start passkey sign-in (${response.status})`, response.status);
+    throw buildApiError(response.status, await response.json().catch(() => null));
   }
   return response.json();
 }
@@ -53,12 +53,7 @@ export async function authenticatePasskey(credential: AuthenticationResponseJSON
     body: JSON.stringify({ credential }),
   });
   if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new ApiError(
-      body?.detail ?? `Passkey sign-in failed (${response.status})`,
-      response.status,
-      { detail: body?.detail },
-    );
+    throw buildApiError(response.status, await response.json().catch(() => null));
   }
   return response.json();
 }
@@ -93,12 +88,7 @@ export async function fetchPasskeyMfaOptions(mfaToken: string): Promise<PublicKe
     body: JSON.stringify({ mfa_token: mfaToken }),
   });
   if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new ApiError(
-      body?.detail ?? `Failed to start passkey verification (${response.status})`,
-      response.status,
-      { detail: body?.detail },
-    );
+    throw buildApiError(response.status, await response.json().catch(() => null));
   }
   return response.json();
 }
@@ -117,12 +107,7 @@ export async function verifyPasskeyMfa(
     body: JSON.stringify({ mfa_token: mfaToken, credential }),
   });
   if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new ApiError(
-      body?.detail ?? `Passkey verification failed (${response.status})`,
-      response.status,
-      { detail: body?.detail },
-    );
+    throw buildApiError(response.status, await response.json().catch(() => null));
   }
   return response.json();
 }
@@ -138,12 +123,7 @@ export async function fetchPasskeyResetOptions(mfaToken: string): Promise<Public
     body: JSON.stringify({ mfa_token: mfaToken }),
   });
   if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new ApiError(
-      body?.detail ?? `Failed to start passkey verification (${response.status})`,
-      response.status,
-      { detail: body?.detail },
-    );
+    throw buildApiError(response.status, await response.json().catch(() => null));
   }
   return response.json();
 }
@@ -162,12 +142,7 @@ export async function verifyPasskeyReset(
     body: JSON.stringify({ ...payload, credential }),
   });
   if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new ApiError(
-      body?.detail ?? `Passkey verification failed (${response.status})`,
-      response.status,
-      { detail: body?.detail },
-    );
+    throw buildApiError(response.status, await response.json().catch(() => null));
   }
 }
 

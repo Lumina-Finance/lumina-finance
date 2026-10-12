@@ -1,4 +1,4 @@
-import { ApiError } from '@/api/auth/errors';
+import { buildApiError } from '@/api/auth/errors';
 import type { AuthResponse } from '@/api/auth/types';
 import { OIDC_EMAIL_CONFLICT_CODE, OidcEmailConflictError } from '@/api/oidc/errors';
 import { authenticatedFetch } from '@/api/client';
@@ -39,10 +39,7 @@ async function requestOidc<T>(path: string, options: RequestInit = {}): Promise<
     if (typeof detail === 'object' && detail?.code === OIDC_EMAIL_CONFLICT_CODE && detail.email) {
       throw new OidcEmailConflictError(detail.email);
     }
-    const message = typeof detail === 'string' ? detail : `Request failed (${response.status})`;
-    throw new ApiError(message, response.status, {
-      detail: typeof detail === 'string' ? detail : undefined,
-    });
+    throw buildApiError(response.status, body);
   }
 
   return response.json() as Promise<T>;

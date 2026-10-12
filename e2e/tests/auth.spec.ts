@@ -28,6 +28,20 @@ test('signs a new user up through the form', async ({ page }) => {
   await expectSignedIn(page)
 })
 
+// The backend's email validator refuses reserved domains such as example.test, which the form's own
+// check lets through, and the page says the address is the problem rather than that something went wrong
+test('says the email address is the problem when signup refuses it', async ({ page }) => {
+  await page.goto('/signup')
+  await page.getByLabel('First name').fill('Test')
+  await page.getByLabel('Email').fill(`e2e-${crypto.randomUUID()}@example.test`)
+  await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD)
+  await page.getByLabel('Confirm password').fill(TEST_PASSWORD)
+  await page.getByRole('button', { name: 'Sign up' }).click()
+
+  await expect(page.getByText('Enter a valid email address', { exact: true })).toBeVisible()
+  await expect(page.getByText('Something went wrong. Please try again.', { exact: true })).toHaveCount(0)
+})
+
 test('signs an existing user in with their password', async ({ page, request }) => {
   const user = await signUpUser(request)
 

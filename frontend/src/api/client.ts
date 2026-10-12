@@ -1,5 +1,5 @@
 import * as authApi from './auth';
-import { ApiError, type AuthResponse } from './auth';
+import { ApiError, buildApiError, type AuthResponse } from './auth';
 import { fetchFromServer, type ServerRequestInit } from './server';
 
 // Step-up 401s report how many tries remain before the shared lockout signs the user out everywhere
@@ -83,13 +83,11 @@ export async function authenticatedFetch<T>(path: string, options: ServerRequest
   }
 
   if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { detail?: string } | null;
-    const message = body?.detail ?? `Request failed (${res.status})`;
+    const body: unknown = await res.json().catch(() => null);
     const attemptsHeader = res.headers.get(ATTEMPTS_REMAINING_HEADER);
     const attemptsRemaining = attemptsHeader !== null ? Number(attemptsHeader) : undefined;
-    throw new ApiError(message, res.status, {
+    throw buildApiError(res.status, body, {
       attemptsRemaining: Number.isNaN(attemptsRemaining) ? undefined : attemptsRemaining,
-      detail: body?.detail,
     });
   }
 

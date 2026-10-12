@@ -33,13 +33,13 @@ describe('buildErrorReport', () => {
   it('carries the status of a failed request the backend gave no sentence for', () => {
     const report = buildErrorReport({
       componentStack: null,
-      error: new ApiError('Request failed (500)', 500),
+      error: new ApiError('Oops, something went wrong. Please try again.', 500),
       occurredAt: OCCURRED_AT,
       path: '/',
       userAgent: USER_AGENT,
     })
 
-    expect(report).toContain('Error: ApiError: Request failed (500)')
+    expect(report).toContain('Error: ApiError: Oops, something went wrong. Please try again.')
     expect(report).toContain('Status: 500')
     expect(report).not.toContain('Server said:')
   })
@@ -48,13 +48,27 @@ describe('buildErrorReport', () => {
     const detail = `${'The request could not complete with the supplied account data.\n'.repeat(100)}Final diagnostic detail`
     const report = buildErrorReport({
       componentStack: null,
-      error: new ApiError('Request failed (503)', 503, { detail }),
+      error: new ApiError('Oops, something went wrong. Please try again.', 503, { detail }),
       occurredAt: OCCURRED_AT,
       path: '/insights',
       userAgent: USER_AGENT,
     })
 
     expect(report).toContain(`Server said: ${detail}`)
+  })
+
+  it('carries the reason the server gave for each field a validation refusal names', () => {
+    const report = buildErrorReport({
+      componentStack: null,
+      error: new ApiError("Oops, the credit limit wasn't accepted. Please check it and try again.", 422, {
+        fieldErrors: [{ field: 'credit_limit', message: 'Input should be greater than or equal to 0' }],
+      }),
+      occurredAt: OCCURRED_AT,
+      path: '/accounts',
+      userAgent: USER_AGENT,
+    })
+
+    expect(report).toContain('Refused credit_limit because Input should be greater than or equal to 0')
   })
 
   it('describes a thrown value that is not an error and leaves the stack out', () => {

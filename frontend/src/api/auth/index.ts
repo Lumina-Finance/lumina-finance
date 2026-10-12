@@ -1,7 +1,9 @@
 export {
   ApiError,
+  buildApiError,
   getSessionRestoreFailure,
   isRefreshAlreadyRotatedError,
+  type ApiFieldError,
 } from '@/api/auth/errors';
 
 export type {
