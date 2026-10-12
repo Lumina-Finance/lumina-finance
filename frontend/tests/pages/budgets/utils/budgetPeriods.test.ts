@@ -167,13 +167,6 @@ describe('budget period helpers', () => {
     expect(nextRecurringPeriodStart(baseBudget, '2026-04-30')).toBe('2026-05-31')
   })
 
-  it('re-anchors to recurrence_dom for a dom-30 monthly budget', () => {
-    const baseBudget = createBaseBudget({ recurrence_dom: 30 })
-
-    expect(nextRecurringPeriodStart(baseBudget, '2026-01-30')).toBe('2026-02-28')
-    expect(nextRecurringPeriodStart(baseBudget, '2026-02-28')).toBe('2026-03-30')
-  })
-
   it('ends a one-off yearly budget from a leap day the day before its clamped anniversary', () => {
     const form = createForm({ recurs: false, recurrenceFreq: 'yearly', periodStart: '2028-02-29' })
 

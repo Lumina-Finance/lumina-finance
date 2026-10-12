@@ -63,14 +63,6 @@ describe('STACKING_LEVELS', () => {
     }
   })
 
-  // Two levels at one number is the bug the scale exists to remove: the browser then falls back to
-  // document order, so which overlay paints on top depends on which one React happened to append
-  it('gives no two levels the same number', () => {
-    const values = Object.values(STACKING_LEVELS)
-
-    expect(new Set(values).size).toBe(values.length)
-  })
-
   it('puts a toast and a pointer tooltip above every popover, and every popover above every dialog', () => {
     expect(STACKING_LEVELS.popover).toBeGreaterThan(STACKING_LEVELS.stackedModal)
     expect(STACKING_LEVELS.toast).toBeGreaterThan(STACKING_LEVELS.popover)

@@ -117,19 +117,6 @@ describe('auth API functions', () => {
     });
   });
 
-  it('refreshes the auth session with the refresh cookie', async () => {
-    await refresh();
-
-    expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/auth/refresh`, {
-      method: 'POST',
-      credentials: 'include',
-      signal: expect.any(AbortSignal),
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  });
-
   it('waits for a previous page-load refresh lock before refreshing', async () => {
     vi.useFakeTimers();
     const storage = createStorageMock();

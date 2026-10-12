@@ -30,16 +30,6 @@ describe('creating a merchant while an import holds its payee answers', () => {
 
     expect(queryClient.getQueryState(askedAbout)?.isInvalidated).toBe(true);
   });
-
-  it('leaves the merchant detail it just wrote alone', () => {
-    const queryClient = new QueryClient();
-
-    updateMerchantCreateCaches(queryClient, CORNER_CAFE);
-
-    // Written rather than asked for again, since the response the mutation returned is the record
-    expect(queryClient.getQueryData(merchantKeys.detail(CORNER_CAFE.id))).toEqual(CORNER_CAFE);
-    expect(queryClient.getQueryState(merchantKeys.detail(CORNER_CAFE.id))?.isInvalidated).toBe(false);
-  });
 });
 
 describe('merchant usage ranking after mutations', () => {

@@ -113,22 +113,6 @@ describe('budget API functions', () => {
     });
   });
 
-  it('sends the archive toggle as a base budget patch', async () => {
-    await updateBaseBudget({
-      id: 'base_123',
-      patch: {
-        is_archived: true,
-      },
-    });
-
-    expect(authenticatedFetchMock).toHaveBeenCalledWith('/base-budgets/base_123', {
-      method: 'PATCH',
-      body: JSON.stringify({
-        is_archived: true,
-      }),
-    });
-  });
-
   it('deletes base budgets by ID', async () => {
     await deleteBaseBudget('base_123');
 

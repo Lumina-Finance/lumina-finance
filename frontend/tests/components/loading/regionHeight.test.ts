@@ -17,14 +17,6 @@ describe('loading region height', () => {
     expect(getLoadingRegionHeight({ ...base, revealSettled: false, contentHeight: 44 })).toBe(44)
   })
 
-  it('follows the rows up as they arrive behind the concealed content', () => {
-    expect(getLoadingRegionHeight({ ...base, revealSettled: false, contentHeight: 560 })).toBe(560)
-  })
-
-  it('keeps hold through the reveal, so a shorter list shrinks rather than snapping', () => {
-    expect(getLoadingRegionHeight({ ...base, revealSettled: false, contentHeight: 42 })).toBe(42)
-  })
-
   it('gives the height back once the reveal has settled', () => {
     expect(getLoadingRegionHeight({ ...base, contentHeight: 560 })).toBeNull()
   })

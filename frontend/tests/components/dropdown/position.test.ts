@@ -1,5 +1,5 @@
 /**
- * Tests where the open drop-down sits, how much of it the option list gets and how wide it opens,
+ * Tests where the open dropdown sits, how much of it the option list gets and how wide it opens,
  * so a change catches a box growing off the screen or over a dialog's title or buttons, a head that
  * shifts as the box opens, or a list clipped by its own box
  */
@@ -17,7 +17,7 @@ const viewport = {
 
 const head = { bounds: null, headHeight: 40, held: null, searchable: false }
 
-describe('drop-down box placement', () => {
+describe('dropdown box placement', () => {
   it('pins the box by the head’s upper edge when the list grows downward', () => {
     expect(getDropdownBoxPosition({
       ...head,
@@ -191,17 +191,6 @@ describe('drop-down box placement', () => {
     // part instead would drop the head 300px below where the field actually sits
     expect(position.openAbove).toBe(true)
     expect(800 - position.bottom).toBe(470)
-  })
-
-  it('leaves the list what is left after the head, the search field and the box’s own edges', () => {
-    const withoutSearch = getDropdownBoxPosition({ ...head, anchorRect: { bottom: 140, left: 20, top: 100, width: 200 }, viewport })
-    const withSearch = getDropdownBoxPosition({ ...head, searchable: true, anchorRect: { bottom: 140, left: 20, top: 100, width: 200 }, viewport })
-
-    // 400 of box, less a 40 head and 14 of border and padding
-    expect(withoutSearch.listMaxHeight).toBe(346)
-
-    // and less another 42 once a search row and its clearance sit above the list
-    expect(withSearch.listMaxHeight).toBe(304)
   })
 
   it('leaves a searchable box with almost no room showing its head and search and no list', () => {

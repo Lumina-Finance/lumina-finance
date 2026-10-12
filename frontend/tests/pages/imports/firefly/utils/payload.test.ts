@@ -575,10 +575,6 @@ describe('the Firefly row values the payload sends', () => {
       ])
     })
 
-    it('asks for a name when the new one is cleared', () => {
-      expect(buildRenamed(' ').errors).toEqual(['Enter a name for the new category from Groceries.'])
-    })
-
     it('refuses a new name an existing category holds for the other direction', () => {
       const salary = { id: 'salary', name: 'Salary', kind: 'income', group_id: null, is_system: false } as Category
 

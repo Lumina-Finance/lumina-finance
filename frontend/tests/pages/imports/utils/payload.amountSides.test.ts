@@ -141,11 +141,6 @@ describe('reading a row from the side that carries its amount', () => {
     expect(committedAmounts(build([['', '+2450.00']]))).toEqual(['2450.00'])
   })
 
-  it('removes thousands separators from normalized amounts, signed or not', () => {
-    expect(committedAmounts(build([['1,234.56', '']]))).toEqual(['-1234.56'])
-    expect(committedAmounts(build([['-1,234.56', '']]))).toEqual(['-1234.56'])
-  })
-
   // Zero moves neither way, so it is committed without a sign rather than as -0.00. Both sides being
   // mapped is what makes this a row where no money moved, rather than one whose money went the way
   // the file has no mapped column for

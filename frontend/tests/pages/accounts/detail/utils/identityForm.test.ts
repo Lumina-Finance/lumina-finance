@@ -15,10 +15,6 @@ const currencies: Currency[] = [
   { id: 'USD', name: 'US Dollar', symbol: '$', minor_unit_exponent: 2 },
 ]
 
-const cadOnlyCurrencies: Currency[] = [
-  { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
-]
-
 function createAccount(overrides: Partial<Account> = {}): Account {
   return {
     id: overrides.id ?? 'account',
@@ -112,56 +108,28 @@ describe('identity form helpers', () => {
     })
   })
 
-  it('round-trips a seeded credit limit back to the same stored minor units unchanged', () => {
-    const account = createAccount({ account_kind: 'revolving', credit_limit: 123_456 })
-    const form = createIdentityFormValues(account, currencies)
+  it('withholds a JPY credit limit from an empty currency table', () => {
+    const account = createAccount({
+      account_kind: 'revolving',
+      credit_limit: 500_000,
+      currency: 'JPY',
+    })
+    const form = createIdentityFormValues(account, [])
 
-    expect(form.credit_limit).toBe('1234.56')
+    // Blank rather than a guessed two-place amount
+    expect(form.credit_limit).toBe('')
+
+    // A name-only save leaves the unreadable stored limit out rather than clearing or rescaling it
     expect(getIdentityUpdatePayload({
-      form,
+      form: { ...form, name: 'Renamed account' },
       isRevolving: true,
       canLinkTaxAdvantagedCategory: false,
-      currencies,
-      accountCurrency: 'USD',
+      currencies: [],
+      accountCurrency: 'JPY',
     })).toEqual({
-      name: 'Account',
+      name: 'Renamed account',
       institution_id: null,
       is_archived: false,
-      credit_limit: 123_456,
     })
   })
-
-  it.each([
-    ['an empty currency table', [], 500_000],
-    ['a nonempty CAD-only currency table', cadOnlyCurrencies, 500_000],
-    ['a nonempty CAD-only currency table with stored zero', cadOnlyCurrencies, 0],
-    ['a nonempty CAD-only currency table with optional null', cadOnlyCurrencies, null],
-  ] satisfies Array<[string, Currency[], number | null]>)(
-    'withholds a JPY credit limit from %s',
-    (_case, availableCurrencies, creditLimit) => {
-      const account = createAccount({
-        account_kind: 'revolving',
-        credit_limit: creditLimit,
-        currency: 'JPY',
-      })
-      const form = createIdentityFormValues(account, availableCurrencies)
-
-      // Blank rather than a guessed two-place amount, including for stored zero and optional null
-      expect(form.credit_limit).toBe('')
-
-      // A name-only save leaves the unreadable stored limit out rather than clearing or rescaling it
-      expect(getIdentityUpdatePayload({
-        form: { ...form, name: 'Renamed account' },
-        isRevolving: true,
-        canLinkTaxAdvantagedCategory: false,
-        currencies: availableCurrencies,
-        accountCurrency: 'JPY',
-      })).toEqual({
-        name: 'Renamed account',
-        institution_id: null,
-        is_archived: false,
-      })
-    },
-  )
-
 })

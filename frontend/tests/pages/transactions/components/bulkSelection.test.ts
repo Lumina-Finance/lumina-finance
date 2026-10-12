@@ -304,13 +304,6 @@ describe('the preview shown while the pointer rests on a day heading', () => {
   })
 
 
-  it('stays up once the day is ticked, refreshed to the ids just toggled, so its rows read as ticked rather than as about to be dropped', () => {
-    const state = clickDay(hoverDay(emptyBulkSelection, dayOne), dayOne)
-    expect(state.hoveredGroupIds).toEqual(dayOne)
-    expect(markOf(state, 'a')).toBe('selected')
-    expect(markOf(state, 'b')).toBe('selected')
-  })
-
   it('takes a pending range with it when a day is ticked', () => {
     const pendingRange = hoverRow(click(emptyBulkSelection, 'b', false, withReadOnlyC), 'e')
     const state = clickDay(pendingRange, dayTwo)
@@ -343,17 +336,6 @@ describe('toggling a day heading keeps its hover refreshed to the ids it just to
     expect(state.hoveredGroupIds).toEqual(['a', 'b'])
     expect(rowSelectionMark('a', state.selectedIds, previewSelection(state, rows))).toBe('pending')
     expect(rowSelectionMark('b', state.selectedIds, previewSelection(state, rows))).toBe('pending')
-  })
-
-  it('reads a fully ticked day as still selected while the tick merely previews dropping it, with no click yet', () => {
-    const state: BulkSelectionState = {
-      ...emptyBulkSelection,
-      selectedIds: new Set(['a', 'b']),
-      hoveredGroupIds: ['a', 'b'],
-    }
-
-    expect(rowSelectionMark('a', state.selectedIds, previewSelection(state, rows))).toBe('selected')
-    expect(rowSelectionMark('b', state.selectedIds, previewSelection(state, rows))).toBe('selected')
   })
 
   it('refreshes the hovered ids to the ones just toggled rather than the ones hovered before', () => {

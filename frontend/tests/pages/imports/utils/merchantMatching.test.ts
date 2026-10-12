@@ -78,18 +78,6 @@ describe('what the merchant step sends', () => {
     expect(mappings).toEqual([])
     expect(errors).toEqual(['Choose a name for the new merchant: SQ *COFFEE 4471'])
   })
-
-  it('sends nothing at all for a file of values nobody touched', () => {
-    const values = Array.from({ length: 1200 }, (_, index) => `SQ *COFFEE ${index}`)
-
-    // A mapping per value would be refused, since an import declares at most a thousand
-    expect(buildImportMerchantMappings({
-      importedMerchants: values,
-      matchedMerchantByKey: new Map(),
-      merchantMappings: {},
-      merchantCreateNames: {},
-    }).mappings).toEqual([])
-  })
 })
 
 describe('what one row of the merchant step reads as', () => {

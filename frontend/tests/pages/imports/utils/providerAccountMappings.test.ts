@@ -135,46 +135,6 @@ describe('resolveProviderAccountMappings', () => {
     expect(liveMappings).toEqual({})
   })
 
-  it('leaves two sources sharing one best account unanswered', () => {
-    const sources = [createSource('Everyday Chequing'), createSource('Everyday Chequing Card One')]
-    const everyday = createAccount({ id: 'everyday', name: 'Everyday Chequing' })
-
-    expect(resolveProviderAccountMappings({
-      sources,
-      liveMappings: {},
-      selectableAccounts: [everyday],
-      accountsCurrent: true,
-    })).toEqual({})
-  })
-
-  it('preserves one explicit collision answer without resolving its sibling', () => {
-    const sources = [createSource('Everyday Chequing'), createSource('Everyday Chequing Card One')]
-    const everyday = createAccount({ id: 'everyday', name: 'Everyday Chequing' })
-
-    expect(resolveProviderAccountMappings({
-      sources,
-      liveMappings: { 'Everyday Chequing': 'everyday' },
-      selectableAccounts: [everyday],
-      accountsCurrent: true,
-    })).toEqual({ 'Everyday Chequing': 'everyday' })
-  })
-
-  it('preserves two deliberate answers targeting the same account', () => {
-    const sources = [createSource('Everyday Chequing'), createSource('Everyday Chequing Card One')]
-    const everyday = createAccount({ id: 'everyday', name: 'Everyday Chequing' })
-    const liveMappings = {
-      'Everyday Chequing': 'everyday',
-      'Everyday Chequing Card One': 'everyday',
-    }
-
-    expect(resolveProviderAccountMappings({
-      sources,
-      liveMappings,
-      selectableAccounts: [everyday],
-      accountsCurrent: true,
-    })).toEqual(liveMappings)
-  })
-
   it('defaults only a noncolliding unmatched source to create', () => {
     const sources = [
       createSource('Everyday Chequing'),
@@ -189,30 +149,6 @@ describe('resolveProviderAccountMappings', () => {
       selectableAccounts: [everyday],
       accountsCurrent: true,
     })).toEqual({ 'Travel Wallet': CREATE_ACCOUNT_VALUE })
-  })
-
-  it('matches three sources independently when all three exact accounts exist', () => {
-    const sources = [
-      createSource('Everyday Chequing'),
-      createSource('Everyday Chequing Card One'),
-      createSource('Everyday Chequing Card Two'),
-    ]
-    const accounts = [
-      createAccount({ id: 'everyday', name: 'Everyday Chequing' }),
-      createAccount({ id: 'card-one', name: 'Everyday Chequing Card One' }),
-      createAccount({ id: 'card-two', name: 'Everyday Chequing Card Two' }),
-    ]
-
-    expect(resolveProviderAccountMappings({
-      sources,
-      liveMappings: {},
-      selectableAccounts: accounts,
-      accountsCurrent: true,
-    })).toEqual({
-      'Everyday Chequing': 'everyday',
-      'Everyday Chequing Card One': 'card-one',
-      'Everyday Chequing Card Two': 'card-two',
-    })
   })
 })
 

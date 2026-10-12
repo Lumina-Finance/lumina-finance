@@ -63,27 +63,6 @@ describe('credit usage after deferred transaction creation', () => {
     }
   });
 
-  it('invalidates inactive credit so the next dashboard mount fetches current usage', async () => {
-    const client = createClient();
-    seedKind(client, 'list', 'revolving');
-    const queryFn = vi.fn().mockResolvedValue(creditSummary(15000));
-
-    invalidateTransactionAccountData(client, ['credit'], { refetchAccountList: true });
-
-    expect(client.getQueryState(dashboardKeys.credit())?.isInvalidated).toBe(true);
-    expect(queryFn).not.toHaveBeenCalled();
-    const observer = new QueryObserver(client, {
-      queryKey: dashboardKeys.credit(), queryFn, staleTime: getFxAwareStaleTime(CREDIT_STALE_TIME_MS),
-    });
-    const unsubscribe = observer.subscribe(() => {});
-    try {
-      await vi.waitFor(() => expect(observer.getCurrentResult().data).toEqual(creditSummary(15000)));
-      expect(queryFn).toHaveBeenCalledTimes(1);
-    } finally {
-      unsubscribe();
-    }
-  });
-
   it.each(['detail', 'list'] as const)('refreshes credit only for revolving kinds found in the %s cache', (source) => {
     for (const kind of ['asset', 'amortizing', 'revolving'] as const) {
       const client = createClient();

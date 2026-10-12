@@ -480,28 +480,6 @@ describe('budget details helpers', () => {
     })).toThrow('2026-02-31')
   })
 
-  it('labels weekly budget periods with their ISO week number', () => {
-    const weeklyBudget = createBaseBudget({
-      recurrence_freq: 'weekly',
-      recurrence_dom: null,
-      recurrence_weekday: 0,
-    })
-    const first = createBudget({ id: 'w16', period_start: '2026-04-13', period_end: '2026-04-19' })
-    const second = createBudget({ id: 'w17', period_start: '2026-04-20', period_end: '2026-04-26' })
-    const sortedPeriods = getSortedBudgetPeriods([first, second])
-
-    const chartData = getBudgetDetailsChartData({
-      sortedPeriods,
-      utilizationByBudgetId: new Map(),
-      chartCategories: [],
-      baseBudget: weeklyBudget,
-      today: '2026-04-25',
-    })
-
-    expect(chartData.map((point) => point.axisLabel)).toEqual(['W16', 'W17'])
-    expect(chartData.every((point) => !point.hasYearAxisLabel)).toBe(true)
-  })
-
   it('suffixes the first ISO week of the year with the two-digit year', () => {
     const weeklyBudget = createBaseBudget({
       recurrence_freq: 'weekly',

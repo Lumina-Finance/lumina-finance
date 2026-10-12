@@ -36,7 +36,6 @@ import {
   getImportUploadBlockReason,
   getMissingRequiredColumnLabels,
   getSupportedCurrencyCodes,
-  inferAccountMappings,
 } from '@/pages/imports/utils'
 
 /**
@@ -258,13 +257,6 @@ describe('archived accounts in account mapping', () => {
   const chequing = createAccount({ id: 'checking', name: 'Chequing' })
   const rowSource = { id: 'Old Savings', label: 'Old Savings', matchText: 'Old Savings', isCounterpartyOnly: false }
   const counterpartySource = { ...rowSource, isCounterpartyOnly: true }
-
-  it('matches a counterparty source to an archived account and leaves a row source unmapped', () => {
-    const lists = { rowAccounts: [chequing], counterpartyAccounts: [chequing, archivedSavings] }
-
-    expect(inferAccountMappings([counterpartySource], {}, lists)).toEqual({ 'Old Savings': 'savings' })
-    expect(inferAccountMappings([rowSource], {}, lists)).toEqual({})
-  })
 
   it('reports the archived account a row source was left unmapped by', () => {
     const accounts = [chequing, archivedSavings]

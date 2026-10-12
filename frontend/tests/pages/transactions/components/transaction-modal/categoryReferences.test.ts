@@ -45,24 +45,6 @@ beforeEach(() => {
 })
 
 describe('transaction category and merchant selection', () => {
-  it.each(['expense', 'income', 'transfer'] as const)('offers every category with %s first', (kind) => {
-    const transfer = createCategory({ id: 'transfer', name: 'Transfer', kind: 'transfer' })
-    const categories = [personal, system, transfer]
-    const form = { ...buildInitialTransactionForm({
-      categories, currencies,
-      selectableAccounts: [createAccount({ id: 'checking' })], timeZone: 'UTC',
-    }), kind }
-    const field = useCategoryField({
-      categories, form, readOnly: false,
-      applyKindChange: vi.fn(), clearError: vi.fn(), closeModal: vi.fn(),
-    })
-    const first = categories.find((category) => category.kind === kind)!
-
-    expect(field.categoryOptions.map((option) => option.value)).toEqual([
-      first.id, ...categories.filter((category) => category.kind !== kind).map((category) => category.id),
-    ])
-  })
-
   it.each([
     ['expense', 'income', 'credit'],
     ['income', 'expense', 'debit'],

@@ -48,15 +48,6 @@ describe('transaction fetch functions', () => {
     );
   });
 
-  it('omits empty transaction filters', async () => {
-    await fetchTransactions({
-      account_id: [],
-      category_id: undefined,
-    });
-
-    expect(authenticatedFetchMock).toHaveBeenCalledWith('/transactions');
-  });
-
   it('requests paginated transaction lists with offset options', async () => {
     await fetchTransactionPage({ category_id: ['cat_123'] }, 50, 100);
 

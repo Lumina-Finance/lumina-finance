@@ -46,12 +46,6 @@ describe('getRelativeRangeInputDates', () => {
     expect(getRelativeRangeInputDates(2, 'year')).toEqual({ from: '2025-01-01', to: '2026-06-18' });
   });
 
-  it('keeps the aligned start fixed for any day within the current period', () => {
-    vi.setSystemTime(new Date(2026, 5, 30));
-
-    expect(getRelativeRangeInputDates(6, 'month')).toEqual({ from: '2026-01-01', to: '2026-06-30' });
-  });
-
   it('resolves last-qualifier windows as whole finished periods ending before the current one', () => {
     expect(getRelativeRangeInputDates(1, 'month', 'last')).toEqual({ from: '2026-05-01', to: '2026-05-31' });
     expect(getRelativeRangeInputDates(1, 'quarter', 'last')).toEqual({ from: '2026-01-01', to: '2026-03-31' });

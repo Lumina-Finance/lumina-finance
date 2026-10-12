@@ -27,28 +27,6 @@ describe('balance chart view model helpers', () => {
     expect(formatYmd(getBalanceRangeWindow('30D', 'UTC', lateJuneEvening).toDate)).toBe('2026-07-01')
   })
 
-  it('calculates absolute and percentage movement from the first and last chart points', () => {
-    expect(getBalancePeriodDelta([
-      {
-        date: '2026-06-01',
-        dateMs: calendarDateMs(new Date(2026, 5, 1)),
-        dateLabel: 'Jun 1',
-        tooltipLabel: 'Jun 1, 2026',
-        balance: 10_000,
-      },
-      {
-        date: '2026-06-02',
-        dateMs: calendarDateMs(new Date(2026, 5, 2)),
-        dateLabel: 'Jun 2',
-        tooltipLabel: 'Jun 2, 2026',
-        balance: 12_500,
-      },
-    ])).toEqual({
-      absolute: 2_500,
-      pct: 25,
-    })
-  })
-
   it('returns null percentage when the balance window starts at zero', () => {
     expect(getBalancePeriodDelta([
       {

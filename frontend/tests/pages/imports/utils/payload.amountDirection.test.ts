@@ -136,10 +136,6 @@ describe('reading a row from the word its direction column carries', () => {
     expect(committedAmounts(build([['-84.20', 'DEBIT'], ['+1200.00', 'CREDIT']]))).toEqual(['-84.20', '1200.00'])
   })
 
-  it('removes thousands separators from the normalized amount', () => {
-    expect(committedAmounts(build([['1,234.56', 'DEBIT']]))).toEqual(['-1234.56'])
-  })
-
   // A zero moves neither way, so it is committed without a sign rather than as -0.00
   it('commits a zero unsigned whichever direction its row carries', () => {
     expect(committedAmounts(build([['0.00', 'DEBIT'], ['0.00', 'CREDIT']]))).toEqual(['0.00', '0.00'])

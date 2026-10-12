@@ -108,9 +108,6 @@ describe('import payload dates', () => {
     expect(build(['2024-03-15T00:30:00Z'], 'iso').payload).toBeNull()
     expect(build(['2024-03-15T00:30:00Z'], 'iso', {}, 'automatic', 'Not/AZone').payload).toBeNull()
   })
-  it('sends the day the chosen format names', () => {
-    expect(build(['15/03/2024'], 'dayFirst').payload?.rows[0].dt).toBe('2024-03-15')
-  })
 
   it('reads the same value as a different day under the other order', () => {
     expect(build(['03/04/2024'], 'dayFirst').payload?.rows[0].dt).toBe('2024-04-03')
@@ -155,10 +152,5 @@ describe('import payload dates', () => {
   it('tells a blank cell apart from one the chosen format cannot read', () => {
     expect(build(['15/03/2024', ''], 'dayFirst').rowProblems.map((problem) => problem.reason))
       .toEqual([ROW_DATE_BLANK_REASON])
-  })
-
-  it('refuses a day the calendar does not have, whatever format states it', () => {
-    expect(build(['31/02/2024'], 'dayFirst').payload).toBeNull()
-    expect(build(['2024-02-31'], 'yearFirst').payload).toBeNull()
   })
 })

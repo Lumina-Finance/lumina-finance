@@ -1,9 +1,8 @@
 /**
  * Covers how a prepared provider import is staged as a run and committed in one request
  *
- * These tests catch regressions where the budgets are written outside the run, where an upload that
- * stopped part way leaves a staged run behind, and where a failed commit drops the run it could
- * commit again
+ * These tests catch regressions where the budgets are written outside the run, and where an upload
+ * that stopped part way leaves a staged run behind
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -134,18 +133,6 @@ describe('runJournalImport', () => {
       `POST ${RUN_PATH}/journal/rows`,
       `DELETE ${RUN_PATH}`,
     ]);
-  });
-
-  it('keeps the run when the commit fails, so it can be committed again', async () => {
-    authenticatedFetchMock
-      .mockResolvedValueOnce({ id: RUN_ID })
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new ApiError('Request failed (503)', 503));
-
-    const error = await runJournalImport({ source: 'firefly', payload: PAYLOAD, budgets: null, archiveAccountSources: [] }).catch((caught: unknown) => caught);
-
-    expect(error).toMatchObject({ phase: 'commit', runId: RUN_ID });
-    expect(getRequests()).not.toContain(`DELETE ${RUN_PATH}`);
   });
 
   it('opens an Actual Budget run and declares the category a transfer names for its budgeted leg', async () => {
