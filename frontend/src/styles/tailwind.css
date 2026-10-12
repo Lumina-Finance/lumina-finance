@@ -26,8 +26,8 @@
     --app-accent-border: #9b6c2c38;
     /* The one keyboard focus colour, the accent mixed toward the page so it reads lighter than the
        accent itself while still clearing 3:1 against every surface it sits on in both themes. A
-       control with no border of its own takes it as an outline with a gap. A field turns its own
-       border this colour and doubles it from the inside, so it never draws a second frame, and
+       control with no border of its own, or a filled one, takes it as an outline with a gap. A field
+       or outlined button turns its own border this colour and doubles it from the inside, so it never draws a second frame, and
        neither adds anything to the control's size, so focusing never moves anything */
     --app-focus-ring: #A17E4F;
     --app-focus-outline: 2px solid var(--app-focus-ring);
@@ -564,12 +564,32 @@
   }
 
   /* The same focus for a field frame drawn with utilities rather than app-input, such as the inline
-     editors in Settings, or for a bordered button. Important on the border, since the frame's own
-     hover utility would otherwise win over it while the pointer rests on a focused field */
+     editors in Settings, or for a bordered button. Important on the border and shadow, since the
+     frame's own hover or shadow utility would otherwise win over them */
   .app-field-focus:focus-within,
   .app-field-focus-visible:focus-visible {
     border-color: var(--app-focus-ring) !important;
-    box-shadow: var(--app-focus-border);
+    box-shadow: var(--app-focus-border) !important;
+  }
+
+  /* Without this the base ring would be drawn around the border as well */
+  .app-field-focus-visible:focus-visible {
+    outline: none;
+  }
+
+  /* A table row that is a bordered card on a phone shows focus on that border there. On wider screens
+     its border is only a divider along the bottom, so it takes the ring, drawn inside its edge since
+     the table's box clips anything past it */
+  .app-card-row-focus-visible:focus-visible {
+    outline-offset: calc(-1 * var(--app-focus-offset));
+  }
+
+  @media (width < 750px) {
+    .app-card-row-focus-visible:focus-visible {
+      outline: none;
+      border-color: var(--app-focus-ring) !important;
+      box-shadow: var(--app-focus-border);
+    }
   }
 
   /* A rejected field keeps its red while focused, so the focus doubles a red border rather than
@@ -996,6 +1016,17 @@
     background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
     -webkit-backdrop-filter: blur(20px) saturate(160%);
     backdrop-filter: blur(20px) saturate(160%);
+  }
+
+  /* The head fills the glass, which clips anything drawn past its edge, so the head's focus shows on
+     the glass's own border in place of a ring on the head */
+  .app-range-glass:has(> .app-range-glass-head:focus-visible) {
+    border-color: var(--app-focus-ring);
+    box-shadow: var(--app-focus-border);
+  }
+
+  .app-range-glass-head:focus-visible {
+    outline: none;
   }
 
   /* The mobile control spans the full width instead of hugging its content like the sidebar pill */
@@ -1438,9 +1469,12 @@
     pointer-events: none;
   }
 
+  /* An outlined button shows focus on its own border, the way a field does. A filled button keeps
+     the ring, since its fill is close to the focus colour and a border on it would barely change */
   .app-secondary-button:focus-visible {
-    outline: var(--app-focus-outline);
-    outline-offset: var(--app-focus-offset);
+    outline: none;
+    border-color: var(--app-focus-ring);
+    box-shadow: var(--app-focus-border);
   }
 
   /* Draws the eye to a just-linked provider badge after returning from the provider */
@@ -1571,8 +1605,9 @@
   }
 
   .app-glass-button:focus-visible {
-    outline: var(--app-focus-outline);
-    outline-offset: var(--app-focus-offset);
+    outline: none;
+    border-color: var(--app-focus-ring);
+    box-shadow: var(--app-focus-border);
   }
 
   /* Square icon-button member of the glass family for the floating mobile menu toggle, sharing the
@@ -1596,8 +1631,9 @@
   }
 
   .app-glass-icon-button:focus-visible {
-    outline: var(--app-focus-outline);
-    outline-offset: var(--app-focus-offset);
+    outline: none;
+    border-color: var(--app-focus-ring);
+    box-shadow: var(--app-focus-border);
   }
 
   .app-primary-button-loading {
