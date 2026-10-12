@@ -189,6 +189,14 @@
     cursor: pointer;
   }
 
+  /* Anything that takes keyboard focus without a focus style of its own, such as a link, a chart or
+     an info button, draws the app's ring in place of the browser's own. A control that shows focus
+     another way turns this off in its own rule */
+  :focus-visible {
+    outline: var(--app-focus-outline);
+    outline-offset: var(--app-focus-offset);
+  }
+
   @supports (-webkit-touch-callout: none) {
     input,
     select,
@@ -702,9 +710,11 @@
     border-color: var(--app-input-border-hover);
   }
 
+  /* The box itself takes focus, and its border already shows it */
   .app-dropdown-glass:focus-within {
     border-color: var(--app-focus-ring);
     box-shadow: var(--app-focus-border);
+    outline: none;
   }
 
   /* Floating rather than open, so it keeps this look for the whole of the collapse as well. Keying it

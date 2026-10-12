@@ -177,6 +177,67 @@ for (const colorScheme of ['light', 'dark'] as const) {
   })
 }
 
+// Every stop on the way through the page and a dialog, links, charts and info buttons included, shows
+// the app's focus rather than the browser's own ring, which Chrome reports as an outline style of auto
+test('never shows the browser focus ring when tabbing through the app', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await seedOneTransaction(page, request)
+  const browserRings = new Set<string>()
+  const tabThrough = async (stops: number) => {
+    for (let stop = 0; stop < stops; stop++) {
+      await page.keyboard.press('Tab')
+      const ring = await page.evaluate(() => {
+        const node = document.activeElement
+        return node && getComputedStyle(node).outlineStyle === 'auto' ? `${node.tagName} ${node.textContent?.trim().slice(0, 30)}` : null
+      })
+      if (ring) browserRings.add(ring)
+    }
+  }
+
+  await tabThrough(30)
+  await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+  await tabThrough(15)
+  expect([...browserRings]).toEqual([])
+})
+
+// An info icon reached from the keyboard shows what hovering it shows, its tooltip, and draws no ring,
+// and the tooltip goes again once focus moves on
+test('opens an info tooltip on keyboard focus without a ring', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await seedOneTransaction(page, request)
+  const info = page.getByRole('button', { name: 'How net flow is calculated', exact: true })
+  const tooltip = page.getByRole('tooltip').filter({ hasText: /^Money in minus money out for this period/ })
+  const opacity = () => tooltip.evaluate((node) => getComputedStyle(node).opacity)
+  await expect.poll(opacity).toBe('0')
+
+  await focusFromKeyboard(page, info)
+  await expect.poll(opacity).toBe('1')
+  expect(await info.evaluate((node) => getComputedStyle(node).outlineStyle)).toBe('none')
+
+  await page.keyboard.press('Tab')
+  await expect.poll(opacity).toBe('0')
+})
+
+// A click still opens the tooltip and a second click closes it, since focus that came from the mouse
+// doesn't hold it open the way keyboard focus does
+test('toggles an info tooltip with the mouse', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await seedOneTransaction(page, request)
+  const info = page.getByRole('button', { name: 'How net flow is calculated', exact: true })
+  const tooltip = page.getByRole('tooltip').filter({ hasText: /^Money in minus money out for this period/ })
+  const opacity = () => tooltip.evaluate((node) => getComputedStyle(node).opacity)
+
+  await info.click()
+  await page.mouse.move(0, 0)
+  await expect.poll(opacity).toBe('1')
+
+  await info.click()
+  await page.mouse.move(0, 0)
+  await expect(info).toBeFocused()
+  await expect.poll(opacity).toBe('0')
+  expect(await info.evaluate((node) => getComputedStyle(node).outlineStyle)).toBe('none')
+})
+
 // A row opened with the mouse gets focus back when its dialog closes, and draws no ring for it
 test('leaves no focus ring on a transaction row opened with the mouse', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
