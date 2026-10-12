@@ -17,6 +17,7 @@ import {
   invalidateTaxAdvantagedCategories,
   invalidateTransactionOverview,
   invalidateTransactions,
+  markTransactionsStale,
 } from '@/api/cache/invalidation';
 import { accountKeys } from '@/api/cache/queryKeys';
 import type { Account, AccountsOverview, CreateAccountPayload } from '@/api/accounts/types';
@@ -75,15 +76,24 @@ export function invalidateAccountTaxAdvantagedCategoryData(
 
 /**
  * Invalidates all aggregate views that depend on account activity or account visibility
+ *
+ * A deleted account keeps its own queries and its page's transaction list, since the page still
+ * shows them while it animates out and refreshing them would only ask the server about an account
+ * that is gone
  */
 export function invalidateAccountAggregateData(
   queryClient: QueryClient,
   accountId: string,
   account: Pick<AccountsOverview, 'account_kind' | 'tax_advantaged_category_id'> | undefined,
+  { isDeleted = false }: { isDeleted?: boolean } = {},
 ) {
-  invalidateAccountData(queryClient, [accountId]);
-  invalidateTransactions(queryClient);
-  invalidateTransactionOverview(queryClient);
+  invalidateAccountData(queryClient, isDeleted ? [] : [accountId]);
+  if (isDeleted) {
+    markTransactionsStale(queryClient);
+  } else {
+    invalidateTransactions(queryClient);
+    invalidateTransactionOverview(queryClient);
+  }
   invalidateDashboardBalance(queryClient);
   invalidateDashboardIncomeExpense(queryClient);
   invalidateDashboardRecent(queryClient);

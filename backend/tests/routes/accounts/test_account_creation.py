@@ -173,6 +173,56 @@ async def test_update_asset_credit_limit_returns_422(client):
     assert resp.json()["detail"] == "credit_limit is only valid on revolving-credit accounts"
 
 
+async def test_create_liability_with_zero_credit_limit_succeeds(client):
+    """A credit limit of zero is a real limit and is accepted."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_account(
+        client, headers,
+        account_kind="revolving", account_type="credit_card", name="Visa", credit_limit=0,
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["credit_limit"] == 0
+
+
+async def test_create_account_with_negative_credit_limit_returns_422(client):
+    """A negative credit limit is refused and no account is created."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_account(
+        client, headers,
+        account_kind="revolving", account_type="credit_card", name="Visa", credit_limit=-1,
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"][0]["loc"] == ["body", "credit_limit"]
+    accounts_resp = await client.get("/accounts", headers=headers)
+    assert accounts_resp.json() == []
+
+
+async def test_update_account_with_negative_credit_limit_returns_422(client):
+    """Patching a negative credit limit is refused and the stored limit is kept."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(
+        client, headers,
+        account_kind="revolving", account_type="credit_card", name="Visa", credit_limit=500_000,
+    )
+    account_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/accounts/{account_id}", json={"credit_limit": -1}, headers=headers,
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"][0]["loc"] == ["body", "credit_limit"]
+    account_resp = await client.get(f"/accounts/{account_id}", headers=headers)
+    assert account_resp.json()["credit_limit"] == 500_000
+
+
 async def test_create_account_invalid_currency_returns_422(client):
     """Non-existent currency code returns 422."""
     signup_resp = await _create_user(client)

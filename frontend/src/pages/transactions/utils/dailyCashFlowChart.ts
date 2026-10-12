@@ -1,8 +1,9 @@
 import type { DailyCashFlow } from '@/api/transactions'
+import { getChartGranularity, type ChartGranularity } from '@/utils/chartGranularity'
 import { DATE_FORMATS, formatDate, formatYmd, parseYmd } from '@/utils/date'
 
 export type DailyCashFlowChartMode = 'net' | 'gross'
-export type DailyCashFlowGranularity = 'day' | 'week' | 'month'
+export type DailyCashFlowGranularity = ChartGranularity
 
 export type DailyCashFlowPoint = {
   key: string
@@ -13,8 +14,6 @@ export type DailyCashFlowPoint = {
   net: number
 }
 
-const DAILY_CASH_FLOW_RANGE_DAY_COUNT = 31
-const WEEKLY_CASH_FLOW_RANGE_DAY_COUNT = 183
 const DAILY_CASH_FLOW_MAX_X_AXIS_TICK_COUNT = 10
 const DAILY_CASH_FLOW_X_AXIS_TICK_SPACING = 64
 const DAILY_CASH_FLOW_X_AXIS_CANDIDATE_STEPS = [1, 2, 3, 4, 5, 7, 10, 14, 15, 21, 30] as const
@@ -37,9 +36,7 @@ export function getDailyCashFlowGranularity(fromDate: string, toDate: string): D
     Math.round((to.getTime() - from.getTime()) / 86400000) + 1,
   )
 
-  if (dayCount <= DAILY_CASH_FLOW_RANGE_DAY_COUNT) return 'day'
-  if (dayCount <= WEEKLY_CASH_FLOW_RANGE_DAY_COUNT) return 'week'
-  return 'month'
+  return getChartGranularity(dayCount)
 }
 
 /**

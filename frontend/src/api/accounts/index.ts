@@ -35,5 +35,6 @@ export {
   useAccounts,
   useCreateAccount,
   useDeleteAccount,
+  useForgetDeletedAccount,
   useUpdateAccount,
 } from '@/api/accounts/hooks';
