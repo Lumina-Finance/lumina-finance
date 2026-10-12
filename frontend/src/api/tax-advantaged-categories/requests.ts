@@ -10,9 +10,11 @@ import type {
 
 /**
  * Fetches tax-advantaged category summaries
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchTaxAdvantagedCategories() {
-  return authenticatedFetch<TaxAdvantagedCategory[]>('/tax-advantaged-categories');
+export function fetchTaxAdvantagedCategories(signal?: AbortSignal) {
+  return authenticatedFetch<TaxAdvantagedCategory[]>('/tax-advantaged-categories', { signal });
 }
 
 /**
@@ -49,10 +51,16 @@ export function deleteTaxAdvantagedCategory(categoryId: string) {
 
 /**
  * Fetches yearly limits for one tax-advantaged category
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchTaxAdvantagedCategoryLimits(categoryId: string | undefined) {
+export function fetchTaxAdvantagedCategoryLimits(
+  categoryId: string | undefined,
+  signal?: AbortSignal,
+) {
   return authenticatedFetch<TaxAdvantagedCategoryLimit[]>(
     `/tax-advantaged-categories/${categoryId}/limits`,
+    { signal },
   );
 }
 
@@ -106,7 +114,12 @@ export function deleteTaxAdvantagedCategoryLimit({
 
 /**
  * Fetches one tax-advantaged category by ID
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchTaxAdvantagedCategory(categoryId: string | null | undefined) {
-  return authenticatedFetch<TaxAdvantagedCategory>(`/tax-advantaged-categories/${categoryId}`);
+export function fetchTaxAdvantagedCategory(
+  categoryId: string | null | undefined,
+  signal?: AbortSignal,
+) {
+  return authenticatedFetch<TaxAdvantagedCategory>(`/tax-advantaged-categories/${categoryId}`, { signal });
 }

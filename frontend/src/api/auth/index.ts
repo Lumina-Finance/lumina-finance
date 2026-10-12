@@ -6,6 +6,8 @@ export {
   type ApiFieldError,
 } from '@/api/auth/errors';
 
+export { getAccessTokenExpiresAt } from '@/api/auth/tokenAge';
+
 export type {
   AuthResponse,
   ForgotPasswordPayload,

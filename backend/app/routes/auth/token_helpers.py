@@ -25,7 +25,11 @@ from app.models.auth_session import AuthSession
 from app.models.auth_token import AuthToken
 from app.models.base import AuthTokenKind
 from app.models.user import User
-from app.routes.auth.cookie_helpers import set_refresh_cookie
+from app.routes.auth.cookie_helpers import (
+    clear_oidc_reauth_stepup_cookie,
+    removing_cookie_on_failure,
+    set_refresh_cookie,
+)
 from app.schemas.auth import AuthResponse, UserInfo
 from app.services.auth.account_lockout import (
     get_password_credential,
@@ -210,6 +214,37 @@ def verify_reauth_stepup_proof(user_id: uuid.UUID, proof: str) -> None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required") from None
     if payload["sub"] != str(user_id):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required")
+
+
+async def spend_reauth_stepup_proof[T](
+    user_id: uuid.UUID,
+    response: Response,
+    proof: str | None,
+    action: Callable[[], Awaitable[T]],
+) -> T:
+    """Spend the single-use reauth step-up proof, then run the action it authorizes
+
+    The proof cookie is removed whatever the outcome, including when the proof or the action itself
+    is refused, so a spent proof never stays in the browser
+
+    Args:
+        user_id: Account the action is for
+        response: FastAPI response object for removing the proof cookie on success
+        proof: Encoded reauth step-up token read from the cookie, if any
+        action: The sensitive action the proof authorizes
+
+    Returns:
+        Whatever the action returns
+
+    Raises:
+        HTTPException: The proof is missing, invalid or for another account, or the action failed
+    """
+    clear_oidc_reauth_stepup_cookie(response)
+    with removing_cookie_on_failure(clear_oidc_reauth_stepup_cookie):
+        if proof is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required")
+        verify_reauth_stepup_proof(user_id, proof)
+        return await action()
 
 
 def _raise_for_token_use(payload: dict[str, Any], expected_token_use: str) -> None:

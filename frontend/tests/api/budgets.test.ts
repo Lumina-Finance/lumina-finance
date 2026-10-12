@@ -38,10 +38,10 @@ describe('budget API functions', () => {
     await fetchBaseBudgetUtilizations('base_123');
     await fetchLatestBudgetUtilizations();
 
-    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(1, '/base-budgets');
-    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(2, '/budgets');
-    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(3, '/base-budgets/base_123/utilizations');
-    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(4, '/budgets/latest-utilizations');
+    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(1, '/base-budgets', expect.anything());
+    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(2, '/budgets', expect.anything());
+    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(3, '/base-budgets/base_123/utilizations', expect.anything());
+    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(4, '/budgets/latest-utilizations', expect.anything());
   });
 
   it('creates base budgets with a JSON payload', async () => {

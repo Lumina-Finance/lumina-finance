@@ -25,7 +25,7 @@ import { currencyKeys } from '@/api/cache/queryKeys';
  */
 export const currencyQueryOptions = {
   queryKey: currencyKeys.list(),
-  queryFn: fetchCurrencies,
+  queryFn: ({ signal }) => fetchCurrencies(signal),
   staleTime: Infinity,
   gcTime: Infinity,
   retry: 2,

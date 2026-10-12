@@ -30,7 +30,7 @@ export function useInsightsPeriodGlance(
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: insightsKeys.periodGlance(fromDate, toDate, comparisonPeriod),
-    queryFn: () => fetchInsightsPeriodGlance(fromDate, toDate, comparisonPeriod),
+    queryFn: ({ signal }) => fetchInsightsPeriodGlance(fromDate, toDate, comparisonPeriod, signal),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: getFxAwareStaleTime(INSIGHTS_FX_STALE_TIME_MS),
   });
@@ -43,7 +43,7 @@ export function useInsightsNetWorth(fromDate: string, toDate: string, enabled = 
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: insightsKeys.netWorth(fromDate, toDate),
-    queryFn: () => fetchInsightsNetWorth(fromDate, toDate),
+    queryFn: ({ signal }) => fetchInsightsNetWorth(fromDate, toDate, signal),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: getFxAwareStaleTime(INSIGHTS_FX_STALE_TIME_MS),
   });
@@ -56,7 +56,7 @@ export function useInsightsSavingsRateTrend(enabled = true) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: insightsKeys.savingsRateTrend(),
-    queryFn: fetchInsightsSavingsRateTrend,
+    queryFn: ({ signal }) => fetchInsightsSavingsRateTrend(signal),
     enabled: !!accessToken && enabled,
     staleTime: getFxAwareStaleTime(INSIGHTS_FX_STALE_TIME_MS),
   });
@@ -74,7 +74,7 @@ export function useInsightsIncomeExpenseBreakdown(
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: insightsKeys.incomeExpenseBreakdown(fromDate, toDate, comparisonPeriod),
-    queryFn: () => fetchInsightsIncomeExpenseBreakdown(fromDate, toDate, comparisonPeriod),
+    queryFn: ({ signal }) => fetchInsightsIncomeExpenseBreakdown(fromDate, toDate, comparisonPeriod, signal),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: getFxAwareStaleTime(INSIGHTS_FX_STALE_TIME_MS),
   });
@@ -87,7 +87,7 @@ export function useInsightsCashFlow(fromDate: string, toDate: string, enabled = 
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: insightsKeys.cashFlow(fromDate, toDate),
-    queryFn: () => fetchInsightsCashFlow(fromDate, toDate),
+    queryFn: ({ signal }) => fetchInsightsCashFlow(fromDate, toDate, signal),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: getFxAwareStaleTime(INSIGHTS_FX_STALE_TIME_MS),
   });
@@ -100,7 +100,7 @@ export function useInsightsFundFlow(fromDate: string, toDate: string, enabled = 
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: insightsKeys.fundFlow(fromDate, toDate),
-    queryFn: () => fetchInsightsFundFlow(fromDate, toDate),
+    queryFn: ({ signal }) => fetchInsightsFundFlow(fromDate, toDate, signal),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: getFxAwareStaleTime(INSIGHTS_FX_STALE_TIME_MS),
   });
@@ -118,7 +118,7 @@ export function useInsightsMerchants(
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: insightsKeys.merchants(fromDate, toDate, comparisonPeriod),
-    queryFn: () => fetchInsightsMerchants(fromDate, toDate, comparisonPeriod),
+    queryFn: ({ signal }) => fetchInsightsMerchants(fromDate, toDate, comparisonPeriod, signal),
     enabled: !!accessToken && enabled && fromDate !== '' && toDate !== '',
     staleTime: getFxAwareStaleTime(INSIGHTS_FX_STALE_TIME_MS),
   });
@@ -133,7 +133,7 @@ export function useSavedInsightsRanges(enabled = true) {
   // session is refetched on the next mount rather than staying cached forever
   return useQuery({
     queryKey: insightsKeys.savedRanges(),
-    queryFn: fetchSavedInsightsRanges,
+    queryFn: ({ signal }) => fetchSavedInsightsRanges(signal),
     enabled: !!accessToken && enabled,
   });
 }

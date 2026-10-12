@@ -10,8 +10,15 @@ import type {
 
 /**
  * Fetches one filtered tag page for settings and transaction tag selectors
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchTagsPage(filters: TagFilters = {}, pageSize = 20, offset = 0) {
+export function fetchTagsPage(
+  filters: TagFilters = {},
+  pageSize = 20,
+  offset = 0,
+  signal?: AbortSignal,
+) {
   return authenticatedFetch<Tag[]>(
     '/tags' +
       buildQueryString({
@@ -19,14 +26,17 @@ export function fetchTagsPage(filters: TagFilters = {}, pageSize = 20, offset = 
         limit: pageSize,
         offset,
       }),
+    { signal },
   );
 }
 
 /**
  * Fetches a tag detail record by ID
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchTag(tagId: string | null | undefined) {
-  return authenticatedFetch<Tag>(`/tags/${tagId}`);
+export function fetchTag(tagId: string | null | undefined, signal?: AbortSignal) {
+  return authenticatedFetch<Tag>(`/tags/${tagId}`, { signal });
 }
 
 /**

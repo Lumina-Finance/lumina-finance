@@ -54,9 +54,11 @@ export function setPassword(payload: { new_password: string }) {
 
 /**
  * Fetches account IDs selected for runway calculations
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchRunwayAccounts() {
-  return authenticatedFetch<string[]>('/me/runway-accounts');
+export function fetchRunwayAccounts(signal?: AbortSignal) {
+  return authenticatedFetch<string[]>('/me/runway-accounts', { signal });
 }
 
 /**
@@ -71,10 +73,12 @@ export function updateRunwayAccounts(accountIds: string[]) {
 
 /**
  * Fetches runway settings and normalizes backend threshold fields
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export async function fetchRunwaySettings() {
+export async function fetchRunwaySettings(signal?: AbortSignal) {
   return fromRunwaySettingsResponse(
-    await authenticatedFetch<RunwaySettingsResponse>('/me/runway-settings'),
+    await authenticatedFetch<RunwaySettingsResponse>('/me/runway-settings', { signal }),
   );
 }
 
@@ -92,9 +96,11 @@ export async function updateRunwaySettings(settings: RunwaySettingsUpdate) {
 
 /**
  * Fetches runway results and normalizes backend threshold fields
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export async function fetchRunway() {
+export async function fetchRunway(signal?: AbortSignal) {
   return fromRunwayResultResponse(
-    await authenticatedFetch<RunwayResultResponse>('/me/runway'),
+    await authenticatedFetch<RunwayResultResponse>('/me/runway', { signal }),
   );
 }

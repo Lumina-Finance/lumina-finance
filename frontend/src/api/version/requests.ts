@@ -6,9 +6,10 @@ import type { AppVersionInfo, AppVersionResponse } from '@/api/version/types';
  * Fetches app version metadata and maps release URLs to frontend field names
  *
  * @param timeoutMs - How long to wait for an answer, when it differs from the shared request limit
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export async function fetchAppVersion(timeoutMs?: number): Promise<AppVersionInfo> {
-  const response = await fetchFromServer('/version', { cache: 'no-store', timeoutMs });
+export async function fetchAppVersion(timeoutMs?: number, signal?: AbortSignal): Promise<AppVersionInfo> {
+  const response = await fetchFromServer('/version', { cache: 'no-store', timeoutMs, signal });
   if (!response.ok) {
     throw buildApiError(response.status, await response.json().catch(() => null));
   }

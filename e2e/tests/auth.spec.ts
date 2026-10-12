@@ -1,7 +1,9 @@
 import { expect, test, type Route } from '@playwright/test'
 
 import { signUpUser, TEST_PASSWORD } from '../support/api'
-import { expectSignedIn, logIn } from '../support/app'
+import { expectSignedIn, logIn, waitForPageReady } from '../support/app'
+import { navigate } from '../support/insights'
+import { API_BASE_URL } from '../support/target'
 
 test('signs a new user up through the form', async ({ page }) => {
   const email = `e2e-${crypto.randomUUID()}@example.com`
@@ -131,4 +133,29 @@ test('signs the user out when the server refuses the session on load', async ({ 
 
   await page.waitForURL((url) => url.pathname === '/login')
   expect(await page.evaluate(() => localStorage.getItem('lumina:has_session'))).toBeNull()
+})
+
+// A tab left open past its sign-in's 15-minute lifetime renews once before its next page's requests,
+// rather than sending each with a sign-in the server would refuse. The server's own clock doesn't move
+// here, so this sees only the renewal; the client's unit tests cover the requests it saves
+test('renews a sign-in that aged out while the tab sat open, once, before the next page loads', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const openedAt = Date.now()
+  await page.clock.setFixedTime(openedAt)
+  await logIn(page, user)
+
+  const renewals: string[] = []
+  page.on('request', (sent) => {
+    if (sent.url() === `${API_BASE_URL}/auth/refresh`) renewals.push(sent.method())
+  })
+  await page.clock.setFixedTime(openedAt + 20 * 60_000)
+  // The page can show what it already holds as ready before its own requests go out, so the renewal
+  // is awaited rather than read straight after
+  const renewed = page.waitForRequest(`${API_BASE_URL}/auth/refresh`)
+  await navigate(page, 'Transactions')
+  await renewed
+  await waitForPageReady(page)
+
+  expect(renewals).toEqual(['POST'])
 })

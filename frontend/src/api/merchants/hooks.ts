@@ -26,7 +26,7 @@ export function useMerchant(merchantId: string | null | undefined, enabled = tru
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: merchantKeys.detail(merchantId),
-    queryFn: () => fetchMerchant(merchantId),
+    queryFn: ({ signal }) => fetchMerchant(merchantId, signal),
     enabled: !!accessToken && !!merchantId && enabled,
     staleTime: Infinity,
     gcTime: Infinity,
@@ -42,7 +42,7 @@ export function useMerchantDetails(merchantIds: string[]) {
   return useQueries({
     queries: merchantIds.map((merchantId) => ({
       queryKey: merchantKeys.detail(merchantId),
-      queryFn: () => fetchMerchant(merchantId),
+      queryFn: ({ signal }) => fetchMerchant(merchantId, signal),
       enabled: !!accessToken,
       staleTime: Infinity,
       gcTime: Infinity,
@@ -61,7 +61,7 @@ export function useInfiniteMerchants(
   const { accessToken } = useAuth();
   return useInfiniteQuery({
     queryKey: merchantKeys.infinite(filters as Record<string, unknown>, pageSize),
-    queryFn: ({ pageParam }) => fetchMerchantsPage(filters, pageSize, pageParam),
+    queryFn: ({ pageParam, signal }) => fetchMerchantsPage(filters, pageSize, pageParam, signal),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) =>
       lastPage.length < pageSize ? undefined : allPages.length * pageSize,

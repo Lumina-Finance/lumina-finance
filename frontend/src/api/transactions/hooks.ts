@@ -51,7 +51,7 @@ export function useTransactions(filters: TransactionFilters = {}) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: transactionKeys.list(filters as Record<string, unknown>),
-    queryFn: () => fetchTransactions(filters),
+    queryFn: ({ signal }) => fetchTransactions(filters, signal),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
   });
@@ -67,7 +67,7 @@ export function useInfiniteTransactions(
   const { accessToken } = useAuth();
   return useInfiniteQuery({
     queryKey: transactionKeys.infinite(filters as Record<string, unknown>, pageSize),
-    queryFn: ({ pageParam }) => fetchTransactionPage(filters, pageSize, pageParam),
+    queryFn: ({ pageParam, signal }) => fetchTransactionPage(filters, pageSize, pageParam, signal),
     initialPageParam: 0,
 
     // A short page means the backend has no next page
@@ -85,7 +85,7 @@ export function useTransactionsOverview(filters: OverviewFilters = {}) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: transactionOverviewKeys.detail(filters as Record<string, unknown>),
-    queryFn: () => fetchTransactionsOverview(filters),
+    queryFn: ({ signal }) => fetchTransactionsOverview(filters, signal),
     enabled: !!accessToken,
     staleTime: getFxAwareStaleTime(TRANSACTION_OVERVIEW_FX_STALE_TIME_MS),
   });
@@ -105,7 +105,7 @@ export function useLoadTransaction() {
     (transactionId: string) =>
       queryClient.fetchQuery({
         queryKey: transactionKeys.detail(transactionId),
-        queryFn: () => fetchTransaction(transactionId),
+        queryFn: ({ signal }) => fetchTransaction(transactionId, signal),
         staleTime: TRANSACTION_DETAIL_STALE_TIME_MS,
       }),
     [queryClient],

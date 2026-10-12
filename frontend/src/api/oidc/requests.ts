@@ -47,9 +47,11 @@ async function requestOidc<T>(path: string, options: RequestInit = {}): Promise<
 
 /**
  * Reads the enabled sign-in providers the login page can offer
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export async function fetchOidcProviders(): Promise<OidcProvider[]> {
-  const response = await requestOidc<OidcProvidersResponse>('/auth/oidc/providers');
+export async function fetchOidcProviders(signal?: AbortSignal): Promise<OidcProvider[]> {
+  const response = await requestOidc<OidcProvidersResponse>('/auth/oidc/providers', { signal });
   return response.providers;
 }
 
@@ -89,9 +91,11 @@ export function completeOidcSignup(payload: OidcSignupPayload): Promise<AuthResp
 
 /**
  * Reads the account's linked providers and whether it has a password for step-up actions
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchOidcIdentities(): Promise<OidcIdentitiesResponse> {
-  return authenticatedFetch('/auth/oidc/identities');
+export function fetchOidcIdentities(signal?: AbortSignal): Promise<OidcIdentitiesResponse> {
+  return authenticatedFetch('/auth/oidc/identities', { signal });
 }
 
 /**

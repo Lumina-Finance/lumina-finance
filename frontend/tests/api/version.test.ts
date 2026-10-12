@@ -7,6 +7,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { API_BASE } from '@/api/config';
 import { fetchAppVersion } from '@/api/version';
+import { answerNever } from './fixtures';
 
 const fetchMock = vi.fn();
 
@@ -45,5 +46,17 @@ describe('version API functions', () => {
       message: 'Oops, something went wrong. Please try again.',
       status: 503,
     });
+  });
+});
+
+describe('a version check the page no longer needs', () => {
+  it('stops when the load that asked for it is abandoned', async () => {
+    fetchMock.mockImplementationOnce(answerNever);
+    const load = new AbortController();
+
+    const request = fetchAppVersion(undefined, load.signal);
+    load.abort(new DOMException('Left the page', 'AbortError'));
+
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' });
   });
 });

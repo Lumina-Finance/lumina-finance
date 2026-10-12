@@ -17,7 +17,7 @@ from app.models.user import User
 from app.services.auth import oidc_login
 from app.services.auth.token_hashing import hash_token
 from tests.conftest import TestSession
-from tests.routes.support import SIGNUP_PAYLOAD, _seed_currency
+from tests.routes.support import SIGNUP_PAYLOAD, _clears_cookie, _seed_currency
 
 ISSUER = "https://idp.test"
 CLIENT_ID = "client-123"
@@ -155,6 +155,7 @@ async def test_callback_signs_in_linked_identity(client, provider_protocol):
     body = resp.json()
     assert body["user"]["id"] == str(user_id)
     assert "access_token" in body
+    assert _clears_cookie(resp, "oidc_login_binding")
 
     async with TestSession() as session:
         identity = (await session.execute(select(OidcIdentity))).scalar_one()
@@ -177,6 +178,7 @@ async def test_callback_never_auto_links_verified_email(client, provider_protoco
     detail = resp.json()["detail"]
     assert detail["code"] == "email_already_registered"
     assert detail["email"] == SIGNUP_PAYLOAD["email"]
+    assert _clears_cookie(resp, "oidc_login_binding")
 
     async with TestSession() as session:
         identities = (await session.execute(select(OidcIdentity))).scalars().all()
@@ -873,6 +875,7 @@ async def test_passwordless_account_links_provider_after_reauth(client, provider
     await _arm_reauth_proof(client, auth, provider_protocol)
     begun = await client.post("/auth/oidc/other-idp/link", headers=auth)
     assert begun.status_code == 200
+    assert _clears_cookie(begun, "oidc_reauth_stepup")
 
     # The reauth proof authorized the link, so the roundtrip to the new provider completes it
     state = parse_qs(urlparse(begun.json()["authorization_url"]).query)["state"][0]
@@ -892,6 +895,21 @@ async def test_passwordless_link_without_reauth_is_rejected(client, provider_pro
     resp = await client.post("/auth/oidc/other-idp/link", headers=auth)
 
     assert resp.status_code == 401
+
+
+async def test_passwordless_link_with_a_bad_proof_spends_it(client, provider_protocol):
+    """A link refused over its reauth proof still tells the browser to drop the single-use proof"""
+    await _seed_currency()
+    await _seed_provider()
+    await _seed_provider(slug="other-idp")
+    auth, _ = await _create_passwordless_user(client, provider_protocol)
+
+    client.cookies.set("oidc_reauth_stepup", "not-a-proof")
+    resp = await client.post("/auth/oidc/other-idp/link", headers=auth)
+
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Reauthentication required"
+    assert _clears_cookie(resp, "oidc_reauth_stepup")
 
 
 async def test_passwordless_account_unlinks_provider_after_reauth(client, provider_protocol):
@@ -919,6 +937,7 @@ async def test_passwordless_account_unlinks_provider_after_reauth(client, provid
     resp = await client.post(f"/auth/oidc/identities/{other_identity_id}/remove", headers=auth)
 
     assert resp.status_code == 204
+    assert _clears_cookie(resp, "oidc_reauth_stepup")
     async with TestSession() as session:
         remaining = (
             await session.execute(select(OidcIdentity).where(OidcIdentity.user_id == uuid.UUID(user_id)))
@@ -942,6 +961,7 @@ async def test_passwordless_unlink_last_provider_is_refused(client, provider_pro
     resp = await client.post(f"/auth/oidc/identities/{identity_id}/remove", headers=auth)
 
     assert resp.status_code == 409
+    assert _clears_cookie(resp, "oidc_reauth_stepup")
 
 
 async def test_passwordless_unlink_without_reauth_is_rejected(client, provider_protocol):
@@ -1008,6 +1028,7 @@ async def test_set_password_races_to_conflict_not_crash(client, provider_protoco
     resp = await client.post("/auth/password/set", headers=auth, json={"new_password": _NEW_PASSWORD})
 
     assert resp.status_code == 409
+    assert _clears_cookie(resp, "oidc_reauth_stepup")
 
 
 async def test_set_password_after_reauth(client, provider_protocol):
@@ -1025,6 +1046,7 @@ async def test_set_password_after_reauth(client, provider_protocol):
 
     resp = await client.post("/auth/password/set", headers=auth, json={"new_password": _NEW_PASSWORD})
     assert resp.status_code == 204
+    assert _clears_cookie(resp, "oidc_reauth_stepup")
 
     async with TestSession() as session:
         credential = (

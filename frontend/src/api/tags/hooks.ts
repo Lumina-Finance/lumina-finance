@@ -26,7 +26,7 @@ export function useTag(tagId: string | null | undefined, enabled = true) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: tagKeys.detail(tagId),
-    queryFn: () => fetchTag(tagId),
+    queryFn: ({ signal }) => fetchTag(tagId, signal),
     enabled: !!accessToken && !!tagId && enabled,
     staleTime: Infinity,
     gcTime: Infinity,
@@ -42,7 +42,7 @@ export function useTagDetails(tagIds: string[]) {
   return useQueries({
     queries: tagIds.map((tagId) => ({
       queryKey: tagKeys.detail(tagId),
-      queryFn: () => fetchTag(tagId),
+      queryFn: ({ signal }) => fetchTag(tagId, signal),
       enabled: !!accessToken,
       staleTime: Infinity,
       gcTime: Infinity,
@@ -57,7 +57,7 @@ export function useInfiniteTags(filters: TagFilters = {}, pageSize = 20, enabled
   const { accessToken } = useAuth();
   return useInfiniteQuery({
     queryKey: tagKeys.infinite(filters as Record<string, unknown>, pageSize),
-    queryFn: ({ pageParam }) => fetchTagsPage(filters, pageSize, pageParam),
+    queryFn: ({ pageParam, signal }) => fetchTagsPage(filters, pageSize, pageParam, signal),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) =>
       lastPage.length < pageSize ? undefined : allPages.length * pageSize,

@@ -29,7 +29,7 @@ import { withMinDelay } from '@/utils/timing';
 export function usePasskeyConfig() {
   return useQuery({
     queryKey: passkeyKeys.config(),
-    queryFn: fetchPasskeyConfig,
+    queryFn: ({ signal }) => fetchPasskeyConfig(signal),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
   });
@@ -91,7 +91,7 @@ export function usePasskeys() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: passkeyKeys.list(),
-    queryFn: fetchPasskeys,
+    queryFn: ({ signal }) => fetchPasskeys(signal),
     enabled: !!accessToken,
   });
 }

@@ -1,6 +1,9 @@
 """Auth cookie route helpers"""
 
-from fastapi import Request, Response
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+
+from fastapi import HTTPException, Request, Response
 
 from app.config.jwt import JWT_REFRESH_TOKEN_EXPIRE_SECONDS
 from app.config.oidc import (
@@ -126,3 +129,39 @@ def clear_oidc_reauth_stepup_cookie(response: Response) -> None:
         response: FastAPI response object
     """
     response.delete_cookie(key=OIDC_REAUTH_STEPUP_COOKIE_KEY, path=_OIDC_REAUTH_STEPUP_COOKIE_PATH)
+
+
+def build_cookie_removal_header(clear_cookie: Callable[[Response], None]) -> str:
+    """Return the Set-Cookie header value a clear helper writes, for a response built elsewhere
+
+    An error raised from a route is answered with a response of its own, so a cookie cleared on the
+    route's response never reaches the browser. The header has to travel on the exception instead
+
+    Args:
+        clear_cookie: One of the clear helpers in this module
+
+    Returns:
+        The Set-Cookie value that removes that cookie
+    """
+    scratch = Response()
+    clear_cookie(scratch)
+    return scratch.headers["set-cookie"]
+
+
+@contextmanager
+def removing_cookie_on_failure(clear_cookie: Callable[[Response], None]) -> Iterator[None]:
+    """Make any HTTP error raised inside the block also remove a cookie
+
+    The error keeps its status, detail and other headers, so callers see the same refusal as before
+
+    Args:
+        clear_cookie: One of the clear helpers in this module
+
+    Raises:
+        HTTPException: Whatever the block raised, now carrying the cookie's removal
+    """
+    try:
+        yield
+    except HTTPException as exc:
+        exc.headers = {**(exc.headers or {}), "set-cookie": build_cookie_removal_header(clear_cookie)}
+        raise

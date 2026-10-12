@@ -41,14 +41,17 @@ describe('insights fetch functions', () => {
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(
       1,
       '/insights/net-worth?from_date=2026-01-01&to_date=2026-01-31',
+      expect.anything(),
     );
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(
       2,
       '/insights/cash-flow?from_date=2026-02-01&to_date=2026-02-28',
+      expect.anything(),
     );
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(
       3,
       '/insights/fund-flow?from_date=2026-03-01&to_date=2026-03-31',
+      expect.anything(),
     );
   });
 
@@ -60,21 +63,24 @@ describe('insights fetch functions', () => {
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(
       1,
       '/insights/period-glance?from_date=2026-01-01&to_date=2026-01-31&comparison_period=same_length',
+      expect.anything(),
     );
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(
       2,
       '/insights/income-expense-breakdown?from_date=2026-02-01&to_date=2026-02-28&comparison_period=previous_year',
+      expect.anything(),
     );
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(
       3,
       '/insights/merchants?from_date=2026-03-01&to_date=2026-03-31&comparison_period=previous_month',
+      expect.anything(),
     );
   });
 
   it('requests the savings-rate trend endpoint without range parameters', async () => {
     await fetchInsightsSavingsRateTrend();
 
-    expect(authenticatedFetchMock).toHaveBeenCalledWith('/insights/savings-rate-trend');
+    expect(authenticatedFetchMock).toHaveBeenCalledWith('/insights/savings-rate-trend', expect.anything());
   });
 });
 
@@ -82,7 +88,7 @@ describe('saved insights range functions', () => {
   it('lists saved ranges from the saved-ranges endpoint', async () => {
     await fetchSavedInsightsRanges();
 
-    expect(authenticatedFetchMock).toHaveBeenCalledWith('/insights/saved-ranges');
+    expect(authenticatedFetchMock).toHaveBeenCalledWith('/insights/saved-ranges', expect.anything());
   });
 
   it('creates a saved range with the name, amount, unit, and qualifier', async () => {

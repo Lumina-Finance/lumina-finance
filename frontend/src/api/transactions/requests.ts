@@ -14,41 +14,55 @@ import type {
 
 /**
  * Fetches one transaction by ID
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchTransaction(transactionId: string) {
-  return authenticatedFetch<Transaction>(`/transactions/${transactionId}`);
+export function fetchTransaction(transactionId: string, signal?: AbortSignal) {
+  return authenticatedFetch<Transaction>(`/transactions/${transactionId}`, { signal });
 }
 
 /**
  * Fetches transactions for a filter set used by transaction lists and selectors
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchTransactions(filters: TransactionFilters = {}) {
+export function fetchTransactions(filters: TransactionFilters = {}, signal?: AbortSignal) {
   return authenticatedFetch<Transaction[]>(
     '/transactions' + buildQueryString(filters as Record<string, QueryStringValue>),
+    { signal },
   );
 }
 
 /**
  * Fetches one paginated transaction page while preserving the list filter contract
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export function fetchTransactionPage(
   filters: Omit<TransactionFilters, 'limit' | 'offset'> = {},
   pageSize = 15,
   offset = 0,
+  signal?: AbortSignal,
 ) {
-  return fetchTransactions({
-    ...filters,
-    limit: pageSize,
-    offset,
-  });
+  return fetchTransactions(
+    {
+      ...filters,
+      limit: pageSize,
+      offset,
+    },
+    signal,
+  );
 }
 
 /**
  * Fetches transaction summary data for dashboard and transaction overview cards
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchTransactionsOverview(filters: OverviewFilters = {}) {
+export function fetchTransactionsOverview(filters: OverviewFilters = {}, signal?: AbortSignal) {
   return authenticatedFetch<TransactionsOverview>(
     '/transactions/overview' + buildQueryString(filters as Record<string, QueryStringValue>),
+    { signal },
   );
 }
 

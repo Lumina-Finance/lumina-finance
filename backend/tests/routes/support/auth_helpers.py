@@ -86,3 +86,22 @@ def _get_auth_header(resp):
     """
     token = resp.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
+
+
+def _clears_cookie(resp, key: str) -> bool:
+    """Return whether a response tells the browser to remove a cookie
+
+    The test client's cookie jar drops a removed cookie without a trace, so this reads the raw
+    Set-Cookie headers instead
+
+    Args:
+        resp: API response to inspect
+        key: Name of the cookie expected to be removed
+
+    Returns:
+        True when one of the response's Set-Cookie headers expires that cookie
+    """
+    return any(
+        header.startswith(f'{key}=""') and "Max-Age=0" in header
+        for header in resp.headers.get_list("set-cookie")
+    )

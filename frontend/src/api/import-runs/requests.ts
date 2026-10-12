@@ -66,9 +66,11 @@ export function deleteImportRun(runId: string) {
 /**
  * Reads the last saved import while it can still be undone, with what undoing it would delete and keep,
  * or null when there is none
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchLastImport() {
-  return authenticatedFetch<LastImport | null>('/transactions/import/last');
+export function fetchLastImport(signal?: AbortSignal) {
+  return authenticatedFetch<LastImport | null>('/transactions/import/last', { signal });
 }
 
 /**

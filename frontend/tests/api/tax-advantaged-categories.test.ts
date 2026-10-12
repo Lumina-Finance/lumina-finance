@@ -37,14 +37,16 @@ describe('tax-advantaged category API functions', () => {
     await fetchTaxAdvantagedCategory('category_123');
     await fetchTaxAdvantagedCategoryLimits('category_123');
 
-    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(1, '/tax-advantaged-categories');
+    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(1, '/tax-advantaged-categories', expect.anything());
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(
       2,
       '/tax-advantaged-categories/category_123',
+      expect.anything(),
     );
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(
       3,
       '/tax-advantaged-categories/category_123/limits',
+      expect.anything(),
     );
   });
 

@@ -16,9 +16,11 @@ import type { StepUpPayload } from '@/api/two-factor/types';
  *
  * Plain fetch rather than the authenticated client because the login screen reads this before any
  * user exists
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export async function fetchPasskeyConfig(): Promise<PasskeyConfig> {
-  const response = await fetchFromServer('/auth/passkeys/config');
+export async function fetchPasskeyConfig(signal?: AbortSignal): Promise<PasskeyConfig> {
+  const response = await fetchFromServer('/auth/passkeys/config', { signal });
   if (!response.ok) {
     throw buildApiError(response.status, await response.json().catch(() => null));
   }
@@ -60,9 +62,11 @@ export async function authenticatePasskey(credential: AuthenticationResponseJSON
 
 /**
  * Lists the current user's registered passkeys, newest first
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchPasskeys() {
-  return authenticatedFetch<Passkey[]>('/auth/passkeys');
+export function fetchPasskeys(signal?: AbortSignal) {
+  return authenticatedFetch<Passkey[]>('/auth/passkeys', { signal });
 }
 
 /**

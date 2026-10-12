@@ -20,7 +20,7 @@ export function useTotpStatus() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: twoFactorKeys.status(),
-    queryFn: fetchTotpStatus,
+    queryFn: ({ signal }) => fetchTotpStatus(signal),
     enabled: !!accessToken,
   });
 }
@@ -29,7 +29,9 @@ export function useTotpStatus() {
  * Begins TOTP enrolment by minting a pending secret for the current user
  *
  * Modelled as a query rather than a mutation so React Query dedupes the request the StrictMode
- * double-mount would otherwise duplicate, and so the data reliably reaches the rendered component
+ * double-mount would otherwise duplicate, and so the data reliably reaches the rendered component.
+ * It keeps running when the view that asked for it unmounts, because each request mints a secret
+ * and an abandoned one would only be sent again
  * gcTime and staleTime of zero mint a fresh secret each time the enrolment view opens. The settings
  * flow steps up and mints the secret before opening enrolment, so it disables this and supplies the
  * result instead, while signup passes its password-only step-up here
@@ -38,6 +40,7 @@ export function useSetupTotp(options?: { enabled?: boolean; stepUp?: StepUpPaylo
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: twoFactorKeys.setup(),
+    // eslint-disable-next-line no-restricted-syntax -- an abandoned setup is sent again, minting a second secret
     queryFn: () => setupTotp(options?.stepUp),
     enabled: !!accessToken && (options?.enabled ?? true),
     gcTime: 0,

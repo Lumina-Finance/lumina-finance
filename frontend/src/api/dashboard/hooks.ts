@@ -21,7 +21,7 @@ export function useDashboardCredit() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: dashboardKeys.credit(),
-    queryFn: fetchDashboardCredit,
+    queryFn: ({ signal }) => fetchDashboardCredit(signal),
     enabled: !!accessToken,
     staleTime: getFxAwareStaleTime(DASHBOARD_FX_STALE_TIME_MS),
   });
@@ -34,7 +34,7 @@ export function useDashboardNetWorth(windowDays = 90) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: dashboardKeys.netWorth(windowDays),
-    queryFn: () => fetchDashboardNetWorth(windowDays),
+    queryFn: ({ signal }) => fetchDashboardNetWorth(windowDays, signal),
     enabled: !!accessToken,
     staleTime: getFxAwareStaleTime(DASHBOARD_FX_STALE_TIME_MS),
   });
@@ -47,7 +47,7 @@ export function useDashboardSavingsRate() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: dashboardKeys.savingsRate(),
-    queryFn: fetchDashboardSavingsRate,
+    queryFn: ({ signal }) => fetchDashboardSavingsRate(signal),
     enabled: !!accessToken,
     staleTime: getFxAwareStaleTime(DASHBOARD_FX_STALE_TIME_MS),
   });
@@ -60,7 +60,7 @@ export function useDashboardRecentActivity(windowDays = 90) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: dashboardKeys.recentActivity(windowDays),
-    queryFn: () => fetchDashboardRecentActivity(windowDays),
+    queryFn: ({ signal }) => fetchDashboardRecentActivity(windowDays, signal),
     enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
   });
@@ -73,7 +73,7 @@ export function useSpendingComparison(range: SpendingRange) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: dashboardKeys.spendingComparison(range),
-    queryFn: () => fetchSpendingComparison(range),
+    queryFn: ({ signal }) => fetchSpendingComparison(range, signal),
     enabled: !!accessToken,
     staleTime: getFxAwareStaleTime(DASHBOARD_FX_STALE_TIME_MS),
   });
@@ -86,7 +86,7 @@ export function useSpendingBreakdown(range: SpendingRange) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: dashboardKeys.spendingBreakdown(range),
-    queryFn: () => fetchSpendingBreakdown(range),
+    queryFn: ({ signal }) => fetchSpendingBreakdown(range, signal),
     enabled: !!accessToken,
     staleTime: getFxAwareStaleTime(DASHBOARD_FX_STALE_TIME_MS),
   });
