@@ -142,7 +142,7 @@ export default function TaxAdvantagedLimitsPanel({
                   return (
                     <tr
                       key={limit.year}
-                      className={`grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 rounded-xl border px-3.5 py-3 transition-colors duration-150 hover:bg-[var(--app-accent-soft)] min-[750px]:table-row min-[750px]:rounded-none min-[750px]:border-x-0 min-[750px]:border-t-0 min-[750px]:p-0 ${index === sortedLimits.length - 1 ? 'min-[750px]:border-b-0' : 'min-[750px]:border-b'}`}
+                      className={`app-card-row-focus-visible grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 rounded-xl border px-3.5 py-3 transition-colors duration-150 hover:bg-[var(--app-accent-soft)] min-[750px]:table-row min-[750px]:rounded-none min-[750px]:border-x-0 min-[750px]:border-t-0 min-[750px]:p-0 ${index === sortedLimits.length - 1 ? 'min-[750px]:border-b-0' : 'min-[750px]:border-b'}`}
                       style={{
                         borderColor: isSelected ? 'var(--app-accent-border)' : 'var(--app-border)',
                         background: isSelected ? 'var(--app-accent-soft)' : undefined,
@@ -257,7 +257,7 @@ export default function TaxAdvantagedLimitsPanel({
                 <button
                   key={limit.year}
                   type="button"
-                  className="grid w-full min-w-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 rounded-xl border bg-transparent px-3.5 py-3 text-left transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
+                  className="app-field-focus-visible grid w-full min-w-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 rounded-xl border bg-transparent px-3.5 py-3 text-left transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
                   style={{
                     borderColor: isSelected ? 'var(--app-accent-border)' : 'var(--app-border)',
                     background: isSelected ? 'var(--app-accent-soft)' : undefined,
