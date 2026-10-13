@@ -1,4 +1,5 @@
-import { AnimatePresence, motion } from 'motion/react'
+import { useEffect, useRef } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { EyeOff } from 'lucide-react'
 import {
   ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON,
@@ -32,6 +33,15 @@ export function AccountArchiveSection({
   currency,
   onToggle,
 }: AccountArchiveSectionProps) {
+  const warningRef = useRef<HTMLDivElement>(null)
+  const shouldReduceMotion = useReducedMotion()
+  // Read when an animation ends rather than captured with it, since the warning on its way out keeps the
+  // props it last rendered with
+  const isArchivingRef = useRef(isArchiving)
+  useEffect(() => {
+    isArchivingRef.current = isArchiving
+  }, [isArchiving])
+
   return (
     <EditModalSection number={sectionNumber} title="Archive">
       <label
@@ -90,11 +100,20 @@ export function AccountArchiveSection({
       <AnimatePresence initial={false}>
         {isArchiving && (
           <motion.div
+            ref={warningRef}
+            // Announced as it appears, since what it says is the consequence of the switch just turned on
+            role="alert"
             className="overflow-hidden"
             initial={{ height: 0, marginTop: 0, opacity: 0 }}
             animate={{ height: 'auto', marginTop: 12, opacity: 1 }}
             exit={{ height: 0, marginTop: 0, opacity: 0 }}
             transition={{ duration: 0.18, ease: EASE }}
+            // It grows in at the foot of the dialog's scrolling body, so once it has, the body follows it as far
+            // as it needs to for the whole warning to be read above the footer
+            onAnimationComplete={() => {
+              if (!isArchivingRef.current) return
+              warningRef.current?.scrollIntoView({ behavior: shouldReduceMotion ? 'auto' : 'smooth', block: 'nearest' })
+            }}
           >
             <ArchiveBalanceWarning balance={currentBalance} currency={currency} />
           </motion.div>

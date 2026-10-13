@@ -91,7 +91,9 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await dialog.getByText('Archive account', { exact: true }).click()
       await expect(dialog.getByRole('switch')).toBeChecked()
       const heading = dialog.getByText('Balance will be set to zero', { exact: true })
-      await expect(heading).toBeVisible()
+      // The dialog scrolls the warning up from under its footer as it opens, so read it once its closing
+      // sentence is in view
+      await expect(dialog.getByText('no balance adjustment will be recorded', { exact: false })).toBeInViewport({ ratio: 1 })
       await expectReadable(heading.locator('xpath=../../..'), 'in the archive warning')
     })
   })
