@@ -1,12 +1,14 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
-import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser, startOfDayInTestTimezone } from '../support/api'
+import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser, startOfDayInTestTimezone } from '../support/api'
 import { openPage, chooseFromDropdown, filterByCategory, logInViaApi, openModal } from '../support/app'
 import { expectPendingAction, expectTransactionRow, whileApiRequestHeld } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
+import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only, apart from the category filter and Upcoming header tests, which run at
-// every size: filters show as a sheet on a phone, and the header pins differently by layout
+// every size: filters show as a sheet on a phone, and the header pins differently by layout. The
+// row layout test resizes the desktop window itself, to widths no project has
 
 test('filters the list down to one category', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
@@ -435,4 +437,106 @@ test('leaves the date in Add Transaction with one Tab, past its calendar icon', 
 
   await page.keyboard.press('Shift+Tab')
   await expect(day).toBeFocused()
+})
+
+/**
+ * Signs up a user with a plain row and a row carrying the note "Weekly shop" and two tags in
+ * "Everyday Chequing", and opens the Transactions page with the noted row's note found as text and
+ * as an icon
+ */
+async function openNotedRow(page: Page, request: APIRequestContext) {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday Chequing' })
+  const tagIds: string[] = []
+  for (const name of ['Family', 'Reviewed']) {
+    const response = await request.post(`${API_BASE_URL}/tags`, { headers: asUser(user), data: { name } })
+    expect(response.status()).toBe(201)
+    tagIds.push((await response.json() as { id: string }).id)
+  }
+  const notedId = await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000, notes: 'Weekly shop', tagIds })
+  const plainId = await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -2000 })
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  await expectTransactionRow(page, plainId, '-$20.00')
+  const noted = page.getByTestId(`transaction-row-${notedId}`)
+  return {
+    user,
+    noted,
+    plain: page.getByTestId(`transaction-row-${plainId}`),
+    noteText: noted.getByText('Weekly shop', { exact: true }).filter({ visible: true }),
+    noteIcon: noted.getByLabel('Has note', { exact: true }).filter({ visible: true }),
+  }
+}
+
+test('shows a note as text in its own column, centred in the row, from 750px wide', async ({ page, request }) => {
+  const { noted, plain, noteText, noteIcon } = await openNotedRow(page, request)
+
+  // One pixel either side of the layout switch, and widths above it. Soft, so a failing run names
+  // every width
+  const softly = expect.configure({ soft: true })
+  for (const [width, shows] of [[749, 'icon'], [750, 'text'], [1024, 'text'], [1920, 'text']] as const) {
+    await page.setViewportSize({ ...page.viewportSize()!, width })
+    await softly(noteText, `${width}px`).toHaveCount(shows === 'text' ? 1 : 0)
+    await softly(noteIcon, `${width}px`).toHaveCount(shows === 'icon' ? 1 : 0)
+    if (shows === 'text') {
+      // The note has a column of its own, centred in the row, so a noted row is no taller than one without
+      const plainHeight = (await plain.boundingBox())!.height
+      await softly.poll(async () => (await noted.boundingBox())!.height, { message: `${width}px` }).toBe(plainHeight)
+      const row = (await noted.boundingBox())!
+      const note = (await noteText.boundingBox())!
+      softly(Math.abs(note.y + note.height / 2 - (row.y + row.height / 2)), `${width}px centred`).toBeLessThan(2)
+    }
+  }
+})
+
+test('keeps the letters that hang below the line whole in a note and an account name', async ({ page, request }) => {
+  const { noted, noteText } = await openNotedRow(page, request)
+
+  // A truncating line clips what it can't hold, so it must be tall enough for the "g" and "q"
+  const softly = expect.configure({ soft: true })
+  for (const width of [750, 1920]) {
+    await page.setViewportSize({ ...page.viewportSize()!, width })
+    for (const text of [noteText, noted.getByText('Everyday Chequing', { exact: true }).filter({ visible: true })]) {
+      softly(await text.evaluate((element) => element.scrollHeight <= element.clientHeight), `${width}px descenders`).toBe(true)
+    }
+  }
+})
+
+test('gives the category, merchant and account room first, then the note, then the tag names, from 750px wide', async ({ page, request }) => {
+  const { user, noted, noteText, noteIcon } = await openNotedRow(page, request)
+
+  // With short names a narrow row gives up the tag names before the note, and a wide one shows both.
+  // Counted as drawn, since the hover list repeats the names, transparent until it opens
+  const softly = expect.configure({ soft: true })
+  const tagNamesDrawn = () => noted.getByText('Family', { exact: true }).filter({ visible: true })
+    .evaluateAll((names) => names.filter((name) => getComputedStyle(name.parentElement!).opacity !== '0').length)
+  const tagCount = noted.getByLabel('2 tags', { exact: true }).filter({ visible: true })
+  for (const [width, tags] of [[750, 'icon'], [1920, 'names']] as const) {
+    await page.setViewportSize({ ...page.viewportSize()!, width })
+    await softly.poll(tagNamesDrawn, { message: `${width}px tag names` }).toBe(tags === 'names' ? 1 : 0)
+    await softly(tagCount, `${width}px tag count`).toHaveCount(tags === 'icon' ? 1 : 0)
+    await softly(noteText, `${width}px note`).toHaveCount(1)
+  }
+
+  // Long merchant and account names keep their room, so a narrow list turns every note to its icon,
+  // the short one too, while a wide one still has room for the text
+  const merchantName = 'Pacific Northwest Organic Grocers'
+  const accountName = 'Joint Household Chequing'
+  expect((await request.post(`${API_BASE_URL}/merchants`, { headers: asUser(user), data: { name: merchantName } })).status()).toBe(201)
+  const longAccount = await createAccount(request, user, { name: accountName })
+  const longId = await createTransaction(request, user, { accountId: longAccount.id, categoryName: 'Groceries', amount: -3000, notes: 'Cottage trip', merchantName })
+  const long = page.getByTestId(`transaction-row-${longId}`)
+  const shown = (text: string) => long.getByText(text, { exact: true }).filter({ visible: true })
+  await page.reload()
+  for (const [width, note] of [[750, 'icon'], [1920, 'text']] as const) {
+    await page.setViewportSize({ ...page.viewportSize()!, width })
+    await expect(shown(merchantName), `${width}px`).toBeVisible()
+    for (const name of [merchantName, accountName]) {
+      softly(await shown(name).evaluate((element) => element.scrollWidth <= element.clientWidth), `${width}px ${name} whole`).toBe(true)
+    }
+    await softly(noteText, `${width}px short note`).toHaveCount(note === 'text' ? 1 : 0)
+    await softly(noteIcon, `${width}px short note icon`).toHaveCount(note === 'icon' ? 1 : 0)
+    softly(await long.evaluate((row) => row.scrollWidth <= row.clientWidth), `${width}px the row fits`).toBe(true)
+  }
 })

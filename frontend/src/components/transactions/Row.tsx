@@ -179,12 +179,31 @@ function TagTooltip({ tags }: { tags: Transaction['tags'] }) {
   )
 }
 
+// Where a row has no room for the tag names or the note's text, it marks that they exist
+function NoteAndTagIcons({ hasNotes, tagCount, className = '' }: { hasNotes: boolean; tagCount: number; className?: string }) {
+  return (
+    <span className={`inline-flex shrink-0 items-center gap-2 ${className}`}>
+      {hasNotes && (
+        <span className="inline-flex" aria-label="Has note">
+          <StickyNote size={14} strokeWidth={2} aria-hidden />
+        </span>
+      )}
+      {tagCount > 0 && (
+        <span className="inline-flex items-center gap-1" aria-label={`${tagCount} ${tagCount === 1 ? 'tag' : 'tags'}`}>
+          <TagIcon size={14} strokeWidth={2} aria-hidden />
+          {tagCount > 1 && <span className="text-xs font-medium">{tagCount}</span>}
+        </span>
+      )}
+    </span>
+  )
+}
+
 /**
  * Renders one transaction as a clickable row, showing its category, account, notes, tags, and signed
  * amount, and calling `onOpen` when clicked
  *
- * Renders three layouts gated by breakpoint, from a full grid of columns on wide screens down to a
- * stacked two-line layout on narrow ones, and animates its height on mount and removal unless
+ * Renders two layouts gated by breakpoint, a grid of columns from 750px wide and a stacked layout on
+ * narrower screens, and animates its height on mount and removal unless
  * `prefersReducedMotion` is set. A `readOnlyReason` dims the row and shows why it cannot be edited
  */
 export default function TransactionRow({ transaction, currency, onOpen, ...props }: TransactionRowProps) {
@@ -273,7 +292,7 @@ export function TransactionRowView({
       transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: ROW_EXIT_EASE }}
       onAnimationStart={() => setIsAnimatingHeight(true)}
       onAnimationComplete={() => setIsAnimatingHeight(false)}
-      className="app-transaction-row relative flex items-center transition-colors duration-100 hover:bg-[var(--app-hover-soft)] min-[1300px]:col-span-full min-[1300px]:grid min-[1300px]:grid-cols-subgrid min-[1300px]:items-center min-[1300px]:gap-x-3"
+      className="app-transaction-row relative flex items-center transition-colors duration-100 hover:bg-[var(--app-hover-soft)] min-[750px]:col-span-full min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4"
       style={{
         borderBottom: '1px solid var(--app-border)',
         overflow: isAnimatingHeight ? 'hidden' : 'visible',
@@ -294,7 +313,7 @@ export function TransactionRowView({
           <motion.span
             key="row-checkbox"
             // Laid over the rail rather than placed in the row, because a cell of the row would take
-            // one of the list's columns, and the button beside it asks for all six of them. The rail
+            // one of the list's columns, and the button beside it asks for all five of them. The rail
             // is the row's own left padding, so the box sits still at the list's edge while the rail
             // opens and closes underneath the rest of the row
             className="absolute inset-y-0 left-0 flex items-center justify-center"
@@ -339,19 +358,19 @@ export function TransactionRowView({
           // pointer the highlight has already answered
           if (selection.isSelectable || event.shiftKey) selection.onToggle(event.shiftKey)
         }}
-        className="block w-full min-w-0 flex-1 cursor-pointer px-3 text-left focus-visible:outline-none min-[1300px]:col-span-6 min-[1300px]:grid min-[1300px]:grid-cols-subgrid min-[1300px]:items-center min-[1300px]:gap-x-3"
+        className="block w-full min-w-0 flex-1 cursor-pointer px-3 text-left focus-visible:outline-none min-[750px]:col-span-5 min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4"
         style={{ scrollMarginTop: TRANSACTION_ROW_SCROLL_MARGIN }}
       >
-      {/* Desktop row: each cell is a direct child of this button's subgrid, which spans the list's
-          content tracks, so every row shares the same column tracks and stays aligned. The category
-          and account tracks grow to their widest content across all rows, showing long names while
-          there is room and truncating only when there is not, with notes as the flexible filler
-          that compresses first */}
-      <span className="hidden text-2xl leading-none min-[1300px]:block" style={categoryIconStyle} aria-hidden>
+      {/* Row from 750px wide: each cell is a direct child of this button's subgrid, which spans the
+          list's content tracks, so every row shares the same column tracks and stays aligned. The
+          category and account tracks grow to their widest content across all rows, showing long
+          names while there is room and truncating only when there is not, with the note and tags
+          as the flexible filler that compresses first */}
+      <span className="hidden text-2xl leading-none min-[750px]:block" style={categoryIconStyle} aria-hidden>
         {categoryIcon}
       </span>
 
-      <span className="hidden min-w-0 min-[1300px]:block">
+      <span className="hidden min-w-0 min-[750px]:block">
         <span className="block truncate font-medium">{categoryName}</span>
         <span
           className="mt-0.5 block truncate text-sm"
@@ -362,7 +381,7 @@ export function TransactionRowView({
       </span>
 
       <span
-        className="hidden min-w-0 flex-col gap-1 text-sm font-medium leading-none min-[1300px]:flex"
+        className="hidden min-w-0 flex-col gap-1 text-sm font-medium leading-5 min-[750px]:flex"
         style={{ color: 'var(--app-text-muted)' }}
       >
         {hasAccountMeta && (
@@ -376,59 +395,77 @@ export function TransactionRowView({
         )}
       </span>
 
-      <span
-        className="hidden min-w-0 truncate px-5 text-sm leading-none min-[1300px]:block"
-        style={{ color: 'var(--app-text-muted)' }}
-      >
-        {transaction.notes}
+      {/* The note and the tags share the track the category, merchant and account leave over. It is
+          the same width in every row, so measuring it as a container switches every row together and
+          each column stays one form down the list. With too little room the tags give way to an icon
+          and count first, below 22rem, and then the note to its icon, below 12rem, which leaves under
+          8rem of text where most notes would be cut to a few letters. Being a container makes the
+          track its own stacking context, so a hovered one rises over the pinned day heading for the
+          tag list that opens above it */}
+      <span className="@container/extras hidden min-w-0 hover:z-50 min-[750px]:block">
+        <span
+          className="flex min-w-0 items-center gap-3 text-sm leading-5 @min-[12rem]/extras:pl-5"
+          style={{ color: 'var(--app-text-muted)' }}
+        >
+          <span className="hidden min-w-0 truncate @min-[12rem]/extras:block">{transaction.notes}</span>
+          {hasNotes && <NoteAndTagIcons hasNotes tagCount={0} className="@min-[12rem]/extras:hidden" />}
+          <span className="ml-auto flex shrink-0 justify-end gap-1.5">
+            {hasVisibleTags && (
+              <span className="group relative inline-flex @min-[22rem]/extras:hidden">
+                <NoteAndTagIcons hasNotes={false} tagCount={tags.length} />
+                <TagTooltip tags={tags} />
+              </span>
+            )}
+            {visibleTags.map((tag) => (
+              <span
+                key={tag.id}
+                className="group relative hidden max-w-[8rem] shrink-0 @min-[22rem]/extras:inline-flex"
+              >
+                <span
+                  className="inline-flex min-w-0 items-center gap-1 rounded-full px-2 py-0.5 text-sm font-medium"
+                  style={{
+                    background: 'var(--app-surface-soft)',
+                    color: 'var(--app-text-muted)',
+                    border: '1px solid var(--app-border)',
+                  }}
+                >
+                  <TagIcon size={11} aria-hidden className="shrink-0" />
+                  <span className="truncate">{tag.name}</span>
+                </span>
+                <TagTooltip tags={tags} />
+              </span>
+            ))}
+            {extraTagCount > 0 && (
+              <span className="group relative hidden shrink-0 @min-[22rem]/extras:inline-flex">
+                <span
+                  className="inline-flex rounded-full px-2 py-0.5 text-sm font-medium"
+                  style={{
+                    background: 'var(--app-surface-soft)',
+                    color: 'var(--app-text-muted)',
+                    border: '1px solid var(--app-border)',
+                  }}
+                >
+                  +{extraTagCount}
+                </span>
+                <TagTooltip tags={tags} />
+              </span>
+            )}
+          </span>
+        </span>
       </span>
 
-      <span className="hidden min-w-0 justify-end gap-1.5 min-[1300px]:flex">
-        {visibleTags.map((tag) => (
-          <span
-            key={tag.id}
-            className="group relative inline-flex max-w-[8rem] shrink-0"
-          >
-            <span
-              className="inline-flex min-w-0 items-center gap-1 rounded-full px-2 py-0.5 text-sm font-medium"
-              style={{
-                background: 'var(--app-surface-soft)',
-                color: 'var(--app-text-muted)',
-                border: '1px solid var(--app-border)',
-              }}
-            >
-              <TagIcon size={11} aria-hidden className="shrink-0" />
-              <span className="truncate">{tag.name}</span>
-            </span>
-            <TagTooltip tags={tags} />
-          </span>
-        ))}
-        {extraTagCount > 0 && (
-          <span className="group relative inline-flex shrink-0">
-            <span
-              className="inline-flex rounded-full px-2 py-0.5 text-sm font-medium"
-              style={{
-                background: 'var(--app-surface-soft)',
-                color: 'var(--app-text-muted)',
-                border: '1px solid var(--app-border)',
-              }}
-            >
-              +{extraTagCount}
-            </span>
-            <TagTooltip tags={tags} />
-          </span>
-        )}
-      </span>
-
       <span
-        className="hidden min-w-0 text-right font-financial text-base font-semibold tabular-nums min-[1300px]:block"
+        className="hidden min-w-0 text-right font-financial text-base font-semibold tabular-nums min-[750px]:block"
         data-testid="transaction-amount"
         style={{ color: transactionAmountColor }}
       >
         {formattedAmount}
       </span>
 
-      <span className="grid grid-cols-[2.125rem_minmax(0,1fr)_max-content] items-start gap-x-2.5 gap-y-1 min-[750px]:hidden">
+      {/* Three lines on a phone: merchant and amount, category, then account. Set close together, and
+          reaching a little into the row's padding, which the wide layout keeps, so a row takes less
+          height without crowding the account in beside the category */}
+      <span className="-my-1 grid grid-cols-[2.125rem_minmax(0,1fr)_max-content] items-start gap-x-2.5 gap-y-0.5 min-[750px]:hidden">
         <span className="row-span-3 pt-0.5 text-[1.35rem] leading-none" style={categoryIconStyle} aria-hidden>
           {categoryIcon}
         </span>
@@ -446,7 +483,7 @@ export function TransactionRowView({
         </span>
 
         <span
-          className="col-start-2 col-span-2 row-start-2 min-w-0 truncate text-sm leading-5"
+          className="col-start-2 col-span-2 row-start-2 min-w-0 truncate text-sm leading-[1.125rem]"
           style={{ color: 'var(--app-text-muted)' }}
         >
           {categoryName}
@@ -454,103 +491,20 @@ export function TransactionRowView({
 
         {(hasAccountMeta || hasSupplementalMeta) && (
           <span
-            className="col-start-2 col-span-2 row-start-3 flex min-w-0 items-start gap-2 text-sm leading-5"
+            className="col-start-2 col-span-2 row-start-3 flex min-w-0 items-start gap-2 text-sm leading-[1.125rem]"
             style={{ color: 'var(--app-text-muted)' }}
           >
-            {hasAccountMeta ? (
-              <span className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className="flex min-w-0 flex-1 flex-col gap-1">
+              {hasAccountMeta && (
                 <span className="inline-flex min-w-0 items-center gap-1.5">
                   <AccountLogo accountName={accountName} institution={accountInstitution} />
                   {accountName && <span className="min-w-0 truncate">{accountName}</span>}
                 </span>
-                {readOnlyReason && <ReadOnlyReasonPill reason={readOnlyReason} />}
-              </span>
-            ) : (
-              <span className="min-w-0 flex-1" aria-hidden />
-            )}
-
+              )}
+              {readOnlyReason && <ReadOnlyReasonPill reason={readOnlyReason} />}
+            </span>
             {hasSupplementalMeta && (
-              <span className="inline-flex shrink-0 items-center gap-2 pt-0.5">
-                {hasNotes && (
-                  <span className="inline-flex" aria-label="Has note">
-                    <StickyNote size={14} strokeWidth={2} aria-hidden />
-                  </span>
-                )}
-                {hasVisibleTags && (
-                  <span
-                    className="inline-flex items-center gap-1"
-                    aria-label={`${tags.length} ${tags.length === 1 ? 'tag' : 'tags'}`}
-                  >
-                    <TagIcon size={14} strokeWidth={2} aria-hidden />
-                    {tags.length > 1 && (
-                      <span className="text-xs font-medium">{tags.length}</span>
-                    )}
-                  </span>
-                )}
-              </span>
-            )}
-          </span>
-        )}
-      </span>
-
-      <span className="hidden grid-cols-[2.75rem_minmax(0,1fr)_max-content] items-start gap-x-3 gap-y-1.5 min-[750px]:grid min-[1300px]:hidden">
-        <span className="row-span-3 text-2xl leading-none" style={categoryIconStyle} aria-hidden>
-          {categoryIcon}
-        </span>
-
-        <span className="col-start-2 row-start-1 min-w-0 truncate font-medium">
-          {title}
-        </span>
-
-        <span
-          className="col-start-3 row-start-1 justify-self-end font-financial text-base font-semibold tabular-nums"
-          data-testid="transaction-amount"
-          style={{ color: transactionAmountColor }}
-        >
-          {formattedAmount}
-        </span>
-
-        <span
-          className="col-start-2 col-span-2 row-start-2 flex min-w-0 items-center gap-2 text-sm leading-none"
-          style={{ color: 'var(--app-text-muted)' }}
-        >
-          <span className="min-w-0 truncate">{categoryName}</span>
-          {hasAccountMeta && (
-            <>
-              <span aria-hidden>·</span>
-              <span className="flex min-w-0 flex-col gap-1">
-                <span className="inline-flex min-w-0 items-center gap-1.5">
-                  <AccountLogo accountName={accountName} institution={accountInstitution} />
-                  {accountName && <span className="min-w-0 truncate">{accountName}</span>}
-                </span>
-                {readOnlyReason && <ReadOnlyReasonPill reason={readOnlyReason} />}
-              </span>
-            </>
-          )}
-        </span>
-
-        {hasSupplementalMeta && (
-          <span
-            className="col-start-2 col-span-2 row-start-3 flex min-w-0 items-center gap-2 text-sm leading-none"
-            style={{ color: 'var(--app-text-muted)' }}
-          >
-            {hasNotes && (
-              <>
-                <span className="min-w-0 truncate whitespace-nowrap">
-                  {transaction.notes}
-                </span>
-              </>
-            )}
-            {hasVisibleTags && (
-              <span
-                className="ml-auto inline-flex shrink-0 items-center gap-1"
-                aria-label={`${tags.length} ${tags.length === 1 ? 'tag' : 'tags'}`}
-              >
-                <TagIcon size={14} strokeWidth={2} aria-hidden />
-                {tags.length > 1 && (
-                  <span className="text-xs font-medium">{tags.length}</span>
-                )}
-              </span>
+              <NoteAndTagIcons hasNotes={hasNotes} tagCount={tags.length} className="shrink-0 pt-0.5" />
             )}
           </span>
         )}

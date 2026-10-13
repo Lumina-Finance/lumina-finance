@@ -4,8 +4,9 @@ import { countLedgerTransactions, createAccount, signUpUser } from '../support/a
 import { logInViaApi, openPage } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
-// Runs at every size: on a tablet or phone the list starts off screen, which reviewing has to bring
-// into view
+// Runs at every size, though only on a phone does the list start off screen, which reviewing has to
+// bring into view. A tablet or desktop screen holds the list and Commit import together, and the
+// preview never shows more than five rows, so more rows in the file can't push the list away there
 
 // The second row names a day February doesn't have, so it can't be imported under any date format. The
 // rows after it fill the preview, so Commit import sits far enough below the list to scroll it away
@@ -23,6 +24,8 @@ const CSV = [
 // A row the import can't bring in is listed with its reason and left out, and the rest of the file
 // imports, as the imports from other apps already do
 test('imports the rest of a CSV file and shows the row it leaves out on review', AT_EVERY_SIZE, async ({ page, request }, testInfo) => {
+  // A short phone, so the list sits well above Commit import however compact the preview rows are
+  if (testInfo.project.name === 'phone') await page.setViewportSize({ width: page.viewportSize()!.width, height: 640 })
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday chequing' })
   await logInViaApi(page, user)
@@ -44,9 +47,9 @@ test('imports the rest of a CSV file and shows the row it leaves out on review',
   await expect(overlay.getByText('6 transactions imported · 0 accounts created · 0 categories created · 1 skipped', { exact: true })).toBeVisible()
   expect(await countLedgerTransactions(request, user)).toBe(6)
 
-  // On a tablet or phone, clicking Commit import scrolled the page down to it, past the list. A desktop
+  // On a phone, clicking Commit import scrolled the page down to it, past the list. A tablet or desktop
   // screen holds both
-  if (testInfo.project.name !== 'desktop') {
+  if (testInfo.project.name === 'phone') {
     await expect(page.getByRole('button', { name: 'Expand skipped rows', exact: true })).not.toBeInViewport()
   }
   await overlay.getByRole('button', { name: 'Review skipped rows', exact: true }).click()

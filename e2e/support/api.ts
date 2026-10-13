@@ -291,13 +291,17 @@ export interface CreateTransactionOptions {
   date?: string
   currency?: string
   notes?: string
+
+  /** A merchant the spec has made, for a spec that asserts on it */
+  merchantName?: string
+  tagIds?: string[]
 }
 
 /**
  * Create a transaction over the API.
  *
- * The merchant is the seeded system record rather than one the spec makes, since every create
- * requires one and no spec asserts on it.
+ * The merchant is the seeded system record unless the spec names one it made, since every create
+ * requires one and most specs don't assert on it.
  *
  * @param request - Playwright request context
  * @param user - Transaction owner
@@ -312,7 +316,7 @@ export async function createTransaction(
 ): Promise<string> {
   const [categoryId, merchantId] = await Promise.all([
     findReferenceId(request, user, 'categories', options.categoryName),
-    findReferenceId(request, user, 'merchants', SYSTEM_MERCHANT),
+    findReferenceId(request, user, 'merchants', options.merchantName ?? SYSTEM_MERCHANT),
   ])
 
   const response = await request.post(`${API_BASE_URL}/transactions`, {
@@ -325,6 +329,7 @@ export async function createTransaction(
       amount: options.amount,
       currency: options.currency ?? TEST_CURRENCY,
       notes: options.notes,
+      tag_ids: options.tagIds,
     },
   })
 

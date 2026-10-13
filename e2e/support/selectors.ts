@@ -87,7 +87,7 @@ export async function expectTransactionRow(page: Page, id: string, amount: strin
   await expect(row).toHaveRole('button')
   await expect(row).toHaveAccessibleName(new RegExp(amount.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   const amounts = row.getByTestId('transaction-amount')
-  await expect(amounts).toHaveCount(3)
+  await expect(amounts).toHaveCount(2)
   const visibleAmount = amounts.filter({ visible: true })
   await expect(visibleAmount).toHaveCount(1)
   await expect(visibleAmount).toHaveText(amount)
