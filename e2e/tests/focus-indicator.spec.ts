@@ -12,14 +12,26 @@ import {
   signUpUser,
 } from '../support/api'
 import { logInViaApi, openModal, openPage, reachTwoFactorChallenge, signUpThroughTheForm } from '../support/app'
+import {
+  answerAsBankImported,
+  answerReviewItems,
+  BANK_SOURCE,
+  claimSetupToken,
+  createEmptyBridgeScenario,
+  pageOf,
+  reviewBlock,
+  reviewItem,
+} from '../support/bankSync'
+import { getTransactionRowButton } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL, BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from four groups that run at every size. The focus ring on each kind
+// Runs on desktop only, apart from five groups that run at every size. The focus ring on each kind
 // of control does so because the toolbar changes below 750px, the Settings section menu and
-// card row tests because the menu and the card change with the width too, and the whole-ring test
-// because the filters, charts and rows are laid out differently at each size. The date-range control
-// tests set their own sizes.
+// card row tests because the menu and the card change with the width too, the whole-ring test
+// because the filters, charts and rows are laid out differently at each size, and the ring on a
+// bank-imported row's bank icon because the row lays out its icon differently at each width. The
+// date-range control tests set their own sizes.
 
 /**
  * Guards the keyboard focus indicator. It used to be a tint at about a tenth of the accent's strength,
@@ -197,6 +209,27 @@ async function expectHoverLook(page: Page, element: Locator, ring: { offset: str
   return { rest, focused }
 }
 
+/**
+ * Whether an element draws its focus in the colour the stylesheet gives the focus ring, as an outline or
+ * a shadow on the element, on either of its pseudo-elements or on anything inside it, such as a ring a
+ * list item lays over itself
+ */
+async function drawsFocusColour(element: Locator): Promise<boolean> {
+  return element.evaluate((node) => {
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--app-focus-ring)'
+    document.body.append(probe)
+    const ring = getComputedStyle(probe).color
+    probe.remove()
+    return [node, ...node.querySelectorAll('*')].some((box) =>
+      [null, '::before', '::after'].some((pseudo) => {
+        const style = getComputedStyle(box, pseudo)
+        return (style.outlineStyle !== 'none' && style.outlineColor === ring) || style.boxShadow.includes(ring)
+      }),
+    )
+  })
+}
+
 async function seedOneTransaction(page: Page, request: Parameters<typeof signUpUser>[0]) {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
@@ -328,6 +361,36 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expect.poll(async () => (await readLook(row)).button.backgroundColor).toBe(focused.frame.backgroundColor)
   })
 }
+
+// The bank icon on a bank-imported row is an outline icon with no hover look to show in place of a
+// ring, so the keyboard reaching it from the row's title rings it as the controls beside it are
+test(
+  'rings the bank icon on a bank-imported row under keyboard focus in the focus colour',
+  AT_EVERY_SIZE,
+  async ({ page, request }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    const user = await signUpUser(request)
+    const account = await createAccount(request, user, { name: 'Everyday' })
+    const id = await createTransaction(request, user, {
+      accountId: account.id,
+      categoryName: 'Groceries',
+      amount: -4250,
+      date: daysFromTodayInTestTimezone(-1),
+    })
+    await answerAsBankImported(page, { [id]: BANK_SOURCE })
+    await logInViaApi(page, user)
+    await openPage(page, '/transactions')
+    const row = page.getByTestId(`transaction-row-${id}`)
+    const icon = row.getByRole('button', { name: 'From SimpleFIN', exact: true })
+
+    await focusFromKeyboard(page, getTransactionRowButton(row))
+    await page.keyboard.press('Tab')
+    await expect(icon).toBeFocused()
+    await expectSharedRing(icon, 'outline', '2px')
+    expect(await drawsFocusColour(icon)).toBe(true)
+    await expect(getTransactionRowButton(row)).not.toBeFocused()
+  },
+)
 
 // Every stop on the way through the page and a dialog, links, charts and info buttons included, shows
 // the app's focus rather than the browser's own ring, which Chrome reports as an outline style of auto
@@ -1074,7 +1137,9 @@ test('shows the keyboard focus ring at once with reduced motion', async ({ page,
 // Forced colours would draw the clear outline a control holds at rest, so none is held there
 test('holds no outline at rest in forced colours', async ({ page, request }) => {
   await page.emulateMedia({ forcedColors: 'active' })
-  await seedOneTransaction(page, request)
+  const rowButton = await seedOneTransaction(page, request)
+  // A row's title holds no outline on the layer it lays over the row, since its row draws the ring
+  expect(await rowButton.evaluate((node) => getComputedStyle(node, '::after').outlineStyle)).toBe('none')
   await openPage(page, '/settings')
   const security = page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Security', exact: true })
   expect(await security.evaluate((node) => getComputedStyle(node).outlineStyle)).toBe('none')

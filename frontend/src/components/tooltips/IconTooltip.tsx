@@ -61,9 +61,10 @@ const levelConfig: Record<IconTooltipLevel, { Icon: LucideIcon; color: string }>
   },
 }
 
+const ICON_TRIGGER_CLASS = 'inline-flex cursor-pointer appearance-none border-0 bg-transparent p-0'
 // Keyboard focus shows what hovering shows, the filled icon and the open tooltip, so the trigger draws
-// no ring of its own
-const ICON_TRIGGER_CLASS = 'inline-flex cursor-pointer appearance-none border-0 bg-transparent p-0 focus-visible:outline-none'
+// no ring of its own unless it asks for the ring below, which takes this one's place
+const ICON_NO_RING_CLASS = 'focus-visible:outline-none'
 const ICON_HIT_AREA_CLASS = "relative before:absolute before:-inset-1.5 before:content-['']"
 const ICON_FOCUS_RING_CLASS = 'rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-focus-ring)]'
 const ICON_CLASS = 'transition-colors [&>*:first-child]:transition-colors [&>*:not(:first-child)]:transition-colors'
@@ -267,7 +268,7 @@ export default function IconTooltip({
     isFxIcon ? FX_TRIGGER_CLASS : ICON_TRIGGER_CLASS,
     isFxIcon && (isShown ? fxToneClass.active : fxToneClass.idle),
     !isFxIcon && widensHitArea && ICON_HIT_AREA_CLASS,
-    !isFxIcon && focusRing && ICON_FOCUS_RING_CLASS,
+    !isFxIcon && (focusRing ? ICON_FOCUS_RING_CLASS : ICON_NO_RING_CLASS),
   )
   const iconClassName = joinClassNames(ICON_CLASS, hoverFill && ICON_HOVER_CLASS, hoverFill && isShown && ICON_ACTIVE_CLASS)
   const tooltipWrapperClassName = joinClassNames(
