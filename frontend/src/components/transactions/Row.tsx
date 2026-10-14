@@ -134,6 +134,14 @@ interface TransactionRowViewProps extends Omit<TransactionRowProps, 'transaction
 // The row's two layouts, the grid from 750px wide and the stacked one on a phone
 type RowLayout = 'wide' | 'narrow'
 
+// On a wide screen the title is the row's second line, under the category's line and the gap below
+// it, so a title brought into view below the pinned bars leaves room for that line too and the whole
+// row shows rather than the title alone
+const TITLE_SCROLL_MARGIN: Record<RowLayout, string> = {
+  wide: `calc(${TRANSACTION_ROW_SCROLL_MARGIN} + 1.625rem)`,
+  narrow: TRANSACTION_ROW_SCROLL_MARGIN,
+}
+
 // How far a faded row dims its category icon. Icons carry no text, so the contrast every text
 // needs doesn't bound it, but a pale icon such as the white plate all but vanished on the light rows below this
 const FADED_CATEGORY_ICON_OPACITY = 0.75
@@ -437,7 +445,7 @@ export function TransactionRowView({
       aria-describedby={[amountId(layout), dateHeadingId, titleReasonProps['aria-describedby']].filter(Boolean).join(' ')}
       aria-pressed={pressed}
       className={`min-w-0 ${isHeldOff ? 'cursor-not-allowed' : 'cursor-pointer'} text-left after:absolute after:inset-0 after:content-[''] focus-visible:outline-none`}
-      style={{ scrollMarginTop: TRANSACTION_ROW_SCROLL_MARGIN }}
+      style={{ scrollMarginTop: TITLE_SCROLL_MARGIN[layout] }}
     >
       <span className="block truncate">{title}</span>
     </button>
