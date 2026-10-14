@@ -89,7 +89,7 @@ describe('the link list read', () => {
     await mountReader();
     await mountReader();
 
-    expect(authenticatedFetchMock.mock.calls).toEqual([['/bank-sync/links']]);
+    expect(authenticatedFetchMock.mock.calls).toEqual([['/bank-sync/links', expect.anything()]]);
   });
 });
 

@@ -2,8 +2,9 @@
  * Covers the bank sync request functions that reshape what they send
  *
  * These tests catch the review list losing its place between pages, a body losing the field names
- * the backend reads, such as the setup token a reconnect sends, and a request that waits on the bank
- * provider failing at the shared request limit while the server is still finishing it
+ * the backend reads, such as the setup token a reconnect sends, a request that waits on the bank
+ * provider failing at the shared request limit while the server is still finishing it, and a read
+ * that keeps going after the load that asked for it was abandoned
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -18,8 +19,17 @@ vi.mock('@/api/client', () => ({
 import {
   claimSetupToken,
   createBankLink,
+  fetchAccountBankStatus,
+  fetchBankConnections,
+  fetchBankLinks,
+  fetchBankProviders,
   fetchBulkApprovalPreview,
+  fetchDiscoveredBankAccounts,
+  fetchImportRange,
+  fetchPendingBankTransactions,
+  fetchReviewBacklogs,
   fetchReviewPage,
+  fetchReviewPreferences,
   reconnectBankConnection,
 } from '@/api/bank-sync/requests';
 import { REQUEST_TIMEOUT_MS } from '@/api/server';
@@ -35,7 +45,28 @@ describe('bank sync reads', () => {
 
     expect(authenticatedFetchMock).toHaveBeenCalledWith(
       '/bank-review/items?account_id=account-1&account_id=account-2&cursor=cursor-2&limit=50',
+      expect.anything(),
     );
+  });
+
+  it.each([
+    ['the providers', (signal: AbortSignal) => fetchBankProviders(signal)],
+    ['the connections', (signal: AbortSignal) => fetchBankConnections(signal)],
+    ['a connection’s bank accounts', (signal: AbortSignal) => fetchDiscoveredBankAccounts('connection-1', 'account-1', signal)],
+    ['the links', (signal: AbortSignal) => fetchBankLinks(signal)],
+    ['an account’s link', (signal: AbortSignal) => fetchAccountBankStatus('account-1', signal)],
+    ['the import range', (signal: AbortSignal) => fetchImportRange('account-1', 'simplefin', signal)],
+    ['the review settings', (signal: AbortSignal) => fetchReviewPreferences('account-1', signal)],
+    ['a review page', (signal: AbortSignal) => fetchReviewPage({ cursor: null }, signal)],
+    ['the review backlogs', (signal: AbortSignal) => fetchReviewBacklogs(undefined, signal)],
+    ['the pending transactions', (signal: AbortSignal) => fetchPendingBankTransactions(undefined, signal)],
+    ['the bulk approval preview', (signal: AbortSignal) => fetchBulkApprovalPreview(undefined, signal)],
+  ])('passes the abort signal on to the request reading %s', async (_label, read) => {
+    const { signal } = new AbortController();
+
+    await read(signal);
+
+    expect(authenticatedFetchMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ signal }));
   });
 });
 

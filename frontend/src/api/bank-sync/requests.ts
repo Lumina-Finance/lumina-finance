@@ -37,32 +37,41 @@ const PROVIDER_REQUEST_TIMEOUT_MS = 2 * 60_000;
 /**
  * Sends a POST with an optional JSON body
  *
- * @param timeoutMs - How long to wait for an answer, when it differs from the shared request limit
+ * @param options.timeoutMs - How long to wait for an answer, when it differs from the shared request limit
+ * @param options.signal - Aborts the request when the load that asked for it is abandoned
  */
-function post<T>(path: string, body?: unknown, timeoutMs?: number): Promise<T> {
+function post<T>(path: string, body?: unknown, { timeoutMs, signal }: { timeoutMs?: number; signal?: AbortSignal } = {}): Promise<T> {
   return authenticatedFetch<T>(path, {
     method: 'POST',
     body: body === undefined ? undefined : JSON.stringify(body),
     timeoutMs,
+    signal,
   });
 }
 
 /**
  * Fetches the enabled providers, whether this user may link bank accounts and whether sync is running
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchBankProviders() {
-  return authenticatedFetch<BankProvidersResponse>('/bank-sync/providers');
+export function fetchBankProviders(signal?: AbortSignal) {
+  return authenticatedFetch<BankProvidersResponse>('/bank-sync/providers', { signal });
 }
 
-export function fetchBankConnections() {
-  return authenticatedFetch<BankConnection[]>('/bank-sync/connections');
+/**
+ * Fetches the user's connections
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
+ */
+export function fetchBankConnections(signal?: AbortSignal) {
+  return authenticatedFetch<BankConnection[]>('/bank-sync/connections', { signal });
 }
 
 /**
  * Claims a SimpleFIN setup token, storing the credential it yields as a new connection
  */
 export function claimSetupToken(payload: ClaimSetupTokenPayload) {
-  return post<BankConnection>('/bank-sync/connections', payload, PROVIDER_REQUEST_TIMEOUT_MS);
+  return post<BankConnection>('/bank-sync/connections', payload, { timeoutMs: PROVIDER_REQUEST_TIMEOUT_MS });
 }
 
 /**
@@ -70,7 +79,7 @@ export function claimSetupToken(payload: ClaimSetupTokenPayload) {
  * the accounts linked through it
  */
 export function reconnectBankConnection({ connectionId, setupToken }: { connectionId: string; setupToken: string }) {
-  return post<ReconnectConnectionResult>(`/bank-sync/connections/${connectionId}/reconnect`, { setup_token: setupToken }, PROVIDER_REQUEST_TIMEOUT_MS);
+  return post<ReconnectConnectionResult>(`/bank-sync/connections/${connectionId}/reconnect`, { setup_token: setupToken }, { timeoutMs: PROVIDER_REQUEST_TIMEOUT_MS });
 }
 
 /**
@@ -92,30 +101,45 @@ export function deleteBankConnection(connectionId: string) {
 
 /**
  * Lists the bank accounts a connection returns, described relative to the account being linked
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchDiscoveredBankAccounts(connectionId: string, accountId: string) {
+export function fetchDiscoveredBankAccounts(connectionId: string, accountId: string, signal?: AbortSignal) {
   return authenticatedFetch<DiscoveredBankAccounts>(
     `/bank-sync/connections/${connectionId}/accounts` + buildQueryString({ for_account_id: accountId }),
+    { signal },
   );
 }
 
 /**
  * Fetches every one of the user's links with its status
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchBankLinks() {
-  return authenticatedFetch<BankLink[]>('/bank-sync/links');
+export function fetchBankLinks(signal?: AbortSignal) {
+  return authenticatedFetch<BankLink[]>('/bank-sync/links', { signal });
 }
 
-export function fetchAccountBankStatus(accountId: string) {
-  return authenticatedFetch<AccountBankStatus>(`/accounts/${accountId}/bank-link`);
+/**
+ * Fetches an account's bank link with its status
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
+ */
+export function fetchAccountBankStatus(accountId: string, signal?: AbortSignal) {
+  return authenticatedFetch<AccountBankStatus>(`/accounts/${accountId}/bank-link`, { signal });
 }
 
 /**
  * Fetches where an import into the account may start, which depends on how much history the provider
  * the import would come from allows
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchImportRange(accountId: string, provider: BankProviderId) {
-  return authenticatedFetch<BankImportRange>(`/accounts/${accountId}/bank-link/import-range` + buildQueryString({ provider }));
+export function fetchImportRange(accountId: string, provider: BankProviderId, signal?: AbortSignal) {
+  return authenticatedFetch<BankImportRange>(
+    `/accounts/${accountId}/bank-link/import-range` + buildQueryString({ provider }),
+    { signal },
+  );
 }
 
 /**
@@ -169,8 +193,13 @@ export function skipOpeningAdjustment(accountId: string) {
   return post<AccountBankStatus>(`/accounts/${accountId}/bank-link/opening-adjustment/skip`);
 }
 
-export function fetchReviewPreferences(accountId: string) {
-  return authenticatedFetch<ReviewPreferences>(`/accounts/${accountId}/review-preferences`);
+/**
+ * Fetches whether each kind of bank data arriving for the account waits for review
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
+ */
+export function fetchReviewPreferences(accountId: string, signal?: AbortSignal) {
+  return authenticatedFetch<ReviewPreferences>(`/accounts/${accountId}/review-preferences`, { signal });
 }
 
 export function updateReviewPreferences({ accountId, preferences }: { accountId: string; preferences: ReviewPreferences }) {
@@ -182,20 +211,30 @@ export function updateReviewPreferences({ accountId, preferences }: { accountId:
 
 /**
  * Fetches one page of the review inbox, newest first, for some accounts or for all of them
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchReviewPage({ accountIds, cursor }: { accountIds?: string[]; cursor?: string | null }) {
+export function fetchReviewPage(
+  { accountIds, cursor }: { accountIds?: string[]; cursor?: string | null },
+  signal?: AbortSignal,
+) {
   return authenticatedFetch<BankReviewPage>('/bank-review/items' + buildQueryString({
     account_id: accountIds,
     cursor,
     limit: REVIEW_PAGE_SIZE,
-  }));
+  }), { signal });
 }
 
 /**
  * Fetches each account's review backlog, for some accounts or for all of them
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchReviewBacklogs(accountIds?: string[]) {
-  return authenticatedFetch<BankReviewBacklog[]>('/bank-review/backlogs' + buildQueryString({ account_id: accountIds }));
+export function fetchReviewBacklogs(accountIds?: string[], signal?: AbortSignal) {
+  return authenticatedFetch<BankReviewBacklog[]>(
+    '/bank-review/backlogs' + buildQueryString({ account_id: accountIds }),
+    { signal },
+  );
 }
 
 /**
@@ -223,9 +262,11 @@ export function resolveReviewItem({ itemId, resolution }: { itemId: string; reso
 
 /**
  * Lists what bulk approval would apply, for some accounts or for all of them
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchBulkApprovalPreview(accountIds?: string[]) {
-  return post<BulkApprovalPreview>('/bank-review/bulk-approve/preview', { account_ids: accountIds ?? null });
+export function fetchBulkApprovalPreview(accountIds?: string[], signal?: AbortSignal) {
+  return post<BulkApprovalPreview>('/bank-review/bulk-approve/preview', { account_ids: accountIds ?? null }, { signal });
 }
 
 /**
@@ -237,9 +278,14 @@ export function applyBulkApproval(payload: BulkApprovalPayload) {
 
 /**
  * Lists the transactions the bank hasn't posted yet, newest first, for some accounts or for all of them
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchPendingBankTransactions(accountIds?: string[]) {
-  return authenticatedFetch<PendingBankTransaction[]>('/bank-sync/pending' + buildQueryString({ account_id: accountIds }));
+export function fetchPendingBankTransactions(accountIds?: string[], signal?: AbortSignal) {
+  return authenticatedFetch<PendingBankTransaction[]>(
+    '/bank-sync/pending' + buildQueryString({ account_id: accountIds }),
+    { signal },
+  );
 }
 
 /**

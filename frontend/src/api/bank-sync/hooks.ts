@@ -86,7 +86,7 @@ export function useBankProviders() {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: bankSyncKeys.providers(),
-    queryFn: fetchBankProviders,
+    queryFn: ({ signal }) => fetchBankProviders(signal),
     enabled: !!accessToken,
     staleTime: BANK_DATA_STALE_TIME_MS,
   });
@@ -103,7 +103,7 @@ export function useBankConnections({ claimUnansweredAt = null }: { claimUnanswer
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: bankSyncKeys.connections(),
-    queryFn: fetchBankConnections,
+    queryFn: ({ signal }) => fetchBankConnections(signal),
     enabled: !!accessToken,
     staleTime: BANK_DATA_STALE_TIME_MS,
     refetchInterval: (query) => getBankConnectionsPollInterval(query.state.data, claimUnansweredAt, Date.now()),
@@ -118,7 +118,7 @@ export function useDiscoveredBankAccounts(connectionId: string | null, accountId
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: bankSyncKeys.discoveredAccounts(connectionId, accountId),
-    queryFn: () => fetchDiscoveredBankAccounts(connectionId ?? '', accountId),
+    queryFn: ({ signal }) => fetchDiscoveredBankAccounts(connectionId ?? '', accountId, signal),
     enabled: !!accessToken && connectionId !== null,
     staleTime: BANK_DATA_STALE_TIME_MS,
     refetchInterval: (query) => (query.state.data?.discovery_pending ? BANK_DISCOVERY_POLL_MS : false),
@@ -135,7 +135,7 @@ export function useDiscoveredBankAccounts(connectionId: string | null, accountId
  */
 export const bankLinksQueryOptions = queryOptions({
   queryKey: bankSyncKeys.links(),
-  queryFn: fetchBankLinks,
+  queryFn: ({ signal }) => fetchBankLinks(signal),
   staleTime: (query) => getBankLinksStaleTime(query.state.data),
   retry: (failureCount, error) => !isRefusedRead(error) && failureCount < LINKS_READ_RETRIES,
   retryOnMount: false,
@@ -205,7 +205,7 @@ export function useAccountBankStatus(accountId: string, enabled: boolean) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: bankSyncKeys.accountStatus(accountId),
-    queryFn: () => fetchAccountBankStatus(accountId),
+    queryFn: ({ signal }) => fetchAccountBankStatus(accountId, signal),
     enabled: enabled && !!accessToken,
     staleTime: BANK_DATA_STALE_TIME_MS,
   });
@@ -218,7 +218,7 @@ export function useImportRange(accountId: string, provider: BankProviderId | nul
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: bankSyncKeys.importRange(accountId, provider),
-    queryFn: provider ? () => fetchImportRange(accountId, provider) : skipToken,
+    queryFn: provider ? ({ signal }) => fetchImportRange(accountId, provider, signal) : skipToken,
     enabled: !!accessToken && enabled,
     staleTime: BANK_DATA_STALE_TIME_MS,
   });
@@ -233,7 +233,7 @@ export function useReviewPreferences(accountId: string, enabled: boolean) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: bankSyncKeys.reviewPreferences(accountId),
-    queryFn: () => fetchReviewPreferences(accountId),
+    queryFn: ({ signal }) => fetchReviewPreferences(accountId, signal),
     enabled: enabled && !!accessToken,
   });
 }
@@ -245,7 +245,7 @@ export function useReviewItems(accountIds: string[] | undefined, enabled = true)
   const { accessToken } = useAuth();
   return useInfiniteQuery({
     queryKey: bankSyncKeys.reviewItems(accountIds),
-    queryFn: ({ pageParam }) => fetchReviewPage({ accountIds, cursor: pageParam }),
+    queryFn: ({ pageParam, signal }) => fetchReviewPage({ accountIds, cursor: pageParam }, signal),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.next_cursor,
     enabled: !!accessToken && enabled,
@@ -261,7 +261,7 @@ export function useReviewBacklogs(accountIds: string[] | undefined, enabled = tr
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: bankSyncKeys.reviewBacklogs(accountIds),
-    queryFn: () => fetchReviewBacklogs(accountIds),
+    queryFn: ({ signal }) => fetchReviewBacklogs(accountIds, signal),
     enabled: !!accessToken && enabled,
     staleTime: BANK_DATA_STALE_TIME_MS,
   });
@@ -274,7 +274,7 @@ export function usePendingBankTransactions(accountIds: string[] | undefined, ena
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: bankSyncKeys.pending(accountIds),
-    queryFn: () => fetchPendingBankTransactions(accountIds),
+    queryFn: ({ signal }) => fetchPendingBankTransactions(accountIds, signal),
     enabled: !!accessToken && enabled,
     staleTime: BANK_DATA_STALE_TIME_MS,
   });
@@ -288,7 +288,7 @@ export function useBulkApprovalPreview(accountIds: string[] | undefined, enabled
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: bankSyncKeys.bulkPreview(accountIds),
-    queryFn: () => fetchBulkApprovalPreview(accountIds),
+    queryFn: ({ signal }) => fetchBulkApprovalPreview(accountIds, signal),
     enabled: !!accessToken && enabled,
     staleTime: BANK_DATA_STALE_TIME_MS,
     refetchOnMount: 'always',
