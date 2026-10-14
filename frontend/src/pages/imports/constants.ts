@@ -148,15 +148,15 @@ export function getDirectionValuesAgreeError(direction: 'out' | 'in') {
   return `Both words in the Direction column are set to ${label}, so nothing in this file separates the two directions. If every row really is ${label.toLowerCase()}, map the Amount column as ${label} and set the Direction column to Do not import. Otherwise set one of the two words to the other direction.`
 }
 
-// The merchant an imported row is filed under when its file states no payee, and the one a transfer
-// row gets, since a transfer has no payee of its own. Both ship with the app, and these have to stay
+// The merchant an imported row is filed under when its file states no merchant, and the one a
+// transfer row gets, since a transfer has no merchant of its own. Both ship with the app, and these have to stay
 // in step with the backend's own names, the way the balance adjustment category name does
 export const UNKNOWN_MERCHANT_NAME = 'Unknown'
 export const SELF_MERCHANT_NAME = 'Myself'
 
 // The two answers the merchant step offers beside the merchants themselves, kept distinct from any
 // merchant id. Creating is what a value gets when nothing matches it, and skipping files that
-// value's rows under the shared merchant a row stating no payee gets
+// value's rows under the shared merchant a row stating no merchant gets
 export const CREATE_MERCHANT_VALUE = '__create_merchant__'
 export const SKIP_MERCHANT_VALUE = '__skip_merchant__'
 
@@ -324,33 +324,33 @@ export function getRowTooManyTagsReason(count: number) {
   return `This row has ${count} tags, and a transaction carries up to ${MAX_IMPORT_TAGS_PER_ROW}.`
 }
 
-// Shown in the column mapping step where any row states no payee, which is every row when no column
-// is mapped as the Merchant and only the blank ones where a column is. It asks for nothing: every
-// transaction carries a merchant, so those rows are filed under one that ships with the app, and
-// this says so before the import runs rather than leaving it to be noticed in the preview
-export const ROWS_WITH_NO_PAYEE_TITLE = 'Rows with no payee'
+// Shown in the column mapping step where any row states no merchant, which is every row when no
+// column is mapped as the Merchant and only the blank ones where a column is. It asks for nothing:
+// every transaction carries a merchant, so those rows are filed under one that ships with the app,
+// and this says so before the import runs rather than leaving it to be noticed in the preview
+export const ROWS_WITH_NO_PAYEE_TITLE = 'Rows with no merchant'
 
 /**
- * Says what will happen to the rows stating no payee, with them counted
+ * Says what will happen to the rows stating no merchant, with them counted
  *
- * No merchant is stated, because which one a row gets depends on its category: a transfer has no
- * payee of its own and takes the merchant the app puts on its own transfers, while everything else
- * takes the one meaning the payee is not known.
+ * The merchant they get is not named, because which one a row gets depends on its category: a
+ * transfer has no merchant of its own and takes the one the app puts on its own transfers, while
+ * everything else takes the one meaning the merchant is not known.
  *
  * Mapping a column is offered only where none is mapped, since that is the better answer when the
- * file does hold the payee under a heading the guesser did not recognise. Where one is mapped there
- * is nothing to map, and the rows are the ones whose cell was left blank
+ * file does hold the merchant under a heading the guesser did not recognise. Where one is mapped
+ * there is nothing to map, and the rows are the ones whose cell was left blank
  */
 export function getRowsWithNoPayeeExplanation(rowCount: number, isMerchantColumnMapped: boolean) {
   const isOne = rowCount === 1
   const subject = isMerchantColumnMapped
-    ? `${isOne ? '1 row leaves' : `${rowCount.toLocaleString()} rows leave`} the payee column blank`
-    : `${isOne ? '1 row states' : `${rowCount.toLocaleString()} rows state`} no payee`
+    ? `${isOne ? '1 row leaves' : `${rowCount.toLocaleString()} rows leave`} the merchant column blank`
+    : `${isOne ? '1 row states' : `${rowCount.toLocaleString()} rows state`} no merchant`
   const filed = `every transaction carries a merchant, so ${isOne ? 'it will be' : 'they will be'} filed under a merchant that ships with the app`
 
   return isMerchantColumnMapped
     ? `${subject}, and ${filed}.`
-    : `${subject}, and ${filed}. Map the column holding the payee above if the file has one.`
+    : `${subject}, and ${filed}. Map the column holding the merchant above if the file has one.`
 }
 
 // Shown over the upload control while the currency list is not in hand. Reading a file uses it to
@@ -524,10 +524,10 @@ export const ACCOUNTS_LOAD_FAILURE_EXPLANATION = 'Without them every source here
 export const CATEGORIES_LOAD_FAILURE_TITLE = 'Your categories could not be loaded'
 export const CATEGORIES_LOAD_FAILURE_EXPLANATION = 'Without them every category in this file would have to become a new one, which would duplicate categories you already have.'
 
-// Shown when the page could not ask which of the file's payee values already have a merchant.
-// Every value would then read as one about to be created, which is what the step exists to stop
+// Shown when the page could not ask which of the file's merchant names already have a merchant.
+// Every name would then read as one about to be created, which is what the step exists to stop
 export const MERCHANT_MATCHES_LOAD_FAILURE_TITLE = 'Your merchants could not be checked'
-export const MERCHANT_MATCHES_LOAD_FAILURE_EXPLANATION = 'Without that check every payee in this file reads as a new merchant, and importing would create merchants you already have.'
+export const MERCHANT_MATCHES_LOAD_FAILURE_EXPLANATION = 'Without that check every merchant in this file reads as a new one, and importing would create merchants you already have.'
 
 // Shown when a mapping was answered with an account that has since been deleted. The answer is
 // dropped rather than sent, and nothing fills the row back in, so the user is told why a source

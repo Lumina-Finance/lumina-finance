@@ -20,7 +20,7 @@ _SYSTEM_MERCHANT_NAME = "Unknown"
 
 
 def upgrade() -> None:
-    """Add the merchant an import stamps on a row stating no payee, folding everyone's own into it"""
+    """Add the merchant an import stamps on a row stating no merchant, folding everyone's own into it"""
     # Seeded here rather than left to the seed script, because the fold below needs it to exist and
     # migrations run before seeding. Left alone where it is already there, since the seed script can
     # have been run by hand against a database this has not reached yet

@@ -10,7 +10,7 @@ from pydantic.json_schema import SkipJsonSchema
 from app.schemas.import_run import MAX_IMPORT_MAPPINGS
 from app.schemas.names import TrimmedName
 
-# One payee value asked about, bounded by the column merchants are stored in. A lookup asks about at
+# One merchant name asked about, bounded by the column merchants are stored in. A lookup asks about at
 # most what one import may declare mappings for, since the import page is what asks it
 MerchantNameMatchName = Annotated[TrimmedName, Field(min_length=1, max_length=256)]
 
@@ -72,7 +72,7 @@ class MergeMerchantRequest(BaseModel):
 
 
 class MerchantNameMatchRequest(BaseModel):
-    """Payee values from a file, asked about together.
+    """Merchant names from a file, asked about together.
 
     The import page asks this rather than holding every merchant a user has, since a person can
     build up thousands of them while the list endpoint answers a page at a time.
@@ -82,7 +82,7 @@ class MerchantNameMatchRequest(BaseModel):
 
 
 class MerchantNameMatch(BaseModel):
-    """One payee value and the merchant an import would file its rows under."""
+    """One merchant name and the merchant an import would file its rows under."""
 
     # The value exactly as it was asked about, so the caller can read the answer back against what
     # it sent rather than applying the matching rule a second time

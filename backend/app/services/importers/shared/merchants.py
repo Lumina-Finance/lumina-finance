@@ -22,7 +22,7 @@ def select_requested_merchant_names(names: Iterable[str]):
     """Return the given names as a table the database can compare with merchant names
 
     Sent as one array rather than a row of parameters each, so a file with a hundred thousand
-    payees is one parameter
+    merchant names is one parameter
 
     Args:
         names: Names to send, repeats allowed
@@ -135,20 +135,22 @@ class ImportMerchants:
     """What an import files each of its rows under, worked out once for the whole file
 
     Three separate questions, each with a map of its own, because one map answering more than one of
-    them is what let an answer for a payee value be read back as a merchant that exists under that
-    name, and what let a payee value reading "Unknown" take the shared merchant out of the lookup
+    them is what let an answer for a name in the file be read back as a merchant that exists under
+    that name, and what let a name in the file reading "Unknown" take the shared merchant out of the
+    lookup
 
     Attributes:
         existing_by_name_key: What merchants there are, keyed by their own name. Extended by what
             this import writes and by what it finds another request has written, never by an answer
         system_by_key: The merchants that ship with the app, keyed by their own name, which is what
-            a row stating no payee is stamped from
-        resolved_by_payee_key: What each payee value in the file resolves to, keyed by the value
-            rather than by any merchant's name. This is what a row is filed through
-        skipped_keys: Payee values the user answered skip, whose rows are filed under the shared
-            merchant the app stamps on a row stating no payee at all
+            a row stating no merchant is stamped from
+        resolved_by_payee_key: What each merchant name in the file resolves to, keyed by the name as
+            the file states it rather than by any merchant's own name. This is what a row is filed
+            through
+        skipped_keys: Merchant names the user answered skip, whose rows are filed under the shared
+            merchant the app stamps on a row stating no merchant at all
         keys_by_name: The key the database gave each name this import has met, merchants' own names
-            and the file's payee values alike, since every key is worked out by the database
+            and the file's merchant names alike, since every key is worked out by the database
     """
 
     existing_by_name_key: dict[str, Merchant]
@@ -180,7 +182,7 @@ async def load_import_merchants(db: AsyncSession, user_id: uuid.UUID) -> ImportM
         user_id: Identifier for the user running the import
 
     Returns:
-        The merchants this import can match a payee to
+        The merchants this import can match a merchant name to
     """
     # Every merchant a row could match is loaded once, so matching a row costs no query. System
     # merchants are included because their names are taken in every scope, and leaving them out is
@@ -211,19 +213,19 @@ async def create_missing_import_merchants(
     merchants: ImportMerchants,
     stats: ImportStats,
 ) -> None:
-    """Settle what every payee value in a file resolves to, creating the merchants it needs
+    """Settle what every merchant name in a file resolves to, creating the merchants it needs
 
     A value the user answered is taken as answered: pointed at a merchant they chose, created under
     a name they wrote, or left with none. Every other value keeps what the importer does unasked,
     matching an existing merchant by name and creating one where nothing matches. Whatever the file
-    introduces is written in one insert, so a file carrying a hundred thousand new payees costs one
+    introduces is written in one insert, so a file carrying a hundred thousand new merchants costs one
     round trip rather than one for each
 
     Args:
         db: Active database session
         user_id: Identifier for the user running the import
         raw_names: Raw merchant names from every row of the import, blanks and repeats included
-        mappings: The payee values the user answered by hand, which may be none of them
+        mappings: The merchant names the user answered by hand, which may be none of them
         merchants: Merchant lookup for this import, extended with what is chosen and created
         stats: Import summary counters updated when merchants are created
 
@@ -232,7 +234,7 @@ async def create_missing_import_merchants(
 
     Raises:
         HTTPException: Raised with 422 when a merchant name is too long, when an answer states no
-            single action, when one payee value is answered twice, and when an answer points at a
+            single action, when one merchant name is answered twice, and when an answer points at a
             merchant the import cannot use. Raised with 500 when a name the insert skipped cannot
             then be found, which takes another request creating it and then rolling back
     """
@@ -257,8 +259,8 @@ async def create_missing_import_merchants(
     merchants.skipped_keys.update(key for key, answer in answers.items() if answer.skip)
     await _attach_chosen_import_merchants(db, user_id, answers, merchants)
 
-    # Keyed by the name a merchant will be stored under rather than by the payee value, since two
-    # values corrected to one name make one merchant between them
+    # Keyed by the name a merchant will be stored under rather than by the name as the file states
+    # it, since two names corrected to one make one merchant between them
     names_by_key: dict[str, str] = {}
     name_key_by_payee_key: dict[str, str] = {}
 
@@ -286,7 +288,7 @@ async def create_missing_import_merchants(
             merchants.resolved_by_payee_key[payee_key] = existing
             continue
 
-        # The first spelling wins, so two payee values whose stored names differ only in capitals
+        # The first spelling wins, so two merchant names whose stored names differ only in capitals
         # make one merchant: "SQ *AMZN 88" created as "Amazon" beside "AMZN MKTP" created as
         # "AMAZON" writes Amazon alone, and both values resolve to it
         names_by_key.setdefault(name_key, stored_name)
@@ -342,10 +344,10 @@ def _index_import_merchant_answers(
     mappings: list[TransactionImportMerchantMapping],
     merchants: ImportMerchants,
 ) -> dict[str, TransactionImportMerchantMapping]:
-    """Return the answered payee values keyed by what matches them
+    """Return the answered merchant names keyed by what matches them
 
     Args:
-        mappings: The payee values the user answered by hand
+        mappings: The merchant names the user answered by hand
         merchants: Merchant lookup for this import, holding the key of every answered value
 
     Returns:
@@ -353,7 +355,7 @@ def _index_import_merchant_answers(
 
     Raises:
         HTTPException: Raised with 422 when an answer states no single action, and when two answers
-            are given for values that match as one payee. A staged run cannot carry that pair, since
+            are given for names that match as one merchant. A staged run cannot carry that pair, since
             it holds one answer per matching key, so this second refusal is what a request built by
             hand rather than by the import page meets
     """
@@ -368,7 +370,7 @@ def _index_import_merchant_answers(
                 detail=f"Merchant source must map to exactly one merchant action: {source}",
             )
 
-        # Two spellings of one payee resolve to one merchant, so answering both leaves nothing to
+        # Two spellings of one merchant name resolve to one merchant, so answering both leaves nothing to
         # say which answer the rows carrying either spelling should take
         key = merchants.get_key(source)
         if key in answers:
@@ -387,12 +389,12 @@ async def _attach_chosen_import_merchants(
     answers: dict[str, TransactionImportMerchantMapping],
     merchants: ImportMerchants,
 ) -> None:
-    """Point the payee values answered with an existing merchant at it
+    """Point the merchant names answered with an existing merchant at it
 
     Args:
         db: Active database session
         user_id: Identifier for the user running the import
-        answers: The answered payee values keyed by what matches them
+        answers: The answered merchant names keyed by what matches them
         merchants: Merchant lookup for this import, extended with what was chosen
 
     Returns:
@@ -419,7 +421,7 @@ async def _attach_chosen_import_merchants(
         if merchant is None:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Merchant not found")
 
-        # Settles what this payee value resolves to, whatever it would have matched on its own,
+        # Settles what this merchant name resolves to, whatever it would have matched on its own,
         # which is the whole point of answering it: a descriptor reading nothing like the merchant
         # still lands on it
         merchants.resolved_by_payee_key[key] = merchant
@@ -472,7 +474,7 @@ def get_import_merchant(
     merchants: ImportMerchants,
     stats: ImportStats,
 ) -> Merchant | None:
-    """Return the merchant one import row's payee text resolves to
+    """Return the merchant one import row's merchant name resolves to
 
     Args:
         raw_name: Raw merchant name from the import row
@@ -480,7 +482,7 @@ def get_import_merchant(
         stats: Import summary counters updated when a merchant is used
 
     Returns:
-        The merchant for the row, or None where the row states no payee and where the user answered
+        The merchant for the row, or None where the row states no merchant and where the user answered
         skip for the one it states, both of which leave the caller to stamp a shared merchant on it
 
     Raises:
@@ -501,25 +503,25 @@ def get_import_merchant(
 
 @dataclass
 class NoPayeeMerchants:
-    """The shared merchants an import stamps on a row that states no payee
+    """The shared merchants an import stamps on a row that states no merchant
 
     Stamping one counts as neither created nor reused, because the summary reports what the file's
-    own values matched and a stamped merchant matched nothing. A file whose payee column happens to
+    own values matched and a stamped merchant matched nothing. A file whose merchant column happens to
     read "Unknown" is a different thing: that value matched the shared merchant on its own name, and
     the summary counts it as reused like any other match
 
     Attributes:
         transfer: Stamped on a transfer-kind row that resolved to no merchant, which is what the app
             puts on the balance adjustments it writes for itself when an account is created by hand
-        other: Stamped on every other row that resolved to none, meaning one whose payee cell is
-            blank and one whose payee the user answered skip
+        other: Stamped on every other row that resolved to none, meaning one whose merchant cell
+            is blank and one whose merchant the user answered skip
     """
 
     transfer: Merchant
     other: Merchant
 
     def get_for_category(self, category: Category) -> Merchant:
-        """Return the merchant a row stating no payee is stamped with
+        """Return the merchant a row stating no merchant is stamped with
 
         Args:
             category: Category the row is filed under
@@ -531,11 +533,11 @@ class NoPayeeMerchants:
 
 
 def get_no_payee_merchants(merchants: ImportMerchants) -> NoPayeeMerchants:
-    """Return the shared merchants stamped on rows that state no payee
+    """Return the shared merchants stamped on rows that state no merchant
 
     Args:
         merchants: Merchant lookup for this import, read for the merchants that ship with the app
-            rather than for what its payee values resolved to
+            rather than for what its merchant names resolved to
 
     Returns:
         The shared merchants for this import
@@ -552,9 +554,9 @@ def get_no_payee_merchants(merchants: ImportMerchants) -> NoPayeeMerchants:
 def _require_system_merchant(merchants: ImportMerchants, name: str) -> Merchant:
     """Return one merchant that ships with the app, refusing the import when it is absent
 
-    Read from the merchants that ship with the app rather than from what the file's payee values
-    resolved to, so a value reading "Unknown" answered by hand cannot decide what a row stating no
-    payee is stamped with. A personal merchant is not accepted in place of a shared one either way,
+    Read from the merchants that ship with the app rather than from what the file's merchant names
+    resolved to, so a name reading "Unknown" answered by hand cannot decide what a row stating no
+    merchant is stamped with. A personal merchant is not accepted in place of a shared one either way,
     so a database that never ran the seeding fails here rather than quietly stamping one user's own
     merchant on their rows
 

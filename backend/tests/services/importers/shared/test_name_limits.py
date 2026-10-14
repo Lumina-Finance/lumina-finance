@@ -33,7 +33,7 @@ async def test_a_merchant_name_over_the_column_limit_is_refused():
 
 
 async def test_merchant_keys_for_a_file_of_every_size_are_worked_out_by_the_database():
-    """A file's payees go to the database as one parameter, past the driver's limit on parameters."""
+    """A file's merchant names go to the database as one parameter, past the driver's limit on parameters."""
     async with TestSession() as session:
         names = [f"Payee {index}" for index in range(40_000)] + ["İstanbul Kebap"]
 

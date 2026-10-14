@@ -492,7 +492,7 @@ describe('the Firefly row values the payload sends', () => {
   )
 
   // The name of an endpoint the import never writes is left out, so its length cannot fail the batch
-  it('sends only the payee name that becomes the merchant', () => {
+  it('sends only the endpoint name that becomes the merchant', () => {
     const initialBalanceName = `Initial balance for "${'C'.repeat(300)}"`
     const openingBalance: CsvRow = {
       ...ROW,

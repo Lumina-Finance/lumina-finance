@@ -280,7 +280,7 @@ describe('pairing Actual Budget transfers', () => {
 })
 
 describe('Actual Budget rows over the import limits', () => {
-  it('leaves out and lists rows whose notes, tags or payee the import cannot take', () => {
+  it('leaves out and lists rows whose notes, tags or merchant name the import cannot take', () => {
     const longPayee = 'P'.repeat(JOURNAL_ROW_FIELD_MAX_LENGTHS.payee + 1)
     const longTag = 't'.repeat(IMPORT_TAG_NAME_MAX_LENGTH + 1)
     const manyTags = Array.from({ length: MAX_IMPORT_TAGS_PER_ROW + 1 }, (_, index) => `#tag${index}`).join(' ')

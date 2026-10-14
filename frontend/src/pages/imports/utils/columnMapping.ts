@@ -103,7 +103,7 @@ const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
   // written as a number, so there is nothing here worth refusing, and the wording says only what
   // the field is for rather than claiming a check that does not run
   merchant_id: {
-    expected: 'merchant or payee names',
+    expected: 'merchant names',
     accepts: acceptsAnyValue,
   },
   notes: {

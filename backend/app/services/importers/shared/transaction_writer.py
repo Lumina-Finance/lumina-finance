@@ -37,7 +37,7 @@ class ImportedTransaction:
         dt: Transaction date
         amount: Signed amount in account-currency minor units
         category: Category applied to the transaction
-        merchant_name: Payee text as the file states it, or None where it states none
+        merchant_name: Merchant name as the file states it, or None where it states none
         notes: Notes written on the transaction
         tag_names: Tag names as the file states them, blanks and repeats included
         counterparty_account_id: Account at the other end of a transfer, if the row names one
@@ -73,7 +73,7 @@ async def write_imported_transactions(
         import_run_id: Run being committed, which every written transaction is stamped with so
             undoing the import can find them
         transactions: Resolved rows in file order
-        merchant_mappings: The payee values the user answered by hand, which may be none of them
+        merchant_mappings: The merchant names the user answered by hand, which may be none of them
         import_lookups: Lookup maps the rows were resolved from, extended with created merchants and tags
         stats: Import summary counters updated during the import
 
@@ -111,7 +111,7 @@ async def write_imported_transactions(
         pending: list[tuple[Transaction, list[Tag]]] = []
 
         for imported in transactions[chunk_start:chunk_start + IMPORT_WRITE_CHUNK]:
-            # Every transaction carries a merchant, so a row stating no payee, such as a transfer leg
+            # Every transaction carries a merchant, so a row stating no merchant, such as a transfer leg
             # or a balance adjustment, is stamped with the shared one for its kind
             merchant = (
                 get_import_merchant(imported.merchant_name, import_lookups.merchants, stats)

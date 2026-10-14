@@ -2,6 +2,6 @@
 
 Converts journal rows the import screen compiles from either export into
 Lumina transactions. Every journal moves money between two endpoints, so rows
-resolve to one Lumina transaction when the counterparty is a payee, and to a
+resolve to one Lumina transaction when the counterparty is a merchant, and to a
 two-leg transfer when both endpoints are imported asset or liability accounts
 """

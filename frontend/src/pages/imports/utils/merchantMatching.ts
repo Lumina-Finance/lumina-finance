@@ -9,7 +9,7 @@ import {
 } from '@/pages/imports/constants'
 
 /**
- * Builds the answers the merchant step offers for one payee value
+ * Builds the answers the merchant step offers for one merchant name
  *
  * The merchants offered are the ones the file's own values already match, plus whatever a search
  * turned up, since a person can have thousands and the page never holds them all
@@ -43,7 +43,7 @@ export function buildImportMerchantOptions(
 }
 
 /**
- * What one payee value resolves to once the file's matches and the user's answer are both read
+ * What one merchant name resolves to once the file's matches and the user's answer are both read
  *
  * @param answer - What the user chose for it, blank where they left it alone
  * @param matched - The merchant the value already matches, if any
@@ -56,13 +56,13 @@ export function getImportMerchantRowState(answer: string, matched: Merchant | un
 }
 
 /**
- * Builds the payee answers the commit payload carries
+ * Builds the merchant answers the commit payload carries
  *
  * Only a value answered differently from what the commit would do unasked is sent, so a file
  * carrying thousands of distinct descriptors nobody touched declares none of them and is not
  * refused for declaring more than an import may carry
  *
- * @param importedMerchants - One payee value per merchant the file resolves to
+ * @param importedMerchants - One merchant name per merchant the file resolves to
  * @param matchedMerchantByKey - The merchants the file's values already match
  * @param merchantMappings - What the user chose for each value, blank where they left it alone
  * @param merchantCreateNames - The name the user wrote for a value being created

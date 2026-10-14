@@ -2,7 +2,7 @@ import { ImportSkippedTable, type ImportSkippedTableRow } from '@/pages/imports/
 import type { ActualSkippedRow } from '@/pages/imports/actual/types'
 import { formatHundredths } from '@/pages/imports/actual/utils/normalise'
 
-const SKIPPED_ROW_HEADERS = ['Account', 'Amount', 'Payee', 'Category', 'Notes']
+const SKIPPED_ROW_HEADERS = ['Account', 'Amount', 'Merchant', 'Category', 'Notes']
 
 /**
  * Collapsible panel listing the Actual transactions the import will not or did not write, freezing
@@ -23,7 +23,7 @@ export function ActualSkippedRowsTable({ title, rows, decimals }: {
     cells: {
       'Account': row.accountName,
       'Amount': formatHundredths(row.amount, decimals),
-      'Payee': row.payeeName ?? '',
+      'Merchant': row.payeeName ?? '',
       'Category': row.categoryName ?? '',
       'Notes': row.notes ?? '',
     },

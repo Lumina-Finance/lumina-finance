@@ -52,7 +52,7 @@ async def stage_journal_batch(
 
     Every journal account source is an endpoint rows are written to, and the journal states both
     sides of a transfer itself, so there is nothing an outside answer could describe and one is
-    refused. Money leaving the tracked accounts is a withdrawal or deposit to a payee under a
+    refused. Money leaving the tracked accounts is a withdrawal or deposit to a merchant under a
     transfer category instead, which records the outside counterparty
 
     Args:

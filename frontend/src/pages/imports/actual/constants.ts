@@ -96,7 +96,7 @@ export function getActualTagTooLongReason(tag: string) {
 }
 
 export function getActualPayeeTooLongReason(length: number) {
-  return `The payee is ${length.toLocaleString()} characters, and the importer takes up to ${JOURNAL_ROW_FIELD_MAX_LENGTHS.payee}`
+  return `The merchant name is ${length.toLocaleString()} characters, and the importer takes up to ${JOURNAL_ROW_FIELD_MAX_LENGTHS.payee}`
 }
 
 export const ACTUAL_INCOME_BUDGET_REASON = 'Budgets only track expenses, so income budgets aren\'t imported'

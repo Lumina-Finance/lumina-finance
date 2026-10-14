@@ -10,7 +10,7 @@ from app.models.merchant import Merchant
 # since those are nobody's transaction but still have to name a merchant
 SELF_MERCHANT_NAME = "Myself"
 
-# Carried by an imported row whose file had a payee to state and left it blank. Every transaction
+# Carried by an imported row whose file had a merchant to state and left it blank. Every transaction
 # has to have a merchant, and this says the answer is not known rather than claiming one
 UNKNOWN_MERCHANT_NAME = "Unknown"
 

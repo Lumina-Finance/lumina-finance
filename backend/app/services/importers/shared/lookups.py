@@ -27,7 +27,7 @@ class ImportLookups:
         outside_account_sources: Sources answered as money outside the tracked accounts
         categories_by_source: Category rows keyed by import source
         currencies_by_code: Currency rows keyed by currency code
-        merchants: Merchant lookup for this import, holding what each payee value resolves to
+        merchants: Merchant lookup for this import, holding what each merchant name resolves to
         tags_by_name: Tag lookup for this import, keyed by tag name
     """
 

@@ -167,7 +167,7 @@ async def test_firefly_import_lists_affected_accounts_in_the_csv_import_s_sorted
 
 
 async def test_firefly_transfer_legs_are_stamped_with_the_self_merchant(client):
-    """Neither leg of a transfer has a payee, so both get what the app puts on its own transfers."""
+    """Neither leg of a transfer has a merchant of its own, so both get what the app puts on its own transfers."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
@@ -617,8 +617,8 @@ async def test_firefly_import_maps_uncategorized_rows_via_placeholder(client):
     assert transactions_resp.json()[0]["category_id"] == data["category_source_ids"]["(no category)"]
 
 
-async def test_firefly_import_files_a_payee_under_a_merchant_the_database_lowercases_alike(client):
-    """A payee is matched by PostgreSQL's lowercase, which the unique index is built on
+async def test_firefly_import_files_a_merchant_name_under_a_merchant_the_database_lowercases_alike(client):
+    """A merchant name is matched by PostgreSQL's lowercase, which the unique index is built on
 
     Python lowercases "İ" to "i" and a combining dot, while PostgreSQL gives a plain "i"
     """
@@ -642,7 +642,7 @@ async def test_firefly_import_files_a_payee_under_a_merchant_the_database_lowerc
     assert [transaction["merchant_id"] for transaction in transactions] == [existing.json()["id"]] * 2
 
 
-async def test_firefly_import_creates_one_merchant_for_payees_the_database_lowercases_alike(client):
+async def test_firefly_import_creates_one_merchant_for_names_the_database_lowercases_alike(client):
     """Two spellings PostgreSQL folds to one name make one merchant, as its unique index requires"""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)

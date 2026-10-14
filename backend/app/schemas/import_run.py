@@ -38,7 +38,7 @@ MAX_IMPORT_NOTES_LENGTH = 10_000
 MAX_IMPORT_TAGS_PER_ROW = 32
 MAX_IMPORT_TAG_NAME_LENGTH = 64
 
-# Characters a payee may carry, matching the column merchants are stored in
+# Characters a merchant name may carry, matching the column merchants are stored in
 MAX_IMPORT_MERCHANT_NAME_LENGTH = 256
 
 # Bounds the limit history one budget can carry, which covers a century of
@@ -180,9 +180,9 @@ class TransactionImportCreateMerchant(BaseModel):
 
 
 class TransactionImportMerchantMapping(BaseModel):
-    """Resolve one payee value found in the file to a merchant, to a new one, or to none.
+    """Resolve one merchant name found in the file to a merchant, to a new one, or to none.
 
-    Only the values the user answered by hand are declared. A payee left alone keeps what the
+    Only the names the user answered by hand are declared. A name left alone keeps what the
     importer does without being asked, matching an existing merchant by name and creating one where
     nothing matches, so a file carrying thousands of distinct descriptors is not refused for
     declaring more mappings than an import may carry.
@@ -192,8 +192,8 @@ class TransactionImportMerchantMapping(BaseModel):
     merchant_id: uuid.UUID | None = None
     create: TransactionImportCreateMerchant | None = None
 
-    # Answered skip, so the rows carrying this payee are filed under the merchant the app stamps on
-    # a row stating no payee at all
+    # Answered skip, so the rows carrying this name are filed under the merchant the app stamps on
+    # a row stating no merchant at all
     skip: bool = False
 
 
@@ -223,7 +223,7 @@ class TransactionImportRequest(BaseModel):
     accounts: list[TransactionImportAccountMapping] = Field(min_length=1)
     categories: list[TransactionImportCategoryMapping] = Field(min_length=1)
 
-    # Only the payee values the user answered by hand, so this is empty for a file whose merchants
+    # Only the merchant names the user answered by hand, so this is empty for a file whose merchants
     # were all left to match or be created by name
     merchants: list[TransactionImportMerchantMapping] = Field(default=[])
     rows: list[TransactionImportRow] = Field(min_length=1)
@@ -235,7 +235,7 @@ class TransactionImportStageRequest(BaseModel):
     accounts: list[TransactionImportAccountMapping] = Field(min_length=1, max_length=MAX_IMPORT_MAPPINGS)
     categories: list[TransactionImportCategoryMapping] = Field(min_length=1, max_length=MAX_IMPORT_MAPPINGS)
 
-    # Carries no minimum, unlike the other two, because a batch whose payees were all left alone
+    # Carries no minimum, unlike the other two, because a batch whose merchants were all left alone
     # declares none of them
     merchants: list[TransactionImportMerchantMapping] = Field(default=[], max_length=MAX_IMPORT_MAPPINGS)
     rows: list[TransactionImportRow] = Field(min_length=1, max_length=MAX_IMPORT_BATCH_ROWS)
@@ -278,8 +278,8 @@ class JournalTransactionRow(BaseModel):
 
     The frontend decides which endpoints are imported accounts. Each one is named by the account
     mapping source it resolves through, since an export can give an asset account and a liability
-    the same name, and every other endpoint is named as it appears in the export. A payee row with
-    no category is sent with the no-category mapping source for its direction, and a null category
+    the same name, and every other endpoint is named as it appears in the export. A row with a
+    merchant and no category is sent with the no-category mapping source for its direction, and a null category
     is filed under the money-out one
     """
 

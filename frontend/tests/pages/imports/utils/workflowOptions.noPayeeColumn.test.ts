@@ -1,6 +1,6 @@
 /**
- * Tests what the importer does with a row whose file states no payee: it imports under a merchant
- * that ships with the app, the preview shows which one, and the mapping step says how many rows
+ * Tests what the importer does with a row whose file states no merchant: it imports under one that
+ * ships with the app, the preview shows which one, and the mapping step says how many rows
  */
 import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
@@ -37,7 +37,7 @@ const CATEGORY: Category = {
 const ACCOUNT = { id: 'account-1', name: 'Chequing', currency: 'CAD', can_write: true } as AccountsOverview
 const HEADERS = ['Date', 'Category', 'Amount', 'Payee']
 
-// Two rows name a payee and two leave it blank, one of those blank by whitespace alone
+// Two rows name a merchant and two leave it blank, one of those blank by whitespace alone
 const ROWS: CsvRow[] = [
   { Date: '2026-04-10', Category: 'Groceries', Amount: '-12.34', Payee: 'Corner Cafe' },
   { Date: '2026-04-11', Category: 'Groceries', Amount: '-8.00', Payee: '' },
@@ -61,7 +61,7 @@ function createFile(rows: CsvRow[]): ImportFileDraft {
 }
 
 /**
- * Builds a commit payload, optionally mapping the payee column
+ * Builds a commit payload, optionally mapping the merchant column
  */
 function build({ payeeMapped = true }: { payeeMapped?: boolean } = {}) {
   return buildTransactionImportPayload({
@@ -92,7 +92,7 @@ function build({ payeeMapped = true }: { payeeMapped?: boolean } = {}) {
 }
 
 /**
- * Builds the preview rows for one category kind, with no payee column mapped
+ * Builds the preview rows for one category kind, with no merchant column mapped
  */
 function preview(kind: Category['kind']) {
   const category = { ...CATEGORY, kind }
@@ -117,8 +117,8 @@ function preview(kind: Category['kind']) {
   })
 }
 
-describe('counting the rows that state no payee', () => {
-  it('counts every row where no column holds the payee', () => {
+describe('counting the rows that state no merchant', () => {
+  it('counts every row where no column holds the merchant', () => {
     expect(countRowsWithNoPayee([createFile(ROWS)], '')).toBe(4)
   })
 
@@ -131,10 +131,10 @@ describe('counting the rows that state no payee', () => {
   })
 })
 
-describe('importing a row that states no payee', () => {
+describe('importing a row that states no merchant', () => {
   // Every transaction carries a merchant, so the row is brought in under one that ships with the
   // app rather than written without one and left uneditable
-  it('sends the row with no payee of its own, for the API to fill in', () => {
+  it('sends the row with no merchant of its own, for the API to fill in', () => {
     const result = build()
 
     expect(result.errors).toEqual([])
@@ -143,7 +143,7 @@ describe('importing a row that states no payee', () => {
       .toEqual(['Corner Cafe', null, 'Corner Cafe', null])
   })
 
-  it('imports a whole file that states no payee anywhere', () => {
+  it('imports a whole file that states no merchant anywhere', () => {
     const result = build({ payeeMapped: false })
 
     expect(result.errors).toEqual([])
@@ -151,12 +151,12 @@ describe('importing a row that states no payee', () => {
   })
 })
 
-describe('showing the merchant a row with no payee will carry', () => {
+describe('showing the merchant a row stating none will carry', () => {
   it('shows the shared unknown merchant on an ordinary row', () => {
     expect(preview('expense')[0].transaction.merchant_name).toBe(UNKNOWN_MERCHANT_NAME)
   })
 
-  // A transfer has no payee of its own, and the app puts this merchant on the transfers it writes
+  // A transfer has no merchant of its own, and the app puts this one on the transfers it writes
   // itself, so an imported one has to read the same way
   it('shows the shared self merchant on a transfer', () => {
     expect(preview('transfer')[0].transaction.merchant_name).toBe(SELF_MERCHANT_NAME)
@@ -167,16 +167,16 @@ describe('what the mapping step says about those rows', () => {
   it('reads for one row without saying "1 rows"', () => {
     const message = getRowsWithNoPayeeExplanation(1, false)
 
-    expect(message).toContain('1 row states no payee')
+    expect(message).toContain('1 row states no merchant')
     expect(message).toContain('it will be filed under')
   })
 
   it('reads for several', () => {
-    expect(getRowsWithNoPayeeExplanation(2, false)).toContain('2 rows state no payee')
+    expect(getRowsWithNoPayeeExplanation(2, false)).toContain('2 rows state no merchant')
   })
 
   it('offers the mapping advice only where no column is mapped', () => {
-    expect(getRowsWithNoPayeeExplanation(2, false)).toContain('Map the column holding the payee above')
+    expect(getRowsWithNoPayeeExplanation(2, false)).toContain('Map the column holding the merchant above')
   })
 
   // Telling someone to map a column they have already mapped sends them to a control that is
@@ -184,7 +184,7 @@ describe('what the mapping step says about those rows', () => {
   it('says the cells are blank where a column is mapped, and offers nothing to map', () => {
     const message = getRowsWithNoPayeeExplanation(2, true)
 
-    expect(message).toContain('2 rows leave the payee column blank')
+    expect(message).toContain('2 rows leave the merchant column blank')
     expect(message).not.toContain('Map the column')
   })
 })

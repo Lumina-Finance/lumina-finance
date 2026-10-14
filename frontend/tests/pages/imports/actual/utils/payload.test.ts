@@ -98,7 +98,7 @@ describe('Actual Budget import payload', () => {
     })
   })
 
-  it('files loan payments as spending in their category when asked, naming the loan as the payee', async () => {
+  it('files loan payments as spending in their category when asked, naming the loan as the merchant', async () => {
     const { journal } = await normaliseActualFixture('edges')
     const effective = fileActualPaymentsInCategory(journal)
     const build = buildActualImportPayload(effective, createAnswers(effective))

@@ -32,7 +32,7 @@ export function invalidateMerchantLookupPages(queryClient: QueryClient) {
 }
 
 /**
- * Invalidates which of a file's payee values already have a merchant
+ * Invalidates which of a file's merchant names already have a merchant
  *
  * A new merchant changes the answer for any value reading like it, and that answer decides whether
  * an import step offers to create one, so it cannot outlive the merchant list it was worked out from

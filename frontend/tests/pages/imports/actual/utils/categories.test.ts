@@ -129,7 +129,7 @@ describe('Actual Budget payments to off-budget accounts', () => {
     entry.payeeName,
   ])
 
-  it('files them as spending in their category when asked, naming the other account as the payee', () => {
+  it('files them as spending in their category when asked, naming the other account as the merchant', () => {
     const effective = applyActualPaymentModes(journal, { 'transfer:car': 'category' })
 
     expect(shape(effective.entries)).toEqual([

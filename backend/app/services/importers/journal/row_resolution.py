@@ -73,7 +73,7 @@ class JournalLeg:
         dt: Transaction date
         amount: Signed amount in account-currency minor units
         category: Category applied to the transaction
-        merchant_name: Optional payee recorded as a merchant
+        merchant_name: Optional name of the merchant the row is recorded with
         notes: Optional combined description and notes text
         tag_names: Tag names applied to the transaction
         counterparty_account: Account the money moved to or from, set only on transfer legs whose category records one

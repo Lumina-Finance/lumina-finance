@@ -33,7 +33,7 @@ export interface TransactionImportCreateMerchant {
 }
 
 /**
- * One payee value the user answered by hand, carrying exactly one of the three answers
+ * One merchant name the user answered by hand, carrying exactly one of the three answers
  *
  * A value left alone is not sent at all, and keeps what the importer does unasked: matching an
  * existing merchant by name, and creating one where nothing matches

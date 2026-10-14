@@ -35,7 +35,7 @@ export interface SeedSplit {
   source?: string
   destination?: string
 
-  /** A payee outside the import, which Firefly III files as an expense or revenue account */
+  /** A merchant outside the import, which Firefly III files as an expense or revenue account */
   sourceName?: string
   destinationName?: string
   category?: string

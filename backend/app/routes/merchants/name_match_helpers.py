@@ -1,4 +1,4 @@
-"""Answering which payee values already have a merchant"""
+"""Answering which merchant names already have a merchant"""
 
 import uuid
 
@@ -17,7 +17,7 @@ async def get_merchants_matching_names(
     user_id: uuid.UUID,
     names: list[str],
 ) -> list[tuple[str, Merchant]]:
-    """Return the merchants an import would file each payee value under
+    """Return the merchants an import would file each merchant name under
 
     Matched by the rule the import itself matches by, and over the scope it matches in, so the page
     asking this and the commit that follows reach the same verdict
@@ -25,7 +25,7 @@ async def get_merchants_matching_names(
     Args:
         db: Active database session
         user_id: Authenticated user identifier
-        names: Payee values from the file, already trimmed
+        names: Merchant names from the file, already trimmed
 
     Returns:
         One pair per value that matched, holding the value as it was asked about and its merchant

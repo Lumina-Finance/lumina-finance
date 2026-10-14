@@ -1,5 +1,5 @@
 /**
- * Tests what the merchant step sends for each payee value in a file: only the values answered
+ * Tests what the merchant step sends for each merchant name in a file: only the values answered
  * differently from what the commit would do without being asked
  */
 import { describe, expect, it } from 'vitest'
@@ -21,7 +21,7 @@ const CORNER_CAFE: Merchant = {
 const BAKERY: Merchant = { ...CORNER_CAFE, id: 'bakery', name: 'Bakery' }
 
 /**
- * Builds the answers for one payee value, with nothing else in the file
+ * Builds the answers for one merchant name, with nothing else in the file
  */
 function buildFor(value: string, answer: string, createName?: string, matched?: Merchant) {
   return buildImportMerchantMappings({
@@ -94,8 +94,9 @@ describe('what one row of the merchant step reads as', () => {
   })
 })
 
-describe('the payee values a file offers to answer', () => {
-  // The second pair lowercases alike only in PostgreSQL, whose lower() the commit matches merchants by
+describe('the merchant names a file offers to answer', () => {
+  // The second pair lowercases alike only in PostgreSQL, whose lower() the commit matches merchant
+  // names by
   it.each([['Amazon', 'AMAZON'], ['İstanbul Kebap', 'ISTANBUL KEBAP']])('asks about %s and %s once', (spelling, otherSpelling) => {
     const rows: CsvRow[] = [{ Merchant: spelling }, { Merchant: otherSpelling }, { Merchant: 'Zest Bakery' }]
     const file: ImportFileDraft = {

@@ -1,7 +1,7 @@
 /**
- * Covers what happens to the import step's payee answers when a merchant is created elsewhere
+ * Covers what happens to the import step's merchant answers when a merchant is created elsewhere
  *
- * The answer says which of a file's payee values have no merchant yet, so a merchant made while it
+ * The answer says which of a file's merchant names have no merchant yet, so a merchant made while it
  * is cached would otherwise leave the step offering to create one that now exists
  */
 import { QueryClient, type InfiniteData } from '@tanstack/react-query';
@@ -20,7 +20,7 @@ const CORNER_CAFE: Merchant = {
   created_at: '2026-01-01T00:00:00Z',
 };
 
-describe('creating a merchant while an import holds its payee answers', () => {
+describe('creating a merchant while an import holds its merchant answers', () => {
   it('marks the answers for every set of values as stale', () => {
     const queryClient = new QueryClient();
     const askedAbout = merchantKeys.nameMatches(['CORNER CAFE', 'SQ *COFFEE 4471']);

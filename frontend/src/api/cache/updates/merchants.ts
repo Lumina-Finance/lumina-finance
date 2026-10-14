@@ -29,7 +29,7 @@ export function updateMerchantCreateCaches(queryClient: QueryClient, merchant: M
   queryClient.setQueryData<Merchant>(merchantKeys.detail(merchant.id), merchant);
   invalidateMerchantLookupPages(queryClient);
 
-  // A newly created merchant can resolve an imported payee that previously had no match
+  // A newly created merchant can resolve an imported merchant name that previously had no match
   invalidateMerchantNameMatches(queryClient);
 }
 

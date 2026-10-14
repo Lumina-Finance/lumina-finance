@@ -12,7 +12,7 @@ import type {
 export async function buildStagedImportBatches(
   payload: TransactionImportPayload,
 ): Promise<TransactionImportStageBatch[]> {
-  // Keyed by what matches a payee rather than by the spelling the answer names, so a row spelling
+  // Keyed by what matches a merchant name rather than by the spelling the answer names, so a row spelling
   // it differently still finds the answer given for it
   const merchantMappingsByKey = new Map(
     payload.merchants.map((mapping) => [getMerchantNameKey(mapping.source), mapping]),
@@ -34,9 +34,9 @@ export async function buildStagedImportBatches(
 }
 
 /**
- * The answered payee value a row carries, or nothing where its payee was left alone
+ * The answered merchant name a row carries, or nothing where its merchant was left alone
  *
- * Only the payee values the user answered carry a mapping, so a row whose payee was left alone
+ * Only the merchant names the user answered carry a mapping, so a row whose merchant was left alone
  * adds nothing to the batch and is not looked up as though it must be there
  */
 function getRowMerchantKeys(row: TransactionImportRow, merchantMappingsByKey: Map<string, unknown>) {

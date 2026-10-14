@@ -221,8 +221,8 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   // The name the user typed for a new category whose own name an existing category holds for another type
   const [scopedCategoryCreateNames, setScopedCategoryCreateNames] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
 
-  // What the user answered for each payee value, and the name they wrote for one being created.
-  // Scoped like every other answer, so a second file's payees start unanswered
+  // What the user answered for each merchant name, and the name they wrote for one being created.
+  // Scoped like every other answer, so a second file's merchants start unanswered
   const [scopedMerchantMappings, setScopedMerchantMappings] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
   const [scopedMerchantCreateNames, setScopedMerchantCreateNames] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
 

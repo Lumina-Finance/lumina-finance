@@ -34,7 +34,7 @@ class Transaction(Base):
     account_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
     dt: Mapped[date] = mapped_column(Date, nullable=False)
     # The create and edit routes require one, so this is null only on a transaction recorded before
-    # that rule or brought in by an import whose file named no payee
+    # that rule or brought in by an import whose file named no merchant
     merchant_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("merchants.id"))
     category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id"), nullable=False)
     amount: Mapped[int] = mapped_column(BigInteger, nullable=False)  # In currency base units

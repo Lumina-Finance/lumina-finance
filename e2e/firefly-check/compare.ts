@@ -201,7 +201,7 @@ function compareCategoryMonths(
   categoryNameById: Map<string, string>,
   differences: DifferenceList<'firefly'>,
 ) {
-  // Only rows with a payee of their own carry a category, so transfer legs and balance rows are out
+  // Only rows with a merchant of their own carry a category, so transfer legs and balance rows are out
   const luminaTotals = new Map<string, number>()
   for (const transaction of lumina.transactions) {
     const account = accountById.get(transaction.account_id)

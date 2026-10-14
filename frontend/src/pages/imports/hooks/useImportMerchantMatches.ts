@@ -10,14 +10,14 @@ import { buildImportMerchantOptions } from '@/pages/imports/utils'
 const MERCHANT_SEARCH_PAGE_SIZE = 20
 
 /**
- * Loads which of a file's payee values already have a merchant, and drives the search a user runs
+ * Loads which of a file's merchant names already have a merchant, and drives the search a user runs
  * to point one at a merchant the file never mentions
  *
  * The page asks about the file rather than holding every merchant, since a person can build up
  * thousands of them while the list endpoint answers a page at a time. The search is shared by every
  * row, so a step listing hundreds of values still runs one search query at a time
  *
- * @param importedMerchants - One payee value per merchant the file resolves to
+ * @param importedMerchants - One merchant name per merchant the file resolves to
  */
 export function useImportMerchantMatches(importedMerchants: string[]) {
   const { accessToken } = useAuth()

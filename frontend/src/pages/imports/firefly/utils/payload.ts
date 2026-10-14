@@ -181,10 +181,11 @@ function buildFireflyImportRows(
     const { main, foreign } = getFireflyRowAmounts(row)
     if (!main) continue
 
-    // Only the payee a withdrawal pays or a deposit comes from is written, as the merchant
+    // Only the account outside the import that a withdrawal pays or a deposit comes from is written,
+    // as the merchant
     const payeeName = getFireflyRowPayeeName(row) || null
     const isDeposit = row.type.trim().toLowerCase() === FIREFLY_TYPE_DEPOSIT
-    // A payee row without a category is sent with the no-category source for its direction by name,
+    // A row with a merchant but no category is sent with the no-category source for its direction by name,
     // since the commit would file a null category under (no category), money in included
     const category = isFireflyPayeeRow(row) ? getFireflyRowCategorySource(row) : null
 
