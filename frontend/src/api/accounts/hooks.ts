@@ -11,7 +11,7 @@ import {
   refreshAfterInterruptedStartingBalance,
   updateCachedAccountList,
 } from '@/api/cache/updates/accounts';
-import { clearDeletedAccountBankData } from '@/api/cache/updates/bankSync';
+import { clearDeletedAccountBankData, forgetDeletedAccountBankData } from '@/api/cache/updates/bankSync';
 import {
   createAccount,
   deleteAccount,
@@ -140,7 +140,7 @@ export function useDeleteAccount({ minimumPendingMs = 0 }: { minimumPendingMs?: 
       // answers not found, so the page forgets the rest as it leaves (useForgetDeletedAccount)
       queryClient.removeQueries({ queryKey: accountKeys.accountScope(accountId), type: 'inactive' });
       invalidateAccountAggregateData(queryClient, accountId, context?.deletedAccount, { isDeleted: true });
-      clearDeletedAccountBankData(queryClient);
+      clearDeletedAccountBankData(queryClient, accountId);
     },
   });
 }
@@ -152,7 +152,10 @@ export function useDeleteAccount({ minimumPendingMs = 0 }: { minimumPendingMs?: 
 export function useForgetDeletedAccount() {
   const queryClient = useQueryClient();
   return useCallback(
-    (accountId: string) => queryClient.removeQueries({ queryKey: accountKeys.accountScope(accountId) }),
+    (accountId: string) => {
+      queryClient.removeQueries({ queryKey: accountKeys.accountScope(accountId) });
+      forgetDeletedAccountBankData(queryClient, accountId);
+    },
     [queryClient],
   );
 }

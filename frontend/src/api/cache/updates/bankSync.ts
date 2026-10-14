@@ -1,4 +1,4 @@
-import type { InfiniteData, QueryClient } from '@tanstack/react-query';
+import type { InfiniteData, Query, QueryClient } from '@tanstack/react-query';
 import {
   invalidateBankLinks,
   invalidateBankReview,
@@ -342,11 +342,38 @@ export function applyOpeningAdjustmentAnswer(
 }
 
 /**
+ * Whether a bank sync query asks about the account, on its own or among others
+ */
+function asksAboutAccount(query: Query, accountId: string): boolean {
+  return query.queryKey.some((part) => part === accountId || (Array.isArray(part) && part.includes(accountId)));
+}
+
+/**
  * Drops bank data that belonged to a deleted account, whose link, waiting items and pending rows the
  * server deleted with it. A cached bulk preview is dropped rather than refetched, since it would
  * list the deleted account's items until it did
+ *
+ * The account's own bank views go now only if nothing shows them. Its page keeps showing them while
+ * it animates out, and asking about the account again would be answered not found, so the page
+ * forgets the rest as it leaves (forgetDeletedAccountBankData)
  */
-export function clearDeletedAccountBankData(queryClient: QueryClient): void {
+export function clearDeletedAccountBankData(queryClient: QueryClient, accountId: string): void {
   queryClient.removeQueries({ queryKey: bankSyncKeys.bulkPreviews });
-  invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.all }]);
+  queryClient.removeQueries({
+    queryKey: bankSyncKeys.all,
+    type: 'inactive',
+    predicate: (query) => asksAboutAccount(query, accountId),
+  });
+  queryClient.invalidateQueries({
+    queryKey: bankSyncKeys.all,
+    refetchType: 'active',
+    predicate: (query) => !asksAboutAccount(query, accountId),
+  });
+}
+
+/**
+ * Forgets a deleted account's bank views, for its page to call once it is no longer on screen
+ */
+export function forgetDeletedAccountBankData(queryClient: QueryClient, accountId: string): void {
+  queryClient.removeQueries({ queryKey: bankSyncKeys.all, predicate: (query) => asksAboutAccount(query, accountId) });
 }

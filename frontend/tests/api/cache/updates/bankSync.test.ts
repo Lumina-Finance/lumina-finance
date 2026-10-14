@@ -14,7 +14,7 @@
  * taking out an item it left waiting, leaving its count too high for an applied item on a page not
  * loaded yet or never reading the inbox again for the items left waiting, a restored bank value leaving the inbox showing the ledger value it replaced or the balance panel's ledger stale, a link change settling
  * before the views that show it have refetched, and a deleted account's items lingering in a cached
- * bulk approval preview
+ * bulk approval preview, or its own bank views asking about it again while its page still shows them
  */
 import { QueryClient, QueryObserver, type InfiniteData, type QueryKey } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -27,6 +27,7 @@ import {
   applyRestoredBankValue,
   applyReviewDecision,
   clearDeletedAccountBankData,
+  forgetDeletedAccountBankData,
   refreshBankLinkState,
   removeReviewItemsFromPages,
 } from '@/api/cache/updates/bankSync';
@@ -464,9 +465,32 @@ describe('a deleted account', () => {
     queryClient.setQueryData(bankSyncKeys.bulkPreview(undefined), {});
     queryClient.setQueryData(bankSyncKeys.links(), [createBankLink()]);
 
-    clearDeletedAccountBankData(queryClient);
+    clearDeletedAccountBankData(queryClient, 'account-1');
 
     expect(queryClient.getQueryState(bankSyncKeys.bulkPreview(undefined))).toBeUndefined();
     expectInvalidated([bankSyncKeys.links()], true);
+  });
+
+  it('asks nothing more about it for the views its page still shows and drops the ones nothing shows', () => {
+    const shown = [bankSyncKeys.accountStatus('account-1'), bankSyncKeys.reviewItems(['account-1']), bankSyncKeys.pending(['account-1'])];
+    for (const key of shown) observeWithHeldRead(key, {});
+    queryClient.setQueryData(bankSyncKeys.reviewPreferences('account-1'), {});
+    queryClient.setQueryData(bankSyncKeys.pending(['account-2']), {});
+
+    clearDeletedAccountBankData(queryClient, 'account-1');
+
+    expectInvalidated(shown, false);
+    expect(queryClient.getQueryState(bankSyncKeys.reviewPreferences('account-1'))).toBeUndefined();
+    expectInvalidated([bankSyncKeys.pending(['account-2'])], true);
+  });
+
+  it('forgets its bank views once its page leaves', () => {
+    queryClient.setQueryData(bankSyncKeys.accountStatus('account-1'), {});
+    queryClient.setQueryData(bankSyncKeys.accountStatus('account-2'), {});
+
+    forgetDeletedAccountBankData(queryClient, 'account-1');
+
+    expect(queryClient.getQueryState(bankSyncKeys.accountStatus('account-1'))).toBeUndefined();
+    expect(queryClient.getQueryState(bankSyncKeys.accountStatus('account-2'))).toBeDefined();
   });
 });
