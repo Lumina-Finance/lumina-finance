@@ -14,7 +14,11 @@ import {
 import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support/app'
 import { addImportedItem, answerLinksWith, linkToSampleBankAccount, waitForEntrance } from '../support/bankSync'
 import { contrastOf, MIN_TEXT_CONTRAST } from '../support/selectors'
+import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
+
+// Runs on desktop only, apart from the refused day, refused move and greyed Delete tests, which run at
+// every size: the transaction modal's fields, messages and reasons sit differently at each width
 
 // A linked account's bank supplies its transactions from the import start through today, so the
 // transaction modal refuses those days, a bank transaction can't leave the account or be deleted, and
@@ -100,7 +104,7 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
 
-test('refuses a new manual entry on the days a linked account’s bank supplies', async ({ page, request }) => {
+test('refuses a new manual entry on the days a linked account’s bank supplies', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
@@ -269,7 +273,7 @@ test('lets an edit keep a date the linked account’s bank supplies, and refuses
   expect(sentDates).toEqual(['2025-12-31'])
 })
 
-test('keeps a bank transaction in its linked account, refusing the move on the account field', async ({ page, request }) => {
+test('keeps a bank transaction in its linked account, refusing the move on the account field', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await createAccount(request, user, { name: 'Savings' })
@@ -467,7 +471,7 @@ test('offers to bring an archived account back while its link is still being rea
   await expect(dialog.getByRole('switch', { name: /^Archive account/ })).toBeEnabled()
 })
 
-test('greys out Delete on a bank transaction with its reason while the account is linked, and deletes it once unlinked', async ({ page, request }) => {
+test('greys out Delete on a bank transaction with its reason while the account is linked, and deletes it once unlinked', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await linkToSampleBankAccount(request, user, {

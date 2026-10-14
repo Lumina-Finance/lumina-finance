@@ -10,9 +10,12 @@ import {
   MINUS,
   whileApiRequestHeld,
 } from '../support/selectors'
+import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only: creating, recording and editing accounts give the same result at every size
+// Runs on desktop only, apart from the lost save and account row focus tests, which run at every size:
+// the starting balance prompt's message and the account row's text sit differently at each width.
+// Creating, recording and editing accounts give the same result at every size
 
 const ACCOUNT_NAME = 'Everyday Chequing'
 
@@ -271,7 +274,7 @@ test('closes the prompt as saved when the save lands but its answer is lost', as
   await expect(getAccountRow(page, ACCOUNT_NAME)).toContainText('$1,250.00')
 })
 
-test('keeps the prompt and the typed balance when a save is lost before it lands', async ({ page, request }) => {
+test('keeps the prompt and the typed balance when a save is lost before it lands', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   await logInViaApi(page, user)
   await openPage(page, '/accounts')
@@ -333,7 +336,7 @@ test('records an expense through the modal and shows it as money out', async ({ 
   await expect(row.getByTestId('transaction-amount').filter({ visible: true })).toHaveText(`${MINUS}$42.50`)
 })
 
-test('rings an account row in the accent outline under keyboard focus', async ({ page, request }) => {
+test('rings an account row in the accent outline under keyboard focus', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   await createAccount(request, user, { name: ACCOUNT_NAME })
   await logInViaApi(page, user)

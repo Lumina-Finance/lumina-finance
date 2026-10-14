@@ -27,6 +27,8 @@ import {
 import { expectMessageInCorner, isUncovered, MESSAGE_IN_CORNER, readBoxes, readMessageInset } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 
+// Runs on desktop only: it sets the window sizes it checks itself
+
 // An account links to a bank account from its own page, through the Bank link section of its edit
 // modal, which the identity card's Bank sync fact opens, and straight after it is created. Connections
 // are claimed from the fake SimpleFIN Bridge the instance syncs with, and links are made and ended on
@@ -392,7 +394,6 @@ test('moves focus to Link bank account once the link it sat by is undone elsewhe
 })
 
 test("keeps the link's message clear of Cancel and Save Changes where the edit modal fills the screen, and back in the corner once it closes", async ({ page, request }) => {
-  test.skip(test.info().project.name !== 'desktop', 'It sets its own window size')
   // The widest screen the modal still fills, which stands for every screen it fills
   await page.setViewportSize(WIDEST_FULL_SCREEN_MODAL_SIZE)
   const { dialog, message } = await linkFromEditAccount(page, request)
@@ -410,7 +411,6 @@ test("keeps the link's message clear of Cancel and Save Changes where the edit m
 })
 
 test("leaves the link's message in the corner, clear of Cancel and Save Changes, where the edit modal sits in the middle", async ({ page, request }) => {
-  test.skip(test.info().project.name !== 'desktop', 'It sets its own window size')
   // The narrowest screen the modal sits in the middle of, where the message in the corner comes closest
   // to its buttons
   await page.setViewportSize(NARROWEST_CENTRED_MODAL_SIZE)

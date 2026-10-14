@@ -16,6 +16,8 @@ import {
 } from '../support/bankSync'
 import { API_BASE_URL } from '../support/target'
 
+// Runs on desktop only: what a sync asks of the bank and how its wording ages are the same at every size
+
 // Sync now on a linked account, run by the worker against the fake SimpleFIN Bridge. What disables
 // the button and how it reads while the sync starts are covered by the Bank link section's unit tests,
 // apart from its reason keeping up with the time while the page stays open

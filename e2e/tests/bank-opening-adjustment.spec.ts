@@ -24,7 +24,12 @@ import {
   WORKER_RESULT_TIMEOUT_MS,
 } from '../support/bankSync'
 import { contrastOf, MIN_TEXT_CONTRAST, MINUS, readBoxes } from '../support/selectors'
+import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
+
+// Runs on desktop only, apart from the answers' layout and readable offer tests, which run at every
+// size, and the message test, which runs on the phone: the answers take a row each under the amount on
+// a phone, and the offer may not scroll sideways at any width
 
 // The one-time opening adjustment a linked account offers once its import is in with nothing left to
 // review, at the foot of the Bank link section's balance panel, run by the worker against the fake
@@ -143,7 +148,7 @@ test('keeps the offer when a sync brings an item to review, naming the amount of
   await expect(dialog.getByText(/items waiting for review .*\$4\.50/)).toBeVisible()
 })
 
-test('shows the answers whole, beside the amount from the width they fit there and a row each under it on a phone', async ({ page, request }) => {
+test('shows the answers whole, beside the amount from the width they fit there and a row each under it on a phone', AT_EVERY_SIZE, async ({ page, request }) => {
   const { offer } = await openOffer(page, request)
 
   const [field, skipBox, recordBox] = await readBoxes(page, [offer.amount, offer.skip, offer.record])
@@ -158,7 +163,7 @@ test('shows the answers whole, beside the amount from the width they fit there a
   }
 })
 
-test('keeps the amount and the answers in place on a phone when a message shows beside the label', async ({ page, request }) => {
+test('keeps the amount and the answers in place on a phone when a message shows beside the label', AT_EVERY_SIZE, async ({ page, request }) => {
   test.skip(test.info().project.name !== 'phone', 'It checks the layout a phone gets')
   await page.setViewportSize({ width: 390, height: 844 })
   const { offer } = await openOffer(page, request)
@@ -419,7 +424,7 @@ test('leaves focus where the person put it when a read of the link folds the off
 })
 
 for (const colorScheme of ['light', 'dark'] as const) {
-  test(`keeps the offer readable in the ${colorScheme} theme${colorScheme === 'light' ? ', with no sideways scroll' : ''}`, async ({ page, request }) => {
+  test(`keeps the offer readable in the ${colorScheme} theme${colorScheme === 'light' ? ', with no sideways scroll' : ''}`, AT_EVERY_SIZE, async ({ page, request }) => {
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
     const { setup, offer } = await openOffer(page, request)
     if (colorScheme === 'dark') await expect(page.locator('html')).toHaveClass(/\bdark\b/)

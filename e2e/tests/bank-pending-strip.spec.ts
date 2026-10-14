@@ -4,6 +4,10 @@ import { createAccount, createGroup, createTransaction, signUpUser, todayInTestT
 import { filterTransactions, logInViaApi, openPage, watchServerRequests } from '../support/app'
 import { answerLinksWith, isRead, pageOf, reviewItem, SEP_21 } from '../support/bankSync'
 import { contrastOf, MIN_TEXT_CONTRAST, MINUS, readBoxes } from '../support/selectors'
+import { AT_EVERY_SIZE } from '../support/sizes'
+
+// Runs on desktop only, apart from the closed strip and readable text tests, which run at every size: a
+// phone moves the explanation inside the opened strip, and the strip has to fit every width
 
 // Transactions the bank hasn't posted yet show in a muted strip under the review block, read-only
 // and outside the ledger.
@@ -118,7 +122,7 @@ async function answerThreePending(page: Page, { everyday, visa, savings }: Accou
   return asked
 }
 
-test('shows the pending count closed, and each pending transaction newest first once opened', async ({ page, request }) => {
+test('shows the pending count closed, and each pending transaction newest first once opened', AT_EVERY_SIZE, async ({ page, request }) => {
   await answerThreePending(page, await start(page, request))
 
   await openPage(page, '/transactions')
@@ -323,7 +327,7 @@ test("reads the server's pending transactions for every account and for several 
 })
 
 for (const colorScheme of ['light', 'dark'] as const) {
-  test(`${colorScheme === 'light' ? 'sits under the review block and above the list, its' : 'keeps its'} text readable in the ${colorScheme} theme`, async ({ page, request }) => {
+  test(`${colorScheme === 'light' ? 'sits under the review block and above the list, its' : 'keeps its'} text readable in the ${colorScheme} theme`, AT_EVERY_SIZE, async ({ page, request }) => {
     const { everyday, visa } = await start(page, request)
     await page.route(isRead('/bank-review/items'), (route) => route.fulfill({ json: pageOf([reviewItem('everyday-1', 'new', everyday.id)], { new: 1 }) }))
     await answerPending(page, () => [

@@ -13,9 +13,10 @@ import {
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the category filter and Upcoming header tests, which run at
-// every size: filters show as a sheet on a phone, and the header pins differently by layout. The
-// row layout test resizes the desktop window itself, to widths no project has
+// Runs on desktop only, apart from the category filter, Upcoming row focus and Upcoming header tests, which
+// run at every size: filters show as a sheet on a phone, a row's text sits differently at each width, and the
+// header pins differently by layout. The row layout test resizes the desktop window itself, to widths no
+// project has
 
 test('filters the list down to one category', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
@@ -216,7 +217,7 @@ test('ticks the range between on a shift-press without selecting the text it run
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
-test('rings an upcoming transaction row inside the Upcoming section\'s dashed edge', async ({ page, request }) => {
+test('rings an upcoming transaction row inside the Upcoming section\'s dashed edge', AT_EVERY_SIZE, async ({ page, request }) => {
   const { upcomingId, upcoming } = await openListWithUpcomingAndToday(page, request)
   await upcoming.click()
   await expectTransactionRow(page, upcomingId, `${MINUS}$45.00`)

@@ -23,7 +23,12 @@ import {
   type BridgeTransaction,
 } from '../support/bankSync'
 import { contrastOf, expectTransactionRow, MIN_TEXT_CONTRAST, MINUS } from '../support/selectors'
+import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
+
+// Runs on desktop only, apart from the filing card, footer and short phone screen tests, which run at
+// every size: the card and the footer take their own layouts at each width, and a phone gives the
+// dialog its whole screen
 
 // A new bank item opens from its row in the review block in the transaction modal, which files it
 // into the ledger or dismisses it.
@@ -450,7 +455,7 @@ test('opens an amount its currency cannot hold empty, and adds the item once one
 })
 
 for (const colorScheme of ['light', 'dark'] as const) {
-  test(`${colorScheme === 'light' ? 'hangs the filing card beside the form or heads it, readable' : 'keeps the filing card readable'} in the ${colorScheme} theme`, async ({ page, request }) => {
+  test(`${colorScheme === 'light' ? 'hangs the filing card beside the form or heads it, readable' : 'keeps the filing card readable'} in the ${colorScheme} theme`, AT_EVERY_SIZE, async ({ page, request }) => {
     await start(page, request, [COUNTDOWN])
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
     await openPage(page, '/transactions')
@@ -502,7 +507,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
 // them in a row from there, so each layout is checked once: stacked on the phone, and in a row at the
 // widest screen the dialog fills
 for (const { project, width } of [{ project: 'phone', width: null }, { project: 'desktop', width: 1049 }] as const) {
-  test(`lines the footer up with the form above it on the ${project}`, async ({ page, request }) => {
+  test(`lines the footer up with the form above it on the ${project}`, AT_EVERY_SIZE, async ({ page, request }) => {
     test.skip(test.info().project.name !== project, 'Each layout of the footer is checked at one width')
     await start(page, request, [COUNTDOWN])
     if (width) await page.setViewportSize({ width, height: page.viewportSize()!.height })
@@ -531,7 +536,7 @@ for (const { project, width } of [{ project: 'phone', width: null }, { project: 
 }
 
 // A short phone screen, where the card heading the form leaves most of the form below the fold
-test.describe('on a short phone screen', () => {
+test.describe('on a short phone screen', AT_EVERY_SIZE, () => {
   test.beforeEach(async ({ page }) => {
     test.skip(test.info().project.name !== 'phone', 'Only a phone screen is short enough')
     await page.setViewportSize({ width: 390, height: 667 })

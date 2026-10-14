@@ -4,6 +4,9 @@ import { asUser, createAccount, findReferenceId, signUpUser, TEST_CURRENCY, toda
 import { logInViaApi, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
+// Runs on desktop only: a box that loses the modal's sides shows only where the modal sits in the middle
+// of a wide screen
+
 // A modal too short for a list of five rows on either side of its field, which is when the list
 // leaves the modal's height for the screen's while keeping to its sides. A box that lost the
 // modal's sides on the way opened at the screen's left edge, away from its field

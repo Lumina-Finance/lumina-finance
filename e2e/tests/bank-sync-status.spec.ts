@@ -30,7 +30,12 @@ import {
   type SeededConnection,
 } from '../support/bankSync'
 import { MINUS, readBoxes } from '../support/selectors'
+import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
+
+// Runs on desktop only, apart from the balance comparison, unavailable balance, retry and rejected
+// connection tests, which run at every size: the balances, the notes over them and the notice's action
+// take their own layouts at each width
 
 // A linked account's bank sync status, as its page shows it once the worker has met each situation
 // on the fake SimpleFIN Bridge: the identity card's Bank sync fact, the Bank link section's Status,
@@ -210,7 +215,7 @@ test('reads as synced once the import finishes', async ({ page, request }) => {
   await expect(dialog.getByRole('button', { name: 'Choose bank account' })).toHaveCount(0)
 })
 
-test('compares the bank balance with the ledger at the end of its balance date', async ({ page, request }) => {
+test('compares the bank balance with the ledger at the end of its balance date', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -5000, date: daysFromTodayInTestTimezone(-1) })
@@ -255,7 +260,7 @@ test('compares the bank balance with the ledger at the end of its balance date',
   await expect.poll(() => readClippingBoxes(reason)).toEqual([])
 })
 
-test('shows a bank balance that can\'t be read exactly as unavailable, its reason opening clear of it', async ({ page, request }) => {
+test('shows a bank balance that can\'t be read exactly as unavailable, its reason opening clear of it', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await linkWithBalances(request, user, account.id, { balance: '2418.365' })
@@ -271,8 +276,6 @@ test('shows a bank balance that can\'t be read exactly as unavailable, its reaso
 })
 
 test('opens the reason for a gap below the difference where the dialog leaves no room above it', async ({ page, request }) => {
-  test.skip(test.info().project.name !== 'desktop', 'It sets its own window size')
-
   // A short window, where each balance's value sits under its label and the dialog's body scrolls
   const dialog = await openBalancesThatDiffer(page, request, { width: 1280, height: 480 })
   const difference = fact(dialog, /^Difference/)
@@ -291,8 +294,6 @@ test('opens the reason for a gap below the difference where the dialog leaves no
 })
 
 test('moves the reason for a gap below the balances as the dialog body scrolls them to its top', async ({ page, request }) => {
-  test.skip(test.info().project.name !== 'desktop', 'It sets its own window size')
-
   // A small phone, where each balance takes a row. The reason opens above the three while they have
   // room above them
   const dialog = await openBalancesThatDiffer(page, request, { width: 390, height: 667 })
@@ -309,7 +310,7 @@ test('moves the reason for a gap below the balances as the dialog body scrolls t
   expect(await coversAnyBalance(dialog, reason)).toBe(false)
 })
 
-test('reads as retrying at the time of the retry when the Bridge fails', async ({ page, request }) => {
+test('reads as retrying at the time of the retry when the Bridge fails', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await linkIntoFault(request, user, account.id, (scenarioId) => breakBridge(request, scenarioId))
@@ -423,7 +424,7 @@ test('words how long ago the link synced anew as minutes pass with the page open
   await expect(page.getByRole('button', { name: 'Bank sync: Synced 5 minutes ago. Open bank link' })).toBeVisible()
 })
 
-test('stops on a rejected connection, with a notice that leads to Settings to reconnect it', async ({ page, request }) => {
+test('stops on a rejected connection, with a notice that leads to Settings to reconnect it', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   const { connection } = await linkIntoFault(request, user, account.id, (scenarioId) => revokeBridgeAccess(request, scenarioId))

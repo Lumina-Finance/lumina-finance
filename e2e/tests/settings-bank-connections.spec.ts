@@ -22,7 +22,12 @@ import {
   type SeededConnection,
 } from '../support/bankSync'
 import { expectMessageInCorner, readBoxes } from '../support/selectors'
+import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL, BASE_URL } from '../support/target'
+
+// Runs on desktop only, apart from the linked account tile test, which runs on the phone: the
+// institutions sit below the connection and its actions there. The rest set the window sizes they check
+// themselves or give the same result at every size
 
 // The section lists the user's bank connections and looks after each one in its own modal. Connections
 // are claimed from the fake SimpleFIN Bridge the instance syncs with, and the worker brings them to the
@@ -738,7 +743,6 @@ test('shows a bank that needs signing in to on the connection and its institutio
 })
 
 test("keeps a connection's facts column from scrolling sideways, so the status note's icon stays under the pointer", async ({ page, request }) => {
-  test.skip(test.info().project.name !== 'desktop', 'The facts sit in a column beside the institutions from 1050px, which one width shows')
   const user = await signUpUser(request)
 
   // Only the status's note, opening from after the longest status, reaches past the column's edge while closed
@@ -767,7 +771,6 @@ test("keeps a connection's facts column from scrolling sideways, so the status n
 })
 
 test("opens a fact's note below its value where the dialog leaves no room above the fact", async ({ page, request }) => {
-  test.skip(test.info().project.name !== 'desktop', 'It sets its own window size')
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   await claimSetupToken(request, user, scenario.setupToken)
@@ -795,7 +798,7 @@ test("opens a fact's note below its value where the dialog leaves no room above 
 
 // The linked account's tile draws its edge with its fill, Disconnect with its border and the institution's
 // count with its text, each on the edge of its own box, so comparing the boxes compares what is drawn
-test("ends a linked account's tile and its institution's count on the edge the connection's actions end on, on a phone", async ({ page, request }) => {
+test("ends a linked account's tile and its institution's count on the edge the connection's actions end on, on a phone", AT_EVERY_SIZE, async ({ page, request }) => {
   test.skip(test.info().project.name !== 'phone', 'The institutions sit below the connection and its actions under 1050px, which only the phone project is')
   const user = await signUpUser(request)
   const [household, scenario] = await Promise.all([
@@ -987,7 +990,6 @@ test("shows the failure when the connections can't load, rather than an empty li
 })
 
 test('leaves the section out for a user who may not link bank accounts', async ({ page, request }) => {
-  test.skip(test.info().project.name !== 'desktop', 'It sets its own window size')
   const user = await signUpUser(request)
   await changeProviders(page, (body) => {
     body.may_link = false

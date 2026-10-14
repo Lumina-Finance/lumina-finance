@@ -13,7 +13,11 @@ import {
   type ReviewPage,
 } from '../support/bankSync'
 import { contrastOf, MIN_TEXT_CONTRAST, readBoxes } from '../support/selectors'
+import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
+
+// Runs on desktop only, apart from the test of an import that got nothing, which runs on the phone:
+// the reminder and the offer below it each have to show whole at a phone's width
 
 // The reminder a linked account's Bank link section shows once its import returned less history than
 // it asked for, or none, run by the worker against the fake SimpleFIN Bridge. Everyday imports the
@@ -206,7 +210,7 @@ test('says why the server refused a dismissal whose reminder a read of the link 
   expect(unlinkStatus).toBe(200)
 })
 
-test('shows the reminder of an import that got nothing above the opening adjustment offer, each whole on a phone', async ({ page, request }) => {
+test('shows the reminder of an import that got nothing above the opening adjustment offer, each whole on a phone', AT_EVERY_SIZE, async ({ page, request }) => {
   test.skip(test.info().project.name !== 'phone', 'It checks the layout a phone gets')
   await page.setViewportSize({ width: 390, height: 844 })
   const setup = await linkGettingNothing(request)

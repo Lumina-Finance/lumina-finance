@@ -12,7 +12,11 @@ import {
   waitForReviewItems,
   WORKER_RESULT_TIMEOUT_MS,
 } from '../support/bankSync'
+import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
+
+// Runs on desktop only, apart from the one-line and failed save tests, which run at every size: the
+// choices have to fit on one line, and the save message moves above the actions, on a phone
 
 // Review settings in a linked account's Bank link section, which choose whether each kind of bank
 // data waits for review or is applied as it arrives. The account links to an empty bank account on
@@ -98,7 +102,7 @@ async function expectBesideSave(page: Page, dialog: Locator, message: Locator): 
   expect(messageBox!.y + messageBox!.height).toBeGreaterThan(saveBox!.y)
 }
 
-test('opens a newly linked account on Review all, each preset on one line', async ({ page, request }) => {
+test('opens a newly linked account on Review all, each preset on one line', AT_EVERY_SIZE, async ({ page, request }) => {
   const { section } = await start(page, request)
   const dialog = await openReviewSettings(page, section)
 
@@ -110,7 +114,7 @@ test('opens a newly linked account on Review all, each preset on one line', asyn
   for (const name of ['Review all', 'Auto-approve all', 'Custom'] as const) await expectOneLine(preset(dialog, name).getByText(name, { exact: true }))
 })
 
-test('saves Custom with only corrections auto-approved, each choice on one line, and reopens on Custom with its three rows', async ({ page, request }) => {
+test('saves Custom with only corrections auto-approved, each choice on one line, and reopens on Custom with its three rows', AT_EVERY_SIZE, async ({ page, request }) => {
   const { user, accountId, section } = await start(page, request)
   let dialog = await openReviewSettings(page, section)
 
@@ -196,7 +200,7 @@ test('discards the choice on Cancel, saving nothing, with focus back on Review s
   expect(await readChoices(request, user, accountId)).toEqual({ new_transactions: 'review', corrections: 'review', removals: 'review' })
 })
 
-test('keeps the dialog and the choice when the save fails, saying so beside the actions', async ({ page, request }) => {
+test('keeps the dialog and the choice when the save fails, saying so beside the actions', AT_EVERY_SIZE, async ({ page, request }) => {
   const { user, accountId, section } = await start(page, request)
   const dialog = await openReviewSettings(page, section)
   await page.route(`${API_BASE_URL}/accounts/${accountId}/review-preferences`, (route) =>
@@ -213,7 +217,7 @@ test('keeps the dialog and the choice when the save fails, saying so beside the 
   expect(await readChoices(request, user, accountId)).toEqual({ new_transactions: 'review', corrections: 'review', removals: 'review' })
 })
 
-test('says why the server refused the save, beside the actions, keeping the dialog and the choice', async ({ page, request }) => {
+test('says why the server refused the save, beside the actions, keeping the dialog and the choice', AT_EVERY_SIZE, async ({ page, request }) => {
   const { accountId, section } = await start(page, request)
   const dialog = await openReviewSettings(page, section)
   await page.route(`${API_BASE_URL}/accounts/${accountId}/review-preferences`, (route) =>

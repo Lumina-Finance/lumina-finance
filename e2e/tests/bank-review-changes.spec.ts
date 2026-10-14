@@ -21,7 +21,11 @@ import {
   type BankSource,
 } from '../support/bankSync'
 import { contrastOf, expectTransactionRow, getAccountRow, MIN_TEXT_CONTRAST, MINUS } from '../support/selectors'
+import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
+
+// Runs on desktop only, apart from the failed decision, action alignment and readable comparison tests,
+// which run at every size: the comparison fills a phone's screen and stacks its actions there
 
 // A correction or a removal opens from its row in the review block in a comparison with its ledger
 // transaction, which accepts or keeps the bank's change, or removes or keeps the transaction.
@@ -216,7 +220,7 @@ test('keeps a transaction the bank no longer reports, clearing the marker withou
   expect(ledgerReads).toEqual([])
 })
 
-test('says why a decision failed in the comparison, leaving the item waiting', async ({ page, request }) => {
+test('says why a decision failed in the comparison, leaving the item waiting', AT_EVERY_SIZE, async ({ page, request }) => {
   const { id } = await startWithCorrection(page, request)
 
   // Decisions fail in ways the server can't be made to here: refused over a removal SimpleFIN never
@@ -278,7 +282,7 @@ test('starts focus on keeping the current value when the comparison opens from t
 
 // The actions end where the close button above them ends at every width, as the other dialogs' do.
 // Their left edge is only checked while they stack, since side by side they sit at the right
-test('lines the comparison actions up with its header', async ({ page, request }) => {
+test('lines the comparison actions up with its header', AT_EVERY_SIZE, async ({ page, request }) => {
   await startWithCorrection(page, request)
   await openPage(page, '/transactions')
 
@@ -303,7 +307,6 @@ test('lines the comparison actions up with its header', async ({ page, request }
 })
 
 test('gives each value column room for a bank description on one line at 1440 wide', async ({ page, request }) => {
-  test.skip(test.info().project.name !== 'desktop', 'It sets its own window size')
   await startWithCorrection(page, request)
   await page.setViewportSize({ width: 1440, height: 900 })
   await openPage(page, '/transactions')
@@ -315,7 +318,7 @@ test('gives each value column room for a bank description on one line at 1440 wi
 })
 
 for (const colorScheme of ['light', 'dark'] as const) {
-  test(`compares an edited correction readably in the ${colorScheme} theme${colorScheme === 'light' ? ', without scrolling sideways' : ''}`, async ({ page, request }) => {
+  test(`compares an edited correction readably in the ${colorScheme} theme${colorScheme === 'light' ? ', without scrolling sideways' : ''}`, AT_EVERY_SIZE, async ({ page, request }) => {
     await startWithCorrection(page, request, -4000)
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
     await openPage(page, '/transactions')

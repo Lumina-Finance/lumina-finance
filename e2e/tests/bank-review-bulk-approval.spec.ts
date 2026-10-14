@@ -18,6 +18,8 @@ import {
 import { expectTransactionRow, MINUS } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 
+// Runs on desktop only: what bulk approval previews and applies is the same at every size
+
 // Bulk approve in the review block's header previews the corrections and removals waiting in the
 // accounts the block shows, then applies exactly the items it previewed.
 //

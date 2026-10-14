@@ -12,6 +12,8 @@ import {
 } from '../support/bankSync'
 import { API_BASE_URL } from '../support/target'
 
+// Runs on desktop only: which days the reminder names and how it is dismissed are the same at every size
+
 // The reminder a linked account's Bank link section shows once a day alone still brings back as many
 // transactions as SimpleFIN sends at once, run by the worker against the fake SimpleFIN Bridge.
 // Everyday imports a bank account holding nothing booked but 1,000 holds from 30 days ago, so every

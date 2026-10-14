@@ -4,6 +4,10 @@ import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUs
 import { logInViaApi, openPage } from '../support/app'
 import { addImportedItem, editTransaction, linkToEmptyBankAccount } from '../support/bankSync'
 import { getTransactionRowButton } from '../support/selectors'
+import { AT_EVERY_SIZE } from '../support/sizes'
+
+// Runs at every size: a touch screen opens the bank icon's tooltip by a tap rather than a hover, and
+// transaction rows take their own layouts below 1300px
 
 // A bank-imported row carries a muted bank icon naming its provider, and a dot once the user has
 // edited a value the bank supplied.
@@ -172,7 +176,7 @@ async function startWithImported(
   return { user, account, id }
 }
 
-test('marks a bank-imported row with its provider on hover, focus or a press, leaving the row closed and a manual row unmarked', async ({ page, request }) => {
+test('marks a bank-imported row with its provider on hover, focus or a press, leaving the row closed and a manual row unmarked', AT_EVERY_SIZE, async ({ page, request }) => {
   const { user, account, id: importedId } = await startWithImported(request)
   const manualId = await createTransaction(request, user, {
     accountId: account.id,
@@ -233,7 +237,7 @@ test('marks a bank-imported row with its provider on hover, focus or a press, le
   await expectTooltipClosed(imported, 'From SimpleFIN')
 })
 
-test('opens the tooltip from a press just off the bank icon, leaving the row closed', async ({ page, request }) => {
+test('opens the tooltip from a press just off the bank icon, leaving the row closed', AT_EVERY_SIZE, async ({ page, request }) => {
   const { user, id } = await startWithImported(request)
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
@@ -249,7 +253,7 @@ test('opens the tooltip from a press just off the bank icon, leaving the row clo
   await expectTooltipOpen(page, marker, row, ['From SimpleFIN'])
 })
 
-test('opens the tooltip below the bank icon when the icon sits just under the sticky bars', async ({ page, request }) => {
+test('opens the tooltip below the bank icon when the icon sits just under the sticky bars', AT_EVERY_SIZE, async ({ page, request }) => {
   const { user, account, id } = await startWithImported(request, -4000)
 
   // A day each before it, below it in the list and before the days the bank supplies, so the page runs
@@ -308,7 +312,7 @@ test('opens the tooltip below the bank icon when the icon sits just under the st
   expect(firstLine.y).toBeGreaterThan(markerBox.y + markerBox.height)
 })
 
-test('adds a dot and the edited note to a bank-imported row whose bank value the user changed', async ({ page, request }) => {
+test('adds a dot and the edited note to a bank-imported row whose bank value the user changed', AT_EVERY_SIZE, async ({ page, request }) => {
   const { user, id } = await startWithImported(request, -4000)
   await logInViaApi(page, user)
   await openPage(page, '/transactions')

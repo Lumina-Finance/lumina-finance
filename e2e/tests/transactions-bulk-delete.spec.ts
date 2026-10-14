@@ -5,8 +5,9 @@ import { logInViaApi, openModal, openPage } from '../support/app'
 import { expectMessageInCorner, isUncovered } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
-// Runs on desktop only, apart from the delete confirmation tests, which run at every size: its
-// actions lay out differently on a phone
+// Runs on desktop only, apart from the delete confirmation tests, which run at every size, and the
+// deleted message tests, which run on the phone: its actions lay out differently on a phone, where a
+// dialog and the Filters sheet fill the screen
 
 // Two of three rows are ticked and deleted after the confirmation, the third stays, and the balance
 // already on screen drops back by what the deleted rows had taken out, without a reload
@@ -62,7 +63,7 @@ async function deleteOnlyTransaction(page: Page, request: APIRequestContext): Pr
 // its message shows, so on a phone the message still comes up in the corner rather than where its footer
 // was. A dialog opened while it still shows raises it above the whole of that dialog's footer, which for
 // Add Transaction holds the keep-open option above Cancel and Save
-test('shows the deleted message in the corner as the confirmation closes on a phone, and above Add Transaction opened after', async ({ page, request }) => {
+test('shows the deleted message in the corner as the confirmation closes on a phone, and above Add Transaction opened after', AT_EVERY_SIZE, async ({ page, request }) => {
   test.skip(test.info().project.name !== 'phone', 'A dialog fills the screen below 1050px, which only the phone project is')
   const message = await deleteOnlyTransaction(page, request)
   await expectMessageInCorner(message)
@@ -73,7 +74,7 @@ test('shows the deleted message in the corner as the confirmation closes on a ph
 
 // The Filters sheet fills a phone's screen with Clear all and Apply filters pinned along its bottom, so a
 // message from just before it opened rises above them too
-test('keeps the deleted message clear of Apply filters when Filters opens while it shows on a phone', async ({ page, request }) => {
+test('keeps the deleted message clear of Apply filters when Filters opens while it shows on a phone', AT_EVERY_SIZE, async ({ page, request }) => {
   test.skip(test.info().project.name !== 'phone', 'Filters open in a sheet over the whole screen below 750px, which only the phone project is')
   const message = await deleteOnlyTransaction(page, request)
   await expect(message).toBeVisible()

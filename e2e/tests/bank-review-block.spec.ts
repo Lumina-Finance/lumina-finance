@@ -29,7 +29,11 @@ import {
   WORKER_RESULT_TIMEOUT_MS,
 } from '../support/bankSync'
 import { contrastOf, MIN_TEXT_CONTRAST, MINUS, readBoxes } from '../support/selectors'
+import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
+
+// Runs on desktop only, apart from the Needs review marker and readable text tests, which run at every
+// size: the block's rows wrap and the list's bars pin differently at each width
 
 // Bank items waiting for review show in a block above the transaction list, outside the ledger.
 //
@@ -533,7 +537,7 @@ test('closes once four or fewer items wait, so it shows only the first four when
   await expect(rows).toHaveCount(4)
 })
 
-test("goes from a ledger row's Needs review marker to its item, loading the page it's on", async ({ page, request }) => {
+test("goes from a ledger row's Needs review marker to its item, loading the page it's on", AT_EVERY_SIZE, async ({ page, request }) => {
   const accounts = await start(page, request)
   const { everyday } = accounts
   const uberId = await addUberTripAwaiting(page, request, accounts, 'item-59')
@@ -692,7 +696,7 @@ test('says an account is paused for its backlog, or close to pausing', async ({ 
 })
 
 for (const colorScheme of ['light', 'dark'] as const) {
-  test(`${colorScheme === 'light' ? 'sits above the list and keeps' : 'keeps'} its text readable in the ${colorScheme} theme`, async ({ page, request }) => {
+  test(`${colorScheme === 'light' ? 'sits above the list and keeps' : 'keeps'} its text readable in the ${colorScheme} theme`, AT_EVERY_SIZE, async ({ page, request }) => {
     const { everyday, visa } = await start(page, request)
     const items = [
       reviewItem('visa-1', 'correction', visa.id, { description: 'COUNTDOWN 123 WITH A LONGER BANK DESCRIPTION THAN MOST', amount: -2310 }),
