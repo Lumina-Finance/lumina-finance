@@ -24,6 +24,7 @@ type ImportFilesStepProps = Pick<
   | 'changeSkipLastRows'
   | 'removeFile'
   | 'uploadBlockReason'
+  | 'importResult'
 >
 
 /**
@@ -34,6 +35,10 @@ type ImportFilesStepProps = Pick<
  * The upload control and the guidance above it are taken away once a usable file is staged, since
  * this flow carries one file and uploading another would only replace it. A file the reader refused
  * keeps them, because that is the file the user has to replace
+ *
+ * Once the import has run, the staged file is its record: it can't be removed and how it was read
+ * can't be changed, and the upload control comes back under it, since a new file is how a new import
+ * starts
  */
 export function ImportFilesStep({
   inputRef,
@@ -48,11 +53,13 @@ export function ImportFilesStep({
   changeSkipLastRows,
   removeFile,
   uploadBlockReason,
+  importResult,
 }: ImportFilesStepProps) {
   // A file is read against the currency list, so uploading one before it is in hand would read the
   // file wrongly rather than merely leave a later step waiting
   const isUploadBlocked = isProcessingFiles || uploadBlockReason !== null
   const isFileAccepted = hasAcceptedFile(files)
+  const isImportFinished = Boolean(importResult)
   const stagedListRef = useRef<HTMLDivElement>(null)
   const wasFileAcceptedRef = useRef(isFileAccepted)
   const stagedFile = files[0]
@@ -69,7 +76,7 @@ export function ImportFilesStep({
     stagedListRef.current?.querySelector('button')?.focus()
   }, [isFileAccepted])
 
-  const uploadArea = !isFileAccepted && (
+  const uploadArea = (!isFileAccepted || isImportFinished) && (
     <>
       {/* Stated before a file is chosen, since re-exporting is the only thing that answers it.
           The wording stays loose about what goes wrong on purpose, because readCsvFile has two
@@ -130,19 +137,20 @@ export function ImportFilesStep({
       ) : (
         <>
           <div ref={stagedListRef}>
-            <ImportStagedFileList files={files} onRemove={(file) => removeFile(file.id)} />
+            <ImportStagedFileList files={files} onRemove={isImportFinished ? undefined : (file) => removeFile(file.id)} />
           </div>
           {/* Shown for a refused file too, since most refusals of a bank export are fixed by one of these */}
           {stagedFile && (stagedFile.delimiter || stagedFile.reading) && (
             <ImportReadingChoices
               file={stagedFile}
+              disabled={isImportFinished}
               onDelimiterChange={changeDelimiter}
               onHeaderRowChange={changeHeaderRow}
               onSkipLastRowsChange={changeSkipLastRows}
             />
           )}
           {/* A refused file keeps its place above the upload, so the reading choices stay under the
-              pointer when one is refused */}
+              pointer when one is refused. A finished import's file keeps it the same way */}
           {uploadArea}
         </>
       )}

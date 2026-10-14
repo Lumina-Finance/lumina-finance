@@ -258,6 +258,12 @@ export function getImportGroupAccountError(label: string) {
   return `Link ${label} to one of your own accounts or a new one. Imports don't write to group accounts.`
 }
 
+// The CSV and Firefly III imports name a new account after the source, so a name too long for one is
+// refused before saving rather than by the server
+export function getImportAccountNameTooLongError(label: string) {
+  return `Map to an existing account, since a new account name holds at most ${IMPORT_ACCOUNT_NAME_MAX_LENGTH} characters: ${label}`
+}
+
 /** Says which account source still needs a mapping */
 export function getImportAccountMappingError(name: string) {
   return `Map account: ${name}`

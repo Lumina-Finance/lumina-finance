@@ -41,6 +41,7 @@ type ImportColumnMappingStepProps = Pick<
   | 'setAmountFormat'
   | 'setDirectionAnswer'
   | 'updateColumnTarget'
+  | 'importResult'
 >
 
 /**
@@ -79,8 +80,10 @@ export function ImportColumnMappingStep({
   setAmountFormat,
   setDirectionAnswer,
   updateColumnTarget,
+  importResult,
 }: ImportColumnMappingStepProps) {
   const arrangementClash = getAmountArrangementClashError(columnMap)
+  const isImportFinished = Boolean(importResult)
 
   // The panel is held back while the column itself is refused, which is what a column of more words
   // than a direction has gets. Asking what six words mean under a message saying six is too many
@@ -120,6 +123,7 @@ export function ImportColumnMappingStep({
           amountFormat={amountFormat}
           amountFormatAutomatic={amountFormatAutomatic}
           amountFormatScan={amountFormatScan}
+          disabled={isImportFinished}
           onChange={updateColumnTarget}
           onDateFormatChange={setDateFormat}
           onAmountFormatChange={setAmountFormat}
@@ -134,6 +138,7 @@ export function ImportColumnMappingStep({
             values={directionValues}
             answers={directionAnswers}
             autoFilledValues={autoFilledDirectionValues}
+            disabled={isImportFinished}
             onChange={setDirectionAnswer}
           />
         </div>

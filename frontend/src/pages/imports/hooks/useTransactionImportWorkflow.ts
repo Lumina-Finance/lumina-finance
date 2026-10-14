@@ -543,18 +543,28 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   // automatic match, while fixed imports still answer every row source. Unanswered counterparties
   // outside collisions then default outside, and current unmatched row sources outside collisions
   // default to create
+  //
+  // Accounts are asked about again once an import has run, and a file's account then matches the
+  // account the import created from it. A finished import's record matches without those, so the
+  // account shows as created, the way it was imported
+  const createdAccountIds = run.workflow.importResult?.created_account_ids
   const { matchedMappings: matchedAccountMappings, resolvedMappings: resolvedAccountMappings } = useMemo(
-    () => resolveImportAccountMappings({
-      sources: accountMappingSources,
-      liveMappings: liveAccountMappings,
-      clearedSourceIds: clearedAccountSources,
-      fixedAccountId: fixedAccount?.id ?? null,
-      canInfer: canInferAccountMappings,
-      accountsCurrent,
-      rowAccounts: selectableAccounts,
-      counterpartyAccounts: allAccounts,
-    }),
-    [accountMappingSources, accountsCurrent, allAccounts, canInferAccountMappings, clearedAccountSources, fixedAccount, liveAccountMappings, selectableAccounts],
+    () => {
+      const created = new Set(createdAccountIds)
+      const isKnownBeforeImport = (account: { id: string }) => !created.has(account.id)
+
+      return resolveImportAccountMappings({
+        sources: accountMappingSources,
+        liveMappings: liveAccountMappings,
+        clearedSourceIds: clearedAccountSources,
+        fixedAccountId: fixedAccount?.id ?? null,
+        canInfer: canInferAccountMappings,
+        accountsCurrent,
+        rowAccounts: selectableAccounts.filter(isKnownBeforeImport),
+        counterpartyAccounts: allAccounts.filter(isKnownBeforeImport),
+      })
+    },
+    [accountMappingSources, accountsCurrent, allAccounts, canInferAccountMappings, clearedAccountSources, createdAccountIds, fixedAccount, liveAccountMappings, selectableAccounts],
   )
 
   const resolvedAccountCreateCurrencies = useMemo(
@@ -681,13 +691,18 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     [categoriesResolved, categoryById, categoryMappings],
   )
 
+  // A finished import's record guesses without the categories it created, as for its accounts, so
+  // a name it filed under an existing category is not moved to a closer one the import made
+  const createdCategoryIds = run.workflow.importResult?.created_category_ids
   const resolvedCategoryMappings = useMemo(
     () => {
       // A name whose category has gone is kept away from the guess, so it reads as unanswered
       // until the user answers it
       const answerableCategories = importedCategories.filter((category) => !clearedCategorySources.has(category))
+      const created = new Set(createdCategoryIds)
+      const knownBeforeImport = (categories ?? []).filter((category) => !created.has(category.id))
       const matched = canInferCategoryMappings
-        ? inferCategoryMappings(answerableCategories, liveCategoryMappings, categories ?? [])
+        ? inferCategoryMappings(answerableCategories, liveCategoryMappings, knownBeforeImport)
         : keepCurrentMatchMap(liveCategoryMappings, answerableCategories)
 
       // A cleared name still needs its row, just an unanswered one
@@ -699,7 +714,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       }
       return resolved
     },
-    [canInferCategoryMappings, categories, clearedCategorySources, importedCategories, liveCategoryMappings],
+    [canInferCategoryMappings, categories, clearedCategorySources, createdCategoryIds, importedCategories, liveCategoryMappings],
   )
 
   const autoFilledCategories = useMemo(
@@ -920,7 +935,12 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
             return
           }
           sourceFileRef.current = selectedFile
-          applyStagedFiles([draft])
+
+          // A file uploaded over a finished import starts a new one, so the record of the last import
+          // gives way to it and its columns are read as on a first upload
+          const isReplacingFinishedImport = run.workflow.importResult !== null
+          if (isReplacingFinishedImport) run.resetImportRun()
+          applyStagedFiles([draft], { startFresh: isReplacingFinishedImport })
         } finally {
           if (isCurrentWorkflowRun(workflowRun)) setIsProcessingFiles(false)
         }
@@ -935,7 +955,8 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     startWorkflowRun()
     setIsProcessingFiles(false)
     sourceFileRef.current = null
-    applyStagedFiles(files.filter((file) => file.id !== fileId))
+    // The next file's columns are read as on a first upload
+    applyStagedFiles(files.filter((file) => file.id !== fileId), { startFresh: true })
   }
 
   /**

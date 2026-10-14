@@ -63,6 +63,7 @@ type ImportAccountMappingStepProps = Pick<
   | 'setBatchAccountCurrency'
   | 'setBatchAccountInstitution'
   | 'setSelectedAccountRows'
+  | 'importResult'
 >
 
 /**
@@ -106,6 +107,7 @@ export function ImportAccountMappingStep({
   setBatchAccountCurrency,
   setBatchAccountInstitution,
   setSelectedAccountRows,
+  importResult,
 }: ImportAccountMappingStepProps) {
   const navigate = useNavigate()
   const leaveImportTitleId = useId()
@@ -178,7 +180,8 @@ export function ImportAccountMappingStep({
     accountTypeOptions: ACCOUNT_TYPE_OPTIONS,
     currencyOptions,
     institutionOptions,
-    disabled: accountsLoading,
+    // A finished import shows the accounts it used without letting them change
+    disabled: accountsLoading || Boolean(importResult),
     currenciesDisabled: currenciesLoading,
     institutionsDisabled: institutionsLoading,
     selectedRowIds: selectedAccountRows,

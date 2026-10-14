@@ -27,12 +27,13 @@ type ImportMerchantMatchingStepProps = Pick<
   | 'matchesLoading'
   | 'matchesFailed'
   | 'refetchMatches'
+  | 'importResult'
 >
 
 /**
  * Merchant matching step of the generic CSV import flow, showing every payee value found in the
  * mapped column against the merchant it will be filed under, which the user can change, rename or
- * skip before anything is created
+ * skip before anything is created, and only see once the import has run
  */
 export function ImportMerchantMatchingStep({
   importedMerchants,
@@ -51,7 +52,14 @@ export function ImportMerchantMatchingStep({
   matchesLoading,
   matchesFailed,
   refetchMatches,
+  importResult,
 }: ImportMerchantMatchingStepProps) {
+  const isAnswerLocked = matchesLoading || Boolean(importResult)
+
+  // Merchants are asked about again once an import has run, and a file's merchant then matches the
+  // merchant the import created from it. The record shows the merchant as created, the way it was imported
+  const createdByImport = new Set(importResult?.created_merchant_ids)
+
   return (
     <ImportStep
       index="05"
@@ -77,7 +85,8 @@ export function ImportMerchantMatchingStep({
           createValue={CREATE_MERCHANT_VALUE}
           rows={importedMerchants.map((value) => {
             const answer = merchantMappings[value] ?? ''
-            const matched = matchedMerchantByKey.get(getMerchantNameKey(value))
+            const found = matchedMerchantByKey.get(getMerchantNameKey(value))
+            const matched = found && !createdByImport.has(found.id) ? found : undefined
             const rowState = getImportMerchantRowState(answer, matched)
 
             return {
@@ -110,7 +119,7 @@ export function ImportMerchantMatchingStep({
                     ...current,
                     [value]: event.target.value,
                   }))}
-                  disabled={matchesLoading || rowState !== 'creating'}
+                  disabled={isAnswerLocked || rowState !== 'creating'}
                 />
               ),
               onChange: (nextValue) => {
@@ -125,7 +134,7 @@ export function ImportMerchantMatchingStep({
             }
           })}
           options={merchantOptions}
-          disabled={matchesLoading}
+          disabled={isAnswerLocked}
           searchValue={merchantSearch}
           onSearchChange={setMerchantSearch}
           isLoading={merchantSearchLoading}

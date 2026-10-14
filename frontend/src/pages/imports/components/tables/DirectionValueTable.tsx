@@ -13,11 +13,13 @@ export function ImportDirectionValueTable({
   values,
   answers,
   autoFilledValues,
+  disabled,
   onChange,
 }: {
   values: Array<{ key: string; label: string }>
   answers: Record<string, ImportAmountDirection>
   autoFilledValues: Set<string>
+  disabled: boolean
   onChange: (key: string, direction: ImportAmountDirection) => void
 }) {
   return (
@@ -51,6 +53,7 @@ export function ImportDirectionValueTable({
                       value={answers[value.key] ?? ''}
                       label={`What ${value.label} means`}
                       onChange={(direction) => onChange(value.key, direction)}
+                      disabled={disabled}
                     />
                   </div>
                 </td>

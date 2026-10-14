@@ -29,11 +29,13 @@ export function ImportDateFormatControl({
   format,
   automatic,
   scan,
+  disabled,
   onChange,
 }: {
   format: ImportDateFormat | null
   automatic: boolean
   scan: ImportDateChoiceScan
+  disabled: boolean
   onChange: (format: ImportDateFormat) => void
 }) {
   const formatLabelId = useId()
@@ -60,6 +62,7 @@ export function ImportDateFormatControl({
         labelledBy={formatLabelId}
         placeholder="Choose the date format"
         size="compact"
+        disabled={disabled}
       />
     </div>
   )
@@ -70,11 +73,13 @@ export function ImportAmountFormatControl({
   format,
   automatic,
   scan,
+  disabled,
   onChange,
 }: {
   format: ImportAmountFormat | null
   automatic: boolean
   scan: ImportAmountFormatScan
+  disabled: boolean
   onChange: (format: ImportAmountFormat) => void
 }) {
   const formatLabelId = useId()
@@ -106,6 +111,7 @@ export function ImportAmountFormatControl({
         labelledBy={formatLabelId}
         placeholder="Choose the amount format"
         size="compact"
+        disabled={disabled}
       />
     </div>
   )
@@ -127,12 +133,14 @@ function getAmountFormatExample(format: ImportAmountFormat) {
 export function ImportDelimiterControl({
   delimiter,
   hasError,
+  disabled,
   onChange,
 }: {
   delimiter: ImportDelimiter
 
   /** Whether the file was refused, which a separator choice is often what fixes */
   hasError: boolean
+  disabled: boolean
   onChange: (delimiter: ImportDelimiter) => void
 }) {
   // Every choice is shown with the character it stands for, so it can be matched against the file
@@ -147,7 +155,7 @@ export function ImportDelimiterControl({
       <p aria-hidden className="text-sm font-medium">
         Separator
       </p>
-      <ImportSegmentedToggle options={options} value={delimiter} label="Separator" onChange={onChange} hasError={hasError} />
+      <ImportSegmentedToggle options={options} value={delimiter} label="Separator" onChange={onChange} hasError={hasError} disabled={disabled} />
     </div>
   )
 }

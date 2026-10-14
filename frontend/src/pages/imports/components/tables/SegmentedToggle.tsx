@@ -56,7 +56,7 @@ export function ImportSegmentedToggle<T extends string>({
 
   return (
     <div
-      className={`app-segmented-control relative w-full overflow-hidden${hasError ? ' border-[var(--app-negative-border)]' : ''}${disabled ? ' opacity-60' : ''}`}
+      className={`app-segmented-control relative w-full overflow-hidden${hasError ? ' border-[var(--app-negative-border)]' : ''}${disabled ? ' app-segmented-control-disabled' : ''}`}
       role="radiogroup"
       aria-label={label}
       aria-invalid={hasError || undefined}

@@ -76,6 +76,8 @@ export function ImportAccountMappingTable({
   accountTypeOptions: DropdownOption[]
   currencyOptions: DropdownOption[]
   institutionOptions: DropdownOption[]
+
+  /** Holds every answer in the table and its batch bar, such as while the accounts list loads */
   disabled: boolean
   currenciesDisabled: boolean
   institutionsDisabled: boolean
@@ -219,7 +221,7 @@ export function ImportAccountMappingTable({
             placeholder="Type"
             size="compact"
             className={row.autoFilled && !creating ? 'import-auto-fill-field' : undefined}
-            disabled={!creating}
+            disabled={disabled || !creating}
           />
         </td>
         <td className="px-2 py-3 align-middle">
@@ -233,7 +235,7 @@ export function ImportAccountMappingTable({
             placeholder="Currency"
             size="compact"
             className={row.autoFilled && !creating ? 'import-auto-fill-field' : undefined}
-            disabled={!creating || currenciesDisabled}
+            disabled={disabled || !creating || currenciesDisabled}
           />
         </td>
         <td className="px-4 py-3 align-middle">
@@ -249,7 +251,7 @@ export function ImportAccountMappingTable({
             placeholder="Institution"
             size="compact"
             className={row.autoFilled && !creating ? 'import-auto-fill-field' : undefined}
-            disabled={!creating || institutionsDisabled}
+            disabled={disabled || !creating || institutionsDisabled}
             onCreateNew={(query) => onCreateInstitution(query, row.id)}
             createNewLabel={(query) => query ? `Create institution "${query}"` : 'Create institution'}
           />
@@ -280,6 +282,7 @@ export function ImportAccountMappingTable({
               searchable
               placeholder="Type"
               size="field"
+              disabled={disabled}
             />
           </div>
           <div className="min-w-0 px-2">
@@ -291,7 +294,7 @@ export function ImportAccountMappingTable({
               searchable
               placeholder="Currency"
               size="field"
-              disabled={currenciesDisabled}
+              disabled={disabled || currenciesDisabled}
             />
           </div>
           <div className="flex min-w-0 items-center gap-3 px-4">
@@ -304,7 +307,7 @@ export function ImportAccountMappingTable({
                 searchable
                 placeholder="Institution"
                 size="field"
-                disabled={institutionsDisabled}
+                disabled={disabled || institutionsDisabled}
                 onCreateNew={onBatchCreateInstitution}
                 createNewLabel={(query) => query ? `Create institution "${query}"` : 'Create institution'}
               />
@@ -313,7 +316,7 @@ export function ImportAccountMappingTable({
               type="button"
               className="app-primary-button h-10 shrink-0"
               onClick={applyBatchType}
-              disabled={!hasBatchFieldSet || editableRows.length === 0}
+              disabled={disabled || !hasBatchFieldSet || editableRows.length === 0}
             >
               Apply
             </button>

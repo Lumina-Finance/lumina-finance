@@ -24,6 +24,7 @@ export function ImportCategoryMatchingLayout({
   categoriesLoading,
   categoriesFailed,
   refetchCategories,
+  isImportFinished = false,
 }: {
   index: string
   description: string
@@ -41,6 +42,9 @@ export function ImportCategoryMatchingLayout({
   categoriesLoading: boolean
   categoriesFailed: boolean
   refetchCategories: () => void
+
+  /** Shows each category's answer without letting it change, once the import has been run */
+  isImportFinished?: boolean
 }) {
   return (
     <ImportStep index={index} title="Category Matching" description={description}>
@@ -62,7 +66,7 @@ export function ImportCategoryMatchingLayout({
           createValue={CREATE_CATEGORY_VALUE}
           rows={rows}
           options={options}
-          disabled={categoriesLoading}
+          disabled={categoriesLoading || isImportFinished}
         />
       )}
     </ImportStep>

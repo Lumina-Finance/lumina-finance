@@ -76,13 +76,12 @@ export function ImportPreviewList({
     ))
   }
 
-  // The wrapper scrolls sideways only below the width the row layout is built for. Past that it
-  // stops clipping entirely, because overflow-x cannot be auto while overflow-y stays visible, and
-  // clipping vertically cuts off the tag stack that opens above a row. It is a size container so the
-  // Upcoming header and explanation can fit its visible width rather than the rows' full width
+  // Below 1300px the rows take the compact layouts the transactions page shows, which fit any width, so
+  // only the six-column layout holds a minimum width. Nothing clips, so the tag stack that opens above a
+  // row shows in full. It is a size container so the Upcoming header and explanation fit its width
   return (
-    <div className="@container overflow-x-auto min-[1300px]:overflow-visible">
-      <div className="min-w-[58rem] min-[1300px]:grid min-[1300px]:grid-cols-[2.75rem_fit-content(24rem)_fit-content(18rem)_minmax(0,1fr)_max-content_max-content] min-[1300px]:gap-x-3">
+    <div className="@container">
+      <div className="min-[1300px]:min-w-[58rem] min-[1300px]:grid min-[1300px]:grid-cols-[2.75rem_fit-content(24rem)_fit-content(18rem)_minmax(0,1fr)_max-content_max-content] min-[1300px]:gap-x-3">
         <UpcomingSection
           transactionDates={upcomingGroups.flatMap((group) => group.rows.map((row) => row.transaction.dt))}
           today={today}

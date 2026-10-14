@@ -245,7 +245,7 @@ export function ImportStagedFileList({
   onRemove,
 }: {
   files: ImportFileDraft[]
-  onRemove: (file: ImportFileDraft) => void
+  onRemove?: (file: ImportFileDraft) => void
 }) {
   return <ImportStagedFileTable files={files} describe={describeCsvFile} onRemove={onRemove} />
 }
@@ -260,14 +260,19 @@ export function ImportStagedFileTable<TFile extends { id: string; name: string }
 }: {
   files: TFile[]
   describe: (file: TFile) => ImportStagedFileSummary
-  onRemove: (file: TFile) => void
+
+  /** Left out where the file can no longer be removed, such as one a finished import was read from */
+  onRemove?: (file: TFile) => void
 }) {
   return (
     <div className="max-h-64 overflow-y-auto">
       {files.map((file) => {
         const { detail, problem } = describe(file)
         return (
-          <div key={file.id} className="grid grid-cols-[17px_minmax(0,1fr)_2rem] items-start gap-x-3 px-3 py-3">
+          <div
+            key={file.id}
+            className={`grid items-start gap-x-3 px-3 py-3 ${onRemove ? 'grid-cols-[17px_minmax(0,1fr)_2rem]' : 'grid-cols-[17px_minmax(0,1fr)]'}`}
+          >
             <FileText size={17} className="mt-0.5" style={{ color: 'var(--app-text-muted)' }} aria-hidden />
             <div className="min-w-0">
               {/* Wraps rather than truncating, since exports are often told apart by the end of their name */}
@@ -288,14 +293,16 @@ export function ImportStagedFileTable<TFile extends { id: string; name: string }
               )}
             </div>
             {/* Drawn taller than the name's line without making it any taller */}
-            <button
-              type="button"
-              className="app-icon-button -my-1"
-              onClick={() => onRemove(file)}
-              aria-label={`Remove ${file.name}`}
-            >
-              <X size={16} aria-hidden />
-            </button>
+            {onRemove && (
+              <button
+                type="button"
+                className="app-icon-button -my-1"
+                onClick={() => onRemove(file)}
+                aria-label={`Remove ${file.name}`}
+              >
+                <X size={16} aria-hidden />
+              </button>
+            )}
           </div>
         )
       })}

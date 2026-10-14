@@ -4,6 +4,7 @@ import type { Merchant } from '@/api/merchants'
 import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transaction-imports'
 import {
   getDirectionValuesAgreeError,
+  getImportAccountNameTooLongError,
   getImportNoRowsError,
   getTooManyMappingsError,
   getRowSignDisagreesWithCategoryReason,
@@ -201,6 +202,7 @@ export function buildTransactionImportPayload({
       accountById,
       takesRows: !source.isCounterpartyOnly,
       refusesGroupAccount: false,
+      getNameTooLongError: getImportAccountNameTooLongError,
     }, addError)
     if (built) accounts.push(built.mapping)
   }

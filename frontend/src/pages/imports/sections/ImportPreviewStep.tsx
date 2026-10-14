@@ -99,6 +99,7 @@ export function ImportPreviewStep({
             rowProblems={skipped.rows}
             headers={headers}
             toggleLabel="skipped rows"
+            revealsOnReview
           />
         </div>
       )}

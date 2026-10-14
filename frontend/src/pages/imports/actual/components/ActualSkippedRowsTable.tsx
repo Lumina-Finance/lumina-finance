@@ -6,7 +6,8 @@ const SKIPPED_ROW_HEADERS = ['Account', 'Amount', 'Payee', 'Category', 'Notes']
 
 /**
  * Collapsible panel listing the Actual transactions the import will not or did not write, freezing
- * the date and reason on the left while what Actual shows for each scrolls beside them
+ * the date on the left while what Actual shows for each scrolls beside it, with the reason under
+ * each row
  */
 export function ActualSkippedRowsTable({ title, rows, decimals }: {
   title: string
@@ -38,6 +39,7 @@ export function ActualSkippedRowsTable({ title, rows, decimals }: {
       headers={SKIPPED_ROW_HEADERS}
       rows={tableRows}
       totalCount={rows.length}
+      revealsOnReview
     />
   )
 }
