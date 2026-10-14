@@ -380,9 +380,11 @@ test('greys out Restore bank value on an amount the currency can\'t hold, saying
   await expect(reason).toHaveCSS('opacity', '1')
 
   // Its focus ring keeps its full strength, since only the label fades, and whole, since every box that
-  // clips the action leaves room for the 2px Chrome draws the ring outside it, the body it scrolled in too
+  // clips the action leaves room for as far as the ring reaches outside it, the body it scrolled in too
   const ring = await restore.evaluate((button) => {
     const rect = button.getBoundingClientRect()
+    const drawn = getComputedStyle(button)
+    const reach = parseFloat(drawn.outlineOffset) + parseFloat(drawn.outlineWidth)
     let opacity = 1
     let room = Number.POSITIVE_INFINITY
     for (let box: Element | null = button; box; box = box.parentElement) {
@@ -392,8 +394,9 @@ test('greys out Restore bank value on an amount the currency can\'t hold, saying
       const bounds = box.getBoundingClientRect()
       room = Math.min(room, rect.top - bounds.top, bounds.bottom - rect.bottom, rect.left - bounds.left, bounds.right - rect.right)
     }
-    return { opacity, room }
+    return { opacity, room, reach }
   })
   expect(ring.opacity).toBe(1)
-  expect(ring.room).toBeGreaterThanOrEqual(2)
+  expect(ring.reach).toBeGreaterThan(0)
+  expect(ring.room).toBeGreaterThanOrEqual(ring.reach)
 })

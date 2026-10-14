@@ -103,8 +103,10 @@ export default function TransactionBankValueCaption({
                   aria-describedby={describedBy}
                   // Restoring keeps its full colour, since it says what is happening rather than that
                   // the action is unavailable. Focus scrolls the action in with room above and below it
-                  // for its ring, which the edge of the modal's body would otherwise cut off
-                  className={`inline-flex scroll-my-1 cursor-pointer items-center gap-1 border-0 bg-transparent py-1 font-medium disabled:cursor-not-allowed aria-disabled:cursor-not-allowed ${restoring ? '' : 'disabled:opacity-60'}`}
+                  // for its ring, which the edge of the modal's body would otherwise cut off. The ring
+                  // sits against the action's edge, with no gap, since the clip around the line keeps
+                  // only 2px above and below it
+                  className={`inline-flex scroll-my-1 cursor-pointer items-center gap-1 border-0 bg-transparent py-1 font-medium focus-visible:outline-offset-0 disabled:cursor-not-allowed aria-disabled:cursor-not-allowed ${restoring ? '' : 'disabled:opacity-60'}`}
                 >
                   {restoring && (
                     <LoaderCircle size={12} strokeWidth={2.4} className="animate-spin motion-reduce:animate-none" aria-hidden />
