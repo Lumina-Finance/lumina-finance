@@ -293,22 +293,34 @@ test('opens the reason for a gap below the difference where the dialog leaves no
   expect(opened.y).toBeGreaterThanOrEqual(explained.y + explained.height)
 })
 
-test('moves the reason for a gap below the balances as the dialog body scrolls them to its top', async ({ page, request }) => {
-  // A small phone, where each balance takes a row. The reason opens above the three while they have
-  // room above them
-  const dialog = await openBalancesThatDiffer(page, request, { width: 390, height: 667 })
-  await dialog.getByRole('button', { name: 'Why the balances differ' }).click()
-  const reason = dialog.locator('.app-tooltip-panel').filter({ hasText: 'Most gaps come from' })
-  await expect(reason.locator('..')).toHaveCSS('opacity', '1')
-  const [opened, bankBalance] = await readBoxes(page, [reason, fact(dialog, 'SimpleFIN').locator('..')])
-  expect(opened.y + opened.height).toBeLessThanOrEqual(bankBalance.y)
+// Shown by a press or by the keyboard reaching its icon, the reason moves alike
+for (const { shown, show } of [
+  { shown: 'opened with a press', show: (icon: Locator) => icon.click() },
+  {
+    shown: 'shown on keyboard focus',
+    show: async (icon: Locator) => {
+      await icon.page().keyboard.press('Shift')
+      await icon.focus()
+    },
+  },
+]) {
+  test(`moves the reason for a gap below the balances as the dialog body scrolls them to its top, ${shown}`, async ({ page, request }) => {
+    // A small phone, where each balance takes a row. The reason shows above the three while they have
+    // room above them
+    const dialog = await openBalancesThatDiffer(page, request, { width: 390, height: 667 })
+    await show(dialog.getByRole('button', { name: 'Why the balances differ' }))
+    const reason = dialog.locator('.app-tooltip-panel').filter({ hasText: 'Most gaps come from' })
+    await expect(reason.locator('..')).toHaveCSS('opacity', '1')
+    const [opened, bankBalance] = await readBoxes(page, [reason, fact(dialog, 'SimpleFIN').locator('..')])
+    expect(opened.y + opened.height).toBeLessThanOrEqual(bankBalance.y)
 
-  // Scrolled with the reason open until the difference is at the top of the dialog's body, which leaves
-  // the reason no room above the balances
-  await fact(dialog, /^Difference/).evaluate((element) => element.parentElement!.scrollIntoView({ block: 'start', behavior: 'instant' }))
-  await expect.poll(() => readClippingBoxes(reason)).toEqual([])
-  expect(await coversAnyBalance(dialog, reason)).toBe(false)
-})
+    // Scrolled with the reason showing until the difference is at the top of the dialog's body, which
+    // leaves the reason no room above the balances
+    await fact(dialog, /^Difference/).evaluate((element) => element.parentElement!.scrollIntoView({ block: 'start', behavior: 'instant' }))
+    await expect.poll(() => readClippingBoxes(reason)).toEqual([])
+    expect(await coversAnyBalance(dialog, reason)).toBe(false)
+  })
+}
 
 test('reads as retrying at the time of the retry when the Bridge fails', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
