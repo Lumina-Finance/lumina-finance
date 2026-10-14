@@ -392,6 +392,45 @@ test(
   },
 )
 
+// The bank screens draw focus in several ways, a ring outside a control, a shadow inside one or a ring a
+// list item lays over itself, and every one of them is drawn in the app's one focus colour. Read for each
+// control, so a run that fails names every control that misses it, and until it holds, since some ease
+// their focus in
+test('draws keyboard focus on the bank screens in the focus colour', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const id = await createTransaction(request, user, {
+    accountId: account.id,
+    categoryName: 'Groceries',
+    amount: -1800,
+    date: daysFromTodayInTestTimezone(-1),
+  })
+  const connection = await claimSetupToken(request, user, (await createEmptyBridgeScenario(request)).setupToken)
+  // A removal waits on the row, so the row carries a Needs review marker and the block holds the item
+  await answerAsBankImported(page, { [id]: { ...BANK_SOURCE, review_item_id: 'item-1' } })
+  await answerReviewItems(page, () => pageOf([reviewItem('item-1', 'removal', account.id, {}, { transaction_id: id })], { removal: 1 }))
+  await logInViaApi(page, user)
+
+  const expectFocusColour = async (control: Locator) => {
+    await focusFromKeyboard(page, control)
+    await expect(control).toBeFocused()
+    await expect.configure({ soft: true }).poll(() => drawsFocusColour(control), { message: `focus on ${control}` }).toBe(true)
+  }
+
+  await openPage(page, '/transactions')
+  const row = page.getByTestId(`transaction-row-${id}`)
+  await expectFocusColour(row.getByRole('button', { name: 'From SimpleFIN', exact: true }))
+  await expectFocusColour(row.getByRole('button', { name: 'Needs review. Show the waiting item' }))
+  await expectFocusColour(reviewBlock(page).getByRole('button').filter({ hasText: 'GROCER item-1' }))
+
+  await openPage(page, `/accounts/${account.id}`)
+  await expectFocusColour(page.getByRole('button', { name: /^Bank sync: .* Open bank link$/ }))
+
+  await openPage(page, '/settings#bank-connections')
+  await expectFocusColour(page.locator(`[data-connection-id="${connection.id}"]`).getByRole('button').first())
+})
+
 // Every stop on the way through the page and a dialog, links, charts and info buttons included, shows
 // the app's focus rather than the browser's own ring, which Chrome reports as an outline style of auto
 test('never shows the browser focus ring when tabbing through the app', async ({ page, request }) => {
