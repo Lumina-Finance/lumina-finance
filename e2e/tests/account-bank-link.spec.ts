@@ -25,9 +25,12 @@ import {
   type SeededConnection,
 } from '../support/bankSync'
 import { expectMessageInCorner, isUncovered, MESSAGE_IN_CORNER, readBoxes, readMessageInset } from '../support/selectors'
+import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only: it sets the window sizes it checks itself
+// Runs on desktop only, apart from the test linking an account from its page, which runs at every size:
+// the linked view is taller than the one it replaces, which on a phone could push the action it focuses
+// out of view. The rest set the window sizes they check themselves
 
 // An account links to a bank account from its own page, through the Bank link section of its edit
 // modal, which the identity card's Bank sync fact opens, and straight after it is created. Connections
@@ -269,7 +272,7 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
 
-test('links an account from its page, from choosing the bank account to its import', async ({ page, request }) => {
+test('links an account from its page, from choosing the bank account to its import', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [everyday, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Everyday' }),

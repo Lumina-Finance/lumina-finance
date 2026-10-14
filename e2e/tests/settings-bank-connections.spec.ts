@@ -25,8 +25,10 @@ import { expectMessageInCorner, readBoxes } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL, BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the linked account tile test, which runs on the phone: the
-// institutions sit below the connection and its actions there. The rest set the window sizes they check
+// Runs on desktop only, apart from the linked account tile test, which runs on the phone, and the linking
+// and reconnect tests, which run at every size: the institutions sit below the connection and its actions
+// on a phone, the connection fills a phone's screen with its message still in the corner, and a folded
+// institution's count moves under its name on a phone. The rest set the window sizes they check
 // themselves or give the same result at every size
 
 // The section lists the user's bank connections and looks after each one in its own modal. Connections
@@ -500,7 +502,7 @@ test('words when a spent request budget frees up anew as minutes pass with the c
   await expect(note).toContainText(/frees up in 5 minutes/)
 })
 
-test('links a bank account from the connection, importing from the start chosen', async ({ page, request }) => {
+test('links a bank account from the connection, importing from the start chosen', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [household, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Household' }),
@@ -630,7 +632,7 @@ test('focuses the search once the only connection is disconnected', async ({ pag
   await expect(section.getByPlaceholder('Find a connection or institution…')).toBeFocused()
 })
 
-test('reconnects a rejected connection, and shows the account to choose again under Mismatch detected', async ({ page, request }) => {
+test('reconnects a rejected connection, and shows the account to choose again under Mismatch detected', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [household, travelVisa, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Household' }),

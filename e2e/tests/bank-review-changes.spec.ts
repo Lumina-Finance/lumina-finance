@@ -24,8 +24,9 @@ import { contrastOf, expectTransactionRow, getAccountRow, MIN_TEXT_CONTRAST, MIN
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the failed decision, action alignment and readable comparison tests,
-// which run at every size: the comparison fills a phone's screen and stacks its actions there
+// Runs on desktop only, apart from the removal, failed decision, action alignment and readable comparison
+// tests, which run at every size: the comparison fills a phone's screen and stacks its actions there, and
+// a removal's rows each keep to one line even on a phone
 
 // A correction or a removal opens from its row in the review block in a comparison with its ledger
 // transaction, which accepts or keeps the bank's change, or removes or keeps the transaction.
@@ -178,7 +179,7 @@ test("keeps the current value, which then counts as edited, clearing the marker 
   expect(await readReviewItems(request, user, everyday.id)).toEqual([])
 })
 
-test('removes a transaction the bank no longer reports, reading the ledger again', async ({ page, request }) => {
+test('removes a transaction the bank no longer reports, reading the ledger again', AT_EVERY_SIZE, async ({ page, request }) => {
   const { decisions } = await startWithRemoval(page, request)
   await openPage(page, '/transactions')
 
