@@ -105,24 +105,19 @@ export function getAccountRow(page: Page, name: string): Locator {
 
 type Edges = { left: number; top: number; right: number; bottom: number }
 
-// How far the row's text keeps clear of the ring on every side, so the ring never touches a line
+// How far the row's text keeps clear of the ring's inner edge on every side, so the ring never touches a line
 const FOCUS_RING_TEXT_CLEARANCE = 4
 
-// The corners of a focused row's ring and light, which are those of the rounded-xl account row
-const FOCUS_RING_RADIUS = '12px'
-
 /**
- * Assert keyboard focus on a control stretched over its row rings the row in the app's accent focus
- * outline, read from the layer the control lays over the row, which is what draws it
+ * Assert keyboard focus on a control stretched over its row rings the row in the app's focus colour
  *
- * The ring has to run around the row's own box, so it goes round the whole row with the row's padding
- * inside it rather than tight around the text, and every line of the row's text has to clear it. The
- * row is lit in the accent's soft tint as well, by its own background or by the layer, and the ring
- * and the light share the rounded corners of an account row. No border another box draws over the row
- * may cover the ring
+ * The ring is the row's own, drawn by the shared focus rule on the row's box inside the one given,
+ * rather than by the control, which draws none. It has to sit against that box's edge and inside it,
+ * and every line of the box's text has to clear its inner edge. Focus does not light the box in the
+ * accent's soft tint, since the ring falls under 3:1 against that tint on the light theme's page
  */
 export async function expectStretchedFocusRing(control: Locator, row: Locator): Promise<void> {
-  // The pointer is kept off the row, so the light that a hover also gives can only come from the focus
+  // The pointer is kept off the row, so any light on it could only come from the focus
   await control.page().mouse.move(0, 0)
   await control.focus()
 
@@ -143,23 +138,23 @@ export async function expectStretchedFocusRing(control: Locator, row: Locator): 
         probe.style.color = color
         return getComputedStyle(probe).color
       }
-      const accent = resolve('var(--app-accent)')
+      const focusRing = resolve('var(--app-focus-ring)')
       const accentSoft = resolve('var(--app-accent-soft)')
       probe.remove()
-      const layer = getComputedStyle(element, '::after')
-      const rowStyle = getComputedStyle(rowElement!)
-      const lit = [layer, rowStyle].find((style) => style.backgroundColor === accentSoft)
 
-      // The layer is placed against the nearest positioned ancestor, measured from inside its border
-      const block = (element as HTMLElement).offsetParent as HTMLElement
-      const blockBox = block.getBoundingClientRect()
-      const left = blockBox.left + block.clientLeft + parseFloat(layer.left)
-      const top = blockBox.top + block.clientTop + parseFloat(layer.top)
+      // The nearest box around the control that draws an outline, which is the box the ring belongs to
+      let frame: Element | null = element
+      while (frame && getComputedStyle(frame).outlineStyle === 'none') frame = frame.parentElement
+      const ringStyle = frame ? getComputedStyle(frame) : null
+      const ringBox = frame ?? rowElement!
+      const lit = [getComputedStyle(element), getComputedStyle(ringBox)].some(
+        (style) => style.backgroundColor === accentSoft,
+      )
 
-      // Every line of text on screen in the row, leaving out what is laid out but unseen, such as a
+      // Every line of text on screen in the ring's box, leaving out what is laid out but unseen, such as a
       // closed tooltip's faded panel
       let text: ReturnType<typeof edgesOf> | null = null
-      const walker = document.createTreeWalker(rowElement!, NodeFilter.SHOW_TEXT)
+      const walker = document.createTreeWalker(ringBox, NodeFilter.SHOW_TEXT)
       for (let node = walker.nextNode(); node; node = walker.nextNode()) {
         const parent = node.parentElement
         if (!node.textContent?.trim() || !parent?.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue
@@ -181,13 +176,13 @@ export async function expectStretchedFocusRing(control: Locator, row: Locator): 
           : line
       }
 
-      // Each side of every border another box draws across the row, such as the dashed edge the Upcoming
-      // section lays over its rows' sides. Only a positioned box outside the row can be painted over it,
-      // and one laid out but unseen is left out
-      const rowBox = edgesOf(rowElement!.getBoundingClientRect())
+      // Each side of every border another box draws across the ring's box, such as the dashed edge the
+      // Upcoming section lays over its rows' sides. Only a positioned box outside the row can be painted
+      // over it, and one laid out but unseen is left out
+      const rowBox = edgesOf(ringBox.getBoundingClientRect())
       const borders: (ReturnType<typeof edgesOf> & { side: 'left' | 'right' | 'top' | 'bottom' })[] = []
       for (const other of document.body.querySelectorAll('*')) {
-        if (other === rowElement || other.contains(rowElement!) || rowElement!.contains(other)) continue
+        if (other === ringBox || other.contains(ringBox) || ringBox.contains(other)) continue
         const style = getComputedStyle(other)
         if (style.position === 'static' || !other.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue
         const box = edgesOf(other.getBoundingClientRect())
@@ -201,53 +196,74 @@ export async function expectStretchedFocusRing(control: Locator, row: Locator): 
       }
 
       return {
-        position: layer.position,
-        style: layer.outlineStyle,
-        width: layer.outlineWidth,
-        color: layer.outlineColor,
-        accent,
-        radius: layer.borderRadius,
-        litRadius: lit?.borderRadius ?? null,
-        box: { left, top, right: left + parseFloat(layer.width), bottom: top + parseFloat(layer.height) },
+        drawnInRow: frame !== null && rowElement!.contains(frame),
+        style: ringStyle?.outlineStyle,
+        width: ringStyle?.outlineWidth,
+        color: ringStyle?.outlineColor,
+        offset: ringStyle ? parseFloat(ringStyle.outlineOffset) : Number.NaN,
+        // How much of the row's sides an edge drawn over them takes, which the ring sits just inside of
+        frameGap: ringStyle ? parseFloat(ringStyle.getPropertyValue('--transaction-row-frame')) || 0 : 0,
+        radius: ringStyle ? parseFloat(ringStyle.borderTopLeftRadius) || 0 : 0,
+        focusRing,
+        lit,
         rowBox,
         textBox: text,
         borders,
         pixelRatio: window.devicePixelRatio,
       }
     }, rowElement)
-    expect({ position: ring.position, style: ring.style, width: ring.width, color: ring.color })
-      .toEqual({ position: 'absolute', style: 'solid', width: '2px', color: ring.accent })
+    expect({ drawnInRow: ring.drawnInRow, style: ring.style, width: ring.width, color: ring.color })
+      .toEqual({ drawnInRow: true, style: 'solid', width: '2px', color: ring.focusRing })
+    expect(ring.lit, 'the ring\'s box lit in the accent tint').toBe(false)
 
-    // The light is null where neither the row nor the layer carries the tint
-    expect({ radius: ring.radius, litRadius: ring.litRadius })
-      .toEqual({ radius: FOCUS_RING_RADIUS, litRadius: FOCUS_RING_RADIUS })
+    // The ring sits against the row's edge, inside it, so the row beside it cannot cover it
+    expect(ring.offset, "the ring's gap from the row's edge").toBe(-2 - ring.frameGap)
 
-    // How far each edge of the inner box sits inside the outer one, negative where it pokes out
-    const inset = (outer: Edges, inner: Edges): Edges => ({
-      left: inner.left - outer.left,
-      top: inner.top - outer.top,
-      right: outer.right - inner.right,
-      bottom: outer.bottom - inner.bottom,
-    })
+    // The ring's inner edge is the row's edge pulled in by the gap, and the text stays clear of it
     expect(ring.textBox).not.toBeNull()
-    const ringInset = inset(ring.rowBox, ring.box)
-    const textClearance = inset(ring.box, ring.textBox!)
+    const inner: Edges = {
+      left: ring.rowBox.left - ring.offset,
+      top: ring.rowBox.top - ring.offset,
+      right: ring.rowBox.right + ring.offset,
+      bottom: ring.rowBox.bottom + ring.offset,
+    }
+    const clearance: Edges = {
+      left: ring.textBox!.left - inner.left,
+      top: ring.textBox!.top - inner.top,
+      right: inner.right - ring.textBox!.right,
+      bottom: inner.bottom - ring.textBox!.bottom,
+    }
     for (const edge of ['left', 'top', 'right', 'bottom'] as const) {
-      // On the row's own edge, or just inside a border along it, such as the separator along a
-      // transaction row's foot or the Upcoming section's edge over its sides
-      expect(Math.round(ringInset[edge]), `the ring's ${edge} edge against the row's`).toBeGreaterThanOrEqual(0)
-      expect(Math.round(ringInset[edge]), `the ring's ${edge} edge against the row's`).toBeLessThanOrEqual(2)
-      expect(textClearance[edge], `the text's clearance from the ring's ${edge} edge`).toBeGreaterThanOrEqual(FOCUS_RING_TEXT_CLEARANCE)
+      expect(clearance[edge], `the text's clearance from the ring's ${edge} edge`).toBeGreaterThanOrEqual(FOCUS_RING_TEXT_CLEARANCE)
     }
 
-    // The outline is inset by its own width, so the ring is the layer's outer band of that width, and no
-    // border another box draws may cross it by more than a pixel's antialiased edge
-    const stroke = parseFloat(ring.width)
+    // The ring follows the row's corners, so a rounded row cuts its corners off the ring's inner edge. Each corner of
+    // the text stays inside that arc
+    const arcs = [
+      { x: ring.textBox!.left, y: ring.textBox!.top, from: [inner.left, inner.top], toward: [1, 1] },
+      { x: ring.textBox!.right, y: ring.textBox!.top, from: [inner.right, inner.top], toward: [-1, 1] },
+      { x: ring.textBox!.left, y: ring.textBox!.bottom, from: [inner.left, inner.bottom], toward: [1, -1] },
+      { x: ring.textBox!.right, y: ring.textBox!.bottom, from: [inner.right, inner.bottom], toward: [-1, -1] },
+    ]
+    for (const { x, y, from, toward } of arcs) {
+      const along = (x - from[0]) * toward[0]
+      const down = (y - from[1]) * toward[1]
+      if (along < ring.radius && down < ring.radius) {
+        expect(Math.hypot(ring.radius - along, ring.radius - down), "the text's corner against the row's rounded corner").toBeLessThanOrEqual(ring.radius)
+      }
+    }
+
+    // The ring is a band of the outline's width, its outer edge the gap in from the box's edge, and no border
+    // another box draws may cross it by more than a pixel's antialiased edge
+    const stroke = parseFloat(ring.width!)
+    const gap = -ring.offset
+    // The ring's outer rectangle, which is the box pulled in by the gap less the band's width
+    const outer = { left: ring.rowBox.left + gap - stroke, top: ring.rowBox.top + gap - stroke, right: ring.rowBox.right - gap + stroke, bottom: ring.rowBox.bottom - gap + stroke }
     const ringSides: Edges[] = [
-      { ...ring.box, right: ring.box.left + stroke },
-      { ...ring.box, left: ring.box.right - stroke },
-      { ...ring.box, bottom: ring.box.top + stroke },
-      { ...ring.box, top: ring.box.bottom - stroke },
+      { ...outer, right: outer.left + stroke },
+      { ...outer, left: outer.right - stroke },
+      { ...outer, bottom: outer.top + stroke },
+      { ...outer, top: outer.bottom - stroke },
     ]
     const crosses = (a: Edges, b: Edges) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5
       && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5
@@ -261,16 +277,16 @@ export async function expectStretchedFocusRing(control: Locator, row: Locator): 
     const snap = (x: number) => Math.round(x * ring.pixelRatio) / ring.pixelRatio
     const beside = (border: (typeof ring.borders)[number]) => (border.side === 'left' || border.side === 'right')
       && border.right > border.left
-      && Math.min(border.bottom, ring.box.bottom) - Math.max(border.top, ring.box.top) > 0.5
+      && Math.min(border.bottom, ring.rowBox.bottom) - Math.max(border.top, ring.rowBox.top) > 0.5
     const drawn = (border: (typeof ring.borders)[number]) => border.side === 'right'
       ? { left: snap(border.right) - (border.right - border.left), right: snap(border.right) }
       : { left: snap(border.left), right: snap(border.left) + (border.right - border.left) }
-    const leftBorders = ring.borders.filter((border) => beside(border) && border.right <= ring.box.left + 0.5).map(drawn)
-    const rightBorders = ring.borders.filter((border) => beside(border) && border.left >= ring.box.right - 0.5).map(drawn)
+    const leftBorders = ring.borders.filter((border) => beside(border) && border.right <= ring.rowBox.left + 0.5).map(drawn)
+    const rightBorders = ring.borders.filter((border) => beside(border) && border.left >= ring.rowBox.right - 0.5).map(drawn)
     if (leftBorders.length > 0 && rightBorders.length > 0) {
-      const leftGap = snap(ring.box.left) - Math.max(...leftBorders.map((border) => border.right))
-      const rightGap = Math.min(...rightBorders.map((border) => border.left)) - snap(ring.box.right)
-      expect(leftGap, 'the ring\'s drawn gap from the border along its left side, against its right side\'s').toBeCloseTo(rightGap, 3)
+      const leftGap = snap(ring.rowBox.left) - Math.max(...leftBorders.map((border) => border.right))
+      const rightGap = Math.min(...rightBorders.map((border) => border.left)) - snap(ring.rowBox.right)
+      expect(leftGap, "the ring's drawn gap from the border along its left side, against its right side's").toBeCloseTo(rightGap, 3)
     }
   }).toPass()
 }

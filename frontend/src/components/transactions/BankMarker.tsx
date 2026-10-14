@@ -49,7 +49,7 @@ export function BankMarker({ providerName, isEdited, needsReview, onShowReview }
           hoverFill={false}
           opensOnFocus
           widensHitArea
-          accentFocusRing
+          focusRing
         >
           <span className="block">From {providerName}</span>
           {isEdited && <span className="mt-0.5 block">You edited a value the bank supplied</span>}
@@ -70,7 +70,7 @@ export function BankMarker({ providerName, isEdited, needsReview, onShowReview }
           type="button"
           aria-label="Needs review. Show the waiting item"
           onClick={onShowReview}
-          className="relative inline-flex cursor-pointer items-center rounded-full border bg-[var(--app-warning-soft)] px-1.5 py-0.5 text-xs font-medium leading-none before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-[''] hover:bg-[image:linear-gradient(var(--app-accent-soft),var(--app-accent-soft))] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)]"
+          className="relative inline-flex cursor-pointer items-center rounded-full border bg-[var(--app-warning-soft)] px-1.5 py-0.5 text-xs font-medium leading-none before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-[''] hover:bg-[image:linear-gradient(var(--app-accent-soft),var(--app-accent-soft))] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-focus-ring)]"
           style={{ borderColor: 'var(--app-warning-border)', color: 'var(--app-warning-text)' }}
         >
           Needs review

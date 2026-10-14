@@ -117,8 +117,9 @@ export default function AccountRow({
   // The link sits on the name and stretches over the whole row, rather than wrapping it, because the
   // row holds a control of its own, the FX badge, and a link cannot contain one. The badge is raised
   // above the stretched link so a tap on it opens its tooltip rather than the account. Keyboard focus
-  // on the link lights the row as a hover does and rings it in the app's accent focus outline, inset
-  // so the row beside it cannot cover it, since the light alone is too faint to find the focus by
+  // on the link rings the row in the app's focus ring, inset so the row beside it cannot cover it. It
+  // leaves the row unlit, since the ring falls under 3:1 against the hover's tint on the light page.
+  // The ring is the row's own, so the link draws none
   return (
     <div
       data-testid={`account-row-${account.id}`}
@@ -167,7 +168,7 @@ export default function AccountRow({
                 <Link
                   to={`/accounts/${account.id}`}
                   aria-describedby={describedBy}
-                  className="after:absolute after:inset-0 after:rounded-xl after:content-[''] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-[var(--app-accent)]"
+                  className="after:absolute after:inset-0 after:rounded-xl after:content-[''] focus-visible:outline-none"
                 >
                   {account.name}
                 </Link>

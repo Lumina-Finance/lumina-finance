@@ -337,11 +337,12 @@ export function BankReviewBlock({
                 />
 
                 {/* Ringed on hover and keyboard focus like the highlight above, so the two read alike,
-                    with a ring of its own so neither waits on the other's fade */}
+                    with a ring of its own so neither waits on the other's fade. The hover variant also
+                    matches a focused button, so the focus ring is marked important to win over it */}
                 <button type="button" onClick={() => onOpenItem(item)} className="group relative block w-full px-4 text-left focus-visible:outline-none sm:px-5">
                   <span
                     aria-hidden
-                    className="pointer-events-none absolute inset-x-2 bottom-0 top-px rounded-lg transition-shadow motion-reduce:transition-none group-hover:ring-1 group-hover:ring-inset group-hover:ring-[var(--app-review-border)] group-focus-visible:ring-2 group-focus-visible:ring-inset group-focus-visible:ring-[var(--app-accent)] sm:inset-x-2.5"
+                    className="pointer-events-none absolute inset-x-2 bottom-0 top-px rounded-lg transition-shadow motion-reduce:transition-none group-hover:ring-1 group-hover:ring-inset group-hover:ring-[var(--app-review-border)] group-focus-visible:ring-2! group-focus-visible:ring-inset group-focus-visible:ring-[var(--app-focus-ring)]! sm:inset-x-2.5"
                   />
                   {content}
                 </button>

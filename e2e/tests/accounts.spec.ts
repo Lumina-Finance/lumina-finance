@@ -336,7 +336,7 @@ test('records an expense through the modal and shows it as money out', async ({ 
   await expect(row.getByTestId('transaction-amount').filter({ visible: true })).toHaveText(`${MINUS}$42.50`)
 })
 
-test('rings an account row in the accent outline under keyboard focus', AT_EVERY_SIZE, async ({ page, request }) => {
+test('rings an account row in the focus colour under keyboard focus', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   await createAccount(request, user, { name: ACCOUNT_NAME })
   await logInViaApi(page, user)

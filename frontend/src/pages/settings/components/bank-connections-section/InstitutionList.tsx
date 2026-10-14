@@ -217,7 +217,7 @@ export function InstitutionRow({ entry, defaultOpen, prefersReducedMotion }: { e
       <div className="group/row relative -mr-1 flex items-start px-1">
         <button
           type="button"
-          className="app-marquee-trigger flex min-w-0 items-center gap-2.5 py-3.5 text-left after:absolute after:inset-0 after:rounded-lg after:content-[''] focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--app-accent)]"
+          className="app-marquee-trigger flex min-w-0 items-center gap-2.5 py-3.5 text-left after:absolute after:inset-0 after:rounded-lg after:content-[''] focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--app-focus-ring)]"
           aria-expanded={open}
           aria-controls={bodyId}
           onClick={() => setToggled(!open)}

@@ -59,7 +59,7 @@ export function ChoiceCard({ selected, disabled, onSelect, children, extra, init
       data-modal-initial-focus={initialFocus ? 'true' : undefined}
       onClick={onSelect}
       onKeyDown={moveWithArrows}
-      className={`flex w-full items-start gap-3 p-3.5 text-left disabled:cursor-not-allowed focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--app-accent)] ${extra === undefined ? frameClass : 'rounded-xl sm:min-w-0 sm:flex-1'}`}
+      className={`flex w-full items-start gap-3 p-3.5 text-left disabled:cursor-not-allowed focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--app-focus-ring)] ${extra === undefined ? frameClass : 'rounded-xl sm:min-w-0 sm:flex-1'}`}
       style={extra === undefined ? frameStyle : undefined}
     >
       <span

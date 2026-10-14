@@ -90,7 +90,7 @@ export function SyncFact({ name, sync, showsDetails = false, onOpen }: SyncFactP
                 type="button"
                 onClick={onOpen}
                 aria-label={`${name}: ${sentence} Open bank link`}
-                className="group flex max-w-full items-center gap-2 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+                className="group flex max-w-full items-center gap-2 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-focus-ring)]"
               >
                 {value}
                 {/* Shows at rest that the status opens the bank link, as the hover underline only shows it to a pointer */}
