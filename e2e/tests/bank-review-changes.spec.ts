@@ -24,9 +24,9 @@ import { contrastOf, expectTransactionRow, getAccountRow, MIN_TEXT_CONTRAST, MIN
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the removal, failed decision, action alignment and readable comparison
-// tests, which run at every size: the comparison fills a phone's screen and stacks its actions there, and
-// a removal's rows each keep to one line even on a phone
+// Runs on desktop only, apart from the removal, failed decision and action alignment tests and the light
+// theme's readable comparison test, which run at every size: the comparison fills a phone's screen and
+// stacks its actions there, and a removal's rows each keep to one line even on a phone
 
 // A correction or a removal opens from its row in the review block in a comparison with its ledger
 // transaction, which accepts or keeps the bank's change, or removes or keeps the transaction.
@@ -319,7 +319,8 @@ test('gives each value column room for a bank description on one line at 1440 wi
 })
 
 for (const colorScheme of ['light', 'dark'] as const) {
-  test(`compares an edited correction readably in the ${colorScheme} theme${colorScheme === 'light' ? ', without scrolling sideways' : ''}`, AT_EVERY_SIZE, async ({ page, request }) => {
+  // Only the light run measures the comparison's width, so only it runs at every size
+  test(`compares an edited correction readably in the ${colorScheme} theme${colorScheme === 'light' ? ', without scrolling sideways' : ''}`, colorScheme === 'light' ? AT_EVERY_SIZE : {}, async ({ page, request }) => {
     await startWithCorrection(page, request, -4000)
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
     await openPage(page, '/transactions')

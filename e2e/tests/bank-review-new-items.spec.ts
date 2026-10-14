@@ -26,9 +26,9 @@ import { contrastOf, expectTransactionRow, MIN_TEXT_CONTRAST, MINUS } from '../s
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the filing card, footer and short phone screen tests, which run at
-// every size: the card and the footer take their own layouts at each width, and a phone gives the
-// dialog its whole screen
+// Runs on desktop only, apart from the light theme's filing card test and the footer and short phone
+// screen tests, which run at every size: the card and the footer take their own layouts at each width,
+// and a phone gives the dialog its whole screen
 
 // A new bank item opens from its row in the review block in the transaction modal, which files it
 // into the ledger or dismisses it.
@@ -455,7 +455,8 @@ test('opens an amount its currency cannot hold empty, and adds the item once one
 })
 
 for (const colorScheme of ['light', 'dark'] as const) {
-  test(`${colorScheme === 'light' ? 'hangs the filing card beside the form or heads it, readable' : 'keeps the filing card readable'} in the ${colorScheme} theme`, AT_EVERY_SIZE, async ({ page, request }) => {
+  // Only the light run places the card, so only it runs at every size
+  test(`${colorScheme === 'light' ? 'hangs the filing card beside the form or heads it, readable' : 'keeps the filing card readable'} in the ${colorScheme} theme`, colorScheme === 'light' ? AT_EVERY_SIZE : {}, async ({ page, request }) => {
     await start(page, request, [COUNTDOWN])
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
     await openPage(page, '/transactions')

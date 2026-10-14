@@ -28,9 +28,9 @@ import { contrastOf, MIN_TEXT_CONTRAST, MINUS, readBoxes } from '../support/sele
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the answers' layout and readable offer tests, which run at every
-// size, and the message test, which runs on the phone: the answers take a row each under the amount on
-// a phone, and the offer may not scroll sideways at any width
+// Runs on desktop only, apart from the answers' layout test and the light theme's readable offer test,
+// which run at every size, and the message test, which runs on the phone: the answers take a row each
+// under the amount on a phone, and the offer may not scroll sideways at any width
 
 // The one-time opening adjustment a linked account offers once its import is in with nothing left to
 // review, at the foot of the Bank link section's balance panel, run by the worker against the fake
@@ -425,7 +425,8 @@ test('leaves focus where the person put it when a read of the link folds the off
 })
 
 for (const colorScheme of ['light', 'dark'] as const) {
-  test(`keeps the offer readable in the ${colorScheme} theme${colorScheme === 'light' ? ', with no sideways scroll' : ''}`, AT_EVERY_SIZE, async ({ page, request }) => {
+  // Only the light run measures the offer's width, so only it runs at every size
+  test(`keeps the offer readable in the ${colorScheme} theme${colorScheme === 'light' ? ', with no sideways scroll' : ''}`, colorScheme === 'light' ? AT_EVERY_SIZE : {}, async ({ page, request }) => {
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
     const { setup, offer } = await openOffer(page, request)
     if (colorScheme === 'dark') await expect(page.locator('html')).toHaveClass(/\bdark\b/)

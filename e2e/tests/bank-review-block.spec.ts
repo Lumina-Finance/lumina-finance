@@ -32,8 +32,8 @@ import { contrastOf, MIN_TEXT_CONTRAST, MINUS, readBoxes } from '../support/sele
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the Needs review marker and readable text tests, which run at every
-// size: the block's rows wrap and the list's bars pin differently at each width
+// Runs on desktop only, apart from the Needs review marker test and the light theme's readable text test,
+// which run at every size: the block's rows wrap and the list's bars pin differently at each width
 
 // Bank items waiting for review show in a block above the transaction list, outside the ledger.
 //
@@ -696,7 +696,8 @@ test('says an account is paused for its backlog, or close to pausing', async ({ 
 })
 
 for (const colorScheme of ['light', 'dark'] as const) {
-  test(`${colorScheme === 'light' ? 'sits above the list and keeps' : 'keeps'} its text readable in the ${colorScheme} theme`, AT_EVERY_SIZE, async ({ page, request }) => {
+  // Only the light run places the block, so only it runs at every size
+  test(`${colorScheme === 'light' ? 'sits above the list and keeps' : 'keeps'} its text readable in the ${colorScheme} theme`, colorScheme === 'light' ? AT_EVERY_SIZE : {}, async ({ page, request }) => {
     const { everyday, visa } = await start(page, request)
     const items = [
       reviewItem('visa-1', 'correction', visa.id, { description: 'COUNTDOWN 123 WITH A LONGER BANK DESCRIPTION THAN MOST', amount: -2310 }),
