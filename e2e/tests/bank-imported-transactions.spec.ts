@@ -303,8 +303,10 @@ test('opens the tooltip below the bank icon when the icon sits just under the st
   expect(gap).toBeGreaterThanOrEqual(ICON_UNDER_BARS_PX - 1)
   expect(gap).toBeLessThanOrEqual(ICON_UNDER_BARS_PX + 1)
 
-  // There is no room above the icon below the bars, so the panel opens under it, every line readable
-  await getTransactionRowButton(row).focus()
+  // There is no room above the icon below the bars, so the panel opens under it, every line readable.
+  // The title is focused where it sits, since bringing it into view would lift the whole row clear of
+  // the bars, and the icon is then reached from it by keyboard
+  await getTransactionRowButton(row).evaluate((title) => title.focus({ preventScroll: true }))
   await page.keyboard.press('Tab')
   await expectTooltipOpen(page, marker, row, ['From SimpleFIN', EDITED_NOTE])
   const firstLine = (await row.getByText('From SimpleFIN', { exact: true }).filter({ visible: true }).boundingBox())!
