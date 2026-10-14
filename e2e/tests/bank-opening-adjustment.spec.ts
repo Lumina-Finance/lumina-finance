@@ -11,6 +11,7 @@ import {
   type TestUser,
 } from '../support/api'
 import { fact, logInViaApi } from '../support/app'
+import { faintestText } from '../support/contrast'
 import {
   addBridgeTransactions,
   changeBridgeBalances,
@@ -437,6 +438,12 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await expect(text).toBeVisible()
       expect(await contrastOf(text)).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
     }
+
+    // So can the signed currency symbol before the amount, read against the tint the field takes for its
+    // error, which is drawn behind the symbol rather than around it
+    await expect(offer.amount).toHaveClass(/app-input-error/)
+    const symbol = await faintestText(offer.amount.locator('..').getByText(/^[+−]?\$$/))
+    expect(symbol.contrast, `"${symbol.text}" before the amount`).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
 
     // The layout is the same in either theme, so it is measured in the light one only
     if (colorScheme === 'light') {
