@@ -33,7 +33,10 @@ export function measureFit(area: Locator) {
     }
     const page = document.documentElement
     if (page.scrollWidth > page.clientWidth + 1) scrolling.push(`page by ${page.scrollWidth - page.clientWidth}px`)
+    // A control laid out for another width has no box, such as a transaction row's title in the row's
+    // other layouts, so it is left out rather than read as clipped at the window's corner
     const clipped = [...node.querySelectorAll('[role="combobox"], [role="radiogroup"], input, button')]
+      .filter((control) => control.getClientRects().length > 0)
       .filter((control) => {
         const rect = control.getBoundingClientRect()
         for (let box = control.parentElement; box; box = box.parentElement) {
