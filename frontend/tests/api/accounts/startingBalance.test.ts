@@ -68,7 +68,7 @@ describe('recordStartingBalanceSettled', () => {
     failSaveThenRead(new TypeError('Failed to fetch'), createChequing(0));
 
     await expect(recordStartingBalanceSettled(SAVE)).rejects.toBeInstanceOf(StartingBalanceNotSavedError);
-    expect(authenticatedFetchMock).toHaveBeenLastCalledWith('/accounts/chequing');
+    expect(authenticatedFetchMock).toHaveBeenLastCalledWith('/accounts/chequing', expect.anything());
   });
 
   it.each([502, 503, 504])('answers as saved when a gateway answered %i after the balance landed', async (status) => {
