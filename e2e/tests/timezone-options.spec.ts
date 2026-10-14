@@ -4,6 +4,8 @@ import { signUpUser } from '../support/api'
 import { logInViaApi, openPage, waitForPageReady } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
+// Runs on desktop only: the timezone list is the same at every size
+
 test.use({ timezoneId: 'UTC' })
 
 test('preserves a saved UTC timezone when another profile field is saved', async ({ page, request }) => {

@@ -2,6 +2,9 @@ import { expect, test, type APIRequestContext, type Locator, type Page } from '@
 import { createAccount, signUpUser, TEST_CURRENCY } from '../support/api'
 import { openPage, logInViaApi } from '../support/app'
 import { API_BASE_URL } from '../support/target'
+import { AT_EVERY_SIZE } from '../support/sizes'
+
+// Runs at every size: filters show as a panel, a compact rail or a sheet depending on the width
 
 /** Establishes the compact tablet sidebar through its real control before measuring filter layout */
 async function compactTabletSidebar(page: Page, filterTrigger: Locator) {
@@ -87,7 +90,7 @@ async function seedFilterPanel(page: Page, request: APIRequestContext, domain: '
 }
 
 for (const domain of ['Account', 'Transaction'] as const) {
-  test(`wraps long ${domain.toLowerCase()} selections and restores the empty panel height`, async ({ page, request }) => {
+  test(`wraps long ${domain.toLowerCase()} selections and restores the empty panel height`, AT_EVERY_SIZE, async ({ page, request }) => {
     const { names, panel } = await seedFilterPanel(page, request, domain)
     if (page.viewportSize()!.width >= 750) {
       await expect.poll(() => panel.evaluate((element) => {
@@ -137,7 +140,7 @@ for (const domain of ['Account', 'Transaction'] as const) {
     }
   })
 
-  test(`keeps long ${domain.toLowerCase()} selections reachable by keyboard and in a short viewport`, async ({ page, request }) => {
+  test(`keeps long ${domain.toLowerCase()} selections reachable by keyboard and in a short viewport`, AT_EVERY_SIZE, async ({ page, request }) => {
     const seeded = await seedFilterPanel(page, request, domain)
     const { names } = seeded
     let { panel } = seeded
@@ -214,7 +217,7 @@ for (const domain of ['Account', 'Transaction'] as const) {
   })
 }
 
-test('retains Tags explanations and invalid amount and date blocking', async ({ page, request }) => {
+test('retains Tags explanations and invalid amount and date blocking', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   await createAccount(request, user, { name: 'Validation account' })
   await logInViaApi(page, user)

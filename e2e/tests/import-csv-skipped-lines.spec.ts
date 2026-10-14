@@ -3,6 +3,8 @@ import { expect, test } from '@playwright/test'
 import { countLedgerTransactions, createAccount, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
 
+// Runs on desktop only: how the file is read is the same at every size
+
 // Account details above the table and a summary below it, wider than the table, as bank exports have
 const CSV = [
   'Account: 12-3456-7890, Everyday',

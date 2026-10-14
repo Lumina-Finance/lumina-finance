@@ -2,6 +2,10 @@ import { expect, test as base, type APIRequestContext, type Locator, type Page, 
 import { createAccount, findReferenceId, signUpUser, TEST_CURRENCY, type TestUser } from '../support/api'
 import { openPage, logInViaApi, waitForPageReady } from '../support/app'
 import { API_BASE_URL } from '../support/target'
+import { AT_EVERY_SIZE } from '../support/sizes'
+
+// Runs on desktop only, apart from the filter edits test, which runs at every size: filters show as
+// a panel, a compact rail or a sheet depending on the width
 
 const NOW = new Date('2026-04-15T16:00:00Z')
 const FROM = '2026-04-01'
@@ -255,7 +259,7 @@ test('opens slice transactions with inclusive dates and preserves refresh', asyn
 
 })
 
-test('preserves drilldown filters through edits and browser history', async ({ page, drillFixture: fixture }) => {
+test('preserves drilldown filters through edits and browser history', AT_EVERY_SIZE, async ({ page, drillFixture: fixture }) => {
   await start(page, fixture.user)
   await openPage(page, `/transactions?category_id=${fixture.categories[0].id}&from_date=${FROM}&to_date=${TO}`)
   await expectRows(page, fixture.selected)

@@ -4,6 +4,8 @@ import { createAccount, findReferenceId, signUpUser, todayInTestTimezone } from 
 import { logInViaApi, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
+// Runs on desktop only: the bulk move panel's wording and disabled state are the same at every size
+
 // A transaction can be recorded in a currency its account does not hold, and a move keeps that
 // currency, so a selection in a currency none of the user's accounts holds has nowhere to move and
 // the panel has to say which accounts it looked for

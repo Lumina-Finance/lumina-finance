@@ -4,6 +4,8 @@ import { asUser, countLedgerTransactions, createAccount, signUpUser } from '../s
 import { logInViaApi, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
+// Runs on desktop only: what the import writes is the same at every size
+
 // One row spends with no category, one brings money in with no category, one moves money to savings
 // with no category, and one names a category the user already holds as income while its amount reads
 // as an expense

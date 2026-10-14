@@ -3,8 +3,11 @@ import { expect, test } from '@playwright/test'
 import { createAccount, signUpUser } from '../support/api'
 import { openPage, logInViaApi, openModal } from '../support/app'
 import { API_BASE_URL } from '../support/target'
+import { AT_EVERY_SIZE } from '../support/sizes'
 
-test('corrects the highlighted institution by keyboard and the original inline action', async ({ page, request }) => {
+// Runs at every size: a touch screen reaches the edit action by tap rather than hover
+
+test('corrects the highlighted institution by keyboard and the original inline action', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const headers = { Authorization: `Bearer ${user.accessToken}` }
   const name = `E2E correction bank ${crypto.randomUUID()}`

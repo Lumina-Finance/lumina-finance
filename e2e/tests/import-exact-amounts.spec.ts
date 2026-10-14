@@ -4,6 +4,9 @@ import { createAccount, TEST_PASSWORD, TEST_TIMEZONE, type TestUser } from '../s
 import { openPage, logInViaApi } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
+// Runs on desktop only: the amounts' digits are the same at every size, and it reads every layout
+// the list draws
+
 const CASES = [
   { currency: 'JPY', large: '9007199254740993', small: '1', digits: '9,007,199,254,740,993', smallDigits: '1' },
   { currency: 'CAD', large: '90071992547409.93', small: '0.01', digits: '90,071,992,547,409.93', smallDigits: '0.01' },

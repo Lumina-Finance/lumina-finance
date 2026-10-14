@@ -5,6 +5,8 @@ import { expectSignedIn, logIn, waitForPageReady } from '../support/app'
 import { navigate } from '../support/insights'
 import { API_BASE_URL } from '../support/target'
 
+// Runs on desktop only: signing up, in and out give the same result at every size
+
 test('signs a new user up through the form', async ({ page }) => {
   const email = `e2e-${crypto.randomUUID()}@example.com`
 
@@ -42,14 +44,6 @@ test('says the email address is the problem when signup refuses it', async ({ pa
 
   await expect(page.getByText('Enter a valid email address', { exact: true })).toBeVisible()
   await expect(page.getByText('Something went wrong. Please try again.', { exact: true })).toHaveCount(0)
-})
-
-test('signs an existing user in with their password', async ({ page, request }) => {
-  const user = await signUpUser(request)
-
-  await logIn(page, user)
-
-  await expectSignedIn(page)
 })
 
 test('refuses a wrong password before accepting the right one', async ({ page, request }) => {

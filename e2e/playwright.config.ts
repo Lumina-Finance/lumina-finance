@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test'
 import { availableParallelism } from 'node:os'
 
 import { TEST_TIMEZONE } from './support/api'
+import { EVERY_SIZE_TESTS } from './support/sizes'
 import { BASE_URL } from './support/target'
 
 // The development runner preserves the host-derived count when reserving an app CPU.
@@ -76,12 +77,15 @@ export default defineConfig({
     {
       // Mobile devices, as the captures take them. What that changes here is the coarse-pointer
       // media queries and the scrollbar, which is drawn over the page rather than taking width
-      // out of it, so these two lay out at exactly the width written above
+      // out of it, so these two lay out at exactly the width written above. Both run only the
+      // tests whose result depends on the screen, since every other test fails the same way on desktop
       name: 'tablet',
+      grep: EVERY_SIZE_TESTS,
       use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS.tablet, isMobile: true, hasTouch: true },
     },
     {
       name: 'phone',
+      grep: EVERY_SIZE_TESTS,
       use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS.phone, isMobile: true, hasTouch: true },
     },
   ],

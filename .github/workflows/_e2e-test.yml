@@ -2,6 +2,11 @@ name: E2E tests
 
 on:
   workflow_call:
+    inputs:
+      every-size-on-arm64:
+        description: Run the tablet and phone projects on arm64 too, which pull requests leave to the weekly run
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -19,6 +24,8 @@ jobs:
           - platform: arm64
             runner: ubuntu-24.04-arm
         project: [desktop, tablet, phone]
+        # A pull request runs arm64 at desktop only, and the weekly run takes arm64 at every size
+        exclude: ${{ fromJSON(inputs.every-size-on-arm64 && '[]' || '[{"target":{"platform":"arm64","runner":"ubuntu-24.04-arm"},"project":"tablet"},{"target":{"platform":"arm64","runner":"ubuntu-24.04-arm"},"project":"phone"}]') }}
 
     # Every matrix job starts its own application and database on its runner
     env:

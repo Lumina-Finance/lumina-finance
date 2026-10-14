@@ -4,6 +4,8 @@ import { createAccount, createCategory, createGroup, signUpUser, type TestUser }
 import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
+// Runs on desktop only: which accounts an import may use is the same at every size
+
 const SHARED_ACCOUNT_NAME = 'Family Chequing'
 const OWN_ACCOUNT_NAME = 'My Chequing'
 const GROUP_CATEGORY_NAME = 'Pet Supplies'

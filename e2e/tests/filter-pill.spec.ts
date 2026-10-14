@@ -3,6 +3,9 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { createAccount, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
 
+// Runs on desktop only: it checks the desktop filter pill, and sets the narrower sizes it checks
+// itself
+
 /**
  * Guards the desktop Filters pill on both lists that carry it. Its press animation used to put a
  * second, silent Tab stop on its frame, its closed panel stayed in the Tab order at no height, and
@@ -28,10 +31,6 @@ function focusIsInside(glass: Locator) {
 
 for (const list of LISTS) {
   test.describe(`the Filters pill on ${list.name}`, () => {
-    test.beforeEach(({ page }) => {
-      test.skip(page.viewportSize()!.width < 750, 'The phone toolbar opens a sheet rather than the pill')
-    })
-
     // Motion on, since the press animation is what made the frame a stop
     test('is one Tab stop, on its button', async ({ page, request }) => {
       await openList(page, request, list.path)
@@ -68,8 +67,7 @@ for (const list of LISTS) {
 
     // The pill is measured while the desktop toolbar is hidden on a narrow page, so it has to measure
     // again once the toolbar shows. It is compared with the same page opened wide
-    test('draws at its full size after the window widens from a narrow load', async ({ page, request }, testInfo) => {
-      test.skip(testInfo.project.name !== 'desktop', 'Sets its own sizes, so one run covers it')
+    test('draws at its full size after the window widens from a narrow load', async ({ page, request }) => {
       await page.emulateMedia({ reducedMotion: 'reduce' })
       await page.setViewportSize({ width: 768, height: 900 })
       await openList(page, request, list.path)

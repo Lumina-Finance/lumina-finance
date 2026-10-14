@@ -3,6 +3,8 @@ import { expect, test } from '@playwright/test'
 import { createAccount, createTransaction, signUpUser } from '../support/api'
 import { openPage, logInViaApi, waitForPageReady } from '../support/app'
 
+// Runs on desktop only: the summary's inert state and tab order are the same at every size
+
 test('skips empty summary samples and restores genuine transaction edit actions', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Summary accessibility account' })
@@ -17,9 +19,7 @@ test('skips empty summary samples and restores genuine transaction edit actions'
   await expect(band.getByRole('button', { name: /^Edit transaction:/ })).toHaveCount(0)
   await expect(band.getByRole('paragraph').filter({ hasText: /^No transaction data for / })).toBeVisible()
 
-  const menu = page.getByRole('button', { name: 'Open navigation menu', exact: true })
-  if (await menu.isVisible()) await menu.focus()
-  else await page.getByRole('button', { name: 'Log out', exact: true }).focus()
+  await page.getByRole('button', { name: 'Log out', exact: true }).focus()
   expect(await content.evaluate((element) =>
     Boolean(element.compareDocumentPosition(document.activeElement!) & Node.DOCUMENT_POSITION_PRECEDING)))
     .toBe(true)

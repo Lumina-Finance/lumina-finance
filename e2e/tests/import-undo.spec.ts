@@ -4,6 +4,8 @@ import { asUser, createAccount, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
+// Runs on desktop only: what undoing an import removes is the same at every size
+
 test('undoes the last import, deleting everything it added and keeping the account it went into', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 10000 })

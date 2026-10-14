@@ -3,6 +3,8 @@ import { expect, test, type Locator } from '@playwright/test'
 import { createAccount, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
 
+// Runs on desktop only: it sets the window sizes it checks itself
+
 /**
  * Guards the skipped rows table against the frozen reason column it held beside the row number. On a
  * phone the frozen pair filled most of the table and left the file's columns a sliver, and wider up a
@@ -32,8 +34,7 @@ function dateReadsInFull(table: Locator) {
   })
 }
 
-test('keeps the skipped rows table readable at every width', async ({ page, request }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop', 'Sets its own sizes, so one run covers it')
+test('keeps the skipped rows table readable at every width', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday chequing' })
   await logInViaApi(page, user)

@@ -4,6 +4,8 @@ import { createAccount, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
 import { measureFit, measureOwnScroll } from '../support/layout'
 
+// Runs on desktop only: it sets the window sizes it checks itself
+
 /**
  * Guards the CSV import's Column Mapping, Category Matching and Merchant Matching tables, which share
  * their layout with the Firefly III and Actual Budget importers. Each held a fixed minimum width, so on
@@ -59,8 +61,7 @@ function scrollingAround(table: Locator) {
   })
 }
 
-test('fits each import table to a desktop window, with every row\'s controls on screen', async ({ page, request }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop', 'Sets its own sizes, so one run covers it')
+test('fits each import table to a desktop window, with every row\'s controls on screen', async ({ page, request }) => {
   await openMatchingSteps(page, request)
 
   for (const width of DESKTOP_WIDTHS) {
@@ -90,8 +91,7 @@ test('fits each import table to a desktop window, with every row\'s controls on 
   }
 })
 
-test('keeps a narrow window\'s sideways scroll inside each import table\'s own box', async ({ page, request }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop', 'Sets its own sizes, so one run covers it')
+test('keeps a narrow window\'s sideways scroll inside each import table\'s own box', async ({ page, request }) => {
   await openMatchingSteps(page, request)
 
   for (const width of NARROW_WIDTHS) {
@@ -107,8 +107,7 @@ test('keeps a narrow window\'s sideways scroll inside each import table\'s own b
   }
 })
 
-test('opens the note on a renamed category in full in a short table', async ({ page, request }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop', 'Sets its own sizes, so one run covers it')
+test('opens the note on a renamed category in full in a short table', async ({ page, request }) => {
   await openMatchingSteps(page, request)
   await page.getByRole('combobox', { name: 'Existing Category Salary', exact: true }).click()
   await page.getByRole('option', { name: 'Create new category' }).click()

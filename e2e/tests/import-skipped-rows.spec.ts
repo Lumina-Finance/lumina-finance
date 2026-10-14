@@ -2,6 +2,10 @@ import { expect, test } from '@playwright/test'
 
 import { countLedgerTransactions, createAccount, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
+import { AT_EVERY_SIZE } from '../support/sizes'
+
+// Runs at every size: on a tablet or phone the list starts off screen, which reviewing has to bring
+// into view
 
 // The second row names a day February doesn't have, so it can't be imported under any date format. The
 // rows after it fill the preview, so Commit import sits far enough below the list to scroll it away
@@ -18,7 +22,7 @@ const CSV = [
 
 // A row the import can't bring in is listed with its reason and left out, and the rest of the file
 // imports, as the imports from other apps already do
-test('imports the rest of a CSV file and shows the row it leaves out on review', async ({ page, request }, testInfo) => {
+test('imports the rest of a CSV file and shows the row it leaves out on review', AT_EVERY_SIZE, async ({ page, request }, testInfo) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday chequing' })
   await logInViaApi(page, user)

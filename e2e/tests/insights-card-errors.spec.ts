@@ -2,9 +2,12 @@ import { expect, test } from '@playwright/test'
 
 import { expectSignedIn, logIn } from '../support/app'
 import { CARDS, PATHS, card, createExpenseInApp, expectContained, expectGeometry, expectLoaded, matchesApi, navigate, seedRichInsights } from '../support/insights'
+import { AT_EVERY_SIZE } from '../support/sizes'
+
+// Runs at every size: card layouts and their recovery controls change with the screen
 
 for (const longDetail of [false, true]) {
-  test(`insights same-key failed refetch replaces cached data and preserves recovery geometry (${longDetail ? 'long' : 'ordinary'} detail)`, async ({ page, request }) => {
+  test(`insights same-key failed refetch replaces cached data and preserves recovery geometry (${longDetail ? 'long' : 'ordinary'} detail)`, AT_EVERY_SIZE, async ({ page, request }) => {
     const rich = await seedRichInsights(request)
     // The refetch must ask for the same range as the first load, which ends today, so the date is held
     // still in case the run crosses midnight, while timers continue normally

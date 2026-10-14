@@ -3,6 +3,9 @@ import { expect, test, type APIRequestContext, type Locator, type Page } from '@
 import { createAccount, createMonthlyBudget, findReferenceId, signUpUser, todayInTestTimezone, TEST_TIMEZONE, type TestUser } from '../support/api'
 import { expectSignedIn, logIn } from '../support/app'
 import { API_BASE_URL, BASE_URL } from '../support/target'
+import { AT_EVERY_SIZE } from '../support/sizes'
+
+// Runs at every size: card heights and error layouts change with the screen
 
 // These are the outer-card contracts, independent of their CSS implementation
 const CARDS = [
@@ -131,7 +134,7 @@ async function expectContained(control: Locator, widget: Locator): Promise<void>
   await widgetHandle!.dispose()
 }
 
-test('dashboard outer heights match across sparse, loading and rich real data', async ({ page, browser, request }, testInfo) => {
+test('dashboard outer heights match across sparse, loading and rich real data', AT_EVERY_SIZE, async ({ page, browser, request }, testInfo) => {
   const sparseUser = await signUpUser(request)
   const richUser = await seedRichDashboard(request)
   const sparseContext = await browser.newContext({
@@ -189,7 +192,7 @@ for (const detail of [
   'The synthetic dashboard request could not be completed',
   Array.from({ length: 60 }, () => 'The synthetic dashboard service could not complete this request; the account data remains unchanged').join(' '),
 ]) {
-  test(`dashboard errors retain each height tier and visible recovery controls (${detail.length > 100 ? 'long' : 'ordinary'} detail)`, async ({ page, request }) => {
+  test(`dashboard errors retain each height tier and visible recovery controls (${detail.length > 100 ? 'long' : 'ordinary'} detail)`, AT_EVERY_SIZE, async ({ page, request }) => {
     const user = await signUpUser(request)
     const failures = new Set<string>()
     await page.route((url) => FAILURE_TIERS.some((tier) => matchesApi(url.href, tier.path)), async (route) => {

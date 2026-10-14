@@ -4,6 +4,8 @@ import { expect, test } from '@playwright/test'
 import { signUpUser } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
 
+// Runs on desktop only: what the import writes is the same at every size
+
 // Copies of the export the frontend's unit tests read, written by a local Firefly III server from
 // the weekly check's seed. The suite runs from its own directory alone, so it holds the copies
 // rather than reaching into the frontend's

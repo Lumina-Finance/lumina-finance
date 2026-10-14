@@ -3,6 +3,10 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
 import { API_BASE_URL } from '../support/target'
 import { logInViaApi, openModal, openPage } from '../support/app'
+import { AT_EVERY_SIZE } from '../support/sizes'
+
+// Runs on desktop only, apart from the focus ring on each kind of control, which runs at every
+// size: the toolbar changes below 750px
 
 /**
  * Guards the keyboard focus indicator. It used to be a tint at about a tenth of the accent's strength,
@@ -128,7 +132,7 @@ async function seedOneTransaction(page: Page, request: Parameters<typeof signUpU
 for (const colorScheme of ['light', 'dark'] as const) {
   // One control of each kind the app styles, on the toolbar and in the Add Transaction dialog, shows the
   // same focus: a field or outlined button on its own border, anything else as a ring outside its edge
-  test(`shows the same keyboard focus on each kind of control in the ${colorScheme} theme`, async ({ page, request }) => {
+  test(`shows the same keyboard focus on each kind of control in the ${colorScheme} theme`, AT_EVERY_SIZE, async ({ page, request }) => {
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
     const user = await signUpUser(request)
     await createAccount(request, user, { name: 'Everyday' })

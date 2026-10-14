@@ -2,6 +2,10 @@ import { expect, test } from '@playwright/test'
 
 import { createAccount, createGroup, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
+import { AT_EVERY_SIZE } from '../support/sizes'
+
+// Runs on desktop only, apart from the delete confirmation tests, which run at every size: its
+// actions lay out differently on a phone
 
 // Two of three rows are ticked and deleted after the confirmation, the third stays, and the balance
 // already on screen drops back by what the deleted rows had taken out, without a reload
@@ -53,7 +57,7 @@ test('turns Delete off while a group account row is ticked', async ({ page, requ
 
 // The confirmation opens on Cancel so a stray Enter deletes nothing, reads its warning with the title,
 // and Tab moves through the actions the way they are drawn, Delete on the left and Cancel on the right
-test('opens the delete confirmation on Cancel and tabs through its actions as drawn', async ({ page, request }) => {
+test('opens the delete confirmation on Cancel and tabs through its actions as drawn', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   const date = daysFromTodayInTestTimezone(-1)
@@ -85,7 +89,7 @@ test('opens the delete confirmation on Cancel and tabs through its actions as dr
 // The actions line up with the header above them at every width: Delete starts where the title starts
 // and Cancel ends where the close button ends, rather than sitting further in once the dialog fills
 // the screen
-test('lines the delete confirmation actions up with its header', async ({ page, request }) => {
+test('lines the delete confirmation actions up with its header', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   const date = daysFromTodayInTestTimezone(-1)
@@ -119,7 +123,7 @@ test('lines the delete confirmation actions up with its header', async ({ page, 
 // A refused delete shows its error without splitting the actions: on a phone Delete and Cancel stay side
 // by side as equal halves of one row under a full-width error, and from 640px the error sits between
 // them on their row, as before
-test('keeps the delete confirmation actions on one row when it shows an error', async ({ page, request }) => {
+test('keeps the delete confirmation actions on one row when it shows an error', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   const date = daysFromTodayInTestTimezone(-1)

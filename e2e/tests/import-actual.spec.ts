@@ -6,6 +6,8 @@ import { asUser, countLedgerTransactions, createCategory, signUpUser, type TestU
 import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
+// Runs on desktop only: what the import writes is the same at every size
+
 // Copies of budgets the frontend's unit tests read, each written by a local Actual server with the
 // manifest of what that server showed for it. The yen budget has Actual's currency feature on, and
 // the edges budget holds a category spent on directly and paid to an off-budget loan. The suite

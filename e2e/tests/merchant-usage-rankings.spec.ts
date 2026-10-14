@@ -4,6 +4,8 @@ import { createAccount, findReferenceId, signUpUser, TEST_CURRENCY, todayInTestT
 import { chooseFromDropdown, expectSignedIn, openModal, openPage, logInViaApi } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
+// Runs on desktop only: merchant order is the same at every size
+
 async function setupMerchantRanking(page: Page, request: APIRequestContext, withExpense = false) {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Merchant usage account' })
@@ -31,10 +33,8 @@ async function setupMerchantRanking(page: Page, request: APIRequestContext, with
   await openPage(page, '/accounts')
   await expectSignedIn(page)
 
-  /** Navigate through the responsive app links, preserving the live query cache */
+  /** Navigate through the app's links, preserving the live query cache */
   async function navigate(name: 'Settings' | 'Accounts') {
-    const menu = page.getByRole('button', { name: 'Open navigation menu', exact: true })
-    if (await menu.isVisible()) await menu.click()
     await page.getByRole('navigation', { name: 'Primary', exact: true })
       .getByRole('link', { name, exact: true }).click()
     await expect(page).toHaveURL(new RegExp(`/${name.toLowerCase()}$`))

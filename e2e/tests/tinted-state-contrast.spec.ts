@@ -3,6 +3,10 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { createAccount, signUpUser } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support/app'
 import { faintestText } from '../support/contrast'
+import { AT_EVERY_SIZE } from '../support/sizes'
+
+// Runs on desktop only, apart from the left-out column test, which runs at every size: import rows
+// stack below 1050px
 
 /**
  * Guards the contrast of text on the states that lay a tint over the surface under them: a field in error,
@@ -58,7 +62,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await expectReadable(page.locator('.app-dropdown-row-highlighted'), 'on a highlighted row')
     })
 
-    test('draws a column the import leaves out at full contrast', async ({ page, request }) => {
+    test('draws a column the import leaves out at full contrast', AT_EVERY_SIZE, async ({ page, request }) => {
       await openImport(page, request)
       await expectTheme(page)
       await expectReadable(page.getByRole('row').filter({ hasText: 'Ignored' }), 'on the ignored column\'s row')

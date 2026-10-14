@@ -3,6 +3,8 @@ import { expect, test } from '@playwright/test'
 import { createAccount, signUpUser } from '../support/api'
 import { openPage, chooseFromDropdown, logInViaApi } from '../support/app'
 
+// Runs on desktop only: accessible names and labels are the same at every size
+
 test('associates profile inputs with their visible labels', async ({ page, request }) => {
   const user = await signUpUser(request)
   await logInViaApi(page, user)

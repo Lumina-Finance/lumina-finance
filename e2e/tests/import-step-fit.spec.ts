@@ -4,6 +4,8 @@ import { createAccount, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
 import { measureFit } from '../support/layout'
 
+// Runs on desktop only: it sets the window sizes it checks itself
+
 /**
  * Guards the import preview against the fixed minimum width it held. Below 1300px the preview list
  * scrolled sideways inside its own box with every amount out of view
@@ -16,8 +18,7 @@ function stepOf(page: Page, title: string) {
   return page.locator('section').filter({ has: page.getByText(title, { exact: true }) }).last()
 }
 
-test('shows every preview row\'s amount without scrolling sideways', async ({ page, request }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop', 'Sets its own sizes, so one run covers it')
+test('shows every preview row\'s amount without scrolling sideways', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday chequing' })
   await logInViaApi(page, user)

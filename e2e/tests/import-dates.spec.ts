@@ -4,6 +4,8 @@ import { createAccount, signUpUser } from '../support/api'
 import { openPage, logInViaApi } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
+// Runs on desktop only: how dates are read and written is the same at every size
+
 const DATE_CASES = [
   { profileZone: 'UTC', browserZone: 'Asia/Tokyo', dates: ['2024-03-15', '2024-03-15', '2024-03-18', '2024-03-18', '2024-03-19'] },
   { profileZone: 'America/Toronto', browserZone: 'UTC', dates: ['2024-03-14', '2024-03-15', '2024-03-17', '2024-03-18', '2024-03-19'] },
