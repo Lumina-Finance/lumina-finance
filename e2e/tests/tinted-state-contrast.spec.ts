@@ -101,6 +101,26 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await expectReadable(amount.locator('..'), 'in the amount field')
     })
 
+    test('draws a new account\'s starting balance in error at full contrast', async ({ page, request }) => {
+      const user = await signUpUser(request)
+      await logInViaApi(page, user)
+      await openPage(page, '/accounts')
+      await expectTheme(page)
+      const dialog = await openModal(page, ['Add account'], 'Add account')
+      await chooseFromDropdown(dialog, 'Account type', 'Checking')
+      await dialog.getByLabel('Account name').fill('Everyday')
+      await dialog.getByRole('button', { name: 'Create account' }).click()
+      const prompt = page.getByRole('dialog', { name: 'Keep it up to date' })
+      await prompt.getByRole('radio', { name: /^Keep it manual/ }).click()
+
+      // A minus marks the field, since a starting balance is zero or more
+      const balance = prompt.getByLabel('Starting balance', { exact: true })
+      await balance.pressSequentially('-')
+      await expect(balance).toHaveClass(/app-input-error/)
+      await expect(balance.locator('..').getByText('$', { exact: true })).toBeVisible()
+      await expectReadable(balance.locator('..'), 'in the starting balance field')
+    })
+
     test('draws the archive warning at full contrast', async ({ page, request }) => {
       const user = await signUpUser(request)
       const account = await createAccount(request, user, { name: 'Everyday' })

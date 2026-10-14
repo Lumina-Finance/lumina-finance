@@ -161,11 +161,7 @@ export function OpeningAdjustmentOffer({ accountId, offer, currency, providerNam
         <div className="flex flex-col gap-3 sm:flex-row">
           <div className="relative min-w-0 sm:flex-1">
             {prefix && (
-              <span
-                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-base"
-                style={{ color: 'var(--app-text-subtle)' }}
-                aria-hidden
-              >
+              <span className="app-input-prefix pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-base" aria-hidden>
                 {prefix}
               </span>
             )}
