@@ -8,13 +8,17 @@
  * Sync now reading as started before a worker has started it, including on a link made after the
  * list was read, a refused Sync now leaving an out-of-date status in place, a tab in the background
  * reading the list on the poll's timer, a tab the user comes back to showing what it read before it
- * went to the background until the next tick, and a user with no links read on every return
+ * went to the background until the next tick, a user with no links read on every return, and a bank
+ * read that keeps going once the screen that started it is gone
  */
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import {
   environmentManager,
   focusManager,
   MutationObserver,
   QueryClient,
+  QueryClientProvider,
   QueryObserver,
 } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -27,6 +31,9 @@ const { authenticatedFetchMock } = vi.hoisted(() => ({
 vi.mock('@/api/client', () => ({
   authenticatedFetch: authenticatedFetchMock,
 }));
+vi.mock('@/hooks/useAuth', () => ({
+  useAuth: () => ({ accessToken: 'token' }),
+}));
 
 import { ApiError } from '@/api/auth/errors';
 import { BANK_LINKS_ACTIVE_POLL_MS, BANK_LINKS_IDLE_POLL_MS } from '@/api/bank-sync/constants';
@@ -34,6 +41,16 @@ import {
   bankLinksHeartbeatQueryOptions,
   bankLinksQueryOptions,
   syncBankAccountMutationOptions,
+  useAccountBankStatus,
+  useBankConnections,
+  useBankProviders,
+  useBulkApprovalPreview,
+  useDiscoveredBankAccounts,
+  useImportRange,
+  usePendingBankTransactions,
+  useReviewBacklogs,
+  useReviewItems,
+  useReviewPreferences,
 } from '@/api/bank-sync/hooks';
 import { getBankLinksPollInterval } from '@/api/bank-sync/polling';
 import type { BankLink } from '@/api/bank-sync/types';
@@ -89,7 +106,34 @@ describe('the link list read', () => {
     await mountReader();
     await mountReader();
 
-    expect(authenticatedFetchMock.mock.calls).toEqual([['/bank-sync/links', expect.anything()]]);
+    expect(authenticatedFetchMock.mock.calls).toEqual([['/bank-sync/links', expect.objectContaining({ signal: expect.any(AbortSignal) })]]);
+  });
+});
+
+describe('a bank sync read a screen starts', () => {
+  it.each([
+    ['the providers', () => useBankProviders()],
+    ['the connections', () => useBankConnections()],
+    ['a connection’s bank accounts', () => useDiscoveredBankAccounts('connection-1', 'account-1')],
+    ['an account’s link', () => useAccountBankStatus('account-1', true)],
+    ['the import range', () => useImportRange('account-1', 'simplefin', true)],
+    ['the review settings', () => useReviewPreferences('account-1', true)],
+    ['the review items', () => useReviewItems(undefined)],
+    ['the review backlogs', () => useReviewBacklogs(undefined)],
+    ['the pending transactions', () => usePendingBankTransactions(undefined)],
+    ['the bulk approval preview', () => useBulkApprovalPreview(undefined, true)],
+  ])('hands the request for %s the signal that stops it once the screen is gone', async (_label, read) => {
+    authenticatedFetchMock.mockResolvedValue([]);
+
+    // Rendered once to build the screen's query in the cache, which is then read as the app would
+    renderToStaticMarkup(createElement(QueryClientProvider, { client: queryClient }, createElement(() => {
+      read();
+      return null;
+    })));
+    const [query] = queryClient.getQueryCache().getAll();
+    await query.fetch().catch(() => undefined);
+
+    expect(authenticatedFetchMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 });
 
