@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import {
   asUser,
@@ -152,6 +152,22 @@ async function readHeld(page: Page): Promise<HeldReports> {
 /** Sends the reports held back since `holdIntersections`, and lets later ones through */
 async function releaseIntersections(page: Page): Promise<void> {
   await page.evaluate(() => (window as unknown as IntersectionHold).releaseIntersections())
+}
+
+/**
+ * Waits for the block to finish growing in, which it does on the page's clock once its items have
+ * loaded, on a busy machine well after the page is ready. A clock stopped part way holds the block cut
+ * short, with Show all and the end of the list in the part cut off. Read from what holds the block,
+ * which cuts part of it off from the moment it shows until the growth ends, since the height runs from
+ * script and leaves the browser no animation to wait on
+ */
+async function waitForBlockToGrowIn(block: Locator): Promise<void> {
+  await expect.poll(() => block.evaluate((section) => {
+    for (let holder = section.parentElement; holder; holder = holder.parentElement) {
+      if (getComputedStyle(holder).overflowY === 'hidden' && holder.scrollHeight > holder.clientHeight) return false
+    }
+    return true
+  })).toBe(true)
 }
 
 /** Signs up with Everyday, a Visa card and Savings, Everyday holding a $42.50 grocery spend today */
@@ -441,11 +457,12 @@ test('shows the first 4 of a 1,500 item backlog, and loads the rest a page at a 
 
 // The rows Show all adds grow in from nothing, so the end of the list is near for a moment and the
 // block starts its wait to load the next page. A busy page can reach the end of that wait before it is
-// laid out again with the rows grown. The page's clock stops before Show all, so the rows stay folded
-// until it moves on, and word of where the end of the list has gone is held back while the wait runs
-// out, then reaches the block's last look before the watch that started the wait hears of it. Motion
-// isn't reduced, as it is for other tests on the page's clock, since reduced motion shows the rows at
-// full height at once and leaves the end of the list nowhere near
+// laid out again with the rows grown. The page's clock stops before Show all, once the block itself
+// has grown in, so the rows stay folded until it moves on, and word of where the end of the list has
+// gone is held back while the wait runs out, then reaches the block's last look before the watch that
+// started the wait hears of it. Motion isn't reduced, as it is for other tests on the page's clock,
+// since reduced motion shows the rows at full height at once and leaves the end of the list nowhere
+// near, and nothing here has to fade out, which is what the page's clock would hold up
 test('loads no more of a 1,500 item backlog when the end of the list has moved away by the end of the wait, however late word of it comes', async ({ page, request }) => {
   const { everyday } = await start(page, request)
   await answerLongBacklog(page, everyday.id)
@@ -461,6 +478,7 @@ test('loads no more of a 1,500 item backlog when the end of the list has moved a
   const rows = block.getByRole('listitem')
   await expect(rows).toHaveCount(4)
   await holdableIntersections(page)
+  await waitForBlockToGrowIn(block)
   await stopClock(page)
 
   await block.getByRole('button', { name: 'Show all 1,500' }).click()
