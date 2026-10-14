@@ -47,7 +47,6 @@ export function BankMarker({ providerName, isEdited, needsReview, onShowReview }
           strokeWidth={2}
           widthClassName={PANEL_WIDTH_CLASS}
           hoverFill={false}
-          opensOnFocus
           widensHitArea
           focusRing
         >

@@ -22,7 +22,7 @@ export function LabelWithHint({ label, hint, hintLabel = `About ${label.toLowerC
     <>
       {label}
       {hint && (
-        <IconTooltip label={hintLabel} placement={hintPlacement} size={12} opensOnFocus>
+        <IconTooltip label={hintLabel} placement={hintPlacement} size={12}>
           <span className="font-normal normal-case">{hint}</span>
         </IconTooltip>
       )}

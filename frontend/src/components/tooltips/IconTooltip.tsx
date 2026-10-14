@@ -34,11 +34,6 @@ interface IconTooltipProps {
   // icon such as a building would lose its strokes to the fill, so it opts out
   hoverFill?: boolean
 
-  // Shows the panel while the trigger has keyboard focus too, as it does on hover. Only keyboard
-  // focus counts, since a tap also focuses the trigger and then toggles the panel, which would
-  // otherwise open and close it in one press
-  opensOnFocus?: boolean
-
   // Takes presses a few pixels around the icon too, making the 24px square WCAG asks of a small
   // target, for an icon in a surface that does something else on a press, where a near miss would
   // do that instead. The icon keeps its size and place
@@ -87,7 +82,6 @@ const TOOLTIP_WRAPPER_CLASS = 'fixed z-40 p-2 transition-opacity duration-150'
 // property are ordered by the stylesheet, not by the class list
 const TOOLTIP_CLOSED_CLASS = 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100'
 const TOOLTIP_OPEN_CLASS = 'pointer-events-auto opacity-100'
-const TOOLTIP_FOCUS_OPEN_CLASS = 'peer-focus-visible:pointer-events-auto peer-focus-visible:opacity-100'
 
 type TooltipPosition = { left: number; top: number }
 
@@ -173,7 +167,6 @@ export default function IconTooltip({
   interactive = false,
   sideBoundary = 'bounds',
   hoverFill = true,
-  opensOnFocus = false,
   widensHitArea = false,
   focusRing = false,
 }: IconTooltipProps) {
@@ -275,13 +268,11 @@ export default function IconTooltip({
     isFxIcon && (isShown ? fxToneClass.active : fxToneClass.idle),
     !isFxIcon && widensHitArea && ICON_HIT_AREA_CLASS,
     !isFxIcon && focusRing && ICON_FOCUS_RING_CLASS,
-    opensOnFocus && 'peer',
   )
   const iconClassName = joinClassNames(ICON_CLASS, hoverFill && ICON_HOVER_CLASS, hoverFill && isShown && ICON_ACTIVE_CLASS)
   const tooltipWrapperClassName = joinClassNames(
     TOOLTIP_WRAPPER_CLASS,
     isShown ? TOOLTIP_OPEN_CLASS : TOOLTIP_CLOSED_CLASS,
-    opensOnFocus && TOOLTIP_FOCUS_OPEN_CLASS,
   )
   const rootClassName = joinClassNames(ROOT_CLASS, isFxIcon && FX_ROOT_CLASS)
 
