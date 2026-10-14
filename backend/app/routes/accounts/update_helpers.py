@@ -43,7 +43,7 @@ async def update_account_for_user(
     Raises:
         HTTPException: User lacks admin access or update fields are invalid
     """
-    account = await check_account_access(db, account_id, user.id, PermissionLevel.ADMIN)
+    account = await check_account_access(db, account_id, user.id, PermissionLevel.ADMIN, lock_against_delete=True)
 
     updates = data.model_dump(exclude_unset=True)
     if not updates:
@@ -55,8 +55,10 @@ async def update_account_for_user(
 
     # Mark the account scope stale before returning the account with derived fields
     await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
-    await db.commit()
 
+    # Build the response before committing, since a delete of the account may take the row the moment
+    # this commits
+    await db.flush()
     response_account = await get_account_for_response(
         db,
         user,
@@ -64,6 +66,7 @@ async def update_account_for_user(
         response_date,
         refresh_cached_account=True,
     )
+    await db.commit()
     return response_account
 
 

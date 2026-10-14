@@ -136,6 +136,7 @@ async def check_account_access(
     required_level: PermissionLevel,
     *,
     access_lookup: AccountAccessLookup | None = None,
+    lock_against_delete: bool = False,
 ) -> Account:
     """Return an account when the user has the required access level
 
@@ -148,6 +149,8 @@ async def check_account_access(
         user_id: User requesting access
         required_level: Minimum permission level required by the operation
         access_lookup: Optional request-local facts bound to this caller, with no missing-entry fallback
+        lock_against_delete: Hold the account until commit so a delete waits for this write, or
+            report the account missing when a delete reached it first. Not used with access_lookup
 
     Returns:
         Account row with institution data loaded
@@ -160,7 +163,7 @@ async def check_account_access(
     if access_lookup is not None and access_lookup.user_id != user_id:
         raise ValueError("Account access lookup belongs to another user")
     if access_lookup is None:
-        account = await _get_account_or_404(db, account_id)
+        account = await _get_account_or_404(db, account_id, lock_against_delete=lock_against_delete)
     else:
         account = access_lookup.accounts.get(account_id)
         if account is None:
@@ -183,12 +186,18 @@ async def check_account_access(
     return account
 
 
-async def _get_account_or_404(db: AsyncSession, account_id: uuid.UUID) -> Account:
+async def _get_account_or_404(
+    db: AsyncSession,
+    account_id: uuid.UUID,
+    *,
+    lock_against_delete: bool = False,
+) -> Account:
     """Return an account with response data loaded or raise not found
 
     Args:
         db: Active database session
         account_id: Account identifier to fetch
+        lock_against_delete: Take the key-share lock a delete waits on, held through the commit
 
     Returns:
         Account row with institution data loaded
@@ -197,6 +206,12 @@ async def _get_account_or_404(db: AsyncSession, account_id: uuid.UUID) -> Accoun
         HTTPException: Account does not exist
     """
     account_query = select(Account).where(Account.id == account_id).options(selectinload(Account.institution))
+    if lock_against_delete:
+        # The same lock a foreign key to the account takes, so it blocks only a delete. A delete that
+        # commits while this waits leaves no row, which reads as not found
+        account_query = account_query.with_for_update(read=True, key_share=True).execution_options(
+            populate_existing=True,
+        )
 
     # Fetch the account with institution data so response builders can serialize it in async contexts
     result = await db.execute(account_query)

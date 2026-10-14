@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { focusManager, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { fetchCacheStatus } from '@/api/user'
+import type { User } from '@/api/auth'
+import { fetchCacheStatus, fetchProfile } from '@/api/user'
 import { invalidateAppData, invalidateFxData } from '@/api/cache/invalidation'
 
 const PERSONAL_CACHE_CHANGED_AT_KEY_PREFIX = 'lumina:personal-cache-changed-at'
@@ -17,8 +18,13 @@ const CACHE_STATUS_RETRY_INTERVAL_MS = 60 * 1000
  * even if another window shares the same login session. A new owner-local date also refreshes calculations
  * without requiring a transaction edit. FX data refreshes at most once every twelve
  * hours, or immediately when app data was just invalidated. Overlapping validate calls are coalesced.
+ * A server change also fetches the profile again and hands it to `onProfileRefreshed`
  */
-export function useCacheValidation(userId: string | undefined, enabled: boolean) {
+export function useCacheValidation(
+  userId: string | undefined,
+  enabled: boolean,
+  onProfileRefreshed: (profile: User) => void,
+) {
   const queryClient = useQueryClient()
   const validatingRef = useRef(false)
   const pendingValidationRef = useRef(false)
@@ -42,6 +48,19 @@ export function useCacheValidation(userId: string | undefined, enabled: boolean)
       midnightTimer = setTimeout(() => { void validate() }, CACHE_STATUS_RETRY_INTERVAL_MS)
     }
 
+    // A profile change in another session marks the same personal cache as app data, so the profile
+    // is fetched again with it, and on the next check too when that fetch failed. A sign-out while it
+    // loads stops the effect, which drops the answer
+    let profileStale = false
+    const refreshProfile = () => {
+      fetchProfile()
+        .then((profile) => {
+          profileStale = false
+          if (active) onProfileRefreshed(profile)
+        })
+        .catch(() => { profileStale = true })
+    }
+
     const validate = async () => {
       if (validatingRef.current) {
         pendingValidationRef.current = true
@@ -55,6 +74,7 @@ export function useCacheValidation(userId: string | undefined, enabled: boolean)
           try {
             const result = await validateAppData(queryClient, userId)
             appInvalidated = result.appInvalidated
+            if (result.changed || profileStale) refreshProfile()
             scheduleMidnightCheck(result.nextBoundaryAt)
           } catch {
             appInvalidated = false
@@ -92,7 +112,7 @@ export function useCacheValidation(userId: string | undefined, enabled: boolean)
       window.removeEventListener('focus', onWindowFocus)
       window.removeEventListener('storage', onStorageChange)
     }
-  }, [enabled, queryClient, userId])
+  }, [enabled, onProfileRefreshed, queryClient, userId])
 }
 
 async function validateAppData(
@@ -119,7 +139,7 @@ async function validateAppData(
   const changed = previousChangedAt !== null && previousChangedAt !== currentChangedAt
   const dayChanged = previousDate !== null && previousDate !== status.calculation_date_token
   if (changed || dayChanged) invalidateAppData(queryClient)
-  return { appInvalidated: changed || dayChanged, nextBoundaryAt: status.next_calculation_boundary_at }
+  return { appInvalidated: changed || dayChanged, changed, nextBoundaryAt: status.next_calculation_boundary_at }
 }
 
 function toUtcCacheTimestamp(value: string | null) {

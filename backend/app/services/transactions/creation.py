@@ -46,6 +46,7 @@ async def create_transaction_and_get_response(
         data.account_id,
         user.id,
         PermissionLevel.WRITE,
+        lock_against_delete=True,
     )
     validate_transaction_account_is_not_archived(account)
 
@@ -97,10 +98,10 @@ async def create_transaction_and_get_response(
 
     # Mark the affected user or group cache after all transaction writes are flushed
     await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
-    await db.commit()
-
-    # Reload generated database fields before building the response
+    # Build the response before committing, since a delete of the account may take the row the moment
+    # this commits
+    await db.flush()
     await db.refresh(txn)
-
-    # Load related merchant and tag display data for the public API shape
-    return await get_transaction_response(db, txn)
+    response = await get_transaction_response(db, txn)
+    await db.commit()
+    return response

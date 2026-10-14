@@ -78,6 +78,7 @@ async def update_transaction_and_get_response(
             changed_fields["account_id"],
             user.id,
             PermissionLevel.WRITE,
+            lock_against_delete=True,
         )
         validate_transaction_account_is_not_archived(new_account)
         account_group_id = new_account.group_id
@@ -166,10 +167,10 @@ async def update_transaction_and_get_response(
     if new_account is not None and new_account.id != current_account.id:
         await mark_cache_changed_for_scope(db, user_id=new_account.owner_id, group_id=new_account.group_id)
 
-    await db.commit()
-
-    # Reload generated database fields before building the response
+    # Build the response before committing, since a delete of the account may take the row the moment
+    # this commits
+    await db.flush()
     await db.refresh(txn)
-
-    # Load related merchant and tag display data for the public API shape
-    return await get_transaction_response(db, txn)
+    response = await get_transaction_response(db, txn)
+    await db.commit()
+    return response
