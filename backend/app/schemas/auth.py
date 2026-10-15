@@ -163,6 +163,13 @@ class RegistrationStatusResponse(BaseModel):
     enabled: bool
 
 
+class NativeExchangeRequest(BaseModel):
+    """The code a web sign-in handed to the app, with the PKCE verifier only the app holds"""
+
+    code: str
+    code_verifier: str
+
+
 class TotpSetupResponse(BaseModel):
     """Secret and provisioning URI returned when TOTP enrolment begins"""
 

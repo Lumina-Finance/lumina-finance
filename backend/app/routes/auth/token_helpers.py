@@ -48,6 +48,7 @@ from app.services.auth.sessions import (
 )
 from app.services.auth.tokens import (
     MFA_CHALLENGE_TOKEN_USE,
+    NATIVE_HANDOFF_TOKEN_USE,
     OIDC_ONBOARDING_TOKEN_USE,
     OIDC_REAUTH_STEPUP_TOKEN_USE,
     create_access_token,
@@ -147,6 +148,29 @@ def decode_mfa_challenge_token(challenge_token: str) -> dict[str, Any]:
         audience=MFA_CHALLENGE_TOKEN_USE,
     )
     _raise_for_token_use(payload, MFA_CHALLENGE_TOKEN_USE)
+    return payload
+
+
+def decode_native_handoff_token(handoff_token: str) -> dict[str, Any]:
+    """Return decoded native handoff code claims
+
+    Args:
+        handoff_token: Encoded handoff JWT string
+
+    Returns:
+        Decoded handoff claims
+
+    Raises:
+        PyJWTError: Handoff code cannot be decoded or verified
+    """
+    payload = jwt.decode(
+        handoff_token,
+        _access_public_key,
+        algorithms=[JWT_ALGORITHM],
+        issuer=JWT_ISSUER,
+        audience=NATIVE_HANDOFF_TOKEN_USE,
+    )
+    _raise_for_token_use(payload, NATIVE_HANDOFF_TOKEN_USE)
     return payload
 
 

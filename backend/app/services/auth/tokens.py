@@ -50,6 +50,12 @@ SIGNUP_CONFIRMATION_TOKEN_USE = "signup_confirmation"  # noqa: S105 - token use 
 # Token use claim authorizing a first password after an OIDC reauth
 OIDC_REAUTH_STEPUP_TOKEN_USE = "oidc_reauth_stepup"  # noqa: S105 - token use claim, not a secret
 
+# Token use claim for the code a web sign-in hands to a native app
+NATIVE_HANDOFF_TOKEN_USE = "native_handoff"  # noqa: S105 - token use claim, not a secret
+
+# Long enough for the system sheet to close and the app to exchange the code, and no longer
+NATIVE_HANDOFF_TOKEN_EXPIRE_SECONDS = 60
+
 
 def create_access_token(user_id: uuid.UUID, session_id: uuid.UUID) -> tuple[str, uuid.UUID, datetime]:
     """Create a short-lived JWT access token
@@ -253,6 +259,42 @@ def create_oidc_reauth_stepup_token(user_id: uuid.UUID) -> str:
         "iss": JWT_ISSUER,
     }
     return jwt.encode(payload, _ACCESS_SIGNING_KEY, algorithm=JWT_ALGORITHM, headers={"kid": JWT_ACCESS_KID})
+
+
+def create_native_handoff_token(
+    user_id: uuid.UUID,
+    session_id: uuid.UUID,
+    code_challenge: str,
+) -> tuple[str, uuid.UUID, datetime]:
+    """Create the short-lived code a web sign-in hands to the native app that opened it
+
+    The code is bound to the app's PKCE challenge, so only the app holding the matching verifier
+    can exchange it, even if the code itself is seen on its way through the browser
+
+    Args:
+        user_id: User the web session belongs to
+        session_id: Web session the exchange replaces
+        code_challenge: The app's base64url SHA-256 PKCE challenge
+
+    Returns:
+        Encoded JWT, token identifier, and expiration timestamp
+    """
+    issued_at = datetime.now(UTC)
+    token_id = uuid.uuid4()
+    expires_at = issued_at + timedelta(seconds=NATIVE_HANDOFF_TOKEN_EXPIRE_SECONDS)
+    payload = {
+        "sub": str(user_id),
+        "sid": str(session_id),
+        "jti": str(token_id),
+        "code_challenge": code_challenge,
+        "token_use": NATIVE_HANDOFF_TOKEN_USE,
+        "aud": NATIVE_HANDOFF_TOKEN_USE,
+        "iat": issued_at,
+        "exp": expires_at,
+        "iss": JWT_ISSUER,
+    }
+    token = jwt.encode(payload, _ACCESS_SIGNING_KEY, algorithm=JWT_ALGORITHM, headers={"kid": JWT_ACCESS_KID})
+    return token, token_id, expires_at
 
 
 def _create_signed_token(

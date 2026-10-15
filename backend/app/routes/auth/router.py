@@ -12,6 +12,7 @@ from app.models.user import User
 from app.routes.auth.cookie_helpers import OIDC_REAUTH_STEPUP_COOKIE_KEY
 from app.routes.auth.jwks_helpers import build_jwks_response
 from app.routes.auth.logout_helpers import logout_auth_session
+from app.routes.auth.native import router as native_router
 from app.routes.auth.oidc import router as oidc_router
 from app.routes.auth.passkeys import router as passkeys_router
 from app.routes.auth.refresh_helpers import refresh_auth_tokens
@@ -78,6 +79,9 @@ router.include_router(passkeys_router)
 
 # OIDC sign-in shares the /auth prefix through its own router
 router.include_router(oidc_router)
+
+# The web sign-in's handoff to a native app shares the /auth prefix through its own router
+router.include_router(native_router)
 
 
 @router.post("/signup", status_code=status.HTTP_204_NO_CONTENT)
