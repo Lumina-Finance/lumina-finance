@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { motion, useReducedMotion } from 'motion/react'
 import { Calendar, ChevronDown } from 'lucide-react'
 import type { SavedInsightsRange, SavedInsightsRangeQualifier, SavedInsightsRangeUnit } from '@/api/insights'
+import { useFocusHeadOnClose } from '@/hooks/useFocusHeadOnClose'
 import { joinClassNames } from '@/utils/classNames'
 import type { InsightsRangePreset } from '@/pages/insights/types/range'
 import { formatResolvedRangeLabel, getRelativeRangeLabel } from '@/pages/insights/utils/range'
@@ -110,6 +111,8 @@ function GlassRangeSelector({
   const [open, setOpen] = useState(false)
   const [collapsedWidth, setCollapsedWidth] = useState(COLLAPSED_WIDTH_FALLBACK)
   const containerRef = useRef<HTMLDivElement>(null)
+  const headRef = useRef<HTMLButtonElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
   // Scopes the sliding-thumb layout animation to this instance so the mobile and desktop pills
   // never animate their selection highlight into each other
   const segId = useId()
@@ -146,6 +149,8 @@ function GlassRangeSelector({
     setOpen(false)
     onRevertSelection()
   }, [onRevertSelection])
+
+  useFocusHeadOnClose(open, bodyRef, headRef)
 
   // The panel dismisses on an outside press or Escape so a stale open control never lingers
   useEffect(() => {
@@ -219,6 +224,7 @@ function GlassRangeSelector({
       tabIndex={-1}
     >
       <button
+        ref={headRef}
         type="button"
         className="app-range-glass-head"
         aria-expanded={open}
@@ -249,7 +255,9 @@ function GlassRangeSelector({
         </motion.span>
       </button>
 
-      <div className="app-range-glass-bodywrap">
+      {/* Closed, the panel stays mounted at no height and fully faded, so it is kept out of focus and
+          the accessibility tree until the control opens */}
+      <div ref={bodyRef} className="app-range-glass-bodywrap" inert={!open}>
         <div className="app-range-glass-body">
           <div className="app-range-glass-inner">
             <p className="mb-2 ml-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
@@ -283,7 +291,8 @@ function GlassRangeSelector({
 
             {!isCustom && <p className="app-range-dates">{appliedRangeLabel}</p>}
 
-            <div className={joinClassNames('app-range-custom', isCustom && 'app-range-custom-open')}>
+            {/* The builder folds away the same way while another preset is picked */}
+            <div className={joinClassNames('app-range-custom', isCustom && 'app-range-custom-open')} inert={!isCustom}>
               <div className="app-range-custom-inner">
                 <RelativeRangeBuilder
                   amount={draftAmount}

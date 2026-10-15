@@ -312,6 +312,8 @@ for (const { where, path, width, height, name } of [
 // to stay in the Tab order as a run of invisible stops after the button
 for (const { where, path, width, height, name, list, loaded } of [
   { where: 'a dashboard widget on a phone', path: '/dashboard', width: 390, height: 844, name: /^Breakdown range: /, list: 'listbox', loaded: 'Spending breakdown FX status' },
+  { where: 'Insights', path: '/insights', width: 1280, height: 800, name: /^Insights date range: /, list: 'tablist', loaded: 'Income and expense FX status' },
+  { where: 'Insights on a phone', path: '/insights', width: 390, height: 844, name: /^Insights date range: /, list: 'tablist', loaded: 'Income and expense FX status' },
 ] as const) {
   test(`keeps the closed date-range control's options on ${where} out of the Tab order`, async ({ page, request }) => {
     await page.setViewportSize({ width, height })
@@ -348,6 +350,15 @@ for (const { where, path, width, height, name, list, loaded } of [
     await expect(head).toBeFocused()
     await page.keyboard.press('Tab')
     expect(await insideFrame()).toBe(false)
+
+    // Picking a range closes it the same way
+    await page.keyboard.press('Shift+Tab')
+    await page.keyboard.press('Enter')
+    await page.keyboard.press('Tab')
+    await expect(options.first()).toBeFocused()
+    await page.keyboard.press('Enter')
+    await expect(head).toHaveAttribute('aria-expanded', 'false')
+    await expect(head).toBeFocused()
   })
 }
 
