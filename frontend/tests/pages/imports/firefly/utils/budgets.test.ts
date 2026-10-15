@@ -679,7 +679,7 @@ describe('how imported Firefly budgets will count spending', () => {
     }
   }
 
-  const payee = (destination_name: string, source_name = 'Chequing') => ({
+  const withMerchant = (destination_name: string, source_name = 'Chequing') => ({
     source_name,
     source_type: 'Asset account',
     destination_name,
@@ -695,11 +695,11 @@ describe('how imported Firefly budgets will count spending', () => {
     createLimitRow({ name: 'Dining', start_date: '2024-01-15', end_date: '2024-02-14' }),
   ])
   const transactionRows = [
-    createTransactionRow({ journal_id: '1', budget: 'Food', category: 'Restaurants', ...payee('Bistro') }),
-    createTransactionRow({ journal_id: '2', budget: 'Holiday', category: 'Eating Out', ...payee('Trattoria') }),
-    createTransactionRow({ journal_id: '3', budget: 'Holiday', category: 'Travel', ...payee('Airline') }),
-    createTransactionRow({ journal_id: '4', budget: 'Rent', category: 'Housing', ...payee('Landlord') }),
-    createTransactionRow({ journal_id: '5', budget: 'Dining', category: 'Restaurants', ...payee('Diner') }),
+    createTransactionRow({ journal_id: '1', budget: 'Food', category: 'Restaurants', ...withMerchant('Bistro') }),
+    createTransactionRow({ journal_id: '2', budget: 'Holiday', category: 'Eating Out', ...withMerchant('Trattoria') }),
+    createTransactionRow({ journal_id: '3', budget: 'Holiday', category: 'Travel', ...withMerchant('Airline') }),
+    createTransactionRow({ journal_id: '4', budget: 'Rent', category: 'Housing', ...withMerchant('Landlord') }),
+    createTransactionRow({ journal_id: '5', budget: 'Dining', category: 'Restaurants', ...withMerchant('Diner') }),
   ]
 
   // Food and Holiday name different Firefly categories, which both become Restaurants
@@ -746,9 +746,9 @@ describe('how imported Firefly budgets will count spending', () => {
     },
   ])('matches $case as one category', ({ holidayCategory, rentCategory, created, expected }) => {
     const rows = [
-      createTransactionRow({ journal_id: '1', budget: 'Food', category: 'Restaurants', ...payee('Bistro') }),
-      createTransactionRow({ journal_id: '2', budget: 'Holiday', category: holidayCategory, ...payee('Café') }),
-      createTransactionRow({ journal_id: '3', budget: 'Rent', category: rentCategory, ...payee('Roastery') }),
+      createTransactionRow({ journal_id: '1', budget: 'Food', category: 'Restaurants', ...withMerchant('Bistro') }),
+      createTransactionRow({ journal_id: '2', budget: 'Holiday', category: holidayCategory, ...withMerchant('Café') }),
+      createTransactionRow({ journal_id: '3', budget: 'Rent', category: rentCategory, ...withMerchant('Roastery') }),
     ]
 
     expect(buildFireflyBudgetCountingNotes({
@@ -762,8 +762,8 @@ describe('how imported Firefly budgets will count spending', () => {
   it('matches a new category by the name it is renamed to', () => {
     const incomeCoffee = { id: 'coffee', name: 'Coffee', kind: 'income', group_id: null, is_system: false } as Category
     const rows = [
-      createTransactionRow({ journal_id: '1', budget: 'Food', category: 'Restaurants', ...payee('Bistro') }),
-      createTransactionRow({ journal_id: '2', budget: 'Holiday', category: 'Coffee', ...payee('Café') }),
+      createTransactionRow({ journal_id: '1', budget: 'Food', category: 'Restaurants', ...withMerchant('Bistro') }),
+      createTransactionRow({ journal_id: '2', budget: 'Holiday', category: 'Coffee', ...withMerchant('Café') }),
     ]
 
     expect(buildFireflyBudgetCountingNotes({
@@ -783,8 +783,8 @@ describe('how imported Firefly budgets will count spending', () => {
   it('totals the budgeted spending with no category as each row will import', () => {
     const rows = [
       ...transactionRows,
-      createTransactionRow({ journal_id: '6', budget: 'Food', category: '', amount: '-3.000000000000', currency_code: 'EUR', ...payee('Café', 'Euro Wallet') }),
-      createTransactionRow({ journal_id: '7', budget: 'Food', category: '', amount: '-12.500000000000', ...payee('Market') }),
+      createTransactionRow({ journal_id: '6', budget: 'Food', category: '', amount: '-3.000000000000', currency_code: 'EUR', ...withMerchant('Café', 'Euro Wallet') }),
+      createTransactionRow({ journal_id: '7', budget: 'Food', category: '', amount: '-12.500000000000', ...withMerchant('Market') }),
 
       // Written in its foreign amount, the one in the account's currency
       createTransactionRow({
@@ -795,11 +795,11 @@ describe('how imported Firefly budgets will count spending', () => {
         currency_code: 'USD',
         foreign_amount: '-7.250000000000',
         foreign_currency_code: 'CAD',
-        ...payee('Kiosk'),
+        ...withMerchant('Kiosk'),
       }),
 
       // Neither amount is in the account's currency, so the import skips this row
-      createTransactionRow({ journal_id: '9', budget: 'Food', category: '', amount: '-40.000000000000', currency_code: 'USD', ...payee('Pub') }),
+      createTransactionRow({ journal_id: '9', budget: 'Food', category: '', amount: '-40.000000000000', currency_code: 'USD', ...withMerchant('Pub') }),
 
       // A payment to a loan imports as a transfer, which no budget counts
       createTransactionRow({

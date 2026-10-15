@@ -253,8 +253,8 @@ export function buildGroups(): SeedGroup[] {
   }
 
   // Names and text Firefly III's CSV writer escapes, or that break a naive reader
-  for (const [day, payee] of [['02', '-Minus Shop'], ['03', '+Plus Shop'], ['04', '=Equals Shop'], ['05', '@At Shop']]) {
-    add({ type: 'withdrawal', date: `2025-06-${day}`, amount: '7.00', description: `Bought at ${payee}`, source: 'Checking', destinationName: payee, category: 'Household' })
+  for (const [day, merchant] of [['02', '-Minus Shop'], ['03', '+Plus Shop'], ['04', '=Equals Shop'], ['05', '@At Shop']]) {
+    add({ type: 'withdrawal', date: `2025-06-${day}`, amount: '7.00', description: `Bought at ${merchant}`, source: 'Checking', destinationName: merchant, category: 'Household' })
   }
   add({ type: 'withdrawal', date: '2025-06-06', amount: '8.00', description: "'Quoted once", source: 'Checking', destinationName: "'Apostrophe Café", category: 'Household' })
   add({ type: 'withdrawal', date: '2025-06-07', amount: '9.00', description: "''Quoted twice", source: 'Checking', destinationName: "''Double Apostrophe", category: 'Household' })

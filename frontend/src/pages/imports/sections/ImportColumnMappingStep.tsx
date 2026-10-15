@@ -11,8 +11,8 @@ import {
   DIRECTION_VALUES_EXPLANATION,
   DIRECTION_VALUES_TITLE,
   getFixedAccountCurrencyNote,
-  getRowsWithNoPayeeExplanation,
-  ROWS_WITH_NO_PAYEE_TITLE,
+  getRowsWithNoMerchantExplanation,
+  ROWS_WITH_NO_MERCHANT_TITLE,
 } from '@/pages/imports/constants'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 import { getAmountArrangementClashError } from '@/pages/imports/utils'
@@ -34,7 +34,7 @@ type ImportColumnMappingStepProps = Pick<
   | 'directionValues'
   | 'directionAnswers'
   | 'autoFilledDirectionValues'
-  | 'rowsWithNoPayeeCount'
+  | 'rowsWithNoMerchantCount'
   | 'fixedAccount'
   | 'accountsFailed'
   | 'setDateFormat'
@@ -73,7 +73,7 @@ export function ImportColumnMappingStep({
   directionValues,
   directionAnswers,
   autoFilledDirectionValues,
-  rowsWithNoPayeeCount,
+  rowsWithNoMerchantCount,
   fixedAccount,
   accountsFailed,
   setDateFormat,
@@ -150,10 +150,10 @@ export function ImportColumnMappingStep({
           </ImportNotice>
         </div>
       )}
-      {rowsWithNoPayeeCount > 0 && (
+      {rowsWithNoMerchantCount > 0 && (
         <div className="mt-4">
-          <ImportNotice title={ROWS_WITH_NO_PAYEE_TITLE}>
-            {getRowsWithNoPayeeExplanation(rowsWithNoPayeeCount, Boolean(columnMap.merchant_id))}
+          <ImportNotice title={ROWS_WITH_NO_MERCHANT_TITLE}>
+            {getRowsWithNoMerchantExplanation(rowsWithNoMerchantCount, Boolean(columnMap.merchant_id))}
           </ImportNotice>
         </div>
       )}

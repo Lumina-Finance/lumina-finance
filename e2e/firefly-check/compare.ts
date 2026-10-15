@@ -297,15 +297,15 @@ function compareRows(
       differences.add('row-not-importable', subject, row.type, 'no imported account')
       continue
     }
-    const payee = side === row.source ? row.destination.name : row.source.name
-    const match = take(side, row.date, null, (transaction) => transaction.merchant_name === payee)
+    const merchant = side === row.source ? row.destination.name : row.source.name
+    const match = take(side, row.date, null, (transaction) => transaction.merchant_name === merchant)
     if (!match) {
       differences.add('row-missing', subject, `${side.amount} on ${side.name}`, 'absent')
       continue
     }
     if (isBalanceRow(row)) continue
 
-    if (match.merchant_name !== payee) differences.add('row-payee', subject, payee, match.merchant_name ?? '')
+    if (match.merchant_name !== merchant) differences.add('row-merchant', subject, merchant, match.merchant_name ?? '')
     const category = categoryNameById.get(match.category_id) ?? ''
     if (category !== (row.category || NO_CATEGORY)) differences.add('row-category', subject, row.category || NO_CATEGORY, category)
     compareText(subject, row, match)
@@ -361,7 +361,7 @@ function compareBudgets(
     // A budget counts the categories of the spending Firefly III filed under it. Spending with no
     // category gives it nothing to track
     const categories = [...new Set(rows
-      .filter((row) => row.budget === budget.name && row.category && getPayeeSide(row))
+      .filter((row) => row.budget === budget.name && row.category && getMerchantSide(row))
       .map((row) => row.category))].sort()
     const tracked = luminaBudget.category_ids.map((id) => categoryNameById.get(id) ?? id).sort()
     if (tracked.join('|') !== categories.join('|')) {
@@ -385,11 +385,11 @@ function compareBudgets(
 /** The one imported side of a row between an imported account and one outside, or of a balance row */
 function getImportedSide(row: ManifestRow): ManifestEndpoint | null {
   if (isBalanceRow(row)) return row.destination.imported ? row.destination : row.source.imported ? row.source : null
-  return getPayeeSide(row)
+  return getMerchantSide(row)
 }
 
 /** The imported side of a withdrawal from, or deposit into, an imported account, with the other side outside */
-function getPayeeSide(row: ManifestRow): ManifestEndpoint | null {
+function getMerchantSide(row: ManifestRow): ManifestEndpoint | null {
   if (row.type === 'withdrawal' && row.source.imported && !row.destination.imported) return row.source
   if (row.type === 'deposit' && row.destination.imported && !row.source.imported) return row.destination
   return null

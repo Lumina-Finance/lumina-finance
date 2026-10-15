@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import {
   ACTUAL_TRANSFER_SIDE_LEFT_OUT_REASON,
-  getActualPayeeTooLongReason,
+  getActualMerchantTooLongReason,
   getActualTagTooLongReason,
   getActualUnbalancedSplitReason,
 } from '@/pages/imports/actual/constants'
@@ -138,7 +138,7 @@ describe('normalising Actual Budget exports', () => {
 
     // Actual blanked the other side of transfers to deleted accounts, so they read as it shows them
     const toDeleted = journal.entries.filter((entry) => ['2026-07-06', '2026-07-07'].includes(entry.date))
-    expect(toDeleted.map((entry) => [entry.type, entry.payeeName, label(entry)])).toEqual([
+    expect(toDeleted.map((entry) => [entry.type, entry.merchantName, label(entry)])).toEqual([
       ['withdrawal', null, '(withdrawal, no category)'],
       ['withdrawal', null, 'Car'],
     ])
@@ -165,7 +165,7 @@ describe('normalising Actual Budget exports', () => {
 
     const balances = getBalances(journal)
     for (const account of manifest.accounts) expect(balances.get(account.name)).toBe(account.balance)
-    expect(journal.entries.find((entry) => entry.date === '2026-07-10')).toMatchObject({ amount: 458000, payeeName: 'Lawson' })
+    expect(journal.entries.find((entry) => entry.date === '2026-07-10')).toMatchObject({ amount: 458000, merchantName: 'Lawson' })
   })
 
   it('imports a row dated after today, counting it toward no balance yet', () => {
@@ -281,17 +281,17 @@ describe('pairing Actual Budget transfers', () => {
 
 describe('Actual Budget rows over the import limits', () => {
   it('leaves out and lists rows whose notes, tags or merchant name the import cannot take', () => {
-    const longPayee = 'P'.repeat(JOURNAL_ROW_FIELD_MAX_LENGTHS.payee + 1)
+    const longMerchantName = 'P'.repeat(JOURNAL_ROW_FIELD_MAX_LENGTHS.merchantName + 1)
     const longTag = 't'.repeat(IMPORT_TAG_NAME_MAX_LENGTH + 1)
     const manyTags = Array.from({ length: MAX_IMPORT_TAGS_PER_ROW + 1 }, (_, index) => `#tag${index}`).join(' ')
     const budget = buildActualBudget([
       { id: 'notes', accountId: 'checking', date: '2026-09-01', amount: -100, notes: 'n'.repeat(MAX_IMPORT_NOTES_LENGTH + 1) },
       { id: 'tags', accountId: 'checking', date: '2026-09-01', amount: -100, notes: manyTags },
       { id: 'tag', accountId: 'checking', date: '2026-09-01', amount: -100, notes: `#${longTag}` },
-      { id: 'payee', accountId: 'checking', date: '2026-09-01', amount: -100, payeeId: 'long' },
+      { id: 'merchant', accountId: 'checking', date: '2026-09-01', amount: -100, payeeId: 'long' },
       { id: 'fine', accountId: 'checking', date: '2026-09-01', amount: -100, payeeId: 'shop' },
     ])
-    budget.payees.push({ id: 'long', name: longPayee, transferAccountId: null })
+    budget.payees.push({ id: 'long', name: longMerchantName, transferAccountId: null })
     const journal = normaliseActualBudget(budget, '2026-09-26')
 
     expect(journal.entries.map((entry) => entry.transactionId)).toEqual(['fine'])
@@ -299,7 +299,7 @@ describe('Actual Budget rows over the import limits', () => {
       ['notes', getRowNotesTooLongReason(MAX_IMPORT_NOTES_LENGTH + 1)],
       ['tags', getRowTooManyTagsReason(MAX_IMPORT_TAGS_PER_ROW + 1)],
       ['tag', getActualTagTooLongReason(longTag)],
-      ['payee', getActualPayeeTooLongReason(JOURNAL_ROW_FIELD_MAX_LENGTHS.payee + 1)],
+      ['merchant', getActualMerchantTooLongReason(JOURNAL_ROW_FIELD_MAX_LENGTHS.merchantName + 1)],
     ])
   })
 

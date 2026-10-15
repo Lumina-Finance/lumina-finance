@@ -178,8 +178,8 @@ async function readSkippedRows(page: Page): Promise<SkippedRowCells[]> {
   const rows: SkippedRowCells[] = []
   for (const row of await panel.locator('tbody tr').all()) {
     const cells = (await row.locator('td').allInnerTexts()).map((text) => (text.trim() === EMPTY_CELL ? '' : text.trim()))
-    const [date, reason, account, amount, payee] = cells
-    rows.push({ date, reason, account, amount, payee })
+    const [date, reason, account, amount, merchant] = cells
+    rows.push({ date, reason, account, amount, merchant })
   }
   return rows
 }

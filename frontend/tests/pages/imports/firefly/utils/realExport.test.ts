@@ -73,7 +73,7 @@ function getAccountKey(name: string, type: string) {
 }
 
 /** A withdrawal from, or deposit into, an imported account whose other side is outside */
-function isPayeeRow(row: Manifest['rows'][number]) {
+function isMerchantRow(row: Manifest['rows'][number]) {
   return (row.type === 'withdrawal' && row.source.imported && !row.destination.imported)
     || (row.type === 'deposit' && row.destination.imported && !row.source.imported)
 }
@@ -210,7 +210,7 @@ describe(`a real Firefly III ${fireflyVersion} export`, () => {
       disabledReason: null,
       currency: budget.limits[0].currency,
       categories: [...new Set(manifest.rows
-        .filter((row) => row.budget === budget.name && row.category && isPayeeRow(row))
+        .filter((row) => row.budget === budget.name && row.category && isMerchantRow(row))
         .map((row) => row.category))].sort(),
       limits: describeLimits(budget.limits),
     })))

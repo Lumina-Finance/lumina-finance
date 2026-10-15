@@ -144,7 +144,7 @@ class ImportMerchants:
             this import writes and by what it finds another request has written, never by an answer
         system_by_key: The merchants that ship with the app, keyed by their own name, which is what
             a row stating no merchant is stamped from
-        resolved_by_payee_key: What each merchant name in the file resolves to, keyed by the name as
+        resolved_by_merchant_name_key: What each merchant name in the file resolves to, keyed by the name as
             the file states it rather than by any merchant's own name. This is what a row is filed
             through
         skipped_keys: Merchant names the user answered skip, whose rows are filed under the shared
@@ -155,7 +155,7 @@ class ImportMerchants:
 
     existing_by_name_key: dict[str, Merchant]
     system_by_key: dict[str, Merchant] = field(default_factory=dict)
-    resolved_by_payee_key: dict[str, Merchant] = field(default_factory=dict)
+    resolved_by_merchant_name_key: dict[str, Merchant] = field(default_factory=dict)
     skipped_keys: set[str] = field(default_factory=set)
     keys_by_name: dict[str, str] = field(default_factory=dict)
 
@@ -262,14 +262,14 @@ async def create_missing_import_merchants(
     # Keyed by the name a merchant will be stored under rather than by the name as the file states
     # it, since two names corrected to one make one merchant between them
     names_by_key: dict[str, str] = {}
-    name_key_by_payee_key: dict[str, str] = {}
+    name_key_by_merchant_name_key: dict[str, str] = {}
 
     for name in names:
-        payee_key = merchants.get_key(name)
-        if payee_key in name_key_by_payee_key or payee_key in merchants.resolved_by_payee_key:
+        merchant_name_key = merchants.get_key(name)
+        if merchant_name_key in name_key_by_merchant_name_key or merchant_name_key in merchants.resolved_by_merchant_name_key:
             continue
 
-        answer = answers.get(payee_key)
+        answer = answers.get(merchant_name_key)
         if answer is None:
             # Left alone, so it matches an existing merchant or is created under its own spelling
             stored_name = name
@@ -285,14 +285,14 @@ async def create_missing_import_merchants(
         name_key = merchants.get_key(stored_name)
         existing = merchants.existing_by_name_key.get(name_key)
         if existing is not None:
-            merchants.resolved_by_payee_key[payee_key] = existing
+            merchants.resolved_by_merchant_name_key[merchant_name_key] = existing
             continue
 
         # The first spelling wins, so two merchant names whose stored names differ only in capitals
         # make one merchant: "SQ *AMZN 88" created as "Amazon" beside "AMZN MKTP" created as
         # "AMAZON" writes Amazon alone, and both values resolve to it
         names_by_key.setdefault(name_key, stored_name)
-        name_key_by_payee_key[payee_key] = name_key
+        name_key_by_merchant_name_key[merchant_name_key] = name_key
 
     if not names_by_key:
         return
@@ -320,8 +320,8 @@ async def create_missing_import_merchants(
         written_by_key.update(await _load_import_merchants_created_elsewhere(db, user_id, taken_keys))
 
     merchants.existing_by_name_key.update(written_by_key)
-    for payee_key, name_key in name_key_by_payee_key.items():
-        merchants.resolved_by_payee_key[payee_key] = written_by_key[name_key]
+    for merchant_name_key, name_key in name_key_by_merchant_name_key.items():
+        merchants.resolved_by_merchant_name_key[merchant_name_key] = written_by_key[name_key]
 
 
 def _require_import_merchant_name_fits(name: str) -> None:
@@ -424,7 +424,7 @@ async def _attach_chosen_import_merchants(
         # Settles what this merchant name resolves to, whatever it would have matched on its own,
         # which is the whole point of answering it: a descriptor reading nothing like the merchant
         # still lands on it
-        merchants.resolved_by_payee_key[key] = merchant
+        merchants.resolved_by_merchant_name_key[key] = merchant
 
 
 async def _load_import_merchants_created_elsewhere(
@@ -496,13 +496,13 @@ def get_import_merchant(
     if key in merchants.skipped_keys:
         return None
 
-    merchant = merchants.resolved_by_payee_key[key]
+    merchant = merchants.resolved_by_merchant_name_key[key]
     stats.reused_merchant_ids.add(merchant.id)
     return merchant
 
 
 @dataclass
-class NoPayeeMerchants:
+class StampedMerchants:
     """The shared merchants an import stamps on a row that states no merchant
 
     Stamping one counts as neither created nor reused, because the summary reports what the file's
@@ -532,7 +532,7 @@ class NoPayeeMerchants:
         return self.transfer if category.kind == CategoryKind.TRANSFER else self.other
 
 
-def get_no_payee_merchants(merchants: ImportMerchants) -> NoPayeeMerchants:
+def get_stamped_merchants(merchants: ImportMerchants) -> StampedMerchants:
     """Return the shared merchants stamped on rows that state no merchant
 
     Args:
@@ -545,7 +545,7 @@ def get_no_payee_merchants(merchants: ImportMerchants) -> NoPayeeMerchants:
     Raises:
         HTTPException: Raised with 500 when either merchant is not seeded
     """
-    return NoPayeeMerchants(
+    return StampedMerchants(
         transfer=_require_system_merchant(merchants, SELF_MERCHANT_NAME),
         other=_require_system_merchant(merchants, UNKNOWN_MERCHANT_NAME),
     )

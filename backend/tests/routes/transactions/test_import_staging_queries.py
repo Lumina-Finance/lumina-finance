@@ -163,8 +163,8 @@ async def test_staging_keeps_category_and_merchant_visibility_distinct(client, s
         "start_row_index": 0,
         "accounts": [{"source": "Holding", "account_id": account_id}],
         "categories": [{"source": "Category", "category_id": category_id}],
-        "merchants": [{"source": "Payee", "merchant_id": merchant_id}],
-        "rows": [{"account_source": "Holding", "category_source": "Category", "merchant_name": "Payee",
+        "merchants": [{"source": "Merchant", "merchant_id": merchant_id}],
+        "rows": [{"account_source": "Holding", "category_source": "Category", "merchant_name": "Merchant",
                   "dt": "2026-04-10", "amount": "-1.23", "tag_names": []}],
     }
     run_id = await _open_run(client, member, 1)

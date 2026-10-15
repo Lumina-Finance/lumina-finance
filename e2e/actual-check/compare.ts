@@ -42,7 +42,7 @@ export interface SkippedRowCells {
   reason: string
   account: string
   amount: string
-  payee: string
+  merchant: string
 }
 
 // The system category Lumina files opening balances and the adjustment that archiving writes under
@@ -107,7 +107,7 @@ function isSameRow(cells: SkippedRowCells, row: ManifestRow) {
   return cells.date === row.date
     && cells.account === row.account
     && Number(cells.amount.replace(/,/g, '')) === Number(row.amount)
-    && cells.payee === (row.payee ?? '')
+    && cells.merchant === (row.payee ?? '')
 }
 
 function compareAccounts(

@@ -126,7 +126,7 @@ describe('Actual Budget payments to off-budget accounts', () => {
     entry.type,
     entry.categorySourceId,
     entry.categoryLeg,
-    entry.payeeName,
+    entry.merchantName,
   ])
 
   it('files them as spending in their category when asked, naming the other account as the merchant', () => {

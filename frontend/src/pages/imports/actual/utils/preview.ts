@@ -116,7 +116,7 @@ function resolveLegs(
         account,
         minorUnits,
         category: mappedCategory,
-        merchantName: isSpending ? entry.payeeName : null,
+        merchantName: isSpending ? entry.merchantName : null,
         counterpartyAccount: isSpending ? null : other,
       }
     }
@@ -133,7 +133,7 @@ function resolveLegs(
     account,
     minorUnits: source ? -amount : amount,
     category: mappedCategory,
-    merchantName: entry.payeeName,
+    merchantName: entry.merchantName,
     counterpartyAccount: null,
   }]
 }
