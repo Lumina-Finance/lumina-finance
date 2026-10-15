@@ -7,7 +7,7 @@ import type { AuthState } from '@/contexts/AuthContext';
  *
  * Every tab shares the refresh cookie, so after someone else signs in in another tab a renewal here
  * returns their session. The tab signs out rather than show them the earlier user's data or fetch
- * theirs. The session flag is theirs now, so it stays
+ * theirs. The session flag and the saved copy are theirs now, so both stay
  *
  * @param tabState - The tab's sign-in state as the renewal arrives
  * @param renewed - The session the renewal returned

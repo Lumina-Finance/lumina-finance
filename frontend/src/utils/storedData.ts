@@ -1,4 +1,4 @@
-import { SESSION_KEY } from '@/contexts/AuthContext';
+import { SESSION_KEY } from '@/api/auth';
 
 /**
  * Clears everything this browser holds for the app, so a reload starts from nothing
@@ -6,9 +6,9 @@ import { SESSION_KEY } from '@/contexts/AuthContext';
  * The error screens reload through here because a render error can be caused by stored state, and a
  * plain reload would feed that state straight back in and fail the same way
  *
- * The flag saying a session exists is put back afterwards. It carries no data, and without it the
- * next load skips the silent token refresh and drops the user at the login screen, which turns a
- * recoverable crash into signing in again
+ * The flag saying a session exists is put back afterwards. It holds only the signed-in user's id, none
+ * of their data, and without it the next load skips the silent token refresh and drops the user at
+ * the login screen, which turns a recoverable crash into signing in again
  */
 export function clearStoredData() {
   try {

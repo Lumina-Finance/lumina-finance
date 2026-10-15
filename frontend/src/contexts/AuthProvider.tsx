@@ -11,8 +11,9 @@ import type {
   User,
 } from '@/api/auth';
 import { registerAuthBindings } from '@/api/client';
+import { isRestoredCacheFor, setQueryCacheUser } from '@/api/cache/persistence';
 import { clearUserScopedCache } from '@/api/cache/session';
-import { AuthContext, SESSION_KEY, type AuthContextValue, type AuthState } from '@/contexts/AuthContext';
+import { AuthContext, type AuthContextValue, type AuthState } from '@/contexts/AuthContext';
 import { takeRenewedSession } from '@/contexts/sessionRenewal';
 
 const RELOAD_SESSION_RESTORE_DELAY_MS = 750;
@@ -48,7 +49,7 @@ function getSessionRestoreDelayMs(): number {
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
   // Check once on mount — not reactive to later changes
-  const [hadSession] = useState(() => localStorage.getItem(SESSION_KEY) === '1');
+  const [hadSession] = useState(() => localStorage.getItem(authApi.SESSION_KEY) !== null);
   const queryClient = useQueryClient();
 
   const [state, setState] = useState<AuthState>({
@@ -72,9 +73,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Child effects run before this provider's ref-sync effect, so any consumer that
   // fetches on the same render a new token arrives would still read the stale ref
-  // Full state replacements therefore update the ref synchronously, like primeAccessToken
+  // Full state replacements therefore update the ref synchronously, like primeAccessToken. The saved
+  // query cache learns the user here too, since only a tab signed in as the user the session flag
+  // names may save
   const applyState = useCallback((next: AuthState) => {
     noteAccessToken(next.accessToken);
+    setQueryCacheUser(next.user?.id ?? null);
     stateRef.current = next;
     setState(next);
   }, [noteAccessToken]);
@@ -86,7 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       getAccessTokenExpiresAt: () => accessTokenExpiresAtRef.current,
       onSessionRefreshed: (res) => takeRenewedSession(stateRef.current, res, queryClient, applyState),
       onSessionLost: () => {
-        localStorage.removeItem(SESSION_KEY);
+        localStorage.removeItem(authApi.SESSION_KEY);
         applyState({ user: null, accessToken: null, loading: false });
         queryClient.clear();
       },
@@ -104,6 +108,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authApi.restoreSession()
         .then((res) => {
           if (!cancelled) {
+            // A copy restored for anyone else, such as under a flag from before it held the user, or
+            // one another tab replaced while this load waited, never shows. The flag then names
+            // this user, so the tab can save again
+            if (!isRestoredCacheFor(res.user.id)) clearUserScopedCache(queryClient);
+            localStorage.setItem(authApi.SESSION_KEY, res.user.id);
             applyState({ user: res.user, accessToken: res.access_token, loading: false });
           }
         })
@@ -125,7 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return;
           }
 
-          localStorage.removeItem(SESSION_KEY);
+          localStorage.removeItem(authApi.SESSION_KEY);
           queryClient.clear();
           if (!cancelled) {
             applyState({ user: null, accessToken: null, loading: false });
@@ -157,21 +166,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     clearUserScopedCache(queryClient);
-    localStorage.setItem(SESSION_KEY, '1');
+    localStorage.setItem(authApi.SESSION_KEY, res.user.id);
     return res;
   }, [queryClient]);
 
   const verifyMfa = useCallback(async (payload: MfaVerifyPayload) => {
     const res = await authApi.verifyMfa(payload);
     clearUserScopedCache(queryClient);
-    localStorage.setItem(SESSION_KEY, '1');
+    localStorage.setItem(authApi.SESSION_KEY, res.user.id);
     return res;
   }, [queryClient]);
 
   const signup = useCallback(async (payload: SignupPayload) => {
     const res = await authApi.signup(payload);
     clearUserScopedCache(queryClient);
-    localStorage.setItem(SESSION_KEY, '1');
+    localStorage.setItem(authApi.SESSION_KEY, res.user.id);
     return res;
   }, [queryClient]);
 
@@ -180,7 +189,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // sign-in and the passkey second factor behave like the password and code paths. Those paths reach
     // this commit without going through login/verifyMfa, so without this a reload finds no flag, skips
     // the silent refresh, and signs the user out despite a valid refresh cookie
-    localStorage.setItem(SESSION_KEY, '1');
+    localStorage.setItem(authApi.SESSION_KEY, res.user.id);
     clearUserScopedCache(queryClient);
     applyState({ user: res.user, accessToken: res.access_token, loading: false });
   }, [queryClient, applyState]);
@@ -202,11 +211,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (state.accessToken) {
       await authApi.logout(state.accessToken).catch(() => {});
     }
-    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(authApi.SESSION_KEY);
     applyState({ user: null, accessToken: null, loading: false });
     // Wipe every cached query so the next user can't see the previous user's
-    // data (accounts, transactions, etc.). The persister is subscribed to the
-    // client, so clearing in-memory also flushes the localStorage copy
+    // data (accounts, transactions, etc.). With the session flag gone, the
+    // persister's next save removes the localStorage copy instead
     queryClient.clear();
   }, [state.accessToken, queryClient, applyState]);
 
