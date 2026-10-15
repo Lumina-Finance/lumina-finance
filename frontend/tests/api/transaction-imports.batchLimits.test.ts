@@ -56,7 +56,7 @@ function buildPayload(categorySources: string[]): TransactionImportPayload {
   };
 }
 
-describe('the payee answers a staged batch carries', () => {
+describe('the merchant answers a staged batch carries', () => {
   it('carries only the values the user answered, and no batch looks up one they did not', async () => {
     const payload: TransactionImportPayload = {
       accounts: [{ source: 'C', account_id: 'acc_1' }],
@@ -64,7 +64,7 @@ describe('the payee answers a staged batch carries', () => {
       merchants: [{ source: 'SQ *COFFEE 4471', create: { name: 'Coffee Bar' } }],
       rows: [
         { ...buildRow(), merchant_name: 'SQ *COFFEE 4471' },
-        // Spelled differently, so it is found by what matches a payee rather than by the spelling
+        // Spelled differently, so it is found by what matches a merchant name rather than by the spelling
         { ...buildRow(), merchant_name: 'sq *coffee 4471' },
         // Never answered, so the batch carries nothing for it rather than failing to find one
         { ...buildRow(), merchant_name: 'Bakery' },

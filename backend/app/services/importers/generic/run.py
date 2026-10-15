@@ -32,7 +32,7 @@ async def stage_import_batch(
     """Park one batch of a file against its run, after checking the mappings it declares
 
     A CSV row names the account at its other end, which can be answered as money that left the
-    tracked accounts, and the batch carries the payee values the user answered by hand
+    tracked accounts, and the batch carries the merchant names the user answered by hand
 
     Args:
         db: Active database session

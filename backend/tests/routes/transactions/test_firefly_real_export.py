@@ -117,7 +117,7 @@ async def test_a_real_firefly_export_imports_to_the_balances_and_totals_firefly_
         for account in expected["accounts"]
     )
 
-    # Only rows with a payee of their own carry the category Firefly III gave them. Transfer legs
+    # Only rows with a merchant of their own carry the category Firefly III gave them. Transfer legs
     # and balance rows take a system category
     currency_by_account_id = {account["id"]: account["currency"] for account in accounts}
     category_names = {category_id: name for name, category_id in category_ids.items()}

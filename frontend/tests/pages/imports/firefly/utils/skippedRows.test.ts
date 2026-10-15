@@ -828,8 +828,8 @@ describe('Firefly rows past what the import endpoint takes', () => {
     // The endpoint counts code points, so an emoji is one character to it, not two
     ['description', 'description', 1024, (length) => ({ description: '🛒'.repeat(length) })],
     ['category', 'category', 256, (length) => ({ category: 'c'.repeat(length) })],
-    ['withdrawal payee', 'payee name', 256, (length) => ({ destination_name: 'p'.repeat(length) })],
-    ['deposit payee', 'payee name', 256, (length) => ({
+    ['withdrawal merchant', 'merchant name', 256, (length) => ({ destination_name: 'p'.repeat(length) })],
+    ['deposit merchant', 'merchant name', 256, (length) => ({
       type: 'Deposit',
       amount: '2500.00',
       source_name: 'p'.repeat(length),
@@ -855,7 +855,7 @@ describe('Firefly rows past what the import endpoint takes', () => {
     })])
   })
 
-  // Only a payee row is sent with its category, so a transfer's long category costs nothing
+  // Only a row with a merchant is sent with its category, so a transfer's long category costs nothing
   it('uploads a transfer whose category is past the limit', () => {
     const transfer = createFireflyRow({
       type: 'Transfer',

@@ -43,7 +43,7 @@ export interface MergeMerchantRequest {
 }
 
 export interface MerchantNameMatch {
-  /** The payee value exactly as it was asked about, so the answer reads back against what was sent */
+  /** The merchant name exactly as it was asked about, so the answer reads back against what was sent */
   source: string;
   merchant: Merchant;
 }

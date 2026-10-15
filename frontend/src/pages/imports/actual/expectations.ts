@@ -28,7 +28,7 @@ export const ACTUAL_EXPECTATIONS: ImportExpectations = {
     },
     {
       source: 'A split transaction',
-      lumina: 'Separate entries that are no longer linked, each keeping the payee and notes',
+      lumina: 'Separate entries that are no longer linked, each keeping the merchant and notes',
     },
     {
       source: 'Payees',
@@ -40,7 +40,7 @@ export const ACTUAL_EXPECTATIONS: ImportExpectations = {
     },
     {
       source: 'A transfer to an account you have since deleted',
-      lumina: 'A payment with no payee, as Actual now shows it',
+      lumina: 'A payment filed under a merchant that ships with the app, since Actual now shows it with no payee',
     },
     {
       source: 'Off-budget accounts',
@@ -77,7 +77,7 @@ export const ACTUAL_EXPECTATIONS: ImportExpectations = {
       items: [
         'Split into parts that no longer add up to the total',
         'With more decimal places than their currency allows',
-        'With notes, tags or a payee over the limits this app takes',
+        'With notes, tags or a merchant name over the limits this app takes',
       ],
     },
     {

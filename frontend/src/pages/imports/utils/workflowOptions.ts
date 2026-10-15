@@ -288,7 +288,7 @@ export function getImportedCategories(
 }
 
 /**
- * Reports whether one row states no payee
+ * Reports whether one row states no merchant
  *
  * With no column mapped as the Merchant every row states none, and with one mapped it is the rows
  * whose cell is blank
@@ -298,7 +298,7 @@ function doesRowStateNoPayee(row: CsvRow, merchantHeader: string): boolean {
 }
 
 /**
- * Counts the rows across every staged file that state no payee
+ * Counts the rows across every staged file that state no merchant
  *
  * Read from the merchant column alone, so the mapping step can say how many rows will be filed
  * under a merchant that ships with the app without waiting on the account and category answers
@@ -317,7 +317,7 @@ export function getImportedMerchants(files: ImportFileDraft[], merchantHeader: s
   if (!merchantHeader) return []
 
   // One row per merchant the file resolves to rather than per spelling, since "Amazon" and "AMAZON"
-  // are one payee. Two rows would let one be answered create and the other skip, with nothing to
+  // are one merchant. Two rows would let one be answered create and the other skip, with nothing to
   // say which answer the rows carrying either spelling should take
   const seenKeys = new Set<string>()
   const values: string[] = []

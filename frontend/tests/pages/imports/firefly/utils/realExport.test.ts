@@ -111,7 +111,7 @@ describe(`a real Firefly III ${fireflyVersion} export`, () => {
         accountMonth.total += leg.amount
         accountMonths.set(JSON.stringify([account, month]), accountMonth)
 
-        // Only a payee leg is written with the row's category. Transfer and balance legs take a
+        // Only a leg with a merchant is written with the row's category. Transfer and balance legs take a
         // system category, which this staging leaves unset
         if (!leg.category) continue
         const key = `${row.category?.trim() ?? ''} ${month} ${currency}`

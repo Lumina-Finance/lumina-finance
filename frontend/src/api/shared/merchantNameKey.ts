@@ -3,9 +3,9 @@
 const DOTTED_CAPITAL_I = 'İ'
 
 /**
- * What a payee value is matched under, which is the value trimmed with its capitals folded
+ * What a merchant name is matched under, which is the name trimmed with its capitals folded
  *
- * The same rule the commit applies, so the page and the server agree on which values are one payee.
+ * The same rule the commit applies, so the page and the server agree on which names are one merchant.
  * A file carrying both "Amazon" and "AMAZON" asks about them once and files both under one merchant
  *
  * Folded a letter at a time, as PostgreSQL's lower() is, rather than across the whole name, which

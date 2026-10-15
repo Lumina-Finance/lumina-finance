@@ -80,9 +80,9 @@ export function mergeMerchant({ merchantId, payload }: MergeMerchantRequest) {
 }
 
 /**
- * Asks which of the payee values given already have a merchant
+ * Asks which of the merchant names given already have a merchant
  *
- * A read sent as a POST, since a file's worth of payee values does not fit in a query string. The
+ * A read sent as a POST, since a file's worth of merchant names does not fit in a query string. The
  * import page asks this rather than holding every merchant a user has, which can run to thousands
  *
  * @param signal - Aborts the request when the load that asked for it is abandoned

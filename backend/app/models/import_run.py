@@ -60,7 +60,7 @@ class ImportRun(Base):
     account_mappings: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     category_mappings: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
 
-    # Only the payee values the user answered by hand, so a run whose merchants were all left to
+    # Only the merchant names the user answered by hand, so a run whose merchants were all left to
     # match or be created by name holds none. Defaulted in the database as well, so a run staged
     # before this column existed reads as one that answered nothing
     merchant_mappings: Mapped[dict[str, Any]] = mapped_column(

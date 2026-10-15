@@ -36,7 +36,7 @@ _EVERYDAY = {"source": "Everyday", "create": {"name": "Everyday", "account_type"
 
 
 def _csv_payload(amounts):
-    """Build a CSV import of one row per amount into a new account, a new category, payee and tag"""
+    """Build a CSV import of one row per amount into a new account, a new category, merchant and tag"""
     return {
         "accounts": [_EVERYDAY],
         "categories": [_COFFEE],

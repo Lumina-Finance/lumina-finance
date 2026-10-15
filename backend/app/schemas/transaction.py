@@ -109,7 +109,7 @@ class CreateTransactionRequest(BaseModel):
     currency: str = Field(min_length=3, max_length=3)
 
     # Required, unlike the stored column, which stays nullable for the transactions written before
-    # this rule and for the ones an import brings in without a payee
+    # this rule and for the ones an import brings in without a merchant
     merchant_id: uuid.UUID
     fx_rate: float | None = Field(None, gt=0)
     notes: str | None = Field(None, max_length=MAX_IMPORT_NOTES_LENGTH)

@@ -147,7 +147,7 @@ export function isFireflyPayeeRow(row: CsvRow) {
 }
 
 /**
- * Gets the category source a payee row is written with: its own category, or for a row with none,
+ * Gets the category source a row with a merchant is written with: its own category, or for a row with none,
  * (money in, no category) on a deposit and (no category) on a withdrawal, so income isn't filed
  * with the spending
  */
@@ -184,8 +184,8 @@ export function getFireflyRowShapeSkipReason(row: CsvRow): string | null {
 }
 
 /**
- * Whether the import writes a row with the category it carries, which only an uploaded payee row
- * is. Only these rows need their category matched, and only their categories are created
+ * Whether the import writes a row with the category it carries, which only an uploaded row with a
+ * merchant is. Only these rows need their category matched, and only their categories are created
  */
 export function isFireflyCategoryUseRow(row: CsvRow, groupSizes: FireflySplitGroupSizes) {
   return isFireflyPayeeRow(row) && isFireflyRowUploadable(row, groupSizes)
@@ -229,7 +229,7 @@ export function getFireflyRowSentNotes(row: CsvRow, groupSizes: FireflySplitGrou
 }
 
 /**
- * Returns the name a payee row's merchant is filed under, blank when the export gives none, and
+ * Returns the name a row's merchant is filed under, blank when the export gives none, and
  * null for any other row, which is written with no merchant of its own
  */
 export function getFireflyRowPayeeName(row: CsvRow): string | null {
@@ -280,10 +280,10 @@ export function getFireflyRowOverLimitReason(row: CsvRow, groupSizes: FireflySpl
     ['foreign amount', foreign?.amount, limits.amount],
     ['description', row.description, limits.description],
 
-    // Only a payee row is sent with its category and the payee that becomes the merchant, so a long
-    // value on any other row costs nothing
+    // Only a row with a merchant is sent with its category and the merchant's name, so a long value
+    // on any other row costs nothing
     ['category', isFireflyPayeeRow(row) ? row.category : null, limits.category],
-    ['payee name', getFireflyRowPayeeName(row), limits.payee],
+    ['merchant name', getFireflyRowPayeeName(row), limits.payee],
   ]
   for (const [field, value, maxLength] of fields) {
     const length = countCharacters(value?.trim() ?? '')

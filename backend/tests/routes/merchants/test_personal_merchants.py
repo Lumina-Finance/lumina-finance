@@ -475,7 +475,7 @@ async def test_creating_a_merchant_named_only_spaces_is_refused(client):
     assert resp.status_code == 422
 
 
-async def test_name_matches_answers_which_payee_values_already_have_a_merchant(client):
+async def test_name_matches_answers_which_merchant_names_already_have_a_merchant(client):
     """The import page asks about a file's values rather than holding every merchant a user has."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)

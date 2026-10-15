@@ -721,8 +721,8 @@ async def test_committing_a_run_missing_rows_is_refused(client):
     assert (await client.get("/transactions", headers=headers)).json() == []
 
 
-async def test_a_row_stating_no_payee_is_stamped_with_the_unknown_merchant(client):
-    """A file with no payee for a row still writes a transaction carrying a merchant."""
+async def test_a_row_stating_no_merchant_is_stamped_with_the_unknown_merchant(client):
+    """A file with no merchant for a row still writes a transaction carrying a merchant."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     unknown_merchant_id = await _get_system_merchant_id(client, headers, UNKNOWN_MERCHANT_NAME)
 
@@ -734,8 +734,8 @@ async def test_a_row_stating_no_payee_is_stamped_with_the_unknown_merchant(clien
     assert transaction["merchant_name"] == UNKNOWN_MERCHANT_NAME
 
 
-async def test_a_transfer_stating_no_payee_is_stamped_with_the_self_merchant(client):
-    """A transfer has no payee of its own, so it gets what the app puts on its own transfers."""
+async def test_a_transfer_stating_no_merchant_is_stamped_with_the_self_merchant(client):
+    """A transfer has no merchant of its own, so it gets what the app puts on its own transfers."""
     headers, account_id, _ = await _setup_user_with_deps(client)
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
     self_merchant_id = await _get_system_merchant_id(client, headers, SELF_MERCHANT_NAME)
@@ -769,7 +769,7 @@ async def test_a_stamped_merchant_counts_as_neither_created_nor_reused(client):
     assert resp.json()["created_merchant_ids"] == []
 
 
-async def test_a_row_imported_without_a_payee_can_then_be_edited(client):
+async def test_a_row_imported_without_a_merchant_can_then_be_edited(client):
     """The edit route demands a merchant, so an imported row has to arrive holding one."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     await _import_rows(client, headers, account_id, category_id, [{}])
@@ -781,8 +781,8 @@ async def test_a_row_imported_without_a_payee_can_then_be_edited(client):
     assert resp.json()["notes"] == "Checked"
 
 
-async def test_a_payee_matching_a_shared_merchant_reuses_it(client):
-    """A file whose payee is a merchant shipping with the app reuses it rather than copying it."""
+async def test_a_merchant_name_matching_a_shared_merchant_reuses_it(client):
+    """A file whose merchant name is a merchant shipping with the app reuses it rather than copying it."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     system_merchant_id = await _get_system_merchant_id(client, headers)
 
@@ -795,7 +795,7 @@ async def test_a_payee_matching_a_shared_merchant_reuses_it(client):
     assert transaction["merchant_id"] == system_merchant_id
 
 
-async def test_a_payee_spelled_differently_from_an_existing_merchant_reuses_it(client):
+async def test_a_merchant_name_spelled_differently_from_an_existing_merchant_reuses_it(client):
     """Capitalisation does not make a second merchant, matching what the merchants route refuses."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     created = await _create_merchant(client, headers, name="Corner Cafe")
@@ -809,7 +809,7 @@ async def test_a_payee_spelled_differently_from_an_existing_merchant_reuses_it(c
     assert transaction["merchant_name"] == "Corner Cafe"
 
 
-async def test_a_payee_matching_a_personal_and_a_shared_merchant_resolves_to_the_shared_one(client):
+async def test_a_merchant_name_matching_a_personal_and_a_shared_merchant_resolves_to_the_shared_one(client):
     """A name a shared merchant holds is taken in every scope, so the shared one wins the match."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     self_merchant_id = await _get_system_merchant_id(client, headers, SELF_MERCHANT_NAME)
@@ -899,7 +899,7 @@ async def test_a_category_source_creating_a_name_recording_the_other_direction_i
     assert (await client.get("/transactions", headers=headers)).json() == []
 
 
-async def test_a_payee_answered_with_an_existing_merchant_is_filed_under_it(client):
+async def test_a_merchant_name_answered_with_an_existing_merchant_is_filed_under_it(client):
     """A descriptor reading nothing like the merchant still lands on the one the user picked."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     chosen = (await _create_merchant(client, headers, name="Corner Cafe")).json()
@@ -919,7 +919,7 @@ async def test_a_payee_answered_with_an_existing_merchant_is_filed_under_it(clie
     assert transaction["merchant_id"] == chosen["id"]
 
 
-async def test_a_payee_answered_with_a_corrected_name_is_created_under_that_name(client):
+async def test_a_merchant_name_answered_with_a_corrected_name_is_created_under_that_name(client):
     """The bank's descriptor is not what gets stored when the user writes a name for it."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
 
@@ -940,7 +940,7 @@ async def test_a_payee_answered_with_a_corrected_name_is_created_under_that_name
     assert transaction["merchant_name"] == "Coffee Bar"
 
 
-async def test_two_payees_corrected_to_one_name_make_one_merchant(client):
+async def test_two_merchant_names_corrected_to_one_name_make_one_merchant(client):
     """Two descriptors for one shop are the case the step exists for, so they end up as one record."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
 
@@ -962,8 +962,8 @@ async def test_two_payees_corrected_to_one_name_make_one_merchant(client):
     assert len({transaction["merchant_id"] for transaction in transactions}) == 1
 
 
-async def test_a_payee_answered_skip_is_filed_under_the_shared_merchant(client):
-    """Skipping a value writes no merchant for it, and its rows read as rows stating no payee."""
+async def test_a_merchant_name_answered_skip_is_filed_under_the_shared_merchant(client):
+    """Skipping a value writes no merchant for it, and its rows read as rows stating no merchant."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     unknown_merchant_id = await _get_system_merchant_id(client, headers, UNKNOWN_MERCHANT_NAME)
 
@@ -983,7 +983,7 @@ async def test_a_payee_answered_skip_is_filed_under_the_shared_merchant(client):
     assert transaction["merchant_id"] == unknown_merchant_id
 
 
-async def test_a_payee_answered_with_a_merchant_the_user_cannot_see_is_refused(client):
+async def test_a_merchant_name_answered_with_a_merchant_the_user_cannot_see_is_refused(client):
     """Answering a value cannot reach a merchant that matching one could not have reached."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     other_headers, _, _ = await _setup_user_with_deps(client, email="other-import@example.com", name_prefix="Other")
@@ -1005,7 +1005,7 @@ async def test_a_payee_answered_with_a_merchant_the_user_cannot_see_is_refused(c
 
 # The second pair lowercases alike only in PostgreSQL, whose lower() the unique index is built on
 @pytest.mark.parametrize(("spelling", "other_spelling"), [("Bakery", "BAKERY"), ("İstanbul Kebap", "ISTANBUL KEBAP")])
-async def test_answering_one_payee_under_two_spellings_in_one_batch_is_refused(client, spelling, other_spelling):
+async def test_answering_one_merchant_name_under_two_spellings_in_one_batch_is_refused(client, spelling, other_spelling):
     """Both spellings resolve to one merchant, so two answers leave nothing to say which one wins."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
 
@@ -1025,7 +1025,7 @@ async def test_answering_one_payee_under_two_spellings_in_one_batch_is_refused(c
     assert "declared twice with different answers" in resp.json()["detail"]
 
 
-async def test_a_payee_answer_stating_two_actions_is_refused(client):
+async def test_a_merchant_answer_stating_two_actions_is_refused(client):
     """One value gets one answer, so a mapping stating a merchant and a name at once is refused."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     chosen = (await _create_merchant(client, headers, name="Corner Cafe")).json()
@@ -1043,7 +1043,7 @@ async def test_a_payee_answer_stating_two_actions_is_refused(client):
     assert "exactly one merchant action" in resp.json()["detail"]
 
 
-async def test_a_payee_answered_with_a_name_that_ships_with_the_app_reuses_that_merchant(client):
+async def test_a_merchant_name_answered_with_a_name_that_ships_with_the_app_reuses_that_merchant(client):
     """A shared merchant's name is taken in every scope, so answering with it cannot write a second."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     self_merchant_id = await _get_system_merchant_id(client, headers, SELF_MERCHANT_NAME)
@@ -1065,7 +1065,7 @@ async def test_a_payee_answered_with_a_name_that_ships_with_the_app_reuses_that_
     assert transaction["merchant_id"] == self_merchant_id
 
 
-async def test_a_payee_answered_with_a_name_the_user_already_has_reuses_that_merchant(client):
+async def test_a_merchant_name_answered_with_a_name_the_user_already_has_reuses_that_merchant(client):
     """Correcting a descriptor onto a merchant they already have is the same as picking it."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     existing = (await _create_merchant(client, headers, name="Corner Cafe")).json()
@@ -1085,13 +1085,13 @@ async def test_a_payee_answered_with_a_name_the_user_already_has_reuses_that_mer
     assert transaction["merchant_id"] == existing["id"]
 
 
-async def test_answering_a_payee_named_like_a_shared_merchant_leaves_the_stamped_rows_alone(client):
-    """A row stating no payee is stamped from the merchants that ship with the app, not the lookup."""
+async def test_answering_a_merchant_name_like_a_shared_merchant_leaves_the_stamped_rows_alone(client):
+    """A row stating no merchant is stamped from the merchants that ship with the app, not the lookup."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     unknown_merchant_id = await _get_system_merchant_id(client, headers, UNKNOWN_MERCHANT_NAME)
     chosen = (await _create_merchant(client, headers, name="Corner Cafe")).json()
 
-    # The file's own payee reads as the shared merchant's name, and is answered with another
+    # The file's own merchant name reads as the shared merchant's name, and is answered with another
     # merchant, which takes that name over in the lookup the rows are matched through
     resp = await _import_rows(
         client,
@@ -1106,12 +1106,12 @@ async def test_answering_a_payee_named_like_a_shared_merchant_leaves_the_stamped
     transactions = (await client.get("/transactions", headers=headers)).json()
     merchants_by_amount = {transaction["amount"]: transaction["merchant_id"] for transaction in transactions}
 
-    # The answered value goes where it was pointed, and the row stating no payee is still stamped
+    # The answered value goes where it was pointed, and the row stating no merchant is still stamped
     # with the shared merchant rather than with what took that name over in the lookup
     assert merchants_by_amount == {-100: chosen["id"], -200: unknown_merchant_id}
 
 
-async def test_a_payee_pointed_at_a_merchant_does_not_take_another_payees_new_name(client):
+async def test_a_merchant_name_pointed_at_a_merchant_does_not_take_another_names_new_merchant(client):
     """What a value resolves to and what merchants exist are separate questions, keyed separately."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     chosen = (await _create_merchant(client, headers, name="Corner Cafe")).json()
@@ -1137,8 +1137,8 @@ async def test_a_payee_pointed_at_a_merchant_does_not_take_another_payees_new_na
     assert merchants_by_amount == {-100: "Corner Cafe", -200: "Amazon"}
 
 
-async def test_two_batches_answering_one_payee_differently_are_refused_at_staging(client):
-    """Both spellings are one payee, so the clash is caught while staging rather than at the commit."""
+async def test_two_batches_answering_one_merchant_name_differently_are_refused_at_staging(client):
+    """Both spellings are one merchant name, so the clash is caught while staging rather than at the commit."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     run_id = await _open_run(client, headers, 2)
 
@@ -1172,7 +1172,7 @@ async def test_an_import_is_refused_when_a_shared_merchant_is_not_seeded(client)
     assert (await client.get("/transactions", headers=headers)).json() == []
 
 
-async def test_two_spellings_of_one_payee_in_a_file_make_one_merchant(client):
+async def test_two_spellings_of_one_merchant_name_in_a_file_make_one_merchant(client):
     """A file carrying both spellings creates one merchant, under the spelling it uses first."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
 

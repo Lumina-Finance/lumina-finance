@@ -107,7 +107,7 @@ export function buildTransactionImportPayload({
   importedCategories: string[]
 
   /**
-   * What the user answered about the file's payee values, absent where no merchant column is
+   * What the user answered about the file's merchant names, absent where no merchant column is
    * mapped and there are none to answer
    */
   merchantAnswers?: {
@@ -250,7 +250,7 @@ export function buildTransactionImportPayload({
     categories.push(built.mapping)
   }
 
-  // Only the payee values answered differently from what the commit would do unasked are carried,
+  // Only the merchant names answered differently from what the commit would do unasked are carried,
   // so a file with thousands of distinct descriptors nobody touched declares none of them
   const merchants: TransactionImportPayload['merchants'] = []
   if (merchantAnswers) {

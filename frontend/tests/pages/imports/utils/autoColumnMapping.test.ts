@@ -42,7 +42,7 @@ describe('import column inference', () => {
     expect(map.counterparty_account_id).toBe('To account')
   })
 
-  // A bank export calls the payee the counterparty, so the bare word belongs to the merchant and
+  // A bank export calls the merchant the counterparty, so the bare word belongs to the merchant and
   // only the compound form reaches the transfer field
   it('reads a bare counterparty column as the merchant', () => {
     const files = [createFile(

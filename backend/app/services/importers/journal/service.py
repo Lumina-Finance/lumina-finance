@@ -86,7 +86,7 @@ async def write_journal_transactions(
     legs_by_row = _resolve_rows(rows, context, JOURNAL_ROW_LABELS[source])
     legs = [leg for row_legs in legs_by_row for leg in row_legs]
 
-    # The journal flow has no step asking about a payee, so every value keeps what the importer does
+    # The journal flow has no step asking about a merchant, so every value keeps what the importer does
     # unasked: matching an existing merchant by name, and creating one where nothing matches
     first_import_date_by_account_id = await write_imported_transactions(
         db,

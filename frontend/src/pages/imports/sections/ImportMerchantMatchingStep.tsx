@@ -31,7 +31,7 @@ type ImportMerchantMatchingStepProps = Pick<
 >
 
 /**
- * Merchant matching step of the generic CSV import flow, showing every payee value found in the
+ * Merchant matching step of the generic CSV import flow, showing every merchant name found in the
  * mapped column against the merchant it will be filed under, which the user can change, rename or
  * skip before anything is created, and only see once the import has run
  */
@@ -64,7 +64,7 @@ export function ImportMerchantMatchingStep({
     <ImportStep
       index="05"
       title="Merchant Matching"
-      description="Match each payee in the file to the merchant its rows will be filed under."
+      description="Match each merchant name in the file to the merchant its rows will be filed under."
     >
       {matchesFailed ? (
         <ImportLoadFailure
@@ -74,8 +74,8 @@ export function ImportMerchantMatchingStep({
         />
       ) : importedMerchants.length === 0 ? (
         <EmptyState
-          title="No payees yet"
-          description="Map the column holding the payee first."
+          title="No merchants yet"
+          description="Map the column holding the merchant first."
         />
       ) : (
         <ImportValueMatchTable

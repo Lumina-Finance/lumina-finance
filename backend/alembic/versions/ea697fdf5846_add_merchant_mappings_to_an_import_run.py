@@ -19,7 +19,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    """Add where a run holds the payee values the user answered by hand
+    """Add where a run holds the merchant names the user answered by hand
 
     Defaulted in the database rather than only in the model, so a run already staged when this
     reaches a deployment reads as one that answered nothing rather than blocking the column
@@ -38,7 +38,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Drop it, losing the answers any staged run holds
 
-    A run staged with merchant answers and committed after this loses them, so its payees are
-    matched or created by name, which is what the importer did before the step existed
+    A run staged with merchant answers and committed after this loses them, so its merchant names
+    are matched or created by name, which is what the importer did before the step existed
     """
     op.drop_column("import_runs", "merchant_mappings")

@@ -224,11 +224,11 @@ export function buildImportPreviewRows({
 }
 
 /**
- * Returns the merchant shown for a row whose file states no payee
+ * Returns the merchant shown for a row whose file states no merchant
  *
  * Every transaction carries a merchant, so the import fills one in rather than writing the row
  * without one, and the preview shows what the row will actually read as. A transfer, balance
- * adjustment included, has no payee of its own and gets the merchant the app puts on the transfers
+ * adjustment included, has no merchant of its own and gets the one the app puts on the transfers
  * it writes for itself
  */
 function getStampedPreviewMerchantName(category: Category | undefined) {

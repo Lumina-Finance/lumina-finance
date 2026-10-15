@@ -80,7 +80,7 @@ async def load_staging_references(
         user: Authenticated importer
         accounts: Account mappings the request declares
         categories: Category mappings the request declares
-        merchants: Payee answers the request declares, which only the generic import has
+        merchants: Merchant answers the request declares, which only the generic import has
 
     Returns:
         Complete request-local facts, with unavailable references absent
@@ -214,7 +214,7 @@ async def stage_run_batch(
         start_row_index: Where the batch starts in the file
         allows_outside_accounts: Whether the importer can answer an account source as outside the
             tracked accounts
-        merchants: Payee answers the batch declares, which only the CSV import has
+        merchants: Merchant answers the batch declares, which only the CSV import has
 
     Returns:
         None
@@ -248,8 +248,8 @@ async def stage_run_batch(
     run.account_mappings = merge_import_mappings(run.account_mappings, accounts, "Account source")
     run.category_mappings = merge_import_mappings(run.category_mappings, categories, "Category source")
 
-    # Keyed by what matches a payee rather than by the spelling, since two spellings of one payee
-    # resolve to one merchant. Held apart this way, a batch answering "Amazon" and a later one
+    # Keyed by what matches a merchant name rather than by the spelling, since two spellings of one
+    # name resolve to one merchant. Held apart this way, a batch answering "Amazon" and a later one
     # answering "AMAZON" differently are refused here rather than at the commit, where the run would
     # already hold both and every retry would answer the same
     run.merchant_mappings = merge_import_mappings(
@@ -356,8 +356,8 @@ def merge_import_mappings(
         stored: Mappings the run already holds
         mappings: Mappings this batch declares
         label: What a source is called in a refusal
-        get_key: What a source is held under, which is the trimmed source itself except for a payee
-            value, where two spellings are one merchant and so one answer
+        get_key: What a source is held under, which is the trimmed source itself except for a merchant
+            name, where two spellings are one merchant and so one answer
 
     Returns:
         The merged mappings
@@ -530,7 +530,7 @@ async def _validate_merchant_mapping(
     Args:
         db: Active database session
         user: Authenticated user running the import
-        mapping: Payee value answered in the batch
+        mapping: Merchant name answered in the batch
         references: Complete caller-local reference facts for this staging request
 
     Returns:

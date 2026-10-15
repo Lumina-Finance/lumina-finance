@@ -67,13 +67,13 @@ async def match_merchant_names(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return which of the payee values given already have a merchant
+    """Return which of the merchant names given already have a merchant
 
-    A read rather than a write, sent as a POST because a file's worth of payee values does not fit
-    in a query string
+    A read rather than a write, sent as a POST because a file's worth of merchant names does not
+    fit in a query string
 
     Args:
-        data: Payee values from the file
+        data: Merchant names from the file
         user: Authenticated user asking
         db: Active database session
 
