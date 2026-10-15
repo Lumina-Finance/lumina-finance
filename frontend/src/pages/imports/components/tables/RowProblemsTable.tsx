@@ -19,6 +19,7 @@ export function ImportRowProblemsTable({
   title,
   rowProblems,
   headers,
+  amountHeaders,
   toggleLabel,
   tone = 'danger',
   reasonHeader = 'Reason',
@@ -27,6 +28,9 @@ export function ImportRowProblemsTable({
   title: string
   rowProblems: ImportRowProblem[]
   headers: string[]
+
+  /** The headers of the file's columns holding amounts */
+  amountHeaders: string[]
 
   /** What the collapse control calls the rows, such as skipped rows */
   toggleLabel: string
@@ -58,6 +62,7 @@ export function ImportRowProblemsTable({
       leadColumnWidth={ROW_NUMBER_COLUMN_WIDTH}
       leadCellClassName="font-financial font-semibold tabular-nums"
       headers={headers}
+      amountHeaders={amountHeaders}
       rows={tableRows}
       totalCount={rowProblems.length}
       tone={tone}
@@ -75,7 +80,13 @@ export function ImportRowProblemsTable({
  * That they are taken is left to the note against each one, which the heading cannot also carry
  * without reading like the refusal heading above it
  */
-export function ImportRowWarningsTable({ rowWarnings, headers }: { rowWarnings: ImportRowProblem[]; headers: string[] }) {
+export function ImportRowWarningsTable({ rowWarnings, headers, amountHeaders }: {
+  rowWarnings: ImportRowProblem[]
+  headers: string[]
+
+  /** The headers of the file's columns holding amounts */
+  amountHeaders: string[]
+}) {
   if (rowWarnings.length === 0) return null
 
   return (
@@ -84,6 +95,7 @@ export function ImportRowWarningsTable({ rowWarnings, headers }: { rowWarnings: 
         title={`${rowWarnings.length} row${rowWarnings.length === 1 ? '' : 's'} worth a look`}
         rowProblems={rowWarnings}
         headers={headers}
+        amountHeaders={amountHeaders}
         toggleLabel="rows worth a look"
         tone="warning"
         reasonHeader="Note"

@@ -6,6 +6,7 @@ import { formatScaledAmount } from '@/pages/imports/actual/utils/amounts'
 import type { ActualBudgetDraft } from '@/pages/imports/actual/utils/budgets'
 
 const SKIPPED_BUDGET_HEADERS = ['Months', 'First Month', 'Last Month', 'Latest Amount']
+const SKIPPED_BUDGET_AMOUNT_HEADERS = ['Latest Amount']
 
 type ActualBudgetImportStepProps = Pick<
   ActualImportWorkflow,
@@ -85,6 +86,7 @@ export function ActualBudgetImportStep({
       description="Your Actual budgets, month by month. They're imported along with your transactions."
       detectedCount={budgetDrafts.length}
       skippedHeaders={SKIPPED_BUDGET_HEADERS}
+      skippedAmountHeaders={SKIPPED_BUDGET_AMOUNT_HEADERS}
       skippedRows={skippedRows}
       selectionError={budgetSelectionError}
       noBudgetsDescription="Nothing in this budget was given an amount above zero."

@@ -75,9 +75,14 @@ export function buildImportAmountFormatScope(columnMap: ColumnMap, files: Import
   return buildImportFormatScope(files, [columnMap.amount, columnMap.amount_out, columnMap.amount_in])
 }
 
+/** Returns the file's columns mapped to an amount: the signed one, or the money out and money in sides */
+export function getImportAmountHeaders(columnMap: ColumnMap) {
+  return [columnMap.amount, columnMap.amount_out, columnMap.amount_in].filter(Boolean)
+}
+
 /** Returns every value governed by the one shared amount choice */
 export function getImportAmountFormatValues(columnMap: ColumnMap, files: ImportFileDraft[]) {
-  const headers = [columnMap.amount, columnMap.amount_out, columnMap.amount_in].filter(Boolean)
+  const headers = getImportAmountHeaders(columnMap)
   return files.flatMap((file) => file.rows.flatMap((row) => headers.map((header) => row[header] ?? '')))
 }
 

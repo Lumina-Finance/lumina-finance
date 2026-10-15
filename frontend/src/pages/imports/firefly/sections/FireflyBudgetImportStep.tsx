@@ -13,6 +13,7 @@ const SKIPPED_BUDGET_HEADERS = [
   'Last Period',
   'Latest Amount',
 ]
+const SKIPPED_BUDGET_AMOUNT_HEADERS = ['Latest Amount']
 
 const BUDGET_COLUMNS: ImportBudgetColumn<FireflyBudgetDraft>[] = [
   { header: 'Cadence', widthClassName: 'w-[11%]', tone: 'muted', render: (draft) => draft.periodLabel ?? '' },
@@ -86,6 +87,7 @@ export function FireflyBudgetImportStep({
       description="Budgets derived from the budgets export and the staged transactions, imported together with them."
       detectedCount={budgetDrafts.length}
       skippedHeaders={SKIPPED_BUDGET_HEADERS}
+      skippedAmountHeaders={SKIPPED_BUDGET_AMOUNT_HEADERS}
       skippedRows={skippedRows}
       selectionError={budgetSelectionError}
       noBudgetsDescription="The budgets CSV has no budget limit rows."

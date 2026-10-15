@@ -3,6 +3,7 @@ import type { ActualSkippedRow } from '@/pages/imports/actual/types'
 import { formatHundredths } from '@/pages/imports/actual/utils/normalise'
 
 const SKIPPED_ROW_HEADERS = ['Account', 'Amount', 'Merchant', 'Category', 'Notes']
+const SKIPPED_ROW_AMOUNT_HEADERS = ['Amount']
 
 /**
  * Collapsible panel listing the Actual transactions the import will not or did not write, freezing
@@ -37,6 +38,7 @@ export function ActualSkippedRowsTable({ title, rows, decimals }: {
       leadColumnWidth="6.5rem"
       leadCellClassName="font-financial tabular-nums"
       headers={SKIPPED_ROW_HEADERS}
+      amountHeaders={SKIPPED_ROW_AMOUNT_HEADERS}
       rows={tableRows}
       totalCount={rows.length}
       revealsOnReview
