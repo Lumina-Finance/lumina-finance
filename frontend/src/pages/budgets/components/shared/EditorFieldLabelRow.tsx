@@ -1,6 +1,7 @@
 
 import { AnimatePresence, motion } from 'motion/react'
 import type { BudgetEditorFieldLabelRowProps } from '@/pages/budgets/types'
+import { budgetFieldErrorId } from '@/pages/budgets/utils/form'
 
 /**
  * Renders a form label with animated inline validation text
@@ -15,6 +16,7 @@ export default function BudgetEditorFieldLabelRow({ label, htmlFor, error }: Bud
         {error && (
           <motion.p
             key={error}
+            id={htmlFor && budgetFieldErrorId(htmlFor)}
             className="min-w-0 shrink text-right text-xs font-medium leading-5"
             style={{ color: 'var(--app-negative)' }}
             initial={{ opacity: 0, x: 4 }}

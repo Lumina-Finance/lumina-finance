@@ -1,6 +1,7 @@
 import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
 import DateField from '@/components/date-field/DateField'
 import BudgetEditorFieldLabelRow from '@/pages/budgets/components/shared/EditorFieldLabelRow'
+import { budgetFieldErrorId } from '@/pages/budgets/utils/form'
 import { RECURRENCE_OPTIONS } from '@/pages/budgets/constants'
 import { cadenceSummary } from '@/pages/budgets/utils/budgetPeriods'
 import { focusChosenOption, getFieldLabelId } from '@/utils/fieldLabel'
@@ -135,6 +136,8 @@ export default function BudgetEditorModalCadenceSection({
               onBlur={() => onBlur('instanceLength')}
               disabled={recurrenceControlsLocked || !form.recurs}
               readOnly={recurrenceControlsLocked}
+              aria-invalid={showError('instanceLength') ? true : undefined}
+              aria-describedby={showError('instanceLength') ? budgetFieldErrorId(ids.interval) : undefined}
             />
           </div>
 
@@ -145,6 +148,7 @@ export default function BudgetEditorModalCadenceSection({
               ariaLabel={periodStartLabel}
               value={form.periodStart}
               error={!!showError('periodStart')}
+              describedById={budgetFieldErrorId(ids.periodStart)}
               disabled={recurrenceControlsLocked}
               onChange={(nextValue) => setField('periodStart', nextValue)}
               onBlur={() => onBlur('periodStart')}
