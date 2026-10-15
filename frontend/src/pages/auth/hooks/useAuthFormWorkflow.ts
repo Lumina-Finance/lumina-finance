@@ -7,6 +7,7 @@ import { useAuthenticatePasskey, usePasskeyConfig } from '@/api/passkeys'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthLockout } from '@/pages/auth/hooks/useAuthLockout'
 import { useMfaChallenge } from '@/pages/auth/hooks/useMfaChallenge'
+import { handOffToNativeApp } from '@/utils/nativeHandoff'
 import { getPasskeySignInMessage, isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors'
 import { assessPasskeySupport } from '@/utils/passkeySupport'
 import { consumeRecoveryIntent } from '@/utils/recoveryIntent'
@@ -250,6 +251,7 @@ export function useAuthFormWorkflow({
     if (containerRef.current) {
       await animate(containerRef.current, { opacity: 0 }, { duration: FADE_OUT_MS / 1000 })
     }
+    if (handOffToNativeApp(res.access_token)) return
     setSession(res)
     navigate('/', { replace: true })
   }
@@ -275,6 +277,7 @@ export function useAuthFormWorkflow({
     if (containerRef.current) {
       await animate(containerRef.current, { opacity: 0 }, { duration: FADE_OUT_MS / 1000 })
     }
+    if (handOffToNativeApp(res.access_token)) return
     setSession(res)
     navigate('/', { replace: true })
   }

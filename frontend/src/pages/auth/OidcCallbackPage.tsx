@@ -21,6 +21,7 @@ import { AuthTextField } from '@/pages/auth/components/fields/TextField'
 import { CurrencyRetryWarning } from '@/pages/auth/components/feedback/CurrencyRetryWarning'
 import { AUTH_VIEW_TRANSITION } from '@/pages/auth/constants/authAnimations'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+import { handOffToNativeApp } from '@/utils/nativeHandoff'
 import { consumeOidcIntent, type OidcSignedInIntent } from '@/utils/oidcIntent'
 import { buildCurrencyOptions, getCurrencyPlaceholder } from '@/pages/auth/utils/authForm'
 import { getBrowserTimeZone } from '@/utils/date'
@@ -141,6 +142,7 @@ const OidcCallbackPage = () => {
         // This route lives outside the public-only wrapper, so committing the session no
         // longer triggers a redirect and the page must leave for the app itself
         setSignInCompleted(true)
+        if (handOffToNativeApp(result.access_token)) return
         setSession(result)
         navigate('/', { replace: true })
       })
@@ -303,6 +305,7 @@ function OidcOnboardingForm({ onboarding, onBackToLogin }: OidcOnboardingFormPro
 
       // The route sits outside the public-only wrapper, so the new session must be
       // followed by an explicit move into the app
+      if (handOffToNativeApp(response.access_token)) return
       setSession(response)
       navigate('/', { replace: true })
     } catch (signupError) {

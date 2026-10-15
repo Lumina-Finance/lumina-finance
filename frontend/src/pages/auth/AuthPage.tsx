@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Navigate, useLocation } from 'react-router';
 import { KeyRound } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -19,6 +19,7 @@ import { getAuthMode, REGISTRATION_CLOSED_NOTICE } from '@/pages/auth/utils/auth
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
 import { getBrowserTimeZone } from '@/utils/date';
 import { focusWhenShown } from '@/utils/focusWhenShown';
+import { isNativeSignIn, rememberNativeChallenge } from '@/utils/nativeHandoff';
 import { buildTimezoneOptions } from '@/utils/timezoneOptions';
 
 const DETECTED_TZ = getBrowserTimeZone();
@@ -101,6 +102,12 @@ const AuthPage = () => {
   const { data: registration, isFetchedAfterMount: registrationKnown } = useRegistrationStatus();
   const registrationOpen = registrationKnown && registration?.enabled === true;
   const registrationClosed = registrationKnown && registration?.enabled === false;
+
+  // A native app opening this page to sign in for it may also name the provider its user picked
+  const [nativeProviderSlug] = useState(() => {
+    rememberNativeChallenge(location.search);
+    return isNativeSignIn() ? new URLSearchParams(location.search).get('provider') : null;
+  });
 
   // Provider sign-in also onboards new users, so the buttons show on signup as well
   const showPasskeyButton = isLogin && canUsePasskeys;
@@ -368,7 +375,7 @@ const AuthPage = () => {
                     </div>
                   )}
 
-                  {showOidcButtons && <OidcProviderButtons providers={oidcProviders} />}
+                  {showOidcButtons && <OidcProviderButtons providers={oidcProviders} autoStartSlug={nativeProviderSlug} />}
                 </div>
               )}
 
