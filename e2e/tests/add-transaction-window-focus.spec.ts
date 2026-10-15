@@ -1,7 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { createAccount, createTransaction, signUpUser } from '../support/api'
-import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support/app'
+import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
+import { chooseFromDropdown, logInViaApi, openModal, openPage, setTabHidden } from '../support/app'
+import { isRead, linkToEmptyBankAccount, readLastSuccess, syncBankLinkNow, WORKER_RESULT_TIMEOUT_MS } from '../support/bankSync'
 import { API_BASE_URL } from '../support/target'
 
 /**
@@ -52,6 +53,57 @@ test('keeps the running balance in Add transaction right after switching windows
   // The check would start the moment the window came back, so by the time the create it raced has
   // answered, any check or reload it set off has already been sent
   expect(reloads, 'The window switch checked for changes or reloaded the lists behind the open dialogue').toEqual([])
+
+  // Closing catches the page up, showing each create once beside the starting balance's row
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(dialog).toBeHidden()
+  const amounts = page.getByTestId(/^transaction-row-/).getByTestId('transaction-amount').filter({ visible: true })
+  await expect(amounts).toHaveCount(3)
+  await expect(amounts.filter({ hasText: '−$100.00' })).toHaveCount(1)
+  await expect(amounts.filter({ hasText: '−$50.00' })).toHaveCount(1)
+})
+
+test('keeps the running balance in Add transaction when a bank sync ends while the tab is away', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const wallet = await createAccount(request, user, { name: 'Wallet', startingBalance: 100000 })
+  const everyday = await createAccount(request, user, { name: 'Everyday' })
+  await linkToEmptyBankAccount(request, user, { accountId: everyday.id, startDate: daysFromTodayInTestTimezone(-10) })
+  // The link's import is over, so the page opens on the list of links as it stays until the sync below
+  await expect.poll(() => readLastSuccess(request, user, everyday.id), { timeout: WORKER_RESULT_TIMEOUT_MS }).not.toBeNull()
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${wallet.id}`)
+
+  const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
+  await dialog.getByRole('checkbox', { name: /Keep modal open after adding/ }).check()
+  await chooseFromDropdown(dialog, 'Merchant', 'Unknown')
+  await chooseFromDropdown(dialog, 'Category', 'Groceries')
+  const amount = dialog.getByLabel('Amount')
+  const submit = dialog.getByTestId('transaction-submit')
+
+  await amount.fill('100.00')
+  await submit.click()
+  await expect(amount).toHaveValue('')
+  await expect(dialog.getByText('$900.00', { exact: true })).toBeVisible()
+
+  // Another account's bank sync ends while the tab is in the background. Coming back reads the list
+  // of links, which finds the sync over, and reloading the balances under the open dialogue would
+  // count the first create twice
+  const reloads = recordChecksAndReloads(page)
+  const syncedBefore = await readLastSuccess(request, user, everyday.id)
+  await setTabHidden(page, true)
+  await syncBankLinkNow(request, user, everyday.id)
+  await expect.poll(() => readLastSuccess(request, user, everyday.id), { timeout: WORKER_RESULT_TIMEOUT_MS }).not.toBe(syncedBefore)
+  const linksRead = page.waitForResponse((response) => isRead('/bank-sync/links')(new URL(response.url())))
+  await setTabHidden(page, false)
+  await linksRead
+
+  await amount.fill('50.00')
+  await submit.click()
+  await expect(amount).toHaveValue('')
+  await expect(dialog.getByText('$850.00', { exact: true })).toBeVisible()
+  // The list of links answered before the create was sent, so by the time the create has answered,
+  // any check or reload the answer set off has already been sent
+  expect(reloads, 'The bank sync reloaded the lists behind the open dialogue').toEqual([])
 
   // Closing catches the page up, showing each create once beside the starting balance's row
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()

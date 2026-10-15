@@ -70,6 +70,7 @@ import {
 } from '@/api/cache/updates/bankSync';
 import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
 import { useAuth } from '@/hooks/useAuth';
+import { isCacheValidationHeld, subscribeToCacheValidationRelease } from '@/hooks/useCacheValidation';
 import { ACTION_LOADING_MIN_MS } from '@/utils/timing';
 
 // The resolutions that change a ledger transaction, while the rest only settle the review item
@@ -182,6 +183,10 @@ export function useBankLinksByAccount(): Map<string, BankLink> {
  * background stops polling, and coming back to it reads the list at once, so a finished sync never
  * sticks on Syncing. Each change it reads refreshes whatever the worker made stale, and a link that
  * brought in data refreshes the review inbox, the pending strip and the transaction lists
+ *
+ * While a dialogue holds the checks for changes made elsewhere, such as Add Transaction adding its
+ * creates to the balance it loaded, those refreshes wait for it to close and then run once, since a
+ * balance reloaded under it would count its creates twice
  */
 export function useBankSyncHeartbeat(enabled: boolean) {
   const queryClient = useQueryClient();
@@ -189,9 +194,13 @@ export function useBankSyncHeartbeat(enabled: boolean) {
   const previous = useRef(links);
 
   useEffect(() => {
-    const before = previous.current;
-    previous.current = links;
-    applyBankLinkChanges(queryClient, before, links);
+    const refresh = () => {
+      const before = previous.current;
+      previous.current = links;
+      applyBankLinkChanges(queryClient, before, links);
+    };
+    if (!isCacheValidationHeld()) refresh();
+    return subscribeToCacheValidationRelease(refresh);
   }, [links, queryClient]);
 }
 

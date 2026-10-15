@@ -77,6 +77,23 @@ export function useHoldCacheValidation(held: boolean) {
 }
 
 /**
+ * Whether a dialogue holds the checks for changes made elsewhere back
+ */
+export function isCacheValidationHeld() {
+  return cacheValidationGate.isHeld()
+}
+
+/**
+ * Calls `listener` whenever the last hold ends, so another check for changes made elsewhere can wait
+ * for the dialogue to close too
+ *
+ * @returns Stops calling it
+ */
+export function subscribeToCacheValidationRelease(listener: () => void) {
+  return cacheValidationGate.onRelease(listener)
+}
+
+/**
  * Revalidates cached app and FX data on mount, focus, and the next calculation owner's midnight,
  * comparing server changes and owner-local dates with this window's last result for `userId`
  *
