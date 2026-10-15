@@ -49,11 +49,15 @@ const PARENTHESIS_PATTERN = /[()]/
 const NUMERIC_PUNCTUATION_PATTERN = /[.,']/
 const NON_ASCII_DECIMAL_DIGIT_PATTERN = /(?![0-9])\p{Decimal_Number}/u
 
+// Leading text such as a currency symbol, then one sign with only spaces between it and the digits,
+// as some banks write `R$ -10,00`. The text before it is checked like any other prefix
+const SIGN_AFTER_LEADING_TEXT_PATTERN = /^([^-+\u{2212}0-9]+)([-+\u{2212}])(?=[ \u{a0}\u{202f}]*[0-9])/u
+
 /**
  * Reads one amount under a selected decimal and grouping format
  *
- * Text and symbols may surround the digits. A sign must come first, and text cannot split the
- * digits. The returned decimal text retains the sign and fraction digits while removing grouping
+ * Text and symbols may surround the digits. A sign comes either first or between the leading text
+ * and the digits, as in `R$ -10,00`, and text cannot split the digits. The returned decimal text retains the sign and fraction digits while removing grouping
  *
  * @param rawValue - The cell as it appears in the file
  * @param format - The separators selected for the whole import
@@ -69,7 +73,13 @@ export function readImportAmount(rawValue: string, format: ImportAmountFormat): 
   if (!trimmed || PARENTHESIS_PATTERN.test(trimmed)) return null
 
   const leadingSign = /^[-+\u2212]/.exec(trimmed)?.[0] ?? ''
-  const unsignedValue = leadingSign ? trimmed.slice(leadingSign.length) : trimmed
+  const currencySign = leadingSign ? null : SIGN_AFTER_LEADING_TEXT_PATTERN.exec(trimmed)
+  const amountSign = leadingSign || (currencySign?.[2] ?? '')
+  const unsignedValue = leadingSign
+    ? trimmed.slice(leadingSign.length)
+    : currencySign
+      ? `${currencySign[1]}${trimmed.slice(currencySign[0].length)}`
+      : trimmed
   if (EXTRA_SIGN_PATTERN.test(unsignedValue)) return null
 
   const firstDigit = unsignedValue.search(/[0-9]/)
@@ -90,7 +100,7 @@ export function readImportAmount(rawValue: string, format: ImportAmountFormat): 
   const wholeDigits = readWholeAmountDigits(whole, format.groupingSeparator)
   if (wholeDigits === null) return null
 
-  const signCharacter = leadingSign === '\u2212' ? '-' : leadingSign
+  const signCharacter = amountSign === '\u2212' ? '-' : amountSign
   const normalized = `${signCharacter}${wholeDigits}${fraction === undefined ? '' : `.${fraction}`}`
   const sign = signCharacter === '-' ? 'negative' : signCharacter === '+' ? 'positive' : 'unsigned'
 

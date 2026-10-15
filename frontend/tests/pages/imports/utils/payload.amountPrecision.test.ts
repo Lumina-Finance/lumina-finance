@@ -324,6 +324,27 @@ describe('refusing a row whose amount its currency cannot hold', () => {
       .toBe(getRowAmountTooPreciseReason('CAD', DECIMAL_COMMA_WITHOUT_GROUPING))
   })
 
+  // Some banks, Brazilian ones among them, write a negative amount with its sign after the symbol
+  it.each([
+    { value: 'R$ -10,00', amount: '-10.00', minorUnits: -1000n },
+    { value: 'R$-20,50', amount: '-20.50', minorUnits: -2050n },
+    { value: 'CHF-100,99', amount: '-100.99', minorUnits: -10099n },
+  ])('previews and saves $value as money out', ({ value, amount, minorUnits }) => {
+    const result = buildPayload(value, 'CAD', '', DECIMAL_COMMA)
+
+    expect(result.rowProblems).toHaveLength(0)
+    expect(result.payload?.rows[0].amount).toBe(amount)
+    expect(buildPreview(value, 'CAD', '', DECIMAL_COMMA)[0]?.transaction.amount).toBe(minorUnits)
+  })
+
+  it.each(['-R$ -10,00', 'R$ 10,00-'])('skips %s as not a number and leaves it out of the preview', (value) => {
+    const result = buildPayload(value, 'CAD', '', DECIMAL_COMMA)
+
+    expect(firstProblem(result)).toBe(ROW_AMOUNT_UNREADABLE_REASON)
+    expect(result.payload).toBeNull()
+    expect(buildPreview(value, 'CAD', '', DECIMAL_COMMA)).toHaveLength(0)
+  })
+
   it('refuses a row written in a different format from the selected one', () => {
     const result = buildPayload('1.234,56', 'CAD', '', {
       decimalSeparator: '.',

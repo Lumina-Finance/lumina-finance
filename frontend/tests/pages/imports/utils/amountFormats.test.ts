@@ -41,8 +41,14 @@ describe('reading an amount in a selected format', () => {
     })
   })
 
+  it('reads a sign written between leading currency text and the digits', () => {
+    expect(readImportAmount('CHF-100,99', DECIMAL_COMMA)).toMatchObject({ normalized: '-100.99', sign: 'negative' })
+    expect(readImportAmount('R$ − 10,00', DECIMAL_COMMA)).toMatchObject({ normalized: '-10.00', sign: 'negative' })
+    expect(readImportAmount('R$ +10,00', DECIMAL_COMMA)).toMatchObject({ normalized: '+10.00', sign: 'positive' })
+  })
+
   it('refuses signs whose meaning would be lost', () => {
-    for (const value of ['--100,99', '100,99-', '(100,99)', 'CHF-100,99']) {
+    for (const value of ['--100,99', '100,99-', '(100,99)', '-R$ -10,00', 'R-$ 10,00', 'R$ -US$ 10,00']) {
       expect(readImportAmount(value, DECIMAL_COMMA)).toBeNull()
     }
   })
