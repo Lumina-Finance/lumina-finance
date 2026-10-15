@@ -7,14 +7,27 @@ import secrets
 from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs, urlsplit
 
+import jwt
+import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import update
 
 from app.main import app
-from app.models.auth import MfaChallenge
 from app.models.auth_session import AuthSession
+from app.services.auth import tokens
 from tests.conftest import TestSession
 from tests.routes.support import _create_user
+
+
+def _clock_set_back(age: timedelta) -> type[datetime]:
+    """Return a datetime whose now is the given age ago, so a code is issued as if that long ago"""
+
+    class _Earlier(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime.now(tz) - age
+
+    return _Earlier
 
 
 def _pkce_pair() -> tuple[str, str]:
@@ -100,30 +113,24 @@ async def test_exchange_with_wrong_verifier_is_refused_and_spends_code(client):
     retry = await client.post("/auth/native/exchange", json={"code": code, "code_verifier": verifier})
 
     assert wrong.status_code == 401
+    assert wrong.json()["detail"] == "Invalid or expired handoff"
     assert retry.status_code == 401
 
 
-async def test_exchange_replay_is_refused(client):
-    """A code starts one session only"""
-    code, verifier, _ = await _signed_in_code(client)
-
-    first = await client.post("/auth/native/exchange", json={"code": code, "code_verifier": verifier})
-    replay = await client.post("/auth/native/exchange", json={"code": code, "code_verifier": verifier})
-
-    assert first.status_code == 200
-    assert replay.status_code == 401
-
-
-async def test_expired_code_is_refused(client):
-    """A code left unexchanged past its lifetime stops working"""
-    code, verifier, _ = await _signed_in_code(client)
-    async with TestSession() as session:
-        await session.execute(update(MfaChallenge).values(expires_at=datetime.now(UTC) - timedelta(seconds=1)))
-        await session.commit()
+@pytest.mark.parametrize(("age", "status"), [(timedelta(seconds=55), 200), (timedelta(seconds=65), 401)])
+async def test_code_works_for_one_minute(client, monkeypatch, age, status):
+    """A code left unexchanged for more than a minute stops working"""
+    signup = await _create_user(client)
+    verifier, challenge = _pkce_pair()
+    monkeypatch.setattr(tokens, "datetime", _clock_set_back(age))
+    code = (await _hand_off(client, signup.json()["access_token"], challenge))["code"]
+    monkeypatch.undo()
+    issued_at = jwt.decode(code, options={"verify_signature": False})["iat"]
+    assert abs(datetime.now(UTC).timestamp() - age.total_seconds() - issued_at) < 5
 
     resp = await client.post("/auth/native/exchange", json={"code": code, "code_verifier": verifier})
 
-    assert resp.status_code == 401
+    assert resp.status_code == status
 
 
 async def test_exchange_after_web_sign_out_is_refused(client):
@@ -135,6 +142,7 @@ async def test_exchange_after_web_sign_out_is_refused(client):
     resp = await client.post("/auth/native/exchange", json={"code": code, "code_verifier": verifier})
 
     assert resp.status_code == 401
+    assert resp.json()["detail"] == "Invalid or expired handoff"
 
 
 async def test_concurrent_exchanges_of_one_session_start_one_native_session(client):

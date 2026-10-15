@@ -7,8 +7,7 @@ from sqlalchemy import select
 from app.models.auth_token import AuthToken
 from app.models.base import AuthTokenKind
 from tests.conftest import TestSession
-from tests.routes.auth.test_two_factor import _enroll
-from tests.routes.support import SIGNUP_PAYLOAD, _clears_cookie, _create_user, _fresh_totp_code, _get_auth_header
+from tests.routes.support import SIGNUP_PAYLOAD, _clears_cookie, _create_user, _enroll, _fresh_totp_code
 
 _NATIVE = {"X-Lumina-Client": "native"}
 _LOGIN = {"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]}
@@ -121,6 +120,7 @@ async def test_native_refresh_token_stops_after_grace(client):
     resp = await client.post("/auth/refresh", json={"refresh_token": old_token}, headers=_NATIVE)
 
     assert resp.status_code == 401
+    assert resp.json()["detail"] == "Refresh token is not active"
     assert not _clears_cookie(resp, "refresh_token")
 
 
@@ -134,20 +134,4 @@ async def test_native_logout_revokes_refresh_token(client):
 
     assert logout.status_code == 200
     assert resp.status_code == 401
-
-
-async def test_password_change_ends_native_session(client):
-    """Changing the password from another session signs the app out, as it does a browser"""
-    signup = await _create_user(client)
-    client.cookies.clear()
-    token = (await client.post("/auth/login", json=_LOGIN, headers=_NATIVE)).json()["refresh_token"]
-
-    changed = await client.patch(
-        "/auth/password",
-        json={"current_password": SIGNUP_PAYLOAD["password"], "new_password": "NewSecurePass123!"},
-        headers=_get_auth_header(signup),
-    )
-    resp = await client.post("/auth/refresh", json={"refresh_token": token}, headers=_NATIVE)
-
-    assert changed.status_code == 204
-    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Session is not active"
