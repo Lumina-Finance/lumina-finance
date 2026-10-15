@@ -24,6 +24,9 @@
     --app-accent: #8A5F25;
     --app-accent-soft: #9b6c2c1a;
     --app-accent-border: #9b6c2c38;
+    /* The subtle colour falls short of the contrast text needs on the accent tint here, so faint text there,
+       such as on the budget details panel or a chosen row, is drawn partway toward muted while staying the quieter of the two */
+    --app-text-subtle-on-accent: color-mix(in srgb, var(--app-text-subtle) 60%, var(--app-text-muted));
     /* The one keyboard focus colour, the accent mixed toward the page so it reads lighter than the
        accent itself while still clearing 3:1 against every surface it sits on in both themes. A
        control with no border of its own, or a filled one, takes it as an outline with a gap. A field
@@ -129,6 +132,9 @@
     --app-accent: #C9A96A;
     --app-accent-soft: #c9a96a1f;
     --app-accent-border: #c9a96a38;
+    /* The subtle colour falls short on the accent tint here too, so faint text there is drawn the same way partway
+       toward muted */
+    --app-text-subtle-on-accent: color-mix(in srgb, var(--app-text-subtle) 60%, var(--app-text-muted));
     --app-focus-ring: #8F794D;
     --app-input-bg: #241F19;
     --app-input-border: #d2b47833;

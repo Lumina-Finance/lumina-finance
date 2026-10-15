@@ -12,7 +12,19 @@ export type FaintestText = { text: string; contrast: number }
  * colours
  */
 export async function faintestText(element: Locator): Promise<FaintestText> {
-  return element.evaluate(async (root) => {
+  return readContrast(element, false)
+}
+
+/**
+ * The contrast of an element's own colour against what is drawn behind it, measured as `faintestText`
+ * measures text, for a control that draws its colour as an icon rather than words
+ */
+export async function colourContrast(element: Locator): Promise<number> {
+  return (await readContrast(element, true)).contrast
+}
+
+async function readContrast(element: Locator, isOwnColour: boolean): Promise<FaintestText> {
+  return element.evaluate(async (root, isOwnColour) => {
     // Let every transition and animation that ends run to its end first, so a colour on its way to a state,
     // such as a field turning red, is read where it settles rather than where it started
     const ending = document.getAnimations().filter((animation) => animation.effect?.getComputedTiming().endTime !== Infinity)
@@ -78,6 +90,8 @@ export async function faintestText(element: Locator): Promise<FaintestText> {
       return (lighter + 0.05) / (darker + 0.05)
     }
 
+    if (isOwnColour) return { text: '', contrast: measure(root) }
+
     let faintest = { text: '', contrast: Infinity }
     for (const node of [root, ...root.querySelectorAll('*')]) {
       const ownText = [...node.childNodes]
@@ -93,5 +107,5 @@ export async function faintestText(element: Locator): Promise<FaintestText> {
       if (contrast < faintest.contrast) faintest = { text: ownText, contrast }
     }
     return faintest
-  })
+  }, isOwnColour)
 }

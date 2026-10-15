@@ -195,6 +195,13 @@ describe('tinted state contrast', () => {
       fill: (tokens) => paint(solid(tokens, '--app-accent'), 0.10, solid(tokens, '--app-input-bg')),
     },
     {
+      // The budget details panel and a hovered tax-advantaged limit row, both drawn in a dialog, whose panel is the
+      // page colour
+      name: 'the accent tint in a dialog',
+      text: ['--app-text-subtle-on-accent', '--app-text-muted'],
+      fill: (tokens) => solid(tokens, '--app-accent-soft', solid(tokens, '--app-bg')),
+    },
+    {
       // IMPORT_EXCLUDED_ROW_BACKGROUND, 12% of the text colour into the page, whose faint text is drawn in muted
       name: 'an excluded Imports row',
       text: ['--app-text-muted'],
@@ -209,5 +216,15 @@ describe('tinted state contrast', () => {
     const tokens = THEMES[theme]
     const text = resolve(tokens, token)
     expect(contrast(text, fill(tokens))).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+  })
+
+  // Faint text on the accent tint steps up from subtle toward muted, so each theme reads better there than
+  // subtle did, but it must stay the quieter of the two
+  it.each(Object.keys(THEMES) as Theme[])('puts faint text on the accent tint between subtle and muted text in the %s theme', (theme) => {
+    const tokens = THEMES[theme]
+    const tint = solid(tokens, '--app-accent-soft', solid(tokens, '--app-bg'))
+    const faint = contrast(resolve(tokens, '--app-text-subtle-on-accent'), tint)
+    expect(faint).toBeGreaterThan(contrast(solid(tokens, '--app-text-subtle'), tint))
+    expect(faint).toBeLessThan(contrast(solid(tokens, '--app-text-muted'), tint))
   })
 })
