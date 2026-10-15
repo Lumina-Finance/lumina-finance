@@ -17,6 +17,7 @@ from sqlalchemy.exc import ProgrammingError
 
 from app.database import current_user_id_ctx
 from app.models.account import Account
+from app.models.account_import_layout import AccountImportLayout
 from app.models.base import AccountKind, AccountType, CategoryKind, RecurrenceFreq
 from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
 from app.models.cache_state import UserCacheState
@@ -360,6 +361,43 @@ async def test_user_can_bump_their_own_cache_leaving_a_group(group_with_admin_an
         await session.commit()
 
     assert await _read_cache_changed_at(user_b.id) is not None
+
+
+def _build_import_layout(account_id) -> AccountImportLayout:
+    """Return an unsaved CSV import layout saved for the given account"""
+    return AccountImportLayout(
+        account_id=account_id,
+        header_key="0" * 64,
+        headers=["Date", "Amount"],
+        delimiter=",",
+        header_row=1,
+        column_map={"dt": "Date", "amount": "Amount"},
+        date_format="yearFirst",
+        amount_format={"decimal_separator": ".", "grouping_separator": ","},
+    )
+
+
+async def test_import_layouts_follow_account_access(users):
+    """Another user read or wrote the CSV settings saved for an account they can't reach"""
+    user_a, user_b = users
+    account = _build_account(user_a.id, "A Chequing")
+    async with TestSession() as session:
+        session.add(account)
+        await session.flush()
+        layout = _build_import_layout(account.id)
+        session.add(layout)
+        await session.commit()
+
+    async with _act_as(user_a.id) as session:
+        assert (await session.scalars(select(AccountImportLayout.id))).all() == [layout.id]
+
+    async with _act_as(user_b.id) as session:
+        assert (await session.scalars(select(AccountImportLayout.id))).all() == []
+        forged = _build_import_layout(account.id)
+        forged.header_key = "1" * 64
+        session.add(forged)
+        with pytest.raises(ProgrammingError, match="row-level security"):
+            await session.flush()
 
 
 async def test_cache_bump_is_refused_without_a_request_identity():

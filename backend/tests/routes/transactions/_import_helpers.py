@@ -26,13 +26,12 @@ def _run_endpoint(run_id, source, action):
     return f"/transactions/import/runs/{run_id}/{prefix}{action}"
 
 
-async def _open_run(client, headers, expected_transaction_count=1, source="generic", file_name=None):
-    """Open a run for the given importer and return its id"""
-    resp = await client.post(
-        "/transactions/import/runs",
-        json={"expected_transaction_count": expected_transaction_count, "source": source, "file_name": file_name},
-        headers=headers,
-    )
+async def _open_run(client, headers, expected_transaction_count=1, source="generic", file_name=None, csv_layout=None):
+    """Open a run for the given importer and return its id, sending how the CSV file was read when given"""
+    body = {"expected_transaction_count": expected_transaction_count, "source": source, "file_name": file_name}
+    if csv_layout is not None:
+        body["csv_layout"] = csv_layout
+    resp = await client.post("/transactions/import/runs", json=body, headers=headers)
     assert resp.status_code == 201, resp.text
     return resp.json()["id"]
 

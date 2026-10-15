@@ -4,7 +4,7 @@ import uuid
 from datetime import date, datetime
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel, Field, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
 from app.models.base import RecurrenceFreq
 from app.schemas.budget import validate_recurrence_anchor_fields
@@ -53,6 +53,16 @@ MAX_JOURNAL_BUDGET_CATEGORIES = 1000
 
 # Longest cadence a base budget stores, the largest value its small-integer column holds
 MAX_BUDGET_INSTANCE_LENGTH = 32767
+
+# Columns and characters per header a saved CSV layout may carry, far past any bank's export. The
+# import page leaves a file past either unremembered rather than send a layout this refuses, and
+# repeats both figures beside its own builder
+MAX_CSV_LAYOUT_COLUMNS = 256
+MAX_CSV_LAYOUT_HEADER_LENGTH = 256
+
+# The furthest line a saved header row may name. A file reaching past it holds more rows than an
+# import reads
+MAX_CSV_LAYOUT_LINE = MAX_IMPORT_ROWS
 
 # The characters JavaScript's String.prototype.trim removes, which is how the import screen trims
 # every value it sends. Python's str.strip takes a different set, so the check names these exactly
@@ -112,8 +122,62 @@ CurrencyCode = Annotated[str, Field(pattern=_CURRENCY_CODE_PATTERN)]
 JournalTagName = Annotated[ImportTagName, AfterValidator(_require_trimmed)]
 UniqueTrimmedImportTexts = Annotated[list[TrimmedImportText], AfterValidator(_require_unique)]
 
+CsvLayoutHeader = Annotated[str, Field(min_length=1, max_length=MAX_CSV_LAYOUT_HEADER_LENGTH)]
+
+# The fields a CSV column can fill, without the account, which is what a layout is saved under
+CsvLayoutColumnTarget = Literal[
+    "dt",
+    "category_id",
+    "amount",
+    "amount_out",
+    "amount_in",
+    "amount_direction",
+    "currency",
+    "merchant_id",
+    "notes",
+    "tag_ids",
+    "counterparty_account_id",
+]
+
 # Journal types the importer handles, lowercased as the import screen sends them
 JournalRowType = Literal["withdrawal", "deposit", "transfer", "opening balance", "reconciliation"]
+
+
+class CsvImportAmountFormat(BaseModel):
+    """The separators an import read its amounts with, from the fixed list the import page offers."""
+
+    decimal_separator: Literal[".", ","]
+    grouping_separator: Literal[",", ".", "space", "'", "none"]
+
+
+class CsvImportLayout(BaseModel):
+    """How a CSV file was read, from the choices the import page offers, saved for its next file with these headers."""
+
+    # Header cells as the page names them, a blank heading already named by its position and a repeated
+    # one already numbered
+    headers: list[CsvLayoutHeader] = Field(min_length=2, max_length=MAX_CSV_LAYOUT_COLUMNS)
+    delimiter: Literal[",", ";"]
+
+    # Counted from 1 over the file's non-blank lines. A file read without a header row has no layout
+    header_row: int = Field(ge=1, le=MAX_CSV_LAYOUT_LINE)
+    column_map: dict[CsvLayoutColumnTarget, str]
+    date_format: Literal["yearFirst", "dayFirst", "monthFirst", "written", "iso"]
+    amount_format: CsvImportAmountFormat
+
+    @model_validator(mode="after")
+    def _require_mapped_headers(self) -> CsvImportLayout:
+        """Refuse a field mapped to a header the file does not have"""
+        if not set(self.column_map.values()) <= set(self.headers):
+            raise ValueError("every mapped column must be one of the layout's headers")
+        return self
+
+
+class CsvImportLayoutResponse(CsvImportLayout):
+    """A layout saved for one of the user's own accounts."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    account_id: uuid.UUID
 
 
 class TransactionImportRunRequest(BaseModel):
@@ -128,6 +192,16 @@ class TransactionImportRunRequest(BaseModel):
     # The name of the file the user picked, shown with the last import. The page cuts a
     # longer one to fit
     file_name: str | None = Field(None, max_length=255)
+
+    # How the CSV file was read, which the commit saves for the account the rows go to
+    csv_layout: CsvImportLayout | None = None
+
+    @model_validator(mode="after")
+    def _require_csv_for_layout(self) -> TransactionImportRunRequest:
+        """Refuse a layout on a run from another app, whose commit never saves one"""
+        if self.csv_layout is not None and self.source != "generic":
+            raise ValueError("only a CSV import carries a CSV layout")
+        return self
 
 
 class TransactionImportRunResponse(BaseModel):

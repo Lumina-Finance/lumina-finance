@@ -32,6 +32,8 @@ SECURED_TABLES = (
      f"{CAN_ACCESS_ACCOUNT}(account_id)"),
     ("account_permissions", f"{CAN_ACCESS_ACCOUNT}(account_id)",
      f"{CAN_ACCESS_ACCOUNT}(account_id)"),
+    ("account_import_layouts", f"{CAN_ACCESS_ACCOUNT}(account_id)",
+     f"{CAN_ACCESS_ACCOUNT}(account_id)"),
     ("transactions", f"{CAN_ACCESS_ACCOUNT}(account_id)",
      f"{CAN_ACCESS_ACCOUNT}(account_id)"),
     ("base_budgets",

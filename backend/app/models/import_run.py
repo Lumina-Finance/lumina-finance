@@ -87,6 +87,14 @@ class ImportRun(Base):
     # The name of the file the user picked, shown with the last import
     file_name: Mapped[str | None] = mapped_column(VARCHAR(255))
 
+    # How a CSV file was read, which the commit saves for the account its rows went to. Absent for a
+    # file read without a header row and for every import from another app
+    csv_layout: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+
+    # The saved layout the commit replaced, which undoing the import puts back. Absent when the commit
+    # created the layout or saved none
+    replaced_csv_layout: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+
 
 class ImportStagedRow(Base):
     """One row of a staged file, parked until its run is committed

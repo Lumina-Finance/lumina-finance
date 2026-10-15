@@ -16,6 +16,7 @@ from app.schemas.import_run import (
     TransactionImportStageRequest,
 )
 from app.services.importers.generic.service import import_transactions
+from app.services.importers.shared.layouts import save_import_layout
 from app.services.importers.shared.run_commit import commit_run
 from app.services.importers.shared.run_staging import stage_run_batch
 
@@ -68,7 +69,8 @@ async def commit_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> 
     """Write a staged run into the ledger, in one transaction with clearing what it staged
 
     A run already committed answers with the summary it returned the first time, so a commit whose
-    response was lost can be repeated without importing the file twice
+    response was lost can be repeated without importing the file twice. How the file was read is
+    saved in the same transaction, for the one account its rows went to
 
     Args:
         db: Active database session
@@ -86,13 +88,12 @@ async def commit_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> 
             declared, when a staged row cannot be written as it stands, or when a mapping the run
             recorded no longer resolves
     """
-    return await commit_run(
-        db,
-        run_id,
-        _GENERIC_RUN_SOURCES,
-        TransactionImportResponse,
-        lambda run, rows: import_transactions(db, user, _build_import_request(run, rows), run.id),
-    )
+    async def write_run(run: ImportRun, rows: list[ImportStagedRow]) -> TransactionImportResponse:
+        summary = await import_transactions(db, user, _build_import_request(run, rows), run.id)
+        await save_import_layout(db, user, run, summary.affected_account_ids)
+        return summary
+
+    return await commit_run(db, run_id, _GENERIC_RUN_SOURCES, TransactionImportResponse, write_run)
 
 
 def _build_import_request(run: ImportRun, rows: list[ImportStagedRow]) -> TransactionImportRequest:

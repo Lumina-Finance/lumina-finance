@@ -11,6 +11,7 @@ from app.dependencies import get_current_user
 from app.models.import_run import ImportRunSource
 from app.models.user import User
 from app.schemas.import_run import (
+    CsvImportLayoutResponse,
     ImportRunArchiveRequest,
     ImportRunBudgetsRequest,
     ImportUndoResponse,
@@ -37,6 +38,7 @@ from app.services.importers import (
     commit_journal_run,
     delete_import_run,
     get_last_import,
+    list_import_layouts,
     open_import_run,
     stage_import_archive,
     stage_import_batch,
@@ -193,7 +195,7 @@ async def open_transaction_import_run(
     the ledger until the run is committed
 
     Args:
-        data: Rows the whole file will write, and which importer's rows it stages
+        data: Rows the whole file will write, which importer's rows it stages, and how a CSV file was read
         user: Authenticated user running the import
         db: Active database session
 
@@ -201,7 +203,7 @@ async def open_transaction_import_run(
         The opened run, which every later call for this file quotes
     """
     run = await open_import_run(
-        db, user, data.expected_transaction_count, ImportRunSource(data.source), data.file_name,
+        db, user, data.expected_transaction_count, ImportRunSource(data.source), data.file_name, data.csv_layout,
     )
     return TransactionImportRunResponse(id=run.id)
 
@@ -358,6 +360,23 @@ async def get_last_transaction_import(
         The last import saved within the undo window, or None
     """
     return await get_last_import(db, user)
+
+
+@router.get("/import/layouts", response_model=list[CsvImportLayoutResponse])
+async def list_transaction_import_layouts(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return how CSV files were read for each of the caller's own accounts, keyed by their header rows
+
+    Args:
+        user: Authenticated user
+        db: Active database session
+
+    Returns:
+        Every layout saved for an account the caller owns, the most recently saved first
+    """
+    return await list_import_layouts(db, user)
 
 
 @router.post("/import/runs/{run_id}/undo", response_model=ImportUndoResponse)
