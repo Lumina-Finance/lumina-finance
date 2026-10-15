@@ -134,7 +134,7 @@ interface TransactionRowViewProps extends Omit<TransactionRowProps, 'transaction
 // The row's two layouts, the grid from 750px wide and the stacked one on a phone
 type RowLayout = 'wide' | 'narrow'
 
-// On a wide screen the title is the row's second line, under the category's line and the gap below
+// From 750px wide the title is the row's second line, under the category's line and the gap below
 // it, so a title brought into view below the pinned bars leaves room for that line too and the whole
 // row shows rather than the title alone
 const TITLE_SCROLL_MARGIN: Record<RowLayout, string> = {

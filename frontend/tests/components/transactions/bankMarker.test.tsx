@@ -11,7 +11,7 @@ import { BankMarker } from '@/components/transactions/BankMarker'
 import { TransactionRowView, type TransactionRowMetadata } from '@/components/transactions/Row'
 
 // The row renders a layout for each breakpoint and shows only one, so each marker appears this often
-const LAYOUTS = 3
+const LAYOUTS = 2
 
 const TRANSACTION: TransactionRowMetadata = {
   id: 'transaction-1',
@@ -50,7 +50,7 @@ function hasNestedButton(markup: string): boolean {
 }
 
 describe('bank marker', () => {
-  it('names the provider in each of the row\'s three layouts and nothing more while it is untouched', () => {
+  it('names the provider in each of the row\'s two layouts and nothing more while it is untouched', () => {
     const markup = renderRow({ providerName: 'SimpleFIN', isEdited: false, needsReview: false })
 
     expect(markup.split('aria-label="From SimpleFIN"')).toHaveLength(LAYOUTS + 1)
