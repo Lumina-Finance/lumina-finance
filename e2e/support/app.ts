@@ -116,6 +116,27 @@ export async function openPage(page: Page, url: string): Promise<void> {
 }
 
 /**
+ * Load every page of the transaction list, returning once it says it has reached the end.
+ *
+ * The list loads fifteen rows at a time, a page each time its end comes into view, and may load the
+ * next one on its own while its end is still in view. A single scroll can land before the page above
+ * it has grown the list and miss the next page, so each scroll waits for its page to start and finish
+ * loading before the next, and a count read afterwards can't catch the list part way through a page
+ *
+ * @param page - Page showing the transaction list
+ */
+export async function loadEveryTransaction(page: Page): Promise<void> {
+  const loadingMore = page.getByText(/^Loading more transactions/)
+  const reachedEnd = page.getByText("You've reached the end.")
+  await expect(loadingMore).toBeHidden()
+  while (!(await reachedEnd.isVisible())) {
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
+    await expect(loadingMore.or(reachedEnd)).toBeVisible()
+    await expect(loadingMore).toBeHidden()
+  }
+}
+
+/**
  * Assert the app is showing its signed-in shell.
  *
  * The navigation is the thing that says so, and it only renders for a signed-in user past the
