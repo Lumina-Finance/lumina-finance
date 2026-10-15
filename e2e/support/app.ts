@@ -205,7 +205,7 @@ export async function filterByCategory(page: Page, categoryName: string): Promis
 }
 
 /**
- * Open a modal from a toolbar button, and answer with the dialog.
+ * Open a modal from a toolbar button, and answer with the dialog once it has placed its opening focus.
  *
  * The authenticated route waits for currencies before becoming ready, so the opener can be
  * clicked once after the route finishes loading
@@ -232,6 +232,10 @@ export async function openModal(page: Page, buttonNames: string[], dialogName: s
 
   await opener.click()
   await expect(dialog).toBeVisible()
+  // A dialog moves focus onto its first field a frame after it opens, and on a busy host that frame can
+  // land after the dialog shows, taking focus from wherever the spec has moved it. Focus starts on the
+  // opener outside the dialog, so it's inside once the dialog has placed it
+  await expect.poll(() => dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true)
 
   return dialog
 }
