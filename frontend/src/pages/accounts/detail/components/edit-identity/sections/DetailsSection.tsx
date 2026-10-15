@@ -73,7 +73,7 @@ export function AccountDetailsSection({
             searchable
             searchPlaceholder="Search categories..."
           />
-          {/* Beside the drop-down rather than in place of the form, since the category is optional
+          {/* Beside the dropdown rather than in place of the form, since the category is optional
               and the rest of the account can still be edited without it */}
           {taxAdvantagedCategoriesFailed && (
             <LoadFailure

@@ -10,10 +10,10 @@ import { signUpUser } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
 import { checkExpected } from '../support/import-check/compare.ts'
 import { readLumina } from '../support/import-check/lumina.ts'
-import { API_BASE_URL } from '../support/target'
+import { captureUploads } from '../support/import-check/uploads.ts'
 import { compareImport } from './compare.ts'
 import { EXPECTED_DIFFERENCES } from './expected-differences.ts'
-import { buildUploadFixture, type CapturedUpload } from './upload-fixture.ts'
+import { buildUploadFixture } from './upload-fixture.ts'
 import type { FireflyManifest, FireflyRunInfo } from './manifest.ts'
 
 const OUTPUT_DIR = join(import.meta.dirname, 'output')
@@ -32,13 +32,7 @@ test('a Firefly III export imports to the balances, totals and budgets Firefly I
 
   // Every request of the import run, kept in the results beside the comparison with the commit's
   // summary, and made into the fixture the backend test replays
-  const uploads: (CapturedUpload & { response: unknown })[] = []
-  page.on('response', async (response) => {
-    const path = response.url().slice(API_BASE_URL.length)
-    const method = response.request().method()
-    if (!['POST', 'PUT'].includes(method) || !path.startsWith('/transactions/import/runs')) return
-    uploads.push({ method, path, body: response.request().postDataJSON(), response: await response.json().catch(() => null) })
-  })
+  const uploads = captureUploads(page)
 
   const files = page.locator('input[type="file"][accept=".csv,text/csv"]')
   // The screen reads one file at a time and refuses another meanwhile, so each lands before the next

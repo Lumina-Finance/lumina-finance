@@ -112,7 +112,7 @@ export function ModalShell({
             // No layout animation, and nothing else may put a settled transform or a filter on this
             // panel either. Motion animates a layout change by scaling the element, and a scaled or
             // filtered box becomes what its `position: fixed` descendants measure themselves from,
-            // which throws the open drop-down box hundreds of pixels out of place and clips it to
+            // which throws the open dropdown box hundreds of pixels out of place and clips it to
             // the panel for as long as the animation runs. The panel is sized by its content, so it
             // follows anything inside it that animates its own height, which is how a form that
             // reveals whole rows grows

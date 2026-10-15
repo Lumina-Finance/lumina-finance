@@ -2,15 +2,8 @@
  * Reads which of Lumina's records stand for which Actual account, category and budget, from the
  * requests of the import run and what the server answered them
  */
+import type { CapturedUpload } from '../support/import-check/uploads.ts'
 import type { ImportMappings } from './compare.ts'
-
-/** One request of the import run and what the server answered */
-export interface CapturedUpload {
-  method: string
-  path: string
-  body: unknown
-  response: unknown
-}
 
 interface CommitResponse {
   account_source_ids: Record<string, string>

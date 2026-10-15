@@ -3,13 +3,8 @@
  * id replaced by the name it stood for, since the ids belong to the user this run signed up
  */
 import type { LuminaSnapshot } from '../support/import-check/compare.ts'
+import type { CapturedUpload } from '../support/import-check/uploads.ts'
 import type { FireflyManifest, FireflyRunInfo, ManifestRow } from './manifest.ts'
-
-export interface CapturedUpload {
-  method: string
-  path: string
-  body: unknown
-}
 
 interface CategoryMapping {
   source: string

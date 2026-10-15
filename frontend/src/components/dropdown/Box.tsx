@@ -45,7 +45,7 @@ const SLOT_WIDTH = '100%'
  * cell is not read through a slot-width window. Both edges the box is pinned by stay where they are,
  * so what grows is the far side of a control the user is already looking at.
  *
- * It is not portalled: a modal decides whether focus is still inside it, and this drop-down decides
+ * It is not portalled: a modal decides whether focus is still inside it, and this dropdown decides
  * whether a press was outside it, by asking whether the element is a descendant. That costs one
  * constraint: no ancestor may carry a backdrop filter, a filter or a settled transform, any of which
  * would make itself the box these viewport coordinates are measured from.

@@ -322,7 +322,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                           searchable
                           searchPlaceholder="Search categories..."
                         />
-                        {/* Beside the drop-down rather than in place of the form, since the
+                        {/* Beside the dropdown rather than in place of the form, since the
                             category is optional and the account can still be created without one */}
                         {taxAdvantagedCategoriesFailed && (
                           <LoadFailure

@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import type { Passkey } from '@/api/passkeys';
 import { OverflowMenu } from '@/components/passkeys/OverflowMenu';
 import { useAuth } from '@/hooks/useAuth';
-import { formatRelativeTime } from '@/utils/relativeTime';
+import { useRelativeTime } from '@/hooks/useRelativeTime';
 import { DATE_FORMATS, formatDate } from '@/utils/date';
 
 // Crossfade the card between its resting details and the rename fields so neither state snaps in
@@ -28,6 +28,7 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
   const [isRenaming, setIsRenaming] = useState(false);
   const [draftName, setDraftName] = useState(passkey.name);
   const [error, setError] = useState<string | null>(null);
+  const lastUsed = useRelativeTime(passkey.last_used_at);
 
   /**
    * Saves a trimmed, non-empty new label and returns the card to its resting state
@@ -58,7 +59,7 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
   }
 
   const addedLabel = `Added ${formatDate(new Date(passkey.created_at), DATE_FORMATS.monthDayYear, user?.tz)}`;
-  const usageLabel = passkey.last_used_at ? `last used ${formatRelativeTime(passkey.last_used_at)}` : 'not used yet';
+  const usageLabel = lastUsed ? `last used ${lastUsed}` : 'not used yet';
 
   return (
     <div className="rounded-xl border p-3" style={{ borderColor: 'var(--app-border)' }}>

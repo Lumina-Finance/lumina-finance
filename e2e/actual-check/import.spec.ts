@@ -11,10 +11,10 @@ import { TEST_CURRENCY, TEST_TIMEZONE, signUpUser, todayInTestTimezone, type Tes
 import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
 import { checkExpected } from '../support/import-check/compare.ts'
 import { readLumina } from '../support/import-check/lumina.ts'
-import { API_BASE_URL } from '../support/target'
+import { captureUploads, type CapturedUpload } from '../support/import-check/uploads.ts'
 import { compareImport, compareSkippedRows, type ActualDifference, type SkippedRowCells } from './compare.ts'
 import { getExpectedDifferences } from './expected-differences.ts'
-import { readImportMappings, type CapturedUpload } from './lumina.ts'
+import { readImportMappings } from './lumina.ts'
 import type { ActualManifest, ActualRunInfo } from './manifest.ts'
 
 const OUTPUT_DIR = join(import.meta.dirname, 'output')
@@ -88,13 +88,7 @@ async function startImport(page: Page, request: APIRequestContext, manifest: Act
   await openPage(page, '/settings/imports')
   await chooseFromDropdown(page.locator('body'), 'Data Source', 'Actual Budget')
 
-  const uploads: CapturedUpload[] = []
-  page.on('response', async (response) => {
-    const path = response.url().slice(API_BASE_URL.length)
-    const method = response.request().method()
-    if (!['POST', 'PUT'].includes(method) || !path.startsWith('/transactions/import/runs')) return
-    uploads.push({ method, path, body: response.request().postDataJSON(), response: await response.json().catch(() => null) })
-  })
+  const uploads = captureUploads(page)
 
   const input = page.locator('input[type="file"][accept=".zip,.sqlite,application/zip"]')
   await expect(input).toBeEnabled()
