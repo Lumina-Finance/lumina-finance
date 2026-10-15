@@ -13,8 +13,8 @@ const JUST_NOW_THRESHOLD_SECONDS = 45
 
 /**
  * Formats a past ISO-8601 timestamp as a short relative phrase such as "2 days ago" or "just now",
- * picking the largest unit that fits. Recomputes only when the caller re-renders, which is fine for a
- * coarse label that never needs to tick live
+ * picking the largest unit that fits. Reads the clock once per call, so words that stay on screen go
+ * through `useRelativeTime`, which works them out again as time passes
  */
 export function formatRelativeTime(iso: string): string {
   const seconds = Math.round((Date.now() - new Date(iso).getTime()) / 1000)
