@@ -1,8 +1,9 @@
 import { createHash, randomBytes } from 'node:crypto'
 
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type APIResponse, type Page } from '@playwright/test'
 
 import { enrollTotp, signUpUser, TEST_PASSWORD, totpCode } from '../support/api'
+import { chooseFromDropdown } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: the Apple apps open this page in a system sheet, the same at every size
@@ -15,15 +16,38 @@ function pkcePair(): { verifier: string; challenge: string } {
 }
 
 /**
- * Waits for the page's handoff and returns the code its redirect carries into the app. The browser
- * can't follow a luminafinance:// address, so the redirect itself is read, as the system sheet would
+ * Waits for the page's handoff and returns the code its redirect carries into the app. Chrome cancels
+ * a jump to a luminafinance:// address from a page that was never tapped, as after a provider's
+ * redirect, where the system sheet needs no tap, so the server's redirect is read here instead
  */
 async function waitForHandoffCode(page: Page): Promise<string> {
-  const response = await page.waitForResponse((candidate) => candidate.url().endsWith('/auth/native/handoff'))
+  const response = await new Promise<APIResponse>((resolve) => {
+    void page.route(`${API_BASE_URL}/auth/native/handoff`, async (route) => {
+      resolve(await route.fetch({ maxRedirects: 0 }))
+      await route.fulfill({ status: 204 })
+    })
+  })
   expect(response.status()).toBe(303)
   const location = new URL(response.headers().location)
   expect(`${location.protocol}//${location.host}${location.pathname}`).toBe('luminafinance://auth/callback')
   return location.searchParams.get('code') ?? ''
+}
+
+/**
+ * Opens the sign-in page as the app does and waits for it to show, since the page remembers the
+ * app's challenge only once it has rendered, and a provider sign-in leaves before the form is used
+ */
+async function openNativeSignIn(page: Page, challenge: string) {
+  await page.goto(`/login?native_challenge=${challenge}`)
+  await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible()
+}
+
+/** Signs a new user in on the server and returns the response, which a provider sign-in answers with too */
+async function serverSignIn(request: APIRequestContext): Promise<{ access_token: string; user: { email: string } }> {
+  const user = await signUpUser(request)
+  const response = await request.post(`${API_BASE_URL}/auth/login`, { data: { email: user.email, password: user.password } })
+  expect(response.status()).toBe(200)
+  return response.json()
 }
 
 async function exchange(request: APIRequestContext, code: string, verifier: string) {
@@ -84,6 +108,37 @@ test('hands a sign-in finished with a passkey second factor to the app', async (
   await page.getByRole('button', { name: 'Log in' }).click()
   const code = waitForHandoffCode(page)
   await page.getByRole('button', { name: 'Verify with a passkey' }).click()
+
+  expect((await exchange(request, await code, verifier)).status()).toBe(200)
+})
+
+// No identity provider runs beside the suite, so the provider's verdict is answered with a session
+// the server really started, and the page's handoff and the exchange then run for real
+test('hands a single sign-on to the app', async ({ page, request }) => {
+  const signIn = await serverSignIn(request)
+  const { verifier, challenge } = pkcePair()
+  await page.route(`${API_BASE_URL}/auth/oidc/callback`, (route) => route.fulfill({ json: signIn }))
+
+  await openNativeSignIn(page, challenge)
+  const code = waitForHandoffCode(page)
+  await page.goto('/auth/oidc/callback?code=provider-code&state=provider-state')
+
+  expect((await exchange(request, await code, verifier)).status()).toBe(200)
+})
+
+test('hands a first single sign-on to the app once its account is created', async ({ page, request }) => {
+  const signIn = await serverSignIn(request)
+  const { verifier, challenge } = pkcePair()
+  await page.route(`${API_BASE_URL}/auth/oidc/callback`, (route) => route.fulfill({
+    json: { onboarding_required: true, onboarding_token: 'onboarding', email: signIn.user.email, first_name: 'Test', last_name: null },
+  }))
+  await page.route(`${API_BASE_URL}/auth/oidc/signup`, (route) => route.fulfill({ status: 201, json: signIn }))
+
+  await openNativeSignIn(page, challenge)
+  await page.goto('/auth/oidc/callback?code=provider-code&state=provider-state')
+  await chooseFromDropdown(page.locator('body'), 'Base currency', /CAD/)
+  const code = waitForHandoffCode(page)
+  await page.getByRole('button', { name: 'Create account' }).click()
 
   expect((await exchange(request, await code, verifier)).status()).toBe(200)
 })
