@@ -7,7 +7,7 @@ import { getTransactionRowButton } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
 // Runs at every size: a touch screen opens the bank icon's tooltip by a tap rather than a hover, and
-// transaction rows take their own layouts below 1300px
+// transaction rows take their own layout below 750px
 
 // A bank-imported row carries a muted bank icon naming its provider, and a dot once the user has
 // edited a value the bank supplied.
