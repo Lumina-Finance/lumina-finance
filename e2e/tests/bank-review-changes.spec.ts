@@ -198,8 +198,8 @@ test('removes a transaction the bank no longer reports, reading the ledger again
   await expect(reviewBlock(page)).toBeHidden()
 
   // The server removes the transaction, so the ledger is read again to show it gone, as keeping one
-  // never reads it
-  expect(ledgerReads).not.toEqual([])
+  // never reads it. The test can hear of the read after the block has gone, so it waits for it
+  await expect.poll(() => ledgerReads).not.toEqual([])
 })
 
 test('keeps a transaction the bank no longer reports, clearing the marker without reading the ledger again', async ({ page, request }) => {
