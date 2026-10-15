@@ -58,8 +58,8 @@ test('brings each chosen settings section to rest below the pinned section menu'
   await openPage(page, '/settings')
 
   // A section's height is final only once its data has loaded, and a smooth scroll aims at where the
-  // chosen heading was when it began, so every section settles first. Runway shows no spinner while its
-  // accounts load, so its empty state is what says they have
+  // chosen heading was when it began, so the sections that show a spinner while they load settle first.
+  // Runway shows none while its accounts load, so its empty state is what says they have
   await expect(page.getByText('No eligible accounts yet. Add an asset account to configure runway.')).toBeVisible()
   await expect(page.getByRole('status', { name: /^Loading / })).toHaveCount(0)
 
