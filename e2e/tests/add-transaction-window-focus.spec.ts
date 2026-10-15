@@ -1,9 +1,21 @@
 import { expect, test, type Page } from '@playwright/test'
 
 import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
-import { chooseFromDropdown, logInViaApi, openModal, openPage, setTabHidden } from '../support/app'
-import { isRead, linkToEmptyBankAccount, readLastSuccess, syncBankLinkNow, WORKER_RESULT_TIMEOUT_MS } from '../support/bankSync'
+import { chooseFromDropdown, logInViaApi, openModal, openPage, waitForRequestsSoFar } from '../support/app'
+import {
+  addBridgeTransactions,
+  isRead,
+  linkToEmptyBankAccount,
+  readLastSuccess,
+  readReviewItems,
+  reviewBlock,
+  syncBankLinkNow,
+  WORKER_RESULT_TIMEOUT_MS,
+} from '../support/bankSync'
 import { API_BASE_URL } from '../support/target'
+
+// How often the app reads the list of bank links while no sync or import runs
+const LINKS_IDLE_POLL_MS = 60 * 1000
 
 /**
  * Tells the app the window has come back to the front, which is what switching to another window
@@ -63,18 +75,29 @@ test('keeps the running balance in Add transaction right after switching windows
   await expect(amounts.filter({ hasText: '−$50.00' })).toHaveCount(1)
 })
 
-test('keeps the running balance in Add transaction when a bank sync ends while the tab is away', async ({ page, request }) => {
+// The tab stays in view while the page's clock moves past the link list's next read, which finds the
+// sync over. Coming back to the tab instead would also run the check for changes made elsewhere,
+// which refreshes the review inbox by itself once the dialogue closes
+test('keeps the running balance in Add transaction when a bank sync ends behind it, then shows what the sync brought in', async ({ page, request }) => {
   const user = await signUpUser(request)
-  const wallet = await createAccount(request, user, { name: 'Wallet', startingBalance: 100000 })
+  await createAccount(request, user, { name: 'Wallet', startingBalance: 100000 })
   const everyday = await createAccount(request, user, { name: 'Everyday' })
-  await linkToEmptyBankAccount(request, user, { accountId: everyday.id, startDate: daysFromTodayInTestTimezone(-10) })
-  // The link's import is over, so the page opens on the list of links as it stays until the sync below
+  const { scenario, externalAccountId } = await linkToEmptyBankAccount(request, user, {
+    accountId: everyday.id,
+    startDate: daysFromTodayInTestTimezone(-10),
+  })
+  // The link's import is over and brought in nothing, so the page opens on the list of links as it
+  // stays until the sync below, with nothing waiting for review
   await expect.poll(() => readLastSuccess(request, user, everyday.id), { timeout: WORKER_RESULT_TIMEOUT_MS }).not.toBeNull()
+  expect(await readReviewItems(request, user, everyday.id)).toEqual([])
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.clock.install()
   await logInViaApi(page, user)
-  await openPage(page, `/accounts/${wallet.id}`)
+  await openPage(page, '/transactions')
 
   const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
   await dialog.getByRole('checkbox', { name: /Keep modal open after adding/ }).check()
+  await chooseFromDropdown(dialog, 'Account', 'Wallet')
   await chooseFromDropdown(dialog, 'Merchant', 'Unknown')
   await chooseFromDropdown(dialog, 'Category', 'Groceries')
   const amount = dialog.getByLabel('Amount')
@@ -85,31 +108,36 @@ test('keeps the running balance in Add transaction when a bank sync ends while t
   await expect(amount).toHaveValue('')
   await expect(dialog.getByText('$900.00', { exact: true })).toBeVisible()
 
-  // Another account's bank sync ends while the tab is in the background. Coming back reads the list
-  // of links, which finds the sync over, and reloading the balances under the open dialogue would
-  // count the first create twice
+  // Everyday's bank sync brings in a purchase behind the open dialogue. Reloading the balances once
+  // the link list shows the sync over would count the first create twice
   const reloads = recordChecksAndReloads(page)
   const syncedBefore = await readLastSuccess(request, user, everyday.id)
-  await setTabHidden(page, true)
+  await addBridgeTransactions(request, scenario.id, externalAccountId, [
+    { posted: daysFromTodayInTestTimezone(-1), amount: '-12.50', description: 'HARBOUR GROCER' },
+  ])
   await syncBankLinkNow(request, user, everyday.id)
   await expect.poll(() => readLastSuccess(request, user, everyday.id), { timeout: WORKER_RESULT_TIMEOUT_MS }).not.toBe(syncedBefore)
-  const linksRead = page.waitForResponse((response) => isRead('/bank-sync/links')(new URL(response.url())))
-  await setTabHidden(page, false)
-  await linksRead
+  const finishedSyncRead = page.waitForResponse(async (response) => {
+    if (!isRead('/bank-sync/links')(new URL(response.url())) || !response.ok()) return false
+    const links = (await response.json()) as { account_id: string; sync: { last_success_at: string | null } }[]
+    return links.some((link) => link.account_id === everyday.id && link.sync.last_success_at !== syncedBefore)
+  })
+  await page.clock.runFor(LINKS_IDLE_POLL_MS)
+  await finishedSyncRead
 
   await amount.fill('50.00')
   await submit.click()
   await expect(amount).toHaveValue('')
   await expect(dialog.getByText('$850.00', { exact: true })).toBeVisible()
-  // The list of links answered before the create was sent, so by the time the create has answered,
-  // any check or reload the answer set off has already been sent
+  await waitForRequestsSoFar(page)
   expect(reloads, 'The bank sync reloaded the lists behind the open dialogue').toEqual([])
 
-  // Closing catches the page up, showing each create once beside the starting balance's row
+  // Closing runs the refresh the finished sync held back, which alone reads the review inbox again,
+  // and catches the list up with each create once. The dialogue fades out on the browser's own clock,
+  // which the page's clock has run ahead of, so the checks don't wait for the fade to end
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
-  await expect(dialog).toBeHidden()
+  await expect(reviewBlock(page).getByRole('listitem').filter({ hasText: 'HARBOUR GROCER' })).toBeVisible()
   const amounts = page.getByTestId(/^transaction-row-/).getByTestId('transaction-amount').filter({ visible: true })
-  await expect(amounts).toHaveCount(3)
   await expect(amounts.filter({ hasText: '−$100.00' })).toHaveCount(1)
   await expect(amounts.filter({ hasText: '−$50.00' })).toHaveCount(1)
 })
