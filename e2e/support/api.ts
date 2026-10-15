@@ -278,6 +278,32 @@ export async function createAccount(
   return { id: body.id, name: options.name, currency }
 }
 
+/**
+ * Create a tax-deferred tax-advantaged category in Canadian dollars, with no lifetime limit, over the API.
+ *
+ * @param request - Playwright request context
+ * @param user - Category owner
+ * @param name - The category's name
+ * @returns The category's id
+ * @throws When creation does not answer 201
+ */
+export async function createTaxAdvantagedCategory(
+  request: APIRequestContext,
+  user: TestUser,
+  name: string,
+): Promise<string> {
+  const response = await request.post(`${API_BASE_URL}/tax-advantaged-categories`, {
+    headers: asUser(user),
+    data: { name, tax_treatment: 'tax_deferred', currency: 'CAD', lifetime_contribution_limit: null },
+  })
+
+  if (response.status() !== 201) {
+    throw new Error(`creating tax-advantaged category ${name} answered ${response.status()}: ${await response.text()}`)
+  }
+
+  return ((await response.json()) as { id: string }).id
+}
+
 export interface CreateTransactionOptions {
   accountId: string
 
