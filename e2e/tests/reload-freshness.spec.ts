@@ -16,6 +16,12 @@ import { API_BASE_URL } from '../support/target'
 // The fake clock holds the browser's own fades, so an element leaving would never go
 test.use({ reducedMotion: 'reduce' })
 
+/** Reload the document and wait for the restored page, with no pause that would let a late write land */
+async function reload(page: Page) {
+  await page.reload()
+  await waitForPageReady(page)
+}
+
 /**
  * Freeze the clock of every tab in this browser at the time the stored copy was last saved
  *
@@ -42,6 +48,41 @@ async function setVisibility(page: Page, state: 'visible' | 'hidden') {
   }, state)
   expect(shown).toBe(state)
 }
+
+test('keeps a transaction recorded elsewhere through two quick reloads, in an unused search too', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday Chequing' })
+  const coffee = await createTransaction(request, user, { accountId: account.id, categoryName: 'Dining', amount: -500, notes: 'Coffee' })
+  const market = await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -2000, notes: 'Market' })
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  const rows = page.getByTestId(/^transaction-row-/)
+  const search = page.getByPlaceholder('Search transactions...', { exact: true })
+
+  // Part of a word, so the stored copy holds it only in the search's own query, which then sits
+  // unused in the cache
+  await search.fill('offee')
+  await expect(rows).toHaveCount(1)
+  await search.fill('')
+  await expect(rows).toHaveCount(2)
+  await waitForSavedCache(page, ['"offee"', coffee, market])
+  await holdTimedSaves(page)
+
+  // Recorded over the API, so this window only learns of it from the server on the next load
+  const added = await createTransaction(request, user, { accountId: account.id, categoryName: 'Dining', amount: -700, notes: 'Coffee' })
+  const addedRow = page.getByTestId(`transaction-row-${added}`)
+  await reload(page)
+  await expect(addedRow).toBeVisible()
+
+  await reload(page)
+  await expect(rows).toHaveCount(3)
+  await expect(addedRow).toBeVisible()
+
+  // The search was only marked as changed, never fetched again, and that mark has to be saved too
+  await search.fill('offee')
+  await expect(addedRow).toBeVisible()
+  await expect(rows).toHaveCount(2)
+})
 
 test('starts the next user from nothing after a sign-out and a reload', async ({ page, request }) => {
   const first = await signUpUser(request)

@@ -1,4 +1,5 @@
 import { SESSION_KEY } from '@/api/auth';
+import { stopSavingQueryCache } from '@/api/cache/persistence';
 
 /**
  * Clears everything this browser holds for the app, so a reload starts from nothing
@@ -11,6 +12,10 @@ import { SESSION_KEY } from '@/api/auth';
  * the login screen, which turns a recoverable crash into signing in again
  */
 export function clearStoredData() {
+  // The reload that follows hides the page, and a timed save may still be waiting, either of which
+  // would otherwise save the in-memory cache, the state suspected of the crash, straight back into
+  // the storage just cleared
+  stopSavingQueryCache();
   try {
     const hadSession = window.localStorage.getItem(SESSION_KEY);
 

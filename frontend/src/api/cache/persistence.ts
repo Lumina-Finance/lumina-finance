@@ -1,5 +1,12 @@
-import { defaultShouldDehydrateQuery, type Query } from '@tanstack/react-query';
+import {
+  defaultShouldDehydrateQuery,
+  dehydrate,
+  type Query,
+  type QueryCacheNotifyEvent,
+  type QueryClient,
+} from '@tanstack/react-query';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
+import type { PersistedClient } from '@tanstack/react-query-persist-client';
 import { SESSION_KEY } from '@/api/auth/session';
 import { hasUncacheableFxStatus } from '@/api/shared/fxCache';
 
@@ -26,13 +33,22 @@ function shouldDehydrateQuery(query: Query) {
 
 const dehydrateOptions = { shouldDehydrateQuery };
 
+// The query cache events that change what a save writes, the ones the persister itself saves on
+const SAVED_CACHE_EVENT_TYPES = new Set<QueryCacheNotifyEvent['type']>(['added', 'removed', 'updated']);
+
 // The user this tab is signed in as, from its own sign-in state, and the user the session flag
 // named as the page loaded, whose saved copy alone the restore takes
 let tabUserId: string | null = null;
 let restoredUserId: string | null = null;
 
-// The user the persister's latest serialized copy holds, until it reaches storage
+// Cache changes since the restore, the count the saved copy reflects, and the count and user the
+// timed save's latest serialized copy reflects until it reaches storage
+let changeCount = 0;
+let savedChangeCount = 0;
+let serializedChangeCount = 0;
 let serializedUserId: string | null = null;
+
+let isSavingStopped = false;
 
 /**
  * The version a saved copy carries: its shape and the user whose data it holds
@@ -54,37 +70,51 @@ function savedCopyVersion(userId: string | null) {
  * which belongs to that other person, would restore it
  *
  * @param serialize - Produces the copy, only called when it will be written
+ * @param changes - The change count the copy reflects
  * @param userId - The user whose data the copy holds
  */
-function writeSavedCopy(serialize: () => string, userId: string | null) {
+function writeSavedCopy(serialize: () => string, changes: number, userId: string | null) {
+  if (isSavingStopped) return;
   const sessionUserId = window.localStorage.getItem(SESSION_KEY);
   if (sessionUserId === null) {
     window.localStorage.removeItem(QUERY_CACHE_STORAGE_KEY);
     return;
   }
   if (userId !== sessionUserId) return;
-  window.localStorage.setItem(QUERY_CACHE_STORAGE_KEY, serialize());
+  try {
+    window.localStorage.setItem(QUERY_CACHE_STORAGE_KEY, serialize());
+    savedChangeCount = changes;
+  } catch {
+    // Storage is full, so the older copy left behind would be restored as fresh on the next load.
+    // Without it that load starts empty and fetches everything
+    window.localStorage.removeItem(QUERY_CACHE_STORAGE_KEY);
+  }
 }
 
 /**
  * Builds the options for restoring the saved query cache and saving it as it changes
  *
- * Built on call rather than at import, since the frontend tests render markup where there is no
- * window. Called once as the page loads, so the restore takes only the copy of the user the session
- * flag names then
+ * Built on call rather than at import, since the error screens import this module through clearing
+ * stored data, and the frontend tests render markup where there is no window. Called once as the
+ * page loads, so the restore takes only the copy of the user the session flag names then
  */
 export function createQueryCachePersistOptions() {
   restoredUserId = window.localStorage.getItem(SESSION_KEY);
   return {
     persister: createAsyncStoragePersister({
-      // The user is the one at writing, since this tab may have signed in since the restore
+      // Counted when the persister serializes, since that copy reflects every change so far, and
+      // recorded only once it reaches storage, so a timed save an unload cuts short still counts
+      // as unsaved. The user is the one at writing, since this tab may have signed in since the
+      // restore
       serialize: (persistedClient) => {
+        serializedChangeCount = changeCount;
         serializedUserId = tabUserId;
         return JSON.stringify({ ...persistedClient, buster: savedCopyVersion(serializedUserId) });
       },
       storage: {
         getItem: (key: string) => window.localStorage.getItem(key),
-        setItem: (_key: string, value: string) => writeSavedCopy(() => value, serializedUserId),
+        setItem: (_key: string, value: string) =>
+          writeSavedCopy(() => value, serializedChangeCount, serializedUserId),
         removeItem: (key: string) => window.localStorage.removeItem(key),
       },
       key: QUERY_CACHE_STORAGE_KEY,
@@ -108,4 +138,50 @@ export function isRestoredCacheFor(userId: string) {
  */
 export function setQueryCacheUser(userId: string | null) {
   tabUserId = userId;
+}
+
+/**
+ * Saves the query cache at once whenever the page is hidden or unloaded, from the end of the restore
+ *
+ * The persister writes at most once a second, so a reload inside that second would restore the copy
+ * from before the latest fetch, invalidation or sign-out. A restored entry keeps its own fetch time,
+ * so it shows without a refetch while still inside its stale time, and the check of what changed on
+ * the server has already recorded the newer state, so nothing on the next load would correct it
+ *
+ * Every tab shares the one saved copy, so a tab writes only when its cache changed since it last
+ * wrote, by this save or the persister's. An unchanged tab left in the background would otherwise
+ * put its older copy over a newer one another tab saved, and the next load would restore it as fresh
+ */
+export function saveQueryCacheOnPageHide(queryClient: QueryClient) {
+  // The restore has just made the cache and the saved copy the same
+  changeCount = 0;
+  savedChangeCount = 0;
+  queryClient.getQueryCache().subscribe((event) => {
+    if (SAVED_CACHE_EVENT_TYPES.has(event.type)) changeCount += 1;
+  });
+
+  const save = () => {
+    if (changeCount === savedChangeCount) return;
+    const changes = changeCount;
+    const userId = tabUserId;
+    writeSavedCopy(() => {
+      const persistedClient: PersistedClient = {
+        buster: savedCopyVersion(userId),
+        timestamp: Date.now(),
+        clientState: dehydrate(queryClient, dehydrateOptions),
+      };
+      return JSON.stringify(persistedClient);
+    }, changes, userId);
+  };
+  window.addEventListener('pagehide', save);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') save();
+  });
+}
+
+/**
+ * Stops every save of the query cache, so a reload after clearing storage starts from nothing
+ */
+export function stopSavingQueryCache() {
+  isSavingStopped = true;
 }

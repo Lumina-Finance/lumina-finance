@@ -214,8 +214,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(authApi.SESSION_KEY);
     applyState({ user: null, accessToken: null, loading: false });
     // Wipe every cached query so the next user can't see the previous user's
-    // data (accounts, transactions, etc.). With the session flag gone, the
-    // persister's next save removes the localStorage copy instead
+    // data (accounts, transactions, etc.). With the session flag gone, the next
+    // save, timed or on hiding the page, removes the localStorage copy instead
     queryClient.clear();
   }, [state.accessToken, queryClient, applyState]);
 

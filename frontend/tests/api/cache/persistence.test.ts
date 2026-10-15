@@ -1,6 +1,8 @@
 /**
- * Guards the saved copy of the query cache that every tab shares: a tab saves only while the
- * session flag names its own user, and a load restores only the copy of the user the flag names
+ * Guards the saved copy of the query cache that every tab shares: a tab with nothing new must not put
+ * its older copy over another tab's, a tab saves only while the session flag names its own user, a
+ * load restores only the copy of the user the flag names, and a save that fails must not leave an
+ * older copy behind for the next load to restore as fresh
  */
 import { QueryClient } from '@tanstack/react-query';
 import { persistQueryClientRestore, persistQueryClientSubscribe } from '@tanstack/react-query-persist-client';
@@ -10,6 +12,7 @@ import {
   createQueryCachePersistOptions,
   isRestoredCacheFor,
   QUERY_CACHE_STORAGE_KEY,
+  saveQueryCacheOnPageHide,
   setQueryCacheUser,
 } from '@/api/cache/persistence';
 
@@ -21,15 +24,17 @@ const OTHER_TAB_COPY = JSON.stringify({ clientState: { queries: [{ queryKey: ['t
 const clients: QueryClient[] = [];
 const unsubscribes: (() => void)[] = [];
 
-/** A local storage stand-in backed by a map */
+/** A local storage stand-in backed by a map, whose writes a test can make fail */
 class FakeStorage {
   readonly items = new Map<string, string>();
+  failWrites = false;
 
   getItem(key: string) {
     return this.items.get(key) ?? null;
   }
 
   setItem(key: string, value: string) {
+    if (this.failWrites) throw new DOMException('The quota has been exceeded', 'QuotaExceededError');
     this.items.set(key, value);
   }
 
@@ -39,30 +44,47 @@ class FakeStorage {
 }
 
 /**
- * Stands in for the window the saves use, since vitest runs without a DOM, and starts the
- * persister's timed save as the page does
+ * Stands in for the window and document the saves use, since vitest runs without a DOM, and starts
+ * saving as the page does once its restore settles
  *
  * @param stored - What local storage holds as the page loads
  * @param user - The user the tab is signed in as, by default the one the stored flag names
- * @returns The page's local storage and query client, and the restore the page runs on loading
+ * @param withTimedSave - Whether the persister's own timed save runs too, as in the app
+ * @returns The page's local storage and query client, a way to hide the page as a tab switch does,
+ * and the restore the page runs on loading
  */
-function loadPage(stored: Record<string, string>, { user = stored[SESSION_KEY] ?? null }: { user?: string | null } = {}) {
+function loadPage(
+  stored: Record<string, string>,
+  { user = stored[SESSION_KEY] ?? null, withTimedSave = false }: { user?: string | null, withTimedSave?: boolean } = {},
+) {
   const localStorage = new FakeStorage();
   for (const [key, value] of Object.entries(stored)) localStorage.setItem(key, value);
+  const document = Object.assign(new EventTarget(), { visibilityState: 'visible' });
   vi.stubGlobal('window', Object.assign(new EventTarget(), { localStorage }));
+  vi.stubGlobal('document', document);
 
   const client = new QueryClient();
   clients.push(client);
   const options = createQueryCachePersistOptions();
   setQueryCacheUser(user);
-  unsubscribes.push(persistQueryClientSubscribe({ ...options, queryClient: client }));
+  saveQueryCacheOnPageHide(client);
+  if (withTimedSave) unsubscribes.push(persistQueryClientSubscribe({ ...options, queryClient: client }));
 
+  const hide = () => {
+    document.visibilityState = 'hidden';
+    document.dispatchEvent(new Event('visibilitychange'));
+  };
   const restore = () => persistQueryClientRestore({ ...options, queryClient: client });
-  return { localStorage, client, restore };
+  return { localStorage, client, hide, restore };
 }
 
 // The persister's default wait between timed writes
 const TIMED_SAVE_INTERVAL_MS = 1000;
+
+/** Lets a write the timed save started, a few promise steps away, reach storage */
+async function settleTimedSave() {
+  await vi.advanceTimersByTimeAsync(0);
+}
 
 /**
  * Lets the timed save's waiting write run. Its first write on a load goes at once, when a new query
@@ -85,18 +107,61 @@ afterEach(() => {
 });
 
 describe('saving the query cache', () => {
+  it('leaves another tab\'s copy alone when this tab has changed nothing since its last save', () => {
+    const page = loadPage({ [SESSION_KEY]: USER_A, [QUERY_CACHE_STORAGE_KEY]: OTHER_TAB_COPY });
+
+    page.hide();
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe(OTHER_TAB_COPY);
+
+    page.client.setQueryData(['accounts'], [{ id: 'changed-account' }]);
+    page.hide();
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toContain('changed-account');
+
+    page.localStorage.setItem(QUERY_CACHE_STORAGE_KEY, OTHER_TAB_COPY);
+    page.hide();
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe(OTHER_TAB_COPY);
+  });
+
+  it('counts a timed save as this tab\'s save', async () => {
+    const page = loadPage({ [SESSION_KEY]: USER_A }, { withTimedSave: true });
+    page.client.setQueryData(['accounts'], [{ id: 'changed-account' }]);
+    await runTimedSave();
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toContain('changed-account');
+
+    page.localStorage.setItem(QUERY_CACHE_STORAGE_KEY, OTHER_TAB_COPY);
+    page.hide();
+
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe(OTHER_TAB_COPY);
+  });
+
+  it('saves on hiding a change whose timed save is still waiting', async () => {
+    const page = loadPage({ [SESSION_KEY]: USER_A }, { withTimedSave: true });
+    page.client.setQueryData(['accounts'], [{ id: 'first-account' }]);
+    await runTimedSave();
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toContain('first-account');
+    page.client.setQueryData(['accounts'], [{ id: 'second-account' }]);
+    await settleTimedSave();
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).not.toContain('second-account');
+
+    page.hide();
+
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toContain('second-account');
+  });
+
   it('saves nothing for this tab\'s user once another user signs in in another tab, until this tab signs in as them', async () => {
-    const page = loadPage({ [SESSION_KEY]: USER_A });
+    const page = loadPage({ [SESSION_KEY]: USER_A }, { withTimedSave: true });
     page.localStorage.setItem(SESSION_KEY, USER_C);
     page.localStorage.setItem(QUERY_CACHE_STORAGE_KEY, OTHER_TAB_COPY);
 
     page.client.setQueryData(['accounts'], [{ id: 'first-user-account' }]);
     await runTimedSave();
     expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe(OTHER_TAB_COPY);
+    page.hide();
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe(OTHER_TAB_COPY);
 
     setQueryCacheUser(USER_C);
     page.client.setQueryData(['accounts'], [{ id: 'next-user-account' }]);
-    await runTimedSave();
+    page.hide();
 
     expect(page.localStorage.getItem(SESSION_KEY)).toBe(USER_C);
     expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toContain('next-user-account');
@@ -105,7 +170,7 @@ describe('saving the query cache', () => {
   it('restores a saved copy under the user who saved it', async () => {
     const saving = loadPage({ [SESSION_KEY]: USER_A });
     saving.client.setQueryData(['accounts'], [{ id: 'first-user-account' }]);
-    await runTimedSave();
+    saving.hide();
 
     const reloaded = loadPage(Object.fromEntries(saving.localStorage.items));
     await reloaded.restore();
@@ -120,7 +185,7 @@ describe('saving the query cache', () => {
   ])('restores no copy and removes it when %s', async (_label, flag) => {
     const saving = loadPage({ [SESSION_KEY]: USER_A });
     saving.client.setQueryData(['accounts'], [{ id: 'first-user-account' }]);
-    await runTimedSave();
+    saving.hide();
     const stored = Object.fromEntries(saving.localStorage.items);
     expect(stored[QUERY_CACHE_STORAGE_KEY]).toContain('first-user-account');
     if (flag === null) delete stored[SESSION_KEY];
@@ -135,7 +200,7 @@ describe('saving the query cache', () => {
   });
 
   it('stamps a timed save with the user this tab signed in as after loading', async () => {
-    const signingIn = loadPage({});
+    const signingIn = loadPage({}, { withTimedSave: true });
     signingIn.localStorage.setItem(SESSION_KEY, USER_C);
     setQueryCacheUser(USER_C);
     signingIn.client.setQueryData(['accounts'], [{ id: 'next-user-account' }]);
@@ -148,14 +213,26 @@ describe('saving the query cache', () => {
     expect(reloaded.client.getQueryData(['accounts'])).toEqual([{ id: 'next-user-account' }]);
   });
 
-  it('removes the saved copy instead of saving it once the session has ended', async () => {
+  it('removes the saved copy instead of saving it once the session has ended', () => {
     const page = loadPage({ [SESSION_KEY]: USER_A, [QUERY_CACHE_STORAGE_KEY]: OLDER_COPY });
+    page.client.setQueryData(['accounts'], [{ id: 'first-user-account' }]);
     page.localStorage.removeItem(SESSION_KEY);
     expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe(OLDER_COPY);
 
-    page.client.setQueryData(['accounts'], [{ id: 'first-user-account' }]);
-    await runTimedSave();
+    page.hide();
 
     expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull();
+  });
+
+  it('removes the older saved copy when saving the newer one fails', () => {
+    const page = loadPage({ [SESSION_KEY]: USER_A, [QUERY_CACHE_STORAGE_KEY]: OLDER_COPY });
+    page.client.setQueryData(['accounts'], [{ id: 'first-user-account' }]);
+    page.localStorage.failWrites = true;
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe(OLDER_COPY);
+
+    page.hide();
+
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull();
+    expect(page.localStorage.getItem(SESSION_KEY)).toBe(USER_A);
   });
 });

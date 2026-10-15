@@ -126,29 +126,22 @@ for (const mode of ['add', 'replace', 'clear'] as const) {
     expect(await readTags(adjustment!.id, 1000)).toEqual([])
     expect(await readTags(unselected)).toEqual(['Family', 'Holiday'])
 
-    // Reload after the updated query is durable, since the shared persister writes asynchronously
-    await expect.poll(() => page.evaluate((ids) => {
-      const raw = localStorage.getItem('lumina:query-cache')
-      if (!raw) return null
-      const persisted = JSON.parse(raw) as {
-        clientState?: { queries?: {
-          queryKey: unknown[]
-          state: { data?: { pages?: { id: string; tags: { id: string }[] }[][] } }
-        }[] }
-      }
-      const query = persisted.clientState?.queries?.find(({ queryKey }) =>
-        queryKey[0] === 'transactions' && queryKey[1] === 'infinite'
-        && JSON.stringify(queryKey[2]) === '{}' && queryKey[3] === 15,
-      )
-      const rows = query?.state.data?.pages?.flat() ?? []
-      return ids.map((id) => rows.find((row) => row.id === id)?.tags.map((tag) => tag.id).sort() ?? null)
-    }, [family, work, absent])).toEqual(expectedNames.map((names) => names.map((name) => tags[name]).sort()))
-
     await page.reload()
     await waitForPageReady(page)
     await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(6)
     for (const [index, id] of [family, work, absent].entries()) {
       expect(await readTags(id)).toEqual(expectedNames[index])
+    }
+
+    // The reloaded rows draw their tags from what the reload restored, in chips or in the tag list
+    // behind the count, so a tag the edit removed must not come back on screen
+    for (const [index, id] of [family, work, absent].entries()) {
+      const row = page.getByTestId(`transaction-row-${id}`)
+      for (const name of Object.keys(tags)) {
+        const drawn = row.getByText(name, { exact: true })
+        if (expectedNames[index].includes(name)) await expect(drawn.first(), `${name} on row ${index}`).toBeAttached()
+        else await expect(drawn, `${name} on row ${index}`).toHaveCount(0)
+      }
     }
   })
 }
