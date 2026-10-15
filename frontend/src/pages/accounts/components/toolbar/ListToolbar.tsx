@@ -28,7 +28,7 @@ export default function AccountListToolbar({
     <>
       <ToolbarStickyShell
         toolbarRef={shell.toolbarRef}
-        mobileSearchStickySentinelRef={shell.mobileSearchStickySentinelRef}
+        topRowSentinelRef={shell.topRowSentinelRef}
         toolbarStuckSentinelRef={shell.toolbarStuckSentinelRef}
         desktopInlineLayout={shell.desktopInlineLayout}
         isToolbarStuck={shell.isToolbarStuck}
@@ -37,7 +37,7 @@ export default function AccountListToolbar({
           value={search}
           onValueChange={onSearchChange}
           placeholder="Search accounts..."
-          wrapperClassName={getSearchFieldWrapperClassName(shell.mobileSearchStuck, shell.desktopInlineLayout)}
+          wrapperClassName={getSearchFieldWrapperClassName(shell.isTopRowAtMenuButton,shell.desktopInlineLayout)}
         />
 
         <MobileToolbarActions
@@ -52,6 +52,7 @@ export default function AccountListToolbar({
           filterGroupRef={shell.filterGroupRef}
           createMeasureRef={shell.createMeasureRef}
           desktopInlineLayout={shell.desktopInlineLayout}
+          isTopRowAtMenuButton={shell.isTopRowAtMenuButton}
           desktopCreateStacked={shell.desktopCreateStacked}
           filterPanel={
             <AccountFilterPanel

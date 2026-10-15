@@ -108,6 +108,98 @@ for (const { path, placeholder, lastSeeded } of [
   })
 }
 
+/** Whether the toolbar holds its search field and its create button on one row */
+async function isOneRow(search: Locator, create: Locator): Promise<boolean> {
+  const field = (await search.boundingBox())!
+  return (await create.boundingBox())!.y < field.y + field.height
+}
+
+/** The right margins between a control and the pinned toolbar row holding it, added together */
+function rightMarginsInToolbar(control: Locator): Promise<number> {
+  return control.evaluate((node) => {
+    let total = 0
+    for (let box = node.parentElement; box && getComputedStyle(box).position !== 'sticky'; box = box.parentElement) {
+      total += parseFloat(getComputedStyle(box).marginRight)
+    }
+    return total
+  })
+}
+
+const SIZES = [
+  // Either side of the 1050px navigation breakpoint, where the menu button appears
+  { width: 1050, height: 768 },
+  { width: 1049, height: 768 },
+  { width: 1024, height: 768 },
+  // A window snapped to half of a 1920px screen. The transactions toolbar would fit on one row here
+  // only without the room the button needs once docked, so it has to keep two rows at rest as well
+  { width: 960, height: 1080 },
+  { width: 900, height: 768 },
+  { width: 768, height: 1024 },
+]
+
+for (const { path, placeholder, buttons, oneRow, lastSeeded } of [
+  {
+    path: '/transactions',
+    placeholder: 'Search transactions...',
+    buttons: ['Select transactions', 'Import transactions', 'Transaction filters', 'Add Transaction'],
+    oneRow: { 1024: true, 960: false } as Record<number, boolean>,
+    // The last row of the list's first page
+    lastSeeded: (page: Page) => page.getByTestId(/^transaction-row-/).nth(14),
+  },
+  {
+    path: '/accounts',
+    placeholder: 'Search accounts...',
+    buttons: ['Account filters', 'Add Account'],
+    oneRow: { 1024: true } as Record<number, boolean>,
+    lastSeeded: (page: Page) => page.getByText('Pinned bar account 19'),
+  },
+]) {
+  // The toolbar fits on one row at some of these widths and wraps at others, and either way its right
+  // end used to dock under the button wherever it was a single row
+  test(`keeps every docked ${path.slice(1)} toolbar control clear of the menu button on a tablet`, async ({ page, request }) => {
+    const user = await signUpUser(request)
+    // Enough accounts and rows below the toolbar that the page can scroll it up to the top at each size
+    for (let index = 0; index < 20; index += 1) {
+      const account = await createAccount(request, user, { name: `Pinned bar account ${index}`, startingBalance: 1000 })
+      await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -500 - index })
+    }
+    await logInViaApi(page, user)
+    const softly = expect.configure({ soft: true })
+    const menuButton = page.getByRole('button', { name: 'Open navigation menu' })
+
+    for (const { width, height } of SIZES) {
+      await page.setViewportSize({ width, height })
+      await openPage(page, path)
+      await expect(lastSeeded(page)).toBeAttached()
+      const search = page.getByPlaceholder(placeholder)
+      const controls = [search, ...buttons.map((name) => page.getByRole('button', { name, exact: true }))]
+      const create = controls[controls.length - 1]
+      const restingRow = await isOneRow(search, create)
+      if (width in oneRow) softly(restingRow, `one row at rest at ${width}px`).toBe(oneRow[width])
+      const restingX = await Promise.all(controls.map(async (control) => (await control.boundingBox())!.x))
+
+      // Scrolled to the last row once it holds still, since the rows settle in after the list loads
+      // and a scroll taken before then falls short of docking the toolbar
+      await lastSeeded(page).scrollIntoViewIfNeeded()
+      await expect.poll(async () => (await search.boundingBox())!.y, { message: `docked at ${width}px` }).toBeLessThan(52)
+      await softly.poll(() => isOneRow(search, create), { message: `one row docked at ${width}px` }).toBe(restingRow)
+
+      if (width >= 1050) {
+        await expect(menuButton).toBeHidden()
+        for (const [index, control] of controls.entries()) {
+          await softly.poll(async () => (await control.boundingBox())!.x, { message: `${control} at ${width}px` }).toBe(restingX[index])
+          softly(await rightMarginsInToolbar(control), `${control} margin at ${width}px`).toBe(0)
+        }
+        continue
+      }
+      await expect(menuButton).toBeVisible()
+      for (const control of controls) {
+        await softly.poll(() => overlapWithMenuButton(page, control), { message: `${control} at ${width}px` }).toBeLessThanOrEqual(0)
+      }
+    }
+  })
+}
+
 /**
  * How far the focused row's top sits below the lowest pinned bar above it, such as the toolbar and the day
  * heading or Upcoming header stuck below it, and whether its bottom is still inside the window

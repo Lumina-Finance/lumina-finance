@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
+import { MOBILE_NAVIGATION_QUERY, MOBILE_NAVIGATION_TOGGLE_CLEARANCE_PX } from '@/components/navigation/constants/data'
 
 const DESKTOP_SEARCH_MIN_WIDTH = 320
 
@@ -65,7 +66,11 @@ export function useDesktopToolbarLayout(actionsKey = '', pauseMeasuring = false)
       ), 0)
       const controlsGap = parseFloat(getComputedStyle(controlsElement).columnGap) || 0
       const createWidth = createMeasureElement.getBoundingClientRect().width
-      const inlineFits = DESKTOP_SEARCH_MIN_WIDTH + controlsGap + filterWidth + controlsGap + createWidth <= toolbarWidth
+
+      // Wherever the mobile navigation toggle shows, one row has to fit beside the room it leaves the
+      // toggle once docked, counted at rest as well so docking never switches the layout
+      const toggleClearance = window.matchMedia(MOBILE_NAVIGATION_QUERY).matches ? MOBILE_NAVIGATION_TOGGLE_CLEARANCE_PX : 0
+      const inlineFits = DESKTOP_SEARCH_MIN_WIDTH + controlsGap + filterWidth + controlsGap + createWidth + toggleClearance <= toolbarWidth
       const shouldStack = !inlineFits && filterWidth + controlsGap + createWidth > toolbarWidth
 
       setDesktopInlineLayout((current) => (current === inlineFits ? current : inlineFits))

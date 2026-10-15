@@ -1,5 +1,7 @@
 import type { ReactNode, RefObject } from 'react'
 import { Plus } from 'lucide-react'
+import { getDesktopControlsClearanceClassName } from '@/components/list-controls/toolbarStyles'
+import { joinClassNames } from '@/utils/classNames'
 
 type DesktopToolbarControlsProps = {
   controlsRef: RefObject<HTMLDivElement | null>
@@ -7,6 +9,10 @@ type DesktopToolbarControlsProps = {
   createMeasureRef: RefObject<HTMLButtonElement | null>
   desktopInlineLayout: boolean
   desktopCreateStacked: boolean
+
+  // Whether the toolbar is stuck where the fixed mobile navigation toggle would cover the end of its
+  // top row
+  isTopRowAtMenuButton: boolean
 
   // The domain-specific filter glass panel slotted into the filter group, alongside anything else
   // the list puts on that side of the row. Everything in here is measured as it renders, since the
@@ -29,6 +35,7 @@ export function DesktopToolbarControls({
   createMeasureRef,
   desktopInlineLayout,
   desktopCreateStacked,
+  isTopRowAtMenuButton,
   filterPanel,
   createLabel,
   onCreate,
@@ -38,7 +45,11 @@ export function DesktopToolbarControls({
   return (
     <div
       ref={controlsRef}
-      className={`relative hidden w-full flex-wrap items-center gap-3 min-[750px]:flex ${desktopInlineLayout ? 'min-[750px]:w-auto min-[750px]:flex-none min-[750px]:flex-nowrap' : ''}`}
+      className={joinClassNames(
+        'relative hidden w-full flex-wrap items-center gap-3 min-[750px]:flex',
+        desktopInlineLayout && 'min-[750px]:w-auto min-[750px]:flex-none min-[750px]:flex-nowrap',
+        getDesktopControlsClearanceClassName(isTopRowAtMenuButton,desktopInlineLayout),
+      )}
     >
       <div
         ref={filterGroupRef}

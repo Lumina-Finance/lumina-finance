@@ -1,12 +1,12 @@
 import { useCallback, useState } from 'react'
 import { useDesktopToolbarLayout } from '@/components/filters/hooks/useDesktopToolbarLayout'
 import type { DesktopToolbarLayoutState } from '@/components/filters/hooks/useDesktopToolbarLayout'
-import { useMobileSearchStuck } from '@/components/filters/hooks/useMobileSearchStuck'
-import type { MobileSearchStuckState } from '@/components/filters/hooks/useMobileSearchStuck'
+import { useTopRowAtMenuButton } from '@/components/filters/hooks/useTopRowAtMenuButton'
+import type { TopRowAtMenuButtonState } from '@/components/filters/hooks/useTopRowAtMenuButton'
 import { useToolbarStuck } from '@/components/filters/hooks/useToolbarStuck'
 import type { ToolbarStuckState } from '@/components/filters/hooks/useToolbarStuck'
 
-export type ToolbarShellState = DesktopToolbarLayoutState & MobileSearchStuckState & ToolbarStuckState & {
+export type ToolbarShellState = DesktopToolbarLayoutState & TopRowAtMenuButtonState & ToolbarStuckState & {
   isMobileSheetOpen: boolean
   // Kept mounted through the close animation so the sheet's scroll lock is only ever active while
   // the sheet exists, never on the page underneath
@@ -28,7 +28,7 @@ export type ToolbarShellState = DesktopToolbarLayoutState & MobileSearchStuckSta
  */
 export function useToolbarShellState(actionsKey?: string, pauseMeasuring?: boolean): ToolbarShellState {
   const desktopLayout = useDesktopToolbarLayout(actionsKey, pauseMeasuring)
-  const mobileSearchStuck = useMobileSearchStuck()
+  const topRowAtMenuButton = useTopRowAtMenuButton()
   const toolbarStuck = useToolbarStuck()
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false)
   const [isMobileSheetMounted, setIsMobileSheetMounted] = useState(false)
@@ -46,7 +46,7 @@ export function useToolbarShellState(actionsKey?: string, pauseMeasuring?: boole
 
   return {
     ...desktopLayout,
-    ...mobileSearchStuck,
+    ...topRowAtMenuButton,
     ...toolbarStuck,
     isMobileSheetOpen,
     isMobileSheetMounted,
