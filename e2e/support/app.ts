@@ -2,7 +2,7 @@
  * Driving the parts of the app a spec passes through on its way to the behaviour it tests.
  */
 
-import { expect, type Locator, type Page, type Response } from '@playwright/test'
+import { expect, type CDPSession, type Locator, type Page, type Response } from '@playwright/test'
 
 import { TEST_PASSWORD, type TestUser } from './api'
 import { waitForConfirmationLink } from './mail'
@@ -17,6 +17,16 @@ const TOOLBAR_BREAKPOINT_PX = 750
 // Where the import page puts its setup panel beside the steps rather than above them, and where
 // the panel collapses by itself once a file is accepted
 const IMPORT_SIDE_BY_SIDE_BREAKPOINT_PX = 1280
+
+/** Adds a virtual authenticator that answers the browser's passkey prompts, so they run for real */
+export async function addPasskeyAuthenticator(page: Page): Promise<CDPSession> {
+  const cdp = await page.context().newCDPSession(page)
+  await cdp.send('WebAuthn.enable')
+  await cdp.send('WebAuthn.addVirtualAuthenticator', {
+    options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true },
+  })
+  return cdp
+}
 
 /**
  * Whether the page is at least this wide, as the app's own media queries see it.

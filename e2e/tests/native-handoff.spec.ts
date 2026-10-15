@@ -3,7 +3,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { expect, test, type APIRequestContext, type APIResponse, type Page } from '@playwright/test'
 
 import { enrollTotp, signUpUser, TEST_PASSWORD, totpCode } from '../support/api'
-import { chooseFromDropdown } from '../support/app'
+import { addPasskeyAuthenticator, chooseFromDropdown } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: the Apple apps open this page in a system sheet, the same at every size
@@ -157,15 +157,6 @@ test('hands a sign-up to the app once its passkey is set up', async ({ page, req
   expect(exchanged.status()).toBe(200)
   expect((await exchanged.json()).refresh_token).toBeTruthy()
 })
-
-/** Adds a virtual authenticator that answers the browser's passkey prompts, so they run for real */
-async function addPasskeyAuthenticator(page: Page) {
-  const cdp = await page.context().newCDPSession(page)
-  await cdp.send('WebAuthn.enable')
-  await cdp.send('WebAuthn.addVirtualAuthenticator', {
-    options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true },
-  })
-}
 
 /** Signs up in the page with a passkey as the second factor, then signs out, and returns the email */
 async function signedUpWithPasskey(page: Page): Promise<string> {

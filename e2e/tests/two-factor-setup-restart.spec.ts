@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { signUpUser } from '../support/api'
-import { expectSignedIn, logInViaApi, openPage, signUpThroughTheForm } from '../support/app'
+import { addPasskeyAuthenticator, expectSignedIn, logInViaApi, openPage, signUpThroughTheForm } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: two-step setup gives the same result at every size
@@ -183,11 +183,7 @@ test('reopens the regenerate step-up when saving new recovery codes fails', asyn
  * codes with both boxes ticked
  */
 async function reachPasskeyDone(page: Page): Promise<void> {
-  const cdp = await page.context().newCDPSession(page)
-  await cdp.send('WebAuthn.enable')
-  await cdp.send('WebAuthn.addVirtualAuthenticator', {
-    options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true },
-  })
+  await addPasskeyAuthenticator(page)
 
   await signUpThroughTheForm(page)
 

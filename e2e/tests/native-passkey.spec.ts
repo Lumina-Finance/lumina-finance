@@ -1,20 +1,10 @@
 import { expect, test, type CDPSession, type Page } from '@playwright/test'
 
 import { asUser, signUpUser } from '../support/api'
+import { addPasskeyAuthenticator } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: the Apple apps open this page in a system sheet, the same at every size
-
-/** Adds a virtual authenticator that answers the browser's passkey prompts, so they run for real */
-async function addPasskeyAuthenticator(page: Page): Promise<CDPSession> {
-  const cdp = await page.context().newCDPSession(page)
-  await cdp.send('WebAuthn.enable')
-  await cdp.send('WebAuthn.addVirtualAuthenticator', {
-    options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true },
-  })
-  await cdp.send('Page.enable')
-  return cdp
-}
 
 /**
  * Runs the page's passkey prompt with the server's options and returns the credential it sends the
@@ -39,6 +29,7 @@ async function runNativeCeremony(page: Page, cdp: CDPSession, ceremony: 'create'
 
 test('creates a passkey and signs in with it for the app that opened the page', async ({ page, request }) => {
   const cdp = await addPasskeyAuthenticator(page)
+  await cdp.send('Page.enable')
   const user = await signUpUser(request)
   const headers = asUser(user)
 
