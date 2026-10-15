@@ -12,6 +12,7 @@ from sqlalchemy import update
 
 from app.main import app
 from app.models.auth import MfaChallenge
+from app.models.auth_session import AuthSession
 from tests.conftest import TestSession
 from tests.routes.support import _create_user
 
@@ -65,6 +66,30 @@ async def test_handoff_with_invalid_access_token_tells_app_it_failed(client):
     query = await _hand_off(client, "not-a-token", challenge)
 
     assert query == {"error": "handoff_failed"}
+
+
+async def _hand_off_session_started_ago(client, age: timedelta) -> dict[str, str]:
+    """Sign up, backdate the web session's start by the given age, and hand it off"""
+    signup = await _create_user(client)
+    async with TestSession() as session:
+        await session.execute(update(AuthSession).values(created_at=datetime.now(UTC) - age))
+        await session.commit()
+    _, challenge = _pkce_pair()
+    return await _hand_off(client, signup.json()["access_token"], challenge)
+
+
+async def test_handoff_from_long_open_session_is_refused(client):
+    """Only a sign-in that just finished can hand off, so a script in a long-open tab can't mint an app session"""
+    query = await _hand_off_session_started_ago(client, timedelta(minutes=11))
+
+    assert query == {"error": "handoff_failed"}
+
+
+async def test_handoff_after_sign_up_setup_succeeds(client):
+    """A sign-up hands off only once its second factor and recovery codes are set up, which takes minutes"""
+    query = await _hand_off_session_started_ago(client, timedelta(minutes=5))
+
+    assert "code" in query
 
 
 async def test_exchange_with_wrong_verifier_is_refused_and_spends_code(client):

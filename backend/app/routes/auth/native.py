@@ -5,9 +5,6 @@ declare that server's domain in advance. The app instead opens the server's own 
 private system browser sheet, and once that sign-in finishes the page hands its session to the app
 """
 
-import base64
-import hashlib
-import hmac
 import re
 import uuid
 from typing import Annotated, NoReturn
@@ -21,20 +18,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import current_user_id_ctx, get_db
 from app.dependencies import get_authenticated_user, get_current_session_id
-from app.models.auth import MfaChallenge
-from app.routes.auth.token_helpers import (
-    decode_native_handoff_token,
-    get_active_session_by_id,
-    get_user_by_id,
-    issue_and_store_tokens,
-)
+from app.routes.auth.token_helpers import decode_native_handoff_token, issue_and_store_tokens
 from app.schemas.auth import AuthResponse, NativeExchangeRequest
-from app.services.auth.mfa_challenge import consume_mfa_challenge, delete_expired_mfa_challenges
-from app.services.auth.sessions import delete_auth_session
-from app.services.auth.tokens import create_native_handoff_token
-
-# The handoff's single use rides on the challenge table, under a purpose no other flow accepts
-NATIVE_HANDOFF_PURPOSE = "native_handoff"
+from app.services.auth.native_handoff import issue_native_handoff_code, redeem_native_handoff_code
 
 # Where the system sheet hands control back to the app
 _APP_CALLBACK_URL = "luminafinance://auth/callback"
@@ -75,10 +61,9 @@ async def native_handoff_route(request: Request, db: Annotated[AsyncSession, Dep
     if session_id is None:
         return _redirect_to_app(error="handoff_failed")
 
-    await delete_expired_mfa_challenges(db)
-    code, jti, expires_at = create_native_handoff_token(user.id, session_id, code_challenge)
-    db.add(MfaChallenge(jti=jti, user_id=user.id, purpose=NATIVE_HANDOFF_PURPOSE, expires_at=expires_at))
-    await db.commit()
+    code = await issue_native_handoff_code(db, user.id, session_id, code_challenge)
+    if code is None:
+        return _redirect_to_app(error="handoff_failed")
     return _redirect_to_app(code=code)
 
 
@@ -113,26 +98,17 @@ async def native_exchange_route(
         _raise_invalid_handoff()
 
     current_user_id_ctx.set(user_id)
-
-    # Locking the web session first means two codes for one session queue here, and the second
-    # finds the session already gone once the first has replaced it
-    web_session = await get_active_session_by_id(db, session_id, user_id, lock_for_update=True)
-    if web_session is None:
-        _raise_invalid_handoff()
-
-    # Spent before the verifier is checked, so a wrong guess burns the code rather than allowing another
-    if not await consume_mfa_challenge(db, jti, user_id, NATIVE_HANDOFF_PURPOSE):
-        _raise_invalid_handoff()
-    if not hmac.compare_digest(_s256_challenge(payload.code_verifier), code_challenge):
-        await db.commit()
-        _raise_invalid_handoff()
-
-    user = await get_user_by_id(db, user_id)
+    user = await redeem_native_handoff_code(
+        db,
+        user_id=user_id,
+        session_id=session_id,
+        jti=jti,
+        code_challenge=code_challenge,
+        code_verifier=payload.code_verifier,
+    )
     if user is None:
         _raise_invalid_handoff()
 
-    # The web session only existed to carry the sign-in to the app, so it ends as the app's begins
-    await delete_auth_session(db, session_id)
     auth_response = await issue_and_store_tokens(db, request, response, user, refresh_in_body=True)
     return auth_response
 
@@ -144,12 +120,6 @@ def _read_form_fields(body: bytes) -> dict[str, str]:
     except ValueError:
         return {}
     return {name: values[0] for name, values in parsed.items() if len(values) == 1}
-
-
-def _s256_challenge(code_verifier: str) -> str:
-    """Return the base64url SHA-256 challenge a PKCE verifier answers"""
-    digest = hashlib.sha256(code_verifier.encode("ascii", errors="replace")).digest()
-    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
 
 
 def _redirect_to_app(**query: str) -> RedirectResponse:
