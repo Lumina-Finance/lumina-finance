@@ -238,7 +238,7 @@ export function ImportAccountMappingTable({
             disabled={disabled || !creating || currenciesDisabled}
           />
         </td>
-        <td className="px-4 py-3 align-middle">
+        <td className="py-3 pl-4 pr-0 align-middle">
           <Dropdown
             labelledBy={`${institutionHeadingId} ${sourceLabelId}`}
             options={institutionOptions}
@@ -351,7 +351,7 @@ export function ImportAccountMappingTable({
               <th id={accountHeadingId} className="px-4 py-3 font-medium">Existing Account</th>
               <th id={typeHeadingId} className="px-4 py-3 font-medium">Type</th>
               <th id={currencyHeadingId} className="px-2 py-3 font-medium">Currency</th>
-              <th id={institutionHeadingId} className="px-4 py-3 font-medium">Institution</th>
+              <th id={institutionHeadingId} className="py-3 pl-4 pr-0 font-medium">Institution</th>
             </tr>
           </thead>
           <tbody>

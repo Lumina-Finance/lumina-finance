@@ -94,7 +94,7 @@ export function ImportValueMatchTable({
           <tr>
             <th className="px-4 py-2.5 font-medium">{sourceLabel}</th>
             {detailLabel && <th className="w-64 px-4 py-2.5 font-medium">{detailLabel}</th>}
-            <th id={targetHeadingId} className="px-4 py-2.5 font-medium">{targetLabel}</th>
+            <th id={targetHeadingId} className="py-2.5 pl-4 pr-0 font-medium">{targetLabel}</th>
           </tr>
         </thead>
         <tbody>
@@ -168,7 +168,7 @@ export function ImportValueMatchTable({
                     </div>
                   </td>
                 )}
-                <td className="px-4 py-2 align-middle">
+                <td className="py-2 pl-4 pr-0 align-middle">
                   <Dropdown
                     labelledBy={`${targetHeadingId} ${sourceLabelId}`}
                     options={row.options ?? options}
