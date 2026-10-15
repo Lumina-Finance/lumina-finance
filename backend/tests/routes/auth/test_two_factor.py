@@ -18,6 +18,7 @@ from tests.conftest import TestSession
 from tests.routes.support import (
     SIGNUP_PAYLOAD,
     _create_user,
+    _enroll,
     _fresh_totp_code,
     _get_auth_header,
     _get_login_lockout,
@@ -44,15 +45,6 @@ async def _enroll_with_id(client):
     await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
     await client.post("/auth/2fa/complete", headers=auth)
     return auth, secret, signup.json()["user"]["id"]
-
-
-async def _enroll(client):
-    """Sign up a user and complete TOTP enrolment, returning the auth header, secret, and codes"""
-    auth = _get_auth_header(await _create_user(client))
-    secret = (await client.post("/auth/2fa/setup", headers=auth, json={"step_up": _STEP_UP})).json()["secret"]
-    confirm = await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
-    await client.post("/auth/2fa/complete", headers=auth)
-    return auth, secret, confirm.json()["recovery_codes"]
 
 
 async def _seed_active_recovery_code(user_id: str) -> None:
