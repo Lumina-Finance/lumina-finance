@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser, type SeededAccount, type TestUser } from '../support/api'
-import { logInViaApi, openPage } from '../support/app'
+import { logInViaApi, openPage, waitForRequestsSoFar } from '../support/app'
 import {
   addImportedItem,
   answerAsBankImported,
@@ -174,6 +174,7 @@ test("keeps the current value, which then counts as edited, clearing the marker 
   // The day's total still counts the row, though the server answers with a copy of the kept transaction
   // that leaves out the converted amounts the total sums
   await expect(dayTotal).toHaveText(`${MINUS}$42.10`)
+  await waitForRequestsSoFar(page)
   expect(ledgerReads).toEqual([])
   expect(await readTransaction(request, user, id)).toMatchObject({ amount: -4210, bank_source: { edited_fields: ['amount'] } })
   expect(await readReviewItems(request, user, everyday.id)).toEqual([])
@@ -218,6 +219,7 @@ test('keeps a transaction the bank no longer reports, clearing the marker withou
   await expect(reviewBlock(page)).toBeHidden()
   await expectTransactionRow(page, id, `${MINUS}$18.00`)
   await expect(needsReview(row)).toHaveCount(0)
+  await waitForRequestsSoFar(page)
   expect(ledgerReads).toEqual([])
 })
 

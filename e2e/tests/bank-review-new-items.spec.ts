@@ -11,7 +11,7 @@ import {
   type SeededAccount,
   type TestUser,
 } from '../support/api'
-import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
+import { chooseFromDropdown, logInViaApi, openPage, waitForRequestsSoFar } from '../support/app'
 import {
   fetchOnOwnConnection,
   isRead,
@@ -344,6 +344,7 @@ test('dismisses items without reading the ledger again, going on to the next whi
   const rows = reviewBlock(page).getByRole('listitem')
   await expect(rows).toHaveCount(1)
   await expect(rows.first()).toContainText(CAFE.description)
+  await waitForRequestsSoFar(page)
   expect(ledgerReads).toEqual([])
 
   // Both left review without reaching the ledger

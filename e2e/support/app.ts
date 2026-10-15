@@ -408,6 +408,17 @@ export function watchServerRequests(page: Page): () => Promise<void> {
 }
 
 /**
+ * Waits until the test has heard of every request the page sent so far, by sending one more from the
+ * page and waiting for its answer. The test hears of requests in the order the page sends them, but
+ * can see the screen settle before it hears of a request sent on the way there, so a test that a
+ * step sent no request asserts after this
+ */
+export async function waitForRequestsSoFar(page: Page): Promise<void> {
+  const status = await page.evaluate((url) => fetch(url).then((response) => response.status), `${API_BASE_URL}/health`)
+  expect(status).toBe(200)
+}
+
+/**
  * Assert the app is showing its signed-in shell.
  *
  * The navigation is the thing that says so, and it only renders for a signed-in user past the
