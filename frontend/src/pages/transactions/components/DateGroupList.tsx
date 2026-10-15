@@ -6,7 +6,7 @@ import type { Transaction } from '@/api/transactions'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { Checkbox } from '@/components/forms/Checkbox'
 import TransactionRow, { type TransactionRowSelection } from '@/components/transactions/Row'
-import { TRANSACTION_LIST_SUBGRID } from '@/components/transactions/listLayout'
+import { TRANSACTION_LIST_COLUMNS, TRANSACTION_LIST_SUBGRID } from '@/components/transactions/listLayout'
 import { UPCOMING_DAY_TOTAL_COLOUR, UpcomingSection } from '@/components/transactions/UpcomingSection'
 import type { GroupSelectionMark } from '@/pages/transactions/components/bulk-edit/selection'
 import {
@@ -22,13 +22,6 @@ import {
 import type { TransactionDateGroup, TransactionListAccount } from '@/pages/transactions/types/transactionList'
 import { getTransactionDateGroupTotal } from '@/pages/transactions/utils/transactionDateGroups'
 import { getTransactionReadOnlyReason } from '@/pages/transactions/utils/rowEditability'
-
-// The six content tracks every row lines its cells up against, declared once and never added to.
-// Selection mode opens a rail beside them instead, because a checkbox column would have to appear
-// and disappear with the checkbox, and a row still animating one out against a list that has
-// already dropped the column has nowhere to put its content but a second line
-const LIST_COLUMNS =
-  'min-[1300px]:grid-cols-[2.75rem_fit-content(24rem)_fit-content(18rem)_minmax(0,1fr)_max-content_max-content]'
 
 /**
  * What a day heading needs while the list is in selection mode
@@ -152,7 +145,7 @@ export default function TransactionDateGroupList({
             >
             <div
               ref={!isUpcoming && index === 0 ? measureDayHeading : undefined}
-              className={`${isUpcoming ? 'relative' : 'sticky z-20'} flex items-center justify-between rounded-lg py-2 pr-3 min-[1300px]:col-span-full`}
+              className={`${isUpcoming ? 'relative' : 'sticky z-20'} flex items-center justify-between rounded-lg py-2 pr-3 min-[750px]:col-span-full`}
               style={{
                 top: isUpcoming ? undefined : stickyTop,
                 background: 'var(--app-input-bg)',
@@ -251,7 +244,11 @@ export default function TransactionDateGroupList({
 
   return (
     <motion.div
-      className={`min-[1300px]:grid min-[1300px]:gap-x-3 ${LIST_COLUMNS}`}
+      // The list's five tracks, never added to. Selection mode opens a rail beside them instead, because
+      // a checkbox column would have to appear and disappear with the checkbox, and a row still
+      // animating one out against a list that has already dropped the column has nowhere to put its
+      // content but a second line
+      className={TRANSACTION_LIST_COLUMNS}
       style={{
         paddingLeft: TRANSACTION_CHECKBOX_RAIL,
         // A row scrolled into view clears the toolbar and the day heading pinned below it

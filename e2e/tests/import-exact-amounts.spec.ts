@@ -56,9 +56,8 @@ for (const example of CASES) {
     await expect(rows).toHaveCount(4)
     for (let index = 0; index < expected.length; index += 1) {
       const amount = rows.nth(index).getByTestId('transaction-amount')
-      await expect(amount).toHaveCount(3)
       await expect(amount.filter({ visible: true })).toHaveText(expected[index])
-      expect(await amount.allTextContents()).toEqual([expected[index], expected[index], expected[index]])
+      expect(new Set(await amount.allTextContents())).toEqual(new Set([expected[index]]))
     }
 
     const submitted: { dt: string; amount: string }[] = []

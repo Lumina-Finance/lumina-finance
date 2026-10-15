@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import TransactionRow, { TransactionRowView } from '@/components/transactions/Row'
-import { TRANSACTION_LIST_SUBGRID } from '@/components/transactions/listLayout'
+import { TRANSACTION_LIST_COLUMNS, TRANSACTION_LIST_SUBGRID } from '@/components/transactions/listLayout'
 import { UpcomingSection } from '@/components/transactions/UpcomingSection'
 import type { ExactPreviewTransaction, PreviewTransactionRow } from '@/pages/imports/types'
 import type { Transaction } from '@/api/transactions'
@@ -20,9 +20,9 @@ function isExactPreview(transaction: Transaction | ExactPreviewTransaction): tra
  * Renders preview transactions with the ledger's date-group presentation, gathering the days after the
  * user's today into the collapsed Upcoming section the ledger uses
  *
- * The shared transaction row lays its desktop cells out with a CSS subgrid,
- * so the wrapper must define the same column tracks the transactions page
- * uses or the cells collapse into a vertical stack on wide viewports
+ * The shared transaction row lays its cells out with a CSS subgrid from 750px
+ * wide, so the wrapper must define the same column tracks the transactions page
+ * uses or the cells collapse into a vertical stack
  */
 export function ImportPreviewList({
   groups,
@@ -45,7 +45,7 @@ export function ImportPreviewList({
     return shownGroups.map((group, groupIndex) => (
       <div key={`${group.dateLabel}-${groupIndex}`} className={TRANSACTION_LIST_SUBGRID}>
         <div
-          className="flex items-center justify-between rounded-lg px-3 py-2 min-[1300px]:col-span-full"
+          className="flex items-center justify-between rounded-lg px-3 py-2 min-[750px]:col-span-full"
           style={{
             background: 'var(--app-input-bg)',
             borderBottom: '1px solid var(--app-border)',
@@ -76,12 +76,12 @@ export function ImportPreviewList({
     ))
   }
 
-  // Below 1300px the rows take the compact layouts the transactions page shows, which fit any width, so
-  // only the six-column layout holds a minimum width. Nothing clips, so the tag stack that opens above a
-  // row shows in full. It is a size container so the Upcoming header and explanation fit its width
+  // The rows fit any width, giving up their tag names and then their note's text to icons as room runs
+  // out. Nothing clips, so the tag stack that opens above a row shows in full. It is a size container
+  // so the Upcoming header and explanation fit its width
   return (
     <div className="@container">
-      <div className="min-[1300px]:min-w-[58rem] min-[1300px]:grid min-[1300px]:grid-cols-[2.75rem_fit-content(24rem)_fit-content(18rem)_minmax(0,1fr)_max-content_max-content] min-[1300px]:gap-x-3">
+      <div className={TRANSACTION_LIST_COLUMNS}>
         <UpcomingSection
           transactionDates={upcomingGroups.flatMap((group) => group.rows.map((row) => row.transaction.dt))}
           today={today}
