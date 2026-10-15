@@ -28,6 +28,7 @@ from app.models.user import User
 from app.routes.auth.cookie_helpers import (
     clear_oidc_reauth_stepup_cookie,
     removing_cookie_on_failure,
+    request_is_native_client,
     set_refresh_cookie,
 )
 from app.schemas.auth import AuthResponse, UserInfo
@@ -530,8 +531,9 @@ async def issue_and_store_tokens(
     response: Response,
     user: User,
     session_id: uuid.UUID | None = None,
+    refresh_in_body: bool | None = None,
 ) -> AuthResponse:
-    """Create a token pair, store it, and set the refresh cookie
+    """Create a token pair, store it, and hand over the refresh token
 
     Args:
         db: Active database session
@@ -539,10 +541,15 @@ async def issue_and_store_tokens(
         response: FastAPI response object for setting the refresh cookie
         user: Authenticated user receiving the tokens
         session_id: Existing session identifier reused during refresh
+        refresh_in_body: Whether the refresh token goes in the body instead of a cookie. Left
+            unset, a native app gets it in the body and a browser in the cookie
 
     Returns:
-        Auth response with user info and access token
+        Auth response with user info and access token, plus the refresh token for a native app
     """
+    if refresh_in_body is None:
+        refresh_in_body = request_is_native_client(request)
+
     await delete_expired_auth_tokens(db)
     await delete_expired_auth_sessions(db)
 
@@ -571,7 +578,10 @@ async def issue_and_store_tokens(
     auth_response = AuthResponse(user=UserInfo.model_validate(user), access_token=access_token)
     await _delete_expired_imports(db)
 
-    set_refresh_cookie(request, response, refresh_token)
+    if refresh_in_body:
+        auth_response.refresh_token = refresh_token
+    else:
+        set_refresh_cookie(request, response, refresh_token)
     return auth_response
 
 

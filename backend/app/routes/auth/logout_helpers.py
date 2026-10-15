@@ -17,6 +17,8 @@ async def logout_auth_session(
     response: Response,
     access_token: str | None,
     refresh_token: str | None,
+    *,
+    clears_cookie: bool = True,
 ) -> dict[str, str]:
     """Revoke an auth session when a valid token identifies it
 
@@ -27,7 +29,8 @@ async def logout_auth_session(
         db: Active database session
         response: FastAPI response object
         access_token: Optional bearer token from the Authorization header
-        refresh_token: Optional refresh token from the refresh cookie
+        refresh_token: Optional refresh token from the cookie, or from a native app's body
+        clears_cookie: Whether to remove the refresh cookie, which a native app's logout leaves alone
 
     Returns:
         Logout confirmation
@@ -37,7 +40,8 @@ async def logout_auth_session(
         await delete_auth_session(db, session_id)
 
     await db.commit()
-    clear_refresh_cookie(response)
+    if clears_cookie:
+        clear_refresh_cookie(response)
     logout_response = {"detail": "Logged out"}
     return logout_response
 

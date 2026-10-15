@@ -146,6 +146,15 @@ class AuthResponse(BaseModel):
     user: UserInfo
     access_token: str
     token_type: str = "bearer"
+    # Set only for a native app, which keeps it in its own credential store. A browser gets it as an
+    # httpOnly cookie instead, so it is left out of the body entirely rather than sent as null
+    refresh_token: str | None = Field(default=None, exclude_if=lambda token: token is None)
+
+
+class NativeRefreshTokenRequest(BaseModel):
+    """A native app's refresh token, presented in the body since it has no cookie to carry it"""
+
+    refresh_token: str
 
 
 class RegistrationStatusResponse(BaseModel):
