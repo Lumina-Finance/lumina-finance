@@ -1,4 +1,5 @@
 """Auth routes"""
+
 from typing import Annotated
 
 from fastapi import APIRouter, Cookie, Depends, Request, Response, status
@@ -27,6 +28,7 @@ from app.schemas.auth import (
     MfaRequiredResponse,
     MfaVerifyRequest,
     RecoveryCodesResponse,
+    RegistrationStatusResponse,
     ResetPasswordRequest,
     ResetPasswordVerifyRequest,
     SetPasswordRequest,
@@ -52,6 +54,7 @@ from app.services.auth import (
     disable_two_factor,
     ensure_reset_token_active,
     is_passkey_registered,
+    is_registration_open,
     is_totp_enabled,
     issue_mfa_challenge,
     login,
@@ -93,11 +96,17 @@ async def signup_route(
         Auth response with user info and access token
 
     Raises:
-        HTTPException: Email is already registered
+        HTTPException: Registration is closed or the email is already registered
     """
     user = await signup(db, data)
     auth_response = await issue_and_store_tokens(db, request, response, user)
     return auth_response
+
+
+@router.get("/registration", response_model=RegistrationStatusResponse)
+async def registration_status_route():
+    """Report whether new accounts can be created, so the login page can hide sign-up"""
+    return RegistrationStatusResponse(enabled=is_registration_open())
 
 
 @router.post("/login", response_model=AuthResponse | MfaRequiredResponse)

@@ -187,8 +187,9 @@ async def oidc_callback_route(
         Auth response with tokens, or the onboarding token when profile fields are needed
 
     Raises:
-        HTTPException: The roundtrip, binding, exchange, or token does not verify, or the
-            email collides with an account it cannot be linked to
+        HTTPException: The roundtrip, binding, exchange, or token does not verify, the email
+            collides with an account it cannot be linked to, or a new user would be onboarded
+            while registration is closed
     """
     # The binding cookie is single-use, so remove it whatever the outcome of this callback, a refused
     # one included
@@ -234,7 +235,8 @@ async def oidc_signup_route(
         Auth response with user info and access token
 
     Raises:
-        HTTPException: The onboarding token is invalid or expired, or signup checks fail
+        HTTPException: The onboarding token is invalid or expired, registration is closed, or
+            signup checks fail
     """
     onboarding = _decode_onboarding_claims(data.onboarding_token)
     user = await complete_oidc_signup(
@@ -441,9 +443,7 @@ def _decode_onboarding_claims(onboarding_token: str) -> OidcOnboardingClaims:
     try:
         payload = decode_oidc_onboarding_token(onboarding_token)
     except jwt.PyJWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired onboarding token"
-        ) from None
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired onboarding token") from None
 
     return OidcOnboardingClaims(
         provider_slug=payload["provider_slug"],

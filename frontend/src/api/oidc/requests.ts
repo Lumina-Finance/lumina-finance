@@ -1,6 +1,12 @@
 import { buildApiError } from '@/api/auth/errors';
 import type { AuthResponse } from '@/api/auth/types';
-import { OIDC_EMAIL_CONFLICT_CODE, OidcEmailConflictError } from '@/api/oidc/errors';
+import {
+  OIDC_EMAIL_CONFLICT_CODE,
+  OidcEmailConflictError,
+  REGISTRATION_CLOSED_DETAIL,
+  REGISTRATION_CLOSED_STATUS,
+  RegistrationClosedError,
+} from '@/api/oidc/errors';
 import { authenticatedFetch } from '@/api/client';
 import { fetchFromServer } from '@/api/server';
 import type { StepUpPayload } from '@/api/two-factor/types';
@@ -38,6 +44,9 @@ async function requestOidc<T>(path: string, options: RequestInit = {}): Promise<
     // password sign-in, while every other failure stays a plain message
     if (typeof detail === 'object' && detail?.code === OIDC_EMAIL_CONFLICT_CODE && detail.email) {
       throw new OidcEmailConflictError(detail.email);
+    }
+    if (response.status === REGISTRATION_CLOSED_STATUS && detail === REGISTRATION_CLOSED_DETAIL) {
+      throw new RegistrationClosedError();
     }
     throw buildApiError(response.status, body);
   }

@@ -27,6 +27,7 @@ from app.services.auth.password_reset import (
     ensure_reset_token_active,
     request_password_reset,
 )
+from app.services.auth.registration import is_registration_open
 from app.services.auth.sessions import delete_expired_auth_sessions, delete_expired_auth_tokens
 from app.services.auth.set_password import set_first_password
 from app.services.auth.signup import signup
@@ -97,6 +98,7 @@ __all__ = [
     "get_enabled_oidc_provider_by_slug",
     "is_oidc_provider_linked",
     "is_passkey_registered",
+    "is_registration_open",
     "is_totp_enabled",
     "issue_mfa_challenge",
     "list_enabled_oidc_providers",

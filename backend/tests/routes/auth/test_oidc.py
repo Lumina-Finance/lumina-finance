@@ -14,7 +14,7 @@ from app.models.auth import AuthIdentity
 from app.models.base import AuthProvider
 from app.models.oidc import OidcAuthorizationRequest, OidcIdentity, OidcProvider
 from app.models.user import User
-from app.services.auth import oidc_login
+from app.services.auth import oidc_login, registration
 from app.services.auth.token_hashing import hash_token
 from tests.conftest import TestSession
 from tests.routes.support import SIGNUP_PAYLOAD, _clears_cookie, _seed_currency
@@ -183,10 +183,8 @@ async def test_callback_never_auto_links_verified_email(client, provider_protoco
     async with TestSession() as session:
         identities = (await session.execute(select(OidcIdentity))).scalars().all()
         oidc_auth_identities = (
-            await session.execute(
-                select(AuthIdentity).where(AuthIdentity.auth_provider == AuthProvider.OIDC)
-            )
-        ).scalars().all()
+            (await session.execute(select(AuthIdentity).where(AuthIdentity.auth_provider == AuthProvider.OIDC))).scalars().all()
+        )
     assert identities == []
     assert oidc_auth_identities == []
 
@@ -235,9 +233,7 @@ async def test_callback_rejects_unverified_email_when_strict(client, provider_pr
 
 
 @pytest.mark.parametrize("email_verified", [False, None])
-async def test_callback_onboards_unverified_email_when_relaxed(
-    client, provider_protocol, monkeypatch, email_verified
-):
+async def test_callback_onboards_unverified_email_when_relaxed(client, provider_protocol, monkeypatch, email_verified):
     """With verification relaxed, a provider that reports or omits email_verified still onboards
 
     Some self-hosted providers report the claim without verifying the address, so an operator relaxes
@@ -278,6 +274,52 @@ async def test_callback_onboards_new_user(client, provider_protocol):
         identities = (await session.execute(select(OidcIdentity))).scalars().all()
     assert users == []
     assert identities == []
+
+
+async def test_callback_closed_registration_refuses_new_user(client, provider_protocol, closed_registration):
+    """A first-time sign-in on a closed instance is refused before any onboarding step is issued"""
+    await _seed_provider()
+    provider_protocol["claims"] = _claims()
+
+    state = await _start_sign_in(client)
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Registration is closed on this instance"
+
+
+async def test_callback_closed_registration_signs_in_linked_identity(client, provider_protocol, monkeypatch):
+    """Closing registration leaves an already linked provider sign-in working"""
+    await _seed_currency()
+    signup = await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
+    user_id = uuid.UUID(signup.json()["user"]["id"])
+    provider = await _seed_provider()
+    async with TestSession() as session:
+        session.add(OidcIdentity(user_id=user_id, provider_id=provider.id, subject="subject-1", email="sso-user@example.com"))
+        await session.commit()
+    provider_protocol["claims"] = _claims()
+    monkeypatch.setattr(registration, "REGISTRATION_ENABLED", False)
+
+    state = await _start_sign_in(client)
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 200
+    assert resp.json()["user"]["id"] == str(user_id)
+
+
+async def test_callback_closed_registration_keeps_email_conflict(client, provider_protocol, monkeypatch):
+    """An existing account's owner still gets the sign-in-and-link path, not the closed message"""
+    await _seed_currency()
+    await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
+    await _seed_provider()
+    provider_protocol["claims"] = _claims(email=SIGNUP_PAYLOAD["email"], email_verified=True)
+    monkeypatch.setattr(registration, "REGISTRATION_ENABLED", False)
+
+    state = await _start_sign_in(client)
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["code"] == "email_already_registered"
 
 
 async def test_callback_burns_state_once(client, provider_protocol):
@@ -376,11 +418,7 @@ async def test_signup_creates_user_with_linked_identity(client, provider_protoco
 
     async with TestSession() as session:
         identity = (await session.execute(select(OidcIdentity))).scalar_one()
-        auth_identity = (
-            await session.execute(
-                select(AuthIdentity).where(AuthIdentity.auth_provider == AuthProvider.OIDC)
-            )
-        ).scalar_one()
+        auth_identity = (await session.execute(select(AuthIdentity).where(AuthIdentity.auth_provider == AuthProvider.OIDC))).scalar_one()
     assert identity.subject == "subject-1"
     assert str(auth_identity.user_id) == body["user"]["id"]
 
@@ -433,6 +471,34 @@ async def test_signup_replay_conflicts_once_linked(client, provider_protocol):
     assert replay.status_code == 409
 
 
+async def test_signup_closed_after_onboarding_creates_no_user(client, provider_protocol, monkeypatch):
+    """An onboarding token issued while registration was open can't finish once it closes"""
+    await _seed_currency()
+    await _seed_provider()
+    onboarding = await _onboard(client, provider_protocol)
+    monkeypatch.setattr(registration, "REGISTRATION_ENABLED", False)
+
+    resp = await client.post(
+        "/auth/oidc/signup",
+        json={
+            "onboarding_token": onboarding["onboarding_token"],
+            "first_name": "Sso",
+            "last_name": "User",
+            "tz": "America/Toronto",
+            "base_currency": "CAD",
+        },
+    )
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Registration is closed on this instance"
+
+    async with TestSession() as session:
+        users = (await session.execute(select(User))).scalars().all()
+        identities = (await session.execute(select(OidcIdentity))).scalars().all()
+    assert users == []
+    assert identities == []
+
+
 async def test_signup_rejects_forged_onboarding_token(client):
     """A token signed with the wrong key or use never completes signup"""
     forged = pyjwt.encode(
@@ -476,9 +542,7 @@ async def _create_password_user(client):
 
 async def _start_link(client, auth, slug: str = "test-idp") -> str:
     """Begin a link roundtrip with the account password and return the state"""
-    resp = await client.post(
-        f"/auth/oidc/{slug}/link", headers=auth, json={"password": SIGNUP_PAYLOAD["password"]}
-    )
+    resp = await client.post(f"/auth/oidc/{slug}/link", headers=auth, json={"password": SIGNUP_PAYLOAD["password"]})
     assert resp.status_code == 200
     params = parse_qs(urlparse(resp.json()["authorization_url"]).query)
     return params["state"][0]
@@ -500,14 +564,26 @@ async def test_link_attaches_provider_to_account(client, provider_protocol):
 
     async with TestSession() as session:
         identity = (await session.execute(select(OidcIdentity))).scalar_one()
-        auth_identity = (
-            await session.execute(
-                select(AuthIdentity).where(AuthIdentity.auth_provider == AuthProvider.OIDC)
-            )
-        ).scalar_one()
+        auth_identity = (await session.execute(select(AuthIdentity).where(AuthIdentity.auth_provider == AuthProvider.OIDC))).scalar_one()
     assert str(identity.user_id) == user_id
     assert identity.subject == "subject-1"
     assert str(auth_identity.user_id) == user_id
+
+
+async def test_link_closed_registration_attaches_provider(client, provider_protocol, monkeypatch):
+    """Closing registration leaves an existing account free to link a provider from settings"""
+    auth, user_id = await _create_password_user(client)
+    await _seed_provider()
+    provider_protocol["claims"] = _claims()
+    monkeypatch.setattr(registration, "REGISTRATION_ENABLED", False)
+
+    state = await _start_link(client, auth)
+    resp = await client.post("/auth/oidc/link/callback", headers=auth, json={"code": "any", "state": state})
+
+    assert resp.status_code == 200
+    async with TestSession() as session:
+        identity = (await session.execute(select(OidcIdentity))).scalar_one()
+    assert str(identity.user_id) == user_id
 
 
 async def test_link_requires_an_email(client, provider_protocol):
@@ -530,9 +606,7 @@ async def test_link_requires_correct_password(client, provider_protocol):
     auth, _ = await _create_password_user(client)
     await _seed_provider()
 
-    resp = await client.post(
-        "/auth/oidc/test-idp/link", headers=auth, json={"password": "WrongPassword123!"}
-    )
+    resp = await client.post("/auth/oidc/test-idp/link", headers=auth, json={"password": "WrongPassword123!"})
 
     assert resp.status_code == 401
 
@@ -554,9 +628,7 @@ async def test_link_requires_factor_when_enrolled(client, provider_protocol):
     await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
     await client.post("/auth/2fa/complete", headers=auth)
 
-    resp = await client.post(
-        "/auth/oidc/test-idp/link", headers=auth, json={"password": SIGNUP_PAYLOAD["password"]}
-    )
+    resp = await client.post("/auth/oidc/test-idp/link", headers=auth, json={"password": SIGNUP_PAYLOAD["password"]})
 
     assert resp.status_code == 400
 
@@ -568,15 +640,11 @@ async def test_link_callback_rejects_another_account(client, provider_protocol):
     provider_protocol["claims"] = _claims()
     state = await _start_link(client, auth)
 
-    other_signup = await client.post(
-        "/auth/signup", json={**SIGNUP_PAYLOAD, "email": "other@example.com"}
-    )
+    other_signup = await client.post("/auth/signup", json={**SIGNUP_PAYLOAD, "email": "other@example.com"})
     from tests.routes.support import _get_auth_header
 
     other_auth = _get_auth_header(other_signup)
-    resp = await client.post(
-        "/auth/oidc/link/callback", headers=other_auth, json={"code": "any", "state": state}
-    )
+    resp = await client.post("/auth/oidc/link/callback", headers=other_auth, json={"code": "any", "state": state})
 
     assert resp.status_code == 401
 
@@ -646,11 +714,7 @@ async def test_link_races_to_conflict_not_crash(client, provider_protocol, monke
         )
         session.add(other_user)
         await session.flush()
-        session.add(
-            OidcIdentity(
-                user_id=other_user.id, provider_id=provider.id, subject="subject-1", email="other@example.com"
-            )
-        )
+        session.add(OidcIdentity(user_id=other_user.id, provider_id=provider.id, subject="subject-1", email="other@example.com"))
         await session.commit()
 
     # Hide the conflicting row from the pre-check so the insert is what trips the unique constraint,
@@ -690,9 +754,7 @@ async def test_unlink_removes_identity_after_step_up(client, provider_protocol):
     await _seed_provider()
     provider_protocol["claims"] = _claims()
     state = await _start_link(client, auth)
-    linked = await client.post(
-        "/auth/oidc/link/callback", headers=auth, json={"code": "any", "state": state}
-    )
+    linked = await client.post("/auth/oidc/link/callback", headers=auth, json={"code": "any", "state": state})
     identity_id = linked.json()["id"]
 
     resp = await client.post(
@@ -705,10 +767,8 @@ async def test_unlink_removes_identity_after_step_up(client, provider_protocol):
     async with TestSession() as session:
         identities = (await session.execute(select(OidcIdentity))).scalars().all()
         oidc_auth_identities = (
-            await session.execute(
-                select(AuthIdentity).where(AuthIdentity.auth_provider == AuthProvider.OIDC)
-            )
-        ).scalars().all()
+            (await session.execute(select(AuthIdentity).where(AuthIdentity.auth_provider == AuthProvider.OIDC))).scalars().all()
+        )
     assert identities == []
     assert oidc_auth_identities == []
 
@@ -719,9 +779,7 @@ async def test_unlink_rejects_wrong_password(client, provider_protocol):
     await _seed_provider()
     provider_protocol["claims"] = _claims()
     state = await _start_link(client, auth)
-    linked = await client.post(
-        "/auth/oidc/link/callback", headers=auth, json={"code": "any", "state": state}
-    )
+    linked = await client.post("/auth/oidc/link/callback", headers=auth, json={"code": "any", "state": state})
     identity_id = linked.json()["id"]
 
     resp = await client.post(
@@ -858,9 +916,7 @@ async def test_login_state_cannot_complete_reauth(client, provider_protocol):
     auth, _ = await _create_passwordless_user(client, provider_protocol)
     login_state = await _start_sign_in(client)
 
-    resp = await client.post(
-        "/auth/oidc/reauth/callback", headers=auth, json={"code": "any", "state": login_state}
-    )
+    resp = await client.post("/auth/oidc/reauth/callback", headers=auth, json={"code": "any", "state": login_state})
 
     assert resp.status_code == 401
 
@@ -939,9 +995,7 @@ async def test_passwordless_account_unlinks_provider_after_reauth(client, provid
     assert resp.status_code == 204
     assert _clears_cookie(resp, "oidc_reauth_stepup")
     async with TestSession() as session:
-        remaining = (
-            await session.execute(select(OidcIdentity).where(OidcIdentity.user_id == uuid.UUID(user_id)))
-        ).scalars().all()
+        remaining = (await session.execute(select(OidcIdentity).where(OidcIdentity.user_id == uuid.UUID(user_id)))).scalars().all()
     assert len(remaining) == 1
 
 
@@ -952,9 +1006,7 @@ async def test_passwordless_unlink_last_provider_is_refused(client, provider_pro
     auth, user_id = await _create_passwordless_user(client, provider_protocol)
 
     async with TestSession() as session:
-        identity = (
-            await session.execute(select(OidcIdentity).where(OidcIdentity.user_id == uuid.UUID(user_id)))
-        ).scalar_one()
+        identity = (await session.execute(select(OidcIdentity).where(OidcIdentity.user_id == uuid.UUID(user_id)))).scalar_one()
         identity_id = identity.id
 
     await _arm_reauth_proof(client, auth, provider_protocol)
@@ -971,9 +1023,7 @@ async def test_passwordless_unlink_without_reauth_is_rejected(client, provider_p
     auth, user_id = await _create_passwordless_user(client, provider_protocol)
 
     async with TestSession() as session:
-        identity = (
-            await session.execute(select(OidcIdentity).where(OidcIdentity.user_id == uuid.UUID(user_id)))
-        ).scalar_one()
+        identity = (await session.execute(select(OidcIdentity).where(OidcIdentity.user_id == uuid.UUID(user_id)))).scalar_one()
         identity_id = identity.id
 
     resp = await client.post(f"/auth/oidc/identities/{identity_id}/remove", headers=auth)
@@ -1049,9 +1099,7 @@ async def test_set_password_after_reauth(client, provider_protocol):
     assert _clears_cookie(resp, "oidc_reauth_stepup")
 
     async with TestSession() as session:
-        credential = (
-            await session.execute(select(PasswordCredential).where(PasswordCredential.user_id == uuid.UUID(user_id)))
-        ).scalar_one()
+        credential = (await session.execute(select(PasswordCredential).where(PasswordCredential.user_id == uuid.UUID(user_id)))).scalar_one()
         password_identity = (
             await session.execute(
                 select(AuthIdentity).where(

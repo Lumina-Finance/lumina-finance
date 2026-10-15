@@ -147,6 +147,12 @@ class AuthResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class RegistrationStatusResponse(BaseModel):
+    """Whether the login page may offer sign-up"""
+
+    enabled: bool
+
+
 class TotpSetupResponse(BaseModel):
     """Secret and provisioning URI returned when TOTP enrolment begins"""
 

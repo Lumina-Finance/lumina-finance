@@ -56,6 +56,11 @@ export type LoginResult = AuthResponse | MfaRequiredResponse;
 /** Reset completes immediately (null), or challenges when the account has a second factor */
 export type ResetPasswordResult = MfaRequiredResponse | null;
 
+/** Whether the instance lets new accounts be created, which decides if the login page offers sign-up */
+export type RegistrationStatus = {
+  enabled: boolean;
+};
+
 export interface MfaVerifyPayload {
   mfa_token: string;
   code: string;

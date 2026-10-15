@@ -43,6 +43,10 @@ const FIELD_REFUSAL_MESSAGES: Partial<Record<keyof AuthFieldErrors, string>> = {
   password: 'Password does not meet requirements',
 }
 
+// Shown by a sign-up form submitted after registration closed, and on the login page when a provider
+// sign-in is refused for the same reason
+export const REGISTRATION_CLOSED_NOTICE = 'Registration is closed on this instance.'
+
 const ERROR_MESSAGES: Record<string, string> = {
   'Invalid credentials': 'Incorrect email or password. Please try again.',
   'Email already registered': 'An account with this email already exists.',
@@ -50,6 +54,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   'Invalid currency code': 'The selected currency is not supported.',
   'Invalid code': 'That code was incorrect. Please try again.',
   'Invalid or expired challenge': 'Your verification expired. Please log in again.',
+  'Registration is closed on this instance': REGISTRATION_CLOSED_NOTICE,
 }
 
 /**
