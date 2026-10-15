@@ -9,7 +9,8 @@ interface AuthBindings {
   getAccessToken: () => string | null;
   /** When the access token stops being accepted on this device's clock, or null when unknown */
   getAccessTokenExpiresAt: () => number | null;
-  onSessionRefreshed: (response: AuthResponse) => void;
+  /** Takes a renewed session, or returns false once it has signed the tab out instead of taking it */
+  onSessionRefreshed: (response: AuthResponse) => boolean;
   onSessionLost: () => void;
 }
 
@@ -26,19 +27,18 @@ export function registerAuthBindings(b: AuthBindings): void {
 // the request is on its way
 const EXPIRY_MARGIN_MS = 30_000;
 
-let pendingRefresh: Promise<AuthResponse> | null = null;
+let pendingRefresh: Promise<AuthResponse | null> | null = null;
 
 /**
  * Shares one in-flight refresh request so parallel requests do not refresh twice, and applies the
  * renewed session once, even when every request waiting on it has been abandoned
+ *
+ * @returns The renewed session, or null when the tab refused it and signed out
  */
-function refreshOnce(): Promise<AuthResponse> {
+function refreshOnce(): Promise<AuthResponse | null> {
   if (!pendingRefresh) {
     pendingRefresh = authApi.refresh()
-      .then((refreshed) => {
-        bindings?.onSessionRefreshed(refreshed);
-        return refreshed;
-      })
+      .then((refreshed) => (bindings?.onSessionRefreshed(refreshed) === false ? null : refreshed))
       .finally(() => {
         pendingRefresh = null;
       });
@@ -49,12 +49,14 @@ function refreshOnce(): Promise<AuthResponse> {
 /**
  * Renews the session, ending it when the server refuses the renewal
  *
- * @throws ApiError "Session expired" when the refresh credentials were refused, or the refresh
- *   failure itself when it says nothing about the session, such as a server error
+ * @throws ApiError "Session expired" when the refresh credentials were refused or the tab refused
+ *   the renewed session, or the refresh failure itself when it says nothing about the session, such
+ *   as a server error
  */
 async function renewSession(onSessionLost: () => void): Promise<AuthResponse> {
+  let refreshed: AuthResponse | null;
   try {
-    return await refreshOnce();
+    refreshed = await refreshOnce();
   } catch (error) {
     // Only rejected refresh credentials end the session; temporary failures remain retryable
     if (error instanceof ApiError && error.status === 401) {
@@ -63,6 +65,10 @@ async function renewSession(onSessionLost: () => void): Promise<AuthResponse> {
     }
     throw error;
   }
+
+  // A session the tab refused is never used, so no request goes out for the person it belongs to
+  if (refreshed === null) throw new ApiError('Session expired', 401);
+  return refreshed;
 }
 
 /**

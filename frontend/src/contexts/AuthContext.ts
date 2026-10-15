@@ -25,5 +25,3 @@ export interface AuthContextValue extends AuthState {
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
-
-export const SESSION_KEY = 'lumina:has_session';

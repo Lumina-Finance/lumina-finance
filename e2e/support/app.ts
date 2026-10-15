@@ -62,9 +62,13 @@ export async function logInViaApi(page: Page, user: TestUser): Promise<void> {
   const cookies = await page.context().cookies(`${API_BASE_URL}/auth/refresh`)
   expect(cookies.some((cookie) => cookie.name === 'refresh_token')).toBe(true)
 
-  // The session flag makes AuthProvider exchange the real HttpOnly cookie through /auth/refresh
+  // The session flag makes AuthProvider exchange the real HttpOnly cookie through /auth/refresh. The
+  // app then replaces it with the user's id, which a later load keeps, since the saved query cache
+  // restores only under the id it was saved with
   await page.addInitScript((origin) => {
-    if (location.origin === origin) localStorage.setItem('lumina:has_session', '1')
+    if (location.origin === origin && localStorage.getItem('lumina:has_session') === null) {
+      localStorage.setItem('lumina:has_session', '1')
+    }
   }, new URL(BASE_URL).origin)
 }
 
@@ -82,6 +86,27 @@ export async function waitForPageReady(page: Page): Promise<void> {
   if (await recoveryScreen.isVisible()) {
     throw new Error('The app opened on its recovery screen instead of the page, so a start-up request such as the currency list failed or ran past its limit')
   }
+}
+
+// The local storage key the app saves its query cache under, QUERY_CACHE_STORAGE_KEY in the
+// frontend's src/api/cache/persistence.ts. Written out here because the suite runs as its own
+// package, with none of the frontend's source beside it
+export const SAVED_QUERY_CACHE_KEY = 'lumina:query-cache'
+
+/**
+ * Wait until the query cache the app saves in this browser holds every one of these texts
+ *
+ * The app saves its cache at most once a second while it runs, so a spec that needs a later reload
+ * to find something already saved waits for it here rather than for a fixed time
+ *
+ * @param page - Page whose saved cache to read
+ * @param texts - Texts the saved cache must contain, such as a record's id
+ */
+export async function waitForSavedCache(page: Page, texts: string[]): Promise<void> {
+  await expect.poll(() => page.evaluate(({ key, wanted }) => {
+    const saved = localStorage.getItem(key) ?? ''
+    return wanted.every((text) => saved.includes(text))
+  }, { key: SAVED_QUERY_CACHE_KEY, wanted: texts })).toBe(true)
 }
 
 /** Navigate to an authenticated page and wait for its actual route readiness signal */

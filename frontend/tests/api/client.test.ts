@@ -38,6 +38,7 @@ function jsonResponse(status: number, body: unknown, bearer = false): Response {
 beforeEach(() => {
   fetchMock.mockReset();
   onSessionRefreshed.mockReset();
+  onSessionRefreshed.mockReturnValue(true);
   onSessionLost.mockReset();
   vi.stubGlobal('fetch', fetchMock);
   registerAuthBindings({
@@ -263,6 +264,24 @@ describe('authenticatedFetch', () => {
     });
   });
 
+  // A renewal that returns another person's session, signed in since in another tab, is refused by the
+  // tab, which signs itself out, so the request is never resent for that person and its answer can't
+  // land in the cache
+  it('does not resend the request with a renewed session the tab refused', async () => {
+    onSessionRefreshed.mockReturnValueOnce(false);
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(401, { detail: 'Expired access token' }, true))
+      .mockResolvedValueOnce(jsonResponse(200, refreshedAuthResponse))
+      .mockResolvedValueOnce(jsonResponse(200, { accounts: ['another person'] }));
+
+    await expect(authenticatedFetch('/accounts')).rejects.toMatchObject({ message: 'Session expired', status: 401 });
+
+    expect(onSessionRefreshed).toHaveBeenCalledExactlyOnceWith(refreshedAuthResponse);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenLastCalledWith(`${API_BASE}/auth/refresh`, expect.anything());
+    expect(onSessionLost).not.toHaveBeenCalled();
+  });
+
   it('does not refresh or resend a wrong-credential 401 that lacks the bearer challenge', async () => {
     fetchMock.mockResolvedValueOnce({
       ok: false,
@@ -311,9 +330,10 @@ describe('a sign-in that has aged out', () => {
       getAccessToken: () => accessToken,
       getAccessTokenExpiresAt: () => expiresAt,
       onSessionRefreshed: (response) => {
-        onSessionRefreshed(response);
+        if (onSessionRefreshed(response) === false) return false;
         accessToken = response.access_token;
         expiresAt = Date.now() + 900_000;
+        return true;
       },
       onSessionLost,
     });
@@ -343,6 +363,18 @@ describe('a sign-in that has aged out', () => {
       [`${API_BASE}/merchants`, 'Bearer new-access-token'],
     ]);
     expect(onSessionRefreshed).toHaveBeenCalledExactlyOnceWith(refreshedAuthResponse);
+  });
+
+  it('sends no request when the tab refused the renewed session', async () => {
+    onSessionRefreshed.mockReturnValueOnce(false);
+    fetchMock.mockImplementation(async (url: string) =>
+      url === `${API_BASE}/auth/refresh` ? jsonResponse(200, refreshedAuthResponse) : jsonResponse(200, {}));
+
+    await expect(authenticatedFetch('/accounts')).rejects.toMatchObject({ message: 'Session expired', status: 401 });
+
+    expect(onSessionRefreshed).toHaveBeenCalledExactlyOnceWith(refreshedAuthResponse);
+    expect(sentRequests()).toEqual([]);
+    expect(onSessionLost).not.toHaveBeenCalled();
   });
 
   // A request sent with seconds left could expire on its way, so the margin is half a minute

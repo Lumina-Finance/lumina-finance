@@ -6,6 +6,8 @@ export {
   type ApiFieldError,
 } from '@/api/auth/errors';
 
+export { SESSION_KEY } from '@/api/auth/session';
+
 export { getAccessTokenExpiresAt } from '@/api/auth/tokenAge';
 
 export type {
