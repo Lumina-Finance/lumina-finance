@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { motion, useReducedMotion } from 'motion/react'
 import { Calendar, ChevronDown } from 'lucide-react'
 import type { SavedInsightsRange, SavedInsightsRangeQualifier, SavedInsightsRangeUnit } from '@/api/insights'
+import { useFocusHeadOnClose } from '@/hooks/useFocusHeadOnClose'
 import { joinClassNames } from '@/utils/classNames'
 import type { InsightsRangePreset } from '@/pages/insights/types/range'
 import { formatResolvedRangeLabel, getRelativeRangeLabel } from '@/pages/insights/utils/range'
@@ -20,7 +21,7 @@ const OPEN_DESKTOP_WIDTH = 336
 // Lightly damped spring for a gentle settle with little overshoot, matching the toned-down feel
 const glassSpring = { type: 'spring', stiffness: 420, damping: 34, mass: 0.9 } as const
 
-// Fallback collapsed width used for the first frame before the label is measured
+// Collapsed width held, out of sight, before the label is first measured while showing
 const COLLAPSED_WIDTH_FALLBACK = 180
 
 const INSIGHTS_RANGE_OPTIONS: { value: InsightsRangePreset; code: string; label: string }[] = [
@@ -108,8 +109,10 @@ function GlassRangeSelector({
   growUp,
 }: GlassRangeSelectorProps) {
   const [open, setOpen] = useState(false)
-  const [collapsedWidth, setCollapsedWidth] = useState(COLLAPSED_WIDTH_FALLBACK)
+  const [collapsedWidth, setCollapsedWidth] = useState<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const headRef = useRef<HTMLButtonElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
   // Scopes the sliding-thumb layout animation to this instance so the mobile and desktop pills
   // never animate their selection highlight into each other
   const segId = useId()
@@ -128,14 +131,23 @@ function GlassRangeSelector({
   const transition = shouldReduceMotion ? { duration: 0 } : glassSpring
 
   // Pins the collapsed desktop pill to its text width, since fit-content would otherwise include
-  // the hidden panel's width. Remeasured on label or date change via the key on the text column
+  // the hidden panel's width. Remeasured on label or date change via the key on the text column,
+  // and whenever the column resizes: a page opened narrower hides the desktop pill, where its text
+  // measures as nothing until the window widens and shows it, so a hidden pill keeps the width it had
   const measureLabel = useCallback((node: HTMLSpanElement | null) => {
-    if (!node) return
+    if (!node) return undefined
+
     // A clipped nowrap line still reports its full text width through scrollWidth, so the
     // collapsed pill is sized to whichever of the label or the resolved dates is wider rather
     // than letting the shrinking flex column under-measure it
-    const widest = Math.max(...Array.from(node.children, (line) => line.scrollWidth))
-    setCollapsedWidth(Math.ceil(widest) + COLLAPSED_HEAD_CHROME)
+    const measure = () => {
+      const widest = Math.max(...Array.from(node.children, (line) => line.scrollWidth))
+      if (widest > 0) setCollapsedWidth(Math.ceil(widest) + COLLAPSED_HEAD_CHROME)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(node)
+    return () => observer.disconnect()
   }, [])
 
   /**
@@ -146,6 +158,8 @@ function GlassRangeSelector({
     setOpen(false)
     onRevertSelection()
   }, [onRevertSelection])
+
+  useFocusHeadOnClose(open, bodyRef, headRef)
 
   // The panel dismisses on an outside press or Escape so a stale open control never lingers
   useEffect(() => {
@@ -204,6 +218,12 @@ function GlassRangeSelector({
 
   return (
     <motion.div
+      // A window widening to show a pill that was hidden measures it a frame after it shows, so the
+      // sidebar pill stays out of sight until then and takes that first width at once rather than
+      // springing to it from the fallback
+      key={collapsedWidth === null ? 'unmeasured' : 'measured'}
+      initial={false}
+      style={!fullWidth && collapsedWidth === null ? { visibility: 'hidden' } : undefined}
       ref={containerRef}
       className={joinClassNames(
         'app-range-glass',
@@ -211,11 +231,15 @@ function GlassRangeSelector({
         fullWidth && 'app-range-glass-full',
         growUp && 'app-range-glass-up',
       )}
-      animate={fullWidth ? undefined : { width: open ? OPEN_DESKTOP_WIDTH : collapsedWidth }}
+      animate={fullWidth ? undefined : { width: open ? OPEN_DESKTOP_WIDTH : collapsedWidth ?? COLLAPSED_WIDTH_FALLBACK }}
       transition={transition}
       whileTap={open || shouldReduceMotion ? undefined : { scale: 0.94 }}
+      // A press animation makes Motion put the frame in the Tab order unless it already has a place
+      // there, and the button inside is the one stop the control needs
+      tabIndex={-1}
     >
       <button
+        ref={headRef}
         type="button"
         className="app-range-glass-head"
         aria-expanded={open}
@@ -246,7 +270,9 @@ function GlassRangeSelector({
         </motion.span>
       </button>
 
-      <div className="app-range-glass-bodywrap">
+      {/* Closed, the panel stays mounted at no height and fully faded, so it is kept out of focus and
+          the accessibility tree until the control opens */}
+      <div ref={bodyRef} className="app-range-glass-bodywrap" inert={!open}>
         <div className="app-range-glass-body">
           <div className="app-range-glass-inner">
             <p className="mb-2 ml-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
@@ -280,7 +306,8 @@ function GlassRangeSelector({
 
             {!isCustom && <p className="app-range-dates">{appliedRangeLabel}</p>}
 
-            <div className={joinClassNames('app-range-custom', isCustom && 'app-range-custom-open')}>
+            {/* The builder folds away the same way while another preset is picked */}
+            <div className={joinClassNames('app-range-custom', isCustom && 'app-range-custom-open')} inert={!isCustom}>
               <div className="app-range-custom-inner">
                 <RelativeRangeBuilder
                   amount={draftAmount}

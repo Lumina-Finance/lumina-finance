@@ -194,7 +194,7 @@ export default function TransactionListToolbar({
     <>
       <ToolbarStickyShell
         toolbarRef={shell.toolbarRef}
-        mobileSearchStickySentinelRef={shell.mobileSearchStickySentinelRef}
+        topRowSentinelRef={shell.topRowSentinelRef}
         toolbarStuckSentinelRef={shell.toolbarStuckSentinelRef}
         desktopInlineLayout={shell.desktopInlineLayout}
         isToolbarStuck={shell.isToolbarStuck}
@@ -204,7 +204,7 @@ export default function TransactionListToolbar({
           onValueChange={onSearchChange}
           onSubmit={onSearchSubmit}
           placeholder="Search transactions..."
-          wrapperClassName={getSearchFieldWrapperClassName(shell.mobileSearchStuck, shell.desktopInlineLayout)}
+          wrapperClassName={getSearchFieldWrapperClassName(shell.isTopRowAtMenuButton,shell.desktopInlineLayout)}
         />
 
         {/* Query this row's available width, including on an account page. Each threshold reserves
@@ -259,6 +259,7 @@ export default function TransactionListToolbar({
           filterGroupRef={shell.filterGroupRef}
           createMeasureRef={shell.createMeasureRef}
           desktopInlineLayout={shell.desktopInlineLayout}
+          isTopRowAtMenuButton={shell.isTopRowAtMenuButton}
           desktopCreateStacked={shell.desktopCreateStacked}
           filterPanel={
             // Both go in the filter slot rather than beside the create button, because the layout

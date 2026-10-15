@@ -6,7 +6,7 @@ import { logInViaApi, openModal, openPage } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
 // Runs on desktop only, apart from the focus ring on each kind of control, which runs at every
-// size: the toolbar changes below 750px
+// size: the toolbar changes below 750px. The date-range control tests set their own sizes
 
 /**
  * Guards the keyboard focus indicator. It used to be a tint at about a tenth of the accent's strength,
@@ -273,6 +273,94 @@ test('shows the whole keyboard focus ring on a range selector option', async ({ 
   await focusFromKeyboard(page, option)
   await expectSharedRing(option, 'outline', '0px')
 })
+
+// The date-range controls built on the glass pill, the Insights one on a wide page and a dashboard
+// widget's on a phone, have a press animation that used to put their frame in the Tab order as a
+// silent stop before the button. Motion stays on, since the press animation is what made the frame a stop
+for (const { where, path, width, height, name } of [
+  { where: 'Insights', path: '/insights', width: 1280, height: 800, name: /^Insights date range: / },
+  { where: 'a dashboard widget on a phone', path: '/dashboard', width: 390, height: 844, name: /^Breakdown range: / },
+]) {
+  test(`reaches the date-range control on ${where} in one Tab stop with visible focus`, async ({ page, request }) => {
+    await page.setViewportSize({ width, height })
+    await seedOneTransaction(page, request)
+    await openPage(page, path)
+    const head = page.getByRole('button', { name }).filter({ visible: true })
+    const insideFrame = () => head.evaluate((node) => node.parentElement!.contains(document.activeElement))
+
+    await focusFromKeyboard(page, head)
+    await page.keyboard.press('Shift+Tab')
+    expect(await insideFrame()).toBe(false)
+    await page.keyboard.press('Tab')
+    await expect(head).toBeFocused()
+    // Shown on the glass's own border, like every bordered control
+    await expectSharedRing(head, 'border')
+    await page.keyboard.press('Enter')
+    await expect(head).toHaveAttribute('aria-expanded', 'true')
+
+    // A pointer press opens it without a ring
+    await page.keyboard.press('Escape')
+    await expect(head).toHaveAttribute('aria-expanded', 'false')
+    await openPage(page, path)
+    await head.click()
+    await expect(head).toHaveAttribute('aria-expanded', 'true')
+    expect(await readFocusRing(head)).toBeNull()
+  })
+}
+
+// A closed date-range control keeps its options mounted at no height and fully faded, where they used
+// to stay in the Tab order as a run of invisible stops after the button
+for (const { where, path, width, height, name, list, loaded } of [
+  { where: 'a dashboard widget on a phone', path: '/dashboard', width: 390, height: 844, name: /^Breakdown range: /, list: 'listbox', loaded: 'Spending breakdown FX status' },
+  { where: 'Insights', path: '/insights', width: 1280, height: 800, name: /^Insights date range: /, list: 'tablist', loaded: 'Income and expense FX status' },
+  { where: 'Insights on a phone', path: '/insights', width: 390, height: 844, name: /^Insights date range: /, list: 'tablist', loaded: 'Income and expense FX status' },
+] as const) {
+  test(`keeps the closed date-range control's options on ${where} out of the Tab order`, async ({ page, request }) => {
+    await page.setViewportSize({ width, height })
+    await seedOneTransaction(page, request)
+    await openPage(page, path)
+    const head = page.getByRole('button', { name }).filter({ visible: true })
+    const insideFrame = () => head.evaluate((node) => node.parentElement!.contains(document.activeElement))
+    // The stops after the button belong to a card that shows placeholders until its figures load, and
+    // the loaded card puts new stops, such as its chart or FX badge, ahead of the one a Tab reached. So
+    // wait for its FX badge, which comes with its figures
+    await expect(page.getByRole('button', { name: loaded })).toBeVisible()
+
+    await focusFromKeyboard(page, head)
+    await page.keyboard.press('Tab')
+    expect(await insideFrame()).toBe(false)
+    await page.keyboard.press('Shift+Tab')
+    await expect(head).toBeFocused()
+
+    // Open, its options follow the button in order
+    await page.keyboard.press('Enter')
+    await expect(head).toHaveAttribute('aria-expanded', 'true')
+    const options = head.locator('..').getByRole(list).first().getByRole(list === 'tablist' ? 'tab' : 'option')
+    await page.keyboard.press('Tab')
+    await expect(options.first()).toBeFocused()
+    // Nothing the open panel folds away, such as a custom range builder, is a stop after them
+    for (let stop = await options.count(); stop > 0; stop--) await page.keyboard.press('Tab')
+    expect(await insideFrame()).toBe(false)
+    await page.keyboard.press('Shift+Tab')
+    await expect(options.last()).toBeFocused()
+
+    // Closing from inside hands focus back to the button, and the options leave the Tab order again
+    await page.keyboard.press('Escape')
+    await expect(head).toHaveAttribute('aria-expanded', 'false')
+    await expect(head).toBeFocused()
+    await page.keyboard.press('Tab')
+    expect(await insideFrame()).toBe(false)
+
+    // Picking a range closes it the same way
+    await page.keyboard.press('Shift+Tab')
+    await page.keyboard.press('Enter')
+    await page.keyboard.press('Tab')
+    await expect(options.first()).toBeFocused()
+    await page.keyboard.press('Enter')
+    await expect(head).toHaveAttribute('aria-expanded', 'false')
+    await expect(head).toBeFocused()
+  })
+}
 
 // A bordered button built from utilities, such as the Settings section menu, shows focus on its own
 // border alone, with no ring around it as well

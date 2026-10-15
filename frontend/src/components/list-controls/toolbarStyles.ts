@@ -32,16 +32,35 @@ export const FILTER_PANEL_RETRACT_TRANSITION: Transition = {
 export const FILTER_GLASS_SPRING = { type: 'spring', stiffness: 420, damping: 34, mass: 0.9 } as const
 
 /**
- * Builds the search field's responsive wrapper classes: room for the fixed mobile navigation toggle
- * while the mobile search row is stuck, and letting the field grow inline once the desktop toolbar
- * fits search, filters, and create on one row
+ * Builds the classes that move whichever control ends the toolbar's top row clear of the fixed mobile
+ * navigation toggle while the row is stuck below the 1050px breakpoint. The `mr-14` is
+ * `MOBILE_NAVIGATION_TOGGLE_CLEARANCE_PX`, which the layout hook counts in pixels
  */
-export function getSearchFieldWrapperClassName(mobileSearchStuck: boolean, desktopInlineLayout: boolean): string {
+function getMenuButtonClearanceClassName(isClearing: boolean): string {
   return joinClassNames(
     'transition-[margin-right] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
-    mobileSearchStuck ? 'max-[1050px]:mr-14' : 'max-[1050px]:mr-0',
+    isClearing ? 'max-[1050px]:mr-14' : 'max-[1050px]:mr-0',
+  )
+}
+
+/**
+ * Builds the search field's responsive wrapper classes: room for the fixed mobile navigation toggle
+ * while the toolbar is stuck and the field ends its top row, and letting the field grow inline once
+ * the desktop toolbar fits search, filters, and create on one row, where the controls take that room
+ */
+export function getSearchFieldWrapperClassName(isTopRowAtMenuButton: boolean, desktopInlineLayout: boolean): string {
+  return joinClassNames(
+    getMenuButtonClearanceClassName(isTopRowAtMenuButton && !desktopInlineLayout),
     desktopInlineLayout && 'min-[750px]:min-w-80 min-[750px]:flex-1',
   )
+}
+
+/**
+ * Builds the desktop controls' room for the fixed mobile navigation toggle, which they need only while
+ * the toolbar is stuck on one row, the create button then ending the row under the toggle
+ */
+export function getDesktopControlsClearanceClassName(isTopRowAtMenuButton: boolean, desktopInlineLayout: boolean): string {
+  return getMenuButtonClearanceClassName(isTopRowAtMenuButton && desktopInlineLayout)
 }
 
 /**

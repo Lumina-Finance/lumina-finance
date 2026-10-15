@@ -3,7 +3,7 @@ import { getToolbarStickyRowClass, getToolbarStuckShadow } from '@/components/li
 
 type ToolbarStickyShellProps = {
   toolbarRef: RefObject<HTMLDivElement | null>
-  mobileSearchStickySentinelRef: RefObject<HTMLDivElement | null>
+  topRowSentinelRef: RefObject<HTMLDivElement | null>
   toolbarStuckSentinelRef: RefObject<HTMLDivElement | null>
   desktopInlineLayout: boolean
   isToolbarStuck: boolean
@@ -18,7 +18,7 @@ type ToolbarStickyShellProps = {
  */
 export function ToolbarStickyShell({
   toolbarRef,
-  mobileSearchStickySentinelRef,
+  topRowSentinelRef,
   toolbarStuckSentinelRef,
   desktopInlineLayout,
   isToolbarStuck,
@@ -26,7 +26,7 @@ export function ToolbarStickyShell({
 }: ToolbarStickyShellProps) {
   return (
     <>
-      <div ref={mobileSearchStickySentinelRef} aria-hidden className="h-px min-[1050px]:hidden" />
+      <div ref={topRowSentinelRef} aria-hidden className="h-px min-[1050px]:hidden" />
       <div ref={toolbarStuckSentinelRef} aria-hidden className="h-px max-[1050px]:hidden" />
       <div
         ref={toolbarRef}

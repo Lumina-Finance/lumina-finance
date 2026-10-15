@@ -16,6 +16,7 @@ import {
   type FilterPanelDirection,
   type FilterPanelHorizontalPlacement,
 } from '@/components/list-controls/filterPanelPlacement'
+import { useFocusHeadOnClose } from '@/hooks/useFocusHeadOnClose'
 import { joinClassNames } from '@/utils/classNames'
 import { isFloatingLayerOpen, isInsideFloatingLayer } from '@/utils/floatingLayer'
 
@@ -188,11 +189,7 @@ export function FilterGlassPanel({
     }
   }, [open, openWidth])
 
-  // Closing makes the body inert, which would drop focus held inside it to the page, so focus goes
-  // back to the pill that opened it
-  useLayoutEffect(() => {
-    if (!open && bodyViewportRef.current?.contains(document.activeElement)) headRef.current?.focus()
-  }, [open])
+  useFocusHeadOnClose(open, bodyViewportRef, headRef)
 
   // An outside press or Escape dismisses the panel and discards the draft
   useEffect(() => {
