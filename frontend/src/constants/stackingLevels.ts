@@ -51,14 +51,14 @@ export const STACKING_LEVELS = {
   stackedModal: 100,
 
   /**
-   * A layer opened from a control and positioned against it: the calendar, an open drop-down, the
+   * A layer opened from a control and positioned against it: the calendar, an open dropdown, the
    * category icon picker. Above every dialog, because one opened inside a dialog is portalled beside
    * it rather than into its panel, and at an equal level document order would decide
    */
   popover: 110,
 
   /**
-   * A toast, above any popover, so a message that arrives while a drop-down happens to be open is
+   * A toast, above any popover, so a message that arrives while a dropdown happens to be open is
    * not hidden behind the list
    */
   toast: 115,

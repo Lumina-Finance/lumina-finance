@@ -61,7 +61,7 @@ function SummaryRow({ label, value, detail }: { label: string; value: string; de
  *
  * The box eases between its own measured heights as a row appears, settles or leaves, rather than
  * jumping in one frame, and the content-sized panel around it follows along. The panel itself is
- * never animated, since the drop-downs inside it track their trigger while it is open and a moving
+ * never animated, since the dropdowns inside it track their trigger while it is open and a moving
  * panel would carry them out of place. Rows are keyed by their label and notes and warnings by
  * their kind, so a count changing in place rewrites a line's text without replaying its entrance.
  * Warnings sit under a rule below the rows and notes, since they are what holds Apply disabled

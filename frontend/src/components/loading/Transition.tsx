@@ -17,7 +17,7 @@ export const loadingVisibilityCss = `${LOADING_VISIBILITY_MS}ms cubic-bezier(${L
  *
  * Revealed content carries no filter at all rather than a resting `blur(0px)`, because any filter
  * makes this element the box a `position: fixed` descendant is measured from, which would open a
- * drop-down inside it away from the control it belongs to. Getting there means the browser's own
+ * dropdown inside it away from the control it belongs to. Getting there means the browser's own
  * transition rather than a motion animation, since motion keeps writing the value it settled on
  */
 export function LoadingContent({

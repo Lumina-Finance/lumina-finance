@@ -76,7 +76,7 @@ export interface DropdownBoxPosition {
  *
  * The box is re-measured on every frame it is open, because the page under it can move without
  * scrolling or resizing: a modal that grows re-centres itself, which slides every field in it. Most
- * of those frames find nothing changed, and this is what lets the drop-down keep the placement
+ * of those frames find nothing changed, and this is what lets the dropdown keep the placement
  * object it already has rather than re-rendering the whole control sixty times a second.
  */
 export function isSameDropdownBoxPosition(

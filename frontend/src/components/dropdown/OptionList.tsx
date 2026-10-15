@@ -116,7 +116,7 @@ function DropdownOptionRow({
 }
 
 /**
- * Renders drop-down options, grouped headers, empty text, and loading status inside the scrollable listbox
+ * Renders dropdown options, grouped headers, empty text, and loading status inside the scrollable listbox
  */
 export function DropdownOptionList({
   effectiveHighlightedIndex,

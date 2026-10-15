@@ -49,7 +49,7 @@ const SIZE_CLASS: Record<DropdownSize, string> = {
 }
 
 /**
- * Renders the head of the drop-down, which shows the current value and opens the list
+ * Renders the head of the dropdown, which shows the current value and opens the list
  *
  * It sits inside the box rather than being the box, so the border, background and corner belong to
  * the box and grow with it while this stays the same height throughout.

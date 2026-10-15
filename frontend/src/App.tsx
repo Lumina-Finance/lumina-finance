@@ -218,7 +218,7 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
               transform on the wrapper below is the only thing containing the in-page ones, and that
               exists just while a route transition animates, so one could reach the top of the page at
               rest and paint over chrome it belongs under. It scopes painting alone: a fixed child
-              still measures against the viewport, which keeps an open drop-down where it was placed */}
+              still measures against the viewport, which keeps an open dropdown where it was placed */}
           <main
             id="app-page-content"
             className={`min-w-0 flex-1 isolate ${isFocusedPage ? 'fixed inset-0 z-focused-page p-0' : `relative px-4 pb-8 pt-6 ${navOffsetClass} min-[1050px]:px-6 ${desktopBottomPadding} min-[1050px]:pt-10 transition-[margin] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none`}`}

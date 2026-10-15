@@ -67,7 +67,7 @@
     --app-label-compact-size: 0.75rem;
   }
 
-  /* Every value the shared drop-down's look depends on, gathered here so it can be tuned by editing
+  /* Every value the shared dropdown's look depends on, gathered here so it can be tuned by editing
      numbers. It sits here, in this layer and above the dark block, so a theme can override any of
      them: from a later layer, or from below, the override would lose. One thing lives elsewhere: the
      geometry placing the open box is in components/dropdown/position.ts, because it is computed in
@@ -76,7 +76,7 @@
   :root {
     --app-dropdown-height-compact: 36px;
     --app-dropdown-height-field: 40px;
-    /* The same corner the text inputs carry, so a drop-down and the field beside it match */
+    /* The same corner the text inputs carry, so a dropdown and the field beside it match */
     --app-dropdown-radius: 0.5rem;
 
     --app-dropdown-padding-x: 16px;
@@ -112,7 +112,7 @@
     --app-dropdown-open-duration: 0.45s;
 
     /* Shorter than the opening, and deliberately shorter than a modal takes to leave, which is 0.25s.
-       A drop-down is often closed by dismissing whatever holds it, and one still folding itself away
+       A dropdown is often closed by dismissing whatever holds it, and one still folding itself away
        after that has gone is left hanging over the page it belonged to */
     --app-dropdown-close-duration: 0.2s;
   }
@@ -1242,7 +1242,7 @@
     border: 1px solid var(--app-border);
   }
 
-  /* The segmented toggles adopt the accent colours of the theme switcher and of a chosen drop-down
+  /* The segmented toggles adopt the accent colours of the theme switcher and of a chosen dropdown
      option, so the insights range presets, the This/Last/Past qualifier and the filter tabs all read
      as the same control */
   .app-range-seg-option {
@@ -1392,7 +1392,7 @@
     animation: import-auto-fill-row 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }
 
-  /* Sets no radius of its own, so the glow follows the corners of whatever it marks. A drop-down
+  /* Sets no radius of its own, so the glow follows the corners of whatever it marks. A dropdown
      carries the pill's radius and a plain wrapper sets its own */
   .import-auto-fill-field {
     animation: import-auto-fill-field 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;

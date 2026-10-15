@@ -1,7 +1,7 @@
 /**
- * What a key press asks the drop-down to do, with the state it lands on already worked out
+ * What a key press asks the dropdown to do, with the state it lands on already worked out
  *
- * `none` still has to say whether the key is swallowed. A key the drop-down ignores but does not
+ * `none` still has to say whether the key is swallowed. A key the dropdown ignores but does not
  * swallow reaches the browser, which scrolls the page on an arrow and activates the focused pill on
  * Space or Enter, so ignoring a key and letting it through are different answers.
  */
@@ -73,7 +73,7 @@ export function getOpeningHighlight(optionDisabled: readonly boolean[], selected
 }
 
 /**
- * Resolves a key press against the drop-down's current state
+ * Resolves a key press against the dropdown's current state
  *
  * Holds the whole keyboard policy so it can be tested without a DOM: which keys open the menu, where
  * the highlight lands, and which key commits a choice.

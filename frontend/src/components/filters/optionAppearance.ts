@@ -6,7 +6,7 @@ import type { CSSProperties } from 'react'
  * selection colours
  *
  * The control that chooses which filter tab is showing no longer takes its selected look from here,
- * since it is drawn by the shared drop-down, which carries the same colours in its own styles
+ * since it is drawn by the shared dropdown, which carries the same colours in its own styles
  */
 export function getFilterOptionStyle(selected: boolean): CSSProperties {
   return {

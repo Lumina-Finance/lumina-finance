@@ -1,5 +1,5 @@
 /**
- * How the drop-down moves
+ * How the dropdown moves
  *
  * The box's height is a CSS transition in tailwind.css, since it animates to a height nobody
  * measured. What is here is everything driven by motion instead: the chevron, the press, the width

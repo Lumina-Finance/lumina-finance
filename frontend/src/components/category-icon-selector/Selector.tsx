@@ -332,7 +332,7 @@ function EmojiMartIconPicker({
       role="dialog"
       aria-label={`Select ${categoryName} icon`}
       style={{
-        // Takes the drop-down panel's corner and edge so it reads as the same family, but keeps a
+        // Takes the dropdown panel's corner and edge so it reads as the same family, but keeps a
         // solid background of its own, in the two colours the emoji grid is themed to. The grid is
         // dense enough that anything showing through it would cost legibility
         background: isDark ? 'rgb(15, 14, 12)' : 'rgb(242, 237, 228)',

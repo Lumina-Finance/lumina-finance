@@ -387,7 +387,7 @@ const Dropdown = ({
 
     switch (action.kind) {
       case 'none':
-        // A key the drop-down ignores still has to be held when letting it through would scroll the
+        // A key the dropdown ignores still has to be held when letting it through would scroll the
         // page or activate the head under the open list
         if (action.swallow) e.preventDefault();
         break;
@@ -510,7 +510,7 @@ const Dropdown = ({
         {/* Held out of reach while the box is shut, and gone entirely once it has finished shutting.
             A clipped list is still a list: its options stay in the accessibility tree and its search
             field and create action stay in the page's tab order, so a modal holding four closed
-            drop-downs would put eight invisible stops between its first field and its save button */}
+            dropdowns would put eight invisible stops between its first field and its save button */}
         <div
           className="app-dropdown-bodywrap"
           inert={open ? undefined : true}
