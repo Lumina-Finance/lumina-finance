@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
 import { EyeOff } from 'lucide-react'
+import { useRevealWhenGrown } from '@/pages/accounts/detail/hooks/useRevealWhenGrown'
 import {
   ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON,
   EDIT_ACCOUNT_IDENTITY_FIELD_IDS,
@@ -33,14 +33,7 @@ export function AccountArchiveSection({
   currency,
   onToggle,
 }: AccountArchiveSectionProps) {
-  const warningRef = useRef<HTMLDivElement>(null)
-  const shouldReduceMotion = useReducedMotion()
-  // Read when an animation ends rather than captured with it, since the warning on its way out keeps the
-  // props it last rendered with
-  const isArchivingRef = useRef(isArchiving)
-  useEffect(() => {
-    isArchivingRef.current = isArchiving
-  }, [isArchiving])
+  const { ref: warningRef, reveal: revealWarning } = useRevealWhenGrown<HTMLDivElement>(isArchiving)
 
   return (
     <EditModalSection number={sectionNumber} title="Archive">
@@ -110,10 +103,7 @@ export function AccountArchiveSection({
             transition={{ duration: 0.18, ease: EASE }}
             // It grows in at the foot of the dialog's scrolling body, so once it has, the body follows it as far
             // as it needs to for the whole warning to be read above the footer
-            onAnimationComplete={() => {
-              if (!isArchivingRef.current) return
-              warningRef.current?.scrollIntoView({ behavior: shouldReduceMotion ? 'auto' : 'smooth', block: 'nearest' })
-            }}
+            onAnimationComplete={revealWarning}
           >
             <ArchiveBalanceWarning balance={currentBalance} currency={currency} />
           </motion.div>

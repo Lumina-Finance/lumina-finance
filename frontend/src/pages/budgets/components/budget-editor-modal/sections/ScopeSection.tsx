@@ -4,6 +4,7 @@ import { CurrencyUnavailableTooltip } from '@/components/currency/CurrencyUnavai
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
 import BudgetEditorFieldLabelRow from '@/pages/budgets/components/shared/EditorFieldLabelRow'
+import { budgetFieldErrorId } from '@/pages/budgets/utils/form'
 import { getCurrencyExponent, getMoneyPlaceholder } from '@/utils/moneyInput'
 import {
   CURRENCY_LIST_LOADING,
@@ -89,6 +90,8 @@ export default function BudgetEditorModalScopeSection({
             onChange={(event) => setField('name', event.target.value)}
             onBlur={() => onBlur('name')}
             disabled={fieldsLocked}
+            aria-invalid={showError('name') ? true : undefined}
+            aria-describedby={showError('name') ? budgetFieldErrorId(ids.name) : undefined}
           />
         </div>
 
@@ -135,6 +138,7 @@ export default function BudgetEditorModalScopeSection({
                 value={form.currency}
                 onChange={(value) => setField('currency', value)}
                 hasError={!!showError('currency')}
+                describedBy={showError('currency') ? budgetFieldErrorId(ids.currency) : undefined}
                 placeholder={currencies.length === 0 ? 'Loading currencies...' : 'Select currency...'}
                 searchable
                 searchPlaceholder="Search currencies..."
@@ -167,6 +171,8 @@ export default function BudgetEditorModalScopeSection({
                 className={`app-input disabled:cursor-not-allowed disabled:opacity-60 ${selectedCurrencySymbol ? 'pl-8' : ''} ${showError('limit') ? 'app-input-error' : ''}`}
                 placeholder={isLimitLocked ? undefined : limitPlaceholder ?? getMoneyPlaceholder(limitExponent)}
                 disabled={limitDisabled || fieldsLocked || isLimitLocked}
+                aria-invalid={showError('limit') ? true : undefined}
+                aria-describedby={showError('limit') ? budgetFieldErrorId(ids.limit) : undefined}
                 {...limitInput}
               />
             </div>

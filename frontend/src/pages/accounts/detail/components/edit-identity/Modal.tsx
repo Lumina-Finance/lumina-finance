@@ -20,6 +20,7 @@ import {
   fromMinorUnits,
 } from '@/utils/moneyInput'
 import { ACTION_LOADING_MIN_MS, LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
+import { EDIT_ACCOUNT_IDENTITY_FIELD_IDS } from '@/pages/accounts/detail/constants/accountDetail'
 import {
   createIdentityFormValues,
   getIdentityFieldErrors,
@@ -210,12 +211,16 @@ export default function EditAccountIdentityModal({
 
   /**
    * Converts a delete intent into an archive edit so the form remains the source of the pending change
+   *
+   * The pressed button leaves with the panel, so focus moves to the switch it turned on, beside the
+   * warning that says what archiving records
    */
   const handleArchiveInstead = () => {
     setDeleteError(null)
     setDeleteNameInput('')
     setDeleteStage('idle')
     setField('is_archived', true)
+    document.getElementById(EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archive)?.focus()
   }
 
   /**

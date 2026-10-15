@@ -1,6 +1,9 @@
+import { useId } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { AlertTriangle, EyeOff } from 'lucide-react'
 import type { Account } from '@/api/accounts'
+import { getFocusableElements } from '@/components/modal/focus'
+import { useRevealWhenGrown } from '@/pages/accounts/detail/hooks/useRevealWhenGrown'
 import {
   EDIT_ACCOUNT_IDENTITY_FIELD_IDS,
   EASE,
@@ -40,10 +43,24 @@ export function DeleteAccountPanel({
   onDelete,
   onNameChange,
 }: DeleteAccountPanelProps) {
+  const questionId = useId()
+  const { ref: panelRef, reveal: revealPanel } = useRevealWhenGrown<HTMLDivElement>(deleteStage !== 'idle')
+
+  // The trash button that opens the panel and the Continue button that leads on are gone once pressed, so
+  // each step that grows in takes focus on its first control rather than leaving it on the page
+  const revealStep = () => {
+    const panel = revealPanel()
+    if (panel) getFocusableElements(panel)[0]?.focus({ preventScroll: true })
+  }
+
   return (
     <AnimatePresence initial={false}>
       {deleteStage !== 'idle' && (
         <motion.div
+          ref={panelRef}
+          role="group"
+          aria-labelledby={questionId}
+          onAnimationComplete={revealStep}
           className="overflow-hidden"
           initial={{ height: 0, marginTop: 0, opacity: 0 }}
           animate={{ height: 'auto', marginTop: 20, opacity: 1 }}
@@ -67,7 +84,7 @@ export function DeleteAccountPanel({
                 <AlertTriangle size={13} aria-hidden />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="break-words text-sm font-semibold leading-5">
+                <p id={questionId} className="break-words text-sm font-semibold leading-5">
                   Delete {account.name}?
                 </p>
                 <p className="mt-0.5 text-sm leading-5" style={{ color: 'var(--app-text-muted)' }}>
@@ -115,6 +132,7 @@ export function DeleteAccountPanel({
                     ) : (
                       <motion.div
                         key="type-name"
+                        onAnimationComplete={revealStep}
                         className="overflow-hidden"
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}

@@ -10,6 +10,7 @@ import BudgetEditorModalScopeSection from '@/pages/budgets/components/budget-edi
 import BudgetEditorModalShell from '@/pages/budgets/components/budget-editor-modal/layout/Shell'
 import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
 import { CREATE_BUDGET_MIN_LOADING_MS, MODAL_SURFACE_TRANSITION_MS } from '@/pages/budgets/constants'
+import { useRevealFirstRefusedField } from '@/pages/budgets/hooks/useRevealFirstRefusedField'
 import type { BudgetFormFieldErrors, BudgetFormState } from '@/pages/budgets/types'
 import { recurrenceAnchorsFromStart } from '@/pages/budgets/utils/budgetPeriods'
 import { validateBudgetCreateForm } from '@/pages/budgets/utils/budgetCreateValidation'
@@ -51,6 +52,7 @@ export default function BudgetCreateModal({
   onCreated: () => void
 }) {
   const createBaseBudget = useCreateBaseBudget()
+  const revealFirstRefusedField = useRevealFirstRefusedField(CREATE_FIELD_IDS)
 
   const initialForm = useMemo<BudgetFormState>(() => ({
     name: '',
@@ -201,6 +203,7 @@ export default function BudgetCreateModal({
       categoryIds: true,
     })
     if (Object.keys(errors).length > 0 || limitMinorUnits === null || !hasSelectedExpenseCategory) {
+      revealFirstRefusedField(errors)
       return
     }
 

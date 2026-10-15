@@ -82,7 +82,7 @@ export default function BudgetEditorModalCategorySection({
                       exit={{ height: 0, opacity: 0 }}
                       transition={{ duration: 0.18, ease: EASE }}
                     >
-                      <p className="mb-1.5 text-xs font-medium leading-5" style={{ color: 'var(--app-negative)' }}>
+                      <p id={ids.categoryError} className="mb-1.5 text-xs font-medium leading-5" style={{ color: 'var(--app-negative)' }}>
                         {categoryIdsError}
                       </p>
                     </motion.div>
@@ -100,6 +100,8 @@ export default function BudgetEditorModalCategorySection({
               placeholder="Search categories..."
               wrapperClassName="mt-3"
               disabled={fieldsLocked}
+              invalid={Boolean(categoryIdsError)}
+              describedBy={categoryIdsError ? ids.categoryError : undefined}
             />
             <div className="relative mb-1 mt-3 min-h-0 min-[1050px]:flex-1">
               <motion.div

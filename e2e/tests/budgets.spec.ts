@@ -7,14 +7,14 @@ import {
   createTransaction,
   signUpUser,
 } from '../support/api'
-import { openPage, logInViaApi, openModal } from '../support/app'
+import { openPage, logInViaApi, openModal, readScrollingBox, readSettledScrollingBox } from '../support/app'
 import { expectPendingAction, whileApiRequestHeld } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
 // Runs on desktop only, apart from the month boundary and Edit Budget buttons tests, which run at
 // every size: the period history turns from a table into cards, and the buttons into halves on a
-// phone
+// phone. The tests of a refused Create Budget set each size they check themselves
 
 // Format stored calendar dates without applying the test runner's own timezone
 const PERIOD_DATE = new Intl.DateTimeFormat('en-CA', {
@@ -149,4 +149,98 @@ test('shows the Edit Budget Cancel and Save Changes buttons in one row, as halve
   expect(Math.abs(save.y - cancel.y)).toBeLessThan(2)
   expect(cancel.x).toBeLessThan(save.x)
   if (page.viewportSize()!.width < 640) expect(Math.abs(save.width - cancel.width)).toBeLessThan(2)
+})
+
+// On a phone the dialog's fields stack in one column, so the categories sit below what the dialog shows
+// first, and on a laptop everything fits
+const REFUSED_CREATE_SIZES = [
+  { width: 393, height: 852, startsOutOfView: true },
+  { width: 390, height: 667, startsOutOfView: true },
+  { width: 1280, height: 800, startsOutOfView: false },
+]
+
+const PHONE_SIZE = { width: 393, height: 852 }
+
+test('brings the missing category message into view when Create Budget is refused', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+
+  for (const { startsOutOfView, ...size } of REFUSED_CREATE_SIZES) {
+    const at = `${size.width}×${size.height}`
+    await page.setViewportSize(size)
+    await openPage(page, '/budgets')
+    const dialog = await openModal(page, ['New Budget'], 'Add Budget')
+    await dialog.getByLabel('Name', { exact: true }).fill('Groceries budget')
+    await dialog.getByLabel('Limit', { exact: true }).fill('500')
+    const search = dialog.getByPlaceholder('Search categories...', { exact: true })
+    if (startsOutOfView) await expect(search, `search at ${at} before`).not.toBeInViewport()
+
+    await dialog.getByTestId('budget-submit').click()
+
+    // The scrolling body ends at the footer, so a message under the footer is cut off and not on screen
+    const message = dialog.getByText('Select at least one category', { exact: true })
+    await expect.soft(message, `message at ${at}`).toBeInViewport({ ratio: 1 })
+    await expect.soft(search, `focus at ${at}`).toBeFocused()
+    await expect.soft(search, `description at ${at}`).toHaveAccessibleDescription('Select at least one category')
+    // Still all on screen once the message has grown to its full height and the scroll has ended
+    await expect.poll(() => message.evaluate((element) => getComputedStyle(element.parentElement!).opacity)).toBe('1')
+    await readSettledScrollingBox(message)
+    await expect.soft(message, `message at ${at} once settled`).toBeInViewport({ ratio: 1 })
+  }
+})
+
+test('brings the first refused field into view when Create Budget is refused for several', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await page.setViewportSize(PHONE_SIZE)
+  await logInViaApi(page, user)
+  await openPage(page, '/budgets')
+  const dialog = await openModal(page, ['New Budget'], 'Add Budget')
+  const name = dialog.getByLabel('Name', { exact: true })
+  const limit = dialog.getByLabel('Limit', { exact: true })
+  const search = dialog.getByPlaceholder('Search categories...', { exact: true })
+
+  // An empty name comes first. Focusing the search scrolls the dialog down to the categories, so the
+  // name starts out of sight
+  await limit.fill('500')
+  await search.focus()
+  await expect(name).not.toBeInViewport()
+  await dialog.getByTestId('budget-submit').click()
+  await expect(name).toBeFocused()
+  await expect(name).toHaveAccessibleDescription('Name is required')
+  await expect(dialog.getByText('Name is required', { exact: true })).toBeInViewport({ ratio: 1 })
+
+  // With the name given, an empty limit comes before the missing category
+  await name.fill('Groceries budget')
+  await limit.fill('')
+  await search.focus()
+  await expect(limit).not.toBeInViewport()
+  await dialog.getByTestId('budget-submit').click()
+  await expect(limit).toBeFocused()
+  await expect(limit).toHaveAccessibleDescription('Limit must be greater than zero')
+  await expect(dialog.getByText('Limit must be greater than zero', { exact: true })).toBeInViewport({ ratio: 1 })
+})
+
+test('creates a valid budget on a phone without scrolling the dialog', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await page.setViewportSize(PHONE_SIZE)
+  await logInViaApi(page, user)
+  await openPage(page, '/budgets')
+  const dialog = await openModal(page, ['New Budget'], 'Add Budget')
+  const name = 'Phone budget'
+  await dialog.getByLabel('Name', { exact: true }).fill(name)
+  await dialog.getByLabel('Limit', { exact: true }).fill('500')
+  const groceries = dialog.getByRole('button', { name: 'Groceries', exact: true })
+  await groceries.click()
+  const before = await readScrollingBox(groceries)
+
+  const submit = dialog.getByTestId('budget-submit')
+  await whileApiRequestHeld(page, 'POST', '/base-budgets', () => submit.click(), async () => {
+    await expectPendingAction(submit, 'Create Budget')
+    // Two frames on, so a scroll the refusal path would start a frame after the press has begun
+    await page.evaluate(() => new Promise((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(resolve))
+    }))
+    expect((await readScrollingBox(groceries)).top).toBe(before.top)
+  }, { name })
+  await expect(dialog).toBeHidden()
 })

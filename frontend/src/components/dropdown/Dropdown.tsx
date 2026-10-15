@@ -76,6 +76,9 @@ interface DropdownProps {
   /** Ids of visible content that collectively names the control */
   labelledBy?: string;
 
+  /** Id of visible content that describes the control, such as the message saying why the form rejected it */
+  describedBy?: string;
+
   placeholder?: string;
   searchable?: boolean;
   searchPlaceholder?: string;
@@ -132,6 +135,7 @@ const Dropdown = ({
   size = 'field',
   hasError = false,
   labelledBy,
+  describedBy,
   placeholder = 'Select...',
   searchable = false,
   searchPlaceholder = 'Search...',
@@ -487,7 +491,7 @@ const Dropdown = ({
           hasError={hasError}
           emptySelectionIsBlank={emptySelectionIsBlank}
           labelledBy={labelledBy}
-          describedBy={onEditOption ? editShortcutDescriptionId : undefined}
+          describedBy={[describedBy, onEditOption ? editShortcutDescriptionId : undefined].filter(Boolean).join(' ') || undefined}
           listId={listId}
           open={open}
           placeholder={placeholder}

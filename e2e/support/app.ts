@@ -259,3 +259,71 @@ export async function chooseFromDropdown(
   await scope.getByRole('combobox', { name: fieldName }).click()
   await scope.getByRole('option', { name: optionName }).click()
 }
+
+export interface ScrollingBoxPosition {
+  /** How far the box is scrolled from its top, in CSS pixels */
+  top: number
+
+  /** How much further it could scroll down, in CSS pixels */
+  remaining: number
+
+  /** The box's own bottom padding, which sits below its last content when scrolled to the end */
+  paddingBottom: number
+
+  /** The height the box shows at once */
+  clientHeight: number
+
+  /** Where the element ends, measured from the top of the box's content rather than of what it shows */
+  elementBottom: number
+}
+
+/**
+ * Read where the box that scrolls an element, such as a dialog's body, is scrolled to, and where the
+ * element sits in it.
+ *
+ * @param inside - The element, which any element the box holds will do for reading the scroll alone
+ * @returns The box's scroll position and the element's place in its content
+ * @throws When nothing above the element scrolls
+ */
+export async function readScrollingBox(inside: Locator): Promise<ScrollingBoxPosition> {
+  return inside.evaluate((element) => {
+    let box = element.parentElement
+    while (box && !['auto', 'scroll'].includes(getComputedStyle(box).overflowY)) box = box.parentElement
+    if (!box) throw new Error('nothing above the element scrolls')
+    return {
+      top: box.scrollTop,
+      remaining: box.scrollHeight - box.clientHeight - box.scrollTop,
+      paddingBottom: Number.parseFloat(getComputedStyle(box).paddingBottom),
+      clientHeight: box.clientHeight,
+      elementBottom: element.getBoundingClientRect().bottom - box.getBoundingClientRect().top + box.scrollTop,
+    }
+  })
+}
+
+/**
+ * Wait until the box that scrolls an element stops moving, such as after a smooth scroll, and read
+ * where it rests.
+ *
+ * @param inside - The element, as for `readScrollingBox`
+ * @returns The box's resting scroll position and the element's place in its content
+ */
+export async function readSettledScrollingBox(inside: Locator): Promise<ScrollingBoxPosition> {
+  let last: ScrollingBoxPosition | undefined
+  await expect.poll(async () => {
+    const current = await readScrollingBox(inside)
+    const isStill = current.top === last?.top
+    last = current
+    return isStill
+  }).toBe(true)
+  return last!
+}
+
+/**
+ * Measure the room left between the element's bottom and the bottom of what its scrolling box shows.
+ *
+ * @param position - A reading from `readScrollingBox` or `readSettledScrollingBox`
+ * @returns The room in CSS pixels, negative when the element runs past what the box shows
+ */
+export function roomBelow(position: ScrollingBoxPosition): number {
+  return position.top + position.clientHeight - position.elementBottom
+}
