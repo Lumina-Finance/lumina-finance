@@ -25,12 +25,13 @@ interface IconTooltipProps {
 
   // Keeps controls in a closed tooltip out of the modal keyboard navigation
   interactive?: boolean
+
+  // What limits the room above and below the trigger when picking a side: the nearest ancestor marked
+  // with `data-tooltip-bounds`, or only the viewport, for a panel meant to rise over the edge of its box
+  sideBoundary?: IconTooltipSideBoundary
 }
 
-const placementClass: Record<IconTooltipPlacement, string> = {
-  top: 'bottom-full',
-  bottom: 'top-full',
-}
+type IconTooltipSideBoundary = 'bounds' | 'viewport'
 
 const levelConfig: Record<IconTooltipLevel, { Icon: LucideIcon; color: string }> = {
   info: {
@@ -71,8 +72,9 @@ const FX_TONE_CLASS: Record<IconTooltipFxTone, { idle: string; active: string }>
   },
 }
 // Above the list toolbars, which stick at z-30 over the page as it scrolls, so a panel that opens
-// across a toolbar is drawn over it rather than under it
-const TOOLTIP_WRAPPER_CLASS = 'absolute left-1/2 z-40 p-2 transition-opacity duration-150'
+// across a toolbar is drawn over it rather than under it. Fixed rather than absolute, so a scrolling
+// box around the trigger, such as a dialog's body, never cuts the panel off
+const TOOLTIP_WRAPPER_CLASS = 'fixed z-40 p-2 transition-opacity duration-150'
 // Closed, the panel shows and takes pointer input only while hovered. Open, it does both whatever the
 // pointer, since a touch screen has no hover. The two are kept apart because classes setting the same
 // property are ordered by the stylesheet, not by the class list
@@ -136,12 +138,50 @@ function getHorizontalOffset({
   return 0
 }
 
+type TooltipPosition = { left: number; top: number }
+
+/** Picks the side of the trigger the panel opens on, the preferred one unless only the other has room */
+function getTooltipSide(
+  trigger: HTMLElement,
+  tooltip: HTMLElement,
+  preferredPlacement: IconTooltipPlacement,
+  sideBoundary: IconTooltipSideBoundary,
+): IconTooltipPlacement {
+  const boundaryRect = sideBoundary === 'bounds' ? trigger.closest('[data-tooltip-bounds]')?.getBoundingClientRect() : undefined
+  return getAvailablePlacement({
+    preferredPlacement,
+    triggerRect: trigger.getBoundingClientRect(),
+    tooltipRect: tooltip.getBoundingClientRect(),
+    boundaryRect,
+  })
+}
+
+/**
+ * Works out where the fixed panel goes on the given side of the trigger, shifted sideways to stay in bounds
+ *
+ * A fixed element measures from the viewport unless an ancestor's transform or filter makes itself the box
+ * it measures from, as a frosted toolbar's backdrop filter does. The panel's current place on screen,
+ * against the coordinates it was given, shows where that box starts, so the result is written in its terms
+ */
+function getTooltipPosition(trigger: HTMLElement, tooltip: HTMLElement, placement: IconTooltipPlacement): TooltipPosition {
+  const triggerRect = trigger.getBoundingClientRect()
+  const tooltipRect = tooltip.getBoundingClientRect()
+  const boundaryRect = trigger.closest('[data-tooltip-bounds]')?.getBoundingClientRect()
+  const left = triggerRect.left + triggerRect.width / 2 - tooltipRect.width / 2
+    + getHorizontalOffset({ triggerRect, tooltipRect, boundaryRect })
+  const top = placement === 'top' ? triggerRect.top - tooltipRect.height : triggerRect.bottom
+  const originLeft = tooltipRect.left - (parseFloat(tooltip.style.left) || 0)
+  const originTop = tooltipRect.top - (parseFloat(tooltip.style.top) || 0)
+  return { left: left - originLeft, top: top - originTop }
+}
+
 /**
  * Icon that opens a tooltip panel on click, showing `children` as its content
  *
- * The panel's placement and horizontal offset are recalculated on open, hover, and focus so it flips
- * above or below the trigger and shifts sideways to stay within the viewport or the nearest ancestor
- * marked with `data-tooltip-bounds`, and it closes on any pointer down outside the trigger
+ * The panel opens above or below the trigger, whichever has room within the viewport or the nearest
+ * ancestor marked with `data-tooltip-bounds`, and shifts sideways to stay within them. While it shows it
+ * keeps that side, and any scroll or resize only moves it with the trigger. It hides while its trigger is
+ * scrolled out of view, and it closes on any pointer down outside the trigger
  */
 export default function IconTooltip({
   label,
@@ -156,6 +196,7 @@ export default function IconTooltip({
   strokeWidth = 2.5,
   modalFieldTabStop = false,
   interactive = false,
+  sideBoundary = 'bounds',
 }: IconTooltipProps) {
   const { Icon: DefaultIcon, color } = levelConfig[level]
   const isFxIcon = IconOverride === 'fx'
@@ -164,29 +205,51 @@ export default function IconTooltip({
   const [isHovered, setIsHovered] = useState(false)
   const [isKeyboardFocused, setIsKeyboardFocused] = useState(false)
   const isShown = isOpen || isKeyboardFocused
-  const [actualPlacement, setActualPlacement] = useState<IconTooltipPlacement>(placement)
-  const [horizontalOffset, setHorizontalOffset] = useState(0)
+  const [position, setPosition] = useState<TooltipPosition>({ left: 0, top: 0 })
   const rootRef = useRef<HTMLSpanElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const tooltipRef = useRef<HTMLSpanElement>(null)
 
+  // The side is picked once as the panel shows and kept until it hides, so a panel that opened above its
+  // trigger never swaps over what the trigger labels as the page moves
+  const sideRef = useRef<IconTooltipPlacement | null>(null)
+  const isPlaced = isShown || isHovered
   const updatePlacement = useCallback(() => {
-    const triggerRect = triggerRef.current?.getBoundingClientRect()
-    const tooltipRect = tooltipRef.current?.getBoundingClientRect()
-    if (!triggerRect || !tooltipRect) return
+    if (!triggerRef.current || !tooltipRef.current) return
+    sideRef.current ??= getTooltipSide(triggerRef.current, tooltipRef.current, placement, sideBoundary)
+    setPosition(getTooltipPosition(triggerRef.current, tooltipRef.current, sideRef.current))
+  }, [placement, sideBoundary])
 
-    const boundaryRect = triggerRef.current
-      ?.closest('[data-tooltip-bounds]')
-      ?.getBoundingClientRect()
+  // A fixed panel stays where it was put while the page under it moves, so it follows the trigger for as
+  // long as it shows. Scrolls are caught on the way down, since a dialog's body scrolls without the page.
+  // Once it hides, the side is picked afresh the next time it shows
+  useEffect(() => {
+    if (!isPlaced) return undefined
 
-    setActualPlacement(getAvailablePlacement({
-      preferredPlacement: placement,
-      triggerRect,
-      tooltipRect,
-      boundaryRect,
-    }))
-    setHorizontalOffset(getHorizontalOffset({ triggerRect, tooltipRect, boundaryRect }))
-  }, [placement])
+    window.addEventListener('scroll', updatePlacement, { capture: true, passive: true })
+    window.addEventListener('resize', updatePlacement)
+    return () => {
+      window.removeEventListener('scroll', updatePlacement, { capture: true })
+      window.removeEventListener('resize', updatePlacement)
+      sideRef.current = null
+    }
+  }, [isPlaced, updatePlacement])
+
+  // Floating free of the box that scrolls the trigger, the panel would stay on screen over whatever else
+  // that box shows once the trigger scrolls out of it, so it hides until the trigger is back in view
+  const [isTriggerOutOfView, setIsTriggerOutOfView] = useState(false)
+  useEffect(() => {
+    const trigger = triggerRef.current
+    if (!isPlaced || !trigger) return undefined
+
+    const observer = new IntersectionObserver((entries) => setIsTriggerOutOfView(!entries[entries.length - 1].isIntersecting))
+    observer.observe(trigger)
+    // Hidden, the panel forgets where the trigger was, so it never shows again hidden for a frame
+    return () => {
+      observer.disconnect()
+      setIsTriggerOutOfView(false)
+    }
+  }, [isPlaced])
 
   useEffect(() => {
     if (!isOpen) return undefined
@@ -208,7 +271,6 @@ export default function IconTooltip({
   const tooltipWrapperClassName = joinClassNames(
     TOOLTIP_WRAPPER_CLASS,
     isShown ? TOOLTIP_OPEN_CLASS : TOOLTIP_CLOSED_CLASS,
-    placementClass[actualPlacement],
   )
   const rootClassName = joinClassNames(ROOT_CLASS, isFxIcon && FX_ROOT_CLASS)
 
@@ -216,8 +278,8 @@ export default function IconTooltip({
     <span
       ref={rootRef}
       className={rootClassName}
-      onMouseEnter={interactive ? () => setIsHovered(true) : undefined}
-      onMouseLeave={interactive ? () => setIsHovered(false) : undefined}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       onFocus={(event) => setIsKeyboardFocused(event.target.matches(':focus-visible'))}
       onBlur={(event) => {
         if (!rootRef.current?.contains(event.relatedTarget as Node | null)) setIsKeyboardFocused(false)
@@ -255,8 +317,9 @@ export default function IconTooltip({
         className={tooltipWrapperClassName}
         inert={interactive && !isShown && !isHovered}
         style={{
-          transform: `translateX(calc(-50% + ${horizontalOffset}px))`,
-          visibility: interactive && !isShown && !isHovered ? 'hidden' : undefined,
+          left: position.left,
+          top: position.top,
+          visibility: (interactive && !isShown && !isHovered) || isTriggerOutOfView ? 'hidden' : undefined,
         }}
       >
         <span

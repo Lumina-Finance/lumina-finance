@@ -1,8 +1,9 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { createAccount, signUpUser } from '../support/api'
+import { asUser, createAccount, createMonthlyBudget, createTaxAdvantagedCategory, signUpUser } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support/app'
-import { faintestText } from '../support/contrast'
+import { colourContrast, faintestText } from '../support/contrast'
+import { API_BASE_URL } from '../support/target'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
 // Runs on desktop only, apart from the left-out column test, which runs at every size: import rows
@@ -10,8 +11,9 @@ import { AT_EVERY_SIZE } from '../support/sizes'
 
 /**
  * Guards the contrast of text on the states that lay a tint over the surface under them: a field in error,
- * an open dropdown's highlighted and chosen rows, a row the import leaves out and the archive warning.
- * Each tint took the faint or muted text on it below the 4.5:1 every text needs
+ * an open dropdown's highlighted and chosen rows, a row the import leaves out, the archive warning, the
+ * budget details panel and a chosen or hovered tax-advantaged limit row. Each tint took the faint or muted
+ * text on it below the 4.5:1 every text needs
  */
 
 // One column the reader maps to Amount on its own, and one it maps to nothing and leaves out
@@ -22,6 +24,21 @@ async function expectReadable(area: Locator, label: string) {
   await expect.poll(async () => (await faintestText(area)).text, { message: label }).toMatch(/\S/)
   const faintest = await faintestText(area)
   expect(faintest.contrast, `"${faintest.text}" ${label}`).toBeGreaterThanOrEqual(4.5)
+}
+
+/**
+ * Checks each faint text, every place it shows, after first making sure it shows at all, so a text that
+ * never rendered can't pass by having nothing to read. Each is checked apart, so one that falls short
+ * doesn't hide another
+ */
+async function expectFaintTextReadable(texts: Record<string, Locator>) {
+  for (const [what, text] of Object.entries(texts)) {
+    await expect(text.first(), `shows its ${what}`).toBeVisible()
+    for (const each of await text.all()) {
+      const faintest = await faintestText(each)
+      expect.soft(faintest.contrast, `"${faintest.text}", its ${what}`).toBeGreaterThanOrEqual(4.5)
+    }
+  }
 }
 
 async function openImport(page: Page, request: Parameters<typeof signUpUser>[0]) {
@@ -99,6 +116,76 @@ for (const colorScheme of ['light', 'dark'] as const) {
       // sentence is in view
       await expect(dialog.getByText('no balance adjustment will be recorded', { exact: false })).toBeInViewport({ ratio: 1 })
       await expectReadable(heading.locator('xpath=../../..'), 'in the archive warning')
+    })
+
+    test('draws faint text on the budget details panel at full contrast', async ({ page, request }) => {
+      const user = await signUpUser(request)
+      await createMonthlyBudget(request, user, { name: 'Monthly Food', categoryNames: ['Groceries'], overallLimit: 50_000 })
+      // A period with no category in its figures says so instead of listing them. The figures always list
+      // the tracked categories, so they are answered without them, which puts that note on the panel too
+      await page.route(/\/(budgets\/latest-utilizations|base-budgets\/[^/]+\/utilizations)(\?|$)/, async (route) => {
+        const periods = await (await route.fetch()).json() as { categories: unknown[] }[]
+        await route.fulfill({ json: periods.map((period) => ({ ...period, categories: [] })) })
+      })
+      await logInViaApi(page, user)
+      await openPage(page, '/budgets')
+      await expectTheme(page)
+      await page.getByRole('button', { name: /Monthly Food/ }).click()
+      const panel = page.getByRole('dialog', { name: 'Monthly Food', exact: true }).getByRole('complementary')
+      // Each faint text the panel draws on its tint, read one by one since the panel's FX badge is drawn
+      // in a colour of its own
+      await expectFaintTextReadable({
+        'cadence line': panel.getByText(/^Monthly · Personal · /),
+        'Current budget label': panel.getByText('Current budget', { exact: true }),
+        'share used': panel.getByText(/^\d+% used$/),
+        'Current period label': panel.getByText('Current period', { exact: true }),
+        'Tracked categories heading': panel.getByText('Tracked categories', { exact: true }),
+        'note that nothing is spent': panel.getByText('No category spending for the current period.', { exact: true }),
+      })
+    })
+
+    test('draws a hovered limit row\'s delete control at full contrast', async ({ page, request }) => {
+      const user = await signUpUser(request)
+      const categoryId = await createTaxAdvantagedCategory(request, user, 'Retirement Savings')
+      for (const year of [2025, 2026]) {
+        const limit = await request.post(`${API_BASE_URL}/tax-advantaged-categories/${categoryId}/limits`, {
+          headers: asUser(user),
+          data: { year, contribution_limit: 700000 },
+        })
+        expect(limit.status()).toBe(201)
+      }
+      await logInViaApi(page, user)
+      await openPage(page, '/settings#tax-advantaged-categories')
+      await expectTheme(page)
+      await page.getByRole('row').filter({ hasText: 'Retirement Savings' }).click()
+      const category = page.getByRole('dialog', { name: 'Retirement Savings', exact: true })
+
+      // A hovered row lays the accent tint under its delete control. A chosen row lays the same tint, but
+      // only while its year's dialog covers it, so the hovered row is where the control is read
+      const remove = category.getByRole('button', { name: 'Delete 2026 limits', exact: true })
+      await category.getByRole('row').filter({ hasText: '2026' }).hover()
+      expect(await colourContrast(remove), 'a hovered row\'s delete control').toBeGreaterThanOrEqual(4.5)
+    })
+
+    test('draws a hovered limit card\'s chevron at full contrast on a phone', async ({ page, request }) => {
+      await page.setViewportSize({ width: 390, height: 844 })
+      const user = await signUpUser(request)
+      const categoryId = await createTaxAdvantagedCategory(request, user, 'Retirement Savings')
+      const limit = await request.post(`${API_BASE_URL}/tax-advantaged-categories/${categoryId}/limits`, {
+        headers: asUser(user),
+        data: { year: 2026, contribution_limit: 700000 },
+      })
+      expect(limit.status()).toBe(201)
+      await logInViaApi(page, user)
+      await openPage(page, '/settings#tax-advantaged-categories')
+      await expectTheme(page)
+      await page.getByRole('row').filter({ hasText: 'Retirement Savings' }).click()
+      const category = page.getByRole('dialog', { name: 'Retirement Savings', exact: true })
+
+      // Below 750px each year is a card, whose chevron sits on the accent tint while the card is hovered
+      const card = category.getByRole('button', { name: 'Edit 2026 limits', exact: true })
+      await card.hover()
+      expect(await colourContrast(card.locator('svg.lucide-chevron-right')), 'a hovered card\'s chevron').toBeGreaterThanOrEqual(4.5)
     })
   })
 }

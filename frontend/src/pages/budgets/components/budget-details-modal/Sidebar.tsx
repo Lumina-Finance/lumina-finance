@@ -133,7 +133,7 @@ export default function BudgetDetailsSidebar({
               {attention.label}
             </span>
           )}
-          <p className="mt-2 min-w-0 truncate text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+          <p className="mt-2 min-w-0 truncate text-sm" style={{ color: 'var(--app-text-subtle-on-accent)' }}>
             {budgetCadenceLabel(baseBudget)} · {baseBudget.group_id ? 'Shared' : 'Personal'} · {baseBudget.currency}
           </p>
         </div>
@@ -145,7 +145,7 @@ export default function BudgetDetailsSidebar({
       <section className="shrink-0">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <p className="text-xs font-semibold uppercase" style={{ color: 'var(--app-text-subtle)' }}>
+            <p className="text-xs font-semibold uppercase" style={{ color: 'var(--app-text-subtle-on-accent)' }}>
               Current budget
             </p>
             <BudgetFxStatusBadge
@@ -180,14 +180,14 @@ export default function BudgetDetailsSidebar({
                 style={{ width: `${Math.min(Math.max(getBudgetUtilizationPercent(spent, limit), 0), 100)}%`, background: attention.indicatorColor }}
               />
             </div>
-            <span className="shrink-0 text-xs font-semibold" style={{ color: 'var(--app-text-subtle)' }}>
+            <span className="shrink-0 text-xs font-semibold" style={{ color: 'var(--app-text-subtle-on-accent)' }}>
               {utilizationPct}% used
             </span>
           </div>
         )}
         {!baseBudget.is_archived && (
           <div className="mt-4 flex justify-between gap-4 border-t pt-3 text-sm min-[750px]:mt-5 min-[750px]:pt-4" style={{ borderColor: 'var(--app-border)' }}>
-            <span style={{ color: 'var(--app-text-subtle)' }}>Current period</span>
+            <span style={{ color: 'var(--app-text-subtle-on-accent)' }}>Current period</span>
             <span className="text-right" style={{ color: 'var(--app-text-muted)' }}>
               {latestPeriod ? formatBudgetPeriod(latestPeriod) : 'None'}
             </span>
@@ -197,7 +197,7 @@ export default function BudgetDetailsSidebar({
 
       <section className={`${!baseBudget.is_archived ? 'border-t ' : ''}pt-6 min-[1050px]:flex min-[1050px]:min-h-0 min-[1050px]:flex-1 min-[1050px]:flex-col`} style={{ borderColor: 'var(--app-border)' }}>
         <div className="flex items-center justify-between gap-3">
-          <h3 className="text-xs font-semibold uppercase" style={{ color: 'var(--app-text-subtle)' }}>
+          <h3 className="text-xs font-semibold uppercase" style={{ color: 'var(--app-text-subtle-on-accent)' }}>
             Tracked categories
           </h3>
           {latestCategories.length > 0 && (
@@ -231,7 +231,7 @@ export default function BudgetDetailsSidebar({
                 <span className="shrink-0 font-medium" style={{ color: 'var(--app-text)' }}>{formatCurrency(category.spent, baseBudget.currency)}</span>
               </div>
             )) : (
-              <p className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+              <p className="text-sm" style={{ color: 'var(--app-text-subtle-on-accent)' }}>
                 No category spending for the current period.
               </p>
             )}

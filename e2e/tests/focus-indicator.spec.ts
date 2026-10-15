@@ -1,7 +1,12 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
-import { API_BASE_URL } from '../support/target'
+import {
+  createAccount,
+  createTaxAdvantagedCategory,
+  createTransaction,
+  daysFromTodayInTestTimezone,
+  signUpUser,
+} from '../support/api'
 import { logInViaApi, openModal, openPage } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
@@ -379,11 +384,7 @@ test('shows keyboard focus on the border of a bordered button built from utiliti
 // from 750px, where it takes the ring inside its edge, since the table clips anything past it
 test('shows keyboard focus on a card row border only while the row is a card', async ({ page, request }) => {
   const user = await signUpUser(request)
-  const response = await request.post(`${API_BASE_URL}/tax-advantaged-categories`, {
-    headers: asUser(user),
-    data: { name: 'Retirement Savings', tax_treatment: 'tax_deferred', currency: 'CAD', lifetime_contribution_limit: null },
-  })
-  expect(response.status()).toBe(201)
+  await createTaxAdvantagedCategory(request, user, 'Retirement Savings')
   await logInViaApi(page, user)
   await openPage(page, '/settings#tax-advantaged-categories')
   const row = page.locator('tr[tabindex="0"]').filter({ hasText: 'Retirement Savings' })
