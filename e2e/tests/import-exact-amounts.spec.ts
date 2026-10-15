@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { createAccount, TEST_PASSWORD, TEST_TIMEZONE, type TestUser } from '../support/api'
-import { openPage, logInViaApi } from '../support/app'
+import { commitImport, openPage, logInViaApi } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: the amounts' digits are the same at every size, and it reads every layout
@@ -67,12 +67,7 @@ for (const example of CASES) {
         submitted.push(...batch.rows)
       }
     })
-    const commit = page.getByRole('button', { name: 'Commit import', exact: true })
-    await expect(commit).toBeEnabled()
-    const committed = page.waitForResponse((response) => response.request().method() === 'POST'
-      && /\/transactions\/import\/runs\/[^/]+\/commit$/.test(response.url()))
-    await commit.click()
-    const response = await committed
+    const response = await commitImport(page)
     expect(response.status()).toBe(201)
     expect((await response.json() as { transactions_created: number }).transactions_created).toBe(4)
     expect(submitted.map((row) => row.amount)).toEqual(amounts)

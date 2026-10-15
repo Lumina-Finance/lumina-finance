@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { expect, test, type Page } from '@playwright/test'
 
 import { asUser, countLedgerTransactions, createCategory, signUpUser, type TestUser } from '../support/api'
-import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
+import { chooseFromDropdown, commitImport, logInViaApi, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: what the import writes is the same at every size
@@ -37,15 +37,10 @@ async function uploadActualExport(page: Page, user: TestUser, fixture: string) {
   await upload.setInputFiles(fixture)
 }
 
-async function commitImport(page: Page) {
-  const commit = page.getByRole('button', { name: 'Commit import', exact: true })
-  await expect(commit).toBeEnabled()
+async function commitExport(page: Page) {
   // The run is named for the picked export, which is how the last import shows it
   const opened = page.waitForRequest((sent) => sent.method() === 'POST' && /\/transactions\/import\/runs$/.test(sent.url()))
-  const committed = page.waitForResponse((response) => response.request().method() === 'POST'
-    && /\/transactions\/import\/runs\/[^/]+\/journal\/commit$/.test(response.url()))
-  await commit.click()
-  const response = await committed
+  const response = await commitImport(page)
   expect(response.status()).toBe(201)
   expect((await opened).postDataJSON()).toMatchObject({ file_name: 'export.zip' })
   return response
@@ -74,7 +69,7 @@ test('imports an Actual Budget export with the balances and budgets Actual showe
   }
   await expect(page.getByText('Not imported', { exact: true })).toHaveCount(0)
 
-  const response = await commitImport(page)
+  const response = await commitExport(page)
   const result = await response.json() as { transactions_created: number; budgets: { name: string }[] }
   expect(result.transactions_created).toBe(YEN_MANIFEST.rows.length)
   expect(result.budgets.map((budget) => budget.name).sort()).toEqual(['Bills', 'Food'])
@@ -130,7 +125,7 @@ test('imports loan payments Actual gave a category as spending in it, which its 
   await page.getByRole('option', { name: 'Create new category' }).click()
   await expect(paymentsTarget).toContainText('Create new category')
 
-  await commitImport(page)
+  await commitExport(page)
 
   const headers = asUser(user)
   const accounts = await (await request.get(`${API_BASE_URL}/accounts`, { headers })).json() as { id: string; name: string }[]
@@ -208,7 +203,7 @@ test('imports a category under a new name when one of another kind already has i
   await expect(newName).toHaveValue('Car (Actual)')
   await newName.fill('Car costs')
 
-  await commitImport(page)
+  await commitExport(page)
 
   const categories = await (await request.get(`${API_BASE_URL}/categories`, { headers: asUser(user) })).json() as {
     name: string
@@ -237,7 +232,7 @@ test('imports transfers into a credit card under Credit Card Payment on both acc
   await expect(page.getByRole('listbox')).toHaveCount(0)
   await expect(paymentsTarget).toContainText('Credit Card Payment')
 
-  await commitImport(page)
+  await commitExport(page)
 
   const headers = asUser(user)
   const accounts = await (await request.get(`${API_BASE_URL}/accounts`, { headers })).json() as { id: string; name: string }[]
@@ -282,7 +277,7 @@ test('leaves out a budget left unticked', async ({ page, request }) => {
   await page.getByRole('checkbox', { name: 'Import Food' }).click()
   await expect(page.getByText('Not imported', { exact: true })).toHaveCount(1)
 
-  const result = await (await commitImport(page)).json() as { budgets: { name: string }[] }
+  const result = await (await commitExport(page)).json() as { budgets: { name: string }[] }
   expect(result.budgets.map((budget) => budget.name)).toEqual(['Bills'])
 })
 
@@ -303,9 +298,7 @@ test('saves a kept upload again after its first save failed', async ({ page, req
     await route.continue()
   })
 
-  const commit = page.getByRole('button', { name: 'Commit import', exact: true })
-  await expect(commit).toBeEnabled()
-  await commit.click()
+  expect((await commitImport(page)).status()).toBe(503)
 
   const retry = page.getByRole('button', { name: 'Try again', exact: true })
   await expect(retry).toBeVisible()
@@ -338,7 +331,10 @@ test('imports nothing twice after a save that landed but whose answer was lost',
     await route.abort('connectionfailed')
   })
 
+  // The save runs on the server before its answer is dropped, which on a busy host can outlast the check below
+  const firstSaveDropped = page.waitForEvent('requestfailed', (sent) => commitUrl.test(sent.url()))
   await page.getByRole('button', { name: 'Commit import', exact: true }).click()
+  await firstSaveDropped
   const overlay = page.getByRole('dialog')
   await expect(overlay.getByText('Save interrupted', { exact: true })).toBeVisible()
   await expect(overlay.getByText('The import was interrupted. Try again to finish saving your import. Nothing will be added twice as long as you stay on the import page.', { exact: true })).toBeVisible()
@@ -350,7 +346,7 @@ test('imports nothing twice after a save that landed but whose answer was lost',
   await overlay.getByRole('button', { name: 'Back to import', exact: true }).click()
   await expect(page.getByText('Save interrupted. Please try again.', { exact: true })).toBeVisible()
   await page.getByRole('checkbox', { name: 'Import Food' }).click()
-  await page.getByRole('button', { name: 'Commit import', exact: true }).click()
+  await commitImport(page)
 
   await expect(overlay.getByText('Import complete', { exact: true })).toBeVisible()
   await expect(overlay.getByText('Your earlier import was saved, so this one wasn\'t imported.', { exact: true })).toBeVisible()

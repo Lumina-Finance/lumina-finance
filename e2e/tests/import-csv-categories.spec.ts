@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { asUser, countLedgerTransactions, createAccount, signUpUser } from '../support/api'
-import { logInViaApi, openPage } from '../support/app'
+import { commitImport, logInViaApi, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: what the import writes is the same at every size
@@ -48,9 +48,7 @@ test('files CSV rows with no category under Miscellaneous, Other Income or Trans
   await expect(preview.getByRole('paragraph').filter({ hasText: /^(Rows|Will Create|New Accounts|New Categories|\d+)$/ }))
     .toHaveText(['Rows', '5', 'Will Create', '5', 'New Accounts', '0', 'New Categories', '1'])
 
-  const commit = page.getByRole('button', { name: 'Commit import', exact: true })
-  await expect(commit).toBeEnabled()
-  await commit.click()
+  await commitImport(page)
 
   const overlay = page.getByRole('dialog')
   await expect(overlay.getByText('5 transactions imported · 0 accounts created · 1 category created', { exact: true })).toBeVisible()

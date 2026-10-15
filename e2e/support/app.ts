@@ -2,7 +2,7 @@
  * Driving the parts of the app a spec passes through on its way to the behaviour it tests.
  */
 
-import { expect, type Locator, type Page } from '@playwright/test'
+import { expect, type Locator, type Page, type Response } from '@playwright/test'
 
 import type { TestUser } from './api'
 import { API_BASE_URL, BASE_URL } from './target'
@@ -134,6 +134,28 @@ export async function loadEveryTransaction(page: Page): Promise<void> {
     await expect(loadingMore.or(reachedEnd)).toBeVisible()
     await expect(loadingMore).toBeHidden()
   }
+}
+
+// The save that finishes an import, of a CSV file or of a journal from another app
+const IMPORT_COMMIT_PATH = /\/transactions\/import\/runs\/[^/]+(\/journal)?\/commit$/
+
+/**
+ * Click Commit import and wait, under the test's own limit, for the server to answer the save.
+ *
+ * An import sends its requests one after another, and on a busy host they can outlast an assertion's
+ * wait, so a check of the overlay timed from the click races the server. Once the save has answered,
+ * the overlay has only its own fixed pauses left before it shows the outcome
+ *
+ * @param page - Page showing a staged import
+ * @returns The save's response, whatever its status
+ */
+export async function commitImport(page: Page): Promise<Response> {
+  const commit = page.getByRole('button', { name: 'Commit import', exact: true })
+  await expect(commit).toBeEnabled()
+  const committed = page.waitForResponse((response) => response.request().method() === 'POST'
+    && IMPORT_COMMIT_PATH.test(new URL(response.url()).pathname), { timeout: 0 })
+  await commit.click()
+  return committed
 }
 
 /**

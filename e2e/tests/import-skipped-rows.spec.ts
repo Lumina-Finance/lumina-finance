@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { countLedgerTransactions, createAccount, signUpUser } from '../support/api'
-import { logInViaApi, openPage } from '../support/app'
+import { commitImport, logInViaApi, openPage } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
 // Runs at every size, though only on a phone does the list start off screen, which reviewing has to
@@ -38,9 +38,7 @@ test('imports the rest of a CSV file and shows the row it leaves out on review',
   await expect(page.getByText('1 row will not be imported', { exact: true })).toBeVisible()
   // Closed before the import, so reviewing has to open it again
   await page.getByRole('button', { name: 'Collapse skipped rows', exact: true }).click()
-  const commit = page.getByRole('button', { name: 'Commit import', exact: true })
-  await expect(commit).toBeEnabled()
-  await commit.click()
+  await commitImport(page)
 
   const overlay = page.getByRole('dialog')
   await expect(overlay.getByText('Import complete', { exact: true })).toBeVisible()

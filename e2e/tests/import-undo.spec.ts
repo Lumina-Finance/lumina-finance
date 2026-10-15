@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { asUser, createAccount, signUpUser } from '../support/api'
-import { logInViaApi, openPage } from '../support/app'
+import { commitImport, logInViaApi, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: what undoing an import removes is the same at every size
@@ -21,12 +21,7 @@ test('undoes the last import, deleting everything it added and keeping the accou
   await expect(upload).toBeEnabled()
   await upload.setInputFiles({ name: 'undo-test.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) })
 
-  const commit = page.getByRole('button', { name: 'Commit import', exact: true })
-  await expect(commit).toBeEnabled()
-  const committed = page.waitForResponse((response) => response.request().method() === 'POST'
-    && /\/transactions\/import\/runs\/[^/]+\/commit$/.test(response.url()))
-  await commit.click()
-  expect((await committed).status()).toBe(201)
+  expect((await commitImport(page)).status()).toBe(201)
 
   // Opened afresh, as a user coming back to undo a test import would
   await openPage(page, `/settings/imports?account=${account.id}`)

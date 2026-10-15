@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { countLedgerTransactions, createAccount, signUpUser } from '../support/api'
-import { logInViaApi, openPage } from '../support/app'
+import { commitImport, logInViaApi, openPage } from '../support/app'
 
 // Runs on desktop only: how the file is read is the same at every size
 
@@ -47,9 +47,7 @@ test('imports a CSV file once the lines around its table are skipped', async ({ 
     await expect(skipLastRows).toHaveValue('2')
   }
 
-  const commit = page.getByRole('button', { name: 'Commit import', exact: true })
-  await expect(commit).toBeEnabled()
-  await commit.click()
+  await commitImport(page)
 
   await expect(page.getByRole('dialog').getByText('2 transactions imported · 0 accounts created · 0 categories created', { exact: true })).toBeVisible()
   expect(await countLedgerTransactions(request, user)).toBe(2)
