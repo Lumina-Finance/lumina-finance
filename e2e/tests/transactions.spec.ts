@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser, startOfDayInTestTimezone } from '../support/api'
-import { openPage, chooseFromDropdown, filterByCategory, logInViaApi, openModal } from '../support/app'
+import { openPage, chooseFromDropdown, filterByCategory, loadEveryTransaction, logInViaApi, openModal } from '../support/app'
 import { expectPendingAction, expectTransactionRow, whileApiRequestHeld } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
@@ -183,18 +183,8 @@ test('keeps the open Upcoming header on screen through a long run of upcoming tr
   await page.setViewportSize({ ...page.viewportSize()!, height: 600 })
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
-  // The list loads fifteen at a time, a page each time the end comes into view, so the oldest past row arrives
-  // only once the end has been reached for every page. Each scroll waits for the page before it to land, and
-  // the list may load the next one on its own while its end is still in view
-  const loadingMore = page.getByText(/^Loading more transactions/)
-  const reachedEnd = page.getByText("You've reached the end.")
-  await expect(loadingMore).toBeHidden()
-  // One scroll per page: each waits for that page to start and finish loading before the next
-  while (!(await reachedEnd.isVisible())) {
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
-    await expect(loadingMore.or(reachedEnd)).toBeVisible()
-    await expect(loadingMore).toBeHidden()
-  }
+  // The oldest past row arrives only once the end has been reached for every page
+  await loadEveryTransaction(page)
   await expect(page.getByTestId(`transaction-row-${pastIds[pastIds.length - 1]}`)).toBeAttached()
   const upcoming = page.getByRole('button', { name: /Upcoming/ })
   await upcoming.click()

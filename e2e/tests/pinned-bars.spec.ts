@@ -5,7 +5,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
-import { logInViaApi, openPage } from '../support/app'
+import { loadEveryTransaction, logInViaApi, openPage } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
 // Runs on desktop only, apart from the section menu and Shift+Tab tests, which run at every size:
@@ -130,7 +130,8 @@ for (const { place, date } of [
 ]) {
   test(`scrolls a transaction row in the ${place} reached with Shift+Tab out from under the pinned bars`, AT_EVERY_SIZE, async ({ page, request }) => {
     const user = await signUpUser(request)
-    const account = await createAccount(request, user, { name: 'Focus account', startingBalance: 1000 })
+    // No starting balance, which the list would show as a row of its own beside the thirty below
+    const account = await createAccount(request, user, { name: 'Focus account' })
     // One day's worth of rows, so the rows walked through all sit under the same pinned heading
     for (let index = 0; index < 30; index += 1) {
       await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -100 - index, date })
@@ -147,10 +148,10 @@ for (const { place, date } of [
       await expect(body).toHaveCSS('opacity', '1')
       await expect(body).toHaveCSS('overflow', 'visible')
     }
+    // Every page, so there is list enough below the 12th row to scroll it up to the bars and the list
+    // can't grow under the scrolls below
+    await loadEveryTransaction(page)
     const rows = page.getByTestId(/^transaction-row-/)
-    // The second page of rows too, so there is list enough below the 12th row to scroll it up to the bars
-    await expect(rows.nth(14)).toBeAttached()
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
     await expect(rows).toHaveCount(30)
 
     // Rested with the 12th row's top level with the bottom of the bars, so the rows above it are under them

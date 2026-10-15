@@ -2,7 +2,7 @@
  * Driving the parts of the app a spec passes through on its way to the behaviour it tests.
  */
 
-import { expect, type Locator, type Page } from '@playwright/test'
+import { expect, type Locator, type Page, type Response } from '@playwright/test'
 
 import type { TestUser } from './api'
 import { API_BASE_URL, BASE_URL } from './target'
@@ -116,6 +116,49 @@ export async function openPage(page: Page, url: string): Promise<void> {
 }
 
 /**
+ * Load every page of the transaction list, returning once it says it has reached the end.
+ *
+ * The list loads fifteen rows at a time, a page each time its end comes into view, and may load the
+ * next one on its own while its end is still in view. A single scroll can land before the page above
+ * it has grown the list and miss the next page, so each scroll waits for its page to start and finish
+ * loading before the next, and a count read afterwards can't catch the list part way through a page
+ *
+ * @param page - Page showing the transaction list
+ */
+export async function loadEveryTransaction(page: Page): Promise<void> {
+  const loadingMore = page.getByText(/^Loading more transactions/)
+  const reachedEnd = page.getByText("You've reached the end.")
+  await expect(loadingMore).toBeHidden()
+  while (!(await reachedEnd.isVisible())) {
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
+    await expect(loadingMore.or(reachedEnd)).toBeVisible()
+    await expect(loadingMore).toBeHidden()
+  }
+}
+
+// The save that finishes an import, of a CSV file or of a journal from another app
+const IMPORT_COMMIT_PATH = /\/transactions\/import\/runs\/[^/]+(\/journal)?\/commit$/
+
+/**
+ * Click Commit import and wait, under the test's own limit, for the server to answer the save.
+ *
+ * An import sends its requests one after another, and on a busy host they can outlast an assertion's
+ * wait, so a check of the overlay timed from the click races the server. Once the save has answered,
+ * the overlay has only its own fixed pauses left before it shows the outcome
+ *
+ * @param page - Page showing a staged import
+ * @returns The save's response, whatever its status
+ */
+export async function commitImport(page: Page): Promise<Response> {
+  const commit = page.getByRole('button', { name: 'Commit import', exact: true })
+  await expect(commit).toBeEnabled()
+  const committed = page.waitForResponse((response) => response.request().method() === 'POST'
+    && IMPORT_COMMIT_PATH.test(new URL(response.url()).pathname), { timeout: 0 })
+  await commit.click()
+  return committed
+}
+
+/**
  * Assert the app is showing its signed-in shell.
  *
  * The navigation is the thing that says so, and it only renders for a signed-in user past the
@@ -162,7 +205,7 @@ export async function filterByCategory(page: Page, categoryName: string): Promis
 }
 
 /**
- * Open a modal from a toolbar button, and answer with the dialog.
+ * Open a modal from a toolbar button, and answer with the dialog once it has placed its opening focus.
  *
  * The authenticated route waits for currencies before becoming ready, so the opener can be
  * clicked once after the route finishes loading
@@ -189,6 +232,10 @@ export async function openModal(page: Page, buttonNames: string[], dialogName: s
 
   await opener.click()
   await expect(dialog).toBeVisible()
+  // A dialog moves focus onto its first field a frame after it opens, and on a busy host that frame can
+  // land after the dialog shows, taking focus from wherever the spec has moved it. Focus starts on the
+  // opener outside the dialog, so it's inside once the dialog has placed it
+  await expect.poll(() => dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true)
 
   return dialog
 }

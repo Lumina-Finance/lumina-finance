@@ -1,7 +1,7 @@
 import { expect, test, type Page, type Request, type Response } from '@playwright/test'
 
 import { countLedgerTransactions, createAccount, signUpUser } from '../support/api'
-import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
+import { chooseFromDropdown, commitImport, logInViaApi, openPage } from '../support/app'
 
 // Runs on desktop only: what the import keeps between files is the same at every size
 
@@ -46,9 +46,7 @@ test('keeps a finished import as its record until another file is uploaded', asy
   await merchantField.click()
   await page.getByRole('option', { name: 'Do not import', exact: true }).click()
   await expect(merchantField).toContainText('Do not import')
-  const commit = page.getByRole('button', { name: 'Commit import', exact: true })
-  await expect(commit).toBeEnabled()
-  await commit.click()
+  await commitImport(page)
   const overlay = page.getByRole('dialog')
   await expect(overlay.getByText('Import complete', { exact: true })).toBeVisible()
   await overlay.getByRole('button', { name: 'Review skipped rows', exact: true }).click()
@@ -70,8 +68,7 @@ test('keeps a finished import as its record until another file is uploaded', asy
   await expect(page.getByText(/42\.50/)).toHaveCount(0)
   await expect(merchantField).toBeEnabled()
   await expect(merchantField).toContainText('Merchant')
-  await expect(commit).toBeEnabled()
-  await commit.click()
+  await commitImport(page)
   await expect(overlay.getByText('Import complete', { exact: true })).toBeVisible()
   await expect(overlay.getByText('2 transactions imported · 0 accounts created · 0 categories created', { exact: true })).toBeVisible()
   // The first file's two rows, then only the second file's two
@@ -121,7 +118,7 @@ async function commitToRecord(page: Page, reloads: Array<(response: Response) =>
     (response) => sentAfterCommit.has(response.request()) && isReload(response),
   )))
 
-  await page.getByRole('button', { name: 'Commit import', exact: true }).click()
+  await commitImport(page)
   const overlay = page.getByRole('dialog')
   await expect(overlay.getByText('Import complete', { exact: true })).toBeVisible()
   await overlay.getByRole('button', { name: 'Review skipped rows', exact: true }).click()

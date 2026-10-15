@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
 import { countLedgerTransactions, createAccount, signUpUser } from '../support/api'
-import { logInViaApi, openPage } from '../support/app'
+import { commitImport, logInViaApi, openPage } from '../support/app'
 
 // Runs on desktop only: how an interrupted save recovers is the same at every size
 
@@ -62,7 +62,10 @@ async function importWithLostAnswer(page: Page, request: APIRequestContext) {
   await firstSaveHeld
   await expect(overlay.locator('[aria-current="step"]')).toContainText('Saving the import')
   await expect(overlay.getByRole('button', { name: 'Stop import', exact: true })).toHaveCount(0)
+  // The save runs on the server before its answer is dropped, which on a busy host can outlast the check below
+  const firstSaveDropped = page.waitForEvent('requestfailed', (sent) => COMMIT_URL.test(sent.url()))
   releaseFirstSave()
+  await firstSaveDropped
 
   await expect(overlay.getByText('Save interrupted', { exact: true })).toBeVisible()
   await expect(overlay.getByRole('strong')).toHaveText('stay on the import page')
@@ -79,7 +82,7 @@ async function importWithLostAnswer(page: Page, request: APIRequestContext) {
 test('saves the kept upload once after a CSV save that landed but whose answer was lost', async ({ page, request }) => {
   const { overlay, user, ledgerAfterFirstSave } = await importWithLostAnswer(page, request)
 
-  await page.getByRole('button', { name: 'Commit import', exact: true }).click()
+  await commitImport(page)
 
   await expect(overlay.getByText('Import complete', { exact: true })).toBeVisible()
   await expect(overlay.getByText('3 transactions imported · 0 accounts created · 1 category created', { exact: true })).toBeVisible()
@@ -93,7 +96,7 @@ test('imports nothing twice after a CSV save that landed but whose answer was lo
 
   await page.getByRole('combobox', { name: 'Match To App Field Notes', exact: true }).click()
   await page.getByRole('option', { name: /^Do not import/ }).click()
-  await page.getByRole('button', { name: 'Commit import', exact: true }).click()
+  await commitImport(page)
 
   await expect(overlay.getByText('Import complete', { exact: true })).toBeVisible()
   await expect(overlay.getByText('Your earlier import was saved, so this one wasn\'t imported.', { exact: true })).toBeVisible()
