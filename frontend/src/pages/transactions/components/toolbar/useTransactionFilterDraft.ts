@@ -17,7 +17,7 @@ import {
   isAppliedRangeWaitingOnCurrency,
   type AmountDraft,
 } from '@/pages/transactions/utils/amountRange'
-import { isDateRangeCrossed } from '@/pages/transactions/utils/dateRange'
+import { isDateRangeCrossed } from '@/utils/date'
 import { useRestoreAmountRange } from '@/pages/transactions/components/toolbar/hooks/useRestoreAmountRange'
 import type { TransactionListFilters } from '@/pages/transactions/types/transactionList'
 import type { TransactionFilterSetter } from '@/pages/transactions/components/toolbar/types'
