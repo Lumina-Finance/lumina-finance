@@ -160,13 +160,19 @@ function MobileTimeRangeSelector<T extends string>({
   const transition = shouldReduceMotion ? { duration: 0 } : glassSpring
 
   // Pin the layout slot to the collapsed pill height while closed, so opening lets the absolute glass
-  // grow over the content below instead of shifting it. Remeasured when the label changes since that
-  // can reflow the head height
+  // grow over the content below instead of shifting it. Remeasured while closed whenever the head
+  // resizes: a new label can reflow it, and a page opened wider hides the pill, where the head measures
+  // as nothing until the window narrows and shows it
   useLayoutEffect(() => {
     const head = headRef.current
-    if (open || !head) return
-    setCollapsedHeight(head.offsetHeight + GLASS_BORDER_ALLOWANCE)
-  }, [open, selectedDisplay, selectedShortcut])
+    if (open || !head) return undefined
+
+    const measure = () => setCollapsedHeight(head.offsetHeight + GLASS_BORDER_ALLOWANCE)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(head)
+    return () => observer.disconnect()
+  }, [open])
 
   useEffect(() => {
     if (!open) return
