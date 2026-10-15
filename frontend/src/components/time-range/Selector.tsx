@@ -1,6 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { CalendarRange, Check, ChevronDown } from 'lucide-react'
+import { useFocusHeadOnClose } from '@/hooks/useFocusHeadOnClose'
 import { joinClassNames } from '@/utils/classNames'
 
 export type TimeRangeSelectorOption<T extends string> = {
@@ -153,6 +154,7 @@ function MobileTimeRangeSelector<T extends string>({
   const listboxId = useId()
   const selectorRef = useRef<HTMLDivElement>(null)
   const headRef = useRef<HTMLButtonElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
   const shouldReduceMotion = useReducedMotion()
   const selected = options.find((option) => option.value === value) ?? options[0]
   const selectedDisplay = selected.description ?? selected.label
@@ -173,6 +175,8 @@ function MobileTimeRangeSelector<T extends string>({
     observer.observe(head)
     return () => observer.disconnect()
   }, [open])
+
+  useFocusHeadOnClose(open, bodyRef, headRef)
 
   useEffect(() => {
     if (!open) return
@@ -210,6 +214,9 @@ function MobileTimeRangeSelector<T extends string>({
         className={joinClassNames('app-range-glass app-range-glass-full', open && 'app-range-glass-open')}
         style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: GLASS_Z_INDEX }}
         whileTap={open || shouldReduceMotion ? undefined : { scale: 0.94 }}
+        // A press animation makes Motion put the frame in the Tab order unless it already has a
+        // place there, and the button inside is the one stop the control needs
+        tabIndex={-1}
       >
         <button
           ref={headRef}
@@ -238,7 +245,9 @@ function MobileTimeRangeSelector<T extends string>({
           </span>
         </button>
 
-        <div className="app-range-glass-bodywrap">
+        {/* Closed, the options stay mounted at no height and fully faded, so they are kept out of
+            focus and the accessibility tree until the control opens */}
+        <div ref={bodyRef} className="app-range-glass-bodywrap" inert={!open}>
           <div className="app-range-glass-body">
             <div
               id={listboxId}

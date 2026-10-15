@@ -214,6 +214,9 @@ function GlassRangeSelector({
       animate={fullWidth ? undefined : { width: open ? OPEN_DESKTOP_WIDTH : collapsedWidth }}
       transition={transition}
       whileTap={open || shouldReduceMotion ? undefined : { scale: 0.94 }}
+      // A press animation makes Motion put the frame in the Tab order unless it already has a place
+      // there, and the button inside is the one stop the control needs
+      tabIndex={-1}
     >
       <button
         type="button"
