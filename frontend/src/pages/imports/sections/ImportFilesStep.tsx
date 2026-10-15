@@ -8,7 +8,6 @@ import {
   ImportUploadCard,
 } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
-import { hasAcceptedFile } from '@/pages/imports/utils'
 
 type ImportFilesStepProps = Pick<
   TransactionImportWorkflow,
@@ -22,6 +21,10 @@ type ImportFilesStepProps = Pick<
   | 'changeDelimiter'
   | 'changeHeaderRow'
   | 'changeSkipLastRows'
+  | 'columnMap'
+  | 'dateRange'
+  | 'isDateRangeCrossed'
+  | 'setDateRangeEnd'
   | 'removeFile'
   | 'uploadBlockReason'
   | 'importResult'
@@ -30,11 +33,11 @@ type ImportFilesStepProps = Pick<
 /**
  * Files step of the generic CSV import flow, taking a single upload and showing the staged file's
  * row and mapped-field counts, with how it was read: the separator, header row and lines skipped at
- * the end, which the user can change
+ * the end, which the user can change, and once a column is mapped as the date, the dates to import
  *
- * The upload control and the guidance above it are taken away once a usable file is staged, since
- * this flow carries one file and uploading another would only replace it. A file the reader refused
- * keeps them, because that is the file the user has to replace
+ * The upload control and the guidance above it are taken away while any file is staged, a refused one
+ * included, since this flow carries one file and uploading another would only replace it. Removing
+ * the file brings them back
  *
  * Once the import has run, the staged file is its record: it can't be removed and how it was read
  * can't be changed, and the upload control comes back under it, since a new file is how a new import
@@ -51,6 +54,10 @@ export function ImportFilesStep({
   changeDelimiter,
   changeHeaderRow,
   changeSkipLastRows,
+  columnMap,
+  dateRange,
+  isDateRangeCrossed,
+  setDateRangeEnd,
   removeFile,
   uploadBlockReason,
   importResult,
@@ -58,11 +65,11 @@ export function ImportFilesStep({
   // A file is read against the currency list, so uploading one before it is in hand would read the
   // file wrongly rather than merely leave a later step waiting
   const isUploadBlocked = isProcessingFiles || uploadBlockReason !== null
-  const isFileAccepted = hasAcceptedFile(files)
   const isImportFinished = Boolean(importResult)
   const stagedListRef = useRef<HTMLDivElement>(null)
-  const wasFileAcceptedRef = useRef(isFileAccepted)
   const stagedFile = files[0]
+  const isFileStaged = Boolean(stagedFile)
+  const wasFileStagedRef = useRef(isFileStaged)
 
   // The upload card is what the keyboard user pressed to get here, so taking it away leaves them on
   // the page body with the next tab starting from the top. The staged row's Remove button is the
@@ -70,13 +77,15 @@ export function ImportFilesStep({
   // where the browser dropped it, so a user who moved on while the file was being read keeps where
   // they are
   useEffect(() => {
-    const hasJustBeenAccepted = isFileAccepted && !wasFileAcceptedRef.current
-    wasFileAcceptedRef.current = isFileAccepted
-    if (!hasJustBeenAccepted || document.activeElement !== document.body) return
+    const hasJustBeenStaged = isFileStaged && !wasFileStagedRef.current
+    wasFileStagedRef.current = isFileStaged
+    if (!hasJustBeenStaged || document.activeElement !== document.body) return
     stagedListRef.current?.querySelector('button')?.focus()
-  }, [isFileAccepted])
+  }, [isFileStaged])
 
-  const uploadArea = (!isFileAccepted || isImportFinished) && (
+  // A staged file, even one refused, is replaced by removing it first, which brings the upload back, so
+  // the upload shows only with no file staged or after a finished import
+  const uploadArea = (!stagedFile || isImportFinished) && (
     <>
       {/* Stated before a file is chosen, since re-exporting is the only thing that answers it.
           The wording stays loose about what goes wrong on purpose, because readCsvFile has two
@@ -120,6 +129,7 @@ export function ImportFilesStep({
     <ImportFilesStepLayout
       title="File"
       description="Upload one CSV transaction file."
+      areStatsFlush
       stats={[
         { label: 'File', value: files.length },
         { label: 'Rows', value: totalRows },
@@ -136,21 +146,28 @@ export function ImportFilesStep({
         </>
       ) : (
         <>
+          {/* The file row, the settings and the counts all start and end on the section's own edges. The
+              row drops its side padding to do it, rather than being pulled out with a negative margin,
+              since the section scrolls and a box wider than it slides sideways */}
           <div ref={stagedListRef}>
-            <ImportStagedFileList files={files} onRemove={isImportFinished ? undefined : (file) => removeFile(file.id)} />
+            <ImportStagedFileList isFlush files={files} onRemove={isImportFinished ? undefined : (file) => removeFile(file.id)} />
           </div>
           {/* Shown for a refused file too, since most refusals of a bank export are fixed by one of these */}
           {stagedFile && (stagedFile.delimiter || stagedFile.reading) && (
             <ImportReadingChoices
               file={stagedFile}
               disabled={isImportFinished}
+              hasDateColumn={Boolean(columnMap.dt)}
+              dateRange={dateRange}
+              isDateRangeCrossed={isDateRangeCrossed}
               onDelimiterChange={changeDelimiter}
               onHeaderRowChange={changeHeaderRow}
               onSkipLastRowsChange={changeSkipLastRows}
+              onDateRangeChange={setDateRangeEnd}
             />
           )}
-          {/* A refused file keeps its place above the upload, so the reading choices stay under the
-              pointer when one is refused. A finished import's file keeps it the same way */}
+          {/* Only a finished import's file has the upload under it, since a new file is how a new
+              import starts */}
           {uploadArea}
         </>
       )}

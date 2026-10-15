@@ -153,3 +153,11 @@ export function formatIsoDate(segments: DateSegments): string {
 
   return `${year}-${padTwo(month)}-${padTwo(day)}`
 }
+
+/**
+ * Reports whether a date has been begun but doesn't yet read as a whole date, which an empty field
+ * has not
+ */
+export function isPartlyTyped(segments: DateSegments): boolean {
+  return formatIsoDate(segments) === '' && Object.values(segments).some((digits) => digits !== '')
+}

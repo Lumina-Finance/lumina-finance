@@ -310,6 +310,56 @@ export function getImportNoRowsError(subject: 'file' | 'export') {
   return `This ${subject} has no transaction rows to import.`
 }
 
+/** Heads the fields limiting a CSV import to a range of dates */
+export const IMPORT_DATE_RANGE_TITLE = 'Dates to import'
+export const IMPORT_DATE_RANGE_START_LABEL = 'Start date'
+export const IMPORT_DATE_RANGE_END_LABEL = 'End date'
+
+/** Said on the start date's label row while it falls after the end date */
+export const IMPORT_DATE_RANGE_CROSSED_FIELD_ERROR = 'Must be on or before the end date'
+
+/** Said beside Commit import while the start date falls after the end date */
+export const IMPORT_DATE_RANGE_CROSSED_ERROR = 'Choose a start date on or before the end date.'
+
+/** Said on the label row of a date only partly typed, which limits nothing until it is whole */
+export const IMPORT_DATE_RANGE_INCOMPLETE_FIELD_ERROR = 'Enter the whole date, or clear it'
+
+/** Said beside Commit import while either date is only partly typed */
+export const IMPORT_DATE_RANGE_INCOMPLETE_ERROR = 'Finish the chosen dates, or clear any you don\'t need.'
+
+/** Said where a file has rows, but none of them is dated within the chosen dates */
+export const IMPORT_NO_ROWS_IN_DATE_RANGE_ERROR = 'No rows in this file fall within the chosen dates.'
+
+/** Heads the note on how many rows the chosen dates leave out */
+export const ROWS_OUTSIDE_DATE_RANGE_TITLE = 'Rows outside the chosen dates'
+
+/**
+ * Says how many rows the chosen dates leave out, and that they won't be imported, or once the
+ * import has finished, that they weren't
+ */
+export function getRowsOutsideDateRangeExplanation(count: number, isFinished: boolean) {
+  if (count === 1) {
+    return isFinished
+      ? '1 row was dated outside the chosen dates, so it wasn\'t imported.'
+      : '1 row is dated outside the chosen dates, so it won\'t be imported.'
+  }
+  const rows = count.toLocaleString()
+  return isFinished
+    ? `${rows} rows were dated outside the chosen dates, so they weren't imported.`
+    : `${rows} rows are dated outside the chosen dates, so they won't be imported.`
+}
+
+/**
+ * Names the rows the chosen dates left out, as one part of a finished import's summary, with the
+ * count written ungrouped like the summary's other counts
+ */
+export function getRowsOutsideDateRangeSummaryPart(count: number) {
+  return `${count} outside the chosen dates`
+}
+
+/** Shown in place of the transaction estimate while how many rows the chosen dates leave out is unknown */
+export const UNKNOWN_IMPORT_FIGURE = '—'
+
 /**
  * Says a row's notes are longer than the importer stores
  */

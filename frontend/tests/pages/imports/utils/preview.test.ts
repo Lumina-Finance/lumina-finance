@@ -8,7 +8,7 @@ import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import type { ImportFileDraft } from '@/pages/imports/types'
-import { buildImportPreviewRows } from '@/pages/imports/utils'
+import { buildImportPreviewRows, WHOLE_FILE_DATE_RANGE } from '@/pages/imports/utils'
 
 const currencies: Currency[] = [
   { id: 'USD', name: 'US Dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -95,6 +95,7 @@ describe('import preview rows', () => {
       const account = createAccount()
       const options = {
         columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', amount: 'Amount', category_id: 'Category' },
+        dateRange: WHOLE_FILE_DATE_RANGE,
         directionAnswers: {},
         missingRequiredColumnLabels: [],
         currencies,
@@ -126,6 +127,7 @@ describe('import preview rows', () => {
       files: [createFile([])],
       columnMap: EMPTY_COLUMN_MAP,
       dateFormat: null,
+      dateRange: WHOLE_FILE_DATE_RANGE,
       directionAnswers: {},
       missingRequiredColumnLabels: ['Date'],
       currencies,
@@ -164,6 +166,7 @@ describe('import preview rows', () => {
         currency: 'Currency',
       },
       dateFormat: 'monthFirst',
+      dateRange: WHOLE_FILE_DATE_RANGE,
       directionAnswers: {},
       missingRequiredColumnLabels: [],
       currencies,
@@ -232,6 +235,7 @@ describe('import preview rows', () => {
         amount_direction: 'Type',
       },
       dateFormat: 'yearFirst',
+      dateRange: WHOLE_FILE_DATE_RANGE,
       directionAnswers: { debit: 'out' },
       missingRequiredColumnLabels: [],
       currencies,
@@ -268,6 +272,7 @@ describe('import preview rows', () => {
       dateFormat: 'dayFirst',
       dateSeparator: '.',
       amountFormat: { decimalSeparator: ',', groupingSeparator: '.' },
+      dateRange: WHOLE_FILE_DATE_RANGE,
       directionAnswers: {},
       missingRequiredColumnLabels: [],
       currencies,
@@ -309,6 +314,7 @@ describe('import preview rows', () => {
         category_id: 'Category',
       },
       dateFormat: 'yearFirst',
+      dateRange: WHOLE_FILE_DATE_RANGE,
       directionAnswers: {},
       missingRequiredColumnLabels: [],
       currencies,
@@ -350,6 +356,7 @@ describe('import preview rows', () => {
         category_id: 'Category',
       },
       dateFormat: 'yearFirst',
+      dateRange: WHOLE_FILE_DATE_RANGE,
       directionAnswers: {},
       missingRequiredColumnLabels: [],
       currencies,
@@ -387,6 +394,7 @@ describe('import preview rows', () => {
         category_id: 'Category',
       },
       dateFormat: 'yearFirst',
+      dateRange: WHOLE_FILE_DATE_RANGE,
       directionAnswers: {},
       missingRequiredColumnLabels: [],
       currencies,
@@ -426,6 +434,7 @@ describe('import preview rows', () => {
         category_id: 'Category',
       },
       dateFormat: 'yearFirst',
+      dateRange: WHOLE_FILE_DATE_RANGE,
       directionAnswers: {},
       missingRequiredColumnLabels: [],
       currencies,
@@ -462,6 +471,7 @@ describe('previewing a new category renamed because another type holds its name'
       files: [createFile([{ Date: '2026-06-11', Amount: '-40.00', Category: 'Car', Merchant: '', Notes: '', Tags: '', Currency: '' }])],
       columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', amount: 'Amount', category_id: 'Category' },
       dateFormat: 'yearFirst',
+      dateRange: WHOLE_FILE_DATE_RANGE,
       directionAnswers: {},
       missingRequiredColumnLabels: [],
       currencies,
@@ -494,6 +504,7 @@ describe('previewing a new category whose name the user already has', () => {
       files: [createFile([{ Date: '2026-06-11', Amount: '-40.00', Category: source, Merchant: '', Notes: '', Tags: '', Currency: '' }])],
       columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', amount: 'Amount', category_id: 'Category' },
       dateFormat: 'yearFirst',
+      dateRange: WHOLE_FILE_DATE_RANGE,
       directionAnswers: {},
       missingRequiredColumnLabels: [],
       currencies,
@@ -527,5 +538,43 @@ describe('previewing a new category whose name the user already has', () => {
 
     expect(category).toMatchObject({ name: 'gifts', kind: 'expense' })
     expect(category?.id).not.toBe(gifts.id)
+  })
+})
+
+describe('previewing a chosen range of dates', () => {
+  function previewDates(dateRange: { from: string; to: string }) {
+    const account = createAccount()
+    const rows = ['2026-01-15', '2026-03-15', '2026-05-15'].map((Date) => (
+      { Date, Amount: '-40.00', Category: '', Merchant: '', Notes: '', Tags: '', Currency: '' }
+    ))
+    return buildImportPreviewRows({
+      files: [createFile(rows)],
+      columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', amount: 'Amount' },
+      dateFormat: 'yearFirst',
+      dateRange,
+      directionAnswers: {},
+      missingRequiredColumnLabels: [],
+      currencies,
+      accountById: new Map([[account.id, account]]),
+      accountCreateCurrencies: {},
+      accountCreateInstitutions: {},
+      categoryById: new Map(),
+      categoryCreateKinds: {},
+      categoryRenames: {},
+      categoryTypesBySource: {},
+      institutionById: new Map(),
+      resolvedAccountMappings: { 'file-1': account.id },
+      resolvedCategoryMappings: {},
+      rowProblems: [],
+    }).map((row) => row.transaction.dt)
+  }
+
+  it('shows only the rows dated inside the range', () => {
+    expect(previewDates({ from: '2026-03-01', to: '2026-03-31' })).toEqual(['2026-03-15'])
+  })
+
+  // Showing the whole file here would preview rows the import is about to leave out
+  it('shows no rows while the ends are crossed', () => {
+    expect(previewDates({ from: '2026-04-01', to: '2026-03-01' })).toEqual([])
   })
 })

@@ -16,7 +16,12 @@ import {
 } from '@/pages/imports/constants'
 import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type { ColumnMap, ImportAccountSource, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
-import { buildImportAccountMappingSources, buildImportPreviewRows, buildTransactionImportPayload } from '@/pages/imports/utils'
+import {
+  buildImportAccountMappingSources,
+  buildImportPreviewRows,
+  buildTransactionImportPayload,
+  WHOLE_FILE_DATE_RANGE,
+} from '@/pages/imports/utils'
 
 const currencies: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -144,6 +149,7 @@ function buildPayload({
     columnMap: COLUMN_MAP,
     columnValidationErrors: {},
     dateFormat: 'yearFirst',
+    dateRange: WHOLE_FILE_DATE_RANGE,
     directionAnswers: {},
     files: [createFile([{
       Account: 'Chequing',
@@ -337,6 +343,7 @@ describe('CSV import counterparty account', () => {
       ])],
       columnMap: COLUMN_MAP,
       dateFormat: 'yearFirst',
+      dateRange: WHOLE_FILE_DATE_RANGE,
       directionAnswers: {},
       missingRequiredColumnLabels: [],
       currencies,
@@ -378,6 +385,7 @@ describe('CSV import counterparty account', () => {
       ])],
       columnMap: COLUMN_MAP,
       dateFormat: 'yearFirst',
+      dateRange: WHOLE_FILE_DATE_RANGE,
       directionAnswers: {},
       missingRequiredColumnLabels: [],
       currencies,
@@ -407,6 +415,7 @@ describe('CSV import counterparty account', () => {
       ])],
       columnMap: COLUMN_MAP,
       dateFormat: 'yearFirst',
+      dateRange: WHOLE_FILE_DATE_RANGE,
       directionAnswers: {},
       missingRequiredColumnLabels: [],
       currencies,
@@ -433,6 +442,7 @@ describe('CSV import counterparty account', () => {
       ])],
       columnMap: COLUMN_MAP,
       dateFormat: 'yearFirst',
+      dateRange: WHOLE_FILE_DATE_RANGE,
       directionAnswers: {},
       missingRequiredColumnLabels: [],
       currencies,

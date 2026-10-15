@@ -8,7 +8,11 @@ import {
   getImportNoRowsError,
   getTooManyMappingsError,
   getRowSignDisagreesWithCategoryReason,
+  getRowsOutsideDateRangeSummaryPart,
   getUnansweredDirectionValuesError,
+  IMPORT_DATE_RANGE_CROSSED_ERROR,
+  IMPORT_DATE_RANGE_INCOMPLETE_ERROR,
+  IMPORT_NO_ROWS_IN_DATE_RANGE_ERROR,
   MAX_IMPORT_MAPPINGS,
   NO_OUTFLOWS_WARNING,
 } from '@/pages/imports/constants'
@@ -21,7 +25,9 @@ import type {
   ImportBuildResult,
   ImportCategoryKind,
   ImportCategoryRename,
+  ImportDateRange,
   ImportFileDraft,
+  ImportRowFilter,
   ImportRowProblem,
 } from '@/pages/imports/types'
 import type { Currency } from '@/api/currency'
@@ -35,7 +41,8 @@ import { getCategoryMatchKind, getDebtPaymentImportNote } from './categoryMatchi
 import { buildImportAccountMapping, buildImportCategoryMapping } from './importMappings'
 import { buildImportMerchantMappings } from './merchantMatching'
 import { getImportDirectionValues } from './columnMapping'
-import { getImportRowId, joinImportSummaryParts } from './common'
+import { getImportRowId, includeEveryImportRow, joinImportSummaryParts } from './common'
+import { getImportDateRangeFilter, isImportDateRangeCrossed, isImportDateRangeIncomplete } from './dateRange'
 import { getAmountArrangementClashError, getMissingRequiredColumnLabels } from './workflowOptions'
 import {
   getCurrencyByAccountSource,
@@ -55,6 +62,9 @@ import { type ImportDateFormat, type ImportDateSeparator } from './valueParsers'
  * returns every accumulated error with a null payload, so the caller can show them all at once. A row
  * that can't be converted is left out of the payload and listed in `rowProblems` with its reason, as
  * the imports from other apps leave out and list theirs
+ *
+ * A row dated outside the chosen dates is left out on purpose rather than refused, so it is neither
+ * sent nor listed, and nothing else about it is judged
  */
 export function buildTransactionImportPayload({
   accountById,
@@ -74,6 +84,7 @@ export function buildTransactionImportPayload({
   dateFormat,
   dateSeparator = 'automatic',
   timeZone,
+  dateRange,
   amountFormat = DEFAULT_IMPORT_AMOUNT_FORMAT,
   directionAnswers,
   files,
@@ -99,6 +110,9 @@ export function buildTransactionImportPayload({
   dateFormat: ImportDateFormat | null
   dateSeparator?: ImportDateSeparator
   timeZone?: string
+
+  /** The dates the import is limited to, which every caller passes so a forgotten range fails the type-check */
+  dateRange: ImportDateRange
   amountFormat?: ImportAmountFormat | null
 
   /** What each word in a mapped Direction column means, keyed by the folded value */
@@ -149,8 +163,13 @@ export function buildTransactionImportPayload({
   // Asked before any row is judged, for the reason the date format is: without an answer every row
   // reads as one with no amount, which is a file full of broken rows rather than one question
   // waiting on the mapping step
+  //
+  // A range that cannot be applied yet comes with an error of its own below, before any row is
+  // read, so reading every row in its place only decides which Direction words this build asks about
+  const isRowIncluded = getImportDateRangeFilter({ columnMap, dateFormat, dateSeparator, timeZone, dateRange })
+    ?? includeEveryImportRow
   if (!isDirectionColumnUnusable) {
-    for (const message of getDirectionAnswerErrors(files, columnMap, directionAnswers)) addError(message)
+    for (const message of getDirectionAnswerErrors(files, columnMap, directionAnswers, isRowIncluded)) addError(message)
   }
 
   // Counted off the distinct values the files hold rather than the mappings answered so far, so the
@@ -166,6 +185,8 @@ export function buildTransactionImportPayload({
   // Without a settled format every row would fail its own date check, which reads as a file full of
   // bad dates rather than one unanswered question
   if (columnMap.dt && !dateFormat) addError('Choose the date format this file is written in.')
+  if (isImportDateRangeIncomplete(columnMap, dateRange)) addError(IMPORT_DATE_RANGE_INCOMPLETE_ERROR)
+  if (isImportDateRangeCrossed(columnMap, dateRange)) addError(IMPORT_DATE_RANGE_CROSSED_ERROR)
   if ((columnMap.amount || columnMap.amount_out || columnMap.amount_in) && !amountFormat) {
     addError('Choose the amount format this file is written in.')
   }
@@ -289,8 +310,14 @@ export function buildTransactionImportPayload({
   const rows: TransactionImportPayload['rows'] = []
   const rowProblems: ImportRowProblem[] = []
   const rowWarnings: ImportRowProblem[] = []
+  let outsideRangeRowCount = 0
   for (const file of files) {
     for (const [rowIndex, row] of file.rows.entries()) {
+      if (!isRowIncluded(row)) {
+        outsideRangeRowCount += 1
+        continue
+      }
+
       const resolved = resolveImportRow(row, file.id, rowContext)
       const problem = getImportRowProblem(resolved, rowJudgement)
       if (problem) {
@@ -331,8 +358,12 @@ export function buildTransactionImportPayload({
   }
 
   // Importing nothing isn't an import, so a file whose every row is left out says so beside Commit
-  // import as well as listing each row
-  if (rows.length === 0) addError(getImportNoRowsError('file'))
+  // import as well as listing each row. Where the chosen dates left any row out, the file does hold
+  // rows, so saying it has none would be wrong even when a row inside the dates was refused, and that
+  // row is still listed. The generic message is kept for a file with no rows at all
+  if (rows.length === 0) {
+    addError(outsideRangeRowCount > 0 ? IMPORT_NO_ROWS_IN_DATE_RANGE_ERROR : getImportNoRowsError('file'))
+  }
 
   const warnings = getImportWarnings(rows, columnMap)
   const allErrors = [...columnErrors, ...errors]
@@ -397,10 +428,11 @@ function getDirectionAnswerErrors(
   files: ImportFileDraft[],
   columnMap: ColumnMap,
   directionAnswers: Record<string, ImportAmountDirection>,
+  isRowIncluded: ImportRowFilter,
 ) {
   if (!columnMap.amount_direction) return []
 
-  const values = getImportDirectionValues(files, columnMap.amount_direction)
+  const values = getImportDirectionValues(files, columnMap.amount_direction, isRowIncluded)
   if (values.length === 0) return []
 
   const unanswered = values.filter((value) => !directionAnswers[value.key])
@@ -446,14 +478,17 @@ function getImportWarnings(rows: TransactionImportPayload['rows'], columnMap: Co
  * as it always has
  *
  * @param skippedCount - Rows the import was started without, because they can't be converted
+ * @param outsideRangeCount - Rows the import was started without, because they are dated outside
+ *   the chosen dates
  */
-export function formatImportSummary(result: TransactionImportResponse, skippedCount: number) {
+export function formatImportSummary(result: TransactionImportResponse, skippedCount: number, outsideRangeCount: number) {
   const parts = [
     `${result.transactions_created} transaction${result.transactions_created === 1 ? '' : 's'} imported`,
     `${result.accounts_created} account${result.accounts_created === 1 ? '' : 's'} created`,
     `${result.categories_created} categor${result.categories_created === 1 ? 'y' : 'ies'} created`,
   ]
   if (skippedCount > 0) parts.push(`${skippedCount} skipped`)
+  if (outsideRangeCount > 0) parts.push(getRowsOutsideDateRangeSummaryPart(outsideRangeCount))
 
   return joinImportSummaryParts(parts)
 }

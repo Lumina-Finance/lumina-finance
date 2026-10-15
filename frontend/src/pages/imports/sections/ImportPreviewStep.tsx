@@ -1,6 +1,7 @@
 import { ImportNotice, ImportRowProblemsTable, ImportRowWarningsTable } from '@/pages/imports/components'
+import { ROWS_OUTSIDE_DATE_RANGE_TITLE } from '@/pages/imports/constants'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
-import { getImportAmountHeaders, getSkippedRowsDisplay } from '@/pages/imports/utils'
+import { getImportAmountHeaders, getOutsideRangeRowsNote, getSkippedRowsDisplay } from '@/pages/imports/utils'
 import { ImportPreviewLayout } from './ImportPreviewLayout'
 
 /**
@@ -19,6 +20,7 @@ type ImportPreviewStepProps = Pick<
   | 'previewGroups'
   | 'importStats'
   | 'importBuild'
+  | 'outsideRangeRowCount'
   | 'headers'
   | 'columnMap'
   | 'importError'
@@ -63,6 +65,7 @@ export function ImportPreviewStep({
   previewGroups,
   importStats,
   importBuild,
+  outsideRangeRowCount,
   headers,
   columnMap,
   importError,
@@ -73,6 +76,7 @@ export function ImportPreviewStep({
 }: ImportPreviewStepProps) {
   const skipped = getSkippedRowsDisplay({ liveForecastRows: importBuild.rowProblems, completedImport })
   const amountHeaders = getImportAmountHeaders(columnMap)
+  const outsideRangeNote = getOutsideRangeRowsNote({ liveCount: outsideRangeRowCount, completedImport })
   const visibleErrors = importBuild.errors.slice(0, VISIBLE_ERROR_LIMIT)
   const hiddenErrorCount = importBuild.errors.length - visibleErrors.length
   const hasBlockingErrors = files.length > 0 && importBuild.errors.length > 0
@@ -95,6 +99,13 @@ export function ImportPreviewStep({
       canCommit={canCommitImport}
       onCommit={handleCommitImport}
     >
+      {/* Rows left out on purpose come first and aren't listed, since the user chose the dates that
+          left them out. Only the count is said, so they don't disappear without a word */}
+      {outsideRangeNote && (
+        <div className="mb-4">
+          <ImportNotice title={ROWS_OUTSIDE_DATE_RANGE_TITLE}>{outsideRangeNote}</ImportNotice>
+        </div>
+      )}
       {skipped.totalCount > 0 && (
         <div className="mb-4">
           <ImportRowProblemsTable

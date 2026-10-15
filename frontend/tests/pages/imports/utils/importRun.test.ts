@@ -12,12 +12,14 @@ import {
   createImportRunController,
   describeImportRunFailure,
   getImportRunError,
+  getOutsideRangeRowsNote,
   getSkippedRowsDisplay,
   type ImportRunState,
 } from '@/pages/imports/utils'
 
 const RESULT = { rows_imported: 3 } as JournalImportRunResponse
 const SKIPPED_AT_START: FireflySkippedRowDetail[] = [{ id: 'file-1-6', journalId: '7', rowNumber: 8, cells: {}, reason: 'Left out' }]
+const OUTSIDE_RANGE_AT_START = 3
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -61,7 +63,7 @@ async function failWhileSaving(controller: ReturnType<typeof createHarness>['con
     await onStaged()
     throw new ImportRunError('The server went away', 'commit', 'run-1')
   })
-  await controller.start(SKIPPED_AT_START, answers, requests)
+  await controller.start(SKIPPED_AT_START, OUTSIDE_RANGE_AT_START, answers, requests)
   return requests
 }
 
@@ -71,7 +73,7 @@ describe('import run', () => {
     const staged = deferred<void>()
     const saved = deferred<JournalImportRunResponse>()
 
-    const running = controller.start(SKIPPED_AT_START, {}, {
+    const running = controller.start(SKIPPED_AT_START, OUTSIDE_RANGE_AT_START, {}, {
       upload: async (_signal, onStaged) => {
         await staged.promise
         await onStaged()
@@ -89,7 +91,12 @@ describe('import run', () => {
     await running
     expect(controller.getState()).toMatchObject({
       overlayPhase: 'success',
-      completedImport: { result: RESULT, skippedRowsAtCommit: SKIPPED_AT_START, savedEarlier: false },
+      completedImport: {
+        result: RESULT,
+        skippedRowsAtCommit: SKIPPED_AT_START,
+        outsideRangeCountAtCommit: OUTSIDE_RANGE_AT_START,
+        savedEarlier: false,
+      },
     })
     expect(states.some((state) => state.stageState?.stage === 'uploading' && state.stageState.isFinished)).toBe(true)
   })
@@ -97,7 +104,7 @@ describe('import run', () => {
   it('reports a stop during the upload as stopped, with nothing kept to save again', async () => {
     const { controller } = createHarness()
 
-    const running = controller.start(SKIPPED_AT_START, {}, {
+    const running = controller.start(SKIPPED_AT_START, OUTSIDE_RANGE_AT_START, {}, {
       upload: (signal) => new Promise((_resolve, reject) => {
         signal.addEventListener('abort', () => reject(new ImportRunError('Aborted', 'staging', null)))
       }),
@@ -126,7 +133,12 @@ describe('import run', () => {
     expect(controller.getState()).toMatchObject({
       overlayPhase: 'success',
       stagedRunId: null,
-      completedImport: { result: RESULT, skippedRowsAtCommit: SKIPPED_AT_START, savedEarlier: false },
+      completedImport: {
+        result: RESULT,
+        skippedRowsAtCommit: SKIPPED_AT_START,
+        outsideRangeCountAtCommit: OUTSIDE_RANGE_AT_START,
+        savedEarlier: false,
+      },
     })
   })
 
@@ -134,7 +146,7 @@ describe('import run', () => {
     const { controller, discardStagedRun } = createHarness()
     const upload = deferred<JournalImportRunResponse>()
 
-    const running = controller.start(SKIPPED_AT_START, {}, { upload: () => upload.promise, commit: vi.fn() })
+    const running = controller.start(SKIPPED_AT_START, OUTSIDE_RANGE_AT_START, {}, { upload: () => upload.promise, commit: vi.fn() })
     controller.close()
     expect(controller.getState().overlayPhase).toBe('importing')
     upload.reject(new ImportRunError('The server went away', 'commit', 'run-1'))
@@ -153,12 +165,15 @@ describe('import run', () => {
     controller.close()
     const requests = createRequests()
 
-    await controller.start([], answers, requests)
+    await controller.start([], 0, answers, requests)
 
     expect(requests.upload).not.toHaveBeenCalled()
     expect(requests.commit).toHaveBeenCalledWith('run-1', expect.any(AbortSignal))
     expect(settleStagedRun).not.toHaveBeenCalled()
-    expect(controller.getState().completedImport?.skippedRowsAtCommit).toEqual(SKIPPED_AT_START)
+    expect(controller.getState().completedImport).toMatchObject({
+      skippedRowsAtCommit: SKIPPED_AT_START,
+      outsideRangeCountAtCommit: OUTSIDE_RANGE_AT_START,
+    })
   })
 
   it('uploads changed answers once dropping the kept upload shows nothing of it was saved', async () => {
@@ -167,7 +182,7 @@ describe('import run', () => {
     controller.close()
     const requests = createRequests()
 
-    await controller.start([], { changed: true }, requests)
+    await controller.start([], 0,{ changed: true }, requests)
 
     expect(settleStagedRun).toHaveBeenCalledWith('run-1')
     expect(requests.upload).toHaveBeenCalledTimes(1)
@@ -175,7 +190,7 @@ describe('import run', () => {
     expect(controller.getState()).toMatchObject({
       overlayPhase: 'success',
       stagedRunId: null,
-      completedImport: { savedEarlier: false, skippedRowsAtCommit: [] },
+      completedImport: { savedEarlier: false, skippedRowsAtCommit: [], outsideRangeCountAtCommit: 0 },
     })
   })
 
@@ -189,7 +204,7 @@ describe('import run', () => {
       throw new ImportRunError('The server went away', 'commit', 'run-2')
     })
 
-    await controller.start([], { changed: true }, requests)
+    await controller.start([], 0,{ changed: true }, requests)
     expect(controller.getState()).toMatchObject({ overlayPhase: 'error', stagedRunId: 'run-2', failure: { interrupted: true } })
 
     await controller.retry()
@@ -211,14 +226,19 @@ describe('import run', () => {
     expect(discardStagedRun).not.toHaveBeenCalled()
     const requests = createRequests()
 
-    await controller.start([], { changed: true }, requests)
+    await controller.start([], 0,{ changed: true }, requests)
 
     expect(requests.upload).not.toHaveBeenCalled()
     expect(requests.commit).toHaveBeenCalledWith('run-1', expect.any(AbortSignal))
     expect(controller.getState()).toMatchObject({
       overlayPhase: 'success',
       stagedRunId: null,
-      completedImport: { result: RESULT, skippedRowsAtCommit: SKIPPED_AT_START, savedEarlier: true },
+      completedImport: {
+        result: RESULT,
+        skippedRowsAtCommit: SKIPPED_AT_START,
+        outsideRangeCountAtCommit: OUTSIDE_RANGE_AT_START,
+        savedEarlier: true,
+      },
     })
   })
 
@@ -228,7 +248,7 @@ describe('import run', () => {
     controller.close()
     const requests = createRequests()
 
-    await controller.start([], { changed: true }, requests)
+    await controller.start([], 0,{ changed: true }, requests)
 
     expect(requests.upload).not.toHaveBeenCalled()
     expect(controller.getState()).toMatchObject({ overlayPhase: 'error', stagedRunId: 'run-1', failure: { interrupted: true } })
@@ -245,7 +265,7 @@ describe('import run', () => {
     const upload = deferred<JournalImportRunResponse>()
     let uploadSignal: AbortSignal | undefined
 
-    const running = controller.start(SKIPPED_AT_START, {}, {
+    const running = controller.start(SKIPPED_AT_START, OUTSIDE_RANGE_AT_START, {}, {
       upload: (signal) => {
         uploadSignal = signal
         return upload.promise
@@ -330,11 +350,26 @@ describe('the rows an import leaves out', () => {
 
     expect(getSkippedRowsDisplay({
       liveForecastRows: liveRows,
-      completedImport: { result: RESULT, skippedRowsAtCommit: SKIPPED_AT_START, savedEarlier: false },
+      completedImport: { result: RESULT, skippedRowsAtCommit: SKIPPED_AT_START, outsideRangeCountAtCommit: 0, savedEarlier: false },
     })).toEqual({
       rows: SKIPPED_AT_START,
       totalCount: 1,
       title: '1 row was not imported',
     })
+  })
+
+  // Dates changed after the import no longer change what it wrote, so the note keeps the count the
+  // import started with
+  it('says how many rows the chosen dates left out, in the past tense, once the import has run', () => {
+    expect(getOutsideRangeRowsNote({
+      liveCount: 7,
+      completedImport: { result: RESULT, skippedRowsAtCommit: [], outsideRangeCountAtCommit: OUTSIDE_RANGE_AT_START, savedEarlier: false },
+    })).toBe('3 rows were dated outside the chosen dates, so they weren\'t imported.')
+  })
+
+  it('says how many rows the chosen dates leave out before the import runs, and nothing while that is unknown', () => {
+    expect(getOutsideRangeRowsNote({ liveCount: 7, completedImport: null }))
+      .toBe('7 rows are dated outside the chosen dates, so they won\'t be imported.')
+    expect(getOutsideRangeRowsNote({ liveCount: null, completedImport: null })).toBeNull()
   })
 })

@@ -1,8 +1,9 @@
 import type { AccountsOverview } from '@/api/accounts'
 import { CREATE_ACCOUNT_VALUE } from '@/pages/imports/constants'
-import type { ImportAccountCreateDetails, ImportAccountSource, ImportFileDraft } from '@/pages/imports/types'
+import type { ImportAccountCreateDetails, ImportAccountSource, ImportFileDraft, ImportRowFilter } from '@/pages/imports/types'
 import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import { isImportableAccount } from './accountScope'
+import { includeEveryImportRow } from './common'
 
 /** Which of the three states a mapping row is in, as the line above the table counts them */
 export type ImportAccountRowState = 'mapped' | 'new' | 'review'
@@ -400,6 +401,7 @@ export function getArchivedAccountMatches(
  * @param accountHeader - The mapped account column, empty when the file itself is the source
  * @param currencyHeader - The mapped currency column, empty when none is mapped
  * @param supportedCurrencyCodes - Every code the app can store an account in
+ * @param isRowIncluded - Which rows take part, so a row outside the chosen dates states nothing
  * @returns The currency per source id, leaving out any source that states none, states more than
  *   one, or states one the app does not support
  */
@@ -408,6 +410,7 @@ export function getStatedCurrencyByAccountSource(
   accountHeader: string,
   currencyHeader: string,
   supportedCurrencyCodes: Set<string>,
+  isRowIncluded: ImportRowFilter = includeEveryImportRow,
 ): Record<string, string> {
   if (!currencyHeader) return {}
 
@@ -415,7 +418,7 @@ export function getStatedCurrencyByAccountSource(
   const statedBySource = new Map<string, string | null>()
 
   for (const file of files) {
-    for (const row of file.rows) {
+    for (const row of file.rows.filter(isRowIncluded)) {
       // The same source id `buildImportAccountMappingSources` builds, which is the file rather than
       // a cell value when no account column is mapped
       const source = accountHeader ? row[accountHeader]?.trim() ?? '' : file.id

@@ -21,9 +21,11 @@ import type {
   ImportCategoryKind,
   ImportCategoryRename,
   ImportFileDraft,
+  ImportRowFilter,
 } from '@/pages/imports/types'
 import { DEBT_PAYMENT_CATEGORY_NAME } from '@/utils/transfers'
 import { DEFAULT_IMPORT_AMOUNT_FORMAT, type ImportAmountFormat } from './amountFormats'
+import { includeEveryImportRow } from './common'
 import { getImportRowCategorySource, resolveImportAmount } from './columnMapping'
 
 // The seeded category each source standing for rows with no category is matched to, since such rows
@@ -97,6 +99,8 @@ export function splitImportedValues(value: string) {
  * @param directionAnswers - What each word in a mapped Direction column means, keyed by the folded
  * value. Empty until the user has answered, which leaves every name blank rather than labelling the
  * file from amounts that carry no direction yet
+ * @param isRowIncluded - Which rows take part, so a refund dated outside the chosen dates cannot
+ * make a category read as Mixed
  */
 export function getImportedCategoryTypes(
   files: ImportFileDraft[],
@@ -104,6 +108,7 @@ export function getImportedCategoryTypes(
   importedCategories: string[],
   directionAnswers: Record<string, ImportAmountDirection>,
   amountFormat: ImportAmountFormat | null = DEFAULT_IMPORT_AMOUNT_FORMAT,
+  isRowIncluded: ImportRowFilter = includeEveryImportRow,
 ) {
   const signsByCategory = new Map<string, Set<'expense' | 'income'>>()
   const amountHeaders = [columnMap.amount, columnMap.amount_out, columnMap.amount_in].filter(Boolean)
@@ -115,7 +120,7 @@ export function getImportedCategoryTypes(
   for (const file of files) {
     if (!amountHeaders.some((header) => file.headers.includes(header))) continue
 
-    for (const row of file.rows) {
+    for (const row of file.rows.filter(isRowIncluded)) {
       const amount = resolveImportAmount(row, columnMap, directionAnswers, amountFormat).amountReading
       const category = getImportRowCategorySource(row, columnMap, amount)
       if (!amount || amount.isZero) continue

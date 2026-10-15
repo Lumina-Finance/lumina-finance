@@ -15,6 +15,7 @@ import { getSegmentedControlKeyAction } from '@/pages/imports/utils'
  * then read out and shown on hover
  * @param label - What the whole set is asked about, read out in place of the options themselves
  * @param hasError - Whether the answer given is what stopped the step, shown by a red border
+ * @param compact - Draws the control at the height of a settings row rather than of a field
  */
 export function ImportSegmentedToggle<T extends string>({
   options,
@@ -23,6 +24,7 @@ export function ImportSegmentedToggle<T extends string>({
   onChange,
   disabled,
   hasError = false,
+  compact = false,
 }: {
   options: Array<{ value: T; label: string; symbol?: string }>
   value: T | ''
@@ -30,6 +32,7 @@ export function ImportSegmentedToggle<T extends string>({
   onChange: (value: T) => void
   disabled?: boolean
   hasError?: boolean
+  compact?: boolean
 }) {
   const shouldReduceMotion = useReducedMotion()
   const selectedIndex = options.findIndex((option) => option.value === value)
@@ -56,7 +59,7 @@ export function ImportSegmentedToggle<T extends string>({
 
   return (
     <div
-      className={`app-segmented-control relative w-full overflow-hidden${hasError ? ' border-[var(--app-negative-border)]' : ''}${disabled ? ' app-segmented-control-disabled' : ''}`}
+      className={`app-segmented-control relative w-full overflow-hidden${compact ? ' app-segmented-control-compact' : ''}${hasError ? ' border-[var(--app-negative-border)]' : ''}${disabled ? ' app-segmented-control-disabled' : ''}`}
       role="radiogroup"
       aria-label={label}
       aria-invalid={hasError || undefined}
@@ -92,7 +95,7 @@ export function ImportSegmentedToggle<T extends string>({
             // Widths are shared evenly rather than fixed, so the highlight above lines up with the
             // option under it whatever the caller offers
             style={{ width: `${100 / options.length}%`, ...(active ? { background: 'transparent' } : {}) }}
-            className={`app-segmented-option relative z-10 px-0 text-center ${option.symbol !== undefined ? 'text-base font-semibold' : 'text-sm'} ${active ? 'app-segmented-option-active' : ''}`}
+            className={`app-segmented-option relative z-10 px-0 text-center ${option.symbol !== undefined ? 'text-base font-semibold' : 'text-sm'}${compact ? ' app-segmented-option-compact' : ''} ${active ? 'app-segmented-option-active' : ''}`}
             onClick={() => onChange(option.value)}
             disabled={disabled}
             aria-label={option.symbol !== undefined ? option.label : undefined}

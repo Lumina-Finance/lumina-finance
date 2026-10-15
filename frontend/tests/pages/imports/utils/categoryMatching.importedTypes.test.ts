@@ -48,6 +48,14 @@ describe('suggesting a type from a single signed amount column', () => {
     })
   })
 
+  // A refund outside the chosen dates won't be imported, so it can't make the name read as mixed
+  it('reads only the rows the import keeps', () => {
+    const isRowIncluded = (row: CsvRow) => row.Amount !== '15.00'
+
+    expect(getImportedCategoryTypes(files, SIGNED_MAP, ['Travel'], {}, undefined, isRowIncluded))
+      .toEqual({ Travel: 'Expense' })
+  })
+
   it('leaves a name blank until an arrangement carrying the amount is mapped', () => {
     const withoutAmount = { ...EMPTY_COLUMN_MAP, category_id: 'Category' }
 

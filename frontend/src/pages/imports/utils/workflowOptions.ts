@@ -29,13 +29,14 @@ import type {
   ImportAccountSource,
   ImportAmountDirection,
   ImportFileDraft,
+  ImportRowFilter,
   ImportUploadBlock,
 } from '@/pages/imports/types'
 import { getImportAccountName } from './accountMapping'
 import { DEFAULT_IMPORT_AMOUNT_FORMAT, type ImportAmountFormat } from './amountFormats'
 import { getImportRowCategorySource, resolveImportAmount } from './columnMapping'
 import { sortImportedCategorySources, splitImportedValues } from './categoryMatching'
-import { unique } from './common'
+import { includeEveryImportRow, unique } from './common'
 
 // Marks an account that is hidden everywhere else in the app, kept short because it renders as a
 // pill beside the account name. Only the counterparty list offers one, since nothing is written to
@@ -229,14 +230,18 @@ export function getAmountArrangementClashError(columnMap: ColumnMap): { title: s
 
 /**
  * Builds account mapping sources from either an account column or selected file names
+ *
+ * @param isRowIncluded - Which rows take part, so a name only rows outside the chosen dates carry
+ *   is not asked about
  */
 export function buildImportAccountMappingSources(
   files: ImportFileDraft[],
   accountHeader: string,
   counterpartyAccountHeader: string,
+  isRowIncluded: ImportRowFilter = includeEveryImportRow,
 ): ImportAccountSource[] {
   const rowSources: ImportAccountSource[] = accountHeader
-    ? getUniqueColumnValues(files, accountHeader).map((source) => ({
+    ? getUniqueColumnValues(files, accountHeader, isRowIncluded).map((source) => ({
       id: source,
       label: source,
       matchText: source,
@@ -255,7 +260,7 @@ export function buildImportAccountMappingSources(
   // is the only kind that can be answered as money outside the tracked accounts, since no row is
   // written to it
   const rowSourceIds = new Set(rowSources.map((source) => source.id))
-  const counterpartySources: ImportAccountSource[] = getUniqueColumnValues(files, counterpartyAccountHeader)
+  const counterpartySources: ImportAccountSource[] = getUniqueColumnValues(files, counterpartyAccountHeader, isRowIncluded)
     .filter((source) => !rowSourceIds.has(source))
     .map((source) => ({
       id: source,
@@ -280,8 +285,9 @@ export function getImportedCategories(
   columnMap: ColumnMap,
   directionAnswers: Record<string, ImportAmountDirection>,
   amountFormat: ImportAmountFormat | null = DEFAULT_IMPORT_AMOUNT_FORMAT,
+  isRowIncluded: ImportRowFilter = includeEveryImportRow,
 ): string[] {
-  return sortImportedCategorySources(files.flatMap((file) => file.rows.map((row) => {
+  return sortImportedCategorySources(files.flatMap((file) => file.rows.filter(isRowIncluded).map((row) => {
     const { amountReading } = resolveImportAmount(row, columnMap, directionAnswers, amountFormat)
     return getImportRowCategorySource(row, columnMap, amountReading)
   })))
@@ -303,9 +309,13 @@ function doesRowStateNoMerchant(row: CsvRow, merchantHeader: string): boolean {
  * Read from the merchant column alone, so the mapping step can say how many rows will be filed
  * under a merchant that ships with the app without waiting on the account and category answers
  */
-export function countRowsWithNoMerchant(files: ImportFileDraft[], merchantHeader: string): number {
+export function countRowsWithNoMerchant(
+  files: ImportFileDraft[],
+  merchantHeader: string,
+  isRowIncluded: ImportRowFilter = includeEveryImportRow,
+): number {
   return files.reduce(
-    (total, file) => total + file.rows.filter((row) => doesRowStateNoMerchant(row, merchantHeader)).length,
+    (total, file) => total + file.rows.filter((row) => isRowIncluded(row) && doesRowStateNoMerchant(row, merchantHeader)).length,
     0,
   )
 }
@@ -313,7 +323,11 @@ export function countRowsWithNoMerchant(files: ImportFileDraft[], merchantHeader
 /**
  * Gets sorted imported merchant names from the mapped merchant column
  */
-export function getImportedMerchants(files: ImportFileDraft[], merchantHeader: string): string[] {
+export function getImportedMerchants(
+  files: ImportFileDraft[],
+  merchantHeader: string,
+  isRowIncluded: ImportRowFilter = includeEveryImportRow,
+): string[] {
   if (!merchantHeader) return []
 
   // One row per merchant the file resolves to rather than per spelling, since "Amazon" and "AMAZON"
@@ -321,7 +335,7 @@ export function getImportedMerchants(files: ImportFileDraft[], merchantHeader: s
   // say which answer the rows carrying either spelling should take
   const seenKeys = new Set<string>()
   const values: string[] = []
-  for (const value of getUniqueColumnValues(files, merchantHeader)) {
+  for (const value of getUniqueColumnValues(files, merchantHeader, isRowIncluded)) {
     const key = getMerchantNameKey(value)
     if (seenKeys.has(key)) continue
     seenKeys.add(key)
@@ -334,19 +348,23 @@ export function getImportedMerchants(files: ImportFileDraft[], merchantHeader: s
 /**
  * Gets sorted imported tag names from the mapped tag column
  */
-export function getImportedTags(files: ImportFileDraft[], tagHeader: string): string[] {
+export function getImportedTags(
+  files: ImportFileDraft[],
+  tagHeader: string,
+  isRowIncluded: ImportRowFilter = includeEveryImportRow,
+): string[] {
   if (!tagHeader) return []
   return unique(
     files.flatMap((file) =>
-      file.rows.flatMap((row) => splitImportedValues(row[tagHeader] ?? '')),
+      file.rows.filter(isRowIncluded).flatMap((row) => splitImportedValues(row[tagHeader] ?? '')),
     ),
   ).sort((a, b) => a.localeCompare(b))
 }
 
-function getUniqueColumnValues(files: ImportFileDraft[], header: string): string[] {
+function getUniqueColumnValues(files: ImportFileDraft[], header: string, isRowIncluded: ImportRowFilter): string[] {
   return unique(
     files.flatMap((file) =>
-      file.rows.map((row) => row[header]?.trim()).filter(Boolean),
+      file.rows.filter(isRowIncluded).map((row) => row[header]?.trim()).filter(Boolean),
     ),
   )
 }

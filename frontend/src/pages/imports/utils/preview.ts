@@ -16,6 +16,7 @@ import type {
   ImportCategoryKind,
   ImportCategoryRename,
   ImportBuildResult,
+  ImportDateRange,
   ImportFileDraft,
   ImportRowProblem,
   PreviewTransactionRow,
@@ -24,6 +25,7 @@ import { getImportAccountName } from './accountMapping'
 import { countCreatedImportSources, getImportRowId } from './common'
 import { findReusedImportCategory, getCategoryMatchKind } from './categoryMatching'
 import { findCurrencyExponent } from '@/utils/moneyInput'
+import { getImportDateRangeFilter } from './dateRange'
 import { getCurrencyByAccountSource, type ImportRowContext, resolveImportRow } from './rowResolution'
 import { getAmountArrangementClashError, getSupportedCurrencyCodes } from './workflowOptions'
 import { DEFAULT_IMPORT_AMOUNT_FORMAT, type ImportAmountFormat } from './amountFormats'
@@ -47,6 +49,7 @@ interface BuildImportPreviewRowsOptions {
   dateFormat: ImportDateFormat | null
   dateSeparator?: ImportDateSeparator
   timeZone?: string
+  dateRange: ImportDateRange
   amountFormat?: ImportAmountFormat | null
   directionAnswers: Record<string, ImportAmountDirection>
   missingRequiredColumnLabels: string[]
@@ -94,6 +97,7 @@ export function buildImportPreviewRows({
   dateFormat,
   dateSeparator = 'automatic',
   timeZone,
+  dateRange,
   amountFormat = DEFAULT_IMPORT_AMOUNT_FORMAT,
   directionAnswers,
   missingRequiredColumnLabels,
@@ -117,6 +121,11 @@ export function buildImportPreviewRows({
   // Amount and the Direction column. That is a reading the commit refuses, so previewing it would
   // show rows the import will never write
   if (getAmountArrangementClashError(columnMap)) return []
+
+  // A range that cannot be applied yet would leave the sample showing rows the chosen dates may well
+  // leave out, so it shows none until the dates or the date format are put right
+  const isRowIncluded = getImportDateRangeFilter({ columnMap, dateFormat, dateSeparator, timeZone, dateRange })
+  if (!isRowIncluded) return []
 
   // A row that cannot be converted is listed with its reason instead, so previewing it as well
   // would show an amount of zero or a blank date beside the entry saying why it was refused
@@ -144,6 +153,8 @@ export function buildImportPreviewRows({
       if (problemRowIds.has(getImportRowId(file.id, rowIndex))) continue
 
       const row = file.rows[rowIndex]
+      if (!isRowIncluded(row)) continue
+
       const resolved = resolveImportRow(row, file.id, rowContext)
       const accountLabel = columnMap.account_id ? resolved.accountSource : getImportAccountName(file.name)
       const accountChoice = resolvedAccountMappings[resolved.accountSource] ?? ''
@@ -334,12 +345,17 @@ export function isExistingCsvCategory(
  * only when a row it sends names that source, since the commit creates nothing for the others. Nor
  * does it create a category the preview shows as one the user already has
  *
+ * The rows the chosen dates leave out are subtracted as well. While which ones is unknown, the
+ * estimate is too, rather than a figure counting rows the import may leave out
+ *
  * @param rowCount - Every data row in the staged files
+ * @param outsideRangeRowCount - Rows dated outside the chosen dates, or null while that is unknown
  * @param categoryById - The categories the user had before a finished import, so its record still
  *   counts the ones it created
  */
 export function getCsvImportStats({
   rowCount,
+  outsideRangeRowCount,
   importBuild,
   accountSources,
   accountMappings,
@@ -351,6 +367,7 @@ export function getCsvImportStats({
   categoryTypesBySource,
 }: {
   rowCount: number
+  outsideRangeRowCount: number | null
   importBuild: Pick<ImportBuildResult, 'payload' | 'rowProblems'>
   accountSources: Array<{ id: string }>
   accountMappings: Record<string, string>
@@ -374,10 +391,13 @@ export function getCsvImportStats({
     categoryRenames,
     categoryTypesBySource,
   ))
+  const estimateBeforeBuild = outsideRangeRowCount === null
+    ? null
+    : Math.max(rowCount - importBuild.rowProblems.length - outsideRangeRowCount, 0)
 
   return {
     rowCount,
-    transactionEstimate: rows?.length ?? Math.max(rowCount - importBuild.rowProblems.length, 0),
+    transactionEstimate: rows?.length ?? estimateBeforeBuild,
     newAccountCount: countCreatedImportSources(
       accountSources.map((source) => source.id),
       accountMappings,

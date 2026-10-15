@@ -6,6 +6,7 @@ import type { Transaction } from '@/api/transactions'
 import type { Category } from '@/api/categories'
 import { CREATE_ACCOUNT_VALUE, EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import type { ImportFileDraft } from '@/pages/imports/types'
+import { WHOLE_FILE_DATE_RANGE } from '@/pages/imports/utils/dateRange'
 import { buildImportPreviewRows, groupPreviewRowsByDate } from '@/pages/imports/utils/preview'
 import { buildTransactionImportPayload } from '@/pages/imports/utils/payload'
 import { formatPreviewMoney } from '@/pages/imports/utils/formatPreviewMoney'
@@ -57,7 +58,7 @@ function build(currency: string, amounts: string[], category: Category = CATEGOR
   }
   const shared = {
     files: [file], columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', amount: 'Amount', category_id: 'Category' },
-    dateFormat: 'yearFirst' as const, currencies: CURRENCIES, directionAnswers: {},
+    dateFormat: 'yearFirst' as const, dateRange: WHOLE_FILE_DATE_RANGE, currencies: CURRENCIES, directionAnswers: {},
     accountById: new Map(), accountCreateCurrencies: { file: currency }, accountCreateInstitutions: {},
     categoryById: new Map([[category.id, category]]), categoryCreateKinds: {}, categoryTypesBySource: {},
   }

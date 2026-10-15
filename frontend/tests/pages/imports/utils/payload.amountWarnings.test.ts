@@ -11,7 +11,7 @@ import {
   NO_OUTFLOWS_WARNING,
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
-import { buildTransactionImportPayload } from '@/pages/imports/utils'
+import { buildTransactionImportPayload, WHOLE_FILE_DATE_RANGE } from '@/pages/imports/utils'
 import type { ImportAmountFormat } from '@/pages/imports/utils/amountFormats'
 
 const CURRENCIES: Currency[] = [
@@ -71,6 +71,7 @@ function build(
     columnValidationErrors: {},
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
+    dateRange: WHOLE_FILE_DATE_RANGE,
     amountFormat,
     directionAnswers: {},
     files: [createFile(amounts.map((amount, index) => ({
@@ -137,6 +138,7 @@ describe('warning that a file reads as all money coming in', () => {
       columnValidationErrors: {},
       currencies: CURRENCIES,
       dateFormat: 'yearFirst',
+      dateRange: WHOLE_FILE_DATE_RANGE,
       directionAnswers: {},
       files: [file],
       importedCategories: ['Groceries'],
@@ -183,6 +185,7 @@ describe('warning that a file reads as all money coming in', () => {
       columnValidationErrors: {},
       currencies: CURRENCIES,
       dateFormat: 'yearFirst',
+      dateRange: WHOLE_FILE_DATE_RANGE,
       directionAnswers,
       files: [file],
       importedCategories: ['Groceries'],

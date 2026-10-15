@@ -18,6 +18,7 @@ import {
   inferCategoryMappings,
   isColumnMappingComplete,
   validateColumnValues,
+  WHOLE_FILE_DATE_RANGE,
 } from '@/pages/imports/utils'
 
 const CURRENCIES: Currency[] = [
@@ -108,6 +109,7 @@ function importFile(
     columnValidationErrors: {},
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
+    dateRange: WHOLE_FILE_DATE_RANGE,
     directionAnswers,
     files: [file],
     importedCategories,

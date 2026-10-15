@@ -41,6 +41,7 @@ function renderCsvPreview(columnMap: ColumnMap) {
     files: [],
     previewGroups: [],
     importStats: { rowCount: 2, transactionEstimate: 1, newAccountCount: 0, newCategoryCount: 0 },
+    outsideRangeRowCount: 0,
     importBuild: { errors: [], warnings: [], rowProblems: [CSV_SKIPPED], rowWarnings: [CSV_WORTH_A_LOOK], payload: null },
     headers: CSV_HEADERS,
     columnMap,

@@ -5,6 +5,7 @@ import {
   SEGMENT_MAX_LENGTH,
   SEGMENT_ORDER,
   formatIsoDate,
+  isPartlyTyped,
   parseIsoDate,
   setSegmentDigits,
   shouldAdvanceSegment,
@@ -18,7 +19,10 @@ import { getTodayDate } from '@/utils/date'
 interface DateFieldProps {
   // Selected date as an ISO yyyy-mm-dd string, empty while the date is incomplete
   value: string
-  onChange: (value: string) => void
+
+  // isPartlyTyped tells an empty value from a date begun but not finished, for a caller that has to
+  // treat the two differently
+  onChange: (value: string, isPartlyTyped: boolean) => void
   onBlur?: () => void
   id?: string
   ariaLabel?: string
@@ -86,7 +90,7 @@ export default function DateField({
     setSegments(next)
     const iso = formatIsoDate(next)
     lastEmittedRef.current = iso
-    onChange(iso)
+    onChange(iso, isPartlyTyped(next))
   }, [onChange])
 
   const focusSegment = (segment: DateSegmentName) => {
