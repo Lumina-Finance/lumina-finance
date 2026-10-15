@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react'
-import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import LoadingScreen from '@/components/loading/Screen'
-import { getPasskeyRegistrationMessage, getPasskeySignInMessage, isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors'
+import { runNativePasskeyCeremony } from '@/utils/nativePasskey'
 
 // The address the app's sign-in sheet closes on, carrying the prompt's result back to the app
 const NATIVE_CALLBACK = 'luminafinance://passkey/callback'
@@ -22,33 +21,10 @@ export default function NativePasskeyPage() {
 
     const fragment = new URLSearchParams(window.location.hash.slice(1))
     window.history.replaceState(null, '', window.location.pathname)
-    void runCeremony(fragment.get('ceremony'), fragment.get('options')).then((result) => {
+    void runNativePasskeyCeremony(fragment.get('ceremony'), fragment.get('options')).then((result) => {
       window.location.replace(`${NATIVE_CALLBACK}?${new URLSearchParams(result)}`)
     })
   }, [])
 
   return <LoadingScreen />
-}
-
-/**
- * Creates a passkey or signs in with one, returning the credential or the web's message for the failure,
- * and whether the user dismissed the prompt, which the web leaves unremarked at sign-up
- */
-async function runCeremony(ceremony: string | null, options: string | null): Promise<Record<string, string>> {
-  const failureMessage = ceremony === 'create' ? getPasskeyRegistrationMessage : getPasskeySignInMessage
-  let optionsJSON
-  try {
-    optionsJSON = JSON.parse(options ?? '')
-  } catch {
-    return { error: failureMessage(undefined) }
-  }
-
-  try {
-    const credential = ceremony === 'create'
-      ? await startRegistration({ optionsJSON })
-      : await startAuthentication({ optionsJSON })
-    return { credential: JSON.stringify(credential) }
-  } catch (error) {
-    return { error: failureMessage(error), ...(isPasskeyCeremonyCancelled(error) ? { cancelled: 'true' } : {}) }
-  }
 }
