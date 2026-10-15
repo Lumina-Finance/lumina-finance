@@ -13,6 +13,7 @@ import type {
 import { registerAuthBindings } from '@/api/client';
 import { clearUserScopedCache } from '@/api/cache/session';
 import { AuthContext, SESSION_KEY, type AuthContextValue, type AuthState } from '@/contexts/AuthContext';
+import { takeRenewedSession } from '@/contexts/sessionRenewal';
 
 const RELOAD_SESSION_RESTORE_DELAY_MS = 750;
 
@@ -83,9 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     registerAuthBindings({
       getAccessToken: () => stateRef.current.accessToken,
       getAccessTokenExpiresAt: () => accessTokenExpiresAtRef.current,
-      onSessionRefreshed: (res) => {
-        applyState({ user: res.user, accessToken: res.access_token, loading: false });
-      },
+      onSessionRefreshed: (res) => takeRenewedSession(stateRef.current, res, queryClient, applyState),
       onSessionLost: () => {
         localStorage.removeItem(SESSION_KEY);
         applyState({ user: null, accessToken: null, loading: false });
