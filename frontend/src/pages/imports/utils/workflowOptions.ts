@@ -18,6 +18,7 @@ import {
   DEFAULT_CATEGORY_ICON,
   DIRECTION_ARRANGEMENT_CLASH_ERROR,
   DIRECTION_ARRANGEMENT_CLASH_TITLE,
+  IMPORT_LAYOUTS_LOADING_UPLOAD_BLOCK,
   KIND_LABELS,
   KIND_RANKS,
   MISSING_AMOUNT_COLUMN_LABEL,
@@ -98,6 +99,17 @@ export function getImportUploadBlockReason(
   return currenciesError
     ? { message: CURRENCIES_FAILED_UPLOAD_BLOCK, isFailure: true }
     : { message: CURRENCIES_LOADING_UPLOAD_BLOCK, isFailure: false }
+}
+
+/**
+ * Says why a CSV file cannot be uploaded yet while the saved import settings are loading, or null once
+ * they are settled
+ *
+ * @param isSettled - Whether the saved settings have arrived or failed to load, in which case a file
+ * is read by detection alone
+ */
+export function getImportLayoutsUploadBlockReason(isSettled: boolean): ImportUploadBlock | null {
+  return isSettled ? null : { message: IMPORT_LAYOUTS_LOADING_UPLOAD_BLOCK, isFailure: false }
 }
 
 /**

@@ -2,6 +2,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import {
   accountKeys,
   budgetKeys,
+  importLayoutKeys,
   lastImportKeys,
   taxAdvantagedCategoryKeys,
   transactionKeys,
@@ -29,6 +30,7 @@ const appDataTargets: InvalidationTarget[] = [
   ...aggregateTargets,
   ...referenceDataTargets,
   { queryKey: lastImportKeys.all },
+  { queryKey: importLayoutKeys.all },
 ];
 
 const fxTargets: InvalidationTarget[] = [

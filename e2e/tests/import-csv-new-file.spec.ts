@@ -8,7 +8,9 @@ import { chooseFromDropdown, commitImport, logInViaApi, openPage } from '../supp
 /**
  * Guards the CSV import's record of a finished import, whose answers could be changed and whose file
  * could be removed, and the fresh start a file uploaded after it makes. A column the user had answered
- * for came back as Do not import on the next file with the same heading
+ * for came back as Do not import on the next file with the same heading. A finished import now saves
+ * its answers for files with exactly its headings (import-remembered-settings.spec.ts), so the file
+ * uploaded after it here has a column more
  */
 
 // The second row names a day February doesn't have, so the import leaves it out
@@ -23,6 +25,12 @@ const SECOND_FILE = [
   'Date,Amount,Merchant',
   '2024-04-02,-12.00,Bakery',
   '2024-04-03,-7.50,Bakery',
+].join('\n')
+
+const NEXT_EXPORT = [
+  'Date,Amount,Merchant,Notes',
+  '2024-04-02,-12.00,Bakery,Bread',
+  '2024-04-03,-7.50,Bakery,Cake',
 ].join('\n')
 
 async function openCsvImport(page: Page, request: Parameters<typeof signUpUser>[0]) {
@@ -61,7 +69,7 @@ test('keeps a finished import as its record until another file is uploaded', asy
 
   const chooser = page.waitForEvent('filechooser')
   await page.getByRole('button', { name: /^Upload CSV file/ }).click()
-  await (await chooser).setFiles({ name: 'second.csv', mimeType: 'text/csv', buffer: Buffer.from(SECOND_FILE) })
+  await (await chooser).setFiles({ name: 'second.csv', mimeType: 'text/csv', buffer: Buffer.from(NEXT_EXPORT) })
   await expect(page.getByText('second.csv', { exact: true })).toBeVisible()
   await expect(skippedTitle).toBeHidden()
   await expect(page.getByText(/12\.00/).first()).toBeVisible()

@@ -16,6 +16,7 @@ import {
   DIRECTION_ARRANGEMENT_CLASH_ERROR,
   EMPTY_COLUMN_MAP,
   getRowSignDisagreesWithCategoryReason,
+  IMPORT_LAYOUTS_LOADING_UPLOAD_BLOCK,
   MISSING_AMOUNT_COLUMN_LABEL,
   UNSET_BATCH_INSTITUTION,
 } from '@/pages/imports/constants'
@@ -33,6 +34,7 @@ import {
   getImportedMerchants,
   getImportedTags,
   getImportHeaders,
+  getImportLayoutsUploadBlockReason,
   getImportUploadBlockReason,
   getMissingRequiredColumnLabels,
   getSupportedCurrencyCodes,
@@ -302,6 +304,16 @@ describe('blocking the upload until the currency list is in hand', () => {
     expect(getImportUploadBlockReason([], true)?.message).toContain('Reload the page')
     expect(getImportUploadBlockReason([], false)?.isFailure).toBe(false)
     expect(getImportUploadBlockReason([], false)?.message).not.toContain('Reload the page')
+  })
+})
+
+describe('waiting on the saved import settings before a CSV file is read', () => {
+  it('lets a file be uploaded once they have settled, none saved or a failed load included', () => {
+    expect(getImportLayoutsUploadBlockReason(true)).toBeNull()
+  })
+
+  it('waits while they load, without dressing the wait as an error', () => {
+    expect(getImportLayoutsUploadBlockReason(false)).toEqual({ message: IMPORT_LAYOUTS_LOADING_UPLOAD_BLOCK, isFailure: false })
   })
 })
 

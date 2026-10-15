@@ -96,3 +96,34 @@ export interface TransactionImportResponse {
   created_merchant_ids: string[];
   created_tag_ids: string[];
 }
+
+/** The separators a CSV import read its amounts with */
+export type CsvImportAmountFormat = {
+  decimal_separator: string;
+  grouping_separator: string;
+};
+
+/**
+ * How a CSV file was read, which the commit saves for the one personal account its rows go to and the
+ * next file with the same headers starts from
+ *
+ * The formats and the column fields are plain strings, since a saved layout can name one the page has
+ * since stopped offering, which the page then refuses rather than misreads
+ */
+export type CsvImportLayout = {
+  headers: string[];
+  delimiter: string;
+
+  /** Counted from 1 over the file's non-blank lines */
+  header_row: number;
+
+  /** Each app field the file fills, mapped to the header holding it, never the account */
+  column_map: Record<string, string>;
+  date_format: string;
+  amount_format: CsvImportAmountFormat;
+};
+
+/** A layout saved for one of the user's own accounts */
+export type SavedCsvImportLayout = CsvImportLayout & {
+  account_id: string;
+};

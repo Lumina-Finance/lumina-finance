@@ -4,6 +4,7 @@ import { getImportFileName } from '@/api/import-runs'
 import { useTransactions } from '@/api/transactions'
 import {
   useCommitStagedImport,
+  useImportLayouts,
   useImportTransactions,
   type TransactionImportResponse,
 } from '@/api/transaction-imports'
@@ -69,6 +70,11 @@ import {
   moveImportFormatChoiceToScope,
   processImportFileIntake,
   readCsvFile,
+  readCsvFileWithLayout,
+  readSavedImportLayouts,
+  buildCsvImportLayout,
+  getImportLayoutsUploadBlockReason,
+  type RememberedImportLayout,
   readScopedImportAnswers,
   resolveImportAccountCreateCurrencies,
   resolveImportAccountMappings,
@@ -132,6 +138,16 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const [decidedColumnHeaders, setDecidedColumnHeaders] = useState<Set<string>>(() => new Set())
   const [storedColumnMap, setStoredColumnMap] = useState<ColumnMap>(EMPTY_COLUMN_MAP)
   const isAccountFixed = fixedAccount !== null
+
+  // Settings are remembered only for an import started from an account, which is the one place the
+  // account a file went to is known before its rows are read. The layouts an uploaded file is checked
+  // against are that account's own. An ordinary import reads none and saves none
+  const importLayouts = useImportLayouts(isAccountFixed)
+  const fixedAccountId = fixedAccount?.id ?? null
+  const rememberedLayouts = useMemo(
+    () => readSavedImportLayouts(importLayouts.data ?? []).filter((layout) => layout.accountId === fixedAccountId),
+    [fixedAccountId, importLayouts.data],
+  )
 
   // The account an import was started from answers for every row, so nothing downstream may read a
   // mapped account column while that holds. Emptied here rather than cleared outright, because the
@@ -882,6 +898,17 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     categoryTypesBySource,
   })
   const mappedFieldCount = headers.length === 0 ? 0 : Object.values(columnMap).filter(Boolean).length
+
+  // On an account's import a file is matched against the saved layouts as it is read, so it waits for
+  // them as it waits for the currencies, rather than opening with detection's settings where saved
+  // ones exist. The list read when the page opens counts, and so does one an import or undo has since
+  // asked to read again, once that reload is in, since the file just imported is the one most likely
+  // to come next. If reading them fails, the file is read by detection alone, as if none were saved
+  const uploadBlockReason = getImportUploadBlockReason(currencies, currenciesError)
+    ?? (isAccountFixed
+      ? getImportLayoutsUploadBlockReason(importLayouts.isError || (importLayouts.isFetchedAfterMount && !importLayouts.isStale))
+      : null)
+
   const canCommitImport = run.canCommit({ hasPayload: importBuild.payload !== null, isProcessingFile: isProcessingFiles })
 
   const syncAutoMatchKeys = (
@@ -927,24 +954,43 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
    * Every setter is called with a value worked out here rather than from inside another setter, so
    * none of them has to be re-run to reach the same state
    */
-  const applyStagedFiles = (nextFiles: ImportFileDraft[], { startFresh = false } = {}) => {
+  const applyStagedFiles = (
+    nextFiles: ImportFileDraft[],
+    { startFresh = false, remembered }: { startFresh?: boolean; remembered?: RememberedImportLayout | null } = {},
+  ) => {
+    // A saved layout's settings stand for every column, the ones it leaves unmapped included, so
+    // nothing is guessed over them and they count as answered, as the user's own answers do
+    const settings = remembered?.settings ?? null
+    const decidedHeaders = settings ? new Set(nextFiles.flatMap((file) => file.headers)) : null
+
     // A file read again with another separator has other columns, so its mapping and format answers
     // start over rather than carry across to headings that only share a name
-    const baseColumnMap = startFresh ? EMPTY_COLUMN_MAP : columnMap
-    const result = inferColumnMap(baseColumnMap, nextFiles, supportedCurrencyCodes, startFresh ? new Set() : decidedColumnHeaders, {
+    const isStartingOver = startFresh || settings !== null
+    const baseColumnMap = settings?.columnMap ?? (startFresh ? EMPTY_COLUMN_MAP : columnMap)
+    const result = inferColumnMap(baseColumnMap, nextFiles, supportedCurrencyCodes, decidedHeaders ?? (startFresh ? new Set() : decidedColumnHeaders), {
       omitAccountColumn: isAccountFixed,
     })
 
     setFiles(nextFiles)
     setStoredColumnMap(result.map)
-    if (startFresh) {
-      setDecidedColumnHeaders(new Set())
+    if (isStartingOver) {
+      setDecidedColumnHeaders(decidedHeaders ?? new Set())
       setDateFormatChoice(createImportFormatChoiceState(''))
       setAmountFormatChoice(createImportFormatChoiceState(''))
     }
     moveFormatChoicesTo(result.map, nextFiles)
+    if (settings) {
+      setDateFormatChoice(chooseImportFormat(buildImportDateFormatScope(result.map, nextFiles), settings.dateFormat))
+      setAmountFormatChoice(chooseImportFormat(buildImportAmountFormatScope(result.map, nextFiles), settings.amountFormat))
+    }
     setColumnValidationErrors(result.errors)
-    setAutoFilledColumnHeaders((current) => getNextAutoFilledColumnHeaders(startFresh ? new Set() : current, baseColumnMap, result.map))
+
+    // Every column a saved layout mapped is shown as filled in by the app, until the user answers it
+    setAutoFilledColumnHeaders((current) => getNextAutoFilledColumnHeaders(
+      isStartingOver ? new Set() : current,
+      settings ? EMPTY_COLUMN_MAP : baseColumnMap,
+      result.map,
+    ))
     syncAutoMatchKeys(result.map, result.errors, nextFiles)
   }
 
@@ -952,15 +998,20 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     const intake = await processImportFileIntake({
       files: acquiredFiles,
       processing: isProcessingFiles,
-      unavailableReason: getImportUploadBlockReason(currencies, currenciesError)?.message ?? null,
+      unavailableReason: uploadBlockReason?.message ?? null,
       readFile: async (selectedFile) => {
         const workflowRun = startWorkflowRun()
         setFileIntakeError(null)
         setIsProcessingFiles(true)
 
         try {
-          const [draft] = await Promise.all([
-            readCsvFile(selectedFile, supportedCurrencyCodes, { requireDataRows: true, offersReadingChoices: true }),
+          const [{ draft, layout }] = await Promise.all([
+            readCsvFileWithLayout(
+              selectedFile,
+              supportedCurrencyCodes,
+              { requireDataRows: true, offersReadingChoices: true },
+              rememberedLayouts,
+            ),
             waitForMilliseconds(CSV_PROCESSING_MIN_MS),
           ])
 
@@ -983,7 +1034,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
             run.resetImportRun()
             setDateRange(WHOLE_FILE_DATE_RANGE)
           }
-          applyStagedFiles([draft], { startFresh: isReplacingFinishedImport })
+          applyStagedFiles([draft], { startFresh: isReplacingFinishedImport, remembered: layout })
         } finally {
           if (isCurrentWorkflowRun(workflowRun)) setIsProcessingFiles(false)
         }
@@ -1105,12 +1156,19 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     // A payload is only built once the range can be applied, so the count is known whenever there is one
     if (!payload || !canCommitImport || outsideRangeRowCount === null) return
 
+    // Saved by the commit for the account the import was started from, so the next file with these
+    // headers opens with the settings this one was imported with. An ordinary import saves none
+    const csvLayout = isAccountFixed && files.length === 1 && dateFormat && amountFormat
+      ? buildCsvImportLayout(files[0], columnMap, dateFormat, amountFormat)
+      : null
+
     await run.startImport(importBuild.rowProblems, outsideRangeRowCount, {
       upload: (signal, onStaged) => importTransactions.mutateAsync({
         payload,
         signal,
         onStaged,
         fileName: getImportFileName(files.map((file) => file.name)),
+        csvLayout: csvLayout ?? undefined,
       }),
       commit: (runId, signal) => commitStagedImport.mutateAsync({ runId, signal }),
     })
@@ -1204,7 +1262,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     latestStartSuggestion,
     accountsLoading,
     currenciesLoading,
-    uploadBlockReason: getImportUploadBlockReason(currencies, currenciesError),
+    uploadBlockReason,
     accountsFailed,
     categoriesFailed,
     refetchAccounts,

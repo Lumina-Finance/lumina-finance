@@ -176,6 +176,54 @@ export async function readCsvFile(
     skipLastRows?: number
   },
 ): Promise<ImportFileDraft> {
+  const { draft } = await readCsvFileWithLayout(
+    file,
+    supportedCurrencyCodes,
+    { requireDataRows, unescapeCell, readRecords, delimiter, offersReadingChoices, headerRow, skipLastRows },
+    [],
+  )
+  return draft
+}
+
+/**
+ * A saved way of reading a file, which a file matches when the line at its header row, read with its
+ * separator, holds exactly its header cells
+ */
+export type CsvLayoutReading = {
+  headers: string[]
+  delimiter: ImportDelimiter
+  headerRow: number
+}
+
+/**
+ * Reads an uploaded CSV file as `readCsvFile` does, then reads it with a saved layout instead when the
+ * file has that layout's headers
+ *
+ * A layout matches on its header cells alone, as the page names them, so it is found whether or not
+ * detection found a header row. Each layout is checked against the file read with its own separator,
+ * and the file is parsed once for each separator, which is at most once more than detection needs.
+ * The first layout that matches is the one used, so the order of `layouts` is the order of preference
+ *
+ * A layout keeps no count of last rows to skip, since the app can't know how long a file's footer is,
+ * so a file read with one starts with nothing skipped at the end
+ *
+ * @param options - The reading options `readCsvFile` takes
+ * @param layouts - The saved layouts to look for
+ */
+export async function readCsvFileWithLayout<Layout extends CsvLayoutReading>(
+  file: File,
+  supportedCurrencyCodes: Set<string>,
+  {
+    requireDataRows,
+    unescapeCell = (value) => value,
+    readRecords,
+    delimiter,
+    offersReadingChoices = false,
+    headerRow,
+    skipLastRows,
+  }: Parameters<typeof readCsvFile>[2],
+  layouts: readonly Layout[],
+): Promise<{ draft: ImportFileDraft; layout: Layout | null }> {
   const staged = { id: createFileId(file), name: file.name, size: file.size }
   const refuse = (error: string, read: Pick<ImportFileDraft, 'delimiter' | 'reading'> = {}): ImportFileDraft => ({
     ...staged,
@@ -186,7 +234,7 @@ export async function readCsvFile(
     ...read,
   })
 
-  if (file.size > MAX_IMPORT_FILE_BYTES) return refuse(getFileTooLargeError(file.size))
+  if (file.size > MAX_IMPORT_FILE_BYTES) return { draft: refuse(getFileTooLargeError(file.size)), layout: null }
 
   try {
     const text = await file.text()
@@ -197,29 +245,50 @@ export async function readCsvFile(
 
     // Text in a two-byte encoding decodes to characters the reader can read, every other one of them
     // a null, rather than to the replacement character, so the count alone would let it through
-    if (replacementCount > replacementLimit || text.includes(NULL_CHARACTER)) return refuse(UNREADABLE_TEXT_ERROR)
-
-    const parsed = parseKnownCsvText(text, supportedCurrencyCodes, requireDataRows, unescapeCell, readRecords)
-      ?? await parseCsvText(text, supportedCurrencyCodes, requireDataRows, unescapeCell, delimiter, offersReadingChoices ? { headerRow, skipLastRows } : undefined)
-    const read = { ...(parsed.delimiter && { delimiter: parsed.delimiter }), ...(parsed.reading && { reading: parsed.reading }) }
-    if (parsed.error) {
-      const error = offersReadingChoices && parsed.error === SINGLE_COLUMN_ERROR ? SINGLE_COLUMN_SEPARATOR_ERROR : parsed.error
-      return refuse(error, read)
+    if (replacementCount > replacementLimit || text.includes(NULL_CHARACTER)) {
+      return { draft: refuse(UNREADABLE_TEXT_ERROR), layout: null }
     }
 
-    const draft: ImportFileDraft = {
-      ...staged,
-      headers: parsed.headers,
-      hasHeaderRow: parsed.hasHeaderRow,
-      rows: parsed.rows,
-      error: null,
-      ...read,
-    }
-    if (replacementCount > 0) draft.notice = getUnreadableCharacterNotice(replacementCount)
+    const toDraft = (parsed: ParsedCsv): ImportFileDraft => {
+      const read = { ...(parsed.delimiter && { delimiter: parsed.delimiter }), ...(parsed.reading && { reading: parsed.reading }) }
+      if (parsed.error) {
+        const error = offersReadingChoices && parsed.error === SINGLE_COLUMN_ERROR ? SINGLE_COLUMN_SEPARATOR_ERROR : parsed.error
+        return refuse(error, read)
+      }
 
-    return draft
+      const draft: ImportFileDraft = {
+        ...staged,
+        headers: parsed.headers,
+        hasHeaderRow: parsed.hasHeaderRow,
+        rows: parsed.rows,
+        error: null,
+        ...read,
+      }
+      if (replacementCount > 0) draft.notice = getUnreadableCharacterNotice(replacementCount)
+      return draft
+    }
+
+    const known = parseKnownCsvText(text, supportedCurrencyCodes, requireDataRows, unescapeCell, readRecords)
+    if (known) return { draft: toDraft(known), layout: null }
+
+    const detected = await parseCsvRecords(text, supportedCurrencyCodes, unescapeCell, delimiter)
+    const readByDelimiter = new Map([[detected.delimiter, detected]])
+    for (const layout of layouts) {
+      let read = readByDelimiter.get(layout.delimiter)
+      if (!read) {
+        read = await parseCsvRecords(text, supportedCurrencyCodes, unescapeCell, layout.delimiter)
+        readByDelimiter.set(layout.delimiter, read)
+      }
+      if (!read.records || !hasLayoutHeaders(read.records, layout)) continue
+
+      const choices = { headerRow: layout.headerRow }
+      return { draft: toDraft(shapeCsvRecords(read, supportedCurrencyCodes, requireDataRows, choices)), layout }
+    }
+
+    const choices = offersReadingChoices ? { headerRow, skipLastRows } : undefined
+    return { draft: toDraft(shapeCsvRecords(detected, supportedCurrencyCodes, requireDataRows, choices)), layout: null }
   } catch (error) {
-    return refuse(getCsvReadError(error))
+    return { draft: refuse(getCsvReadError(error)), layout: null }
   }
 }
 
@@ -228,16 +297,50 @@ function createFileId(file: File) {
 }
 
 /**
- * Parses the decoded file into records and hands them on to be shaped into headings and rows
+ * Whether the file's line at the layout's header row holds exactly the layout's header cells as the
+ * page names them
  */
-async function parseCsvText(
-  text: string,
+function hasLayoutHeaders(records: string[][], layout: CsvLayoutReading) {
+  const record = records[layout.headerRow - 1]
+  if (!record) return false
+
+  const headers = dedupeHeaders(record)
+  return headers.length === layout.headers.length && headers.every((header, index) => header === layout.headers[index])
+}
+
+/**
+ * A file's non-blank records as one separator splits them, or null where a quote is never closed
+ */
+type CsvRecords = {
+  delimiter: ImportDelimiter
+  records: string[][] | null
+
+  /** The line the parser stopped at, for a file whose records are null */
+  malformedRow?: number
+}
+
+/**
+ * Shapes a file's records into headings and rows, or refuses a file the parser could not split
+ */
+function shapeCsvRecords(
+  read: CsvRecords,
   supportedCurrencyCodes: Set<string>,
   requireDataRows: boolean,
+  choices: CsvReadingChoices | undefined,
+): ParsedCsv {
+  if (!read.records) return { ...refuseParsedCsv(getMalformedQuoteError(read.malformedRow)), delimiter: read.delimiter }
+  return { ...buildParsedCsv(read.records, supportedCurrencyCodes, requireDataRows, choices), delimiter: read.delimiter }
+}
+
+/**
+ * Parses the decoded file into records, with the separator given or the one it guesses
+ */
+async function parseCsvRecords(
+  text: string,
+  supportedCurrencyCodes: Set<string>,
   unescapeCell: (value: string) => string,
   chosenDelimiter: ImportDelimiter | undefined,
-  choices: CsvReadingChoices | undefined,
-): Promise<ParsedCsv> {
+): Promise<CsvRecords> {
   // Pull the CSV parser on demand so papaparse only ships with the import flow
   const { parse } = await import('papaparse')
 
@@ -282,7 +385,7 @@ async function parseCsvText(
   // Papa reads a file it found no separator in with a comma, so every reading names one of these
   const delimiter = IMPORT_DELIMITERS.find((candidate) => candidate === result.meta.delimiter) ?? IMPORT_DELIMITERS[0]
   const malformed = result.errors.find((error) => error.code === FATAL_PARSE_ERROR_CODE)
-  if (malformed) return { ...refuseParsedCsv(getMalformedQuoteError(malformed.row)), delimiter }
+  if (malformed) return { delimiter, records: null, malformedRow: malformed.row }
 
   const records: string[][] = []
   for (const row of result.data) {
@@ -290,7 +393,7 @@ async function parseCsvText(
     if (record.some(Boolean)) records.push(record)
   }
 
-  return { ...buildParsedCsv(records, supportedCurrencyCodes, requireDataRows, choices), delimiter }
+  return { delimiter, records }
 }
 
 /**
