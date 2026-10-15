@@ -392,10 +392,11 @@ test(
   },
 )
 
-// The bank screens draw focus in several ways, a ring outside a control, a shadow inside one or a ring a
-// list item lays over itself, and every one of them is drawn in the app's one focus colour. Read for each
-// control, so a run that fails names every control that misses it, and until it holds, since some ease
-// their focus in
+// The bank screens draw focus in a few ways: an outline, a shadow ring around a control or inside its
+// edge, or a ring on something inside it, such as a review item's frame. Each way is drawn in the app's
+// one focus colour, so this samples one control for each way rather than every control the bank screens
+// draw focus on, and the bank icon's ring has its own test above. Read for each control, so a run that
+// fails names every control that misses it, and until it holds, since some ease their focus in
 test('draws keyboard focus on the bank screens in the focus colour', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   const user = await signUpUser(request)
@@ -419,9 +420,7 @@ test('draws keyboard focus on the bank screens in the focus colour', async ({ pa
   }
 
   await openPage(page, '/transactions')
-  const row = page.getByTestId(`transaction-row-${id}`)
-  await expectFocusColour(row.getByRole('button', { name: 'From SimpleFIN', exact: true }))
-  await expectFocusColour(row.getByRole('button', { name: 'Needs review. Show the waiting item' }))
+  await expectFocusColour(page.getByTestId(`transaction-row-${id}`).getByRole('button', { name: 'Needs review. Show the waiting item' }))
   await expectFocusColour(reviewBlock(page).getByRole('button').filter({ hasText: 'GROCER item-1' }))
 
   await openPage(page, `/accounts/${account.id}`)
