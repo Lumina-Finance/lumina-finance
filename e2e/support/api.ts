@@ -3,6 +3,8 @@
  * rather than clicking its way there through behaviour it is not testing.
  */
 
+import { createHmac } from 'node:crypto'
+
 import type { APIRequestContext } from '@playwright/test'
 
 import { tokenFromLink, waitForConfirmationLink } from './mail'
@@ -87,6 +89,53 @@ export async function signUpUser(
  */
 export function asUser(user: TestUser): Record<string, string> {
   return { Authorization: `Bearer ${user.accessToken}` }
+}
+
+/**
+ * The code an authenticator app shows for a secret, as RFC 6238 defines it.
+ *
+ * @param secret - The base32 secret the server gave at setup
+ * @param stepsAhead - How many 30-second steps past the current one to compute the code for
+ * @returns The six-digit code
+ */
+export function totpCode(secret: string, stepsAhead = 0): string {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
+  const bits = [...secret.replace(/=+$/, '').toUpperCase()]
+    .map((char) => alphabet.indexOf(char).toString(2).padStart(5, '0'))
+    .join('')
+  const key = Buffer.from(bits.match(/.{8}/g)?.map((byte) => parseInt(byte, 2)) ?? [])
+
+  const counter = Buffer.alloc(8)
+  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000) + stepsAhead))
+  const digest = createHmac('sha1', key).update(counter).digest()
+  const offset = digest[digest.length - 1] & 0x0f
+  return String((digest.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).padStart(6, '0')
+}
+
+/**
+ * Set up an authenticator app as the user's second factor.
+ *
+ * The confirming code is recorded as used, so a sign-in afterwards needs the next step's code.
+ *
+ * @param request - Playwright request context, with requests sent to the configured API target
+ * @param user - The user to protect
+ * @returns The authenticator secret, for working out codes with `totpCode`
+ * @throws When any step of setup is refused
+ */
+export async function enrollTotp(request: APIRequestContext, user: TestUser): Promise<string> {
+  const headers = asUser(user)
+  const setup = await request.post(`${API_BASE_URL}/auth/2fa/setup`, {
+    headers,
+    data: { step_up: { password: user.password } },
+  })
+  const { secret } = (await setup.json()) as { secret: string }
+  const confirm = await request.post(`${API_BASE_URL}/auth/2fa/confirm`, { headers, data: { code: totpCode(secret) } })
+  const complete = await request.post(`${API_BASE_URL}/auth/2fa/complete`, { headers })
+
+  for (const [step, response] of Object.entries({ setup, confirm, complete })) {
+    if (!response.ok()) throw new Error(`2FA ${step} answered ${response.status()}: ${await response.text()}`)
+  }
+  return secret
 }
 
 /**
