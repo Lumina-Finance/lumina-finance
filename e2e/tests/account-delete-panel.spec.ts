@@ -135,6 +135,30 @@ test('focuses Continue when the account is already archived', async ({ page, req
   await expect(dialog.getByRole('button', { name: 'Archive instead', exact: true })).toHaveCount(0)
 })
 
+// "Archive instead" leaves with the panel, so focus would fall to the page with it
+test('moves focus to the archive switch after archiving instead', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: ACCOUNT_NAME })
+  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -5000 })
+  await logInViaApi(page, user)
+
+  const dialog = await openEditDialog(page, account.id)
+  await pressTrash(dialog)
+  await expect(dialog.getByRole('button', { name: 'Archive instead', exact: true })).toBeFocused()
+  await page.keyboard.press('Enter')
+
+  const archiveSwitch = dialog.getByRole('switch')
+  await expect(archiveSwitch).toBeChecked()
+  await expect(dialog.getByText(`Delete ${ACCOUNT_NAME}?`, { exact: true })).toHaveCount(0)
+  await expect(archiveSwitch).toBeFocused()
+  await expect(dialog.getByRole('alert')).toBeVisible()
+
+  // Tab carries on from the switch to the footer, rather than starting again at the first field
+  await page.keyboard.press('Tab')
+  await expect(dialog.getByRole('button', { name: 'Delete account', exact: true })).toBeFocused()
+  await expect(dialog).toBeVisible()
+})
+
 // The panel's own end of animation runs once more as it leaves, which must not pull focus into it
 test('leaves focus on the archive switch when turning it on closes the delete confirmation', async ({ page, request }) => {
   const user = await signUpUser(request)
