@@ -14,6 +14,9 @@ import {
 } from '../support/bankSync'
 import { API_BASE_URL } from '../support/target'
 
+// Runs on desktop only: the running balance and the refreshes Add Transaction holds back while open
+// don't change with the width
+
 // How often the app reads the list of bank links while no sync or import runs
 const LINKS_IDLE_POLL_MS = 60 * 1000
 
