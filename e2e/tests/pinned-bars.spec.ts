@@ -57,6 +57,12 @@ test('brings each chosen settings section to rest below the pinned section menu'
   await logInViaApi(page, user)
   await openPage(page, '/settings')
 
+  // A section's height is final only once its data has loaded, and a smooth scroll aims at where the
+  // chosen heading was when it began, so every section settles first. Runway shows no spinner while its
+  // accounts load, so its empty state is what says they have
+  await expect(page.getByText('No eligible accounts yet. Add an asset account to configure runway.')).toBeVisible()
+  await expect(page.getByRole('status', { name: /^Loading / })).toHaveCount(0)
+
   // The section menu pins above the page below the side list's width, and the side list takes its place
   // above it. Found by what it opens, since its name is whichever section is current
   const menu = page.locator('[aria-controls="settings-mobile-section-menu"]')
