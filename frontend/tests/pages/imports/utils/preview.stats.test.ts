@@ -43,6 +43,12 @@ const GROCERIES: Category = {
   created_at: '2026-01-01T00:00:00Z',
 }
 
+// A category an earlier import created, which a file naming it again reuses rather than creating twice
+const HOBBY_SUPPLIES: Category = { ...GROCERIES, id: 'hobby-supplies', name: 'Hobby supplies' }
+
+// A name the user holds for income, which a new expense category of that name can't reuse
+const PRESENTS: Category = { ...GROCERIES, id: 'presents', name: 'Presents', kind: 'income' }
+
 const HEADERS = ['Date', 'Account', 'Category', 'Amount']
 
 /**
@@ -77,6 +83,8 @@ function summarize(rows: CsvRow[], accountMappings: Record<string, string>, cate
   const importedCategories = Object.keys(categoryMappings)
   const newAccounts = Object.keys(accountMappings).filter((source) => accountMappings[source] === CREATE_ACCOUNT_VALUE)
   const newCategories = importedCategories.filter((source) => categoryMappings[source] === CREATE_CATEGORY_VALUE)
+  const categoryById = new Map([GROCERIES, HOBBY_SUPPLIES, PRESENTS].map((category) => [category.id, category]))
+  const categoryCreateKinds = Object.fromEntries(newCategories.map((source) => [source, 'expense' as const]))
   const importBuild = buildTransactionImportPayload({
     accountById: new Map([[CHEQUING.id, CHEQUING]]),
     accountCreateCurrencies: Object.fromEntries(newAccounts.map((source) => [source, 'CAD'])),
@@ -84,8 +92,8 @@ function summarize(rows: CsvRow[], accountMappings: Record<string, string>, cate
     accountCreateTypes: Object.fromEntries(newAccounts.map((source) => [source, 'checking'])),
     accountMappings,
     accountSources,
-    categoryById: new Map([[GROCERIES.id, GROCERIES]]),
-    categoryCreateKinds: Object.fromEntries(newCategories.map((source) => [source, 'expense'])),
+    categoryById,
+    categoryCreateKinds,
     categoryMappings,
     categoryTypesBySource: {},
     columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', account_id: 'Account', category_id: 'Category', amount: 'Amount' },
@@ -106,6 +114,10 @@ function summarize(rows: CsvRow[], accountMappings: Record<string, string>, cate
       accountMappings,
       importedCategories,
       categoryMappings,
+      categoryById,
+      categoryCreateKinds,
+      categoryRenames: {},
+      categoryTypesBySource: {},
     }),
   }
 }
@@ -148,5 +160,30 @@ describe('the CSV import summary', () => {
 
     expect(importBuild.rowProblems).toHaveLength(2)
     expect(stats).toEqual({ rowCount: 10, transactionEstimate: 8, newAccountCount: 0, newCategoryCount: 0 })
+  })
+
+  // The commit reuses a category the user already has under the same name, capitals folded, and
+  // reports none created for it, which is what the preview has to say beforehand
+  it('leaves out a new category whose name the user already has for the same type', () => {
+    const rows = createRows(4, ['Chequing'], ['hobby supplies', 'Gardening'])
+
+    const { importBuild, stats } = summarize(
+      rows,
+      { Chequing: CHEQUING.id },
+      { 'hobby supplies': CREATE_CATEGORY_VALUE, Gardening: CREATE_CATEGORY_VALUE },
+    )
+
+    expect(importBuild.errors).toEqual([])
+    expect(stats.newCategoryCount).toBe(1)
+  })
+
+  // Left without the other name the step proposes, so only its type tells it apart from the income
+  // category that shares its name
+  it('counts a new category whose name the user holds for another type', () => {
+    const rows = createRows(2, ['Chequing'], ['Presents'])
+
+    const { stats } = summarize(rows, { Chequing: CHEQUING.id }, { Presents: CREATE_CATEGORY_VALUE })
+
+    expect(stats.newCategoryCount).toBe(1)
   })
 })

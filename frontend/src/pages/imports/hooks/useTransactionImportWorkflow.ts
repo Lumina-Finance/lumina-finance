@@ -694,6 +694,13 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   // A finished import's record guesses without the categories it created, as for its accounts, so
   // a name it filed under an existing category is not moved to a closer one the import made
   const createdCategoryIds = run.workflow.importResult?.created_category_ids
+
+  // What a "Create new" answer reuses is judged against these, so a finished import's record keeps
+  // showing the categories it created as created rather than as ones the user already had
+  const categoriesBeforeImport = useMemo(
+    () => new Map([...categoryById].filter(([id]) => !createdCategoryIds?.includes(id))),
+    [categoryById, createdCategoryIds],
+  )
   const resolvedCategoryMappings = useMemo(
     () => {
       // A name whose category has gone is kept away from the guess, so it reads as unanswered
@@ -840,6 +847,10 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     accountMappings: resolvedAccountMappings,
     importedCategories,
     categoryMappings: resolvedCategoryMappings,
+    categoryById: categoriesBeforeImport,
+    categoryCreateKinds,
+    categoryRenames,
+    categoryTypesBySource,
   })
   const mappedFieldCount = headers.length === 0 ? 0 : Object.values(columnMap).filter(Boolean).length
   const canCommitImport = run.canCommit({ hasPayload: importBuild.payload !== null, isProcessingFile: isProcessingFiles })
@@ -1169,6 +1180,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     categoryMatchOptions,
     accountById,
     categoryById,
+    categoriesBeforeImport,
     headers,
     missingRequiredColumnLabels,
     columnTargetOptions,

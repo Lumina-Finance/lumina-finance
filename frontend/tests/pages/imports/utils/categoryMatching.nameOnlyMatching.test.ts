@@ -82,6 +82,10 @@ describe('the category a create answer would land on', () => {
     expect(findReusedImportCategory('Bonus', [GROUP_INCOME])).toBeUndefined()
   })
 
+  it('reuses a category that ships with the app when the user has none of that name', () => {
+    expect(findReusedImportCategory('Bonus', [SYSTEM_INCOME])?.id).toBe('system-income')
+  })
+
   it('takes the user own category over one that ships with the app', () => {
     expect(findReusedImportCategory('Bonus', [SYSTEM_INCOME, PERSONAL_EXPENSE])?.id).toBe('personal-expense')
   })

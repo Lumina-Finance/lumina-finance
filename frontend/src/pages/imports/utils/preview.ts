@@ -22,7 +22,7 @@ import type {
 } from '@/pages/imports/types'
 import { getImportAccountName } from './accountMapping'
 import { countCreatedImportSources, getImportRowId } from './common'
-import { getCategoryMatchKind } from './categoryMatching'
+import { findReusedImportCategory, getCategoryMatchKind } from './categoryMatching'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import { getCurrencyByAccountSource, type ImportRowContext, resolveImportRow } from './rowResolution'
 import { getAmountArrangementClashError, getSupportedCurrencyCodes } from './workflowOptions'
@@ -263,7 +263,8 @@ export function getPreviewCurrency(
 
 /**
  * Resolves the category a previewed transaction will use, building a placeholder record for a
- * category queued to be created and looking up an existing one otherwise
+ * category queued to be created and looking up an existing one otherwise, including one a category
+ * queued to be created will reuse
  *
  * The kind comes from the same reading the commit uses, so the two cannot disagree. Where that
  * reading has no answer yet, which is a source whose amounts move both ways or one with no readable
@@ -290,11 +291,37 @@ export function getPreviewCategory(
     )
     if (!kind) return undefined
 
-    return buildPreviewCategory(importedCategory, categoryRenames[importedCategory]?.name ?? importedCategory, kind)
+    // The commit reuses a category of the same name and type rather than creating a second one
+    const name = categoryRenames[importedCategory]?.name ?? importedCategory
+    const reused = findReusedImportCategory(name, categoryById.values())
+    return reused?.kind === kind ? reused : buildPreviewCategory(importedCategory, name, kind)
   }
 
   if (mapped) return categoryById.get(mapped)
   return undefined
+}
+
+/**
+ * Whether a CSV category value lands on a category the user already has, including one a value
+ * answered "Create new" reuses because it holds the same name and type, so nothing presents it as new
+ */
+export function isExistingCsvCategory(
+  importedCategory: string,
+  categoryMappings: Record<string, string>,
+  categoryById: Map<string, Category>,
+  categoryCreateKinds: Record<string, ImportCategoryKind>,
+  categoryRenames: Record<string, ImportCategoryRename>,
+  categoryTypesBySource: Record<string, string>,
+) {
+  const category = getPreviewCategory(
+    importedCategory,
+    categoryMappings,
+    categoryById,
+    categoryCreateKinds,
+    categoryRenames,
+    categoryTypesBySource,
+  )
+  return categoryById.has(category?.id ?? '')
 }
 
 /**
@@ -304,9 +331,12 @@ export function getPreviewCategory(
  * be built, the rows already refused are left out and the rest are counted, since answering the
  * questions still open changes which accounts and categories they land in, not whether they import.
  * A source answered create-new counts as one new account or category, and once the import is built
- * only when a row it sends names that source, since the commit creates nothing for the others
+ * only when a row it sends names that source, since the commit creates nothing for the others. Nor
+ * does it create a category the preview shows as one the user already has
  *
  * @param rowCount - Every data row in the staged files
+ * @param categoryById - The categories the user had before a finished import, so its record still
+ *   counts the ones it created
  */
 export function getCsvImportStats({
   rowCount,
@@ -315,6 +345,10 @@ export function getCsvImportStats({
   accountMappings,
   importedCategories,
   categoryMappings,
+  categoryById,
+  categoryCreateKinds,
+  categoryRenames,
+  categoryTypesBySource,
 }: {
   rowCount: number
   importBuild: Pick<ImportBuildResult, 'payload' | 'rowProblems'>
@@ -322,12 +356,24 @@ export function getCsvImportStats({
   accountMappings: Record<string, string>
   importedCategories: string[]
   categoryMappings: Record<string, string>
+  categoryById: Map<string, Category>
+  categoryCreateKinds: Record<string, ImportCategoryKind>
+  categoryRenames: Record<string, ImportCategoryRename>
+  categoryTypesBySource: Record<string, string>
 }) {
   const rows = importBuild.payload?.rows
   const writtenAccounts = new Set(rows
     ? rows.flatMap((row) => [row.account_source, row.counterparty_account_source ?? ''])
     : accountSources.map((source) => source.id))
   const writtenCategories = new Set(rows ? rows.map((row) => row.category_source) : importedCategories)
+  const sourcesWithoutExistingCategory = importedCategories.filter((source) => !isExistingCsvCategory(
+    source,
+    categoryMappings,
+    categoryById,
+    categoryCreateKinds,
+    categoryRenames,
+    categoryTypesBySource,
+  ))
 
   return {
     rowCount,
@@ -338,6 +384,6 @@ export function getCsvImportStats({
       CREATE_ACCOUNT_VALUE,
       writtenAccounts,
     ),
-    newCategoryCount: countCreatedImportSources(importedCategories, categoryMappings, CREATE_CATEGORY_VALUE, writtenCategories),
+    newCategoryCount: countCreatedImportSources(sourcesWithoutExistingCategory, categoryMappings, CREATE_CATEGORY_VALUE, writtenCategories),
   }
 }
