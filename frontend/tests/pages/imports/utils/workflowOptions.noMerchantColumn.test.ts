@@ -8,7 +8,7 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import {
   EMPTY_COLUMN_MAP,
-  getRowsWithNoPayeeExplanation,
+  getRowsWithNoMerchantExplanation,
   SELF_MERCHANT_NAME,
   UNKNOWN_MERCHANT_NAME,
 } from '@/pages/imports/constants'
@@ -16,7 +16,7 @@ import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import {
   buildImportPreviewRows,
   buildTransactionImportPayload,
-  countRowsWithNoPayee,
+  countRowsWithNoMerchant,
 } from '@/pages/imports/utils'
 
 const CURRENCIES: Currency[] = [
@@ -63,7 +63,7 @@ function createFile(rows: CsvRow[]): ImportFileDraft {
 /**
  * Builds a commit payload, optionally mapping the merchant column
  */
-function build({ payeeMapped = true }: { payeeMapped?: boolean } = {}) {
+function build({ merchantMapped = true }: { merchantMapped?: boolean } = {}) {
   return buildTransactionImportPayload({
     accountById: new Map([[ACCOUNT.id, ACCOUNT]]),
     accountCreateCurrencies: {},
@@ -80,7 +80,7 @@ function build({ payeeMapped = true }: { payeeMapped?: boolean } = {}) {
       dt: 'Date',
       category_id: 'Category',
       amount: 'Amount',
-      ...(payeeMapped ? { merchant_id: 'Payee' } : {}),
+      ...(merchantMapped ? { merchant_id: 'Payee' } : {}),
     },
     columnValidationErrors: {},
     currencies: CURRENCIES,
@@ -119,15 +119,15 @@ function preview(kind: Category['kind']) {
 
 describe('counting the rows that state no merchant', () => {
   it('counts every row where no column holds the merchant', () => {
-    expect(countRowsWithNoPayee([createFile(ROWS)], '')).toBe(4)
+    expect(countRowsWithNoMerchant([createFile(ROWS)], '')).toBe(4)
   })
 
   it('counts the blank cells where a column does, whitespace included', () => {
-    expect(countRowsWithNoPayee([createFile(ROWS)], 'Payee')).toBe(2)
+    expect(countRowsWithNoMerchant([createFile(ROWS)], 'Payee')).toBe(2)
   })
 
   it('counts none where every row states one', () => {
-    expect(countRowsWithNoPayee([createFile([ROWS[0], ROWS[2]])], 'Payee')).toBe(0)
+    expect(countRowsWithNoMerchant([createFile([ROWS[0], ROWS[2]])], 'Payee')).toBe(0)
   })
 })
 
@@ -144,7 +144,7 @@ describe('importing a row that states no merchant', () => {
   })
 
   it('imports a whole file that states no merchant anywhere', () => {
-    const result = build({ payeeMapped: false })
+    const result = build({ merchantMapped: false })
 
     expect(result.errors).toEqual([])
     expect(result.payload?.rows.every((row) => row.merchant_name === null)).toBe(true)
@@ -165,24 +165,24 @@ describe('showing the merchant a row stating none will carry', () => {
 
 describe('what the mapping step says about those rows', () => {
   it('reads for one row without saying "1 rows"', () => {
-    const message = getRowsWithNoPayeeExplanation(1, false)
+    const message = getRowsWithNoMerchantExplanation(1, false)
 
     expect(message).toContain('1 row states no merchant')
     expect(message).toContain('it will be filed under')
   })
 
   it('reads for several', () => {
-    expect(getRowsWithNoPayeeExplanation(2, false)).toContain('2 rows state no merchant')
+    expect(getRowsWithNoMerchantExplanation(2, false)).toContain('2 rows state no merchant')
   })
 
   it('offers the mapping advice only where no column is mapped', () => {
-    expect(getRowsWithNoPayeeExplanation(2, false)).toContain('Map the column holding the merchant above')
+    expect(getRowsWithNoMerchantExplanation(2, false)).toContain('Map the column holding the merchant above')
   })
 
   // Telling someone to map a column they have already mapped sends them to a control that is
   // answered, and the rows are the ones whose cell was left blank rather than a missing column
   it('says the cells are blank where a column is mapped, and offers nothing to map', () => {
-    const message = getRowsWithNoPayeeExplanation(2, true)
+    const message = getRowsWithNoMerchantExplanation(2, true)
 
     expect(message).toContain('2 rows leave the merchant column blank')
     expect(message).not.toContain('Map the column')

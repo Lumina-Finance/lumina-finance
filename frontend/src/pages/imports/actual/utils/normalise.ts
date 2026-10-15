@@ -18,7 +18,7 @@ import {
   ACTUAL_TRANSACTION_DECIMALS,
   ACTUAL_TRANSFER_SIDE_LEFT_OUT_REASON,
   ACTUAL_TRANSFER_CATEGORY_SOURCE_PREFIX,
-  getActualPayeeTooLongReason,
+  getActualMerchantTooLongReason,
   getActualTagTooLongReason,
   getActualUnbalancedSplitReason,
 } from '@/pages/imports/actual/constants'
@@ -79,7 +79,7 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
     date: transaction.date,
     accountName: accountById.get(transaction.accountId)?.name ?? '',
     amount: transaction.amount,
-    payeeName: payeeById.get(transaction.payeeId ?? parent?.payeeId ?? '')?.name ?? null,
+    merchantName: payeeById.get(transaction.payeeId ?? parent?.payeeId ?? '')?.name ?? null,
     categoryName: categoryById.get(transaction.categoryId ?? '')?.name ?? null,
     notes: joinNotes(parent?.notes ?? null, transaction.notes),
     reason,
@@ -148,7 +148,7 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
         type: 'opening balance',
         sourceAccountId: transaction.amount < 0 ? account.id : null,
         destinationAccountId: transaction.amount < 0 ? null : account.id,
-        payeeName: null,
+        merchantName: null,
         counterpartAccountName: null,
         categorySourceId: null,
         categoryLeg: null,
@@ -174,7 +174,7 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
       entries.push({
         ...base,
         ...getOneSidedAccounts(transaction, account),
-        payeeName: null,
+        merchantName: null,
         counterpartAccountName: getMerchantSafeName(counterpartAccount.name),
         categorySourceId: categoryUses.add('transfer', category ?? null, null),
         categoryLeg: null,
@@ -191,7 +191,7 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
     entries.push({
       ...base,
       ...getOneSidedAccounts(transaction, account),
-      payeeName: payee?.name || null,
+      merchantName: payee?.name || null,
       counterpartAccountName: null,
       categorySourceId: categoryUses.add(role, category, account.offBudget ? account : null, 1, isUncategorizedMoneyIn),
       categoryLeg: null,
@@ -280,7 +280,7 @@ function buildTransferPair(
     type: 'transfer',
     sourceAccountId: account.id,
     destinationAccountId: counterpartAccount.id,
-    payeeName: null,
+    merchantName: null,
     counterpartAccountName: getMerchantSafeName(categoryLeg === 'destination' ? account.name : counterpartAccount.name),
     categorySourceId: category ? categoryUses.add('transfer', category, null) : null,
     categoryLeg,
@@ -290,7 +290,7 @@ function buildTransferPair(
 // An account name becomes a merchant when a payment is filed as spending, and one too long for a
 // merchant name leaves the row without one
 function getMerchantSafeName(name: string) {
-  return [...name].length > JOURNAL_ROW_FIELD_MAX_LENGTHS.payee ? null : name || null
+  return [...name].length > JOURNAL_ROW_FIELD_MAX_LENGTHS.merchantName ? null : name || null
 }
 
 function getOneSidedAccounts(transaction: ActualTransaction, account: ActualAccount) {
@@ -306,14 +306,14 @@ function getOneSidedAccounts(transaction: ActualTransaction, account: ActualAcco
  * Returns why a row holds a value the import endpoint cannot take, or null. The server refuses the
  * whole import for any of them, so the row is left out instead
  */
-function getRowLimitReason(notes: string | null, tags: string[], payeeName: string | null) {
+function getRowLimitReason(notes: string | null, tags: string[], merchantName: string | null) {
   const notesLength = [...(notes ?? '')].length
   if (notesLength > MAX_IMPORT_NOTES_LENGTH) return getRowNotesTooLongReason(notesLength)
   if (tags.length > MAX_IMPORT_TAGS_PER_ROW) return getRowTooManyTagsReason(tags.length)
   const longTag = tags.find((tag) => [...tag].length > IMPORT_TAG_NAME_MAX_LENGTH)
   if (longTag) return getActualTagTooLongReason(longTag)
-  const payeeLength = [...(payeeName ?? '')].length
-  if (payeeLength > JOURNAL_ROW_FIELD_MAX_LENGTHS.payee) return getActualPayeeTooLongReason(payeeLength)
+  const merchantNameLength = [...(merchantName ?? '')].length
+  if (merchantNameLength > JOURNAL_ROW_FIELD_MAX_LENGTHS.merchantName) return getActualMerchantTooLongReason(merchantNameLength)
   return null
 }
 

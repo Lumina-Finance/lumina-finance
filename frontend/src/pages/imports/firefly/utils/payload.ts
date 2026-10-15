@@ -16,10 +16,10 @@ import {
   getFireflyRowAmounts,
   getFireflyRowCategorySource,
   getFireflyRowDate,
-  getFireflyRowPayeeName,
+  getFireflyRowMerchantName,
   getFireflyRowSentNotes,
   getFireflySplitGroupSizes,
-  isFireflyPayeeRow,
+  isFireflyMerchantRow,
   isFireflyRowUploadable,
   splitFireflyTags,
   toFireflyUnsignedAmount,
@@ -183,11 +183,11 @@ function buildFireflyImportRows(
 
     // Only the account outside the import that a withdrawal pays or a deposit comes from is written,
     // as the merchant
-    const payeeName = getFireflyRowPayeeName(row) || null
+    const merchantName = getFireflyRowMerchantName(row) || null
     const isDeposit = row.type.trim().toLowerCase() === FIREFLY_TYPE_DEPOSIT
     // A row with a merchant but no category is sent with the no-category source for its direction by name,
     // since the commit would file a null category under (no category), money in included
-    const category = isFireflyPayeeRow(row) ? getFireflyRowCategorySource(row) : null
+    const category = isFireflyMerchantRow(row) ? getFireflyRowCategorySource(row) : null
 
     if (sourceAccount) rowAccountSources.add(sourceAccount.id)
     if (destinationAccount) rowAccountSources.add(destinationAccount.id)
@@ -203,9 +203,9 @@ function buildFireflyImportRows(
       foreign_currency_code: foreign?.currencyCode ?? null,
       description: cleanOptional(row.description),
       source_account: sourceAccount?.id ?? null,
-      source_name: isDeposit ? payeeName : null,
+      source_name: isDeposit ? merchantName : null,
       destination_account: destinationAccount?.id ?? null,
-      destination_name: isDeposit ? null : payeeName,
+      destination_name: isDeposit ? null : merchantName,
       category,
       tag_names: splitFireflyTags(row.tags ?? ''),
       notes: getFireflyRowSentNotes(row, groupSizes),

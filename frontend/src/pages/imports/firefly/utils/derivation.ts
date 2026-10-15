@@ -136,7 +136,7 @@ function isFireflyTrackedEndpoint(name: string | undefined, type: string | undef
  * Only such a row is written with a merchant and its own category. A row between two imported
  * accounts is a transfer, and a balance row takes Balance Adjustment
  */
-export function isFireflyPayeeRow(row: CsvRow) {
+export function isFireflyMerchantRow(row: CsvRow) {
   const journalType = row.type?.trim().toLowerCase() ?? ''
   const isSourceTracked = isFireflyTrackedEndpoint(row.source_name, row.source_type)
   const isDestinationTracked = isFireflyTrackedEndpoint(row.destination_name, row.destination_type)
@@ -188,7 +188,7 @@ export function getFireflyRowShapeSkipReason(row: CsvRow): string | null {
  * merchant is. Only these rows need their category matched, and only their categories are created
  */
 export function isFireflyCategoryUseRow(row: CsvRow, groupSizes: FireflySplitGroupSizes) {
-  return isFireflyPayeeRow(row) && isFireflyRowUploadable(row, groupSizes)
+  return isFireflyMerchantRow(row) && isFireflyRowUploadable(row, groupSizes)
 }
 
 /** Rows each Firefly III transaction group holds in the export, keyed by group id */
@@ -232,8 +232,8 @@ export function getFireflyRowSentNotes(row: CsvRow, groupSizes: FireflySplitGrou
  * Returns the name a row's merchant is filed under, blank when the export gives none, and
  * null for any other row, which is written with no merchant of its own
  */
-export function getFireflyRowPayeeName(row: CsvRow): string | null {
-  if (!isFireflyPayeeRow(row)) return null
+export function getFireflyRowMerchantName(row: CsvRow): string | null {
+  if (!isFireflyMerchantRow(row)) return null
 
   const journalType = row.type?.trim().toLowerCase() ?? ''
   const name = journalType === FIREFLY_TYPE_WITHDRAWAL ? row.destination_name : row.source_name
@@ -282,8 +282,8 @@ export function getFireflyRowOverLimitReason(row: CsvRow, groupSizes: FireflySpl
 
     // Only a row with a merchant is sent with its category and the merchant's name, so a long value
     // on any other row costs nothing
-    ['category', isFireflyPayeeRow(row) ? row.category : null, limits.category],
-    ['merchant name', getFireflyRowPayeeName(row), limits.payee],
+    ['category', isFireflyMerchantRow(row) ? row.category : null, limits.category],
+    ['merchant name', getFireflyRowMerchantName(row), limits.merchantName],
   ]
   for (const [field, value, maxLength] of fields) {
     const length = countCharacters(value?.trim() ?? '')

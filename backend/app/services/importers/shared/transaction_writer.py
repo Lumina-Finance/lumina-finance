@@ -16,7 +16,7 @@ from app.services.importers.shared.lookups import ImportLookups
 from app.services.importers.shared.merchants import (
     create_missing_import_merchants,
     get_import_merchant,
-    get_no_payee_merchants,
+    get_stamped_merchants,
 )
 from app.services.importers.shared.stats import ImportStats
 from app.services.importers.shared.tags import create_missing_import_tags, get_import_row_tags
@@ -86,7 +86,7 @@ async def write_imported_transactions(
             too long, and 500 when the shared merchants are not seeded
     """
     first_import_date_by_account_id: dict[uuid.UUID, date] = {}
-    no_payee_merchants = get_no_payee_merchants(import_lookups.merchants)
+    stamped_merchants = get_stamped_merchants(import_lookups.merchants)
 
     # Everything the import introduces is created before the rows are walked, so each of them costs
     # one insert for the whole import rather than one per row that first mentions it. A failure
@@ -115,7 +115,7 @@ async def write_imported_transactions(
             # or a balance adjustment, is stamped with the shared one for its kind
             merchant = (
                 get_import_merchant(imported.merchant_name, import_lookups.merchants, stats)
-                or no_payee_merchants.get_for_category(imported.category)
+                or stamped_merchants.get_for_category(imported.category)
             )
             tags = get_import_row_tags(imported.tag_names, import_lookups.tags_by_name, stats)
             pending.append((

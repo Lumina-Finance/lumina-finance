@@ -109,7 +109,7 @@ export function getActualPaymentMode(modes: Record<string, ActualPaymentMode>, t
  *
  * A payment filed as spending moves from the category's transfer source to its spending source,
  * which is named by Actual's category id, keeping its budget-side leg and taking the other
- * account's name as its payee. A spending source with no rows of its own is shown only through
+ * account's name as its merchant. A spending source with no rows of its own is shown only through
  * the transfer row then, so it takes that row's label, which is how an answer the import refuses
  * for it names a row the user can see
  *
@@ -134,7 +134,7 @@ export function applyActualPaymentModes(journal: ActualJournal, modes: Record<st
     entries: journal.entries.map((entry) => {
       const source = spendingTransferSources.get(entry.categorySourceId ?? '')
       if (!source?.categoryId) return entry
-      return { ...entry, categorySourceId: source.categoryId, payeeName: entry.counterpartAccountName }
+      return { ...entry, categorySourceId: source.categoryId, merchantName: entry.counterpartAccountName }
     }),
   }
 }

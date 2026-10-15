@@ -187,7 +187,7 @@ export const JOURNAL_ROW_FIELD_MAX_LENGTHS = {
   amount: 64,
   description: 1024,
   category: 256,
-  payee: 256,
+  merchantName: 256,
 } as const
 
 // Distinct account or category values one import may declare, matching what the API accepts across
@@ -328,7 +328,7 @@ export function getRowTooManyTagsReason(count: number) {
 // column is mapped as the Merchant and only the blank ones where a column is. It asks for nothing:
 // every transaction carries a merchant, so those rows are filed under one that ships with the app,
 // and this says so before the import runs rather than leaving it to be noticed in the preview
-export const ROWS_WITH_NO_PAYEE_TITLE = 'Rows with no merchant'
+export const ROWS_WITH_NO_MERCHANT_TITLE = 'Rows with no merchant'
 
 /**
  * Says what will happen to the rows stating no merchant, with them counted
@@ -341,7 +341,7 @@ export const ROWS_WITH_NO_PAYEE_TITLE = 'Rows with no merchant'
  * file does hold the merchant under a heading the guesser did not recognise. Where one is mapped
  * there is nothing to map, and the rows are the ones whose cell was left blank
  */
-export function getRowsWithNoPayeeExplanation(rowCount: number, isMerchantColumnMapped: boolean) {
+export function getRowsWithNoMerchantExplanation(rowCount: number, isMerchantColumnMapped: boolean) {
   const isOne = rowCount === 1
   const subject = isMerchantColumnMapped
     ? `${isOne ? '1 row leaves' : `${rowCount.toLocaleString()} rows leave`} the merchant column blank`

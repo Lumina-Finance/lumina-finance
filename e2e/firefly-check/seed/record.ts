@@ -186,14 +186,14 @@ function buildAccountMonths(rows: ManifestRow[], currencyByAccount: Map<string, 
 function buildCategoryMonths(rows: ManifestRow[], currencyByAccount: Map<string, string>): ManifestCategoryMonth[] {
   const totals = new Map<string, ManifestCategoryMonth & { minorUnits: bigint }>()
   for (const row of rows) {
-    const payeeSide = getPayeeSide(row)
-    if (!payeeSide) continue
+    const merchantSide = getMerchantSide(row)
+    if (!merchantSide) continue
 
-    const currency = getCurrency(currencyByAccount, getAccountKey(payeeSide.name, payeeSide.type))
+    const currency = getCurrency(currencyByAccount, getAccountKey(merchantSide.name, merchantSide.type))
     const month = row.date.slice(0, 7)
     const key = JSON.stringify([row.category, month, currency])
     const entry = totals.get(key) ?? { category: row.category, month, currency, total: '', minorUnits: 0n }
-    entry.minorUnits += toMinorUnits(payeeSide.amount ?? '0', currency)
+    entry.minorUnits += toMinorUnits(merchantSide.amount ?? '0', currency)
     totals.set(key, entry)
   }
   return [...totals.values()]
@@ -225,7 +225,7 @@ async function buildBudgets(firefly: FireflyClient): Promise<ManifestBudget[]> {
 }
 
 /** The imported side of a withdrawal from, or deposit into, an imported account, with the other side outside */
-function getPayeeSide(row: ManifestRow): ManifestEndpoint | null {
+function getMerchantSide(row: ManifestRow): ManifestEndpoint | null {
   if (row.type === 'withdrawal' && row.source.imported && !row.destination.imported) return row.source
   if (row.type === 'deposit' && row.destination.imported && !row.source.imported) return row.destination
   return null

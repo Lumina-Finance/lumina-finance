@@ -172,7 +172,7 @@ async def _build_reference_batch(client, count, mode):
 
     account_mappings = [{"source": f"Account {i}", "account_id": str(accounts[i % size].id)} for i in range(count)]
     category_mappings = [{"source": f"Category {i}", "category_id": str(categories[i % size].id)} for i in range(count)]
-    merchant_mappings = [{"source": f"Payee {i}", "merchant_id": str(merchants[i % size].id)} for i in range(count)]
+    merchant_mappings = [{"source": f"Merchant {i}", "merchant_id": str(merchants[i % size].id)} for i in range(count)]
     if mode == "create":
         account_mappings = [{
             "source": f"Account {i}",
@@ -183,7 +183,7 @@ async def _build_reference_batch(client, count, mode):
         "start_row_index": 0, "accounts": account_mappings, "categories": category_mappings,
         "merchants": merchant_mappings,
         "rows": [{"account_source": f"Account {i}", "category_source": f"Category {i}",
-                  "merchant_name": f"Payee {i}", "dt": "2026-04-10", "amount": "-1.23",
+                  "merchant_name": f"Merchant {i}", "dt": "2026-04-10", "amount": "-1.23",
                   "notes": f"Reference row {i}", "tag_names": [], "counterparty_account_source": None} for i in range(count)],
     }
 

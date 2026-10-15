@@ -19,7 +19,7 @@ import {
   buildTransactionImportPayload,
   answerImportDirectionValue,
   buildImportPreviewRows,
-  countRowsWithNoPayee,
+  countRowsWithNoMerchant,
   formatImportSummary,
   getArchivedAccountMatches,
   dropVanishedAccountMappings,
@@ -399,8 +399,8 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   // Counted off the files and the merchant column alone, so the mapping step can say how many rows
   // will be filed under a merchant that ships with the app without waiting on the account and
   // category answers the payload build needs
-  const rowsWithNoPayeeCount = useMemo(
-    () => countRowsWithNoPayee(files, columnMap.merchant_id),
+  const rowsWithNoMerchantCount = useMemo(
+    () => countRowsWithNoMerchant(files, columnMap.merchant_id),
     [columnMap.merchant_id, files],
   )
 
@@ -1172,7 +1172,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     headers,
     missingRequiredColumnLabels,
     columnTargetOptions,
-    rowsWithNoPayeeCount,
+    rowsWithNoMerchantCount,
     accountMappingSources,
     importedCategories,
     importedMerchants,

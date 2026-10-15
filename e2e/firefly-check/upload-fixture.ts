@@ -96,7 +96,7 @@ export function buildUploadFixture(
 
         // A budget tracks the Firefly III categories of the spending filed under it
         categories: [...new Set(manifest.rows
-          .filter((row) => row.budget === name && row.category && row.date <= runInfo.exportEnd && isPayeeRow(row))
+          .filter((row) => row.budget === name && row.category && row.date <= runInfo.exportEnd && isMerchantRow(row))
           .map((row) => row.category))].sort(),
       })),
     },
@@ -104,7 +104,7 @@ export function buildUploadFixture(
 }
 
 /** A withdrawal from, or deposit into, an imported account whose other side is outside */
-function isPayeeRow(row: ManifestRow) {
+function isMerchantRow(row: ManifestRow) {
   return (row.type === 'withdrawal' && row.source.imported && !row.destination.imported)
     || (row.type === 'deposit' && row.destination.imported && !row.source.imported)
 }

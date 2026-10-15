@@ -201,14 +201,14 @@ export interface ActualJournalEntry {
   destinationAccountId: string | null
 
   /**
-   * The payee, which becomes the merchant on a withdrawal or deposit, and on the budget-side leg of
-   * a transfer filed as spending
+   * The merchant, taken from Actual's payee, on a withdrawal or deposit, and on the budget-side leg
+   * of a transfer filed as spending
    */
-  payeeName: string | null
+  merchantName: string | null
 
   /**
    * The name of the account on the other side of a transfer, seen from its budget-side leg, which is
-   * the payee once the payment is filed as spending. Null on a row that is no transfer between
+   * the merchant once the payment is filed as spending. Null on a row that is no transfer between
    * accounts, and when the name is longer than a merchant name can be
    */
   counterpartAccountName: string | null
@@ -231,7 +231,7 @@ export interface ActualSkippedRow {
 
   /** Signed hundredths, as Actual shows the row */
   amount: number
-  payeeName: string | null
+  merchantName: string | null
   categoryName: string | null
   notes: string | null
   reason: string

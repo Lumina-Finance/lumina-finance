@@ -130,7 +130,7 @@ async def test_a_merchant_written_after_the_lookup_is_reused_rather_than_failing
         # Counted as neither created nor written twice, and the rows using it get the row that won
         assert stats.merchants_created == 0
         assert stats.created_merchant_ids == []
-        assert merchants.resolved_by_payee_key["amazon"].id == existing.id
+        assert merchants.resolved_by_merchant_name_key["amazon"].id == existing.id
 
 
 async def test_a_tag_written_after_the_lookup_is_reused_rather_than_failing_the_import():
@@ -176,7 +176,7 @@ async def test_another_users_merchant_does_not_block_writing_your_own():
 
         # Another user's merchant does not block this one, so the import writes its own
         assert stats.merchants_created == 1
-        assert merchants.resolved_by_payee_key["amazon"].owner_id == user_id
+        assert merchants.resolved_by_merchant_name_key["amazon"].owner_id == user_id
 
 
 async def _seed_other_user(session) -> uuid.UUID:

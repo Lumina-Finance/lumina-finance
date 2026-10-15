@@ -23,7 +23,7 @@ export function ActualSkippedRowsTable({ title, rows, decimals }: {
     cells: {
       'Account': row.accountName,
       'Amount': formatHundredths(row.amount, decimals),
-      'Merchant': row.payeeName ?? '',
+      'Merchant': row.merchantName ?? '',
       'Category': row.categoryName ?? '',
       'Notes': row.notes ?? '',
     },
