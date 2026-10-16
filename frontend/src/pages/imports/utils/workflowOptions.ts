@@ -33,7 +33,7 @@ import type {
   ImportRowFilter,
   ImportUploadBlock,
 } from '@/pages/imports/types'
-import { getImportAccountName } from './accountMapping'
+import { getFileAccountSourceId, getImportAccountName } from './accountMapping'
 import { DEFAULT_IMPORT_AMOUNT_FORMAT, type ImportAmountFormat } from './amountFormats'
 import { getImportRowCategorySource, resolveImportAmount } from './columnMapping'
 import { sortImportedCategorySources, splitImportedValues } from './categoryMatching'
@@ -259,8 +259,8 @@ export function buildImportAccountMappingSources(
       matchText: source,
       isCounterpartyOnly: false,
     }))
-    : files.map((file) => ({
-      id: file.id,
+    : files.slice(0, 1).map((file) => ({
+      id: getFileAccountSourceId(files),
       label: getImportAccountName(file.name),
       matchText: file.name,
       isCounterpartyOnly: false,

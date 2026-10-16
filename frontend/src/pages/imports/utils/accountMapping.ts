@@ -419,9 +419,9 @@ export function getStatedCurrencyByAccountSource(
 
   for (const file of files) {
     for (const row of file.rows.filter(isRowIncluded)) {
-      // The same source id `buildImportAccountMappingSources` builds, which is the file rather than
-      // a cell value when no account column is mapped
-      const source = accountHeader ? row[accountHeader]?.trim() ?? '' : file.id
+      // The same source id `buildImportAccountMappingSources` builds, which is the files' shared
+      // account rather than a cell value when no account column is mapped
+      const source = accountHeader ? row[accountHeader]?.trim() ?? '' : getFileAccountSourceId(files)
       if (!source) continue
 
       const code = (row[currencyHeader]?.trim() ?? '').toUpperCase()
@@ -469,6 +469,16 @@ export function resolveImportAccountCreateCurrencies(
   }
 
   return resolved
+}
+
+/**
+ * The account source every row of a file with no account column is written to
+ *
+ * Files staged together share one layout and one set of answers, so they are one account's
+ * statements and the first file stands for all of them
+ */
+export function getFileAccountSourceId(files: ImportFileDraft[]) {
+  return files[0]?.id ?? ''
 }
 
 /**

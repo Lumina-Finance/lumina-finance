@@ -31,6 +31,7 @@ import type {
   ImportRowProblem,
 } from '@/pages/imports/types'
 import type { Currency } from '@/api/currency'
+import { getFileAccountSourceId } from './accountMapping'
 import {
   DEFAULT_IMPORT_AMOUNT_FORMAT,
   type ImportAmountFormat,
@@ -311,6 +312,7 @@ export function buildTransactionImportPayload({
   const rowProblems: ImportRowProblem[] = []
   const rowWarnings: ImportRowProblem[] = []
   let outsideRangeRowCount = 0
+  const fileAccountSourceId = getFileAccountSourceId(files)
   for (const file of files) {
     for (const [rowIndex, row] of file.rows.entries()) {
       if (!isRowIncluded(row)) {
@@ -318,11 +320,12 @@ export function buildTransactionImportPayload({
         continue
       }
 
-      const resolved = resolveImportRow(row, file.id, rowContext)
+      const resolved = resolveImportRow(row, fileAccountSourceId, rowContext)
       const problem = getImportRowProblem(resolved, rowJudgement)
       if (problem) {
         rowProblems.push({
           id: getImportRowId(file.id, rowIndex),
+          fileName: file.name,
           // Its position among the file's data rows, which is not the line it sits on: parsing
           // drops blank lines and folds a quoted value carrying a newline into one row
           rowNumber: rowIndex + 1,
@@ -347,6 +350,7 @@ export function buildTransactionImportPayload({
       if (warningReasons.length > 0) {
         rowWarnings.push({
           id: getImportRowId(file.id, rowIndex),
+          fileName: file.name,
           rowNumber: rowIndex + 1,
           cells: row,
           reason: warningReasons.join(' '),

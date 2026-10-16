@@ -307,6 +307,7 @@ describe('CSV import counterparty account', () => {
     // The entry carries which row it was, so a file of thousands says which one to go and correct
     expect(rowProblems).toEqual([{
       id: 'file-1-0',
+      fileName: 'Chequing.csv',
       rowNumber: 1,
       cells: {
         Account: 'Chequing',
