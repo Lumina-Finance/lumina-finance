@@ -1,3 +1,5 @@
+import type { CsvImportLayout } from '@/api/transaction-imports/types';
+
 /** The run an import is uploaded and saved under */
 export interface ImportRun {
   id: string;
@@ -13,6 +15,9 @@ export interface OpenImportRunRequest {
 
   /** The name of the file the user picked, shown with the last import */
   file_name?: string;
+
+  /** How a CSV file was read, absent for a file the commit saves no layout for */
+  csv_layout?: CsvImportLayout;
 }
 
 /**

@@ -23,6 +23,7 @@ from app.permissions import check_account_access
 from app.permissions.accounts import AccountAccessLookup, load_account_access_lookup
 from app.schemas.import_run import (
     MAX_IMPORT_MAPPINGS,
+    CsvImportLayout,
     TransactionImportAccountMapping,
     TransactionImportCategoryMapping,
     TransactionImportMerchantMapping,
@@ -113,6 +114,7 @@ async def open_import_run(
     expected_transaction_count: int,
     source: ImportRunSource,
     file_name: str | None = None,
+    csv_layout: CsvImportLayout | None = None,
 ) -> ImportRun:
     """Open a run for a file about to be staged
 
@@ -122,6 +124,7 @@ async def open_import_run(
         expected_transaction_count: Rows the whole file will write
         source: Importer opening the run, which decides what its rows hold and which commit writes them
         file_name: Name of the file the user picked, shown with the last import
+        csv_layout: How a CSV file was read, which its commit saves for the account its rows go to
 
     Returns:
         The opened run
@@ -134,6 +137,7 @@ async def open_import_run(
         source=source,
         expected_transaction_count=expected_transaction_count,
         file_name=file_name,
+        csv_layout=None if csv_layout is None else csv_layout.model_dump(mode="json"),
         account_mappings={},
         category_mappings={},
         merchant_mappings={},

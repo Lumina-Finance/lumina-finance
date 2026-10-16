@@ -1,17 +1,44 @@
+import { useQuery } from '@tanstack/react-query';
+import { importLayoutKeys } from '@/api/cache/queryKeys';
 import { useImportRunMutation } from '@/api/import-runs/hooks';
+import { fetchImportLayouts } from '@/api/transaction-imports/requests';
 import { commitStagedImportRun, runTransactionImport } from '@/api/transaction-imports/run';
-import type { TransactionImportPayload } from '@/api/transaction-imports/types';
+import type { CsvImportLayout, TransactionImportPayload } from '@/api/transaction-imports/types';
+import { useAuth } from '@/hooks/useAuth';
 
 /**
  * Provides the mutation boundary for staging a prepared import and committing it
  */
 export function useImportTransactions() {
-  return useImportRunMutation(({ payload, signal, onStaged, fileName }: {
+  return useImportRunMutation(({ payload, signal, onStaged, fileName, csvLayout }: {
     payload: TransactionImportPayload;
     signal?: AbortSignal;
     onStaged?: () => Promise<void>;
     fileName?: string;
-  }) => runTransactionImport(payload, signal, onStaged, fileName));
+    csvLayout?: CsvImportLayout;
+  }) => runTransactionImport(payload, signal, onStaged, fileName, csvLayout));
+}
+
+/**
+ * Reads the CSV layouts saved for the user's own accounts
+ *
+ * Read again every time the import page opens, since an import or an undo in another tab changes
+ * them, and a file read against an outdated list starts from settings that are no longer saved
+ *
+ * @param isWanted - Whether the screen uses the layouts, so one that doesn't never reads them
+ */
+export function useImportLayouts(isWanted: boolean) {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: importLayoutKeys.all,
+    queryFn: ({ signal }) => fetchImportLayouts(signal),
+    enabled: !!accessToken && isWanted,
+
+    // Fresh until an import or an undo invalidates it, so going stale means a reload is on its way,
+    // which a file must wait for rather than be read against the list from before
+    staleTime: Infinity,
+    refetchOnMount: 'always',
+  });
 }
 
 /**

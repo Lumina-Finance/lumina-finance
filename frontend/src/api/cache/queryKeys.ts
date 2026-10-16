@@ -187,3 +187,7 @@ export const oidcKeys = {
 export const lastImportKeys = {
   all: ['last-import'] as const,
 };
+
+export const importLayoutKeys = {
+  all: ['import-layouts'] as const,
+};

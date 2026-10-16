@@ -24,6 +24,7 @@ from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.import_run import ImportUndoResponse, LastImportResponse
 from app.services.cache_state import mark_user_cache_changed
+from app.services.importers.shared.layouts import undo_import_layout
 from app.services.importers.shared.run_locking import load_locked_change_marker, load_locked_run
 from app.services.transactions.bulk_access import load_locked_run_transactions, load_writable_accounts
 from app.services.transactions.deletion import delete_locked_transactions
@@ -113,7 +114,8 @@ async def get_last_import(db: AsyncSession, user: User) -> LastImportResponse | 
 async def undo_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> ImportUndoResponse:
     """Delete everything an import wrote, its transactions and every record it created, or nothing
 
-    Records the import reused, which existed before it, are left as they are. The run and the
+    Records the import reused, which existed before it, are left as they are, and a CSV layout its
+    commit saved goes back to what it was before. The run and the
     user's change marker are held for the whole undo, so two undos of one import queue and the
     second finds it gone, and a change landing meanwhile waits and then finds its records gone
 
@@ -159,6 +161,7 @@ async def undo_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> Im
     # account, and the foreign key refuses the delete rather than leave that record without it. A
     # write racing for the same rows can also end the undo as the deadlock's loser
     try:
+        await undo_import_layout(db, run)
         await delete_locked_transactions(db, Transaction.import_run_id == run.id, accounts, deleted_days)
         for kind, model in _CREATED_MODELS:
             if created[kind]:

@@ -2,6 +2,7 @@ import { commitStagedRun, runImport } from '@/api/import-runs/run';
 import type { ImportRunRoutes } from '@/api/import-runs/types';
 import { buildStagedImportBatches } from '@/api/transaction-imports/batching';
 import type {
+  CsvImportLayout,
   TransactionImportPayload,
   TransactionImportResponse,
 } from '@/api/transaction-imports/types';
@@ -16,15 +17,17 @@ const TRANSACTION_IMPORT_ROUTES: ImportRunRoutes = { rows: 'rows', commit: 'comm
  *   during the commit it only stops waiting, since the commit may already have landed
  * @param onStaged - Runs once everything is staged, before the commit starts
  * @param fileName - Names the import with the last import
+ * @param csvLayout - How the file was read, which the commit saves for the account its rows go to
  */
 export function runTransactionImport(
   payload: TransactionImportPayload,
   signal?: AbortSignal,
   onStaged?: () => Promise<void>,
   fileName?: string,
+  csvLayout?: CsvImportLayout,
 ): Promise<TransactionImportResponse> {
   return runImport<TransactionImportResponse>({
-    open: { expected_transaction_count: payload.rows.length, file_name: fileName },
+    open: { expected_transaction_count: payload.rows.length, file_name: fileName, csv_layout: csvLayout },
     routes: TRANSACTION_IMPORT_ROUTES,
     buildBatches: () => buildStagedImportBatches(payload),
   }, signal, onStaged);

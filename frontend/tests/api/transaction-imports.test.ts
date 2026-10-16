@@ -155,6 +155,22 @@ describe('staging a transaction import', () => {
     });
   });
 
+  it('opens the run with how the file was read, for the commit to save', async () => {
+    const csvLayout = {
+      headers: ['Date', 'Amount'],
+      delimiter: ';',
+      header_row: 1,
+      column_map: { dt: 'Date', amount: 'Amount' },
+      date_format: 'dayFirst',
+      amount_format: { decimal_separator: ',', grouping_separator: '.' },
+    };
+    mockRunCalls(buildImportResponse({ transactions_created: 1 }));
+
+    await runTransactionImport(buildImportPayload([buildImportRow()]), undefined, undefined, 'web.csv', csvLayout);
+
+    expect(sentBody(0)).toEqual({ expected_transaction_count: 1, file_name: 'web.csv', csv_layout: csvLayout });
+  });
+
   it('carries each batch its own mappings and its place in the file', async () => {
     const largeNotes = 'x'.repeat(400 * 1024);
     const payload = buildImportPayload([buildImportRow(largeNotes), buildImportRow(largeNotes)]);
