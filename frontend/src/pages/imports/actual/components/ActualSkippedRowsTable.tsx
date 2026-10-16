@@ -7,8 +7,8 @@ const SKIPPED_ROW_AMOUNT_HEADERS = ['Amount']
 
 /**
  * Collapsible panel listing the Actual transactions the import will not or did not write, freezing
- * the date on the left while what Actual shows for each scrolls beside it, with the reason under
- * each row
+ * the date on the left while what Actual shows for each scrolls beside it, with the rows grouped
+ * under the reason they share
  */
 export function ActualSkippedRowsTable({ title, rows, decimals }: {
   title: string

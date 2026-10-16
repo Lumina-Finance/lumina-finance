@@ -222,9 +222,9 @@ describe('warning about a row filed against its category\'s direction', () => {
   })
 
   // The heading over this table offers a look and no longer says the rows are taken, so the note
-  // against each row is the only place that fact is left. It sits in one table cell repeated per
-  // row, inside a column capped at a share of the panel width, so it also has a length to keep to
-  it('says on the row itself that the import takes it, in a note short enough for the column', () => {
+  // over the rows is the only place that fact is left. It is said once above a group of rows, so it
+  // reads right over several of them, and it has a length to keep to
+  it('says in the note that the import takes each row, in a note short enough to read above several', () => {
     for (const kind of ['expense', 'income'] as const) {
       expect(getRowSignDisagreesWithCategoryReason(kind)).toContain('imports')
       expect(getRowSignDisagreesWithCategoryReason(kind).length).toBeLessThan(160)

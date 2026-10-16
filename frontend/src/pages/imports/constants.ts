@@ -371,7 +371,7 @@ export function getRowNotesTooLongReason(length: number) {
  * Says a row names more tags than one transaction may carry
  */
 export function getRowTooManyTagsReason(count: number) {
-  return `This row has ${count} tags, and a transaction carries up to ${MAX_IMPORT_TAGS_PER_ROW}.`
+  return `There are ${count} tags, and a transaction carries up to ${MAX_IMPORT_TAGS_PER_ROW}.`
 }
 
 // Shown in the column mapping step where any row states no merchant, which is every row when no
@@ -454,25 +454,25 @@ export const DEBT_PAYMENT_IMPORT_NOTE = 'Make sure this payment is really an exp
 // needs both mapped to happen at all, since one side alone leaves the other empty. The next two each
 // send the user to map the column holding the other direction, which is the fix whichever way the
 // file leaves the unstated side
-export const ROW_AMOUNT_BOTH_SIDES_REASON = 'This row states both a money out and a money in amount, so its direction is unclear.'
-export const ROW_AMOUNT_NO_SIDE_REASON = 'This row leaves every amount column mapped for this file blank. If the file holds the other direction in a column of its own, map that column too.'
+export const ROW_AMOUNT_BOTH_SIDES_REASON = 'Both a money out and a money in amount are filled in, so the direction is unclear.'
+export const ROW_AMOUNT_NO_SIDE_REASON = 'Every amount column mapped for this file is blank. If the file holds the other direction in a column of its own, map that column too.'
 // Told apart from the reason above because the row is not empty and the table shows the user the
 // zero it holds, so being told it states nothing would contradict what is in front of them
-export const ROW_AMOUNT_SIDE_STATES_ZERO_REASON = 'The one amount column mapped states zero on this row, so this row is the direction that column does not hold. If the file states that direction in a separate column, map that column too.'
+export const ROW_AMOUNT_SIDE_STATES_ZERO_REASON = 'The one amount column mapped states zero, which counts as the direction that column doesn\'t hold. If the file states that direction in a separate column, map that column too.'
 
 // The last two are a sign the column cannot mean. Both fixes are offered because either one can be
 // what happened: the sign was written where the column already states the direction, or the value
 // belongs in the column for the other direction and this row did not use it. They are separate
 // constants rather than one, since the reason is looked up by problem alone and a single sentence
 // could not say which of the two columns it meant
-export const ROW_AMOUNT_OUT_SIDE_PLUS_REASON = 'The money out column carries a plus sign on this row. Write it unsigned or with a minus sign, or move it to the money in column where it is money arriving.'
-export const ROW_AMOUNT_IN_SIDE_MINUS_REASON = 'The money in column carries a minus sign on this row. Write it unsigned or with a plus sign, or move it to the money out column where it is money leaving.'
+export const ROW_AMOUNT_OUT_SIDE_PLUS_REASON = 'The money out column carries a plus sign. Write it unsigned or with a minus sign, or move it to the money in column where it is money arriving.'
+export const ROW_AMOUNT_IN_SIDE_MINUS_REASON = 'The money in column carries a minus sign. Write it unsigned or with a plus sign, or move it to the money out column where it is money leaving.'
 
 // The two ways a row cannot be read from a file carrying its direction in a column of words. Neither
 // can be answered in the app, since one is a cell nobody filled in and the other is two cells of the
 // same row contradicting each other, so both send the user to the file
-export const ROW_DIRECTION_BLANK_REASON = 'The direction cell is blank, so this row does not specify whether it is money in or money out.'
-export const ROW_DIRECTION_SIGN_DISAGREES_REASON = 'The sign on this row\'s amount contradicts its direction column. Write the amount unsigned, or give it the sign matching its direction.'
+export const ROW_DIRECTION_BLANK_REASON = 'The direction cell is blank, so it isn\'t clear whether the money is coming in or going out.'
+export const ROW_DIRECTION_SIGN_DISAGREES_REASON = 'The amount\'s sign contradicts the direction column. Write the amount unsigned, or give it the sign matching its direction.'
 
 /**
  * Says an amount carries decimal places its currency does not have
@@ -498,8 +498,8 @@ function getImportGroupingDescription(grouping: ImportAmountFormat['groupingSepa
 // The two ways the counterparty column contradicts the rest of the row. Both open with what this row
 // states rather than with the rule it breaks, since a rule leaves the user working out which of
 // their cells it was about
-export const ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON = 'This row states a counterparty account but is not filed under a transfer category. Only a transfer records where the money went, so clear that cell or change the category.'
-export const ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON = 'This row states its own account as the counterparty, so the transfer would go nowhere. That cell holds the account on the other side of the transfer.'
+export const ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON = 'A counterparty account is filled in, but the category isn\'t a transfer category. Only a transfer records where the money went, so clear that cell or change the category.'
+export const ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON = 'The counterparty is the same account the money is written to, so the transfer would go nowhere. That cell holds the account on the other side of the transfer.'
 
 /**
  * Says a row states a currency code this app does not keep accounts in
@@ -508,7 +508,7 @@ export const ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON = 'This row states its own a
  * fix no account can give for a code the app does not support
  */
 export function getRowCurrencyUnsupportedReason(rowCurrency: string) {
-  return `This row is in ${rowCurrency}, which is not a currency this app supports. Correct the code, or set the Currency column to Do not import to bring every row in as its account's currency.`
+  return `The amount is in ${rowCurrency}, which isn't a currency this app supports. Correct the code, or set the Currency column to Do not import to bring every row in as its account's currency.`
 }
 
 /**
@@ -518,7 +518,7 @@ export function getRowCurrencyUnsupportedReason(rowCurrency: string) {
  * different account, or the column mapped as the currency is not what it looked like
  */
 export function getRowCurrencyMismatchReason(rowCurrency: string, accountCurrency: string) {
-  return `This row is in ${rowCurrency} but the account it would be written to is kept in ${accountCurrency}. Amounts are stored in the account's currency and are not converted, so write these rows to a ${rowCurrency} account, or set the Currency column to Do not import to bring them in as ${accountCurrency}.`
+  return `The amount is in ${rowCurrency}, but the account it goes to is kept in ${accountCurrency}. Amounts are stored in the account's currency and are not converted, so write these rows to a ${rowCurrency} account, or set the Currency column to Do not import to bring them in as ${accountCurrency}.`
 }
 /**
  * Says a row is money going the way its category does not usually record
@@ -541,8 +541,8 @@ export function getRowCurrencyMismatchReason(rowCurrency: string, accountCurrenc
  */
 export function getRowSignDisagreesWithCategoryReason(kind: 'expense' | 'income') {
   return kind === 'expense'
-    ? 'Money coming in, filed under an expense category. That is what a refund looks like, so the row imports as it stands.'
-    : 'Money going out, filed under an income category. That is what returning money you were paid looks like, so the row imports as it stands.'
+    ? 'Money coming in, filed under an expense category. That is what a refund looks like, so each imports as it stands.'
+    : 'Money going out, filed under an income category. That is what returning money you were paid looks like, so each imports as it stands.'
 }
 
 // Shown once for the whole file where every amount reads as money coming in, which is either a file
