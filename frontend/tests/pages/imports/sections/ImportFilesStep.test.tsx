@@ -87,6 +87,7 @@ function renderStep(files: ImportFileDraft[], importResult: TransactionImportRes
       columnMap={EMPTY_COLUMN_MAP}
       dateRange={{ from: '', to: '' }}
       isDateRangeCrossed={false}
+      latestStartSuggestion={null}
       setDateRangeEnd={() => {}}
       removeFile={() => {}}
       uploadBlockReason={null}

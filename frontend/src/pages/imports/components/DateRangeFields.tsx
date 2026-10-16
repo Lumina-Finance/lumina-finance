@@ -7,6 +7,7 @@ import {
   IMPORT_DATE_RANGE_INCOMPLETE_FIELD_ERROR,
   IMPORT_DATE_RANGE_START_LABEL,
   IMPORT_DATE_RANGE_TITLE,
+  IMPORT_LATEST_START_LABEL,
 } from '@/pages/imports/constants'
 import type { ImportDateRange } from '@/pages/imports/types'
 
@@ -52,6 +53,7 @@ export function ImportDateRangeFields({
   dateRange,
   isCrossed,
   disabled,
+  startSuggestion,
   onChange,
 }: {
 
@@ -60,6 +62,9 @@ export function ImportDateRangeFields({
   dateRange: ImportDateRange
   isCrossed: boolean
   disabled: boolean
+
+  /** The start date the user can ask for above the field, null while there is nothing to offer */
+  startSuggestion: string | null
   onChange: (end: keyof ImportDateRange, value: string, isPartlyTyped: boolean) => void
 }) {
   const baseId = useId()
@@ -93,9 +98,20 @@ export function ImportDateRangeFields({
               const fieldId = `${baseId}-${end}`
               return (
                 <div key={end} className="flex min-w-0 flex-col gap-1">
-                  <label htmlFor={fieldId} className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                    {label}
-                  </label>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <label htmlFor={fieldId} className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                      {label}
+                    </label>
+                    {end === 'from' && startSuggestion && !disabled && (
+                      <button
+                        type="button"
+                        onClick={() => onChange('from', startSuggestion, false)}
+                        className="text-right text-xs font-medium underline underline-offset-2 text-[var(--app-text-muted)] transition-colors duration-200 ease-out hover:text-[var(--app-accent)] motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                      >
+                        {IMPORT_LATEST_START_LABEL}
+                      </button>
+                    )}
+                  </div>
                   <DateField
                     id={fieldId}
                     ariaLabel={label}

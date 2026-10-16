@@ -24,6 +24,7 @@ export function ImportReadingChoices({
   hasDateColumn,
   dateRange,
   isDateRangeCrossed,
+  startSuggestion,
   onDelimiterChange,
   onHeaderRowChange,
   onSkipLastRowsChange,
@@ -36,6 +37,7 @@ export function ImportReadingChoices({
   hasDateColumn: boolean
   dateRange: ImportDateRange
   isDateRangeCrossed: boolean
+  startSuggestion: string | null
   onDelimiterChange: (delimiter: ImportDelimiter) => void
   onHeaderRowChange: (headerRow: number) => void
   onSkipLastRowsChange: (skipLastRows: number) => void
@@ -92,6 +94,7 @@ export function ImportReadingChoices({
           dateRange={dateRange}
           isCrossed={isDateRangeCrossed}
           disabled={disabled}
+          startSuggestion={startSuggestion}
           onChange={onDateRangeChange}
         />
       </div>

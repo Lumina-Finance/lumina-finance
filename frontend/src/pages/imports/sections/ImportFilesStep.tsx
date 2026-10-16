@@ -24,6 +24,7 @@ type ImportFilesStepProps = Pick<
   | 'columnMap'
   | 'dateRange'
   | 'isDateRangeCrossed'
+  | 'latestStartSuggestion'
   | 'setDateRangeEnd'
   | 'removeFile'
   | 'uploadBlockReason'
@@ -57,6 +58,7 @@ export function ImportFilesStep({
   columnMap,
   dateRange,
   isDateRangeCrossed,
+  latestStartSuggestion,
   setDateRangeEnd,
   removeFile,
   uploadBlockReason,
@@ -160,6 +162,7 @@ export function ImportFilesStep({
               hasDateColumn={Boolean(columnMap.dt)}
               dateRange={dateRange}
               isDateRangeCrossed={isDateRangeCrossed}
+              startSuggestion={latestStartSuggestion}
               onDelimiterChange={changeDelimiter}
               onHeaderRowChange={changeHeaderRow}
               onSkipLastRowsChange={changeSkipLastRows}

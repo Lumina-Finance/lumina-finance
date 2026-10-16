@@ -1,5 +1,6 @@
 import type { ColumnMap, ImportDateRange, ImportFileDraft, ImportRowFilter } from '@/pages/imports/types'
-import { isDateRangeCrossed } from '@/utils/date'
+import type { TransactionFilters } from '@/api/transactions'
+import { addDays, formatYmd, isDateRangeCrossed, parseYmd } from '@/utils/date'
 import { includeEveryImportRow } from './common'
 import { readImportRowDate } from './rowResolution'
 import type { ImportDateFormat, ImportDateSeparator } from './valueParsers'
@@ -91,4 +92,31 @@ export function getNextImportDateRange(
 ) {
   const next = isPartlyTyped ? null : value
   return current[end] === next ? current : { ...current, [end]: next }
+}
+
+/**
+ * Builds the list query that finds the newest transaction in one account, or in every account
+ */
+export function getLatestTransactionFilters(accountId: string | null): TransactionFilters {
+  return {
+    ...(accountId ? { account_id: [accountId] } : {}),
+    sort_by: 'dt',
+    sort_order: 'desc',
+    limit: 1,
+  }
+}
+
+/**
+ * Works out what the start date can be filled with: the day after the newest transaction
+ *
+ * A transaction's date is a calendar date, so the next day is counted on the calendar, with no time
+ * zone to shift it
+ *
+ * @param latestDt - The newest transaction's date, null or undefined while there is none or it has
+ *   not arrived
+ * @returns The start date as year-month-day, null while there is nothing to offer
+ */
+export function getLatestStartSuggestion(latestDt: string | null | undefined) {
+  const latest = latestDt ? parseYmd(latestDt) : null
+  return latest ? formatYmd(addDays(latest, 1)) : null
 }

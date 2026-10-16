@@ -35,14 +35,19 @@ const FILE: ImportFileDraft = {
 /**
  * Renders the reading choices with the dates to import on or off
  */
-function renderChoices(hasDateColumn: boolean) {
+function renderChoices(
+  hasDateColumn: boolean,
+  startSuggestion: string | null = null,
+  disabled = false,
+) {
   return renderToStaticMarkup(
     <ImportReadingChoices
       file={FILE}
-      disabled={false}
+      disabled={disabled}
       hasDateColumn={hasDateColumn}
       dateRange={{ from: '', to: '' }}
       isDateRangeCrossed={false}
+      startSuggestion={startSuggestion}
       onDelimiterChange={() => {}}
       onHeaderRowChange={() => {}}
       onSkipLastRowsChange={() => {}}
@@ -60,6 +65,17 @@ describe('the dates to import in the File step', () => {
     expect(datesToImport).toBeGreaterThan(skipLastRows)
     expect(markup.indexOf('Start date')).toBeGreaterThan(datesToImport)
     expect(markup.indexOf('End date')).toBeGreaterThan(markup.indexOf('Start date'))
+  })
+
+  it('offer the day after the latest transaction above the start date, and nothing without one', () => {
+    const label = 'Latest recorded transaction'
+    const offered = renderChoices(true, '2025-06-02')
+    expect(offered).toContain(label)
+    expect(offered.indexOf(label)).toBeGreaterThan(offered.indexOf('Start date'))
+    expect(offered.indexOf(label)).toBeLessThan(offered.indexOf('End date'))
+
+    expect(renderChoices(true, null)).not.toContain(label)
+    expect(renderChoices(true, '2025-06-02', true)).not.toContain(label)
   })
 
   // Not shown disabled beforehand, since a range is read through the date column

@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
 import { getImportFileName } from '@/api/import-runs'
+import { useTransactions } from '@/api/transactions'
 import {
   useCommitStagedImport,
   useImportTransactions,
@@ -37,6 +38,8 @@ import {
   getColumnValues,
   countImportRowsOutsideDateRange,
   getImportDateRangeFilter,
+  getLatestStartSuggestion,
+  getLatestTransactionFilters,
   getNextImportDateRange,
   includeEveryImportRow,
   isImportDateRangeCrossed,
@@ -185,7 +188,11 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   )
   const isDateRangeCrossed = isImportDateRangeCrossed(columnMap, dateRange)
 
-  const setDateRangeEnd = (end: keyof ImportDateRange, value: string, isPartlyTyped: boolean) => {
+  // Offered rather than filled in, so the start stays empty unless the user asks for it
+  const { data: latestTransactions } = useTransactions(getLatestTransactionFilters(fixedAccount?.id ?? null))
+  const latestStartSuggestion = getLatestStartSuggestion(latestTransactions?.[0]?.dt)
+
+  const setDateRangeEnd =(end: keyof ImportDateRange, value: string, isPartlyTyped: boolean) => {
     setDateRange((current) => getNextImportDateRange(current, end, value, isPartlyTyped))
   }
 
@@ -1194,6 +1201,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     matchesFailed,
     refetchMatches,
     ...run.workflow,
+    latestStartSuggestion,
     accountsLoading,
     currenciesLoading,
     uploadBlockReason: getImportUploadBlockReason(currencies, currenciesError),

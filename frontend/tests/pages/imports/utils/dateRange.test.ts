@@ -9,6 +9,8 @@ import type { ImportDateRange, ImportFileDraft } from '@/pages/imports/types'
 import {
   countImportRowsOutsideDateRange,
   getImportDateRangeFilter,
+  getLatestStartSuggestion,
+  getLatestTransactionFilters,
   getNextImportDateRange,
   isImportDateRangeIncomplete,
   WHOLE_FILE_DATE_RANGE,
@@ -82,6 +84,23 @@ describe('counting the rows outside the chosen dates', () => {
 
   it('leaves the count unknown while a date is only partly typed', () => {
     expect(countOutside({ from: '2025-03-01', to: null })).toBeNull()
+  })
+})
+
+describe('offering the day after the latest transaction as the start', () => {
+  it('looks for the newest transaction in the account, or in every account on an ordinary import', () => {
+    expect(getLatestTransactionFilters('acc-1')).toEqual({ account_id: ['acc-1'], sort_by: 'dt', sort_order: 'desc', limit: 1 })
+    expect(getLatestTransactionFilters(null)).toEqual({ sort_by: 'dt', sort_order: 'desc', limit: 1 })
+  })
+
+  it('starts the day after the latest transaction, across a month and year end', () => {
+    expect(getLatestStartSuggestion('2025-12-31')).toBe('2026-01-01')
+    expect(getLatestStartSuggestion('2025-06-15')).toBe('2025-06-16')
+  })
+
+  it('offers nothing without a latest transaction', () => {
+    expect(getLatestStartSuggestion(undefined)).toBeNull()
+    expect(getLatestStartSuggestion(null)).toBeNull()
   })
 })
 
