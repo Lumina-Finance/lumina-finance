@@ -204,3 +204,31 @@ test('applies a chosen date range across the files', async ({ page, request }) =
   const dates = (await stored.json() as { dt: string }[]).map((row) => row.dt.slice(0, 10)).sort()
   expect(dates).toEqual(['2024-03-20', '2024-04-05'])
 })
+
+// The settings saved by an earlier import are found from the first of the files, and the other files
+// are read with them. Every day is 12 or under, so detection can't choose the date format and the
+// one showing is the one saved
+test('opens several files at once with the settings saved by an earlier import', async ({ page, request }) => {
+  const { account, upload } = await openImport(page, request)
+  const ambiguous = (name: string, day: string) => ({
+    name,
+    mimeType: 'text/csv',
+    buffer: Buffer.from([HEADER, `${day}/04/2026,-10.00,Groceries,Market`, `${day}/05/2026,-5.00,Groceries,Market`].join('\n')),
+  })
+  await upload.setInputFiles(ambiguous('earlier.csv', '05'))
+  const dateFormat = page.getByRole('combobox', { name: 'Date format', exact: true })
+  await expect(dateFormat).toHaveText('Choose the date format')
+  await dateFormat.click()
+  await page.getByRole('option', { name: /^Day first \(30\/04\/2026\)/ }).click()
+  expect((await commitImport(page)).status()).toBe(201)
+  await expect(page.getByRole('dialog').getByText('2 transactions imported · 0 accounts created · 0 categories created', { exact: true })).toBeVisible()
+
+  await openPage(page, `/settings/imports?account=${account.id}`)
+  const next = page.locator('input[type="file"][accept=".csv,text/csv"]')
+  await expect(next).toBeEnabled()
+  await next.setInputFiles([ambiguous('march.csv', '06'), ambiguous('april.csv', '07')])
+
+  await expect(page.getByRole('button', { name: 'Remove march.csv', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove april.csv', exact: true })).toBeVisible()
+  await expect(dateFormat).toHaveText('Day first (30/04/2026)')
+})
