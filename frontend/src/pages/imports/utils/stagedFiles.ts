@@ -1,6 +1,7 @@
 import type { ImportFileDraft } from '@/pages/imports/types'
 import { formatBytes } from './common'
 import { MAX_IMPORT_FILE_BYTES, MAX_IMPORT_ROWS } from './csv'
+import { getImportIdentity } from './scopedAnswers'
 
 /** A file the reader has read, with the browser file it was read from */
 export type StagingCandidate = {
@@ -80,14 +81,15 @@ export function stageImportFiles(staged: StagingCandidate[], candidates: Staging
 }
 
 /**
- * Takes one file out of the staged files, handing the first file's identity on when it is the one
- * removed
+ * Takes one file out of the staged files, handing the import's identity on when the first file is
+ * the one removed
  *
- * The answers and the account the rows are written to are held under the first file's id, so the
- * file that becomes first takes that id over, and removing any one file keeps every answer
+ * The answers and the account the rows are written to are held under the first file's identity, so
+ * the file that becomes first takes it over, and removing any one file keeps every answer. Each
+ * file keeps its own id, which is what a list draws it by
  */
 export function removeStagedFile(files: ImportFileDraft[], fileId: string): ImportFileDraft[] {
   const remaining = files.filter((file) => file.id !== fileId)
   if (remaining.length === 0 || files[0]?.id !== fileId) return remaining
-  return [{ ...remaining[0], id: fileId }, ...remaining.slice(1)]
+  return [{ ...remaining[0], identityId: getImportIdentity(files) }, ...remaining.slice(1)]
 }

@@ -4,6 +4,7 @@ import type { ImportAccountCreateDetails, ImportAccountSource, ImportFileDraft, 
 import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import { isImportableAccount } from './accountScope'
 import { includeEveryImportRow } from './common'
+import { getImportIdentity } from './scopedAnswers'
 
 /** Which of the three states a mapping row is in, as the line above the table counts them */
 export type ImportAccountRowState = 'mapped' | 'new' | 'review'
@@ -478,7 +479,7 @@ export function resolveImportAccountCreateCurrencies(
  * statements and the first file stands for all of them
  */
 export function getFileAccountSourceId(files: ImportFileDraft[]) {
-  return files[0]?.id ?? ''
+  return getImportIdentity(files)
 }
 
 /**

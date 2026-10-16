@@ -26,7 +26,7 @@ test('names the import file-picker entry without opening a picker', async ({ pag
   await openPage(page, '/settings/imports')
   const generic = page.getByRole('button', { name: /^Upload CSV file/ })
   await expect(generic).toBeVisible()
-  await expect(generic).toHaveAccessibleName('Upload CSV file One file accepted.')
+  await expect(generic).toHaveAccessibleName('Upload CSV files Every file needs the same columns.')
   await chooseFromDropdown(page.locator('body'), 'Data Source', /Firefly III/)
   const transactions = page.getByRole('button', { name: /^Upload transactions csv/ })
   const budgets = page.getByRole('button', { name: /^Upload budgets csv/ })

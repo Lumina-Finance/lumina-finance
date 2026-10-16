@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   CSV_IMPORT_FILE_TYPE,
+  getDropPrompt,
   selectDroppedImportFiles,
   selectImportFiles,
   SEVERAL_CSV_IMPORT_FILE_TYPE,
@@ -46,5 +47,17 @@ describe('dropping files on an upload that takes several', () => {
 
     expect(selectDroppedImportFiles([items[1], folder], [], SEVERAL_CSV_IMPORT_FILE_TYPE))
       .toEqual({ status: 'refused', reason: SEVERAL_CSV_IMPORT_FILE_TYPE.directoryDropReason })
+  })
+})
+
+// The prompt shows only while a drag is over the card, which a server render cannot start, so the
+// words are chosen by a function of the upload's type
+describe('the prompt shown while files are dragged over the upload', () => {
+  it('invites several files to an upload that takes several', () => {
+    expect(getDropPrompt(SEVERAL_CSV_IMPORT_FILE_TYPE)).toEqual({ title: 'Drop CSV files here', hint: 'Release to upload them.' })
+  })
+
+  it('invites one file to an upload that takes one', () => {
+    expect(getDropPrompt(CSV_IMPORT_FILE_TYPE)).toEqual({ title: 'Drop CSV file here', hint: 'Release to upload one file.' })
   })
 })

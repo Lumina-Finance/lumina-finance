@@ -1,4 +1,5 @@
 import type { ColumnMap, ImportFileDraft } from '@/pages/imports/types'
+import { getImportIdentity } from './scopedAnswers'
 import {
   IMPORT_AMOUNT_FORMATS,
   type ImportAmountFormat,
@@ -178,7 +179,7 @@ export function getImportAmountFormatKey(format: ImportAmountFormat) {
  * the first file standing for every file staged with it so that adding one keeps the choice
  */
 function buildImportFormatScope(files: ImportFileDraft[], headers: string[]) {
-  return JSON.stringify([files[0]?.id ?? '', headers])
+  return JSON.stringify([getImportIdentity(files), headers])
 }
 
 /** Reports whether every viable candidate gives every row the same exact decimal value */

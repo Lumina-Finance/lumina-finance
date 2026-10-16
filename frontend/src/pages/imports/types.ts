@@ -133,6 +133,9 @@ export interface ImportAccountSource {
 
 export interface ImportFileDraft {
   id: string
+
+  /** The id of the first file removed ahead of this one, which the import's answers stay held under */
+  identityId?: string
   name: string
   size: number
   headers: string[]

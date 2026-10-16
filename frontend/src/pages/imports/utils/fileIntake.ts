@@ -63,6 +63,13 @@ export const SEVERAL_CSV_IMPORT_FILE_TYPE: ImportFileType = {
   directoryDropReason: 'Folders cannot be uploaded. Choose CSV files.',
 }
 
+/** What the upload card says while files are dragged over it, which depends on how many it takes */
+export function getDropPrompt(fileType: ImportFileType) {
+  return fileType.multipleFilesReason === null
+    ? { title: 'Drop CSV files here', hint: 'Release to upload them.' }
+    : { title: 'Drop CSV file here', hint: 'Release to upload one file.' }
+}
+
 /**
  * Selects the acquired files when every one is of the type the upload takes, and refuses the whole
  * set when one is not or when the upload takes only one

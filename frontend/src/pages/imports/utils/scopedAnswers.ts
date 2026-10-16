@@ -20,7 +20,15 @@ export type ImportSourceScope = (sourceId: string) => string
  * file joining the import leaves its answers alone, and a different first file starts them over
  */
 export function buildImportAnswerScope(columnHeader: string, files: ImportFileDraft[]): string {
-  return `${columnHeader}:${files[0]?.id ?? ''}`
+  return `${columnHeader}:${getImportIdentity(files)}`
+}
+
+/**
+ * What the import's answers and its one account are held under, which is the first file's id, or the
+ * id of the first file removed ahead of it, so removing a file leaves every answer in place
+ */
+export function getImportIdentity(files: ImportFileDraft[]): string {
+  return files[0]?.identityId ?? files[0]?.id ?? ''
 }
 
 /**

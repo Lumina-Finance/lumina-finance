@@ -159,6 +159,23 @@ export async function commitImport(page: Page): Promise<Response> {
 }
 
 /**
+ * Types an ISO date into the import's date field with the given label
+ *
+ * @param page - Page showing a staged import
+ * @param label - The field's label, such as Start date
+ * @param iso - The date as yyyy-mm-dd
+ * @returns The date field
+ */
+export async function typeDate(page: Page, label: string, iso: string): Promise<Locator> {
+  const field = page.getByRole('group', { name: label, exact: true })
+  const [year, month, day] = iso.split('-')
+  await field.getByRole('textbox', { name: 'Year', exact: true }).fill(year)
+  await field.getByRole('textbox', { name: 'Month', exact: true }).fill(month)
+  await field.getByRole('textbox', { name: 'Day', exact: true }).fill(day)
+  return field
+}
+
+/**
  * Assert the app is showing its signed-in shell.
  *
  * The navigation is the thing that says so, and it only renders for a signed-in user past the

@@ -331,7 +331,7 @@ export const IMPORT_DATE_RANGE_INCOMPLETE_FIELD_ERROR = 'Enter the whole date, o
 export const IMPORT_DATE_RANGE_INCOMPLETE_ERROR = 'Finish the chosen dates, or clear any you don\'t need.'
 
 /** Said where a file has rows, but none of them is dated within the chosen dates */
-export const IMPORT_NO_ROWS_IN_DATE_RANGE_ERROR = 'No rows in this file fall within the chosen dates.'
+export const IMPORT_NO_ROWS_IN_DATE_RANGE_ERROR = 'No rows in this import fall within the chosen dates.'
 
 /** Heads the note on how many rows the chosen dates leave out */
 export const ROWS_OUTSIDE_DATE_RANGE_TITLE = 'Rows outside the chosen dates'
@@ -470,10 +470,10 @@ export const DEBT_PAYMENT_IMPORT_NOTE = 'Make sure this payment is really an exp
 // send the user to map the column holding the other direction, which is the fix whichever way the
 // file leaves the unstated side
 export const ROW_AMOUNT_BOTH_SIDES_REASON = 'Both a money out and a money in amount are filled in, so the direction is unclear.'
-export const ROW_AMOUNT_NO_SIDE_REASON = 'Every amount column mapped for this file is blank. If the file holds the other direction in a column of its own, map that column too.'
+export const ROW_AMOUNT_NO_SIDE_REASON = 'Every amount column mapped is blank. If the other direction is held in a column of its own, map that column too.'
 // Told apart from the reason above because the row is not empty and the table shows the user the
 // zero it holds, so being told it states nothing would contradict what is in front of them
-export const ROW_AMOUNT_SIDE_STATES_ZERO_REASON = 'The one amount column mapped states zero, which counts as the direction that column doesn\'t hold. If the file states that direction in a separate column, map that column too.'
+export const ROW_AMOUNT_SIDE_STATES_ZERO_REASON = 'The one amount column mapped states zero, which counts as the direction that column doesn\'t hold. If that direction is held in a separate column, map that column too.'
 
 // The last two are a sign the column cannot mean. Both fixes are offered because either one can be
 // what happened: the sign was written where the column already states the direction, or the value
@@ -563,7 +563,7 @@ export function getRowSignDisagreesWithCategoryReason(kind: 'expense' | 'income'
 // Shown once for the whole file where every amount reads as money coming in, which is either a file
 // of nothing but income or one being read backwards. It cannot tell those apart, so it says what the
 // rows come to and lists what to check, rather than asserting which of the two this is
-export const NO_OUTFLOWS_WARNING = 'Every row in this file reads as money coming in. If that is right, there is nothing to do. If it is not, check three things: that the money going out is mapped to the column actually holding it, that a file using one Amount column writes its money out with a minus sign, and that a file using a Direction column has its words set the way round the file means them.'
+export const NO_OUTFLOWS_WARNING = 'Every row in this import reads as money coming in. If that is right, there is nothing to do. If it is not, check three things: that the money going out is mapped to the column actually holding it, that a file using one Amount column writes its money out with a minus sign, and that a file using a Direction column has its words set the way round the file means them.'
 
 // Shown where a source rows are written to matches an account the user has archived, which is the
 // one account that source is not offered. The matched account names follow it
@@ -587,12 +587,12 @@ export const CREATED_ACCOUNT_CREDIT_LIMIT_NOTE = 'To set a credit limit, open th
 export const ACCOUNTS_LOAD_FAILURE_TITLE = 'Your accounts could not be loaded'
 export const ACCOUNTS_LOAD_FAILURE_EXPLANATION = 'Without them every source here would have to become a new account, which would duplicate accounts you already have.'
 export const CATEGORIES_LOAD_FAILURE_TITLE = 'Your categories could not be loaded'
-export const CATEGORIES_LOAD_FAILURE_EXPLANATION = 'Without them every category in this file would have to become a new one, which would duplicate categories you already have.'
+export const CATEGORIES_LOAD_FAILURE_EXPLANATION = 'Without them every category in this import would have to become a new one, which would duplicate categories you already have.'
 
 // Shown when the page could not ask which of the file's merchant names already have a merchant.
 // Every name would then read as one about to be created, which is what the step exists to stop
 export const MERCHANT_MATCHES_LOAD_FAILURE_TITLE = 'Your merchants could not be checked'
-export const MERCHANT_MATCHES_LOAD_FAILURE_EXPLANATION = 'Without that check every merchant in this file reads as a new one, and importing would create merchants you already have.'
+export const MERCHANT_MATCHES_LOAD_FAILURE_EXPLANATION = 'Without that check every merchant in this import reads as a new one, and importing would create merchants you already have.'
 
 // Shown when a mapping was answered with an account that has since been deleted. The answer is
 // dropped rather than sent, and nothing fills the row back in, so the user is told why a source

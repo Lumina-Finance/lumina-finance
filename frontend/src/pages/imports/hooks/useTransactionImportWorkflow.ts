@@ -84,8 +84,12 @@ import {
   validateColumnValues,
   writeScopedImportAnswers,
   emptyScopedImportAnswers,
+  SEVERAL_CSV_IMPORT_FILE_TYPE,
+  removeStagedFile,
+  stageImportFiles,
   type ImportDelimiter,
   type ScopedImportAnswers,
+  type StagingCandidate,
   type CsvImportAnswers,
 } from '@/pages/imports/utils'
 import { waitForMilliseconds } from '@/utils/timing'
@@ -110,7 +114,8 @@ const CSV_PROCESSING_MIN_MS = LOADING_ANIMATION_MIN_MS
 const CSV_UPLOAD_LABEL = 'Uploading the file'
 
 /**
- * Drives the generic CSV import flow: staging one file, mapping its columns to app fields, resolving
+ * Drives the generic CSV import flow: staging one file or several with one layout, which the first
+ * sets, and which share one set of answers and make one import, mapping their columns to app fields, resolving
  * the accounts and categories those columns reference against the user's existing ones, building the
  * preview and commit payload, and running the commit
  *
@@ -299,8 +304,9 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   // reset in between drops its result instead of writing into what replaced it
   const workflowRunRef = useRef(0)
 
-  // The file the staged draft was read from, kept so it can be read again with another separator
-  const sourceFileRef = useRef<File | null>(null)
+  // The files the staged drafts were read from, by draft id, kept so they can be read again with
+  // another separator and told apart from a file picked a second time
+  const sourceFilesRef = useRef<Map<string, File>>(new Map())
   const importTransactions = useImportTransactions()
   const commitStagedImport = useCommitStagedImport()
 
@@ -963,8 +969,10 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     const settings = remembered?.settings ?? null
     const decidedHeaders = settings ? new Set(nextFiles.flatMap((file) => file.headers)) : null
 
-    // A file read again with another separator has other columns, so its mapping and format answers
-    // start over rather than carry across to headings that only share a name
+    // A file read again with another separator has other columns, so the column mapping and format
+    // answers start over rather than carry across to headings that only share a name. The account,
+    // category and merchant answers stay, since they are held by the value's text and only reapply to
+    // the same values
     const isStartingOver = startFresh || settings !== null
     const baseColumnMap = settings?.columnMap ?? (startFresh ? EMPTY_COLUMN_MAP : columnMap)
     const result = inferColumnMap(baseColumnMap, nextFiles, supportedCurrencyCodes, decidedHeaders ?? (startFresh ? new Set() : decidedColumnHeaders), {
@@ -994,47 +1002,83 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     syncAutoMatchKeys(result.map, result.errors, nextFiles)
   }
 
+  /**
+   * Reads each file chosen, in order, the way the staged files were read
+   *
+   * The header row and the lines left out at the end are one setting for all the files, so a file is
+   * read with the first file's. The separator is left to be found, so a file using another one
+   * comes out with other columns and is refused for them instead of failing to read. The first file of
+   * a fresh import is also looked up among the saved layouts, so a file with saved headers sets the
+   * reading the others follow
+   */
+  const readStagingCandidates = async (selectedFiles: File[], stagedFirst: ImportFileDraft | undefined) => {
+    const candidates: StagingCandidate[] = []
+    let remembered: RememberedImportLayout | null = null
+    let layout = stagedFirst
+    for (const source of selectedFiles) {
+      const choices = layout?.reading && !layout.error
+        ? { headerRow: layout.reading.headerRow ?? undefined, skipLastRows: layout.reading.skipLastRows }
+        : {}
+      const options = { requireDataRows: true, offersReadingChoices: true, ...choices }
+      let draft: ImportFileDraft
+      if (layout) {
+        draft = await readCsvFile(source, supportedCurrencyCodes, options)
+      } else {
+        const read = await readCsvFileWithLayout(source, supportedCurrencyCodes, options, rememberedLayouts)
+        draft = read.draft
+        remembered = read.layout
+      }
+      candidates.push({ draft, source })
+      layout ??= draft
+    }
+    return { candidates, remembered }
+  }
+
   const handleFileChange = async (acquiredFiles: ImportFileAcquisition) => {
     const intake = await processImportFileIntake({
       files: acquiredFiles,
       processing: isProcessingFiles,
       unavailableReason: uploadBlockReason?.message ?? null,
-      readFiles: async ([selectedFile]) => {
+      fileType: SEVERAL_CSV_IMPORT_FILE_TYPE,
+      readFiles: async (selectedFiles) => {
         const workflowRun = startWorkflowRun()
         setFileIntakeError(null)
         setIsProcessingFiles(true)
 
         try {
-          const [{ draft, layout }] = await Promise.all([
-            readCsvFileWithLayout(
-              selectedFile,
-              supportedCurrencyCodes,
-              { requireDataRows: true, offersReadingChoices: true },
-              rememberedLayouts,
-            ),
+          // Files uploaded over a finished import start a new one, so the record of the last import
+          // gives way to them and their columns are read as on a first upload, over the whole file
+          const isReplacingFinishedImport = run.workflow.importResult !== null
+          const stagedFiles = isReplacingFinishedImport ? [] : files
+          const [{ candidates, remembered }] = await Promise.all([
+            readStagingCandidates(selectedFiles, stagedFiles[0]),
             waitForMilliseconds(CSV_PROCESSING_MIN_MS),
           ])
 
-          // The workflow can be reset while the file is being read, and a file staged into the flow
+          // The workflow can be reset while the files are being read, and a file staged into the flow
           // that replaced it is one the user believes they discarded
           if (!isCurrentWorkflowRun(workflowRun)) return
-          // A file refused before a separator or other reading choice was worked out can't be put right
-          // by changing them, so it is refused on the upload card rather than staged. The staged file
-          // offers those choices whenever it has either
-          if (draft.error && !draft.reading && !draft.delimiter) {
-            setFileIntakeError(draft.error)
-            return
-          }
-          sourceFileRef.current = selectedFile
 
-          // A file uploaded over a finished import starts a new one, so the record of the last import
-          // gives way to it and its columns are read as on a first upload, over the whole file
-          const isReplacingFinishedImport = run.workflow.importResult !== null
+          const staged = stagedFiles.flatMap((draft) => {
+            const source = sourceFilesRef.current.get(draft.id)
+            return source ? [{ draft, source }] : []
+          })
+          const { accepted, refusals } = stageImportFiles(staged, candidates)
+          if (refusals.length > 0) setFileIntakeError(refusals.join(' '))
+          if (accepted.length === 0) return
+
           if (isReplacingFinishedImport) {
             run.resetImportRun()
             setDateRange(WHOLE_FILE_DATE_RANGE)
+            sourceFilesRef.current = new Map()
           }
-          applyStagedFiles([draft], { startFresh: isReplacingFinishedImport, remembered: layout })
+          for (const { draft, source } of accepted) sourceFilesRef.current.set(draft.id, source)
+          // A saved layout applies only when the file it was found for is the one staged first
+          const isRememberedFileStaged = accepted[0]?.draft === candidates[0]?.draft
+          applyStagedFiles([...stagedFiles, ...accepted.map(({ draft }) => draft)], {
+            startFresh: isReplacingFinishedImport,
+            remembered: isRememberedFileStaged ? remembered : null,
+          })
         } finally {
           if (isCurrentWorkflowRun(workflowRun)) setIsProcessingFiles(false)
         }
@@ -1048,29 +1092,34 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     // A re-read still running belongs to the file being removed, so it must not stage it again
     startWorkflowRun()
     setIsProcessingFiles(false)
-    sourceFileRef.current = null
-    // The next file's columns are read as on a first upload
-    applyStagedFiles(files.filter((file) => file.id !== fileId), { startFresh: true })
+    sourceFilesRef.current.delete(fileId)
+    const remainingFiles = removeStagedFile(files, fileId)
+    // With no file left the layout is cleared, so the next file's columns are read as on a first upload
+    applyStagedFiles(remainingFiles, { startFresh: remainingFiles.length === 0 })
   }
 
   /**
-   * Reads the staged file again with the reading choices given, starting the column mapping over
-   * where the columns can have changed
+   * Reads every staged file again with the reading choices given, which are one setting for all of
+   * them, starting the column mapping over where the columns can have changed
    */
-  const rereadFile = async (choices: CsvReadingChoices & { delimiter?: ImportDelimiter }, startFresh: boolean) => {
-    const sourceFile = sourceFileRef.current
-    if (!sourceFile || isProcessingFiles) return
+  const rereadFiles = async (choices: CsvReadingChoices & { delimiter?: ImportDelimiter }, startFresh: boolean) => {
+    const sourceFiles = files.flatMap((file) => sourceFilesRef.current.get(file.id) ?? [])
+    if (sourceFiles.length === 0 || sourceFiles.length !== files.length || isProcessingFiles) return
 
     const workflowRun = startWorkflowRun()
     setIsProcessingFiles(true)
     try {
-      const draft = await readCsvFile(sourceFile, supportedCurrencyCodes, {
+      const readDrafts = await Promise.all(sourceFiles.map((sourceFile) => readCsvFile(sourceFile, supportedCurrencyCodes, {
         requireDataRows: true,
         offersReadingChoices: true,
         ...choices,
-      })
+      })))
       if (!isCurrentWorkflowRun(workflowRun)) return
-      applyStagedFiles([draft], { startFresh })
+      // Each file keeps its place in the staged list, which draws it by its id, rather than leaving
+      // and returning as another file
+      const drafts = readDrafts.map((draft, index) => ({ ...draft, id: files[index].id, identityId: files[index].identityId }))
+      sourceFilesRef.current = new Map(drafts.map((draft, index) => [draft.id, sourceFiles[index]]))
+      applyStagedFiles(drafts, { startFresh })
     } finally {
       if (isCurrentWorkflowRun(workflowRun)) setIsProcessingFiles(false)
     }
@@ -1081,13 +1130,13 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const changeDelimiter = (delimiter: ImportDelimiter) => {
     const staged = files[0]
     if (delimiter === staged?.delimiter) return
-    void rereadFile({ delimiter, skipLastRows: staged?.reading?.skipLastRows }, true)
+    void rereadFiles({ delimiter, skipLastRows: staged?.reading?.skipLastRows }, true)
   }
 
   const changeHeaderRow = (headerRow: number) => {
     const staged = files[0]
     if (!staged?.reading || headerRow === staged.reading.headerRow) return
-    void rereadFile({ delimiter: staged.delimiter, headerRow, skipLastRows: staged.reading.skipLastRows }, true)
+    void rereadFiles({ delimiter: staged.delimiter, headerRow, skipLastRows: staged.reading.skipLastRows }, true)
   }
 
   // Leaving out lines at the end keeps the headings, so the column answers carry over. A file read
@@ -1095,7 +1144,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const changeSkipLastRows = (skipLastRows: number) => {
     const staged = files[0]
     if (!staged?.reading || skipLastRows === staged.reading.skipLastRows) return
-    void rereadFile({ delimiter: staged.delimiter, headerRow: staged.reading.headerRow ?? undefined, skipLastRows }, false)
+    void rereadFiles({ delimiter: staged.delimiter, headerRow: staged.reading.headerRow ?? undefined, skipLastRows }, false)
   }
 
   const updateColumnTarget = (header: string, targetValue: string) => {
@@ -1182,7 +1231,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     startWorkflowRun()
     run.resetImportRun()
     setFiles([])
-    sourceFileRef.current = null
+    sourceFilesRef.current = new Map()
     setIsProcessingFiles(false)
     setFileIntakeError(null)
     setAutoFilledColumnHeaders(new Set())

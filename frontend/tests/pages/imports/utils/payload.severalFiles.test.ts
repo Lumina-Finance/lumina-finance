@@ -49,30 +49,35 @@ function monthlyFile(name: string, dates: string[]): ImportFileDraft {
 const MARCH = monthlyFile('2024-03.csv', ['2024-03-01', '2024-03-02', '2024-03-03', '2024-03-04', '2024-03-05', '2024-03-06', 'someday'])
 const APRIL = monthlyFile('2024-04.csv', ['2024-04-01', '2024-04-02'])
 
+// Every answer the build needs other than the files and what depends on them
+const BASE_BUILD = {
+  accountById: new Map([[ACCOUNT.id, ACCOUNT]]),
+  accountCreateCurrencies: {},
+  accountCreateInstitutions: {},
+  accountCreateTypes: {},
+  categoryById: new Map([[CATEGORY.id, CATEGORY]]),
+  categoryCreateKinds: {},
+  categoryMappings: { Groceries: CATEGORY.id },
+  categoryTypesBySource: {},
+  columnMap: COLUMN_MAP,
+  columnValidationErrors: {},
+  currencies: CURRENCIES,
+  dateFormat: 'yearFirst' as const,
+  dateRange: WHOLE_FILE_DATE_RANGE,
+  directionAnswers: {},
+  importedCategories: ['Groceries'],
+}
+
 /**
  * Builds the payload for the files with the single account answer a file with no account column asks for
  */
 function build(files: ImportFileDraft[]) {
   const accountSources = buildImportAccountMappingSources(files, '', '')
   return buildTransactionImportPayload({
-    accountById: new Map([[ACCOUNT.id, ACCOUNT]]),
-    accountCreateCurrencies: {},
-    accountCreateInstitutions: {},
-    accountCreateTypes: {},
+    ...BASE_BUILD,
     accountMappings: Object.fromEntries(accountSources.map((source) => [source.id, ACCOUNT.id])),
     accountSources,
-    categoryById: new Map([[CATEGORY.id, CATEGORY]]),
-    categoryCreateKinds: {},
-    categoryMappings: { Groceries: CATEGORY.id },
-    categoryTypesBySource: {},
-    columnMap: COLUMN_MAP,
-    columnValidationErrors: {},
-    currencies: CURRENCIES,
-    dateFormat: 'yearFirst',
-    dateRange: WHOLE_FILE_DATE_RANGE,
-    directionAnswers: {},
     files,
-    importedCategories: ['Groceries'],
   })
 }
 
@@ -95,6 +100,23 @@ describe('the account every file of one import is written to', () => {
   it('takes the currency the files state across all of them', () => {
     expect(getStatedCurrencyByAccountSource([MARCH, APRIL], '', 'Currency', new Set(['CAD'])))
       .toEqual({ [MARCH.id]: 'CAD' })
+  })
+})
+
+describe('a chosen date range across several files', () => {
+  it('sends only the rows inside the dates, from whichever file they are in', () => {
+    const files = [monthlyFile('2024-03.csv', ['2024-03-30', '2024-03-31']), monthlyFile('2024-04.csv', ['2024-04-01', '2024-04-02'])]
+    const accountSources = buildImportAccountMappingSources(files, '', '')
+
+    const { payload } = buildTransactionImportPayload({
+      ...BASE_BUILD,
+      accountMappings: { [accountSources[0].id]: ACCOUNT.id },
+      accountSources,
+      dateRange: { from: '2024-03-31', to: '2024-04-01' },
+      files,
+    })
+
+    expect(payload?.rows.map((row) => row.dt.slice(0, 10))).toEqual(['2024-03-31', '2024-04-01'])
   })
 })
 

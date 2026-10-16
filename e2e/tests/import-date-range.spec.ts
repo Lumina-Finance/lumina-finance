@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, signUpUser } from '../support/api'
-import { commitImport, logInViaApi, openPage } from '../support/app'
+import { commitImport, logInViaApi, openPage, typeDate } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
@@ -28,18 +28,6 @@ async function uploadYear(page: Page, request: Parameters<typeof signUpUser>[0])
   await expect(upload).toBeEnabled()
   await upload.setInputFiles({ name: 'year.csv', mimeType: 'text/csv', buffer: Buffer.from(CSV) })
   return { user, account }
-}
-
-/**
- * Types an ISO date into the date field with the given label
- */
-async function typeDate(page: Page, label: string, iso: string) {
-  const field: Locator = page.getByRole('group', { name: label, exact: true })
-  const [year, month, day] = iso.split('-')
-  await field.getByRole('textbox', { name: 'Year', exact: true }).fill(year)
-  await field.getByRole('textbox', { name: 'Month', exact: true }).fill(month)
-  await field.getByRole('textbox', { name: 'Day', exact: true }).fill(day)
-  return field
 }
 
 // The dates decide which rows the questions, the preview and the import read, and the rows left out
@@ -85,7 +73,7 @@ test('imports only the rows from the start date to the end date', async ({ page,
 // show only once a column is mapped as the date
 test('puts the dates in the File section after Skip last rows and blocks the import while they are crossed', AT_EVERY_SIZE, async ({ page, request }) => {
   await uploadYear(page, request)
-  const fileSection = page.locator('section').filter({ has: page.getByText('Upload one CSV transaction file.', { exact: true }) })
+  const fileSection = page.locator('section').filter({ has: page.getByText('Upload one CSV transaction file, or several with the same columns.', { exact: true }) })
   const columnMapping = page.locator('section').filter({ has: page.getByText('Specify what each column in your file holds.', { exact: true }) })
   await expect(fileSection.getByText('Dates to import', { exact: true })).toBeVisible()
   await expect(columnMapping.getByText('Dates to import', { exact: true })).toHaveCount(0)
@@ -97,7 +85,7 @@ test('puts the dates in the File section after Skip last rows and blocks the imp
 
   await expect(page.getByText('Must be on or before the end date', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Commit import', exact: true })).toBeDisabled()
-  await expect(page.getByText('No rows in this file fall within the chosen dates.', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('No rows in this import fall within the chosen dates.', { exact: true })).toHaveCount(0)
 
   // Under Skip last rows, and neither date runs out of the section at any size
   const sectionBox = (await fileSection.boundingBox())!

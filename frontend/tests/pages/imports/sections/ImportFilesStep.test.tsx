@@ -1,7 +1,8 @@
 /**
- * Tests that the upload card and the UTF-8 note give way to any staged file, a refused one included,
- * and come back once the file is removed or its import has finished, which also takes away Remove,
- * and that the Separator choice stays for a refused file
+ * Tests that the UTF-8 note gives way to any staged file, and the upload card to a refused one, that
+ * the card stays under files that read cleanly for adding more, that all of them return once the
+ * files are removed or their import has finished, which also takes away Remove, and that the
+ * Separator choice stays for a refused file
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -100,25 +101,39 @@ describe('the upload card in the File step', () => {
   it('is hidden with the UTF-8 note while a refused file is staged, and back once it is removed', () => {
     const staged = renderStep([REFUSED_FILE])
     expect(staged).toContain('Checking.csv')
-    expect(staged).not.toContain('Upload CSV file')
+    expect(staged).not.toContain('Upload CSV files')
+    expect(staged).not.toContain('Add more CSV files')
     expect(staged).not.toContain('Files are read as UTF-8')
 
     const removed = renderStep([])
-    expect(removed).toContain('Upload CSV file')
+    expect(removed).toContain('Upload CSV files')
     expect(removed).toContain('Files are read as UTF-8')
   })
 
-  it('is hidden while a file that read cleanly is staged', () => {
+  // The first file sets the layout, and the rest are added to it through the same card
+  it('stays under the files that read cleanly for adding more, without the UTF-8 note', () => {
     const staged = renderStep([GOOD_FILE])
     expect(staged).toContain('Savings.csv')
-    expect(staged).not.toContain('Upload CSV file')
+    expect(staged).toContain('Add more CSV files')
+    expect(staged).not.toContain('Upload CSV files')
     expect(staged).not.toContain('Files are read as UTF-8')
   })
 
-  it('is back under the staged file of a finished import, which can no longer be removed', () => {
+  it('lists every staged file with its own Remove button and counts them', () => {
+    const second = { ...GOOD_FILE, id: 'file-3', name: 'Chequing.csv' }
+    const staged = renderStep([GOOD_FILE, second])
+
+    expect(staged).toContain('Remove Savings.csv')
+    expect(staged).toContain('Remove Chequing.csv')
+    expect(staged).toMatch(/>Files<\/p><p[^>]*>2<\/p>/)
+    expect(renderStep([GOOD_FILE])).toMatch(/>File<\/p><p[^>]*>1<\/p>/)
+  })
+
+  it('is back under the staged files of a finished import, which can no longer be removed', () => {
     const finished = renderStep([GOOD_FILE], IMPORT_RESULT)
     expect(finished).toContain('Savings.csv')
-    expect(finished).toContain('Upload CSV file')
+    expect(finished).toContain('Upload CSV files')
+    expect(finished).not.toContain('Add more CSV files')
     expect(finished).not.toContain('Remove Savings.csv')
 
     // Removing is what a file still waiting to be imported offers

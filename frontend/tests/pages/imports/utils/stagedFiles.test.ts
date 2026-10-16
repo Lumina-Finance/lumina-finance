@@ -153,6 +153,14 @@ describe('removing a staged file', () => {
     expect(remaining.map((file) => file.name)).toEqual(['2024-02.csv', '2024-03.csv'])
     expect(buildImportAnswerScope('Category', remaining)).toBe(buildImportAnswerScope('Category', files))
     expect(getFileAccountSourceId(remaining)).toBe(getFileAccountSourceId(files))
+    // Each file keeps its own id, which the staged list draws it by, so its row stays put
+    expect(remaining.map((file) => file.id)).toEqual(['id-2024-02.csv', 'id-2024-03.csv'])
+  })
+
+  it('keeps the identity through a second removal of the first file', () => {
+    const remaining = removeStagedFile(removeStagedFile(files, 'id-2024-01.csv'), 'id-2024-02.csv')
+
+    expect(getFileAccountSourceId(remaining)).toBe(getFileAccountSourceId(files))
   })
 
   it('leaves the first file alone when another is removed', () => {

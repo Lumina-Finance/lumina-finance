@@ -8,6 +8,8 @@ import {
   ImportUploadCard,
 } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
+import type { ImportFileDraft } from '@/pages/imports/types'
+import { SEVERAL_CSV_IMPORT_FILE_TYPE } from '@/pages/imports/utils'
 
 type ImportFilesStepProps = Pick<
   TransactionImportWorkflow,
@@ -32,17 +34,19 @@ type ImportFilesStepProps = Pick<
 >
 
 /**
- * Files step of the generic CSV import flow, taking a single upload and showing the staged file's
- * row and mapped-field counts, with how it was read: the separator, header row and lines skipped at
- * the end, which the user can change, and once a column is mapped as the date, the dates to import
+ * Files step of the generic CSV import flow, taking one file or several with the same columns and
+ * showing the staged files' row and mapped-field counts, with how they were read: the separator,
+ * header row and lines skipped at the end, which the user can change for all of them, and once a
+ * column is mapped as the date, the dates to import
  *
- * The upload control and the guidance above it are taken away while any file is staged, a refused one
- * included, since this flow carries one file and uploading another would only replace it. Removing
- * the file brings them back
+ * The first file sets the layout, so the upload control stays under the staged files for adding the
+ * rest, and goes only while a staged file is refused, since nothing can be checked against a layout
+ * that has not been read yet. The guidance above it goes once any file is staged. Removing every
+ * file brings the guidance back and clears the layout
  *
- * Once the import has run, the staged file is its record: it can't be removed and how it was read
- * can't be changed, and the upload control comes back under it, since a new file is how a new import
- * starts
+ * Once the import has run, the staged files are its record: they can't be removed and how they were
+ * read can't be changed, and the upload control comes back under them, since new files are how a
+ * new import starts
  */
 export function ImportFilesStep({
   inputRef,
@@ -75,7 +79,7 @@ export function ImportFilesStep({
 
   // The upload card is what the keyboard user pressed to get here, so taking it away leaves them on
   // the page body with the next tab starting from the top. The staged row's Remove button is the
-  // control that replaced it, and it is the only button the list holds. Focus is only taken back
+  // control that replaced it, and it is the first button the list holds. Focus is only taken back
   // where the browser dropped it, so a user who moved on while the file was being read keeps where
   // they are
   useEffect(() => {
@@ -85,9 +89,35 @@ export function ImportFilesStep({
     stagedListRef.current?.querySelector('button')?.focus()
   }, [isFileStaged])
 
-  // A staged file, even one refused, is replaced by removing it first, which brings the upload back, so
-  // the upload shows only with no file staged or after a finished import
-  const uploadArea = (!stagedFile || isImportFinished) && (
+  // Removing a file takes the focused Remove button away, which would leave the keyboard user on the
+  // page body once the row has collapsed. Focus moves as the row starts leaving, to the next file's
+  // Remove button, or the previous one's when the last row went, or to the upload card when no file
+  // is left. A click leaves focus alone, since the pointer's user has no place to keep
+  const uploadCardRef = useRef<HTMLButtonElement>(null)
+  const isUploadCardDueFocusRef = useRef(false)
+  const removeFileKeepingFocus = (file: ImportFileDraft) => {
+    const list = stagedListRef.current
+    if (list?.contains(document.activeElement)) {
+      const buttons = Array.from(list.querySelectorAll<HTMLButtonElement>('button[aria-label^="Remove "]'))
+      const index = files.findIndex((staged) => staged.id === file.id)
+      const neighbour = buttons[index + 1] ?? buttons[index - 1]
+      if (neighbour) neighbour.focus()
+      else isUploadCardDueFocusRef.current = true
+    }
+    removeFile(file.id)
+  }
+
+  useEffect(() => {
+    if (files.length > 0 || !isUploadCardDueFocusRef.current) return
+    isUploadCardDueFocusRef.current = false
+    uploadCardRef.current?.focus()
+  }, [files.length])
+
+  // Files are added to the staged ones, so the card stays unless a staged file is refused. A finished
+  // import keeps its files as a record and shows the card for starting the next one
+  const isUploadShown = files.length === 0 || isImportFinished || files.every((file) => !file.error)
+  const isAddingFiles = files.length > 0 && !isImportFinished
+  const uploadArea = isUploadShown && (
     <>
       {/* Stated before a file is chosen, since re-exporting is the only thing that answers it.
           The wording stays loose about what goes wrong on purpose, because readCsvFile has two
@@ -95,13 +125,16 @@ export function ImportFilesStep({
           replacement share, and the file refused above it or on any null character. It says the
           other encodings are unsupported rather than unreadable, since supporting them is open
           rather than ruled out */}
-      <ImportInfoCard title="Files are read as UTF-8">
-        Other encodings are not supported yet, so a file saved as ISO-8859-1 or UTF-16 may not import correctly. Look for a UTF-8 option when saving your file as CSV.
-      </ImportInfoCard>
+      {!isAddingFiles && (
+        <ImportInfoCard title="Files are read as UTF-8">
+          Other encodings are not supported yet, so a file saved as ISO-8859-1 or UTF-16 may not import correctly. Look for a UTF-8 option when saving your file as CSV.
+        </ImportInfoCard>
+      )}
 
       <input
         ref={inputRef}
         type="file"
+        multiple
         className="hidden"
         accept=".csv,text/csv"
         onChange={async (event) => {
@@ -115,12 +148,14 @@ export function ImportFilesStep({
         disabled={isUploadBlocked}
       />
       <ImportUploadCard
-        title="Upload CSV file"
-        hint="One file accepted."
+        title={isAddingFiles ? 'Add more CSV files' : 'Upload CSV files'}
+        hint="Every file needs the same columns."
         processing={isProcessingFiles}
         disabled={isUploadBlocked}
         rejection={fileIntakeError}
         blockReason={uploadBlockReason}
+        fileType={SEVERAL_CSV_IMPORT_FILE_TYPE}
+        buttonRef={uploadCardRef}
         onClick={() => inputRef.current?.click()}
         onDropFile={(selection) => void handleFileChange(selection)}
       />
@@ -129,11 +164,11 @@ export function ImportFilesStep({
 
   return (
     <ImportFilesStepLayout
-      title="File"
-      description="Upload one CSV transaction file."
+      title="Files"
+      description="Upload one CSV transaction file, or several with the same columns."
       areStatsFlush
       stats={[
-        { label: 'File', value: files.length },
+        { label: files.length === 1 ? 'File' : 'Files', value: files.length },
         { label: 'Rows', value: totalRows },
         { label: 'Mapped', value: mappedFieldCount },
       ]}
@@ -142,18 +177,21 @@ export function ImportFilesStep({
         <>
           {uploadArea}
           <EmptyState
-            title="No file staged"
-            description="The uploaded file will appear here."
+            title="No files staged"
+            description="The uploaded files will appear here."
           />
         </>
       ) : (
         <>
-          {/* The file row, the settings and the counts all start and end on the section's own edges. The
-              row drops its side padding to do it, rather than being pulled out with a negative margin,
+          {/* The file rows, the settings and the counts all start and end on the section's own edges. The
+              rows drop their side padding to do it, rather than being pulled out with a negative margin,
               since the section scrolls and a box wider than it slides sideways */}
           <div ref={stagedListRef}>
-            <ImportStagedFileList isFlush files={files} onRemove={isImportFinished ? undefined : (file) => removeFile(file.id)} />
+            <ImportStagedFileList isFlush files={files} onRemove={isImportFinished ? undefined : removeFileKeepingFocus} />
           </div>
+          {/* Adding files sits with the list it adds to, above the settings they all share. A finished
+              import's card is the start of the next import, so it sits last */}
+          {isAddingFiles && uploadArea}
           {/* Shown for a refused file too, since most refusals of a bank export are fixed by one of these */}
           {stagedFile && (stagedFile.delimiter || stagedFile.reading) && (
             <ImportReadingChoices
@@ -169,9 +207,7 @@ export function ImportFilesStep({
               onDateRangeChange={setDateRangeEnd}
             />
           )}
-          {/* Only a finished import's file has the upload under it, since a new file is how a new
-              import starts */}
-          {uploadArea}
+          {isImportFinished && uploadArea}
         </>
       )}
     </ImportFilesStepLayout>
