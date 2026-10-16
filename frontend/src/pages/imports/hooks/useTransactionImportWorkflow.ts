@@ -999,7 +999,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       files: acquiredFiles,
       processing: isProcessingFiles,
       unavailableReason: uploadBlockReason?.message ?? null,
-      readFile: async (selectedFile) => {
+      readFiles: async ([selectedFile]) => {
         const workflowRun = startWorkflowRun()
         setFileIntakeError(null)
         setIsProcessingFiles(true)

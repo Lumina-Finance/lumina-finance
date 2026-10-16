@@ -41,7 +41,8 @@ export function useProviderFileIntake<Kind extends string>(kinds: readonly Kind[
       processing: processingKind !== null,
       unavailableReason,
       fileType,
-      readFile: async (file) => {
+      // These uploads take one file, so the intake only ever hands over one
+      readFiles: async ([file]) => {
         setIntakeError(kind, null)
         setProcessingKind(kind)
         try {
