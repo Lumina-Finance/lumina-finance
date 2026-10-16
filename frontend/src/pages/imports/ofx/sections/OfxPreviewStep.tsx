@@ -17,10 +17,12 @@ type OfxPreviewStepProps = Pick<
   | 'canCommitImport'
   | 'handleCommitImport'
   | 'stagedFiles'
+  | 'fixedAccount'
 >
 
 /**
- * Preview and commit step of the OFX import flow
+ * Preview and commit step of the OFX import flow, numbered second where an account's page has no
+ * account step before it
  */
 export function OfxPreviewStep({
   importEstimate,
@@ -34,12 +36,13 @@ export function OfxPreviewStep({
   canCommitImport,
   handleCommitImport,
   stagedFiles,
+  fixedAccount,
 }: OfxPreviewStepProps) {
   const skipped = getSkippedRowsDisplay({ liveForecastRows: predictedSkippedRows, completedImport })
 
   return (
     <ImportPreviewLayout
-      index="03"
+      index={fixedAccount ? '02' : '03'}
       stats={{ ...importEstimate, newAccountCount, newCategoryCount: 0 }}
       previewGroups={previewGroups}
       emptyDescription="Transactions compiled from the statement will appear here."

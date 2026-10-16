@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
+import type { AccountsOverview } from '@/api/accounts'
 import { getImportFileName } from '@/api/import-runs'
 import { useCommitStagedImport, useImportTransactions, type TransactionImportResponse } from '@/api/transaction-imports'
 import { CREATE_ACCOUNT_VALUE, IMPORT_SAMPLE_PREVIEW_LIMIT, IMPORT_TRANSFER_CATEGORY_NAME } from '@/pages/imports/constants'
@@ -11,11 +12,17 @@ import {
 } from '@/pages/imports/hooks'
 import {
   getOfxAccountSourceScope,
+  getOfxMultipleStatementsReason,
   OFX_IMPORT_FILE_TYPE,
   OFX_UPLOAD_LABEL,
 } from '@/pages/imports/ofx/constants'
 import type { OfxSkippedRow, OfxStagedFile } from '@/pages/imports/ofx/types'
-import { buildOfxImportPayload, getOfxStatementsToImport, type OfxImportBuild } from '@/pages/imports/ofx/utils/payload'
+import {
+  buildOfxImportPayload,
+  getOfxFixedAccountMappings,
+  getOfxStatementsToImport,
+  type OfxImportBuild,
+} from '@/pages/imports/ofx/utils/payload'
 import { buildOfxPreviewRows } from '@/pages/imports/ofx/utils/preview'
 import { readOfxFile } from '@/pages/imports/ofx/utils/readFile'
 import { describeOfxSavedEarlier } from '@/pages/imports/ofx/utils/savedEarlier'
@@ -56,8 +63,12 @@ const EMPTY_BUILD: OfxImportBuild = {
  * them and a statement for an account an earlier file already holds joins that account's answer.
  * Removing the last file starts over, and so does choosing files once an import has finished, since
  * those files begin the next import
+ *
+ * @param fixedAccount - The account this import was started from, null for an ordinary import. The
+ *   statement of each file goes to that account with no account step, and a file of several
+ *   statements is refused
  */
-export function useOfxImportWorkflow() {
+export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = null) {
   const [stagedFiles, setStagedFiles] = useState<OfxStagedFile[]>([])
   const ofxFile = useMemo(
     () => (stagedFiles.length > 0 ? combineOfxFiles(stagedFiles.map(({ file }) => file)) : null),
@@ -141,11 +152,19 @@ export function useOfxImportWorkflow() {
     [statements],
   )
 
-  const { resolvedAccountMappings, autoFilledAccountSources, handAnsweredAccountSources } = useProviderAccountAnswers({
+  const {
+    resolvedAccountMappings: pickedAccountMappings,
+    autoFilledAccountSources,
+    handAnsweredAccountSources,
+  } = useProviderAccountAnswers({
     sources: accountSources,
     accountMappings,
     reference: { accountsResolved, accountsCurrent, accountById, selectableAccounts: matchableAccounts },
   })
+  const resolvedAccountMappings = useMemo(
+    () => (fixedAccount ? getOfxFixedAccountMappings(statements, fixedAccount) : pickedAccountMappings),
+    [fixedAccount, pickedAccountMappings, statements],
+  )
 
   // A new account is proposed in the statement's own currency, which the user can change. One this
   // app does not support is left for the user to choose, since the account could not be created in it
@@ -170,11 +189,12 @@ export function useOfxImportWorkflow() {
         accountMappings: resolvedAccountMappings,
         accountCreateDetails: resolvedAccountCreateDetails,
         accountById,
+        fixedAccount,
         categories,
         currencies,
       })
       : EMPTY_BUILD),
-    [accountById, categories, currencies, ofxFile, resolvedAccountCreateDetails, resolvedAccountMappings],
+    [accountById, categories, currencies, fixedAccount, ofxFile, resolvedAccountCreateDetails, resolvedAccountMappings],
   )
 
   const skippedRowIds = useMemo(() => new Set(importBuild.skippedRows.map((row) => row.id)), [importBuild.skippedRows])
@@ -236,7 +256,15 @@ export function useOfxImportWorkflow() {
     // way to them and their statements are answered afresh
     const isReplacingFinishedImport = run.workflow.importResult !== null
     const held = isReplacingFinishedImport ? [] : stagedFiles
-    const { accepted, refusals } = stageOfxFiles(held, intake.result)
+    // An account's page takes one statement from each file, so a file of several is refused
+    const candidates = intake.result.map((candidate): typeof candidate => {
+      if (!fixedAccount || candidate.read.status !== 'read') return candidate
+      const statementCount = getOfxStatementsToImport(candidate.read.file).length
+      return statementCount > 1
+        ? { ...candidate, read: { status: 'refused', reason: getOfxMultipleStatementsReason(statementCount) } }
+        : candidate
+    })
+    const { accepted, refusals } = stageOfxFiles(held, candidates)
     if (refusals.length > 0) fileIntake.setIntakeError('statement', refusals.join(' '))
     if (accepted.length === 0) return
 
@@ -281,6 +309,7 @@ export function useOfxImportWorkflow() {
     ...run.workflow,
     stagedFiles,
     ofxFile,
+    fixedAccount,
     isProcessingFile,
     fileIntakeError,
     accountSources,

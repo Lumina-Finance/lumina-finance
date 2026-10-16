@@ -62,3 +62,31 @@ export const OFX_EXPECTATIONS: ImportExpectations = {
     },
   ],
 }
+
+/**
+ * What an OFX import started from an account's page does, which differs from the general import in
+ * where the statement goes: its one statement is written to that account, a file of several is
+ * refused, and no account is created
+ *
+ * @param accountName - The account every transaction is written to
+ */
+export function getOfxFixedAccountExpectations(accountName: string): ImportExpectations {
+  return {
+    ...OFX_EXPECTATIONS,
+    intro: `Each transaction in your statement becomes one transaction in ${accountName}.`,
+    deviation: `The balance your bank states isn't imported, so the balance of ${accountName} only changes by the transactions you import.`,
+    changes: [
+      ...OFX_EXPECTATIONS.changes.filter(
+        (change) => change.source !== 'A new account' && !change.source.startsWith('A statement in another currency'),
+      ),
+      {
+        source: `A statement in another currency than ${accountName}`,
+        lumina: "Refused, since a transaction takes its account's currency",
+      },
+      {
+        source: 'A file with several statements',
+        lumina: 'Refused here, since the page takes one statement from each file. Import it from the Imports page in Settings',
+      },
+    ],
+  }
+}
