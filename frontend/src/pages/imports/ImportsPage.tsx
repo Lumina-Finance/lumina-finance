@@ -47,7 +47,7 @@ import type { ImportDataSource } from './types'
 
 // What the header says each flow stages
 const FLOW_DESCRIPTIONS: Record<ImportDataSource, string> = {
-  generic: 'Stage one CSV transaction file before it is added to your ledger.',
+  generic: 'Stage CSV transaction files before they are added to your ledger.',
   firefly: 'Stage a Firefly III export before it is added to your ledger.',
   actual: 'Stage an Actual Budget export before it is added to your ledger.',
   ofx: 'Stage an OFX or QFX statement before it is added to your ledger.',
