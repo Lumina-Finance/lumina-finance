@@ -191,3 +191,7 @@ export const lastImportKeys = {
 export const importLayoutKeys = {
   all: ['import-layouts'] as const,
 };
+
+export const importSourceKeys = {
+  all: ['import-sources'] as const,
+};

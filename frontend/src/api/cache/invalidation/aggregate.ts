@@ -3,6 +3,7 @@ import {
   accountKeys,
   budgetKeys,
   importLayoutKeys,
+  importSourceKeys,
   lastImportKeys,
   taxAdvantagedCategoryKeys,
   transactionKeys,
@@ -31,6 +32,7 @@ const appDataTargets: InvalidationTarget[] = [
   ...referenceDataTargets,
   { queryKey: lastImportKeys.all },
   { queryKey: importLayoutKeys.all },
+  { queryKey: importSourceKeys.all },
 ];
 
 const fxTargets: InvalidationTarget[] = [

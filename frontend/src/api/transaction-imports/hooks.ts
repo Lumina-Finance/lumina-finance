@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { importLayoutKeys } from '@/api/cache/queryKeys';
+import { importLayoutKeys, importSourceKeys } from '@/api/cache/queryKeys';
 import { useImportRunMutation } from '@/api/import-runs/hooks';
-import { fetchImportLayouts } from '@/api/transaction-imports/requests';
+import { fetchImportLayouts, fetchImportSources } from '@/api/transaction-imports/requests';
 import { commitStagedImportRun, runTransactionImport } from '@/api/transaction-imports/run';
 import type {
   CsvImportLayout,
@@ -41,6 +41,25 @@ export function useImportLayouts(isWanted: boolean) {
 
     // Fresh until an import or an undo invalidates it, so going stale means a reload is on its way,
     // which a file must wait for rather than be read against the list from before
+    staleTime: Infinity,
+    refetchOnMount: 'always',
+  });
+}
+
+/**
+ * Reads which importer last brought transactions into each of the user's own accounts
+ *
+ * Read again every time the import page opens, since an import or an undo in another tab changes
+ * them, and the page opens on whatever the list says once it has one
+ *
+ * @param isWanted - Whether the screen uses the sources, so one that doesn't never reads them
+ */
+export function useImportSources(isWanted: boolean) {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: importSourceKeys.all,
+    queryFn: ({ signal }) => fetchImportSources(signal),
+    enabled: !!accessToken && isWanted,
     staleTime: Infinity,
     refetchOnMount: 'always',
   });

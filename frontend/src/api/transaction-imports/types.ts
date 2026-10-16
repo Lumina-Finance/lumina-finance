@@ -130,3 +130,9 @@ export type CsvImportLayout = {
 export type SavedCsvImportLayout = CsvImportLayout & {
   account_id: string;
 };
+
+/** The importer of the last import that wrote rows into one of the user's own accounts */
+export type SavedAccountImportSource = {
+  account_id: string;
+  source: 'generic' | 'firefly' | 'actual_budget' | 'ofx';
+};
