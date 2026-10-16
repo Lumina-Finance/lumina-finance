@@ -10,6 +10,9 @@ export interface StatementTransaction {
   name: string
 }
 
+export const CAFE = { posted: '20240115120000', amount: '-12.50', fitId: 'A1', name: 'Corner Cafe' }
+export const PAYROLL = { posted: '20240116120000', amount: '2500.00', fitId: 'A2', name: 'Payroll' }
+
 // A version 1 file, as banks still write them: a header of plain lines and leaf tags left open
 function buildTransactions(transactions: StatementTransaction[]) {
   return transactions.flatMap((transaction) => [

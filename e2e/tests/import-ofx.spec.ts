@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 import { asUser, countLedgerTransactions, createAccount, signUpUser, type TestUser } from '../support/api'
 import { chooseFromDropdown, commitImport, logInViaApi, openPage } from '../support/app'
-import { buildBankMessageSet, buildCardMessageSet, buildFile, statementFile } from '../support/ofx'
+import { buildBankMessageSet, buildCardMessageSet, buildFile, CAFE, PAYROLL, statementFile } from '../support/ofx'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: what the import writes is the same at every size
@@ -24,9 +24,6 @@ async function uploadStatement(page: Page, user: TestUser, contents: string, nam
   await expect(upload).toBeEnabled()
   await upload.setInputFiles({ name, mimeType: 'application/octet-stream', buffer: Buffer.from(contents) })
 }
-
-const CAFE = { posted: '20240115120000', amount: '-12.50', fitId: 'A1', name: 'Corner Cafe' }
-const PAYROLL = { posted: '20240116120000', amount: '2500.00', fitId: 'A2', name: 'Payroll' }
 
 test('imports a statement into a new account, leaving out a transaction with no readable amount', async ({ page, request }) => {
   const user = await signUpUser(request)
