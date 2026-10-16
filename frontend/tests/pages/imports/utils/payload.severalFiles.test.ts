@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
-import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
+import { CREATE_ACCOUNT_VALUE, EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import type { ImportFileDraft } from '@/pages/imports/types'
 import {
   buildImportAccountMappingSources,
@@ -134,5 +134,35 @@ describe('a row skipped in one of several files', () => {
     expect(preview.some((row) => row.id.includes(APRIL.id))).toBe(true)
     expect(preview.some((row) => row.id.includes(MARCH.id))).toBe(true)
     expect(new Set(preview.map((row) => row.accountName))).toEqual(new Set(['Chequing']))
+  })
+
+  // With no account column the one account every file is written to is proposed under the first
+  // file's name, which stands for all of them
+  it('proposes the first file\'s name for the new account every file is written to', () => {
+    const files = [APRIL, MARCH]
+    const accountSources = buildImportAccountMappingSources(files, '', '')
+
+    const preview = buildImportPreviewRows({
+      files,
+      columnMap: COLUMN_MAP,
+      dateFormat: 'yearFirst',
+      dateRange: WHOLE_FILE_DATE_RANGE,
+      directionAnswers: {},
+      missingRequiredColumnLabels: [],
+      currencies: CURRENCIES,
+      accountById: new Map(),
+      accountCreateCurrencies: { [accountSources[0].id]: 'CAD' },
+      accountCreateInstitutions: {},
+      categoryById: new Map([[CATEGORY.id, CATEGORY]]),
+      categoryCreateKinds: {},
+      categoryTypesBySource: {},
+      institutionById: new Map(),
+      resolvedAccountMappings: { [accountSources[0].id]: CREATE_ACCOUNT_VALUE },
+      resolvedCategoryMappings: { Groceries: CATEGORY.id },
+      rowProblems: build(files).rowProblems,
+    })
+
+    expect(accountSources).toMatchObject([{ label: '2024-04' }])
+    expect(new Set(preview.map((row) => row.accountName))).toEqual(new Set(['2024-04']))
   })
 })

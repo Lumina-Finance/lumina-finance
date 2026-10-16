@@ -2,9 +2,12 @@ import { SKIPPED_TABLE_VISIBLE_LIMIT } from '@/pages/imports/constants'
 import type { ImportRowProblem } from '@/pages/imports/types'
 import { ImportSkippedTable, type ImportSkippedTableRow } from './SkippedTable'
 
-// Wide enough for a row number, which is all the lead cell carries because the flow stages one file
-// at a time
+// Wide enough for a row number, which is all the lead cell carries while one file is staged
 const ROW_NUMBER_COLUMN_WIDTH = '3.5rem'
+
+// Wide enough for a row number above the start of a file's name, which a long name is cut to. The
+// whole name is in the cell's tooltip, and the staged file list above holds it in full
+const FILE_NAMED_COLUMN_WIDTH = '9rem'
 
 /**
  * Collapsible panel listing the rows the import has something to say about, freezing which row each
@@ -24,6 +27,7 @@ export function ImportRowProblemsTable({
   tone = 'danger',
   reasonHeader = 'Reason',
   revealsOnReview,
+  areFilesNamed = false,
 }: {
   title: string
   rowProblems: ImportRowProblem[]
@@ -43,13 +47,23 @@ export function ImportRowProblemsTable({
 
   /** Whether this list answers Review skipped rows on a finished import */
   revealsOnReview?: boolean
+
+  /** Names each row's file under its number, for an import of several files, since row numbers restart in each */
+  areFilesNamed?: boolean
 }) {
   // Only the rows the table will show are shaped for it, and the count it summarizes the rest
   // against comes from the full list. A file whose every row is refused would otherwise rebuild a
   // table row per imported row on each render of the page
   const tableRows: ImportSkippedTableRow[] = rowProblems.slice(0, SKIPPED_TABLE_VISIBLE_LIMIT).map((problem) => ({
     key: problem.id,
-    lead: problem.rowNumber,
+    lead: areFilesNamed ? (
+      <>
+        <span className="block">{problem.rowNumber}</span>
+        <span className="block truncate text-xs font-normal" style={{ color: 'var(--app-text-subtle)' }} title={problem.fileName}>
+          {problem.fileName}
+        </span>
+      </>
+    ) : problem.rowNumber,
     reason: problem.reason,
     cells: Object.fromEntries(headers.map((header) => [header, problem.cells[header] ?? ''])),
   }))
@@ -59,7 +73,7 @@ export function ImportRowProblemsTable({
       title={title}
       toggleLabel={toggleLabel}
       leadHeader="Row"
-      leadColumnWidth={ROW_NUMBER_COLUMN_WIDTH}
+      leadColumnWidth={areFilesNamed ? FILE_NAMED_COLUMN_WIDTH : ROW_NUMBER_COLUMN_WIDTH}
       leadCellClassName="font-financial font-semibold tabular-nums"
       headers={headers}
       amountHeaders={amountHeaders}
@@ -80,12 +94,13 @@ export function ImportRowProblemsTable({
  * That they are taken is left to the note against each one, which the heading cannot also carry
  * without reading like the refusal heading above it
  */
-export function ImportRowWarningsTable({ rowWarnings, headers, amountHeaders }: {
+export function ImportRowWarningsTable({ rowWarnings, headers, amountHeaders, areFilesNamed }: {
   rowWarnings: ImportRowProblem[]
   headers: string[]
 
   /** The headers of the file's columns holding amounts */
   amountHeaders: string[]
+  areFilesNamed?: boolean
 }) {
   if (rowWarnings.length === 0) return null
 
@@ -99,6 +114,7 @@ export function ImportRowWarningsTable({ rowWarnings, headers, amountHeaders }: 
         toggleLabel="rows worth a look"
         tone="warning"
         reasonHeader="Note"
+        areFilesNamed={areFilesNamed}
       />
     </div>
   )
