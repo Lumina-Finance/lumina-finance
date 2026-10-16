@@ -5,10 +5,22 @@ import { IMPORT_INSET_STYLE } from '@/pages/imports/constants'
 /**
  * Small labelled stat tile, rendering the value with tabular figures unless it is explicitly marked
  * as non-numeric
+ *
+ * @param isFlush - Drops the side padding so the tile starts on the edge of the row it sits in
  */
-export function ImportStat({ label, value, numeric = true }: { label: string; value: string; numeric?: boolean }) {
+export function ImportStat({
+  label,
+  value,
+  numeric = true,
+  isFlush = false,
+}: {
+  label: string
+  value: string
+  numeric?: boolean
+  isFlush?: boolean
+}) {
   return (
-    <div className="min-w-0 px-3 py-1">
+    <div className={`min-w-0 py-1${isFlush ? '' : ' px-3'}`}>
       <p className="truncate text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
         {label}
       </p>

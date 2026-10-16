@@ -113,10 +113,12 @@ export function useImportRun<TResult, TSkipped>({
    *
    * @param skippedRows - Rows the import leaves out, captured now since later answers no longer
    *   change what it wrote
+   * @param outsideRangeCount - How many rows the import leaves out for being dated outside its
+   *   chosen dates, captured now for the same reason
    * @param requests - How the import reaches the server
    */
-  const startImport = (skippedRows: TSkipped[], requests: ImportRunRequests<TResult>) => (
-    controller.start(skippedRows, answers, requests)
+  const startImport = (skippedRows: TSkipped[], outsideRangeCount: number, requests: ImportRunRequests<TResult>) => (
+    controller.start(skippedRows, outsideRangeCount, answers, requests)
   )
 
   const retryImportCommit = async () => {

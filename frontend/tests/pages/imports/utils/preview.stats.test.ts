@@ -7,8 +7,14 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
-import type { CsvRow, ImportAccountSource, ImportFileDraft } from '@/pages/imports/types'
-import { buildTransactionImportPayload, getCsvImportStats } from '@/pages/imports/utils'
+import type { CsvRow, ImportAccountSource, ImportDateRange, ImportFileDraft } from '@/pages/imports/types'
+import {
+  buildTransactionImportPayload,
+  countImportRowsOutsideDateRange,
+  getCsvImportStats,
+  getImportDateRangeFilter,
+  WHOLE_FILE_DATE_RANGE,
+} from '@/pages/imports/utils'
 
 const CURRENCIES: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -50,6 +56,7 @@ const HOBBY_SUPPLIES: Category = { ...GROCERIES, id: 'hobby-supplies', name: 'Ho
 const PRESENTS: Category = { ...GROCERIES, id: 'presents', name: 'Presents', kind: 'income' }
 
 const HEADERS = ['Date', 'Account', 'Category', 'Amount']
+const COLUMN_MAP = { ...EMPTY_COLUMN_MAP, dt: 'Date', account_id: 'Account', category_id: 'Category', amount: 'Amount' }
 
 /**
  * Creates a one-file import of the given rows, each written to an account and filed under a category
@@ -73,7 +80,12 @@ function createRows(count: number, accounts: string[], categories: string[], amo
 /**
  * Builds the import for the rows and answers given, and reads its summary the way the preview does
  */
-function summarize(rows: CsvRow[], accountMappings: Record<string, string>, categoryMappings: Record<string, string>) {
+function summarize(
+  rows: CsvRow[],
+  accountMappings: Record<string, string>,
+  categoryMappings: Record<string, string>,
+  dateRange: ImportDateRange = WHOLE_FILE_DATE_RANGE,
+) {
   const accountSources: ImportAccountSource[] = Object.keys(accountMappings).map((source) => ({
     id: source,
     label: source,
@@ -96,19 +108,27 @@ function summarize(rows: CsvRow[], accountMappings: Record<string, string>, cate
     categoryCreateKinds,
     categoryMappings,
     categoryTypesBySource: {},
-    columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', account_id: 'Account', category_id: 'Category', amount: 'Amount' },
+    columnMap: COLUMN_MAP,
     columnValidationErrors: {},
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
+    dateRange,
     directionAnswers: {},
     files: [createFile(rows)],
     importedCategories,
   })
 
+  // Counted the way the workflow counts it, off the same range the build was given
+  const outsideRangeRowCount = countImportRowsOutsideDateRange(
+    [createFile(rows)],
+    getImportDateRangeFilter({ columnMap: COLUMN_MAP, dateFormat: 'yearFirst', dateRange }),
+  )
+
   return {
     importBuild,
     stats: getCsvImportStats({
       rowCount: rows.length,
+      outsideRangeRowCount,
       importBuild,
       accountSources,
       accountMappings,
@@ -185,5 +205,20 @@ describe('the CSV import summary', () => {
     const { stats } = summarize(rows, { Chequing: CHEQUING.id }, { Presents: CREATE_CATEGORY_VALUE })
 
     expect(stats.newCategoryCount).toBe(1)
+  })
+
+  // Before the import can be built, the estimate is worked out from the row counts, and counting the
+  // rows the chosen dates leave out would promise transactions the import will not create
+  it('leaves the rows outside the chosen dates out of the estimate while the import is still blocked', () => {
+    const rows = [
+      ...createRows(6, ['Chequing'], ['Groceries']),
+      ...createRows(4, ['Chequing'], ['Groceries']).map((row) => ({ ...row, Date: '2026-05-02' })),
+    ]
+
+    // Groceries left unanswered keeps the import from being built
+    const { importBuild, stats } = summarize(rows, { Chequing: CHEQUING.id }, { Groceries: '' }, { from: '2026-05-01', to: '' })
+
+    expect(importBuild.payload).toBeNull()
+    expect(stats.transactionEstimate).toBe(4)
   })
 })

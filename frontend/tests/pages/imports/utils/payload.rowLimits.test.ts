@@ -16,7 +16,7 @@ import {
   MAX_IMPORT_TAGS_PER_ROW,
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
-import { buildTransactionImportPayload } from '@/pages/imports/utils'
+import { buildTransactionImportPayload, WHOLE_FILE_DATE_RANGE } from '@/pages/imports/utils'
 
 const CURRENCIES: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -79,6 +79,7 @@ function build(notes: string, tags: string) {
     columnValidationErrors: {},
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
+    dateRange: WHOLE_FILE_DATE_RANGE,
     directionAnswers: {},
     files: [file],
     importedCategories: ['Groceries'],
@@ -202,6 +203,7 @@ function buildWithManyCategories(count: number, { mapped }: { mapped: boolean })
     columnValidationErrors: {},
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
+    dateRange: WHOLE_FILE_DATE_RANGE,
     directionAnswers: {},
     files: [file],
     importedCategories: sources,

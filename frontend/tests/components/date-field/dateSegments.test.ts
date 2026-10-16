@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   EMPTY_SEGMENTS,
   formatIsoDate,
+  isPartlyTyped,
   parseIsoDate,
   setSegmentDigits,
   shouldAdvanceSegment,
@@ -68,5 +69,17 @@ describe('date segment editing', () => {
     expect(stepSegment(EMPTY_SEGMENTS, 'month', 1, FIXED_TODAY).month).toBe('07')
     expect(stepSegment(EMPTY_SEGMENTS, 'year', 1, FIXED_TODAY).year).toBe('2026')
     expect(stepSegment(EMPTY_SEGMENTS, 'day', 1, FIXED_TODAY).day).toBe('08')
+  })
+})
+
+// Both read as an empty value, so this is the only way a caller can tell a date begun from none
+describe('telling a date begun from an empty field', () => {
+  it('counts a date with only some of its segments as partly typed', () => {
+    expect(isPartlyTyped({ year: '2025', month: '03', day: '' })).toBe(true)
+  })
+
+  it('counts neither an empty field nor a whole date as partly typed', () => {
+    expect(isPartlyTyped(EMPTY_SEGMENTS)).toBe(false)
+    expect(isPartlyTyped({ year: '2025', month: '03', day: '31' })).toBe(false)
   })
 })

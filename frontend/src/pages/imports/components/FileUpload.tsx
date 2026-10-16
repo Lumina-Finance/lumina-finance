@@ -239,15 +239,20 @@ export interface ImportStagedFileSummary {
 /**
  * Staged-file list shared by the CSV import flows, listing each upload's
  * counts and problems with a remove action
+ *
+ * @param isFlush - Drops the rows' side padding so the list starts and ends on the edges of the
+ *   section it sits in, for a section whose other content does the same
  */
 export function ImportStagedFileList({
   files,
   onRemove,
+  isFlush,
 }: {
   files: ImportFileDraft[]
   onRemove?: (file: ImportFileDraft) => void
+  isFlush?: boolean
 }) {
-  return <ImportStagedFileTable files={files} describe={describeCsvFile} onRemove={onRemove} />
+  return <ImportStagedFileTable files={files} describe={describeCsvFile} onRemove={onRemove} isFlush={isFlush} />
 }
 
 /**
@@ -257,12 +262,16 @@ export function ImportStagedFileTable<TFile extends { id: string; name: string }
   files,
   describe,
   onRemove,
+  isFlush = false,
 }: {
   files: TFile[]
   describe: (file: TFile) => ImportStagedFileSummary
 
   /** Left out where the file can no longer be removed, such as one a finished import was read from */
   onRemove?: (file: TFile) => void
+
+  /** Drops the rows' side padding, so the list starts and ends on the edges of its section */
+  isFlush?: boolean
 }) {
   return (
     <div className="max-h-64 overflow-y-auto">
@@ -271,7 +280,7 @@ export function ImportStagedFileTable<TFile extends { id: string; name: string }
         return (
           <div
             key={file.id}
-            className={`grid items-start gap-x-3 px-3 py-3 ${onRemove ? 'grid-cols-[17px_minmax(0,1fr)_2rem]' : 'grid-cols-[17px_minmax(0,1fr)]'}`}
+            className={`grid items-start gap-x-3 py-3${isFlush ? '' : ' px-3'} ${onRemove ? 'grid-cols-[17px_minmax(0,1fr)_2rem]' : 'grid-cols-[17px_minmax(0,1fr)]'}`}
           >
             <FileText size={17} className="mt-0.5" style={{ color: 'var(--app-text-muted)' }} aria-hidden />
             <div className="min-w-0">
@@ -282,26 +291,29 @@ export function ImportStagedFileTable<TFile extends { id: string; name: string }
                   {detail}
                 </p>
               )}
-              {problem && (
-                <p
-                  className="mt-1.5 flex items-start gap-1.5 rounded-md px-2 py-1.5 text-xs"
-                  style={PROBLEM_TONE_STYLES[problem.tone]}
-                >
-                  <TriangleAlert size={13} strokeWidth={2.25} className="mt-px shrink-0" aria-hidden />
-                  <span className="min-w-0 wrap-anywhere">{problem.text}</span>
-                </p>
-              )}
             </div>
-            {/* Drawn taller than the name's line without making it any taller */}
+            {/* Drawn taller than the name's line without making it any taller. A flush list has no room
+                beside the button, so the list's scrolling box would cut the focus ring there, and the
+                ring is drawn inside the button instead */}
             {onRemove && (
               <button
                 type="button"
-                className="app-icon-button -my-1"
+                className={`app-icon-button -my-1${isFlush ? ' focus-visible:-outline-offset-2' : ''}`}
                 onClick={() => onRemove(file)}
                 aria-label={`Remove ${file.name}`}
               >
                 <X size={16} aria-hidden />
               </button>
+            )}
+            {/* Across the whole row rather than under the name, so a long message isn't squeezed into its column */}
+            {problem && (
+              <p
+                className="col-span-full mt-2 flex items-start gap-1.5 rounded-md px-2 py-1.5 text-xs"
+                style={PROBLEM_TONE_STYLES[problem.tone]}
+              >
+                <TriangleAlert size={13} strokeWidth={2.25} className="mt-px shrink-0" aria-hidden />
+                <span className="min-w-0 wrap-anywhere">{problem.text}</span>
+              </p>
             )}
           </div>
         )

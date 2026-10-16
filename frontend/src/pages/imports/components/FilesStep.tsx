@@ -12,16 +12,21 @@ const SLOT_SWAP_DURATION = 0.24
 /**
  * The first step of every import, holding the importer's upload slots with counts of what the
  * staged files hold beneath them
+ *
+ * @param areStatsFlush - Starts the counts on the section's left edge rather than inset by the
+ *   padding they otherwise carry, for a flow whose content above them does the same
  */
 export function ImportFilesStepLayout({
   title,
   description,
   stats,
+  areStatsFlush = false,
   children,
 }: {
   title: string
   description: ReactNode
   stats: Array<{ label: string; value: number }>
+  areStatsFlush?: boolean
   children: ReactNode
 }) {
   return (
@@ -35,7 +40,7 @@ export function ImportFilesStepLayout({
       {children}
 
       <div className="mt-auto flex flex-wrap gap-3 pt-3">
-        {stats.map((stat) => <ImportStat key={stat.label} label={stat.label} value={stat.value.toString()} />)}
+        {stats.map((stat) => <ImportStat key={stat.label} label={stat.label} value={stat.value.toString()} isFlush={areStatsFlush} />)}
       </div>
     </ImportStep>
   )

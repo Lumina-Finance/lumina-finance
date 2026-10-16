@@ -15,8 +15,9 @@ import type {
   ImportAmountDirection,
   ImportAmountProblem,
   ImportFileDraft,
+  ImportRowFilter,
 } from '@/pages/imports/types'
-import { unique } from './common'
+import { includeEveryImportRow, unique } from './common'
 import {
   DEFAULT_IMPORT_AMOUNT_FORMAT,
   type ImportAmountFormat,
@@ -529,11 +530,19 @@ function resolveDirectedImportAmount(
  *
  * Spellings differing only in capitals or spacing are one question, and the spelling kept
  * is the first the file used, so the panel shows the user what is actually in their file
+ *
+ * @param isRowIncluded - Which rows take part, so a word only rows outside the chosen dates use is
+ *   not asked about
  */
-export function getImportDirectionValues(files: ImportFileDraft[], header: string) {
+export function getImportDirectionValues(
+  files: ImportFileDraft[],
+  header: string,
+  isRowIncluded: ImportRowFilter = includeEveryImportRow,
+) {
   const seen = new Map<string, string>()
 
-  for (const value of getColumnValues(files, header)) {
+  const values = files.flatMap((file) => file.rows.filter(isRowIncluded).map((row) => getMappedValue(row, header)))
+  for (const value of values) {
     if (!value) continue
     const key = foldImportDirectionValue(value)
     if (!seen.has(key)) seen.set(key, value)

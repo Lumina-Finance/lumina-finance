@@ -11,7 +11,7 @@ import {
   ROW_AMOUNT_UNREADABLE_REASON,
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
-import { buildTransactionImportPayload } from '@/pages/imports/utils'
+import { buildTransactionImportPayload, WHOLE_FILE_DATE_RANGE } from '@/pages/imports/utils'
 
 const EXPECTED_DEBT_PAYMENT_NOTE =
   'Make sure this payment is really an expense. Repayments of a credit card, line of credit or HELOC belong in Credit Card Payment. Debt Payment can remain selected for a loan or mortgage payment.'
@@ -111,6 +111,7 @@ function build({
     columnValidationErrors: {},
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
+    dateRange: WHOLE_FILE_DATE_RANGE,
     directionAnswers: {},
     files: [createFile(rows)],
     importedCategories: [categorySource],

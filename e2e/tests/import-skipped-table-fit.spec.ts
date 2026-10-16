@@ -6,15 +6,17 @@ import { logInViaApi, openPage } from '../support/app'
 // Runs on desktop only: it sets the window sizes it checks itself
 
 /**
- * Guards the skipped rows table against the frozen reason column it held beside the row number. On a
- * phone the frozen pair filled most of the table and left the file's columns a sliver, and wider up a
- * long reason was squeezed into a narrow column that made its row many lines tall
+ * Guards the skipped rows table against a reason that squeezes the file's columns or runs off the
+ * box. Each reason is said once on a line of its own above its group of rows, so on a phone the
+ * file's columns keep the room beside the frozen row number, wider up a long reason reads in a few
+ * lines at the box's full width, and it holds still there when the file's columns are scrolled
  */
 
 const WIDTHS = [1920, 1280, 768, 390]
 
 // The second row names a day February doesn't have, which has a short reason. The third gives a dollar
-// amount three decimal places, which has one of the longest
+// amount three decimal places, which has one of the longest. The two reasons differ, so each row is
+// the only one in its group
 const CSV = [
   'Date,Amount,Category,Merchant,Notes',
   '2024-03-15,-42.50,Groceries,Market,Weekly shop',
@@ -46,20 +48,15 @@ test('keeps the skipped rows table readable at every width', async ({ page, requ
 
   const longReason = page.getByText(/^The amount has more decimal places than/)
   const table = page.getByRole('table').filter({ has: longReason })
-  const valuesRow = table.getByRole('row').filter({ hasText: 'Too precise' })
-  const headingRow = table.getByRole('row').first()
 
   // Soft, so a run on a broken table reports every width rather than stopping at the first
   const softly = expect.configure({ soft: true })
   for (const width of WIDTHS) {
     await page.setViewportSize({ width, height: 900 })
-    // The whole date reads beside the row number, rather than sliding under the columns frozen beside it
+    // The whole date reads beside the row number, rather than sliding under it
     await softly.poll(async () => dateReadsInFull(table), { message: `date at ${width}px` }).toBe(true)
 
-    // A long reason leaves its row of values one line tall, and reads in a few lines of its own
-    const rowHeight = (await valuesRow.boundingBox())!.height
-    const headingHeight = (await headingRow.boundingBox())!.height
-    expect.soft(rowHeight, `row height at ${width}px`).toBeLessThan(headingHeight * 1.5)
+    // A long reason reads in a few lines of its own above its group
     if (width >= 768) {
       const lines = await longReason.evaluate((element) => {
         const lineHeight = Number.parseFloat(getComputedStyle(element).lineHeight)
@@ -68,8 +65,8 @@ test('keeps the skipped rows table readable at every width', async ({ page, requ
       expect.soft(lines, `reason lines at ${width}px`).toBeLessThanOrEqual(3)
     }
 
-    // The reason stays inside the box when the file's columns are scrolled to their end, rather than
-    // running past its right edge with them
+    // The reason holds still inside the box when the file's columns are scrolled to their end, rather
+    // than running past its right edge with them
     const reasonFit = await table.evaluate((element, reason) => {
       const scroller = element.parentElement!
       scroller.scrollLeft = scroller.scrollWidth
@@ -80,6 +77,5 @@ test('keeps the skipped rows table readable at every width', async ({ page, requ
       return fits
     }, (await longReason.textContent())!)
     expect.soft(reasonFit, `reason inside the box at ${width}px`).toBe(true)
-
   }
 })

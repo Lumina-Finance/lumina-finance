@@ -1,5 +1,6 @@
 import { ImportRunError, type StagedRunSettlement } from '@/api/import-runs'
 import { STEP_DOT_WAVE_MS } from '@/pages/imports/components/ProgressOverlay'
+import { getRowsOutsideDateRangeExplanation } from '@/pages/imports/constants'
 import type { ImportOverlayPhase } from '@/pages/imports/types'
 import { getImportCommitFailure } from '@/pages/imports/utils/commitFailure'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
@@ -75,6 +76,9 @@ export interface CompletedImport<TResult, TSkipped> {
   result: TResult
   skippedRowsAtCommit: TSkipped[]
 
+  /** How many rows the import left out for being dated outside its chosen dates */
+  outsideRangeCountAtCommit: number
+
   // Set when a save thought interrupted had landed, so what the screen shows is that earlier
   // import rather than the one just asked for, which was never sent
   savedEarlier: boolean
@@ -133,6 +137,7 @@ export interface ImportRunRequests<TResult> {
 /** An attempt as it was started, kept so Try again can start it the same way */
 interface ImportRunStart<TResult, TSkipped> {
   skippedRowsAtCommit: TSkipped[]
+  outsideRangeCountAtCommit: number
   answers: object
   requests: ImportRunRequests<TResult>
 }
@@ -166,6 +171,7 @@ export function createImportRunController<TResult, TSkipped>({
   // staged. They decide whether an import can save that upload as it is, and what saving it reports
   let stagedAnswers: object | null = null
   let stagedSkippedRows: TSkipped[] = []
+  let stagedOutsideRangeCount = 0
   let lastStart: ImportRunStart<TResult, TSkipped> | null = null
 
   const update = (patch: Partial<ImportRunState<TResult, TSkipped>>) => {
@@ -189,7 +195,12 @@ export function createImportRunController<TResult, TSkipped>({
    * one go ahead. One that had landed is answered with what it wrote, and one the server gave no
    * answer about stays kept, so the next attempt asks again
    */
-  const runAttempt = async ({ skippedRowsAtCommit, answers, requests }: ImportRunStart<TResult, TSkipped>) => {
+  const runAttempt = async ({
+    skippedRowsAtCommit,
+    outsideRangeCountAtCommit,
+    answers,
+    requests,
+  }: ImportRunStart<TResult, TSkipped>) => {
     const currentAttemptId = attemptId + 1
     attemptId = currentAttemptId
     const controller = new AbortController()
@@ -197,6 +208,7 @@ export function createImportRunController<TResult, TSkipped>({
     const keptRunId = state.stagedRunId
     const keptAnswers = stagedAnswers
     const keptSkippedRows = stagedSkippedRows
+    const keptOutsideRangeCount = stagedOutsideRangeCount
     const savingKeptUpload = keptRunId !== null && keptAnswers === answers
     const firstStage: ImportRunStage = savingKeptUpload ? 'saving' : 'uploading'
 
@@ -224,6 +236,7 @@ export function createImportRunController<TResult, TSkipped>({
     // this attempt is still working out what became of it, and the new upload once one is sent
     let runAnswers = keptAnswers ?? answers
     let runSkippedRows = keptRunId ? keptSkippedRows : skippedRowsAtCommit
+    let runOutsideRangeCount = keptRunId ? keptOutsideRangeCount : outsideRangeCountAtCommit
 
     try {
       let result: TResult
@@ -242,16 +255,23 @@ export function createImportRunController<TResult, TSkipped>({
         } else {
           runAnswers = answers
           runSkippedRows = skippedRowsAtCommit
+          runOutsideRangeCount = outsideRangeCountAtCommit
           result = await requests.upload(controller.signal, handOverToSaving)
         }
       }
       if (attemptId !== currentAttemptId) return
       stagedAnswers = null
       stagedSkippedRows = []
+      stagedOutsideRangeCount = 0
       update({
         canStop: false,
         stagedRunId: null,
-        completedImport: { result, skippedRowsAtCommit: runSkippedRows, savedEarlier },
+        completedImport: {
+          result,
+          skippedRowsAtCommit: runSkippedRows,
+          outsideRangeCountAtCommit: runOutsideRangeCount,
+          savedEarlier,
+        },
       })
 
       // The last stage is struck off while the overlay is still importing, so it lands as visibly
@@ -270,6 +290,7 @@ export function createImportRunController<TResult, TSkipped>({
       if (failure.discardableRunId) discardStagedRun(failure.discardableRunId)
       stagedAnswers = failure.retryableRunId ? runAnswers : null
       stagedSkippedRows = failure.retryableRunId ? runSkippedRows : []
+      stagedOutsideRangeCount = failure.retryableRunId ? runOutsideRangeCount : 0
       update({
         canStop: false,
         stagedRunId: failure.retryableRunId,
@@ -293,11 +314,19 @@ export function createImportRunController<TResult, TSkipped>({
      *
      * @param skippedRowsAtCommit - Rows the import leaves out, captured before the first await since
      *   the response can outlive the mappings used for its request
+     * @param outsideRangeCountAtCommit - How many rows the import leaves out for being dated outside
+     *   its chosen dates, captured with them for the same reason. Zero for an import with no dates
+     *   to choose
      * @param answers - The answers the import is sent with, which a failure is reported against
      * @param requests - How the import reaches the server
      */
-    start: (skippedRowsAtCommit: TSkipped[], answers: object, requests: ImportRunRequests<TResult>) => {
-      lastStart = { skippedRowsAtCommit, answers, requests }
+    start: (
+      skippedRowsAtCommit: TSkipped[],
+      outsideRangeCountAtCommit: number,
+      answers: object,
+      requests: ImportRunRequests<TResult>,
+    ) => {
+      lastStart = { skippedRowsAtCommit, outsideRangeCountAtCommit, answers, requests }
       return runAttempt(lastStart)
     },
 
@@ -435,4 +464,21 @@ export function getSkippedRowsDisplay<TResult, TSkipped>({
       ? `${totalCount} row${plural} ${totalCount === 1 ? 'was' : 'were'} not imported`
       : `${totalCount} row${plural} will not be imported`,
   }
+}
+
+/**
+ * Says how many rows the chosen dates leave out, or null where none are or which ones is unknown.
+ * Once the import has run, the count is the one it was started with and the note is in the past
+ * tense, for the reason the skipped rows are
+ */
+export function getOutsideRangeRowsNote<TResult, TSkipped>({
+  liveCount,
+  completedImport,
+}: {
+  liveCount: number | null
+  completedImport: CompletedImport<TResult, TSkipped> | null
+}) {
+  const count = completedImport ? completedImport.outsideRangeCountAtCommit : liveCount
+  if (count === null || count === 0) return null
+  return getRowsOutsideDateRangeExplanation(count, Boolean(completedImport))
 }

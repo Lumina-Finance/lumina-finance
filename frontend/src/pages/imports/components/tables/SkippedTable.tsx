@@ -1,4 +1,4 @@
-import { Fragment, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useReducedMotion } from 'motion/react'
 import { ChevronDown, TriangleAlert } from 'lucide-react'
 import { SkippedRowsReviewContext } from '@/contexts/SkippedRowsReviewContext'
@@ -7,8 +7,7 @@ import { IMPORT_INSET_STYLE, SKIPPED_TABLE_VISIBLE_LIMIT } from '@/pages/imports
 // Shown in place of blank values so empty cells still read as present
 const EMPTY_CELL_PLACEHOLDER = '–'
 
-// Caps the expanded table at roughly five rows, each with a one-line reason, plus the header, after
-// which the rows scroll vertically inside the panel
+// Caps the height of the expanded table, after which the rows scroll vertically inside the panel
 const SKIPPED_TABLE_MAX_HEIGHT = '21rem'
 
 // The frozen cells blend into the panel and stand apart through text colour
@@ -39,14 +38,17 @@ function buildFrozenLeadCellStyle(leadColumnWidth: string): CSSProperties {
   }
 }
 
-// The reason spans the row under the values and holds still at the scroller's width, so it reads
-// at full width wherever the columns above it are scrolled to
+// A group's reason spans the table above its rows and holds still at the scroller's width, so it
+// reads at full width wherever the columns beneath it are scrolled to
 const REASON_LINE_STYLE: CSSProperties = {
   position: 'sticky',
   left: 0,
   width: '100cqw',
-  color: 'var(--app-accent)',
 }
+
+// The room above every group's reason after the first, so the groups read as separate blocks and
+// the hairlines between a group's own rows stay the quieter division
+const GROUP_GAP_CLASS_NAME = 'pt-5'
 
 // Header cells pin to the top of the vertical scroller, and the two frozen
 // header cells sit above everything because they pin on both axes
@@ -71,13 +73,27 @@ const AMOUNT_VALUE_CLASS_NAME = 'font-financial tabular-nums'
 
 /**
  * One skipped item shaped for the table: the frozen lead cell, the scrolling
- * values keyed by column header, and the skip reason under them
+ * values keyed by column header, and the reason it is grouped under with the rows sharing it
  */
 export interface ImportSkippedTableRow {
   key: string
   lead: ReactNode
   reason: string
   cells: Record<string, string>
+}
+
+/**
+ * Splits rows into groups sharing one reason word for word, in the order each reason first appears,
+ * with the rows of a group in the order they were given
+ */
+function groupRowsByReason(rows: ImportSkippedTableRow[]) {
+  const groups = new Map<string, ImportSkippedTableRow[]>()
+  for (const row of rows) {
+    const group = groups.get(row.reason)
+    if (group) group.push(row)
+    else groups.set(row.reason, [row])
+  }
+  return [...groups].map(([reason, groupRows]) => ({ reason, rows: groupRows }))
 }
 
 /**
@@ -93,12 +109,14 @@ function RawCellValue({ value }: { value: string }) {
  * Collapsible panel listing rows the import has something to say about, keeping
  * only the count headline visible until expanded, then freezing the lead cell
  * on the left while every other column scrolls horizontally beside it, with
- * each row's note on a line of its own underneath, capped to a visible sample
+ * the rows grouped under the note they share, capped to a visible sample
  * with the hidden remainder summarized underneath
  *
- * The note sits under the values rather than in a column of its own, so a long
- * one reads in a few lines without making its row tall or taking the room the
- * file's columns need, which a phone has little of
+ * Each note is said once on a line of its own above its group rather than in a
+ * column or under every row, so a long one reads in a few lines without making
+ * a row tall or taking the room the file's columns need, which a phone has
+ * little of. A group is a body of its own headed by its note as a row group
+ * header, so a screen reader reads each row with the note it falls under
  */
 export function ImportSkippedTable({
   title,
@@ -138,8 +156,8 @@ export function ImportSkippedTable({
   tone?: 'warning' | 'danger'
 
   /**
-   * What each row's note is called to a screen reader. Reason is the right word for a refusal and the wrong
-   * one for a note against a row that imports as it stands
+   * What the note a group of rows sits under is called to a screen reader. Reason is the right word for a
+   * refusal and the wrong one for a note against rows that import as they stand
    */
   reasonHeader?: string
 
@@ -175,6 +193,8 @@ export function ImportSkippedTable({
   }, [answeredReviewCount, shouldReduceMotion])
 
   const visibleRows = rows.slice(0, SKIPPED_TABLE_VISIBLE_LIMIT)
+  const reasonGroups = groupRowsByReason(visibleRows)
+  const reasonColor = tone === 'danger' ? 'var(--app-negative)' : 'var(--app-warning-text)'
 
   // Measured against the total the caller states rather than the rows it passed, so a caller
   // holding more entries than it shapes for the table still summarizes all of them
@@ -247,10 +267,25 @@ export function ImportSkippedTable({
                   ))}
                 </tr>
               </thead>
-              <tbody>
-                {visibleRows.map((row) => (
-                  <Fragment key={row.key}>
-                    <tr>
+              {reasonGroups.map((group, groupIndex) => (
+                <tbody key={group.reason}>
+                  <tr>
+                    <th
+                      scope="rowgroup"
+                      colSpan={headers.length + 1}
+                      className={`pb-1.5 text-left font-medium ${groupIndex > 0 ? GROUP_GAP_CLASS_NAME : ''}`}
+                    >
+                      <div
+                        className="box-border whitespace-normal break-words pr-4 text-pretty"
+                        style={{ ...REASON_LINE_STYLE, color: reasonColor }}
+                      >
+                        <span className="sr-only">{`${reasonHeader}: `}</span>
+                        <span>{group.reason}</span>
+                      </div>
+                    </th>
+                  </tr>
+                  {group.rows.map((row) => (
+                    <tr key={row.key}>
                       <td
                         className={`py-1.5 pr-3 align-top ${leadCellClassName}`}
                         style={{ ...frozenLeadCellStyle, ...BODY_CELL_BORDER_STYLE, color: 'var(--app-accent)' }}
@@ -267,17 +302,9 @@ export function ImportSkippedTable({
                         </td>
                       ))}
                     </tr>
-                    <tr>
-                      <td colSpan={headers.length + 1} className="pb-2">
-                        <div className="box-border whitespace-normal break-words pr-4 text-pretty" style={REASON_LINE_STYLE}>
-                          <span className="sr-only">{`${reasonHeader}: `}</span>
-                          <span>{row.reason}</span>
-                        </div>
-                      </td>
-                    </tr>
-                  </Fragment>
-                ))}
-              </tbody>
+                  ))}
+                </tbody>
+              ))}
             </table>
           </div>
           {hiddenCount > 0 && (

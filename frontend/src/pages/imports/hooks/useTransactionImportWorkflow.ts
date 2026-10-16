@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
 import { getImportFileName } from '@/api/import-runs'
+import { useTransactions } from '@/api/transactions'
 import {
   useCommitStagedImport,
   useImportTransactions,
@@ -10,7 +11,7 @@ import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import { useAuth } from '@/hooks/useAuth'
 import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
-import type { ColumnMap, ColumnTarget, ColumnValidationErrors, CsvReadingChoices, ImportAmountDirection, ImportCategoryKind, ImportFileDraft, ImportRowProblem, PreviewTransactionRow } from '@/pages/imports/types'
+import type { ColumnMap, ColumnTarget, ColumnValidationErrors, CsvReadingChoices, ImportAmountDirection, ImportCategoryKind, ImportDateRange, ImportFileDraft, ImportRowProblem, PreviewTransactionRow } from '@/pages/imports/types'
 import {
   buildColumnTargetOptions,
   buildImportAnswerScope,
@@ -35,6 +36,14 @@ import {
   isImportableAccount,
   getStatedCurrencyByAccountSource,
   getColumnValues,
+  countImportRowsOutsideDateRange,
+  getImportDateRangeFilter,
+  getLatestStartSuggestion,
+  getLatestTransactionFilters,
+  getNextImportDateRange,
+  includeEveryImportRow,
+  isImportDateRangeCrossed,
+  WHOLE_FILE_DATE_RANGE,
   getMissingRequiredColumnLabels,
   getNextAutoFilledColumnHeaders,
   getNextColumnMap,
@@ -71,12 +80,14 @@ import {
   emptyScopedImportAnswers,
   type ImportDelimiter,
   type ScopedImportAnswers,
+  type CsvImportAnswers,
 } from '@/pages/imports/utils'
 import { waitForMilliseconds } from '@/utils/timing'
 import { useImportAccountCreateState } from './useImportAccountCreateState'
 import { useImportMerchantMatches } from './useImportMerchantMatches'
 import { useImportReferenceData } from './useImportReferenceData'
 import { useImportRun } from './useImportRun'
+import { useUnchangedImportAnswers } from './useUnchangedImportAnswers'
 
 const FILE_ACCOUNT_MATCH_KEY = '__file_account__'
 
@@ -140,9 +151,54 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const [scopedAccountMappings, setScopedAccountMappings] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
   const [accountAutoMatchKey, setAccountAutoMatchKey] = useState('')
 
+  const [dateFormatChoice, setDateFormatChoice] = useState(
+    () => createImportFormatChoiceState<ImportDateFormat>(''),
+  )
+
+  // Detected and checked over every row in the file, whatever dates are chosen, since the chosen
+  // dates can only be read once the format is settled
+  const dateValues = useMemo(
+    () => (columnMap.dt ? getColumnValues(files, columnMap.dt) : []),
+    [columnMap.dt, files],
+  )
+  const dateFormatScan = useMemo(
+    () => scanImportDateFormatChoices(dateValues, 'automatic', timeZone),
+    [dateValues, timeZone],
+  )
+  const dateFormatScope = buildImportDateFormatScope(columnMap, files)
+  const dateFormat = resolveImportFormatChoice(dateFormatChoice, dateFormatScope, dateFormatScan.automatic)
+  const dateFormatAutomatic = dateFormatScan.automatic !== null
+    && (dateFormatChoice.scope !== dateFormatScope || dateFormatChoice.chosen === null)
+
+  // The dates the import is limited to. Kept apart from the column mapping, since the mapping
+  // describes the file while the range is a choice about this one import
+  const [dateRange, setDateRange] = useState<ImportDateRange>(WHOLE_FILE_DATE_RANGE)
+  const dateRangeFilter = useMemo(
+    () => getImportDateRangeFilter({ columnMap, dateFormat, timeZone, dateRange }),
+    [columnMap, dateFormat, dateRange, timeZone],
+  )
+
+  // Every question about the file's values is asked about the rows the import takes, so a name only
+  // rows outside the chosen dates carry is not asked about. A range that cannot be applied yet asks
+  // about every row, which is what the import holds until the dates or the format are put right
+  const isRowIncluded = dateRangeFilter ?? includeEveryImportRow
+  const outsideRangeRowCount = useMemo(
+    () => countImportRowsOutsideDateRange(files, dateRangeFilter),
+    [dateRangeFilter, files],
+  )
+  const isDateRangeCrossed = isImportDateRangeCrossed(columnMap, dateRange)
+
+  // Offered rather than filled in, so the start stays empty unless the user asks for it
+  const { data: latestTransactions } = useTransactions(getLatestTransactionFilters(fixedAccount?.id ?? null))
+  const latestStartSuggestion = getLatestStartSuggestion(latestTransactions?.[0]?.dt)
+
+  const setDateRangeEnd =(end: keyof ImportDateRange, value: string, isPartlyTyped: boolean) => {
+    setDateRange((current) => getNextImportDateRange(current, end, value, isPartlyTyped))
+  }
+
   const accountMappingSources = useMemo(
-    () => buildImportAccountMappingSources(files, columnMap.account_id, columnMap.counterparty_account_id),
-    [columnMap.account_id, columnMap.counterparty_account_id, files],
+    () => buildImportAccountMappingSources(files, columnMap.account_id, columnMap.counterparty_account_id, isRowIncluded),
+    [columnMap.account_id, columnMap.counterparty_account_id, files, isRowIncluded],
   )
 
   // The account sources come from two columns, so an answer is about whichever of them supplied it
@@ -203,9 +259,6 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const [tagHandlingOpen, setTagHandlingOpen] = useState(true)
   const [columnValidationErrors, setColumnValidationErrors] = useState<ColumnValidationErrors>({})
 
-  const [dateFormatChoice, setDateFormatChoice] = useState(
-    () => createImportFormatChoiceState<ImportDateFormat>(''),
-  )
   const [amountFormatChoice, setAmountFormatChoice] = useState(
     () => createImportFormatChoiceState<ImportAmountFormat>(''),
   )
@@ -240,48 +293,32 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   // auto-filled answer against what that save created, and that must not read as the user changing
   // an answer, or Commit import would settle the kept upload instead of saving it. The fixed
   // account is held by its id, since its object is replaced whenever the accounts list is read
-  const importAnswers = useMemo(
-    () => ({
-      files,
-      storedColumnMap,
-      fixedAccountId: fixedAccount?.id ?? null,
-      scopedAccountMappings,
-      accountCreateTypes,
-      accountCreateCurrencies,
-      accountCreateInstitutions,
-      dateFormatChoice,
-      amountFormatChoice,
-      scopedDirectionAnswers,
-      scopedCategoryMappings,
-      scopedCategoryCreateKinds,
-      scopedCategoryCreateNames,
-      scopedMerchantMappings,
-      scopedMerchantCreateNames,
-    }),
-    [
-      accountCreateCurrencies,
-      accountCreateInstitutions,
-      accountCreateTypes,
-      amountFormatChoice,
-      dateFormatChoice,
-      files,
-      fixedAccount?.id,
-      scopedAccountMappings,
-      scopedCategoryCreateKinds,
-      scopedCategoryCreateNames,
-      scopedCategoryMappings,
-      scopedDirectionAnswers,
-      scopedMerchantCreateNames,
-      scopedMerchantMappings,
-      storedColumnMap,
-    ],
-  )
+  const importAnswers = useUnchangedImportAnswers<CsvImportAnswers>({
+    files,
+    storedColumnMap,
+    fixedAccountId: fixedAccount?.id ?? null,
+    scopedAccountMappings,
+    accountCreateTypes,
+    accountCreateCurrencies,
+    accountCreateInstitutions,
+    dateFormatChoice,
+    dateRange,
+    amountFormatChoice,
+    scopedDirectionAnswers,
+    scopedCategoryMappings,
+    scopedCategoryCreateKinds,
+    scopedCategoryCreateNames,
+    scopedMerchantMappings,
+    scopedMerchantCreateNames,
+  })
 
   const run = useImportRun<TransactionImportResponse, ImportRowProblem>({
     answers: importAnswers,
     uploadLabel: CSV_UPLOAD_LABEL,
     mutations: [importTransactions, commitStagedImport],
-    formatSummary: ({ result, skippedRowsAtCommit }) => formatImportSummary(result, skippedRowsAtCommit.length),
+    formatSummary: ({ result, skippedRowsAtCommit, outsideRangeCountAtCommit }) => (
+      formatImportSummary(result, skippedRowsAtCommit.length, outsideRangeCountAtCommit)
+    ),
   })
 
   const categoryMappings = useMemo(
@@ -377,8 +414,8 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   // What each account source's own rows say its currency is, which is what a row creating an
   // account starts out holding
   const statedAccountCurrencies = useMemo(
-    () => getStatedCurrencyByAccountSource(files, columnMap.account_id, columnMap.currency, supportedCurrencyCodes),
-    [columnMap.account_id, columnMap.currency, files, supportedCurrencyCodes],
+    () => getStatedCurrencyByAccountSource(files, columnMap.account_id, columnMap.currency, supportedCurrencyCodes, isRowIncluded),
+    [columnMap.account_id, columnMap.currency, files, isRowIncluded, supportedCurrencyCodes],
   )
 
   const headers = useMemo(
@@ -400,22 +437,9 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   // will be filed under a merchant that ships with the app without waiting on the account and
   // category answers the payload build needs
   const rowsWithNoMerchantCount = useMemo(
-    () => countRowsWithNoMerchant(files, columnMap.merchant_id),
-    [columnMap.merchant_id, files],
+    () => countRowsWithNoMerchant(files, columnMap.merchant_id, isRowIncluded),
+    [columnMap.merchant_id, files, isRowIncluded],
   )
-
-  const dateValues = useMemo(
-    () => (columnMap.dt ? getColumnValues(files, columnMap.dt) : []),
-    [columnMap.dt, files],
-  )
-  const dateFormatScan = useMemo(
-    () => scanImportDateFormatChoices(dateValues, 'automatic', timeZone),
-    [dateValues, timeZone],
-  )
-  const dateFormatScope = buildImportDateFormatScope(columnMap, files)
-  const dateFormat = resolveImportFormatChoice(dateFormatChoice, dateFormatScope, dateFormatScan.automatic)
-  const dateFormatAutomatic = dateFormatScan.automatic !== null
-    && (dateFormatChoice.scope !== dateFormatScope || dateFormatChoice.chosen === null)
 
   const amountFormatScope = buildImportAmountFormatScope(columnMap, files)
   const amountFormatScan = useMemo(
@@ -465,11 +489,12 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setAmountFormatChoice(chooseImportFormat(amountFormatScope, format))
   }
 
-  // Every distinct word the mapped Direction column holds, which is what the panel asks about and
-  // what the commit checks has been answered. Empty where no such column is mapped
+  // Every distinct word the mapped Direction column holds in the rows the import takes, which is what
+  // the panel asks about and what the commit checks has been answered. Empty where no such column is
+  // mapped. Whether the column holds too many words to be a direction is still judged on every row
   const directionValues = useMemo(
-    () => (columnMap.amount_direction ? getImportDirectionValues(files, columnMap.amount_direction) : []),
-    [columnMap.amount_direction, files],
+    () => (columnMap.amount_direction ? getImportDirectionValues(files, columnMap.amount_direction, isRowIncluded) : []),
+    [columnMap.amount_direction, files, isRowIncluded],
   )
 
   // Answers belong to the column they were given for, the way the date format choice does, so the
@@ -649,13 +674,13 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   )
 
   const importedCategories = useMemo(
-    () => getImportedCategories(files, columnMap, directionAnswers, amountFormat),
-    [amountFormat, columnMap, directionAnswers, files],
+    () => getImportedCategories(files, columnMap, directionAnswers, amountFormat, isRowIncluded),
+    [amountFormat, columnMap, directionAnswers, files, isRowIncluded],
   )
 
   const importedMerchants = useMemo(
-    () => getImportedMerchants(files, columnMap.merchant_id),
-    [columnMap.merchant_id, files],
+    () => getImportedMerchants(files, columnMap.merchant_id, isRowIncluded),
+    [columnMap.merchant_id, files, isRowIncluded],
   )
 
   const {
@@ -673,13 +698,13 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   } = useImportMerchantMatches(importedMerchants)
 
   const categoryTypesBySource = useMemo(
-    () => getImportedCategoryTypes(files, columnMap, importedCategories, directionAnswers, amountFormat),
-    [amountFormat, columnMap, directionAnswers, importedCategories, files],
+    () => getImportedCategoryTypes(files, columnMap, importedCategories, directionAnswers, amountFormat, isRowIncluded),
+    [amountFormat, columnMap, directionAnswers, importedCategories, files, isRowIncluded],
   )
 
   const importedTags = useMemo(
-    () => getImportedTags(files, columnMap.tag_ids),
-    [columnMap.tag_ids, files],
+    () => getImportedTags(files, columnMap.tag_ids, isRowIncluded),
+    [columnMap.tag_ids, files, isRowIncluded],
   )
 
   const canInferCategoryMappings = categoryAutoMatchKey === (columnMap.category_id || NO_CATEGORY_COLUMN_MATCH_KEY)
@@ -768,6 +793,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       currencies,
       dateFormat,
       timeZone,
+      dateRange,
       amountFormat,
       directionAnswers,
       files,
@@ -791,6 +817,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       currencies,
       columnMap,
       dateFormat,
+      dateRange,
       amountFormat,
       directionAnswers,
       files,
@@ -815,6 +842,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       columnMap,
       dateFormat,
       timeZone,
+      dateRange,
       amountFormat,
       directionAnswers,
       missingRequiredColumnLabels,
@@ -831,7 +859,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       resolvedCategoryMappings,
       rowProblems: importBuild.rowProblems,
     }),
-    [accountById, accountCreateInstitutions, amountFormat, categoryById, categoryCreateKinds, categoryRenames, categoryTypesBySource, columnMap, currencies, dateFormat, directionAnswers, files, importBuild.rowProblems, institutionById, missingRequiredColumnLabels, resolvedAccountCreateCurrencies, resolvedAccountMappings, resolvedCategoryMappings, timeZone],
+    [accountById, accountCreateInstitutions, amountFormat, categoryById, categoryCreateKinds, categoryRenames, categoryTypesBySource, columnMap, currencies, dateFormat, dateRange, directionAnswers, files, importBuild.rowProblems, institutionById, missingRequiredColumnLabels, resolvedAccountCreateCurrencies, resolvedAccountMappings, resolvedCategoryMappings, timeZone],
   )
 
   const previewGroups = useMemo(
@@ -842,6 +870,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const totalRows = files.reduce((sum, file) => sum + file.rows.length, 0)
   const importStats = getCsvImportStats({
     rowCount: totalRows,
+    outsideRangeRowCount,
     importBuild,
     accountSources: accountMappingSources,
     accountMappings: resolvedAccountMappings,
@@ -948,9 +977,12 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
           sourceFileRef.current = selectedFile
 
           // A file uploaded over a finished import starts a new one, so the record of the last import
-          // gives way to it and its columns are read as on a first upload
+          // gives way to it and its columns are read as on a first upload, over the whole file
           const isReplacingFinishedImport = run.workflow.importResult !== null
-          if (isReplacingFinishedImport) run.resetImportRun()
+          if (isReplacingFinishedImport) {
+            run.resetImportRun()
+            setDateRange(WHOLE_FILE_DATE_RANGE)
+          }
           applyStagedFiles([draft], { startFresh: isReplacingFinishedImport })
         } finally {
           if (isCurrentWorkflowRun(workflowRun)) setIsProcessingFiles(false)
@@ -1069,9 +1101,11 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
 
   const handleCommitImport = async () => {
     const payload = importBuild.payload
-    if (!payload || !canCommitImport) return
 
-    await run.startImport(importBuild.rowProblems, {
+    // A payload is only built once the range can be applied, so the count is known whenever there is one
+    if (!payload || !canCommitImport || outsideRangeRowCount === null) return
+
+    await run.startImport(importBuild.rowProblems, outsideRangeRowCount, {
       upload: (signal, onStaged) => importTransactions.mutateAsync({
         payload,
         signal,
@@ -1102,6 +1136,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setTagHandlingOpen(true)
     setColumnValidationErrors({})
     setDateFormatChoice(createImportFormatChoiceState(''))
+    setDateRange(WHOLE_FILE_DATE_RANGE)
     setAmountFormatChoice(createImportFormatChoiceState(''))
     setScopedDirectionAnswers(emptyScopedImportAnswers)
     setScopedCategoryMappings(emptyScopedImportAnswers)
@@ -1138,6 +1173,10 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     dateFormatAutomatic,
     dateFormatScan,
     setDateFormat,
+    dateRange,
+    isDateRangeCrossed,
+    outsideRangeRowCount,
+    setDateRangeEnd,
     amountFormat,
     amountFormatAutomatic,
     amountFormatScan,
@@ -1162,6 +1201,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     matchesFailed,
     refetchMatches,
     ...run.workflow,
+    latestStartSuggestion,
     accountsLoading,
     currenciesLoading,
     uploadBlockReason: getImportUploadBlockReason(currencies, currenciesError),

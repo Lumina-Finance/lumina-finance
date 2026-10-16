@@ -19,6 +19,7 @@ import {
   getTodayYmd,
   getWeekdayIndex,
   getYmdTime,
+  isDateRangeCrossed,
   parseYmd,
   resolveTimeZone,
 } from '@/utils/date'
@@ -197,5 +198,27 @@ describe('calendar arithmetic', () => {
     expect(getIsoWeekYear(new Date(2027, 0, 1))).toBe(2026)
 
     expect(getIsoWeekYear(new Date(2026, 5, 15))).toBe(2026)
+  })
+})
+
+// A from date after the to date would otherwise be applied and come back as an empty list with no
+// reason given
+describe('range ends that exclude each other', () => {
+  it('reports a from date after the to date', () => {
+    expect(isDateRangeCrossed({ from: '2026-07-28', to: '2026-07-27' })).toBe(true)
+    expect(isDateRangeCrossed({ from: '2026-08-01', to: '2026-07-31' })).toBe(true)
+    expect(isDateRangeCrossed({ from: '2027-01-01', to: '2026-12-31' })).toBe(true)
+  })
+
+  it('allows a range in order, including both ends on the same day', () => {
+    expect(isDateRangeCrossed({ from: '2026-07-27', to: '2026-07-28' })).toBe(false)
+    expect(isDateRangeCrossed({ from: '2026-07-28', to: '2026-07-28' })).toBe(false)
+    expect(isDateRangeCrossed({ from: '2019-02-28', to: '2026-07-28' })).toBe(false)
+  })
+
+  it('leaves an end alone that names no date to compare', () => {
+    expect(isDateRangeCrossed({ from: '2026-07-28', to: '' })).toBe(false)
+    expect(isDateRangeCrossed({ from: '', to: '2026-07-28' })).toBe(false)
+    expect(isDateRangeCrossed({ from: '', to: '' })).toBe(false)
   })
 })

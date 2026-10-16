@@ -18,7 +18,7 @@ import {
 } from '@/pages/imports/constants'
 import type { ColumnMap, ImportFileDraft } from '@/pages/imports/types'
 import type { ImportAmountFormat } from '@/pages/imports/utils/amountFormats'
-import { buildImportPreviewRows, buildTransactionImportPayload, validateColumnValues } from '@/pages/imports/utils'
+import { buildImportPreviewRows, buildTransactionImportPayload, validateColumnValues, WHOLE_FILE_DATE_RANGE } from '@/pages/imports/utils'
 import { toImportMinorUnits } from '@/pages/imports/utils/valueParsers'
 
 // PKR is here because the browser reports it as having no decimal places while the app's own table
@@ -123,6 +123,7 @@ function buildPayload(
     columnValidationErrors: {},
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
+    dateRange: WHOLE_FILE_DATE_RANGE,
     amountFormat,
     directionAnswers: {},
     files: [createFile(amount, importedCurrency)],
@@ -155,6 +156,7 @@ function buildCreateAccountPayload(
     columnValidationErrors: {},
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
+    dateRange: WHOLE_FILE_DATE_RANGE,
     amountFormat,
     directionAnswers: {},
     files: [createFile(amount, importedCurrency)],
@@ -175,6 +177,7 @@ function buildPreview(
     files: [createFile(amount, importedCurrency)],
     columnMap: COLUMN_MAP,
     dateFormat: 'yearFirst',
+    dateRange: WHOLE_FILE_DATE_RANGE,
     amountFormat,
     directionAnswers: {},
     missingRequiredColumnLabels: [],

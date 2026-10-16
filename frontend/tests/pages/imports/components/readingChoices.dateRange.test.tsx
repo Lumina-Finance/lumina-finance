@@ -1,0 +1,87 @@
+/**
+ * Tests that the dates to import sit in the File step's reading choices, after Skip last rows, and
+ * show only once a column is mapped as the date
+ */
+import { renderToStaticMarkup } from 'react-dom/server'
+import { describe, expect, it, vi } from 'vitest'
+import { ImportReadingChoices } from '@/pages/imports/components'
+import type { ImportFileDraft } from '@/pages/imports/types'
+
+// The date field reads the signed-in user's time zone, which the markup does not depend on
+vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: null }) }))
+
+// The calendar is portalled into the document body, which a server render has none of
+vi.mock('@/components/date-field/CalendarPopover', () => ({ default: () => null }))
+
+const FILE: ImportFileDraft = {
+  id: 'file-1',
+  name: 'Checking.csv',
+  size: 512,
+  headers: ['Date', 'Amount'],
+  hasHeaderRow: true,
+  rows: [{ Date: '2025-01-15', Amount: '-1.00' }],
+  error: null,
+  delimiter: ',',
+  reading: {
+    headerRow: 1,
+    skipLastRows: 0,
+    preview: [
+      { rowNumber: 1, cells: ['Date', 'Amount'], isSkipped: false },
+      { rowNumber: 2, cells: ['2025-01-15', '-1.00'], isSkipped: false },
+    ],
+  },
+}
+
+/**
+ * Renders the reading choices with the dates to import on or off
+ */
+function renderChoices(
+  hasDateColumn: boolean,
+  startSuggestion: string | null = null,
+  disabled = false,
+) {
+  return renderToStaticMarkup(
+    <ImportReadingChoices
+      file={FILE}
+      disabled={disabled}
+      hasDateColumn={hasDateColumn}
+      dateRange={{ from: '', to: '' }}
+      isDateRangeCrossed={false}
+      startSuggestion={startSuggestion}
+      onDelimiterChange={() => {}}
+      onHeaderRowChange={() => {}}
+      onSkipLastRowsChange={() => {}}
+      onDateRangeChange={() => {}}
+    />,
+  )
+}
+
+describe('the dates to import in the File step', () => {
+  it('follow Skip last rows and hold both dates', () => {
+    const markup = renderChoices(true)
+    const skipLastRows = markup.indexOf('Skip last rows')
+    const datesToImport = markup.indexOf('Dates to import')
+    expect(skipLastRows).toBeGreaterThan(-1)
+    expect(datesToImport).toBeGreaterThan(skipLastRows)
+    expect(markup.indexOf('Start date')).toBeGreaterThan(datesToImport)
+    expect(markup.indexOf('End date')).toBeGreaterThan(markup.indexOf('Start date'))
+  })
+
+  it('offer the day after the latest transaction above the start date, and nothing without one', () => {
+    const label = 'Latest recorded transaction'
+    const offered = renderChoices(true, '2025-06-02')
+    expect(offered).toContain(label)
+    expect(offered.indexOf(label)).toBeGreaterThan(offered.indexOf('Start date'))
+    expect(offered.indexOf(label)).toBeLessThan(offered.indexOf('End date'))
+
+    expect(renderChoices(true, null)).not.toContain(label)
+    expect(renderChoices(true, '2025-06-02', true)).not.toContain(label)
+  })
+
+  // Not shown disabled beforehand, since a range is read through the date column
+  it('are absent while no column is mapped as the date', () => {
+    const markup = renderChoices(false)
+    expect(markup).not.toContain('Dates to import')
+    expect(markup).not.toContain('Start date')
+  })
+})

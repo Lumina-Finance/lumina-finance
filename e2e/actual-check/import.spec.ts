@@ -170,10 +170,14 @@ async function readSkippedRows(page: Page): Promise<SkippedRowCells[]> {
   const panel = page.locator('button[aria-label="Collapse skipped rows"]').locator('..')
   if (!await panel.count()) return []
   const rows: SkippedRowCells[] = []
-  for (const row of await panel.locator('tbody tr').all()) {
-    const cells = (await row.locator('td').allInnerTexts()).map((text) => (text.trim() === EMPTY_CELL ? '' : text.trim()))
-    const [date, reason, account, amount, merchant] = cells
-    rows.push({ date, reason, account, amount, merchant })
+  // Each body holds the rows sharing one reason, which its group header says once above them
+  for (const group of await panel.locator('tbody').all()) {
+    const reason = (await group.locator('th[scope="rowgroup"] span:not(.sr-only)').innerText()).trim()
+    for (const row of await group.locator('tr:has(td)').all()) {
+      const cells = (await row.locator('td').allInnerTexts()).map((text) => (text.trim() === EMPTY_CELL ? '' : text.trim()))
+      const [date, account, amount, merchant] = cells
+      rows.push({ date, reason, account, amount, merchant })
+    }
   }
   return rows
 }

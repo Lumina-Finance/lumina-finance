@@ -141,7 +141,7 @@ export interface ImportRowJudgement {
  * in such a file belongs to the one account the file itself is
  */
 export function resolveImportRow(row: CsvRow, fileId: string, context: ImportRowContext): ResolvedImportRow {
-  const { columnMap, dateFormat } = context
+  const { columnMap } = context
   const amountFormat = context.amountFormat === undefined ? DEFAULT_IMPORT_AMOUNT_FORMAT : context.amountFormat
 
   const accountSource = columnMap.account_id ? getMappedValue(row, columnMap.account_id) : fileId
@@ -156,7 +156,7 @@ export function resolveImportRow(row: CsvRow, fileId: string, context: ImportRow
     accountSource,
     categorySource: getImportRowCategorySource(row, columnMap, amountReading),
     importedDate,
-    dt: dateFormat ? readImportDate(importedDate, dateFormat, context.dateSeparator, context.timeZone) : '',
+    dt: readImportRowDate(row, context),
     amount,
     amountReading,
     amountFormat,
@@ -172,6 +172,20 @@ export function resolveImportRow(row: CsvRow, fileId: string, context: ImportRow
     currency: context.currencyByAccountSource[accountSource] ?? '',
     importedCurrency: getMappedValue(row, columnMap.currency).toUpperCase(),
   }
+}
+
+/**
+ * Reads the day a row will be saved under, empty while no date format is settled or where the cell
+ * does not read in it
+ *
+ * The date range reads rows through here as well, so the day a row is kept or left out by is the
+ * day it is saved under
+ */
+export function readImportRowDate(
+  row: CsvRow,
+  { columnMap, dateFormat, dateSeparator, timeZone }: Pick<ImportRowContext, 'columnMap' | 'dateFormat' | 'dateSeparator' | 'timeZone'>,
+) {
+  return dateFormat ? readImportDate(getMappedValue(row, columnMap.dt), dateFormat, dateSeparator, timeZone) : ''
 }
 
 /**

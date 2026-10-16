@@ -17,6 +17,7 @@ import {
   buildImportPreviewRows,
   buildTransactionImportPayload,
   countRowsWithNoMerchant,
+  WHOLE_FILE_DATE_RANGE,
 } from '@/pages/imports/utils'
 
 const CURRENCIES: Currency[] = [
@@ -85,6 +86,7 @@ function build({ merchantMapped = true }: { merchantMapped?: boolean } = {}) {
     columnValidationErrors: {},
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
+    dateRange: WHOLE_FILE_DATE_RANGE,
     directionAnswers: {},
     files: [createFile(ROWS)],
     importedCategories: ['Groceries'],
@@ -101,6 +103,7 @@ function preview(kind: Category['kind']) {
     files: [createFile(ROWS)],
     columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', category_id: 'Category', amount: 'Amount' },
     dateFormat: 'yearFirst',
+    dateRange: WHOLE_FILE_DATE_RANGE,
     directionAnswers: {},
     missingRequiredColumnLabels: [],
     currencies: CURRENCIES,

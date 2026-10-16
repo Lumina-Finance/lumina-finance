@@ -19,7 +19,7 @@ import {
   ROW_AMOUNT_UNREADABLE_REASON,
 } from '@/pages/imports/constants'
 import type { ColumnMap, CsvRow, ImportFileDraft } from '@/pages/imports/types'
-import { buildTransactionImportPayload } from '@/pages/imports/utils'
+import { buildTransactionImportPayload, WHOLE_FILE_DATE_RANGE } from '@/pages/imports/utils'
 import type { ImportAmountFormat } from '@/pages/imports/utils/amountFormats'
 
 const CURRENCIES: Currency[] = [
@@ -96,6 +96,7 @@ function build(
     columnValidationErrors,
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
+    dateRange: WHOLE_FILE_DATE_RANGE,
     amountFormat,
     directionAnswers: {},
     files: [file],

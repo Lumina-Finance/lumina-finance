@@ -19,7 +19,7 @@ import {
   MAX_IMPORT_MAPPINGS,
 } from '@/pages/imports/constants'
 import type { ColumnMap, CsvRow, ImportAccountSource, ImportFileDraft } from '@/pages/imports/types'
-import { buildTransactionImportPayload } from '@/pages/imports/utils'
+import { buildTransactionImportPayload, WHOLE_FILE_DATE_RANGE } from '@/pages/imports/utils'
 
 const CURRENCIES: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -92,6 +92,7 @@ function build(overrides: Partial<Parameters<typeof buildTransactionImportPayloa
     columnValidationErrors: {},
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
+    dateRange: WHOLE_FILE_DATE_RANGE,
     directionAnswers: {},
     files: [createFile([VALID_ROW])],
     importedCategories: ['Groceries'],

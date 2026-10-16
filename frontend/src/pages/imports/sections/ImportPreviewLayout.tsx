@@ -1,11 +1,13 @@
 import type { ComponentProps, ReactNode } from 'react'
 import { EmptyState, ImportCommitFooter, ImportPreviewList, ImportStat, ImportStep } from '@/pages/imports/components'
-import { IMPORT_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/constants'
+import { IMPORT_SAMPLE_PREVIEW_LIMIT, UNKNOWN_IMPORT_FIGURE } from '@/pages/imports/constants'
 
 /** The four figures every import's preview opens with */
 export interface ImportPreviewStats {
   rowCount: number
-  transactionEstimate: number
+
+  /** Null while how many rows the import leaves out is unknown, which a CSV import's chosen dates can leave it */
+  transactionEstimate: number | null
   newAccountCount: number
   newCategoryCount: number
 }
@@ -58,7 +60,7 @@ export function ImportPreviewLayout({
     >
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <ImportStat label="Rows" value={stats.rowCount.toString()} />
-        <ImportStat label="Will Create" value={stats.transactionEstimate.toString()} />
+        <ImportStat label="Will Create" value={stats.transactionEstimate?.toString() ?? UNKNOWN_IMPORT_FIGURE} />
         <ImportStat label="New Accounts" value={stats.newAccountCount.toString()} />
         <ImportStat label="New Categories" value={stats.newCategoryCount.toString()} />
       </div>

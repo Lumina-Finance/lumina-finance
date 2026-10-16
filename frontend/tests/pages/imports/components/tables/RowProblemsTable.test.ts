@@ -1,11 +1,11 @@
 /**
  * Tests the import's lists of rows left out and rows worth a look, so the columns holding amounts line
  * up on the right in tabular figures as the preview's amounts do, while the rest stay on the left and
- * every value reads exactly as the file wrote it
+ * every value reads exactly as the file wrote it, and rows sharing a reason read under it once
  */
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { ImportRowProblemsTable, ImportRowWarningsTable } from '@/pages/imports/components'
 import type { ImportRowProblem } from '@/pages/imports/types'
 import { expectAmountColumns } from './fixtures'
@@ -36,5 +36,27 @@ describe('the import\'s row problem tables', () => {
     }))
 
     expectAmountColumns(markup, { headers: ['Amount', 'Money In'], values: ['-42.50', '7.00'], others: ['Date', 'Notes'] })
+  })
+
+  // Rows sharing a reason read under it once, so a long reason isn't repeated down the list
+  it('says each reason once above the rows sharing it, in the order reasons first appear', () => {
+    const rowProblems: ImportRowProblem[] = [
+      { id: 'a', rowNumber: 2, cells: { Notes: 'first-b' }, reason: 'Reason B.' },
+      { id: 'b', rowNumber: 3, cells: { Notes: 'second-a' }, reason: 'Reason A.' },
+      { id: 'c', rowNumber: 4, cells: { Notes: 'third-b' }, reason: 'Reason B.' },
+    ]
+    const markup = renderToStaticMarkup(createElement(ImportRowProblemsTable, {
+      title: '3 rows not imported',
+      rowProblems,
+      headers: ['Notes'],
+      amountHeaders: [],
+      toggleLabel: 'skipped rows',
+    }))
+
+    expect(markup.split('Reason B.')).toHaveLength(2)
+    expect(markup.split('Reason A.')).toHaveLength(2)
+    const order = ['Reason B.', 'first-b', 'third-b', 'Reason A.', 'second-a'].map((text) => markup.indexOf(text))
+    expect(order).toEqual([...order].sort((a, b) => a - b))
+    expect(order[0]).toBeGreaterThan(-1)
   })
 })

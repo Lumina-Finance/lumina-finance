@@ -11,7 +11,7 @@ import {
   ROW_DATE_UNREADABLE_REASON,
 } from '@/pages/imports/constants'
 import type { ColumnMap, ImportFileDraft } from '@/pages/imports/types'
-import { buildTransactionImportPayload } from '@/pages/imports/utils'
+import { buildTransactionImportPayload, WHOLE_FILE_DATE_RANGE } from '@/pages/imports/utils'
 import type { ImportDateFormat, ImportDateSeparator } from '@/pages/imports/utils/valueParsers'
 
 // The account these rows are written to has no currency of its own in this file's fixtures, so the
@@ -78,6 +78,7 @@ function build(
     columnMap: COLUMN_MAP,
     columnValidationErrors,
     dateFormat,
+    dateRange: WHOLE_FILE_DATE_RANGE,
     dateSeparator,
     timeZone,
     directionAnswers: {},

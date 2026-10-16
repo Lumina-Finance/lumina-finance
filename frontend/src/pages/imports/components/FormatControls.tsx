@@ -129,6 +129,9 @@ function getAmountFormatExample(format: ImportAmountFormat) {
 /**
  * Picks the separator the staged CSV file is read with, showing the one the reader detected until the
  * user chooses another, which reads the file again
+ *
+ * It carries no visible name, since the setting's row names it, and it fills the width it is given.
+ * It is drawn at the compact height, since a settings row is shorter than a field
  */
 export function ImportDelimiterControl({
   delimiter,
@@ -150,12 +153,5 @@ export function ImportDelimiterControl({
     symbol: candidate,
   }))
 
-  return (
-    <div className="flex flex-col gap-1.5">
-      <p aria-hidden className="text-sm font-medium">
-        Separator
-      </p>
-      <ImportSegmentedToggle options={options} value={delimiter} label="Separator" onChange={onChange} hasError={hasError} disabled={disabled} />
-    </div>
-  )
+  return <ImportSegmentedToggle options={options} value={delimiter} label="Separator" onChange={onChange} hasError={hasError} disabled={disabled} compact />
 }

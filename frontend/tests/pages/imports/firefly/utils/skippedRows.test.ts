@@ -229,6 +229,7 @@ describe('getSkippedRowsDisplay after a Firefly III commit', () => {
       completedImport: {
         result: importResult,
         skippedRowsAtCommit: predictionAtCommit.skippedRows,
+        outsideRangeCountAtCommit: 0,
         savedEarlier: false,
       },
     })).toEqual({

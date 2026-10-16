@@ -62,6 +62,22 @@ export type ImportAmountSideTarget = 'amount_out' | 'amount_in'
 export type ColumnMap = Record<ColumnTarget, string>
 export type ColumnValidationErrors = Record<string, string>
 export type CsvRow = Record<string, string>
+
+/**
+ * Decides whether a row takes part in the import. It reads the row's own cells and never its
+ * position, so a row filtered out keeps the id and row number everything else knows it by
+ */
+export type ImportRowFilter = (row: CsvRow) => boolean
+
+/**
+ * The dates an import is limited to, both ends included. Each end is a whole yyyy-mm-dd day, empty
+ * for no limit on that side, or null while it is only partly typed, which blocks the import rather
+ * than reading as no limit
+ */
+export type ImportDateRange = {
+  from: string | null
+  to: string | null
+}
 export type ImportCategoryKind = Category['kind']
 export type ImportDataSource = 'generic' | 'firefly' | 'actual'
 export type ImportOverlayPhase = 'idle' | 'importing' | 'success' | 'error' | 'cancelled'

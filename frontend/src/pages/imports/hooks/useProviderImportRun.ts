@@ -52,7 +52,8 @@ export function useProviderImportRun<TSkipped>({
    */
   const startImport = async ({ skippedRows, ...request }: Omit<JournalImportRequest, 'source'> & { skippedRows: TSkipped[] }) => {
     const journalRequest: JournalImportRequest = { source, ...request }
-    await run.startImport(skippedRows, {
+    // An import from another app takes no date range, so no row is left out for its date
+    await run.startImport(skippedRows, 0, {
       upload: (signal, onStaged) => importJournal.mutateAsync({ request: journalRequest, signal, onStaged }),
       commit: (runId, signal) => commitStagedJournal.mutateAsync({ runId, signal }),
     })

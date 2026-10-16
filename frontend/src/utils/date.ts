@@ -218,6 +218,18 @@ export function formatShortDateRangeLabel(from: string, to: string, currentYear:
 }
 
 /**
+ * Reports whether a range's two ends exclude each other, which no date can satisfy
+ *
+ * Each end holds a complete ISO yyyy-mm-dd date or nothing at all, so the two compare as plain
+ * strings. An end left blank, or still being typed, cannot cross the other
+ *
+ * @param dateRange - The from and to dates as the fields hold them
+ */
+export function isDateRangeCrossed({ from, to }: { from: string; to: string }): boolean {
+  return from !== '' && to !== '' && from > to
+}
+
+/**
  * Reads a "YYYY-MM-DD" string into a time value that can be ordered arithmetically
  *
  * Sorting reads each date once into a number rather than comparing the strings, which would follow
