@@ -6,6 +6,7 @@ import {
   JOURNAL_ROW_FIELD_MAX_LENGTHS,
   MAX_IMPORT_NOTES_LENGTH,
   MAX_IMPORT_TAGS_PER_ROW,
+  getImportMerchantTooLongReason,
   getRowNotesTooLongReason,
   getRowTooManyTagsReason,
 } from '@/pages/imports/constants'
@@ -18,7 +19,6 @@ import {
   ACTUAL_TRANSACTION_DECIMALS,
   ACTUAL_TRANSFER_SIDE_LEFT_OUT_REASON,
   ACTUAL_TRANSFER_CATEGORY_SOURCE_PREFIX,
-  getActualMerchantTooLongReason,
   getActualTagTooLongReason,
   getActualUnbalancedSplitReason,
 } from '@/pages/imports/actual/constants'
@@ -313,7 +313,7 @@ function getRowLimitReason(notes: string | null, tags: string[], merchantName: s
   const longTag = tags.find((tag) => [...tag].length > IMPORT_TAG_NAME_MAX_LENGTH)
   if (longTag) return getActualTagTooLongReason(longTag)
   const merchantNameLength = [...(merchantName ?? '')].length
-  if (merchantNameLength > JOURNAL_ROW_FIELD_MAX_LENGTHS.merchantName) return getActualMerchantTooLongReason(merchantNameLength)
+  if (merchantNameLength > JOURNAL_ROW_FIELD_MAX_LENGTHS.merchantName) return getImportMerchantTooLongReason(merchantNameLength)
   return null
 }
 

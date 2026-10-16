@@ -1,5 +1,6 @@
 import { ACTUAL_EXPECTATIONS } from '@/pages/imports/actual/expectations'
 import { FIREFLY_EXPECTATIONS } from '@/pages/imports/firefly/expectations'
+import { OFX_EXPECTATIONS } from '@/pages/imports/ofx/expectations'
 import type { ImportDataSource, ImportExpectations } from '@/pages/imports/types'
 
 /**
@@ -50,5 +51,6 @@ export function getCsvExpectations(fixedAccountName: string | null): ImportExpec
 export function getImportExpectations(source: ImportDataSource, fixedAccountName: string | null): ImportExpectations {
   if (source === 'firefly') return FIREFLY_EXPECTATIONS
   if (source === 'actual') return ACTUAL_EXPECTATIONS
+  if (source === 'ofx') return OFX_EXPECTATIONS
   return getCsvExpectations(fixedAccountName)
 }

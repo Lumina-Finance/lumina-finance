@@ -47,6 +47,9 @@ export interface TransactionImportMerchantMapping {
   skip?: boolean;
 }
 
+/** The kinds of file whose rows are saved through the transaction import endpoints */
+export type TransactionImportSource = 'generic' | 'ofx';
+
 export interface TransactionImportRow {
   account_source: string;
   category_source: string;

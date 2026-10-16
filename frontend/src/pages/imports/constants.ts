@@ -364,6 +364,13 @@ export function getRowsOutsideDateRangeSummaryPart(count: number) {
 export const UNKNOWN_IMPORT_FIGURE = '—'
 
 /**
+ * Says a row's merchant name is longer than the importer takes
+ */
+export function getImportMerchantTooLongReason(length: number) {
+  return `The merchant name is ${length.toLocaleString()} characters, and the importer takes up to ${JOURNAL_ROW_FIELD_MAX_LENGTHS.merchantName}`
+}
+
+/**
  * Says a row's notes are longer than the importer stores
  */
 export function getRowNotesTooLongReason(length: number) {

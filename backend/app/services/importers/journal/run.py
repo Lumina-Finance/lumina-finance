@@ -32,6 +32,7 @@ from app.services.importers.journal.constants import JOURNAL_RUN_SOURCES
 from app.services.importers.journal.service import JournalWriteResult, write_journal_transactions
 from app.services.importers.shared.run_commit import commit_run
 from app.services.importers.shared.run_staging import (
+    describe_run_source,
     load_staging_references,
     load_uncommitted_run,
     merge_import_mappings,
@@ -40,6 +41,11 @@ from app.services.importers.shared.run_staging import (
 )
 from app.services.importers.shared.save_results import build_import_summary
 from app.utils.dates import resolve_timezone
+
+
+def _capitalize_first(text: str) -> str:
+    """Start a sentence with the text, leaving the rest as written so "CSV" keeps its capitals"""
+    return text[:1].upper() + text[1:]
 
 
 async def stage_journal_batch(
@@ -103,12 +109,15 @@ async def stage_import_budgets(db: AsyncSession, user: User, run_id: uuid.UUID, 
 
     Raises:
         HTTPException: Raised with 404 for a run that is not the caller's, 409 for a run already
-            committed or one another request is working on, and 422 for a generic CSV run, which
+            committed or one another request is working on, and 422 for a CSV or OFX run, which
             has no budgets, or a category mapping staging can already tell is unusable
     """
     run = await load_uncommitted_run(db, run_id)
-    if run.source == ImportRunSource.GENERIC:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="A CSV import has no budgets")
+    if run.source not in JOURNAL_RUN_SOURCES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"{_capitalize_first(describe_run_source(run.source))} has no budgets",
+        )
 
     references = await load_staging_references(db, user, [], data.categories)
     for category_mapping in data.categories:
@@ -132,12 +141,15 @@ async def stage_import_archive(db: AsyncSession, run_id: uuid.UUID, data: Import
 
     Raises:
         HTTPException: Raised with 404 for a run that is not the caller's, 409 for a run already
-            committed or one another request is working on, and 422 for a generic CSV run, which
+            committed or one another request is working on, and 422 for a CSV or OFX run, which
             archives nothing
     """
     run = await load_uncommitted_run(db, run_id)
-    if run.source == ImportRunSource.GENERIC:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="A CSV import archives no accounts")
+    if run.source not in JOURNAL_RUN_SOURCES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"{_capitalize_first(describe_run_source(run.source))} archives no accounts",
+        )
 
     run.archive_account_sources = data.account_sources
     await db.commit()

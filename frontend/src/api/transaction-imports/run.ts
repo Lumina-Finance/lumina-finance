@@ -5,6 +5,7 @@ import type {
   CsvImportLayout,
   TransactionImportPayload,
   TransactionImportResponse,
+  TransactionImportSource,
 } from '@/api/transaction-imports/types';
 
 const TRANSACTION_IMPORT_ROUTES: ImportRunRoutes = { rows: 'rows', commit: 'commit' };
@@ -18,6 +19,7 @@ const TRANSACTION_IMPORT_ROUTES: ImportRunRoutes = { rows: 'rows', commit: 'comm
  * @param onStaged - Runs once everything is staged, before the commit starts
  * @param fileName - Names the import with the last import
  * @param csvLayout - How the file was read, which the commit saves for the account its rows go to
+ * @param source - The kind of file the rows were read from, left out for a CSV file
  */
 export function runTransactionImport(
   payload: TransactionImportPayload,
@@ -25,9 +27,10 @@ export function runTransactionImport(
   onStaged?: () => Promise<void>,
   fileName?: string,
   csvLayout?: CsvImportLayout,
+  source?: TransactionImportSource,
 ): Promise<TransactionImportResponse> {
   return runImport<TransactionImportResponse>({
-    open: { expected_transaction_count: payload.rows.length, file_name: fileName, csv_layout: csvLayout },
+    open: { expected_transaction_count: payload.rows.length, file_name: fileName, csv_layout: csvLayout, source },
     routes: TRANSACTION_IMPORT_ROUTES,
     buildBatches: () => buildStagedImportBatches(payload),
   }, signal, onStaged);

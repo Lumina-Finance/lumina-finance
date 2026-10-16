@@ -52,7 +52,20 @@ _RUN_SOURCE_LABELS = {
     ImportRunSource.GENERIC: "a CSV import",
     ImportRunSource.FIREFLY: "a Firefly III import",
     ImportRunSource.ACTUAL_BUDGET: "an Actual Budget import",
+    ImportRunSource.OFX: "an OFX import",
 }
+
+
+def describe_run_source(source: ImportRunSource) -> str:
+    """Name the importer a run belongs to as a refusal says it, such as "a CSV import"
+
+    Args:
+        source: Importer that opened the run
+
+    Returns:
+        The name, led by its article
+    """
+    return _RUN_SOURCE_LABELS[source]
 
 
 @dataclass
@@ -316,7 +329,7 @@ def require_run_source(run: ImportRun, sources: Collection[ImportRunSource]) -> 
     if run.source not in sources:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"This import run is {_RUN_SOURCE_LABELS[run.source]}",
+            detail=f"This import run is {describe_run_source(run.source)}",
         )
 
 

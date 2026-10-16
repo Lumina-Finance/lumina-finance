@@ -3,20 +3,25 @@ import { importLayoutKeys } from '@/api/cache/queryKeys';
 import { useImportRunMutation } from '@/api/import-runs/hooks';
 import { fetchImportLayouts } from '@/api/transaction-imports/requests';
 import { commitStagedImportRun, runTransactionImport } from '@/api/transaction-imports/run';
-import type { CsvImportLayout, TransactionImportPayload } from '@/api/transaction-imports/types';
+import type {
+  CsvImportLayout,
+  TransactionImportPayload,
+  TransactionImportSource,
+} from '@/api/transaction-imports/types';
 import { useAuth } from '@/hooks/useAuth';
 
 /**
  * Provides the mutation boundary for staging a prepared import and committing it
  */
 export function useImportTransactions() {
-  return useImportRunMutation(({ payload, signal, onStaged, fileName, csvLayout }: {
+  return useImportRunMutation(({ payload, signal, onStaged, fileName, csvLayout, source }: {
     payload: TransactionImportPayload;
     signal?: AbortSignal;
     onStaged?: () => Promise<void>;
     fileName?: string;
     csvLayout?: CsvImportLayout;
-  }) => runTransactionImport(payload, signal, onStaged, fileName, csvLayout));
+    source?: TransactionImportSource;
+  }) => runTransactionImport(payload, signal, onStaged, fileName, csvLayout, source));
 }
 
 /**

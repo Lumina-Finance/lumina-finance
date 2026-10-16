@@ -7,7 +7,8 @@ import type { ImportDataSource } from '@/pages/imports/types'
 // it, so their options are flagged as beta up front rather than letting that
 // only surface once a file is staged
 const DATA_SOURCE_OPTIONS: DropdownOption[] = [
-  { value: 'generic', label: 'Generic CSV' },
+  { value: 'generic', label: 'CSV' },
+  { value: 'ofx', label: 'OFX/QFX' },
   { value: 'firefly', label: 'Firefly III', badge: 'Beta' },
   { value: 'actual', label: 'Actual Budget', badge: 'Beta' },
 ]

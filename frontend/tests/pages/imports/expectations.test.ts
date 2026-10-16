@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { ACTUAL_EXPECTATIONS } from '@/pages/imports/actual/expectations'
 import { FIREFLY_EXPECTATIONS } from '@/pages/imports/firefly/expectations'
 import { getImportExpectations } from '@/pages/imports/expectations'
+import { OFX_EXPECTATIONS } from '@/pages/imports/ofx/expectations'
 
 describe('the card saying what an import does with its data', () => {
   // The card's wording is checked by reading it against the code, so this pins only that every part
@@ -26,6 +27,39 @@ describe('the card saying what an import does with its data', () => {
     expect(getImportExpectations('generic', 'Everyday chequing').intro).toBe(
       'Each row of your file becomes one transaction in Everyday chequing.',
     )
+  })
+
+  // The card promises only what the import enforces, so each promise is pinned to the rule it states
+  it('shows an OFX card that says where a statement goes, what is refused, and what is left behind', () => {
+    const expectations = getImportExpectations('ofx', null)
+
+    expect(expectations).toBe(OFX_EXPECTATIONS)
+    expect(expectations.intro).toBe('Each transaction in your statement becomes one transaction in the account you match it to, so one file can fill several accounts.')
+    expect(expectations.deviation).toBe("The balance your bank states isn't imported. A new account starts at zero, so it only counts the transactions you import.")
+    expect(expectations.changes.map((change) => change.source)).toEqual([
+      'A payee',
+      'A memo',
+      'A transaction',
+      'A statement in another currency than its account',
+      'A new account',
+    ])
+    expect(expectations.changes.find((change) => change.source === 'A transaction')?.lumina).toBe(
+      'Filed under Miscellaneous when money goes out and Other Income when it comes in, since statements carry no categories',
+    )
+    expect(expectations.changes.find((change) => change.source.startsWith('A statement in another'))?.lumina).toMatch(/^Refused/)
+    expect(expectations.leftBehind).toEqual([
+      { group: 'Statements', items: ['Investment', 'Loan'] },
+      {
+        group: 'Transactions',
+        items: [
+          'With no readable date or amount',
+          'With an amount in another currency than their statement',
+          'With more decimal places than their currency allows',
+          'With a payee name or memo over the limits this app takes',
+        ],
+      },
+      { group: 'Not imported', items: ['Check numbers and transaction types'] },
+    ])
   })
 
   it('keeps the Firefly III and Actual Budget cards as they are', () => {
