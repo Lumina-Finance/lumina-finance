@@ -31,6 +31,24 @@ class User(Base):
     )
 
 
+class UserCreditExcludedAccount(Base):
+    """An account the user left out of the dashboard credit widget's utilization
+
+    The accounts left out are stored rather than the ones counted, so every credit account counts
+    until left out, including one added later. A row for an account the user can no longer see is
+    kept and ignored, so the choice returns if they regain access
+    """
+
+    __tablename__ = "user_credit_excluded_accounts"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    account_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("accounts.id", ondelete="CASCADE"), primary_key=True
+    )
+
+
 class UserRunwayAccount(Base):
     """User's picked liquid accounts that feed the runway calculation on the dashboard."""
 

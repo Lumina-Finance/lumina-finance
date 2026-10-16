@@ -26,7 +26,7 @@ from app.models.category import Category
 from app.models.currency import Currency
 from app.models.group import Group, GroupMember
 from app.models.transaction import Transaction
-from app.models.user import User
+from app.models.user import User, UserCreditExcludedAccount
 from tests.conftest import ScopedSession, TestSession
 
 
@@ -420,6 +420,61 @@ async def test_import_sources_follow_account_access(users):
         session.add(AccountImportSource(account_id=account.id, source="generic"))
         with pytest.raises(ProgrammingError, match="row-level security"):
             await session.flush()
+
+
+async def test_credit_exclusions_follow_their_user_and_account_access(users):
+    """Another user read a credit exclusion, or left out an account they can't reach"""
+    user_a, user_b = users
+    account = _build_account(user_a.id, "A Card")
+    async with TestSession() as session:
+        session.add(account)
+        await session.flush()
+        session.add(UserCreditExcludedAccount(user_id=user_a.id, account_id=account.id))
+        await session.commit()
+
+    async with _act_as(user_a.id) as session:
+        assert (await session.scalars(select(UserCreditExcludedAccount.account_id))).all() == [account.id]
+
+    async with _act_as(user_b.id) as session:
+        assert (await session.scalars(select(UserCreditExcludedAccount.account_id))).all() == []
+        session.add(UserCreditExcludedAccount(user_id=user_b.id, account_id=account.id))
+        with pytest.raises(ProgrammingError, match="row-level security"):
+            await session.flush()
+
+
+async def test_credit_exclusions_on_a_shared_account_stay_each_users_own(users):
+    """A user left out an account both reach in another user's name, or lost their own row for it"""
+    user_a, user_b = users
+    group = Group(owner_id=user_a.id, name="Shared")
+    async with TestSession() as session:
+        session.add(group)
+        await session.flush()
+        session.add_all([
+            GroupMember(group_id=group.id, user_id=user_a.id, is_admin=True),
+            GroupMember(group_id=group.id, user_id=user_b.id, is_admin=True),
+        ])
+        account = Account(
+            group_id=group.id,
+            account_kind=AccountKind.ASSET,
+            account_type=AccountType.CHECKING,
+            name="Shared card",
+            currency="CAD",
+        )
+        session.add(account)
+        await session.flush()
+        session.add(UserCreditExcludedAccount(user_id=user_a.id, account_id=account.id))
+        await session.commit()
+
+    async with _act_as(user_b.id) as session:
+        assert (await session.scalars(select(UserCreditExcludedAccount.user_id))).all() == []
+        session.add(UserCreditExcludedAccount(user_id=user_a.id, account_id=account.id))
+        with pytest.raises(ProgrammingError, match="row-level security"):
+            await session.flush()
+
+    async with _act_as(user_b.id) as session:
+        session.add(UserCreditExcludedAccount(user_id=user_b.id, account_id=account.id))
+        await session.flush()
+        assert (await session.scalars(select(UserCreditExcludedAccount.user_id))).all() == [user_b.id]
 
 
 async def test_cache_bump_is_refused_without_a_request_identity():

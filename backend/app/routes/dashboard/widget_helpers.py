@@ -132,6 +132,7 @@ async def get_credit_widget_for_user(
     credit_limit_total, credit_used, fx_status = await get_credit_widget(
         db,
         accounts,
+        set(),
         user.base_currency,
         now.date(),
     )

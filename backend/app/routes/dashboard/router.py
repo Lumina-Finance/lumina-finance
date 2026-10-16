@@ -22,13 +22,19 @@ from app.routes.dashboard.widget_helpers import (
     get_spending_comparison_for_user,
 )
 from app.schemas.dashboard import (
+    CreditUtilizationResponse,
     CreditWidgetResponse,
     NetWorthWidgetResponse,
     RangeKind,
     RecentActivityWidgetResponse,
+    ReplaceCreditExcludedAccountsRequest,
     SavingsRateWidgetResponse,
     SpendingBreakdownResponse,
     SpendingComparisonResponse,
+)
+from app.services.dashboard_widgets.credit_utilization import (
+    get_credit_utilization,
+    replace_credit_utilization_exclusions,
 )
 from app.utils.dates import resolve_timezone
 
@@ -157,6 +163,59 @@ async def get_credit_widget_route(
     """
     now = _get_viewer_local_now(user)
     response = await get_credit_widget_for_user(db, user, now)
+    return response
+
+
+@router.get("/credit-utilization", response_model=CreditUtilizationResponse)
+async def get_credit_utilization_route(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return the credit totals the dashboard credit widget shows
+
+    Unlike `/credit`, which totals every readable credit account, this leaves out the
+    accounts the user chose not to count, and lists the accounts they can choose between
+
+    Args:
+        user: Authenticated user requesting credit utilization
+        db: Active database session
+
+    Returns:
+        Credit utilization response
+
+    Raises:
+        HTTPException: The stored timezone does not resolve
+    """
+    now = _get_viewer_local_now(user)
+    response = await get_credit_utilization(db, user, now.date())
+    return response
+
+
+@router.put("/credit-utilization/excluded-accounts", response_model=CreditUtilizationResponse)
+async def replace_credit_excluded_accounts_route(
+    data: ReplaceCreditExcludedAccountsRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Replace the credit accounts the user leaves out of the dashboard credit widget
+
+    Rejects the whole request with 404 when an account isn't readable by the user, and
+    with 422 when it isn't a credit account with a limit. Choices stored for accounts
+    the user can't read are kept
+
+    Args:
+        data: Credit accounts to leave out
+        user: Authenticated user changing the choice
+        db: Active database session
+
+    Returns:
+        Credit utilization response reflecting the new choice
+
+    Raises:
+        HTTPException: The stored timezone does not resolve
+    """
+    now = _get_viewer_local_now(user)
+    response = await replace_credit_utilization_exclusions(db, user, data.account_ids, now.date())
     return response
 
 

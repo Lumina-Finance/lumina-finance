@@ -52,6 +52,8 @@ SECURED_TABLES = (
     ("user_cache_states", f"user_id = {CURRENT_USER_ID}()", f"user_id = {CURRENT_USER_ID}()"),
     ("user_runway_accounts", f"user_id = {CURRENT_USER_ID}()",
      f"user_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)"),
+    ("user_credit_excluded_accounts", f"user_id = {CURRENT_USER_ID}()",
+     f"user_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)"),
     ("saved_insights_ranges", f"user_id = {CURRENT_USER_ID}()", f"user_id = {CURRENT_USER_ID}()"),
     ("import_runs", f"owner_id = {CURRENT_USER_ID}()", f"owner_id = {CURRENT_USER_ID}()"),
     ("import_staged_rows", f"owner_id = {CURRENT_USER_ID}()", f"owner_id = {CURRENT_USER_ID}()"),

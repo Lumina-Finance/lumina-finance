@@ -1,4 +1,5 @@
 """Credit dashboard widget service"""
+import uuid
 from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,17 +12,35 @@ from app.services.fx import FxConverter
 from app.services.fx.currency_exponent_helpers import get_currency_exponents
 
 
+def get_credit_widget_accounts(accounts: list[Account]) -> list[Account]:
+    """Return the accounts the credit widget can count, sorted by name
+
+    Args:
+        accounts: Accounts included in the dashboard scope
+
+    Returns:
+        Revolving accounts that have a credit limit
+    """
+    eligible = [
+        account for account in accounts
+        if account.account_kind == AccountKind.REVOLVING and account.credit_limit is not None
+    ]
+    return sorted(eligible, key=lambda account: (account.name.casefold(), account.id))
+
+
 async def get_credit_widget(
     db: AsyncSession,
     accounts: list[Account],
+    excluded_account_ids: set[uuid.UUID],
     base_currency: str,
     rate_date: date,
 ) -> tuple[int, int, FxStatus]:
-    """Return credit limit and usage totals for eligible accounts
+    """Return credit limit and usage totals for the eligible accounts the user counts
 
     Args:
         db: Active database session
         accounts: Accounts included in the dashboard scope
+        excluded_account_ids: Accounts the user left out, which may include ones outside `accounts`
         base_currency: User base currency used for dashboard totals
         rate_date: Date used for FX conversion
 
@@ -29,8 +48,8 @@ async def get_credit_widget(
         Credit limit total, used credit total, and FX conversion status
     """
     credit_accounts = [
-        account for account in accounts
-        if account.account_kind == AccountKind.REVOLVING and account.credit_limit is not None
+        account for account in get_credit_widget_accounts(accounts)
+        if account.id not in excluded_account_ids
     ]
     if not credit_accounts:
         fx_status = FxStatus()

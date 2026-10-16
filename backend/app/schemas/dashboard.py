@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 from app.schemas.fx import FxStatus
+from app.schemas.institution import InstitutionResponse
 from app.schemas.transaction import TransactionResponse
 
 RangeKind = Literal["WTD", "MTD", "QTD", "YTD"]
@@ -86,10 +87,10 @@ class MonthlyIncomeExpense(BaseModel):
 
 
 class CreditWidgetResponse(BaseModel):
-    """Credit usage totals for the dashboard credit widget
+    """Credit usage totals across every readable credit account
 
-    - `credit_limit_total` sums `credit_limit` across readable non-archived
-      revolving-credit accounts converted to the user's base currency when needed
+    - `credit_limit_total` sums `credit_limit` across readable revolving-credit
+      accounts, archived ones included, converted to the user's base currency when needed
     - `credit_used` flips negative account balances into positive usage and
       treats positive stored-credit balances as zero used
     - `fx_status` reports whether foreign-currency conversions were complete,
@@ -99,6 +100,33 @@ class CreditWidgetResponse(BaseModel):
     credit_limit_total: int
     credit_used: int
     fx_status: FxStatus
+
+
+class CreditUtilizationAccount(BaseModel):
+    """A credit account the dashboard credit widget can count, and whether the user counts it"""
+
+    id: uuid.UUID
+    name: str
+    is_counted: bool
+
+    # What the chooser's rows show beside the name, so the user can tell cards apart
+    account_type: str
+    institution: InstitutionResponse | None
+
+
+class CreditUtilizationResponse(CreditWidgetResponse):
+    """Credit totals for only the accounts the user counts toward the dashboard credit widget
+
+    `accounts` lists every readable credit account that has a limit, counted or not, sorted by name
+    """
+
+    accounts: list[CreditUtilizationAccount]
+
+
+class ReplaceCreditExcludedAccountsRequest(BaseModel):
+    """The credit accounts the user leaves out of the widget's utilization"""
+
+    account_ids: list[uuid.UUID]
 
 
 class NetWorthWidgetResponse(BaseModel):
