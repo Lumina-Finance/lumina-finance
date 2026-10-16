@@ -111,7 +111,7 @@ const NO_CLEARED_SOURCES: Set<string> = new Set()
 const CSV_PROCESSING_MIN_MS = LOADING_ANIMATION_MIN_MS
 
 // What the overlay calls the upload of a CSV file
-const CSV_UPLOAD_LABEL = 'Uploading the file'
+const CSV_UPLOAD_LABEL = 'Uploading the import'
 
 /**
  * Drives the generic CSV import flow: staging one file or several with one layout, which the first

@@ -64,7 +64,7 @@ export function ImportMerchantMatchingStep({
     <ImportStep
       index="05"
       title="Merchant Matching"
-      description="Match each merchant name in the file to the merchant its rows will be filed under."
+      description="Match each merchant name in this import to the merchant its rows will be filed under."
     >
       {matchesFailed ? (
         <ImportLoadFailure

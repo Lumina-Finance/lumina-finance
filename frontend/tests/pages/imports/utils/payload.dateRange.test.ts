@@ -162,7 +162,7 @@ describe('importing a chosen range of dates', () => {
   })
 
   it('keeps saying the file has no rows to import where it has none at all', () => {
-    expect(build([], { from: '2025-03-01', to: '' }).errors).toEqual([getImportNoRowsError('file')])
+    expect(build([], { from: '2025-03-01', to: '' }).errors).toEqual([getImportNoRowsError('import')])
   })
 
   // Reading a partly typed date as no limit would write every row past the date the user meant

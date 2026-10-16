@@ -74,7 +74,7 @@ test('imports only the rows from the start date to the end date', async ({ page,
 test('puts the dates in the File section after Skip last rows and blocks the import while they are crossed', AT_EVERY_SIZE, async ({ page, request }) => {
   await uploadYear(page, request)
   const fileSection = page.locator('section').filter({ has: page.getByText('Upload one CSV transaction file, or several with the same columns.', { exact: true }) })
-  const columnMapping = page.locator('section').filter({ has: page.getByText('Specify what each column in your file holds.', { exact: true }) })
+  const columnMapping = page.locator('section').filter({ has: page.getByText('Specify what each column in this import holds.', { exact: true }) })
   await expect(fileSection.getByText('Dates to import', { exact: true })).toBeVisible()
   await expect(columnMapping.getByText('Dates to import', { exact: true })).toHaveCount(0)
 

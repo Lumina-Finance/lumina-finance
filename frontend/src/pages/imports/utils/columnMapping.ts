@@ -58,7 +58,7 @@ const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
     refusesColumn: refuseColumnOfOnlyNumbersOrDates,
   },
   dt: {
-    expected: 'valid dates in one format across the whole file',
+    expected: 'valid dates in one format across the whole import',
     requiredValues: true,
     accepts: isValidDateValue,
   },

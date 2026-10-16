@@ -134,7 +134,7 @@ describe('import payload dates', () => {
     const result = build(['03/04/2024'], null)
 
     expect(result.payload).toBeNull()
-    expect(result.errors).toContain('Choose the date format this file is written in.')
+    expect(result.errors).toContain('Choose the date format this import is written in.')
 
     // Not one entry per row saying its date does not fit a format nobody has chosen yet
     expect(result.rowProblems).toEqual([])

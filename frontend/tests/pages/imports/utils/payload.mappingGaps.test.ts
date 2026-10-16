@@ -118,7 +118,7 @@ describe('refusing an import with nothing to build a payload from', () => {
   it('refuses a file with a heading row and no problems on any of its rows, since it has none', () => {
     const result = build({ files: [createFile([])] })
 
-    expect(result.errors).toEqual(['This file has no transaction rows to import.'])
+    expect(result.errors).toEqual(['This import has no transaction rows.'])
     expect(result.payload).toBeNull()
   })
 })

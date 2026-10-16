@@ -18,7 +18,7 @@ export function getCsvExpectations(fixedAccountName: string | null): ImportExpec
   const destination = fixedAccountName ?? 'the account you map it to'
 
   return {
-    intro: `Each row of your file becomes one transaction in ${destination}.`,
+    intro: `Each row of your import becomes one transaction in ${destination}.`,
     deviation: "A transfer row only changes its own account. Import the other account's side too, or that account's "
       + "balance won't match your bank's.",
     changes: [

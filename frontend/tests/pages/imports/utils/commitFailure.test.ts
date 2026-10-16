@@ -88,7 +88,7 @@ describe('what the user is told after stopping an import', () => {
     )
 
     expect(failure.message).toBe(
-      'Import stopped while it was being written. Check your transactions before importing this file again.',
+      'Import stopped while it was being written. Check your transactions before importing again.',
     )
   })
 })
