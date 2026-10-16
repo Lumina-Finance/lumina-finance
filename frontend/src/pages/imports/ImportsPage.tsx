@@ -30,6 +30,8 @@ import {
   FireflyFilesStep,
   FireflyPreviewStep,
 } from './firefly/sections'
+import { useOfxImportWorkflow } from './ofx/hooks'
+import { OfxAccountMappingStep, OfxFilesStep, OfxPreviewStep } from './ofx/sections'
 import { useImportAccountScope, useTransactionImportWorkflow } from './hooks'
 import {
   ImportAccountMappingStep,
@@ -48,6 +50,15 @@ const FLOW_DESCRIPTIONS: Record<ImportDataSource, string> = {
   generic: 'Stage one CSV transaction file before it is added to your ledger.',
   firefly: 'Stage a Firefly III export before it is added to your ledger.',
   actual: 'Stage an Actual Budget export before it is added to your ledger.',
+  ofx: 'Stage an OFX or QFX statement before it is added to your ledger.',
+}
+
+// The label above the page title, by what the flow imports
+const FLOW_EYEBROWS: Record<ImportDataSource, string> = {
+  generic: 'CSV import',
+  firefly: 'CSV import',
+  actual: 'Budget import',
+  ofx: 'Statement import',
 }
 
 /**
@@ -67,6 +78,7 @@ export default function ImportsPage() {
   const workflow = useTransactionImportWorkflow(accountScope.account)
   const fireflyWorkflow = useFireflyImportWorkflow()
   const actualWorkflow = useActualImportWorkflow()
+  const ofxWorkflow = useOfxImportWorkflow()
 
   // An import started from an account is the generic flow and nothing else, since the account it
   // fixes has no meaning to the provider ones. Read from the scope rather than from the stored choice,
@@ -87,18 +99,22 @@ export default function ImportsPage() {
   const isActualBusy = actualWorkflow.importOverlayOpen
     || actualWorkflow.isProcessingFile
     || actualWorkflow.isImportInFlight
+  const isOfxBusy = ofxWorkflow.importOverlayOpen || ofxWorkflow.isProcessingFile || ofxWorkflow.isImportInFlight
   const isGenericBusy = workflow.importOverlayOpen || workflow.isProcessingFiles || workflow.isImportInFlight
   const activeFlow: ImportDataSource = isFireflyBusy
     ? 'firefly'
     : isActualBusy
       ? 'actual'
-      : isGenericBusy || isScopedToAccount
-        ? 'generic'
-        : dataSource
+      : isOfxBusy
+        ? 'ofx'
+        : isGenericBusy || isScopedToAccount
+          ? 'generic'
+          : dataSource
 
   // Every flow saves through the same import run, so the overlay reads whichever one is on screen
   // the same way
-  const overlayWorkflow = activeFlow === 'actual' ? actualWorkflow : activeFlow === 'firefly' ? fireflyWorkflow : workflow
+  const overlayWorkflows = { generic: workflow, firefly: fireflyWorkflow, actual: actualWorkflow, ofx: ofxWorkflow }
+  const overlayWorkflow = overlayWorkflows[activeFlow]
   const importOverlayOpen = overlayWorkflow.importOverlayOpen
 
   // Where the page came from, which is also where its two exits go while the scope holds
@@ -121,7 +137,7 @@ export default function ImportsPage() {
 
   // Switching source resets the flow being left, so a file still being read or an import still
   // being written would finish into a flow the user has already discarded
-  const isImportBusy = overlayOnScreen || isFireflyBusy || isActualBusy || isGenericBusy
+  const isImportBusy = overlayOnScreen || isFireflyBusy || isActualBusy || isOfxBusy || isGenericBusy
 
   // Every mapping answer is made against these three lists, and one of them going stale sends the
   // import at a category or account that has since been renamed or deleted elsewhere. Categories in
@@ -161,8 +177,10 @@ export default function ImportsPage() {
       workflow.resetImportWorkflow()
     } else if (dataSource === 'firefly') {
       fireflyWorkflow.resetFireflyWorkflow()
-    } else {
+    } else if (dataSource === 'actual') {
       actualWorkflow.resetActualWorkflow()
+    } else {
+      ofxWorkflow.resetOfxWorkflow()
     }
     setDataSource(next)
   }
@@ -261,7 +279,7 @@ export default function ImportsPage() {
             <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0 pr-14 sm:pr-16">
                 <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
-                  {activeFlow === 'actual' ? 'Budget import' : 'CSV import'}
+                  {FLOW_EYEBROWS[activeFlow]}
                 </p>
                 <h1 className="font-serif text-3xl font-normal">
                   Import Transactions
@@ -290,6 +308,7 @@ export default function ImportsPage() {
                 <div className="min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1">
                   {activeFlow === 'firefly' && <FireflyFilesStep {...fireflyWorkflow} />}
                   {activeFlow === 'actual' && <ActualFilesStep {...actualWorkflow} />}
+                  {activeFlow === 'ofx' && <OfxFilesStep {...ofxWorkflow} />}
                   {activeFlow === 'generic' && <ImportFilesStep {...workflow} />}
                 </div>
               </aside>
@@ -310,6 +329,12 @@ export default function ImportsPage() {
                         <ActualCategoryMatchingStep {...actualWorkflow} />
                         <ActualBudgetImportStep {...actualWorkflow} />
                         <ActualPreviewStep {...actualWorkflow} />
+                      </>
+                    )}
+                    {activeFlow === 'ofx' && (
+                      <>
+                        <OfxAccountMappingStep {...ofxWorkflow} />
+                        <OfxPreviewStep {...ofxWorkflow} />
                       </>
                     )}
                     {activeFlow === 'firefly' && (

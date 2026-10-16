@@ -24,11 +24,11 @@ export const OFX_IMPORT_FILE_TYPE: ImportFileType = {
   directoryDropReason: `Folders cannot be uploaded. ${OFX_FILE_GUIDANCE}`,
 }
 
+/** What the progress overlay calls the upload stage */
+export const OFX_UPLOAD_LABEL = 'Uploading the statement'
+
 // One file holds all of a user's statements, so the account answers are kept under one fixed scope
 export const getOfxAccountSourceScope = () => 'ofx'
-
-/** The 1.x header declares this when the file's bytes are Windows-1252 rather than UTF-8 */
-export const OFX_LEGACY_CHARSET = '1252'
 
 /** The account type a new account is proposed with for the account type an OFX bank statement states */
 export const OFX_BANK_ACCOUNT_TYPES: Record<string, { type: AccountType; label: string }> = {
@@ -47,15 +47,21 @@ export const OFX_CREDIT_CARD_ACCOUNT = { type: 'credit_card', label: 'Credit car
 /** How many trailing characters of the account number tell two accounts apart in a name */
 export const OFX_ACCOUNT_NUMBER_TAIL_LENGTH = 4
 
-/** The seeded categories a transaction files under, since an OFX statement carries none */
-export const OFX_MONEY_OUT_SOURCE = '(withdrawal, no category)'
-export const OFX_MONEY_IN_SOURCE = '(deposit, no category)'
-
 export const OFX_DATE_UNREADABLE_REASON = 'The posted date is missing or is not a real date.'
 export const OFX_AMOUNT_UNREADABLE_REASON = 'The amount is missing or is not a number.'
 
-export function getOfxPayeeTooLongReason(length: number, max: number) {
-  return `The payee name is ${length.toLocaleString()} characters, and the importer stores up to ${max.toLocaleString()}.`
+// A statement carries no categories, so each transaction files under a seeded one by its direction
+export const OFX_CATEGORIES_UNAVAILABLE_ERROR = 'The Miscellaneous and Other Income categories this import files transactions under could not be found.'
+
+export function getOfxAmountTooPreciseReason(currency: string) {
+  return `The amount has more decimal places than ${currency} has.`
+}
+
+/** Says why a transaction whose amount is in another currency than its statement is left out */
+export function getOfxOtherCurrencyReason(code: string, statementCurrency: string) {
+  return code
+    ? `The amount is in ${code}, but the statement is in ${statementCurrency}, and the importer does not convert between them.`
+    : `The amount is in a currency other than the statement's ${statementCurrency}, and the importer does not convert between them.`
 }
 
 /** Says a statement can't go into an account kept in another currency */

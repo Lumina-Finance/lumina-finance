@@ -76,7 +76,9 @@ export type OfxFileRead =
 export interface OfxSkippedRow {
   id: string
   statementLabel: string
-  postedText: string
+
+  /** The posted date as the preview shows dates, or as the file wrote it when it is not a real date */
+  postedLabel: string
   amountText: string
   payee: string | null
   memo: string | null

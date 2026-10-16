@@ -6,7 +6,6 @@ import {
   IMPORT_BUDGET_NAME_MAX_LENGTH,
   IMPORT_CATEGORY_NAME_MAX_LENGTH,
   IMPORT_TAG_NAME_MAX_LENGTH,
-  JOURNAL_ROW_FIELD_MAX_LENGTHS,
 } from '@/pages/imports/constants'
 
 const MIB = 1024 * 1024
@@ -93,10 +92,6 @@ export function getActualUnbalancedSplitReason(partsTotal: string, total: string
 
 export function getActualTagTooLongReason(tag: string) {
   return `The tag #${tag.slice(0, 28)} is longer than the ${IMPORT_TAG_NAME_MAX_LENGTH} characters a tag can have`
-}
-
-export function getActualMerchantTooLongReason(length: number) {
-  return `The merchant name is ${length.toLocaleString()} characters, and the importer takes up to ${JOURNAL_ROW_FIELD_MAX_LENGTHS.merchantName}`
 }
 
 export const ACTUAL_INCOME_BUDGET_REASON = 'Budgets only track expenses, so income budgets aren\'t imported'

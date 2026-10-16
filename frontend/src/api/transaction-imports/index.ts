@@ -11,6 +11,7 @@ export type {
   TransactionImportPayload,
   TransactionImportResponse,
   TransactionImportRow,
+  TransactionImportSource,
   TransactionImportStageBatch,
 } from '@/api/transaction-imports/types';
 

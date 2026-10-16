@@ -6,7 +6,6 @@ import { describe, expect, it } from 'vitest'
 import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import {
   ACTUAL_TRANSFER_SIDE_LEFT_OUT_REASON,
-  getActualMerchantTooLongReason,
   getActualTagTooLongReason,
   getActualUnbalancedSplitReason,
 } from '@/pages/imports/actual/constants'
@@ -15,6 +14,7 @@ import {
   JOURNAL_ROW_FIELD_MAX_LENGTHS,
   MAX_IMPORT_NOTES_LENGTH,
   MAX_IMPORT_TAGS_PER_ROW,
+  getImportMerchantTooLongReason,
   getRowNotesTooLongReason,
   getRowTooManyTagsReason,
 } from '@/pages/imports/constants'
@@ -299,7 +299,7 @@ describe('Actual Budget rows over the import limits', () => {
       ['notes', getRowNotesTooLongReason(MAX_IMPORT_NOTES_LENGTH + 1)],
       ['tags', getRowTooManyTagsReason(MAX_IMPORT_TAGS_PER_ROW + 1)],
       ['tag', getActualTagTooLongReason(longTag)],
-      ['merchant', getActualMerchantTooLongReason(JOURNAL_ROW_FIELD_MAX_LENGTHS.merchantName + 1)],
+      ['merchant', getImportMerchantTooLongReason(JOURNAL_ROW_FIELD_MAX_LENGTHS.merchantName + 1)],
     ])
   })
 

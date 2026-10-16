@@ -6,6 +6,7 @@ export const IMPORT_SOURCE_LABELS: Record<LastImport['source'], string> = {
   generic: 'CSV',
   firefly: 'Firefly III',
   actual_budget: 'Actual Budget',
+  ofx: 'OFX/QFX',
 }
 
 /** Shown for an import saved without a file name */

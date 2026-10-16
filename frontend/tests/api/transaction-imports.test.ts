@@ -171,6 +171,21 @@ describe('staging a transaction import', () => {
     expect(sentBody(0)).toEqual({ expected_transaction_count: 1, file_name: 'web.csv', csv_layout: csvLayout });
   });
 
+  it('names OFX as the source of the run it opens for a statement', async () => {
+    mockRunCalls(buildImportResponse({ transactions_created: 1 }));
+
+    await runTransactionImport(
+      buildImportPayload([buildImportRow()]),
+      undefined,
+      undefined,
+      'statement.ofx',
+      undefined,
+      'ofx',
+    );
+
+    expect(sentBody(0)).toEqual({ expected_transaction_count: 1, file_name: 'statement.ofx', source: 'ofx' });
+  });
+
   it('carries each batch its own mappings and its place in the file', async () => {
     const largeNotes = 'x'.repeat(400 * 1024);
     const payload = buildImportPayload([buildImportRow(largeNotes), buildImportRow(largeNotes)]);
