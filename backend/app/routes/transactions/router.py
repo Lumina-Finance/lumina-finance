@@ -11,6 +11,7 @@ from app.dependencies import get_current_user
 from app.models.import_run import ImportRunSource
 from app.models.user import User
 from app.schemas.import_run import (
+    AccountImportSourceResponse,
     CsvImportLayoutResponse,
     ImportRunArchiveRequest,
     ImportRunBudgetsRequest,
@@ -39,6 +40,7 @@ from app.services.importers import (
     delete_import_run,
     get_last_import,
     list_import_layouts,
+    list_import_sources,
     open_import_run,
     stage_import_archive,
     stage_import_batch,
@@ -377,6 +379,23 @@ async def list_transaction_import_layouts(
         Every layout saved for an account the caller owns, the most recently saved first
     """
     return await list_import_layouts(db, user)
+
+
+@router.get("/import/sources", response_model=list[AccountImportSourceResponse])
+async def list_transaction_import_sources(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return the importer last used for each of the caller's own accounts
+
+    Args:
+        user: Authenticated user
+        db: Active database session
+
+    Returns:
+        One entry for every account the caller owns that an import has written to
+    """
+    return await list_import_sources(db, user)
 
 
 @router.post("/import/runs/{run_id}/undo", response_model=ImportUndoResponse)

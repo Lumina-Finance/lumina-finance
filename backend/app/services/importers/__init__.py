@@ -16,6 +16,7 @@ from app.services.importers.journal.run import (
 from app.services.importers.shared.layouts import list_import_layouts
 from app.services.importers.shared.run_history import get_last_import, undo_import_run
 from app.services.importers.shared.run_staging import delete_import_run, open_import_run
+from app.services.importers.shared.sources import list_import_sources
 
 __all__ = [
     "commit_import_run",
@@ -23,6 +24,7 @@ __all__ = [
     "delete_import_run",
     "get_last_import",
     "list_import_layouts",
+    "list_import_sources",
     "open_import_run",
     "stage_import_archive",
     "stage_import_batch",
