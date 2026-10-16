@@ -481,3 +481,51 @@ describe('previewing a new category renamed because another type holds its name'
     expect(rows[0].category).toMatchObject({ name: 'Car costs', kind: 'expense' })
   })
 })
+
+// The commit reuses a category the user already has under the same name, capitals folded, rather
+// than writing a second one, so the preview shows that category instead of a new one
+describe('previewing a new category whose name the user already has', () => {
+  /**
+   * Previews one expense row filed under `source`, answered create as an expense
+   */
+  function previewCreated(source: string, existing: Category, rename?: string) {
+    const account = createAccount()
+    return buildImportPreviewRows({
+      files: [createFile([{ Date: '2026-06-11', Amount: '-40.00', Category: source, Merchant: '', Notes: '', Tags: '', Currency: '' }])],
+      columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', amount: 'Amount', category_id: 'Category' },
+      dateFormat: 'yearFirst',
+      directionAnswers: {},
+      missingRequiredColumnLabels: [],
+      currencies,
+      accountById: new Map([[account.id, account]]),
+      accountCreateCurrencies: {},
+      accountCreateInstitutions: {},
+      categoryById: new Map([[existing.id, existing]]),
+      categoryCreateKinds: { [source]: 'expense' },
+      categoryRenames: rename === undefined
+        ? {}
+        : { [source]: { name: rename, sourceName: source, kind: 'expense', heldBy: existing, isProposed: false } },
+      categoryTypesBySource: {},
+      institutionById: new Map(),
+      resolvedAccountMappings: { 'file-1': account.id },
+      resolvedCategoryMappings: { [source]: CREATE_CATEGORY_VALUE },
+      rowProblems: [],
+    })
+  }
+
+  it('shows the existing category of the same type, whatever its capitals', () => {
+    const hobby = createCategory({ id: 'hobby', name: 'Hobby supplies', kind: 'expense', icon: '🧶' })
+
+    expect(previewCreated('Hobby supplies', hobby)[0].category).toBe(hobby)
+    expect(previewCreated('hobby supplies', hobby)[0].category).toBe(hobby)
+  })
+
+  it('keeps showing a new category where the existing one records another type', () => {
+    const gifts = createCategory({ id: 'gifts', name: 'Gifts', kind: 'income' })
+
+    const category = previewCreated('Presents', gifts, 'gifts')[0].category
+
+    expect(category).toMatchObject({ name: 'gifts', kind: 'expense' })
+    expect(category?.id).not.toBe(gifts.id)
+  })
+})

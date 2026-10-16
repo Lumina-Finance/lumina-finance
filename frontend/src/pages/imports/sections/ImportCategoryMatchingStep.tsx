@@ -8,6 +8,7 @@ import {
   getCategoryMatchKind,
   getCategorySourceLabel,
   getImportCategoryRenameField,
+  getPreviewCategory,
   isExistingCategoryMatch,
 } from '@/pages/imports/utils'
 import { ImportCategoryMatchingLayout } from './ImportCategoryMatchingLayout'
@@ -21,6 +22,7 @@ type ImportCategoryMatchingStepProps = Pick<
   | 'categoryTypesBySource'
   | 'categoryRenames'
   | 'categoryById'
+  | 'categoriesBeforeImport'
   | 'setCategoryCreateKinds'
   | 'setCategoryCreateNames'
   | 'setCategoryMappings'
@@ -45,6 +47,7 @@ export function ImportCategoryMatchingStep({
   categoryTypesBySource,
   categoryRenames,
   categoryById,
+  categoriesBeforeImport,
   setCategoryCreateKinds,
   setCategoryCreateNames,
   setCategoryMappings,
@@ -71,6 +74,21 @@ export function ImportCategoryMatchingStep({
         )
         const existingMatch = isExistingCategoryMatch(value)
 
+        // A value answered "Create new" whose name and type the user already had lands on that
+        // category, so it shows as that category, while its type stays open to change
+        const landsOn = getPreviewCategory(
+          category,
+          categoryMappings,
+          categoriesBeforeImport,
+          categoryCreateKinds,
+          categoryRenames,
+          categoryTypesBySource,
+        )
+
+        // A category still to be created comes back as a placeholder the map does not hold, so only
+        // a real category the user had counts as reused
+        const reused = !existingMatch && landsOn && categoriesBeforeImport.has(landsOn.id) ? landsOn : undefined
+
         return {
           id: category,
           source: getCategorySourceLabel(category),
@@ -79,7 +97,7 @@ export function ImportCategoryMatchingStep({
           detailKind,
           detailDisabled: existingMatch,
           onDetailKindChange: (kind) => setCategoryCreateKinds((current) => ({ ...current, [category]: kind })),
-          value,
+          value: reused?.id ?? value,
           onChange: (nextValue) => setCategoryMappings((current) => ({ ...current, [category]: nextValue })),
           rename: getImportCategoryRenameField(
             category,

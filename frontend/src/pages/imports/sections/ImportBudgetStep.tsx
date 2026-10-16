@@ -18,6 +18,9 @@ type ImportBudgetStepProps<Budget extends { name: string; isArchived: boolean }>
 
   /** The facts shown beside each skipped budget's name and reason */
   skippedHeaders: string[]
+
+  /** The facts among them that are amounts */
+  skippedAmountHeaders: string[]
   skippedRows: ImportSkippedTableRow[]
   selectionError: string | null
   noBudgetsDescription: string
@@ -36,6 +39,7 @@ export function ImportBudgetStep<Budget extends { name: string; isArchived: bool
   children,
   detectedCount,
   skippedHeaders,
+  skippedAmountHeaders,
   skippedRows,
   selectionError,
   noBudgetsDescription,
@@ -54,6 +58,7 @@ export function ImportBudgetStep<Budget extends { name: string; isArchived: bool
           leadColumnWidth="10rem"
           leadCellClassName="font-medium"
           headers={skippedHeaders}
+          amountHeaders={skippedAmountHeaders}
           rows={skippedRows}
           totalCount={skippedRows.length}
         />

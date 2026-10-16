@@ -154,6 +154,11 @@ test('keeps the merchants and categories a finished import created as created on
   await expect(category).toContainText('Create new category')
   await expect(page.getByRole('radio', { name: 'Expense', checked: true }).first()).toBeVisible()
   await expect(guessed).toContainText('Gifts & Donations')
+
+  // The categories it created now exist under the same names, which the record does not mistake for
+  // ones the user already had
+  const preview = page.locator('section').filter({ has: page.getByText('Preview and Commit', { exact: true }) })
+  await expect(preview.getByRole('paragraph').filter({ hasText: /^(New Categories|\d+)$/ }).last()).toHaveText('2')
 })
 
 // Apart from the test above, since a page opened for one account files every row there and offers

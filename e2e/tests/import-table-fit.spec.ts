@@ -91,6 +91,125 @@ test('fits each import table to a desktop window, with every row\'s controls on 
   }
 })
 
+// The widths the controls are checked at, wide and the desktop layout's common narrow window
+const CONTROL_EDGE_WIDTHS = [1920, 1280]
+
+// The room an error icon needs beside a row's controls, in pixels: the icon's 16px and the gap before it
+const ICON_ROOM = 24
+
+/**
+ * How much room each row leaves between its last field and the table's right edge, in pixels, which
+ * is none unless the row's table holds room for an icon
+ */
+function measureRoomAfterControls(table: Locator) {
+  return table.evaluate((node) => [...node.querySelectorAll('tbody tr')].map((row) => {
+    const controls = [...row.lastElementChild!.querySelectorAll('[role="combobox"]')]
+    return {
+      name: row.firstElementChild!.textContent!.trim(),
+      room: Math.round(node.getBoundingClientRect().right - Math.max(...controls.map((control) => control.getBoundingClientRect().right))),
+    }
+  }))
+}
+
+// Column Mapping kept room for a row's error or help icon whether a row showed one or not, so its
+// controls ended 24px short of every other step's. Lining the others up with it instead cut "Create new
+// merchant" off on a 1280px window
+test('ends every step\'s controls at the table\'s edge, making room for an icon only while a row shows one', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await createAccount(request, user, { name: 'Everyday chequing' })
+  await logInViaApi(page, user)
+  await openPage(page, '/settings/imports')
+  const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')
+  await expect(upload).toBeEnabled()
+
+  // One account the user has and one the import creates, whose row offers an institution to choose
+  const csv = [
+    'Date,Amount,Category,Merchant,Account,Reference',
+    '2024-03-15,-42.50,Pottery,Corner Market,Everyday chequing,R-1',
+    '2024-03-16,-17.25,Pottery,Bakery,Visa,R-2',
+  ].join('\n')
+  await upload.setInputFiles({ name: 'edges.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) })
+  await expect(page.getByRole('combobox', { name: 'Existing Account Visa', exact: true })).toHaveText('Create New Account')
+  const category = page.getByRole('combobox', { name: 'Existing Category Pottery', exact: true })
+  await category.click()
+  await page.getByRole('option', { name: 'Create new category', exact: true }).click()
+  await expect(page.getByRole('listbox')).toHaveCount(0)
+  const steps = ['Account Mapping', ...STEPS]
+  const answers = [
+    category.getByTitle('Create new category', { exact: true }),
+    page.getByRole('combobox', { name: 'Merchant Corner Market', exact: true }).getByTitle('Create new merchant', { exact: true }),
+  ]
+
+  for (const width of CONTROL_EDGE_WIDTHS) {
+    await page.setViewportSize({ width, height: 900 })
+    for (const step of steps) {
+      const rooms = (await measureRoomAfterControls(tableOf(page, step))).map(({ room }) => room)
+      soft(rooms.length, `${step} rows at ${width}px`).toBeGreaterThan(0)
+      soft(rooms.every((room) => Math.abs(room) <= 1), `${step} at ${width}px leaves ${rooms.join(', ')}px`).toBe(true)
+    }
+    for (const answer of answers) {
+      await expect(answer).toBeVisible()
+      soft(await answer.evaluate((node) => node.scrollWidth - node.clientWidth), `${await answer.getAttribute('title')} at ${width}px`)
+        .toBeLessThanOrEqual(0)
+    }
+  }
+
+  // A column whose values the field it is matched to can't read shows its error beside its field, and
+  // only that row makes room for it, and every other row's controls still end at the table's edge
+  const columnMapping = tableOf(page, 'Column Mapping')
+  const referenceField = page.getByRole('combobox', { name: 'Match To App Field Reference', exact: true })
+  await referenceField.click()
+  await page.getByRole('option', { name: /^Currency\b/ }).click()
+  await expect(referenceField).toHaveAttribute('aria-invalid', 'true')
+  const icon = columnMapping.getByRole('row', { name: /^Reference\b/ }).getByRole('button')
+  for (const width of CONTROL_EDGE_WIDTHS) {
+    await page.setViewportSize({ width, height: 900 })
+    await icon.scrollIntoViewIfNeeded()
+    await expect(icon).toBeInViewport({ ratio: 1 })
+    await expectRoomInRows(columnMapping, { Reference: ICON_ROOM }, `Column Mapping at ${width}px with an error`)
+  }
+})
+
+/**
+ * Waits for the rows named in `rooms` to leave that room after their controls, and every other row to
+ * leave none, within a pixel
+ */
+async function expectRoomInRows(table: Locator, rooms: Record<string, number>, message: string) {
+  // Polled, since a field's list closes into it after a choice, and a row's room eases in and out
+  await soft.poll(async () => {
+    const measured = await measureRoomAfterControls(table)
+    return measured.length > 0 && measured.every(({ name, room }) => {
+      const expected = Object.entries(rooms).find(([row]) => name.startsWith(row))?.[1] ?? 0
+      return Math.abs(room - expected) <= 1
+    })
+  }, { message }).toBe(true)
+}
+
+// The note on how timestamp dates are imported needs the same room as an error, in the Date row only,
+// and gives it back once the row stops showing it
+test('makes room in Column Mapping for the note on timestamp dates only while it shows', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday chequing' })
+  await logInViaApi(page, user)
+  await openPage(page, `/settings/imports?account=${account.id}`)
+  const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')
+  await expect(upload).toBeEnabled()
+  const csv = ['Date,Amount,Notes', '2024-03-15T00:30:00Z,-12.34,Coffee', '2024-03-16T08:00:00-04:00,-5.00,Bread'].join('\n')
+  await upload.setInputFiles({ name: 'timestamps.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) })
+
+  const columnMapping = tableOf(page, 'Column Mapping')
+  const note = page.getByRole('button', { name: 'How timestamp dates are imported', exact: true })
+  await expect(note).toBeVisible()
+  await expectRoomInRows(columnMapping, { Date: ICON_ROOM }, 'Column Mapping beside the timestamp note')
+
+  const dateField = page.getByRole('combobox', { name: 'Match To App Field Date', exact: true })
+  await dateField.click()
+  await page.getByRole('option', { name: 'Do not import', exact: true }).click()
+  await expect(dateField).toContainText('Do not import')
+  await expect(note).toHaveCount(0)
+  await expectRoomInRows(columnMapping, {}, 'Column Mapping once the note has gone')
+})
+
 test('keeps a narrow window\'s sideways scroll inside each import table\'s own box', async ({ page, request }) => {
   await openMatchingSteps(page, request)
 

@@ -1,6 +1,6 @@
 import { ImportNotice, ImportRowProblemsTable, ImportRowWarningsTable } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
-import { getSkippedRowsDisplay } from '@/pages/imports/utils'
+import { getImportAmountHeaders, getSkippedRowsDisplay } from '@/pages/imports/utils'
 import { ImportPreviewLayout } from './ImportPreviewLayout'
 
 /**
@@ -20,6 +20,7 @@ type ImportPreviewStepProps = Pick<
   | 'importStats'
   | 'importBuild'
   | 'headers'
+  | 'columnMap'
   | 'importError'
   | 'handleCommitImport'
   | 'canCommitImport'
@@ -63,6 +64,7 @@ export function ImportPreviewStep({
   importStats,
   importBuild,
   headers,
+  columnMap,
   importError,
   handleCommitImport,
   canCommitImport,
@@ -70,6 +72,7 @@ export function ImportPreviewStep({
   completedImport,
 }: ImportPreviewStepProps) {
   const skipped = getSkippedRowsDisplay({ liveForecastRows: importBuild.rowProblems, completedImport })
+  const amountHeaders = getImportAmountHeaders(columnMap)
   const visibleErrors = importBuild.errors.slice(0, VISIBLE_ERROR_LIMIT)
   const hiddenErrorCount = importBuild.errors.length - visibleErrors.length
   const hasBlockingErrors = files.length > 0 && importBuild.errors.length > 0
@@ -98,12 +101,13 @@ export function ImportPreviewStep({
             title={skipped.title}
             rowProblems={skipped.rows}
             headers={headers}
+            amountHeaders={amountHeaders}
             toggleLabel="skipped rows"
             revealsOnReview
           />
         </div>
       )}
-      <ImportRowWarningsTable rowWarnings={importBuild.rowWarnings} headers={headers} />
+      <ImportRowWarningsTable rowWarnings={importBuild.rowWarnings} headers={headers} amountHeaders={amountHeaders} />
       {/* Last of the three notices about the data, which run refusals first and then the things that
           hold nothing up. What follows is the preview itself rather than a fourth notice, so a red
           error list below this amber one is the body starting rather than the order breaking */}

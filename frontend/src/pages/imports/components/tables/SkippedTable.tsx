@@ -64,6 +64,11 @@ const BODY_CELL_BORDER_STYLE: CSSProperties = {
   borderTop: '1px solid var(--app-border)',
 }
 
+// An amount column lines up on the right with its header, and its values show in tabular figures as
+// the preview's amounts do while keeping the text the file wrote. The header keeps the interface
+// type, as the budget table's headers do
+const AMOUNT_VALUE_CLASS_NAME = 'font-financial tabular-nums'
+
 /**
  * One skipped item shaped for the table: the frozen lead cell, the scrolling
  * values keyed by column header, and the skip reason under them
@@ -102,6 +107,7 @@ export function ImportSkippedTable({
   leadColumnWidth,
   leadCellClassName,
   headers,
+  amountHeaders,
   rows,
   totalCount,
   tone = 'danger',
@@ -118,6 +124,9 @@ export function ImportSkippedTable({
   leadColumnWidth: string
   leadCellClassName: string
   headers: string[]
+
+  /** The headers whose columns hold amounts, given even when none do so no caller forgets them */
+  amountHeaders: string[]
   rows: ImportSkippedTableRow[]
   totalCount: number
 
@@ -172,6 +181,16 @@ export function ImportSkippedTable({
   const hiddenCount = totalCount - visibleRows.length
 
   const frozenLeadCellStyle = buildFrozenLeadCellStyle(leadColumnWidth)
+  const getColumnClassName = (header: string, headerIndex: number, cell: 'header' | 'value') => {
+    const isAmount = amountHeaders.includes(header)
+    return [
+      'whitespace-nowrap py-1.5 pr-4 align-top',
+      headerIndex === 0 ? 'pl-4' : '',
+      isAmount ? 'text-right' : '',
+      cell === 'header' ? 'font-medium' : '',
+      isAmount && cell === 'value' ? AMOUNT_VALUE_CLASS_NAME : '',
+    ].filter(Boolean).join(' ')
+  }
 
   return (
     <div ref={panelRef} className="scroll-mt-4 rounded-lg px-4 py-3" style={IMPORT_INSET_STYLE}>
@@ -220,7 +239,7 @@ export function ImportSkippedTable({
                   {headers.map((header, headerIndex) => (
                     <th
                       key={header}
-                      className={`whitespace-nowrap py-1.5 pr-4 align-top font-medium ${headerIndex === 0 ? 'pl-4' : ''}`}
+                      className={getColumnClassName(header, headerIndex, 'header')}
                       style={HEADER_CELL_STYLE}
                     >
                       {header}
@@ -241,7 +260,7 @@ export function ImportSkippedTable({
                       {headers.map((header, headerIndex) => (
                         <td
                           key={header}
-                          className={`whitespace-nowrap py-1.5 pr-4 align-top ${headerIndex === 0 ? 'pl-4' : ''}`}
+                          className={getColumnClassName(header, headerIndex, 'value')}
                           style={BODY_CELL_BORDER_STYLE}
                         >
                           <RawCellValue value={row.cells[header] ?? ''} />

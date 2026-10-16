@@ -1452,6 +1452,44 @@
     }
   }
 
+  /* The room a Column Mapping row makes after its dropdown for its error or help icon, which the
+     dropdown's width gives up to as the icon fades and slides in, and takes back as they leave. The box
+     is 24px for the icon's 16px and the gap before it. A tooltip is fixed, so the clipping here never
+     cuts it off. The room starts to move once the list of the dropdown beside it has folded away,
+     since a list still folding holds the width it opened with, and would jump to the new one when it
+     lands */
+  .import-row-icon-slot {
+    flex-shrink: 0;
+    width: 0;
+    overflow: hidden;
+    transition: width 0.28s var(--app-dropdown-ease) var(--app-dropdown-close-duration);
+  }
+
+  .import-row-icon-slot-open {
+    width: 1.5rem;
+  }
+
+  .import-row-icon-slot > * {
+    opacity: 0;
+    transform: translateX(-0.5rem);
+    transition:
+      opacity 0.28s var(--app-dropdown-ease) var(--app-dropdown-close-duration),
+      transform 0.28s var(--app-dropdown-ease) var(--app-dropdown-close-duration);
+  }
+
+  .import-row-icon-slot-open > * {
+    opacity: 1;
+    transform: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .import-row-icon-slot,
+    .import-row-icon-slot > * {
+      transition-duration: 0s;
+      transition-delay: 0s;
+    }
+  }
+
   @keyframes import-auto-fill-row {
     0% {
       background: color-mix(in srgb, var(--app-accent) 18%, transparent);

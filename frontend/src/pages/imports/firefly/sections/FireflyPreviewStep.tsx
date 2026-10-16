@@ -21,6 +21,9 @@ type FireflyPreviewStepProps = Pick<
   | 'handleCommitImport'
 >
 
+// The export's columns holding amounts, the transaction's own and the one in its foreign currency
+const FIREFLY_AMOUNT_HEADERS = ['amount', 'foreign_amount']
+
 /**
  * Preview and commit step of the Firefly III import flow, which also lists the rows that import but
  * are worth a look
@@ -61,12 +64,13 @@ export function FireflyPreviewStep({
           title={skipped.title}
           rowProblems={skipped.rows}
           headers={fireflyHeaders}
+          amountHeaders={FIREFLY_AMOUNT_HEADERS}
           toggleLabel="skipped rows"
           revealsOnReview
         />
       )}
 
-      <ImportRowWarningsTable rowWarnings={predictedRowWarnings} headers={fireflyHeaders} />
+      <ImportRowWarningsTable rowWarnings={predictedRowWarnings} headers={fireflyHeaders} amountHeaders={FIREFLY_AMOUNT_HEADERS} />
     </ImportPreviewLayout>
   )
 }
