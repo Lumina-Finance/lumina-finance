@@ -1,3 +1,5 @@
+import type { AccountType } from '@/api/accounts/types';
+import type { Institution } from '@/api/institutions/types';
 import type { Transaction } from '@/api/transactions/types';
 import type { FxStatus } from '@/api/shared/fx';
 
@@ -13,6 +15,25 @@ export interface CreditWidgetResponse {
   credit_used: number;
   fx_status: FxStatus;
 }
+
+export type CreditUtilizationAccount = {
+  id: string;
+  name: string;
+
+  // Whether the account's limit and balance are in the totals
+  is_counted: boolean;
+
+  // What the chooser's rows show beside the name
+  account_type: AccountType;
+  institution: Institution | null;
+};
+
+// Credit totals for only the accounts counted, in the user's base currency minor units, with every
+// credit account the user can choose between. The accounts page totals every account through
+// CreditWidgetResponse instead
+export type CreditUtilizationResponse = CreditWidgetResponse & {
+  accounts: CreditUtilizationAccount[];
+};
 
 export interface NetWorthWidgetResponse {
   current_net_worth: number;

@@ -1,6 +1,8 @@
 export type {
   BreakdownCategoryKind,
   CategoryBreakdownEntry,
+  CreditUtilizationAccount,
+  CreditUtilizationResponse,
   CreditWidgetResponse,
   MonthlyIncomeExpense,
   NetWorthWidgetResponse,
@@ -13,18 +15,22 @@ export type {
 
 export {
   fetchDashboardCredit,
+  fetchDashboardCreditUtilization,
   fetchDashboardNetWorth,
   fetchDashboardRecentActivity,
   fetchDashboardSavingsRate,
   fetchSpendingBreakdown,
   fetchSpendingComparison,
+  replaceCreditExcludedAccounts,
 } from '@/api/dashboard/requests';
 
 export {
   useDashboardCredit,
+  useDashboardCreditUtilization,
   useDashboardNetWorth,
   useDashboardRecentActivity,
   useDashboardSavingsRate,
+  useReplaceCreditExcludedAccounts,
   useSpendingBreakdown,
   useSpendingComparison,
 } from '@/api/dashboard/hooks';

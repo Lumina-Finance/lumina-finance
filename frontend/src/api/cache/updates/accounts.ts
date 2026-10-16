@@ -6,6 +6,7 @@ import {
   invalidateDashboardBalance,
   invalidateDashboardBudgets,
   invalidateDashboardCredit,
+  invalidateDashboardCreditUtilization,
   invalidateDashboardIncomeExpense,
   invalidateDashboardRecent,
   invalidateInsightsBalance,
@@ -57,6 +58,17 @@ export function invalidateAccountCreditData(
   account: Pick<AccountsOverview, 'account_kind'> | undefined,
 ) {
   if (isRevolvingAccount(account)) invalidateDashboardCredit(queryClient);
+}
+
+/**
+ * Refreshes the credit widget's account list when a revolving account is renamed, since the chooser
+ * shows its name but no total changes
+ */
+export function invalidateAccountCreditName(
+  queryClient: QueryClient,
+  account: Pick<AccountsOverview, 'account_kind'>,
+) {
+  if (isRevolvingAccount(account)) invalidateDashboardCreditUtilization(queryClient);
 }
 
 /**

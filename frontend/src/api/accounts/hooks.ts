@@ -4,6 +4,7 @@ import {
   getCachedAccount,
   invalidateAccountAggregateData,
   invalidateAccountCreditData,
+  invalidateAccountCreditName,
   invalidateAccountTaxAdvantagedCategoryData,
   invalidateCreatedAccountData,
   updateCachedAccountList,
@@ -58,6 +59,7 @@ export function useUpdateAccount() {
       const previousPlanId = previousAccount?.tax_advantaged_category_id;
       const previousIsArchived = previousAccount?.is_archived;
       const previousCreditLimit = previousAccount?.credit_limit;
+      const previousName = previousAccount?.name;
 
       queryClient.setQueryData(accountKeys.detail(account.id), account);
       updateCachedAccountList(queryClient, account);
@@ -71,6 +73,10 @@ export function useUpdateAccount() {
         && previousCreditLimit !== account.credit_limit
       ) {
         invalidateAccountCreditData(queryClient, account);
+      }
+
+      if ('name' in variables.payload && previousName !== account.name) {
+        invalidateAccountCreditName(queryClient, account);
       }
 
       if (

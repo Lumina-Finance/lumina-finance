@@ -16,6 +16,7 @@ vi.mock('@/api/client', () => ({
 
 import {
   fetchDashboardCredit,
+  fetchDashboardCreditUtilization,
   fetchDashboardNetWorth,
   fetchDashboardRecentActivity,
   fetchDashboardSavingsRate,
@@ -31,10 +32,12 @@ beforeEach(() => {
 describe('dashboard fetch functions', () => {
   it('requests dashboard widgets that do not need query parameters', async () => {
     await fetchDashboardCredit();
+    await fetchDashboardCreditUtilization();
     await fetchDashboardSavingsRate();
 
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(1, '/dashboard/credit', expect.anything());
-    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(2, '/dashboard/savings-rate', expect.anything());
+    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(2, '/dashboard/credit-utilization', expect.anything());
+    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(3, '/dashboard/savings-rate', expect.anything());
   });
 
   it('requests dashboard widgets with rolling day windows', async () => {
