@@ -186,6 +186,17 @@ describe('format choice lifetime', () => {
     expect(moveImportFormatChoiceToScope(chosen, scopeB)).toEqual(createImportFormatChoiceState(scopeB))
   })
 
+  it('keeps a choice when a file is added to the import', () => {
+    const map = { ...EMPTY_COLUMN_MAP, dt: 'Date' }
+    const first = createFile('file-a', [{ Date: '03/04/2026' }])
+    const scope = buildImportDateFormatScope(map, [first])
+    const chosen = chooseImportFormat(scope, 'dayFirst')
+
+    const withSecondFile = buildImportDateFormatScope(map, [first, createFile('file-b', [{ Date: '05/04/2026' }])])
+
+    expect(moveImportFormatChoiceToScope(chosen, withSecondFile)).toBe(chosen)
+  })
+
   it('clears a choice through Amount to sides to Amount while sharing both sides', () => {
     const files = [createFile('file-a', [{ Amount: '1,234', Debit: '', Credit: '' }])]
     const amountMap = { ...EMPTY_COLUMN_MAP, amount: 'Amount' }

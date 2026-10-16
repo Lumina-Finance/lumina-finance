@@ -14,11 +14,13 @@ export type ScopedImportAnswers<T> = Record<string, Record<string, T>>
 export type ImportSourceScope = (sourceId: string) => string
 
 /**
- * Builds what an answer applies to, from the column it was read out of and the files that column
- * belongs to
+ * Builds what an answer applies to, from the column it was read out of and the import's first file
+ *
+ * Files staged together share one set of answers, so only the first file stands for them: another
+ * file joining the import leaves its answers alone, and a different first file starts them over
  */
 export function buildImportAnswerScope(columnHeader: string, files: ImportFileDraft[]): string {
-  return `${columnHeader}:${files.map((file) => file.id).join(',')}`
+  return `${columnHeader}:${files[0]?.id ?? ''}`
 }
 
 /**

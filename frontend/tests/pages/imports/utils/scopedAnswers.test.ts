@@ -62,6 +62,20 @@ describe('scoped import answers', () => {
     expect(readScopedImportAnswers(stored, nextFile)).toEqual({})
   })
 
+  // Files added to an import share its answers, so a file joining or leaving is no reason to ask again
+  it('keeps an answer when a file is added after it, and drops it when the first file is replaced', () => {
+    const stored = writeScopedImportAnswers(
+      emptyScopedImportAnswers<string>(),
+      { Savings: 'acc_1' },
+      () => buildImportAnswerScope('Account', [FILE]),
+    )
+    const withSecondFile = () => buildImportAnswerScope('Account', [FILE, createFile('file_2')])
+    const withOtherFirstFile = () => buildImportAnswerScope('Account', [createFile('file_2'), FILE])
+
+    expect(readScopedImportAnswers(stored, withSecondFile)).toEqual({ Savings: 'acc_1' })
+    expect(readScopedImportAnswers(stored, withOtherFirstFile)).toEqual({})
+  })
+
   it('shows nothing once the column an answer was read from changes', () => {
     const stored = writeScopedImportAnswers(
       emptyScopedImportAnswers<string>(),
