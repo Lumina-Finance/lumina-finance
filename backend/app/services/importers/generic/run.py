@@ -20,8 +20,8 @@ from app.services.importers.shared.layouts import save_import_layout
 from app.services.importers.shared.run_commit import commit_run
 from app.services.importers.shared.run_staging import stage_run_batch
 
-# The runs the CSV endpoints take
-_GENERIC_RUN_SOURCES = frozenset({ImportRunSource.GENERIC})
+# The runs the CSV endpoints take. An OFX file is read in the browser into the same rows
+_GENERIC_RUN_SOURCES = frozenset({ImportRunSource.GENERIC, ImportRunSource.OFX})
 
 
 async def stage_import_batch(

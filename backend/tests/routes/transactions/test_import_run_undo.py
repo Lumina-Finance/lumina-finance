@@ -139,6 +139,24 @@ async def test_undo_deletes_everything_the_import_wrote_and_keeps_what_it_reused
     assert (again.status_code, again.json()["detail"]) == (404, "Import not found")
 
 
+async def test_undo_deletes_everything_an_ofx_import_wrote_and_the_run_with_it(client):
+    """An OFX statement saves like a CSV, so undoing it must delete its transactions and the account it made too"""
+    headers = _get_auth_header(await _create_user(client))
+    committed = await _import_run(client, headers, _csv_payload(["-4.50", "12.00"]), source="ofx", file_name="statement.ofx")
+    assert committed.status_code == 201, committed.text
+    summary = committed.json()
+    entry = await _last(client, headers)
+    assert (entry["source"], entry["file_name"], entry["transaction_count"]) == ("ofx", "statement.ofx", 2)
+
+    resp = await _undo(client, headers, entry["id"])
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["transactions_deleted"] == 2
+    assert await _list_transactions(client, headers) == []
+    assert [await _count("accounts", account_id) for account_id in summary["created_account_ids"]] == [0]
+    assert await _last(client, headers) is None
+
+
 async def test_another_user_cannot_see_or_undo_an_import(client):
     """Another user's list leaves the import out, and their undo finds nothing and deletes nothing"""
     headers, _, _ = await _setup_user_with_deps(client)

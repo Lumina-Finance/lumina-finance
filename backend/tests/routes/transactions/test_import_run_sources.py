@@ -3,7 +3,7 @@
 import pytest
 
 from tests.routes.support import _create_user, _get_auth_header
-from tests.routes.transactions._import_helpers import _csv_batch, _firefly_batch, _open_run
+from tests.routes.transactions._import_helpers import _csv_batch, _firefly_batch, _import_run, _open_run
 
 _BUDGETS = {
     "budgets": [{
@@ -27,6 +27,10 @@ _BUDGETS = {
         ("firefly", "post", "commit", None, "This import run is a Firefly III import"),
         ("actual_budget", "post", "rows", _csv_batch(["-1.00"]), "This import run is an Actual Budget import"),
         ("actual_budget", "post", "commit", None, "This import run is an Actual Budget import"),
+        ("ofx", "post", "journal/rows", _firefly_batch(1), "This import run is an OFX import"),
+        ("ofx", "post", "journal/commit", None, "This import run is an OFX import"),
+        ("ofx", "put", "budgets", _BUDGETS, "An OFX import has no budgets"),
+        ("ofx", "put", "archive", {"account_sources": ["Main Chequing"]}, "An OFX import archives no accounts"),
     ],
 )
 async def test_a_run_takes_requests_only_from_the_importer_that_opened_it(client, source, method, path, body, detail):
@@ -37,3 +41,15 @@ async def test_a_run_takes_requests_only_from_the_importer_that_opened_it(client
     resp = await client.request(method, f"/transactions/import/runs/{run_id}/{path}", json=body, headers=headers)
 
     assert (resp.status_code, resp.json()["detail"]) == (422, detail)
+
+
+async def test_an_ofx_run_saves_through_the_csv_endpoints_and_is_named_by_the_last_import(client):
+    """An OFX file is read in the browser into the rows a CSV is, so it saves like one but is not called one"""
+    headers = _get_auth_header(await _create_user(client))
+
+    committed = await _import_run(client, headers, _csv_batch(["-4.50", "12.00"]), source="ofx", file_name="statement.ofx")
+
+    assert committed.status_code == 201, committed.text
+    assert committed.json()["transactions_created"] == 2
+    last = (await client.get("/transactions/import/last", headers=headers)).json()
+    assert (last["source"], last["file_name"], last["transaction_count"]) == ("ofx", "statement.ofx", 2)

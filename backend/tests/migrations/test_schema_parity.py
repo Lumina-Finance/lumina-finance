@@ -47,6 +47,12 @@ _ALEMBIC_ACCOUNT_DATE_INDEX_DB_NAME = f"{WORKER_DB_NAME}_alembic_account_date_in
 _BEFORE_ACCOUNT_DATE_INDEX_REVISION = "51c17506619a"
 _ACCOUNT_DATE_INDEX_REVISION = "0b8d6e2c9a41"
 _ACCOUNT_DATE_INDEX_NAME = "ix_transactions_account_id_dt"
+_ALEMBIC_OFX_SOURCE_DB_NAME = f"{WORKER_DB_NAME}_alembic_ofx_source"
+_BEFORE_OFX_SOURCE_REVISION = "c4e8a2f6b913"
+_OFX_SOURCE_REVISION = "b8d4f1a6c203"
+_OFX_OWNER_ID = "77777777-7777-4777-8777-777777777777"
+_CSV_RUN_ID = "88888888-8888-4888-8888-888888888888"
+_OFX_RUN_ID = "99999999-9999-4999-8999-999999999999"
 
 
 async def test_account_date_index_migration_preserves_rows_and_existing_indexes() -> None:
@@ -132,6 +138,81 @@ async def test_account_date_index_migration_preserves_rows_and_existing_indexes(
     finally:
         await engine.dispose()
         await _drop_database(database_name)
+
+
+async def test_ofx_import_source_migration_keeps_other_runs_and_drops_ofx_runs_on_downgrade() -> None:
+    """Verify upgrade, downgrade and reupgrade of the OFX source check keep CSV runs and refuse OFX ones when narrowed"""
+    database_name = _ALEMBIC_OFX_SOURCE_DB_NAME
+    await _recreate_database(database_name)
+    engine = _create_engine_for_database(database_name)
+    try:
+        _run_alembic_upgrade(database_name, revision=_BEFORE_OFX_SOURCE_REVISION)
+        async with engine.begin() as conn:
+
+            # Supply the currency required by the synthetic owner
+            await conn.execute(text(
+                "INSERT INTO currencies (id, name, symbol, minor_unit_exponent)"
+                " VALUES ('CAD', 'Canadian Dollar', '$', 2) ON CONFLICT (id) DO NOTHING",
+            ))
+            await conn.execute(text(
+                "INSERT INTO users (id, email, first_name, tz, base_currency)"
+                " VALUES (:id, 'ofx-migration@example.com', 'Ofx', 'UTC', 'CAD')",
+            ), {"id": UUID(_OFX_OWNER_ID)})
+            await _insert_import_run(conn, _CSV_RUN_ID, "generic")
+
+        # Before the revision the check names no OFX source, so such a run is refused
+        async with engine.begin() as conn:
+            with pytest.raises(IntegrityError):
+                await _insert_import_run(conn, _OFX_RUN_ID, "ofx")
+
+        for reupgrade in (False, True):
+            _run_alembic_upgrade(database_name, revision=_OFX_SOURCE_REVISION)
+            async with engine.begin() as conn:
+                await _insert_import_run(conn, _OFX_RUN_ID, "ofx")
+            async with engine.connect() as conn:
+                assert await _read_import_run_sources(conn) == {_CSV_RUN_ID: "generic", _OFX_RUN_ID: "ofx"}
+            if not reupgrade:
+                _run_alembic_downgrade(database_name, _BEFORE_OFX_SOURCE_REVISION)
+
+                # Narrowing deletes the OFX run it could no longer hold, and the CSV run stays as it was
+                async with engine.connect() as conn:
+                    assert await _read_import_run_sources(conn) == {_CSV_RUN_ID: "generic"}
+                async with engine.begin() as conn:
+                    with pytest.raises(IntegrityError):
+                        await _insert_import_run(conn, _OFX_RUN_ID, "ofx")
+    finally:
+        await engine.dispose()
+        await _drop_database(database_name)
+
+
+async def _insert_import_run(conn: AsyncConnection, run_id: str, source: str) -> None:
+    """Insert one import run of the given source for the fixture owner"""
+    await conn.execute(text(
+        "INSERT INTO import_runs (id, owner_id, source, expected_transaction_count, account_mappings, category_mappings)"
+        " VALUES (:id, :owner_id, :source, 1, '{}', '{}')",
+    ), {"id": UUID(run_id), "owner_id": UUID(_OFX_OWNER_ID), "source": source})
+
+
+async def _read_import_run_sources(conn: AsyncConnection) -> dict[str, str]:
+    """Read the source of every import run, keyed by its id"""
+    rows = (await conn.execute(text("SELECT id, source FROM import_runs"))).all()
+    return {str(run_id): source for run_id, source in rows}
+
+
+def _run_alembic_downgrade(database_name: str, revision: str) -> None:
+    """Run Alembic downgrade against a generated migration database"""
+    environment = os.environ.copy()
+    environment.update({
+        "DB_HOST": DB_HOST, "DB_PORT": DB_PORT, "DB_NAME": database_name,
+        "DB_USER": DB_USER, "DB_PASSWORD": DB_PASSWORD,
+    })
+
+    # Fixed revisions and executable keep this migration subprocess independent of application imports
+    completed = subprocess.run(  # noqa: S603
+        [sys.executable, "-m", "alembic", "downgrade", revision],
+        cwd=_BACKEND_DIR, env=environment, check=False, capture_output=True, text=True,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
 
 
 async def _read_account_index_migration_state(conn: AsyncConnection) -> tuple[list[tuple], dict[str, str]]:
