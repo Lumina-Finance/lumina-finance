@@ -1,0 +1,73 @@
+import type { AccountType } from '@/api/accounts'
+import type { ImportFileType } from '@/pages/imports/utils/fileIntake'
+
+const MIB = 1024 * 1024
+
+/** Largest statement the import reads, checked before the file is decoded */
+export const MAX_OFX_FILE_BYTES = 25 * MIB
+
+/** Said when a file is refused for what it is, so the next step is to choose a statement */
+export const OFX_FILE_GUIDANCE = 'Choose an OFX or QFX statement from your bank.'
+
+export const OFX_NOT_READABLE_REASON = `This isn't an OFX or QFX statement. ${OFX_FILE_GUIDANCE}`
+export const OFX_TOO_LARGE_REASON = `This file is larger than ${MAX_OFX_FILE_BYTES / MIB} MB, which is more than a statement holds. ${OFX_FILE_GUIDANCE}`
+export const OFX_STATEMENT_INCOMPLETE_REASON = "A statement in this file has no account number or currency, so it can't be imported."
+export const OFX_ONLY_LEFT_OUT_REASON = "This file only holds investment or loan statements, which aren't imported."
+export const OFX_NO_STATEMENTS_REASON = `This file has no bank or credit card statements. ${OFX_FILE_GUIDANCE}`
+
+export const OFX_IMPORT_FILE_TYPE: ImportFileType = {
+  matches: (file) => /\.(ofx|qfx)$/i.test(file.name),
+  processingStatus: 'Reading statement',
+  multipleFilesReason: 'Choose one OFX or QFX statement at a time.',
+  wrongTypeReason: OFX_FILE_GUIDANCE,
+  nonFileDropReason: 'Drop an OFX or QFX statement, not text or other page content.',
+  directoryDropReason: `Folders cannot be uploaded. ${OFX_FILE_GUIDANCE}`,
+}
+
+// One file holds all of a user's statements, so the account answers are kept under one fixed scope
+export const getOfxAccountSourceScope = () => 'ofx'
+
+/** The 1.x header declares this when the file's bytes are Windows-1252 rather than UTF-8 */
+export const OFX_LEGACY_CHARSET = '1252'
+
+/** The account type a new account is proposed with for the account type an OFX bank statement states */
+export const OFX_BANK_ACCOUNT_TYPES: Record<string, { type: AccountType; label: string }> = {
+  CHECKING: { type: 'checking', label: 'Checking' },
+  SAVINGS: { type: 'savings', label: 'Savings' },
+  MONEYMRKT: { type: 'savings', label: 'Money market' },
+  CREDITLINE: { type: 'line_of_credit', label: 'Credit line' },
+  CD: { type: 'term_deposit', label: 'Term deposit' },
+}
+
+/** Proposed when a bank statement states no account type, or one this app has no type for */
+export const OFX_DEFAULT_BANK_ACCOUNT = { type: 'checking', label: 'Bank account' } as const
+
+export const OFX_CREDIT_CARD_ACCOUNT = { type: 'credit_card', label: 'Credit card' } as const
+
+/** How many trailing characters of the account number tell two accounts apart in a name */
+export const OFX_ACCOUNT_NUMBER_TAIL_LENGTH = 4
+
+/** The seeded categories a transaction files under, since an OFX statement carries none */
+export const OFX_MONEY_OUT_SOURCE = '(withdrawal, no category)'
+export const OFX_MONEY_IN_SOURCE = '(deposit, no category)'
+
+export const OFX_DATE_UNREADABLE_REASON = 'The posted date is missing or is not a real date.'
+export const OFX_AMOUNT_UNREADABLE_REASON = 'The amount is missing or is not a number.'
+
+export function getOfxPayeeTooLongReason(length: number, max: number) {
+  return `The payee name is ${length.toLocaleString()} characters, and the importer stores up to ${max.toLocaleString()}.`
+}
+
+/** Says a statement can't go into an account kept in another currency */
+export function getOfxCurrencyMismatchError(statementLabel: string, statementCurrency: string, accountCurrency: string) {
+  return `The statement for ${statementLabel} is in ${statementCurrency}, but the account you chose is in ${accountCurrency}. Choose an account in ${statementCurrency}.`
+}
+
+/** Says what the file holds that the import leaves out */
+export function getOfxLeftOutNotice({ investment, loan }: { investment: number; loan: number }) {
+  const parts = [
+    investment > 0 ? `${investment} investment ${investment === 1 ? 'statement' : 'statements'}` : null,
+    loan > 0 ? `${loan} loan ${loan === 1 ? 'statement' : 'statements'}` : null,
+  ].filter((part): part is string => part !== null)
+  return parts.length === 0 ? null : `${parts.join(' and ')} in this file ${investment + loan === 1 ? "isn't" : "aren't"} imported.`
+}
