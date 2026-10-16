@@ -6,14 +6,23 @@ import type { CreditUsageSummary } from '@/pages/dashboard/utils/getCreditUsageS
 type CreditUsageBodyProps = {
   summary: CreditUsageSummary
   displayCurrency: string
+
+  // The user has credit accounts but counts none, which reads differently from having none
+  allLeftOut: boolean
+
+  // Opens the account chooser from the empty state that asks the user to pick accounts
+  onChooseAccounts: () => void
 }
 
 /**
- * Renders the credit progress ring, active mode amount, and empty credit state
+ * Renders the credit progress ring, active mode amount, and the empty states for no credit accounts
+ * and for every one left out
  */
 export function CreditUsageBody({
   summary,
   displayCurrency,
+  allLeftOut,
+  onChooseAccounts,
 }: CreditUsageBodyProps) {
   const {
     creditAvailable,
@@ -29,6 +38,24 @@ export function CreditUsageBody({
   const radius = (size - strokeWidth) / 2
   const circumference = 2 * Math.PI * radius
   const filled = (Math.max(0, Math.min(displayPct, 100)) / 100) * circumference
+
+  if (allLeftOut) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
+        <p className="text-sm font-medium max-[1000px]:text-[0.7875rem]">No accounts selected</p>
+        <p className="text-sm italic max-[1000px]:text-[0.7875rem]" style={{ color: 'var(--app-text-subtle)' }}>
+          <button
+            type="button"
+            onClick={onChooseAccounts}
+            className="font-medium underline underline-offset-2"
+          >
+            Choose a credit account
+          </button>{' '}
+          to get started
+        </p>
+      </div>
+    )
+  }
 
   if (!hasCredit) {
     return (

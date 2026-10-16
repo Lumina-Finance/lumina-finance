@@ -2643,14 +2643,16 @@
 
   .app-selection-list {
     @apply mt-3 max-h-60 space-y-1 overflow-y-auto rounded-xl p-1;
-    background: var(--app-input-bg);
-    border: 1px solid var(--app-input-border);
+    /* No panel of its own: the rows sit on the modal's background, and the padding keeps their outlines and focus rings from being clipped. The border stays transparent so an invalid list can still tint it */
+    border: 1px solid transparent;
+    /* Pulls the box out by its own padding and border so the rows line up with the search field above */
+    margin-inline: calc(-1 * (0.25rem + 1px));
   }
 
   .app-selection-option {
     @apply grid w-full grid-cols-[1.25rem_minmax(0,1fr)] items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors duration-150;
     background: transparent;
-    border: 1px solid transparent;
+    border: 1px solid var(--app-input-border);
     color: var(--app-text-muted);
     font-weight: 400;
   }

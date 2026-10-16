@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react'
-import { useDashboardCredit } from '@/api/dashboard'
+import { useDashboardCreditUtilization } from '@/api/dashboard'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
+import { CreditAccountsModal } from './AccountsModal'
 import { CreditHeader } from './Header'
 import { CreditUsageBody } from './UsageBody'
 import { DashboardWidgetLoadingBody } from '@/pages/dashboard/components/WidgetLoadingBody'
+import { areAllAccountsLeftOut } from '@/pages/dashboard/utils/creditAccountChoice'
 import {
   getCreditUsageSummary,
   type CreditMode,
@@ -14,7 +16,8 @@ type CreditWidgetProps = {
 }
 
 /**
- * Loads credit utilization data and composes the active mode, header, progress ring, and amount
+ * Loads credit utilization data for the accounts the user counts and composes the active mode, header,
+ * account choice, progress ring, and amount
  */
 export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
   const {
@@ -22,8 +25,9 @@ export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
     error: creditError,
     isError: creditFailed,
     isFetching: dashboardCreditLoading,
-  } = useDashboardCredit()
+  } = useDashboardCreditUtilization()
   const [creditMode, setCreditMode] = useState<CreditMode>('used')
+  const [accountsModalOpen, setAccountsModalOpen] = useState(false)
   const loadingSnapshot = useMemo(
     () => ({ dashboardCredit: incomingDashboardCredit }),
     [incomingDashboardCredit],
@@ -41,16 +45,19 @@ export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
   const dashboardCredit = displaySnapshot.dashboardCredit
   const fxStatus = dashboardCredit?.fx_status
   const creditSummary = getCreditUsageSummary(dashboardCredit, creditMode)
+  const creditAccounts = dashboardCredit?.accounts ?? []
 
   return (
     <div className="app-card h-[15.5rem] flex flex-col">
       <CreditHeader
         creditMode={creditMode}
         hasCredit={creditSummary.hasCredit}
+        canChooseAccounts={creditAccounts.length > 0}
         tierColor={creditSummary.tierColor}
         tierSoft={creditSummary.tierSoft}
         fxStatus={fxStatus}
         onModeToggle={() => setCreditMode((mode) => (mode === 'used' ? 'available' : 'used'))}
+        onChooseAccounts={() => setAccountsModalOpen(true)}
       />
 
       <DashboardWidgetLoadingBody
@@ -66,8 +73,16 @@ export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
         <CreditUsageBody
           summary={creditSummary}
           displayCurrency={displayCurrency}
+          allLeftOut={areAllAccountsLeftOut(creditAccounts)}
+          onChooseAccounts={() => setAccountsModalOpen(true)}
         />
       </DashboardWidgetLoadingBody>
+
+      <CreditAccountsModal
+        open={accountsModalOpen}
+        accounts={creditAccounts}
+        onClose={() => setAccountsModalOpen(false)}
+      />
     </div>
   )
 }

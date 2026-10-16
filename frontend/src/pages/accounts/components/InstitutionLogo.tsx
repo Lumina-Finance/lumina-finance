@@ -3,10 +3,14 @@ import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
 
 type InstitutionLogoProps = {
   institution: Institution | null
-  variant?: 'row' | 'detail'
+  variant?: 'compact' | 'row' | 'detail'
 }
 
 const variantClassName = {
+  compact: {
+    shell: 'h-6 w-6 rounded-md',
+    fallback: 'text-xs',
+  },
   row: {
     shell: 'h-9 w-9 rounded-lg',
     fallback: 'text-sm',

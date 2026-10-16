@@ -110,7 +110,7 @@ export default function BudgetEditorModalCategorySection({
             />
             <div className="relative mb-1 mt-3 min-h-0 min-[1050px]:flex-1">
               <motion.div
-                className="app-selection-list m-0 min-[1050px]:absolute min-[1050px]:inset-0 min-[1050px]:max-h-none"
+                className="app-selection-list mt-0 min-[1050px]:absolute min-[1050px]:inset-0 min-[1050px]:max-h-none"
                 style={categoryIdsError ? { borderColor: 'var(--app-negative-border)', background: 'var(--app-negative-soft)' } : undefined}
                 layout={animateOptions && !shouldReduceMotion}
               >

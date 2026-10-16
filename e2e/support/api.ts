@@ -241,6 +241,9 @@ export interface CreateAccountOptions {
   /** Signed opening balance in minor units */
   startingBalance?: number
 
+  /** Credit limit in minor units, for a revolving account */
+  creditLimit?: number
+
   /** Makes it a group account, which every member of the group can see */
   groupId?: string
 }
@@ -270,6 +273,7 @@ export async function createAccount(
       currency,
       institution_id: options.institutionId,
       starting_balance: options.startingBalance ?? null,
+      credit_limit: options.creditLimit,
       group_id: options.groupId,
     },
   })
