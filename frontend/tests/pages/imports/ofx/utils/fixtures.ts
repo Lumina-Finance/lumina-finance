@@ -9,7 +9,9 @@
 export interface FixtureTransaction {
   posted?: string
   amount?: string
-  fitId?: string
+
+  /** Null writes no FITID, as a bank that gives its transactions no ID */
+  fitId?: string | null
   name?: string
   memo?: string
 
@@ -59,7 +61,7 @@ export function buildMessageSet(statement: FixtureStatement, close: boolean) {
     + leaf('TRNTYPE', 'DEBIT', close)
     + leaf('DTPOSTED', transaction.posted ?? '20240115120000', close)
     + leaf('TRNAMT', transaction.amount ?? '-12.50', close)
-    + leaf('FITID', transaction.fitId ?? '1', close)
+    + leaf('FITID', transaction.fitId === undefined ? '1' : transaction.fitId, close)
     + (transaction.extra ?? '')
     + leaf('NAME', transaction.name, close)
     + leaf('MEMO', transaction.memo, close)

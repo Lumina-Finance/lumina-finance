@@ -1,9 +1,10 @@
-import { useState, type DragEvent } from 'react'
+import { useState, type DragEvent, type Ref } from 'react'
 import { FileText, LoaderCircle, TriangleAlert, Upload, X } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { COLLAPSIBLE_SECTION_EASE, COLLAPSIBLE_SECTION_TRANSITION_SECONDS } from '@/components/collapsible-section/motion'
 import { IMPORT_INSET_STYLE } from '@/pages/imports/constants'
 import type { ImportFileDraft, ImportUploadBlock } from '@/pages/imports/types'
-import { CSV_IMPORT_FILE_TYPE, selectDroppedImportFiles, type ImportFileSelection, type ImportFileType } from '@/pages/imports/utils'
+import { CSV_IMPORT_FILE_TYPE, getDropPrompt, labelStagedFiles, selectDroppedImportFiles, type ImportFileSelection, type ImportFileType } from '@/pages/imports/utils'
 
 /**
  * Upload affordance shared by the import flows that animates between its idle
@@ -32,10 +33,14 @@ export function ImportUploadCard({
   fileType = CSV_IMPORT_FILE_TYPE,
   onClick,
   onDropFile,
+  buttonRef,
 }: {
   title: string
   hint: string
   processing: boolean
+
+  /** Reaches the card's button, for a flow that hands the keyboard's place to it */
+  buttonRef?: Ref<HTMLButtonElement>
   disabled: boolean
   rejection?: string | null
   blockReason?: ImportUploadBlock | null
@@ -50,6 +55,7 @@ export function ImportUploadCard({
   const message = blockReason?.message ?? rejection ?? null
   const isRefusal = message !== null && !isBlockedWithoutFailure
   const shouldReduceMotion = useReducedMotion()
+  const dropPrompt = getDropPrompt(fileType)
   const [dragState, setDragState] = useState(() => ({ depth: 0, disabled }))
 
   // Reset a drag that crosses an availability change before rendering the new presentation
@@ -78,6 +84,7 @@ export function ImportUploadCard({
   return (
     <>
       <button
+        ref={buttonRef}
         type="button"
         className={`group grid min-h-32 w-full place-items-center px-5 py-6 text-center transition-colors duration-150 ${disabled ? unavailableClasses : availableClasses}`}
         style={{
@@ -189,10 +196,10 @@ export function ImportUploadCard({
                   <Upload size={20} aria-hidden />
                 </span>
                 <span className="block text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
-                  Drop CSV file here
+                  {dropPrompt.title}
                 </span>
                 <span className="mt-1 block text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-                  Release to upload one file.
+                  {dropPrompt.hint}
                 </span>
               </motion.span>
             ) : (
@@ -273,19 +280,36 @@ export function ImportStagedFileTable<TFile extends { id: string; name: string }
   /** Drops the rows' side padding, so the list starts and ends on the edges of its section */
   isFlush?: boolean
 }) {
+  const shouldReduceMotion = useReducedMotion()
+  // A removed row collapses and fades while the rows below move up with it, and a row already
+  // there when the list appears does not animate in
+  const rowTransition = { duration: shouldReduceMotion ? 0 : COLLAPSIBLE_SECTION_TRANSITION_SECONDS, ease: COLLAPSIBLE_SECTION_EASE }
+
+  // Files of one name are told apart by position, as the rest of the import names them
+  const labels = labelStagedFiles(files)
+
   return (
-    <div className="max-h-64 overflow-y-auto">
-      {files.map((file) => {
+    <div>
+      <AnimatePresence initial={false}>
+      {files.map((file, index) => {
         const { detail, problem } = describe(file)
+        const label = labels[index]
         return (
-          <div
+          <motion.div
             key={file.id}
+            className="overflow-hidden"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={rowTransition}
+          >
+          <div
             className={`grid items-start gap-x-3 py-3${isFlush ? '' : ' px-3'} ${onRemove ? 'grid-cols-[17px_minmax(0,1fr)_2rem]' : 'grid-cols-[17px_minmax(0,1fr)]'}`}
           >
             <FileText size={17} className="mt-0.5" style={{ color: 'var(--app-text-muted)' }} aria-hidden />
             <div className="min-w-0">
               {/* Wraps rather than truncating, since exports are often told apart by the end of their name */}
-              <p className="text-[0.9375rem] font-medium wrap-anywhere">{file.name}</p>
+              <p className="text-[0.9375rem] font-medium wrap-anywhere">{label}</p>
               {detail && (
                 <p className="mt-0.5 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
                   {detail}
@@ -293,14 +317,14 @@ export function ImportStagedFileTable<TFile extends { id: string; name: string }
               )}
             </div>
             {/* Drawn taller than the name's line without making it any taller. A flush list has no room
-                beside the button, so the list's scrolling box would cut the focus ring there, and the
+                beside the button, so the row's clipping box would cut the focus ring there, and the
                 ring is drawn inside the button instead */}
             {onRemove && (
               <button
                 type="button"
                 className={`app-icon-button -my-1${isFlush ? ' focus-visible:-outline-offset-2' : ''}`}
                 onClick={() => onRemove(file)}
-                aria-label={`Remove ${file.name}`}
+                aria-label={`Remove ${label}`}
               >
                 <X size={16} aria-hidden />
               </button>
@@ -316,8 +340,10 @@ export function ImportStagedFileTable<TFile extends { id: string; name: string }
               </p>
             )}
           </div>
+          </motion.div>
         )
       })}
+      </AnimatePresence>
     </div>
   )
 }

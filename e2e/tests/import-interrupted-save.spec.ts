@@ -1,7 +1,8 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
 import { countLedgerTransactions, createAccount, signUpUser } from '../support/api'
-import { commitImport, logInViaApi, openPage } from '../support/app'
+import { chooseFromDropdown, commitImport, logInViaApi, openPage } from '../support/app'
+import { statementFile } from '../support/ofx'
 
 // Runs on desktop only: how an interrupted save recovers is the same at every size
 
@@ -100,5 +101,44 @@ test('imports nothing twice after a CSV save that landed but whose answer was lo
 
   await expect(overlay.getByText('Import complete', { exact: true })).toBeVisible()
   await expect(overlay.getByText('Your earlier import was saved, so this one wasn\'t imported.', { exact: true })).toBeVisible()
+  expect(await countLedgerTransactions(request, user)).toBe(ledgerAfterFirstSave)
+})
+
+// A file added after an interrupted save changes what the import holds, so the kept upload, which
+// lacks it, must not be saved as if it were this import
+test('imports nothing twice when a file is added after an OFX save that landed but whose answer was lost', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/settings/imports')
+  await chooseFromDropdown(page.locator('body'), 'Data Source', 'OFX/QFX')
+  const upload = page.locator('input[type="file"][accept*=".ofx"]')
+  await expect(upload).toBeEnabled()
+  const statement = (name: string, fitId: string) => statementFile(name, [{ posted: '20240115', amount: '-5.00', fitId, name: 'Cafe' }])
+  await upload.setInputFiles([statement('2024-01.qfx', 'A1')])
+
+  await page.route(COMMIT_URL, async (route) => {
+    const landed = await route.fetch()
+    expect(landed.status()).toBe(201)
+    await route.abort('connectionfailed')
+  })
+  const firstSaveDropped = page.waitForEvent('requestfailed', (sent) => COMMIT_URL.test(sent.url()))
+  await page.getByRole('button', { name: 'Commit import', exact: true }).click()
+  await firstSaveDropped
+  const overlay = page.getByRole('dialog')
+  await expect(overlay.getByText('Save interrupted', { exact: true })).toBeVisible()
+  await overlay.getByRole('button', { name: 'Back to import', exact: true }).click()
+  await expect(page.getByText('Save interrupted. Please try again.', { exact: true })).toBeVisible()
+  const ledgerAfterFirstSave = await countLedgerTransactions(request, user)
+  expect(ledgerAfterFirstSave).toBe(1)
+  await page.unroute(COMMIT_URL)
+
+  await upload.setInputFiles([statement('2024-02.qfx', 'B1')])
+  await expect(page.getByText('Save interrupted. Please try again.', { exact: true })).toHaveCount(0)
+  await commitImport(page)
+
+  await expect(overlay.getByText(
+    'Your earlier import was saved, so this one wasn\'t imported. 2024-02.qfx isn\'t in it, so import that file on its own.',
+    { exact: true },
+  )).toBeVisible()
   expect(await countLedgerTransactions(request, user)).toBe(ledgerAfterFirstSave)
 })

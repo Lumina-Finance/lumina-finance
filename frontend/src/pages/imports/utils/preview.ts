@@ -21,7 +21,7 @@ import type {
   ImportRowProblem,
   PreviewTransactionRow,
 } from '@/pages/imports/types'
-import { getImportAccountName } from './accountMapping'
+import { getFileAccountSourceId, getImportAccountName } from './accountMapping'
 import { countCreatedImportSources, getImportRowId } from './common'
 import { findReusedImportCategory, getCategoryMatchKind } from './categoryMatching'
 import { findCurrencyExponent } from '@/utils/moneyInput'
@@ -148,6 +148,7 @@ export function buildImportPreviewRows({
   }
 
   // Preview generation walks files in row order and stops early because the UI only renders a small sample
+  const fileAccountSourceId = getFileAccountSourceId(files)
   for (const file of files) {
     for (let rowIndex = 0; rowIndex < file.rows.length; rowIndex += 1) {
       if (problemRowIds.has(getImportRowId(file.id, rowIndex))) continue
@@ -155,8 +156,8 @@ export function buildImportPreviewRows({
       const row = file.rows[rowIndex]
       if (!isRowIncluded(row)) continue
 
-      const resolved = resolveImportRow(row, file.id, rowContext)
-      const accountLabel = columnMap.account_id ? resolved.accountSource : getImportAccountName(file.name)
+      const resolved = resolveImportRow(row, fileAccountSourceId, rowContext)
+      const accountLabel = columnMap.account_id ? resolved.accountSource : getImportAccountName(files[0].name)
       const accountChoice = resolvedAccountMappings[resolved.accountSource] ?? ''
       const createDetails = {
         currency: accountCreateCurrencies[resolved.accountSource] ?? '',

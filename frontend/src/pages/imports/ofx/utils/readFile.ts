@@ -34,20 +34,24 @@ const LEFT_OUT_MESSAGE_SETS = { investment: 'INVSTMTMSGSRSV1', loan: 'LOANMSGSRS
  * import lists it as skipped instead of refusing the file
  *
  * @param file - The uploaded file, never sent anywhere
+ * @param fileId - What tells this file's transactions from those of another file of the same name
  */
-export async function readOfxFile(file: File): Promise<OfxFileRead> {
+export async function readOfxFile(file: File, fileId: string = crypto.randomUUID()): Promise<OfxFileRead> {
   if (file.size > MAX_OFX_FILE_BYTES) return { status: 'refused', reason: OFX_TOO_LARGE_REASON }
 
   // A file the reader cannot get through is refused as not a statement, as a crash would otherwise
   // leave the upload with no word on why it did nothing
   try {
-    return readOfxStatements(decodeOfxBytes(await file.arrayBuffer()))
+    return readOfxStatements(decodeOfxBytes(await file.arrayBuffer()), { fileId, fileName: file.name })
   } catch {
     return { status: 'refused', reason: OFX_NOT_READABLE_REASON }
   }
 }
 
-function readOfxStatements(text: string): OfxFileRead {
+/** The file a statement is read from, which each of its transactions records */
+type OfxFileOrigin = Pick<OfxTransaction, 'fileId' | 'fileName'>
+
+function readOfxStatements(text: string, origin: OfxFileOrigin): OfxFileRead {
   const root = parseOfxMarkup(text)
   if (!root) return { status: 'refused', reason: OFX_NOT_READABLE_REASON }
 
@@ -62,7 +66,7 @@ function readOfxStatements(text: string): OfxFileRead {
 
   const statements: OfxStatement[] = []
   for (const { kind, node } of sections) {
-    const statement = readStatement(kind, node)
+    const statement = readStatement(kind, node, origin)
     if (!statement) return { status: 'refused', reason: OFX_STATEMENT_INCOMPLETE_REASON }
     statements.push(statement)
   }
@@ -101,7 +105,7 @@ function countStatementResponses(root: OfxNode, messageSetName: string) {
   }, 0)
 }
 
-function readStatement(kind: OfxStatementKind, node: OfxNode): OfxStatement | null {
+function readStatement(kind: OfxStatementKind, node: OfxNode, origin: OfxFileOrigin): OfxStatement | null {
   const currency = readLeaf(node, 'CURDEF')?.toUpperCase()
   const account = findChild(node, kind === 'bank' ? 'BANKACCTFROM' : 'CCACCTFROM')
   const accountNumber = account && readLeaf(account, 'ACCTID')
@@ -115,14 +119,16 @@ function readStatement(kind: OfxStatementKind, node: OfxNode): OfxStatement | nu
   const tail = accountNumber.replace(/[^A-Za-z0-9]/g, '').slice(-OFX_ACCOUNT_NUMBER_TAIL_LENGTH)
   const name = `${accountKind.label} ending ${tail || accountNumber}`
 
+  const accountKey = [kind, bankId, accountNumber].filter(Boolean).join(':')
   return {
-    id: [kind, bankId, accountNumber].filter(Boolean).join(':'),
+    id: accountKey,
     kind,
+    accountKey,
     name,
     label: `${name} (${currency})`,
     proposedType: accountKind.type,
     currency,
-    transactions: findAllDescendants(node, 'STMTTRN').map((transaction, index) => readTransaction(transaction, index + 1, currency)),
+    transactions: findAllDescendants(node, 'STMTTRN').map((transaction, index) => readTransaction(transaction, index + 1, currency, origin)),
   }
 }
 
@@ -156,7 +162,7 @@ function readOtherCurrency(node: OfxNode, statementCurrency: string) {
   return code === statementCurrency ? null : code
 }
 
-function readTransaction(node: OfxNode, index: number, statementCurrency: string): OfxTransaction {
+function readTransaction(node: OfxNode, index: number, statementCurrency: string, origin: OfxFileOrigin): OfxTransaction {
   const postedText = readLeaf(node, 'DTPOSTED') ?? ''
   const amountText = readLeaf(node, 'TRNAMT') ?? ''
   const payeeAggregate = findChild(node, 'PAYEE')
@@ -164,6 +170,11 @@ function readTransaction(node: OfxNode, index: number, statementCurrency: string
 
   return {
     index,
+    ...origin,
+
+    // A file read alone is the first of the files, until combining them orders it among the others
+    fileOrder: 1,
+    fitId: readLeaf(node, 'FITID') || null,
     postedText,
     date: readPostedDate(postedText),
     amountText,

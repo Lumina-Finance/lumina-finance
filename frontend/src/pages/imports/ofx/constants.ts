@@ -17,17 +17,18 @@ export const OFX_NO_STATEMENTS_REASON = `This file has no bank or credit card st
 
 export const OFX_IMPORT_FILE_TYPE: ImportFileType = {
   matches: (file) => /\.(ofx|qfx)$/i.test(file.name),
-  processingStatus: 'Reading statement',
-  multipleFilesReason: 'Choose one OFX or QFX statement at a time.',
+  processingStatus: 'Reading statements',
+  dropTitle: 'Drop statements here',
+  multipleFilesReason: null,
   wrongTypeReason: OFX_FILE_GUIDANCE,
-  nonFileDropReason: 'Drop an OFX or QFX statement, not text or other page content.',
+  nonFileDropReason: 'Drop OFX or QFX statements, not text or other page content.',
   directoryDropReason: `Folders cannot be uploaded. ${OFX_FILE_GUIDANCE}`,
 }
 
 /** What the progress overlay calls the upload stage */
-export const OFX_UPLOAD_LABEL = 'Uploading the statement'
+export const OFX_UPLOAD_LABEL = 'Uploading the statements'
 
-// One file holds all of a user's statements, so the account answers are kept under one fixed scope
+// The files are one import with one set of statements, so the account answers are kept under one fixed scope
 export const getOfxAccountSourceScope = () => 'ofx'
 
 /** The account type a new account is proposed with for the account type an OFX bank statement states */
@@ -64,16 +65,21 @@ export function getOfxOtherCurrencyReason(code: string, statementCurrency: strin
     : `The amount is in a currency other than the statement's ${statementCurrency}, and the importer does not convert between them.`
 }
 
+/** Says why a transaction is left out when an earlier file of the import already holds it */
+export function getOfxRepeatedTransactionReason(fileName: string) {
+  return `This transaction is already in ${fileName}.`
+}
+
 /** Says a statement can't go into an account kept in another currency */
 export function getOfxCurrencyMismatchError(statementLabel: string, statementCurrency: string, accountCurrency: string) {
   return `The statement for ${statementLabel} is in ${statementCurrency}, but the account you chose is in ${accountCurrency}. Choose an account in ${statementCurrency}.`
 }
 
-/** Says what the file holds that the import leaves out */
-export function getOfxLeftOutNotice({ investment, loan }: { investment: number; loan: number }) {
+/** Says what the files hold that the import leaves out */
+export function getOfxLeftOutNotice({ investment, loan }: { investment: number; loan: number }, fileCount: number) {
   const parts = [
     investment > 0 ? `${investment} investment ${investment === 1 ? 'statement' : 'statements'}` : null,
     loan > 0 ? `${loan} loan ${loan === 1 ? 'statement' : 'statements'}` : null,
   ].filter((part): part is string => part !== null)
-  return parts.length === 0 ? null : `${parts.join(' and ')} in this file ${investment + loan === 1 ? "isn't" : "aren't"} imported.`
+  return parts.length === 0 ? null : `${parts.join(' and ')} in ${fileCount === 1 ? 'this file' : 'these files'} ${investment + loan === 1 ? "isn't" : "aren't"} imported.`
 }

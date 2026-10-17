@@ -115,10 +115,16 @@ export function ImportPreviewStep({
             amountHeaders={amountHeaders}
             toggleLabel="skipped rows"
             revealsOnReview
+            areFilesNamed={files.length > 1}
           />
         </div>
       )}
-      <ImportRowWarningsTable rowWarnings={importBuild.rowWarnings} headers={headers} amountHeaders={amountHeaders} />
+      <ImportRowWarningsTable
+        rowWarnings={importBuild.rowWarnings}
+        headers={headers}
+        amountHeaders={amountHeaders}
+        areFilesNamed={files.length > 1}
+      />
       {/* Last of the three notices about the data, which run refusals first and then the things that
           hold nothing up. What follows is the preview itself rather than a fourth notice, so a red
           error list below this amber one is the body starting rather than the order breaking */}

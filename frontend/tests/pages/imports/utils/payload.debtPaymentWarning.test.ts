@@ -133,14 +133,15 @@ describe('guidance for CSV rows filed under system Debt Payment', () => {
     }])
     expect(result.payload?.rows.map((row) => row.amount)).toEqual(['-125.00', '125.00', '0.00'])
     expect(result.rowWarnings).toEqual([
-      { id: 'file-1-0', rowNumber: 1, cells: rows[0], reason: EXPECTED_DEBT_PAYMENT_NOTE },
+      { id: 'file-1-0', fileName: 'Chequing.csv', rowNumber: 1, cells: rows[0], reason: EXPECTED_DEBT_PAYMENT_NOTE },
       {
         id: 'file-1-1',
+        fileName: 'Chequing.csv',
         rowNumber: 2,
         cells: rows[1],
         reason: `${getRowSignDisagreesWithCategoryReason('expense')} ${EXPECTED_DEBT_PAYMENT_NOTE}`,
       },
-      { id: 'file-1-2', rowNumber: 3, cells: rows[2], reason: EXPECTED_DEBT_PAYMENT_NOTE },
+      { id: 'file-1-2', fileName: 'Chequing.csv', rowNumber: 3, cells: rows[2], reason: EXPECTED_DEBT_PAYMENT_NOTE },
     ])
   })
 
@@ -220,6 +221,7 @@ describe('guidance for CSV rows filed under system Debt Payment', () => {
 
     expect(result.rowProblems).toEqual([{
       id: 'file-1-0',
+      fileName: 'Chequing.csv',
       rowNumber: 1,
       cells: row,
       reason: ROW_AMOUNT_UNREADABLE_REASON,

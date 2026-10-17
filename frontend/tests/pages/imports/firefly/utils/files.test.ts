@@ -262,7 +262,7 @@ describe('reading the quoting Firefly III writes', () => {
 describe('delegating selected Firefly files to their supplied slot', () => {
   it('passes a transactions CSV to the transactions reader', async () => {
     const file = new File([TRANSACTIONS_CSV], 'transactions.csv', { type: 'text/csv' })
-    const readFile = vi.fn((selectedFile: File) => (
+    const readFile = vi.fn(([selectedFile]: File[]) => (
       readFireflyCsvFile(selectedFile, 'transactions', SUPPORTED_CURRENCY_CODES)
     ))
 
@@ -270,10 +270,10 @@ describe('delegating selected Firefly files to their supplied slot', () => {
       files: [file],
       processing: false,
       unavailableReason: null,
-      readFile,
+      readFiles: readFile,
     })
 
-    expect(readFile).toHaveBeenCalledWith(file)
+    expect(readFile).toHaveBeenCalledWith([file])
     expect(result.status).toBe('accepted')
     if (result.status !== 'accepted') return
     expect(result.result.error).toBeNull()
@@ -282,7 +282,7 @@ describe('delegating selected Firefly files to their supplied slot', () => {
 
   it('passes a budgets CSV to the budgets reader', async () => {
     const file = new File([BUDGETS_CSV], 'budgets.csv', { type: 'text/csv' })
-    const readFile = vi.fn((selectedFile: File) => (
+    const readFile = vi.fn(([selectedFile]: File[]) => (
       readFireflyCsvFile(selectedFile, 'budgets', SUPPORTED_CURRENCY_CODES)
     ))
 
@@ -290,10 +290,10 @@ describe('delegating selected Firefly files to their supplied slot', () => {
       files: [file],
       processing: false,
       unavailableReason: null,
-      readFile,
+      readFiles: readFile,
     })
 
-    expect(readFile).toHaveBeenCalledWith(file)
+    expect(readFile).toHaveBeenCalledWith([file])
     expect(result.status).toBe('accepted')
     if (result.status !== 'accepted') return
     expect(result.result.error).toBeNull()
@@ -307,7 +307,7 @@ describe('delegating selected Firefly files to their supplied slot', () => {
       files: [file],
       processing: false,
       unavailableReason: null,
-      readFile: (selectedFile) => readFireflyCsvFile(selectedFile, 'budgets', SUPPORTED_CURRENCY_CODES),
+      readFiles: ([selectedFile]) => readFireflyCsvFile(selectedFile, 'budgets', SUPPORTED_CURRENCY_CODES),
     })
 
     expect(result.status).toBe('accepted')

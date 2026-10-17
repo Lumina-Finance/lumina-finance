@@ -220,7 +220,8 @@ describe('import run', () => {
 
   it('sends nothing new when the kept upload had been saved, and reports that earlier import', async () => {
     const { controller, discardStagedRun } = createHarness('saved')
-    await failWhileSaving(controller, {})
+    const keptAnswers = { files: ['earlier'] }
+    await failWhileSaving(controller, keptAnswers)
     controller.reset()
     expect(controller.getState()).toMatchObject({ stagedRunId: 'run-1', failure: null })
     expect(discardStagedRun).not.toHaveBeenCalled()
@@ -240,6 +241,9 @@ describe('import run', () => {
         savedEarlier: true,
       },
     })
+
+    // The earlier import is reported with the answers it was sent with, not the ones just asked for
+    expect(controller.getState().completedImport?.answers).toBe(keptAnswers)
   })
 
   it('stays interrupted and sends nothing when the kept upload cannot be checked, then checks again on Try again', async () => {
@@ -350,7 +354,7 @@ describe('the rows an import leaves out', () => {
 
     expect(getSkippedRowsDisplay({
       liveForecastRows: liveRows,
-      completedImport: { result: RESULT, skippedRowsAtCommit: SKIPPED_AT_START, outsideRangeCountAtCommit: 0, savedEarlier: false },
+      completedImport: { result: RESULT, skippedRowsAtCommit: SKIPPED_AT_START, outsideRangeCountAtCommit: 0, savedEarlier: false, answers: {} },
     })).toEqual({
       rows: SKIPPED_AT_START,
       totalCount: 1,
@@ -363,7 +367,7 @@ describe('the rows an import leaves out', () => {
   it('says how many rows the chosen dates left out, in the past tense, once the import has run', () => {
     expect(getOutsideRangeRowsNote({
       liveCount: 7,
-      completedImport: { result: RESULT, skippedRowsAtCommit: [], outsideRangeCountAtCommit: OUTSIDE_RANGE_AT_START, savedEarlier: false },
+      completedImport: { result: RESULT, skippedRowsAtCommit: [], outsideRangeCountAtCommit: OUTSIDE_RANGE_AT_START, savedEarlier: false, answers: {} },
     })).toBe('3 rows were dated outside the chosen dates, so they weren\'t imported.')
   })
 

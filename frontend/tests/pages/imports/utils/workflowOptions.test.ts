@@ -165,9 +165,9 @@ describe('import workflow option helpers', () => {
 
     expect(getImportHeaders(files)).toEqual(['Account', 'Category', 'Tags', 'Merchant'])
     expect(getMissingRequiredColumnLabels({ ...EMPTY_COLUMN_MAP, dt: 'Date' })).toContain(MISSING_AMOUNT_COLUMN_LABEL)
+    // Files staged together are one account's statements, so the first stands for all of them
     expect(buildImportAccountMappingSources(files, '', '')).toEqual([
       { id: 'checking-file', label: 'Chequing Activity', matchText: 'Chequing Activity.csv', isCounterpartyOnly: false },
-      { id: 'visa-file', label: 'Visa', matchText: 'Visa.csv', isCounterpartyOnly: false },
     ])
     expect(buildImportAccountMappingSources(files, 'Account', '')).toEqual([
       { id: 'Main', label: 'Main', matchText: 'Main', isCounterpartyOnly: false },

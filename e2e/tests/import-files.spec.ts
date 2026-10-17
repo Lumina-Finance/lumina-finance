@@ -7,8 +7,8 @@ import { logInViaApi, openPage } from '../support/app'
 
 const CSV = ['Date,Amount,Category,Merchant', '2024-03-15,-12.34,Groceries,Unknown'].join('\n')
 
-// The upload card goes away once the file is staged, so a keyboard user would otherwise be left on
-// the page body. Focus moves to the control that replaced it
+// The card that was pressed is replaced by the one for adding more files once the first is staged,
+// so a keyboard user would otherwise be left on the page body. Focus moves to Remove
 test('moves focus to Remove once a CSV file chosen from the keyboard is staged', async ({ page, request }) => {
   const user = await signUpUser(request)
   await logInViaApi(page, user)

@@ -119,6 +119,17 @@ describe('saying where the problem is', () => {
     expect(validateColumnValues(files, 'Currency', 'currency', SUPPORTED_CURRENCY_CODES).message)
       .toContain('Row 3 has "ZZZ", which does not match.')
   })
+
+  // Row numbers restart in each file, so with several files staged the row alone points at two places
+  it('names the file beside the row when several files are staged', () => {
+    const files = [
+      ...createColumn('Currency', ['', '']),
+      { ...createColumn('Currency', ['', '', 'ZZZ'])[0], id: 'file-2', name: 'Savings.csv' },
+    ]
+
+    expect(validateColumnValues(files, 'Currency', 'currency', SUPPORTED_CURRENCY_CODES).message)
+      .toContain('Row 3 of "Savings.csv" has "ZZZ", which does not match.')
+  })
 })
 
 describe('promising only the checks that run', () => {

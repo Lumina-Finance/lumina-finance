@@ -17,7 +17,7 @@ const SUPPORTED_CURRENCY_CODES = new Set(['CAD'])
 describe('processing an acquired import file', () => {
   it('passes one CSV file unchanged to the existing reader', async () => {
     const file = new File([VALID_CSV], 'statement.csv', { type: '' })
-    const readFile = vi.fn((selectedFile: File) => (
+    const readFile = vi.fn(([selectedFile]: File[]) => (
       readCsvFile(selectedFile, SUPPORTED_CURRENCY_CODES, { requireDataRows: true })
     ))
 
@@ -25,11 +25,11 @@ describe('processing an acquired import file', () => {
       files: [file],
       processing: false,
       unavailableReason: null,
-      readFile,
+      readFiles: readFile,
     })
 
     expect(readFile).toHaveBeenCalledOnce()
-    expect(readFile).toHaveBeenCalledWith(file)
+    expect(readFile).toHaveBeenCalledWith([file])
     expect(result.status).toBe('accepted')
     if (result.status !== 'accepted') return
     expect(result.result.error).toBeNull()
@@ -38,7 +38,7 @@ describe('processing an acquired import file', () => {
 
   it('refuses readable CSV text labelled as an image before invoking the reader', async () => {
     const file = new File([VALID_CSV], 'image.png', { type: 'image/png' })
-    const readFile = vi.fn((selectedFile: File) => (
+    const readFile = vi.fn(([selectedFile]: File[]) => (
       readCsvFile(selectedFile, SUPPORTED_CURRENCY_CODES, { requireDataRows: true })
     ))
 
@@ -46,7 +46,7 @@ describe('processing an acquired import file', () => {
       files: [file],
       processing: false,
       unavailableReason: null,
-      readFile,
+      readFiles: readFile,
     })
 
     expect(result).toEqual({ status: 'refused', reason: 'Choose a CSV file.' })
@@ -60,7 +60,7 @@ describe('processing an acquired import file', () => {
       files: [],
       processing: false,
       unavailableReason: null,
-      readFile,
+      readFiles: readFile,
     })).toEqual({ status: 'cancelled' })
     expect(readFile).not.toHaveBeenCalled()
   })
@@ -71,16 +71,16 @@ describe('processing an acquired import file', () => {
     ['CSV extension with image MIME', new File([VALID_CSV], 'statement.csv', { type: 'image/png' })],
     ['CSV MIME without a CSV extension', new File([VALID_CSV], 'report.data', { type: 'text/csv' })],
   ])('accepts one file identified by %s', async (_label, file) => {
-    const readFile = vi.fn(async (selectedFile: File) => selectedFile)
+    const readFile = vi.fn(async ([selectedFile]: File[]) => selectedFile)
 
     expect(await processImportFileIntake({
       files: [file],
       processing: false,
       unavailableReason: null,
-      readFile,
+      readFiles: readFile,
     })).toEqual({ status: 'accepted', result: file })
     expect(readFile).toHaveBeenCalledOnce()
-    expect(readFile).toHaveBeenCalledWith(file)
+    expect(readFile).toHaveBeenCalledWith([file])
   })
 
   it('refuses two files together without reading either one', async () => {
@@ -94,7 +94,7 @@ describe('processing an acquired import file', () => {
       files,
       processing: false,
       unavailableReason: null,
-      readFile,
+      readFiles: readFile,
     })).toEqual({ status: 'refused', reason: 'Choose one CSV file at a time.' })
     expect(readFile).not.toHaveBeenCalled()
     expect(files).toEqual(originalFiles)
@@ -110,7 +110,7 @@ describe('processing an acquired import file', () => {
       files: [file],
       processing: false,
       unavailableReason: null,
-      readFile,
+      readFiles: readFile,
     })).toEqual({ status: 'refused', reason: 'Choose a CSV file.' })
     expect(readFile).not.toHaveBeenCalled()
   })
@@ -122,7 +122,7 @@ describe('processing an acquired import file', () => {
       files: [new File([VALID_CSV], 'statement.csv')],
       processing: false,
       unavailableReason: 'Currencies are still loading.',
-      readFile,
+      readFiles: readFile,
     })).toEqual({ status: 'unavailable', reason: 'Currencies are still loading.' })
     expect(readFile).not.toHaveBeenCalled()
   })
@@ -134,7 +134,7 @@ describe('processing an acquired import file', () => {
       files: [new File([VALID_CSV], 'statement.csv')],
       processing: true,
       unavailableReason: null,
-      readFile,
+      readFiles: readFile,
     })).toEqual({ status: 'processing' })
     expect(readFile).not.toHaveBeenCalled()
   })
@@ -146,7 +146,7 @@ describe('processing an acquired import file', () => {
       files: [new File([VALID_CSV], 'statement.csv')],
       processing: true,
       unavailableReason: 'Currencies could not be loaded.',
-      readFile,
+      readFiles: readFile,
     })).toEqual({ status: 'unavailable', reason: 'Currencies could not be loaded.' })
     expect(readFile).not.toHaveBeenCalled()
   })
@@ -160,7 +160,7 @@ describe('processing an acquired import file', () => {
       files: [file],
       processing: false,
       unavailableReason: null,
-      readFile: (selectedFile) => (
+      readFiles: ([selectedFile]) => (
         readCsvFile(selectedFile, SUPPORTED_CURRENCY_CODES, { requireDataRows: true })
       ),
     })
@@ -176,15 +176,15 @@ describe('acquiring a dropped import item', () => {
   it('passes an aggregate dropped-file selection through the intake reader', async () => {
     const file = new File([VALID_CSV], 'statement.csv', { type: 'text/csv' })
     const selection = selectDroppedImportFiles([{ kind: 'file', getAsFile: () => file }], [])
-    const readFile = vi.fn(async (selectedFile: File) => selectedFile)
+    const readFile = vi.fn(async ([selectedFile]: File[]) => selectedFile)
 
     expect(await processImportFileIntake({
       files: selection,
       processing: false,
       unavailableReason: null,
-      readFile,
+      readFiles: readFile,
     })).toEqual({ status: 'accepted', result: file })
-    expect(readFile).toHaveBeenCalledWith(file)
+    expect(readFile).toHaveBeenCalledWith([file])
   })
 
   it('passes an aggregate multiple-item refusal through without acquiring either file', async () => {
@@ -200,7 +200,7 @@ describe('acquiring a dropped import item', () => {
       files: selection,
       processing: false,
       unavailableReason: null,
-      readFile,
+      readFiles: readFile,
     })).toEqual({ status: 'refused', reason: 'Choose one CSV file at a time.' })
     expect(getFirstFile).not.toHaveBeenCalled()
     expect(getSecondFile).not.toHaveBeenCalled()
@@ -235,7 +235,7 @@ describe('acquiring a dropped import item', () => {
       files: selection,
       processing: false,
       unavailableReason: null,
-      readFile,
+      readFiles: readFile,
     })).toEqual({ status: 'refused', reason: expectedReason })
     expect(getCsvFile).not.toHaveBeenCalled()
     expect(getExtraFile).not.toHaveBeenCalled()
@@ -246,7 +246,7 @@ describe('acquiring a dropped import item', () => {
     const file = new File([VALID_CSV], 'statement.csv', { type: 'text/csv' })
     const getAsFile = vi.fn(() => file)
 
-    expect(selectDroppedImportFile({ kind: 'file', getAsFile })).toEqual({ status: 'accepted', file })
+    expect(selectDroppedImportFile({ kind: 'file', getAsFile })).toEqual({ status: 'accepted', files: [file] })
     expect(getAsFile).toHaveBeenCalledOnce()
   })
 
@@ -280,7 +280,7 @@ describe('acquiring a dropped import item', () => {
     const result = selectDroppedImportFile({ kind: 'file', getAsFile: () => file })
 
     expect(result).toMatchObject(expected)
-    if (result.status === 'accepted') expect(result.file).toBe(file)
+    if (result.status === 'accepted') expect(result.files).toEqual([file])
   })
 })
 
@@ -288,11 +288,11 @@ describe('an upload that takes a file other than CSV', () => {
   it('accepts an Actual Budget export and refuses a CSV with guidance', async () => {
     const zip = new File(['PK'], 'My-Finances.zip', { type: 'application/zip' })
     const csv = new File([VALID_CSV], 'statement.csv', { type: 'text/csv' })
-    const readFile = vi.fn(async (file: File) => file.name)
+    const readFile = vi.fn(async ([file]: File[]) => file.name)
 
-    expect(await processImportFileIntake({ files: [zip], processing: false, unavailableReason: null, readFile, fileType: ACTUAL_IMPORT_FILE_TYPE }))
+    expect(await processImportFileIntake({ files: [zip], processing: false, unavailableReason: null, readFiles: readFile, fileType: ACTUAL_IMPORT_FILE_TYPE }))
       .toEqual({ status: 'accepted', result: 'My-Finances.zip' })
-    expect(await processImportFileIntake({ files: [csv], processing: false, unavailableReason: null, readFile, fileType: ACTUAL_IMPORT_FILE_TYPE }))
+    expect(await processImportFileIntake({ files: [csv], processing: false, unavailableReason: null, readFiles: readFile, fileType: ACTUAL_IMPORT_FILE_TYPE }))
       .toEqual({ status: 'refused', reason: ACTUAL_FILE_GUIDANCE })
     expect(selectDroppedImportFiles([{ kind: 'string', getAsFile: () => null }], [], ACTUAL_IMPORT_FILE_TYPE))
       .toEqual({ status: 'refused', reason: 'Drop an Actual Budget export, not text or other page content.' })
@@ -301,11 +301,11 @@ describe('an upload that takes a file other than CSV', () => {
 
   it('accepts a bare Actual Budget database and refuses two files at once', async () => {
     const database = new File(['SQLite format 3'], 'db.sqlite')
-    const readFile = vi.fn(async (file: File) => file.name)
+    const readFile = vi.fn(async ([file]: File[]) => file.name)
 
-    expect(await processImportFileIntake({ files: [database], processing: false, unavailableReason: null, readFile, fileType: ACTUAL_IMPORT_FILE_TYPE }))
+    expect(await processImportFileIntake({ files: [database], processing: false, unavailableReason: null, readFiles: readFile, fileType: ACTUAL_IMPORT_FILE_TYPE }))
       .toEqual({ status: 'accepted', result: 'db.sqlite' })
-    expect(await processImportFileIntake({ files: [database, database], processing: false, unavailableReason: null, readFile, fileType: ACTUAL_IMPORT_FILE_TYPE }))
+    expect(await processImportFileIntake({ files: [database, database], processing: false, unavailableReason: null, readFiles: readFile, fileType: ACTUAL_IMPORT_FILE_TYPE }))
       .toEqual({ status: 'refused', reason: ACTUAL_IMPORT_FILE_TYPE.multipleFilesReason })
   })
 })

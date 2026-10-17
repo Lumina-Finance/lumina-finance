@@ -31,6 +31,7 @@ import type {
   ImportRowProblem,
 } from '@/pages/imports/types'
 import type { Currency } from '@/api/currency'
+import { getFileAccountSourceId } from './accountMapping'
 import {
   DEFAULT_IMPORT_AMOUNT_FORMAT,
   type ImportAmountFormat,
@@ -43,6 +44,7 @@ import { buildImportMerchantMappings } from './merchantMatching'
 import { getImportDirectionValues } from './columnMapping'
 import { getImportRowId, includeEveryImportRow, joinImportSummaryParts } from './common'
 import { getImportDateRangeFilter, isImportDateRangeCrossed, isImportDateRangeIncomplete } from './dateRange'
+import { labelStagedFiles } from './stagedFiles'
 import { getAmountArrangementClashError, getMissingRequiredColumnLabels } from './workflowOptions'
 import {
   getCurrencyByAccountSource,
@@ -184,11 +186,11 @@ export function buildTransactionImportPayload({
 
   // Without a settled format every row would fail its own date check, which reads as a file full of
   // bad dates rather than one unanswered question
-  if (columnMap.dt && !dateFormat) addError('Choose the date format this file is written in.')
+  if (columnMap.dt && !dateFormat) addError('Choose the date format this import is written in.')
   if (isImportDateRangeIncomplete(columnMap, dateRange)) addError(IMPORT_DATE_RANGE_INCOMPLETE_ERROR)
   if (isImportDateRangeCrossed(columnMap, dateRange)) addError(IMPORT_DATE_RANGE_CROSSED_ERROR)
   if ((columnMap.amount || columnMap.amount_out || columnMap.amount_in) && !amountFormat) {
-    addError('Choose the amount format this file is written in.')
+    addError('Choose the amount format this import is written in.')
   }
 
   const mappedHeaders = new Set(Object.values(columnMap).filter(Boolean))
@@ -311,18 +313,21 @@ export function buildTransactionImportPayload({
   const rowProblems: ImportRowProblem[] = []
   const rowWarnings: ImportRowProblem[] = []
   let outsideRangeRowCount = 0
-  for (const file of files) {
+  const fileAccountSourceId = getFileAccountSourceId(files)
+  const fileLabels = labelStagedFiles(files)
+  for (const [fileIndex, file] of files.entries()) {
     for (const [rowIndex, row] of file.rows.entries()) {
       if (!isRowIncluded(row)) {
         outsideRangeRowCount += 1
         continue
       }
 
-      const resolved = resolveImportRow(row, file.id, rowContext)
+      const resolved = resolveImportRow(row, fileAccountSourceId, rowContext)
       const problem = getImportRowProblem(resolved, rowJudgement)
       if (problem) {
         rowProblems.push({
           id: getImportRowId(file.id, rowIndex),
+          fileName: fileLabels[fileIndex],
           // Its position among the file's data rows, which is not the line it sits on: parsing
           // drops blank lines and folds a quoted value carrying a newline into one row
           rowNumber: rowIndex + 1,
@@ -347,6 +352,7 @@ export function buildTransactionImportPayload({
       if (warningReasons.length > 0) {
         rowWarnings.push({
           id: getImportRowId(file.id, rowIndex),
+          fileName: fileLabels[fileIndex],
           rowNumber: rowIndex + 1,
           cells: row,
           reason: warningReasons.join(' '),
@@ -362,7 +368,7 @@ export function buildTransactionImportPayload({
   // rows, so saying it has none would be wrong even when a row inside the dates was refused, and that
   // row is still listed. The generic message is kept for a file with no rows at all
   if (rows.length === 0) {
-    addError(outsideRangeRowCount > 0 ? IMPORT_NO_ROWS_IN_DATE_RANGE_ERROR : getImportNoRowsError('file'))
+    addError(outsideRangeRowCount > 0 ? IMPORT_NO_ROWS_IN_DATE_RANGE_ERROR : getImportNoRowsError('import'))
   }
 
   const warnings = getImportWarnings(rows, columnMap)

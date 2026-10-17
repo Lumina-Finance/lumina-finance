@@ -24,8 +24,8 @@ import {
   type FixtureStatement,
 } from './fixtures'
 
-async function readFile(contents: string | Uint8Array): Promise<OfxFile> {
-  const read = await readOfxFile(toOfxFile(contents))
+async function readFile(contents: string | Uint8Array, name?: string): Promise<OfxFile> {
+  const read = await readOfxFile(toOfxFile(contents, name), 'the-file')
   if (read.status !== 'read') throw new Error(read.reason)
   return read.file
 }
@@ -68,10 +68,16 @@ describe('reading a bank statement', () => {
     const qfx = buildSgmlOfx([CHECKING]).replace('<DTSERVER>20240201\n', '<DTSERVER>20240201\n<INTU.BID>3000\n')
     expect(qfx).toContain('<INTU.BID>3000')
 
-    const read = await readOfxFile(toOfxFile(qfx, 'statement.qfx'))
+    expect(await readFile(qfx, 'statement.qfx')).toEqual(await readFile(buildSgmlOfx([CHECKING]), 'statement.qfx'))
+  })
 
-    if (read.status !== 'read') throw new Error(read.reason)
-    expect(read.file).toEqual(await readFile(buildSgmlOfx([CHECKING])))
+  it('reads the bank\'s transaction ID and the file each transaction is in, and null for an ID the file leaves out', async () => {
+    const file = await readFile(buildSgmlOfx([{ transactions: [{ fitId: 'A1' }, { fitId: null }] }]), '2024-01.qfx')
+
+    expect(file.statements[0].transactions.map(({ fitId, fileName }) => ({ fitId, fileName }))).toEqual([
+      { fitId: 'A1', fileName: '2024-01.qfx' },
+      { fitId: null, fileName: '2024-01.qfx' },
+    ])
   })
 
   it('reads a bank statement and a credit card statement of one file as two statements', async () => {

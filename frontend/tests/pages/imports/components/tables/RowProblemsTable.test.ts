@@ -38,6 +38,27 @@ describe('the import\'s row problem tables', () => {
     expectAmountColumns(markup, { headers: ['Amount', 'Money In'], values: ['-42.50', '7.00'], others: ['Date', 'Notes'] })
   })
 
+  // Row numbers restart in each file, so with several files a row is told apart by its file
+  it('names the file beside each row number only when it is told to', () => {
+    const rowProblems: ImportRowProblem[] = [
+      { id: 'a', fileName: '2024-03.csv', rowNumber: 7, cells: { Notes: 'first' }, reason: 'Reason.' },
+      { id: 'b', fileName: '2024-04.csv', rowNumber: 7, cells: { Notes: 'second' }, reason: 'Reason.' },
+    ]
+    const render = (areFilesNamed: boolean) => renderToStaticMarkup(createElement(ImportRowProblemsTable, {
+      title: '2 rows not imported',
+      rowProblems,
+      headers: ['Notes'],
+      amountHeaders: [],
+      toggleLabel: 'skipped rows',
+      areFilesNamed,
+    }))
+
+    // The number then the name, each in an element of its own, whatever the elements are styled with
+    expect(render(true)).toMatch(/>7<\/span><span[^>]*><span[^>]*>2024-03\.csv<\/span>/)
+    expect(render(true)).toMatch(/>7<\/span><span[^>]*><span[^>]*>2024-04\.csv<\/span>/)
+    expect(render(false)).not.toContain('.csv')
+  })
+
   // Rows sharing a reason read under it once, so a long reason isn't repeated down the list
   it('says each reason once above the rows sharing it, in the order reasons first appear', () => {
     const rowProblems: ImportRowProblem[] = [

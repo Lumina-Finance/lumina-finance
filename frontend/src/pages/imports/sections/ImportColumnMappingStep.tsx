@@ -95,7 +95,7 @@ export function ImportColumnMappingStep({
     <ImportStep
       index="02"
       title="Column Mapping"
-      description="Specify what each column in your file holds."
+      description="Specify what each column in this import holds."
     >
       {!accountsFailed && (
         <ImportNotice title={CURRENCY_HANDLING_TITLE}>

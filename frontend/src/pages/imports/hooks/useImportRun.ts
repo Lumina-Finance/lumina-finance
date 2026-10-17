@@ -36,6 +36,7 @@ export function useImportRun<TResult, TSkipped>({
   uploadLabel,
   mutations,
   formatSummary,
+  formatSavedEarlier,
 }: {
   /**
    * Every answer the user gives about the import, as one value that changes only when one of them
@@ -52,6 +53,12 @@ export function useImportRun<TResult, TSkipped>({
 
   /** The summary line for an import that was sent and saved */
   formatSummary: (completed: CompletedImport<TResult, TSkipped>) => string
+
+  /**
+   * Says that an earlier import was saved in place of this one, for an import that can say more
+   * about how the two differ. Defaults to the plain sentence
+   */
+  formatSavedEarlier?: (completed: CompletedImport<TResult, TSkipped>) => string
 }) {
   const [run, setRun] = useState<ImportRunState<TResult, TSkipped>>(IMPORT_RUN_IDLE)
   const [controller] = useState(() => createImportRunController<TResult, TSkipped>({
@@ -154,9 +161,11 @@ export function useImportRun<TResult, TSkipped>({
       importOverlayPhase: overlayPhase,
       importOverlayOpen,
       importOverlaySteps,
-      importSummary: completedImport?.savedEarlier
-        ? IMPORT_SAVED_EARLIER_MESSAGE
-        : completedImport ? formatSummary(completedImport) : '',
+      importSummary: !completedImport
+        ? ''
+        : completedImport.savedEarlier
+          ? formatSavedEarlier?.(completedImport) ?? IMPORT_SAVED_EARLIER_MESSAGE
+          : formatSummary(completedImport),
       isImportInFlight,
       canStopImport: canStop,
       canRetryImportCommit: stagedRunId !== null && failure?.interrupted === true,

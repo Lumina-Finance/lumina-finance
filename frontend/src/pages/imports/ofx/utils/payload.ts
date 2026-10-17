@@ -15,6 +15,7 @@ import {
   getOfxAmountTooPreciseReason,
   getOfxCurrencyMismatchError,
   getOfxOtherCurrencyReason,
+  getOfxRepeatedTransactionReason,
   OFX_AMOUNT_UNREADABLE_REASON,
   OFX_CATEGORIES_UNAVAILABLE_ERROR,
   OFX_DATE_UNREADABLE_REASON,
@@ -81,7 +82,7 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
   const writtenSources = new Set<string>()
   const currencyMismatches: string[] = []
 
-  for (const statement of getOfxStatementsToImport(file)) {
+  const prepared = getOfxStatementsToImport(file).map((statement) => {
     const built = buildImportAccountMapping({
       source: statement.id,
       label: statement.label,
@@ -104,23 +105,39 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
     }
 
     const exponent = isWritable ? findCurrencyExponent(answers.currencies, statement.currency) : null
+    return { statement, built, isWritable, exponent }
+  })
+  const firstCopies = findFirstOfxCopies(prepared)
+
+  for (const { statement, built, isWritable, exponent } of prepared) {
     let hasRows = false
     for (const transaction of statement.transactions) {
+      const skip = (reason: string) => skippedRows.push({
+        id: getOfxSkippedRowId(statement, transaction),
+        fileName: transaction.fileName,
+        statementLabel: statement.label,
+        postedLabel: transaction.date ? getPreviewDateLabel(transaction.date) : transaction.postedText,
+        amountText: transaction.amountText,
+        payee: transaction.payee,
+        memo: transaction.memo,
+        reason,
+      })
+
       const problem = getOfxTransactionProblem(transaction, exponent, statement.currency)
       if (problem) {
-        skippedRows.push({
-          id: getOfxSkippedRowId(statement, transaction),
-          statementLabel: statement.label,
-          postedLabel: transaction.date ? getPreviewDateLabel(transaction.date) : transaction.postedText,
-          amountText: transaction.amountText,
-          payee: transaction.payee,
-          memo: transaction.memo,
-          reason: problem,
-        })
+        skip(problem)
         continue
       }
 
       if (!isWritable) continue
+
+      const repeatKey = getOfxRepeatKey(statement, transaction)
+      const firstCopy = repeatKey === null ? undefined : firstCopies.get(repeatKey)
+      if (firstCopy !== undefined && firstCopy.fileId !== transaction.fileId) {
+        skip(getOfxRepeatedTransactionReason(firstCopy.fileName))
+        continue
+      }
+
       hasRows = true
       rows.push({
         account_source: statement.id,
@@ -144,6 +161,36 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
 
   const payload = errors.length === 0 ? { accounts, categories, merchants: [], rows } : null
   return { errors, currencyMismatches, payload, skippedRows, writtenSources }
+}
+
+/**
+ * What tells one bank transaction from another across files: the bank's ID within the bank account
+ * and currency it was issued for, or null for a transaction the file gave no ID. The account is the
+ * one the file names, before any suffix that tells a file's second statement of it apart
+ */
+function getOfxRepeatKey(statement: OfxStatement, transaction: OfxTransaction) {
+  return transaction.fitId === null ? null : JSON.stringify([statement.accountKey, statement.currency, transaction.fitId])
+}
+
+/**
+ * Finds the copy of each bank transaction that the import keeps, which is the one in the earliest
+ * file. Only a copy that is written counts, so one left out for a problem of its own does not hide
+ * a readable copy in a later file
+ */
+function findFirstOfxCopies(prepared: Array<{ statement: OfxStatement; isWritable: boolean; exponent: number | null }>) {
+  const firstCopies = new Map<string, OfxTransaction>()
+  for (const { statement, isWritable, exponent } of prepared) {
+    if (!isWritable) continue
+
+    for (const transaction of statement.transactions) {
+      const key = getOfxRepeatKey(statement, transaction)
+      if (key === null || getOfxTransactionProblem(transaction, exponent, statement.currency) !== null) continue
+
+      const first = firstCopies.get(key)
+      if (first === undefined || transaction.fileOrder < first.fileOrder) firstCopies.set(key, transaction)
+    }
+  }
+  return firstCopies
 }
 
 /** The category source a transaction files under, by the direction of its money */

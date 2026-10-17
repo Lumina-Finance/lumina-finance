@@ -4,7 +4,7 @@ import { getImportFailureMessage } from '@/utils/importFailure'
 // What the user is told after stopping an import themselves, which reads differently either side of
 // the commit: before it nothing has been written, and during it the write may already have finished
 const IMPORT_STOPPED_WHILE_STAGING_MESSAGE = 'Import stopped, and nothing was added to your ledger.'
-const IMPORT_STOPPED_WHILE_COMMITTING_MESSAGE = 'Import stopped while it was being written. Check your transactions before importing this file again.'
+const IMPORT_STOPPED_WHILE_COMMITTING_MESSAGE = 'Import stopped while it was being written. Check your transactions before importing again.'
 
 /** What is left of an import that stopped, and what the user is told about it */
 export interface ImportCommitFailure {

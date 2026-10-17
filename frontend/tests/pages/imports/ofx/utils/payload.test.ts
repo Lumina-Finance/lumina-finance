@@ -1,7 +1,8 @@
 /**
  * Tests compiling the statements of an OFX file and the user's account answers into the upload:
  * what a statement refuses for its currency, which transactions are left out with their reasons,
- * and where money in and out is filed
+ * and where money in and out is filed, with a transaction an earlier file already holds skipped
+ * only across files, under the same account, currency and bank ID, whatever the files are named
  */
 import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
@@ -19,6 +20,7 @@ import {
   getOfxAmountTooPreciseReason,
   getOfxCurrencyMismatchError,
   getOfxOtherCurrencyReason,
+  getOfxRepeatedTransactionReason,
   OFX_AMOUNT_UNREADABLE_REASON,
   OFX_CATEGORIES_UNAVAILABLE_ERROR,
   OFX_DATE_UNREADABLE_REASON,
@@ -27,6 +29,7 @@ import type { OfxFile } from '@/pages/imports/ofx/types'
 import { buildOfxImportPayload, type OfxImportAnswers } from '@/pages/imports/ofx/utils/payload'
 import { buildOfxPreviewRows } from '@/pages/imports/ofx/utils/preview'
 import { readOfxFile } from '@/pages/imports/ofx/utils/readFile'
+import { combineOfxFiles } from '@/pages/imports/ofx/utils/stagedFiles'
 import { buildSgmlOfx, toOfxFile, type FixtureStatement } from './fixtures'
 
 const CURRENCIES = [
@@ -271,5 +274,153 @@ describe('previewing an OFX import', () => {
 
     expect(rows.map((row) => row.transaction.merchant_name)).toEqual(['Shown'])
     expect(rows[0].category?.name).toBe('Miscellaneous')
+  })
+})
+
+// Monthly statements overlap by a few days, so one bank transaction ID can be in two files. The
+// import keeps the first copy it meets in the order of the files
+describe('a transaction that an earlier file of the import already holds', () => {
+  async function readFiles(files: Array<{ name: string; statements: FixtureStatement[] }>) {
+    const read = await Promise.all(files.map(async ({ name, statements }) => {
+      const result = await readOfxFile(toOfxFile(buildSgmlOfx(statements), name))
+      if (result.status !== 'read') throw new Error(result.reason)
+      return result.file
+    }))
+    return combineOfxFiles(read)
+  }
+
+  const january = { name: '2024-01.qfx', statements: [{ transactions: [
+    { posted: '20240130', amount: '-10.00', fitId: 'A1', name: 'Cafe' },
+    { posted: '20240131', amount: '-20.00', fitId: 'A2', name: 'Market' },
+  ] }] }
+  const february = { name: '2024-02.qfx', statements: [{ transactions: [
+    { posted: '20240131', amount: '-20.00', fitId: 'A2', name: 'Market' },
+    { posted: '20240201', amount: '-30.00', fitId: 'B1', name: 'Gas' },
+  ] }] }
+
+  it('is skipped with the name of the file that has it, and the first copy is kept', async () => {
+    const file = await readFiles([january, february])
+    const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
+
+    expect(build.payload?.rows.map((row) => row.merchant_name)).toEqual(['Cafe', 'Market', 'Gas'])
+    expect(build.skippedRows.map(({ payee, reason, fileName }) => ({ payee, reason, fileName }))).toEqual([
+      { payee: 'Market', reason: getOfxRepeatedTransactionReason('2024-01.qfx'), fileName: '2024-02.qfx' },
+    ])
+    expect(getOfxRepeatedTransactionReason('2024-01.qfx')).toBe('This transaction is already in 2024-01.qfx.')
+  })
+
+  it('names the first file that has it, not the nearest, when later files repeat it too', async () => {
+    const march = { name: '2024-03.qfx', statements: february.statements }
+    const file = await readFiles([january, february, march])
+    const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
+
+    expect(build.skippedRows.map(({ fileName, payee, reason }) => [fileName, payee, reason])).toEqual([
+      ['2024-02.qfx', 'Market', getOfxRepeatedTransactionReason('2024-01.qfx')],
+      ['2024-03.qfx', 'Market', getOfxRepeatedTransactionReason('2024-01.qfx')],
+      ['2024-03.qfx', 'Gas', getOfxRepeatedTransactionReason('2024-02.qfx')],
+    ])
+  })
+
+  // Many banks name every download the same, so the files are told apart by the files and not by their names
+  it('is skipped when the files share a name, which the reason and the skipped row tell apart by position', async () => {
+    const file = await readFiles([{ ...january, name: 'statement.qfx' }, { ...february, name: 'statement.qfx' }])
+    const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
+
+    expect(build.payload?.rows.map((row) => row.merchant_name)).toEqual(['Cafe', 'Market', 'Gas'])
+    expect(build.skippedRows.map(({ fileName, reason }) => [fileName, reason])).toEqual([
+      ['statement.qfx (file 2)', getOfxRepeatedTransactionReason('statement.qfx (file 1)')],
+    ])
+  })
+
+  // A file that holds one account as two statements, such as split over two date ranges, gives the
+  // second the suffix #2, though both are for the same bank account
+  it('is skipped when an earlier file holds it under the same account in another of its statements', async () => {
+    const month = (name: string, fitId: string) => ({ transactions: [{ posted: '20240110', amount: '-5.00', fitId, name }] })
+    const file = await readFiles([
+      { name: 'a.qfx', statements: [month('Jan', 'J1'), month('Feb', 'F1')] },
+      { name: 'b.qfx', statements: [month('Feb', 'F1'), month('Mar', 'M1')] },
+    ])
+    const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
+
+    expect(build.skippedRows.map(({ fileName, payee, reason }) => [fileName, payee, reason])).toEqual([
+      ['b.qfx', 'Feb', getOfxRepeatedTransactionReason('a.qfx')],
+    ])
+    expect(build.payload?.rows.map((row) => row.merchant_name).sort()).toEqual(['Feb', 'Jan', 'Mar'])
+  })
+
+  it('leaves a name as it is while no other file has it', async () => {
+    const file = await readFiles([{ ...january, name: 'statement.qfx' }, february])
+    const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
+
+    expect(build.skippedRows.map(({ fileName, reason }) => [fileName, reason])).toEqual([
+      ['2024-02.qfx', getOfxRepeatedTransactionReason('statement.qfx')],
+    ])
+  })
+
+  it('is imported when the same account ID and ID are in a file in another currency', async () => {
+    const usdAccount = { ...CHEQUING, id: 'usd-chequing', currency: 'USD' } as AccountsOverview
+    const inUsd = { name: '2024-02.qfx', statements: [{ currency: 'USD', transactions: february.statements[0].transactions }] }
+    const file = await readFiles([january, inUsd])
+    const answers = createAnswers(file, CHEQUING.id, {
+      accountById: new Map([[CHEQUING.id, CHEQUING], [usdAccount.id, usdAccount]]),
+    })
+    answers.accountMappings = Object.fromEntries(file.statements.map((statement) => [statement.id, statement.currency === 'USD' ? usdAccount.id : CHEQUING.id]))
+    const build = buildOfxImportPayload(file, answers)
+
+    expect(build.errors).toEqual([])
+    expect(build.skippedRows).toEqual([])
+    expect(build.payload?.rows).toHaveLength(4)
+  })
+
+  it('leaves the preview without it', async () => {
+    const file = await readFiles([january, february])
+    const answers = createAnswers(file, CHEQUING.id)
+    const build = buildOfxImportPayload(file, answers)
+
+    const rows = buildOfxPreviewRows(file, {
+      ...answers,
+      institutionById: new Map(),
+      skippedRowIds: new Set(build.skippedRows.map((row) => row.id)),
+    }, 10)
+
+    expect(rows.map((row) => row.transaction.merchant_name)).toEqual(['Cafe', 'Market', 'Gas'])
+  })
+
+  it('is imported when the same ID repeats within one file, which the bank gave twice', async () => {
+    const file = await readFiles([{ name: '2024-01.qfx', statements: [{ transactions: [
+      { posted: '20240110', amount: '-5.00', fitId: '0', name: 'First' },
+      { posted: '20240111', amount: '-6.00', fitId: '0', name: 'Second' },
+    ] }] }])
+    const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
+
+    expect(build.skippedRows).toEqual([])
+    expect(build.payload?.rows.map((row) => row.merchant_name)).toEqual(['First', 'Second'])
+  })
+
+  it('is imported when the same ID belongs to another bank account', async () => {
+    const other = { name: '2024-02.qfx', statements: [{ accountId: '000999888777', transactions: february.statements[0].transactions }] }
+    const file = await readFiles([january, other])
+    const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
+
+    expect(build.skippedRows).toEqual([])
+    expect(build.payload?.rows).toHaveLength(4)
+  })
+
+  it('is imported when the bank gave it no ID', async () => {
+    const withoutId = (name: string) => ({ name, statements: [{ transactions: [{ posted: '20240110', amount: '-5.00', fitId: null, name: 'Cafe' }] }] })
+    const file = await readFiles([withoutId('2024-01.qfx'), withoutId('2024-02.qfx')])
+    const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
+
+    expect(build.skippedRows).toEqual([])
+    expect(build.payload?.rows).toHaveLength(2)
+  })
+
+  it('does not count a first copy that was itself left out, so a readable copy in a later file is imported', async () => {
+    const unreadable = { name: '2024-01.qfx', statements: [{ transactions: [{ posted: '20240131', amount: 'n/a', fitId: 'A2', name: 'Market' }] }] }
+    const file = await readFiles([unreadable, february])
+    const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
+
+    expect(build.skippedRows.map((row) => row.reason)).toEqual([OFX_AMOUNT_UNREADABLE_REASON])
+    expect(build.payload?.rows.map((row) => row.merchant_name)).toEqual(['Market', 'Gas'])
   })
 })

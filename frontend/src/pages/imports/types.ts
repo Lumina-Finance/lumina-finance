@@ -133,6 +133,9 @@ export interface ImportAccountSource {
 
 export interface ImportFileDraft {
   id: string
+
+  /** The id of the first file removed ahead of this one, which the import's answers stay held under */
+  identityId?: string
   name: string
   size: number
   headers: string[]
@@ -222,6 +225,9 @@ export interface PreviewTransactionRow {
 export interface ImportRowProblem {
   /** Identity of the row within the staged file, which the preview reads to leave it out */
   id: string
+
+  /** The staged file the row is in, which a table names when several files were staged. Row numbers restart in each */
+  fileName?: string
   rowNumber: number
   cells: CsvRow
   reason: string

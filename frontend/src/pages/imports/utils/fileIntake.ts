@@ -1,7 +1,7 @@
 export type ImportFileSelection =
   | { status: 'cancelled' }
   | { status: 'refused'; reason: string }
-  | { status: 'accepted'; file: File }
+  | { status: 'accepted'; files: File[] }
 
 export type ImportFileAcquisition =
   | ArrayLike<File>
@@ -28,7 +28,12 @@ export interface ImportFileType {
 
   /** Shown on the upload card and read out while the file is being read */
   processingStatus: string
-  multipleFilesReason: string
+
+  /** Shown on the upload card while files are dragged over it, naming what it takes */
+  dropTitle: string
+
+  /** Why more than one file is refused, or null for an upload that takes several at once */
+  multipleFilesReason: string | null
   wrongTypeReason: string
   nonFileDropReason: string
   directoryDropReason: string
@@ -39,27 +44,55 @@ export const NON_CSV_REASON = 'Choose a CSV file.'
 export const NON_FILE_DROP_REASON = 'Drop a CSV file, not text or other page content.'
 export const DIRECTORY_DROP_REASON = 'Folders cannot be uploaded. Choose one CSV file.'
 
+const isCsvFile = (file: File) => file.name.toLowerCase().endsWith('.csv') || file.type.trim().toLowerCase() === 'text/csv'
+
 /** A CSV file, told by its name or declared type */
 export const CSV_IMPORT_FILE_TYPE: ImportFileType = {
-  matches: (file) => file.name.toLowerCase().endsWith('.csv') || file.type.trim().toLowerCase() === 'text/csv',
+  matches: isCsvFile,
   processingStatus: 'Processing CSV',
+  dropTitle: 'Drop CSV file here',
   multipleFilesReason: MULTIPLE_FILES_REASON,
   wrongTypeReason: NON_CSV_REASON,
   nonFileDropReason: NON_FILE_DROP_REASON,
   directoryDropReason: DIRECTORY_DROP_REASON,
 }
 
-/** Selects one acquired file when it is of the type the upload takes */
-export function selectSingleImportFile(
+/** CSV files that share one layout and make one import */
+export const SEVERAL_CSV_IMPORT_FILE_TYPE: ImportFileType = {
+  matches: isCsvFile,
+  processingStatus: 'Processing CSV',
+  dropTitle: 'Drop CSV files here',
+  multipleFilesReason: null,
+  wrongTypeReason: 'Choose CSV files.',
+  nonFileDropReason: 'Drop CSV files, not text or other page content.',
+  directoryDropReason: 'Folders cannot be uploaded. Choose CSV files.',
+}
+
+/** What the upload card says while files are dragged over it, which depends on how many it takes */
+export function getDropPrompt(fileType: ImportFileType) {
+  return {
+    title: fileType.dropTitle,
+    hint: fileType.multipleFilesReason === null ? 'Release to upload them.' : 'Release to upload one file.',
+  }
+}
+
+/**
+ * Selects the acquired files when every one is of the type the upload takes, and refuses the whole
+ * set when one is not or when the upload takes only one
+ */
+export function selectImportFiles(
   files: ArrayLike<File> | Iterable<File>,
   fileType: ImportFileType = CSV_IMPORT_FILE_TYPE,
 ): ImportFileSelection {
   const acquiredFiles = Array.from(files)
   if (acquiredFiles.length === 0) return { status: 'cancelled' }
-  if (acquiredFiles.length !== 1) return { status: 'refused', reason: fileType.multipleFilesReason }
+  if (acquiredFiles.length > 1 && fileType.multipleFilesReason !== null) {
+    return { status: 'refused', reason: fileType.multipleFilesReason }
+  }
 
-  const [file] = acquiredFiles
-  return fileType.matches(file) ? { status: 'accepted', file } : { status: 'refused', reason: fileType.wrongTypeReason }
+  return acquiredFiles.every(fileType.matches)
+    ? { status: 'accepted', files: acquiredFiles }
+    : { status: 'refused', reason: fileType.wrongTypeReason }
 }
 
 /** Acquires a file from one browser drop item */
@@ -70,10 +103,10 @@ export function selectDroppedImportFile(item: ImportDropItem, fileType: ImportFi
   }
 
   const file = item.getAsFile()
-  return file ? selectSingleImportFile([file], fileType) : { status: 'cancelled' }
+  return file ? selectImportFiles([file], fileType) : { status: 'cancelled' }
 }
 
-/** Acquires one file from a browser drop while preserving item metadata */
+/** Acquires the files from a browser drop while preserving item metadata */
 export function selectDroppedImportFiles(
   items: ArrayLike<ImportDropItem>,
   files: ArrayLike<File> | Iterable<File>,
@@ -87,8 +120,13 @@ export function selectDroppedImportFiles(
   if (droppedItems.some((item) => item.webkitGetAsEntry?.()?.isDirectory)) {
     return { status: 'refused', reason: fileType.directoryDropReason }
   }
-  if (droppedItems.length > 1) return { status: 'refused', reason: fileType.multipleFilesReason }
-  return selectSingleImportFile(files, fileType)
+  if (droppedItems.length > 1 && fileType.multipleFilesReason !== null) {
+    return { status: 'refused', reason: fileType.multipleFilesReason }
+  }
+  if (droppedItems.length > 1) {
+    return selectImportFiles(droppedItems.flatMap((item) => item.getAsFile() ?? []), fileType)
+  }
+  return selectImportFiles(files, fileType)
 }
 
 /** Identifies an intake result supplied by a drop target */
@@ -96,25 +134,25 @@ function isImportFileSelection(value: ImportFileAcquisition): value is ImportFil
   return typeof value === 'object' && value !== null && 'status' in value
 }
 
-/** Checks intake availability and delegates an accepted file to the workflow reader */
+/** Checks intake availability and delegates the accepted files to the workflow reader */
 export async function processImportFileIntake<TResult>({
   files,
   processing,
   unavailableReason,
-  readFile,
+  readFiles,
   fileType = CSV_IMPORT_FILE_TYPE,
 }: {
   files: ImportFileAcquisition
   processing: boolean
   unavailableReason: string | null
-  readFile: (file: File) => Promise<TResult>
+  readFiles: (files: File[]) => Promise<TResult>
   fileType?: ImportFileType
 }): Promise<ImportFileIntakeResult<TResult>> {
   if (unavailableReason) return { status: 'unavailable', reason: unavailableReason }
   if (processing) return { status: 'processing' }
 
-  const selection = isImportFileSelection(files) ? files : selectSingleImportFile(files, fileType)
+  const selection = isImportFileSelection(files) ? files : selectImportFiles(files, fileType)
   if (selection.status !== 'accepted') return selection
 
-  return { status: 'accepted', result: await readFile(selection.file) }
+  return { status: 'accepted', result: await readFiles(selection.files) }
 }

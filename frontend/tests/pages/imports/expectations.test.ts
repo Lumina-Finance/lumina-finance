@@ -25,7 +25,7 @@ describe('the card saying what an import does with its data', () => {
   // Started from an account's page, every row goes to that account and nothing asks where
   it('names the account an import started from an account writes every row to', () => {
     expect(getImportExpectations('generic', 'Everyday chequing').intro).toBe(
-      'Each row of your file becomes one transaction in Everyday chequing.',
+      'Each row of your import becomes one transaction in Everyday chequing.',
     )
   })
 
@@ -34,7 +34,7 @@ describe('the card saying what an import does with its data', () => {
     const expectations = getImportExpectations('ofx', null)
 
     expect(expectations).toBe(OFX_EXPECTATIONS)
-    expect(expectations.intro).toBe('Each transaction in your statement becomes one transaction in the account you match it to, so one file can fill several accounts.')
+    expect(expectations.intro).toBe('Each transaction in your statements becomes one transaction in the account you match them to, so one file can fill several accounts and several files can fill one.')
     expect(expectations.deviation).toBe("The balance your bank states isn't imported. A new account starts at zero, so it only counts the transactions you import.")
     expect(expectations.changes.map((change) => change.source)).toEqual([
       'A payee',
@@ -56,6 +56,7 @@ describe('the card saying what an import does with its data', () => {
           'With an amount in another currency than their statement',
           'With more decimal places than their currency allows',
           'With a payee name or memo over the limits this app takes',
+          'Already in an earlier file of the same import, by the bank\'s transaction ID',
         ],
       },
       { group: 'Not imported', items: ['Check numbers and transaction types'] },

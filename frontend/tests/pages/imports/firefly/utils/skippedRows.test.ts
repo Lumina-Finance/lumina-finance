@@ -231,6 +231,7 @@ describe('getSkippedRowsDisplay after a Firefly III commit', () => {
         skippedRowsAtCommit: predictionAtCommit.skippedRows,
         outsideRangeCountAtCommit: 0,
         savedEarlier: false,
+        answers: {},
       },
     })).toEqual({
       rows: [predictionAtCommit.skippedRows[0]],

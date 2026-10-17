@@ -18,6 +18,7 @@ import type {
   ImportRowFilter,
 } from '@/pages/imports/types'
 import { includeEveryImportRow, unique } from './common'
+import { labelStagedFiles } from './stagedFiles'
 import {
   DEFAULT_IMPORT_AMOUNT_FORMAT,
   type ImportAmountFormat,
@@ -58,7 +59,7 @@ const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
     refusesColumn: refuseColumnOfOnlyNumbersOrDates,
   },
   dt: {
-    expected: 'valid dates in one format across the whole file',
+    expected: 'valid dates in one format across the whole import',
     requiredValues: true,
     accepts: isValidDateValue,
   },
@@ -234,7 +235,7 @@ export function validateColumnValues(
   if (invalid && (misfits.length === filled.length || isReadByAnotherFormat(invalid.value))) {
     return {
       valid: false,
-      message: `Expected ${expected}. Row ${invalid.rowNumber} has "${truncateValue(invalid.value)}", which ${getMismatchReason(target)}.`,
+      message: `Expected ${expected}. ${files.length > 1 ? `Row ${invalid.rowNumber} of "${invalid.fileName}"` : `Row ${invalid.rowNumber}`} has "${truncateValue(invalid.value)}", which ${getMismatchReason(target)}.`,
       fittingShare: 0,
     }
   }
@@ -350,13 +351,14 @@ export function getColumnValues(files: ImportFileDraft[], header: string) {
  * reported under elsewhere, so the two agree. It is not the line in the file, because parsing drops
  * blank lines and folds a quoted value carrying a newline into one row
  *
- * Numbering restarts per file, so it only reads as one number because the transaction flow stages a
- * single file. Staging several would need the file named alongside it
+ * Numbering restarts per file, so each entry carries its file's name for a message to name it beside
+ * the row when several files are staged
  */
 function getNumberedColumnValues(files: ImportFileDraft[], header: string) {
-  return files.flatMap((file) => {
+  const fileLabels = labelStagedFiles(files)
+  return files.flatMap((file, fileIndex) => {
     if (!file.headers.includes(header)) return []
-    return file.rows.map((row, index) => ({ value: row[header]?.trim() ?? '', rowNumber: index + 1 }))
+    return file.rows.map((row, index) => ({ value: row[header]?.trim() ?? '', rowNumber: index + 1, fileName: fileLabels[fileIndex] }))
   })
 }
 

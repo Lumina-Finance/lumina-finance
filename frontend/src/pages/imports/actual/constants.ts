@@ -177,6 +177,7 @@ export const ACTUAL_EXPORT_DOCS_URL = 'https://actualbudget.org/docs/backup-rest
 export const ACTUAL_IMPORT_FILE_TYPE: ImportFileType = {
   matches: (file) => /\.(zip|sqlite)$/i.test(file.name),
   processingStatus: 'Reading budget',
+  dropTitle: 'Drop Actual Budget export here',
   multipleFilesReason: 'Choose one Actual Budget export at a time.',
   wrongTypeReason: ACTUAL_FILE_GUIDANCE,
   nonFileDropReason: 'Drop an Actual Budget export, not text or other page content.',

@@ -318,6 +318,36 @@ export function ImportSkippedTable({
   )
 }
 
+// Wide enough for a date, which wraps onto a second line when the whole of it does not fit, above
+// the start of a file's name, which a long name is cut to. The whole name is in the cell's tooltip,
+// and the staged file list holds it in full
+export const FILE_NAMED_LEAD_COLUMN_WIDTH = '9rem'
+
+/**
+ * A lead cell that names the file its row is from under what the row is led by, for an import of
+ * several files, since row numbers restart in each file and a date is no help in finding which
+ */
+export function SkippedFileNamedLead({ lead, fileName }: { lead: ReactNode; fileName: string | undefined }) {
+  // A name shared by several files ends in its position, such as " (file 2)", which is all that
+  // tells those files apart, so the name is cut before it and the position is left whole
+  const position = fileName === undefined ? null : SHARED_NAME_POSITION_PATTERN.exec(fileName)
+  const baseName = position && fileName !== undefined ? fileName.slice(0, position.index) : fileName
+
+  return (
+    <>
+      {/* Wraps where the cell cuts its own content, so a date wider than the column shows whole */}
+      <span className="block whitespace-normal">{lead}</span>
+      <span className="flex text-xs font-normal" style={{ color: 'var(--app-text-subtle)' }} title={fileName}>
+        <span className="truncate">{baseName}</span>
+        {position && <span className="shrink-0 whitespace-pre">{position[0]}</span>}
+      </span>
+    </>
+  )
+}
+
+// The position combining files adds to a name that more than one of them has
+const SHARED_NAME_POSITION_PATTERN = / \(file \d+\)$/
+
 /**
  * Shared placeholder for a lead cell with nothing to show
  */
