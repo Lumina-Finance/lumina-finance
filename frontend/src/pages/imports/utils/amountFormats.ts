@@ -116,6 +116,22 @@ export function isValidMappedImportAmount(value: string) {
   return IMPORT_AMOUNT_FORMATS.some((format) => readImportAmount(value, format) !== null)
 }
 
+// An optional sign, then digits and the separators the supported formats use, with nothing else
+const BARE_AMOUNT_PATTERN = /^[-+]?[0-9][0-9.,' \u00a0\u202f]*$/
+
+/**
+ * Reports whether a cell is nothing but an amount in some supported format, for the guesser that
+ * works before a format is chosen
+ *
+ * Narrower than `isValidMappedImportAmount`, which also lets currency text and symbols sit beside
+ * the digits. Guessing from a value must not turn a code or a reference containing a number into
+ * an amount, so the cell may carry only a sign, digits and separators
+ */
+export function isBareImportAmount(value: string) {
+  const trimmed = value.trim()
+  return BARE_AMOUNT_PATTERN.test(trimmed) && isValidMappedImportAmount(trimmed)
+}
+
 /** Reads decimal text that has already been normalized for the backend */
 export function readNormalizedImportAmount(value: string) {
   return readImportAmount(value, NORMALIZED_IMPORT_AMOUNT_FORMAT)

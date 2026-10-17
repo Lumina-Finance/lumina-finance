@@ -76,6 +76,32 @@ export function countCreatedImportSources(
 }
 
 /**
+ * Reduces a column heading to lower-case words separated by single spaces, for matching it against
+ * the headings the import knows
+ *
+ * Full-width letters, digits and brackets read as their plain forms, and an accented Latin letter as
+ * its plain letter, so `Débit` is the word `debit` rather than the two words `d` and `bit`. Only the
+ * marks on Latin letters are dropped: a Japanese sound mark is part of its letter, and the text is
+ * recomposed afterwards so a Korean syllable stays one character. Letters of every script are kept,
+ * since a heading written in Japanese, Korean or Chinese is nothing but such letters
+ *
+ * A name written in camel case is split first, so `AccountNumber` reads as the two words
+ * `Account Number` already does and the checks that work on words see both of them. Squeezing the
+ * spaces back out afterwards gives the same key either spelling
+ */
+export function normalizeImportHeading(heading: string) {
+  return heading
+    .normalize('NFKD')
+    .replace(/(\p{Script=Latin})\p{M}+/gu, '$1')
+    .normalize('NFC')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+}
+
+/**
  * Lists words the way a sentence does: "A", "A and B", or "A, B and C"
  */
 export function joinWords(words: string[]) {

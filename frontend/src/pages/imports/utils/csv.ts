@@ -1,5 +1,6 @@
 import type { CsvPreviewLine, CsvReading, CsvReadingChoices, CsvRow, ImportFileDraft } from '@/pages/imports/types'
-import { formatBytes } from './common'
+import { formatBytes, normalizeImportHeading } from './common'
+import { isBareImportAmount } from './amountFormats'
 import { isSupportedCurrency, isValidAmountValue, isValidDateValue } from './valueParsers'
 
 /**
@@ -97,6 +98,46 @@ const HEADER_ALIASES = new Set([
   'reference',
   'tags',
   'tag',
+
+  // The German and French date and description headings, written without accents
+  'datum',
+  'buchungstag',
+  'buchungsdatum',
+  'wertstellung',
+  'datedoperation',
+  'verwendungszweck',
+  'libelle',
+
+  // The date and description headings of the other languages a bank's export is read in, written as
+  // `normalizeImportHeading` leaves them with the spaces squeezed out. The Korean and Chinese memo
+  // headings stand beside the description, since the date headings of those two exports are not read
+  'data',
+  'fvalor',
+  'bokforingsdag',
+  'dato',
+  'kirjauspaiva',
+  'dataoperacji',
+  '年月日',
+  'naamomschrijving',
+  'descrizione',
+  'descripcion',
+  'descricao',
+  'textmottagare',
+  'tekst',
+  'forklaring',
+  'saajamaksaja',
+  'opistransakcji',
+  'お取り扱い内容',
+  '보낸분받는분',
+  '송금메모',
+  '交易說明',
+  '備註',
+
+  // The movement and value dates and the debit and credit columns of Caixa Geral de Depósitos
+  'datamov',
+  'datavalor',
+  'debito',
+  'credito',
 ])
 
 const NO_READABLE_ROWS_ERROR = 'No readable rows detected'
@@ -426,7 +467,10 @@ function shouldPreferDelimiterResult(
   candidateRows: string[][],
   supportedCurrencyCodes: Set<string>,
 ) {
-  const records = candidateRows.map(normalizeRecord).filter((row) => row.some(Boolean))
+  // Lines above the table, such as account details, are a different width from it under the right
+  // separator, so the reading is judged from where the table starts
+  const normalized = candidateRows.map(normalizeRecord).filter((row) => row.some(Boolean))
+  const records = normalized.slice(findTableStart(normalized))
   const widths = new Set(records.map((row) => row.length))
   if (records.length === 0 || widths.size !== 1 || records[0].length < MIN_IMPORT_COLUMNS) return false
 
@@ -545,7 +589,9 @@ function refuseParsedCsv(error: string): ParsedCsv {
 /**
  * Finds where the table starts below any lines a bank puts above it, such as account details
  *
- * The table is taken to be as wide as most of the file's records, the widest such width where two
+ * The first of the widest records near the top is the header when it holds known headings, isn't the
+ * file's first record and sits above a record that isn't a heading, since account details can
+ * outnumber a short statement's rows. Otherwise the table is taken to be as wide as most of the file's records, the widest such width where two
  * are as common, and to start at the first record of that width near the top. A file where none
  * of the first records is that wide starts on its first record, as it did before rows could be skipped
  *
@@ -553,6 +599,17 @@ function refuseParsedCsv(error: string): ParsedCsv {
  * header narrower than its rows, such as rows that each end with a separator, is still read from it
  */
 export function findTableStart(records: string[][]) {
+  const isHeadingRecord = (record: string[]) => record.filter(isKnownHeaderCell).length >= 2
+
+  // Account details can outnumber a short statement's rows, so where the first of the widest records
+  // holds known headings above a transaction, it is the header whatever the count of each width says
+  const top = records.slice(0, TABLE_START_SEARCH_ROWS)
+  const widest = Math.max(...top.map((record) => record.length))
+  const heading = top.findIndex((record) => record.length === widest)
+  if (heading > 0 && isHeadingRecord(records[heading]) && records[heading + 1] && !isHeadingRecord(records[heading + 1])) {
+    return heading
+  }
+
   const widthCounts = new Map<number, number>()
   for (const record of records) widthCounts.set(record.length, (widthCounts.get(record.length) ?? 0) + 1)
 
@@ -567,7 +624,6 @@ export function findTableStart(records: string[][]) {
 
   const start = records.slice(0, TABLE_START_SEARCH_ROWS).findIndex((record) => record.length === tableWidth)
   if (start <= 0) return 0
-  const isHeadingRecord = (record: string[]) => record.filter(isKnownHeaderCell).length >= 2
   return isHeadingRecord(records[start - 1]) && !isHeadingRecord(records[start]) ? start - 1 : start
 }
 
@@ -714,7 +770,21 @@ function detectHeaderRow(records: string[][], supportedCurrencyCodes: Set<string
     && following.some((record) => isDataLikeCell(record[index] ?? '', supportedCurrencyCodes))
   )).length
 
-  return dataShiftCount >= 2
+  if (dataShiftCount >= 2) return true
+
+  // One column of nothing but amounts under a text cell is as clear as two columns of data, which
+  // is all a file with a single amount column and no date column can offer. The first row has no
+  // data-like cell by here, so it is not a transaction whose own amount sits in that column
+  return first.some((cell, index) => (
+    isHeaderTextCell(cell, supportedCurrencyCodes)
+    && isColumnOfBareAmounts(following, index)
+  ))
+}
+
+/** Reports whether every filled cell of one column in the given records is an amount, and some is */
+function isColumnOfBareAmounts(records: string[][], index: number) {
+  const values = records.map((record) => (record[index] ?? '').trim()).filter(Boolean)
+  return values.length > 0 && values.every(isBareImportAmount)
 }
 
 function getMaxColumnCount(records: string[][]) {
@@ -726,7 +796,7 @@ function makeGeneratedHeaders(count: number) {
 }
 
 function isKnownHeaderCell(value: string) {
-  const normalized = normalizeHeaderCell(value)
+  const normalized = normalizeImportHeading(value)
   if (!normalized) return false
   const compact = normalized.replace(/\s/g, '')
   return HEADER_ALIASES.has(compact)
@@ -734,22 +804,15 @@ function isKnownHeaderCell(value: string) {
 
 function isHeaderTextCell(value: string, supportedCurrencyCodes: Set<string>) {
   const trimmed = value.trim()
+  // A letter of any script, since a heading written in Japanese, Korean or Chinese has no a to z
   return Boolean(trimmed)
-    && /[a-z]/i.test(trimmed)
+    && /\p{L}/u.test(trimmed)
     && !isDataLikeCell(trimmed, supportedCurrencyCodes)
     && trimmed.length <= 48
 }
 
 function isDataLikeCell(value: string, supportedCurrencyCodes: Set<string>) {
   return isValidDateValue(value)
-    || isValidAmountValue(value)
+    || isBareImportAmount(value)
     || isSupportedCurrency(value, supportedCurrencyCodes)
-}
-
-function normalizeHeaderCell(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/&/g, ' and ')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim()
 }

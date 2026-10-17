@@ -377,3 +377,38 @@ describe('reading a file with the separator the user chose', () => {
     expect((await read('Amount\n5.00\n6.00\n')).delimiter).toBe(',')
   })
 })
+
+describe('guessing the separator of a file with lines above its headings', () => {
+  const HEADINGS = 'Data mov.;Data valor;Descrição;Débito;Crédito;Saldo contab.;Saldo disponível'
+  const ROWS = [
+    '05-03-2026;05-03-2026;COMPRA CONTINENTE LISBOA;45,20;;1 254,80;1 254,80',
+    '06-03-2026;07-03-2026;TRF SALARIO;;1 800,00;3 054,80;3 054,80',
+  ]
+  const read = (csv: string) => (
+    readCsvFile(new File([csv], 'statement.csv'), SUPPORTED_CURRENCY_CODES, { requireDataRows: true, offersReadingChoices: true })
+  )
+
+  // The account line and the decimal commas leave the guesser with commas it cannot tell from the
+  // separator, and the lines above the table used to be judged as part of the reading
+  it.each([
+    ['one line', ['Conta;0123456789012']],
+    ['several lines', [
+      'Consulta de movimentos;',
+      'Conta;0123456789012',
+      'Moeda;EUR',
+      'Data inicial;01-03-2026',
+      'Data final;31-03-2026',
+      ';',
+    ]],
+  ])('reads the semicolon separator and heading line of a decimal-comma file with %s above', async (_name, above) => {
+    const draft = await read([...above, HEADINGS, ...ROWS].join('\n'))
+    const withoutLines = await read([HEADINGS, ...ROWS].join('\n'))
+
+    expect(draft.error).toBeNull()
+    expect(draft.delimiter).toBe(';')
+    expect(draft.hasHeaderRow).toBe(true)
+    expect(draft.headers).toEqual(withoutLines.headers)
+    expect(draft.headers[0]).toBe('Data mov.')
+    expect(draft.rows).toHaveLength(2)
+  })
+})

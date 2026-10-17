@@ -329,8 +329,11 @@ export function isValidDateValue(value: string) {
 /**
  * Reports whether a cell strictly resembles an amount before a column has been mapped
  *
- * Header and value-only inference use this narrower rule so arbitrary surrounding text does not
- * turn an account name or reference into an amount. Mapped columns use the selected amount reader
+ * Delimiter evidence and the check that refuses a column of names reading as money use this
+ * narrower rule, which reads only the period-decimal convention, so arbitrary surrounding text
+ * does not turn an account name or reference into an amount. Column guessing and header-row
+ * detection use `isBareImportAmount`, which reads every supported format. Mapped columns use the
+ * selected amount reader
  */
 export function isValidAmountValue(value: string) {
   return parseImportNumber(value) !== null
@@ -418,6 +421,9 @@ const IMPORT_DIRECTION_WORDS: Record<string, ImportAmountDirection> = {
   dep: 'in', deposit: 'in', deposits: 'in', deposited: 'in',
   in: 'in', inflow: 'in', incoming: 'in', moneyin: 'in', paidin: 'in',
   receipt: 'in', income: 'in', refund: 'in',
+
+  // The Dutch Af Bij column, as ING Netherlands writes it
+  af: 'out', bij: 'in',
 }
 
 // A file that writes its direction as a bare sign rather than a word. Read before punctuation is
