@@ -264,7 +264,7 @@ describe('BankLinkSection', () => {
       'no history at all',
       { requested_start: '2026-06-01', earliest_returned: null },
       'No history returned yet',
-      `SimpleFIN hasn't returned any posted transactions from ${unbroken('Jun 1, 2026')} yet. If you used this account since then, some may be missing.`,
+      `No posted transactions from ${unbroken('Jun 1, 2026')} have come back from SimpleFIN yet. If you used this account since then, some may be missing.`,
     ],
   ])('reminds of an import or catch-up that returned %s, never blaming the bank\'s history limit when nothing came back, with a ✕ to dismiss it', (_, reminder, title, body) => {
     read.status = createStatus({ link: createLink({ history_reminder: reminder }) })

@@ -28,7 +28,7 @@ export function describeHistoryReminder(reminder: BankHistoryReminder, providerN
     // bank's history limit does
     return {
       title: 'No history returned yet',
-      body: `${providerName} hasn't returned any posted transactions from ${requested} yet. If you used this account since then, some may be missing.`,
+      body: `No posted transactions from ${requested} have come back from ${providerName} yet. If you used this account since then, some may be missing.`,
     }
   }
   return {
