@@ -356,7 +356,7 @@ async function readOffsetFromIcon(page: Page, panel: Locator, icon: Locator): Pr
 }
 
 // A screen on which the status at the foot of the modal leaves Sync details no room below it, the size
-// of the tablet project's, which the tests that need that room set themselves
+// of the tablet project's, which the tests that need a screen this short set themselves
 const FOOT_LEAVES_NO_ROOM_BELOW = { width: 1194, height: 834 }
 
 /**
