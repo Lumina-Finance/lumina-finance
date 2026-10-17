@@ -15,6 +15,7 @@ from typing import NamedTuple
 
 from fastapi import HTTPException, status
 from sqlalchemy import ColumnElement, func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
@@ -34,6 +35,7 @@ from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.categories.transfer_rules import does_category_record_counterparty_account
 from app.services.transactions.access_helpers import accessible_account_ids_subquery
 from app.services.transactions.accounts import validate_transaction_account_is_not_archived
+from app.services.transactions.bank_transaction_ids import BankTransactionKey, find_held_bank_transactions
 from app.services.transactions.bulk_access import load_locked_transactions, load_writable_accounts
 from app.services.transactions.tags import add_transaction_tag_assignments, clear_transaction_tag_assignments
 from app.services.transactions.validation import (
@@ -81,8 +83,9 @@ async def bulk_update_transactions(
 
     Raises:
         HTTPException: A transaction was not found, an account refuses the write, a transfer end
-            reached no row, a row breaks a rule the single-transaction path enforces, or another
-            change reached one of the transactions first
+            reached no row, a row breaks a rule the single-transaction path enforces, a row would
+            move into an account already holding its bank ID, or another change reached one of the
+            transactions first
     """
     sent = data.model_fields_set
     requested_ids = list(dict.fromkeys(data.transaction_ids))
@@ -127,13 +130,22 @@ async def bulk_update_transactions(
     if target_account is not None:
         accounts_by_id[target_account.id] = target_account
     await _refuse_rows_breaking_single_edit_rules(db, user, data, transactions, resolutions, accounts_by_id)
+    await _refuse_moves_into_held_bank_transactions(db, transactions, resolutions, accounts_by_id)
 
     # Collected before the update, because SQLAlchemy writes the new values back onto the loaded
     # rows and a date or a counterparty read afterwards is the new one
     snapshot_starts = _collect_snapshot_starts(data, sent, transactions, resolutions)
     far_side_account_ids = _collect_far_side_account_ids(transactions, resolutions)
 
-    written_ids = await _apply_changes(db, data, sent, transactions, transaction_ids, resolutions)
+    # The index holding each bank transaction once per account refuses a move another change made
+    # clash after the check above
+    try:
+        written_ids = await _apply_changes(db, data, sent, transactions, transaction_ids, resolutions)
+    except IntegrityError as error:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Another change reached one of these transactions first",
+        ) from error
 
     if snapshot_starts:
         await recompute_account_snapshots(db, snapshot_starts)
@@ -685,6 +697,53 @@ async def _refuse_rows_breaking_single_edit_rules(
     raise HTTPException(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         detail=f"{refused_count} of these transactions cannot be changed: {', '.join(reasons)}",
+    )
+
+
+async def _refuse_moves_into_held_bank_transactions(
+    db: AsyncSession,
+    transactions: list[Transaction],
+    resolutions: dict[uuid.UUID, _RowResolution],
+    accounts_by_id: dict[uuid.UUID, Account],
+) -> None:
+    """Reject the whole set when a row would move into an account already holding its bank ID
+
+    A move keeps the bank ID, as the single-transaction path does, so a row moving into an account
+    that holds the same bank transaction, or two rows moving one into the same account, would put
+    two copies of it there. Only the first account by name is named, since a set reaching several
+    such accounts at once is rare
+
+    Args:
+        db: Active database session
+        transactions: Transactions the request covers
+        resolutions: Every transaction's resolution, keyed by identifier
+        accounts_by_id: Every account a row might end up in, keyed by identifier
+
+    Raises:
+        HTTPException: Raised with 409 when at least one moving row's bank ID is already in its new account
+    """
+    moving_keys: list[BankTransactionKey] = [
+        (resolutions[transaction.id].account_id, transaction.bank_account_key, transaction.bank_transaction_id)
+        for transaction in transactions
+        if transaction.bank_account_key is not None
+        and transaction.bank_transaction_id is not None
+        and resolutions[transaction.id].account_id != transaction.account_id
+    ]
+    held = await find_held_bank_transactions(db, moving_keys)
+
+    clash_counts: dict[uuid.UUID, int] = {}
+    seen: set[BankTransactionKey] = set()
+    for key in moving_keys:
+        if key in held or key in seen:
+            clash_counts[key[0]] = clash_counts.get(key[0], 0) + 1
+        seen.add(key)
+    if not clash_counts:
+        return
+
+    account_name, count = min((accounts_by_id[account_id].name, count) for account_id, count in clash_counts.items())
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=f"{account_name} already has {count} of these transactions from an earlier import",
     )
 
 

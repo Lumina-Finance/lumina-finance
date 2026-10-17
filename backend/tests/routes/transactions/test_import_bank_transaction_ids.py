@@ -12,6 +12,8 @@ from sqlalchemy import event, select, text
 
 from app.models.transaction import Transaction
 from app.services.importers.generic import service as generic_service
+from app.services.transactions import bulk_update as bulk_update_module
+from app.services.transactions import update as update_module
 from tests.conftest import TestSession, scoped_engine
 from tests.routes.support import _wait_until_blocked
 from tests.routes.transactions._helpers import _create_account, _setup_user_with_deps
@@ -142,8 +144,6 @@ async def test_rows_with_no_bank_id_import_every_time(client):
         assert len(await _ledger(client, headers, account_id)) == expected_count
 
 
-async def test_a_statement_whose_every_transaction_is_already_there_is_refused_and_keeps_the_earlier_undo(client):
-    """Saving nothing would still become the last import and take away the undo of the one that wrote them"""
 async def test_a_statement_imported_again_after_its_import_was_undone_imports_whole(client):
     """Example 3: the undo deletes the transactions, so their bank IDs must not stay behind to skip them"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
@@ -161,6 +161,8 @@ async def test_a_statement_imported_again_after_its_import_was_undone_imports_wh
     assert len(await _ledger(client, headers, account_id)) == 5
 
 
+async def test_a_statement_whose_every_transaction_is_already_there_is_refused_and_keeps_the_earlier_undo(client):
+    """Saving nothing would still become the last import and take away the undo of the one that wrote them"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     payload = _ofx_payload(account_id, category_id, _march(1, 5))
     assert (await _import_ofx(client, headers, payload)).status_code == 201
@@ -194,12 +196,12 @@ async def test_a_bank_id_without_its_bank_account_is_refused_as_it_is_staged(cli
         payload = _ofx_payload(account_id, category_id, [(account_key, bank_transaction_id, "2026-03-01", "-10.00")])
         resp = await _import_ofx(client, headers, payload)
         assert resp.status_code == 422, resp.text
-
-
         assert [(error["loc"], error["msg"]) for error in resp.json()["detail"]] == [(
             ["body", "rows", 0],
             "Value error, a bank transaction ID is sent together with its bank account key",
         )]
+
+
 async def test_an_edited_transaction_moved_to_another_account_is_still_recognised_there(client):
     """Acceptance 2: an edit that dropped the bank ID would let the next statement bring it in again"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
@@ -311,3 +313,163 @@ async def test_two_imports_saving_one_bank_transaction_at_once_write_it_once(cli
             .all()
         )
     assert sorted(ids) == ["M1", "M2", "M3", "M4"]
+
+
+async def _import_into_both(client):
+    """Import one statement into two accounts, returning the headers, both account ids and the first account's transactions"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    other_id = (await _create_account(client, headers, name="Joint Chequing")).json()["id"]
+    for target_id in (account_id, other_id):
+        assert (await _import_ofx(client, headers, _ofx_payload(target_id, category_id, _march(1, 3)))).status_code == 201
+    first_account = [t for t in await _list_transactions(client, headers) if t["account_id"] == account_id]
+    return headers, account_id, other_id, first_account
+
+
+async def test_moving_a_transaction_into_an_account_holding_its_bank_id_is_refused(client):
+    """The move would put two copies of one bank transaction in the account and break the next import"""
+    headers, account_id, other_id, first_account = await _import_into_both(client)
+
+    resp = await client.patch(f"/transactions/{first_account[0]['id']}", json={"account_id": other_id}, headers=headers)
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Joint Chequing already has this transaction from an earlier import"
+    assert len(await _ledger(client, headers, account_id)) == 3
+
+
+async def test_moving_transactions_into_an_account_holding_their_bank_ids_in_bulk_is_refused_whole(client):
+    """A bulk edit must refuse what a single edit refuses, and leave every row where it was"""
+    headers, account_id, other_id, first_account = await _import_into_both(client)
+
+    resp = await client.patch("/transactions/bulk", json={
+        "transaction_ids": [transaction["id"] for transaction in first_account],
+        "account_id": other_id,
+    }, headers=headers)
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Joint Chequing already has 3 of these transactions from an earlier import"
+    assert len(await _ledger(client, headers, account_id)) == 3
+    assert len(await _ledger(client, headers, other_id)) == 3
+
+
+async def test_moving_a_transaction_into_an_account_holding_its_bank_id_from_another_bank_account_is_allowed(client):
+    """Bank IDs are unique only within one bank account, so a savings 0001 is not the chequing 0001"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    other_id = (await _create_account(client, headers, name="Joint Chequing")).json()["id"]
+    for target_id, account_key in ((account_id, _SAVINGS_KEY), (other_id, _CHEQUING_KEY)):
+        payload = _ofx_payload(target_id, category_id, [(account_key, "0001", "2026-03-01", "-10.00")])
+        assert (await _import_ofx(client, headers, payload)).status_code == 201
+    moving_id = (await _ledger_transactions(client, headers, account_id))[0]["id"]
+
+    resp = await client.patch(f"/transactions/{moving_id}", json={"account_id": other_id}, headers=headers)
+
+    assert resp.status_code == 200, resp.text
+    assert await _ledger_transactions(client, headers, account_id) == []
+    assert len(await _ledger_transactions(client, headers, other_id)) == 2
+
+
+async def test_moving_a_set_some_of_which_an_account_holds_in_bulk_is_refused_whole(client):
+    """A set where only some rows clash must not move the free ones and leave the rest behind"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    other_id = (await _create_account(client, headers, name="Joint Chequing")).json()["id"]
+    assert (await _import_ofx(client, headers, _ofx_payload(account_id, category_id, _march(1, 3)))).status_code == 201
+    assert (await _import_ofx(client, headers, _ofx_payload(other_id, category_id, _march(2, 2)))).status_code == 201
+    moving = await _ledger_transactions(client, headers, account_id)
+
+    resp = await client.patch("/transactions/bulk", json={
+        "transaction_ids": [transaction["id"] for transaction in moving],
+        "account_id": other_id,
+    }, headers=headers)
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Joint Chequing already has 1 of these transactions from an earlier import"
+    assert sorted(merchant for _, merchant in await _ledger(client, headers, account_id)) == [
+        "Payee M1", "Payee M2", "Payee M3",
+    ]
+    assert await _ledger(client, headers, other_id) == [("2026-03-02", "Payee M2")]
+
+
+async def _ledger_transactions(client, headers, account_id):
+    return [transaction for transaction in await _list_transactions(client, headers) if transaction["account_id"] == account_id]
+
+
+def _give_held_row_bank_id_after(original, other_id, bank_transaction_id):
+    """Wrap a held-ID check so that, once it passes, another session gives a row of other_id that bank ID
+
+    Stands in for an import landing in the other account between the check and the write
+    """
+    async def check_then_clash(*args, **kwargs):
+        result = await original(*args, **kwargs)
+        async with TestSession() as other:
+            await other.execute(
+                text(
+                    "UPDATE transactions SET bank_transaction_id = :clash "
+                    "WHERE account_id = :account_id AND bank_transaction_id = 'X1'",
+                ),
+                {"clash": bank_transaction_id, "account_id": uuid.UUID(other_id)},
+            )
+            await other.commit()
+        return result
+
+    return check_then_clash
+
+
+async def _import_one_each_with_a_free_row_in_the_other(client):
+    """Import M1 into the first account and X1 into Joint Chequing, returning the headers and both account ids"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    other_id = (await _create_account(client, headers, name="Joint Chequing")).json()["id"]
+    for target_id, bank_transaction_id in ((account_id, "M1"), (other_id, "X1")):
+        payload = _ofx_payload(target_id, category_id, [(_CHEQUING_KEY, bank_transaction_id, "2026-03-01", "-10.00")])
+        assert (await _import_ofx(client, headers, payload)).status_code == 201
+    return headers, account_id, other_id
+
+
+async def test_a_move_racing_an_import_of_its_bank_id_into_the_account_is_refused(client, monkeypatch):
+    """The check passes before the other write lands, so only the index stops the second copy"""
+    headers, account_id, other_id = await _import_one_each_with_a_free_row_in_the_other(client)
+    monkeypatch.setattr(
+        update_module,
+        "_refuse_move_into_held_bank_transaction",
+        _give_held_row_bank_id_after(update_module._refuse_move_into_held_bank_transaction, other_id, "M1"),
+    )
+    moving_id = (await _ledger_transactions(client, headers, account_id))[0]["id"]
+
+    resp = await client.patch(f"/transactions/{moving_id}", json={"account_id": other_id}, headers=headers)
+
+    assert resp.status_code == 409, resp.text
+    assert resp.json()["detail"] == "Joint Chequing already has this transaction from an earlier import"
+    assert [transaction["id"] for transaction in await _ledger_transactions(client, headers, account_id)] == [moving_id]
+
+
+async def test_a_bulk_move_racing_an_import_of_its_bank_id_into_the_account_is_refused_whole(client, monkeypatch):
+    """The check passes before the other write lands, so only the index stops the second copy"""
+    headers, account_id, other_id = await _import_one_each_with_a_free_row_in_the_other(client)
+    monkeypatch.setattr(
+        bulk_update_module,
+        "_refuse_moves_into_held_bank_transactions",
+        _give_held_row_bank_id_after(bulk_update_module._refuse_moves_into_held_bank_transactions, other_id, "M1"),
+    )
+    moving_id = (await _ledger_transactions(client, headers, account_id))[0]["id"]
+
+    resp = await client.patch(
+        "/transactions/bulk", json={"transaction_ids": [moving_id], "account_id": other_id}, headers=headers,
+    )
+
+    assert resp.status_code == 409, resp.text
+    assert resp.json()["detail"] == "Another change reached one of these transactions first"
+    assert [transaction["id"] for transaction in await _ledger_transactions(client, headers, account_id)] == [moving_id]
+
+
+async def test_an_edit_naming_the_transactions_own_account_is_not_a_move(client):
+    """The edit form sends the account every time, so its own bank ID would refuse every later edit"""
+    headers, account_id, _, first_account = await _import_into_both(client)
+
+    single = await client.patch(
+        f"/transactions/{first_account[0]['id']}", json={"account_id": account_id, "notes": "Edited"}, headers=headers,
+    )
+    bulk = await client.patch("/transactions/bulk", json={
+        "transaction_ids": [transaction["id"] for transaction in first_account],
+        "account_id": account_id,
+    }, headers=headers)
+
+    assert single.status_code == 200, single.text
+    assert bulk.status_code == 200, bulk.text
