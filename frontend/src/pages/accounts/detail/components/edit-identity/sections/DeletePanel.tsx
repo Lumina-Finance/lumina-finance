@@ -61,7 +61,9 @@ export function DeleteAccountPanel({
           role="group"
           aria-labelledby={questionId}
           onAnimationComplete={revealStep}
-          className="overflow-hidden"
+          // Starts where the sections' content does: past the step number column (1rem) and its gap
+          // (0.5rem, 0.75rem from 1050px), as in layout/Section.tsx
+          className="overflow-hidden ml-6 min-[1050px]:ml-7"
           initial={{ height: 0, marginTop: 0, opacity: 0 }}
           animate={{ height: 'auto', marginTop: 20, opacity: 1 }}
           exit={{ height: 0, marginTop: 0, opacity: 0 }}
