@@ -10,8 +10,10 @@ import {
 import { logInViaApi, openModal, openPage } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
-// Runs on desktop only, apart from the focus ring on each kind of control, which runs at every
-// size: the toolbar changes below 750px. The date-range control tests set their own sizes
+// Runs on desktop only, apart from three groups that run at every size. The focus ring on each kind
+// of control does so because the toolbar changes below 750px, and the Settings section menu and
+// card row tests because the menu and the card change with the width too. The date-range control
+// tests set their own sizes.
 
 /**
  * Guards the keyboard focus indicator. It used to be a tint at about a tenth of the accent's strength,
@@ -369,7 +371,7 @@ for (const { where, path, width, height, name, list, loaded } of [
 
 // A bordered button built from utilities, such as the Settings section menu, shows focus on its own
 // border alone, with no ring around it as well
-test('shows keyboard focus on the border of a bordered button built from utilities', async ({ page, request }) => {
+test('shows keyboard focus on the border of a bordered button built from utilities', AT_EVERY_SIZE, async ({ page, request }) => {
   test.skip(page.viewportSize()!.width >= 1200, 'from 1200px the sections are a sidebar list instead')
   const user = await signUpUser(request)
   await logInViaApi(page, user)
@@ -382,7 +384,7 @@ test('shows keyboard focus on the border of a bordered button built from utiliti
 
 // A table row is a bordered card on a phone, where it shows focus on that border, and a plain row
 // from 750px, where it takes the ring inside its edge, since the table clips anything past it
-test('shows keyboard focus on a card row border only while the row is a card', async ({ page, request }) => {
+test('shows keyboard focus on a card row border only while the row is a card', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   await createTaxAdvantagedCategory(request, user, 'Retirement Savings')
   await logInViaApi(page, user)
