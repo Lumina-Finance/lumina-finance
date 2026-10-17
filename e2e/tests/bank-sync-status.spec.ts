@@ -380,14 +380,14 @@ test('reads as retrying at the time of the retry when the Bridge fails', AT_EVER
   await scrollToFoot(fact(dialog, 'Status'))
   expect(await readOffsetFromIcon(page, details, showDetails)).toBeCloseTo(openedAt, 0)
 
-  // Closed under the pointer they keep showing where they were, and opened again without the pointer
-  // moving they pick their side afresh
+  // Closed under the pointer they stay where they were, shown where the screen has hover and invisible
+  // where it hasn't, and opened again without the pointer moving they pick their side afresh
   await showDetails.click()
   await showDetails.click()
   await expect.poll(() => readClippingBoxes(details)).toEqual([])
 })
 
-// Focus from the keyboard keeps them showing through a close, as a pointer left on the icon does
+// Focus from the keyboard keeps them showing through a close, so they keep their side as under a resting pointer
 test('opens Sync details again clear of the foot of the modal from the keyboard', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })

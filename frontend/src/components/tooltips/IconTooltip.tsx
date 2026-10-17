@@ -186,9 +186,10 @@ export default function IconTooltip({
 
   // The side is picked once as the panel shows and kept until it hides, so a panel that opened above its
   // trigger never swaps over what the trigger labels as the page moves. A press that opens the panel
-  // picks it afresh, since a pointer left on the trigger keeps a closed panel showing, and with it
-  // the side it had. A panel beside what it explains covers it on neither side, so it picks again
-  // each time, and one that showed above a fact goes below it once scrolling leaves no room above
+  // picks it afresh, since a pointer left on the trigger keeps a closed panel in place, shown where the
+  // screen has hover, and keyboard focus on it keeps the panel showing, each with the side it had. A
+  // panel beside what it explains covers it on neither side, so it picks again each time, and one that
+  // showed above a fact goes below it once scrolling leaves no room above
   const sideRef = useRef<TooltipSide | null>(null)
   const isPlaced = isShown || isHovered
   const updatePlacement = useCallback(() => {
