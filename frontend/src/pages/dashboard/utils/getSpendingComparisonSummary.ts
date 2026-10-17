@@ -16,7 +16,9 @@ export type SpendingComparisonSummary = {
 }
 
 /**
- * Keeps dense month-to-date labels readable while preserving every other range label
+ * Keeps dense month-to-date labels readable by labelling every other day and always the last day
+ * The last label is end-aligned and the others are centred, so a label only two days before it
+ * touches it on a phone, and the labels within two days of the last are dropped
  */
 function getSpendingComparisonXAxisTicks(
   range: SpendingRange,
@@ -24,8 +26,9 @@ function getSpendingComparisonXAxisTicks(
 ) {
   const labels = data.map((point) => point.label)
   if (range === 'MTD') {
+    const lastIndex = labels.length - 1
     return labels.filter((_, index) => (
-      index % 2 === 0 || index === labels.length - 1
+      index === lastIndex || (index % 2 === 0 && lastIndex - index >= 3)
     ))
   }
 
