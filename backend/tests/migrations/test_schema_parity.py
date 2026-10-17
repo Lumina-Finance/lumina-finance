@@ -185,7 +185,7 @@ async def test_account_date_index_migration_preserves_rows_and_existing_indexes(
             assert rows == original_rows
             assert {name: definition for name, definition in indexes.items() if name != _ACCOUNT_DATE_INDEX_NAME} == original_indexes
             if not reupgrade:
-                _run_account_index_downgrade(database_name)
+                _run_alembic_downgrade(database_name, _BEFORE_ACCOUNT_DATE_INDEX_REVISION)
                 async with engine.connect() as conn:
                     rows, indexes = await _read_account_index_migration_state(conn)
                 assert rows == original_rows
@@ -706,12 +706,6 @@ async def _read_account_index_migration_state(conn: AsyncConnection) -> tuple[li
         ).all()
     )
     return rows, indexes
-
-
-def _run_account_index_downgrade(database_name: str) -> None:
-    """Downgrade only the account index revision in a generated migration database"""
-    completed = _run_alembic(database_name, "downgrade", _BEFORE_ACCOUNT_DATE_INDEX_REVISION)
-    assert completed.returncode == 0, completed.stdout + completed.stderr
 
 
 async def test_alembic_schema_columns_match_model_metadata() -> None:
