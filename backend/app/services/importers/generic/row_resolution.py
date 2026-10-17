@@ -88,4 +88,6 @@ def _resolve_import_row(row: TransactionImportRow, import_lookups: ImportLookups
         tag_names=row.tag_names,
         counterparty_account_id=counterparty_account_id,
         counterparty_account_scope=counterparty_account_scope,
+        bank_account_key=row.bank_account_key,
+        bank_transaction_id=row.bank_transaction_id,
     )

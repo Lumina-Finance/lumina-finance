@@ -53,6 +53,7 @@ _OFX_SOURCE_REVISION = "b8d4f1a6c203"
 _OFX_OWNER_ID = "77777777-7777-4777-8777-777777777777"
 _CSV_RUN_ID = "88888888-8888-4888-8888-888888888888"
 _OFX_RUN_ID = "99999999-9999-4999-8999-999999999999"
+_ALEMBIC_BANK_TRANSACTION_DB_NAME = f"{WORKER_DB_NAME}_alembic_bank_transaction"
 
 
 async def test_account_date_index_migration_preserves_rows_and_existing_indexes() -> None:
@@ -297,6 +298,35 @@ async def test_alembic_enum_labels_match_model_metadata() -> None:
         assert actual_enums == expected_enums
     finally:
         await _drop_database(_ALEMBIC_ENUM_DB_NAME)
+
+
+async def test_alembic_bank_transaction_rules_match_model_metadata() -> None:
+    """Verify Alembic builds the bank ID index and its pairing rule as the models declare them
+
+    The route tests build the schema from model metadata, so a migration that built the index on
+    the bank ID alone, or left out its condition, would pass them while refusing real imports
+    """
+    rules_query = text(
+        "SELECT indexdef FROM pg_indexes WHERE indexname = 'uq_transactions_account_bank_transaction'"
+        " UNION ALL SELECT pg_get_constraintdef(oid) FROM pg_constraint"
+        " WHERE conname = 'ck_transactions_bank_account_key_matches_bank_transaction_id'",
+    )
+    await _recreate_database(_ALEMBIC_BANK_TRANSACTION_DB_NAME)
+    try:
+        _run_alembic_upgrade(_ALEMBIC_BANK_TRANSACTION_DB_NAME)
+        built = {}
+        for database_name in (_ALEMBIC_BANK_TRANSACTION_DB_NAME, WORKER_DB_NAME):
+            engine = _create_engine_for_database(database_name)
+            try:
+                async with engine.connect() as conn:
+                    built[database_name] = sorted((await conn.execute(rules_query)).scalars())
+            finally:
+                await engine.dispose()
+
+        assert len(built[WORKER_DB_NAME]) == 2
+        assert built[_ALEMBIC_BANK_TRANSACTION_DB_NAME] == built[WORKER_DB_NAME]
+    finally:
+        await _drop_database(_ALEMBIC_BANK_TRANSACTION_DB_NAME)
 
 
 async def test_auth_session_overhaul_clears_legacy_auth_state() -> None:

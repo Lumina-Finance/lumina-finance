@@ -3,10 +3,14 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import VARCHAR, BigInteger, CheckConstraint, Date, DateTime, ForeignKey, Index, Numeric, Text, func
+from sqlalchemy import VARCHAR, BigInteger, CheckConstraint, Date, DateTime, ForeignKey, Index, Numeric, Text, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TransferCounterpartyScope
+
+# Characters a bank's transaction ID or bank account key may carry. OFX caps its transaction IDs
+# at 255, and the import rows take both at this length so a longer one is refused as it is staged
+MAX_BANK_TRANSACTION_ID_LENGTH = 255
 
 
 class Transaction(Base):
@@ -27,6 +31,21 @@ class Transaction(Base):
 
         # Supports account and date lookups for history, analytics and snapshot rebuilds
         Index("ix_transactions_account_id_dt", "account_id", "dt"),
+
+        # A bank's transaction ID names one transaction only within the bank account it was issued
+        # under, so the two are stored together or not at all
+        CheckConstraint(
+            "(bank_account_key IS NULL) = (bank_transaction_id IS NULL)",
+            name="ck_transactions_bank_account_key_matches_bank_transaction_id",
+        ),
+
+        # Holds each bank transaction once in an account, so two imports of overlapping statements
+        # saving into it at once cannot both write it. The import leaves out what an account already
+        # holds before writing, so only such a race reaches this
+        Index(
+            "uq_transactions_account_bank_transaction", "account_id", "bank_account_key", "bank_transaction_id",
+            unique=True, postgresql_where=text("bank_transaction_id IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -62,6 +81,13 @@ class Transaction(Base):
         ForeignKey("import_runs.id", ondelete="SET NULL"),
         index=True,
     )
+
+    # The bank's own ID for the transaction and the bank account the statement names, as an OFX
+    # import read them, so a later import into this account leaves the transaction out. Empty on a
+    # transaction entered by hand, imported from a file with no such ID, or saved before IDs were
+    # kept. No edit changes them, so an edited or moved transaction is still recognised
+    bank_account_key: Mapped[str | None] = mapped_column(VARCHAR(MAX_BANK_TRANSACTION_ID_LENGTH))
+    bank_transaction_id: Mapped[str | None] = mapped_column(VARCHAR(MAX_BANK_TRANSACTION_ID_LENGTH))
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())

@@ -84,10 +84,11 @@ async def commit_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> 
 
     Raises:
         HTTPException: Raised with 404 for a run that is absent or not the caller's, or a mapped
-            account they cannot reach, 409 when another request holds the run, and 422 when another
-            importer opened the run, when the staged rows do not add up to the file the run
-            declared, when a staged row cannot be written as it stands, or when a mapping the run
-            recorded no longer resolves
+            account they cannot reach, 409 when another request holds the run or another import
+            saved one of its bank transactions first, and 422 when another importer opened the run,
+            when the staged rows do not add up to the file the run declared, when a staged row
+            cannot be written as it stands, when a mapping the run recorded no longer resolves, or
+            when every row is already in its account
     """
     async def write_run(run: ImportRun, rows: list[ImportStagedRow]) -> TransactionImportResponse:
         summary = await import_transactions(db, user, _build_import_request(run, rows), run.id)

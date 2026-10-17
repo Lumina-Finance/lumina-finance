@@ -42,6 +42,8 @@ class ImportedTransaction:
         tag_names: Tag names as the file states them, blanks and repeats included
         counterparty_account_id: Account at the other end of a transfer, if the row names one
         counterparty_account_scope: Where the other end sits, or None for a category that records neither
+        bank_account_key: The bank account the statement names, set exactly when bank_transaction_id is
+        bank_transaction_id: The bank's ID for the transaction, or None where the file states none
     """
 
     account: Account
@@ -53,6 +55,8 @@ class ImportedTransaction:
     tag_names: list[str]
     counterparty_account_id: uuid.UUID | None
     counterparty_account_scope: TransferCounterpartyScope | None
+    bank_account_key: str | None = None
+    bank_transaction_id: str | None = None
 
 
 async def write_imported_transactions(
@@ -132,6 +136,8 @@ async def write_imported_transactions(
                     counterparty_account_id=imported.counterparty_account_id,
                     counterparty_account_scope=imported.counterparty_account_scope,
                     import_run_id=import_run_id,
+                    bank_account_key=imported.bank_account_key,
+                    bank_transaction_id=imported.bank_transaction_id,
                 ),
                 tags,
             ))
