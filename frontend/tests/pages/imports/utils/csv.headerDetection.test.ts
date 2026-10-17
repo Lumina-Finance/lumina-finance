@@ -187,6 +187,8 @@ describe('finding the heading line of an export in another language under a line
     ['SMBC', ['年月日', 'お取り扱い内容', '残高']],
     ['KB Kookmin Bank', ['보낸분/받는분', '송금메모', '출금액']],
     ['Yuanta Bank', ['交易說明', '備註', '帳號']],
+    ['Caixa Geral de Depósitos, by its dates', ['Data mov.', 'Data valor', 'Saldo contab.']],
+    ['Caixa Geral de Depósitos, by its money columns', ['Débito', 'Crédito', 'Saldo contab.']],
     ['a file with full-width letters', ['Ｄａｔｕｍ', 'Ｖｅｒｗｅｎｄｕｎｇｓｚｗｅｃｋ', 'Ｂｅｔｒａｇ']],
   ])('finds %s\'s heading line', (_bank, heading) => {
     const record = [...heading.map((_cell, index) => `Value ${index}`), '']

@@ -132,6 +132,12 @@ const HEADER_ALIASES = new Set([
   '송금메모',
   '交易說明',
   '備註',
+
+  // The movement and value dates and the debit and credit columns of Caixa Geral de Depósitos
+  'datamov',
+  'datavalor',
+  'debito',
+  'credito',
 ])
 
 const NO_READABLE_ROWS_ERROR = 'No readable rows detected'

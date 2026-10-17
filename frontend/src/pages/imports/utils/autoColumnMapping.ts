@@ -7,7 +7,7 @@ import { guessImportDirectionAnswers, isSupportedCurrency, isValidDateValue } fr
 
 // Beyond English, German and French, each language's wordings are the ones a real bank's export, its
 // documentation or a published sample of it shows: ING Netherlands, UniCredit, ING Spain,
-// Nubank, SEB, Spar Nord, DNB, OP, PKO BP, SMBC, KB Kookmin Bank and Yuanta Bank.
+// Nubank, SEB, Spar Nord, DNB, OP, PKO BP, SMBC, KB Kookmin Bank, Yuanta Bank and Caixa Geral de Depósitos.
 // A key is the heading as `normalizeImportHeading` leaves it with the spaces squeezed out, so an
 // accented heading is keyed without its accents and one in Japanese, Korean or Chinese as written
 const HEADER_ALIAS_SCORES: Record<ColumnTarget, Record<string, number>> = {
@@ -40,6 +40,8 @@ const HEADER_ALIAS_SCORES: Record<ColumnTarget, Record<string, number>> = {
     kirjauspaiva: 100,
     dataoperacji: 100,
     年月日: 100,
+    datamov: 100,
+    datavalor: 90,
   },
   category_id: {
     category: 100,

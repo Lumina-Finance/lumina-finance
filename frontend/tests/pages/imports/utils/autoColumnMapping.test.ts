@@ -1451,3 +1451,55 @@ describe('a heading written in full-width characters', () => {
     expect(map.amount).toBe('Ｂｅｔｒａｇ')
   })
 })
+
+// The headings are the ones the export of Caixa Geral de Depósitos reads in, as a published notebook
+// that analyses it names them: Data mov., Data valor, Descrição, Débito, Crédito, Saldo contab. and
+// Saldo disponível
+describe('a Portuguese bank\'s headings', () => {
+  const caixaHeadings = ['Data mov.', 'Data valor', 'Descrição', 'Débito', 'Crédito', 'Saldo contab.', 'Saldo disponível']
+
+  it('reads Caixa Geral de Depósitos\' headings, with Débito and Crédito as the pair', () => {
+    const files = createExport(
+      caixaHeadings,
+      [
+        ['05-04-2026', '06-04-2026', 'COMPRA CONTINENTE LISBOA', '45,30', '', '1.234,50', '1.234,50'],
+        ['07-04-2026', '07-04-2026', 'TRF RECEBIDA EMPRESA LDA', '', '2.500,00', '3.734,50', '3.734,50'],
+      ],
+    )
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.dt).toBe('Data mov.')
+    expect(map.merchant_id).toBe('Descrição')
+    expect(map.amount_out).toBe('Débito')
+    expect(map.amount_in).toBe('Crédito')
+  })
+
+  it('reads the movement date as the date, ahead of a value date that comes first', () => {
+    const files = createExport(
+      ['Data valor', 'Data mov.', 'Descrição', 'Débito', 'Crédito'],
+      [
+        ['06-04-2026', '05-04-2026', 'COMPRA CONTINENTE LISBOA', '45,30', ''],
+        ['07-04-2026', '07-04-2026', 'TRF RECEBIDA EMPRESA LDA', '', '2.500,00'],
+      ],
+    )
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.dt).toBe('Data mov.')
+  })
+
+  it('reads a value date as the date when the file has no movement date', () => {
+    const files = createExport(
+      ['Data valor', 'Descrição', 'Débito', 'Crédito'],
+      [
+        ['06-04-2026', 'COMPRA CONTINENTE LISBOA', '45,30', ''],
+        ['07-04-2026', 'TRF RECEBIDA EMPRESA LDA', '', '2.500,00'],
+      ],
+    )
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.dt).toBe('Data valor')
+  })
+})
