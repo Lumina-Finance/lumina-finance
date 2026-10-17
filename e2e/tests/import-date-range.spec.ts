@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { asUser, createAccount, signUpUser } from '../support/api'
+import { asUser, createAccount, createTransaction, signUpUser } from '../support/api'
 import { commitImport, logInViaApi, openPage, typeDate } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
@@ -18,10 +18,15 @@ const CSV = ['Date,Amount,Category,Merchant', '2025-03-01,-10.00,Groceries,Marke
 
 /**
  * Opens the CSV import for a new user's account with the year of rows uploaded
+ *
+ * @param latestRecordedDate - A transaction already recorded on the account, which offers the day after it as the start
  */
-async function uploadYear(page: Page, request: Parameters<typeof signUpUser>[0]) {
+async function uploadYear(page: Page, request: Parameters<typeof signUpUser>[0], latestRecordedDate?: string) {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday chequing' })
+  if (latestRecordedDate) {
+    await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000, date: latestRecordedDate })
+  }
   await logInViaApi(page, user)
   await openPage(page, `/settings/imports?account=${account.id}`)
   const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')
@@ -72,7 +77,7 @@ test('imports only the rows from the start date to the end date', async ({ page,
 // The dates sit in the File section beside the other reading choices, not in Column Mapping, and
 // show only once a column is mapped as the date
 test('puts the dates in the File section after Skip last rows and blocks the import while they are crossed', AT_EVERY_SIZE, async ({ page, request }) => {
-  await uploadYear(page, request)
+  await uploadYear(page, request, '2024-12-31')
   const fileSection = page.locator('section').filter({ has: page.getByText('Upload one CSV transaction file, or several with the same columns.', { exact: true }) })
   const columnMapping = page.locator('section').filter({ has: page.getByText('Specify what each column in this import holds.', { exact: true }) })
   await expect(fileSection.getByText('Dates to import', { exact: true })).toBeVisible()
@@ -83,7 +88,20 @@ test('puts the dates in the File section after Skip last rows and blocks the imp
   await expect(fileSection.getByRole('group', { name: 'Start date', exact: true })).toBeVisible()
   await expect(fileSection.getByRole('group', { name: 'End date', exact: true })).toBeVisible()
 
-  await expect(page.getByText('Must be on or before the end date', { exact: true })).toBeVisible()
+  // On the start date's label row, which alone is marked invalid and points at it
+  const crossed = page.getByText('Must be on or before the end date', { exact: true })
+  await expect(crossed).toBeVisible()
+  const crossedBox = (await crossed.boundingBox())!
+  expect(crossedBox.y).toBeLessThan((await start.boundingBox())!.y)
+  await expect(start.getByRole('textbox', { name: 'Day', exact: true })).toHaveAttribute('aria-invalid', 'true')
+  await expect(end.getByRole('textbox', { name: 'Day', exact: true })).toHaveAttribute('aria-invalid', 'false')
+  await expect(start.getByRole('textbox', { name: 'Day', exact: true })).toHaveAccessibleDescription('Must be on or before the end date')
+
+  // The message and the suggestion beside it leave the start date's label on one line, as the end date's is
+  await expect(fileSection.getByRole('button', { name: 'Latest recorded transaction', exact: true })).toBeVisible()
+  const startLabelBox = (await fileSection.getByText('Start date', { exact: true }).boundingBox())!
+  const endLabelBox = (await fileSection.getByText('End date', { exact: true }).boundingBox())!
+  expect(startLabelBox.height).toBe(endLabelBox.height)
   await expect(page.getByRole('button', { name: 'Commit import', exact: true })).toBeDisabled()
   await expect(page.getByText('No rows in this import fall within the chosen dates.', { exact: true })).toHaveCount(0)
 

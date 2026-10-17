@@ -5,7 +5,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import { ImportReadingChoices } from '@/pages/imports/components'
-import type { ImportFileDraft } from '@/pages/imports/types'
+import type { ImportDateRange, ImportFileDraft } from '@/pages/imports/types'
 
 // The date field reads the signed-in user's time zone, which the markup does not depend on
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: null }) }))
@@ -39,14 +39,16 @@ function renderChoices(
   hasDateColumn: boolean,
   startSuggestion: string | null = null,
   disabled = false,
+  dateRange: ImportDateRange = { from: '', to: '' },
+  isDateRangeCrossed = false,
 ) {
   return renderToStaticMarkup(
     <ImportReadingChoices
       file={FILE}
       disabled={disabled}
       hasDateColumn={hasDateColumn}
-      dateRange={{ from: '', to: '' }}
-      isDateRangeCrossed={false}
+      dateRange={dateRange}
+      isDateRangeCrossed={isDateRangeCrossed}
       startSuggestion={startSuggestion}
       onDelimiterChange={() => {}}
       onHeaderRowChange={() => {}}
@@ -76,6 +78,12 @@ describe('the dates to import in the File step', () => {
 
     expect(renderChoices(true, null)).not.toContain(label)
     expect(renderChoices(true, '2025-06-02', true)).not.toContain(label)
+  })
+
+  it('keep the partly typed message and leave out the crossed one', () => {
+    const markup = renderChoices(true, null, false, { from: null, to: '2025-03-10' }, true)
+    expect(markup).toContain('Enter the whole date, or clear it')
+    expect(markup).not.toContain('Must be on or before the end date')
   })
 
   // Not shown disabled beforehand, since a range is read through the date column
