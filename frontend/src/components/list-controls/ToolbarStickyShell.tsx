@@ -7,7 +7,7 @@ type ToolbarStickyShellProps = {
   toolbarStuckSentinelRef: RefObject<HTMLDivElement | null>
   desktopInlineLayout: boolean
   isToolbarStuck: boolean
-  isMobileSearchStuck: boolean
+  isTopRowAtMenuButton: boolean
   children: ReactNode
 }
 
@@ -23,7 +23,7 @@ export function ToolbarStickyShell({
   toolbarStuckSentinelRef,
   desktopInlineLayout,
   isToolbarStuck,
-  isMobileSearchStuck,
+  isTopRowAtMenuButton,
   children,
 }: ToolbarStickyShellProps) {
   return (
@@ -37,7 +37,7 @@ export function ToolbarStickyShell({
         data-tooltip-cover
 
         // Stuck at any width, read by a browser test waiting for the row to settle once it sticks
-        data-stuck={isToolbarStuck || isMobileSearchStuck ? 'true' : 'false'}
+        data-stuck={isToolbarStuck || isTopRowAtMenuButton ? 'true' : 'false'}
         className={getToolbarStickyRowClass(desktopInlineLayout)}
         style={{
           background: 'var(--app-bg)',
