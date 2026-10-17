@@ -2,6 +2,7 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 
 import { countLedgerTransactions, createAccount, signUpUser } from '../support/api'
 import { chooseFromDropdown, commitImport, logInViaApi, openPage } from '../support/app'
+import { statementFile } from '../support/ofx'
 
 // Runs on desktop only: how an interrupted save recovers is the same at every size
 
@@ -112,17 +113,7 @@ test('imports nothing twice when a file is added after an OFX save that landed b
   await chooseFromDropdown(page.locator('body'), 'Data Source', 'OFX/QFX')
   const upload = page.locator('input[type="file"][accept*=".ofx"]')
   await expect(upload).toBeEnabled()
-  const statement = (name: string, fitId: string) => ({
-    name,
-    mimeType: 'application/octet-stream',
-    buffer: Buffer.from([
-      'OFXHEADER:100', 'DATA:OFXSGML', 'VERSION:102', 'SECURITY:NONE', 'ENCODING:USASCII', 'CHARSET:1252',
-      'COMPRESSION:NONE', 'OLDFILEUID:NONE', 'NEWFILEUID:NONE', '', '<OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS><CURDEF>CAD',
-      '<BANKACCTFROM><BANKID>123000456<ACCTID>000123456789<ACCTTYPE>CHECKING</BANKACCTFROM><BANKTRANLIST>',
-      `<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20240115<TRNAMT>-5.00<FITID>${fitId}<NAME>Cafe</STMTTRN>`,
-      '</BANKTRANLIST></STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>',
-    ].join('\r\n')),
-  })
+  const statement = (name: string, fitId: string) => statementFile(name, [{ posted: '20240115', amount: '-5.00', fitId, name: 'Cafe' }])
   await upload.setInputFiles([statement('2024-01.qfx', 'A1')])
 
   await page.route(COMMIT_URL, async (route) => {
@@ -145,6 +136,9 @@ test('imports nothing twice when a file is added after an OFX save that landed b
   await expect(page.getByText('Save interrupted. Please try again.', { exact: true })).toHaveCount(0)
   await commitImport(page)
 
-  await expect(overlay.getByText('Your earlier import was saved, so this one wasn\'t imported.', { exact: true })).toBeVisible()
+  await expect(overlay.getByText(
+    'Your earlier import was saved, so this one wasn\'t imported. 2024-02.qfx isn\'t in it, so import that file on its own.',
+    { exact: true },
+  )).toBeVisible()
   expect(await countLedgerTransactions(request, user)).toBe(ledgerAfterFirstSave)
 })

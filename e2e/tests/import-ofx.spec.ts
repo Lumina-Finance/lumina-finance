@@ -2,62 +2,13 @@ import { expect, test, type Page } from '@playwright/test'
 
 import { asUser, countLedgerTransactions, createAccount, signUpUser, type TestUser } from '../support/api'
 import { chooseFromDropdown, commitImport, logInViaApi, openPage } from '../support/app'
+import { buildBankMessageSet, buildCardMessageSet, buildFile, statementFile } from '../support/ofx'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: what the import writes is the same at every size
 
 const ACCOUNT_LABEL = 'Checking ending 6789'
 const CARD_LABEL = 'Credit card ending 1111'
-
-interface StatementTransaction {
-  posted: string
-  amount: string
-  fitId: string
-  name: string
-}
-
-// A version 1 file, as banks still write them: a header of plain lines and leaf tags left open
-function buildTransactions(transactions: StatementTransaction[]) {
-  return transactions.flatMap((transaction) => [
-    '<STMTTRN>',
-    '<TRNTYPE>DEBIT',
-    `<DTPOSTED>${transaction.posted}`,
-    `<TRNAMT>${transaction.amount}`,
-    `<FITID>${transaction.fitId}`,
-    // An empty tag such as a check number has no closing tag and must not swallow the tags after it
-    '<CHECKNUM>',
-    `<NAME>${transaction.name}`,
-    '</STMTTRN>',
-  ])
-}
-
-function buildBankMessageSet(currency: string, transactions: StatementTransaction[]) {
-  return [
-    '<BANKMSGSRSV1><STMTTRNRS><STMTRS>',
-    `<CURDEF>${currency}`,
-    '<BANKACCTFROM><BANKID>123000456<ACCTID>000123456789<ACCTTYPE>CHECKING</BANKACCTFROM>',
-    '<BANKTRANLIST>', ...buildTransactions(transactions), '</BANKTRANLIST>',
-    '</STMTRS></STMTTRNRS></BANKMSGSRSV1>',
-  ]
-}
-
-function buildCardMessageSet(currency: string, transactions: StatementTransaction[]) {
-  return [
-    '<CREDITCARDMSGSRSV1><CCSTMTTRNRS><CCSTMTRS>',
-    `<CURDEF>${currency}`,
-    '<CCACCTFROM><ACCTID>4111111111111111</CCACCTFROM>',
-    '<BANKTRANLIST>', ...buildTransactions(transactions), '</BANKTRANLIST>',
-    '</CCSTMTRS></CCSTMTTRNRS></CREDITCARDMSGSRSV1>',
-  ]
-}
-
-function buildFile(messageSets: string[][]) {
-  return [
-    'OFXHEADER:100', 'DATA:OFXSGML', 'VERSION:102', 'SECURITY:NONE', 'ENCODING:USASCII', 'CHARSET:1252',
-    'COMPRESSION:NONE', 'OLDFILEUID:NONE', 'NEWFILEUID:NONE', '',
-    '<OFX>', ...messageSets.flat(), '</OFX>',
-  ].join('\r\n')
-}
 
 async function openOfxImport(page: Page, user: TestUser) {
   await logInViaApi(page, user)
@@ -169,4 +120,91 @@ test.describe('a file that is not an OFX statement', () => {
     await expect(page.getByText('Choose an OFX or QFX statement from your bank.', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Remove transactions.csv', exact: true })).toHaveCount(0)
   })
+})
+
+async function openStatementUpload(page: Page, user: TestUser) {
+  await openOfxImport(page, user)
+  const upload = page.locator('input[type="file"][accept*=".ofx"]')
+  await expect(upload).toBeEnabled()
+  return upload
+}
+
+// Monthly statements overlap by a few days, so the bank's ID for the last transaction of January is
+// also in February's file
+const JANUARY = statementFile('2024-01.qfx', [CAFE, PAYROLL])
+const FEBRUARY = statementFile('2024-02.qfx', [PAYROLL, { posted: '20240201120000', amount: '-20.00', fitId: 'B1', name: 'Hardware' }])
+const MARCH = statementFile('2024-03.qfx', [{ posted: '20240301120000', amount: '-8.00', fitId: 'C1', name: 'Bakery' }])
+
+test('imports the statements of several files as one import, skipping a transaction an earlier file holds, and undoes them together', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const upload = await openStatementUpload(page, user)
+  await upload.setInputFiles([JANUARY, FEBRUARY, MARCH])
+
+  // One account answer covers the account that all three files hold, and the repeat is left out
+  // with the file that has it
+  await expect(page.getByRole('combobox', { name: `Existing Account ${ACCOUNT_LABEL}` })).toHaveCount(1)
+  await expect(page.getByText('This transaction is already in 2024-01.qfx.', { exact: true })).toBeVisible()
+  await expect(page.getByTitle('2024-02.qfx', { exact: true })).toBeVisible()
+
+  let runs = 0
+  page.on('request', (sent) => {
+    if (sent.method() === 'POST' && /\/transactions\/import\/runs$/.test(sent.url())) runs += 1
+  })
+  const opened = page.waitForRequest((sent) => sent.method() === 'POST' && /\/transactions\/import\/runs$/.test(sent.url()))
+  expect((await commitImport(page)).status()).toBe(201)
+  expect((await opened).postDataJSON()).toMatchObject({ file_name: '2024-01.qfx, 2024-02.qfx, 2024-03.qfx', source: 'ofx' })
+  expect(runs).toBe(1)
+
+  expect(await countLedgerTransactions(request, user)).toBe(4)
+  const accounts = await request.get(`${API_BASE_URL}/accounts`, { headers: asUser(user) })
+  expect((await accounts.json() as { name: string; current_balance: number }[])).toMatchObject([
+    { name: ACCOUNT_LABEL, current_balance: 245950 },
+  ])
+
+  await openPage(page, '/settings/imports')
+  const lastImport = page.getByRole('region', { name: 'Last import' })
+  await expect(lastImport).toContainText('4 transactions')
+  await page.getByRole('button', { name: 'Undo import of 2024-01.qfx, 2024-02.qfx, 2024-03.qfx', exact: true }).click()
+  const undone = page.waitForResponse((response) => response.request().method() === 'POST'
+    && /\/transactions\/import\/runs\/[^/]+\/undo$/.test(response.url()))
+  await page.getByRole('dialog', { name: 'Undo this import?' }).getByRole('button', { name: 'Undo import', exact: true }).click()
+  expect((await undone).status()).toBe(200)
+  await expect(lastImport).toBeHidden()
+  expect(await countLedgerTransactions(request, user)).toBe(0)
+})
+
+// A file that is not a statement is turned away by name and the files already staged stay
+test('turns away a file that is not a statement by name while the other files stay', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const upload = await openStatementUpload(page, user)
+  const notes = { name: 'notes.qfx', mimeType: 'application/octet-stream', buffer: Buffer.from('Date,Amount,Description\n2024-01-15,-12.50,Cafe\n') }
+  await upload.setInputFiles([JANUARY, notes, FEBRUARY])
+
+  await expect(page.getByText('"notes.qfx" was not added. This isn\'t an OFX or QFX statement. Choose an OFX or QFX statement from your bank.', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove 2024-01.qfx', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove 2024-02.qfx', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove notes.qfx', exact: true })).toHaveCount(0)
+})
+
+// The answers are for the statements of all the files, so adding a file keeps them and removing
+// every file starts over
+test('keeps the account answer when another file is added and clears it once every file is removed', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', currency: 'CAD' })
+  const upload = await openStatementUpload(page, user)
+  await upload.setInputFiles([JANUARY])
+
+  const answer = page.getByRole('combobox', { name: `Existing Account ${ACCOUNT_LABEL}` })
+  await chooseFromDropdown(page.locator('body'), `Existing Account ${ACCOUNT_LABEL}`, account.name)
+  await expect(answer).toHaveText(account.name)
+
+  await upload.setInputFiles([MARCH])
+  await expect(page.getByRole('button', { name: 'Remove 2024-03.qfx', exact: true })).toBeVisible()
+  await expect(answer).toHaveText(account.name)
+
+  await page.getByRole('button', { name: 'Remove 2024-01.qfx', exact: true }).click()
+  await expect(answer).toHaveText(account.name)
+  await page.getByRole('button', { name: 'Remove 2024-03.qfx', exact: true }).click()
+  await upload.setInputFiles([JANUARY])
+  await expect(answer).toHaveText('Create New Account')
 })
