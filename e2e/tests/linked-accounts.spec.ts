@@ -89,7 +89,7 @@ async function openEditAccount(page: Page): Promise<Locator> {
 
 /**
  * Types a date into the modal's date field and leaves the field, as a user does. Clicking Notes leaves
- * it, since Tab from the day stops on the field's own calendar button first
+ * it, and leaving the field is what lets the form show a refusal of the date
  */
 async function enterDate(page: Page, dialog: Locator, date: string): Promise<void> {
   await typeDate(page, 'Date', date)
