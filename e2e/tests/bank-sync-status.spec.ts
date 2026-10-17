@@ -367,7 +367,12 @@ test('reads as retrying at the time of the retry when the Bridge fails', AT_EVER
     }
   }))
   expect(await offsetFromIcon()).toBeCloseTo(openedAt, 0)
+
+  // Closed under the pointer they still show, keeping their side, so the pointer leaves them and they
+  // hide before they open again
   await showDetails.click()
+  await page.mouse.move(0, 0)
+  await expect(details.locator('..')).toHaveAttribute('aria-hidden', 'true')
   await showDetails.click()
   await expect.poll(() => readClippingBoxes(details)).toEqual([])
 })
