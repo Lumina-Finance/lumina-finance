@@ -19,7 +19,12 @@ import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { WarningCallout } from '@/components/WarningCallout'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
-import { describeConnected, describeReconnected } from '@/pages/settings/components/bank-connections-section/utils'
+import {
+  describeConnected,
+  describeReconnected,
+  describeSetupTokenLength,
+  isClaimSettled,
+} from '@/pages/settings/components/bank-connections-section/utils'
 import { connectionName, providerSite } from '@/utils/bankSync'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
 
@@ -47,7 +52,7 @@ type UnansweredClaim = {
 
   /**
    * When the wait ends, in epoch milliseconds: once the claim must have finished, and never before the
-   * list has been read again after the failure, which a claim the browser itself timed out comes near
+   * next poll after the failure is due, which a claim the browser itself timed out comes near
    */
   endsAt: number
 }
@@ -100,10 +105,7 @@ export function ConnectModal({ open, providers, reconnecting, connections, level
   const sending = claim.isPending || reconnect.isPending
   const busy = sending || unanswered !== null
   const saved = unanswered ? connections?.find((connection) => !unanswered.knownIds.has(connection.id)) : undefined
-
-  // The server saves a connection before it lists its bank accounts, so one read partway shows none
-  // and no listing due. Only a listing done or due settles it before the wait ends
-  const settled = saved !== undefined && (saved.accounts.length > 0 || saved.discovery_pending)
+  const settled = saved !== undefined && isClaimSettled(saved)
   const provider = providers.find((entry) => entry.id === providerId)
   const providerName = reconnecting?.provider_name ?? provider?.name ?? 'SimpleFIN'
   const site = providerSite({ provider: reconnecting?.provider ?? providerId ?? 'simplefin', provider_name: providerName })
@@ -120,6 +122,11 @@ export function ConnectModal({ open, providers, reconnecting, connections, level
     event.preventDefault()
     const token = setupToken.trim()
     if (busy || !token) return
+    const lengthProblem = describeSetupTokenLength(token)
+    if (lengthProblem) {
+      setTokenError(lengthProblem)
+      return
+    }
     setTokenError(null)
     setError(null)
 
@@ -266,6 +273,7 @@ export function ConnectModal({ open, providers, reconnecting, connections, level
             value={setupToken}
             placeholder="Paste the token"
             spellCheck={false}
+            autoComplete="off"
             aria-invalid={tokenError ? true : undefined}
             disabled={busy}
             onChange={(event) => {

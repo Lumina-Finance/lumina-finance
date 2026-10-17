@@ -1,8 +1,9 @@
 /**
  * Tests what the bank connections section says about a connection, so a rewrite catches a bank named
  * twice for its sign-in, a search that misses a linked account's name, a confirmation that counts
- * wrongly or reads "1 accounts", an institution limit applied where linking stays allowed, and a bank
- * account shown both linked and under Mismatch detected
+ * wrongly or reads "1 accounts", a connection read partway through its claim taken as added, an
+ * institution limit applied where linking stays allowed, and a bank account shown both linked and
+ * under Mismatch detected
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BankConnection, BankProvider, ConnectionBankAccount, ReconnectConnectionResult } from '@/api/bank-sync'
@@ -14,8 +15,10 @@ import {
   describeMismatch,
   describeReconnected,
   describeRequestBudget,
+  describeSetupTokenLength,
   describeSignInDetail,
   groupInstitutions,
+  isClaimSettled,
   matchesConnectionSearch,
   matchesInstitutionSearch,
 } from '@/pages/settings/components/bank-connections-section/utils'
@@ -134,6 +137,12 @@ describe('bank connection confirmations', () => {
 
   it('says the bank accounts are on the way when the claim could not list them yet', () => {
     expect(describeConnected(connection({ discovery_pending: true }))).toBe('SimpleFIN connected. Its bank accounts will appear here shortly.')
+  })
+
+  it('takes a connection as added once its bank accounts are listed or a listing is due, never partway', () => {
+    expect(isClaimSettled(connection({ accounts: [bankAccount({})] }))).toBe(true)
+    expect(isClaimSettled(connection({ discovery_pending: true }))).toBe(true)
+    expect(isClaimSettled(connection())).toBe(false)
   })
 
   it('counts the accounts a reconnect resumes and those that need their bank account chosen again', () => {
@@ -295,6 +304,15 @@ describe('bank connection institution search and mismatches', () => {
 
     expect(describeMismatch(several, accountNameFor)).toBe(
       "SimpleFIN now lists some bank accounts differently, so Lumina Finance can't tell whether they're the same ones. Their accounts won't sync until you choose each one's bank account again.",
+    )
+  })
+})
+
+describe('describeSetupTokenLength', () => {
+  it('refuses a pasted setup token over 2048 characters with a sentence and keeps one at the limit', () => {
+    expect(describeSetupTokenLength('a'.repeat(2048))).toBeNull()
+    expect(describeSetupTokenLength('a'.repeat(2049))).toBe(
+      'That setup token is too long. Copy only the token from SimpleFIN Bridge and try again',
     )
   })
 })

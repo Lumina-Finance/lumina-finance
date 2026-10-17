@@ -3,6 +3,18 @@ import type { SyncStatusTone } from '@/components/display/SyncStatusDot'
 import { connectionName, countNoun, providerSite } from '@/utils/bankSync'
 import { formatRelativeFutureTime } from '@/utils/relativeTime'
 
+// A setup token is about 100 characters. The server refuses more than this
+export const SETUP_TOKEN_MAX_LENGTH = 2048
+
+/**
+ * Says what is wrong with a pasted setup token before it is sent, or null when its length is fine
+ */
+export function describeSetupTokenLength(token: string): string | null {
+  return token.length > SETUP_TOKEN_MAX_LENGTH
+    ? 'That setup token is too long. Copy only the token from SimpleFIN Bridge and try again'
+    : null
+}
+
 /** Looks up an account's name by its id, or undefined while the accounts are loading */
 export type AccountNameLookup = (accountId: string) => string | undefined
 
@@ -89,6 +101,14 @@ export function matchesConnectionSearch(connection: BankConnection, query: strin
       account.linked_account_id ? accountNameFor(account.linked_account_id) ?? '' : '',
     ]),
   ].some((text) => text.toLowerCase().includes(needle))
+}
+
+/**
+ * Whether a connection a claim saved is done being added: its bank accounts listed, or a listing due.
+ * The server saves a connection before it lists them, so a read partway through the claim has neither
+ */
+export function isClaimSettled(connection: BankConnection): boolean {
+  return connection.accounts.length > 0 || connection.discovery_pending
 }
 
 /**
