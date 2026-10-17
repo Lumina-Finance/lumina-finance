@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import { expect, test, type APIRequestContext, type Page, type TestInfo } from '@playwright/test'
 
 import { TEST_CURRENCY, TEST_TIMEZONE, signUpUser, todayInTestTimezone, type TestUser } from '../support/api'
-import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
+import { chooseFromDropdown, logInViaApi, leaveImportSetup, openPage, showImportSetup } from '../support/app'
 import { checkExpected } from '../support/import-check/compare.ts'
 import { readLumina } from '../support/import-check/lumina.ts'
 import { captureUploads, type CapturedUpload } from '../support/import-check/uploads.ts'
@@ -95,11 +95,14 @@ async function startImport(page: Page, request: APIRequestContext, manifest: Act
   await input.setInputFiles(join(OUTPUT_DIR, manifest.budget, 'export.zip'))
 
   try {
+    // The setup panel collapses once the file lands, so it is slid out to see the file
+    await showImportSetup(page)
     await expect(page.getByText('export.zip', { exact: true })).toBeVisible()
   } catch {
     const card = page.getByRole('button', { name: /Upload budget export/ })
     throw new Error(`The import screen didn't stage the ${manifest.budget} export: ${await card.innerText().catch(() => 'no upload card')}`)
   }
+  await leaveImportSetup(page)
   return { user, uploads }
 }
 

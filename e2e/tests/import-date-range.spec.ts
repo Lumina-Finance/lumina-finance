@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, createTransaction, signUpUser } from '../support/api'
-import { commitImport, logInViaApi, openPage, typeDate } from '../support/app'
+import { commitImport, logInViaApi, openPage, showImportSetup, typeDate } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
@@ -32,6 +32,10 @@ async function uploadYear(page: Page, request: Parameters<typeof signUpUser>[0],
   const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')
   await expect(upload).toBeEnabled()
   await upload.setInputFiles({ name: 'year.csv', mimeType: 'text/csv', buffer: Buffer.from(CSV) })
+
+  // The dates are in the setup panel, which collapses once the file is read, so the pointer is held
+  // on it until the test is done there
+  await showImportSetup(page)
   return { user, account }
 }
 
@@ -157,6 +161,11 @@ test('keeps the dates\' messages whole at every width', async ({ page, request }
   await uploadYear(page, request)
   await typeDate(page, 'Start date', '2025-04-01')
   const end = await typeDate(page, 'End date', '2025-03-01')
+
+  // The setup panel the messages are in stays collapsed through a resize, so its strip is pinned open
+  const strip = page.getByRole('button', { name: 'Expand import setup', exact: true })
+  await expect(strip).toBeVisible()
+  await strip.click()
   await checkLayoutAtEveryWidth(page, page.getByText('Must be on or before the end date', { exact: true }))
 
   await end.getByRole('textbox', { name: 'Day', exact: true }).fill('')

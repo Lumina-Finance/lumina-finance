@@ -131,12 +131,17 @@ export default function CalendarPopover({ open, anchorRef, value, onSelect, onCl
     return () => {
       if (!restoreFocusRef.current) return
 
-      window.requestAnimationFrame(() => {
+      const restoreFocus = () => {
         const active = document.activeElement
         if (field?.isConnected && (active === document.body || (active && grid?.contains(active)))) {
           field.focus({ preventScroll: true })
         }
-      })
+      }
+
+      // Tried at once as well as on the next frame, since the grid keeps focus while it animates out and a field whose
+      // container is closed over by the time the frame comes, such as in a panel that collapses, can no longer take it
+      restoreFocus()
+      window.requestAnimationFrame(restoreFocus)
     }
   }, [open, anchorRef])
 

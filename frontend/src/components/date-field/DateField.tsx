@@ -238,6 +238,8 @@ export default function DateField({
         <button
           type="button"
           aria-label="Open calendar"
+          aria-haspopup="dialog"
+          aria-expanded={popoverOpen}
           tabIndex={-1}
           disabled={disabled}
           onMouseDown={(event) => event.preventDefault()}

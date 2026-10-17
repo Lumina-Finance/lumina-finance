@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import { createAccount, signUpUser } from '../support/api'
-import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
+import { chooseFromDropdown, logInViaApi, openPage, showImportSetup } from '../support/app'
 
 // Runs on desktop only: hover and press are pointer states, and the fills they change don't vary with width
 
@@ -94,10 +94,12 @@ for (const colorScheme of ['light', 'dark'] as const) {
     // The same card is there to add more files once one is staged, and the remove button on a staged file
     // takes the colour the card does
     await page.locator('input[type="file"][accept=".csv,text/csv"]').setInputFiles(STATEMENT)
+    // The file collapses the setup panel holding both, which stays out while the pointer is on its strip,
+    // off them
+    await showImportSetup(page)
     const addMore = page.getByRole('button', { name: /^Add more CSV file/ })
     const remove = page.getByRole('button', { name: /^Remove / })
     await expect(remove).toBeVisible()
-    await page.mouse.move(0, 0)
     await expect.poll(() => declaredFill(addMore)).toBe(rest)
 
     await remove.hover()
@@ -135,6 +137,7 @@ test('lets the upload card and the remove button change at once when motion is r
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await openImports(page, request, 'light')
   await page.locator('input[type="file"][accept=".csv,text/csv"]').setInputFiles(STATEMENT)
+  await showImportSetup(page)
   await expect(page.getByRole('button', { name: /^Remove / })).toBeVisible()
   for (const control of [page.getByRole('button', { name: /^Add more CSV file/ }), page.getByRole('button', { name: /^Remove / })]) {
     expect(await easedProperties(control)).toEqual({})

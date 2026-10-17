@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 import { asUser, countLedgerTransactions, createAccount, signUpUser, type TestUser } from '../support/api'
-import { chooseFromDropdown, commitImport, logInViaApi, openPage } from '../support/app'
+import { chooseFromDropdown, commitImport, logInViaApi, openPage, showImportSetup } from '../support/app'
 import { buildBankMessageSet, buildCardMessageSet, buildFile, CAFE, PAYROLL, statementFile } from '../support/ofx'
 import { API_BASE_URL } from '../support/target'
 
@@ -196,6 +196,8 @@ test('keeps the account answer when another file is added and clears it once eve
   await expect(answer).toHaveText(account.name)
 
   await upload.setInputFiles([MARCH])
+  // The staged list is in the setup panel, which is collapsed now and slid out while it is hovered
+  await showImportSetup(page)
   await expect(page.getByRole('button', { name: 'Remove 2024-03.qfx', exact: true })).toBeVisible()
   await expect(answer).toHaveText(account.name)
 
@@ -204,4 +206,21 @@ test('keeps the account answer when another file is added and clears it once eve
   await page.getByRole('button', { name: 'Remove 2024-03.qfx', exact: true }).click()
   await upload.setInputFiles([JANUARY])
   await expect(answer).toHaveText('Create New Account')
+})
+
+// The staged list and the card for more statements sit in the setup panel, which collapses once a
+// statement is staged and slides out while it is hovered
+test('collapses the setup panel around the staged statements, and adds more through its slid-out card', async ({ page, request }) => {
+  const upload = await openStatementUpload(page, await signUpUser(request))
+  await upload.setInputFiles([JANUARY, FEBRUARY])
+  await expect(page.getByRole('button', { name: 'Expand import setup', exact: true })).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.getByRole('button', { name: 'Remove 2024-01.qfx', exact: true })).toBeHidden()
+
+  await showImportSetup(page)
+  await expect(page.getByRole('button', { name: 'Remove 2024-01.qfx', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove 2024-02.qfx', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Add more statements/ })).toBeVisible()
+
+  await upload.setInputFiles([MARCH])
+  await expect(page.getByRole('button', { name: 'Remove 2024-03.qfx', exact: true })).toBeVisible()
 })

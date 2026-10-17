@@ -763,3 +763,11 @@ export const IMPORT_EXCLUDED_ROW_BACKGROUND = 'color-mix(in srgb, var(--app-bg) 
 // Faint text on that shade, which is drawn in the muted colour since the faint one falls under the contrast text
 // needs there
 export const IMPORT_EXCLUDED_ROW_FAINT_TEXT = 'var(--app-text-muted)'
+
+// Where the page lays its steps out beside the setup panel rather than under it, which is Tailwind's
+// xl breakpoint the page already switches on. Hovering the collapsed panel open is offered only here
+export const IMPORT_SIDE_BY_SIDE_QUERY = '(min-width: 1280px)'
+
+// How long the setup panel's collapse and expand take, which is the page's usual 240ms. The sections,
+// the label, the caret and the steps beside the panel all move within it
+export const IMPORT_SETUP_MOTION_MS = 240
