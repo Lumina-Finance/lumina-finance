@@ -357,9 +357,9 @@ export async function applyImportDates(page: Page): Promise<void> {
 }
 
 /**
- * Types an ISO date into the import's date field with the given label
+ * Types an ISO date into the date field with the given label, such as an import's or a dialogue's
  *
- * @param page - Page showing a staged import
+ * @param page - Page showing the field, with nothing else on it reachable under the same label
  * @param label - The field's label, such as Start date
  * @param iso - The date as yyyy-mm-dd
  * @returns The date field
