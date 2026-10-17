@@ -166,7 +166,8 @@ function getTooltipPosition(trigger: HTMLElement, tooltip: HTMLElement, placemen
  *
  * The panel opens above or below the trigger, whichever has room within the viewport or the nearest
  * ancestor marked with `data-tooltip-bounds`, and shifts sideways to stay within them. While it shows it
- * keeps that side, and any scroll or resize only moves it with the trigger. It hides while its trigger is
+ * keeps that side, and it is placed again with the trigger on any scroll or resize, and whenever the
+ * trigger moves on its own, as it does during a dialog's entrance. It hides while its trigger is
  * scrolled out of view, and it closes on any pointer down outside the trigger
  */
 export default function IconTooltip({
@@ -219,6 +220,27 @@ export default function IconTooltip({
       window.removeEventListener('resize', updatePlacement)
       sideRef.current = null
     }
+  }, [isPlaced, updatePlacement])
+
+  // A trigger can also move with nothing scrolling or resizing, as a dialog's entrance scales and slides
+  // it into place, and a panel put where the trigger was mid-move rests off it once it stops. So the
+  // panel is put again whenever a frame finds the trigger somewhere new
+  useEffect(() => {
+    if (!isPlaced) return undefined
+
+    let frame = 0
+    let lastSeen = ''
+    const watch = () => {
+      const rect = triggerRef.current?.getBoundingClientRect()
+      const seen = rect ? `${rect.left},${rect.top}` : ''
+      if (seen !== lastSeen) {
+        lastSeen = seen
+        updatePlacement()
+      }
+      frame = requestAnimationFrame(watch)
+    }
+    frame = requestAnimationFrame(watch)
+    return () => cancelAnimationFrame(frame)
   }, [isPlaced, updatePlacement])
 
   // Floating free of the box that scrolls the trigger, the panel would stay on screen over whatever else
