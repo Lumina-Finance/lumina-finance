@@ -337,7 +337,7 @@ test('greys out Archive with its reason while the account is linked, and offers 
   const archive = dialog.getByRole('switch', { name: /^Archive account/ })
   const warning = dialog.getByText('Balance will be set to zero')
   await page.getByRole('button', { name: 'Edit account', exact: true }).click()
-  await expect(archive).toHaveAttribute('aria-disabled', 'true')
+  await expect(archive).toBeDisabled()
   await expect(archive).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
 
   // A later-dated transaction would block archiving too, but the switch gives one reason at a time
@@ -384,7 +384,7 @@ test('greys out Archive with its reason while the account is linked, and offers 
   // The switch is held back until the link is read, so the read has to arrive first
   await expect(page.getByRole('button', { name: /^Bank sync: Not linked/ })).toBeVisible()
   await page.getByRole('button', { name: 'Edit account', exact: true }).click()
-  await expect(archive).not.toHaveAttribute('aria-disabled')
+  await expect(archive).toBeEnabled()
   await expect(archiveReason).toBeHidden()
   await dialog.getByText('Archive account', { exact: true }).click()
   await expect(archive).toBeChecked()
@@ -420,6 +420,28 @@ test('holds Archive back until the link has been read, so a linked account is ne
   releaseRead()
   await expect(archive).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
   await expect(archiveInstead).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
+})
+
+// Held back through aria-disabled, Archive instead still takes focus and does nothing on Enter, so the
+// panel's first step starts on Continue, as it does where Archive instead is absent
+test('focuses Continue, not the held Archive instead, when the delete panel opens on a linked account', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  const dialog = await openEditAccount(page)
+
+  // Pressed once the link has been read, since a link still loading disables Archive instead outright
+  await expect(dialog.getByRole('switch', { name: /^Archive account/ })).toBeDisabled()
+  const trash = dialog.getByRole('button', { name: 'Delete account', exact: true })
+  await trash.focus()
+  await trash.press('Enter')
+
+  const archiveInstead = dialog.getByRole('button', { name: 'Archive instead', exact: true })
+  await expect(archiveInstead).toHaveAttribute('aria-disabled', 'true')
+  await expect(dialog.getByRole('button', { name: 'Continue', exact: true })).toBeFocused()
+  await expect(archiveInstead).not.toBeFocused()
 })
 
 // The link is read only for the user's own personal accounts, so archiving one in a group never waits on it
