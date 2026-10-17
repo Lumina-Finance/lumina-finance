@@ -53,6 +53,76 @@ describe('year first dates', () => {
   })
 })
 
+describe('dates written with no separators', () => {
+  it('reads year, month and day as eight digits', () => {
+    expect(readImportDate('20260405', 'yearFirst')).toBe('2026-04-05')
+    expect(readImportDate('20260131', 'yearFirst')).toBe('2026-01-31')
+  })
+
+  it('refuses eight digits that name no real day', () => {
+    expect(readImportDate('20261340', 'yearFirst')).toBe('')
+    expect(readImportDate('20260230', 'yearFirst')).toBe('')
+  })
+
+  it('refuses eight digits when a separator is required, and under the other orders', () => {
+    expect(readImportDate('20260405', 'yearFirst', '-')).toBe('')
+    expect(readImportDate('20260405', 'dayFirst')).toBe('')
+    expect(readImportDate('20260405', 'iso')).toBe('')
+  })
+
+  it('refuses digit runs of any other length', () => {
+    expect(readImportDate('2026045', 'yearFirst')).toBe('')
+    expect(readImportDate('202604055', 'yearFirst')).toBe('')
+  })
+
+  it('leaves exactly one format reading a column of them', () => {
+    expect(scanImportDateFormats(['20260405', '20260131']).readable).toEqual(['yearFirst'])
+    expect(isValidDateValue('20260405')).toBe(true)
+    expect(isValidDateValue('20261340')).toBe(false)
+  })
+})
+
+describe('dates followed by a time of day', () => {
+  it('reads the day written, whatever the time', () => {
+    expect(readImportDate('2026.03.01 09:00:00', 'yearFirst')).toBe('2026-03-01')
+    expect(readImportDate('2026.03.01 23:59:59', 'yearFirst')).toBe('2026-03-01')
+    expect(readImportDate('2026-03-01 9:05', 'yearFirst')).toBe('2026-03-01')
+    expect(readImportDate('2026-03-01 09:00:00.250', 'yearFirst')).toBe('2026-03-01')
+    expect(readImportDate('20260301 09:00:00', 'yearFirst')).toBe('2026-03-01')
+  })
+
+  it('reads a day-first or month-first date with a time', () => {
+    expect(readImportDate('05/04/2026 14:32', 'dayFirst')).toBe('2026-04-05')
+    expect(readImportDate('04/05/2026 14:32:10', 'monthFirst')).toBe('2026-04-05')
+  })
+
+  it('refuses a time no clock shows and a day the calendar does not have', () => {
+    expect(readImportDate('2026.03.01 24:00:00', 'yearFirst')).toBe('')
+    expect(readImportDate('2026.03.01 09:60:00', 'yearFirst')).toBe('')
+    expect(readImportDate('2026.03.01 09:00:60', 'yearFirst')).toBe('')
+    expect(readImportDate('2026.02.30 09:00:00', 'yearFirst')).toBe('')
+  })
+
+  it('refuses a time with no date, or with more after it', () => {
+    expect(readImportDate('09:00:00', 'yearFirst')).toBe('')
+    expect(readImportDate('2026.03.01 09:00:00 PM', 'yearFirst')).toBe('')
+    expect(readImportDate('2026.03.01 09', 'yearFirst')).toBe('')
+  })
+
+  it('keeps a written date and an ISO timestamp as they were read', () => {
+    expect(readImportDate('5 April 2026 09:00', 'written')).toBe('')
+    expect(readImportDate('2026-03-01 09:00:00', 'iso')).toBe('')
+    expect(readImportDate('2026-03-01T09:00:00', 'yearFirst')).toBe('')
+    expect(scanImportDateFormats(['2026-03-01T09:00:00']).readable).toEqual(['iso'])
+  })
+
+  it('leaves exactly one format reading a column of them', () => {
+    const scan = scanImportDateFormats(['2026.03.01 09:00:00', '2026.03.02 10:00:00'])
+
+    expect(scan.readable).toEqual(['yearFirst'])
+  })
+})
+
 describe('ISO dates and timestamps', () => {
   it.each([
     ['2024-02-29', '2024-02-29'],

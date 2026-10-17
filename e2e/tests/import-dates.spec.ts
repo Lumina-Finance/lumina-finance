@@ -121,3 +121,29 @@ for (const { profileZone, browserZone, dates } of DATE_CASES) {
     })
   })
 }
+
+// A bank that writes the time of day in the date's cell is imported on the day written, with the
+// date column found and its format chosen without an answer from the user. The unit tests cover the
+// eight-digit form, which takes the same path
+const TIMED_DATES = ['2026.03.01 09:00:00', '2026.03.02 23:59:59']
+const TIMED_DATES_STORED = ['2026-03-01', '2026-03-02']
+
+test('imports dates written with a time of day on the day written', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const headers = { Authorization: `Bearer ${user.accessToken}` }
+  const account = await createAccount(request, user, { name: 'Timed date import account' })
+  await logInViaApi(page, user)
+  await openPage(page, `/settings/imports?account=${account.id}`)
+  const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')
+  await expect(upload).toBeEnabled()
+  const csv = ['Date,Amount,Category,Merchant,Notes', ...TIMED_DATES.map((date, index) => `${date},-1${index}.00,Groceries,Unknown,Row ${index}`)]
+  await upload.setInputFiles({ name: 'dates.csv', mimeType: 'text/csv', buffer: Buffer.from(csv.join('\n')) })
+
+  await expect(page.getByRole('combobox', { name: 'Date format', exact: true })).toHaveText(/^Year first/)
+  const response = await commitImport(page)
+  expect(response.status()).toBe(201)
+
+  const stored = await request.get(`${API_BASE_URL}/transactions?account_id=${account.id}`, { headers })
+  const transactions = await stored.json() as { dt: string }[]
+  expect(transactions.map((row) => row.dt).sort()).toEqual(TIMED_DATES_STORED)
+})
