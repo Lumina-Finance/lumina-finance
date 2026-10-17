@@ -218,6 +218,33 @@ test('imports the statements of several files into the account from its page', a
   ])
 })
 
+// Which transactions the account already holds is known only to the save, so the overlap shows in
+// the summary once it lands, and the ledger gains only the new transaction
+test('imports a statement overlapping an earlier one into the account, adding only what is new', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const checking = await createAccount(request, user, { name: 'Checking', currency: 'CAD' })
+  await logInViaApi(page, user)
+  await openPage(page, `/settings/imports?account=${checking.id}`)
+  await chooseFromDropdown(page.locator('body'), 'Data Source', 'OFX/QFX')
+  await uploadStatement(page, buildFile([buildBankMessageSet('CAD', [CAFE, PAYROLL])]))
+  expect((await commitImport(page)).status()).toBe(201)
+
+  const hardware = { posted: '20240201120000', amount: '-20.00', fitId: 'B1', name: 'Hardware' }
+  await openPage(page, `/settings/imports?account=${checking.id}`)
+  await expect(page.getByRole('combobox', { name: 'Data Source' })).toHaveText('OFX/QFX')
+  await uploadStatement(page, buildFile([buildBankMessageSet('CAD', [CAFE, PAYROLL, hardware])]))
+  expect((await commitImport(page)).status()).toBe(201)
+
+  await expect(page.getByRole('dialog').getByText(
+    '1 transaction imported · 0 accounts created · 0 categories created · 2 already in the account',
+    { exact: true },
+  )).toBeVisible()
+  expect(await countLedgerTransactions(request, user)).toBe(3)
+  const accounts = await request.get(`${API_BASE_URL}/accounts`, { headers: asUser(user) })
+  expect((await accounts.json() as { id: string; current_balance: number }[]).filter((account) => account.id === checking.id))
+    .toMatchObject([{ current_balance: 248750 - 2000 }])
+})
+
 // A change made elsewhere moves the user's data marker, and the focus that follows reads the saved
 // sources again. Once the page has opened on one, that read must not put the page behind the spinner
 test('keeps a staged statement on screen when the saved sources are read again', async ({ page, request }) => {
