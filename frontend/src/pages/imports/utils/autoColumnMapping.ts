@@ -23,6 +23,10 @@ const HEADER_ALIAS_SCORES: Record<ColumnTarget, Record<string, number>> = {
     valuedate: 90,
     effectivedate: 90,
     datetime: 85,
+    buchungstag: 100,
+    buchungsdatum: 100,
+    datum: 100,
+    wertstellung: 90,
   },
   category_id: {
     category: 100,
@@ -36,6 +40,10 @@ const HEADER_ALIAS_SCORES: Record<ColumnTarget, Record<string, number>> = {
     signedamount: 100,
     value: 75,
     total: 65,
+    betrag: 100,
+    montant: 100,
+    summe: 90,
+    umsatz: 90,
   },
   // The past-tense and plain-English wordings are listed alongside the bookkeeping ones because the
   // two sides have to match together. A pair where only one side is recognised is worse than one
@@ -52,6 +60,7 @@ const HEADER_ALIAS_SCORES: Record<ColumnTarget, Record<string, number>> = {
     outflow: 90,
     outgoing: 90,
     out: 70,
+    soll: 100,
   },
   amount_in: {
     credit: 100,
@@ -65,6 +74,7 @@ const HEADER_ALIAS_SCORES: Record<ColumnTarget, Record<string, number>> = {
     inflow: 90,
     incoming: 90,
     in: 70,
+    haben: 100,
   },
 
   // What a column of words carrying the direction is called. The money fields leave every one
@@ -103,6 +113,9 @@ const HEADER_ALIAS_SCORES: Record<ColumnTarget, Record<string, number>> = {
     description: 65,
     transactiondescription: 65,
     name: 50,
+    empfangerauftraggeber: 95,
+    empfanger: 95,
+    libelle: 65,
   },
   notes: {
     notes: 100,
@@ -115,6 +128,8 @@ const HEADER_ALIAS_SCORES: Record<ColumnTarget, Record<string, number>> = {
     detail: 75,
     description: 45,
     transactiondescription: 45,
+    verwendungszweck: 100,
+    libelle: 45,
   },
   tag_ids: {
     tags: 100,
@@ -224,7 +239,11 @@ const HEADER_CONTAINS_SCORES: Record<ColumnTarget, Array<{ value: string; score:
 // A running total, a headroom figure and an identifier are all barred from every amount field: the
 // first two are money by shape, and an identifier is a run of digits the side fields would otherwise
 // take, since they accept any number and any blank
-const AMOUNT_LIKE_EXCLUDED_PARTS = ['balance', 'available', 'limit', 'rate', 'number', 'iban', 'routing']
+const AMOUNT_LIKE_EXCLUDED_PARTS = [
+  'balance', 'available', 'limit', 'rate', 'number', 'iban', 'routing',
+  // The French and German wordings of a running balance
+  'solde', 'saldo',
+]
 
 const EXCLUDED_HEADER_PARTS: Partial<Record<ColumnTarget, string[]>> = {
   account_id: ['number', 'no', 'iban', 'routing', 'other', 'destination', 'counter'],
@@ -261,6 +280,8 @@ const AMOUNT_SIDE_TARGETS: ImportAmountSideTarget[] = ['amount_out', 'amount_in'
 // escape the list that blocks `Account Number`. Only the longer parts are safe to look for this way,
 // because a short one appears inside ordinary words: `no` sits inside `nominee`
 const MIN_COMPACT_EXCLUSION_LENGTH = 5
+
+const BRACKETED_SUFFIX_PATTERN = /\s*\([^)]*\)\s*$/
 
 // How many distinct values a column needs before repetition alone reads it as a category. Two or
 // three distinct words is a flag column, which is what let a Type column of Debit and Credit take
@@ -430,7 +451,12 @@ function scoreHeaderForTarget(header: string, target: ColumnTarget) {
   if (aliasScore) return aliasScore
 
   const containsScore = HEADER_CONTAINS_SCORES[target].find((match) => normalized.includes(match.value))?.score
-  return containsScore ?? 0
+  if (containsScore) return containsScore
+
+  // A bracketed currency or unit after the name, as in `Betrag (EUR)`, is not part of the name. This
+  // runs only once the tables above have missed, so a heading they already score is read as before
+  const base = normalizeHeader(header.replace(BRACKETED_SUFFIX_PATTERN, '')).replace(/\s/g, '')
+  return base !== compact && Object.hasOwn(aliases, base) ? aliases[base] : 0
 }
 
 function scoreValuesForTarget(
@@ -537,12 +563,17 @@ function normalizeValue(value: string) {
 /**
  * Reduces a heading to lower-case words separated by single spaces
  *
+ * An accented letter is read as its plain letter, so `Débit` is the word `debit` rather than the
+ * two words `d` and `bit`
+ *
  * A name written in camel case is split first, so `AccountNumber` reads as the two words
  * `Account Number` already does and the checks that work on words see both of them. Squeezing the
  * spaces back out afterwards gives the same key either spelling, so the alias table is unaffected
  */
 function normalizeHeader(header: string) {
   return header
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .toLowerCase()
     .replace(/&/g, ' and ')

@@ -861,3 +861,134 @@ describe('reaching the branches only an unusual arrangement of columns exercises
     })
   })
 })
+
+describe('a German or French bank\'s headings', () => {
+  it('reads the German wordings of the date, merchant, notes and amount fields', () => {
+    const files = [createFile(
+      ['Buchungstag', 'Wertstellung', 'Empfänger/Auftraggeber', 'Verwendungszweck', 'Betrag (€)'],
+      [
+        { Buchungstag: '05.04.2026', Wertstellung: '05.04.2026', 'Empfänger/Auftraggeber': 'Hausverwaltung Nord', Verwendungszweck: 'Miete April', 'Betrag (€)': '-950.00' },
+        { Buchungstag: '06.04.2026', Wertstellung: '07.04.2026', 'Empfänger/Auftraggeber': 'Firma Muster', Verwendungszweck: 'Gehalt', 'Betrag (€)': '2500.00' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.dt).toBe('Buchungstag')
+    expect(map.merchant_id).toBe('Empfänger/Auftraggeber')
+    expect(map.notes).toBe('Verwendungszweck')
+    expect(map.amount).toBe('Betrag (€)')
+  })
+
+  it('reads Betrag as the amount and Verwendungszweck as the notes beside a plain Datum', () => {
+    const files = [createFile(
+      ['Datum', 'Betrag', 'Verwendungszweck'],
+      [
+        { Datum: '05.04.2026', Betrag: '-950.00', Verwendungszweck: 'Miete April' },
+        { Datum: '06.04.2026', Betrag: '2500.00', Verwendungszweck: 'Gehalt' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.dt).toBe('Datum')
+    expect(map.amount).toBe('Betrag')
+    expect(map.notes).toBe('Verwendungszweck')
+  })
+
+  it('reads Soll and Haben as money out and money in', () => {
+    const files = [createFile(
+      ['Datum', 'Verwendungszweck', 'Soll', 'Haben'],
+      [
+        { Datum: '05.04.2026', Verwendungszweck: 'Miete', Soll: '950.00', Haben: '' },
+        { Datum: '06.04.2026', Verwendungszweck: 'Gehalt', Soll: '', Haben: '2500.00' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount_out).toBe('Soll')
+    expect(map.amount_in).toBe('Haben')
+    expect(map.amount).toBe('')
+  })
+
+  // The accented headings only match once the accent is read as its plain letter. Before that
+  // Débit was the two words d and bit, which no table knows
+  it('reads accented French headings as their unaccented spelling and keeps Solde out of the money fields', () => {
+    const files = [createFile(
+      ['Date d\'opération', 'Libellé', 'Débit', 'Crédit', 'Solde'],
+      [
+        { 'Date d\'opération': '05/04/2026', Libellé: 'CARTE SUPERMARCHE', Débit: '12.50', Crédit: '', Solde: '1234.50' },
+        { 'Date d\'opération': '06/04/2026', Libellé: 'VIREMENT SALAIRE', Débit: '', Crédit: '2500.00', Solde: '3734.50' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.dt).toBe('Date d\'opération')
+    expect(map.merchant_id).toBe('Libellé')
+    expect(map.amount_out).toBe('Débit')
+    expect(map.amount_in).toBe('Crédit')
+    expect(map.amount).toBe('')
+    expect(Object.values(map)).not.toContain('Solde')
+  })
+
+  // The balance comes first so that only its heading, not its place in the file, keeps it from the amount
+  it('reads Montant as the amount and keeps a Saldo column out of the amount', () => {
+    const files = [createFile(
+      ['Date', 'Saldo', 'Montant', 'Libellé'],
+      [
+        { Date: '05/04/2026', Montant: '-12.50', Libellé: 'CARTE SUPERMARCHE', Saldo: '1234.50' },
+        { Date: '06/04/2026', Montant: '2500.00', Libellé: 'VIREMENT SALAIRE', Saldo: '3734.50' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount).toBe('Montant')
+    expect(Object.values(map)).not.toContain('Saldo')
+  })
+})
+
+describe('a German or French heading with a bracketed currency', () => {
+  it('is matched by its name, so Montant (EUR) over 12,50 € is the amount and Soll (EUR) is money out', () => {
+    const files = [createFile(
+      ['Date', 'Libellé', 'Montant (EUR)'],
+      [
+        { Date: '05/04/2026', Libellé: 'CARTE SUPERMARCHE', 'Montant (EUR)': '-12,50 €' },
+        { Date: '06/04/2026', Libellé: 'VIREMENT SALAIRE', 'Montant (EUR)': '2500,00 €' },
+      ],
+    )]
+    const sided = [createFile(
+      ['Datum', 'Soll (EUR)', 'Haben (EUR)'],
+      [
+        { Datum: '05.04.2026', 'Soll (EUR)': '12,50', 'Haben (EUR)': '' },
+        { Datum: '06.04.2026', 'Soll (EUR)': '', 'Haben (EUR)': '2500,00' },
+      ],
+    )]
+
+    expect(inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES).map.amount).toBe('Montant (EUR)')
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, sided, SUPPORTED_CURRENCY_CODES)
+    expect(map.amount_out).toBe('Soll (EUR)')
+    expect(map.amount_in).toBe('Haben (EUR)')
+  })
+})
+
+describe('the German words for the sum of a transaction', () => {
+  // A column of plain numbers sits first so the heading, not the order of the file, picks the amount
+  it('reads Summe and Umsatz as the amount', () => {
+    for (const heading of ['Summe', 'Umsatz']) {
+      const files = [createFile(
+        ['Vorgang', 'Nr', heading, 'Kennung'],
+        [
+          { Vorgang: 'Kauf', Nr: '1001', [heading]: '-12.50', Kennung: 'REF 2026' },
+          { Vorgang: 'Erstattung', Nr: '1002', [heading]: '1234.56', Kennung: '12 EUR' },
+        ],
+      )]
+
+      const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+      expect(map.amount).toBe(heading)
+    }
+  })
+})
