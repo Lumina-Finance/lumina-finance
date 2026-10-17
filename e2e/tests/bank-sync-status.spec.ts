@@ -33,9 +33,9 @@ import { MINUS, readBoxes } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the balance comparison, unavailable balance, retry, reopened Sync
-// details and rejected connection tests, which run at every size: the balances, the notes over them and
-// the notice's action take their own layouts at each width
+// Runs on desktop only, apart from the balance comparison, unavailable balance, retry and rejected
+// connection tests, which run at every size: the balances, the notes over them and the notice's action
+// take their own layouts at each width. The tests that reopen Sync details set the one size they check
 
 // A linked account's bank sync status, as its page shows it once the worker has met each situation
 // on the fake SimpleFIN Bridge: the identity card's Bank sync fact, the Bank link section's Status,
@@ -327,9 +327,9 @@ for (const { shown, show } of [
 const RETRYING_STATUS = /Retrying at (\w{3} \d{1,2}, )?\d{1,2}:\d{2}\s[ap]\.m\./
 
 /**
- * Scrolls the fact to the foot of the dialog's body, read once the scroll has gone out to the page's
- * listeners, and a message sent after them has come back, so a render React queued from one, in a
- * message of its own, has run first. Where the fact already sits at the foot, as on a screen tall
+ * Scrolls the fact to the foot of the dialog's body and returns once the scroll has gone out to the
+ * page's listeners, and a message sent after them has come back, so a render React queued from one, in
+ * a message of its own, has run first. Where the fact already sits at the foot, as on a screen tall
  * enough for the whole modal, nothing scrolls and there's nothing to wait for
  */
 async function scrollToFoot(status: Locator): Promise<void> {
@@ -355,60 +355,78 @@ async function readOffsetFromIcon(page: Page, panel: Locator, icon: Locator): Pr
   return opened.y - trigger.y
 }
 
-test('reads as retrying at the time of the retry when the Bridge fails', AT_EVERY_SIZE, async ({ page, request }) => {
+// A screen on which the status at the foot of the modal leaves Sync details no room below it, the size
+// of the tablet project's, which the tests that need that room set themselves
+const FOOT_LEAVES_NO_ROOM_BELOW = { width: 1194, height: 834 }
+
+/**
+ * Links a new account into a failed sync and opens its Bank link, returning the dialog with the Sync
+ * details icon and panel in it
+ */
+async function openRetryingLink(page: Page, request: APIRequestContext) {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await linkIntoFault(request, user, account.id, (scenarioId) => breakBridge(request, scenarioId))
-
   await logInViaApi(page, user)
   const dialog = await openBankLink(page, account.id, RETRYING_STATUS)
+  const details = dialog.locator('.app-tooltip-panel').filter({ hasText: 'Not synced yet' })
+  await expect(details).toContainText('Last attempt failed: ')
+  return { dialog, showDetails: dialog.getByRole('button', { name: 'Sync details' }), details }
+}
+
+/**
+ * Scrolls the status to the foot of the modal with the details showing beside it. They explain nothing
+ * marked around them, so they stay where they showed, and there the modal's body cuts them off
+ *
+ * @returns How far below the icon their top sits, where they have stayed
+ */
+async function scrollShownDetailsToFoot(page: Page, dialog: Locator, showDetails: Locator, details: Locator): Promise<number> {
+  const shownAt = await readOffsetFromIcon(page, details, showDetails)
+  await scrollToFoot(fact(dialog, 'Status'))
+  expect(await readOffsetFromIcon(page, details, showDetails)).toBeCloseTo(shownAt, 0)
+  expect(await readClippingBoxes(details)).not.toEqual([])
+  return shownAt
+}
+
+test('reads as retrying at the time of the retry when the Bridge fails', AT_EVERY_SIZE, async ({ page, request }) => {
+  const { dialog, showDetails, details } = await openRetryingLink(page, request)
   await expect(fact(dialog, 'Status')).toHaveText(/^Retrying at /)
 
   // The details show whole, reaching past the section where they need the room, and so does the ring
   // around Unlink, the section's last control
-  const showDetails = dialog.getByRole('button', { name: 'Sync details' })
-  const details = dialog.locator('.app-tooltip-panel').filter({ hasText: 'Not synced yet' })
   await showDetails.click()
-  await expect(details).toContainText('Last attempt failed: ')
   await expect.poll(() => readClippingBoxes(details)).toEqual([])
   expect(await readClippingBoxes(dialog.getByRole('button', { name: 'Unlink', exact: true }), FOCUS_RING_PX)).toEqual([])
+})
 
-  // Scrolling the status to the foot of the modal leaves them where they opened beside it, since they
-  // explain nothing marked around them. Opened again there, where they'd fall out of sight, they open
-  // above it
-  const openedAt = await readOffsetFromIcon(page, details, showDetails)
-  await scrollToFoot(fact(dialog, 'Status'))
-  expect(await readOffsetFromIcon(page, details, showDetails)).toBeCloseTo(openedAt, 0)
+test('opens Sync details again clear of the foot of the modal after closing them under the pointer', async ({ page, request }) => {
+  await page.setViewportSize(FOOT_LEAVES_NO_ROOM_BELOW)
+  const { dialog, showDetails, details } = await openRetryingLink(page, request)
+  await showDetails.click()
+  const openedAt = await scrollShownDetailsToFoot(page, dialog, showDetails, details)
 
   // Closed under the pointer they stay where they were, shown where the screen has hover and invisible
-  // where it hasn't, and opened again without the pointer moving they pick their side afresh
+  // where it hasn't, and opened again without the pointer moving they pick their side afresh, above
   await showDetails.click()
+  expect(await readOffsetFromIcon(page, details, showDetails)).toBeCloseTo(openedAt, 0)
   await showDetails.click()
   await expect.poll(() => readClippingBoxes(details)).toEqual([])
 })
 
-// Focus from the keyboard keeps them showing through a close, so they keep their side as under a resting pointer
-test('opens Sync details again clear of the foot of the modal from the keyboard', AT_EVERY_SIZE, async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  await linkIntoFault(request, user, account.id, (scenarioId) => breakBridge(request, scenarioId))
-  await logInViaApi(page, user)
-  const dialog = await openBankLink(page, account.id, RETRYING_STATUS)
+test('opens Sync details clear of the foot of the modal from the keyboard', async ({ page, request }) => {
+  await page.setViewportSize(FOOT_LEAVES_NO_ROOM_BELOW)
+  const { dialog, showDetails, details } = await openRetryingLink(page, request)
 
-  const showDetails = dialog.getByRole('button', { name: 'Sync details' })
-  const details = dialog.locator('.app-tooltip-panel').filter({ hasText: 'Not synced yet' })
-  await showDetails.click()
-  await expect(details).toContainText('Last attempt failed: ')
-  const openedAt = await readOffsetFromIcon(page, details, showDetails)
-  await scrollToFoot(fact(dialog, 'Status'))
-  expect(await readOffsetFromIcon(page, details, showDetails)).toBeCloseTo(openedAt, 0)
-
-  // The pointer is kept off the icon, and focus comes back to it from the keyboard
+  // Focus arriving from the keyboard shows them beside the icon, the pointer being kept off it
   await page.mouse.move(0, 0)
+  await showDetails.focus()
   await page.keyboard.press('Shift+Tab')
   await page.keyboard.press('Tab')
   await expect(showDetails).toBeFocused()
-  await page.keyboard.press('Enter')
+  await expect(details.locator('..')).toHaveCSS('opacity', '1')
+  await scrollShownDetailsToFoot(page, dialog, showDetails, details)
+
+  // Focus keeps them showing where they were, and a press on the icon opens them there afresh
   await page.keyboard.press('Enter')
   await expect.poll(() => readClippingBoxes(details)).toEqual([])
 })
