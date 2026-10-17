@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, useAnimationControls, useReducedMotion } from 'motion/react'
 import { flushSync } from 'react-dom'
 import { LOADING_ANIMATION_MIN_MS, withMinDelay } from '@/utils/timing'
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
+import { buildImportOriginState } from '@/utils/importOrigin'
 import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
 import {
@@ -27,6 +28,7 @@ const RETRY_FADE_SECONDS = 0.2
  */
 export default function TransactionsPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const prefersReducedMotion = useReducedMotion()
   const loadTransaction = useLoadTransaction()
   const { user } = useAuth()
@@ -57,10 +59,11 @@ export default function TransactionsPage() {
    * Opens the import page, which asks which account each row belongs to
    *
    * This list spans every account, so the import is not fixed to one the way it is from an account's
-   * own page, and the address carries none
+   * own page, and the address carries none. The list is named as the origin instead, so the page's
+   * exits lead back here
    */
   const openImport = () => {
-    navigate('/settings/imports')
+    navigate('/settings/imports', { state: buildImportOriginState(location) })
   }
 
   /**
