@@ -467,7 +467,10 @@ function shouldPreferDelimiterResult(
   candidateRows: string[][],
   supportedCurrencyCodes: Set<string>,
 ) {
-  const records = candidateRows.map(normalizeRecord).filter((row) => row.some(Boolean))
+  // Lines above the table, such as account details, are a different width from it under the right
+  // separator, so the reading is judged from where the table starts
+  const normalized = candidateRows.map(normalizeRecord).filter((row) => row.some(Boolean))
+  const records = normalized.slice(findTableStart(normalized))
   const widths = new Set(records.map((row) => row.length))
   if (records.length === 0 || widths.size !== 1 || records[0].length < MIN_IMPORT_COLUMNS) return false
 
@@ -586,7 +589,9 @@ function refuseParsedCsv(error: string): ParsedCsv {
 /**
  * Finds where the table starts below any lines a bank puts above it, such as account details
  *
- * The table is taken to be as wide as most of the file's records, the widest such width where two
+ * The first of the widest records near the top is the header when it holds known headings, isn't the
+ * file's first record and sits above a record that isn't a heading, since account details can
+ * outnumber a short statement's rows. Otherwise the table is taken to be as wide as most of the file's records, the widest such width where two
  * are as common, and to start at the first record of that width near the top. A file where none
  * of the first records is that wide starts on its first record, as it did before rows could be skipped
  *
@@ -594,6 +599,17 @@ function refuseParsedCsv(error: string): ParsedCsv {
  * header narrower than its rows, such as rows that each end with a separator, is still read from it
  */
 export function findTableStart(records: string[][]) {
+  const isHeadingRecord = (record: string[]) => record.filter(isKnownHeaderCell).length >= 2
+
+  // Account details can outnumber a short statement's rows, so where the first of the widest records
+  // holds known headings above a transaction, it is the header whatever the count of each width says
+  const top = records.slice(0, TABLE_START_SEARCH_ROWS)
+  const widest = Math.max(...top.map((record) => record.length))
+  const heading = top.findIndex((record) => record.length === widest)
+  if (heading > 0 && isHeadingRecord(records[heading]) && records[heading + 1] && !isHeadingRecord(records[heading + 1])) {
+    return heading
+  }
+
   const widthCounts = new Map<number, number>()
   for (const record of records) widthCounts.set(record.length, (widthCounts.get(record.length) ?? 0) + 1)
 
@@ -608,7 +624,6 @@ export function findTableStart(records: string[][]) {
 
   const start = records.slice(0, TABLE_START_SEARCH_ROWS).findIndex((record) => record.length === tableWidth)
   if (start <= 0) return 0
-  const isHeadingRecord = (record: string[]) => record.filter(isKnownHeaderCell).length >= 2
   return isHeadingRecord(records[start - 1]) && !isHeadingRecord(records[start]) ? start - 1 : start
 }
 
