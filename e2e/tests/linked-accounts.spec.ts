@@ -441,7 +441,6 @@ test('focuses Continue, not the held Archive instead, when the delete panel open
   const archiveInstead = dialog.getByRole('button', { name: 'Archive instead', exact: true })
   await expect(archiveInstead).toHaveAttribute('aria-disabled', 'true')
   await expect(dialog.getByRole('button', { name: 'Continue', exact: true })).toBeFocused()
-  await expect(archiveInstead).not.toBeFocused()
 })
 
 // The link is read only for the user's own personal accounts, so archiving one in a group never waits on it
