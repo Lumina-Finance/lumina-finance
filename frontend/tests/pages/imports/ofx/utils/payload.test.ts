@@ -1,8 +1,9 @@
 /**
  * Tests compiling the statements of an OFX file and the user's account answers into the upload:
  * what a statement refuses for its currency, which transactions are left out with their reasons,
- * and where money in and out is filed, with a transaction an earlier file already holds skipped
- * only across files, under the same account, currency and bank ID, whatever the files are named
+ * and where money in and out is filed, with a transaction an earlier one of the import already
+ * holds under the same account, currency and bank ID skipped, whatever the files are named, and the
+ * bank ID the save matches on carried with every row
  */
 import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
@@ -22,9 +23,12 @@ import {
   getOfxFixedAccountCurrencyError,
   getOfxOtherCurrencyReason,
   getOfxRepeatedTransactionReason,
+  MAX_OFX_BANK_TRANSACTION_ID_LENGTH,
   OFX_AMOUNT_UNREADABLE_REASON,
+  OFX_BANK_ID_TOO_LONG_REASON,
   OFX_CATEGORIES_UNAVAILABLE_ERROR,
   OFX_DATE_UNREADABLE_REASON,
+  OFX_REPEATED_IN_FILE_REASON,
 } from '@/pages/imports/ofx/constants'
 import type { OfxFile } from '@/pages/imports/ofx/types'
 import {
@@ -96,6 +100,8 @@ describe('compiling an OFX import', () => {
           merchant_name: 'Corner Cafe',
           notes: 'Latte',
           tag_names: [],
+          bank_account_key: 'bank:123000456:000123456789',
+          bank_transaction_id: 'A1',
         },
         expect.objectContaining({ category_source: '(money in, no category)', dt: '2024-01-16', amount: '2500.00', merchant_name: 'Payroll', notes: null }),
       ],
@@ -420,15 +426,33 @@ describe('a transaction that an earlier file of the import already holds', () =>
     expect(rows.map((row) => row.transaction.merchant_name)).toEqual(['Cafe', 'Market', 'Gas'])
   })
 
-  it('is imported when the same ID repeats within one file, which the bank gave twice', async () => {
+  // The save keeps one transaction per bank ID in an account, so a second copy in one file is listed
+  // here rather than refused by the save
+  it('is skipped as a repeat within the file when the same ID repeats in one file', async () => {
     const file = await readFiles([{ name: '2024-01.qfx', statements: [{ transactions: [
       { posted: '20240110', amount: '-5.00', fitId: '0', name: 'First' },
       { posted: '20240111', amount: '-6.00', fitId: '0', name: 'Second' },
     ] }] }])
     const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
 
+    expect(build.skippedRows.map(({ fileName, payee, reason }) => [fileName, payee, reason])).toEqual([
+      ['2024-01.qfx', 'Second', OFX_REPEATED_IN_FILE_REASON],
+    ])
+    expect(build.payload?.rows.map((row) => row.merchant_name)).toEqual(['First'])
+  })
+
+  it('is imported when one file holds the same ID for two bank accounts', async () => {
+    const file = await readFiles([{ name: '2024-01.qfx', statements: [
+      { transactions: [{ posted: '20240110', amount: '-5.00', fitId: '0', name: 'Chequing' }] },
+      { accountId: '000999888777', transactions: [{ posted: '20240111', amount: '-6.00', fitId: '0', name: 'Savings' }] },
+    ] }])
+    const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
+
     expect(build.skippedRows).toEqual([])
-    expect(build.payload?.rows.map((row) => row.merchant_name)).toEqual(['First', 'Second'])
+    expect(build.payload?.rows.map((row) => [row.merchant_name, row.bank_account_key, row.bank_transaction_id])).toEqual([
+      ['Chequing', 'bank:123000456:000123456789', '0'],
+      ['Savings', 'bank:123000456:000999888777', '0'],
+    ])
   })
 
   it('is imported when the same ID belongs to another bank account', async () => {
@@ -440,13 +464,35 @@ describe('a transaction that an earlier file of the import already holds', () =>
     expect(build.payload?.rows).toHaveLength(4)
   })
 
-  it('is imported when the bank gave it no ID', async () => {
+  it('is imported with no bank ID when the bank gave it none', async () => {
     const withoutId = (name: string) => ({ name, statements: [{ transactions: [{ posted: '20240110', amount: '-5.00', fitId: null, name: 'Cafe' }] }] })
     const file = await readFiles([withoutId('2024-01.qfx'), withoutId('2024-02.qfx')])
     const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
 
     expect(build.skippedRows).toEqual([])
-    expect(build.payload?.rows).toHaveLength(2)
+    expect(build.payload?.rows.map((row) => [row.bank_account_key, row.bank_transaction_id])).toEqual([[null, null], [null, null]])
+  })
+
+  // A second statement of one bank account in a file is told apart by a suffix on its id, which
+  // the bank account the save matches on must not carry
+  it('carries the bank account the file names, without the suffix of a second statement of it', async () => {
+    const month = (name: string, fitId: string) => ({ transactions: [{ posted: '20240110', amount: '-5.00', fitId, name }] })
+    const file = await readFiles([{ name: 'a.qfx', statements: [month('Jan', 'J1'), month('Feb', 'F1')] }])
+    const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
+
+    expect(file.statements[1].id).not.toBe(file.statements[1].accountKey)
+    expect(build.payload?.rows.map((row) => row.bank_account_key)).toEqual(['bank:123000456:000123456789', 'bank:123000456:000123456789'])
+  })
+
+  it('is skipped when its bank ID is longer than the app keeps, and imported at the limit', async () => {
+    const file = await readFiles([{ name: '2024-01.qfx', statements: [{ transactions: [
+      { posted: '20240110', amount: '-5.00', fitId: 'x'.repeat(MAX_OFX_BANK_TRANSACTION_ID_LENGTH), name: 'At limit' },
+      { posted: '20240111', amount: '-6.00', fitId: 'y'.repeat(MAX_OFX_BANK_TRANSACTION_ID_LENGTH + 1), name: 'Over limit' },
+    ] }] }])
+    const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
+
+    expect(build.skippedRows.map(({ payee, reason }) => [payee, reason])).toEqual([['Over limit', OFX_BANK_ID_TOO_LONG_REASON]])
+    expect(build.payload?.rows.map((row) => row.merchant_name)).toEqual(['At limit'])
   })
 
   it('does not count a first copy that was itself left out, so a readable copy in a later file is imported', async () => {

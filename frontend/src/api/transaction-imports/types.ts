@@ -61,6 +61,13 @@ export interface TransactionImportRow {
 
   /** Counterparty account source, null when the file does not state one and the money left the app */
   counterparty_account_source?: string | null;
+
+  /**
+   * The bank account a statement names and the bank's ID for the transaction, sent together or not
+   * at all. The save leaves the row out when its account already holds the pair
+   */
+  bank_account_key?: string | null;
+  bank_transaction_id?: string | null;
 }
 
 export interface TransactionImportPayload {
@@ -83,6 +90,9 @@ export interface TransactionImportStageBatch {
 
 export interface TransactionImportResponse {
   transactions_created: number;
+
+  /** Rows left out because their account already holds the bank's ID for them */
+  transactions_already_imported: number;
   accounts_created: number;
   accounts_reused: number;
   categories_created: number;

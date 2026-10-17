@@ -480,8 +480,9 @@ function getImportWarnings(rows: TransactionImportPayload['rows'], columnMap: Co
 /**
  * Formats a completed import's created counts into the summary for the progress overlay
  *
- * The rows it left out join the line only when there were some, so a file that imported whole reads
- * as it always has
+ * The rows it left out, and those the save found already in their account, join the line only when
+ * there were some, so a file that imported whole reads as it always has. The ones already there
+ * are said to be in the account only when the import went to one
  *
  * @param skippedCount - Rows the import was started without, because they can't be converted
  * @param outsideRangeCount - Rows the import was started without, because they are dated outside
@@ -493,6 +494,11 @@ export function formatImportSummary(result: TransactionImportResponse, skippedCo
     `${result.accounts_created} account${result.accounts_created === 1 ? '' : 's'} created`,
     `${result.categories_created} categor${result.categories_created === 1 ? 'y' : 'ies'} created`,
   ]
+  if (result.transactions_already_imported > 0) {
+    // One file can hold statements for several accounts, where "the account" would name only one
+    const accountCount = new Set(Object.values(result.account_source_ids)).size
+    parts.push(`${result.transactions_already_imported} ${accountCount > 1 ? 'already imported' : 'already in the account'}`)
+  }
   if (skippedCount > 0) parts.push(`${skippedCount} skipped`)
   if (outsideRangeCount > 0) parts.push(getRowsOutsideDateRangeSummaryPart(outsideRangeCount))
 

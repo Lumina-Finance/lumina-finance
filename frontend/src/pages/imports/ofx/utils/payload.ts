@@ -17,9 +17,12 @@ import {
   getOfxFixedAccountCurrencyError,
   getOfxOtherCurrencyReason,
   getOfxRepeatedTransactionReason,
+  MAX_OFX_BANK_TRANSACTION_ID_LENGTH,
   OFX_AMOUNT_UNREADABLE_REASON,
+  OFX_BANK_ID_TOO_LONG_REASON,
   OFX_CATEGORIES_UNAVAILABLE_ERROR,
   OFX_DATE_UNREADABLE_REASON,
+  OFX_REPEATED_IN_FILE_REASON,
 } from '@/pages/imports/ofx/constants'
 import type { OfxFile, OfxSkippedRow, OfxStatement, OfxTransaction } from '@/pages/imports/ofx/types'
 import type { ImportAccountCreateDetails } from '@/pages/imports/types'
@@ -80,8 +83,10 @@ export function getOfxSkippedRowId(statement: OfxStatement, transaction: OfxTran
  * Builds the payload the shared import save takes from the statements and the account answers
  *
  * A statement is written to the account its answer names, in that account's currency, so one whose
- * currency differs is refused rather than converted. Transactions the file leaves unreadable, or
- * that the importer could not store, are left out and listed with the reason, and the rest import.
+ * currency differs is refused rather than converted. Transactions the file leaves unreadable, that
+ * the importer could not store, or whose bank ID an earlier transaction of the import already has,
+ * are left out and listed with the reason, and the rest import with their bank IDs, which the save
+ * uses to leave out what the account already holds.
  * A statement carries no categories, so money out is filed under the seeded Miscellaneous category
  * and money in under the seeded Other Income one, as a CSV row with no category is
  */
@@ -150,8 +155,8 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
 
       const repeatKey = getOfxRepeatKey(statement, transaction)
       const firstCopy = repeatKey === null ? undefined : firstCopies.get(repeatKey)
-      if (firstCopy !== undefined && firstCopy.fileId !== transaction.fileId) {
-        skip(getOfxRepeatedTransactionReason(firstCopy.fileName))
+      if (firstCopy !== undefined && firstCopy !== transaction) {
+        skip(firstCopy.fileId === transaction.fileId ? OFX_REPEATED_IN_FILE_REASON : getOfxRepeatedTransactionReason(firstCopy.fileName))
         continue
       }
 
@@ -164,6 +169,11 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
         merchant_name: transaction.payee,
         notes: transaction.memo,
         tag_names: [],
+
+        // The bank account the file names, without the suffix a second statement of it gets, so a
+        // later statement of the same account is matched whatever position it holds in its file
+        bank_account_key: transaction.fitId === null ? null : statement.accountKey,
+        bank_transaction_id: transaction.fitId,
       })
     }
 
@@ -181,18 +191,18 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
 }
 
 /**
- * What tells one bank transaction from another across files: the bank's ID within the bank account
- * and currency it was issued for, or null for a transaction the file gave no ID. The account is the
- * one the file names, before any suffix that tells a file's second statement of it apart
+ * What tells one bank transaction from another across the import: the bank's ID within the bank
+ * account and currency it was issued for, or null for a transaction the file gave no ID. The account
+ * is the one the file names, before any suffix that tells a file's second statement of it apart
  */
 function getOfxRepeatKey(statement: OfxStatement, transaction: OfxTransaction) {
   return transaction.fitId === null ? null : JSON.stringify([statement.accountKey, statement.currency, transaction.fitId])
 }
 
 /**
- * Finds the copy of each bank transaction that the import keeps, which is the one in the earliest
- * file. Only a copy that is written counts, so one left out for a problem of its own does not hide
- * a readable copy in a later file
+ * Finds the copy of each bank transaction that the import keeps, which is the first one in the
+ * earliest file. Only a copy that is written counts, so one left out for a problem of its own does
+ * not hide a readable copy later in the import
  */
 function findFirstOfxCopies(prepared: Array<{ statement: OfxStatement; isWritable: boolean; exponent: number | null }>) {
   const firstCopies = new Map<string, OfxTransaction>()
@@ -239,6 +249,7 @@ export function getOfxTransactionProblem(transaction: OfxTransaction, exponent: 
   if (transaction.payee && [...transaction.payee].length > JOURNAL_ROW_FIELD_MAX_LENGTHS.merchantName) {
     return getImportMerchantTooLongReason([...transaction.payee].length)
   }
+  if (transaction.fitId && [...transaction.fitId].length > MAX_OFX_BANK_TRANSACTION_ID_LENGTH) return OFX_BANK_ID_TOO_LONG_REASON
   return null
 }
 

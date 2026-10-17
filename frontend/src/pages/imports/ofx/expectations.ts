@@ -1,5 +1,10 @@
 import type { ImportExpectations } from '@/pages/imports/types'
 
+// What the save does with a transaction whose bank ID the account already holds, which a deleted
+// transaction no longer does
+const ALREADY_IMPORTED_CHANGE = "Skipped, so a statement that overlaps an earlier one adds only what's new. One you deleted comes back"
+const ALREADY_IMPORTED_SOURCE = 'A transaction an earlier OFX import brought into the account'
+
 /**
  * What an OFX import does with a statement and what it leaves out, shown before anything is staged
  *
@@ -8,8 +13,10 @@ import type { ImportExpectations } from '@/pages/imports/types'
  * Miscellaneous category and money in under Other Income, the bank's stated balance is not read,
  * investment and loan statements are counted and left out, and a transaction whose date or amount
  * cannot be read, whose amount is in another currency than the statement, whose amount has more decimal places than the currency, whose payee name or
- * memo is over the limit, or that an earlier file of the same import already holds under the same
- * bank transaction ID is listed and skipped
+ * memo is over the limit, whose bank transaction ID is over the length the app keeps, or whose bank
+ * transaction ID an earlier transaction of the same file or an earlier file of the same import
+ * already has is listed and skipped. The save then skips a transaction whose bank transaction ID
+ * its account already holds from an earlier import, and a deleted one holds none
  */
 export const OFX_EXPECTATIONS: ImportExpectations = {
   intro: 'Each transaction in your statements becomes one transaction in the account you match them to, so one file can fill several accounts and several files can fill one.',
@@ -26,6 +33,10 @@ export const OFX_EXPECTATIONS: ImportExpectations = {
     {
       source: 'A transaction',
       lumina: 'Filed under Miscellaneous when money goes out and Other Income when it comes in, since statements carry no categories',
+    },
+    {
+      source: ALREADY_IMPORTED_SOURCE,
+      lumina: ALREADY_IMPORTED_CHANGE,
     },
     {
       source: 'A statement in another currency than its account',
@@ -52,6 +63,8 @@ export const OFX_EXPECTATIONS: ImportExpectations = {
         'With more decimal places than their currency allows',
         'With a payee name or memo over the limits this app takes',
         'Already in an earlier file of the same import, by the bank\'s transaction ID',
+        'Listed twice in the same file',
+        'With a bank ID over the length this app takes',
       ],
     },
     {
@@ -76,9 +89,11 @@ export function getOfxFixedAccountExpectations(accountName: string): ImportExpec
     intro: `Each transaction in your statement becomes one transaction in ${accountName}.`,
     deviation: `The balance your bank states isn't imported, so the balance of ${accountName} only changes by the transactions you import.`,
     changes: [
-      ...OFX_EXPECTATIONS.changes.filter(
-        (change) => change.source !== 'A new account' && !change.source.startsWith('A statement in another currency'),
-      ),
+      ...OFX_EXPECTATIONS.changes
+        .filter((change) => change.source !== 'A new account' && !change.source.startsWith('A statement in another currency'))
+        .map((change) => change.source === ALREADY_IMPORTED_SOURCE
+          ? { ...change, source: `A transaction an earlier OFX import brought into ${accountName}` }
+          : change),
       {
         source: `A statement in another currency than ${accountName}`,
         lumina: "Refused, since a transaction takes its account's currency",

@@ -79,6 +79,7 @@ function buildImportResponse(
 ): TransactionImportResponse {
   return {
     transactions_created: 0,
+    transactions_already_imported: 0,
     accounts_created: 0,
     accounts_reused: 0,
     categories_created: 0,

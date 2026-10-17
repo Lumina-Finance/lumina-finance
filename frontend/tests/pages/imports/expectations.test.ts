@@ -37,6 +37,11 @@ describe('the card saying what an import does with its data', () => {
     expect(expectations.intro).toBe('Each transaction in your statement becomes one transaction in Everyday chequing.')
     expect(expectations.changes.map((change) => change.source)).toContain('A file with several statements')
     expect(expectations.changes.map((change) => change.source)).not.toContain('A new account')
+
+    // The skip of an earlier import's transactions names the account rather than "the account"
+    const sources = expectations.changes.map((change) => change.source)
+    expect(sources).toContain('A transaction an earlier OFX import brought into Everyday chequing')
+    expect(sources).not.toContain('A transaction an earlier OFX import brought into the account')
   })
 
   // The card promises only what the import enforces, so each promise is pinned to the rule it states
@@ -50,9 +55,11 @@ describe('the card saying what an import does with its data', () => {
       'A payee',
       'A memo',
       'A transaction',
+      'A transaction an earlier OFX import brought into the account',
       'A statement in another currency than its account',
       'A new account',
     ])
+    expect(expectations.changes.find((change) => change.source.startsWith('A transaction an earlier'))?.lumina).toMatch(/^Skipped/)
     expect(expectations.changes.find((change) => change.source === 'A transaction')?.lumina).toBe(
       'Filed under Miscellaneous when money goes out and Other Income when it comes in, since statements carry no categories',
     )
@@ -67,6 +74,8 @@ describe('the card saying what an import does with its data', () => {
           'With more decimal places than their currency allows',
           'With a payee name or memo over the limits this app takes',
           'Already in an earlier file of the same import, by the bank\'s transaction ID',
+          'Listed twice in the same file',
+          'With a bank ID over the length this app takes',
         ],
       },
       { group: 'Not imported', items: ['Check numbers and transaction types'] },
