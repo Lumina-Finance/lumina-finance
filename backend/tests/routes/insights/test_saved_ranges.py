@@ -166,3 +166,34 @@ async def test_saved_ranges_require_auth(client):
     resp = await client.get("/insights/saved-ranges")
 
     assert resp.status_code == 401
+
+
+async def _get_changed_at(client, headers):
+    """Return the personal cache change time other sessions compare against."""
+    resp = await client.get("/me/cache-status", headers=headers)
+    return resp.json()["personal"]["changed_at"]
+
+
+async def test_create_saved_range_marks_cache_changed(client):
+    """Saving a range moves the cache change time so other sessions refetch the list."""
+    headers = _get_auth_header(await _create_user(client))
+    before = await _get_changed_at(client, headers)
+
+    resp = await client.post("/insights/saved-ranges", json=SAVED_RANGE_PAYLOAD, headers=headers)
+
+    assert resp.status_code == 201
+    after = await _get_changed_at(client, headers)
+    assert after is not None
+    assert after != before
+
+
+async def test_delete_saved_range_marks_cache_changed(client):
+    """Deleting a range moves the cache change time so other sessions refetch the list."""
+    headers = _get_auth_header(await _create_user(client))
+    created = (await client.post("/insights/saved-ranges", json=SAVED_RANGE_PAYLOAD, headers=headers)).json()
+    before = await _get_changed_at(client, headers)
+
+    resp = await client.delete(f"/insights/saved-ranges/{created['id']}", headers=headers)
+
+    assert resp.status_code == 204
+    assert await _get_changed_at(client, headers) != before
