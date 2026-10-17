@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, createGroup, createInstitution, formatDateLabel, formatToday, signUpUser, todayInTestTimezone } from '../support/api'
-import { chooseFromDropdown, fact, logInViaApi, openModal, openPage } from '../support/app'
+import { chooseFromDropdown, fact, logInViaApi, openModal, openPage, typeDate } from '../support/app'
 import {
   addBridgeBankAccount,
   addBridgeBankLogin,
@@ -501,14 +501,11 @@ test('keeps the start within the range and never chooses Custom date on its own'
   await expect(custom).toBeChecked()
   await expect(submit).toBeDisabled()
 
-  const startDate = flow.getByRole('group', { name: 'Start date' })
-  await startDate.getByRole('textbox', { name: 'Year' }).click()
-  await page.keyboard.type('20200101')
+  await typeDate(page, 'Start date', '2020-01-01')
   await expect(flow.getByText('Outside the allowed range.')).toBeVisible()
   await expect(submit).toBeDisabled()
 
-  await startDate.getByRole('textbox', { name: 'Year' }).click()
-  await page.keyboard.type(firstOfMonthsAgo(2).replaceAll('-', ''))
+  await typeDate(page, 'Start date', firstOfMonthsAgo(2))
   await expect(flow.getByText('Outside the allowed range.')).toBeHidden()
   await expect(submit).toBeEnabled()
 })

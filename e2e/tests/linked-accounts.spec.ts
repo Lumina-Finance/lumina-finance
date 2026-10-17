@@ -11,7 +11,7 @@ import {
   startOfDayInTestTimezone,
   todayInTestTimezone,
 } from '../support/api'
-import { chooseFromDropdown, logInViaApi, openModal, openPage } from '../support/app'
+import { chooseFromDropdown, logInViaApi, openModal, openPage, typeDate } from '../support/app'
 import { addImportedItem, answerLinksWith, linkToSampleBankAccount, waitForEntrance } from '../support/bankSync'
 import { contrastOf, MIN_TEXT_CONTRAST } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
@@ -88,13 +88,11 @@ async function openEditAccount(page: Page): Promise<Locator> {
 }
 
 /**
- * Types a date into the modal's date field and leaves the field, as a user does. The field moves on
- * by itself as each part fills, and clicking Notes leaves it, since Tab from the day stops on the
- * field's own calendar button first
+ * Types a date into the modal's date field and leaves the field, as a user does. Clicking Notes leaves
+ * it, since Tab from the day stops on the field's own calendar button first
  */
-async function typeDate(page: Page, dialog: Locator, date: string): Promise<void> {
-  await dialog.getByRole('group', { name: 'Date' }).getByRole('textbox', { name: 'Year' }).click()
-  await page.keyboard.type(date.replaceAll('-', ''))
+async function enterDate(page: Page, dialog: Locator, date: string): Promise<void> {
+  await typeDate(page, 'Date', date)
   await dialog.getByLabel('Notes').click()
 }
 
@@ -182,7 +180,7 @@ test('refuses the days the other account’s bank supplies once a new transfer i
   await dialog.getByRole('tab', { name: 'Transfer', exact: true }).click()
   await chooseFromDropdown(dialog, 'Category', 'Transfer')
   await chooseFromDropdown(dialog, 'Money went to', 'Visa')
-  await typeDate(page, dialog, todayInTestTimezone())
+  await enterDate(page, dialog, todayInTestTimezone())
 
   // Recorded in both, the transfer writes a transaction into Visa too, so Visa's days count
   const recordInBoth = dialog.getByRole('checkbox', { name: /Record in both accounts/ })
@@ -257,13 +255,13 @@ test('lets an edit keep a date the linked account’s bank supplies, and refuses
   })
 
   await row.click()
-  await typeDate(page, dialog, '2026-01-16')
+  await enterDate(page, dialog, '2026-01-16')
   await expect(message).toBeVisible()
   await dialog.getByTestId('transaction-submit').click()
   await expect(dialog).toBeVisible()
 
   // The day before the import start is the user's own to fill
-  await typeDate(page, dialog, '2025-12-31')
+  await enterDate(page, dialog, '2025-12-31')
   await expect(message).toBeHidden()
   const dateSaved = page.waitForResponse((response) =>
     response.url() === `${API_BASE_URL}/transactions/${id}` && response.request().method() === 'PATCH')
@@ -296,7 +294,7 @@ test('keeps a bank transaction in its linked account, refusing the move on the a
 
   // The bank's own date is the bank's to correct, so another day it supplies is taken
   await page.getByTestId(`transaction-row-${id}`).click()
-  await typeDate(page, dialog, correctedDate)
+  await enterDate(page, dialog, correctedDate)
 
   // Leaving the account is refused on its field, and a save sends nothing
   await chooseFromDropdown(dialog, 'Account', 'Savings')
