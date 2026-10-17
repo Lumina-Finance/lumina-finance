@@ -23,6 +23,7 @@ export const BANK_DISCOVERY_POLL_MS = 3 * 1000;
 
 // After a claim the app didn't answer, the connections are read this often for this long, since the
 // server may still be saving the connection. A claim can take about 80 seconds, longer than the 60
-// seconds a proxy in front of the app commonly waits
+// seconds a proxy in front of the app commonly waits, so Add a connection waits as long from sending
+// one before it says the connection may have been added
 export const UNANSWERED_CLAIM_POLL_MS = 5 * 1000;
 export const UNANSWERED_CLAIM_WATCH_MS = 2 * 60 * 1000;

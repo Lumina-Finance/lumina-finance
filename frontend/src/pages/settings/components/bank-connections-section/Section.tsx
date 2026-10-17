@@ -198,6 +198,7 @@ export function BankConnectionsSection() {
         open={connectOpen}
         providers={offeredProviders}
         reconnecting={reconnecting}
+        connections={connections}
         level={reconnecting ? 'stacked' : 'page'}
         onClose={() => setConnectOpen(false)}
         onClaimUnanswered={() => setClaimUnansweredAt(Date.now())}

@@ -48,6 +48,9 @@ const CONNECTIONS_URL = `${API_BASE_URL}/bank-sync/connections`
 // What a proxy answers in place of a request the server behind it took too long to answer
 const GATEWAY_TIMEOUT_PAGE = '<html><body><h1>504 Gateway Time-out</h1></body></html>'
 
+// Longer than a claim can take, so a dialogue waiting on one whose answer was lost has given up by then
+const PAST_THE_LONGEST_CLAIM_MS = 3 * 60 * 1000
+
 // A sideways swipe well past the 16px the status's closed note reaches beyond the facts column's edge
 const SIDEWAYS_SWIPE_PX = 40
 
@@ -230,30 +233,35 @@ test("shows that SimpleFIN Bridge couldn't be reached beside the form's actions"
   await expect(token).not.toHaveAttribute('aria-invalid')
 })
 
-test('says to check the connections when Connect loses its answer, and lists the connection the server saved', async ({ page, request }) => {
+test('says to check the connections once a claim whose answer was lost must have finished with none shown', async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
-  const section = await openBankConnections(page, user)
 
-  // The claim reaches the server, which saves the connection, and its answer is lost on the way, as
-  // when the request outlives its time limit or a phone loses its connection
+  // The claim never reaches the server, as when a phone loses its connection as it sends, so no
+  // connection shows however long the dialogue waits
+  let loseClaim: () => void = () => {}
+  const claimLost = new Promise<void>((resolve) => { loseClaim = resolve })
   await page.route(CONNECTIONS_URL, async (route) => {
     if (route.request().method() !== 'POST') return route.fallback()
-    await route.fetch()
     await route.abort()
+    loseClaim()
   })
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.clock.install()
+  const section = await openBankConnections(page, user)
 
   await section.getByRole('button', { name: 'Add a connection' }).click()
   const dialog = page.getByRole('dialog', { name: 'Add a connection' })
   await dialog.getByRole('textbox', { name: 'Setup token' }).fill(scenario.setupToken)
   await dialog.getByRole('button', { name: 'Connect' }).click()
+  await claimLost
 
-  await expect(dialog.getByRole('alert')).toContainText('the connection may have been added')
-  await dialog.getByRole('button', { name: 'Cancel' }).click()
-  await expect(connectionRow(section, 'SimpleFIN')).toContainText('0 of 2')
+  await page.clock.runFor(PAST_THE_LONGEST_CLAIM_MS)
+  await expect(dialog.getByRole('alert')).toContainText('The connection may have been added')
+  await expect(dialog.getByRole('button', { name: 'Connect' })).not.toHaveAttribute('aria-busy', 'true')
 })
 
-test('keeps reading the connections after a gateway timeout, so a connection the server saves later shows', async ({ page, request }) => {
+test('waits on after a gateway timeout, and closes as connected once the server saves the connection', async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   const section = await openBankConnections(page, user)
@@ -278,18 +286,25 @@ test('keeps reading the connections after a gateway timeout, so a connection the
       body: GATEWAY_TIMEOUT_PAGE,
     })
   })
-  const reread = page.waitForResponse((response) =>
-    response.request().method() === 'GET' && isRead('/bank-sync/connections')(new URL(response.url())))
+  const claimAnswered = page.waitForResponse((response) => response.request().method() === 'POST' && response.url() === CONNECTIONS_URL)
 
   await section.getByRole('button', { name: 'Add a connection' }).click()
   const dialog = page.getByRole('dialog', { name: 'Add a connection' })
   await dialog.getByRole('textbox', { name: 'Setup token' }).fill(scenario.setupToken)
-  await dialog.getByRole('button', { name: 'Connect' }).click()
+  const connect = dialog.getByRole('button', { name: 'Connect' })
+  await connect.click()
 
-  await expect(dialog.getByRole('alert')).toContainText('the connection may have been added')
-  await reread
+  // A read of the list after the 504 comes only once the claim has failed, so by then the dialogue
+  // would show any message it had for it
+  await claimAnswered
+  await page.waitForResponse((response) =>
+    response.request().method() === 'GET' && isRead('/bank-sync/connections')(new URL(response.url())))
+  await expect(connect).toHaveAttribute('aria-busy', 'true')
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+
   await (await claimed).fetch()
-  await dialog.getByRole('button', { name: 'Cancel' }).click()
+  await expect(dialog).toBeHidden()
+  await expect(toast(page, 'SimpleFIN connected with 2 bank accounts.')).toBeVisible()
   await expect(connectionRow(section, 'SimpleFIN')).toContainText('0 of 2')
   expect(failedClaims).toEqual([])
 })

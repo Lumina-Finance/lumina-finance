@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Landmark } from 'lucide-react'
 import { isAnsweredByApp } from '@/api/auth'
 import {
   CONNECTION_NICKNAME_MAX_LENGTH,
+  UNANSWERED_CLAIM_WATCH_MS,
   useClaimSetupToken,
   useReconnectBankConnection,
   type BankConnection,
@@ -33,9 +34,19 @@ const UNANSWERED_RECONNECT_MESSAGE = 'Something went wrong. Please try again.'
 
 // The server carries on with a claim whose own answer never reached the browser, lost on the way or
 // replaced by a proxy's page, so it may have saved the connection and spent the setup token, which
-// works only once. Sent again, the token is refused as used, and a new one would add the same
-// connection twice
-const UNANSWERED_CLAIM_MESSAGE = 'Oops, the connection may have been added. Please check before you create a new setup token.'
+// works only once. The dialogue waits for that connection to show in the list, and says this only
+// when none has by the time the claim must have finished. Sent again, the token is refused as used,
+// and a new one would add the same connection twice
+const UNANSWERED_CLAIM_MESSAGE = 'Oops, something went wrong. The connection may have been added, so please check before you create a new setup token.'
+
+/** A claim whose answer was lost, waited on until its connection shows or the claim must have finished */
+type UnansweredClaim = {
+  /** The connections listed when it was sent, so a connection not among them is the one it saved */
+  knownIds: Set<string>
+
+  /** When it was sent, in epoch milliseconds */
+  sentAt: number
+}
 
 interface ConnectModalProps {
   open: boolean
@@ -45,6 +56,9 @@ interface ConnectModalProps {
 
   /** A connection whose credential was rejected, given a new one in place, or null to add a connection */
   reconnecting: BankConnection | null
+
+  /** The user's connections as last read, or undefined until they load */
+  connections: BankConnection[] | undefined
 
   /** Stacked when opened from a connection's own modal */
   level?: ModalLevel
@@ -64,7 +78,7 @@ interface ConnectModalProps {
  * its reason sits on that field, and anything else, such as the Bridge being out of reach, sits beside
  * the actions. Callers remount it with a key for each opening, so nothing typed carries over
  */
-export function ConnectModal({ open, providers, reconnecting, level = 'page', onClose, onClaimUnanswered }: ConnectModalProps) {
+export function ConnectModal({ open, providers, reconnecting, connections, level = 'page', onClose, onClaimUnanswered }: ConnectModalProps) {
   const { showToast } = useToast()
   const { user } = useAuth()
   const claim = useClaimSetupToken()
@@ -74,7 +88,12 @@ export function ConnectModal({ open, providers, reconnecting, level = 'page', on
   const [nickname, setNickname] = useState('')
   const [tokenError, setTokenError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const busy = claim.isPending || reconnect.isPending
+  const [unanswered, setUnanswered] = useState<UnansweredClaim | null>(null)
+
+  // The wait reads as the claim still in flight, since from the user's side it is: it lasts no longer
+  // than a claim answered in time may take
+  const busy = claim.isPending || reconnect.isPending || unanswered !== null
+  const saved = unanswered ? connections?.find((connection) => !unanswered.knownIds.has(connection.id)) : undefined
   const provider = providers.find((entry) => entry.id === providerId)
   const providerName = reconnecting?.provider_name ?? provider?.name ?? 'SimpleFIN'
   const site = providerSite({ provider: reconnecting?.provider ?? providerId ?? 'simplefin', provider_name: providerName })
@@ -112,6 +131,11 @@ export function ConnectModal({ open, providers, reconnecting, level = 'page', on
       return
     }
     if (!providerId) return
+
+    // Unread connections can't tell the one a claim saved from those already there, so a lost answer
+    // then says at once that the connection may have been added
+    const knownIds = connections && new Set(connections.map((connection) => connection.id))
+    const sentAt = Date.now()
     claim.mutate(
       { provider: providerId, setup_token: token, nickname },
       {
@@ -120,12 +144,34 @@ export function ConnectModal({ open, providers, reconnecting, level = 'page', on
           onClose()
         },
         onError: (cause) => {
-          if (!isAnsweredByApp(cause)) onClaimUnanswered()
-          reportError(cause, UNANSWERED_CLAIM_MESSAGE)
+          if (isAnsweredByApp(cause)) {
+            reportError(cause, UNANSWERED_CLAIM_MESSAGE)
+            return
+          }
+          onClaimUnanswered()
+          if (knownIds) setUnanswered({ knownIds, sentAt })
+          else setError(UNANSWERED_CLAIM_MESSAGE)
         },
       },
     )
   }
+
+  // The connection a lost claim saved closes the dialogue the way a claim answered in time does. Once
+  // the claim must have finished without one showing, the dialogue says the connection may have been
+  // added. A closed dialogue does neither, since the section lists the connection if it comes
+  useEffect(() => {
+    if (!open || !unanswered) return
+    if (saved) {
+      showToast({ status: 'success', text: describeConnected(saved) })
+      onClose()
+      return
+    }
+    const timer = window.setTimeout(() => {
+      setUnanswered(null)
+      setError(UNANSWERED_CLAIM_MESSAGE)
+    }, unanswered.sentAt + UNANSWERED_CLAIM_WATCH_MS - Date.now())
+    return () => window.clearTimeout(timer)
+  }, [open, unanswered, saved, showToast, onClose])
 
   return (
     <ModalTitledPanel
