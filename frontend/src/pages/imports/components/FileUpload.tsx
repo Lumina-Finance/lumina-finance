@@ -75,20 +75,19 @@ export function ImportUploadCard({
       transition: { duration: 0.24, ease: [0.25, 0.1, 0.25, 1] as const },
     }
 
-  // Written out rather than left to `disabled:` variants, which no longer apply, and rather than
-  // `aria-disabled:` ones, whose hover rule would land at the same specificity as the plain hover
-  // above it and be settled by the order Tailwind happens to emit them in
+  // Written out rather than left to `disabled:` variants, which no longer apply. The hover and press
+  // look is in `.app-upload-card`, which leaves out a card marked `aria-disabled`. The rest fill is set
+  // below as a colour so that it can ease into that rule's hover colour
   const unavailableClasses = blockReason?.isFailure ? 'cursor-not-allowed' : 'cursor-wait'
-  const availableClasses = 'hover:bg-[var(--app-hover-soft)]'
 
   return (
     <>
       <button
         ref={buttonRef}
         type="button"
-        className={`group grid min-h-32 w-full place-items-center px-5 py-6 text-center transition-colors duration-150 ${disabled ? unavailableClasses : availableClasses}`}
+        className={`app-upload-card group grid min-h-32 w-full place-items-center px-5 py-6 text-center ${disabled ? unavailableClasses : ''}`}
         style={{
-          ...IMPORT_INSET_STYLE,
+          backgroundColor: String(IMPORT_INSET_STYLE.background),
           color: 'var(--app-text-muted)',
           border: '1px solid transparent',
           borderColor: isRefusal
@@ -208,10 +207,7 @@ export function ImportUploadCard({
                 className="col-start-1 row-start-1 flex flex-col items-center"
                 {...uploadStateMotion}
               >
-                <span
-                  className="mb-3 flex h-11 w-11 items-center justify-center transition-colors duration-150"
-                  style={{ background: 'var(--app-surface-soft)' }}
-                >
+                <span className="mb-3 flex h-11 w-11 items-center justify-center" style={{ background: 'var(--app-surface-soft)' }}>
                   <Upload size={20} aria-hidden />
                 </span>
                 <span className="block text-sm font-semibold" style={{ color: 'var(--app-text)' }}>

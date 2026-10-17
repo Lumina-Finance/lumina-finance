@@ -124,6 +124,17 @@ function resolve(tokens: Tokens, name: string): Rgb {
   return solid(tokens, name)
 }
 
+/** Paints a wash token written as a share of a token into transparent, over an opaque backdrop */
+function washOver(tokens: Tokens, name: string, backdrop: Rgb): Rgb {
+  const value = tokens[name] ?? ''
+  const alias = /^var\((--[\w-]+)\)$/.exec(value)
+  if (alias) return washOver(tokens, alias[1], backdrop)
+  if (/^#/.test(value)) return solid(tokens, name, backdrop)
+  const wash = /^color-mix\(in srgb, var\((--[\w-]+)\) (\d+)%, transparent\)$/.exec(value)
+  if (!wash) throw new Error(`${name} is not a wash of a token: ${value}`)
+  return paint(resolve(tokens, wash[1]), Number(wash[2]) / 100, backdrop)
+}
+
 describe('primary button label contrast', () => {
   // The fill is 82% of the button colour at rest and 88% of the hover colour over whatever it sits on
   // (.app-primary-button and .app-glass-button-primary). A dialog's panel is the page colour
@@ -200,6 +211,13 @@ describe('tinted state contrast', () => {
       name: 'the accent tint in a dialog',
       text: ['--app-text-subtle-on-accent', '--app-text-muted'],
       fill: (tokens) => solid(tokens, '--app-accent-soft', solid(tokens, '--app-bg')),
+    },
+    {
+      // The Imports upload card under the pointer (.app-upload-card), which draws its title in the text colour, its
+      // hint in subtle text, and a refusal in red. Its fill is the shared hover colour, which is a wash in the dark theme
+      name: 'the upload card under the pointer',
+      text: ['--app-text', '--app-text-subtle', '--app-negative'],
+      fill: (tokens) => washOver(tokens, '--app-hover-soft', surfaces(tokens).page),
     },
     {
       // IMPORT_EXCLUDED_ROW_BACKGROUND, 12% of the text colour into the page, whose faint text is drawn in muted

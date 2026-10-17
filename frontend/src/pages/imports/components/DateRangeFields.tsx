@@ -43,8 +43,9 @@ function DateRangeError({ id, children }: { id: string; children: ReactNode }) {
  * row's name stays the heading
  *
  * The row grows in and collapses out as a whole with its hairline, since it belongs only to a file
- * with a date column. Any message is said once, under the fields, while the fields at fault take the
- * error tint and point at it
+ * with a date column. A partly typed date is said once, under the fields, while the fields at fault
+ * take the error tint and point at it. A start date after the end date is said on the start date's
+ * label row, which alone takes the tint and points at it
  *
  * @param disabled - Shows the dates a finished import was limited to without letting them change
  */
@@ -71,7 +72,9 @@ export function ImportDateRangeFields({
   const shouldReduceMotion = useReducedMotion() ?? false
   const errorId = `${baseId}-error`
   const titleId = `${baseId}-title`
+  const crossedErrorId = `${baseId}-crossed`
   const isIncomplete = dateRange.from === null || dateRange.to === null
+  const isStartCrossed = !isIncomplete && isCrossed
 
   const fields = [
     { end: 'from', label: IMPORT_DATE_RANGE_START_LABEL },
@@ -99,25 +102,36 @@ export function ImportDateRangeFields({
               return (
                 <div key={end} className="flex min-w-0 flex-col gap-1">
                   <div className="flex items-baseline justify-between gap-3">
-                    <label htmlFor={fieldId} className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                    {/* Kept whole, so a message and the suggestion beside it wrap under one another
+                        rather than squeezing the label onto two lines */}
+                    <label htmlFor={fieldId} className="shrink-0 text-xs" style={{ color: 'var(--app-text-muted)' }}>
                       {label}
                     </label>
-                    {end === 'from' && startSuggestion && !disabled && (
-                      <button
-                        type="button"
-                        onClick={() => onChange('from', startSuggestion, false)}
-                        className="text-right text-xs font-medium underline underline-offset-2 text-[var(--app-text-muted)] transition-colors duration-200 ease-out hover:text-[var(--app-accent)] motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-                      >
-                        {IMPORT_LATEST_START_LABEL}
-                      </button>
+                    {end === 'from' && (isStartCrossed || (startSuggestion && !disabled)) && (
+                      <div className="flex min-w-0 flex-wrap items-baseline justify-end gap-x-3 text-right">
+                        {isStartCrossed && (
+                          <p id={crossedErrorId} role="alert" className="text-xs font-medium leading-5 text-balance" style={{ color: 'var(--app-negative)' }}>
+                            {IMPORT_DATE_RANGE_CROSSED_FIELD_ERROR}
+                          </p>
+                        )}
+                        {startSuggestion && !disabled && (
+                          <button
+                            type="button"
+                            onClick={() => onChange('from', startSuggestion, false)}
+                            className="text-right text-xs font-medium underline underline-offset-2 text-[var(--app-text-muted)] transition-colors duration-200 ease-out hover:text-[var(--app-accent)] motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                          >
+                            {IMPORT_LATEST_START_LABEL}
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                   <DateField
                     id={fieldId}
                     ariaLabel={label}
                     value={dateRange[end] ?? ''}
-                    error={dateRange[end] === null || isCrossed}
-                    describedById={errorId}
+                    error={dateRange[end] === null || (end === 'from' && isStartCrossed)}
+                    describedById={end === 'from' && isStartCrossed ? crossedErrorId : errorId}
                     disabled={disabled}
                     onChange={(value, isPartlyTyped) => onChange(end, value, isPartlyTyped)}
                   />
@@ -127,9 +141,6 @@ export function ImportDateRangeFields({
             <AnimatePresence initial={false}>
               {isIncomplete && (
                 <DateRangeError key="incomplete" id={errorId}>{IMPORT_DATE_RANGE_INCOMPLETE_FIELD_ERROR}</DateRangeError>
-              )}
-              {!isIncomplete && isCrossed && (
-                <DateRangeError key="crossed" id={errorId}>{IMPORT_DATE_RANGE_CROSSED_FIELD_ERROR}</DateRangeError>
               )}
             </AnimatePresence>
           </div>
