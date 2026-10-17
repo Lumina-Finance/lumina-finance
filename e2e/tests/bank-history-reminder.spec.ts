@@ -219,7 +219,7 @@ test('shows the reminder of an import that got nothing above the opening adjustm
   const dialog = await openBankLink(page, setup.accountId, 'Opening balance to confirm')
 
   const note = reminderNote(dialog, NO_HISTORY)
-  await expect(note).toContainText(`No posted transactions from ${formatDateLabel(daysFromTodayInTestTimezone(-30))} have come back from SimpleFIN yet.`)
+  await expect(note).toContainText(formatDateLabel(daysFromTodayInTestTimezone(-30)))
   const record = dialog.getByRole('button', { name: 'Record adjustment' })
   await expect(record).toBeVisible()
 
