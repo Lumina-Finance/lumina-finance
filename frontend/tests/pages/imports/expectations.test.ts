@@ -56,6 +56,7 @@ describe('the card saying what an import does with its data', () => {
           'With an amount in another currency than their statement',
           'With more decimal places than their currency allows',
           'With a payee name or memo over the limits this app takes',
+          'Already in an earlier file of the same import, by the bank\'s transaction ID',
         ],
       },
       { group: 'Not imported', items: ['Check numbers and transaction types'] },

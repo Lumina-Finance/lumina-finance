@@ -10,8 +10,20 @@ export type OfxStatementKind = 'bank' | 'creditCard'
  * transaction as skipped with its reason instead of refusing the whole file
  */
 export interface OfxTransaction {
-  /** Position among the statement's transactions, counted from 1 */
+  /** Position among the statement's transactions, counted from 1 across every file the statement is in */
   index: number
+
+  /** Identifies the file the transaction was read from, which two files of one name do not share */
+  fileId: string
+
+  /** Position of that file among the staged files, counted from 1, which combining the files sets */
+  fileOrder: number
+
+  /** The name of that file, with its position added when another staged file has the same name */
+  fileName: string
+
+  /** The bank's ID for the transaction, or null where the file states none */
+  fitId: string | null
 
   /** The posted date as the file wrote it, shown beside a transaction left out */
   postedText: string
@@ -45,6 +57,12 @@ export interface OfxStatement {
   /** Identifies the statement within the file, which the account answers are filed under */
   id: string
   kind: OfxStatementKind
+
+  /**
+   * Identifies the bank account the statement is for, which the `id` does too until a second
+   * statement of the account in one file gives it a suffix
+   */
+  accountKey: string
 
   /** The name a new account is created under */
   name: string
@@ -86,6 +104,7 @@ export type OfxFileRead =
 /** One transaction the import leaves out, with enough of it for the user to find it in the file */
 export interface OfxSkippedRow {
   id: string
+  fileName: string
   statementLabel: string
 
   /** The posted date as the preview shows dates, or as the file wrote it when it is not a real date */

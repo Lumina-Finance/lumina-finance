@@ -223,13 +223,10 @@ export function useOfxImportWorkflow() {
       files: acquiredFiles,
       unavailableReason: uploadBlockReason?.message ?? null,
       fileType: OFX_IMPORT_FILE_TYPE,
-      read: (files) => Promise.all(files.map(async (source) => ({
-        id: crypto.randomUUID(),
-        name: source.name,
-        size: source.size,
-        lastModified: source.lastModified,
-        read: await readOfxFile(source),
-      }))),
+      read: (files) => Promise.all(files.map(async (source) => {
+        const id = crypto.randomUUID()
+        return { id, name: source.name, size: source.size, lastModified: source.lastModified, read: await readOfxFile(source, id) }
+      })),
     })
 
     // A file removed while these were being read changed the list they were checked against

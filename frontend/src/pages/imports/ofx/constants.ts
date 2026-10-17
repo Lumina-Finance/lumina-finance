@@ -65,6 +65,11 @@ export function getOfxOtherCurrencyReason(code: string, statementCurrency: strin
     : `The amount is in a currency other than the statement's ${statementCurrency}, and the importer does not convert between them.`
 }
 
+/** Says why a transaction is left out when an earlier file of the import already holds it */
+export function getOfxRepeatedTransactionReason(fileName: string) {
+  return `This transaction is already in ${fileName}.`
+}
+
 /** Says a statement can't go into an account kept in another currency */
 export function getOfxCurrencyMismatchError(statementLabel: string, statementCurrency: string, accountCurrency: string) {
   return `The statement for ${statementLabel} is in ${statementCurrency}, but the account you chose is in ${accountCurrency}. Choose an account in ${statementCurrency}.`

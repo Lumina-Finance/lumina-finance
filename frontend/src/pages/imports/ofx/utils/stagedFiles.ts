@@ -58,12 +58,21 @@ function getRefusalReason(held: OfxStagedFile[], candidate: Omit<OfxStagedFile, 
 export function combineOfxFiles(files: OfxFile[]): OfxFile {
   const merged = new Map<string, OfxStatement>()
   const leftOut = { investment: 0, loan: 0 }
+  const nameFile = getFileNamer(files)
 
-  for (const file of files) {
+  for (const [position, file] of files.entries()) {
     leftOut.investment += file.leftOut.investment
     leftOut.loan += file.leftOut.loan
 
-    for (const statement of file.statements) {
+    for (const readStatement of file.statements) {
+      const statement = {
+        ...readStatement,
+        transactions: readStatement.transactions.map((transaction) => ({
+          ...transaction,
+          fileOrder: position + 1,
+          fileName: nameFile(position, transaction.fileName),
+        })),
+      }
       const key = `${statement.id}|${statement.currency}`
       const existing = merged.get(key)
       if (existing) {
@@ -75,6 +84,19 @@ export function combineOfxFiles(files: OfxFile[]): OfxFile {
   }
 
   return { statements: [...merged.values()], leftOut }
+}
+
+/**
+ * Names a file by its position among the files, such as "statement.qfx (file 2)", when another of
+ * the files has the same name, since many banks name every download alike
+ */
+function getFileNamer(files: OfxFile[]) {
+  const fileCounts = new Map<string, number>()
+  for (const file of files) {
+    const names = new Set(file.statements.flatMap((statement) => statement.transactions.map((transaction) => transaction.fileName)))
+    for (const name of names) fileCounts.set(name, (fileCounts.get(name) ?? 0) + 1)
+  }
+  return (position: number, name: string) => ((fileCounts.get(name) ?? 0) > 1 ? `${name} (file ${position + 1})` : name)
 }
 
 function renumber(transactions: OfxStatement['transactions'], after: number) {

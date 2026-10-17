@@ -7,8 +7,9 @@ import type { ImportExpectations } from '@/pages/imports/types'
  * refused when that account is kept in another currency, money out files under the seeded
  * Miscellaneous category and money in under Other Income, the bank's stated balance is not read,
  * investment and loan statements are counted and left out, and a transaction whose date or amount
- * cannot be read, whose amount is in another currency than the statement, whose amount has more decimal places than the currency, or whose payee name or
- * memo is over the limit is listed and skipped
+ * cannot be read, whose amount is in another currency than the statement, whose amount has more decimal places than the currency, whose payee name or
+ * memo is over the limit, or that an earlier file of the same import already holds under the same
+ * bank transaction ID is listed and skipped
  */
 export const OFX_EXPECTATIONS: ImportExpectations = {
   intro: 'Each transaction in your statements becomes one transaction in the account you match them to, so one file can fill several accounts and several files can fill one.',
@@ -50,6 +51,7 @@ export const OFX_EXPECTATIONS: ImportExpectations = {
         'With an amount in another currency than their statement',
         'With more decimal places than their currency allows',
         'With a payee name or memo over the limits this app takes',
+        'Already in an earlier file of the same import, by the bank\'s transaction ID',
       ],
     },
     {
