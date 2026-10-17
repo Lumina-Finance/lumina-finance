@@ -34,7 +34,7 @@ describe('the card saying what an import does with its data', () => {
     const expectations = getImportExpectations('ofx', null)
 
     expect(expectations).toBe(OFX_EXPECTATIONS)
-    expect(expectations.intro).toBe('Each transaction in your statement becomes one transaction in the account you match it to, so one file can fill several accounts.')
+    expect(expectations.intro).toBe('Each transaction in your statements becomes one transaction in the account you match them to, so one file can fill several accounts and several files can fill one.')
     expect(expectations.deviation).toBe("The balance your bank states isn't imported. A new account starts at zero, so it only counts the transactions you import.")
     expect(expectations.changes.map((change) => change.source)).toEqual([
       'A payee',

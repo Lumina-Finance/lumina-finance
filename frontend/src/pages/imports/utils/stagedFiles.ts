@@ -10,7 +10,7 @@ export type StagingCandidate = {
 }
 
 const COLUMNS_MISMATCH_REASON = 'Its columns don\'t match the first file.'
-const ALREADY_ADDED_REASON = 'It is already added.'
+export const ALREADY_ADDED_REASON = 'It is already added.'
 const FIRST_FILE_UNREADABLE_REASON = 'Fix the first file before adding more.'
 
 /**
@@ -24,7 +24,7 @@ function isSameLayout(layout: ImportFileDraft, draft: ImportFileDraft) {
 }
 
 /** Whether the browser says two files are one export picked twice */
-function isSameFile(first: File, second: File) {
+export function isSameFile(first: Pick<File, 'name' | 'size' | 'lastModified'>, second: Pick<File, 'name' | 'size' | 'lastModified'>) {
   return first.name === second.name && first.size === second.size && first.lastModified === second.lastModified
 }
 
@@ -74,10 +74,31 @@ export function stageImportFiles(staged: StagingCandidate[], candidates: Staging
   for (const candidate of candidates) {
     const reason = getRefusalReason([...staged, ...accepted], candidate)
     if (reason === null) accepted.push(candidate)
-    else refusals.push(isOnlyFile ? reason : `"${candidate.draft.name}" was not added. ${reason}`)
+    else refusals.push(describeRefusedFile(candidate.draft.name, reason, isOnlyFile))
   }
 
   return { accepted, refusals }
+}
+
+/**
+ * Words the refusal of one file, naming it unless it was the only file chosen, since then the
+ * refusal is about the file the user just chose and its name adds nothing
+ */
+export function describeRefusedFile(name: string, reason: string, isOnlyFile: boolean) {
+  return isOnlyFile ? reason : `"${name}" was not added. ${reason}`
+}
+
+/**
+ * Names each staged file as the import names it everywhere, by its own name, with its position
+ * among the files added, such as "statement.qfx (file 2)", when another file has the same name,
+ * since many banks name every download alike
+ *
+ * @returns One label for each file, in the order the files were given
+ */
+export function labelStagedFiles(files: Array<{ name: string }>) {
+  const counts = new Map<string, number>()
+  for (const { name } of files) counts.set(name, (counts.get(name) ?? 0) + 1)
+  return files.map(({ name }, index) => ((counts.get(name) ?? 0) > 1 ? `${name} (file ${index + 1})` : name))
 }
 
 /**

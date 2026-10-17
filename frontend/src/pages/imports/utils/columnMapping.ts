@@ -18,6 +18,7 @@ import type {
   ImportRowFilter,
 } from '@/pages/imports/types'
 import { includeEveryImportRow, unique } from './common'
+import { labelStagedFiles } from './stagedFiles'
 import {
   DEFAULT_IMPORT_AMOUNT_FORMAT,
   type ImportAmountFormat,
@@ -354,9 +355,10 @@ export function getColumnValues(files: ImportFileDraft[], header: string) {
  * the row when several files are staged
  */
 function getNumberedColumnValues(files: ImportFileDraft[], header: string) {
-  return files.flatMap((file) => {
+  const fileLabels = labelStagedFiles(files)
+  return files.flatMap((file, fileIndex) => {
     if (!file.headers.includes(header)) return []
-    return file.rows.map((row, index) => ({ value: row[header]?.trim() ?? '', rowNumber: index + 1, fileName: file.name }))
+    return file.rows.map((row, index) => ({ value: row[header]?.trim() ?? '', rowNumber: index + 1, fileName: fileLabels[fileIndex] }))
   })
 }
 

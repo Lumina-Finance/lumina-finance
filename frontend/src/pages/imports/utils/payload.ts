@@ -44,6 +44,7 @@ import { buildImportMerchantMappings } from './merchantMatching'
 import { getImportDirectionValues } from './columnMapping'
 import { getImportRowId, includeEveryImportRow, joinImportSummaryParts } from './common'
 import { getImportDateRangeFilter, isImportDateRangeCrossed, isImportDateRangeIncomplete } from './dateRange'
+import { labelStagedFiles } from './stagedFiles'
 import { getAmountArrangementClashError, getMissingRequiredColumnLabels } from './workflowOptions'
 import {
   getCurrencyByAccountSource,
@@ -313,7 +314,8 @@ export function buildTransactionImportPayload({
   const rowWarnings: ImportRowProblem[] = []
   let outsideRangeRowCount = 0
   const fileAccountSourceId = getFileAccountSourceId(files)
-  for (const file of files) {
+  const fileLabels = labelStagedFiles(files)
+  for (const [fileIndex, file] of files.entries()) {
     for (const [rowIndex, row] of file.rows.entries()) {
       if (!isRowIncluded(row)) {
         outsideRangeRowCount += 1
@@ -325,7 +327,7 @@ export function buildTransactionImportPayload({
       if (problem) {
         rowProblems.push({
           id: getImportRowId(file.id, rowIndex),
-          fileName: file.name,
+          fileName: fileLabels[fileIndex],
           // Its position among the file's data rows, which is not the line it sits on: parsing
           // drops blank lines and folds a quoted value carrying a newline into one row
           rowNumber: rowIndex + 1,
@@ -350,7 +352,7 @@ export function buildTransactionImportPayload({
       if (warningReasons.length > 0) {
         rowWarnings.push({
           id: getImportRowId(file.id, rowIndex),
-          fileName: file.name,
+          fileName: fileLabels[fileIndex],
           rowNumber: rowIndex + 1,
           cells: row,
           reason: warningReasons.join(' '),

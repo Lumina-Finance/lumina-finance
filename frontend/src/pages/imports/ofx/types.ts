@@ -68,6 +68,17 @@ export interface OfxFile {
   leftOut: { investment: number; loan: number }
 }
 
+/** A statement file the flow has read, listed in the files step */
+export interface OfxStagedFile {
+  id: string
+  name: string
+
+  /** With the name and `lastModified`, tells a file picked twice from two files that share a name */
+  size: number
+  lastModified: number
+  file: OfxFile
+}
+
 export type OfxFileRead =
   | { status: 'read'; file: OfxFile }
   | { status: 'refused'; reason: string }

@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { getImportFileName } from '@/api/import-runs'
 import { useCommitStagedImport, useImportTransactions, type TransactionImportResponse } from '@/api/transaction-imports'
 import { CREATE_ACCOUNT_VALUE, IMPORT_SAMPLE_PREVIEW_LIMIT, IMPORT_TRANSFER_CATEGORY_NAME } from '@/pages/imports/constants'
 import {
@@ -13,10 +14,12 @@ import {
   OFX_IMPORT_FILE_TYPE,
   OFX_UPLOAD_LABEL,
 } from '@/pages/imports/ofx/constants'
-import type { OfxFile, OfxSkippedRow } from '@/pages/imports/ofx/types'
+import type { OfxSkippedRow, OfxStagedFile } from '@/pages/imports/ofx/types'
 import { buildOfxImportPayload, getOfxStatementsToImport, type OfxImportBuild } from '@/pages/imports/ofx/utils/payload'
 import { buildOfxPreviewRows } from '@/pages/imports/ofx/utils/preview'
 import { readOfxFile } from '@/pages/imports/ofx/utils/readFile'
+import { describeOfxSavedEarlier } from '@/pages/imports/ofx/utils/savedEarlier'
+import { combineOfxFiles, stageOfxFiles } from '@/pages/imports/ofx/utils/stagedFiles'
 import type { ImportAccountCreateDetails } from '@/pages/imports/types'
 import {
   countCreatedImportSources,
@@ -24,20 +27,17 @@ import {
   getImportUploadBlockReason,
   getSupportedCurrencyCodes,
   groupPreviewRowsByDate,
+  labelStagedFiles,
   type ImportFileAcquisition,
 } from '@/pages/imports/utils'
 
-/** The statement file the flow has read, as the files step lists it */
-export interface OfxStagedFile {
-  id: string
-  name: string
-  size: number
-  statementCount: number
-  transactionCount: number
-}
-
-// An OFX import reads one file, so its one refusal is kept under one kind
+// Every file is a statement, so the refusals are kept under one kind
 const OFX_FILE_KINDS = ['statement'] as const
+
+/** The part of an import's answers that says which files it holds, which the run hands back untyped */
+interface OfxImportAnswersSnapshot {
+  stagedFiles: OfxStagedFile[]
+}
 
 const EMPTY_BUILD: OfxImportBuild = {
   errors: [],
@@ -48,16 +48,23 @@ const EMPTY_BUILD: OfxImportBuild = {
 }
 
 /**
- * Drives the whole OFX import flow: reading the statement file, matching each of its
- * statements to one of the user's accounts, and saving it through the same staged run a CSV import
- * uses
+ * Drives the whole OFX import flow: reading the statement files, matching each of their
+ * statements to one of the user's accounts, and saving them as one import through the same staged
+ * run a CSV import uses
  *
- * Staging a different file resets every answer and any prior result, since the answers were given
- * for the statements of the one before
+ * The answers are given for the statements of all the files together, so files added later keep
+ * them and a statement for an account an earlier file already holds joins that account's answer.
+ * Removing the last file starts over, and so does choosing files once an import has finished, since
+ * those files begin the next import
  */
 export function useOfxImportWorkflow() {
-  const [stagedFile, setStagedFile] = useState<OfxStagedFile | null>(null)
-  const [ofxFile, setOfxFile] = useState<OfxFile | null>(null)
+  const [stagedFiles, setStagedFiles] = useState<OfxStagedFile[]>([])
+  const ofxFile = useMemo(
+    () => (stagedFiles.length > 0 ? combineOfxFiles(stagedFiles.map(({ file }) => file)) : null),
+    [stagedFiles],
+  )
+  // Counts the changes to the staged files, so files read for a list that has since changed are dropped
+  const stagedFilesVersionRef = useRef(0)
   const fileIntake = useProviderFileIntake(OFX_FILE_KINDS)
   const isProcessingFile = fileIntake.processingKind !== null
   const fileIntakeError = fileIntake.intakeErrors.statement
@@ -81,10 +88,11 @@ export function useOfxImportWorkflow() {
     resetAccountCreateState,
   } = useImportAccountCreateState(setAccountMappings, getOfxAccountSourceScope)
 
-  // Every answer the user gives about the import, as one value that changes only when one of them does
+  // Every answer the user gives about the import, as one value that changes only when one of them
+  // does. The staged files are among them, since a kept upload holds the files it was sent with
   const importAnswers = useMemo(
-    () => ({ accountMappings, accountCreateTypes, accountCreateCurrencies, accountCreateInstitutions }),
-    [accountCreateCurrencies, accountCreateInstitutions, accountCreateTypes, accountMappings],
+    () => ({ stagedFiles, accountMappings, accountCreateTypes, accountCreateCurrencies, accountCreateInstitutions }),
+    [accountCreateCurrencies, accountCreateInstitutions, accountCreateTypes, accountMappings, stagedFiles],
   )
 
   const importTransactions = useImportTransactions()
@@ -96,6 +104,7 @@ export function useOfxImportWorkflow() {
     formatSummary: ({ result, skippedRowsAtCommit, outsideRangeCountAtCommit }) => (
       formatImportSummary(result, skippedRowsAtCommit.length, outsideRangeCountAtCommit)
     ),
+    formatSavedEarlier: ({ answers }) => describeOfxSavedEarlier((answers as OfxImportAnswersSnapshot).stagedFiles, stagedFiles),
   })
 
   const {
@@ -209,35 +218,41 @@ export function useOfxImportWorkflow() {
   }
 
   const handleOfxFileChange = async (acquiredFiles: ImportFileAcquisition) => {
-    const intake = await fileIntake.readImportFile('statement', {
+    const version = stagedFilesVersionRef.current
+    const intake = await fileIntake.readImportFiles('statement', {
       files: acquiredFiles,
       unavailableReason: uploadBlockReason?.message ?? null,
       fileType: OFX_IMPORT_FILE_TYPE,
-      read: async (file) => ({ file, read: await readOfxFile(file) }),
+      read: (files) => Promise.all(files.map(async (source) => ({
+        id: crypto.randomUUID(),
+        name: source.name,
+        size: source.size,
+        lastModified: source.lastModified,
+        read: await readOfxFile(source),
+      }))),
     })
 
-    if (intake.status !== 'accepted') return
+    // A file removed while these were being read changed the list they were checked against
+    if (intake.status !== 'accepted' || version !== stagedFilesVersionRef.current) return
 
-    const { file, read } = intake.result
-    if (read.status === 'refused') {
-      fileIntake.setIntakeError('statement', read.reason)
-      return
-    }
+    // Files chosen over a finished import start a new one, so the record of the last import gives
+    // way to them and their statements are answered afresh
+    const isReplacingFinishedImport = run.workflow.importResult !== null
+    const held = isReplacingFinishedImport ? [] : stagedFiles
+    const { accepted, refusals } = stageOfxFiles(held, intake.result)
+    if (refusals.length > 0) fileIntake.setIntakeError('statement', refusals.join(' '))
+    if (accepted.length === 0) return
 
-    setOfxFile(read.file)
-    setStagedFile({
-      id: crypto.randomUUID(),
-      name: file.name,
-      size: file.size,
-      statementCount: read.file.statements.length,
-      transactionCount: read.file.statements.reduce((total, statement) => total + statement.transactions.length, 0),
-    })
-    resetAnswers()
+    if (isReplacingFinishedImport) resetAnswers()
+    setStagedFiles([...held, ...accepted])
   }
 
-  const removeOfxFile = () => {
-    setOfxFile(null)
-    setStagedFile(null)
+  const removeOfxFile = (fileId: string) => {
+    stagedFilesVersionRef.current += 1
+    const remaining = stagedFiles.filter((file) => file.id !== fileId)
+    setStagedFiles(remaining)
+    if (remaining.length > 0) return
+
     fileIntake.setIntakeError('statement', null)
     resetAnswers()
   }
@@ -251,7 +266,7 @@ export function useOfxImportWorkflow() {
         payload,
         signal,
         onStaged,
-        fileName: stagedFile?.name,
+        fileName: getImportFileName(labelStagedFiles(stagedFiles)),
         source: 'ofx',
       }),
       commit: (runId, signal) => commitStagedImport.mutateAsync({ runId, signal }),
@@ -259,13 +274,15 @@ export function useOfxImportWorkflow() {
   }
 
   const resetOfxWorkflow = () => {
-    removeOfxFile()
+    stagedFilesVersionRef.current += 1
+    setStagedFiles([])
+    resetAnswers()
     fileIntake.resetFileIntake()
   }
 
   return {
     ...run.workflow,
-    stagedFile,
+    stagedFiles,
     ofxFile,
     isProcessingFile,
     fileIntakeError,

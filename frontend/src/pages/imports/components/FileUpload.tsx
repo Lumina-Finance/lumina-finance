@@ -4,7 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { COLLAPSIBLE_SECTION_EASE, COLLAPSIBLE_SECTION_TRANSITION_SECONDS } from '@/components/collapsible-section/motion'
 import { IMPORT_INSET_STYLE } from '@/pages/imports/constants'
 import type { ImportFileDraft, ImportUploadBlock } from '@/pages/imports/types'
-import { CSV_IMPORT_FILE_TYPE, getDropPrompt, selectDroppedImportFiles, type ImportFileSelection, type ImportFileType } from '@/pages/imports/utils'
+import { CSV_IMPORT_FILE_TYPE, getDropPrompt, labelStagedFiles, selectDroppedImportFiles, type ImportFileSelection, type ImportFileType } from '@/pages/imports/utils'
 
 /**
  * Upload affordance shared by the import flows that animates between its idle
@@ -285,11 +285,15 @@ export function ImportStagedFileTable<TFile extends { id: string; name: string }
   // there when the list appears does not animate in
   const rowTransition = { duration: shouldReduceMotion ? 0 : COLLAPSIBLE_SECTION_TRANSITION_SECONDS, ease: COLLAPSIBLE_SECTION_EASE }
 
+  // Files of one name are told apart by position, as the rest of the import names them
+  const labels = labelStagedFiles(files)
+
   return (
-    <div className="max-h-64 overflow-y-auto">
+    <div>
       <AnimatePresence initial={false}>
-      {files.map((file) => {
+      {files.map((file, index) => {
         const { detail, problem } = describe(file)
+        const label = labels[index]
         return (
           <motion.div
             key={file.id}
@@ -305,7 +309,7 @@ export function ImportStagedFileTable<TFile extends { id: string; name: string }
             <FileText size={17} className="mt-0.5" style={{ color: 'var(--app-text-muted)' }} aria-hidden />
             <div className="min-w-0">
               {/* Wraps rather than truncating, since exports are often told apart by the end of their name */}
-              <p className="text-[0.9375rem] font-medium wrap-anywhere">{file.name}</p>
+              <p className="text-[0.9375rem] font-medium wrap-anywhere">{label}</p>
               {detail && (
                 <p className="mt-0.5 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
                   {detail}
@@ -313,14 +317,14 @@ export function ImportStagedFileTable<TFile extends { id: string; name: string }
               )}
             </div>
             {/* Drawn taller than the name's line without making it any taller. A flush list has no room
-                beside the button, so the list's scrolling box would cut the focus ring there, and the
+                beside the button, so the row's clipping box would cut the focus ring there, and the
                 ring is drawn inside the button instead */}
             {onRemove && (
               <button
                 type="button"
                 className={`app-icon-button -my-1${isFlush ? ' focus-visible:-outline-offset-2' : ''}`}
                 onClick={() => onRemove(file)}
-                aria-label={`Remove ${file.name}`}
+                aria-label={`Remove ${label}`}
               >
                 <X size={16} aria-hidden />
               </button>

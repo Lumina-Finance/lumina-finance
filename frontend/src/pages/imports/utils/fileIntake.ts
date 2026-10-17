@@ -29,6 +29,9 @@ export interface ImportFileType {
   /** Shown on the upload card and read out while the file is being read */
   processingStatus: string
 
+  /** Shown on the upload card while files are dragged over it, naming what it takes */
+  dropTitle: string
+
   /** Why more than one file is refused, or null for an upload that takes several at once */
   multipleFilesReason: string | null
   wrongTypeReason: string
@@ -47,6 +50,7 @@ const isCsvFile = (file: File) => file.name.toLowerCase().endsWith('.csv') || fi
 export const CSV_IMPORT_FILE_TYPE: ImportFileType = {
   matches: isCsvFile,
   processingStatus: 'Processing CSV',
+  dropTitle: 'Drop CSV file here',
   multipleFilesReason: MULTIPLE_FILES_REASON,
   wrongTypeReason: NON_CSV_REASON,
   nonFileDropReason: NON_FILE_DROP_REASON,
@@ -57,6 +61,7 @@ export const CSV_IMPORT_FILE_TYPE: ImportFileType = {
 export const SEVERAL_CSV_IMPORT_FILE_TYPE: ImportFileType = {
   matches: isCsvFile,
   processingStatus: 'Processing CSV',
+  dropTitle: 'Drop CSV files here',
   multipleFilesReason: null,
   wrongTypeReason: 'Choose CSV files.',
   nonFileDropReason: 'Drop CSV files, not text or other page content.',
@@ -65,9 +70,10 @@ export const SEVERAL_CSV_IMPORT_FILE_TYPE: ImportFileType = {
 
 /** What the upload card says while files are dragged over it, which depends on how many it takes */
 export function getDropPrompt(fileType: ImportFileType) {
-  return fileType.multipleFilesReason === null
-    ? { title: 'Drop CSV files here', hint: 'Release to upload them.' }
-    : { title: 'Drop CSV file here', hint: 'Release to upload one file.' }
+  return {
+    title: fileType.dropTitle,
+    hint: fileType.multipleFilesReason === null ? 'Release to upload them.' : 'Release to upload one file.',
+  }
 }
 
 /**

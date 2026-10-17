@@ -50,7 +50,7 @@ const FLOW_DESCRIPTIONS: Record<ImportDataSource, string> = {
   generic: 'Stage CSV transaction files before they are added to your ledger.',
   firefly: 'Stage a Firefly III export before it is added to your ledger.',
   actual: 'Stage an Actual Budget export before it is added to your ledger.',
-  ofx: 'Stage an OFX or QFX statement before it is added to your ledger.',
+  ofx: 'Stage OFX or QFX statements before they are added to your ledger.',
 }
 
 // The label above the page title, by what the flow imports
@@ -304,7 +304,12 @@ export default function ImportsPage() {
                 {/* First, so the way to undo the last import is in view without scrolling the steps below */}
                 <LastImportCard />
                 {/* An import started from an account has one source, so the choice is not offered */}
-                {!isScopedToAccount && <ImportSourceStep value={dataSource} onChange={handleDataSourceChange} />}
+                {/* Ends where the files step below it does, which keeps a gutter beside its scrolling box */}
+                {!isScopedToAccount && (
+                  <div className="xl:pr-1">
+                    <ImportSourceStep value={dataSource} onChange={handleDataSourceChange} />
+                  </div>
+                )}
                 <div className="min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1">
                   {activeFlow === 'firefly' && <FireflyFilesStep {...fireflyWorkflow} />}
                   {activeFlow === 'actual' && <ActualFilesStep {...actualWorkflow} />}

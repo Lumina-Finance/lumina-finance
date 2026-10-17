@@ -82,6 +82,9 @@ export interface CompletedImport<TResult, TSkipped> {
   // Set when a save thought interrupted had landed, so what the screen shows is that earlier
   // import rather than the one just asked for, which was never sent
   savedEarlier: boolean
+
+  /** The answers the import that was saved was sent with, which are an earlier import's when savedEarlier */
+  answers: object
 }
 
 /** Why the last attempt failed, with the answers it was started with */
@@ -271,6 +274,7 @@ export function createImportRunController<TResult, TSkipped>({
           skippedRowsAtCommit: runSkippedRows,
           outsideRangeCountAtCommit: runOutsideRangeCount,
           savedEarlier,
+          answers: runAnswers,
         },
       })
 

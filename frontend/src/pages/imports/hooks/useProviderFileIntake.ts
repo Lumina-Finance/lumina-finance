@@ -3,8 +3,8 @@ import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 import { type ImportFileAcquisition, type ImportFileType, processImportFileIntake } from '@/pages/imports/utils'
 
 /**
- * Reads the files a provider import takes, one at a time, with the file being read and the reason
- * each kind of file was last refused
+ * Reads the files a provider import takes, with the kind of file being read and the reason each
+ * kind of file was last refused
  *
  * Reading shows its busy state for at least the loading animation's minimum, so a small file
  * doesn't flash it
@@ -20,12 +20,12 @@ export function useProviderFileIntake<Kind extends string>(kinds: readonly Kind[
   }
 
   /**
-   * Takes the files the user chose or dropped as one kind of file and reads the one accepted,
-   * recording a refusal against that kind
+   * Takes the files the user chose or dropped as one kind of file and reads all the accepted ones
+   * together, recording a refusal against that kind
    *
    * @param unavailableReason - Why no file can be read yet, which refuses the files without reading them
    */
-  const readImportFile = async <Result>(kind: Kind, {
+  const readImportFiles = async <Result>(kind: Kind, {
     files,
     unavailableReason,
     fileType,
@@ -34,19 +34,18 @@ export function useProviderFileIntake<Kind extends string>(kinds: readonly Kind[
     files: ImportFileAcquisition
     unavailableReason: string | null
     fileType?: ImportFileType
-    read: (file: File) => Promise<Result>
+    read: (files: File[]) => Promise<Result>
   }) => {
     const intake = await processImportFileIntake({
       files,
       processing: processingKind !== null,
       unavailableReason,
       fileType,
-      // These uploads take one file, so the intake only ever hands over one
-      readFiles: async ([file]) => {
+      readFiles: async (selectedFiles) => {
         setIntakeError(kind, null)
         setProcessingKind(kind)
         try {
-          const [result] = await Promise.all([read(file), waitForMilliseconds(LOADING_ANIMATION_MIN_MS)])
+          const [result] = await Promise.all([read(selectedFiles), waitForMilliseconds(LOADING_ANIMATION_MIN_MS)])
           return result
         } finally {
           setProcessingKind(null)
@@ -58,12 +57,23 @@ export function useProviderFileIntake<Kind extends string>(kinds: readonly Kind[
     return intake
   }
 
+  /**
+   * Takes the file the user chose or dropped as one kind of file and reads it, for an upload whose
+   * file type refuses more than one
+   */
+  const readImportFile = <Result>(kind: Kind, { read, ...options }: {
+    files: ImportFileAcquisition
+    unavailableReason: string | null
+    fileType?: ImportFileType
+    read: (file: File) => Promise<Result>
+  }) => readImportFiles(kind, { ...options, read: ([file]) => read(file) })
+
   const resetFileIntake = () => {
     setProcessingKind(null)
     setIntakeErrors(getNoIntakeErrors(kinds))
   }
 
-  return { processingKind, intakeErrors, setIntakeError, readImportFile, resetFileIntake }
+  return { processingKind, intakeErrors, setIntakeError, readImportFile, readImportFiles, resetFileIntake }
 }
 
 function getNoIntakeErrors<Kind extends string>(kinds: readonly Kind[]) {

@@ -1,8 +1,8 @@
 /**
  * Tests what the steps of the OFX import show the user from the state its workflow builds: the
  * notice for statements left out, the refusal for a statement in another currency than its account,
- * the transactions skipped with their reasons, and a Commit that stays off while the answers are
- * refused. The steps are rendered on the state the workflow's own build produces
+ * the transactions skipped with their reasons and, for several files, the file each is in, and a
+ * Commit that stays off while the answers are refused. The steps are rendered on the state the workflow's own build produces
  */
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -15,6 +15,7 @@ import { getOfxCurrencyMismatchError, getOfxLeftOutNotice } from '@/pages/import
 import { OfxFilesStep, OfxPreviewStep } from '@/pages/imports/ofx/sections'
 import { buildOfxImportPayload } from '@/pages/imports/ofx/utils/payload'
 import { readOfxFile } from '@/pages/imports/ofx/utils/readFile'
+import { combineOfxFiles } from '@/pages/imports/ofx/utils/stagedFiles'
 import { buildLeftOutMessageSet, buildMessageSet, toOfxFile, wrapMessageSets, type FixtureStatement } from './utils/fixtures'
 
 const CURRENCIES = [{ id: 'CAD', name: 'Canadian dollar', symbol: '$', minor_unit_exponent: 2 }] as Currency[]
@@ -36,16 +37,18 @@ async function readStatements(statements: FixtureStatement[], leftOut: string[] 
 const CHECKING: FixtureStatement = { transactions: [{ name: 'Cafe', amount: '-4.00' }, { name: 'Broken', amount: 'n/a' }] }
 
 describe('the files step', () => {
-  async function renderFilesStep(leftOut: string[]) {
-    const ofxFile = await readStatements([CHECKING], leftOut)
+  async function renderFilesStep(leftOut: string[], fileNames = ['statement.ofx']) {
+    const file = await readStatements([CHECKING], leftOut)
+    const stagedFiles = fileNames.map((name, index) => ({ id: String(index), name, size: 10, lastModified: index, file }))
     return renderToStaticMarkup(createElement(OfxFilesStep, {
-      stagedFile: { id: '1', name: 'statement.ofx', size: 10, statementCount: 1, transactionCount: 2 },
-      ofxFile,
+      stagedFiles,
+      ofxFile: combineOfxFiles(stagedFiles.map((staged) => staged.file)),
       isProcessingFile: false,
       fileIntakeError: null,
       handleOfxFileChange: async () => undefined,
       removeOfxFile: () => undefined,
       uploadBlockReason: null,
+      importResult: null,
     } as unknown as Parameters<typeof OfxFilesStep>[0]))
   }
 
@@ -53,8 +56,42 @@ describe('the files step', () => {
     const markup = await renderFilesStep([buildLeftOutMessageSet('INVSTMTMSGSRSV1', 2), buildLeftOutMessageSet('LOANMSGSRSV1', 1)])
 
     expect(markup).toContain('Statements left out')
-    expect(markup).toContain(escapeHtml(getOfxLeftOutNotice({ investment: 2, loan: 1 }) ?? ''))
+    expect(markup).toContain(escapeHtml(getOfxLeftOutNotice({ investment: 2, loan: 1 }, 1) ?? ''))
     expect(markup).toContain('2 investment statements and 1 loan statement in this file aren&#x27;t imported.')
+  })
+
+  it('counts what every staged file leaves out, and says so of the files', async () => {
+    const markup = await renderFilesStep([buildLeftOutMessageSet('LOANMSGSRSV1', 1)], ['2024-01.qfx', '2024-02.qfx'])
+
+    expect(markup).toContain('2 loan statements in these files aren&#x27;t imported.')
+  })
+
+  // A finished import's files are its record, and the card that starts the next import comes after them
+  it('puts the upload card after the notice once the import has finished', async () => {
+    const file = await readStatements([CHECKING], [buildLeftOutMessageSet('LOANMSGSRSV1', 1)])
+    const markup = renderToStaticMarkup(createElement(OfxFilesStep, {
+      stagedFiles: [{ id: '1', name: 'statement.ofx', size: 10, lastModified: 1, file }],
+      ofxFile: file,
+      isProcessingFile: false,
+      fileIntakeError: null,
+      handleOfxFileChange: async () => undefined,
+      removeOfxFile: () => undefined,
+      uploadBlockReason: null,
+      importResult: {},
+    } as unknown as Parameters<typeof OfxFilesStep>[0]))
+
+    expect(markup.indexOf('Statements left out')).toBeGreaterThan(-1)
+    expect(markup.indexOf('Statements left out')).toBeLessThan(markup.lastIndexOf('Upload statements'))
+    expect(markup).not.toContain('aria-label="Remove statement.ofx"')
+  })
+
+  it('lists each staged file with its counts, and offers to add more', async () => {
+    const markup = await renderFilesStep([], ['2024-01.qfx', '2024-02.qfx'])
+
+    expect(markup).toContain('2024-01.qfx')
+    expect(markup).toContain('2024-02.qfx')
+    expect(markup).toContain('2 transactions · 1 statement')
+    expect(markup).toContain('Add more statements')
   })
 
   it('shows no such notice for a file that holds only the statements it imports', async () => {

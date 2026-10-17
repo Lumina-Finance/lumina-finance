@@ -11,7 +11,7 @@ import type { ImportExpectations } from '@/pages/imports/types'
  * memo is over the limit is listed and skipped
  */
 export const OFX_EXPECTATIONS: ImportExpectations = {
-  intro: 'Each transaction in your statement becomes one transaction in the account you match it to, so one file can fill several accounts.',
+  intro: 'Each transaction in your statements becomes one transaction in the account you match them to, so one file can fill several accounts and several files can fill one.',
   deviation: "The balance your bank states isn't imported. A new account starts at zero, so it only counts the transactions you import.",
   changes: [
     {

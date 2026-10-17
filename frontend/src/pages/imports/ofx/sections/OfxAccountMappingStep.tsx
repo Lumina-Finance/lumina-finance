@@ -43,11 +43,11 @@ export function OfxAccountMappingStep({ ofxFile, accountSources, importBuild, up
     <ProviderAccountMappingStep
       {...props}
       index="02"
-      description="Every statement in the file must map to an existing account or a new one."
+      description="Every statement must map to an existing account or a new one. Statements for the same account are matched once."
       notice={<OfxCurrencyMismatchNotice mismatches={importBuild.currencyMismatches} />}
       emptyState={ofxFile
-        ? { title: 'No accounts to import into', description: 'None of the statements in this file has transactions.' }
-        : { title: 'No statements detected', description: 'Upload the statement file first.' }}
+        ? { title: 'No accounts to import into', description: 'None of the statements has transactions.' }
+        : { title: 'No statements detected', description: 'Upload the statement files first.' }}
       sources={accountSources}
       onAccountMappingChange={updateOfxAccountMapping}
     />
