@@ -1,4 +1,5 @@
-import type { FormEvent } from 'react';
+import { useRef, type FormEvent } from 'react';
+import { flushSync } from 'react-dom';
 import { KeyRound } from 'lucide-react';
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
 import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
@@ -67,8 +68,21 @@ export function MfaChallenge({
   passkeyVerifyDescription,
   hasAncestorForm,
 }: MfaChallengeProps) {
+  const verifyButtonRef = useRef<HTMLButtonElement>(null);
   const trimmedCode = useRecoveryCode ? code.trim() : code;
   const codeReady = useRecoveryCode ? trimmedCode.length > 0 : trimmedCode.length >= OTP_LENGTH;
+
+  /**
+   * Submits an authenticator code as soon as it's complete, whether it was typed, pasted or filled
+   * by a password manager, so signing in needs no click a password manager could aim at the wrong
+   * button. It submits through the form that owns Verify, the login page's own or this component's,
+   * so each page's submit handler runs as it does for a click
+   */
+  const changeAuthenticatorCode = (value: string) => {
+    // The submit handler reads the code from state, so the new code renders before the submit
+    flushSync(() => onCodeChange(value));
+    if (value.length === OTP_LENGTH) verifyButtonRef.current?.form?.requestSubmit();
+  };
 
   const codeBranch = (
     <>
@@ -102,11 +116,12 @@ export function MfaChallenge({
           autoFocus
         />
       ) : (
-        <OtpInput value={code} onChange={onCodeChange} disabled={submitting} autoFocus />
+        <OtpInput value={code} onChange={changeAuthenticatorCode} disabled={submitting} autoFocus />
       )}
 
       <div className="flex justify-center">
         <DisabledReasonButton
+          ref={verifyButtonRef}
           type="submit"
           disabled={submitting}
           disabledReason={!submitting && !codeReady ? (useRecoveryCode ? 'Enter a recovery code first' : 'Enter the full code first') : undefined}
