@@ -140,10 +140,11 @@ function getTooltipPosition(trigger: HTMLElement, tooltip: HTMLElement, side: To
  *
  * The panel opens above or below the trigger, whichever has room within the viewport or the nearest
  * ancestor marked with `data-tooltip-bounds` and clear of any bar above it marked with
- * `data-tooltip-cover`, and shifts sideways to stay within them. While it shows it keeps that side, and
- * it is placed again with the trigger on any scroll or resize, and whenever the trigger moves on its
- * own, as it does during a dialog's entrance. It hides while its trigger is scrolled out of view, and it
- * closes on any pointer down outside the trigger. A trigger inside an element marked with
+ * `data-tooltip-cover`, and shifts sideways to stay within them. While it shows it keeps that side until
+ * a press on the trigger opens it, which picks the side afresh, and it is placed again with the trigger
+ * on any scroll or resize, and whenever the trigger moves on its own, as it does during a dialog's
+ * entrance. It hides while its trigger is scrolled out of view, and it closes on any pointer down
+ * outside the trigger. A trigger inside an element marked with
  * `data-tooltip-subject`, such as a fact whose value sits under its label, opens the panel above or
  * below that whole element, so the panel never covers what it explains, and picks its side again as
  * anything around it scrolls while it shows
@@ -184,9 +185,10 @@ export default function IconTooltip({
   const tooltipRef = useRef<HTMLSpanElement>(null)
 
   // The side is picked once as the panel shows and kept until it hides, so a panel that opened above its
-  // trigger never swaps over what the trigger labels as the page moves. A panel beside what it explains
-  // covers it on neither side, so it picks again each time, and one that showed above a fact goes below
-  // it once scrolling leaves no room above
+  // trigger never swaps over what the trigger labels as the page moves. A press that opens the panel
+  // picks it afresh, since a pointer left on the trigger keeps a closed panel showing, and with it
+  // the side it had. A panel beside what it explains covers it on neither side, so it picks again
+  // each time, and one that showed above a fact goes below it once scrolling leaves no room above
   const sideRef = useRef<TooltipSide | null>(null)
   const isPlaced = isShown || isHovered
   const updatePlacement = useCallback(() => {
@@ -298,6 +300,7 @@ export default function IconTooltip({
         className={triggerClassName}
         style={isFxIcon ? undefined : { color: iconColor ?? color }}
         onClick={() => {
+          if (!isOpen) sideRef.current = null
           updatePlacement()
           setIsOpen((open) => !open)
         }}

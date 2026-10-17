@@ -33,9 +33,9 @@ import { MINUS, readBoxes } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the balance comparison, unavailable balance, retry and rejected
-// connection tests, which run at every size: the balances, the notes over them and the notice's action
-// take their own layouts at each width
+// Runs on desktop only, apart from the balance comparison, unavailable balance, retry, reopened Sync
+// details and rejected connection tests, which run at every size: the balances, the notes over them and
+// the notice's action take their own layouts at each width
 
 // A linked account's bank sync status, as its page shows it once the worker has met each situation
 // on the fake SimpleFIN Bridge: the identity card's Bank sync fact, the Bank link section's Status,
@@ -322,14 +322,46 @@ for (const { shown, show } of [
   })
 }
 
+// A link whose last sync failed: the time's own period ends the sentence in the fact's name, with no
+// second one after it
+const RETRYING_STATUS = /Retrying at (\w{3} \d{1,2}, )?\d{1,2}:\d{2}\s[ap]\.m\./
+
+/**
+ * Scrolls the fact to the foot of the dialog's body, read once the scroll has gone out to the page's
+ * listeners, and a message sent after them has come back, so a render React queued from one, in a
+ * message of its own, has run first. Where the fact already sits at the foot, as on a screen tall
+ * enough for the whole modal, nothing scrolls and there's nothing to wait for
+ */
+async function scrollToFoot(status: Locator): Promise<void> {
+  await status.evaluate((element) => new Promise<void>((resolve) => {
+    const onScroll = () => {
+      const channel = new MessageChannel()
+      channel.port1.onmessage = () => resolve()
+      channel.port2.postMessage(null)
+    }
+    document.addEventListener('scroll', onScroll, { capture: true, once: true })
+    const before = element.getBoundingClientRect().top
+    element.scrollIntoView({ block: 'end' })
+    if (element.getBoundingClientRect().top === before) {
+      document.removeEventListener('scroll', onScroll, { capture: true })
+      resolve()
+    }
+  }))
+}
+
+/** How far below its icon a panel's top sits, or above it when negative */
+async function readOffsetFromIcon(page: Page, panel: Locator, icon: Locator): Promise<number> {
+  const [opened, trigger] = await readBoxes(page, [panel, icon])
+  return opened.y - trigger.y
+}
+
 test('reads as retrying at the time of the retry when the Bridge fails', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await linkIntoFault(request, user, account.id, (scenarioId) => breakBridge(request, scenarioId))
 
-  // The time's own period ends the sentence in the fact's name, with no second one after it
   await logInViaApi(page, user)
-  const dialog = await openBankLink(page, account.id, /Retrying at (\w{3} \d{1,2}, )?\d{1,2}:\d{2}\s[ap]\.m\./)
+  const dialog = await openBankLink(page, account.id, RETRYING_STATUS)
   await expect(fact(dialog, 'Status')).toHaveText(/^Retrying at /)
 
   // The details show whole, reaching past the section where they need the room, and so does the ring
@@ -343,37 +375,41 @@ test('reads as retrying at the time of the retry when the Bridge fails', AT_EVER
 
   // Scrolling the status to the foot of the modal leaves them where they opened beside it, since they
   // explain nothing marked around them. Opened again there, where they'd fall out of sight, they open
-  // above it. Read once the scroll has gone out to the page's listeners, and a message sent after them
-  // has come back, so a render React queued from one, in a message of its own, has run first. Where
-  // the status already sits at the foot, as on a screen tall enough for the whole modal, nothing
-  // scrolls and there's nothing to wait for
-  const offsetFromIcon = async () => {
-    const [opened, icon] = await readBoxes(page, [details, showDetails])
-    return opened.y - icon.y
-  }
-  const openedAt = await offsetFromIcon()
-  await fact(dialog, 'Status').evaluate((status) => new Promise<void>((resolve) => {
-    const onScroll = () => {
-      const channel = new MessageChannel()
-      channel.port1.onmessage = () => resolve()
-      channel.port2.postMessage(null)
-    }
-    document.addEventListener('scroll', onScroll, { capture: true, once: true })
-    const before = status.getBoundingClientRect().top
-    status.scrollIntoView({ block: 'end' })
-    if (status.getBoundingClientRect().top === before) {
-      document.removeEventListener('scroll', onScroll, { capture: true })
-      resolve()
-    }
-  }))
-  expect(await offsetFromIcon()).toBeCloseTo(openedAt, 0)
+  // above it
+  const openedAt = await readOffsetFromIcon(page, details, showDetails)
+  await scrollToFoot(fact(dialog, 'Status'))
+  expect(await readOffsetFromIcon(page, details, showDetails)).toBeCloseTo(openedAt, 0)
 
-  // Closed under the pointer they still show, keeping their side, so the pointer leaves them and they
-  // hide before they open again
+  // Closed under the pointer they keep showing where they were, and opened again without the pointer
+  // moving they pick their side afresh
   await showDetails.click()
+  await showDetails.click()
+  await expect.poll(() => readClippingBoxes(details)).toEqual([])
+})
+
+// Focus from the keyboard keeps them showing through a close, as a pointer left on the icon does
+test('opens Sync details again clear of the foot of the modal from the keyboard', AT_EVERY_SIZE, async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  await linkIntoFault(request, user, account.id, (scenarioId) => breakBridge(request, scenarioId))
+  await logInViaApi(page, user)
+  const dialog = await openBankLink(page, account.id, RETRYING_STATUS)
+
+  const showDetails = dialog.getByRole('button', { name: 'Sync details' })
+  const details = dialog.locator('.app-tooltip-panel').filter({ hasText: 'Not synced yet' })
+  await showDetails.click()
+  await expect(details).toContainText('Last attempt failed: ')
+  const openedAt = await readOffsetFromIcon(page, details, showDetails)
+  await scrollToFoot(fact(dialog, 'Status'))
+  expect(await readOffsetFromIcon(page, details, showDetails)).toBeCloseTo(openedAt, 0)
+
+  // The pointer is kept off the icon, and focus comes back to it from the keyboard
   await page.mouse.move(0, 0)
-  await expect(details.locator('..')).toHaveAttribute('aria-hidden', 'true')
-  await showDetails.click()
+  await page.keyboard.press('Shift+Tab')
+  await page.keyboard.press('Tab')
+  await expect(showDetails).toBeFocused()
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Enter')
   await expect.poll(() => readClippingBoxes(details)).toEqual([])
 })
 
