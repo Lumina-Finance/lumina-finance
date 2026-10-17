@@ -1,5 +1,5 @@
 import type { CsvPreviewLine, CsvReading, CsvReadingChoices, CsvRow, ImportFileDraft } from '@/pages/imports/types'
-import { formatBytes } from './common'
+import { formatBytes, normalizeImportHeading } from './common'
 import { isBareImportAmount } from './amountFormats'
 import { isSupportedCurrency, isValidAmountValue, isValidDateValue } from './valueParsers'
 
@@ -107,6 +107,31 @@ const HEADER_ALIASES = new Set([
   'datedoperation',
   'verwendungszweck',
   'libelle',
+
+  // The date and description headings of the other languages a bank's export is read in, written as
+  // `normalizeImportHeading` leaves them with the spaces squeezed out. The Korean and Chinese memo
+  // headings stand beside the description, since the date headings of those two exports are not read
+  'data',
+  'fvalor',
+  'bokforingsdag',
+  'dato',
+  'kirjauspaiva',
+  'dataoperacji',
+  '年月日',
+  'naamomschrijving',
+  'descrizione',
+  'descripcion',
+  'descricao',
+  'textmottagare',
+  'tekst',
+  'forklaring',
+  'saajamaksaja',
+  'opistransakcji',
+  'お取り扱い内容',
+  '보낸분받는분',
+  '송금메모',
+  '交易說明',
+  '備註',
 ])
 
 const NO_READABLE_ROWS_ERROR = 'No readable rows detected'
@@ -750,7 +775,7 @@ function makeGeneratedHeaders(count: number) {
 }
 
 function isKnownHeaderCell(value: string) {
-  const normalized = normalizeHeaderCell(value)
+  const normalized = normalizeImportHeading(value)
   if (!normalized) return false
   const compact = normalized.replace(/\s/g, '')
   return HEADER_ALIASES.has(compact)
@@ -758,8 +783,9 @@ function isKnownHeaderCell(value: string) {
 
 function isHeaderTextCell(value: string, supportedCurrencyCodes: Set<string>) {
   const trimmed = value.trim()
+  // A letter of any script, since a heading written in Japanese, Korean or Chinese has no a to z
   return Boolean(trimmed)
-    && /[a-z]/i.test(trimmed)
+    && /\p{L}/u.test(trimmed)
     && !isDataLikeCell(trimmed, supportedCurrencyCodes)
     && trimmed.length <= 48
 }
@@ -768,14 +794,4 @@ function isDataLikeCell(value: string, supportedCurrencyCodes: Set<string>) {
   return isValidDateValue(value)
     || isBareImportAmount(value)
     || isSupportedCurrency(value, supportedCurrencyCodes)
-}
-
-function normalizeHeaderCell(value: string) {
-  return value
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .toLowerCase()
-    .replace(/&/g, ' and ')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim()
 }

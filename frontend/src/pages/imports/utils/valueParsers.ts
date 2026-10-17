@@ -421,6 +421,9 @@ const IMPORT_DIRECTION_WORDS: Record<string, ImportAmountDirection> = {
   dep: 'in', deposit: 'in', deposits: 'in', deposited: 'in',
   in: 'in', inflow: 'in', incoming: 'in', moneyin: 'in', paidin: 'in',
   receipt: 'in', income: 'in', refund: 'in',
+
+  // The Dutch Af Bij column, as ING Netherlands writes it
+  af: 'out', bij: 'in',
 }
 
 // A file that writes its direction as a bare sign rather than a word. Read before punctuation is

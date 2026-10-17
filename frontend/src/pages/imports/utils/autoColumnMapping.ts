@@ -1,10 +1,15 @@
 import { COLUMN_TARGETS } from '@/pages/imports/constants'
 import type { ColumnMap, ColumnTarget, ImportAmountSideTarget, ImportFileDraft } from '@/pages/imports/types'
-import { unique } from './common'
+import { normalizeImportHeading, unique } from './common'
 import { getImportDirectionValues, validateColumnMap, validateColumnValues } from './columnMapping'
 import { isBareImportAmount } from './amountFormats'
 import { guessImportDirectionAnswers, isSupportedCurrency, isValidDateValue } from './valueParsers'
 
+// Beyond English, German and French, each language's wordings are the ones a real bank's export, its
+// documentation or a published sample of it shows: ING Netherlands, UniCredit, ING Spain,
+// Nubank, SEB, Spar Nord, DNB, OP, PKO BP, SMBC, KB Kookmin Bank and Yuanta Bank.
+// A key is the heading as `normalizeImportHeading` leaves it with the spaces squeezed out, so an
+// accented heading is keyed without its accents and one in Japanese, Korean or Chinese as written
 const HEADER_ALIAS_SCORES: Record<ColumnTarget, Record<string, number>> = {
   account_id: {
     account: 100,
@@ -28,6 +33,13 @@ const HEADER_ALIAS_SCORES: Record<ColumnTarget, Record<string, number>> = {
     buchungsdatum: 100,
     datum: 100,
     wertstellung: 90,
+    data: 100,
+    fvalor: 90,
+    bokforingsdag: 100,
+    dato: 100,
+    kirjauspaiva: 100,
+    dataoperacji: 100,
+    年月日: 100,
   },
   category_id: {
     category: 100,
@@ -45,6 +57,14 @@ const HEADER_ALIAS_SCORES: Record<ColumnTarget, Record<string, number>> = {
     montant: 100,
     summe: 90,
     umsatz: 90,
+    bedrag: 100,
+    euro: 90,
+    importe: 100,
+    valor: 100,
+    belopp: 100,
+    beløb: 100,
+    maaraeuroa: 100,
+    kwota: 100,
   },
   // The past-tense and plain-English wordings are listed alongside the bookkeeping ones because the
   // two sides have to match together. A pair where only one side is recognised is worse than one
@@ -62,6 +82,10 @@ const HEADER_ALIAS_SCORES: Record<ColumnTarget, Record<string, number>> = {
     outgoing: 90,
     out: 70,
     soll: 100,
+    utfrakonto: 100,
+    お引出し: 100,
+    출금액: 100,
+    支出金額: 100,
   },
   amount_in: {
     credit: 100,
@@ -76,6 +100,10 @@ const HEADER_ALIAS_SCORES: Record<ColumnTarget, Record<string, number>> = {
     incoming: 90,
     in: 70,
     haben: 100,
+    innpakonto: 100,
+    お預入れ: 100,
+    입금액: 100,
+    存入金額: 100,
   },
 
   // What a column of words carrying the direction is called. The money fields leave every one
@@ -96,6 +124,7 @@ const HEADER_ALIAS_SCORES: Record<ColumnTarget, Record<string, number>> = {
     indicator: 80,
     dc: 70,
     cd: 70,
+    afbij: 100,
   },
   currency: {
     currency: 100,
@@ -117,6 +146,18 @@ const HEADER_ALIAS_SCORES: Record<ColumnTarget, Record<string, number>> = {
     empfangerauftraggeber: 95,
     empfanger: 95,
     libelle: 65,
+    naamomschrijving: 95,
+    descrizione: 65,
+    descripcion: 65,
+    descricao: 65,
+    textmottagare: 95,
+    tekst: 65,
+    forklaring: 65,
+    saajamaksaja: 95,
+    opistransakcji: 65,
+    お取り扱い内容: 65,
+    보낸분받는분: 95,
+    交易說明: 65,
   },
   notes: {
     notes: 100,
@@ -131,6 +172,19 @@ const HEADER_ALIAS_SCORES: Record<ColumnTarget, Record<string, number>> = {
     transactiondescription: 45,
     verwendungszweck: 100,
     libelle: 45,
+    mededelingen: 100,
+    descrizione: 45,
+    descripcion: 45,
+    comentario: 90,
+    descricao: 45,
+    tekst: 45,
+    forklaring: 45,
+    viesti: 100,
+    opistransakcji: 45,
+    お取り扱い内容: 45,
+    송금메모: 100,
+    交易說明: 45,
+    備註: 100,
   },
   tag_ids: {
     tags: 100,
@@ -242,8 +296,9 @@ const HEADER_CONTAINS_SCORES: Record<ColumnTarget, Array<{ value: string; score:
 // take, since they accept any number and any blank
 const AMOUNT_LIKE_EXCLUDED_PARTS = [
   'balance', 'available', 'limit', 'rate', 'number', 'iban', 'routing',
-  // The French and German wordings of a running balance
-  'solde', 'saldo',
+  // The French wording of a running balance, then the one German, Dutch, Spanish, Portuguese, the
+  // Nordic languages and Polish share, then the Japanese, Korean and Chinese ones
+  'solde', 'saldo', '残高', '잔액', '餘額',
 ]
 
 const EXCLUDED_HEADER_PARTS: Partial<Record<ColumnTarget, string[]>> = {
@@ -281,6 +336,11 @@ const AMOUNT_SIDE_TARGETS: ImportAmountSideTarget[] = ['amount_out', 'amount_in'
 // escape the list that blocks `Account Number`. Only the longer parts are safe to look for this way,
 // because a short one appears inside ordinary words: `no` sits inside `nominee`
 const MIN_COMPACT_EXCLUSION_LENGTH = 5
+
+// A heading in Japanese, Korean or Chinese runs its words together, as in 差引残高 or 帳面餘額, so an
+// excluded part written in these scripts is always looked for inside the heading. A word of two or
+// three such letters is already as specific as a long Latin one
+const RUN_TOGETHER_SCRIPT_PATTERN = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
 
 const BRACKETED_SUFFIX_PATTERN = /\s*\([^)]*\)\s*$/
 
@@ -425,13 +485,16 @@ function isDirectionColumnReadable(files: ImportFileDraft[], header: string) {
 }
 
 function isHeaderExcludedForTarget(header: string, target: ColumnTarget) {
-  const normalized = normalizeHeader(header)
+  const normalized = normalizeImportHeading(header)
   const parts = normalized.split(' ')
   const compact = normalized.replace(/\s/g, '')
 
   const isExcludedByPart = (EXCLUDED_HEADER_PARTS[target] ?? []).some((excluded) => (
     parts.includes(excluded)
-    || (excluded.length >= MIN_COMPACT_EXCLUSION_LENGTH && compact.includes(excluded))
+    || (
+      (excluded.length >= MIN_COMPACT_EXCLUSION_LENGTH || RUN_TOGETHER_SCRIPT_PATTERN.test(excluded))
+      && compact.includes(excluded)
+    )
   ))
 
   return isExcludedByPart
@@ -439,7 +502,7 @@ function isHeaderExcludedForTarget(header: string, target: ColumnTarget) {
 }
 
 function scoreHeaderForTarget(header: string, target: ColumnTarget) {
-  const normalized = normalizeHeader(header)
+  const normalized = normalizeImportHeading(header)
   if (!normalized) return 0
 
   const compact = normalized.replace(/\s/g, '')
@@ -455,8 +518,10 @@ function scoreHeaderForTarget(header: string, target: ColumnTarget) {
   if (containsScore) return containsScore
 
   // A bracketed currency or unit after the name, as in `Betrag (EUR)`, is not part of the name. This
-  // runs only once the tables above have missed, so a heading they already score is read as before
-  const base = normalizeHeader(header.replace(BRACKETED_SUFFIX_PATTERN, '')).replace(/\s/g, '')
+  // runs only once the tables above have missed, so a heading they already score is read as before.
+  // Full-width brackets, as in `お引出し（円）`, are read as plain ones first
+  const unbracketed = header.normalize('NFKC').replace(BRACKETED_SUFFIX_PATTERN, '')
+  const base = normalizeImportHeading(unbracketed).replace(/\s/g, '')
   return base !== compact && Object.hasOwn(aliases, base) ? aliases[base] : 0
 }
 
@@ -559,25 +624,4 @@ function isCategoryLikeValue(value: string) {
 
 function normalizeValue(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
-}
-
-/**
- * Reduces a heading to lower-case words separated by single spaces
- *
- * An accented letter is read as its plain letter, so `Débit` is the word `debit` rather than the
- * two words `d` and `bit`
- *
- * A name written in camel case is split first, so `AccountNumber` reads as the two words
- * `Account Number` already does and the checks that work on words see both of them. Squeezing the
- * spaces back out afterwards gives the same key either spelling, so the alias table is unaffected
- */
-function normalizeHeader(header: string) {
-  return header
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .toLowerCase()
-    .replace(/&/g, ' and ')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim()
 }

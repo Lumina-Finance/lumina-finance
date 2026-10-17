@@ -1112,3 +1112,342 @@ describe('a column of decimal-comma amounts', () => {
     expect(map.amount).toBe('Betrag')
   })
 })
+
+/**
+ * Creates the rows of a draft from a heading line and the records under it
+ */
+function toRows(headers: string[], records: string[][]) {
+  return records.map((record) => Object.fromEntries(
+    headers.map((header, index) => [header, record[index] ?? '']),
+  ))
+}
+
+/**
+ * Creates a one-file draft from a heading line and the records under it, the way a bank's export
+ * reads, so each language's test copies its heading set as the bank publishes it
+ *
+ * Three columns go ahead of the bank's own, under headings no language gives a field: dates, plain
+ * numbers and short names. Each is exactly what its field would take from the values alone, and the
+ * first column wins a tie, so a bank heading the importer fails to read lets a decoy take the field
+ * and the test goes red, which the bank's own values would never do since they are as fit as the
+ * decoy's
+ */
+function createExport(headers: string[], records: string[][]) {
+  const decoyHeaders = ['Extra 1', 'Extra 2', 'Extra 3']
+  const allHeaders = [...decoyHeaders, ...headers]
+  const decoyRecords = records.map((record, index) => [
+    `2026-01-0${index + 1}`,
+    `${index + 1}0.00`,
+    `Shop ${index + 1}`,
+    ...record,
+  ])
+
+  return [createFile(allHeaders, toRows(allHeaders, decoyRecords))]
+}
+
+// Each heading set is copied from a real bank's export, its documentation or a published sample of
+// it. The values under them decide nothing: a short description could be any text column, and a
+// column of numbers would take the amount on its shape alone
+describe('a bank\'s headings in a language other than English, German or French', () => {
+  // ING Netherlands writes its dates as 20260405, which the reader does not take, so only the other
+  // fields are asked of it
+  it('reads ING Netherlands\' Dutch headings, with Af Bij as the direction', () => {
+    const files = createExport(
+      ['Datum', 'Naam / Omschrijving', 'Rekening', 'Tegenrekening', 'Code', 'Af Bij', 'Bedrag (EUR)', 'Mutatiesoort', 'Mededelingen', 'Saldo na mutatie', 'Tag'],
+      [
+        ['20260405', 'Albert Heijn 1234', 'NL20INGB0001234567', '', 'BA', 'Af', '12,50', 'Betaalautomaat', 'Pasvolgnr: 001 05-04-2026 14:32', '1234,50', ''],
+        ['20260406', 'Werkgever BV', 'NL20INGB0001234567', 'NL91ABNA0417164300', 'GT', 'Bij', '2500,00', 'Overschrijving', 'Salaris april', '3734,50', ''],
+      ],
+    )
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.merchant_id).toBe('Naam / Omschrijving')
+    expect(map.amount).toBe('Bedrag (EUR)')
+    expect(map.amount_direction).toBe('Af Bij')
+    expect(map.notes).toBe('Mededelingen')
+    expect(Object.values(map)).not.toContain('Saldo na mutatie')
+    expect(guessImportDirectionAnswers(['af', 'bij'])).toEqual({ af: 'out', bij: 'in' })
+  })
+
+  it('reads UniCredit\'s Italian headings, leaving Valuta, the value date, out of the currency', () => {
+    const files = createExport(
+      ['Data', 'Valuta', 'Descrizione', 'Euro', 'Caus.'],
+      [
+        ['27/02/2024', '27/02/2024', 'PAGAMENTO POS 1234 SUPERMERCATO ESSELUNGA MILANO CARTA 5678', '-136.72', '208'],
+        ['28/02/2024', '01/03/2024', 'BONIFICO A VOSTRO FAVORE DA AZIENDA SRL STIPENDIO FEBBRAIO', '2500.00', '048'],
+      ],
+    )
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.dt).toBe('Data')
+    expect(map.merchant_id).toBe('Descrizione')
+    expect(map.amount).toBe('Euro')
+    expect(map.currency).not.toBe('Valuta')
+  })
+
+  it('reads ING Spain\'s Spanish headings', () => {
+    const files = createExport(
+      ['F. VALOR', 'CATEGORÍA', 'SUBCATEGORÍA', 'DESCRIPCIÓN', 'COMENTARIO', 'IMAGEN', 'IMPORTE (€)', 'SALDO (€)'],
+      [
+        ['05/04/2026', 'Alimentación', 'Supermercados', 'Pago en MERCADONA', 'Compra semanal', 'No', '-45,30', '1.234,50'],
+        ['06/04/2026', 'Nómina y otras prestaciones', 'Nómina', 'Nómina recibida EMPRESA SL', '', 'No', '2.500,00', '3.734,50'],
+      ],
+    )
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.dt).toBe('F. VALOR')
+    expect(map.merchant_id).toBe('DESCRIPCIÓN')
+    expect(map.notes).toBe('COMENTARIO')
+    expect(map.amount).toBe('IMPORTE (€)')
+    expect(Object.values(map)).not.toContain('SALDO (€)')
+  })
+
+  // Nubank's account export has no balance column
+  it('reads Nubank\'s Brazilian Portuguese headings over its transaction identifier', () => {
+    const files = createExport(
+      ['Data', 'Valor', 'Identificador', 'Descrição'],
+      [
+        ['01/03/2026', '-50.00', '6a1e0f2c-6d4b-4f0e-9b1a-2f3c4d5e6f70', 'Compra no débito - PADARIA'],
+        ['05/03/2026', '1000.00', '7b2f1a3d-7e5c-4a1f-8c2b-3a4d5e6f7a81', 'Transferência recebida pelo Pix - FULANO'],
+      ],
+    )
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.dt).toBe('Data')
+    expect(map.amount).toBe('Valor')
+    expect(map.merchant_id).toBe('Descrição')
+  })
+
+  it('reads SEB\'s Swedish headings over its verification number', () => {
+    const files = createExport(
+      ['Bokföringsdag', 'Valutadag', 'Verifikationsnummer', 'Text/mottagare', 'Belopp', 'Saldo'],
+      [
+        ['2026-04-05', '2026-04-05', '5484381424', 'ICA SUPERMARKET', '-125,00', '10 234,50'],
+        ['2026-04-06', '2026-04-06', '5484381425', 'LÖN', '25 000,00', '35 234,50'],
+      ],
+    )
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.dt).toBe('Bokföringsdag')
+    expect(map.merchant_id).toBe('Text/mottagare')
+    expect(map.amount).toBe('Belopp')
+    expect(Object.values(map)).not.toContain('Saldo')
+  })
+
+  it('reads Spar Nord\'s Danish headings over the receiving account number', () => {
+    const files = createExport(
+      ['Modtagerkonto', 'Dato', 'Tekst', 'Beløb', 'Saldo', 'Indbetaler', 'Supp. tekst til modtager', 'Tekst til modtager'],
+      [
+        ['90001234567', '05.04.2026', 'Netto Østerbro', '-125,50', '10.234,50', '', '', ''],
+        ['90001234567', '06.04.2026', 'Løn april', '25.000,00', '35.234,50', 'Firma ApS', '', 'Løn'],
+      ],
+    )
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.dt).toBe('Dato')
+    expect(map.merchant_id).toBe('Tekst')
+    expect(map.amount).toBe('Beløb')
+    expect(Object.values(map)).not.toContain('Saldo')
+  })
+
+  // DNB's export has no balance column
+  it('reads DNB\'s Norwegian headings, with Ut fra konto and Inn på konto as the pair', () => {
+    const files = createExport(
+      ['Dato', 'Forklaring', 'Rentedato', 'Ut fra konto', 'Inn på konto'],
+      [
+        ['14.09.2026', 'Varekjøp Kiwi Lund Dronningens Gate Kristiansand', '17.09.2026', '146.98', ''],
+        ['14.09.2026', 'Lønn fra Extra Sørlandsparken', '16.09.2026', '', '9840.6'],
+      ],
+    )
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.dt).toBe('Dato')
+    expect(map.merchant_id).toBe('Forklaring')
+    expect(map.amount_out).toBe('Ut fra konto')
+    expect(map.amount_in).toBe('Inn på konto')
+    expect(map.amount).toBe('')
+  })
+
+  it('reads OP\'s Finnish headings, with the payee and the message in their own fields', () => {
+    const files = createExport(
+      ['Kirjauspäivä', 'Arvopäivä', 'Määrä EUROA', 'Tapahtumalajikoodi', 'Selitys', 'Saaja/Maksaja', 'Saajan tilinumero', 'Viite', 'Viesti', 'Arkistotunnus'],
+      [
+        ['05.04.2026', '05.04.2026', '-12,50', '106', 'KORTTIOSTO', 'K-MARKET KAMPPI', '', '', 'Ostos', '20260405/593497/123456'],
+        ['06.04.2026', '06.04.2026', '2500,00', '710', 'PALKKA', 'YRITYS OY', 'FI4950009420028730', '', 'Palkka huhtikuu', '20260406/593497/123457'],
+      ],
+    )
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.dt).toBe('Kirjauspäivä')
+    expect(map.amount).toBe('Määrä EUROA')
+    expect(map.merchant_id).toBe('Saaja/Maksaja')
+    expect(map.notes).toBe('Viesti')
+  })
+
+  it('reads PKO BP\'s Polish headings, keeping the balance after each transaction out of the amount', () => {
+    const files = createExport(
+      ['Data operacji', 'Data waluty', 'Typ transakcji', 'Kwota', 'Waluta', 'Saldo po transakcji', 'Opis transakcji'],
+      [
+        ['2026-04-05', '2026-04-04', 'Płatność kartą', '-3.20', 'PLN', '+5628.08', 'Tytuł: 010061097 74169509109951095304354'],
+        ['2026-04-06', '2026-04-06', 'Przelew na konto', '2500.00', 'PLN', '+8128.08', 'Tytuł: Wynagrodzenie kwiecień'],
+      ],
+    )
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.dt).toBe('Data operacji')
+    expect(map.amount).toBe('Kwota')
+    expect(map.merchant_id).toBe('Opis transakcji')
+    expect(Object.values(map)).not.toContain('Saldo po transakcji')
+  })
+
+  // Headings written in Japanese, Korean or Chinese used to reduce to nothing, since every letter
+  // outside a to z was read as a break between words
+  it('reads SMBC\'s Japanese headings, with お引出し and お預入れ as the pair and 残高 kept out', () => {
+    const files = createExport(
+      ['年月日', 'お引出し', 'お預入れ', 'お取り扱い内容', '残高', 'メモ', 'ラベル'],
+      [
+        ['2026/4/5', '1,200', '', 'カード(1234)', '98,800', '', ''],
+        ['2026/4/25', '', '250,000', '給与 カブシキガイシヤ', '348,800', '', ''],
+      ],
+    )
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.dt).toBe('年月日')
+    expect(map.amount_out).toBe('お引出し')
+    expect(map.amount_in).toBe('お預入れ')
+    expect(map.merchant_id).toBe('お取り扱い内容')
+    expect(Object.values(map)).not.toContain('残高')
+  })
+
+  // KB writes the date and the time of day in one cell, 2026.03.01 09:00:00, which the reader does
+  // not take, so only the other fields are asked of it
+  it('reads KB Kookmin Bank\'s Korean headings, with 출금액 and 입금액 as the pair', () => {
+    const files = createExport(
+      ['거래일시', '적요', '보낸분/받는분', '송금메모', '출금액', '입금액', '잔액', '거래점'],
+      [
+        ['2026.03.01 09:00:00', '체크카드', '스타벅스', '', '5,000', '', '145,000', '강남'],
+        ['2026.03.02 10:00:00', '모바일', '어머니', '용돈', '', '100,000', '245,000', '본점'],
+      ],
+    )
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.merchant_id).toBe('보낸분/받는분')
+    expect(map.notes).toBe('송금메모')
+    expect(map.amount_out).toBe('출금액')
+    expect(map.amount_in).toBe('입금액')
+  })
+
+  // Yuanta writes its dates as 20260821, which the reader does not take, so only the other fields
+  // are asked of it
+  it('reads Yuanta Bank\'s Traditional Chinese headings, with 支出金額 and 存入金額 as the pair', () => {
+    const files = createExport(
+      ['帳號', '帳務日期', '交易日期', '交易時間', '交易說明', '支出金額', '存入金額', '帳面餘額', '票據號碼', '備註'],
+      [
+        ['0012345678901234', '20260821', '20260821', '09:10:11', '跨行提款', '1,000', '', '9,000', '', ''],
+        ['0012345678901234', '20260822', '20260822', '10:20:30', '薪資轉入', '', '50,000', '59,000', '', '八月薪資'],
+      ],
+    )
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.merchant_id).toBe('交易說明')
+    expect(map.notes).toBe('備註')
+    expect(map.amount_out).toBe('支出金額')
+    expect(map.amount_in).toBe('存入金額')
+  })
+})
+
+// A file with a payee column of its own gives the merchant field to it, and a description heading
+// then falls to Notes at the lower score the description wordings carry there. The values are short,
+// so the shape of a long text column does not claim Notes in its place
+describe('a description heading in a language other than English, German or French, beside a payee', () => {
+  it.each([
+    ['Italian', 'Descrizione'],
+    ['Spanish', 'Descripción'],
+    ['Portuguese', 'Descrição'],
+    ['Danish', 'Tekst'],
+    ['Norwegian', 'Forklaring'],
+    ['Polish', 'Opis transakcji'],
+    ['Japanese', 'お取り扱い内容'],
+    ['Traditional Chinese', '交易說明'],
+  ])('reads %s\'s %s as the notes', (_language, heading) => {
+    const headers = ['Date', 'Payee', heading, 'Amount']
+    const files = [createFile(headers, toRows(headers, [
+      ['2026-04-05', 'Corner Grocer', 'Lunch', '-12.50'],
+      ['2026-04-06', 'Employer', 'Pay', '2500.00'],
+    ]))]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.merchant_id).toBe('Payee')
+    expect(map.notes).toBe(heading)
+  })
+})
+
+// The numbers under a balance heading look exactly like an amount, so only the heading keeps the
+// column out of Amount and the sides. There is no amount column beside it to take the field instead
+describe('a balance column with no amount column', () => {
+  it.each([
+    ['a Dutch, Spanish, Portuguese or Nordic', 'Saldo'],
+    ['a Polish', 'Saldo po transakcji'],
+    ['a full-width', 'Ｓａｌｄｏ'],
+    ['a Japanese', '残高'],
+    ['a Japanese compound', '差引残高'],
+    ['a Korean', '잔액'],
+    ['a Korean compound', '거래후잔액'],
+    ['a Traditional Chinese', '餘額'],
+    ['a Traditional Chinese compound', '帳面餘額'],
+  ])('keeps %s balance heading, %s, out of the money fields', (_language, heading) => {
+    const headers = ['Date', 'Memo', heading]
+    const files = [createFile(headers, toRows(headers, [
+      ['2026-04-05', 'Lunch', '1234.50'],
+      ['2026-04-06', 'Pay', '3734.50'],
+    ]))]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount).toBe('')
+    expect(map.amount_out).toBe('')
+    expect(map.amount_in).toBe('')
+  })
+})
+
+// Japanese and Chinese files often write letters, digits and brackets in their full-width forms
+describe('a heading written in full-width characters', () => {
+  it('reads a full-width bracketed unit after a heading as the plain heading', () => {
+    const files = createExport(
+      ['年月日', 'お引出し（円）', 'お預入れ（円）'],
+      [
+        ['2026/4/5', '1,200', ''],
+        ['2026/4/25', '', '250,000'],
+      ],
+    )
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount_out).toBe('お引出し（円）')
+    expect(map.amount_in).toBe('お預入れ（円）')
+  })
+
+  it('reads full-width Latin letters as their plain letters', () => {
+    const files = createExport(
+      ['Ｂｅｔｒａｇ'],
+      [['12,50'], ['2500,00']],
+    )
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount).toBe('Ｂｅｔｒａｇ')
+  })
+})

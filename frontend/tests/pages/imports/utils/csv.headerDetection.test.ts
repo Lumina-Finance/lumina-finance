@@ -155,6 +155,56 @@ describe('detecting the header row of a German or accented export', () => {
   })
 })
 
+// Their letters used to count as no text at all, so the heading line was staged as a transaction
+describe('detecting the header row of a Japanese, Korean or Chinese export', () => {
+  it.each([
+    ['SMBC', ['年月日', 'お引出し', 'お預入れ', 'お取り扱い内容', '残高'], ['2026/4/5', '1,200', '', 'カード(1234)', '98,800']],
+    ['KB Kookmin Bank', ['거래일시', '적요', '보낸분/받는분', '출금액', '입금액', '잔액'], ['2026.03.01 09:00:00', '체크카드', '스타벅스', '5,000', '', '145,000']],
+    ['Yuanta Bank', ['帳號', '帳務日期', '交易日期', '交易時間', '交易說明', '支出金額', '存入金額', '帳面餘額', '票據號碼', '備註'], ['0012345678901234', '20260821', '20260821', '09:10:11', '跨行提款', '1,000', '', '9,000', '', '']],
+  ])('reads %s\'s heading line as the header row', (_bank, heading, record) => {
+    const parsed = buildParsedCsv([heading, record, record], SUPPORTED_CURRENCY_CODES)
+
+    expect(parsed.hasHeaderRow).toBe(true)
+    expect(parsed.headers).toEqual(heading)
+    expect(parsed.rows).toHaveLength(2)
+  })
+})
+
+// A line of account details above the table, and rows that each end with a separator, so the heading
+// is one cell narrower than its rows and the line is the heading only by its own words. Each heading holds two
+// words from the date and description headings of its language, or one beside Datum
+describe('finding the heading line of an export in another language under a line above it', () => {
+  it.each([
+    ['ING Netherlands', ['Datum', 'Naam / Omschrijving', 'Bedrag (EUR)']],
+    ['UniCredit', ['Data', 'Descrizione', 'Euro']],
+    ['ING Spain', ['F. VALOR', 'DESCRIPCIÓN', 'IMPORTE (€)']],
+    ['Nubank', ['Data', 'Valor', 'Descrição']],
+    ['SEB', ['Bokföringsdag', 'Text/mottagare', 'Belopp']],
+    ['Spar Nord', ['Dato', 'Tekst', 'Beløb']],
+    ['DNB', ['Dato', 'Forklaring', 'Ut fra konto']],
+    ['OP', ['Kirjauspäivä', 'Saaja/Maksaja', 'Määrä EUROA']],
+    ['PKO BP', ['Data operacji', 'Opis transakcji', 'Kwota']],
+    ['SMBC', ['年月日', 'お取り扱い内容', '残高']],
+    ['KB Kookmin Bank', ['보낸분/받는분', '송금메모', '출금액']],
+    ['Yuanta Bank', ['交易說明', '備註', '帳號']],
+    ['a file with full-width letters', ['Ｄａｔｕｍ', 'Ｖｅｒｗｅｎｄｕｎｇｓｚｗｅｃｋ', 'Ｂｅｔｒａｇ']],
+  ])('finds %s\'s heading line', (_bank, heading) => {
+    const record = [...heading.map((_cell, index) => `Value ${index}`), '']
+
+    const parsed = buildParsedCsv(
+      [['Account details'], heading, record, record],
+      SUPPORTED_CURRENCY_CODES,
+      true,
+      {},
+    )
+
+    // The rows are refused for the separator the heading lacks, as a narrower header always is, but
+    // the reading names the heading line as the header row instead of the first transaction
+    expect(parsed.reading?.headerRow).toBe(2)
+    expect(parsed.error).toContain('values against')
+  })
+})
+
 describe('a first row of text over one column of amounts', () => {
   it('is the header row, with the amounts guessed as Amount in their own format', () => {
     const parsed = buildParsedCsv([
