@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react'
 import {
   EmptyState,
   ImportFilesStepLayout,
@@ -7,8 +6,7 @@ import {
   ImportStagedFileList,
   ImportUploadCard,
 } from '@/pages/imports/components'
-import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
-import type { ImportFileDraft } from '@/pages/imports/types'
+import { useStagedFileFocus, type TransactionImportWorkflow } from '@/pages/imports/hooks'
 import { SEVERAL_CSV_IMPORT_FILE_TYPE } from '@/pages/imports/utils'
 
 type ImportFilesStepProps = Pick<
@@ -72,46 +70,8 @@ export function ImportFilesStep({
   // file wrongly rather than merely leave a later step waiting
   const isUploadBlocked = isProcessingFiles || uploadBlockReason !== null
   const isImportFinished = Boolean(importResult)
-  const stagedListRef = useRef<HTMLDivElement>(null)
   const stagedFile = files[0]
-  const isFileStaged = Boolean(stagedFile)
-  const wasFileStagedRef = useRef(isFileStaged)
-
-  // The upload card is what the keyboard user pressed to get here, so taking it away leaves them on
-  // the page body with the next tab starting from the top. The staged row's Remove button is the
-  // control that replaced it, and it is the first button the list holds. Focus is only taken back
-  // where the browser dropped it, so a user who moved on while the file was being read keeps where
-  // they are
-  useEffect(() => {
-    const hasJustBeenStaged = isFileStaged && !wasFileStagedRef.current
-    wasFileStagedRef.current = isFileStaged
-    if (!hasJustBeenStaged || document.activeElement !== document.body) return
-    stagedListRef.current?.querySelector('button')?.focus()
-  }, [isFileStaged])
-
-  // Removing a file takes the focused Remove button away, which would leave the keyboard user on the
-  // page body once the row has collapsed. Focus moves as the row starts leaving, to the next file's
-  // Remove button, or the previous one's when the last row went, or to the upload card when no file
-  // is left. A click leaves focus alone, since the pointer's user has no place to keep
-  const uploadCardRef = useRef<HTMLButtonElement>(null)
-  const isUploadCardDueFocusRef = useRef(false)
-  const removeFileKeepingFocus = (file: ImportFileDraft) => {
-    const list = stagedListRef.current
-    if (list?.contains(document.activeElement)) {
-      const buttons = Array.from(list.querySelectorAll<HTMLButtonElement>('button[aria-label^="Remove "]'))
-      const index = files.findIndex((staged) => staged.id === file.id)
-      const neighbour = buttons[index + 1] ?? buttons[index - 1]
-      if (neighbour) neighbour.focus()
-      else isUploadCardDueFocusRef.current = true
-    }
-    removeFile(file.id)
-  }
-
-  useEffect(() => {
-    if (files.length > 0 || !isUploadCardDueFocusRef.current) return
-    isUploadCardDueFocusRef.current = false
-    uploadCardRef.current?.focus()
-  }, [files.length])
+  const { stagedListRef, uploadCardRef, removeFileKeepingFocus } = useStagedFileFocus(files, removeFile)
 
   // Files are added to the staged ones, so the card stays unless a staged file is refused. A finished
   // import keeps its files as a record and shows the card for starting the next one
@@ -187,7 +147,7 @@ export function ImportFilesStep({
               rows drop their side padding to do it, rather than being pulled out with a negative margin,
               since the section scrolls and a box wider than it slides sideways */}
           <div ref={stagedListRef}>
-            <ImportStagedFileList isFlush files={files} onRemove={isImportFinished ? undefined : removeFileKeepingFocus} />
+            <ImportStagedFileList isFlush files={files} onRemove={isImportFinished ? undefined : (file) => removeFileKeepingFocus(file.id)} />
           </div>
           {/* Adding files sits with the list it adds to, above the settings they all share. A finished
               import's card is the start of the next import, so it sits last */}
