@@ -2,7 +2,8 @@ import { COLUMN_TARGETS } from '@/pages/imports/constants'
 import type { ColumnMap, ColumnTarget, ImportAmountSideTarget, ImportFileDraft } from '@/pages/imports/types'
 import { unique } from './common'
 import { getImportDirectionValues, validateColumnMap, validateColumnValues } from './columnMapping'
-import { guessImportDirectionAnswers, isSupportedCurrency, isValidAmountValue, isValidDateValue } from './valueParsers'
+import { isBareImportAmount } from './amountFormats'
+import { guessImportDirectionAnswers, isSupportedCurrency, isValidDateValue } from './valueParsers'
 
 const HEADER_ALIAS_SCORES: Record<ColumnTarget, Record<string, number>> = {
   account_id: {
@@ -469,7 +470,7 @@ function scoreValuesForTarget(
   if (values.length === 0) return 0
 
   const validDateRatio = getRatio(values, isValidDateValue)
-  const validAmountRatio = getRatio(values, isValidAmountValue)
+  const validAmountRatio = getRatio(values, isBareImportAmount)
   const validCurrencyRatio = getRatio(values, (value) => isSupportedCurrency(value, supportedCurrencyCodes))
   const textValues = values.filter((value) => isPlainTextData(value, supportedCurrencyCodes))
   const textRatio = textValues.length / values.length
@@ -544,7 +545,7 @@ function getAverageLength(values: string[]) {
 function isPlainTextData(value: string, supportedCurrencyCodes: Set<string>) {
   return Boolean(value.trim())
     && !isValidDateValue(value)
-    && !isValidAmountValue(value)
+    && !isBareImportAmount(value)
     && !isSupportedCurrency(value, supportedCurrencyCodes)
 }
 

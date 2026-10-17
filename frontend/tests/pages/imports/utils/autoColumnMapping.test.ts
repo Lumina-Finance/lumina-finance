@@ -5,7 +5,12 @@
 import { describe, expect, it } from 'vitest'
 import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import type { ImportFileDraft } from '@/pages/imports/types'
-import { guessImportDirectionAnswers, inferColumnMap } from '@/pages/imports/utils'
+import {
+  getImportAmountFormatValues,
+  guessImportDirectionAnswers,
+  inferColumnMap,
+  scanImportAmountFormatChoices,
+} from '@/pages/imports/utils'
 
 /**
  * Creates a one-file draft from the given headers and rows
@@ -990,5 +995,120 @@ describe('the German words for the sum of a transaction', () => {
 
       expect(map.amount).toBe(heading)
     }
+  })
+})
+
+describe('a column of decimal-comma amounts', () => {
+  const AMOUNTS = ['-4,50', '-1.234,50', '2.500,00']
+  const DATES = ['05/04/2026', '06/04/2026', '07/04/2026']
+
+  it('is the amount rather than the tags, and the number format preselects the decimal comma', () => {
+    const files = [createFile(
+      ['Date', 'Description', 'Amount'],
+      AMOUNTS.map((amount, index) => ({ Date: DATES[index], Description: 'Corner Grocer', Amount: amount })),
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+    const { automatic } = scanImportAmountFormatChoices(getImportAmountFormatValues(map, files))
+
+    expect(map.amount).toBe('Amount')
+    expect(map.tag_ids).toBe('')
+    expect(automatic).toEqual({ decimalSeparator: ',', groupingSeparator: '.' })
+  })
+
+  it('is the amount under a German heading', () => {
+    const files = [createFile(
+      ['Datum', 'Verwendungszweck', 'Betrag (€)'],
+      AMOUNTS.map((amount, index) => ({ Datum: DATES[index], Verwendungszweck: 'Miete', 'Betrag (€)': amount })),
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount).toBe('Betrag (€)')
+    expect(map.tag_ids).toBe('')
+  })
+
+  it('is the amount with no heading to say so, whichever grouping it is written with', () => {
+    const files = [createFile(
+      ['Date', 'Misc'],
+      [
+        { Date: DATES[0], Misc: '1 234,50' },
+        { Date: DATES[1], Misc: '12,00' },
+        { Date: DATES[2], Misc: '-1234,5' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount).toBe('Misc')
+    expect(map.tag_ids).toBe('')
+  })
+
+  // Cells with text beside the digits are references or amounts with a currency, which the guesser
+  // leaves for the user to map rather than reading them as amounts from their shape
+  it('never guesses a column of cells with text beside the digits as an amount', () => {
+    const files = [createFile(
+      ['Date', 'Misc'],
+      [
+        { Date: DATES[0], Misc: 'REF 2026' },
+        { Date: DATES[1], Misc: '12 EUR' },
+        { Date: DATES[2], Misc: 'REF 2027' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount).toBe('')
+    expect(map.amount_out).toBe('')
+    expect(map.amount_in).toBe('')
+  })
+
+  it('leaves a balance column alone whether it is headed Balance or Solde', () => {
+    const files = [createFile(
+      ['Date', 'Amount', 'Solde', 'Balance'],
+      [
+        { Date: DATES[0], Amount: '-4,50', Solde: '1 234,50', Balance: '1 234,50' },
+        { Date: DATES[1], Amount: '12,00', Solde: '12,00', Balance: '12,00' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount).toBe('Amount')
+    expect(Object.values(map)).not.toContain('Solde')
+    expect(Object.values(map)).not.toContain('Balance')
+  })
+
+  // Words with a comma in them are still the tags or notes the column's heading or shape says,
+  // since only a cell made of digits and separators reads as an amount
+  it('does not take a column of words with commas in them for amounts', () => {
+    const files = [createFile(
+      ['Date', 'Amount', 'Notes'],
+      [
+        { Date: DATES[0], Amount: '-4.50', Notes: 'rent, april' },
+        { Date: DATES[1], Amount: '12.00', Notes: 'gift, may' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.notes).toBe('Notes')
+    expect(map.amount).toBe('Amount')
+    expect(map.tag_ids).toBe('')
+  })
+
+  it('does not take a column of dates written with periods for amounts', () => {
+    const files = [createFile(
+      ['Buchungstag', 'Betrag'],
+      [
+        { Buchungstag: '05.04.2026', Betrag: '-4,50' },
+        { Buchungstag: '06.04.2026', Betrag: '12,00' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.dt).toBe('Buchungstag')
+    expect(map.amount).toBe('Betrag')
   })
 })
