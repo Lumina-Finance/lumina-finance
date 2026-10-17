@@ -1,13 +1,13 @@
 import { SKIPPED_TABLE_VISIBLE_LIMIT } from '@/pages/imports/constants'
 import type { ImportRowProblem } from '@/pages/imports/types'
-import { ImportSkippedTable, type ImportSkippedTableRow } from './SkippedTable'
+import { ImportSkippedTable, SkippedFileNamedLead, type ImportSkippedTableRow } from './SkippedTable'
 
 // Wide enough for a row number, which is all the lead cell carries while one file is staged
 const ROW_NUMBER_COLUMN_WIDTH = '3.5rem'
 
-// Wide enough for a row number above the start of a file's name, which a long name is cut to. The
-// whole name is in the cell's tooltip, and the staged file list above holds it in full
-const FILE_NAMED_COLUMN_WIDTH = '9rem'
+// Wide enough for the start of a file's name under the row number, which the cell cuts the rest of.
+// Kept narrow, since a phone shows the file's own columns beside it
+const FILE_NAMED_ROW_COLUMN_WIDTH = '6rem'
 
 /**
  * Collapsible panel listing the rows the import has something to say about, freezing which row each
@@ -56,14 +56,7 @@ export function ImportRowProblemsTable({
   // table row per imported row on each render of the page
   const tableRows: ImportSkippedTableRow[] = rowProblems.slice(0, SKIPPED_TABLE_VISIBLE_LIMIT).map((problem) => ({
     key: problem.id,
-    lead: areFilesNamed ? (
-      <>
-        <span className="block">{problem.rowNumber}</span>
-        <span className="block truncate text-xs font-normal" style={{ color: 'var(--app-text-subtle)' }} title={problem.fileName}>
-          {problem.fileName}
-        </span>
-      </>
-    ) : problem.rowNumber,
+    lead: areFilesNamed ? <SkippedFileNamedLead lead={problem.rowNumber} fileName={problem.fileName} /> : problem.rowNumber,
     reason: problem.reason,
     cells: Object.fromEntries(headers.map((header) => [header, problem.cells[header] ?? ''])),
   }))
@@ -73,7 +66,7 @@ export function ImportRowProblemsTable({
       title={title}
       toggleLabel={toggleLabel}
       leadHeader="Row"
-      leadColumnWidth={areFilesNamed ? FILE_NAMED_COLUMN_WIDTH : ROW_NUMBER_COLUMN_WIDTH}
+      leadColumnWidth={areFilesNamed ? FILE_NAMED_ROW_COLUMN_WIDTH : ROW_NUMBER_COLUMN_WIDTH}
       leadCellClassName="font-financial font-semibold tabular-nums"
       headers={headers}
       amountHeaders={amountHeaders}

@@ -116,8 +116,9 @@ describe('the account step and the preview', () => {
     renderToStaticMarkup(createElement(OfxCurrencyMismatchNotice, { mismatches: state.importBuild.currencyMismatches }))
   )
 
-  function renderPreviewStep(state: Awaited<ReturnType<typeof buildState>>) {
+  function renderPreviewStep(state: Awaited<ReturnType<typeof buildState>>, fileCount = 1) {
     return renderToStaticMarkup(createElement(OfxPreviewStep, {
+      stagedFiles: Array.from({ length: fileCount }, (_, index) => ({ id: String(index) })),
       importEstimate: { rowCount: 1, transactionEstimate: 1 },
       previewGroups: [],
       predictedSkippedRows: state.importBuild.skippedRows,
@@ -156,5 +157,15 @@ describe('the account step and the preview', () => {
 
     expect(preview).toContain('Broken')
     expect(preview).toContain(state.importBuild.skippedRows[0].reason)
+  })
+
+  // Dates and amounts say nothing about which of several files a row is in
+  it('names the file beside each skipped transaction of several files, and names none for one file', async () => {
+    const state = await buildState('CAD')
+    const fileName = state.importBuild.skippedRows[0].fileName
+
+    expect(fileName).toBe('statement.ofx')
+    expect(renderPreviewStep(state, 2)).toContain(`title="${fileName}"`)
+    expect(renderPreviewStep(state, 1)).not.toContain(fileName)
   })
 })

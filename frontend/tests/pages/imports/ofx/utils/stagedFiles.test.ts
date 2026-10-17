@@ -124,6 +124,28 @@ describe('combining the statements of several files', () => {
     expect(new Set(combined.statements.map((statement) => statement.name)).size).toBe(2)
   })
 
+  // Many banks name every download alike, so a name two files share is told apart by the file's position
+  it('names a file by its position only when another file has the same name, and orders the files', async () => {
+    const readNamed = async (name: string, statement: FixtureStatement) => {
+      const read = await readOfxFile(toOfxFile(wrapMessageSets([buildMessageSet(statement, false)]), name))
+      if (read.status !== 'read') throw new Error(read.reason)
+      return read.file
+    }
+
+    const combined = combineOfxFiles([
+      await readNamed('statement.qfx', JANUARY),
+      await readNamed('other.qfx', FEBRUARY),
+      await readNamed('statement.qfx', { transactions: [{ name: 'Gas', fitId: 'C1' }] }),
+    ])
+
+    expect(combined.statements[0].transactions.map((transaction) => [transaction.fileName, transaction.fileOrder])).toEqual([
+      ['statement.qfx (file 1)', 1],
+      ['statement.qfx (file 1)', 1],
+      ['other.qfx', 2],
+      ['statement.qfx (file 3)', 3],
+    ])
+  })
+
   it('adds up the statements every file leaves out', async () => {
     const january = await readOfxFile(toOfxFile(wrapMessageSets([buildMessageSet(JANUARY, false), buildLeftOutMessageSet('LOANMSGSRSV1', 1)])))
     const february = await readOfxFile(toOfxFile(wrapMessageSets([buildMessageSet(FEBRUARY, false), buildLeftOutMessageSet('INVSTMTMSGSRSV1', 2), buildLeftOutMessageSet('LOANMSGSRSV1', 1)])))

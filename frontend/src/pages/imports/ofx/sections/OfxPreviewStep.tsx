@@ -16,6 +16,7 @@ type OfxPreviewStepProps = Pick<
   | 'importResult'
   | 'canCommitImport'
   | 'handleCommitImport'
+  | 'stagedFiles'
 >
 
 /**
@@ -32,6 +33,7 @@ export function OfxPreviewStep({
   importResult,
   canCommitImport,
   handleCommitImport,
+  stagedFiles,
 }: OfxPreviewStepProps) {
   const skipped = getSkippedRowsDisplay({ liveForecastRows: predictedSkippedRows, completedImport })
 
@@ -48,7 +50,7 @@ export function OfxPreviewStep({
       onCommit={handleCommitImport}
     >
       <OfxReveal show={skipped.totalCount > 0}>
-        <OfxSkippedRowsTable title={skipped.title} rows={skipped.rows} />
+        <OfxSkippedRowsTable title={skipped.title} rows={skipped.rows} areFilesNamed={stagedFiles.length > 1} />
       </OfxReveal>
     </ImportPreviewLayout>
   )

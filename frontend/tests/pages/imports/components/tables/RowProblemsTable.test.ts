@@ -54,8 +54,8 @@ describe('the import\'s row problem tables', () => {
     }))
 
     // The number then the name, each in an element of its own, whatever the elements are styled with
-    expect(render(true)).toMatch(/>7<\/span><span[^>]*>2024-03\.csv<\/span>/)
-    expect(render(true)).toMatch(/>7<\/span><span[^>]*>2024-04\.csv<\/span>/)
+    expect(render(true)).toMatch(/>7<\/span><span[^>]*><span[^>]*>2024-03\.csv<\/span>/)
+    expect(render(true)).toMatch(/>7<\/span><span[^>]*><span[^>]*>2024-04\.csv<\/span>/)
     expect(render(false)).not.toContain('.csv')
   })
 
