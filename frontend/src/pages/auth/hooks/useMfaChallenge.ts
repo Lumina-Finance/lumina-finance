@@ -77,6 +77,10 @@ export function useMfaChallenge({ containerRef, recoveryMode, setError }: UseMfa
   const handleMfaSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
+    // The challenge is single-use, so a second submission while one is in flight would spend it
+    // twice and turn the first one's sign-in into an error
+    if (mfaSubmitting) return
+
     // A recovery code is a free-form string while an authenticator code is a fixed-length number
     const code = mfaUseRecoveryCode ? mfaCode.trim() : mfaCode
     const codeReady = mfaUseRecoveryCode ? code.length > 0 : code.length >= OTP_LENGTH
