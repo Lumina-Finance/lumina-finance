@@ -329,11 +329,11 @@ export function isValidDateValue(value: string) {
 /**
  * Reports whether a cell strictly resembles an amount before a column has been mapped
  *
- * Header-row detection, delimiter evidence and the check that refuses a column of names reading as
- * money use this narrower rule, which reads only the period-decimal convention, so arbitrary
- * surrounding text does not turn an account name or reference into an amount. Column guessing uses
- * `isBareImportAmount`, which reads every supported format. Mapped columns use the selected amount
- * reader
+ * Delimiter evidence and the check that refuses a column of names reading as money use this
+ * narrower rule, which reads only the period-decimal convention, so arbitrary surrounding text
+ * does not turn an account name or reference into an amount. Column guessing and header-row
+ * detection use `isBareImportAmount`, which reads every supported format. Mapped columns use the
+ * selected amount reader
  */
 export function isValidAmountValue(value: string) {
   return parseImportNumber(value) !== null

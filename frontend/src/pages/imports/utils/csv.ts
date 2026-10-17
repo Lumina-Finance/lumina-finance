@@ -1,5 +1,6 @@
 import type { CsvPreviewLine, CsvReading, CsvReadingChoices, CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import { formatBytes } from './common'
+import { isBareImportAmount } from './amountFormats'
 import { isSupportedCurrency, isValidAmountValue, isValidDateValue } from './valueParsers'
 
 /**
@@ -97,6 +98,15 @@ const HEADER_ALIASES = new Set([
   'reference',
   'tags',
   'tag',
+
+  // The German and French date and description headings, written without accents
+  'datum',
+  'buchungstag',
+  'buchungsdatum',
+  'wertstellung',
+  'datedoperation',
+  'verwendungszweck',
+  'libelle',
 ])
 
 const NO_READABLE_ROWS_ERROR = 'No readable rows detected'
@@ -714,7 +724,21 @@ function detectHeaderRow(records: string[][], supportedCurrencyCodes: Set<string
     && following.some((record) => isDataLikeCell(record[index] ?? '', supportedCurrencyCodes))
   )).length
 
-  return dataShiftCount >= 2
+  if (dataShiftCount >= 2) return true
+
+  // One column of nothing but amounts under a text cell is as clear as two columns of data, which
+  // is all a file with a single amount column and no date column can offer. The first row has no
+  // data-like cell by here, so it is not a transaction whose own amount sits in that column
+  return first.some((cell, index) => (
+    isHeaderTextCell(cell, supportedCurrencyCodes)
+    && isColumnOfBareAmounts(following, index)
+  ))
+}
+
+/** Reports whether every filled cell of one column in the given records is an amount, and some is */
+function isColumnOfBareAmounts(records: string[][], index: number) {
+  const values = records.map((record) => (record[index] ?? '').trim()).filter(Boolean)
+  return values.length > 0 && values.every(isBareImportAmount)
 }
 
 function getMaxColumnCount(records: string[][]) {
@@ -742,12 +766,14 @@ function isHeaderTextCell(value: string, supportedCurrencyCodes: Set<string>) {
 
 function isDataLikeCell(value: string, supportedCurrencyCodes: Set<string>) {
   return isValidDateValue(value)
-    || isValidAmountValue(value)
+    || isBareImportAmount(value)
     || isSupportedCurrency(value, supportedCurrencyCodes)
 }
 
 function normalizeHeaderCell(value: string) {
   return value
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
     .toLowerCase()
     .replace(/&/g, ' and ')
     .replace(/[^a-z0-9]+/g, ' ')

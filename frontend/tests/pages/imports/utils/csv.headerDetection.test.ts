@@ -3,7 +3,13 @@
  * is staged as a transaction and whether the columns carry the file's own names
  */
 import { describe, expect, it } from 'vitest'
-import { buildParsedCsv } from '@/pages/imports/utils'
+import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
+import {
+  buildParsedCsv,
+  getImportAmountFormatValues,
+  inferColumnMap,
+  scanImportAmountFormatChoices,
+} from '@/pages/imports/utils'
 
 const SUPPORTED_CURRENCY_CODES = new Set(['CAD', 'USD', 'EUR', 'JPY'])
 
@@ -98,5 +104,91 @@ describe('detecting a header row', () => {
 
     expect(parsed.hasHeaderRow).toBe(true)
     expect(parsed.headers).toEqual(['Date', 'Reference1', 'Amount2'])
+  })
+})
+
+describe('detecting the header row of a French export', () => {
+  const HEADING = ['Date d\'opération', 'Libellé', 'Débit', 'Crédit', 'Solde']
+  const PURCHASE = ['05/04/2026', 'CARTE SUPERMARCHE', '12,50', '', '1 234,50']
+  const SALARY = ['06/04/2026', 'VIREMENT SALAIRE', '', '2 500,00', '3 734,50']
+
+  it('reads the heading line over decimal-comma rows as the header row', () => {
+    const parsed = buildParsedCsv([HEADING, PURCHASE, SALARY], SUPPORTED_CURRENCY_CODES)
+
+    expect(parsed.hasHeaderRow).toBe(true)
+    expect(parsed.headers).toEqual(HEADING)
+    expect(parsed.rows).toHaveLength(2)
+  })
+
+  it('still reads the heading line as the header row over a single transaction', () => {
+    const parsed = buildParsedCsv([HEADING, PURCHASE], SUPPORTED_CURRENCY_CODES)
+
+    expect(parsed.hasHeaderRow).toBe(true)
+    expect(parsed.headers).toEqual(HEADING)
+    expect(parsed.rows).toHaveLength(1)
+  })
+
+  it('keeps a first row that is a transaction as data when no heading line is above it', () => {
+    const parsed = buildParsedCsv([PURCHASE, SALARY], SUPPORTED_CURRENCY_CODES)
+
+    expect(parsed.hasHeaderRow).toBe(false)
+    expect(parsed.rows).toHaveLength(2)
+  })
+})
+
+describe('detecting the header row of a German or accented export', () => {
+  it('reads a Datum and Verwendungszweck heading line as the header row', () => {
+    const parsed = buildParsedCsv([
+      ['Datum', 'Verwendungszweck'],
+      ['05.04.2026', 'Miete April'],
+    ], SUPPORTED_CURRENCY_CODES)
+
+    // The French pair is accented, so it is only the headings when the accent is read as its letter
+    const french = buildParsedCsv([
+      ['Date d\'opération', 'Libellé'],
+      ['05/04/2026', 'CARTE SUPERMARCHE'],
+    ], SUPPORTED_CURRENCY_CODES)
+
+    expect(parsed.hasHeaderRow).toBe(true)
+    expect(parsed.headers).toEqual(['Datum', 'Verwendungszweck'])
+    expect(french.hasHeaderRow).toBe(true)
+  })
+})
+
+describe('a first row of text over one column of amounts', () => {
+  it('is the header row, with the amounts guessed as Amount in their own format', () => {
+    const parsed = buildParsedCsv([
+      ['Vorgang', 'Summe', 'Kennung'],
+      ['Kauf', '-12,50', 'REF 2026'],
+      ['Erstattung', '1.234,56', '12 EUR'],
+    ], SUPPORTED_CURRENCY_CODES)
+    const files = [{
+      id: 'file-1',
+      name: 'Umsaetze.csv',
+      size: 1024,
+      headers: parsed.headers,
+      hasHeaderRow: parsed.hasHeaderRow,
+      rows: parsed.rows,
+      error: null,
+    }]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+    const { automatic } = scanImportAmountFormatChoices(getImportAmountFormatValues(map, files))
+
+    expect(parsed.hasHeaderRow).toBe(true)
+    expect(parsed.headers).toEqual(['Vorgang', 'Summe', 'Kennung'])
+    expect(map.amount).toBe('Summe')
+    expect(map.tag_ids).not.toBe('Kennung')
+    expect(Object.values(map)).not.toContain('Kennung')
+    expect(automatic).toEqual({ decimalSeparator: ',', groupingSeparator: '.' })
+  })
+
+  it('keeps a first row of text with no heading line as data when it sits over no amount column', () => {
+    const parsed = buildParsedCsv([
+      ['Kauf', 'Supermarkt'],
+      ['Erstattung', 'Bäckerei'],
+    ], SUPPORTED_CURRENCY_CODES)
+
+    expect(parsed.hasHeaderRow).toBe(false)
   })
 })
