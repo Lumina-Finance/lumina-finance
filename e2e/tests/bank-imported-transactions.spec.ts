@@ -3,6 +3,7 @@ import { expect, test, type APIRequestContext, type Locator, type Page } from '@
 import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser, type SeededAccount, type TestUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
 import { addImportedItem, editTransaction, linkToEmptyBankAccount } from '../support/bankSync'
+import { colourContrast, fillContrast } from '../support/contrast'
 import { getTransactionRowButton } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
@@ -38,41 +39,15 @@ const SHORT_WINDOW_HEIGHT = 600
 // How far below the sticky bars the bank icon is scrolled to, too close for the panel to fit above it
 const ICON_UNDER_BARS_PX = 2
 
+// How far down the window, as a share of its height, the icon is scrolled to for room above it
+const ICON_DOWN_THE_WINDOW = 0.85
+
 // How far below the search and filter bars the app sticks a day heading
 const HEADING_GAP_UNDER_BARS_PX = 4
 
 // How far inside the tooltip panel's edges a point is read to find what covers it, clear of the
 // border's antialiasing
 const PANEL_EDGE_INSET_PX = 2
-
-/**
- * How strongly a colour of the element stands out from the first solid background behind it, as the
- * WCAG contrast ratio
- */
-async function contrastWithBackground(element: Locator, property: 'color' | 'backgroundColor'): Promise<number> {
-  return element.evaluate((node, property) => {
-    const parse = (value: string) => {
-      if (!value.startsWith('rgb')) throw new Error(`expected an rgb colour, got ${value}`)
-      const [r, g, b, alpha = 1] = value.match(/[\d.]+/g)!.map(Number)
-      return { r, g, b, alpha }
-    }
-    const luminance = ({ r, g, b }: { r: number; g: number; b: number }) => {
-      const linear = (channel: number) => {
-        const value = channel / 255
-        return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
-      }
-      return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
-    }
-    let behind = node.parentElement
-    while (behind && parse(getComputedStyle(behind).backgroundColor).alpha < 1) behind = behind.parentElement
-    if (!behind) throw new Error('nothing behind the element has a solid background')
-    const [lighter, darker] = [
-      luminance(parse(getComputedStyle(node)[property])),
-      luminance(parse(getComputedStyle(behind).backgroundColor)),
-    ].sort((a, b) => b - a)
-    return (lighter + 0.05) / (darker + 0.05)
-  }, property)
-}
 
 /**
  * Switch the system theme the app follows, and wait until the app has taken it and the page has
@@ -253,7 +228,11 @@ test('opens the tooltip from a press just off the bank icon, leaving the row clo
   await expectTooltipOpen(page, marker, row, ['From SimpleFIN'])
 })
 
-test('opens the tooltip below the bank icon when the icon sits just under the sticky bars', AT_EVERY_SIZE, async ({ page, request }) => {
+/**
+ * Seeds an edited bank-imported row with older days below it, opens the transactions in a short window
+ * and scrolls until the row's bank icon sits just under the sticky bars, where there is no room above it
+ */
+async function scrollBankIconUnderBars(page: Page, request: APIRequestContext): Promise<{ row: Locator; marker: Locator }> {
   const { user, account, id } = await startWithImported(request, -4000)
 
   // A day each before it, below it in the list and before the days the bank supplies, so the page runs
@@ -302,16 +281,54 @@ test('opens the tooltip below the bank icon when the icon sits just under the st
   // Within a pixel, since the page scrolls by whole pixels and the icon can sit on a half one
   expect(gap).toBeGreaterThanOrEqual(ICON_UNDER_BARS_PX - 1)
   expect(gap).toBeLessThanOrEqual(ICON_UNDER_BARS_PX + 1)
+  return { row, marker }
+}
 
-  // There is no room above the icon below the bars, so the panel opens under it, every line readable.
-  // The title is focused where it sits, since bringing it into view would lift the whole row clear of
-  // the bars, and the icon is then reached from it by keyboard
+/**
+ * Focuses the row's title where it sits, since bringing it into view would lift the whole row clear of
+ * the bars, and reaches the bank icon from it by keyboard, which shows its tooltip
+ */
+async function focusBankIconByKeyboard(page: Page, row: Locator): Promise<void> {
   await getTransactionRowButton(row).evaluate((title) => title.focus({ preventScroll: true }))
   await page.keyboard.press('Tab')
-  await expectTooltipOpen(page, marker, row, ['From SimpleFIN', EDITED_NOTE])
+}
+
+/** Whether the tooltip's first line sits below the bank icon, or above it */
+async function readSideOfIcon(row: Locator, marker: Locator): Promise<'above' | 'below'> {
   const firstLine = (await row.getByText('From SimpleFIN', { exact: true }).filter({ visible: true }).boundingBox())!
   const markerBox = (await marker.boundingBox())!
-  expect(firstLine.y).toBeGreaterThan(markerBox.y + markerBox.height)
+  return firstLine.y > markerBox.y + markerBox.height ? 'below' : 'above'
+}
+
+test('opens the tooltip below the bank icon when the icon sits just under the sticky bars', AT_EVERY_SIZE, async ({ page, request }) => {
+  const { row, marker } = await scrollBankIconUnderBars(page, request)
+
+  // There is no room above the icon below the bars, so the panel opens under it, every line readable
+  await focusBankIconByKeyboard(page, row)
+  await expectTooltipOpen(page, marker, row, ['From SimpleFIN', EDITED_NOTE])
+  expect(await readSideOfIcon(row, marker)).toBe('below')
+})
+
+test('picks the side of the bank icon tooltip afresh when a press opens it, rather than keeping where it showed',AT_EVERY_SIZE, async ({ page, request }) => {
+  const { row, marker } = await scrollBankIconUnderBars(page, request)
+  await focusBankIconByKeyboard(page, row)
+  await expectTooltipOpen(page, marker, row, ['From SimpleFIN', EDITED_NOTE])
+  expect(await readSideOfIcon(row, marker)).toBe('below')
+
+  // Scrolled back until the icon is well down the window, where there is room above, the tooltip keeps
+  // showing on the side it was placed
+  await marker.evaluate((icon, share) => {
+    window.scrollBy({ top: icon.getBoundingClientRect().top - window.innerHeight * share, behavior: 'instant' })
+  }, ICON_DOWN_THE_WINDOW)
+  await expect(marker).toBeFocused()
+  await expect.poll(async () => (await marker.boundingBox())!.y).toBeGreaterThan(page.viewportSize()!.height / 2)
+  expect(await readSideOfIcon(row, marker)).toBe('below')
+
+  // A press on the focused icon opens it afresh, now above, the side a main tooltip would have kept
+  await page.keyboard.press('Enter')
+  await expect(marker).toHaveAttribute('aria-expanded', 'true')
+  await expect.poll(() => readSideOfIcon(row, marker)).toBe('above')
+  await expectTooltipOpen(page, marker, row, ['From SimpleFIN', EDITED_NOTE])
 })
 
 test('adds a dot and the edited note to a bank-imported row whose bank value the user changed', AT_EVERY_SIZE, async ({ page, request }) => {
@@ -346,7 +363,7 @@ test('adds a dot and the edited note to a bank-imported row whose bank value the
   await page.mouse.move(0, 0)
   for (const colorScheme of ['light', 'dark'] as const) {
     await switchTheme(page, colorScheme)
-    expect(await contrastWithBackground(marker, 'color')).toBeGreaterThanOrEqual(MIN_GRAPHIC_CONTRAST)
-    expect(await contrastWithBackground(dot, 'backgroundColor')).toBeGreaterThanOrEqual(MIN_GRAPHIC_CONTRAST)
+    expect(await colourContrast(marker)).toBeGreaterThanOrEqual(MIN_GRAPHIC_CONTRAST)
+    expect(await fillContrast(dot)).toBeGreaterThanOrEqual(MIN_GRAPHIC_CONTRAST)
   }
 })
