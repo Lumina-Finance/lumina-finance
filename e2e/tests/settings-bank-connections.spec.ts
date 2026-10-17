@@ -301,8 +301,28 @@ test('waits on after a gateway timeout, and closes as connected once the server 
     response.request().method() === 'GET' && isRead('/bank-sync/connections')(new URL(response.url())))
   await expect(connect).toHaveAttribute('aria-busy', 'true')
   await expect(dialog.getByRole('alert')).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeEnabled()
 
+  // The server saves the connection before it lists its bank accounts, so a read partway finds it
+  // with none and none due, which isn't yet the connection to report. A second such read comes a poll
+  // later, by when a dialogue the first had closed would be long gone
+  let listed = false
+  let partwayReads = 0
+  let readPartwayTwice: () => void = () => {}
+  const partwayTwice = new Promise<void>((resolve) => { readPartwayTwice = resolve })
+  await page.route(CONNECTIONS_URL, async (route) => {
+    if (route.request().method() !== 'GET' || listed) return route.fallback()
+    const response = await route.fetch()
+    const connections: object[] = await response.json()
+    await route.fulfill({ response, json: connections.map((connection) => ({ ...connection, accounts: [], discovery_pending: false })) })
+    if (connections.length > 0 && ++partwayReads === 2) readPartwayTwice()
+  })
   await (await claimed).fetch()
+  await partwayTwice
+  await expect(dialog).toBeVisible()
+  await expect(connect).toHaveAttribute('aria-busy', 'true')
+
+  listed = true
   await expect(dialog).toBeHidden()
   await expect(toast(page, 'SimpleFIN connected with 2 bank accounts.')).toBeVisible()
   await expect(connectionRow(section, 'SimpleFIN')).toContainText('0 of 2')

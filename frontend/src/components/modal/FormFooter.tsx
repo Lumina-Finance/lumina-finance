@@ -20,6 +20,8 @@ interface ModalFormFooterProps {
    * fill in, whose button never fades
    */
   submitBlockedReason?: string
+  /** Blocks cancelling apart from submitDisabled, for a form still waiting on a submission it can leave */
+  cancelDisabled?: boolean
   /** Holds the submit button disabled, keeping its label and leaving Cancel open, until the form has what it needs */
   submitUnavailable?: boolean
 
@@ -70,6 +72,7 @@ export function ModalFormFooter({
   submitLabel,
   submitDisabled,
   submitBlockedReason,
+  cancelDisabled = submitDisabled,
   submitUnavailable = false,
   submitReason = null,
   submitWidthClassName,
@@ -118,7 +121,7 @@ export function ModalFormFooter({
       type="button"
       className="app-secondary-button w-full shrink-0 sm:w-auto"
       onClick={onCancel}
-      disabled={submitDisabled}
+      disabled={cancelDisabled}
       data-modal-initial-focus={primaryOnLeft ? 'true' : undefined}
     >
       {cancelLabel}

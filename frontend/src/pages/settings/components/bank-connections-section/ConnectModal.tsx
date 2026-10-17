@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Landmark } from 'lucide-react'
-import { isAnsweredByApp } from '@/api/auth'
+import { isAnsweredByApp, type ApiError } from '@/api/auth'
 import {
   CONNECTION_NICKNAME_MAX_LENGTH,
+  UNANSWERED_CLAIM_POLL_MS,
   UNANSWERED_CLAIM_WATCH_MS,
   useClaimSetupToken,
   useReconnectBankConnection,
@@ -44,8 +45,11 @@ type UnansweredClaim = {
   /** The connections listed when it was sent, so a connection not among them is the one it saved */
   knownIds: Set<string>
 
-  /** When it was sent, in epoch milliseconds */
-  sentAt: number
+  /**
+   * When the wait ends, in epoch milliseconds: once the claim must have finished, and never before the
+   * list has been read again after the failure, which a claim the browser itself timed out comes near
+   */
+  endsAt: number
 }
 
 interface ConnectModalProps {
@@ -91,18 +95,20 @@ export function ConnectModal({ open, providers, reconnecting, connections, level
   const [unanswered, setUnanswered] = useState<UnansweredClaim | null>(null)
 
   // The wait reads as the claim still in flight, since from the user's side it is: it lasts no longer
-  // than a claim answered in time may take
-  const busy = claim.isPending || reconnect.isPending || unanswered !== null
+  // than a claim answered in time may take. Unlike a claim in flight, it can be closed, since the
+  // section lists the connection if one comes
+  const sending = claim.isPending || reconnect.isPending
+  const busy = sending || unanswered !== null
   const saved = unanswered ? connections?.find((connection) => !unanswered.knownIds.has(connection.id)) : undefined
+
+  // The server saves a connection before it lists its bank accounts, so one read partway shows none
+  // and no listing due. Only a listing done or due settles it before the wait ends
+  const settled = saved !== undefined && (saved.accounts.length > 0 || saved.discovery_pending)
   const provider = providers.find((entry) => entry.id === providerId)
   const providerName = reconnecting?.provider_name ?? provider?.name ?? 'SimpleFIN'
   const site = providerSite({ provider: reconnecting?.provider ?? providerId ?? 'simplefin', provider_name: providerName })
 
-  const reportError = (cause: unknown, unansweredMessage: string) => {
-    if (!isAnsweredByApp(cause)) {
-      setError(unansweredMessage)
-      return
-    }
+  const reportAnswered = (cause: ApiError) => {
     if (cause.status === 422) {
       setTokenError(cause.message)
       return
@@ -125,7 +131,7 @@ export function ConnectModal({ open, providers, reconnecting, connections, level
             showToast({ status: 'success', text: describeReconnected(result) })
             onClose()
           },
-          onError: (cause) => reportError(cause, UNANSWERED_RECONNECT_MESSAGE),
+          onError: (cause) => (isAnsweredByApp(cause) ? reportAnswered(cause) : setError(UNANSWERED_RECONNECT_MESSAGE)),
         },
       )
       return
@@ -135,7 +141,7 @@ export function ConnectModal({ open, providers, reconnecting, connections, level
     // Unread connections can't tell the one a claim saved from those already there, so a lost answer
     // then says at once that the connection may have been added
     const knownIds = connections && new Set(connections.map((connection) => connection.id))
-    const sentAt = Date.now()
+    const finishedBy = Date.now() + UNANSWERED_CLAIM_WATCH_MS
     claim.mutate(
       { provider: providerId, setup_token: token, nickname },
       {
@@ -145,33 +151,38 @@ export function ConnectModal({ open, providers, reconnecting, connections, level
         },
         onError: (cause) => {
           if (isAnsweredByApp(cause)) {
-            reportError(cause, UNANSWERED_CLAIM_MESSAGE)
+            reportAnswered(cause)
             return
           }
           onClaimUnanswered()
-          if (knownIds) setUnanswered({ knownIds, sentAt })
+          if (knownIds) setUnanswered({ knownIds, endsAt: Math.max(finishedBy, Date.now() + UNANSWERED_CLAIM_POLL_MS) })
           else setError(UNANSWERED_CLAIM_MESSAGE)
         },
       },
     )
   }
 
-  // The connection a lost claim saved closes the dialogue the way a claim answered in time does. Once
-  // the claim must have finished without one showing, the dialogue says the connection may have been
-  // added. A closed dialogue does neither, since the section lists the connection if it comes
+  // The connection a lost claim saved closes the dialogue the way a claim answered in time does, once
+  // settled, or as it stands when the wait ends. A wait that ends with none says the connection may
+  // have been added. Once closed, by the user or after its toast, the dialogue does neither again,
+  // since the section lists the connection if it comes
   useEffect(() => {
     if (!open || !unanswered) return
-    if (saved) {
-      showToast({ status: 'success', text: describeConnected(saved) })
+    const connected = (connection: BankConnection) => {
+      showToast({ status: 'success', text: describeConnected(connection) })
       onClose()
+    }
+    if (saved && settled) {
+      connected(saved)
       return
     }
     const timer = window.setTimeout(() => {
       setUnanswered(null)
-      setError(UNANSWERED_CLAIM_MESSAGE)
-    }, unanswered.sentAt + UNANSWERED_CLAIM_WATCH_MS - Date.now())
+      if (saved) connected(saved)
+      else setError(UNANSWERED_CLAIM_MESSAGE)
+    }, unanswered.endsAt - Date.now())
     return () => window.clearTimeout(timer)
-  }, [open, unanswered, saved, showToast, onClose])
+  }, [open, unanswered, saved, settled, showToast, onClose])
 
   return (
     <ModalTitledPanel
@@ -184,11 +195,12 @@ export function ConnectModal({ open, providers, reconnecting, connections, level
       RailIcon={Landmark}
       railLabel="Bank"
       level={level}
-      closeDisabled={busy}
+      closeDisabled={sending}
       footer={(
         <ModalFormFooter
           submitLabel={reconnecting ? 'Reconnect' : 'Connect'}
           submitDisabled={busy}
+          cancelDisabled={sending}
           submitUnavailable={(!reconnecting && !providerId) || !setupToken.trim()}
           submitWidthClassName="w-full sm:w-32"
           error={error}
