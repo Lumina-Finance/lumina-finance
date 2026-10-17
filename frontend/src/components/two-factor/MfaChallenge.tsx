@@ -4,6 +4,7 @@ import { KeyRound } from 'lucide-react';
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
 import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
 import { WarningCallout } from '@/components/WarningCallout';
+import { onUserPress } from '@/utils/userPress';
 
 /**
  * What this screen may offer for a second-factor challenge
@@ -213,7 +214,9 @@ export function MfaChallenge({
 
       <button
         type="button"
-        onClick={onCancel}
+        // A password manager that fills the code then clicks what it takes for the sign-in button can
+        // pick this one, since translations of it name logging in
+        onClick={onUserPress(onCancel)}
         className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
         style={{ color: 'var(--app-text-muted)' }}
       >

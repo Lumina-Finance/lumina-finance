@@ -15,6 +15,7 @@ import { isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors';
 import { assessPasskeySupport } from '@/utils/passkeySupport';
 import { markRecoveryIntent } from '@/utils/recoveryIntent';
 import { delayToMinimum, MFA_LOADING_MIN_MS } from '@/utils/timing';
+import { onUserPress } from '@/utils/userPress';
 
 export interface StepUpCredentials {
   /** Empty when the modal does not collect a password */
@@ -47,15 +48,6 @@ interface StepUpModalProps {
 }
 
 const GENERIC_STEP_UP_ERROR = 'That did not work. Check your details and try again.';
-
-/**
- * Wraps a click action so a password manager cannot drive the prompt. 1Password and similar
- * auto-submit by calling element.click(), which dispatches an untrusted event, so only a real user
- * press should advance, confirm, leave, or reset a step-up
- */
-const onUserPress = (action: () => void) => (event: MouseEvent<HTMLButtonElement>) => {
-  if (event.isTrusted) action();
-};
 
 /**
  * Re-verifies a current second factor before a sensitive action across two steps: the password first,

@@ -73,6 +73,27 @@ test('waits for Verify before sending a recovery code', async ({ page, request }
   expect(sentCodes).toEqual([RECOVERY_CODE])
 })
 
+test('leaves the challenge for a person\'s click on "Back to login" but not a scripted one', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const secret = await enrollTotp(request, user)
+  const code = page.getByLabel('One-time code')
+  const backToLogin = page.getByRole('button', { name: 'Back to login' })
+
+  await reachChallenge(page, user)
+  await backToLogin.click()
+  await expect(code).toHaveCount(0)
+
+  // A password manager clicks from a script, which the browser marks as untrusted. The step stays on
+  // screen for a moment even as it leaves, so signing in with it afterwards is what shows it stayed
+  await reachChallenge(page, user)
+  await backToLogin.evaluate((button) => (button as HTMLButtonElement).click())
+  const verified = page.waitForResponse(VERIFY_URL)
+  await code.fill(currentTotp(secret))
+
+  expect((await verified).status()).toBe(200)
+  await expectSignedIn(page)
+})
+
 test('finishes a password reset once the code is filled', async ({ page }) => {
   // The suite can't read reset emails, so the reset and its second factor are answered here. Only
   // the answers decide what the page shows, so the token and code needn't be real ones
