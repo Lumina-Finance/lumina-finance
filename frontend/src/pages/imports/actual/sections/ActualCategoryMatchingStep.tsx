@@ -16,6 +16,7 @@ import { getActualCategoryName } from '@/pages/imports/actual/utils/normalise'
 type ActualCategoryMatchingStepProps = Pick<
   ActualImportWorkflow,
   | 'budget'
+  | 'importResult'
   | 'visibleCategorySources'
   | 'paymentModes'
   | 'resolvedCategoryMappings'
@@ -53,6 +54,7 @@ const CREDIT_PAYMENTS_HELP = "Transfers without a category in Actual from your o
  */
 export function ActualCategoryMatchingStep({
   budget,
+  importResult,
   visibleCategorySources,
   paymentModes,
   resolvedCategoryMappings,
@@ -69,6 +71,7 @@ export function ActualCategoryMatchingStep({
   categoriesFailed,
   refetchCategories,
 }: ActualCategoryMatchingStepProps) {
+  const isImportFinished = Boolean(importResult)
   const hasCategorisedTransfers = visibleCategorySources.some((source) => source.role === 'transfer' && source.categoryId)
   const categoryByActualId = new Map(budget?.categories.map((category) => [category.id, category]))
   const visibleIds = new Set(visibleCategorySources.map((source) => source.id))
@@ -117,7 +120,7 @@ export function ActualCategoryMatchingStep({
               value={paymentMode}
               label={`Import ${source.label} as`}
               onChange={(mode) => setPaymentMode(source.id, mode)}
-              disabled={categoriesLoading}
+              disabled={categoriesLoading || isImportFinished}
             />
           )
         : undefined,
@@ -146,6 +149,7 @@ export function ActualCategoryMatchingStep({
       categoriesLoading={categoriesLoading}
       categoriesFailed={categoriesFailed}
       refetchCategories={refetchCategories}
+      isImportFinished={isImportFinished}
     >
       {budget && (
         <ImportInfoCard title={TRANSFERS_AND_DEBT_PAYMENTS_TITLE}>

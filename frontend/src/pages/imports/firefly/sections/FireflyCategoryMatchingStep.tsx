@@ -11,6 +11,7 @@ import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
 type FireflyCategoryMatchingStepProps = Pick<
   FireflyImportWorkflow,
   | 'transactionsFile'
+  | 'importResult'
   | 'importedCategories'
   | 'resolvedCategoryMappings'
   | 'autoFilledCategories'
@@ -32,6 +33,7 @@ type FireflyCategoryMatchingStepProps = Pick<
  */
 export function FireflyCategoryMatchingStep({
   transactionsFile,
+  importResult,
   importedCategories,
   resolvedCategoryMappings,
   autoFilledCategories,
@@ -84,6 +86,7 @@ export function FireflyCategoryMatchingStep({
       categoriesLoading={categoriesLoading}
       categoriesFailed={categoriesFailed}
       refetchCategories={refetchCategories}
+      isImportFinished={Boolean(importResult)}
     >
       {/* Worded to the row resolution: a journal between two imported accounts is a transfer
           whatever its Firefly III type, and only a row paying or paid by someone keeps its category */}

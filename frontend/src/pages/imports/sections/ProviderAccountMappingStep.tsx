@@ -32,6 +32,9 @@ export interface ProviderAccountMappingStepProps {
   /** Replaces the new-accounts notice's wording, for an export whose accounts bring their own starting balances */
   createdAccountNotice?: { explanation: string; items: string[] }
   emptyState: { title: string; description: string }
+
+  /** Shows each account's answer without letting it change, once the import has been run */
+  isImportFinished?: boolean
   sources: Array<{ id: string; label: string }>
   accountMappings: Record<string, string>
   autoFilledAccountSources: ReadonlySet<string>
@@ -72,6 +75,7 @@ export function ProviderAccountMappingStep({
   createNotice,
   createdAccountNotice,
   emptyState,
+  isImportFinished = false,
   sources,
   accountMappings,
   autoFilledAccountSources,
@@ -142,7 +146,7 @@ export function ProviderAccountMappingStep({
             accountTypeOptions={ACCOUNT_TYPE_OPTIONS}
             currencyOptions={currencyOptions}
             institutionOptions={institutionOptions}
-            disabled={accountsLoading}
+            disabled={accountsLoading || isImportFinished}
             currenciesDisabled={currenciesLoading}
             institutionsDisabled={institutionsLoading}
             selectedRowIds={selectedAccountRows}

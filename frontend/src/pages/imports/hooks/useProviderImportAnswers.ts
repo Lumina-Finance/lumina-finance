@@ -1,4 +1,7 @@
 import { useMemo, useState } from 'react'
+import type { AccountsOverview } from '@/api/accounts'
+import type { Category } from '@/api/categories'
+import type { JournalImportRunResponse } from '@/api/provider-imports'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME } from '@/utils/transfers'
 import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import type { ImportAccountSource, ImportCategoryKind } from '@/pages/imports/types'
@@ -39,6 +42,38 @@ export function useProviderImportReferenceData({ transferCategoryName }: { trans
   )
 
   return { ...reference, accountOptions, categoryMatchOptions, transferCategory, balanceAdjustmentCategory }
+}
+
+/**
+ * The accounts and categories a provider import's answers are guessed against. Once the import has
+ * run it leaves out the ones the import created, so its locked answers keep showing what it did,
+ * and a source that created an account or category is not matched to the one it made
+ *
+ * @param importResult - The finished import, or null while none has run
+ */
+export function useReferenceBeforeImport(
+  {
+    selectableAccounts,
+    categories,
+    categoryById,
+  }: {
+    selectableAccounts: AccountsOverview[]
+    categories: Category[] | undefined
+    categoryById: Map<string, Category>
+  },
+  importResult: JournalImportRunResponse | null,
+) {
+  return useMemo(() => {
+    if (!importResult) return { selectableAccounts, categories, categoryById }
+
+    const createdAccounts = new Set(importResult.created_account_ids)
+    const createdCategories = new Set(importResult.created_category_ids)
+    return {
+      selectableAccounts: selectableAccounts.filter((account) => !createdAccounts.has(account.id)),
+      categories: categories?.filter((category) => !createdCategories.has(category.id)),
+      categoryById: new Map([...categoryById].filter(([id]) => !createdCategories.has(id))),
+    }
+  }, [categories, categoryById, importResult, selectableAccounts])
 }
 
 /**

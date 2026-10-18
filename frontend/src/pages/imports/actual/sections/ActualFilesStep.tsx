@@ -12,6 +12,7 @@ type ActualFilesStepProps = Pick<
   | 'handleActualFileChange'
   | 'removeActualFile'
   | 'uploadBlockReason'
+  | 'importResult'
 >
 
 function describeActualFile(file: ActualStagedFile) {
@@ -32,7 +33,10 @@ export function ActualFilesStep({
   handleActualFileChange,
   removeActualFile,
   uploadBlockReason,
+  importResult,
 }: ActualFilesStepProps) {
+  const isImportFinished = Boolean(importResult)
+
   return (
     <ImportFilesStepLayout
       title="Files"
@@ -64,9 +68,15 @@ export function ActualFilesStep({
         uploadTitle="Upload budget export"
         hint="The .zip from Export data in Actual's settings, or the db.sqlite in its data folder."
         fileType={ACTUAL_IMPORT_FILE_TYPE}
+        // A finished import keeps its file as a record, so it can't be removed
         staged={stagedFile && (
-          <ImportStagedFileTable files={[stagedFile]} describe={describeActualFile} onRemove={removeActualFile} />
+          <ImportStagedFileTable
+            files={[stagedFile]}
+            describe={describeActualFile}
+            onRemove={isImportFinished ? undefined : removeActualFile}
+          />
         )}
+        isStagedFileRecord={isImportFinished}
         processing={isProcessingFile}
         disabled={isProcessingFile || uploadBlockReason !== null}
         rejection={fileIntakeError}

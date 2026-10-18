@@ -48,7 +48,8 @@ export function ImportFilesStepLayout({
 
 /**
  * One upload slot of a provider import, which takes exactly one file. The upload card animates
- * away once the file lands and grows back when it is removed
+ * away once the file lands and grows back when it is removed, apart from the file of a finished
+ * import, which can't be removed and keeps the card under it
  */
 export function ImportFileSlot({
   label,
@@ -62,6 +63,7 @@ export function ImportFileSlot({
   disabled,
   rejection,
   blockReason,
+  isStagedFileRecord = false,
   onFileChange,
 }: {
   label: string
@@ -79,9 +81,28 @@ export function ImportFileSlot({
   /** Why the last file was refused, shown on the upload card */
   rejection: string | null
   blockReason: ImportUploadBlock | null
+
+  /**
+   * Whether the staged file is the record of a finished import, which keeps the upload card under
+   * it, since a new file is how the next import starts
+   */
+  isStagedFileRecord?: boolean
   onFileChange: (selection: ImportFileAcquisition) => Promise<void>
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const uploadCard = (
+    <ImportUploadCard
+      title={uploadTitle}
+      hint={hint}
+      processing={processing}
+      disabled={disabled}
+      rejection={rejection}
+      blockReason={blockReason}
+      fileType={fileType}
+      onClick={() => inputRef.current?.click()}
+      onDropFile={(selection) => void onFileChange(selection)}
+    />
+  )
 
   return (
     <div className="space-y-2">
@@ -107,41 +128,38 @@ export function ImportFileSlot({
         disabled={disabled}
       />
 
-      <AnimatePresence initial={false} mode="wait">
-        {staged ? (
-          <motion.div
-            key="staged"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
-            transition={{ duration: SLOT_SWAP_DURATION, ease: SLOT_SWAP_EASE }}
-          >
-            {staged}
-          </motion.div>
-        ) : (
-          <motion.div
-            key="upload"
-            className="space-y-2"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
-            transition={{ duration: SLOT_SWAP_DURATION, ease: SLOT_SWAP_EASE }}
-          >
-            <ImportUploadCard
-              title={uploadTitle}
-              hint={hint}
-              processing={processing}
-              disabled={disabled}
-              rejection={rejection}
-              blockReason={blockReason}
-              fileType={fileType}
-              onClick={() => inputRef.current?.click()}
-              onDropFile={(selection) => void onFileChange(selection)}
-            />
-            <EmptyState title="No file staged" description="The uploaded file will appear here." />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {isStagedFileRecord && staged ? (
+        <>
+          {staged}
+          {uploadCard}
+        </>
+      ) : (
+        <AnimatePresence initial={false} mode="wait">
+          {staged ? (
+            <motion.div
+              key="staged"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
+              transition={{ duration: SLOT_SWAP_DURATION, ease: SLOT_SWAP_EASE }}
+            >
+              {staged}
+            </motion.div>
+          ) : (
+            <motion.div
+              key="upload"
+              className="space-y-2"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
+              transition={{ duration: SLOT_SWAP_DURATION, ease: SLOT_SWAP_EASE }}
+            >
+              {uploadCard}
+              <EmptyState title="No file staged" description="The uploaded file will appear here." />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      )}
     </div>
   )
 }

@@ -8,6 +8,7 @@ import { formatHundredths } from '@/pages/imports/actual/utils/normalise'
 type ActualAccountMappingStepProps = Pick<
   ActualImportWorkflow,
   | 'budget'
+  | 'importResult'
   | 'accountSources'
   | 'closedAccountsWithBalance'
   | 'closedAccountsKeptOpen'
@@ -45,6 +46,7 @@ type ActualAccountMappingStepProps = Pick<
  */
 export function ActualAccountMappingStep({
   budget,
+  importResult,
   accountSources,
   closedAccountsWithBalance,
   closedAccountsKeptOpen,
@@ -87,6 +89,7 @@ export function ActualAccountMappingStep({
   return (
     <ProviderAccountMappingStep
       {...props}
+      isImportFinished={Boolean(importResult)}
       index="02"
       description="Every account in the budget, on it or off it, must map to an existing account or a new one."
       notice={<>{currencyNotice}{linkedNotice}</>}

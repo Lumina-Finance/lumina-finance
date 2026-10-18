@@ -16,6 +16,7 @@ type FireflyFilesStepProps = Pick<
   | 'handleFireflyFileChange'
   | 'removeFireflyFile'
   | 'uploadBlockReason'
+  | 'importResult'
 >
 
 // Firefly III's own guide, linked rather than repeated so the steps stay current as its screens change
@@ -45,7 +46,9 @@ export function FireflyFilesStep({
   handleFireflyFileChange,
   removeFireflyFile,
   uploadBlockReason,
+  importResult,
 }: FireflyFilesStepProps) {
+  const isImportFinished = Boolean(importResult)
   const filesByKind: Record<FireflyFileKind, ImportFileDraft | null> = {
     transactions: transactionsFile,
     budgets: budgetsFile,
@@ -91,7 +94,11 @@ export function FireflyFilesStep({
             accept=".csv,text/csv"
             uploadTitle={`Upload ${slot.label.toLowerCase()}`}
             hint={slot.hint}
-            staged={stagedFile && <ImportStagedFileList files={[stagedFile]} onRemove={() => removeFireflyFile(slot.kind)} />}
+            // A finished import keeps its files as a record, so they can't be removed
+            staged={stagedFile && (
+              <ImportStagedFileList files={[stagedFile]} onRemove={isImportFinished ? undefined : () => removeFireflyFile(slot.kind)} />
+            )}
+            isStagedFileRecord={isImportFinished}
             processing={processingFileKind === slot.kind}
             // Every slot answers to a block, even where only one states why
             disabled={processingFileKind !== null || uploadBlockReason !== null}

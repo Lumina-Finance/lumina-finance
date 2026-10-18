@@ -18,6 +18,7 @@ import {
   useProviderFileIntake,
   useProviderImportReferenceData,
   useProviderImportRun,
+  useReferenceBeforeImport,
 } from '@/pages/imports/hooks'
 import type { ImportAccountCreateDetails, ImportCategoryKind } from '@/pages/imports/types'
 import {
@@ -175,6 +176,9 @@ export function useActualImportWorkflow() {
     balanceAdjustmentCategory,
   } = useProviderImportReferenceData({ transferCategoryName: IMPORT_TRANSFER_CATEGORY_NAME })
 
+  // A finished import is a record of what it did, so its answers are guessed without what it created
+  const referenceBeforeImport = useReferenceBeforeImport({ selectableAccounts, categories, categoryById }, run.workflow.importResult)
+
   const journal = useMemo(
     () => (budget ? normaliseActualBudget(budget, today) : EMPTY_JOURNAL),
     [budget, today],
@@ -196,7 +200,7 @@ export function useActualImportWorkflow() {
   const { resolvedAccountMappings, autoFilledAccountSources, handAnsweredAccountSources } = useProviderAccountAnswers({
     sources: accountMappingSources,
     accountMappings,
-    reference: { accountsResolved, accountsCurrent, accountById, selectableAccounts },
+    reference: { accountsResolved, accountsCurrent, accountById, selectableAccounts: referenceBeforeImport.selectableAccounts },
   })
 
   const resolvedAccountCreateDetails = useMemo(
@@ -244,8 +248,8 @@ export function useActualImportWorkflow() {
   )
 
   const inferCategoryMappings = useCallback(
-    (liveMappings: Record<string, string>) => inferActualCategoryMappings(categorySources, liveMappings, categories ?? []),
-    [categories, categorySources],
+    (liveMappings: Record<string, string>) => inferActualCategoryMappings(categorySources, liveMappings, referenceBeforeImport.categories ?? []),
+    [referenceBeforeImport.categories, categorySources],
   )
 
   const categoryNameSources = useMemo(
@@ -271,7 +275,7 @@ export function useActualImportWorkflow() {
     proposedKinds: proposedCategoryKinds,
     fixedKindSources: fixedKindCategorySources,
     appName: ACTUAL_CATEGORY_RENAME_APP_NAME,
-    reference: { categoriesResolved, categoryById },
+    reference: { categoriesResolved, categoryById: referenceBeforeImport.categoryById },
   })
 
   const currentMonth = today.slice(0, 7)
