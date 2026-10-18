@@ -1,4 +1,14 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent,type FocusEvent as ReactFocusEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type FocusEvent as ReactFocusEvent,
+  type Ref,
+} from 'react'
 import { Calendar } from 'lucide-react'
 import CalendarPopover from '@/components/date-field/CalendarPopover'
 import {
@@ -16,7 +26,15 @@ import {
 import { useAuth } from '@/hooks/useAuth'
 import { getTodayDate } from '@/utils/date'
 
+export type DateFieldHandle = {
+  // Empties all three segments as if they had been erased by hand, then focuses the year, so a control
+  // outside the field can clear it, including a date only partly typed, which the value prop cannot
+  // empty since it already reads as empty
+  clear: () => void
+}
+
 interface DateFieldProps {
+  ref?: Ref<DateFieldHandle>
   // Selected date as an ISO yyyy-mm-dd string, empty while the date is incomplete
   value: string
 
@@ -57,6 +75,7 @@ function padSegmentForDisplay(segment: DateSegmentName, digits: string): string 
  * edit to a real date so an invalid combination such as February 31 can never blank the field
  */
 export default function DateField({
+  ref,
   value,
   onChange,
   onBlur,
@@ -96,6 +115,13 @@ export default function DateField({
   const focusSegment = (segment: DateSegmentName) => {
     segmentRefs.current[segment]?.focus()
   }
+
+  useImperativeHandle(ref, () => ({
+    clear: () => {
+      commit(parseIsoDate(''))
+      focusSegment('year')
+    },
+  }), [commit])
 
   /**
    * Moves focus to the neighbouring segment, staying put at the ends of the field

@@ -9,12 +9,13 @@ import { API_BASE_URL } from '../support/target'
 // sits in a narrow sidebar on a wide screen and stacks above the steps on a phone
 
 // One row in the middle of each month of 2025, plus the first and last day of March, so each end of
-// a March range has a row on it. Travel is filed only in July
+// a March range has a row on it, and a row with a date that doesn't exist, which keeps the import's
+// record on screen once it is done. Travel is filed only in July
 const MONTH_ROWS = Array.from({ length: 12 }, (_, month) => {
   const date = `2025-${String(month + 1).padStart(2, '0')}-15`
   return `${date},-10.00,${month === 6 ? 'Travel' : 'Groceries'},Market`
 })
-const CSV = ['Date,Amount,Category,Merchant', '2025-03-01,-10.00,Groceries,Market', ...MONTH_ROWS, '2025-03-31,-10.00,Groceries,Market'].join('\n')
+const CSV = ['Date,Amount,Category,Merchant', '2025-03-01,-10.00,Groceries,Market', ...MONTH_ROWS, '2025-03-31,-10.00,Groceries,Market', '2025-02-31,-10.00,Groceries,Market'].join('\n')
 
 /**
  * Opens the CSV import for a new user's account with the year of rows uploaded
@@ -62,13 +63,13 @@ test('imports only the rows from the start date to the end date', async ({ page,
   // Held to the preview step, since the file panel beside the steps also counts its rows under Rows
   const preview = page.locator('section').filter({ has: page.getByText('Preview and commit', { exact: true }) })
   await expect(preview.getByRole('paragraph').filter({ hasText: /^(Rows|Will create|New accounts|New categories|\d+)$/ }))
-    .toHaveText(['Rows', '14', 'Will create', '3', 'New accounts', '0', 'New categories', '0'])
+    .toHaveText(['Rows', '15', 'Will create', '3', 'New accounts', '0', 'New categories', '0'])
   await expect(preview.getByText('Rows outside the chosen dates', { exact: true })).toBeVisible()
   await expect(preview.getByText('11 rows are dated outside the chosen dates, so they won\'t be imported.', { exact: true })).toBeVisible()
 
   await commitImport(page)
   await expect(page.getByRole('dialog').getByText(
-    '3 transactions imported · 0 accounts created · 0 categories created · 11 outside the chosen dates',
+    '3 transactions imported · 0 accounts created · 0 categories created · 1 skipped · 11 outside the chosen dates',
     { exact: true },
   )).toBeVisible()
 
@@ -76,6 +77,115 @@ test('imports only the rows from the start date to the end date', async ({ page,
   expect(stored.status()).toBe(200)
   const dates = (await stored.json() as { dt: string }[]).map((row) => row.dt).sort()
   expect(dates).toEqual(['2025-03-01', '2025-03-15', '2025-03-31'])
+
+  // The finished import's dates stay on its record, held as they were and offering no way to clear them
+  await page.getByRole('dialog').getByRole('button', { name: 'Review skipped rows', exact: true }).click()
+  for (const label of ['Start date', 'End date']) {
+    const field = page.getByRole('group', { name: label, exact: true })
+    await expect(field.getByRole('textbox', { name: 'Year', exact: true })).toBeDisabled()
+    await expect(field.getByRole('textbox', { name: 'Year', exact: true })).toHaveValue('2025')
+  }
+  await expect(page.getByRole('button', { name: /^Clear (start|end) date$/ })).toHaveCount(0)
+})
+
+/**
+ * Waits for a clear button to finish growing in, which its box sets to unclipped only at the end of
+ * the motion. Its opacity can read 1 while the width is still a pixel or two short, since the two run
+ * on different clocks
+ */
+async function expectGrownIn(clear: Locator) {
+  await expect.poll(() => clear.evaluate((button) => getComputedStyle(button.parentElement!.parentElement!).overflow)).toBe('visible')
+}
+
+// The clear button empties only its own date, puts focus on that date's year so keyboard users stay
+// in place, and is there only while the date holds something. It takes its room from its own date's
+// field alone, so neither field's height nor the other date's field changes
+test('clears a date with its clear button and stops limiting the rows', AT_EVERY_SIZE, async ({ page, request }) => {
+  await uploadYear(page, request)
+  const travel = page.getByRole('combobox', { name: 'Existing category Travel', exact: true })
+  await expect(travel).toBeVisible()
+  const clearStart = page.getByRole('button', { name: 'Clear start date', exact: true })
+  await expect(clearStart).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Clear end date', exact: true })).toHaveCount(0)
+  const startField = page.getByRole('group', { name: 'Start date', exact: true })
+  const endField = page.getByRole('group', { name: 'End date', exact: true })
+  const startBefore = (await startField.boundingBox())!
+
+  // Where the end date's field is, taken from the start date's so a page that scrolls does not count
+  const readEnd = async () => {
+    const end = (await endField.boundingBox())!
+    return { x: end.x, width: end.width, height: end.height, belowStart: end.y - (await startField.boundingBox())!.y }
+  }
+  const endBefore = await readEnd()
+
+  // A start date after July leaves the July row out
+  const start = await typeDate(page, 'Start date', '2025-08-01')
+  await expect(travel).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Clear end date', exact: true })).toHaveCount(0)
+
+  // Once it has grown in, the button sits right of the field, which has narrowed by its room and kept
+  // its height, and the other date's field has not moved
+  await expectGrownIn(clearStart)
+  const startWith = (await startField.boundingBox())!
+  const clearBox = (await clearStart.boundingBox())!
+  expect(startWith.height).toBe(startBefore.height)
+  expect(startWith.width).toBeLessThan(startBefore.width)
+  expect(clearBox.x).toBeGreaterThanOrEqual(startWith.x + startWith.width)
+  expect(clearBox.x + clearBox.width).toBeLessThanOrEqual(startBefore.x + startBefore.width)
+  expect(await readEnd()).toEqual(endBefore)
+
+  await clearStart.click()
+  for (const segment of ['Year', 'Month', 'Day']) {
+    await expect(start.getByRole('textbox', { name: segment, exact: true })).toHaveValue('')
+  }
+  await expect(start.getByRole('textbox', { name: 'Year', exact: true })).toBeFocused()
+  await expect(clearStart).toHaveCount(0)
+
+  // The field widens back to where it was as the button goes
+  await expect.poll(async () => (await startField.boundingBox())!.width).toBe(startBefore.width)
+  expect(await readEnd()).toEqual(endBefore)
+  await expect(travel).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Commit import', exact: true })).toBeEnabled()
+
+  // A date only begun counts as holding something, and the button empties it too
+  await start.getByRole('textbox', { name: 'Year', exact: true }).fill('2025')
+  await expect(page.getByText('Enter the whole date, or clear it', { exact: true })).toBeVisible()
+  await clearStart.click()
+  await expect(start.getByRole('textbox', { name: 'Year', exact: true })).toHaveValue('')
+  await expect(page.getByText('Enter the whole date, or clear it', { exact: true })).toHaveCount(0)
+
+  // The end date has its own button, which empties only the end date. The start date is filled again
+  // so it can be seen to stay
+  const clearEnd = page.getByRole('button', { name: 'Clear end date', exact: true })
+  await expect(clearEnd).toHaveCount(0)
+  await typeDate(page, 'Start date', '2025-02-01')
+  const end = await typeDate(page, 'End date', '2025-09-30')
+  await expectGrownIn(clearEnd)
+  await expectGrownIn(clearStart)
+  await clearEnd.click()
+  for (const segment of ['Year', 'Month', 'Day']) {
+    await expect(end.getByRole('textbox', { name: segment, exact: true })).toHaveValue('')
+  }
+  await expect(end.getByRole('textbox', { name: 'Year', exact: true })).toBeFocused()
+  await expect(clearEnd).toHaveCount(0)
+  await expect(start.getByRole('textbox', { name: 'Year', exact: true })).toHaveValue('2025')
+  await expect(start.getByRole('textbox', { name: 'Month', exact: true })).toHaveValue(/^0?2$/)
+  await expect(clearStart).toBeVisible()
+
+  // A date the dates come back holding, as when the date column is unmapped and mapped again, draws its
+  // button already at rest, with no motion to unclip it, so it must not be left clipped
+  const dateColumn = page.getByRole('combobox', { name: 'Match to app field Date', exact: true })
+  await dateColumn.click()
+  await page.getByRole('option', { name: /^Currency\b/ }).click()
+  await showImportSetup(page)
+  await expect(start).toHaveCount(0)
+  await dateColumn.click()
+  await page.getByRole('option', { name: /^Date\b/ }).click()
+  await showImportSetup(page)
+  await expect(start).toBeVisible()
+  await expect(start.getByRole('textbox', { name: 'Year', exact: true })).toHaveValue('2025')
+  await expect(clearStart).toBeVisible()
+  await expectGrownIn(clearStart)
 })
 
 // The dates sit in the File section beside the other reading choices, not in Column mapping, and
@@ -173,26 +283,44 @@ test('keeps the dates\' messages whole at every width', async ({ page, request }
 })
 
 // A unit test can't click, and the empty space is only reachable by a real click at a point inside the
-// field's box that is on no segment or button
+// field's box that is on no segment or button. Reduced motion is on, so the field takes the width the
+// clear button leaves it at once and its box can be read as soon as a date is entered
 test('focuses the year when the empty space of a date field is clicked, empty or filled', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
   await uploadYear(page, request)
   const start = page.getByRole('group', { name: 'Start date', exact: true })
   const year = start.getByRole('textbox', { name: 'Year', exact: true })
   const month = start.getByRole('textbox', { name: 'Month', exact: true })
-  const box = await start.boundingBox()
-  const monthBox = await month.boundingBox()
-  if (!box || !monthBox) throw new Error('The start date field has no box')
+  const emptyWidth = (await start.boundingBox())!.width
 
-  // Well right of the segments and well left of the calendar button
-  const emptySpace = { x: box.width - 60, y: box.height / 2 }
-  expect(box.x + emptySpace.x).toBeGreaterThan(monthBox.x + monthBox.width + 60)
+  // Read from the field's box as it stands, since the clear button narrows a filled field
+  const findEmptySpace = async () => {
+    const box = await start.boundingBox()
+    const monthBox = await month.boundingBox()
+    if (!box || !monthBox) throw new Error('The start date field has no box')
 
+    // Well right of the segments and well left of the calendar button
+    const emptySpace = { x: box.width - 60, y: box.height / 2 }
+    expect(box.x + emptySpace.x).toBeGreaterThan(monthBox.x + monthBox.width + 60)
+    return emptySpace
+  }
+
+  let emptySpace = await findEmptySpace()
   await month.click()
   await expect(month).toBeFocused()
   await start.click({ position: emptySpace })
   await expect(year).toBeFocused()
 
+  // Read the moment the button is in the page, where a width animation would still be moving
+  await year.fill('2025')
+  const clearStart = page.getByRole('button', { name: 'Clear start date', exact: true })
+  await expect(clearStart).toBeVisible()
+  const narrowedWidth = (await start.boundingBox())!.width
+  expect(narrowedWidth).toBeLessThan(emptyWidth)
+  await expect(clearStart).toHaveCSS('opacity', '1')
+  expect((await start.boundingBox())!.width).toBe(narrowedWidth)
   await typeDate(page, 'Start date', '2025-03-01')
+  emptySpace = await findEmptySpace()
   await month.click()
   await expect(month).toBeFocused()
   await start.click({ position: emptySpace })
