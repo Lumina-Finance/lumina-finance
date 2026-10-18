@@ -9,7 +9,7 @@ import { IMPORT_EXCLUDED_ROW_BACKGROUND, IMPORT_EXCLUDED_ROW_FAINT_TEXT } from '
 export type ImportBudgetColumn<Budget> = {
   header: string
 
-  /** A width class for the column, such as `w-[15%]` */
+  /** A width class for the column, such as `w-[15%]`, which a column of text that can't wrap can outgrow */
   widthClassName: string
   align?: 'right'
 
@@ -40,9 +40,16 @@ export type ImportBudgetSelectionTableProps<Budget extends { name: string; isArc
   onSetAll: (keys: string[], selected: boolean) => void
 }
 
+// The least room a budget name keeps, enough for a short name beside its "Archived" tag, since the
+// name identifies the row and is cut off only when it is longer than that
+const NAME_MIN_WIDTH_CLASS_NAME = 'min-w-52'
+
 /**
  * Lists the budgets an import can create, each with a box to leave it out and a header box for all
  * of them. A budget left out stays in its place, crossed off and tagged, so the list keeps its order
+ *
+ * Nothing in a cell or header wraps, so a column widens to its text, and a table wider than the box
+ * around it scrolls sideways inside that box. Only a name or description too long for its column is cut off
  */
 export function ImportBudgetSelectionTable<Budget extends { name: string; isArchived: boolean }>({
   budgets,
@@ -60,7 +67,7 @@ export function ImportBudgetSelectionTable<Budget extends { name: string; isArch
 
   return (
     <div className="overflow-x-auto">
-      <table className={`w-full ${minWidthClassName} table-fixed text-left text-[0.9375rem]`}>
+      <table className={`w-full ${minWidthClassName} text-left text-[0.9375rem] whitespace-nowrap`}>
         <colgroup>
           <col className="w-12" />
           <col className={nameWidthClassName} />
@@ -108,7 +115,8 @@ export function ImportBudgetSelectionTable<Budget extends { name: string; isArch
                     />
                   </span>
                 </td>
-                <td className="truncate px-4 py-2.5 align-middle font-medium">
+                {/* A cut-off cell takes no width from its text, or a long name would widen the table instead */}
+                <td className={`max-w-0 ${NAME_MIN_WIDTH_CLASS_NAME} truncate px-4 py-2.5 align-middle font-medium`}>
                   <span className="inline-flex max-w-full min-w-0 items-center gap-2">
                     <span className={`truncate ${strike}`}>{budget.name}</span>
                     {!checked && (
@@ -138,7 +146,7 @@ export function ImportBudgetSelectionTable<Budget extends { name: string; isArch
                       'px-4 py-2.5 align-middle',
                       column.align === 'right' ? 'text-right' : '',
                       column.tone === 'figure' ? 'font-financial tabular-nums' : '',
-                      column.truncate ? 'truncate' : '',
+                      column.truncate ? 'max-w-0 truncate' : '',
                       strike,
                     ].filter(Boolean).join(' ')}
                     style={column.tone === 'muted' ? { color: 'var(--app-text-muted)' } : undefined}
