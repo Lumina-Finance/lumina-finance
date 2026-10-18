@@ -109,8 +109,7 @@ const HEADER_ALIASES = new Set([
   'libelle',
 
   // The date and description headings of the other languages a bank's export is read in, written as
-  // `normalizeImportHeading` leaves them with the spaces squeezed out. The Korean and Chinese memo
-  // headings stand beside the description, since the date headings of those two exports are not read
+  // `normalizeImportHeading` leaves them with the spaces squeezed out
   'data',
   'fvalor',
   'bokforingsdag',
@@ -118,6 +117,9 @@ const HEADER_ALIASES = new Set([
   'kirjauspaiva',
   'dataoperacji',
   '年月日',
+  '帳務日期',
+  '交易日期',
+  '거래일시',
   'naamomschrijving',
   'descrizione',
   'descripcion',
