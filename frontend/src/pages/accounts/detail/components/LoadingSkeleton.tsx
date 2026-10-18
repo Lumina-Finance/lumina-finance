@@ -24,7 +24,7 @@ function SkeletonBlock({ className, reducedMotion }: { className: string; reduce
           transition={{ duration: 1.15, ease: 'easeInOut', repeat: Infinity }}
           style={{
             background:
-              'linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.62), transparent)',
+              'linear-gradient(90deg, transparent, var(--app-hover-soft), transparent)',
           }}
         />
       )}
