@@ -108,9 +108,28 @@ async function seedCategory(page: Page, request: APIRequestContext, years: numbe
   await logInViaApi(page, user)
 }
 
+/**
+ * Waits for a dialog to finish its entrance, which fades and scales it in. A note opened before then
+ * measures its trigger mid-move, and on a busy host the entrance runs long enough for that to happen
+ */
+async function expectEntranceDone(dialog: Locator) {
+  await expect(dialog).toHaveCSS('opacity', '1')
+  await expect(dialog).toHaveCSS('transform', 'none')
+}
+
 async function openCategoryDialog(page: Page) {
   await page.getByRole('row').filter({ hasText: 'Retirement Savings' }).click()
-  return page.getByRole('dialog', { name: 'Retirement Savings', exact: true })
+  const dialog = page.getByRole('dialog', { name: 'Retirement Savings', exact: true })
+  await expectEntranceDone(dialog)
+  return dialog
+}
+
+/** Presses Edit in the category dialog and returns the edit dialog once it has finished opening */
+async function openEditDialog(page: Page, category: Locator) {
+  await category.getByRole('button', { name: 'Edit', exact: true }).click()
+  const details = page.getByRole('dialog', { name: 'Category details', exact: true })
+  await expectEntranceDone(details)
+  return details
 }
 
 async function expectNoteClear(page: Page, trigger: Locator, noteLocator: Locator, labelled: Locator, dialog: Locator, where: string) {
@@ -149,13 +168,58 @@ test('opens the Opening usage note clear of what it labels', async ({ page, requ
       await expectNoteClear(page, triggers.nth(1), notes.nth(1), column, category, `in the limits table ${at}`)
     }
 
-    await category.getByRole('button', { name: 'Edit', exact: true }).click()
-    const details = page.getByRole('dialog', { name: 'Category details', exact: true })
+    const details = await openEditDialog(page, category)
     const field = details.getByRole('textbox', { name: 'Opening usage', exact: true })
     await expect(field).toBeVisible()
     const trigger = details.getByRole('button', { name: 'Opening usage info', exact: true })
     await expectNoteClear(page, trigger, details.getByRole('tooltip', { name: OPENING_USAGE_NOTE }), field, details, `in the edit dialog ${at}`)
   }
+})
+
+test('rests a note opened during the edit dialog\'s entrance above its trigger', async ({ page, request }) => {
+  // A host starved of frames holds the entrance at its start: the page's frame callbacks wait here until
+  // released, and the entrance, which runs on them, resumes from that start
+  await page.addInitScript(() => {
+    const w = window as unknown as { holdFrames: boolean; releaseFrames: () => void; heldFrames: () => number }
+    const real = window.requestAnimationFrame.bind(window)
+    const held: FrameRequestCallback[] = []
+    window.requestAnimationFrame = (callback) => {
+      if (!w.holdFrames) return real(callback)
+      held.push(callback)
+      return 0
+    }
+    w.heldFrames = () => held.length
+    w.releaseFrames = () => {
+      w.holdFrames = false
+      for (const callback of held.splice(0)) real(callback)
+    }
+  })
+  await seedCategory(page, request, [2026])
+  await openPageAt(page, { width: 1280, height: 800 }, '/settings#tax-advantaged-categories')
+  const category = await openCategoryDialog(page)
+
+  await page.evaluate(() => { (window as unknown as { holdFrames: boolean }).holdFrames = true })
+  await category.getByRole('button', { name: 'Edit', exact: true }).click()
+  const details = page.getByRole('dialog', { name: 'Category details', exact: true })
+  const trigger = details.getByRole('button', { name: 'Opening usage info', exact: true })
+  const note = details.getByRole('tooltip', { name: OPENING_USAGE_NOTE })
+  const field = details.getByRole('textbox', { name: 'Opening usage', exact: true })
+  // The dialog is still at the start of its entrance, scaled down, when the note opens. The entrance has
+  // frames waiting that the hold keeps from running, so it cannot have moved on by the time the note opens
+  await expect(details).toHaveCSS('opacity', '0')
+  await expect.poll(() => page.evaluate(() => (window as unknown as { heldFrames: () => number }).heldFrames())).toBeGreaterThan(0)
+  await expect(details).not.toHaveCSS('transform', 'none')
+  await trigger.click({ force: true })
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true')
+  await expect(details).toHaveCSS('opacity', '0')
+  await expect(details).not.toHaveCSS('transform', 'none')
+
+  await page.evaluate(() => (window as unknown as { releaseFrames: () => void }).releaseFrames())
+  await expectEntranceDone(details)
+  await expect(note).toHaveCSS('opacity', '1')
+  await expect.poll(() => readPlacement(trigger, note)).toMatchObject({ above: true, across: true })
+  expect(overlaps(await readPanel(note), (await field.boundingBox())!)).toBe(false)
+  await expect(field.click({ trial: true, timeout: PRESS_TIMEOUT })).resolves.toBeUndefined()
 })
 
 test('opens other notes on the side they always have', async ({ page, request }) => {
@@ -177,8 +241,7 @@ test('opens other notes on the side they always have', async ({ page, request })
 
     // The currency warning beside the edit dialog's first fields opens above its trigger
     await openPage(page, '/settings#tax-advantaged-categories')
-    await (await openCategoryDialog(page)).getByRole('button', { name: 'Edit', exact: true }).click()
-    const details = page.getByRole('dialog', { name: 'Category details', exact: true })
+    const details = await openEditDialog(page, await openCategoryDialog(page))
     const warning = await openNote(
       page,
       details.getByRole('button', { name: 'Tax-advantaged category currency limitation', exact: true }),
@@ -258,8 +321,7 @@ const PHONE_ON_ITS_SIDE = { width: 667, height: 375 }
 test('keeps an open note on the side it opened on as its field scrolls up the dialog', async ({ page, request }) => {
   await seedCategory(page, request, [2026])
   await openPageAt(page, PHONE_ON_ITS_SIDE, '/settings#tax-advantaged-categories')
-  await (await openCategoryDialog(page)).getByRole('button', { name: 'Edit', exact: true }).click()
-  const details = page.getByRole('dialog', { name: 'Category details', exact: true })
+  const details = await openEditDialog(page, await openCategoryDialog(page))
   const trigger = details.getByRole('button', { name: 'Opening usage info', exact: true })
   const note = details.getByRole('tooltip', { name: OPENING_USAGE_NOTE })
   const field = details.getByRole('textbox', { name: 'Opening usage', exact: true })
