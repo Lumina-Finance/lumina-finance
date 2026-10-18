@@ -30,19 +30,22 @@ export function BalanceChartHeader({
 }: BalanceChartHeaderProps) {
   return (
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-      <p className="app-label">Current Balance</p>
+      {/* Takes the free space beside the controls, so they sit at their natural width on the right.
+          Wrapped below it they have the row to themselves, and fill it from the title's edge */}
+      <p className="app-label grow-[9999]">Current Balance</p>
       <BalanceChartModeSelector
         value={chartMode}
         onChange={onChartModeChange}
         className="min-w-[9.5rem] shrink-0 min-[750px]:hidden"
       />
-      <div className="ml-auto hidden items-center gap-2 min-[750px]:flex">
+      <div className="hidden grow flex-wrap items-center justify-between gap-2 min-[750px]:flex">
         <BalanceChartModeSelector value={chartMode} onChange={onChartModeChange} className="min-w-[9.5rem] shrink-0" />
         <TimeRangeSelector
           value={range}
           options={BALANCE_RANGE_OPTIONS}
           onChange={onRangeChange}
           ariaLabel="Balance range"
+          className="ml-auto"
         />
       </div>
       <TimeRangeSelector

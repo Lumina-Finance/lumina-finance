@@ -177,3 +177,49 @@ test('leaves focus on the archive switch when turning it on closes the delete co
 
   await expect(archiveSwitch).toBeFocused()
 })
+
+/** Within a pixel, since the layout's widths are fractions */
+function expectNear(actual: number | undefined, expected: number | undefined, message: string) {
+  expect(Math.abs(actual! - expected!), `${message}: ${actual} against ${expected}`).toBeLessThanOrEqual(1)
+}
+
+// The numbered sections keep their content in a column beside the step numbers, which the panel at the
+// foot of the body and the save error above it must share, or their left edges sit level with the numbers
+test('lines the delete confirmation and the save error up with the sections above them', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: ACCOUNT_NAME })
+  await logInViaApi(page, user)
+  // Every save fails, which puts the error line in the dialog
+  await page.route('**/accounts/*', (route) => (
+    route.request().method() === 'GET' ? route.fallback() : route.fulfill({ status: 500, json: { detail: 'Could not save.' } })
+  ))
+
+  for (const size of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
+    const at = `${size.width}×${size.height}`
+    await page.setViewportSize(size)
+    const dialog = await openEditDialog(page, account.id)
+    const archiveBox = dialog.locator('label').filter({ hasText: 'Archive account' })
+    const panel = dialog.getByRole('group', { name: `Delete ${ACCOUNT_NAME}?`, exact: true })
+
+    await dialog.getByRole('button', { name: 'Save Changes', exact: true }).click()
+    const saveError = dialog.locator('p[style*="--app-negative"]')
+    await expect(saveError).toBeVisible()
+    const sections = await archiveBox.boundingBox()
+    expect(sections, `Archive account box at ${at}`).not.toBeNull()
+    await expect.poll(async () => Math.abs((await saveError.boundingBox())!.x - sections!.x), `save error left edge at ${at}`).toBeLessThanOrEqual(1)
+
+    await pressTrash(dialog)
+    const continueButton = dialog.getByRole('button', { name: 'Continue', exact: true })
+    await waitForFadeIn(continueButton)
+    await expect.poll(async () => Math.abs((await panel.boundingBox())!.x - sections!.x), `panel left edge at ${at}`).toBeLessThanOrEqual(1)
+    expectNear((await panel.boundingBox())?.width, sections?.width, `panel width at ${at}`)
+
+    await continueButton.click()
+    const nameField = dialog.getByLabel(`Type "${ACCOUNT_NAME}" to delete.`, { exact: true })
+    await expect(nameField).toBeVisible()
+    await expect.poll(async () => Math.abs((await panel.boundingBox())!.x - sections!.x), `typed-name panel left edge at ${at}`).toBeLessThanOrEqual(1)
+    expectNear((await panel.boundingBox())?.width, sections?.width, `typed-name panel width at ${at}`)
+
+    await page.keyboard.press('Escape')
+  }
+})

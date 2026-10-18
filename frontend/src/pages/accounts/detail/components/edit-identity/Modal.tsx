@@ -337,7 +337,8 @@ export default function EditAccountIdentityModal({
               <AnimatePresence>
                 {submitError && (
                   <motion.p
-                    className="text-sm font-medium"
+                    // Starts where the sections' content does, as the delete panel does
+                    className="ml-6 text-sm font-medium min-[1050px]:ml-7"
                     style={{ color: 'var(--app-negative)' }}
                     initial={{ opacity: 0, y: -4 }}
                     animate={{ opacity: 1, y: 0 }}
