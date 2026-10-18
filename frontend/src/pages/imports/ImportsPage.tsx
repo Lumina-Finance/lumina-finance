@@ -13,7 +13,15 @@ import {
   IMPORT_SCOPE_FAILURE_EXPLANATION,
   IMPORT_SCOPE_FAILURE_TITLE,
 } from './constants'
-import { ImportExpectationsCard, ImportLoadFailure, ImportProgressOverlay, ImportUndoNoticeCard, LastImportCard } from './components'
+import {
+  ImportExpectationsCard,
+  ImportLoadFailure,
+  ImportProgressOverlay,
+  ImportSetupPanel,
+  ImportUndoNoticeCard,
+  LastImportCard,
+} from './components'
+import { hasOnlyAcceptedFiles } from './utils/setupPanel'
 import { SkippedRowsReviewContext } from '@/contexts/SkippedRowsReviewContext'
 import { getImportExpectations } from './expectations'
 import { useActualImportWorkflow } from './actual/hooks'
@@ -154,6 +162,19 @@ export default function ImportsPage() {
   const overlayWorkflows = { generic: workflow, firefly: fireflyWorkflow, actual: actualWorkflow, ofx: ofxWorkflow }
   const overlayWorkflow = overlayWorkflows[activeFlow]
   const importOverlayOpen = overlayWorkflow.importOverlayOpen
+
+  // Collapses the setup panel on desktop once the flow on screen holds its files, and shows it again
+  // when they go or the import is saved, so the next import's upload card and the last import's undo
+  // are in view. Firefly takes three files, so it waits for all of them. A refused file or an intake
+  // message keeps the panel open, since its reason is shown there
+  const hasStagedFile = !overlayWorkflow.importResult && {
+    generic: hasOnlyAcceptedFiles(workflow.files) && workflow.fileIntakeError === null,
+    firefly: [fireflyWorkflow.transactionsFile, fireflyWorkflow.budgetsFile, fireflyWorkflow.accountsFile].every((file) => file !== null)
+      && hasOnlyAcceptedFiles([fireflyWorkflow.transactionsFile, fireflyWorkflow.budgetsFile, fireflyWorkflow.accountsFile])
+      && Object.values(fireflyWorkflow.fileIntakeErrors).every((message) => message === null),
+    actual: actualWorkflow.stagedFile !== null && actualWorkflow.fileIntakeError === null,
+    ofx: ofxWorkflow.stagedFiles.length > 0 && ofxWorkflow.fileIntakeError === null,
+  }[activeFlow]
 
   // Where the page came from, which is also where its two exits go while the scope holds
   const scopedAccountPath = accountScope.accountId ? `/accounts/${accountScope.accountId}` : null
@@ -342,7 +363,7 @@ export default function ImportsPage() {
                 activeFlow === 'generic' && workflow.importResult && 'import-record',
               ].filter(Boolean).join(' ')}
             >
-              <aside className="flex flex-col gap-8 xl:h-full xl:w-[340px] xl:shrink-0">
+              <ImportSetupPanel hasFile={hasStagedFile}>
                 {/* First, so the way to undo the last import is in view without scrolling the steps below */}
                 <LastImportCard />
                 {/* An import started from an account offers the sources that write to one account */}
@@ -360,9 +381,9 @@ export default function ImportsPage() {
                   {activeFlow === 'ofx' && <OfxFilesStep {...ofxWorkflow} />}
                   {activeFlow === 'generic' && <ImportFilesStep {...workflow} />}
                 </div>
-              </aside>
+              </ImportSetupPanel>
 
-              <div className="min-w-0 xl:h-full xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1">
+              <div role="region" aria-label="Import steps" className="min-w-0 xl:h-full xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1">
                 <SkippedRowsReviewContext.Provider value={skippedReviewCount}>
                   <div className="space-y-8">
                     {/* Shown whether or not a file is staged, since what the import does with one is worth

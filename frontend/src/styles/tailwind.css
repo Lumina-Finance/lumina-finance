@@ -649,7 +649,10 @@
     border-color: var(--app-input-border-hover);
   }
 
-  .app-date-field:focus-within {
+  /* The calendar opens outside the field and takes focus, so the button that opened it keeps the
+     field looking focused until it closes */
+  .app-date-field:focus-within,
+  .app-date-field:has([aria-expanded='true']) {
     border-color: var(--app-focus-ring);
     box-shadow: var(--app-focus-border);
   }
@@ -659,7 +662,8 @@
     background: var(--app-negative-soft);
   }
 
-  .app-date-field.app-input-error:focus-within {
+  .app-date-field.app-input-error:focus-within,
+  .app-date-field.app-input-error:has([aria-expanded='true']) {
     border-color: var(--app-negative);
     box-shadow: var(--app-focus-border-error);
   }

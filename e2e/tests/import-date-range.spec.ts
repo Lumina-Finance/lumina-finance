@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, createTransaction, signUpUser } from '../support/api'
-import { commitImport, logInViaApi, openPage, typeDate } from '../support/app'
+import { commitImport, logInViaApi, openPage, showImportSetup, typeDate } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
@@ -32,6 +32,10 @@ async function uploadYear(page: Page, request: Parameters<typeof signUpUser>[0],
   const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')
   await expect(upload).toBeEnabled()
   await upload.setInputFiles({ name: 'year.csv', mimeType: 'text/csv', buffer: Buffer.from(CSV) })
+
+  // The dates are in the setup panel, which collapses once the file is read, so the pointer is held
+  // on it until the test is done there
+  await showImportSetup(page)
   return { user, account }
 }
 
@@ -157,8 +161,66 @@ test('keeps the dates\' messages whole at every width', async ({ page, request }
   await uploadYear(page, request)
   await typeDate(page, 'Start date', '2025-04-01')
   const end = await typeDate(page, 'End date', '2025-03-01')
+
+  // The setup panel the messages are in stays collapsed through a resize, so its strip is pinned open
+  const strip = page.getByRole('button', { name: 'Expand import setup', exact: true })
+  await expect(strip).toBeVisible()
+  await strip.click()
   await checkLayoutAtEveryWidth(page, page.getByText('Must be on or before the end date', { exact: true }))
 
   await end.getByRole('textbox', { name: 'Day', exact: true }).fill('')
   await checkLayoutAtEveryWidth(page, page.getByText('Enter the whole date, or clear it', { exact: true }))
+})
+
+// A unit test can't click, and the empty space is only reachable by a real click at a point inside the
+// field's box that is on no segment or button
+test('focuses the year when the empty space of a date field is clicked, empty or filled', async ({ page, request }) => {
+  await uploadYear(page, request)
+  const start = page.getByRole('group', { name: 'Start date', exact: true })
+  const year = start.getByRole('textbox', { name: 'Year', exact: true })
+  const month = start.getByRole('textbox', { name: 'Month', exact: true })
+  const box = await start.boundingBox()
+  const monthBox = await month.boundingBox()
+  if (!box || !monthBox) throw new Error('The start date field has no box')
+
+  // Well right of the segments and well left of the calendar button
+  const emptySpace = { x: box.width - 60, y: box.height / 2 }
+  expect(box.x + emptySpace.x).toBeGreaterThan(monthBox.x + monthBox.width + 60)
+
+  await month.click()
+  await expect(month).toBeFocused()
+  await start.click({ position: emptySpace })
+  await expect(year).toBeFocused()
+
+  await typeDate(page, 'Start date', '2025-03-01')
+  await month.click()
+  await expect(month).toBeFocused()
+  await start.click({ position: emptySpace })
+  await expect(year).toBeFocused()
+})
+
+// The calendar opens outside the field and takes focus, so only the field's own styling can keep its
+// focused look, and the look is read from a focused field rather than copied into the test
+test('keeps the focused look on a date field while its calendar is open', async ({ page, request }) => {
+  await uploadYear(page, request)
+  const start = page.getByRole('group', { name: 'Start date', exact: true })
+  const year = start.getByRole('textbox', { name: 'Year', exact: true })
+  const settledLook = () =>
+    start.evaluate(async (field) => {
+      await Promise.all(field.getAnimations().map((animation) => animation.finished))
+      const style = getComputedStyle(field)
+      return { borderColor: style.borderColor, boxShadow: style.boxShadow }
+    })
+
+  const resting = await settledLook()
+  await year.click()
+  await expect(year).toBeFocused()
+  const focused = await settledLook()
+  expect(focused.boxShadow).not.toBe(resting.boxShadow)
+  expect(focused.borderColor).not.toBe(resting.borderColor)
+
+  await start.getByRole('button', { name: 'Open calendar', exact: true }).click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await expect(year).not.toBeFocused()
+  await expect.poll(settledLook).toEqual(focused)
 })

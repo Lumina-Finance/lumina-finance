@@ -13,6 +13,10 @@ import { API_BASE_URL, BASE_URL } from './target'
 const NAVIGATION_BREAKPOINT_PX = 1050
 const TOOLBAR_BREAKPOINT_PX = 750
 
+// Where the import page puts its setup panel beside the steps rather than above them, and where
+// the panel collapses by itself once a file is accepted
+const IMPORT_SIDE_BY_SIDE_BREAKPOINT_PX = 1280
+
 /**
  * Whether the page is at least this wide, as the app's own media queries see it.
  *
@@ -156,6 +160,41 @@ export async function commitImport(page: Page): Promise<Response> {
     && IMPORT_COMMIT_PATH.test(new URL(response.url()).pathname), { timeout: 0 })
   await commit.click()
   return committed
+}
+
+/**
+ * Brings the import's setup panel back over the steps by hovering its strip, so the data source and
+ * the files in it can be reached
+ *
+ * On desktop the panel collapses once a file is accepted and shows only while the pointer is on it,
+ * so a step that touches it holds the pointer there until it is done. Waits for the collapse, so it
+ * is called only with an accepted file. Below desktop the panel never collapses of itself and there
+ * is nothing to do
+ *
+ * @param page - Page showing a staged import
+ */
+export async function showImportSetup(page: Page): Promise<void> {
+  if (!await isAtLeast(page, IMPORT_SIDE_BY_SIDE_BREAKPOINT_PX)) return
+  const strip = page.getByRole('button', { name: 'Expand import setup', exact: true })
+  await expect(strip).toBeVisible()
+  // A pointer that chose the file is still, by the browser's reckoning, on the setup column it collapsed
+  // under, so moving onto the strip would send no pointer-enter and the panel would stay out only while
+  // something in it had focus. Moving off first makes the move onto the strip an entry
+  await page.mouse.move(0, 0)
+  await strip.hover()
+}
+
+/**
+ * Moves focus and the pointer out of the import's setup panel, which stays slid out over the steps
+ * beside it while the pointer is on it, as it is after `showImportSetup`. On desktop it then expects
+ * the panel back at its strip, so a panel that stays open fails here
+ *
+ * @param page - Page showing an import
+ */
+export async function leaveImportSetup(page: Page): Promise<void> {
+  await page.getByRole('heading', { name: 'Import Transactions' }).click()
+  if (!await isAtLeast(page, IMPORT_SIDE_BY_SIDE_BREAKPOINT_PX)) return
+  await expect(page.getByRole('button', { name: 'Expand import setup', exact: true })).toHaveAttribute('aria-expanded', 'false')
 }
 
 /**

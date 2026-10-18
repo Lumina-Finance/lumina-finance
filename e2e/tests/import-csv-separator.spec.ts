@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { countLedgerTransactions, createAccount, signUpUser } from '../support/api'
-import { commitImport, logInViaApi, openPage } from '../support/app'
+import { commitImport, logInViaApi, openPage, showImportSetup } from '../support/app'
 
 // Runs on desktop only: how the file is read is the same at every size
 
@@ -27,6 +27,7 @@ test('reads a CSV file again with the separator chosen and imports it', async ({
   const separator = page.getByRole('radiogroup', { name: 'Separator', exact: true })
   await expect(separator.getByRole('radio', { name: 'Semicolon', exact: true })).toBeChecked()
 
+  await showImportSetup(page)
   await separator.getByRole('radio', { name: 'Comma', exact: true }).click()
   await expect(page.getByText('Only one column was found. Choose the separator your file uses under Separator.').first()).toBeVisible()
 

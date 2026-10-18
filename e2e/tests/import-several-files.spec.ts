@@ -2,7 +2,7 @@ import { writeFileSync } from 'node:fs'
 import { expect, test, type Page } from '@playwright/test'
 
 import { asUser, countLedgerTransactions, createAccount, signUpUser } from '../support/api'
-import { commitImport, logInViaApi, openPage, typeDate } from '../support/app'
+import { commitImport, logInViaApi, openPage, showImportSetup, typeDate } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: how files are checked against the first one and imported together is the
@@ -76,6 +76,7 @@ test('turns away a file with other columns by name and clears the layout once ev
   await page.getByRole('button', { name: 'Remove 2024-03.csv', exact: true }).click()
   await page.getByRole('button', { name: 'Remove 2024-05.csv', exact: true }).click()
   await upload.setInputFiles([odd])
+  await showImportSetup(page)
   await expect(page.getByRole('button', { name: 'Remove 2024-04.csv', exact: true })).toBeVisible()
 })
 
@@ -104,6 +105,7 @@ test('checks a later pick against the files already staged', async ({ page, requ
   }
   const march = picked(MARCH)
   await upload.setInputFiles(march)
+  await showImportSetup(page)
   await expect(page.getByRole('button', { name: 'Remove 2024-03.csv', exact: true })).toBeVisible()
 
   await upload.setInputFiles(picked(monthlyFile('2024-04.csv', ['2024-04-05'], `${HEADER},Balance`)))
@@ -122,6 +124,7 @@ test('checks a later pick against the files already staged', async ({ page, requ
 test('keeps keyboard focus in the list as files are removed', async ({ page, request }) => {
   const { upload } = await openImport(page, request)
   await upload.setInputFiles([MARCH, APRIL, MAY])
+  await showImportSetup(page)
   const remove = (name: string) => page.getByRole('button', { name: `Remove ${name}`, exact: true })
 
   await remove('2024-05.csv').focus()
@@ -146,6 +149,7 @@ test('reads every staged file again when Skip last rows changes', async ({ page,
   await upload.setInputFiles([MARCH, APRIL])
   await expect(page.getByText('2 rows · 4 columns', { exact: true })).toHaveCount(2)
 
+  await showImportSetup(page)
   const skipLastRows = page.getByLabel('Skip last rows', { exact: true })
   await skipLastRows.fill('1')
   await skipLastRows.press('Enter')
@@ -172,6 +176,7 @@ test('keeps the mapping and answers when one file is removed and resets them whe
   await page.getByRole('option', { name: 'Do not import', exact: true }).click()
 
   // The first file is the one the answers were first given under
+  await showImportSetup(page)
   await page.getByRole('button', { name: 'Remove 2024-03.csv', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Remove 2024-04.csv', exact: true })).toBeVisible()
   await expect(category).toContainText('Create new category')
@@ -186,6 +191,7 @@ test('keeps the mapping and answers when one file is removed and resets them whe
 
   await page.getByRole('button', { name: 'Remove 2024-04.csv', exact: true }).click()
   await upload.setInputFiles([treats('2024-05.csv', '2024-05-05')])
+  await showImportSetup(page)
   await expect(page.getByRole('button', { name: 'Remove 2024-05.csv', exact: true })).toBeVisible()
   await expect(dateField).toContainText('Date')
   await expect(category).not.toContainText('Create new category')
@@ -196,6 +202,7 @@ test('applies a chosen date range across the files', async ({ page, request }) =
   const { user, account, upload } = await openImport(page, request)
   await upload.setInputFiles([MARCH, APRIL, MAY])
 
+  await showImportSetup(page)
   await typeDate(page, 'Start date', '2024-03-10')
   await typeDate(page, 'End date', '2024-04-10')
 

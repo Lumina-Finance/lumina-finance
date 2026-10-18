@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url'
 import { expect, test } from '@playwright/test'
 
 import { signUpUser } from '../support/api'
-import { chooseFromDropdown, commitImport, logInViaApi, openPage } from '../support/app'
+import { chooseFromDropdown, commitImport, leaveImportSetup, logInViaApi, openPage, showImportSetup } from '../support/app'
 
 // Runs on desktop only: what the import writes is the same at every size
 
@@ -23,8 +23,11 @@ test('imports a Firefly III export with only the budgets left ticked', async ({ 
   for (const [index, file] of EXPORT_FILES.entries()) {
     await expect(uploads.nth(index)).toBeEnabled()
     await uploads.nth(index).setInputFiles(file)
+    // The setup panel collapses once the last file lands, so it is slid out to see that file
+    if (index === EXPORT_FILES.length - 1) await showImportSetup(page)
     await expect(page.getByText(file.split('/').at(-1)!, { exact: true })).toBeVisible()
   }
+  await leaveImportSetup(page)
 
   // Category Matching explains how the import files transfers once the transactions are staged
   await expect(page.getByText('Transfers and debt payments', { exact: true })).toBeVisible()

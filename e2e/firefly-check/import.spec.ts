@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
 
 import { signUpUser } from '../support/api'
-import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
+import { chooseFromDropdown, logInViaApi, leaveImportSetup, openPage, showImportSetup } from '../support/app'
 import { checkExpected } from '../support/import-check/compare.ts'
 import { readLumina } from '../support/import-check/lumina.ts'
 import { captureUploads } from '../support/import-check/uploads.ts'
@@ -39,8 +39,11 @@ test('a Firefly III export imports to the balances, totals and budgets Firefly I
   for (const [index, name] of ['transactions.csv', 'budgets.csv', 'accounts.csv'].entries()) {
     await expect(files.nth(index)).toBeEnabled()
     await files.nth(index).setInputFiles(join(OUTPUT_DIR, name))
+    // The setup panel collapses once the last file lands, so it is slid out to see that file
+    if (index === 2) await showImportSetup(page)
     await expect(page.getByText(name, { exact: true })).toBeVisible()
   }
+  await leaveImportSetup(page)
 
   const commit = page.getByRole('button', { name: 'Commit import', exact: true })
   await expect(commit).toBeEnabled()

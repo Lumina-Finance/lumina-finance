@@ -1,7 +1,7 @@
 import { expect, test, type Page, type Request, type Response } from '@playwright/test'
 
 import { countLedgerTransactions, createAccount, signUpUser } from '../support/api'
-import { chooseFromDropdown, commitImport, logInViaApi, openPage } from '../support/app'
+import { chooseFromDropdown, commitImport, logInViaApi, openPage, showImportSetup } from '../support/app'
 
 // Runs on desktop only: what the import keeps between files is the same at every size
 
@@ -67,12 +67,16 @@ test('keeps a finished import as its record until another file is uploaded', asy
   await expect(page.getByLabel('Header row', { exact: true })).toBeDisabled()
   await expect(skippedTitle).toBeVisible()
 
+  // A saved import brings the setup panel back, so the upload card for the next import is in view
+  const uploadCard = page.getByRole('button', { name: /^Upload CSV file/ })
+  await expect(uploadCard).toBeVisible()
   const chooser = page.waitForEvent('filechooser')
-  await page.getByRole('button', { name: /^Upload CSV file/ }).click()
+  await uploadCard.click()
   await (await chooser).setFiles({ name: 'second.csv', mimeType: 'text/csv', buffer: Buffer.from(NEXT_EXPORT) })
   await expect(page.getByText('second.csv', { exact: true })).toBeVisible()
   await expect(skippedTitle).toBeHidden()
-  await expect(page.getByText(/12\.00/).first()).toBeVisible()
+  // In the steps, since the file's own preview sits in the setup panel, which has collapsed away
+  await expect(page.getByRole('region', { name: 'Import steps' }).getByText(/12\.00/).first()).toBeVisible()
   await expect(page.getByText(/42\.50/)).toHaveCount(0)
   await expect(merchantField).toBeEnabled()
   await expect(merchantField).toContainText('Merchant')
@@ -204,6 +208,7 @@ test('guesses a new file\'s columns afresh after the user answered for the remov
   await dateField.click()
   await page.getByRole('option', { name: 'Do not import', exact: true }).click()
   await expect(dateField).toContainText('Do not import')
+  await showImportSetup(page)
   await page.getByRole('button', { name: 'Remove first.csv', exact: true }).click()
 
   await stage('second.csv', SECOND_FILE)
