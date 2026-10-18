@@ -120,6 +120,7 @@ test('keeps a finished Firefly III import as its record until another export is 
   await expect(removeButtons(page)).toHaveCount(1)
   await expect(skippedTitle).toHaveCount(0)
   await expect(accountAnswers(page).first()).toBeEnabled()
+  expect(await readAnswers(accountAnswers(page))).not.toEqual(accountsBefore)
 
   const second = await commitImport(page)
   expect(second.status()).toBe(201)
