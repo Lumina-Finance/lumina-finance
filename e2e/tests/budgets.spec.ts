@@ -1,6 +1,7 @@
 import { expect, test, type Locator } from '@playwright/test'
 
 import {
+  asUser,
   budgetPeriodStart,
   createAccount,
   createMonthlyBudget,
@@ -14,7 +15,9 @@ import { AT_EVERY_SIZE } from '../support/sizes'
 
 // Runs on desktop only, apart from the month boundary and Edit Budget buttons tests, which run at
 // every size: the period history turns from a table into cards, and the buttons into halves on a
-// phone. The tests of a refused Create Budget set each size they check themselves
+// phone. The tests of a refused Create Budget set each size they check themselves, and so does the
+// first Edit Budget category test, which widens to 393 once the dialog is open so the categories stack
+// below the first fields (the details dialog's Edit button is covered when opened at that width)
 
 // Format stored calendar dates without applying the test runner's own timezone
 const PERIOD_DATE = new Intl.DateTimeFormat('en-CA', {
@@ -149,6 +152,69 @@ test('shows the Edit Budget Cancel and Save Changes buttons in one row, as halve
   expect(Math.abs(save.y - cancel.y)).toBeLessThan(2)
   expect(cancel.x).toBeLessThan(save.x)
   if (page.viewportSize()!.width < 640) expect(Math.abs(save.width - cancel.width)).toBeLessThan(2)
+})
+
+const NO_CATEGORY_MESSAGE = 'Select at least one category'
+
+test('explains the disabled Save Changes of Edit Budget as soon as the last category is deselected', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const id = await createMonthlyBudget(request, user, {
+    name: 'Two categories',
+    categoryNames: ['Groceries', 'Dining'],
+    overallLimit: 50_000,
+    periodStart: budgetPeriodStart(),
+  })
+  await logInViaApi(page, user)
+  await openPage(page, '/budgets')
+  await page.getByTestId(`budget-card-${id}`).click()
+  await page.getByRole('dialog', { name: 'Two categories', exact: true }).getByRole('button', { name: 'Edit', exact: true }).click()
+  const edit = page.getByRole('dialog', { name: 'Edit Budget', exact: true })
+
+  // Resized once the dialog is open, so the stacked layout puts the categories below the first fields
+  await page.setViewportSize({ width: 393, height: 852 })
+  const save = edit.getByTestId('budget-submit')
+  const message = edit.getByText(NO_CATEGORY_MESSAGE, { exact: true })
+  const groceries = edit.getByRole('button', { name: /Groceries/ })
+  const dining = edit.getByRole('button', { name: /Dining/ })
+
+  // Nothing is refused while a category is still chosen
+  await expect(message).toHaveCount(0)
+  await groceries.click()
+  await expect(message).toHaveCount(0)
+
+  // The last one going says why Save Changes is disabled, in view beside the categories
+  await dining.click()
+  await expect(save).toBeDisabled()
+  await expect(message).toBeInViewport({ ratio: 1 })
+  await expect(edit.getByPlaceholder('Search categories...', { exact: true })).toHaveAccessibleDescription(NO_CATEGORY_MESSAGE)
+
+  await groceries.click()
+  await expect(message).toHaveCount(0)
+  await expect(save).toBeEnabled()
+})
+
+test('leaves the Edit Budget of an archived budget without a category message', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const id = await createMonthlyBudget(request, user, {
+    name: 'Archived budget',
+    categoryNames: ['Groceries'],
+    overallLimit: 50_000,
+    periodStart: budgetPeriodStart(),
+  })
+  const archived = await request.patch(`${API_BASE_URL}/base-budgets/${id}`, {
+    headers: asUser(user),
+    data: { is_archived: true },
+  })
+  expect(archived.status()).toBe(200)
+  await logInViaApi(page, user)
+  await openPage(page, '/budgets')
+  await page.getByRole('button', { name: /Archived budgets/ }).click()
+  await page.getByTestId(`budget-card-${id}`).click()
+  await page.getByRole('dialog', { name: 'Archived budget', exact: true }).getByRole('button', { name: 'Edit', exact: true }).click()
+  const edit = page.getByRole('dialog', { name: 'Edit Budget', exact: true })
+
+  await expect(edit.getByText('Unarchive this budget to edit its details.', { exact: true })).toBeVisible()
+  await expect(edit.getByText(NO_CATEGORY_MESSAGE, { exact: true })).toHaveCount(0)
 })
 
 // On a phone the dialog's fields stack in one column, so the categories sit below what the dialog shows

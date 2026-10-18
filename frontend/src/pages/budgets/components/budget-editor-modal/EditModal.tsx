@@ -12,6 +12,7 @@ import BudgetEditorModalShell from '@/pages/budgets/components/budget-editor-mod
 import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
 import type { BudgetFormFieldErrors, BudgetFormState } from '@/pages/budgets/types'
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/pages/budgets/utils/budgetPeriods'
+import { NO_CATEGORY_ERROR } from '@/pages/budgets/utils/budgetCreateValidation'
 import { sameStringSet } from '@/pages/budgets/utils/form'
 import { currencySymbol, toMinorUnits } from '@/pages/budgets/utils/money'
 import { useCurrencyListState } from '@/hooks/useCurrencyListState'
@@ -170,7 +171,13 @@ export default function BudgetEditModal({
     && (baseChanged || periodChanged || archiveChanged)
   const state: BudgetEditorModalViewState = { form, formError, fieldErrors, touched, categorySearch }
   const options: BudgetEditorModalOptions = { categories: categoryOptions, filteredCategories, currencies }
-  const showError: BudgetEditorModalErrorGetter = (field) => touched[field] ? fieldErrors[field] : undefined
+  // Save Changes is disabled while no category is chosen, and a disabled button cannot be pressed to
+  // surface the error, so that one is shown at once rather than after a touch. An archived budget's
+  // categories are locked, so nothing there can be missing
+  const showError: BudgetEditorModalErrorGetter = (field) => {
+    if (field === 'categoryIds') return !hasCategory && !fieldsLocked ? NO_CATEGORY_ERROR : undefined
+    return touched[field] ? fieldErrors[field] : undefined
+  }
 
   /**
    * Closes the nested edit dialog and clears any transient form state immediately
@@ -213,7 +220,7 @@ export default function BudgetEditModal({
   const validateEditForm = () => {
     const errors: BudgetFormFieldErrors = {}
     if (!form.name.trim()) errors.name = 'Name is required'
-    if (!hasCategory) errors.categoryIds = 'Select at least one category'
+    if (!hasCategory) errors.categoryIds = NO_CATEGORY_ERROR
     // A locked limit is blank, disabled and left out of the save, so requiring a readable one here would
     // refuse every other edit to the budget
     if (latestPeriod && !isLimitLocked && limitMinorUnits === null) {

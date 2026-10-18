@@ -3,6 +3,9 @@ import type { Currency } from '@/api/currency'
 import type { BudgetFormFieldErrors, BudgetFormState } from '@/pages/budgets/types'
 import { toMinorUnits } from '@/pages/budgets/utils/money'
 
+/** Shown in Tracked categories whenever no expense category is chosen */
+export const NO_CATEGORY_ERROR = 'Select at least one category'
+
 /**
  * Validates the create-budget form against frontend and backend budget requirements
  */
@@ -28,7 +31,7 @@ export function validateBudgetCreateForm(
   if (form.recurs && (!Number.isInteger(instanceLength) || instanceLength < 1)) {
     errors.instanceLength = 'Enter at least 1'
   }
-  if (!hasSelectedExpenseCategory) errors.categoryIds = 'Select at least one category'
+  if (!hasSelectedExpenseCategory) errors.categoryIds = NO_CATEGORY_ERROR
 
   return errors
 }

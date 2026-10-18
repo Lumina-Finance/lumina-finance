@@ -1,10 +1,14 @@
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Check } from 'lucide-react'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import type { Category } from '@/api/categories'
 import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
 import { EASE } from '@/pages/budgets/constants'
 import { categoryIcon } from '@/pages/budgets/utils/category'
+
+// The message grows from and shrinks to zero height, ease-out, and is instant under reduced motion
+const ERROR_DURATION_S = 0.22
+const ERROR_EASE = [0.22, 1, 0.36, 1] as const
 
 interface BudgetEditorModalCategorySectionProps {
   state: BudgetEditorModalViewState
@@ -35,6 +39,7 @@ export default function BudgetEditorModalCategorySection({
   const { form, categorySearch } = state
   const { categories, filteredCategories } = options
   const categoryIdsError = showError('categoryIds')
+  const shouldReduceMotion = useReducedMotion() ?? false
 
   const categoryOptions = filteredCategories.map((category) => (
     <BudgetCategoryOption
@@ -80,7 +85,7 @@ export default function BudgetEditorModalCategorySection({
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.18, ease: EASE }}
+                      transition={shouldReduceMotion ? { duration: 0 } : { duration: ERROR_DURATION_S, ease: ERROR_EASE }}
                     >
                       <p id={ids.categoryError} className="mb-1.5 text-xs font-medium leading-5" style={{ color: 'var(--app-negative)' }}>
                         {categoryIdsError}
@@ -107,7 +112,7 @@ export default function BudgetEditorModalCategorySection({
               <motion.div
                 className="app-selection-list m-0 min-[1050px]:absolute min-[1050px]:inset-0 min-[1050px]:max-h-none"
                 style={categoryIdsError ? { borderColor: 'var(--app-negative-border)', background: 'var(--app-negative-soft)' } : undefined}
-                layout={animateOptions}
+                layout={animateOptions && !shouldReduceMotion}
               >
                 {categoryOptions}
                 {categories.length > 0 && filteredCategories.length === 0 && (
