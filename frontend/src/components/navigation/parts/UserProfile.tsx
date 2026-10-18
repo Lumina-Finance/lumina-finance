@@ -19,8 +19,8 @@ export function NavigationUserProfile({
       <span
         className="app-nav-user-avatar flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold"
         style={{
-          background: 'linear-gradient(135deg, #C9A96A 0%, #9B6C2C 100%)',
-          color: '#1C1510',
+          background: 'linear-gradient(135deg, var(--app-avatar-start) 0%, var(--app-avatar-end) 100%)',
+          color: 'var(--app-avatar-text)',
         }}
       >
         {initials}

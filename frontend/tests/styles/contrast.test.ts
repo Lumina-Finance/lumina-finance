@@ -322,3 +322,15 @@ describe('FX status badge label contrast', () => {
     expect(contrast(readColour(tokens, text[1] ?? text[2]), readColour(tokens, fill[1]))).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
   })
 })
+
+describe('avatar initials contrast', () => {
+  // The initials sit on a gradient from the first stop to the last, and contrast moves steadily along the
+  // blend, so the two stops bound it
+  const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) =>
+    ['--app-avatar-start', '--app-avatar-end'].map((stop) => ({ theme, stop })))
+
+  it.each(cases)('the initials read at 4.5:1 or better in the $theme theme on the gradient\'s $stop stop', ({ theme, stop }) => {
+    const tokens = THEMES[theme]
+    expect(contrast(solid(tokens, '--app-avatar-text'), solid(tokens, stop))).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+  })
+})

@@ -75,8 +75,8 @@ export default function ProfileSection({
               <div
                 className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-lg font-bold"
                 style={{
-                  background: 'linear-gradient(135deg, #C9A96A 0%, #9B6C2C 100%)',
-                  color: '#1C1510',
+                  background: 'linear-gradient(135deg, var(--app-avatar-start) 0%, var(--app-avatar-end) 100%)',
+                  color: 'var(--app-avatar-text)',
                 }}
               >
                 {initials}

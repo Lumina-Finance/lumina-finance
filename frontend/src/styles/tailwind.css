@@ -24,6 +24,11 @@
     --app-accent: #8A5F25;
     --app-accent-soft: #9b6c2c1a;
     --app-accent-border: #9b6c2c38;
+    /* The gold gradient behind a user's initials and the initials on it, the same in both themes. The end stop is
+       the darkest point the initials sit on, kept light enough for them to read at 4.5:1 */
+    --app-avatar-start: #C9A96A;
+    --app-avatar-end: #A87A33;
+    --app-avatar-text: #1C1510;
     /* The subtle colour falls short of the contrast text needs on the accent tint here, so faint text there,
        such as on the budget details panel or a chosen row, is drawn partway toward muted while staying the quieter of the two */
     --app-text-subtle-on-accent: color-mix(in srgb, var(--app-text-subtle) 60%, var(--app-text-muted));
