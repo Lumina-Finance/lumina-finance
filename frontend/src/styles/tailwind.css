@@ -51,6 +51,12 @@
     --app-warning-text: #6F5700;
     /* Muted text on the warning tint, such as the archive warning's explanation, which the tint leaves readable here */
     --app-text-muted-on-warning: var(--app-text-muted);
+    /* The FX badge's blue, for its border, fill tint and hover fill, and the darker blue its label is drawn in,
+       since the plain blue falls short of the contrast small text needs on its own tint */
+    --app-fx-blue: #2563EB;
+    --app-fx-blue-text: #1D4ED8;
+    /* The gray FX badge's hover and open fill, which its white label sits on */
+    --app-fx-gray-fill: var(--app-text-muted);
     --app-negative: #9A3C34;
     --app-negative-soft: #9a3c341a;
     --app-negative-border: #9a3c344d;
@@ -149,6 +155,11 @@
     /* The muted colour falls short of the contrast text needs on the warning tint here, so it is drawn a quarter of
        the way toward the full text colour, as an Upcoming day total is */
     --app-text-muted-on-warning: color-mix(in srgb, var(--app-text-muted) 75%, var(--app-text));
+    --app-fx-blue: #2563EB;
+    --app-fx-blue-text: #6B95F0;
+    /* The muted colour is too light here for a white label to read on, so the fill is drawn 30% of the way toward
+       the page, which keeps its warm gray */
+    --app-fx-gray-fill: color-mix(in srgb, var(--app-text-muted) 70%, var(--app-bg));
     --app-negative: #D8776A;
     --app-negative-soft: #b8584e1f;
     --app-negative-border: #b8584e59;

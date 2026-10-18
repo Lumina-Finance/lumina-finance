@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Info, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { joinClassNames } from '@/utils/classNames'
+import { FX_TONE_CLASS, type IconTooltipFxTone } from '@/components/tooltips/fxToneClass'
 
 export type IconTooltipLevel = 'info' | 'warn' | 'important'
 
 type IconTooltipPlacement = 'top' | 'bottom'
 type IconTooltipIcon = LucideIcon | 'fx'
-type IconTooltipFxTone = 'blue' | 'red' | 'gray'
 
 interface IconTooltipProps {
   label: string
@@ -57,20 +57,6 @@ const ICON_ACTIVE_CLASS = '[&>*:first-child]:fill-current [&>*:not(:first-child)
 const ROOT_CLASS = 'group relative inline-flex'
 const FX_ROOT_CLASS = 'shrink-0 items-center align-middle leading-none'
 const FX_TRIGGER_CLASS = 'inline-flex h-4 cursor-pointer appearance-none items-center justify-center rounded-[4px] border px-[3px] text-[0.625rem] font-bold leading-none transition-colors focus-visible:outline-none'
-const FX_TONE_CLASS: Record<IconTooltipFxTone, { idle: string; active: string }> = {
-  blue: {
-    idle: 'border-[color-mix(in_srgb,#2563eb_48%,transparent)] bg-[color-mix(in_srgb,#2563eb_13%,var(--app-bg))] text-[#2563eb] group-hover:border-[#2563eb] group-hover:bg-[#2563eb] group-hover:text-white',
-    active: 'border-[#2563eb] bg-[#2563eb] text-white',
-  },
-  red: {
-    idle: 'border-[color-mix(in_srgb,var(--app-negative)_48%,transparent)] bg-[color-mix(in_srgb,var(--app-negative)_13%,var(--app-bg))] text-[var(--app-negative)] group-hover:border-[var(--app-negative)] group-hover:bg-[var(--app-negative)] group-hover:text-white',
-    active: 'border-[var(--app-negative)] bg-[var(--app-negative)] text-white',
-  },
-  gray: {
-    idle: 'border-[var(--app-border)] bg-transparent text-[var(--app-text-subtle)] opacity-70 group-hover:border-[var(--app-text-muted)] group-hover:bg-[var(--app-text-muted)] group-hover:text-white group-hover:opacity-100',
-    active: 'border-[var(--app-text-muted)] bg-[var(--app-text-muted)] text-white opacity-100',
-  },
-}
 // Above the list toolbars, which stick at z-30 over the page as it scrolls, so a panel that opens
 // across a toolbar is drawn over it rather than under it. Fixed rather than absolute, so a scrolling
 // box around the trigger, such as a dialog's body, never cuts the panel off
