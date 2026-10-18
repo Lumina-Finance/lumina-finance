@@ -19,6 +19,7 @@ from app.services.importers.generic.service import import_transactions
 from app.services.importers.shared.layouts import save_import_layout
 from app.services.importers.shared.run_commit import commit_run
 from app.services.importers.shared.run_staging import stage_run_batch
+from app.services.importers.shared.sources import save_import_sources
 
 # The runs the CSV endpoints take. An OFX file is read in the browser into the same rows
 _GENERIC_RUN_SOURCES = frozenset({ImportRunSource.GENERIC, ImportRunSource.OFX})
@@ -91,6 +92,7 @@ async def commit_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> 
     async def write_run(run: ImportRun, rows: list[ImportStagedRow]) -> TransactionImportResponse:
         summary = await import_transactions(db, user, _build_import_request(run, rows), run.id)
         await save_import_layout(db, user, run, summary.affected_account_ids)
+        await save_import_sources(db, user, run, summary.affected_account_ids)
         return summary
 
     return await commit_run(db, run_id, _GENERIC_RUN_SOURCES, TransactionImportResponse, write_run)

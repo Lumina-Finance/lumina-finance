@@ -26,6 +26,7 @@ from app.schemas.import_run import ImportUndoResponse, LastImportResponse
 from app.services.cache_state import mark_user_cache_changed
 from app.services.importers.shared.layouts import undo_import_layout
 from app.services.importers.shared.run_locking import load_locked_change_marker, load_locked_run
+from app.services.importers.shared.sources import undo_import_sources
 from app.services.transactions.bulk_access import load_locked_run_transactions, load_writable_accounts
 from app.services.transactions.deletion import delete_locked_transactions
 
@@ -162,6 +163,7 @@ async def undo_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> Im
     # write racing for the same rows can also end the undo as the deadlock's loser
     try:
         await undo_import_layout(db, run)
+        await undo_import_sources(db, run)
         await delete_locked_transactions(db, Transaction.import_run_id == run.id, accounts, deleted_days)
         for kind, model in _CREATED_MODELS:
             if created[kind]:

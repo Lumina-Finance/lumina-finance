@@ -14,6 +14,7 @@ import {
 import {
   getOfxAmountTooPreciseReason,
   getOfxCurrencyMismatchError,
+  getOfxFixedAccountCurrencyError,
   getOfxOtherCurrencyReason,
   getOfxRepeatedTransactionReason,
   OFX_AMOUNT_UNREADABLE_REASON,
@@ -30,6 +31,9 @@ export interface OfxImportAnswers {
   accountMappings: Record<string, string>
   accountCreateDetails: Record<string, ImportAccountCreateDetails>
   accountById: Map<string, AccountsOverview>
+
+  /** The account an import started from its page writes the statement to, null where each statement picks its own */
+  fixedAccount?: AccountsOverview | null
 
   /** Undefined while the categories are still loading */
   categories: Category[] | undefined
@@ -55,6 +59,17 @@ export interface OfxImportBuild {
 /** The statements the account step lists: those holding at least one transaction */
 export function getOfxStatementsToImport(file: OfxFile) {
   return file.statements.filter((statement) => statement.transactions.length > 0)
+}
+
+/**
+ * Answers every statement with the account an import started from its page
+ *
+ * The page takes one statement from each file, so the statements here are one per file and all of
+ * them belong to that account. A file of several statements is refused when it is staged, since its
+ * statements may belong to different accounts and the page has no step to tell them apart
+ */
+export function getOfxFixedAccountMappings(statements: OfxStatement[], fixedAccount: AccountsOverview) {
+  return Object.fromEntries(statements.map((statement) => [statement.id, fixedAccount.id]))
 }
 
 export function getOfxSkippedRowId(statement: OfxStatement, transaction: OfxTransaction) {
@@ -99,7 +114,9 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
     const accountCurrency = (built?.account?.currency ?? built?.mapping.create?.currency ?? '').toUpperCase()
     const isWritable = built !== null && accountCurrency === statement.currency
     if (built && !isWritable) {
-      const mismatch = getOfxCurrencyMismatchError(statement.label, statement.currency, accountCurrency)
+      const mismatch = answers.fixedAccount
+        ? getOfxFixedAccountCurrencyError(statement.currency, answers.fixedAccount.name, accountCurrency)
+        : getOfxCurrencyMismatchError(statement.label, statement.currency, accountCurrency)
       currencyMismatches.push(mismatch)
       addError(mismatch)
     }

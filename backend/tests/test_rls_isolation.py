@@ -18,6 +18,7 @@ from sqlalchemy.exc import ProgrammingError
 from app.database import current_user_id_ctx
 from app.models.account import Account
 from app.models.account_import_layout import AccountImportLayout
+from app.models.account_import_source import AccountImportSource
 from app.models.base import AccountKind, AccountType, CategoryKind, RecurrenceFreq
 from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
 from app.models.cache_state import UserCacheState
@@ -396,6 +397,27 @@ async def test_import_layouts_follow_account_access(users):
         forged = _build_import_layout(account.id)
         forged.header_key = "1" * 64
         session.add(forged)
+        with pytest.raises(ProgrammingError, match="row-level security"):
+            await session.flush()
+
+
+async def test_import_sources_follow_account_access(users):
+    """Another user read or wrote the importer remembered for an account they can't reach"""
+    user_a, user_b = users
+    account = _build_account(user_a.id, "A Chequing")
+    async with TestSession() as session:
+        session.add(account)
+        await session.flush()
+        remembered = AccountImportSource(account_id=account.id, source="ofx")
+        session.add(remembered)
+        await session.commit()
+
+    async with _act_as(user_a.id) as session:
+        assert (await session.scalars(select(AccountImportSource.id))).all() == [remembered.id]
+
+    async with _act_as(user_b.id) as session:
+        assert (await session.scalars(select(AccountImportSource.id))).all() == []
+        session.add(AccountImportSource(account_id=account.id, source="generic"))
         with pytest.raises(ProgrammingError, match="row-level security"):
             await session.flush()
 

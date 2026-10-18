@@ -25,7 +25,7 @@ class ImportRunSource(enum.StrEnum):
     OFX = "ofx"
 
 
-_SOURCE_CHECK_VALUES = ", ".join(f"'{source}'" for source in ImportRunSource)
+SOURCE_CHECK_VALUES = ", ".join(f"'{source}'" for source in ImportRunSource)
 
 
 class ImportRun(Base):
@@ -39,7 +39,7 @@ class ImportRun(Base):
 
     __tablename__ = "import_runs"
     __table_args__ = (
-        CheckConstraint(f"source IN ({_SOURCE_CHECK_VALUES})", name="ck_import_runs_source"),
+        CheckConstraint(f"source IN ({SOURCE_CHECK_VALUES})", name="ck_import_runs_source"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -96,6 +96,11 @@ class ImportRun(Base):
     # The saved layout the commit replaced, which undoing the import puts back. Absent when the commit
     # created the layout or saved none
     replaced_csv_layout: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+
+    # What the commit replaced in each account's remembered source, by account id: the source, or null
+    # for an account that had none. Undoing the import puts these back. Absent when the commit saved
+    # no account's source
+    replaced_account_sources: Mapped[dict[str, str | None] | None] = mapped_column(JSONB)
 
 
 class ImportStagedRow(Base):

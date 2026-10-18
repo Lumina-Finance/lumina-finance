@@ -75,6 +75,16 @@ export function getOfxCurrencyMismatchError(statementLabel: string, statementCur
   return `The statement for ${statementLabel} is in ${statementCurrency}, but the account you chose is in ${accountCurrency}. Choose an account in ${statementCurrency}.`
 }
 
+/** Says a statement can't go into the account the import was started from, which is kept in another currency */
+export function getOfxFixedAccountCurrencyError(statementCurrency: string, accountName: string, accountCurrency: string) {
+  return `This statement is in ${statementCurrency}, but ${accountName} is in ${accountCurrency}. Import it into an account in ${statementCurrency} from the Imports page in Settings.`
+}
+
+/** Says why a file is refused on an account's own import page, which takes one statement */
+export function getOfxMultipleStatementsReason(statementCount: number) {
+  return `This file holds ${statementCount} statements. Import it from the Imports page in Settings, where each statement can go to its own account.`
+}
+
 /** Says what the files hold that the import leaves out */
 export function getOfxLeftOutNotice({ investment, loan }: { investment: number; loan: number }, fileCount: number) {
   const parts = [

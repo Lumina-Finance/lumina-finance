@@ -29,6 +29,16 @@ describe('the card saying what an import does with its data', () => {
     )
   })
 
+  // Started from an account's page, the statement goes to that account, nothing is created, and a
+  // file of several statements is refused, so the card must not promise the general import's matching
+  it('names the account an OFX import started from an account writes to, and says several statements are refused', () => {
+    const expectations = getImportExpectations('ofx', 'Everyday chequing')
+
+    expect(expectations.intro).toBe('Each transaction in your statement becomes one transaction in Everyday chequing.')
+    expect(expectations.changes.map((change) => change.source)).toContain('A file with several statements')
+    expect(expectations.changes.map((change) => change.source)).not.toContain('A new account')
+  })
+
   // The card promises only what the import enforces, so each promise is pinned to the rule it states
   it('shows an OFX card that says where a statement goes, what is refused, and what is left behind', () => {
     const expectations = getImportExpectations('ofx', null)

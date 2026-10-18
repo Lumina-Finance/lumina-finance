@@ -1,6 +1,7 @@
 export type {
   CsvImportAmountFormat,
   CsvImportLayout,
+  SavedAccountImportSource,
   SavedCsvImportLayout,
   TransactionImportAccountMapping,
   TransactionImportCategoryMapping,
@@ -17,4 +18,4 @@ export type {
 
 export { buildStagedImportBatches } from '@/api/transaction-imports/batching';
 export { commitStagedImportRun, runTransactionImport } from '@/api/transaction-imports/run';
-export { useCommitStagedImport, useImportLayouts, useImportTransactions } from '@/api/transaction-imports/hooks';
+export { useCommitStagedImport, useImportLayouts, useImportSources, useImportTransactions } from '@/api/transaction-imports/hooks';

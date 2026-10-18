@@ -40,6 +40,7 @@ from app.services.importers.shared.run_staging import (
     validate_category_mapping,
 )
 from app.services.importers.shared.save_results import build_import_summary
+from app.services.importers.shared.sources import save_import_sources
 from app.utils.dates import resolve_timezone
 
 
@@ -222,7 +223,7 @@ async def _write_run(
     budget_results = await write_journal_budgets(db, user, budgets)
     archived_count, adjustment_count = await _archive_accounts(db, user, run, written)
 
-    return build_import_summary(
+    summary = build_import_summary(
         JournalImportRunResponse,
         transactions_created=written.legs_created,
         stats=written.stats,
@@ -234,6 +235,8 @@ async def _write_run(
         accounts_archived=archived_count,
         archive_adjustments_created=adjustment_count,
     )
+    await save_import_sources(db, user, run, summary.affected_account_ids)
+    return summary
 
 
 def _resolve_budget_categories(

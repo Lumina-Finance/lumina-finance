@@ -19,6 +19,7 @@ import {
 import {
   getOfxAmountTooPreciseReason,
   getOfxCurrencyMismatchError,
+  getOfxFixedAccountCurrencyError,
   getOfxOtherCurrencyReason,
   getOfxRepeatedTransactionReason,
   OFX_AMOUNT_UNREADABLE_REASON,
@@ -26,7 +27,12 @@ import {
   OFX_DATE_UNREADABLE_REASON,
 } from '@/pages/imports/ofx/constants'
 import type { OfxFile } from '@/pages/imports/ofx/types'
-import { buildOfxImportPayload, type OfxImportAnswers } from '@/pages/imports/ofx/utils/payload'
+import {
+  buildOfxImportPayload,
+  getOfxFixedAccountMappings,
+  getOfxStatementsToImport,
+  type OfxImportAnswers,
+} from '@/pages/imports/ofx/utils/payload'
 import { buildOfxPreviewRows } from '@/pages/imports/ofx/utils/preview'
 import { readOfxFile } from '@/pages/imports/ofx/utils/readFile'
 import { combineOfxFiles } from '@/pages/imports/ofx/utils/stagedFiles'
@@ -118,6 +124,34 @@ describe('compiling an OFX import', () => {
     expect(build.errors).toEqual([expected])
     expect(build.currencyMismatches).toEqual([expected])
     expect(build.writtenSources.size).toBe(0)
+  })
+
+  it('names the account an import started from it was refused for, not a choice the user made', async () => {
+    const file = await readStatements([{ ...CHECKING, currency: 'USD' }])
+    const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id, { fixedAccount: CHEQUING }))
+
+    expect(build.payload).toBeNull()
+    expect(build.errors).toEqual([getOfxFixedAccountCurrencyError('USD', 'Chequing', 'CAD')])
+  })
+
+  it('writes the one statement of a file to the account an import started from', async () => {
+    const file = await readStatements([CHECKING])
+    const mappings = getOfxFixedAccountMappings(getOfxStatementsToImport(file), CHEQUING)
+    const build = buildOfxImportPayload(file, createAnswers(file, '', { accountMappings: mappings, fixedAccount: CHEQUING }))
+
+    expect(mappings).toEqual({ [file.statements[0].id]: CHEQUING.id })
+    expect(build.errors).toEqual([])
+    expect(build.payload?.accounts).toEqual([{ source: file.statements[0].id, account_id: CHEQUING.id }])
+  })
+
+  it('answers the statement of every file with the account an import started from', async () => {
+    const first = await readStatements([CHECKING])
+    const second = await readStatements([{ ...CHECKING, kind: 'creditCard' }])
+    const file = combineOfxFiles([first, second])
+    const mappings = getOfxFixedAccountMappings(getOfxStatementsToImport(file), CHEQUING)
+
+    expect(Object.keys(mappings)).toEqual(file.statements.map((statement) => statement.id))
+    expect(Object.values(mappings)).toEqual(file.statements.map(() => CHEQUING.id))
   })
 
   it('refuses a new account created in a different currency from its statement', async () => {

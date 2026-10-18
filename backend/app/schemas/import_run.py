@@ -180,6 +180,15 @@ class CsvImportLayoutResponse(CsvImportLayout):
     account_id: uuid.UUID
 
 
+class AccountImportSourceResponse(BaseModel):
+    """The importer that last brought transactions into one of the user's own accounts."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    account_id: uuid.UUID
+    source: Literal["generic", "firefly", "actual_budget", "ofx"]
+
+
 class TransactionImportRunRequest(BaseModel):
     """Open a run for a file about to be staged."""
 

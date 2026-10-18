@@ -11,6 +11,7 @@ type OfxFilesStepProps = Pick<
   OfxImportWorkflow,
   | 'stagedFiles'
   | 'ofxFile'
+  | 'fixedAccount'
   | 'isProcessingFile'
   | 'fileIntakeError'
   | 'handleOfxFileChange'
@@ -37,6 +38,7 @@ function describeOfxFile({ file }: OfxStagedFile) {
 export function OfxFilesStep({
   stagedFiles,
   ofxFile,
+  fixedAccount,
   isProcessingFile,
   fileIntakeError,
   handleOfxFileChange,
@@ -71,7 +73,9 @@ export function OfxFilesStep({
       />
       <ImportUploadCard
         title={isAddingFiles ? 'Add more statements' : 'Upload statements'}
-        hint="Each file is an .ofx or .qfx statement. One file can hold several statements."
+        hint={fixedAccount
+          ? `Each file is an .ofx or .qfx statement for ${fixedAccount.name}, holding one statement.`
+          : 'Each file is an .ofx or .qfx statement. One file can hold several statements.'}
         processing={isProcessingFile}
         disabled={isUploadBlocked}
         rejection={fileIntakeError}
