@@ -57,7 +57,6 @@ export function usePaginatedSettingsList<TItem extends { id: string }>({
   const [listAtBottom, setListAtBottom] = useState(false)
   const [pageFetchPending, setPageFetchPending] = useState(false)
   const listRef = useRef<HTMLDivElement | null>(null)
-  const resetSearchRef = useRef(activeSearch)
   const initialFetchStartedAtRef = useRef<number | null>(null)
   const fetchMoreStartedAtRef = useRef<number | null>(null)
 
@@ -108,17 +107,15 @@ export function usePaginatedSettingsList<TItem extends { id: string }>({
   }, [search, searchDebounceMs])
 
   useEffect(() => {
-    // On mount the list is already empty, and a frame emptying it later would also discard cached
-    // rows installed in the meantime
-    if (resetSearchRef.current === activeSearch) return undefined
-    resetSearchRef.current = activeSearch
+    // The rows are not emptied here. The fetched-items effect swaps in the new search's rows, which
+    // are already in hand when that search ran before, and a frame emptying them after the swap
+    // would show the empty message until they were installed again. A search still loading starts
+    // its own timer below
+    initialFetchStartedAtRef.current = null
+    fetchMoreStartedAtRef.current = null
 
     const frame = window.requestAnimationFrame(() => {
-      setVisibleItems([])
       setListAtBottom(false)
-      visibleItemCountRef.current = 0
-      initialFetchStartedAtRef.current = performance.now()
-      fetchMoreStartedAtRef.current = null
       if (listRef.current) listRef.current.scrollTop = 0
     })
 

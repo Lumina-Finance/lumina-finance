@@ -104,3 +104,35 @@ for (const { section, endpoint, emptyMessage } of LISTS) {
     for (const name of names) await expect(list.getByRole('button', { name: `Edit ${name}`, exact: true })).toBeVisible()
   })
 }
+
+// Tags only, since the merchants list holds its rows in a loading region that already covers the
+// frames in between, so its empty message never reaches the page this way
+test('keeps the tags list rows on screen when returning to a warmed search with reduced motion', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const alpha = `Alpha ${crypto.randomUUID()}`
+  const beta = `Beta ${crypto.randomUUID()}`
+  await seedList(request, user, 'tags', [alpha, beta])
+
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await logInViaApi(page, user)
+  await openPage(page, '/settings#tags')
+  const list = page.locator('#tags')
+  const search = list.getByPlaceholder('Search tags...')
+  const row = (name: string) => list.getByRole('button', { name: `Edit ${name}`, exact: true })
+
+  // Each search is run once so that returning to it is served from what the page already holds
+  await search.fill(alpha)
+  await expect(row(alpha)).toBeVisible()
+  await search.fill(beta)
+  await expect(row(beta)).toBeVisible()
+  await expect(row(alpha)).toHaveCount(0)
+
+  await watchForEmptyMessage(page, LISTS[0].emptyMessage)
+  await search.fill(alpha)
+  await expect(row(alpha)).toBeVisible()
+  await letDelayedFramesRun(page)
+
+  expect(await page.evaluate(() => (window as unknown as { emptyMessageShown: boolean }).emptyMessageShown)).toBe(false)
+  await expect(row(alpha)).toBeVisible()
+  await expect(row(beta)).toHaveCount(0)
+})
