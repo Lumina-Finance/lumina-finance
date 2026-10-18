@@ -47,3 +47,38 @@ export function measureFit(area: Locator) {
     return { scrolling, clipped }
   })
 }
+
+/**
+ * Each body row's height and what of its content reaches past the cell holding it or past the table's
+ * right edge, for a table whose rows must all be the same height with every cell's content inside it
+ *
+ * Text cut short by an ellipsis stays inside its box and isn't reported. A dropdown's own text that is
+ * cut short is, so a placeholder or a selected value read in full passes. Content in a box marked
+ * `inert`, such as a closed icon slot, is out of play and skipped
+ */
+export function measureRows(table: Locator) {
+  return table.evaluate((node) => {
+    const tableRight = node.getBoundingClientRect().right
+    return [...node.querySelectorAll('tbody tr')].map((row) => {
+      const spill: string[] = []
+      for (const cell of row.children) {
+        const cellRight = cell.getBoundingClientRect().right
+        for (const element of cell.querySelectorAll('*')) {
+          const box = element.getBoundingClientRect()
+          if (box.width === 0 || box.height === 0 || element.closest('[inert]')) continue
+          if (box.right > cellRight + 1 || box.right > tableRight + 1) {
+            spill.push(`${element.tagName.toLowerCase()} ${element.getAttribute('aria-label') ?? element.textContent?.trim().slice(0, 24)}`)
+          }
+        }
+        for (const text of cell.querySelectorAll('[role="combobox"] .truncate')) {
+          if (text.scrollWidth > text.clientWidth + 1) spill.push(`dropdown text ${text.textContent}`)
+        }
+      }
+      return {
+        name: row.firstElementChild!.textContent!.trim(),
+        height: Math.round(row.getBoundingClientRect().height * 10) / 10,
+        spill,
+      }
+    })
+  })
+}

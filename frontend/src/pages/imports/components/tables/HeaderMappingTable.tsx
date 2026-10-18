@@ -102,9 +102,9 @@ export function ImportHeaderMappingTable({
     <div className="import-table-scroll" data-tooltip-bounds>
       <table className="import-table w-full table-fixed text-left text-[0.9375rem]">
         <colgroup>
-          <col className="w-[26%]" />
-          <col className="w-[30%]" />
-          <col className="w-[44%]" />
+          <col className="w-[24%]" />
+          <col className="w-[24%]" />
+          <col className="w-[52%]" />
         </colgroup>
         <thead style={{ color: 'var(--app-text-subtle)', background: 'var(--app-input-bg)' }}>
           <tr>
@@ -132,12 +132,14 @@ export function ImportHeaderMappingTable({
                 }}
               >
                 <td className="px-4 py-2.5 align-middle">
-                  <div className="flex items-center gap-2">
-                    <p id={sourceLabelId} className={`font-medium ${isIgnored ? 'line-through' : ''}`} style={{ color: isIgnored ? 'var(--app-text-muted)' : undefined }}>
+                  <div className="flex min-w-0 items-center gap-2">
+                    {/* One line however long the heading is, so every row keeps one height. The full
+                        heading is on hover */}
+                    <p id={sourceLabelId} title={header} className={`min-w-0 truncate font-medium leading-5 ${isIgnored ? 'line-through' : ''}`} style={{ color: isIgnored ? 'var(--app-text-muted)' : undefined }}>
                       {header}
                     </p>
                     {isIgnored && (
-                      <span className="text-[0.6875rem] font-semibold uppercase" style={{ color: IMPORT_EXCLUDED_ROW_FAINT_TEXT }}>
+                      <span className="shrink-0 text-[0.6875rem] font-semibold uppercase" style={{ color: IMPORT_EXCLUDED_ROW_FAINT_TEXT }}>
                         Ignored
                       </span>
                     )}

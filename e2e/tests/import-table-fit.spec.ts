@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { createAccount, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
-import { measureFit, measureOwnScroll } from '../support/layout'
+import { measureFit, measureOwnScroll, measureRows } from '../support/layout'
 
 // Runs on desktop only: it sets the window sizes it checks itself
 
@@ -254,5 +254,65 @@ test('opens the note on a renamed category in full in a short table', async ({ p
 
     await trigger.press('Enter')
     await expect(trigger).toHaveAttribute('aria-expanded', 'false')
+  }
+})
+
+// A long heading ran out of its cell with the Ignored badge over the examples, a heading that wrapped
+// made its row taller than the rest, and the date format dropdown squeezed to a letter beside its tag
+test('keeps every Column Mapping row one height with its content inside its cell', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday chequing' })
+  await logInViaApi(page, user)
+  await openPage(page, `/settings/imports?account=${account.id}`)
+  const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')
+  await expect(upload).toBeEnabled()
+
+  // No date format reads the dates, so the Date row shows its error
+  const csv = [
+    'Date,Amount,Transactionreferencenumber,Balance after transaction,Notes',
+    '2024-13-45,"1,234",R-1,10.00,Coffee',
+    '99/99/2024,5.678,R-2,20.00,Bread',
+  ].join('\n')
+  await upload.setInputFiles({ name: 'long-headings.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) })
+  const table = tableOf(page, 'Column Mapping')
+  await expect(table).toBeVisible()
+  await page.getByRole('combobox', { name: 'Match To App Field Date', exact: true }).click()
+  await page.getByRole('option', { name: /^Date\b/ }).click()
+  const dateFormat = page.getByRole('combobox', { name: 'Date format', exact: true })
+  await expect(dateFormat).toHaveText('Choose the date format')
+  await expect(table.getByRole('button', { name: /is not a valid date/ })).toBeVisible()
+
+  await expect(page.getByRole('combobox', { name: 'Amount format', exact: true })).toHaveText('Choose the amount format')
+
+  // At 1280px the long heading is really shortened, with its Ignored badge beside it and its full text
+  // on hover
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await expect(table.getByRole('row', { name: /^Transactionreferencenumber\s*Ignored/ })).toBeVisible()
+  const heading = table.getByTitle('Transactionreferencenumber', { exact: true })
+  await expect.poll(() => heading.evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true)
+
+  // A chosen format may end in an ellipsis beside its tag, which its hover title completes. Its entry
+  // is the label alone, since the tag sits in a box of its own
+  const expectIntact = async (message: string, shortenedText = '') => {
+    await soft.poll(async () => {
+      const rows = await measureRows(table)
+      const spill = rows.flatMap((row) => row.spill).filter((entry) => entry !== `dropdown text ${shortenedText}`)
+      return { heights: new Set(rows.map(({ height }) => height)).size, spill }
+    }, { message }).toEqual({ heights: 1, spill: [] })
+  }
+
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 800 })
+    await expectIntact(`placeholders at ${width}px`)
+  }
+
+  // A format that does not fit shows its tag, and the dropdown still shows more than a letter
+  await dateFormat.click()
+  await page.getByRole('option', { name: /^Day first/ }).click()
+  await expect(dateFormat).toContainText('Does not fit')
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 800 })
+    await expectIntact(`a format that does not fit at ${width}px`, 'Day first (30/04/2026)')
+    soft(await dateFormat.locator('.truncate').evaluate((text) => text.clientWidth), `the format's text at ${width}px`).toBeGreaterThan(60)
   }
 })
