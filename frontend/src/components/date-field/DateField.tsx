@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type FocusEvent as ReactFocusEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent,type FocusEvent as ReactFocusEvent } from 'react'
 import { Calendar } from 'lucide-react'
 import CalendarPopover from '@/components/date-field/CalendarPopover'
 import {
@@ -195,6 +195,18 @@ export default function DateField({
     onBlur?.()
   }
 
+  /**
+   * Sends a press on the field's empty space to the year, as a press on the year itself would. The
+   * default is prevented so the press does not first drop focus onto the page
+   */
+  const handleContainerMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (disabled || readOnly) return
+    if ((event.target as Element).closest('input, button')) return
+
+    event.preventDefault()
+    focusSegment('year')
+  }
+
   return (
     <div className="relative">
       <div
@@ -202,6 +214,7 @@ export default function DateField({
         role="group"
         aria-label={ariaLabel}
         onBlur={handleContainerBlur}
+        onMouseDown={handleContainerMouseDown}
         className={`app-date-field ${error ? 'app-input-error' : ''} ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
       >
         {SEGMENT_ORDER.map((segment, index) => (
