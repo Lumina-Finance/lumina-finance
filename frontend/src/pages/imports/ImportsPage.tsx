@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
+import { readImportOrigin } from '@/utils/importOrigin'
 import { useQueryClient } from '@tanstack/react-query'
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
@@ -85,6 +86,7 @@ const FLOW_EYEBROWS: Record<ImportDataSource, string> = {
  */
 export default function ImportsPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const queryClient = useQueryClient()
   const [dataSource, setDataSource] = useState<ImportDataSource>(DEFAULT_DATA_SOURCE)
   const accountScope = useImportAccountScope()
@@ -176,8 +178,12 @@ export default function ImportsPage() {
     ofx: ofxWorkflow.stagedFiles.length > 0 && ofxWorkflow.fileIntakeError === null,
   }[activeFlow]
 
-  // Where the page came from, which is also where its two exits go while the scope holds
+  // Where the page came from, which is also where its two exits go: the account while the scope
+  // holds, otherwise the page that opened this one. A direct visit has neither, so each exit falls
+  // back to its own default
   const scopedAccountPath = accountScope.accountId ? `/accounts/${accountScope.accountId}` : null
+  const openedFromPath = readImportOrigin(location.state)
+  const originPath = isScopedToAccount && scopedAccountPath ? scopedAccountPath : openedFromPath
 
   // The overlay covers the page for as long as it takes to fade, which is after the import it was
   // showing has already ended, so the page under it is held until it has actually gone rather than
@@ -249,7 +255,7 @@ export default function ImportsPage() {
   }
 
   const handleDone = () => {
-    navigate(isScopedToAccount && scopedAccountPath ? scopedAccountPath : '/')
+    navigate(originPath ?? '/')
   }
 
   // The scope is settled against the accounts list, so the page holds until that answer arrives and
@@ -317,7 +323,7 @@ export default function ImportsPage() {
         <button
           type="button"
           className="app-icon-button absolute right-5 top-5 z-20 shrink-0 sm:right-8 sm:top-6"
-          onClick={() => navigate(isScopedToAccount && scopedAccountPath ? scopedAccountPath : '/settings')}
+          onClick={() => navigate(originPath ?? '/settings')}
           aria-label="Close import workflow"
         >
           <X size={20} aria-hidden />

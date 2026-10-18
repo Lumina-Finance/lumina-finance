@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { BELOW_MOBILE_NAVIGATION_TOGGLE_ROOT_MARGIN } from '@/components/navigation/constants/data'
+import { buildImportOriginState } from '@/utils/importOrigin'
 import { SETTINGS_SECTIONS, type SettingsSectionId } from '@/pages/settings/settingsNavigation'
 
 const PROGRAMMATIC_SCROLL_SETTLE_MS = 600
@@ -63,7 +64,7 @@ export function useSettingsSectionNavigation() {
    */
   function navigateToImport() {
     setSettingsMenuOpen(false)
-    navigate('/settings/imports')
+    navigate('/settings/imports', { state: buildImportOriginState(location) })
   }
 
   /**
