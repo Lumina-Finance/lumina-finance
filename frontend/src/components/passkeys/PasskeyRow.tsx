@@ -119,8 +119,9 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{passkey.name}</p>
-                  <p className="truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                    {addedLabel} · {usageLabel}
+                  {/* Wraps between the two parts on a phone rather than hiding the last used words */}
+                  <p className="break-words text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                    <span className="whitespace-nowrap">{addedLabel} ·</span> <span className="whitespace-nowrap">{usageLabel}</span>
                   </p>
                 </div>
                 <OverflowMenu

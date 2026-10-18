@@ -5,6 +5,7 @@
 import { readFileSync } from 'node:fs'
 import { parse, type Rule } from 'postcss'
 import { describe, expect, it } from 'vitest'
+import { FX_TONE_CLASS } from '@/components/tooltips/fxToneClass'
 
 // WCAG AA for text under 18.66px bold or 24px regular, which covers every label this file checks
 const MINIMUM_TEXT_CONTRAST = 4.5
@@ -244,5 +245,80 @@ describe('tinted state contrast', () => {
     const faint = contrast(resolve(tokens, '--app-text-subtle-on-accent'), tint)
     expect(faint).toBeGreaterThan(contrast(solid(tokens, '--app-text-subtle'), tint))
     expect(faint).toBeLessThan(contrast(solid(tokens, '--app-text-muted'), tint))
+  })
+})
+
+describe('FX status badge label contrast', () => {
+  // Reads the colours the badge's real idle classes (FX_TONE_CLASS) draw: the label colour, the fill's colour
+  // and share mixed into the page, a transparent fill, and any opacity on the whole badge
+  const OWN = (classes: string) => classes.split(/\s+/).filter((name) => !name.includes(':'))
+
+  function readColour(tokens: Tokens, value: string): Rgb {
+    if (value === 'white') return [255, 255, 255]
+    const alias = /^var\((--[\w-]+)\)$/.exec(value)
+    if (alias) return resolve(tokens, alias[1])
+    const hex = /^#([0-9a-f]{6})$/i.exec(value)
+    if (!hex) throw new Error(`cannot read colour ${value}`)
+    return [0, 2, 4].map((start) => parseInt(hex[1].slice(start, start + 2), 16)) as Rgb
+  }
+
+  /** The label and fill as they land on a backdrop, the whole badge faded by its opacity */
+  function paintBadge(idle: string, tokens: Tokens, backdrop: Rgb) {
+    const names = OWN(idle)
+    const text = /^text-\[(.+)\]$/.exec(names.find((name) => name.startsWith('text-['))!)![1]
+    const fill = names.find((name) => name.startsWith('bg-'))!
+    const mixed = /^bg-\[color-mix\(in_srgb,(.+)_(\d+)%,var\(--app-bg\)\)\]$/.exec(fill)
+    const opacity = /^opacity-(\d+)$/.exec(names.find((name) => name.startsWith('opacity-')) ?? '')
+    const faded = opacity ? Number(opacity[1]) / 100 : 1
+
+    if (!mixed && fill !== 'bg-transparent') throw new Error(`cannot read fill ${fill}`)
+    const surface = mixed
+      ? mix(readColour(tokens, mixed[1]), Number(mixed[2]) / 100, solid(tokens, '--app-bg'))
+      : backdrop
+    return {
+      label: paint(readColour(tokens, text), faded, backdrop),
+      fill: paint(surface, faded, backdrop),
+    }
+  }
+
+  // A faded or transparent badge shows what it sits on, so each is read on the page, a card and the budget
+  // details panel's tint. The red cases guard a state that already passed and must stay so
+  const BADGES = [
+    { state: 'complete conversion (blue)', tone: 'blue' as const },
+    { state: 'no conversion needed (gray)', tone: 'gray' as const },
+    { state: 'missing rates (red)', tone: 'red' as const },
+  ]
+
+  const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) => BADGES.flatMap((badge) =>
+    ['page', 'card', 'details panel'].map((surface) => ({ theme, surface, ...badge }))))
+
+  it.each(cases)('the $state badge label reads at 4.5:1 or better in the $theme theme on the $surface', ({ theme, tone, surface }) => {
+    const tokens = THEMES[theme]
+    const backdrops: Record<string, Rgb> = {
+      page: solid(tokens, '--app-bg'),
+      card: solid(tokens, '--app-surface-soft'),
+      'details panel': solid(tokens, '--app-accent-soft', solid(tokens, '--app-bg')),
+    }
+    const { label, fill } = paintBadge(FX_TONE_CLASS[tone].idle, tokens, backdrops[surface])
+    expect(contrast(label, fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+  })
+
+  // Hovered, the idle classes' group-hover variants draw the label on a solid fill, and open, the active
+  // classes do, so neither depends on what the badge sits on
+  const FILLED_STATES = {
+    hovered: (tone: keyof typeof FX_TONE_CLASS) => FX_TONE_CLASS[tone].idle.split(/\s+/)
+      .filter((name) => name.startsWith('group-hover:')).map((name) => name.slice('group-hover:'.length)),
+    open: (tone: keyof typeof FX_TONE_CLASS) => OWN(FX_TONE_CLASS[tone].active),
+  }
+
+  const filledCases = (Object.keys(THEMES) as Theme[]).flatMap((theme) => BADGES.flatMap((badge) =>
+    (Object.keys(FILLED_STATES) as (keyof typeof FILLED_STATES)[]).map((state) => ({ theme, filled: state, ...badge }))))
+
+  it.each(filledCases)('the $state badge label reads at 4.5:1 or better $filled in the $theme theme', ({ theme, tone, filled }) => {
+    const tokens = THEMES[theme]
+    const names = FILLED_STATES[filled](tone)
+    const text = /^text-(?:\[(.+)\]|(white))$/.exec(names.find((name) => name.startsWith('text-'))!)!
+    const fill = /^bg-\[(.+)\]$/.exec(names.find((name) => name.startsWith('bg-'))!)!
+    expect(contrast(readColour(tokens, text[1] ?? text[2]), readColour(tokens, fill[1]))).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
   })
 })
