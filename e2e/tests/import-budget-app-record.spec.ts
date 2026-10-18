@@ -112,8 +112,18 @@ test('keeps a finished Firefly III import as its record until another export is 
   const skippedTitle = page.getByText('2 rows were not imported', { exact: true })
   await expect(skippedTitle).toBeVisible()
 
-  // A second export starts a new import of its own rows alone, with its answers guessed afresh
+  // A file the import can't read leaves the record as it was, with the refusal on its slot
   await expect(uploads.first()).toBeEnabled()
+  await uploads.first().setInputFiles({ name: 'not-firefly.csv', mimeType: 'text/csv', buffer: Buffer.from('a,b\n1,2') })
+  await expect(page.getByText(/Not a Firefly III transactions export, missing columns/)).toBeVisible()
+  await expect(page.getByTitle('transactions.csv', { exact: true })).toBeVisible()
+  await expect(removeButtons(page)).toHaveCount(0)
+  await expect(skippedTitle).toBeVisible()
+  await expectAllLocked(accountAnswers(page))
+  expect(await readAnswers(accountAnswers(page))).toEqual(accountsBefore)
+  expect(await readAnswers(categoryAnswers(page))).toEqual(categoriesBefore)
+
+  // A second export starts a new import of its own rows alone, with its answers guessed afresh
   await uploads.first().setInputFiles(NEXT_FIREFLY_EXPORT)
   await expect(page.getByRole('button', { name: 'Remove next-transactions.csv', exact: true })).toBeVisible()
   await expect(page.getByTitle('budgets.csv', { exact: true })).toHaveCount(0)
