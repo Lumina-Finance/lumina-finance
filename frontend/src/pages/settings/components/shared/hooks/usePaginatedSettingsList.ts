@@ -126,11 +126,13 @@ export function usePaginatedSettingsList<TItem extends { id: string }>({
     visibleItemCountRef.current = visibleItems.length
   }, [visibleItems.length])
 
+  // Also run on a search change, so a search begun while the previous one is still loading starts
+  // its own minimum loading time instead of inheriting the null the change left behind
   useEffect(() => {
     if (listQuery.isLoading) {
       initialFetchStartedAtRef.current = performance.now()
     }
-  }, [listQuery.isLoading])
+  }, [listQuery.isLoading, activeSearch])
 
   useEffect(() => {
     if (listQuery.isFetchingNextPage) {
