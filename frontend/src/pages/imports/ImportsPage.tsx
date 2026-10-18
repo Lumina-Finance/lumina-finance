@@ -4,7 +4,9 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 import { Upload, X } from 'lucide-react'
+import { TAB_OPENED_AT } from '@/api/cache/persistence'
 import { accountKeys, categoryKeys, institutionKeys, merchantKeys } from '@/api/cache/queryKeys'
+import { useImportSources } from '@/api/transaction-imports'
 import {
   IMPORT_NOT_PERMITTED_EXPLANATION,
   IMPORT_NOT_PERMITTED_TITLE,
@@ -34,6 +36,11 @@ import { useOfxImportWorkflow } from './ofx/hooks'
 import { OfxAccountMappingStep, OfxFilesStep, OfxPreviewStep } from './ofx/sections'
 import { useImportAccountScope, useTransactionImportWorkflow } from './hooks'
 import {
+  ACCOUNT_DATA_SOURCES,
+  DEFAULT_DATA_SOURCE,
+  getRememberedDataSource,
+} from './utils'
+import {
   ImportAccountMappingStep,
   ImportAutoCreateStep,
   ImportMerchantMatchingStep,
@@ -62,8 +69,8 @@ const FLOW_EYEBROWS: Record<ImportDataSource, string> = {
 }
 
 /**
- * Renders the import workflow page, switching between the generic CSV, Firefly III and Actual Budget
- * flows and showing the shared progress overlay while a commit runs
+ * Renders the import workflow page, switching between the generic CSV, OFX/QFX, Firefly III and
+ * Actual Budget flows and showing the shared progress overlay while a commit runs
  *
  * Only one flow can be staged at a time, so changing the data source resets whichever flow is being
  * left, so its staged state cannot leak into a later import run
@@ -71,21 +78,52 @@ const FLOW_EYEBROWS: Record<ImportDataSource, string> = {
 export default function ImportsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [dataSource, setDataSource] = useState<ImportDataSource>('generic')
+  const [dataSource, setDataSource] = useState<ImportDataSource>(DEFAULT_DATA_SOURCE)
   const accountScope = useImportAccountScope()
-  const scopeLoadingVisible = useMinimumVisibleFlag(accountScope.state === 'loading', LOADING_ANIMATION_MIN_MS)
+
+  // The choice on an account's page is kept apart from the general page's, which a change of query
+  // string leaves mounted. It settles once per account, from the list, and then only the user changes
+  // it, so a refetch landing after a file is staged can't swap the flow under it
+  const [scopedChoice, setScopedChoice] = useState<{ accountId: string; source: ImportDataSource } | null>(null)
+  const isChoiceSettled = scopedChoice !== null && scopedChoice.accountId === accountScope.accountId
+
+  // The source an account's page opens on is the one last imported into it. A list already read in
+  // this tab and not invalidated since settles the choice at once, and is read again in the
+  // background. Otherwise the page waits for the list read as it opened, as saved CSV settings do,
+  // since the cache is kept between visits: a list saved before this tab opened, or one an import has
+  // invalidated since, may name a source that is no longer the last. It doesn't open on CSV and
+  // switch, and a list that fails to load opens on CSV with no notice. Once settled, reading the
+  // list again changes nothing
+  const importSources = useImportSources(accountScope.state === 'ready')
+  const hasCurrentList = !importSources.isStale
+    && importSources.data !== undefined && importSources.dataUpdatedAt >= TAB_OPENED_AT
+  const isWaitingForSources = accountScope.state === 'ready' && !isChoiceSettled
+    && !(importSources.isError || hasCurrentList)
+  const scopeLoadingVisible = useMinimumVisibleFlag(
+    accountScope.state === 'loading' || isWaitingForSources,
+    LOADING_ANIMATION_MIN_MS,
+  )
   const scopeState = scopeLoadingVisible ? 'loading' : accountScope.state
   const workflow = useTransactionImportWorkflow(accountScope.account)
   const fireflyWorkflow = useFireflyImportWorkflow()
   const actualWorkflow = useActualImportWorkflow()
-  const ofxWorkflow = useOfxImportWorkflow()
+  const ofxWorkflow = useOfxImportWorkflow(accountScope.account)
 
-  // An import started from an account is the generic flow and nothing else, since the account it
-  // fixes has no meaning to the provider ones. Read from the scope rather than from the stored choice,
-  // because that choice is page state and a change of query string leaves the page mounted, so a
-  // scope arriving over a staged provider export has to render the generic flow without disturbing
-  // what the user had. Leaving the scope gives that export back
+  if (accountScope.accountId && accountScope.state === 'ready' && !isWaitingForSources && !isChoiceSettled) {
+    setScopedChoice({
+      accountId: accountScope.accountId,
+      // A list that failed to load is not read, since the query keeps the data of an earlier read
+      source: getRememberedDataSource(importSources.isError ? undefined : importSources.data, accountScope.accountId),
+    })
+  }
+  const scopedSource = isChoiceSettled ? scopedChoice.source : DEFAULT_DATA_SOURCE
+
+  // An import started from an account offers only the sources that write to one account, so the
+  // provider flows, whose exports cover many, stay on the general page. Read from the scope rather
+  // than from the stored choice, because a scope arriving over a staged provider export has to render
+  // the account's flow without disturbing what the user had. Leaving the scope gives that export back
   const isScopedToAccount = accountScope.state === 'ready'
+  const chosenSource = isScopedToAccount ? scopedSource : dataSource
 
   // Whichever flow is working keeps the page, whatever the scope and the stored choice say. The
   // address can gain or lose the account without remounting the page, through the link out of the
@@ -107,9 +145,9 @@ export default function ImportsPage() {
       ? 'actual'
       : isOfxBusy
         ? 'ofx'
-        : isGenericBusy || isScopedToAccount
+        : isGenericBusy
           ? 'generic'
-          : dataSource
+          : chosenSource
 
   // Every flow saves through the same import run, so the overlay reads whichever one is on screen
   // the same way
@@ -169,20 +207,24 @@ export default function ImportsPage() {
   }, [])
 
   const handleDataSourceChange = (next: ImportDataSource) => {
-    if (next === dataSource || isImportBusy) return
+    if (next === chosenSource || isImportBusy) return
 
     // The flow being switched away from resets so its staged state cannot
     // leak into a later import run
-    if (dataSource === 'generic') {
+    if (chosenSource === 'generic') {
       workflow.resetImportWorkflow()
-    } else if (dataSource === 'firefly') {
+    } else if (chosenSource === 'firefly') {
       fireflyWorkflow.resetFireflyWorkflow()
-    } else if (dataSource === 'actual') {
+    } else if (chosenSource === 'actual') {
       actualWorkflow.resetActualWorkflow()
     } else {
       ofxWorkflow.resetOfxWorkflow()
     }
-    setDataSource(next)
+    if (isScopedToAccount && accountScope.accountId) {
+      setScopedChoice({ accountId: accountScope.accountId, source: next })
+    } else {
+      setDataSource(next)
+    }
   }
 
   const handleDone = () => {
@@ -303,13 +345,15 @@ export default function ImportsPage() {
               <aside className="flex flex-col gap-8 xl:h-full xl:w-[340px] xl:shrink-0">
                 {/* First, so the way to undo the last import is in view without scrolling the steps below */}
                 <LastImportCard />
-                {/* An import started from an account has one source, so the choice is not offered */}
+                {/* An import started from an account offers the sources that write to one account */}
                 {/* Ends where the files step below it does, which keeps a gutter beside its scrolling box */}
-                {!isScopedToAccount && (
-                  <div className="xl:pr-1">
-                    <ImportSourceStep value={dataSource} onChange={handleDataSourceChange} />
-                  </div>
-                )}
+                <div className="xl:pr-1">
+                  <ImportSourceStep
+                    value={chosenSource}
+                    sources={isScopedToAccount ? ACCOUNT_DATA_SOURCES : undefined}
+                    onChange={handleDataSourceChange}
+                  />
+                </div>
                 <div className="min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1">
                   {activeFlow === 'firefly' && <FireflyFilesStep {...fireflyWorkflow} />}
                   {activeFlow === 'actual' && <ActualFilesStep {...actualWorkflow} />}
@@ -326,7 +370,7 @@ export default function ImportsPage() {
                         The undo notice sits close above it, as part of the same briefing */}
                     <div className="space-y-3">
                       <ImportUndoNoticeCard />
-                      <ImportExpectationsCard key={activeFlow} expectations={getImportExpectations(activeFlow, workflow.fixedAccount?.name ?? null)} />
+                      <ImportExpectationsCard key={activeFlow} expectations={getImportExpectations(activeFlow, accountScope.account?.name ?? null)} />
                     </div>
                     {activeFlow === 'actual' && (
                       <>
@@ -338,7 +382,8 @@ export default function ImportsPage() {
                     )}
                     {activeFlow === 'ofx' && (
                       <>
-                        <OfxAccountMappingStep {...ofxWorkflow} />
+                        {/* An account's page writes the statement to that account, so there is nothing to map */}
+                        {!ofxWorkflow.fixedAccount && <OfxAccountMappingStep {...ofxWorkflow} />}
                         <OfxPreviewStep {...ofxWorkflow} />
                       </>
                     )}

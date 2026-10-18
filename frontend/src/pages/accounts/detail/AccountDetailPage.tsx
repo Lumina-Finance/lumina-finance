@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useLocation, useNavigate, useParams } from 'react-router'
 import { useAccount, useAccounts, useForgetDeletedAccount, type Account } from '@/api/accounts'
+import { useImportSources } from '@/api/transaction-imports'
 import { useTaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import type { Transaction } from '@/api/transactions'
 import AccountIdentityCard from '@/pages/accounts/detail/components/identity/Card'
@@ -35,6 +36,11 @@ export default function AccountDetailPage() {
   const location = useLocation()
   const { accountId } = useParams<{ accountId: string }>()
   const { data: account, error } = useAccount(accountId)
+
+  // Read here so the list the import page opens on is already in the cache when its button is
+  // pressed, which spares a first visit the loading animation. It costs one small request on every
+  // visit to an account, whether or not the user goes on to import
+  useImportSources(true)
 
   // The whole list, not just the account in view, so a transfer's row can name its counterparty
   // account. The transaction modal on this page loads it anyway, so it costs no extra request

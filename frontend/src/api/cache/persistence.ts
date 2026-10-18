@@ -13,6 +13,10 @@ import { hasUncacheableFxStatus } from '@/api/shared/fxCache';
 // The local storage key holding the saved query cache, one copy shared by every tab
 export const QUERY_CACHE_STORAGE_KEY = 'lumina:query-cache';
 
+// When this tab loaded the app. Told apart from a restored entry by when its data was fetched, since a
+// restored entry keeps the time of the visit that saved it
+export const TAB_OPENED_AT = Date.now();
+
 const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000;
 
 // Throws away every persisted entry whenever a stored response changes shape, so the app cannot
