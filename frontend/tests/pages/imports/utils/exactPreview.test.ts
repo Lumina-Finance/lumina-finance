@@ -115,7 +115,7 @@ describe('exact generic import presentation', () => {
   })
 
   it.each([
-    [0n, 'CAD', '+CA$0.00', 0], [-1n, 'CAD', '-CA$0.01', -1],
+    [0n, 'CAD', 'CA$0.00', 0], [-1n, 'CAD', '-CA$0.01', -1],
     [10n, 'IQD', '+IQD\u00a00.010', 1], [1000n, 'IQD', '+IQD\u00a01.000', 1],
   ] as const)('preserves small fractions, padded zeros and sign: %s %s', (amount, currency, text, sign) => {
     expect(formatPreviewMoney(amount, currency, CURRENCIES)).toEqual({ text, sign })
