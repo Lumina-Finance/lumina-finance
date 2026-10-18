@@ -183,7 +183,8 @@ async def _build_reference_batch(client, count, mode):
         "merchants": merchant_mappings,
         "rows": [{"account_source": f"Account {i}", "category_source": f"Category {i}",
                   "merchant_name": f"Merchant {i}", "dt": "2026-04-10", "amount": "-1.23",
-                  "notes": f"Reference row {i}", "tag_names": [], "counterparty_account_source": None} for i in range(count)],
+                  "notes": f"Reference row {i}", "tag_names": [], "counterparty_account_source": None,
+                  "bank_account_key": None, "bank_transaction_id": None} for i in range(count)],
     }
 
 

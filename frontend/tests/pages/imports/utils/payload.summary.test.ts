@@ -12,6 +12,7 @@ import { withPlainSpaces } from './fixtures'
 function createSummary(overrides: Partial<TransactionImportResponse> = {}): TransactionImportResponse {
   return {
     transactions_created: 0,
+    transactions_already_imported: 0,
     accounts_created: 0,
     accounts_reused: 0,
     categories_created: 0,
@@ -57,6 +58,46 @@ describe('summarizing a completed import', () => {
   it('counts the rows the import left out, when there were some', () => {
     expect(withPlainSpaces(formatImportSummary(createSummary({ transactions_created: 2 }), 1, 0))).toBe(
       '2 transactions imported · 0 accounts created · 0 categories created · 1 skipped',
+    )
+  })
+
+  // An overlapping statement adds only what's new, so the line says how many it found already there.
+  // The zero case above shows the part is left out when nothing was
+  it('counts the transactions already in their account, when there were some', () => {
+    const summary = createSummary({
+      transactions_created: 16,
+      transactions_already_imported: 15,
+      account_source_ids: { Statement: 'account-1' },
+    })
+
+    expect(withPlainSpaces(formatImportSummary(summary, 1, 0))).toBe(
+      '16 transactions imported · 0 accounts created · 0 categories created · 15 already in the account · 1 skipped',
+    )
+  })
+
+  // One file can hold a chequing and a savings statement, and "the account" would name only one
+  it('counts the transactions already imported without naming an account when the import went to several', () => {
+    const summary = createSummary({
+      transactions_created: 4,
+      transactions_already_imported: 3,
+      account_source_ids: { Chequing: 'account-1', Savings: 'account-2' },
+    })
+
+    expect(withPlainSpaces(formatImportSummary(summary, 0, 0))).toBe(
+      '4 transactions imported · 0 accounts created · 0 categories created · 3 already imported',
+    )
+  })
+
+  // Two statements answered with one account still went to one account
+  it('names the account when every statement went to the same one', () => {
+    const summary = createSummary({
+      transactions_created: 4,
+      transactions_already_imported: 3,
+      account_source_ids: { January: 'account-1', February: 'account-1' },
+    })
+
+    expect(withPlainSpaces(formatImportSummary(summary, 0, 0))).toBe(
+      '4 transactions imported · 0 accounts created · 0 categories created · 3 already in the account',
     )
   })
 

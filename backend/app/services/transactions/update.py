@@ -2,10 +2,13 @@
 import uuid
 
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.account import Account
 from app.models.base import PermissionLevel
 from app.models.category import Category
+from app.models.transaction import Transaction
 from app.models.user import User
 from app.permissions import check_account_access, check_transaction_access
 from app.schemas.transaction import TransactionResponse, UpdateTransactionRequest
@@ -15,6 +18,7 @@ from app.services.transactions.accounts import (
     get_parent_account_for_transaction,
     validate_transaction_account_is_not_archived,
 )
+from app.services.transactions.bank_transaction_ids import find_held_bank_transactions
 from app.services.transactions.response_helpers import get_transaction_response
 from app.services.transactions.snapshots import recompute_snapshots_after_transaction_update
 from app.services.transactions.tags import replace_transaction_tag_assignments
@@ -88,6 +92,7 @@ async def update_transaction_and_get_response(
             txn.fx_rate,
             fx_rate_change_requested="fx_rate" in changed_fields,
         )
+        await _refuse_move_into_held_bank_transaction(db, txn, new_account)
 
     # Confirm changed category and merchant records belong to the selected account group
     if "category_id" in changed_fields:
@@ -146,6 +151,17 @@ async def update_transaction_and_get_response(
     for field, value in changed_fields.items():
         setattr(txn, field, value)
 
+    # Flushed here so the index holding each bank transaction once per account refuses a move that
+    # another change made clash after the check above, before anything else is written
+    if new_account is not None:
+        # Read before the rollback, which expires the account and would make reading its name load it
+        detail = _get_held_bank_transaction_detail(new_account.name)
+        try:
+            await db.flush()
+        except IntegrityError as error:
+            await db.rollback()
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail) from error
+
     # Validate requested tags before replacing junction rows
     if new_tag_ids is not None:
         validated_tag_ids = (
@@ -174,3 +190,30 @@ async def update_transaction_and_get_response(
     response = await get_transaction_response(db, txn)
     await db.commit()
     return response
+
+
+def _get_held_bank_transaction_detail(account_name: str) -> str:
+    """Say a move is refused because the account already holds the transaction's bank ID"""
+    return f"{account_name} already has this transaction from an earlier import"
+
+
+async def _refuse_move_into_held_bank_transaction(db: AsyncSession, txn: Transaction, new_account: Account) -> None:
+    """Refuse moving a transaction into an account already holding its bank ID under the same bank account
+
+    A move keeps the bank ID, so a statement imported into the wrong account and moved to the right
+    one is still recognised there, and two copies of one bank transaction cannot share an account
+
+    Args:
+        db: Active database session
+        txn: Transaction being moved
+        new_account: Account it moves to
+
+    Raises:
+        HTTPException: Raised with 409 when the account already holds the transaction's bank ID
+    """
+    if txn.bank_account_key is None or txn.bank_transaction_id is None or new_account.id == txn.account_id:
+        return
+    if await find_held_bank_transactions(db, {(new_account.id, txn.bank_account_key, txn.bank_transaction_id)}):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=_get_held_bank_transaction_detail(new_account.name),
+        )

@@ -7,6 +7,7 @@ from typing import Annotated, Literal
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
 from app.models.base import RecurrenceFreq
+from app.models.transaction import MAX_BANK_TRANSACTION_ID_LENGTH
 from app.schemas.budget import validate_recurrence_anchor_fields
 from app.schemas.names import TrimmedName
 
@@ -299,6 +300,19 @@ class TransactionImportRow(BaseModel):
     # that leaves it unset records that the money left the tracked accounts
     counterparty_account_source: str | None = Field(None, min_length=1, max_length=256)
 
+    # The bank's ID for the transaction and the bank account the statement names, which an OFX
+    # statement states and a CSV file does not. A row carrying them is left out at the commit when
+    # its account already holds that pair
+    bank_account_key: str | None = Field(None, min_length=1, max_length=MAX_BANK_TRANSACTION_ID_LENGTH)
+    bank_transaction_id: str | None = Field(None, min_length=1, max_length=MAX_BANK_TRANSACTION_ID_LENGTH)
+
+    @model_validator(mode="after")
+    def _require_bank_account_with_bank_id(self) -> TransactionImportRow:
+        """Refuse a bank transaction ID without the bank account it belongs to, or the other way round"""
+        if (self.bank_account_key is None) != (self.bank_transaction_id is None):
+            raise ValueError("a bank transaction ID is sent together with its bank account key")
+        return self
+
 
 class TransactionImportRequest(BaseModel):
     """A whole staged file, rebuilt from its run at commit time and handed to the import service."""
@@ -333,6 +347,10 @@ class TransactionImportResponse(BaseModel):
     """Summary of records created or reused by a transaction import."""
 
     transactions_created: int
+
+    # Rows left out because their account already holds the bank's ID for them. Defaults to 0 so a
+    # repeated commit of a run saved before this was counted still answers with its stored summary
+    transactions_already_imported: int = 0
     accounts_created: int
     accounts_reused: int
     categories_created: int

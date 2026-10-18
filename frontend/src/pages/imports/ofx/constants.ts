@@ -70,6 +70,14 @@ export function getOfxRepeatedTransactionReason(fileName: string) {
   return `This transaction is already in ${fileName}.`
 }
 
+/** Said of a transaction left out because an earlier one in the same file has its bank ID */
+export const OFX_REPEATED_IN_FILE_REASON = 'Repeats an earlier transaction in this file.'
+
+/** Longest bank transaction ID the import keeps, matching the API's limit, counted in characters */
+export const MAX_OFX_BANK_TRANSACTION_ID_LENGTH = 255
+
+export const OFX_BANK_ID_TOO_LONG_REASON = `Its bank ID is longer than the ${MAX_OFX_BANK_TRANSACTION_ID_LENGTH} characters this app takes.`
+
 /** Says a statement can't go into an account kept in another currency */
 export function getOfxCurrencyMismatchError(statementLabel: string, statementCurrency: string, accountCurrency: string) {
   return `The statement for ${statementLabel} is in ${statementCurrency}, but the account you chose is in ${accountCurrency}. Choose an account in ${statementCurrency}.`

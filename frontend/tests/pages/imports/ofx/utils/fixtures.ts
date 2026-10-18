@@ -10,7 +10,10 @@ export interface FixtureTransaction {
   posted?: string
   amount?: string
 
-  /** Null writes no FITID, as a bank that gives its transactions no ID */
+  /**
+   * Null writes no FITID, as a bank that gives its transactions no ID. Left out, each transaction
+   * gets its own, its position in the statement, so a statement never repeats an ID by accident
+   */
   fitId?: string | null
   name?: string
   memo?: string
@@ -56,12 +59,12 @@ export function buildMessageSet(statement: FixtureStatement, close: boolean) {
   const accountLeaves = isCard
     ? leaf('ACCTID', accountId, close)
     : leaf('BANKID', '123000456', close) + leaf('ACCTID', accountId, close) + leaf('ACCTTYPE', statement.accountType ?? 'CHECKING', close)
-  const transactions = statement.transactions.map((transaction) => (
+  const transactions = statement.transactions.map((transaction, index) => (
     '<STMTTRN>\n'
     + leaf('TRNTYPE', 'DEBIT', close)
     + leaf('DTPOSTED', transaction.posted ?? '20240115120000', close)
     + leaf('TRNAMT', transaction.amount ?? '-12.50', close)
-    + leaf('FITID', transaction.fitId === undefined ? '1' : transaction.fitId, close)
+    + leaf('FITID', transaction.fitId === undefined ? String(index + 1) : transaction.fitId, close)
     + (transaction.extra ?? '')
     + leaf('NAME', transaction.name, close)
     + leaf('MEMO', transaction.memo, close)
