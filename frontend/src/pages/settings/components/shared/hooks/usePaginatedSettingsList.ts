@@ -54,11 +54,10 @@ export function usePaginatedSettingsList<TItem extends { id: string }>({
   const [search, setSearch] = useState('')
   const [activeSearch, setActiveSearch] = useState('')
   const listQuery = useInfiniteListQuery({ q: activeSearch.trim() || undefined }, pageSize)
-  const [visibleItems, setVisibleItems] = useState<TItem[]>([])
   const [listAtBottom, setListAtBottom] = useState(false)
   const [pageFetchPending, setPageFetchPending] = useState(false)
   const listRef = useRef<HTMLDivElement | null>(null)
-  const visibleItemCountRef = useRef(0)
+  const resetSearchRef = useRef(activeSearch)
   const initialFetchStartedAtRef = useRef<number | null>(null)
   const fetchMoreStartedAtRef = useRef<number | null>(null)
 
@@ -68,6 +67,10 @@ export function usePaginatedSettingsList<TItem extends { id: string }>({
       .filter((item) => !locallyDeletedIdSet.has(item.id))
     return sortFetchedItems ? sortFetchedItems(items) : items
   }, [listQuery.data, locallyDeletedIdSet, sortFetchedItems])
+  // Starts from rows the query already holds, so a mount with cached data never renders the empty
+  // message while it waits for them to be installed
+  const [visibleItems, setVisibleItems] = useState<TItem[]>(fetchedItems)
+  const visibleItemCountRef = useRef(visibleItems.length)
   const fetchedItemKey = useMemo(
     () => JSON.stringify(fetchedItems.map(getItemIdentityKey)),
     [fetchedItems, getItemIdentityKey],
@@ -105,6 +108,11 @@ export function usePaginatedSettingsList<TItem extends { id: string }>({
   }, [search, searchDebounceMs])
 
   useEffect(() => {
+    // On mount the list is already empty, and a frame emptying it later would also discard cached
+    // rows installed in the meantime
+    if (resetSearchRef.current === activeSearch) return undefined
+    resetSearchRef.current = activeSearch
+
     const frame = window.requestAnimationFrame(() => {
       setVisibleItems([])
       setListAtBottom(false)
