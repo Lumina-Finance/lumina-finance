@@ -33,20 +33,20 @@ test('files CSV rows with no category under Miscellaneous, Other Income or Trans
   await expect(upload).toBeEnabled()
   await upload.setInputFiles({ name: 'categories.csv', mimeType: 'text/csv', buffer: Buffer.from(CSV) })
 
-  await expect(page.getByRole('combobox', { name: 'Existing Category (withdrawal, no category)', exact: true })).toContainText('Miscellaneous')
-  await expect(page.getByRole('combobox', { name: 'Existing Category (deposit, no category)', exact: true })).toContainText('Other Income')
-  await expect(page.getByRole('combobox', { name: 'Existing Category (transfer, no category)', exact: true })).toContainText('Transfer')
+  await expect(page.getByRole('combobox', { name: 'Existing category (withdrawal, no category)', exact: true })).toContainText('Miscellaneous')
+  await expect(page.getByRole('combobox', { name: 'Existing category (deposit, no category)', exact: true })).toContainText('Other Income')
+  await expect(page.getByRole('combobox', { name: 'Existing category (transfer, no category)', exact: true })).toContainText('Transfer')
 
-  await page.getByRole('combobox', { name: 'Existing Category Salary', exact: true }).click()
+  await page.getByRole('combobox', { name: 'Existing category Salary', exact: true }).click()
   await page.getByRole('option', { name: 'Create new category' }).click()
   const newName = page.getByRole('textbox', { name: 'Name for the new category from Salary' })
   await expect(newName).toHaveValue('Salary (CSV)')
   await newName.fill('Studio costs')
 
   // Held to the preview step, since the file panel beside the steps also counts its rows under Rows
-  const preview = page.locator('section').filter({ has: page.getByText('Preview and Commit', { exact: true }) })
-  await expect(preview.getByRole('paragraph').filter({ hasText: /^(Rows|Will Create|New Accounts|New Categories|\d+)$/ }))
-    .toHaveText(['Rows', '5', 'Will Create', '5', 'New Accounts', '0', 'New Categories', '1'])
+  const preview = page.locator('section').filter({ has: page.getByText('Preview and commit', { exact: true }) })
+  await expect(preview.getByRole('paragraph').filter({ hasText: /^(Rows|Will create|New accounts|New categories|\d+)$/ }))
+    .toHaveText(['Rows', '5', 'Will create', '5', 'New accounts', '0', 'New categories', '1'])
 
   await commitImport(page)
 

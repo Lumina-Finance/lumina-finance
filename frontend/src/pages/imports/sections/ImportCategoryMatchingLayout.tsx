@@ -47,7 +47,7 @@ export function ImportCategoryMatchingLayout({
   isImportFinished?: boolean
 }) {
   return (
-    <ImportStep index={index} title="Category Matching" description={description}>
+    <ImportStep index={index} title="Category matching" description={description}>
       {children}
 
       {categoriesFailed ? (
@@ -62,7 +62,7 @@ export function ImportCategoryMatchingLayout({
         <ImportValueMatchTable
           sourceLabel={sourceLabel}
           detailLabel="Type"
-          targetLabel="Existing Category"
+          targetLabel="Existing category"
           createValue={CREATE_CATEGORY_VALUE}
           rows={rows}
           options={options}

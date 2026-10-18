@@ -268,7 +268,7 @@ export function ImportAccountMappingTable({
           style={IMPORT_INSET_STYLE}
         >
           <div className="col-span-3 min-w-0 px-4">
-            <p id={batchHeadingId} className="text-sm font-semibold">Batch Edit Accounts</p>
+            <p id={batchHeadingId} className="text-sm font-semibold">Batch edit accounts</p>
             <p className="mt-1 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
               {accountMappingSummary}
             </p>
@@ -347,8 +347,8 @@ export function ImportAccountMappingTable({
                   />
                 </span>
               </th>
-              <th className="px-4 py-3 font-medium">Source Account</th>
-              <th id={accountHeadingId} className="px-4 py-3 font-medium">Existing Account</th>
+              <th className="px-4 py-3 font-medium">Source account</th>
+              <th id={accountHeadingId} className="px-4 py-3 font-medium">Existing account</th>
               <th id={typeHeadingId} className="px-4 py-3 font-medium">Type</th>
               <th id={currencyHeadingId} className="px-2 py-3 font-medium">Currency</th>
               <th id={institutionHeadingId} className="py-3 pl-4 pr-0 font-medium">Institution</th>

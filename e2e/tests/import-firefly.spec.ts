@@ -16,7 +16,7 @@ test('imports a Firefly III export with only the budgets left ticked', async ({ 
   const user = await signUpUser(request)
   await logInViaApi(page, user)
   await openPage(page, '/settings/imports')
-  await chooseFromDropdown(page.locator('body'), 'Data Source', /^Firefly III/)
+  await chooseFromDropdown(page.locator('body'), 'Data source', /^Firefly III/)
 
   // The screen reads one file at a time and refuses another meanwhile, so each lands before the next
   const uploads = page.locator('input[type="file"][accept=".csv,text/csv"]')
@@ -29,11 +29,11 @@ test('imports a Firefly III export with only the budgets left ticked', async ({ 
   }
   await leaveImportSetup(page)
 
-  // Category Matching explains how the import files transfers once the transactions are staged
+  // Category matching explains how the import files transfers once the transactions are staged
   await expect(page.getByText('Transfers and debt payments', { exact: true })).toBeVisible()
 
   const budgets = page.getByRole('table').filter({ has: page.getByRole('checkbox', { name: 'Import Food' }) })
-  await expect(budgets.getByRole('columnheader')).toHaveText([/.*/, 'Budget', 'Cadence', 'Latest Amount', 'Categories', 'First Period', 'Changes'])
+  await expect(budgets.getByRole('columnheader')).toHaveText([/.*/, 'Budget', 'Cadence', 'Latest amount', 'Categories', 'First period', 'Changes'])
 
   // The header box clears every budget and then brings them all back
   const rows = budgets.getByRole('checkbox', { name: /^Import / })

@@ -63,7 +63,7 @@ export function ImportMerchantMatchingStep({
   return (
     <ImportStep
       index="05"
-      title="Merchant Matching"
+      title="Merchant matching"
       description="Match each merchant name in this import to the merchant its rows will be filed under."
     >
       {matchesFailed ? (
@@ -79,8 +79,8 @@ export function ImportMerchantMatchingStep({
         />
       ) : (
         <ImportValueMatchTable
-          sourceLabel="Merchant From File"
-          detailLabel="Name To Create"
+          sourceLabel="Merchant from file"
+          detailLabel="Name to create"
           targetLabel="Merchant"
           createValue={CREATE_MERCHANT_VALUE}
           rows={importedMerchants.map((value) => {

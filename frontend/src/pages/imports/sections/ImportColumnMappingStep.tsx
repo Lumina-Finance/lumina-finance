@@ -94,7 +94,7 @@ export function ImportColumnMappingStep({
   return (
     <ImportStep
       index="02"
-      title="Column Mapping"
+      title="Column mapping"
       description="Specify what each column in this import holds."
     >
       {!accountsFailed && (

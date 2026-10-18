@@ -21,7 +21,7 @@ const FILE: ImportFileDraft = {
 }
 
 /**
- * Reads the Will Create figure the preview shows for the range and format given, counted the way the
+ * Reads the Will create figure the preview shows for the range and format given, counted the way the
  * workflow counts it
  */
 function renderEstimate(dateRange: ImportDateRange, dateFormat: ImportDateFormat | null) {
@@ -51,7 +51,7 @@ function renderEstimate(dateRange: ImportDateRange, dateFormat: ImportDateFormat
       onCommit={() => {}}
     />,
   )
-  return markup.match(/Will Create<\/p><p[^>]*>([^<]*)<\/p>/)?.[1]
+  return markup.match(/Will create<\/p><p[^>]*>([^<]*)<\/p>/)?.[1]
 }
 
 describe('the estimate while the chosen dates can\'t be applied', () => {

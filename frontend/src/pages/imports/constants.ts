@@ -606,7 +606,7 @@ export const CLEARED_ACCOUNT_SOURCES_EXPLANATION = 'An account these sources wer
 export const CLEARED_CATEGORY_SOURCES_TITLE = 'Answers cleared'
 export const CLEARED_CATEGORY_SOURCES_EXPLANATION = 'A category these values were matched to no longer exists, so their answers were cleared. Choose a category for each one, or queue a new one for it:'
 
-// Opens the transfers card on a provider import's Category Matching step, which then says how that
+// Opens the transfers card on a provider import's Category matching step, which then says how that
 // import files its own transfers and debt payments
 export const TRANSFERS_AND_DEBT_PAYMENTS_TITLE = 'Transfers and debt payments'
 export const TRANSFERS_EXPLANATION = "Money you move between your own accounts is a transfer, so it counts as neither spending nor income, and budgets leave it out. Paying your credit card works this way, since the purchases already counted when you made them."
@@ -667,7 +667,7 @@ export function getFixedAccountWarning(accountName: string) {
 
 // Shown over the accounts that appear only as a counterparty, which the import writes nothing to
 export const COUNTERPARTY_ONLY_TABLE_TITLE = 'Counterparty accounts'
-export const COUNTERPARTY_ONLY_EXPLANATION = 'These only ever appeared as the other side of a transfer. Matching one records where the money came from or went to without writing a transaction into that account, which is why an archived account can be chosen here and stays archived. Choose Outside this app to record the transfer without linking another account. To bring a name in as an account of your own, choose Create New Account in its Existing Account column.'
+export const COUNTERPARTY_ONLY_EXPLANATION = 'These only ever appeared as the other side of a transfer. Matching one records where the money came from or went to without writing a transaction into that account, which is why an archived account can be chosen here and stays archived. Choose Outside this app to record the transfer without linking another account. To bring a name in as an account of your own, choose Create new account in its Existing account column.'
 
 // Date-order presets are named by their shape rather than a standard because year-first accepts
 // slashes and unpadded parts, while the separate ISO preset requires padded dates. Keyed by format
@@ -727,8 +727,8 @@ export const IMPORT_CATEGORY_KIND_OPTIONS: Array<{ value: ImportCategoryKind; la
 
 export const ACCOUNT_KIND_LABELS: Record<AccountsOverview['account_kind'], string> = {
   asset: 'Assets',
-  revolving: 'Revolving Credit',
-  amortizing: 'Amortizing Debt',
+  revolving: 'Revolving credit',
+  amortizing: 'Amortizing debt',
 }
 
 // Kind decides which group an account falls under, and the dropdown heads a group every time the
@@ -746,11 +746,11 @@ export const ACCOUNT_TYPE_OPTIONS: DropdownOption[] = [
   { value: 'term_deposit', label: 'Term Deposit', group: 'Assets' },
   { value: 'cash', label: 'Cash', group: 'Assets' },
   { value: 'investment', label: 'Investment', group: 'Assets' },
-  { value: 'credit_card', label: 'Credit Card', group: 'Revolving Credit' },
-  { value: 'line_of_credit', label: 'Line of Credit', group: 'Revolving Credit' },
-  { value: 'heloc', label: 'HELOC', group: 'Revolving Credit' },
-  { value: 'loan', label: 'Loan', group: 'Amortizing Debt' },
-  { value: 'mortgage', label: 'Mortgage', group: 'Amortizing Debt' },
+  { value: 'credit_card', label: 'Credit Card', group: 'Revolving credit' },
+  { value: 'line_of_credit', label: 'Line of Credit', group: 'Revolving credit' },
+  { value: 'heloc', label: 'HELOC', group: 'Revolving credit' },
+  { value: 'loan', label: 'Loan', group: 'Amortizing debt' },
+  { value: 'mortgage', label: 'Mortgage', group: 'Amortizing debt' },
 ]
 
 export const IMPORT_INSET_STYLE: CSSProperties = {

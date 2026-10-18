@@ -121,7 +121,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
 
   test(`turns the OFX upload card to the hover colour under the pointer in the ${colorScheme} theme`, async ({ page, request }) => {
     await openImports(page, request, colorScheme, false)
-    await chooseFromDropdown(page.locator('body'), 'Data Source', 'OFX/QFX')
+    await chooseFromDropdown(page.locator('body'), 'Data source', 'OFX/QFX')
     const card = page.getByRole('button', { name: /^Upload statements/ })
     await expect(card).toBeVisible()
 

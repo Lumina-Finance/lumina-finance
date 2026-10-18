@@ -86,7 +86,7 @@ async function startImport(page: Page, request: APIRequestContext, manifest: Act
   const user = await signUpUser(request)
   await logInViaApi(page, user)
   await openPage(page, '/settings/imports')
-  await chooseFromDropdown(page.locator('body'), 'Data Source', 'Actual Budget')
+  await chooseFromDropdown(page.locator('body'), 'Data source', 'Actual Budget')
 
   const uploads = captureUploads(page)
 
@@ -122,7 +122,7 @@ async function importAndCompare(
     const selectAll = page.locator('[aria-label="Select all accounts"]')
     await expect(selectAll).toBeEnabled()
     await selectAll.click()
-    await chooseFromDropdown(page.locator('body'), 'Batch Edit Accounts Currency', new RegExp(`^${CHOSEN_CURRENCY}\\b`))
+    await chooseFromDropdown(page.locator('body'), 'Batch edit accounts Currency', new RegExp(`^${CHOSEN_CURRENCY}\\b`))
     await page.getByRole('button', { name: 'Apply', exact: true }).click()
   }
 

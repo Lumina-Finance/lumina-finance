@@ -47,7 +47,7 @@ export function ImportBudgetStep<Budget extends { name: string; isArchived: bool
   ...table
 }: ImportBudgetStepProps<Budget>) {
   return (
-    <ImportStep index="04" title="Budget Import" description={description}>
+    <ImportStep index="04" title="Budget import" description={description}>
       {children}
 
       {skippedRows.length > 0 && (

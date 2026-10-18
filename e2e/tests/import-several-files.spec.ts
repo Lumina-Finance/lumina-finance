@@ -167,11 +167,11 @@ test('keeps the mapping and answers when one file is removed and resets them whe
     buffer: Buffer.from([HEADER, `${day},-10.00,Treats,Market`, `${day},-5.00,Treats,Market`].join('\n')),
   })
   await upload.setInputFiles([treats('2024-03.csv', '2024-03-05'), treats('2024-04.csv', '2024-04-05')])
-  const category = page.getByRole('combobox', { name: 'Existing Category Treats', exact: true })
+  const category = page.getByRole('combobox', { name: 'Existing category Treats', exact: true })
   await category.click()
   await page.getByRole('option', { name: 'Create new category', exact: true }).click()
   await expect(category).toContainText('Create new category')
-  const dateField = page.getByRole('combobox', { name: 'Match To App Field Date', exact: true })
+  const dateField = page.getByRole('combobox', { name: 'Match to app field Date', exact: true })
   await dateField.click()
   await page.getByRole('option', { name: 'Do not import', exact: true }).click()
 

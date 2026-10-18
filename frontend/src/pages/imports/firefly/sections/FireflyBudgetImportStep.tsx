@@ -9,17 +9,17 @@ const SKIPPED_BUDGET_HEADERS = [
   'Currencies',
   'Periods',
   'Cadence',
-  'First Period',
-  'Last Period',
-  'Latest Amount',
+  'First period',
+  'Last period',
+  'Latest amount',
 ]
-const SKIPPED_BUDGET_AMOUNT_HEADERS = ['Latest Amount']
+const SKIPPED_BUDGET_AMOUNT_HEADERS = ['Latest amount']
 
 const BUDGET_COLUMNS: ImportBudgetColumn<FireflyBudgetDraft>[] = [
   { header: 'Cadence', widthClassName: 'w-[11%]', tone: 'muted', render: (draft) => draft.periodLabel ?? '' },
-  { header: 'Latest Amount', widthClassName: 'w-[14%]', align: 'right', tone: 'figure', render: (draft) => draft.amount },
+  { header: 'Latest amount', widthClassName: 'w-[14%]', align: 'right', tone: 'figure', render: (draft) => draft.amount },
   { header: 'Categories', widthClassName: 'w-[26%]', tone: 'muted', truncate: true, render: (draft) => draft.categoryNames.join(', ') },
-  { header: 'First Period', widthClassName: 'w-[13%]', tone: 'figure', render: (draft) => draft.firstPeriodStart ?? '' },
+  { header: 'First period', widthClassName: 'w-[13%]', tone: 'figure', render: (draft) => draft.firstPeriodStart ?? '' },
   {
     header: 'Changes',
     widthClassName: 'w-[14%]',
@@ -75,9 +75,9 @@ export function FireflyBudgetImportStep({
         'Currencies': draft.currencyCodes.join(', '),
         'Periods': draft.limits.length > 0 ? String(draft.limits.length) : '',
         'Cadence': draft.periodLabel ?? '',
-        'First Period': draft.firstPeriodStart ?? '',
-        'Last Period': draft.lastPeriodEnd ?? '',
-        'Latest Amount': draft.amount,
+        'First period': draft.firstPeriodStart ?? '',
+        'Last period': draft.lastPeriodEnd ?? '',
+        'Latest amount': draft.amount,
       },
     }]
   })

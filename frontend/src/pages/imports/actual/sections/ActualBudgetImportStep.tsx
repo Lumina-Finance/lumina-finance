@@ -5,8 +5,8 @@ import type { ActualImportWorkflow } from '@/pages/imports/actual/hooks'
 import { formatScaledAmount } from '@/pages/imports/actual/utils/amounts'
 import type { ActualBudgetDraft } from '@/pages/imports/actual/utils/budgets'
 
-const SKIPPED_BUDGET_HEADERS = ['Months', 'First Month', 'Last Month', 'Latest Amount']
-const SKIPPED_BUDGET_AMOUNT_HEADERS = ['Latest Amount']
+const SKIPPED_BUDGET_HEADERS = ['Months', 'First month', 'Last month', 'Latest amount']
+const SKIPPED_BUDGET_AMOUNT_HEADERS = ['Latest amount']
 
 type ActualBudgetImportStepProps = Pick<
   ActualImportWorkflow,
@@ -57,9 +57,9 @@ export function ActualBudgetImportStep({
       reason,
       cells: {
         'Months': String(draft.months.length),
-        'First Month': draft.months[0]?.month ?? '',
-        'Last Month': draft.months.at(-1)?.month ?? '',
-        'Latest Amount': formatAmount(draft.months.at(-1)?.amount ?? 0),
+        'First month': draft.months[0]?.month ?? '',
+        'Last month': draft.months.at(-1)?.month ?? '',
+        'Latest amount': formatAmount(draft.months.at(-1)?.amount ?? 0),
       },
     }]
   })
@@ -67,7 +67,7 @@ export function ActualBudgetImportStep({
   const columns: ImportBudgetColumn<ActualBudgetDraft>[] = [
     { header: 'Repeats', widthClassName: 'w-[15%]', tone: 'muted', render: (draft) => (draft.recurs ? 'Monthly' : 'Not recurring') },
     {
-      header: 'Latest Amount',
+      header: 'Latest amount',
       widthClassName: 'w-[16%]',
       align: 'right',
       tone: 'figure',
@@ -77,8 +77,8 @@ export function ActualBudgetImportStep({
       },
     },
     { header: 'Months', widthClassName: 'w-[11%]', align: 'right', tone: 'figure', render: (draft) => draft.months.length },
-    { header: 'First Month', widthClassName: 'w-[14%]', tone: 'figure', render: (draft) => draft.months[0]?.month ?? '' },
-    { header: 'Last Month', widthClassName: 'w-[14%]', tone: 'figure', render: (draft) => draft.months.at(-1)?.month ?? '' },
+    { header: 'First month', widthClassName: 'w-[14%]', tone: 'figure', render: (draft) => draft.months[0]?.month ?? '' },
+    { header: 'Last month', widthClassName: 'w-[14%]', tone: 'figure', render: (draft) => draft.months.at(-1)?.month ?? '' },
   ]
 
   return (
@@ -104,7 +104,7 @@ export function ActualBudgetImportStep({
     >
       {budgetsMissingPayments.length > 0 && (
         <ImportNotice title="Some budgets won't count these payments" items={budgetsMissingPayments}>
-          These categories had payments to off-budget accounts that you're importing as transfers, so their budgets will show less spent than Actual did. To count them, switch their "transfers in Actual" rows to Expense under Category Matching:
+          These categories had payments to off-budget accounts that you're importing as transfers, so their budgets will show less spent than Actual did. To count them, switch their "transfers in Actual" rows to Expense under Category matching:
         </ImportNotice>
       )}
 

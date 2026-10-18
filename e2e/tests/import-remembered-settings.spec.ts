@@ -186,8 +186,8 @@ test('opens a file with every column and the amount format the saved settings ho
   const dateFormat = await upload(page, `/settings/imports?account=${checking.id}`, 'web.csv', csv)
 
   await expect(dateFormat).toHaveText(DAY_FIRST)
-  await expect(page.getByRole('combobox', { name: 'Match To App Field Merchant', exact: true })).toContainText('Notes')
-  await expect(page.getByRole('combobox', { name: 'Match To App Field Memo', exact: true })).toContainText('Do not import')
+  await expect(page.getByRole('combobox', { name: 'Match to app field Merchant', exact: true })).toContainText('Notes')
+  await expect(page.getByRole('combobox', { name: 'Match to app field Memo', exact: true })).toContainText('Do not import')
   await expect(page.getByRole('combobox', { name: 'Amount format', exact: true })).toHaveText('1.234,56')
 })
 

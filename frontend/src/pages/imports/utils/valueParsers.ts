@@ -144,7 +144,7 @@ export function scanImportDateFormats(
 export function getPreviewDateLabel(ymd: string) {
   const date = parseYmd(ymd)
 
-  return date ? formatDate(date, DATE_FORMATS.longDate) : 'Missing Date'
+  return date ? formatDate(date, DATE_FORMATS.longDate) : 'Missing date'
 }
 
 /**

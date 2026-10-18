@@ -31,8 +31,8 @@ export function ImportDirectionValueTable({
         </colgroup>
         <thead style={{ color: 'var(--app-text-subtle)', background: 'var(--app-input-bg)' }}>
           <tr>
-            <th className="px-4 py-2.5 font-medium">Word In File</th>
-            <th className="px-4 py-2.5 font-medium">What It Means</th>
+            <th className="px-4 py-2.5 font-medium">Word in file</th>
+            <th className="px-4 py-2.5 font-medium">What it means</th>
           </tr>
         </thead>
         <tbody>

@@ -92,7 +92,7 @@ export function FireflyFilesStep({
             label={slot.label}
             required={slot.required}
             accept=".csv,text/csv"
-            uploadTitle={`Upload ${slot.label.toLowerCase()}`}
+            uploadTitle={`Upload ${slot.label.charAt(0).toLowerCase()}${slot.label.slice(1)}`}
             hint={slot.hint}
             // A finished import keeps its files as a record, so they can't be removed
             staged={stagedFile && (

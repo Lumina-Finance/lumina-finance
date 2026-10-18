@@ -192,7 +192,7 @@ export async function showImportSetup(page: Page): Promise<void> {
  * @param page - Page showing an import
  */
 export async function leaveImportSetup(page: Page): Promise<void> {
-  await page.getByRole('heading', { name: 'Import Transactions' }).click()
+  await page.getByRole('heading', { name: 'Import transactions' }).click()
   if (!await isAtLeast(page, IMPORT_SIDE_BY_SIDE_BREAKPOINT_PX)) return
   await expect(page.getByRole('button', { name: 'Expand import setup', exact: true })).toHaveAttribute('aria-expanded', 'false')
 }

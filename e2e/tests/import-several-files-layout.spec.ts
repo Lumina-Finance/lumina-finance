@@ -29,7 +29,7 @@ async function stageFiles(page: Page, size: { width: number; height: number }) {
   const user = await signUpUser(page.context().request)
   await logInViaApi(page, user)
   await openPage(page, '/settings/imports')
-  await chooseFromDropdown(page.locator('body'), 'Data Source', 'OFX/QFX')
+  await chooseFromDropdown(page.locator('body'), 'Data source', 'OFX/QFX')
   const upload = page.locator('input[type="file"][accept*=".ofx"]')
   await expect(upload).toBeEnabled()
   await upload.setInputFiles(FILES)

@@ -52,7 +52,7 @@ export function FireflyCategoryMatchingStep({
     <ImportCategoryMatchingLayout
       index="03"
       description="Exported category names matched an existing category where possible. The rest are queued as new categories."
-      sourceLabel="Category From Export"
+      sourceLabel="Category from export"
       empty={transactionsFile
         ? {
             title: 'No categories to match',

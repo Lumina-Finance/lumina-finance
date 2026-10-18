@@ -34,7 +34,7 @@ export function ImportSourceStep({
   return (
     <ImportStep
       index="00"
-      title="Data Source"
+      title="Data source"
       titleId={titleId}
       description="Choose the app the export came from."
     >

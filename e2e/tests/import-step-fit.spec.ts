@@ -27,7 +27,7 @@ test('shows every preview row\'s amount without scrolling sideways', async ({ pa
   await expect(upload).toBeEnabled()
   const csv = ['Date,Amount,Category,Merchant', '2024-03-15,-42.50,Groceries,Corner Market', '2024-03-16,-17.25,Groceries,Bakery'].join('\n')
   await upload.setInputFiles({ name: 'preview.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) })
-  const preview = stepOf(page, 'Preview and Commit')
+  const preview = stepOf(page, 'Preview and commit')
   await expect(preview.getByText(/42\.50/).first()).toBeVisible()
 
   for (const width of WIDTHS) {
