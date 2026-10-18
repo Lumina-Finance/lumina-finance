@@ -1,5 +1,5 @@
 import { expect, test as base, type APIRequestContext, type Locator, type Page, type Request, type Route } from '@playwright/test'
-import { createAccount, findReferenceId, signUpUser, TEST_CURRENCY, type TestUser } from '../support/api'
+import { asUser, createAccount, findReferenceId, signUpUser, TEST_CURRENCY, type TestUser } from '../support/api'
 import { openPage, logInViaApi, waitForPageReady } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 import { AT_EVERY_SIZE } from '../support/sizes'
@@ -14,7 +14,7 @@ const TO = '2026-04-15'
 /** Creates real category/date boundaries and a crossover category beyond the five ordinary legend rows */
 async function createDrillFixture(request: APIRequestContext) {
   const user = await signUpUser(request)
-  const headers = { Authorization: `Bearer ${user.accessToken}` }
+  const headers = asUser(user)
   const account = await createAccount(request, user, { name: 'Chart drill account' })
   const categories: { id: string; name: string }[] = []
   for (let index = 0; index < 7; index++) {

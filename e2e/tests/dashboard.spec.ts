@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
-import { createAccount, createMonthlyBudget, findReferenceId, signUpUser, todayInTestTimezone, TEST_TIMEZONE, type TestUser } from '../support/api'
+import { asUser, createAccount, createMonthlyBudget, findReferenceId, signUpUser, todayInTestTimezone, TEST_TIMEZONE, type TestUser } from '../support/api'
 import { expectSignedIn, logIn } from '../support/app'
 import { API_BASE_URL, BASE_URL } from '../support/target'
 import { AT_EVERY_SIZE } from '../support/sizes'
@@ -62,7 +62,7 @@ async function expectCardHeights(page: Page): Promise<number[]> {
 /** Seed a single-currency dashboard with enough genuine rows to exceed visible list limits */
 async function seedRichDashboard(request: APIRequestContext): Promise<TestUser> {
   const user = await signUpUser(request)
-  const headers = { Authorization: `Bearer ${user.accessToken}` }
+  const headers = asUser(user)
   const accounts = []
   for (let index = 0; index < 3; index += 1) {
     accounts.push(await createAccount(request, user, {

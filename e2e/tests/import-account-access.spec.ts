@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext } from '@playwright/test'
 
-import { createAccount, createCategory, createGroup, signUpUser, type TestUser } from '../support/api'
+import { asUser, createAccount, createCategory, createGroup, signUpUser, type TestUser } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
@@ -25,7 +25,7 @@ const FIREFLY_CSV = [
  */
 async function postAs(request: APIRequestContext, user: TestUser, path: string, data: object) {
   const response = await request.post(`${API_BASE_URL}${path}`, {
-    headers: { Authorization: `Bearer ${user.accessToken}` },
+    headers: asUser(user),
     data,
   })
   expect(response.status(), `${path} answered ${await response.text()}`).toBe(201)
@@ -36,9 +36,7 @@ async function postAs(request: APIRequestContext, user: TestUser, path: string, 
  * Shares a new group account with a second user at read level, which the app has no screen for
  */
 async function shareReadOnlyAccount(request: APIRequestContext, owner: TestUser, member: TestUser) {
-  const me = await request.get(`${API_BASE_URL}/me`, {
-    headers: { Authorization: `Bearer ${member.accessToken}` },
-  })
+  const me = await request.get(`${API_BASE_URL}/me`, { headers: asUser(member) })
   expect(me.status()).toBe(200)
   const { id: memberId } = await me.json() as { id: string }
 

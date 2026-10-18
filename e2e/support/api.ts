@@ -40,10 +40,14 @@ export interface TestUser {
  * and lets them all run at once against a single instance.
  *
  * @param request - Playwright request context, with requests sent to the configured API target
+ * @param options - Base currency, for a spec whose subject depends on it, `TEST_CURRENCY` otherwise
  * @returns The credentials of the user that was created
  * @throws When signup does not answer 201
  */
-export async function signUpUser(request: APIRequestContext): Promise<TestUser> {
+export async function signUpUser(
+  request: APIRequestContext,
+  { baseCurrency = TEST_CURRENCY }: { baseCurrency?: string } = {},
+): Promise<TestUser> {
   const email = `e2e-${crypto.randomUUID()}@example.com`
   const firstName = 'Test'
 
@@ -53,7 +57,7 @@ export async function signUpUser(request: APIRequestContext): Promise<TestUser> 
       password: TEST_PASSWORD,
       first_name: firstName,
       tz: TEST_TIMEZONE,
-      base_currency: TEST_CURRENCY,
+      base_currency: baseCurrency,
     },
   })
 

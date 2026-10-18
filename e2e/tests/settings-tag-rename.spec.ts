@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { signUpUser } from '../support/api'
+import { asUser, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
@@ -8,7 +8,7 @@ import { API_BASE_URL } from '../support/target'
 
 test('shows a renamed tag without reloading when its id and list position stay the same', async ({ page, request }) => {
   const user = await signUpUser(request)
-  const headers = { Authorization: `Bearer ${user.accessToken}` }
+  const headers = asUser(user)
   const prefix = `Rename ${crypto.randomUUID()}`
   const oldName = `${prefix} old`
   const newName = `${prefix} new`
@@ -51,7 +51,7 @@ test('shows a renamed tag without reloading when its id and list position stay t
 test('marks the Create Tag name field invalid when the name is taken or empty', async ({ page, request }) => {
   const user = await signUpUser(request)
   const name = `Holiday ${crypto.randomUUID()}`
-  const created = await request.post(`${API_BASE_URL}/tags`, { headers: { Authorization: `Bearer ${user.accessToken}` }, data: { name } })
+  const created = await request.post(`${API_BASE_URL}/tags`, { headers: asUser(user), data: { name } })
   expect(created.status()).toBe(201)
 
   await logInViaApi(page, user)

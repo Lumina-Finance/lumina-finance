@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
-import { createAccount, findReferenceId, signUpUser, TEST_CURRENCY, todayInTestTimezone } from '../support/api'
+import { asUser, createAccount, findReferenceId, signUpUser, TEST_CURRENCY, todayInTestTimezone } from '../support/api'
 import { chooseFromDropdown, expectSignedIn, openModal, openPage, logInViaApi } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
@@ -9,7 +9,7 @@ import { API_BASE_URL } from '../support/target'
 async function setupMerchantRanking(page: Page, request: APIRequestContext, withExpense = false) {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Merchant usage account' })
-  const headers = { Authorization: `Bearer ${user.accessToken}` }
+  const headers = asUser(user)
   const prefix = `E2E ranking ${crypto.randomUUID()}`
   const alpha = `${prefix} Alpha`
   const zulu = `${prefix} Zulu`
