@@ -3,7 +3,8 @@
  * its older copy over another tab's, a tab saves only while the session flag names its own user, a
  * load restores only the copy of the user the flag names, a save that fails must not leave an older
  * copy behind for the next load to restore as fresh, and no save may write a request held while
- * offline along with what it sends, such as both passwords of a password change
+ * offline along with what it sends, such as both passwords of a password change, or the authenticator
+ * secret and setup link of a setup in progress
  */
 import { focusManager, MutationObserver, onlineManager, QueryClient } from '@tanstack/react-query';
 import { persistQueryClientRestore, persistQueryClientSubscribe } from '@tanstack/react-query-persist-client';
@@ -16,6 +17,8 @@ import {
   saveQueryCacheOnPageHide,
   setQueryCacheUser,
 } from '@/api/cache/persistence';
+import { twoFactorKeys } from '@/api/cache/queryKeys';
+import type { TotpSetupResponse } from '@/api/two-factor';
 import { changePassword, type ChangePasswordPayload } from '@/api/user';
 
 const { authenticatedFetchMock } = vi.hoisted(() => ({
@@ -297,5 +300,42 @@ describe('saving the query cache', () => {
       method: 'PATCH',
       body: JSON.stringify(payload),
     });
+  });
+
+  it('keeps query data but not an authenticator setup in progress, through a restart that mints a new secret', async () => {
+    const page = loadPage({ [SESSION_KEY]: USER_A }, { withTimedSave: true });
+    const firstSetup: TotpSetupResponse = {
+      secret: 'JBSWY3DPEHPK3PXP',
+      provisioning_uri: 'otpauth://totp/Lumina:a%40example.com?secret=JBSWY3DPEHPK3PXP&issuer=Lumina',
+    };
+    const restartedSetup: TotpSetupResponse = {
+      secret: 'KRSXG5CTMVRXEZLU',
+      provisioning_uri: 'otpauth://totp/Lumina:a%40example.com?secret=KRSXG5CTMVRXEZLU&issuer=Lumina',
+    };
+    const setups = [firstSetup, restartedSetup];
+    const expectNoSetupStored = () => {
+      const stored = page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY) ?? '';
+      for (const setup of setups) {
+        expect(stored).not.toContain(setup.secret);
+        expect(stored).not.toContain(setup.provisioning_uri);
+      }
+    };
+    page.client.setQueryData(['accounts'], [{ id: 'account-kept' }]);
+    page.client.setQueryData(twoFactorKeys.setup(), firstSetup);
+
+    await runTimedSave();
+    const timedCopy = page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY);
+    expect(timedCopy).toContain('account-kept');
+    expectNoSetupStored();
+
+    // Starting setup over mints a new secret under the same key, which the save on hiding the page writes
+    page.client.setQueryData(twoFactorKeys.setup(), restartedSetup);
+    page.client.setQueryData(['tags'], [{ id: 'tag-kept' }]);
+    page.hide();
+    const hiddenCopy = page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY);
+    expect(hiddenCopy).not.toBe(timedCopy);
+    expect(hiddenCopy).toContain('account-kept');
+    expect(hiddenCopy).toContain('tag-kept');
+    expectNoSetupStored();
   });
 });

@@ -1,6 +1,7 @@
 import {
   defaultShouldDehydrateQuery,
   dehydrate,
+  matchQuery,
   type Query,
   type QueryCacheNotifyEvent,
   type QueryClient,
@@ -8,6 +9,7 @@ import {
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import type { PersistedClient } from '@tanstack/react-query-persist-client';
 import { SESSION_KEY } from '@/api/auth/session';
+import { twoFactorKeys } from '@/api/cache/queryKeys';
 import { hasUncacheableFxStatus } from '@/api/shared/fxCache';
 
 // The local storage key holding the saved query cache, one copy shared by every tab
@@ -29,10 +31,19 @@ const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000;
 const PERSISTED_CACHE_SHAPE = '2';
 
 /**
- * Persists successful query data while leaving failed FX responses out of local storage
+ * Persists successful query data while leaving failed FX responses and the authenticator setup
+ * response out of local storage
+ *
+ * The setup response holds a new authenticator secret and its setup link, which would otherwise be
+ * written out in plain text and left there by a tab closed mid-setup. Setup mints a fresh secret
+ * each time it opens, so a reload loses nothing by not restoring it
  */
 function shouldDehydrateQuery(query: Query) {
-  return defaultShouldDehydrateQuery(query) && !hasUncacheableFxStatus(query.state.data);
+  return (
+    defaultShouldDehydrateQuery(query) &&
+    !hasUncacheableFxStatus(query.state.data) &&
+    !matchQuery({ queryKey: twoFactorKeys.setup(), exact: true }, query)
+  );
 }
 
 // Query data only. A request held while offline would otherwise be written out in plain text with
