@@ -254,8 +254,10 @@ test('keeps a staged statement on screen when the saved sources are read again',
   await openPage(page, `/settings/imports?account=${checking.id}`)
   await chooseFromDropdown(page.locator('body'), 'Data Source', 'OFX/QFX')
   await uploadStatement(page, buildFile([buildBankMessageSet('CAD', [CAFE])]))
-  const staged = page.getByRole('button', { name: 'Remove statement.ofx', exact: true })
-  await expect(staged).toBeVisible()
+  // The setup panel holding the file's remove button folds away once the statement is staged, so the
+  // statement is found by the Commit import button, which stays on screen beside its preview
+  const staged = page.getByRole('button', { name: 'Commit import', exact: true })
+  await expect(staged).toBeEnabled()
 
   await createAccount(request, user, { name: 'Savings', currency: 'CAD' })
   const reread = page.waitForResponse((response) => new URL(response.url()).pathname.endsWith('/transactions/import/sources'))
@@ -265,6 +267,7 @@ test('keeps a staged statement on screen when the saved sources are read again',
   // Read once rather than retried, since a spinner that shows and then goes is the failure
   expect(await page.getByRole('status', { name: 'Loading' }).count()).toBe(0)
   expect(await staged.isVisible()).toBe(true)
+  expect(await staged.isEnabled()).toBe(true)
 })
 
 test('refuses a statement file holding several statements on an account\'s page and stages nothing', async ({ page, request }) => {
