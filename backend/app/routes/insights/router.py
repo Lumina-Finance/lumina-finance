@@ -28,6 +28,7 @@ from app.schemas.insights import (
     SavedInsightsRangeCreate,
     SavedInsightsRangeResponse,
 )
+from app.services.cache_state import mark_user_cache_changed
 from app.services.insights import (
     get_cash_flow,
     get_fund_flow,
@@ -365,6 +366,8 @@ async def create_saved_range_route(
 
     # Surface a duplicate name as a domain conflict instead of a raw integrity error
     try:
+        await db.flush()
+        await mark_user_cache_changed(db, user.id)
         await db.commit()
     except IntegrityError as e:
         await db.rollback()
@@ -399,8 +402,10 @@ async def delete_saved_range_route(
             SavedInsightsRange.user_id == user.id,
         )
     )
-    await db.commit()
 
     # A zero row count means the range is missing or owned by another user
     if result.rowcount == 0:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Saved range not found")
+
+    await mark_user_cache_changed(db, user.id)
+    await db.commit()

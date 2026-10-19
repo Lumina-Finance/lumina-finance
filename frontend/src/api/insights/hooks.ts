@@ -129,8 +129,8 @@ export function useInsightsMerchants(
  */
 export function useSavedInsightsRanges(enabled = true) {
   const { accessToken } = useAuth();
-  // Left at the default stale time, like the app's other lists, so a range saved in another
-  // session is refetched on the next mount rather than staying cached forever
+  // Left at the default stale time, like the app's other lists. A range saved or deleted in another
+  // session marks the cache changed, and the app's cache check then invalidates this list
   return useQuery({
     queryKey: insightsKeys.savedRanges(),
     queryFn: ({ signal }) => fetchSavedInsightsRanges(signal),
