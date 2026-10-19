@@ -59,9 +59,8 @@ async def test_refusal_carries_cors_headers(client):
     The middleware is installed before CORS so CORS wraps it. Reversed, the rejection would
     leave the response without the headers and the browser would report the wrong problem
     """
-    # An unconfigured deployment allows every origin, in which case the header echoes
-    # whichever one the request carried
-    origin = "http://localhost:5173" if ALLOWED_ORIGINS[0] == "*" else ALLOWED_ORIGINS[0]
+    # The test environment sets APP_URL, so the CORS layer is installed with it as an origin
+    origin = ALLOWED_ORIGINS[0]
 
     response = await client.post(
         _TARGET_PATH,
@@ -80,7 +79,7 @@ async def test_a_refusal_does_not_inherit_an_earlier_requests_origin(client):
     message would carry the first caller's origin onto every later rejection, including one
     the CORS layer never looked at
     """
-    origin = "http://localhost:5173" if ALLOWED_ORIGINS[0] == "*" else ALLOWED_ORIGINS[0]
+    origin = ALLOWED_ORIGINS[0]
     await client.post(_TARGET_PATH, content=_oversized_payload(), headers={"Origin": origin})
 
     without_origin = await client.post(_TARGET_PATH, content=_oversized_payload())

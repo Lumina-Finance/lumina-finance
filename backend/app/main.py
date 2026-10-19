@@ -84,18 +84,17 @@ set_email_sender(build_email_sender())
 app.add_middleware(RequestBodySizeLimitMiddleware)
 
 
-# CORS origins from env
-_allowed_origins = list(ALLOWED_ORIGINS)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_allowed_origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allow_headers=["Authorization", "Content-Type"],
-    # The client reads the bearer challenge to tell an expired-token 401 from a wrong-credential 401
-    expose_headers=["WWW-Authenticate"],
-)
+# Without a configured origin the CORS layer is left out, so no response carries CORS headers
+if ALLOWED_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=ALLOWED_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+        allow_headers=["Authorization", "Content-Type"],
+        # The client reads the bearer challenge to tell an expired-token 401 from a wrong-credential 401
+        expose_headers=["WWW-Authenticate"],
+    )
 
 app.include_router(auth_router)
 app.include_router(app_version_router)
