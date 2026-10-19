@@ -86,8 +86,9 @@ export default function AccountDetailLoadingSkeleton() {
               ))}
             </div>
 
+            {/* The card has no minimum height below 750px, so the block keeps its own room above it */}
             <div className="flex-1" />
-            <SkeletonBlock className="h-16 w-full rounded-xl" reducedMotion={reducedMotion} />
+            <SkeletonBlock className="mt-6 h-16 w-full rounded-xl" reducedMotion={reducedMotion} />
           </section>
 
           <section className="app-card flex flex-col">
