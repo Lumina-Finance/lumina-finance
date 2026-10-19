@@ -92,7 +92,8 @@ for (const size of [SIZES[0], SIZES[1], SIZES[3]]) {
 
     // The reason names the file the way a row in the staged list does
     await expect(page.getByText('This transaction is already in statement.qfx (file 3).', { exact: true })).toBeVisible()
-    await expect(page.getByText('statement.qfx (file 4)', { exact: true }).first()).toBeVisible()
+    // The staged list names the file too, but sits in the setup panel, which is collapsed at wide sizes
+    await expect(page.locator('td', { hasText: 'September 28, 2026' }).getByText('statement.qfx (file 4)', { exact: true })).toBeVisible()
   })
 }
 
