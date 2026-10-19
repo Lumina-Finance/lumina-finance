@@ -17,8 +17,9 @@ import_all_models()
 
 config = context.config
 
-# Migrations run as the migrator role, which owns the tables and bypasses RLS
-config.set_main_option("sqlalchemy.url", migration_database_url())
+# Migrations run as the migrator role, which owns the tables and bypasses RLS. The config
+# interpolates percent signs, which the encoded credentials in the URL can contain, so each is doubled
+config.set_main_option("sqlalchemy.url", migration_database_url().replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
