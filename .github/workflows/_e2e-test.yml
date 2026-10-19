@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   test:
-    name: E2E tests (${{ matrix.target.platform }}, ${{ matrix.project }})
+    name: E2E tests (${{ matrix.target.platform }}, ${{ matrix.project }}${{ matrix.project == 'desktop' && format(', {0}/4', matrix.shard) || '' }})
     runs-on: ${{ matrix.target.runner }}
     strategy:
       fail-fast: false
@@ -24,8 +24,12 @@ jobs:
           - platform: arm64
             runner: ubuntu-24.04-arm
         project: [desktop, tablet, phone]
-        # A pull request runs arm64 at desktop only, and the weekly run takes arm64 at every size
-        exclude: ${{ fromJSON(inputs.every-size-on-arm64 && '[]' || '[{"target":{"platform":"arm64","runner":"ubuntu-24.04-arm"},"project":"tablet"},{"target":{"platform":"arm64","runner":"ubuntu-24.04-arm"},"project":"phone"}]') }}
+        # Desktop holds most of the suite, so it splits across four runners. Tablet and phone are
+        # short enough that the setup each runner repeats would cost more than splitting saves
+        shard: [1, 2, 3, 4]
+        # Tablet and phone keep shard 1 only. A pull request also runs arm64 at desktop only, and the
+        # weekly run takes arm64 at every size
+        exclude: ${{ fromJSON(format('[{0}{1}]', '{"project":"tablet","shard":2},{"project":"tablet","shard":3},{"project":"tablet","shard":4},{"project":"phone","shard":2},{"project":"phone","shard":3},{"project":"phone","shard":4}', inputs.every-size-on-arm64 && '' || ',{"target":{"platform":"arm64","runner":"ubuntu-24.04-arm"},"project":"tablet"},{"target":{"platform":"arm64","runner":"ubuntu-24.04-arm"},"project":"phone"}')) }}
 
     # Every matrix job starts its own application and database on its runner
     env:
@@ -110,7 +114,7 @@ jobs:
         working-directory: e2e
         env:
           E2E_BASE_URL: http://localhost:8080
-        run: npm test -- --project=${{ matrix.project }}
+        run: npm test -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.project == 'desktop' && 4 || 1 }}
 
       # The report shows only what the browser saw, so a failed request is explained by the app's own log
       - name: Dump container logs
@@ -122,7 +126,7 @@ jobs:
         if: ${{ failure() && steps.e2e-tests.outcome == 'failure' }}
         uses: actions/upload-artifact@v7
         with:
-          name: e2e-tests-${{ matrix.target.platform }}-${{ matrix.project }}
+          name: e2e-tests-${{ matrix.target.platform }}-${{ matrix.project }}-${{ matrix.shard }}
           path: e2e/playwright-report
           retention-days: 7
 
