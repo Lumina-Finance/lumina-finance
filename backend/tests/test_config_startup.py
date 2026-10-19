@@ -93,3 +93,11 @@ def test_lambda_without_app_url_refuses_to_start():
 def test_api_docs_are_off_unless_turned_on(settings, expected_statuses):
     """The API docs are off by default in every runtime, and the setting turns them on"""
     assert _output(_start_app(_DOCS_STATUS_SCRIPT, settings)) == expected_statuses
+
+
+def test_lambda_with_the_logging_email_backend_refuses_to_start():
+    """RUNTIME=lambda stops start-up with the logging email backend, which writes reset links to the log"""
+    completed = _start_app("import app.main", {**_LAMBDA_SETTINGS, "EMAIL_BACKEND": "logging"})
+
+    assert completed.returncode != 0
+    assert "Invalid EMAIL_BACKEND='logging'. RUNTIME=lambda requires smtp" in completed.stderr

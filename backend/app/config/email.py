@@ -3,11 +3,17 @@
 import os
 
 from app.config.env import optional_bool_env
+from app.config.runtime import RUNTIME
 
 # EMAIL_BACKEND selects the email sender: smtp to deliver or logging for development
 EMAIL_BACKEND_SMTP = "smtp"
 EMAIL_BACKEND_LOGGING = "logging"
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", EMAIL_BACKEND_LOGGING).strip()
+
+# The logging sender writes live reset links into the log, so RUNTIME=lambda refuses it and
+# requires mail to be delivered
+if RUNTIME == "lambda" and EMAIL_BACKEND == EMAIL_BACKEND_LOGGING:
+    raise RuntimeError(f"Invalid EMAIL_BACKEND={EMAIL_BACKEND!r}. RUNTIME=lambda requires {EMAIL_BACKEND_SMTP}")
 
 SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
