@@ -83,7 +83,7 @@ export default function MostExpensiveTransactionsPanel({
                   key={transaction.id}
                   layout
                   type="button"
-                  className="flex w-full items-center justify-between gap-3 rounded-md px-2.5 py-2 text-left transition-opacity hover:opacity-85 app-focus-ring"
+                  className="flex w-full items-center justify-between gap-3 rounded-md px-2.5 py-2 text-left transition-opacity hover:opacity-85"
                   style={{
                     borderLeft: '2px solid var(--app-accent)',
                     background: 'var(--app-accent-soft)',

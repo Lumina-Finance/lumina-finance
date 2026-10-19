@@ -427,7 +427,7 @@ function SectionEditor({
                       // Picking the currency is what decides which minor units a bound is counted in,
                       // so the choice is held still while an applied bound is waiting for its own
                       disabled={isAmountCurrencyLocked}
-                      className="app-field-focus-visible rounded-full border px-3 py-1 text-sm transition-colors hover:bg-[var(--app-accent-soft)] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-full border px-3 py-1 text-sm transition-colors hover:bg-[var(--app-accent-soft)] disabled:cursor-not-allowed disabled:opacity-60"
                       style={
                         isSelected
                           ? { background: 'var(--app-accent-soft)', borderColor: 'transparent', color: 'var(--app-accent)', fontWeight: 500 }

@@ -263,10 +263,11 @@ export default function TaxAdvantagedLimitsPanel({
                 <button
                   key={limit.year}
                   type="button"
-                  className="app-field-focus-visible group grid w-full min-w-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 rounded-xl border bg-transparent px-3.5 py-3 text-left transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
+                  className={`group grid w-full min-w-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 rounded-xl border px-3.5 py-3 text-left transition-colors duration-150 ${
+                    isSelected ? 'bg-[var(--app-accent-soft)] hover:bg-[var(--app-accent-border)]' : 'bg-transparent hover:bg-[var(--app-accent-soft)]'
+                  }`}
                   style={{
                     borderColor: isSelected ? 'var(--app-accent-border)' : 'var(--app-border)',
-                    background: isSelected ? 'var(--app-accent-soft)' : undefined,
                     color: 'var(--app-text)',
                   }}
                   aria-label={`Edit ${limit.year} limits`}

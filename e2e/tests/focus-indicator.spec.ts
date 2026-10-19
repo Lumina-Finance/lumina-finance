@@ -33,9 +33,9 @@ type FocusRing = {
 
 /**
  * Reads the focus drawn for the focused element, from the element itself or the nearest frame around it
- * that draws it, such as a date field around its day box. A field or outlined button draws its border in
- * the focus colour, doubled from the inside by a shadow of the same colour, so its width is the two
- * together. Anything else, filled buttons included, draws an outline. The contrast is against the page, worked out from the colours
+ * that draws it, such as a date field around its day box. A field draws its border in the focus colour,
+ * doubled from the inside by a shadow of the same colour, so its width is the two together. Anything
+ * else that isn't a button, such as a row, draws an outline. The contrast is against the page, worked out from the colours
  * the browser resolved and any fade around the frame, so it is the ratio on screen. Null when nothing
  * draws focus
  */
@@ -122,6 +122,49 @@ async function expectSharedRing(element: Locator, kind: FocusRing['kind'], offse
   }, { message: `focus on ${element}` }).toEqual({ kind, style: 'solid', width: '2px', offset, opaque: true, clipped: false, contrast: true })
 }
 
+/** What a button's look is made of, read off the element and the row or frame its hover look may fall on */
+async function readLook(element: Locator) {
+  return element.evaluate((node) => {
+    const properties = ['color', 'backgroundColor', 'borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor', 'boxShadow', 'transform', 'opacity', 'textDecorationLine'] as const
+    // A button inside a row that takes the hover look for it, such as a transaction row, shows the look on the row
+    const frame = node.closest('.app-transaction-row') ?? node
+    const looks = [node, frame].map((box) => Object.fromEntries(properties.map((property) => [property, getComputedStyle(box)[property]])))
+    return { button: looks[0], frame: looks[1], outline: getComputedStyle(node).outlineStyle }
+  })
+}
+
+/** Reads a look once its transitions have finished, which is when two reads in a row agree */
+async function settledLook(element: Locator) {
+  let previous = await readLook(element)
+  await expect.poll(async () => {
+    const next = await readLook(element)
+    const settled = JSON.stringify(next) === JSON.stringify(previous)
+    previous = next
+    return settled
+  }).toBe(true)
+  return previous
+}
+
+/**
+ * Expects a button reached by keyboard to look exactly as it does under the pointer, with no outline,
+ * and returns the look so a caller can also compare it with the button at rest
+ */
+async function expectHoverLook(page: Page, element: Locator) {
+  await page.mouse.move(0, 0)
+  const rest = await settledLook(element)
+  await focusFromKeyboard(page, element)
+  await expect(element).toBeFocused()
+  const focused = await settledLook(element)
+  expect(focused.outline).toBe('none')
+
+  await element.evaluate((node) => (node as HTMLElement).blur())
+  await element.hover()
+  const hovered = await settledLook(element)
+  expect(focused).toEqual(hovered)
+  await page.mouse.move(0, 0)
+  return { rest, focused }
+}
+
 async function seedOneTransaction(page: Page, request: Parameters<typeof signUpUser>[0]) {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
@@ -138,7 +181,7 @@ async function seedOneTransaction(page: Page, request: Parameters<typeof signUpU
 
 for (const colorScheme of ['light', 'dark'] as const) {
   // One control of each kind the app styles, on the toolbar and in the Add Transaction dialog, shows the
-  // same focus: a field or outlined button on its own border, anything else as a ring outside its edge
+  // right focus: a field on its own border, and a button as it looks under the pointer, with no ring
   test(`shows the same keyboard focus on each kind of control in the ${colorScheme} theme`, AT_EVERY_SIZE, async ({ page, request }) => {
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
     const user = await signUpUser(request)
@@ -149,47 +192,58 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expect(page.locator('html')).toHaveClass(colorScheme === 'dark' ? /\bdark\b/ : /^(?!.*\bdark\b)/)
     const toolbar = [
       page.getByRole('textbox', { name: /Search transactions/ }),
-      page.getByRole('button', { name: 'Select transactions', exact: true }),
-      // The phone toolbar has no Filters pill, only a button that opens a sheet
+      // The phone toolbar has no Filters pill, only a button that opens a sheet. The pill has no hover look
+      // of its own, so it shows focus on its own border, as a field does
       ...page.viewportSize()!.width >= 750 ? [page.getByRole('button', { name: 'Transaction filters', exact: true })] : [],
-      // Below the desktop navigation width the menu opens from a glass icon button
-      ...page.viewportSize()!.width < 1050 ? [page.getByRole('button', { name: 'Open navigation menu', exact: true })] : [],
     ]
     for (const control of toolbar) {
       await focusFromKeyboard(page, control)
       await expectSharedRing(control, 'border')
     }
+    // Buttons with a hover look of their own show it, whatever they are drawn with
+    const hoverButtons = [
+      page.getByRole('button', { name: 'Select transactions', exact: true }),
+      ...page.viewportSize()!.width < 1050 ? [page.getByRole('button', { name: 'Open navigation menu', exact: true })] : [],
+    ]
+    for (const control of hoverButtons) await expectHoverLook(page, control)
 
     const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
     const fields = [
-      { control: dialog.getByLabel('Amount'), kind: 'border' },
-      { control: dialog.getByRole('group', { name: 'Date', exact: true }).getByRole('textbox', { name: 'Day', exact: true }), kind: 'border' },
-      { control: dialog.getByRole('combobox').first(), kind: 'border' },
-      { control: dialog.getByRole('tab').first(), kind: 'outline' },
-      { control: dialog.getByRole('button', { name: 'Cancel', exact: true }), kind: 'border' },
-      { control: dialog.getByRole('button', { name: 'Add Transaction', exact: true }), kind: 'outline' },
-    ] as const
-    for (const { control, kind } of fields) {
+      dialog.getByLabel('Amount'),
+      dialog.getByRole('group', { name: 'Date', exact: true }).getByRole('textbox', { name: 'Day', exact: true }),
+      dialog.getByRole('combobox').first(),
+    ]
+    for (const control of fields) {
       await focusFromKeyboard(page, control)
-      await expectSharedRing(control, kind, kind === 'outline' ? '2px' : '0px')
+      await expectSharedRing(control, 'border')
     }
+    const buttons = [
+      dialog.getByRole('tab').first(),
+      dialog.getByRole('button', { name: 'Cancel', exact: true }),
+      dialog.getByRole('button', { name: 'Add Transaction', exact: true }),
+    ]
+    for (const control of buttons) await expectHoverLook(page, control)
   })
 
-  // The ring goes around the row itself, inside its edges where the next row can't cover it, whether
-  // the row's own button or its checkbox while selecting holds focus
-  test(`shows keyboard focus around a whole transaction row in the ${colorScheme} theme`, async ({ page, request }) => {
+  // A row opened through its button takes the hover look on the row itself, with no ring around it,
+  // while its checkbox while selecting has no hover look of its own, so it shows the row's and turns
+  // its own border the focus colour
+  test(`shows a transaction row's hover look on keyboard focus in the ${colorScheme} theme`, async ({ page, request }) => {
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
     const rowButton = await seedOneTransaction(page, request)
     const row = rowButton.locator('..')
 
-    await focusFromKeyboard(page, rowButton)
-    await expectSharedRing(row, 'outline', '-2px')
+    const { rest, focused } = await expectHoverLook(page, rowButton)
+    expect(focused.frame.backgroundColor).not.toBe(rest.frame.backgroundColor)
+    expect(await readFocusRing(row)).toBeNull()
 
     await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
     const checkbox = row.getByRole('checkbox')
     await focusFromKeyboard(page, checkbox)
     await expect(checkbox).toBeFocused()
-    await expectSharedRing(row, 'outline', '-2px')
+    await expectSharedRing(checkbox, 'border')
+    expect(await readFocusRing(row)).toBeNull()
+    await expect.poll(async () => (await readLook(row)).button.backgroundColor).toBe(focused.frame.backgroundColor)
   })
 }
 
@@ -268,17 +322,41 @@ test('leaves no focus ring on a transaction row opened with the mouse', async ({
   expect(await readFocusRing(rowButton)).toBeNull()
 })
 
-// The dashboard's range selector clips what spills past its edge and has room for the ring but not its
-// gap, so its options draw the ring against their edge, whole
-test('shows the whole keyboard focus ring on a range selector option', async ({ page, request }) => {
+// The dashboard's range selector clips what spills past its edge, which a ring would have been cut by,
+// and its options show their hover look instead
+test('shows the hover look on a range selector option reached by keyboard', async ({ page, request }) => {
   test.skip(page.viewportSize()!.width < 730, 'below 730px the range is picked from a sheet instead')
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await seedOneTransaction(page, request)
   await openPage(page, '/dashboard')
-  const option = page.getByRole('tablist', { name: 'Breakdown range' }).filter({ visible: true }).first().getByRole('tab').first()
+  const option = page.getByRole('tablist', { name: 'Breakdown range' }).filter({ visible: true }).first().getByRole('tab', { selected: false }).first()
 
-  await focusFromKeyboard(page, option)
-  await expectSharedRing(option, 'outline', '0px')
+  const { rest, focused } = await expectHoverLook(page, option)
+  expect(focused.button.backgroundColor).not.toBe(rest.button.backgroundColor)
+})
+
+// No button, tab or radio on the way through the page and a dialog draws an outline when keyboard
+// focused, however it is styled
+test('draws no ring on any button when tabbing through the app', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await seedOneTransaction(page, request)
+  const ringed = new Set<string>()
+  const tabThrough = async (stops: number) => {
+    for (let stop = 0; stop < stops; stop++) {
+      await page.keyboard.press('Tab')
+      const ring = await page.evaluate(() => {
+        const node = document.activeElement
+        const isButton = node?.matches('button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"], .app-nav-link') && !node.closest('svg')
+        return node && isButton && getComputedStyle(node).outlineStyle !== 'none' ? `${node.tagName} ${node.textContent?.trim().slice(0, 30)}` : null
+      })
+      if (ring) ringed.add(ring)
+    }
+  }
+
+  await tabThrough(30)
+  await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+  await tabThrough(15)
+  expect([...ringed]).toEqual([])
 })
 
 // The date-range controls built on the glass pill, the Insights one on a wide page and a dashboard
