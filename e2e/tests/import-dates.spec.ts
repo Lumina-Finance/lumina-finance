@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { createAccount, signUpUser } from '../support/api'
+import { asUser, createAccount, signUpUser } from '../support/api'
 import { commitImport, openPage, logInViaApi } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
@@ -28,7 +28,7 @@ for (const { profileZone, browserZone, dates } of DATE_CASES) {
 
     test('previews and commits timestamps in the profile timezone rather than the browser timezone', async ({ page, request }) => {
       const user = await signUpUser(request)
-      const headers = { Authorization: `Bearer ${user.accessToken}` }
+      const headers = asUser(user)
       const zone = await request.patch(`${API_BASE_URL}/me`, { headers, data: { tz: profileZone } })
       expect(zone.status()).toBe(200)
       const account = await createAccount(request, user, { name: 'Timestamp import account' })
@@ -130,7 +130,7 @@ const TIMED_DATES_STORED = ['2026-03-01', '2026-03-02']
 
 test('imports dates written with a time of day on the day written', async ({ page, request }) => {
   const user = await signUpUser(request)
-  const headers = { Authorization: `Bearer ${user.accessToken}` }
+  const headers = asUser(user)
   const account = await createAccount(request, user, { name: 'Timed date import account' })
   await logInViaApi(page, user)
   await openPage(page, `/settings/imports?account=${account.id}`)

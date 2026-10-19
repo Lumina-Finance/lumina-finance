@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { createAccount, findReferenceId, signUpUser, todayInTestTimezone } from '../support/api'
+import { asUser, createAccount, findReferenceId, signUpUser, todayInTestTimezone } from '../support/api'
 import { openPage, logInViaApi, waitForPageReady } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
@@ -9,7 +9,7 @@ import { API_BASE_URL } from '../support/target'
 for (const mode of ['add', 'replace', 'clear'] as const) {
   test(`${mode} tags on the selected transactions without changing unselected rows`, async ({ page, request }) => {
     const user = await signUpUser(request)
-    const headers = { Authorization: `Bearer ${user.accessToken}` }
+    const headers = asUser(user)
     const account = await createAccount(request, user, { name: 'Tag editing account' })
     const archived = await createAccount(request, user, { name: 'Archived tag account' })
     const category = await findReferenceId(request, user, 'categories', 'Groceries')

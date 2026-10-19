@@ -2,7 +2,7 @@
  * Reads back everything the import checks compare from Lumina's API, as the user who imported
  */
 import type { APIRequestContext } from '@playwright/test'
-import type { TestUser } from '../api'
+import { asUser, type TestUser } from '../api'
 import { API_BASE_URL } from '../target'
 import type { LuminaSnapshot, LuminaTransaction } from './compare.ts'
 
@@ -11,7 +11,7 @@ const PAGE_SIZE = 50
 
 export async function readLumina(request: APIRequestContext, user: TestUser): Promise<LuminaSnapshot> {
   const read = async <T>(path: string): Promise<T> => {
-    const response = await request.get(`${API_BASE_URL}${path}`, { headers: { Authorization: `Bearer ${user.accessToken}` } })
+    const response = await request.get(`${API_BASE_URL}${path}`, { headers: asUser(user) })
     if (!response.ok()) throw new Error(`GET ${path} answered ${response.status()}: ${await response.text()}`)
     return await response.json() as T
   }

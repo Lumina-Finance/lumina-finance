@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { signUpUser } from '../support/api'
+import { asUser, signUpUser } from '../support/api'
 import { logInViaApi, openPage, waitForPageReady } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
@@ -10,7 +10,7 @@ test.use({ timezoneId: 'UTC' })
 
 test('preserves a saved UTC timezone when another profile field is saved', async ({ page, request }) => {
   const user = await signUpUser(request)
-  const headers = { Authorization: `Bearer ${user.accessToken}` }
+  const headers = asUser(user)
   const seeded = await request.patch(`${API_BASE_URL}/me`, { headers, data: { tz: 'UTC' } })
   expect(seeded.status()).toBe(200)
 

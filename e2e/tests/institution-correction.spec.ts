@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { createAccount, signUpUser } from '../support/api'
+import { asUser, createAccount, signUpUser } from '../support/api'
 import { openPage, logInViaApi, openModal } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 import { AT_EVERY_SIZE } from '../support/sizes'
@@ -9,7 +9,7 @@ import { AT_EVERY_SIZE } from '../support/sizes'
 
 test('corrects the highlighted institution by keyboard and the original inline action', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
-  const headers = { Authorization: `Bearer ${user.accessToken}` }
+  const headers = asUser(user)
   const name = `E2E correction bank ${crypto.randomUUID()}`
   const created = await request.post(`${API_BASE_URL}/institutions`, {
     headers, data: { name, country_code: 'CA', website: 'https://example.com' },

@@ -1,6 +1,6 @@
 import { expect, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
-import { createAccount, createTransaction, findReferenceId, signUpUser, todayInTestTimezone } from './api'
+import { asUser, createAccount, createTransaction, findReferenceId, signUpUser, todayInTestTimezone } from './api'
 import { chooseFromDropdown, openModal } from './app'
 import { API_BASE_URL } from './target'
 
@@ -45,7 +45,7 @@ export async function seedRichInsights(request: APIRequestContext) {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Insights geometry active checking account', startingBalance: 250000 })
   const second = await createAccount(request, user, { name: 'Insights geometry savings account', accountType: 'savings', startingBalance: 150000 })
-  const headers = { Authorization: `Bearer ${user.accessToken}` }
+  const headers = asUser(user)
   const categoryId = await findReferenceId(request, user, 'categories', 'Groceries')
   await createTransaction(request, user, { accountId: account.id, categoryName: 'Salary', amount: 400000 })
   // Sent together, since one after another they take most of a busy host's time limit for the test,

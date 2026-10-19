@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { createAccount, findReferenceId, signUpUser, todayInTestTimezone } from '../support/api'
+import { asUser, createAccount, findReferenceId, signUpUser, todayInTestTimezone } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
@@ -17,7 +17,7 @@ test('says why a selection in a currency no account holds cannot move', async ({
     findReferenceId(request, user, 'merchants', 'Unknown'),
   ])
   const response = await request.post(`${API_BASE_URL}/transactions`, {
-    headers: { Authorization: `Bearer ${user.accessToken}` },
+    headers: asUser(user),
     data: {
       account_id: account.id, category_id: category, merchant_id: merchant,
       dt: todayInTestTimezone(), amount: -2500, currency: 'USD', fx_rate: 1.35,

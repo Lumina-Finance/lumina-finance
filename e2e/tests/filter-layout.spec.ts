@@ -1,5 +1,5 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
-import { createAccount, signUpUser, TEST_CURRENCY } from '../support/api'
+import { asUser, createAccount, signUpUser, TEST_CURRENCY } from '../support/api'
 import { openPage, logInViaApi } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 import { AT_EVERY_SIZE } from '../support/sizes'
@@ -64,7 +64,7 @@ async function expectChipGeometry(panel: Locator, count: number) {
 /** Creates an isolated populated panel for each independent layout scenario */
 async function seedFilterPanel(page: Page, request: APIRequestContext, domain: 'Account' | 'Transaction') {
   const user = await signUpUser(request)
-  const headers = { Authorization: `Bearer ${user.accessToken}` }
+  const headers = asUser(user)
   const fixtureId = crypto.randomUUID()
   const names = Array.from({ length: 12 }, (_, index) => `Filter layout ${String(index).padStart(2, '0')} with a deliberately long complete financial institution name ${fixtureId}`)
   for (const name of names) {

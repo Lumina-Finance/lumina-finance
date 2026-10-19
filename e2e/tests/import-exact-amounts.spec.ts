@@ -1,8 +1,7 @@
 import { expect, test } from '@playwright/test'
 
-import { createAccount, TEST_PASSWORD, TEST_TIMEZONE, type TestUser } from '../support/api'
+import { createAccount, signUpUser } from '../support/api'
 import { commitImport, openPage, logInViaApi } from '../support/app'
-import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: the amounts' digits are the same at every size, and it reads every layout
 // the list draws
@@ -15,15 +14,7 @@ const CASES = [
 
 for (const example of CASES) {
   test(`preserves exact ${example.currency} CSV preview digits and decimal submission`, async ({ page, request }) => {
-    const email = `e2e-exact-${crypto.randomUUID()}@example.com`
-    const signup = await request.post(`${API_BASE_URL}/auth/signup`, {
-      data: {
-        email, password: TEST_PASSWORD, first_name: 'Exact', tz: TEST_TIMEZONE, base_currency: example.currency,
-      },
-    })
-    expect(signup.status()).toBe(201)
-    const auth = await signup.json() as { access_token: string }
-    const user: TestUser = { email, password: TEST_PASSWORD, firstName: 'Exact', accessToken: auth.access_token }
+    const user = await signUpUser(request, { baseCurrency: example.currency })
     const account = await createAccount(request, user, { name: 'Exact import account', currency: example.currency })
     await logInViaApi(page, user)
     await openPage(page, `/settings/imports?account=${account.id}`)
