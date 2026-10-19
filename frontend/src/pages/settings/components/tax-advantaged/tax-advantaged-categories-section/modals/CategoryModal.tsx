@@ -356,10 +356,11 @@ export default function TaxAdvantagedCategoryModal({
                     type="button"
                     role="tab"
                     aria-selected={activeTab === tab}
-                    className="border-b-2 px-0 pb-2 pt-4 text-sm font-medium transition-colors duration-150"
+                    className={`border-b-2 px-0 pb-2 pt-4 text-sm font-medium transition-colors duration-150 ${
+                      activeTab === tab ? 'text-[var(--app-text)]' : 'text-[var(--app-text-muted)] hover:text-[var(--app-text)]'
+                    }`}
                     onClick={() => setActiveTab(tab)}
                     style={{
-                      color: activeTab === tab ? 'var(--app-text)' : 'var(--app-text-muted)',
                       borderColor: activeTab === tab ? 'var(--app-accent)' : 'transparent',
                     }}
                   >

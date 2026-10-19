@@ -40,6 +40,9 @@
     --app-accent: #8A5F25;
     --app-accent-soft: #9b6c2c1a;
     --app-accent-border: #9b6c2c38;
+    /* The border a bordered button takes under the pointer or keyboard focus, the accent at a strength
+       that shows against both themes' hairline borders */
+    --app-hover-border: color-mix(in srgb, var(--app-accent) 55%, transparent);
     /* The gold gradient behind a user's initials and the initials on it, the same in both themes. The end stop is
        the darkest point the initials sit on, kept light enough for them to read at 4.5:1 */
     --app-avatar-start: #C9A96A;
@@ -714,7 +717,7 @@
 
   .app-calendar-day:hover,
   .app-calendar-day:focus-visible {
-    background: var(--app-hover-soft);
+    background: var(--app-accent-soft);
   }
 
   .app-calendar-day[data-outside] {
@@ -729,6 +732,11 @@
   .app-calendar-day[data-selected] {
     background: var(--app-button-primary-bg);
     color: var(--app-button-primary-text);
+  }
+
+  .app-calendar-day[data-selected]:hover,
+  .app-calendar-day[data-selected]:focus-visible {
+    background: var(--app-button-primary-bg-hover);
   }
 
   .app-runway-threshold-input {
@@ -1097,13 +1105,15 @@
     background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
     -webkit-backdrop-filter: blur(20px) saturate(160%);
     backdrop-filter: blur(20px) saturate(160%);
+    transition: background-color 150ms ease, border-color 150ms ease;
   }
 
-  /* The head fills the glass, which clips anything drawn past its edge, so the head's focus shows on
-     the glass's own border in place of a ring on the head */
+  /* The head fills the glass, so its hover look is drawn on the glass, the fill and border the glass
+     button takes */
+  .app-range-glass:has(> .app-range-glass-head:hover),
   .app-range-glass:has(> .app-range-glass-head:focus-visible) {
-    border-color: var(--app-focus-ring);
-    box-shadow: var(--app-focus-border);
+    background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
+    border-color: var(--app-hover-border);
   }
 
   /* The mobile control spans the full width instead of hugging its content like the sidebar pill */
@@ -1410,6 +1420,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
+    .app-range-glass,
     .app-range-glass-head,
     .app-range-glass-bodywrap,
     .app-range-glass-inner,
@@ -1479,6 +1490,7 @@
 
   .import-record .app-segmented-option-active:disabled:hover {
     color: var(--app-accent);
+    background: var(--app-accent-soft);
   }
 
   .import-record .app-input:disabled:hover {
@@ -1621,6 +1633,7 @@
   .app-secondary-button:focus-visible {
     color: var(--app-text);
     background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
+    border-color: var(--app-hover-border);
   }
 
   .app-secondary-button:active {
@@ -1741,6 +1754,7 @@
   .app-glass-button:focus-visible {
     color: var(--app-text);
     background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
+    border-color: var(--app-hover-border);
   }
 
   .app-glass-button:active {
@@ -1767,6 +1781,7 @@
   .app-glass-icon-button:hover,
   .app-glass-icon-button:focus-visible {
     background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
+    border-color: var(--app-hover-border);
   }
 
   .app-glass-icon-button:active {
@@ -1817,6 +1832,12 @@
     color: var(--app-accent);
   }
 
+  .app-segmented-option-active:hover,
+  .app-segmented-option-active:focus-visible {
+    color: var(--app-accent);
+    background: var(--app-accent-border);
+  }
+
   .app-time-selector {
     position: relative;
     overflow: hidden;
@@ -1852,11 +1873,16 @@
     transform: scale(0.9);
   }
 
-  .app-time-selector .app-segmented-option-active,
+  .app-time-selector .app-segmented-option-active {
+    color: var(--app-accent);
+    background: transparent;
+  }
+
+  /* Over the indicator that already tints the selected option, so the two tints together show */
   .app-time-selector .app-segmented-option-active:hover,
   .app-time-selector .app-segmented-option-active:focus-visible {
     color: var(--app-accent);
-    background: transparent;
+    background: var(--app-accent-soft);
   }
 
   .app-navigation-theme-toggle-indicator {
@@ -1893,11 +1919,15 @@
     transform: scale(0.96);
   }
 
-  .app-navigation-theme-toggle .app-segmented-option-active,
+  .app-navigation-theme-toggle .app-segmented-option-active {
+    color: var(--app-accent);
+    background: transparent;
+  }
+
   .app-navigation-theme-toggle .app-segmented-option-active:hover,
   .app-navigation-theme-toggle .app-segmented-option-active:focus-visible {
     color: var(--app-accent);
-    background: transparent;
+    background: var(--app-accent-soft);
   }
 
   /* The options share the width equally, as the highlight that slides between them assumes, and the control
@@ -1929,11 +1959,15 @@
     transform: scale(0.9);
   }
 
-  .app-balance-chart-mode-selector .app-segmented-option-active,
+  .app-balance-chart-mode-selector .app-segmented-option-active {
+    color: var(--app-accent);
+    background: transparent;
+  }
+
   .app-balance-chart-mode-selector .app-segmented-option-active:hover,
   .app-balance-chart-mode-selector .app-segmented-option-active:focus-visible {
     color: var(--app-accent);
-    background: transparent;
+    background: var(--app-accent-soft);
   }
 
   .app-create-transaction-pill-selector-indicator {
@@ -1960,11 +1994,15 @@
     transform: scale(0.96);
   }
 
-  .app-create-transaction-pill-selector .app-segmented-option-active,
+  .app-create-transaction-pill-selector .app-segmented-option-active {
+    color: var(--app-accent);
+    background: transparent;
+  }
+
   .app-create-transaction-pill-selector .app-segmented-option-active:hover,
   .app-create-transaction-pill-selector .app-segmented-option-active:focus-visible {
     color: var(--app-accent);
-    background: transparent;
+    background: var(--app-accent-soft);
   }
 
   .app-create-transaction-pill-selector .app-segmented-option:disabled:hover,
@@ -2465,6 +2503,34 @@
       left: 0.5rem;
       right: 0.5rem;
       margin: 0;
+    }
+  }
+}
+
+/*
+  An underlined text button has no fill or border to change, and its colour is often set on the element,
+  so under the pointer or on keyboard focus its underline thickens, as a link's does in a browser. These
+  rules live in the utilities layer because the buttons carry transition utilities, which Tailwind orders
+  after components, and a components-layer transition would lose to them
+*/
+@layer utilities {
+  button.underline {
+    text-decoration-thickness: 1px;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    button.underline {
+      transition: text-decoration-thickness 150ms ease, color 200ms ease;
+    }
+  }
+
+  button.underline:focus-visible {
+    text-decoration-thickness: 2px;
+  }
+
+  @media (hover: hover) {
+    button.underline:hover {
+      text-decoration-thickness: 2px;
     }
   }
 }

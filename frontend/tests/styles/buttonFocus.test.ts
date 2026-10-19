@@ -31,6 +31,8 @@ const BUTTON_SELECTORS = [
   '.app-create-transaction-pill-selector .app-segmented-option-active',
   '.app-nav-link',
   '.app-calendar-day',
+  '.app-calendar-day[data-selected]',
+  '.app-segmented-option-active',
   '.app-dropdown-row-edit',
   '.app-range-apply',
   '.app-range-glass-clear',
@@ -51,11 +53,55 @@ function rulesListing(selector: string): Rule[] {
   return rules
 }
 
+// The pill's head fills its glass, so the glass shows the head's hover look
+const PILL_HEAD = '.app-range-glass:has(> .app-range-glass-head'
+const HOVER_FOCUS_PAIRS = [
+  ...BUTTON_SELECTORS.map((base) => ({ name: base, hover: `${base}:hover`, focus: `${base}:focus-visible` })),
+  { name: PILL_HEAD, hover: `${PILL_HEAD}:hover)`, focus: `${PILL_HEAD}:focus-visible)` },
+]
+
+// Buttons whose hover change used to be too faint, or missing, to tell keyboard focus from rest. Each
+// has to change its border, or its fill to a stronger tint than the one it rests in
+const BORDER_CHANGING = ['.app-secondary-button', '.app-glass-button', '.app-glass-icon-button']
+const TINT_CHANGING = [
+  '.app-segmented-option-active',
+  '.app-time-selector .app-segmented-option-active',
+  '.app-navigation-theme-toggle .app-segmented-option-active',
+  '.app-balance-chart-mode-selector .app-segmented-option-active',
+  '.app-create-transaction-pill-selector .app-segmented-option-active',
+]
+
+function declared(rule: Rule, property: string) {
+  let value: string | undefined
+  rule.walkDecls(property, (declaration) => {
+    value = declaration.value
+  })
+  return value
+}
+
 describe('button keyboard focus', () => {
-  for (const base of BUTTON_SELECTORS) {
-    it(`shows ${base} focused by keyboard exactly as hovered`, () => {
-      const hoverRules = rulesListing(`${base}:hover`)
-      const focusRules = rulesListing(`${base}:focus-visible`)
+  for (const name of BORDER_CHANGING) {
+    it(`gives ${name} a border of its own under the pointer and on keyboard focus`, () => {
+      const [rest] = rulesListing(name)
+      const [hover] = rulesListing(`${name}:hover`)
+      expect(declared(hover, 'border-color')).toBeDefined()
+      expect(declared(hover, 'border-color')).not.toBe(declared(rest, 'border'))
+    })
+  }
+
+  for (const name of TINT_CHANGING) {
+    it(`tints ${name} further under the pointer and on keyboard focus`, () => {
+      const rest = rulesListing(name).find((rule) => !rule.selector.includes(':'))!
+      const hover = rulesListing(`${name}:hover`).find((rule) => declared(rule, 'background') !== declared(rest, 'background'))
+      expect(hover).toBeDefined()
+      expect(declared(hover!, 'background')).not.toBe('transparent')
+    })
+  }
+
+  for (const { name, hover: hoverSelector, focus: focusSelector } of HOVER_FOCUS_PAIRS) {
+    it(`shows ${name} focused by keyboard exactly as hovered`, () => {
+      const hoverRules = rulesListing(hoverSelector)
+      const focusRules = rulesListing(focusSelector)
       expect(hoverRules.length).toBeGreaterThan(0)
 
       // The same rules, so the two looks can't differ by a declaration, a weight or a later rule

@@ -427,10 +427,12 @@ function SectionEditor({
                       // Picking the currency is what decides which minor units a bound is counted in,
                       // so the choice is held still while an applied bound is waiting for its own
                       disabled={isAmountCurrencyLocked}
-                      className="rounded-full border px-3 py-1 text-sm transition-colors hover:bg-[var(--app-accent-soft)] disabled:cursor-not-allowed disabled:opacity-60"
+                      className={`rounded-full border px-3 py-1 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                        isSelected ? 'bg-[var(--app-accent-soft)] hover:bg-[var(--app-accent-border)]' : 'hover:bg-[var(--app-accent-soft)]'
+                      }`}
                       style={
                         isSelected
-                          ? { background: 'var(--app-accent-soft)', borderColor: 'transparent', color: 'var(--app-accent)', fontWeight: 500 }
+                          ? { borderColor: 'transparent', color: 'var(--app-accent)', fontWeight: 500 }
                           : { borderColor: 'var(--app-input-border)', color: 'var(--app-text)' }
                       }
                       onClick={() => onCurrencyToggle(option.value)}

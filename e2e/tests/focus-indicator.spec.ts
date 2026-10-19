@@ -124,10 +124,14 @@ async function expectSharedRing(element: Locator, kind: FocusRing['kind'], offse
 
 /** What a button's look is made of, read off the element and the row or frame its hover look may fall on */
 async function readLook(element: Locator) {
-  return element.evaluate((node) => {
+  return element.evaluate(async (node) => {
+    // A look is read once the transitions it started have finished, so a hover that has only just
+    // begun is not taken for the finished look
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    await Promise.all(document.getAnimations().filter((animation) => animation instanceof CSSTransition).map((animation) => animation.finished.catch(() => undefined)))
     const properties = ['color', 'backgroundColor', 'borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor', 'boxShadow', 'transform', 'opacity', 'textDecorationLine'] as const
     // A button inside a row that takes the hover look for it, such as a transaction row, shows the look on the row
-    const frame = node.closest('.app-transaction-row') ?? node
+    const frame = node.closest('.app-transaction-row, .app-range-glass') ?? node
     const looks = [node, frame].map((box) => Object.fromEntries(properties.map((property) => [property, getComputedStyle(box)[property]])))
     return { button: looks[0], frame: looks[1], outline: getComputedStyle(node).outlineStyle }
   })
@@ -157,11 +161,14 @@ async function expectHoverLook(page: Page, element: Locator) {
   const focused = await settledLook(element)
   expect(focused.outline).toBe('none')
 
-  await element.evaluate((node) => (node as HTMLElement).blur())
-  await element.hover()
-  const hovered = await settledLook(element)
-  expect(focused).toEqual(hovered)
-  await page.mouse.move(0, 0)
+  // A touch screen has no hover, so a hover: utility has no pointer look to match there
+  if (await page.evaluate(() => matchMedia('(hover: hover)').matches)) {
+    await element.evaluate((node) => (node as HTMLElement).blur())
+    await element.hover()
+    const hovered = await settledLook(element)
+    expect(focused).toEqual(hovered)
+    await page.mouse.move(0, 0)
+  }
   return { rest, focused }
 }
 
@@ -192,9 +199,6 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expect(page.locator('html')).toHaveClass(colorScheme === 'dark' ? /\bdark\b/ : /^(?!.*\bdark\b)/)
     const toolbar = [
       page.getByRole('textbox', { name: /Search transactions/ }),
-      // The phone toolbar has no Filters pill, only a button that opens a sheet. The pill has no hover look
-      // of its own, so it shows focus on its own border, as a field does
-      ...page.viewportSize()!.width >= 750 ? [page.getByRole('button', { name: 'Transaction filters', exact: true })] : [],
     ]
     for (const control of toolbar) {
       await focusFromKeyboard(page, control)
@@ -203,6 +207,8 @@ for (const colorScheme of ['light', 'dark'] as const) {
     // Buttons with a hover look of their own show it, whatever they are drawn with
     const hoverButtons = [
       page.getByRole('button', { name: 'Select transactions', exact: true }),
+      // The phone toolbar has no Filters pill, only a button that opens a sheet
+      ...page.viewportSize()!.width >= 750 ? [page.getByRole('button', { name: 'Transaction filters', exact: true })] : [],
       ...page.viewportSize()!.width < 1050 ? [page.getByRole('button', { name: 'Open navigation menu', exact: true })] : [],
     ]
     for (const control of hoverButtons) await expectHoverLook(page, control)
@@ -378,8 +384,8 @@ for (const { where, path, width, height, name } of [
     expect(await insideFrame()).toBe(false)
     await page.keyboard.press('Tab')
     await expect(head).toBeFocused()
-    // Shown on the glass's own border, like every bordered control
-    await expectSharedRing(head, 'border')
+    // Shown as the hover look on the glass, with no ring on the head
+    expect(await readFocusRing(head)).toBeNull()
     await page.keyboard.press('Enter')
     await expect(head).toHaveAttribute('aria-expanded', 'true')
 
@@ -447,17 +453,40 @@ for (const { where, path, width, height, name, list, loaded } of [
   })
 }
 
-// A bordered button built from utilities, such as the Settings section menu, shows focus on its own
-// border alone, with no ring around it as well
-test('shows keyboard focus on the border of a bordered button built from utilities', AT_EVERY_SIZE, async ({ page, request }) => {
-  test.skip(page.viewportSize()!.width >= 1200, 'from 1200px the sections are a sidebar list instead')
-  const user = await signUpUser(request)
-  await logInViaApi(page, user)
-  await openPage(page, '/settings')
-  const menu = page.locator('[aria-controls="settings-mobile-section-menu"]')
+/**
+ * Expects a button's keyboard focus to look like its hover and to change what it looks like at rest, so
+ * that keyboard focus can be told apart from no focus. The change may be on the button or on the frame
+ * that shows its look, such as a row or the glass around a pill's head
+ */
+async function expectVisibleHoverLook(page: Page, element: Locator) {
+  const { rest, focused } = await expectHoverLook(page, element)
+  expect(JSON.stringify([focused.button, focused.frame]), `${element} looks the same focused as at rest`).not.toBe(JSON.stringify([rest.button, rest.frame]))
+}
 
-  await focusFromKeyboard(page, menu)
-  await expectSharedRing(menu, 'border')
+// Every button that had no hover look, or one too faint to see, shows a visible change on keyboard focus
+test('shows a visible hover look on keyboard focus on the buttons that had none', AT_EVERY_SIZE, async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000, date: daysFromTodayInTestTimezone(-1) })
+  await logInViaApi(page, user)
+
+  await openPage(page, '/insights')
+  await expectVisibleHoverLook(page, page.getByRole('button', { name: /^Insights date range: / }).filter({ visible: true }))
+
+  await openPage(page, '/settings')
+  await expectVisibleHoverLook(page, page.getByRole('checkbox', { name: /Everyday/ }).first())
+  if (page.viewportSize()!.width < 1200) await expectVisibleHoverLook(page, page.locator('[aria-controls="settings-mobile-section-menu"]'))
+
+  await openPage(page, '/transactions')
+  const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+  await expectVisibleHoverLook(page, dialog.getByRole('button', { name: 'Cancel', exact: true }))
+  await expectVisibleHoverLook(page, dialog.getByRole('tab', { selected: true }).first())
+  await dialog.getByRole('group', { name: 'Date', exact: true }).getByRole('button', { name: 'Open calendar', exact: true }).click()
+  const calendar = page.getByRole('dialog', { name: 'Choose date', exact: true })
+  await expect(calendar).toBeVisible()
+  await expectVisibleHoverLook(page, calendar.locator('[data-iso]').nth(16))
+  await expectVisibleHoverLook(page, calendar.locator('[data-iso][data-selected]'))
 })
 
 // A table row is a bordered card on a phone, where it shows focus on that border, and a plain row

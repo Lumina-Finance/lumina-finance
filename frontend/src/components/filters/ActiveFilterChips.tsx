@@ -46,7 +46,7 @@ export function ActiveFilterChips({ chips }: { chips: FilterChip[] }) {
               <button
                 type="button"
                 aria-label={`Remove ${chip.label}`}
-                className="flex shrink-0 opacity-70 hover:opacity-100"
+                className="-m-0.5 flex shrink-0 rounded-full p-0.5 opacity-70 transition-colors hover:bg-[var(--app-accent-hover-fill)] hover:text-[var(--app-accent-on-hover-fill)] hover:opacity-100 motion-reduce:transition-none"
                 onClick={chip.onRemove}
               >
                 <X size={13} aria-hidden />

@@ -91,8 +91,7 @@ export function OverflowMenu({ label, items, disabled = false }: OverflowMenuPro
         aria-expanded={isOpen}
         disabled={disabled}
         onClick={() => (isOpen ? closeMenu() : openMenu())}
-        className="shrink-0 rounded-md p-1.5"
-        style={{ color: 'var(--app-text-muted)' }}
+        className="shrink-0 rounded-md p-1.5 text-[var(--app-text-muted)] transition-colors hover:bg-[var(--app-hover-soft)] hover:text-[var(--app-text)] motion-reduce:transition-none"
       >
         <MoreVertical size={18} aria-hidden />
       </button>
