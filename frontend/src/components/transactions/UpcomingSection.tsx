@@ -10,7 +10,7 @@ import {
   TRANSACTION_LIST_EASE,
   TRANSACTION_ROW_GAP_BELOW_PINNED_BARS_PX,
   TRANSACTION_ROW_SCROLL_MARGIN_VARIABLE,
-} from '@/pages/transactions/constants/transactionList'
+} from '@/components/transactions/constants/transactionList'
 import { formatShortDateRangeLabel } from '@/utils/date'
 
 export const UPCOMING_EXPLANATION =

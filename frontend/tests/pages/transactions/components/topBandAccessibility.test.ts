@@ -11,7 +11,7 @@ vi.mock('@/pages/transactions/components/top-band/MostExpensiveTransactionsPanel
 }))
 vi.mock('@/pages/transactions/components/top-band/TopCategoriesChart', () => ({ default: () => null }))
 vi.mock('@/pages/transactions/components/top-band/DailyCashFlowChart', () => ({ default: () => null }))
-vi.mock('@/pages/transactions/components/FilterLoadingOverlay', () => ({
+vi.mock('@/components/transactions/FilterLoadingOverlay', () => ({
   default: () => createElement('p', null, 'Loading transaction summary'),
 }))
 

@@ -1,0 +1,656 @@
+import { useId, useState, type Dispatch, type SetStateAction } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import DateField from '@/components/date-field/DateField'
+import type { OptionItem } from '@/components/filters/OptionList'
+import { ActiveFilterChips } from '@/components/filters/ActiveFilterChips'
+import { MultiSelectChecklist } from '@/components/filters/MultiSelectChecklist'
+import { FacetSelectDropdown } from '@/components/list-controls/FacetSelectDropdown'
+import { FILTER_GLASS_SPRING } from '@/components/list-controls/toolbarStyles'
+import { joinClassNames } from '@/utils/classNames'
+import { getMoneyPlaceholder } from '@/utils/moneyInput'
+import {
+  CURRENCY_RANGE_LOADING,
+  CURRENCY_RANGE_NOTICE,
+  CURRENCY_RANGE_UNKNOWN,
+  CURRENCY_REFRESH_ACTION,
+  type CurrencyListState,
+} from '@/utils/currencyStatus'
+import { useMoneyInput } from '@/hooks/useMoneyInput'
+import { ReferenceFacet } from '@/components/transactions/toolbar/ReferenceFacet'
+import type { AmountDraft } from '@/components/transactions/utils/amountRange'
+import { buildAmountRangeLabel } from '@/components/transactions/utils/amountRangeLabel'
+import {
+  FILTER_FACETS,
+  type FacetConfig,
+  type MultiSelections,
+  type TransactionFilterDraft,
+} from '@/components/transactions/toolbar/useTransactionFilterDraft'
+
+// Stable empty set so the common, account-enabled case never rebuilds a set on each render
+const NO_DISABLED_FACETS = new Set<string>()
+
+// The account facet is disabled on an account's own transaction list, where the scope is fixed
+const ACCOUNT_DISABLED_FACETS = new Set(['accounts'])
+
+// Says the badge belongs over the sliding highlight behind it rather than among the tab's own
+// content. It would land there from document order alone, being the last child and absolutely
+// positioned, so this states the intent rather than achieving it
+const FACET_COUNT_BADGE_Z_INDEX = 1
+
+/**
+ * Names why the amount range cannot be shown or changed, for the line the currency note usually holds
+ *
+ * A failed list is the one case the user can act on, so the way out is a control that reloads rather
+ * than a sentence telling them to do it themselves
+ */
+function AmountLockNote({ currencyListState }: { currencyListState: CurrencyListState }) {
+  if (currencyListState === 'loading') return CURRENCY_RANGE_LOADING
+  if (currencyListState !== 'unavailable') return CURRENCY_RANGE_UNKNOWN
+
+  return (
+    <>
+      {CURRENCY_RANGE_NOTICE}{' '}
+      <button
+        type="button"
+        className="underline underline-offset-2"
+        style={{ color: 'inherit' }}
+        onClick={() => window.location.reload()}
+      >
+        {CURRENCY_REFRESH_ACTION}
+      </button>
+      .
+    </>
+  )
+}
+
+/**
+ * Renders the shared filter panel body: the facet tabs, the active facet editor, the removable
+ * active-filter chips, and the apply and clear actions, driven by the shared draft
+ */
+export function FilterPanelBody({
+  draft,
+  showFooter = true,
+  mobile = false,
+  fillHeight = false,
+  showAccountFilter = true,
+  facetLabelledBy,
+}: {
+  draft: TransactionFilterDraft
+  showFooter?: boolean
+  // Swaps the cramped facet tab grid for a dropdown, only used by the mobile full-screen sheet
+  mobile?: boolean
+  // Lets the facet editor grow to fill its container with the option list scrolling internally,
+  // used by the full-screen mobile sheet
+  fillHeight?: boolean
+  // False on an account's own transaction list, where the account facet is disabled because the
+  // account scope is already fixed
+  showAccountFilter?: boolean
+  facetLabelledBy?: string
+}) {
+  const disabledFacetIds = showAccountFilter ? NO_DISABLED_FACETS : ACCOUNT_DISABLED_FACETS
+  const [activeFacetId, setActiveFacetId] = useState(
+    () => FILTER_FACETS.find((facet) => !disabledFacetIds.has(facet.id))?.id ?? FILTER_FACETS[0].id,
+  )
+  // Scopes the sliding-thumb layout animation to this instance
+  const segId = useId()
+  // Name the crossed-range messages so the amount and date fields can point at them from the facet
+  // editor, which renders outside the block holding them
+  const amountRangeMessageId = useId()
+  const dateRangeMessageId = useId()
+  const shouldReduceMotion = useReducedMotion()
+  const transition = shouldReduceMotion ? { duration: 0 } : FILTER_GLASS_SPRING
+  const activeFacet = FILTER_FACETS.find((facet) => facet.id === activeFacetId) ?? FILTER_FACETS[0]
+
+  // The desktop panel keeps the position springs so the summary divider and the blocks below it
+  // glide when the editor resizes. The mobile sheet runs inside a scroll area where those springs
+  // fight the flex sizing, so they are turned off there
+  const blockLayout = mobile ? false : 'position'
+
+  return (
+    <div className={joinClassNames('contents', fillHeight && '!flex min-h-0 flex-1 flex-col')}>
+      {mobile ? (
+        <FacetSelectDropdown
+          labelledBy={facetLabelledBy}
+          facets={FILTER_FACETS}
+          activeFacetId={activeFacetId}
+          countFacet={draft.countFacet}
+          disabledFacetIds={disabledFacetIds}
+          onSelect={setActiveFacetId}
+        />
+      ) : (
+        <motion.div
+          layout={blockLayout}
+          transition={transition}
+          className="app-range-seg"
+          role="tablist"
+          aria-label="Filter facets"
+        >
+          {FILTER_FACETS.map((facet) => {
+            const FacetIcon = facet.icon
+            const facetCount = draft.countFacet(facet)
+            const isActive = facet.id === activeFacetId
+            const isDisabled = disabledFacetIds.has(facet.id)
+            return (
+              <motion.button
+                key={facet.id}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                disabled={isDisabled}
+                whileTap={shouldReduceMotion || isDisabled ? undefined : { scale: 0.94 }}
+                className={joinClassNames('app-range-seg-option', isActive && 'app-range-seg-option-active')}
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, opacity: isDisabled ? 0.4 : 1, cursor: isDisabled ? 'not-allowed' : undefined }}
+                onClick={() => setActiveFacetId(facet.id)}
+              >
+                {isActive && <motion.span layoutId={`${segId}-facet`} className="app-range-seg-thumb" transition={transition} />}
+                <span className="app-range-seg-label" style={{ display: 'inline-flex' }}>
+                  <FacetIcon size={16} aria-hidden />
+                </span>
+                <span className="app-range-seg-label" style={{ fontSize: '0.625rem' }}>
+                  {facet.label}
+                </span>
+                {!isDisabled && facetCount > 0 && (
+                  <span
+                    className="absolute flex h-[14px] min-w-[14px] items-center justify-center rounded-full px-1 text-[9px] font-medium"
+                    style={{ top: 2, right: 2, zIndex: FACET_COUNT_BADGE_Z_INDEX, background: 'var(--app-accent)', color: 'var(--app-button-primary-text)' }}
+                  >
+                    {facetCount}
+                  </span>
+                )}
+              </motion.button>
+            )
+          })}
+        </motion.div>
+      )}
+
+      <motion.div
+        layout={blockLayout}
+        transition={transition}
+        className={joinClassNames('mt-3', fillHeight && 'flex min-h-[5.5rem] flex-1 flex-col')}
+      >
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={activeFacet.id}
+            className={fillHeight ? 'flex min-h-0 flex-1 flex-col' : undefined}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: shouldReduceMotion ? 0 : 0.15 }}
+          >
+            <SectionEditor
+              facet={activeFacet}
+              options={draft.getFacetOptions(activeFacet.id)}
+              selectedValues={draft.selections[activeFacet.id] ?? []}
+              referenceLabels={draft.referenceLabels}
+              tagMatch={draft.tagMatch}
+              amount={draft.amount}
+              amountSymbol={draft.amountSymbol}
+              amountCurrencyNote={draft.amountCurrencyNote}
+              amountExponent={draft.amountExponent}
+              isAmountLocked={draft.isAmountLocked}
+              isAmountCurrencyLocked={draft.isAmountCurrencyLocked}
+              currencyListState={draft.currencyListState}
+              hasCrossedAmountBounds={draft.hasCrossedAmountBounds}
+              amountRangeMessageId={amountRangeMessageId}
+              hasCrossedDateRange={draft.hasCrossedDateRange}
+              dateRangeMessageId={dateRangeMessageId}
+              currencyOptions={draft.getFacetOptions('currency')}
+              currencyValue={draft.currencyLocked ? draft.amountCurrency : draft.selections.currency[0] ?? ''}
+              currencyLocked={draft.currencyLocked}
+              dateRange={draft.dateRange}
+              fillHeight={fillHeight}
+              mobile={mobile}
+              onToggle={(value, label) => draft.toggleSelection(activeFacet.id, value, label)}
+              onCurrencyToggle={(value) => draft.toggleSelection('currency', value)}
+              onTagMatchChange={draft.setTagMatch}
+              onAmountChange={draft.setAmount}
+              onDateRangeChange={draft.setDateRange}
+            />
+          </motion.div>
+        </AnimatePresence>
+      </motion.div>
+
+      <motion.div layout={blockLayout} transition={transition} className="shrink-0">
+        <ActiveFilterSummary
+          selections={draft.selections}
+          referenceLabels={draft.referenceLabels}
+          amount={draft.amount}
+          amountCurrency={draft.amountCurrency}
+          amountExponent={draft.amountExponent}
+          dateRange={draft.dateRange}
+          getFacetOptions={draft.getFacetOptions}
+          onRemoveSelection={draft.toggleSelection}
+          onClearAmount={() => draft.setAmount({ min: '', max: '' })}
+          onClearDate={() => draft.setDateRange({ from: '', to: '' })}
+        />
+      </motion.div>
+
+      <motion.div layout={blockLayout} transition={transition}>
+        {/* The crossed-range messages take this line rather than sitting in their own editors, so
+            every reason Apply is unavailable stays on screen whichever facet is open */}
+        {draft.isApplyBlocked ? (
+          <>
+            {draft.hasCrossedAmountBounds && (
+              <p id={amountRangeMessageId} className="mt-2 px-0.5 text-xs" style={{ color: 'var(--app-negative)' }}>
+                Enter a minimum at or below the maximum
+              </p>
+            )}
+            {draft.hasCrossedDateRange && (
+              <p id={dateRangeMessageId} className="mt-2 px-0.5 text-xs" style={{ color: 'var(--app-negative)' }}>
+                The From date must be on or before the To date
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="mt-2 px-0.5 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+            Transactions must match every filter you apply
+          </p>
+        )}
+      </motion.div>
+
+      {showFooter && (
+        <motion.div layout={blockLayout} transition={transition} className="mt-3 flex items-center justify-between">
+          <button
+            type="button"
+            className="app-secondary-button"
+            disabled={draft.activeFacetCount === 0}
+            onClick={draft.clearAll}
+          >
+            Clear all
+          </button>
+          <button
+            type="button"
+            className="app-glass-button-primary"
+            disabled={draft.isApplyBlocked}
+            onClick={draft.applyFilters}
+          >
+            Apply filters
+          </button>
+        </motion.div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Renders one labelled date filter field backed by the shared segmented date control
+ */
+function DateFacetInput({
+  label,
+  value,
+  error,
+  describedById,
+  onValueChange,
+}: {
+  label: string
+  value: string
+  // True while the two dates exclude each other, which marks both fields rather than blaming one
+  error: boolean
+  // Names the message explaining the crossed range, which the panel renders outside this field
+  describedById: string
+  onValueChange: (value: string) => void
+}) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col gap-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+      {label}
+      <DateField
+        ariaLabel={label}
+        value={value}
+        error={error}
+        describedById={describedById}
+        onChange={onValueChange}
+      />
+    </div>
+  )
+}
+
+type SectionEditorProps = {
+  facet: FacetConfig
+  options: OptionItem[]
+  selectedValues: string[]
+  referenceLabels: Record<string, string>
+  tagMatch: 'all' | 'any'
+  amount: AmountDraft
+  amountSymbol: string
+  amountCurrencyNote: string
+  // Decimal places of the currency the amount range matches, for parsing and normalizing input
+  amountExponent: number
+  // Passed down rather than recomputed here, so the fields the draft treats as locked are the ones
+  // the user sees disabled
+  isAmountLocked: boolean
+  // True only while an applied bound is waiting for its currency, which is when changing the choice
+  // would leave that bound counted in a currency nothing on screen names
+  isAmountCurrencyLocked: boolean
+  // Which of the reasons the fields are locked, for the note under them
+  currencyListState: CurrencyListState
+  // True while the minimum sits above the maximum once both are rounded to the currency's minor
+  // units, which no transaction can satisfy
+  hasCrossedAmountBounds: boolean
+  // Names the message explaining the crossed bounds, which the panel renders outside this editor
+  amountRangeMessageId: string
+  // True while the from date sits after the to date, leaving a range no transaction can satisfy
+  hasCrossedDateRange: boolean
+  // Names the message explaining the crossed range, which the panel renders outside this editor
+  dateRangeMessageId: string
+  // The currency the amount range matches, chosen inside the amount section
+  currencyOptions: OptionItem[]
+  currencyValue: string
+  // True on an account's own list, where the currency is pinned to the account and cannot be changed
+  currencyLocked: boolean
+  dateRange: { from: string; to: string }
+  fillHeight: boolean
+  // True in the mobile sheet, where the date range stacks into two rows rather than sharing one
+  mobile: boolean
+  onToggle: (value: string, label?: string) => void
+  onCurrencyToggle: (value: string) => void
+  onTagMatchChange: (value: 'all' | 'any') => void
+  // Takes an updater rather than a value, so two bounds settling in the same commit cannot
+  // overwrite each other when the currency changes under them
+  onAmountChange: Dispatch<SetStateAction<AmountDraft>>
+  onDateRangeChange: (value: { from: string; to: string }) => void
+}
+
+/**
+ * Renders the editor for the section being edited: a searchable list for the multi-select ones, a
+ * server search for merchants and tags, a currency chip row and two bounds for the amount, and
+ * labelled inputs for the date range
+ */
+function SectionEditor({
+  facet,
+  options,
+  selectedValues,
+  referenceLabels,
+  tagMatch,
+  amount,
+  amountSymbol,
+  amountCurrencyNote,
+  amountExponent,
+  isAmountLocked,
+  isAmountCurrencyLocked,
+  currencyListState,
+  hasCrossedAmountBounds,
+  amountRangeMessageId,
+  hasCrossedDateRange,
+  dateRangeMessageId,
+  currencyOptions,
+  currencyValue,
+  currencyLocked,
+  dateRange,
+  fillHeight,
+  mobile,
+  onToggle,
+  onCurrencyToggle,
+  onTagMatchChange,
+  onAmountChange,
+  onDateRangeChange,
+}: SectionEditorProps) {
+  const shouldReduceMotion = useReducedMotion()
+  const tagMatchThumbId = useId()
+  // Called on every render regardless of facet kind so the rules of hooks hold, since the amount
+  // instance is the only one ever mounted with facet.kind === 'amount'
+  const minAmountInput = useMoneyInput({
+    value: amount.min,
+    exponent: amountExponent,
+    onChange: (value) => onAmountChange((current) => ({ ...current, min: value })),
+  })
+  const maxAmountInput = useMoneyInput({
+    value: amount.max,
+    exponent: amountExponent,
+    onChange: (value) => onAmountChange((current) => ({ ...current, max: value })),
+  })
+
+  if (facet.kind === 'amount') {
+    return (
+      <div className="flex flex-col gap-3">
+        {(currencyLocked || currencyOptions.length > 0) && (
+          <div className="flex flex-col gap-1.5">
+            <span className="px-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+              Currency
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {currencyLocked ? (
+                <span
+                  aria-disabled
+                  className="rounded-full border px-3 py-1 text-sm"
+                  style={{ background: 'var(--app-accent-soft)', borderColor: 'transparent', color: 'var(--app-accent)', fontWeight: 500, opacity: 0.55, cursor: 'not-allowed' }}
+                >
+                  {currencyValue}
+                </span>
+              ) : (
+                currencyOptions.map((option) => {
+                  const isSelected = option.value === currencyValue
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      aria-pressed={isSelected}
+                      // Picking the currency is what decides which minor units a bound is counted in,
+                      // so the choice is held still while an applied bound is waiting for its own
+                      disabled={isAmountCurrencyLocked}
+                      className={`rounded-full border px-3 py-1 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                        isSelected
+                          ? 'border-transparent bg-[var(--app-accent-soft)] text-[var(--app-accent)] hover:bg-[var(--app-accent-border)] hover:text-[var(--app-accent-on-hover-fill)]'
+                          : 'hover:bg-[var(--app-accent-soft)]'
+                      }`}
+                      style={
+                        isSelected
+                          ? { fontWeight: 500 }
+                          : { borderColor: 'var(--app-input-border)', color: 'var(--app-text)' }
+                      }
+                      onClick={() => onCurrencyToggle(option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  )
+                })
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-1.5">
+          <span className="px-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+            Amount
+          </span>
+          <div className="flex items-end gap-2">
+            <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+              Min
+              <div className="relative">
+                {amountSymbol && (
+                  <span
+                    className="app-input-prefix pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm"
+                  >
+                    {amountSymbol}
+                  </span>
+                )}
+                <input
+                  className={joinClassNames('app-input disabled:cursor-not-allowed disabled:opacity-60', amountSymbol && 'pl-8', hasCrossedAmountBounds && 'app-input-error')}
+                  placeholder={isAmountLocked ? undefined : getMoneyPlaceholder(amountExponent)}
+                  disabled={isAmountLocked}
+                  aria-invalid={hasCrossedAmountBounds}
+                  aria-describedby={hasCrossedAmountBounds ? amountRangeMessageId : undefined}
+                  {...minAmountInput}
+                />
+              </div>
+            </label>
+            <span className="pb-2.5 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+              to
+            </span>
+            <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+              Max
+              <div className="relative">
+                {amountSymbol && (
+                  <span
+                    className="app-input-prefix pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm"
+                  >
+                    {amountSymbol}
+                  </span>
+                )}
+                <input
+                  className={joinClassNames('app-input disabled:cursor-not-allowed disabled:opacity-60', amountSymbol && 'pl-8', hasCrossedAmountBounds && 'app-input-error')}
+                  placeholder={isAmountLocked ? undefined : 'Any'}
+                  disabled={isAmountLocked}
+                  aria-invalid={hasCrossedAmountBounds}
+                  aria-describedby={hasCrossedAmountBounds ? amountRangeMessageId : undefined}
+                  {...maxAmountInput}
+                />
+              </div>
+            </label>
+          </div>
+          {/* A locked range takes the warning colour rather than the muted one the currency note
+              uses, so the reason the fields cannot be typed into carries the weight the fields lost */}
+          <p
+            className="px-0.5 text-xs"
+            style={{ color: isAmountLocked ? 'var(--app-warning-text)' : 'var(--app-text-subtle)' }}
+          >
+            {isAmountLocked ? <AmountLockNote currencyListState={currencyListState} /> : amountCurrencyNote}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (facet.kind === 'date') {
+    return (
+      <div className={joinClassNames('flex gap-2', mobile ? 'flex-col' : 'items-end')}>
+        <DateFacetInput
+          label="From"
+          value={dateRange.from}
+          error={hasCrossedDateRange}
+          describedById={dateRangeMessageId}
+          onValueChange={(value) => onDateRangeChange({ ...dateRange, from: value })}
+        />
+        {/* Each field carries its own From or To label, so the joining word only reads as one while
+            the two sit side by side */}
+        {!mobile && (
+          <span className="pb-2.5 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+            to
+          </span>
+        )}
+        <DateFacetInput
+          label="To"
+          value={dateRange.to}
+          error={hasCrossedDateRange}
+          describedById={dateRangeMessageId}
+          onValueChange={(value) => onDateRangeChange({ ...dateRange, to: value })}
+        />
+      </div>
+    )
+  }
+
+  if (facet.id === 'merchants' || facet.id === 'tags') {
+    return (
+      <div className={joinClassNames('flex flex-col gap-2', fillHeight && 'min-h-0 flex-1')}>
+        {facet.id === 'tags' && (
+          <div>
+            <div className="app-range-seg" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+              {(['all', 'any'] as const).map((mode) => {
+                const isActive = tagMatch === mode
+                return (
+                  <motion.button
+                    key={mode}
+                    type="button"
+                    aria-pressed={isActive}
+                    whileTap={shouldReduceMotion ? undefined : { scale: 0.94 }}
+                    className={joinClassNames('app-range-seg-option', isActive && 'app-range-seg-option-active')}
+                    onClick={() => onTagMatchChange(mode)}
+                  >
+                    {isActive && (
+                      <motion.span
+                        layoutId={`${tagMatchThumbId}-thumb`}
+                        className="app-range-seg-thumb"
+                        transition={shouldReduceMotion ? { duration: 0 } : FILTER_GLASS_SPRING}
+                      />
+                    )}
+                    <span className="app-range-seg-label">{mode === 'all' ? 'All' : 'Any'}</span>
+                  </motion.button>
+                )
+              })}
+            </div>
+            <p className="mt-1 px-0.5 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+              {tagMatch === 'all' ? 'Match transactions with all selected tags' : 'Match transactions with any selected tag'}
+            </p>
+          </div>
+        )}
+        <ReferenceFacet
+          kind={facet.id}
+          selectedValues={selectedValues}
+          selectedLabels={referenceLabels}
+          searchPlaceholder={`Search ${facet.label.toLowerCase()}`}
+          fillHeight={fillHeight}
+          onToggle={onToggle}
+        />
+      </div>
+    )
+  }
+
+  if (options.length === 0) {
+    return (
+      <p className="py-2 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+        No {facet.label.toLowerCase()} available
+      </p>
+    )
+  }
+
+  return (
+    <MultiSelectChecklist
+      key={facet.id}
+      options={options}
+      selectedValues={selectedValues}
+      searchPlaceholder={`Search ${facet.label.toLowerCase()}`}
+      fillHeight={fillHeight}
+      onToggle={onToggle}
+    />
+  )
+}
+
+type ActiveFilterSummaryProps = {
+  selections: MultiSelections
+  referenceLabels: Record<string, string>
+  amount: AmountDraft
+  amountCurrency: string
+  amountExponent: number
+  dateRange: { from: string; to: string }
+  getFacetOptions: (facetId: string) => OptionItem[]
+  onRemoveSelection: (facetId: string, value: string) => void
+  onClearAmount: () => void
+  onClearDate: () => void
+}
+
+/**
+ * Renders the removable chips for every live selection across all facets, so the full filter state
+ * stays visible while only one facet editor shows at a time
+ */
+function ActiveFilterSummary({
+  selections,
+  referenceLabels,
+  amount,
+  amountCurrency,
+  amountExponent,
+  dateRange,
+  getFacetOptions,
+  onRemoveSelection,
+  onClearAmount,
+  onClearDate,
+}: ActiveFilterSummaryProps) {
+  const multiChips = Object.entries(selections).flatMap(([facetId, values]) =>
+    values.map((value) => {
+      // Client-list facets resolve via their options, server-searched ones via the label cache
+      const label = getFacetOptions(facetId).find((option) => option.value === value)?.label ?? referenceLabels[value] ?? value
+      return { key: `${facetId}:${value}`, label, onRemove: () => onRemoveSelection(facetId, value) }
+    }),
+  )
+
+  const amountLabel = buildAmountRangeLabel({ amount, amountCurrency, amountExponent })
+  const amountChip = amountLabel
+    ? [{ key: 'amount', label: amountLabel, onRemove: onClearAmount }]
+    : []
+
+  const dateChip = dateRange.from || dateRange.to
+    ? [{ key: 'date', label: `${dateRange.from || '…'} → ${dateRange.to || '…'}`, onRemove: onClearDate }]
+    : []
+
+  const chips = [...multiChips, ...amountChip, ...dateChip]
+
+  return <ActiveFilterChips chips={chips} />
+}

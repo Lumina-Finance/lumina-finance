@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
-import type { TransactionListFilters } from '@/pages/transactions/types/transactionList'
-import { parseTransactionNavigationFilters, writeTransactionNavigationFilters } from '@/pages/transactions/utils/filterNavigation'
+import type { TransactionListFilters } from '@/components/transactions/types/transactionList'
+import { parseTransactionNavigationFilters, writeTransactionNavigationFilters } from '@/components/transactions/utils/filterNavigation'
 
 /**
  * Derives address-owned filters on every navigation while keeping all other filters local

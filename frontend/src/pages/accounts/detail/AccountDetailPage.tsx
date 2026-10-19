@@ -15,9 +15,9 @@ import { TopCategoriesBySpendingCard } from '@/pages/accounts/detail/components/
 import { TopMerchantsBySpendingCard } from '@/pages/accounts/detail/components/spending-breakdown/TopMerchantsCard'
 import { ACCOUNT_SKELETON_FADE_MS, EASE } from '@/pages/accounts/detail/constants/accountDetail'
 import { IMPORT_ACCOUNT_PARAM } from '@/constants/importAccountParam'
-import TransactionListSection from '@/pages/transactions/components/ListSection'
-import { toTransactionListAccount } from '@/pages/transactions/types/transactionList'
-import CreateTransactionModal from '@/pages/transactions/components/transaction-modal/Modal'
+import TransactionListSection from '@/components/transactions/ListSection'
+import { toTransactionListAccount } from '@/components/transactions/types/transactionList'
+import CreateTransactionModal from '@/components/transactions/transaction-modal/Modal'
 import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
 import { useSkeletonVisibility } from '@/pages/accounts/detail/hooks/useSkeletonVisibility'
 
