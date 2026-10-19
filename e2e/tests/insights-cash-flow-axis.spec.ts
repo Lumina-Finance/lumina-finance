@@ -5,8 +5,8 @@ import { logInViaApi, openPage } from '../support/app'
 import { card } from '../support/insights'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
-// Runs at every size: the issue reports the clipping in the phone layout and names no width, so the
-// phone and tablet projects check their own widths rather than a width written into the test
+// The overhang tests run at every size, since the axis width they check changes with the screen's
+// width. The tick tests run on desktop only, since the chart draws the same ticks at every width
 
 const LARGE_AMOUNT = -1_246_913_569_001
 
@@ -42,6 +42,42 @@ async function seedIqdAccount(request: Parameters<typeof signUpUser>[0]): Promis
   const user = await signUpUser(request, { baseCurrency: 'IQD' })
   const account = await createAccount(request, user, { name: 'Cash flow axis account', currency: 'IQD' })
   return { user, accountId: account.id }
+}
+
+const TICK_CASES = [
+  // Five evenly spaced ticks between zero and one minor unit print as the same amount several times
+  { name: 'a two-decimal net of one cent', currency: 'CAD', minorUnits: 1, count: 2, first: '0.00', last: '0.01' },
+  { name: 'a three-decimal net of one fils', currency: 'IQD', minorUnits: 1, count: 2, first: '0.000', last: '0.001' },
+
+  // An ordinary net keeps all five ticks
+  { name: 'an ordinary net', currency: 'CAD', minorUnits: 125_000, count: 5, first: '0.00', last: '1,250.00' },
+]
+
+for (const example of TICK_CASES) {
+  test(`cash flow axis shows each amount once for ${example.name}`, async ({ page, request }) => {
+    const user = await signUpUser(request, { baseCurrency: example.currency })
+    const account = await createAccount(request, user, { name: 'Cash flow axis account', currency: example.currency })
+    await createTransaction(request, user, {
+      accountId: account.id, categoryName: 'Salary', amount: example.minorUnits, currency: example.currency,
+    })
+    await logInViaApi(page, user)
+    await openPage(page, '/insights')
+
+    // The card loads once it is scrolled into view
+    const cashFlow = card(page, 1)
+    await cashFlow.scrollIntoViewIfNeeded()
+    // Every amount on the axis has decimals, which the dates along the bottom never do
+    const amountLabels = cashFlow.locator('svg text').filter({ hasText: /\d\.\d/ })
+    await expect(amountLabels.first()).toBeVisible()
+
+    // Only the amount is compared, since the currency's symbol is not what repeats
+    await expect.poll(async () => {
+      const amounts = (await amountLabels.allTextContents())
+        .map((label) => label.replace(/[^\d.,]/g, ''))
+        .sort((a, b) => Number(a.replace(/,/g, '')) - Number(b.replace(/,/g, '')))
+      return { count: amounts.length, distinct: new Set(amounts).size, first: amounts[0], last: amounts.at(-1) }
+    }).toEqual({ count: example.count, distinct: example.count, first: example.first, last: example.last })
+  })
 }
 
 // On the axis width that was worked out from the label's number of characters, this label reached 3px
