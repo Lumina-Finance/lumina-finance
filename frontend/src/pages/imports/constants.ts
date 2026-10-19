@@ -614,10 +614,6 @@ export const CLEARED_CATEGORY_SOURCES_EXPLANATION = 'A category these values wer
 export const TRANSFERS_AND_DEBT_PAYMENTS_TITLE = 'Transfers and debt payments'
 export const TRANSFERS_EXPLANATION = "Money you move between your own accounts is a transfer, so it counts as neither spending nor income, and budgets leave it out. Paying your credit card works this way, since the purchases already counted when you made them."
 
-// Carries the account an import was started from, as a query parameter rather than router state so
-// the scope survives a reload and a shared address
-export const IMPORT_ACCOUNT_PARAM = 'account'
-
 // Shown in place of the whole import page when the address points at an account no import can be
 // written to. The button offering the import is disabled in those states, so this is reached by a
 // typed or shared address, or by an account whose state changed after the address was made
