@@ -11,6 +11,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 _BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 _BASE_SETTINGS = {
@@ -33,6 +35,15 @@ _CORS_HEADERS_SCRIPT = (
     "'Origin': 'https://other.example.test', 'Cookie': 'refresh_token=value'});"
     "print(json.dumps({key: value for key, value in response.headers.items()"
     " if key.startswith('access-control-')}))"
+)
+
+# Prints the status of each API docs path
+_DOCS_STATUS_SCRIPT = (
+    "import json;"
+    "from fastapi.testclient import TestClient;"
+    "from app.main import app;"
+    "client = TestClient(app);"
+    "print(json.dumps([client.get(path).status_code for path in ('/docs', '/redoc', '/openapi.json')]))"
 )
 
 
@@ -68,3 +79,17 @@ def test_lambda_without_app_url_refuses_to_start():
 
     assert completed.returncode != 0
     assert "Missing required environment variable: APP_URL" in completed.stderr
+
+
+@pytest.mark.parametrize(
+    ("settings", "expected_statuses"),
+    [
+        (_LAMBDA_SETTINGS, [404, 404, 404]),
+        ({}, [404, 404, 404]),
+        ({"API_DOCS_ENABLED": "true"}, [200, 200, 200]),
+    ],
+    ids=["lambda-default", "server-default", "turned-on"],
+)
+def test_api_docs_are_off_unless_turned_on(settings, expected_statuses):
+    """The API docs are off by default in every runtime, and the setting turns them on"""
+    assert _output(_start_app(_DOCS_STATUS_SCRIPT, settings)) == expected_statuses

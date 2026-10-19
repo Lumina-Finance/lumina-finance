@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config.oidc import OIDC_PROVIDER_CONFIGS
-from app.config.runtime import ALLOWED_ORIGINS, RUNTIME
+from app.config.runtime import ALLOWED_ORIGINS, API_DOCS_ENABLED, RUNTIME
 from app.database import async_session, engine, verify_app_role_is_unprivileged
 from app.db.encryption_key import verify_key_matches_data
 from app.request_security import RequestBodySizeLimitMiddleware
@@ -73,7 +73,12 @@ async def _lifespan(_app: FastAPI):
             await pruning
 
 
-app = FastAPI(title="Lumina Finance API", lifespan=_lifespan)
+# FastAPI mounts /docs and /redoc only beside the schema, so leaving the schema out turns off all three
+app = FastAPI(
+    title="Lumina Finance API",
+    openapi_url="/openapi.json" if API_DOCS_ENABLED else None,
+    lifespan=_lifespan,
+)
 
 # Install the configured email sender before any request can send mail
 set_email_sender(build_email_sender())

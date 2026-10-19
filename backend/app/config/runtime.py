@@ -1,4 +1,4 @@
-"""Runtime mode, application version, public origin, and CORS settings"""
+"""Runtime mode, application version, API docs, public origin, and CORS settings"""
 
 import os
 
@@ -27,6 +27,10 @@ UPDATE_CHECKS_ENABLED = is_update_check_enabled(
     RUNTIME,
     optional_bool_env("UPDATE_CHECKS_ENABLED", default=False),
 )
+
+# Serves /docs, /redoc and /openapi.json. Off by default in every runtime, so the API publishes
+# no map of every route unless asked to
+API_DOCS_ENABLED = optional_bool_env("API_DOCS_ENABLED", default=False)
 
 APP_URL = os.getenv("APP_URL", "").strip()
 
