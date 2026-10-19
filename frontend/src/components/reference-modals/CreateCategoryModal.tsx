@@ -4,6 +4,7 @@ import { Tag } from 'lucide-react'
 import { useCreateCategory, type Category } from '@/api/categories'
 import Dropdown from '@/components/dropdown/Dropdown'
 import CategoryIconSelector from '@/components/category-icon-selector/Selector'
+import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
@@ -142,26 +143,12 @@ export default function CreateCategoryModal({
           <div className="min-w-0 space-y-3">
             <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Identity</p>
 
-            <div className="grid gap-4 sm:grid-cols-[3.5rem_minmax(0,1fr)]">
+            <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] gap-4">
               <div>
-                <div className="mb-1.5 flex items-start justify-between gap-3">
-                  <label htmlFor={CREATE_CATEGORY_FIELD_IDS.icon} className="app-label block shrink-0 text-[0.9375rem] leading-5">Icon</label>
-                  <AnimatePresence initial={false}>
-                    {showError('icon') && (
-                      <motion.p
-                        key="icon-error"
-                        className="text-right text-xs font-medium leading-5"
-                        style={{ color: 'var(--app-negative)' }}
-                        initial={{ opacity: 0, x: 4 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 4 }}
-                        transition={{ duration: 0.15 }}
-                      >
-                        {fieldErrors.icon}
-                      </motion.p>
-                    )}
-                  </AnimatePresence>
-                </div>
+                <CreateModalFieldLabelRow
+                  htmlFor={CREATE_CATEGORY_FIELD_IDS.icon}
+                  label="Icon"
+                />
                 <CategoryIconSelector
                   id={CREATE_CATEGORY_FIELD_IDS.icon}
                   categoryName={form.name || 'New category'}
@@ -169,29 +156,21 @@ export default function CreateCategoryModal({
                   onChange={(icon) => setField('icon', icon)}
                   buttonClassName={`app-input flex h-10 w-10 items-center justify-center p-0 text-xl leading-none ${showError('icon') ? 'app-input-error' : ''}`}
                   hasError={!!showError('icon')}
+                  errorId={CREATE_CATEGORY_FIELD_IDS.iconError}
                   modalFieldTabStop
                 />
+                {/* The icon box is too narrow for visible text, so its error colour shows the problem and this carries the message to screen readers */}
+                {showError('icon') && (
+                  <p id={CREATE_CATEGORY_FIELD_IDS.iconError} role="alert" className="sr-only">{fieldErrors.icon}</p>
+                )}
               </div>
 
               <div>
-                <div className="mb-1.5 flex items-start justify-between gap-3">
-                  <label htmlFor={CREATE_CATEGORY_FIELD_IDS.name} className="app-label block shrink-0 text-[0.9375rem] leading-5">Category name</label>
-                  <AnimatePresence initial={false}>
-                    {showError('name') && (
-                      <motion.p
-                        key="name-error"
-                        className="text-right text-xs font-medium leading-5"
-                        style={{ color: 'var(--app-negative)' }}
-                        initial={{ opacity: 0, x: 4 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 4 }}
-                        transition={{ duration: 0.15 }}
-                      >
-                        {fieldErrors.name}
-                      </motion.p>
-                    )}
-                  </AnimatePresence>
-                </div>
+                <CreateModalFieldLabelRow
+                  htmlFor={CREATE_CATEGORY_FIELD_IDS.name}
+                  label="Category name"
+                  error={showError('name')}
+                />
                 <input
                   id={CREATE_CATEGORY_FIELD_IDS.name}
                   className={`app-input ${showError('name') ? 'app-input-error' : ''}`}

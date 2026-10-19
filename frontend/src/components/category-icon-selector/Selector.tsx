@@ -13,6 +13,9 @@ type EmojiPickerPosition = {
 interface CategoryIconSelectorProps {
   buttonClassName?: string
   categoryName: string
+
+  // Id of the element that says why the icon is invalid, announced with the button while hasError is set
+  errorId?: string
   hasError?: boolean
   id?: string
   modalFieldTabStop?: boolean
@@ -99,6 +102,7 @@ function useAppDarkMode() {
 export default function CategoryIconSelector({
   buttonClassName = 'group flex h-9 w-9 items-center justify-center rounded-md border p-1 text-xl leading-none transition-colors duration-150 hover:border-[var(--app-border-strong)] app-field-focus-visible',
   categoryName,
+  errorId,
   hasError = false,
   id,
   modalFieldTabStop = false,
@@ -190,6 +194,8 @@ export default function CategoryIconSelector({
         aria-label={`Select ${categoryName} icon`}
         aria-expanded={open}
         aria-haspopup="dialog"
+        aria-invalid={hasError || undefined}
+        aria-describedby={hasError ? errorId : undefined}
       >
         <span className="translate-x-px" aria-hidden>
           {value}
