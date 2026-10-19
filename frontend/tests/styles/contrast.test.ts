@@ -2,33 +2,12 @@
  * Guards text contrast computed from the stylesheet's colour tokens, so a token change can't leave a
  * label below the WCAG AA minimum for normal text in either theme
  */
-import { readFileSync } from 'node:fs'
-import { parse, type Rule } from 'postcss'
 import { describe, expect, it } from 'vitest'
 import { FX_TONE_CLASS } from '@/components/tooltips/fxToneClass'
+import { contrast, paint, THEMES, type Rgb, type Theme, type Tokens } from './fixtures'
 
 // WCAG AA for text under 18.66px bold or 24px regular, which covers every label this file checks
 const MINIMUM_TEXT_CONTRAST = 4.5
-
-type Rgb = [number, number, number]
-type Theme = 'light' | 'dark'
-type Tokens = Record<string, string>
-
-const stylesheet = parse(readFileSync(new URL('../../src/styles/tailwind.css', import.meta.url), 'utf8'))
-
-function readTokens(selector: string): Tokens {
-  const tokens: Tokens = {}
-  stylesheet.walkRules((rule: Rule) => {
-    if (rule.selector !== selector) return
-    rule.walkDecls(/^--app-/, (declaration) => {
-      tokens[declaration.prop] ??= declaration.value
-    })
-  })
-  return tokens
-}
-
-const lightTokens = readTokens(':root')
-const THEMES: Record<Theme, Tokens> = { light: lightTokens, dark: { ...lightTokens, ...readTokens('.dark') } }
 
 function readHex(tokens: Tokens, name: string): { rgb: Rgb; alpha: number } {
   const value = tokens[name]
@@ -39,28 +18,10 @@ function readHex(tokens: Tokens, name: string): { rgb: Rgb; alpha: number } {
   return { rgb: [red, green, blue], alpha: match[2] ? parseInt(match[2], 16) / 255 : 1 }
 }
 
-/** Paints a colour at the given opacity over an opaque backdrop, the way the browser composites it */
-function paint(color: Rgb, alpha: number, backdrop: Rgb): Rgb {
-  return color.map((channel, index) => channel * alpha + backdrop[index] * (1 - alpha)) as Rgb
-}
-
 function solid(tokens: Tokens, name: string, backdrop?: Rgb): Rgb {
   const { rgb, alpha } = readHex(tokens, name)
   if (alpha < 1 && !backdrop) throw new Error(`${name} is translucent and needs a backdrop`)
   return backdrop ? paint(rgb, alpha, backdrop) : rgb
-}
-
-function luminance(color: Rgb) {
-  const [red, green, blue] = color.map((channel) => {
-    const value = channel / 255
-    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
-  })
-  return 0.2126 * red + 0.7152 * green + 0.0722 * blue
-}
-
-function contrast(text: Rgb, surface: Rgb) {
-  const [lighter, darker] = [luminance(text), luminance(surface)].sort((a, b) => b - a)
-  return (lighter + 0.05) / (darker + 0.05)
 }
 
 // The plain surfaces text sits on: the page, a card, and the tinted inset the Imports page draws its
@@ -122,6 +83,8 @@ function resolve(tokens: Tokens, name: string): Rgb {
   if (alias) return resolve(tokens, alias[1])
   const mixed = /^color-mix\(in srgb, var\((--[\w-]+)\) (\d+)%, var\((--[\w-]+)\)\)$/.exec(value)
   if (mixed) return mix(resolve(tokens, mixed[1]), Number(mixed[2]) / 100, resolve(tokens, mixed[3]))
+  const darkened = /^color-mix\(in srgb, var\((--[\w-]+)\) (\d+)%, black\)$/.exec(value)
+  if (darkened) return mix(resolve(tokens, darkened[1]), Number(darkened[2]) / 100, [0, 0, 0])
   return solid(tokens, name)
 }
 
@@ -152,6 +115,26 @@ describe('primary button label contrast', () => {
       ? paint(solid(tokens, '--app-button-primary-bg'), 0.82, backdrop)
       : paint(solid(tokens, '--app-button-primary-bg-hover'), 0.88, backdrop)
     expect(contrast(solid(tokens, '--app-button-primary-text'), fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+  })
+})
+
+describe('danger button label contrast', () => {
+  // The white label sits on 82% of the danger fill at rest and 90% of its darker hover fill over whatever it
+  // sits on (.app-danger-button). A lighter hover red would take the label under the minimum in the dark theme
+  const WHITE: Rgb = [255, 255, 255]
+  const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) => {
+    const tokens = THEMES[theme]
+    const backdrops = { ...surfaces(tokens), field: solid(tokens, '--app-input-bg') }
+    return (['rest', 'hover'] as const).flatMap((state) =>
+      Object.entries(backdrops).map(([surface, backdrop]) => ({ theme, state, surface, backdrop })))
+  })
+
+  it.each(cases)('reads at 4.5:1 or better in the $theme theme at $state on the $surface', ({ theme, state, backdrop }) => {
+    const tokens = THEMES[theme]
+    const fill = state === 'rest'
+      ? paint(resolve(tokens, '--app-danger-fill'), 0.82, backdrop)
+      : paint(resolve(tokens, '--app-danger-fill-hover'), 0.9, backdrop)
+    expect(contrast(WHITE, fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
   })
 })
 

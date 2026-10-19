@@ -28,8 +28,11 @@
        taking this token, since pointing that rule at this token would carry the flat light value
        below into the dropdown and lose the mix it depends on there */
     --app-hover-soft: #FBF8F0;
-    /* Hover feedback on a surface shaded --app-surface-soft, which the flat value above matches. A wash of
-       the text colour, light enough that subtle text on it keeps its contrast */
+    /* Hover feedback on a surface shaded --app-surface-soft, which the flat value above matches, and on a
+       navigation item, which sits on the page in the settings sidebar, on --app-nav-bg in the main sidebar
+       and on --app-surface-soft in the phone's settings menu. The wash shows the same on each, where the
+       flat value nearly vanishes on the last two. A wash of the text colour, light enough that subtle text
+       on it keeps its contrast */
     --app-hover-on-surface-soft: color-mix(in srgb, var(--app-text) 5%, transparent);
 
     --app-border: #4b37231c;
@@ -93,8 +96,13 @@
     --app-negative-border: #9a3c344d;
     /* Filled destructive buttons need a darker red than negative text to keep white labels readable */
     --app-danger-fill: #9A3C34;
+    /* Their fill under the pointer or keyboard focus, darker in both themes, since a lighter red would
+       take the white label under 4.5:1 in the dark one */
+    --app-danger-fill-hover: color-mix(in srgb, var(--app-danger-fill) 75%, black);
     --app-button-primary-bg: #6E4818;
-    --app-button-primary-bg-hover: #7A5220;
+    /* Darker than the rest fill, so the change shows through the button's translucency, which a lighter
+       bronze evened out */
+    --app-button-primary-bg-hover: #5A3A12;
     --app-button-primary-text: #FFF8EC;
     --app-nav-bg: #F8F4EC;
     --app-shadow-soft: 0 2px 20px #1c151012, 0 1px 4px #1c15100a;
@@ -582,17 +590,39 @@
     border: 1px solid transparent;
   }
 
-  .app-nav-link:hover,
+  /* An item under the pointer or keyboard focus takes a neutral wash, so it never reads as a second
+     selected item. The selected one takes a deeper tint instead, so its focus shows too. The pointer
+     looks are kept off touch screens, where a tapped item would otherwise hold them */
   .app-nav-link:focus-visible {
-    color: var(--app-accent);
-    background: var(--app-accent-soft);
-    border-color: var(--app-accent-border);
+    color: var(--app-text);
+    background: var(--app-hover-on-surface-soft);
+    border-color: var(--app-border);
   }
 
   .app-nav-link-active {
     background: var(--app-accent-soft);
     border-color: var(--app-accent-border);
     color: var(--app-accent);
+  }
+
+  .app-nav-link-active:focus-visible {
+    color: var(--app-accent-on-hover-fill);
+    background: var(--app-accent-hover-fill);
+    border-color: var(--app-accent-border);
+  }
+
+  @media (hover: hover) {
+    .app-nav-link:hover {
+      color: var(--app-text);
+      background: var(--app-hover-on-surface-soft);
+      border-color: var(--app-border);
+    }
+
+    .app-nav-link-active:hover {
+      color: var(--app-accent-on-hover-fill);
+      background: var(--app-accent-hover-fill);
+      border-color: var(--app-accent-border);
+    }
   }
 
   .app-input {
@@ -1622,10 +1652,17 @@
     background: color-mix(in srgb, var(--app-button-primary-bg) 82%, transparent);
   }
 
-  .app-primary-button:hover,
+  /* The pointer look is kept off touch screens, where a tapped button would otherwise stay darker */
   .app-primary-button:focus-visible {
     background: color-mix(in srgb, var(--app-button-primary-bg-hover) 88%, transparent);
     border-color: color-mix(in srgb, var(--app-button-primary-bg-hover) 70%, var(--app-border-strong));
+  }
+
+  @media (hover: hover) {
+    .app-primary-button:hover {
+      background: color-mix(in srgb, var(--app-button-primary-bg-hover) 88%, transparent);
+      border-color: color-mix(in srgb, var(--app-button-primary-bg-hover) 70%, var(--app-border-strong));
+    }
   }
 
   .app-primary-button:active {
@@ -1690,10 +1727,16 @@
     background: color-mix(in srgb, var(--app-danger-fill) 82%, transparent);
   }
 
-  .app-danger-button:hover,
   .app-danger-button:focus-visible {
-    background: color-mix(in srgb, var(--app-danger-fill) 90%, transparent);
-    border-color: color-mix(in srgb, var(--app-danger-fill) 72%, var(--app-border-strong));
+    background: color-mix(in srgb, var(--app-danger-fill-hover) 90%, transparent);
+    border-color: color-mix(in srgb, var(--app-danger-fill-hover) 72%, var(--app-border-strong));
+  }
+
+  @media (hover: hover) {
+    .app-danger-button:hover {
+      background: color-mix(in srgb, var(--app-danger-fill-hover) 90%, transparent);
+      border-color: color-mix(in srgb, var(--app-danger-fill-hover) 72%, var(--app-border-strong));
+    }
   }
 
   .app-danger-button:active {
@@ -1740,10 +1783,16 @@
     background: color-mix(in srgb, var(--app-button-primary-bg) 82%, transparent);
   }
 
-  .app-glass-button-primary:hover,
   .app-glass-button-primary:focus-visible {
     background: color-mix(in srgb, var(--app-button-primary-bg-hover) 88%, transparent);
     border-color: color-mix(in srgb, var(--app-button-primary-bg-hover) 70%, var(--app-border-strong));
+  }
+
+  @media (hover: hover) {
+    .app-glass-button-primary:hover {
+      background: color-mix(in srgb, var(--app-button-primary-bg-hover) 88%, transparent);
+      border-color: color-mix(in srgb, var(--app-button-primary-bg-hover) 70%, var(--app-border-strong));
+    }
   }
 
   .app-glass-button-primary:active {

@@ -3,12 +3,9 @@
  * gives a control a hover look must give keyboard focus the same declarations, so a new button class
  * can't show keyboard users something other than what mouse users see
  */
-import { readFileSync } from 'node:fs'
-import { AtRule, parse, type Declaration, type Rule } from 'postcss'
+import { AtRule, type Declaration, type Rule } from 'postcss'
 import { describe, expect, it } from 'vitest'
-
-const source = readFileSync(new URL('../../src/styles/tailwind.css', import.meta.url), 'utf8')
-const stylesheet = parse(source)
+import { contrast, paint, stylesheet, THEMES, type Rgb, type Theme } from './fixtures'
 
 // Hover rules with no keyboard focus pair: a field turns its own border on focus, a tooltip or a revealed
 // edit button isn't focused itself, and a disabled control can't take focus. The checkbox, the category
@@ -35,6 +32,55 @@ const GUARDED_SELECTED_OPTIONS = SELECTED_OPTIONS.slice(1)
 
 // Buttons whose hover change used to be too faint, or missing, to tell keyboard focus from rest
 const BORDER_CHANGING = ['.app-secondary-button', '.app-glass-button', '.app-glass-icon-button']
+
+// Filled buttons, whose hover look is a change of fill alone
+const FILLED_BUTTONS = ['.app-primary-button', '.app-glass-button-primary', '.app-danger-button']
+
+// The least contrast between a filled button's rest and hover fills on the page. The dark theme's primary
+// button, which reads clearly as hovered, measures 1.31
+const MIN_FILL_CHANGE = 1.25
+
+type Colour = { rgb: Rgb; alpha: number }
+
+/** Splits a list at the commas that aren't inside brackets */
+function splitTopLevel(list: string): string[] {
+  const parts = ['']
+  let depth = 0
+  for (const character of list) {
+    if (character === '(') depth += 1
+    if (character === ')') depth -= 1
+    if (character === ',' && depth === 0) parts.push('')
+    else parts[parts.length - 1] += character
+  }
+  return parts.map((part) => part.trim())
+}
+
+/** Resolves a colour as the stylesheet writes it, tokens and srgb mixes included, in the given theme */
+function resolveColour(value: string, theme: Theme): Colour {
+  const token = value.match(/^var\((--[\w-]+)\)$/)
+  if (token) return resolveColour(THEMES[theme][token[1]], theme)
+  if (value === 'transparent') return { rgb: [0, 0, 0], alpha: 0 }
+  if (value === 'black') return { rgb: [0, 0, 0], alpha: 1 }
+  const hex = value.match(/^#([\da-f]{6})([\da-f]{2})?$/i)
+  if (hex) {
+    const rgb = [0, 2, 4].map((at) => parseInt(hex[1].slice(at, at + 2), 16)) as Rgb
+    return { rgb, alpha: hex[2] ? parseInt(hex[2], 16) / 255 : 1 }
+  }
+  const mix = value.match(/^color-mix\(in srgb, (.*)\)$/)
+  if (!mix) throw new Error(`Unreadable colour ${value}`)
+  const [first, second] = splitTopLevel(mix[1]).map((part) => {
+    const share = part.match(/^(.*) (\d+)%$/)
+    return { colour: resolveColour(share ? share[1] : part, theme), share: share ? Number(share[2]) / 100 : null }
+  })
+  const firstShare = first.share ?? 1 - second.share!
+  const secondShare = second.share ?? 1 - firstShare
+  // Mixed with premultiplied alpha, as CSS mixes colours
+  const alpha = first.colour.alpha * firstShare + second.colour.alpha * secondShare
+  const rgb = first.colour.rgb.map((channel, index) => (
+    channel * first.colour.alpha * firstShare + second.colour.rgb[index] * second.colour.alpha * secondShare
+  ) / alpha) as Rgb
+  return { rgb, alpha }
+}
 
 function selectorsOf(rule: Rule): string[] {
   return rule.selectors.map((selector) => selector.trim())
@@ -155,6 +201,43 @@ describe('button keyboard focus', () => {
       expect(rules.length).toBeGreaterThan(0)
       expect(rules.every(isHoverOnlyMedia)).toBe(true)
     })
+  }
+
+  // A navigation item that isn't selected used to take the selected item's own fill and colour under the
+  // pointer and on keyboard focus, so a focused item read as a second selected one, and the selected item
+  // showed no change at all
+  it('tells a hovered or focused navigation item apart from the selected one', () => {
+    const [hover] = rulesListing('.app-nav-link:focus-visible')
+    const [selected] = rulesListing('.app-nav-link-active')
+    expect(declared(hover, 'background')).toBeDefined()
+    expect(declared(hover, 'background')).not.toBe(declared(selected, 'background'))
+    expect(declared(hover, 'color')).not.toBe(declared(selected, 'color'))
+  })
+
+  it('tints the selected navigation item further under the pointer and on keyboard focus', () => {
+    const [selected] = rulesListing('.app-nav-link-active')
+    const [hover] = rulesListing('.app-nav-link-active:focus-visible')
+    expect(hover).toBeDefined()
+    expect(declared(hover, 'background')).toBe('var(--app-accent-hover-fill)')
+    expect(declared(hover, 'background')).not.toBe(declared(selected, 'background'))
+    expect(declared(hover, 'color')).toBe('var(--app-accent-on-hover-fill)')
+  })
+
+  // A filled button's hover fill used to land on the same colour as its rest fill in the light theme, so
+  // keyboard focus, which now shows only the hover look, couldn't be seen
+  for (const theme of ['light', 'dark'] as const) {
+    for (const name of FILLED_BUTTONS) {
+      it(`changes ${name}'s fill visibly under the pointer and on keyboard focus in the ${theme} theme`, () => {
+        const [rest] = rulesListing(name)
+        const [hover] = rulesListing(`${name}:focus-visible`)
+        const page = resolveColour('var(--app-bg)', theme).rgb
+        const onPage = (rule: Rule) => {
+          const fill = resolveColour(declared(rule, 'background')!, theme)
+          return paint(fill.rgb, fill.alpha, page)
+        }
+        expect(contrast(onPage(rest), onPage(hover))).toBeGreaterThanOrEqual(MIN_FILL_CHANGE)
+      })
+    }
   }
 
   it('draws no ring on a button that has no hover look of its own', () => {
