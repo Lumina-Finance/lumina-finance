@@ -60,7 +60,7 @@ export function LastImportCard({ className = '' }: { className?: string }) {
 
   const entry = useUndoableEntry(lastImport.data ?? null)
   const reveal = {
-    // Clipped only while it moves, so nothing is cut off at the card's edge once it is in place
+    // Clipped only while it moves, so the button's focus ring shows once it is in place
     initial: { height: 0, opacity: 0, marginBottom: COLUMN_GAP, overflow: 'hidden' },
     animate: { height: 'auto', opacity: 1, marginBottom: 0, transitionEnd: { overflow: 'visible' } },
     exit: { height: 0, opacity: 0, marginBottom: COLUMN_GAP, overflow: 'hidden' },

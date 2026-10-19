@@ -138,6 +138,30 @@ describe('danger button label contrast', () => {
   })
 })
 
+describe('keyboard focus ring contrast', () => {
+  // Controls without a border of their own draw the ring on the surface around them: the page, a card,
+  // a field and the sidebar, and a transaction row draws it inside its own edge on its hover fill. A
+  // selected option's tint is left out on purpose, since the time selector keeps its ring outside it
+  const MINIMUM_RING_CONTRAST = 3
+  const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) => {
+    const tokens = THEMES[theme]
+    const card = solid(tokens, '--app-surface-soft')
+    const backdrops = {
+      ...surfaces(tokens),
+      field: solid(tokens, '--app-input-bg'),
+      sidebar: solid(tokens, '--app-nav-bg'),
+      // The Delete circle's confirmation panel in the Edit account window (DeletePanel)
+      'delete panel': solid(tokens, '--app-negative-soft', card),
+      'hovered row': theme === 'light' ? solid(tokens, '--app-hover-soft') : paint(solid(tokens, '--app-text'), 0.06, card),
+    }
+    return Object.entries(backdrops).map(([surface, backdrop]) => ({ theme, surface, backdrop }))
+  })
+
+  it.each(cases)('is 3:1 or better in the $theme theme on the $surface', ({ theme, backdrop }) => {
+    expect(contrast(solid(THEMES[theme], '--app-focus-ring'), backdrop)).toBeGreaterThanOrEqual(MINIMUM_RING_CONTRAST)
+  })
+})
+
 describe('tinted state contrast', () => {
   // Each state lays a tint over the surface it sits on, so the text in it is read against both together
   type State = { name: string; text: string[]; fill: (tokens: Tokens) => Rgb }

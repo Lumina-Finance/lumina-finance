@@ -359,7 +359,7 @@ export function TransactionRowView({
           // pointer the highlight has already answered
           if (selection.isSelectable || event.shiftKey) selection.onToggle(event.shiftKey)
         }}
-        className="block w-full min-w-0 flex-1 cursor-pointer px-3 text-left min-[750px]:col-span-5 min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4"
+        className="block w-full min-w-0 flex-1 cursor-pointer px-3 text-left focus-visible:outline-none min-[750px]:col-span-5 min-[750px]:grid min-[750px]:grid-cols-subgrid min-[750px]:items-center min-[750px]:gap-x-3 min-[1300px]:gap-x-4"
         style={{ scrollMarginTop: TRANSACTION_ROW_SCROLL_MARGIN }}
       >
       {/* Row from 750px wide: each cell is a direct child of this button's subgrid, which spans the

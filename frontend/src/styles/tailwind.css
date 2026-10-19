@@ -2,8 +2,9 @@
 @config "../../tailwind.config.js";
 
 /* Every hover: utility on a button also applies while the button is keyboard focused, so a button
-   reached by keyboard looks as it does hovered and needs no ring. The pointer part is Tailwind's own
-   hover variant, which a touch screen's sticky hover is kept out of */
+   reached by keyboard looks as it does hovered. A button with a border of its own shows only that, and
+   one without keeps the ring too (see the base rules below). The pointer part is Tailwind's own hover
+   variant, which a touch screen's sticky hover is kept out of */
 @custom-variant hover {
   @media (hover: hover) {
     &:hover {
@@ -258,11 +259,19 @@
     outline-offset: var(--app-focus-offset);
   }
 
-  /* A button never draws a ring, and neither does a navigation link, which is drawn as one. Reached by
-     keyboard it looks as it does hovered, which each hover rule also lists under :focus-visible, so the
-     two can't drift apart. The chart marks that take the button role keep the ring, since they have
-     no hover look */
-  :is(button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"], .app-nav-link):not(svg *):focus-visible {
+  /* A button with a border of its own, such as an outlined button or a pill, never draws a ring around
+     it. Reached by keyboard it looks as it does hovered, which each hover rule also lists under
+     :focus-visible, so the two can't drift apart. One without a border, such as a filled button, an icon
+     button or a menu item, keeps the ring above on top of its hover look. A border is the shared classes
+     that draw one, and the border utility unless it is transparent */
+  :is(a, button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"]):is(
+    .app-secondary-button,
+    .app-glass-button,
+    .app-glass-icon-button,
+    .app-range-glass-head,
+    .app-card,
+    .border:not(.border-transparent)
+  ):not(svg *):focus-visible {
     outline: none;
   }
 
@@ -1872,6 +1881,19 @@
     @apply h-8 p-0.5;
   }
 
+  /* A compact control clips its sliding indicator and has only 2px of padding, room for the ring but
+     not its gap, so the ring sits against the option's edge. Inside the edge it would fall on the
+     selected option's tint, which it doesn't clear 3:1 against in the light theme */
+  .app-segmented-control-compact .app-segmented-option:focus-visible {
+    outline-offset: 0;
+  }
+
+  /* The options fill the room inside the padding, which is 2px shorter than the compact option's own
+     height, so the ring against their edge is not cut off below them */
+  .app-segmented-control-compact .app-segmented-option {
+    height: 100%;
+  }
+
   /* A rule rather than a utility, so a finished import's record below can show the choice at full
      strength instead */
   .app-segmented-control-disabled {
@@ -2155,8 +2177,8 @@
   /* The Imports page's upload card, which turns the shared hover colour under the pointer, as the remove button
      on a staged file does, and sits down a pixel when pressed, as the buttons beside it do. Its rest fill is set
      on the element as a colour, which outranks this rule, so the hover colour is marked important. Fill, border
-     and press ease together. Keyboard focus shows the same hover colour, since its border shows only for a
-     refusal or a file being dragged over it. A card that cannot take a file keeps its rest fill and its cursor */
+     and press ease together. Keyboard focus shows the same hover colour and the base ring, since its border
+     shows only for a refusal or a file being dragged over it. A card that cannot take a file keeps its rest fill and its cursor */
   .app-upload-card {
     transition:
       background-color 150ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -2179,16 +2201,69 @@
     }
   }
 
-  /* The same ring for a link that has no class of its own above. A button never takes it */
+  /* The same ring for a control that has no class of its own above */
   .app-focus-ring:focus-visible {
     outline: var(--app-focus-outline);
     outline-offset: var(--app-focus-offset);
   }
 
-  /* A transaction row is opened through the button inside it, or its checkbox while selecting, and
-     neither fills the row, so the row itself shows the hover look */
+  /* A transaction row is focused through the button inside it, or its checkbox while selecting, and
+     neither fills the row, so the ring goes around the row itself, drawn inside the row's edges where
+     the next row and the list's own edge cannot cover it. The row also shows the hover look while its
+     button is focused */
+  .app-transaction-row:has(:focus-visible) {
+    outline: var(--app-focus-outline);
+    outline-offset: calc(var(--app-focus-offset) * -1);
+  }
+
   .app-transaction-row:has(button:focus-visible) {
     background: var(--app-hover-soft);
+  }
+
+  /* A toggle switch (Switch.tsx). Its track has no border, so keyboard focus draws the shared ring around
+     the whole switch and the track also takes the stronger fill it has under the pointer anywhere on the label row around it, since
+     the whole row toggles it. The two fills
+     are properties so each hover rule changes both states at once: the off track is drawn toward the
+     text colour, and the on track too, which darkens it in the light theme and brightens it in the dark
+     one, as the filled buttons do */
+  .app-switch {
+    @apply relative inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5;
+  }
+
+  .app-switch:has(> .app-switch-input:focus-visible) {
+    outline: var(--app-focus-outline);
+    outline-offset: var(--app-focus-offset);
+  }
+
+  .app-switch-track {
+    @apply absolute inset-0 rounded-full transition-colors;
+    --app-switch-off: var(--app-border-strong);
+    --app-switch-on: var(--app-accent);
+    background: var(--app-switch-off);
+  }
+
+  .app-switch-input:checked + .app-switch-track {
+    background: var(--app-switch-on);
+  }
+
+  .app-switch-input:focus-visible + .app-switch-track {
+    --app-switch-off: color-mix(in srgb, var(--app-border-strong) 70%, var(--app-text));
+    --app-switch-on: color-mix(in srgb, var(--app-accent) 60%, var(--app-text));
+  }
+
+  @media (hover: hover) {
+    label:hover .app-switch-input:not(:disabled) + .app-switch-track {
+      --app-switch-off: color-mix(in srgb, var(--app-border-strong) 70%, var(--app-text));
+      --app-switch-on: color-mix(in srgb, var(--app-accent) 60%, var(--app-text));
+    }
+  }
+
+  .app-switch-thumb {
+    @apply relative h-5 w-5 rounded-full bg-white shadow-sm transition-transform;
+  }
+
+  .app-switch-input:checked ~ .app-switch-thumb {
+    transform: translateX(1.25rem);
   }
 
   .app-spinner {

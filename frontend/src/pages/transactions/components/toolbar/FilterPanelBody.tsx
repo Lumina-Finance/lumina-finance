@@ -429,12 +429,12 @@ function SectionEditor({
                       disabled={isAmountCurrencyLocked}
                       className={`rounded-full border px-3 py-1 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
                         isSelected
-                          ? 'bg-[var(--app-accent-soft)] text-[var(--app-accent)] hover:bg-[var(--app-accent-border)] hover:text-[var(--app-accent-on-hover-fill)]'
+                          ? 'border-transparent bg-[var(--app-accent-soft)] text-[var(--app-accent)] hover:bg-[var(--app-accent-border)] hover:text-[var(--app-accent-on-hover-fill)]'
                           : 'hover:bg-[var(--app-accent-soft)]'
                       }`}
                       style={
                         isSelected
-                          ? { borderColor: 'transparent', fontWeight: 500 }
+                          ? { fontWeight: 500 }
                           : { borderColor: 'var(--app-input-border)', color: 'var(--app-text)' }
                       }
                       onClick={() => onCurrencyToggle(option.value)}

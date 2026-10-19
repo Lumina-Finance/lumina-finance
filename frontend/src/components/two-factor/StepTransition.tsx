@@ -40,7 +40,7 @@ export function StepTransition({ stepKey, header, children }: StepTransitionProp
     <motion.div
       animate={{ height }}
       transition={HEIGHT_TRANSITION}
-      // Clip only while the height eases, so the focus ring of a link or the focus border of a field on the edge is not cut off at rest
+      // Clip only while the height eases, so focus rings on the edge controls are not cut off at rest
       style={{ overflow: isEasing ? 'hidden' : 'visible' }}
       onAnimationStart={() => setIsEasing(true)}
       onAnimationComplete={() => setIsEasing(false)}

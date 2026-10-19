@@ -312,11 +312,13 @@ export function ImportStagedFileTable<TFile extends { id: string; name: string }
                 </p>
               )}
             </div>
-            {/* Drawn taller than the name's line without making it any taller */}
+            {/* Drawn taller than the name's line without making it any taller. A flush list has no room
+                beside the button, so the row's clipping box would cut the focus ring there, and the
+                ring is drawn inside the button instead */}
             {onRemove && (
               <button
                 type="button"
-                className="app-icon-button -my-1"
+                className={`app-icon-button -my-1${isFlush ? ' focus-visible:-outline-offset-2' : ''}`}
                 onClick={() => onRemove(file)}
                 aria-label={`Remove ${label}`}
               >

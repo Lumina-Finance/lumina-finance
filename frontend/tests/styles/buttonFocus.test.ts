@@ -1,7 +1,8 @@
 /**
- * Guards a button reached by keyboard looking exactly as it does hovered, with no ring. Any rule that
- * gives a control a hover look must give keyboard focus the same declarations, so a new button class
- * can't show keyboard users something other than what mouse users see
+ * Guards a button reached by keyboard looking exactly as it does hovered, and drawing the ring only when
+ * it has no border of its own. Any rule that gives a control a hover look must give keyboard focus the
+ * same declarations, so a new button class can't show keyboard users something other than what mouse
+ * users see
  */
 import { AtRule, type Declaration, type Rule } from 'postcss'
 import { describe, expect, it } from 'vitest'
@@ -17,6 +18,9 @@ const HOVER_WITHOUT_FOCUS_PAIR = [
   '.app-dropdown-glass:hover',
   '.app-dropdown-row:hover .app-dropdown-row-edit',
   '.group:hover .app-tag-tooltip-glass',
+  // A toggle switch's input is hidden, so its focus is the input's and its track is the sibling, which the
+  // toggle switch tests below pair with this rule
+  'label:hover .app-switch-input:not(:disabled) + .app-switch-track',
 ]
 
 // The hover rules of selected options in each segmented control, whose fill and text colour keep the text
@@ -39,6 +43,9 @@ const FILLED_BUTTONS = ['.app-primary-button', '.app-glass-button-primary', '.ap
 // The least contrast between a filled button's rest and hover fills on the page. The dark theme's primary
 // button, which reads clearly as hovered, measures 1.31
 const MIN_FILL_CHANGE = 1.25
+
+// The same for a toggle switch's track, which is a plain fill beside the ring
+const MIN_SWITCH_CHANGE = 1.25
 
 type Colour = { rgb: Rgb; alpha: number }
 
@@ -82,8 +89,9 @@ function resolveColour(value: string, theme: Theme): Colour {
   return { rgb, alpha }
 }
 
+/** A rule's selectors with the line breaks a long :is() list is written across closed up */
 function selectorsOf(rule: Rule): string[] {
-  return rule.selectors.map((selector) => selector.trim())
+  return rule.selectors.map((selector) => selector.replace(/\(\s+/g, '(').replace(/,\s+/g, ', ').replace(/,?\s+\)/g, ')').trim())
 }
 
 function rulesListing(selector: string): Rule[] {
@@ -144,7 +152,8 @@ describe('button keyboard focus', () => {
 
   for (const { selector, rule } of hoverSelectors) {
     it(`shows ${selector} focused by keyboard exactly as hovered`, () => {
-      const focusRules = rulesListing(focusCounterpart(selector))
+      // Apart from the gap a clipped container gives the ring, which belongs to the ring and not the look
+      const focusRules = rulesListing(focusCounterpart(selector)).filter((focusRule) => declared(focusRule, 'outline-offset') === undefined)
       expect(focusRules.length).toBeGreaterThan(0)
 
       // The same declarations, so the two looks can't differ by a property, a value or a later rule
@@ -240,10 +249,95 @@ describe('button keyboard focus', () => {
     }
   }
 
-  it('draws no ring on a button that has no hover look of its own', () => {
-    const rules = rulesListing(':is(button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"], .app-nav-link):not(svg *):focus-visible')
-    expect(rules).toHaveLength(1)
-    expect(rules[0].nodes.map((node) => node.toString())).toEqual(['outline: none'])
+  // A control with a border of its own shows its hover look and no ring, since a second outline would sit
+  // around the border it already has. Every other button, filled buttons and menu items included, keeps
+  // the base ring on top of its hover look
+  describe('ring', () => {
+    const optOut = rulesListing(
+      ':is(a, button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"]):is(.app-secondary-button, .app-glass-button, .app-glass-icon-button, .app-range-glass-head, .app-card, .border:not(.border-transparent)):not(svg *):focus-visible',
+    )
+
+    it('is dropped only from buttons that draw a border of their own', () => {
+      expect(optOut).toHaveLength(1)
+      expect(optOut[0].nodes.map((node) => node.toString())).toEqual(['outline: none'])
+    })
+
+    // The filled buttons, the icon button, the menu items and the segmented options have no border at
+    // rest, so no rule of their own may switch the ring off
+    const BORDERLESS = [
+      ...FILLED_BUTTONS,
+      '.app-icon-button',
+      '.app-nav-link',
+      '.app-nav-link-active',
+      '.app-segmented-option',
+      '.app-segmented-option-active',
+      '.app-calendar-day',
+      '.app-range-apply',
+    ]
+    for (const name of BORDERLESS) {
+      it(`keeps the ring on ${name} reached by keyboard`, () => {
+        const focusRules = rulesListing(`${name}:focus-visible`)
+        expect(focusRules.length).toBeGreaterThan(0)
+        for (const rule of focusRules) {
+          expect(rule.nodes.some((node) => node.type === 'decl' && /^outline/.test(node.prop))).toBe(false)
+        }
+        expect(selectorsOf(optOut[0])[0]).not.toContain(name)
+      })
+    }
+
+    it('lists the bordered shared classes the ring is dropped from, each with a border at rest', () => {
+      for (const name of BORDER_CHANGING) {
+        expect(selectorsOf(optOut[0])[0]).toContain(name)
+        const [rest] = rulesListing(name)
+        expect(borderColourOf(rest) ?? declared(rest, 'border-color')).toBeDefined()
+      }
+    })
+
+    // Every compact segmented control clips its indicator with 2px of padding, so its options take the
+    // ring against their edge instead of the base gap. The time selector and the balance chart view
+    // selector are two of them
+    it('moves the ring of every compact segmented control against its option', () => {
+      const compact = rulesListing('.app-segmented-control-compact .app-segmented-option:focus-visible')
+      expect(compact).toHaveLength(1)
+      expect(declared(compact[0], 'outline-offset')).toBeDefined()
+      expect(rulesListing('.app-time-selector .app-segmented-option:focus-visible').every((rule) => declared(rule, 'outline-offset') === undefined)).toBe(true)
+    })
+  })
+
+  // A toggle switch's track has no border, so it takes the ring around the whole switch, and its fill, off
+  // or on, turns stronger under the pointer and on keyboard focus. Its fill used to stay as it was
+  describe('toggle switch', () => {
+    const hover = rulesListing('label:hover .app-switch-input:not(:disabled) + .app-switch-track')
+    const focus = rulesListing('.app-switch-input:focus-visible + .app-switch-track')
+
+    it('takes the same stronger fill under the pointer, on a touch screen never, and on keyboard focus', () => {
+      expect(hover).toHaveLength(1)
+      expect(focus).toHaveLength(1)
+      expect(isHoverOnlyMedia(hover[0])).toBe(true)
+      expect(declarationsOf(focus[0])).toEqual(declarationsOf(hover[0]))
+    })
+
+    it('draws the shared ring around the switch, and nothing on the track itself', () => {
+      const [ring] = rulesListing('.app-switch:has(> .app-switch-input:focus-visible)')
+      expect(declared(ring, 'outline')).toBe('var(--app-focus-outline)')
+      expect(focus.concat(rulesListing('.app-switch-track')).some((rule) => declared(rule, 'outline') !== undefined)).toBe(false)
+    })
+
+    for (const theme of ['light', 'dark'] as const) {
+      for (const state of ['off', 'on'] as const) {
+        it(`changes the ${state} track's fill visibly under the pointer and on keyboard focus in the ${theme} theme`, () => {
+          const [track] = rulesListing('.app-switch-track')
+          const card = resolveColour('var(--app-surface-soft)', theme).rgb
+          const onCard = (value: string) => {
+            const fill = resolveColour(value, theme)
+            return paint(fill.rgb, fill.alpha, card)
+          }
+          const rest = declared(track, `--app-switch-${state}`)!
+          const hovered = declared(focus[0], `--app-switch-${state}`)!
+          expect(contrast(onCard(rest), onCard(hovered))).toBeGreaterThanOrEqual(MIN_SWITCH_CHANGE)
+        })
+      }
+    }
   })
 
   it('applies every hover: utility on a button while it is keyboard focused', () => {
