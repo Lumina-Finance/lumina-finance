@@ -32,6 +32,7 @@ from app.routes.users import router as user_router
 from app.services.auth.oidc_providers import sync_oidc_providers
 from app.services.auth.step_up import ATTEMPTS_REMAINING_HEADER
 from app.services.email import build_email_sender, set_email_sender
+from app.services.fx.lookup_budget import FxLookupBudgetMiddleware
 from app.services.maintenance.expired_records import prune_expired_records_on_schedule
 
 logger = logging.getLogger(__name__)
@@ -88,6 +89,7 @@ set_email_sender(build_email_sender())
 # Added before CORS so CORS ends up the outer layer, since middleware wraps in reverse order
 # of addition and a rejected oversized body still has to carry its CORS headers
 app.add_middleware(RequestBodySizeLimitMiddleware)
+app.add_middleware(FxLookupBudgetMiddleware)
 
 
 # Without a configured origin the CORS layer is left out, so no response carries CORS headers

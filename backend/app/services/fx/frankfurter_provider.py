@@ -5,17 +5,19 @@ from collections.abc import Awaitable, Callable
 from datetime import date
 from decimal import Decimal
 from functools import partial
+from time import monotonic  # By name, so a test can drive this clock without the event loop's
 from typing import TypeVar
 
 import httpx
 
 from app.config.fx import FRANKFURTER_URL
 from app.http_client import build_http_client
-from app.services.fx.errors import FxRateError
+from app.services.fx.errors import FxProviderUnavailableError
 from app.services.fx.frankfurter_request_helpers import (
     request_frankfurter_rate_response,
     request_frankfurter_rates_response,
 )
+from app.services.fx.lookup_budget import get_current_lookup_budget
 from app.services.fx.rate_parser_helpers import parse_rate, parse_rates
 
 DEFAULT_FX_PROVIDER_RETRY_ATTEMPTS = 3
@@ -40,7 +42,7 @@ class FrankfurterProvider:
         Args:
             url: Base URL for the Frankfurter API
             client: Optional reusable HTTP client
-            timeout: HTTP request timeout in seconds when creating a client
+            timeout: Longest one attempt may take in seconds, shortened to what the request's budget has left
             retry_attempts: Number of provider lookup attempts before surfacing an FX error
             retry_delay_seconds: Delay between provider lookup attempts
         """
@@ -135,25 +137,51 @@ class FrankfurterProvider:
             partial(self._request_and_parse_rates, client, base, quote, start_date, end_date),
         )
 
-    async def _run_provider_lookup_with_retries(self, lookup: Callable[[], Awaitable[_T]]) -> _T:
-        """Run one provider lookup with retry policy before surfacing the final FX error
+    async def _run_provider_lookup_with_retries(self, lookup: Callable[[float], Awaitable[_T]]) -> _T:
+        """Run one provider lookup, retrying only transient failures within the request's budget
+
+        A missing rate is final, so it raises on the first answer. A transient failure is tried
+        again until the attempts run out or the budget leaves no room for another pause and try
 
         Args:
-            lookup: Provider request and parser work to attempt
+            lookup: Provider request and parser work to attempt, given the attempt's timeout
 
         Returns:
             Parsed provider lookup result
+
+        Raises:
+            FxProviderUnavailableError: Every attempt failed transiently, or the budget was spent
+            FxRateNotFoundError: The provider has no rate for the lookup
         """
-        last_error: FxRateError | None = None
+        budget = get_current_lookup_budget()
+        last_error: FxProviderUnavailableError | None = None
 
         for attempt in range(1, self.retry_attempts + 1):
+            timeout = self.timeout if budget is None else min(self.timeout, budget.remaining)
+            if timeout <= 0:
+                raise last_error or FxProviderUnavailableError("FX lookup budget for this request is spent")
+
+            started_at = monotonic()
             try:
-                return await lookup()
-            except FxRateError as exc:
+                # httpx times each phase of a request separately, so a slowly trickling answer could
+                # outlast its timeout. The deadline holds the whole attempt to it
+                async with asyncio.timeout(timeout):
+                    return await lookup(timeout)
+            except TimeoutError as exc:
+                last_error = FxProviderUnavailableError("FX provider request timed out")
+                last_error.__cause__ = exc
+            except FxProviderUnavailableError as exc:
                 last_error = exc
-                if attempt == self.retry_attempts:
-                    break
-                await asyncio.sleep(self.retry_delay_seconds)
+            finally:
+                if budget is not None:
+                    budget.charge(monotonic() - started_at)
+
+            is_last_attempt = attempt == self.retry_attempts
+            if is_last_attempt or (budget is not None and budget.remaining <= self.retry_delay_seconds):
+                break
+            await asyncio.sleep(self.retry_delay_seconds)
+            if budget is not None:
+                budget.charge(self.retry_delay_seconds)
 
         if last_error is not None:
             raise last_error
@@ -165,6 +193,7 @@ class FrankfurterProvider:
         base: str,
         quote: str,
         rate_date: date,
+        timeout: float,
     ) -> Decimal:
         """Request and parse one FX rate response
 
@@ -173,11 +202,12 @@ class FrankfurterProvider:
             base: Normalized source currency code
             quote: Normalized target currency code
             rate_date: Date for the requested rate
+            timeout: Seconds this attempt may take
 
         Returns:
             Quote currency units per one base currency unit
         """
-        response = await request_frankfurter_rate_response(client, self.url, base, quote, rate_date)
+        response = await request_frankfurter_rate_response(client, self.url, base, quote, rate_date, timeout)
         rate = parse_rate(response.json(), expected_base=base, expected_quote=quote)
         return rate
 
@@ -188,6 +218,7 @@ class FrankfurterProvider:
         quote: str,
         start_date: date,
         end_date: date,
+        timeout: float,
     ) -> dict[date, Decimal]:
         """Request and parse FX rates over a date range
 
@@ -197,10 +228,11 @@ class FrankfurterProvider:
             quote: Normalized target currency code
             start_date: First date in the requested range
             end_date: Last date in the requested range
+            timeout: Seconds this attempt may take
 
         Returns:
             Rates keyed by calendar date
         """
-        response = await request_frankfurter_rates_response(client, self.url, base, quote, start_date, end_date)
+        response = await request_frankfurter_rates_response(client, self.url, base, quote, start_date, end_date, timeout)
         rates = parse_rates(response.json(), expected_base=base, expected_quote=quote)
         return rates
