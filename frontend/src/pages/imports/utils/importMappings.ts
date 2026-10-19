@@ -18,7 +18,7 @@ import {
 } from '@/pages/imports/constants'
 import type { ImportAccountCreateDetails, ImportCategoryKind, ImportCategoryRename } from '@/pages/imports/types'
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
-import { isImportableAccount } from './accountScope'
+import { isImportableAccount } from '@/utils/importableAccount'
 import { checkImportCategoryCreate, findReusedImportCategory } from './categoryMatching'
 import { isGroupResource } from './resourceScope'
 

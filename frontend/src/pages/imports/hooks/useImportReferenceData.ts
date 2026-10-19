@@ -9,8 +9,8 @@ import {
   buildImportCategoryMatchOptions,
   buildImportCurrencyOptions,
   buildImportInstitutionOptions,
-  isImportableAccount,
 } from '@/pages/imports/utils'
+import { isImportableAccount } from '@/utils/importableAccount'
 
 /**
  * Reference data shared by both import flows: the accounts, currencies, institutions and categories

@@ -23,7 +23,7 @@ import {
 } from '@/components/transactions/bulk-edit/selection'
 import { useBulkSelection } from '@/components/transactions/bulk-edit/useBulkSelection'
 import { getTransactionReadOnlyReason } from '@/components/transactions/utils/rowEditability'
-import { getImportBlockReason, isImportableAccount } from '@/pages/imports/utils'
+import { getImportBlockReason, isImportableAccount } from '@/utils/importableAccount'
 import { TRANSACTION_FILTER_KEYS, TRANSACTION_LIST_EASE } from '@/components/transactions/constants/transactionList'
 import TransactionDateGroupList from '@/components/transactions/DateGroupList'
 import TransactionFilterLoadingOverlay from '@/components/transactions/FilterLoadingOverlay'

@@ -2,7 +2,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import { CREATE_ACCOUNT_VALUE } from '@/pages/imports/constants'
 import type { ImportAccountCreateDetails, ImportAccountSource, ImportFileDraft, ImportRowFilter } from '@/pages/imports/types'
 import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
-import { isImportableAccount } from './accountScope'
+import { isImportableAccount } from '@/utils/importableAccount'
 import { includeEveryImportRow } from './common'
 import { getImportIdentity } from './scopedAnswers'
 
