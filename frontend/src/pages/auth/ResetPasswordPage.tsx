@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react'
+import type { FormEvent, MouseEvent } from 'react'
 import { useRef, useState } from 'react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router'
 import { AnimatePresence, animate, motion } from 'motion/react'
@@ -215,6 +215,15 @@ const ResetPasswordPage = () => {
     navigate('/login', { replace: true })
   }
 
+  /**
+   * Leaves the new-password form only for a click the browser marks as trusted. A password manager
+   * that fills the passwords and clicks from a script can pick this button instead of the submit
+   * button, and must not take the user off the form
+   */
+  const handleBackToLogin = (event: MouseEvent<HTMLButtonElement>) => {
+    if (event.isTrusted) void goToLogin()
+  }
+
   return (
     <motion.div
       ref={containerRef}
@@ -332,7 +341,7 @@ const ResetPasswordPage = () => {
               <p className="mt-5 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 <button
                   type="button"
-                  onClick={goToLogin}
+                  onClick={handleBackToLogin}
                   className="font-medium underline underline-offset-2"
                   style={{ color: 'var(--app-accent)' }}
                 >
