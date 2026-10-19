@@ -30,7 +30,7 @@ async function openImport(page: Page, request: Parameters<typeof signUpUser>[0],
   await logInViaApi(page, user)
   await openPage(page, '/settings/imports')
   await expect(page.locator('input[type="file"][accept=".csv,text/csv"]')).toBeEnabled()
-  return page.getByText('Data Source', { exact: true })
+  return page.getByText('Data source', { exact: true })
 }
 
 /**
@@ -99,7 +99,7 @@ async function expectColumnGapAfter(page: Page, strip: Locator) {
  */
 async function expectStepsClearOfPanel(page: Page) {
   const panel = page.getByRole('complementary', { name: 'Import setup' })
-  const dataSource = page.getByRole('combobox', { name: 'Data Source' })
+  const dataSource = page.getByRole('combobox', { name: 'Data source' })
   await expect.poll(async () => {
     const panelBox = (await panel.boundingBox())!
     // The sections reach past the column when the panel lies over the steps, so their edge counts too
@@ -114,7 +114,7 @@ async function expectStepsClearOfPanel(page: Page) {
  * rather than making room for it
  */
 async function expectPanelOverUnmovedSteps(page: Page, resting: { x: number; y: number }) {
-  const dataSource = page.getByRole('combobox', { name: 'Data Source' })
+  const dataSource = page.getByRole('combobox', { name: 'Data source' })
   await expect(dataSource).toBeVisible()
   const sections = (await dataSource.boundingBox())!
   const stepsBox = await settledBox(steps(page))
@@ -172,7 +172,7 @@ test('collapses the setup sections to a strip once a file is added, shows them w
 
   // Over the strip the sections come back to the place and width they had, over the steps, which
   // stay where they are, with the label and caret back in their row above the sections
-  const stepsBox = await settledBox(page.getByText('Column Mapping', { exact: true }))
+  const stepsBox = await settledBox(page.getByText('Column mapping', { exact: true }))
   await strip.hover()
   await expect(dataSource).toBeVisible()
   await expect(remove(page)).toBeVisible()
@@ -182,7 +182,7 @@ test('collapses the setup sections to a strip once a file is added, shows them w
   }).toEqual([home.sections.x, home.sections.y, home.header.x, home.header.y, home.header.width, home.header.height])
   const label = (await strip.getByText('Import setup', { exact: true }).boundingBox())!
   expect(label.width).toBeGreaterThan(label.height)
-  expect((await settledBox(page.getByText('Column Mapping', { exact: true }))).x).toBe(stepsBox.x)
+  expect((await settledBox(page.getByText('Column mapping', { exact: true }))).x).toBe(stepsBox.x)
 
   await page.mouse.move(DESKTOP.width / 2, DESKTOP.height / 2)
   await expect(dataSource).toBeHidden()
@@ -360,7 +360,7 @@ test('keeps the setup sections showing while a field in them has focus, and clos
   // Held open by focus it lies over the steps as it does for the pointer, which stay where they were
   await expectPanelOverUnmovedSteps(page, resting)
 
-  await page.getByRole('heading', { name: 'Import Transactions' }).click()
+  await page.getByRole('heading', { name: 'Import transactions' }).click()
   await expect(dataSource).toBeHidden()
 
   // What was typed is still there when the sections come back
@@ -460,7 +460,7 @@ test('keeps the setup sections showing while a field in them has an error, howev
   const message = page.getByText('Must be on or before the end date', { exact: true })
   await expect(message).toBeVisible()
 
-  await page.getByRole('heading', { name: 'Import Transactions' }).click()
+  await page.getByRole('heading', { name: 'Import transactions' }).click()
   await expect(message).toBeVisible()
   await expect(dataSource).toBeVisible()
   await expect(page.getByRole('button', { name: 'Expand import setup', exact: true })).toHaveAttribute('aria-expanded', 'false')
@@ -469,7 +469,7 @@ test('keeps the setup sections showing while a field in them has an error, howev
   await showImportSetup(page)
   await typeDate(page, 'Start date', '2024-03-01')
   await typeDate(page, 'End date', '2024-03-31')
-  await page.getByRole('heading', { name: 'Import Transactions' }).click()
+  await page.getByRole('heading', { name: 'Import transactions' }).click()
   await expect(message).toBeHidden()
   await expect(dataSource).toBeHidden()
 })
@@ -478,7 +478,7 @@ test('keeps an open dropdown, and the setup sections with it, open when the poin
   const dataSource = await openImport(page, request, DESKTOP)
   await chooseFile(page)
   await page.getByRole('button', { name: 'Expand import setup', exact: true }).hover()
-  const dropdown = page.getByRole('combobox', { name: 'Data Source' })
+  const dropdown = page.getByRole('combobox', { name: 'Data source' })
   await dropdown.click()
   const options = page.getByRole('option', { name: /^Firefly III/ })
   await expect(options).toBeVisible()
@@ -490,7 +490,7 @@ test('keeps an open dropdown, and the setup sections with it, open when the poin
   // Once it closes nothing holds the panel, so it goes too
   await page.keyboard.press('Escape')
   await expect(dropdown).toHaveAttribute('aria-expanded', 'false')
-  await page.getByRole('heading', { name: 'Import Transactions' }).click()
+  await page.getByRole('heading', { name: 'Import transactions' }).click()
   await expect(dataSource).toBeHidden()
 })
 
@@ -502,7 +502,7 @@ test('scrolls the field with an error into view when it holds the setup sections
   await typeDate(page, 'End date', '2024-03-10')
   const message = page.getByText('Must be on or before the end date', { exact: true })
   await expect(message).toBeVisible()
-  await page.getByRole('heading', { name: 'Import Transactions' }).click()
+  await page.getByRole('heading', { name: 'Import transactions' }).click()
   await expect(dataSource).toBeVisible()
 
   // Inside the panel's own box, not just inside the window
@@ -518,15 +518,15 @@ test('scrolls the field with an error into view when it holds the setup sections
 // cards for the files still to come
 test('keeps the Firefly upload cards in view until all three files are staged', async ({ page, request }) => {
   await openImport(page, request, DESKTOP)
-  await chooseFromDropdown(page.locator('body'), 'Data Source', /^Firefly III/)
+  await chooseFromDropdown(page.locator('body'), 'Data source', /^Firefly III/)
   const files = ['transactions.csv', 'budgets.csv', 'accounts.csv']
     .map((name) => fileURLToPath(new URL(`../fixtures/firefly-export/${name}`, import.meta.url)))
   const uploads = page.locator('input[type="file"][accept=".csv,text/csv"]')
 
   await uploads.nth(0).setInputFiles(files[0])
   await expect(page.getByText('transactions.csv', { exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: /^Upload budgets csv/ })).toBeVisible()
-  await expect(page.getByRole('button', { name: /^Upload accounts csv/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Upload budgets CSV/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Upload accounts CSV/ })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Expand import setup', exact: true })).toHaveCount(0)
 
   await expect(uploads.nth(1)).toBeEnabled()
@@ -557,7 +557,7 @@ for (const [name, size] of [['phone', PHONE], ['tablet', PORTRAIT_TABLET], ['wid
     expect(bar.width).toBe(column.width)
     const openSteps = await settledBox(steps(page))
     // Hidden ones included, since collapsed the sections are out of the accessibility tree but still there
-    const dropdown = page.getByRole('combobox', { name: 'Data Source', includeHidden: true })
+    const dropdown = page.getByRole('combobox', { name: 'Data source', includeHidden: true })
     const dropdownWidth = (await dropdown.boundingBox())!.width
     const skipLastRows = page.getByLabel('Skip last rows', { exact: true })
     await skipLastRows.fill('1')

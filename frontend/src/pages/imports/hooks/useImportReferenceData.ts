@@ -36,7 +36,7 @@ export interface ImportReferenceData {
   /**
    * Whether the accounts list has never arrived and the last attempt at it failed
    *
-   * Both halves matter. A step with no list to map onto offers only "Create New Account", so
+   * Both halves matter. A step with no list to map onto offers only "Create new account", so
    * everything gets mapped to new and the import duplicates accounts the user already has. A
    * refetch that fails over a list already in hand costs nothing, so it must not take the step
    * away, and neither must an empty list belonging to a user who has no accounts yet

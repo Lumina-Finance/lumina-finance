@@ -109,8 +109,8 @@ describe('import workflow option helpers', () => {
     expect(buildImportAccountOptions([
       createAccount({ id: 'visa', name: 'Visa', account_kind: 'revolving' }),
     ])).toEqual([
-      { value: CREATE_ACCOUNT_VALUE, label: 'Create New Account', group: 'Import Action' },
-      { value: 'visa', label: 'Visa', group: 'Revolving Credit' },
+      { value: CREATE_ACCOUNT_VALUE, label: 'Create new account', group: 'Import action' },
+      { value: 'visa', label: 'Visa', group: 'Revolving credit' },
     ])
     expect(buildImportCurrencyOptions(currencies)).toEqual([{ value: 'CAD', label: 'CAD' }])
     expect(buildImportInstitutionOptions(institutions)).toEqual([
@@ -238,14 +238,14 @@ describe('import workflow option helpers', () => {
     // Creation order interleaves the kinds, and the dropdown heads a group every time the group
     // changes going down the list
     expect(options.map((option) => option.group)).toEqual([
-      'Import Action',
+      'Import action',
       'Assets',
       'Assets',
-      'Revolving Credit',
-      'Amortizing Debt',
+      'Revolving credit',
+      'Amortizing debt',
     ])
     expect(options.map((option) => option.label)).toEqual([
-      'Create New Account',
+      'Create new account',
       'Chequing',
       'Savings',
       'Visa',

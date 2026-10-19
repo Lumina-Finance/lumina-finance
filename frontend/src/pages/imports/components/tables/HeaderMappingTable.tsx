@@ -108,9 +108,9 @@ export function ImportHeaderMappingTable({
         </colgroup>
         <thead style={{ color: 'var(--app-text-subtle)', background: 'var(--app-input-bg)' }}>
           <tr>
-            <th className="px-4 py-3 font-medium">Imported Column</th>
-            <th className="px-4 py-3 font-medium">Examples From File</th>
-            <th id={targetHeadingId} className="py-3 pl-4 pr-0 font-medium">Match To App Field</th>
+            <th className="px-4 py-3 font-medium">Imported column</th>
+            <th className="px-4 py-3 font-medium">Examples from file</th>
+            <th id={targetHeadingId} className="py-3 pl-4 pr-0 font-medium">Match to app field</th>
           </tr>
         </thead>
         <tbody>

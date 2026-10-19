@@ -62,7 +62,7 @@ export function ImportCategoryMatchingStep({
     <ImportCategoryMatchingLayout
       index="04"
       description="Match each category in this import to one of yours, or queue a new one."
-      sourceLabel="Category From File"
+      sourceLabel="Category from file"
       empty={{ title: 'No categories yet', description: 'Upload a file to list the categories its rows are filed under.' }}
       rows={importedCategories.map((category) => {
         const value = categoryMappings[category] ?? ''

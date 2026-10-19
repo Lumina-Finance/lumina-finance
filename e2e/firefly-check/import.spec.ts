@@ -28,7 +28,7 @@ test('a Firefly III export imports to the balances, totals and budgets Firefly I
   const user = await signUpUser(request)
   await logInViaApi(page, user)
   await openPage(page, '/settings/imports')
-  await chooseFromDropdown(page.locator('body'), 'Data Source', /^Firefly III/)
+  await chooseFromDropdown(page.locator('body'), 'Data source', /^Firefly III/)
 
   // Every request of the import run, kept in the results beside the comparison with the commit's
   // summary, and made into the fixture the backend test replays

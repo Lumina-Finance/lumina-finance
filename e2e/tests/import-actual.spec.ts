@@ -29,8 +29,8 @@ const EDGES_MANIFEST = JSON.parse(readFileSync(new URL('../fixtures/actual-edges
 async function uploadActualExport(page: Page, user: TestUser, fixture: string) {
   await logInViaApi(page, user)
   await openPage(page, '/settings/imports')
-  await chooseFromDropdown(page.locator('body'), 'Data Source', 'Actual Budget')
-  await expect(page.getByText('What To Expect', { exact: true })).toBeVisible()
+  await chooseFromDropdown(page.locator('body'), 'Data source', 'Actual Budget')
+  await expect(page.getByText('What to expect', { exact: true })).toBeVisible()
 
   const upload = page.locator('input[type="file"][accept=".zip,.sqlite,application/zip"]')
   await expect(upload).toBeEnabled()
@@ -116,9 +116,9 @@ test('imports loan payments Actual gave a category as spending in it, which its 
   await expect(warning).toHaveCount(0)
 
   // As spending, the payments row answers for Car itself, so a choice on either row shows on both
-  const paymentsTarget = page.getByRole('combobox', { name: 'Existing Category Car (transfers in Actual)' })
-  const carTarget = page.getByRole('combobox', { name: 'Existing Category Car', exact: true })
-  await chooseFromDropdown(page.locator('body'), 'Existing Category Car (transfers in Actual)', /Debt Payment/)
+  const paymentsTarget = page.getByRole('combobox', { name: 'Existing category Car (transfers in Actual)' })
+  const carTarget = page.getByRole('combobox', { name: 'Existing category Car', exact: true })
+  await chooseFromDropdown(page.locator('body'), 'Existing category Car (transfers in Actual)', /Debt Payment/)
   await expect(carTarget).toContainText('Debt Payment')
   await expect(page.getByRole('listbox')).toHaveCount(0)
   await carTarget.click()
@@ -197,7 +197,7 @@ test('imports a category under a new name when one of another kind already has i
 
   // Created as spending, Car can't take the name the user's transfer category holds, so the step
   // proposes another the user can change
-  await page.getByRole('combobox', { name: 'Existing Category Car', exact: true }).click()
+  await page.getByRole('combobox', { name: 'Existing category Car', exact: true }).click()
   await page.getByRole('option', { name: 'Create new category' }).click()
   const newName = page.getByRole('textbox', { name: 'Name for the new category from Car' })
   await expect(newName).toHaveValue('Car (Actual)')
@@ -226,7 +226,7 @@ test('imports transfers into a credit card under Credit Card Payment on both acc
 
   // Actual records no account types, so Savings is proposed as an asset and its transfers stay plain
   // transfers until it's set up as a credit card, when they get a row of their own
-  const paymentsTarget = page.getByRole('combobox', { name: 'Existing Category Payments to credit cards and credit lines' })
+  const paymentsTarget = page.getByRole('combobox', { name: 'Existing category Payments to credit cards and credit lines' })
   await expect(paymentsTarget).toHaveCount(0)
   await chooseFromDropdown(page.locator('body'), 'Type Savings', /^Credit Card$/)
   await expect(page.getByRole('listbox')).toHaveCount(0)

@@ -566,7 +566,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   // read-only account is offered here and nowhere else in the flow
   const counterpartyAccountOptions = useMemo(
     () => [
-      { value: OUTSIDE_ACCOUNT_VALUE, label: OUTSIDE_ACCOUNT_LABEL, group: 'Import Action' },
+      { value: OUTSIDE_ACCOUNT_VALUE, label: OUTSIDE_ACCOUNT_LABEL, group: 'Import action' },
       ...buildImportAccountOptions(allAccounts),
     ],
     [allAccounts],

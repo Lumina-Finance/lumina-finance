@@ -129,7 +129,7 @@ export function ProviderAccountMappingStep({
   const isCreatingAccount = !accountsLoading && isCreatingImportAccount(accountRows)
 
   return (
-    <ImportStep index={index} title="Account Mapping" description={description}>
+    <ImportStep index={index} title="Account mapping" description={description}>
       {!accountsFailed && notice}
       <ImportAccountStepBody
         accountsFailed={accountsFailed}

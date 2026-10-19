@@ -19,7 +19,7 @@ export function ImportCreateList({
         <thead style={{ color: 'var(--app-text-subtle)', background: 'var(--app-input-bg)' }}>
           <tr>
             <th className="px-4 py-2.5 font-medium">{sourceLabel}</th>
-            <th className="px-4 py-2.5 font-medium">Import Action</th>
+            <th className="px-4 py-2.5 font-medium">Import action</th>
           </tr>
         </thead>
         <tbody>

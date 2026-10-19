@@ -41,7 +41,7 @@ function getPaymentModeOptions(source: ActualCategorySource): Array<{ value: Act
   ]
 }
 
-const CREDIT_PAYMENTS_HELP = "Transfers without a category in Actual from your other accounts into a credit card, line of credit or HELOC, going by the account types under Account Mapping. They're imported under Credit Card Payment on both accounts, so they don't count as spending, since the purchases already counted when you made them."
+const CREDIT_PAYMENTS_HELP = "Transfers without a category in Actual from your other accounts into a credit card, line of credit or HELOC, going by the account types under Account mapping. They're imported under Credit Card Payment on both accounts, so they don't count as spending, since the purchases already counted when you made them."
 
 /**
  * Category matching step of the Actual Budget import flow, showing every category the imported rows
@@ -140,7 +140,7 @@ export function ActualCategoryMatchingStep({
     <ImportCategoryMatchingLayout
       index="03"
       description="Actual categories matched an existing category where possible. The rest are queued as new categories."
-      sourceLabel="Category From Actual"
+      sourceLabel="Category from Actual"
       empty={budget
         ? { title: 'No categories to match', description: 'No imported row or budget uses a category of its own.' }
         : { title: 'No imported categories detected', description: 'Upload the budget export first.' }}

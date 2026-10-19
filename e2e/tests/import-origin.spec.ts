@@ -16,7 +16,7 @@ async function expectPath(page: Page, pathname: string) {
  * Imports one OFX statement from the open import page and presses Done on the result
  */
 async function importStatementAndPressDone(page: Page) {
-  await chooseFromDropdown(page.locator('body'), 'Data Source', 'OFX/QFX')
+  await chooseFromDropdown(page.locator('body'), 'Data source', 'OFX/QFX')
   const upload = page.locator('input[type="file"][accept*=".ofx"]')
   await expect(upload).toBeEnabled()
   await upload.setInputFiles({
@@ -69,7 +69,7 @@ test('closes back to the account an import was opened for', async ({ page, reque
   await page.getByRole('button', { name: 'Import transactions into this account', exact: true }).click()
 
   // Close leads to the account only once the page has checked that the account can be imported into
-  await expect(page.getByRole('combobox', { name: 'Data Source' })).toBeVisible()
+  await expect(page.getByRole('combobox', { name: 'Data source' })).toBeVisible()
   await page.getByRole('button', { name: CLOSE_NAME }).click()
   await expectPath(page, `/accounts/${checking.id}`)
 })

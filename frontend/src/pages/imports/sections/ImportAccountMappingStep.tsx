@@ -199,7 +199,7 @@ export function ImportAccountMappingStep({
   const isCreatingAccount = !accountsLoading && isCreatingImportAccount([...importedRows, ...counterpartyRows])
 
   return (
-    <ImportStep index="03" title="Account Mapping">
+    <ImportStep index="03" title="Account mapping">
       {/* Says what this page will do with a file whether or not one is staged, since a file covering
           more than one account has to be sent elsewhere before it is uploaded rather than after */}
       {fixedAccount && (

@@ -33,7 +33,7 @@ const CSV_WORTH_A_LOOK: ImportRowProblem = {
 }
 
 /**
- * Renders the CSV import's Preview and Commit step for a file with one row left out and one worth a
+ * Renders the CSV import's Preview and commit step for a file with one row left out and one worth a
  * look, mapped as given
  */
 function renderCsvPreview(columnMap: ColumnMap) {
@@ -53,7 +53,7 @@ function renderCsvPreview(columnMap: ColumnMap) {
   }))
 }
 
-describe('the CSV import\'s Preview and Commit step', () => {
+describe('the CSV import\'s Preview and commit step', () => {
   it('right-aligns the column mapped to Amount in both tables', () => {
     const markup = renderCsvPreview({ ...EMPTY_COLUMN_MAP, dt: 'Date', amount: 'Amount', notes: 'Notes' })
 
@@ -124,7 +124,7 @@ describe('the Firefly III import', () => {
     })
   })
 
-  it('right-aligns a skipped budget\'s Latest Amount', () => {
+  it('right-aligns a skipped budget\'s Latest amount', () => {
     const markup = renderToStaticMarkup(createElement(FireflyBudgetImportStep, {
       importResult: null,
       budgetsFile: { id: 'budgets', name: 'budgets.csv', size: 256, headers: [], hasHeaderRow: true, rows: [], error: null },
@@ -151,7 +151,7 @@ describe('the Firefly III import', () => {
       importOverlayOpen: false,
     }))
 
-    expectAmountColumns(markup, { headers: ['Latest Amount'], values: ['$450.00'], others: ['Status', 'Active', 'Cadence', 'Monthly'] })
+    expectAmountColumns(markup, { headers: ['Latest amount'], values: ['$450.00'], others: ['Status', 'Active', 'Cadence', 'Monthly'] })
   })
 })
 
@@ -189,7 +189,7 @@ describe('the Actual Budget import', () => {
     expectAmountColumns(markup, { headers: ['Amount'], values: ['-42.50'], others: ['Account', 'Chequing', 'Merchant', 'Corner Market'] })
   })
 
-  it('right-aligns a skipped budget\'s Latest Amount', () => {
+  it('right-aligns a skipped budget\'s Latest amount', () => {
     const markup = renderToStaticMarkup(createElement(ActualBudgetImportStep, {
       budget: ACTUAL_BUDGET,
       importResult: null,
@@ -212,6 +212,6 @@ describe('the Actual Budget import', () => {
       importOverlayOpen: false,
     }))
 
-    expectAmountColumns(markup, { headers: ['Latest Amount'], values: ['175.50'], others: ['Months', 'First Month', '2024-02'] })
+    expectAmountColumns(markup, { headers: ['Latest amount'], values: ['175.50'], others: ['Months', 'First month', '2024-02'] })
   })
 })

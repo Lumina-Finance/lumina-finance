@@ -1,5 +1,5 @@
 /**
- * Tests which Data Source an account's import page opens on, so a source the page can't import into
+ * Tests which Data source an account's import page opens on, so a source the page can't import into
  * the account, or no saved source at all, opens on CSV instead of a flow that doesn't fit
  */
 import { describe, expect, it } from 'vitest'

@@ -18,7 +18,7 @@ for (const example of CASES) {
     const account = await createAccount(request, user, { name: 'Exact import account', currency: example.currency })
     await logInViaApi(page, user)
     await openPage(page, `/settings/imports?account=${account.id}`)
-    await expect(page.getByRole('heading', { name: 'Import Transactions', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Import transactions', exact: true })).toBeVisible()
 
     const amounts = [`-${example.large}`, example.large, `-${example.small}`, example.small]
     const csv = [
@@ -32,7 +32,7 @@ for (const example of CASES) {
     await expect(upload).toBeEnabled()
     await upload.setInputFiles({ name: 'exact-amounts.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) })
 
-    const preview = page.locator('section').filter({ has: page.getByText('Preview and Commit', { exact: true }) })
+    const preview = page.locator('section').filter({ has: page.getByText('Preview and commit', { exact: true }) })
     await expect(preview).toBeVisible()
     // Only currency placement comes from Intl; the expected financial digits are literal fixtures
     const magnitudes = await page.evaluate(({ currency, digits, smallDigits }) => {

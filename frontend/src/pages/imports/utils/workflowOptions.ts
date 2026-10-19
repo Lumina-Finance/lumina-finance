@@ -50,7 +50,7 @@ const ARCHIVED_ACCOUNT_BADGE = 'Archived'
  */
 export function buildImportAccountOptions(accounts: AccountsOverview[]): DropdownOption[] {
   return [
-    { value: CREATE_ACCOUNT_VALUE, label: 'Create New Account', group: 'Import Action' },
+    { value: CREATE_ACCOUNT_VALUE, label: 'Create new account', group: 'Import action' },
     ...accounts
       .slice()
       .sort((a, b) => ACCOUNT_KIND_RANKS[a.account_kind] - ACCOUNT_KIND_RANKS[b.account_kind] || a.name.localeCompare(b.name))

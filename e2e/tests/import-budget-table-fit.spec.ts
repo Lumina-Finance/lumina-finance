@@ -89,7 +89,7 @@ async function openFireflyBudgets(page: Page, request: APIRequestContext) {
   const user = await signUpUser(request)
   await logInViaApi(page, user)
   await openPage(page, '/settings/imports')
-  await chooseFromDropdown(page.locator('body'), 'Data Source', /^Firefly III/)
+  await chooseFromDropdown(page.locator('body'), 'Data source', /^Firefly III/)
   const uploads = page.locator('input[type="file"][accept=".csv,text/csv"]')
   for (const [index, file] of FIREFLY_FILES.entries()) {
     await expect(uploads.nth(index)).toBeEnabled()
@@ -104,7 +104,7 @@ async function openActualBudgets(page: Page, request: APIRequestContext) {
   const user = await signUpUser(request)
   await logInViaApi(page, user)
   await openPage(page, '/settings/imports')
-  await chooseFromDropdown(page.locator('body'), 'Data Source', 'Actual Budget')
+  await chooseFromDropdown(page.locator('body'), 'Data source', 'Actual Budget')
   const upload = page.locator('input[type="file"][accept=".zip,.sqlite,application/zip"]')
   await expect(upload).toBeEnabled()
   await upload.setInputFiles(ACTUAL_FILE)

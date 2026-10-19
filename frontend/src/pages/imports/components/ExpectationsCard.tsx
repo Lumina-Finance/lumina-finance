@@ -25,7 +25,7 @@ export function ImportExpectationsCard({ expectations }: { expectations: ImportE
         {/* Fills the card, so the tinted groups below span its width rather than their longest line */}
         <div className="min-w-0 flex-1">
           <p className="text-[0.9375rem] font-semibold leading-5" style={{ color: 'var(--app-text)' }}>
-            What To Expect
+            What to expect
           </p>
           <p className="mt-1 text-sm leading-5" style={{ color: 'var(--app-text-muted)' }}>
             {expectations.intro}

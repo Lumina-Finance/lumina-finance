@@ -351,7 +351,7 @@ export default function ImportsPage() {
                   {FLOW_EYEBROWS[activeFlow]}
                 </p>
                 <h1 className="font-serif text-3xl font-normal">
-                  Import Transactions
+                  Import transactions
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
                   {FLOW_DESCRIPTIONS[activeFlow]}
@@ -430,14 +430,14 @@ export default function ImportsPage() {
                         <ImportMerchantMatchingStep {...workflow} />
                         <ImportAutoCreateStep
                           index="06"
-                          title="Tag Handling"
+                          title="Tag handling"
                           description="Tags are created when transactions are imported. If an imported tag matches an existing tag name, the transaction will use the existing tag."
                           expanded={workflow.tagHandlingOpen}
                           collapseLabel="Collapse tag handling"
                           expandLabel="Expand tag handling"
                           emptyTitle="No imported tags detected"
                           emptyDescription="Map a tags column first."
-                          sourceLabel="Tag From File"
+                          sourceLabel="Tag from file"
                           rows={workflow.importedTags}
                           onToggle={() => workflow.setTagHandlingOpen((current) => !current)}
                         />

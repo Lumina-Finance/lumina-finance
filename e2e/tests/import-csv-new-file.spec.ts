@@ -49,7 +49,7 @@ test('keeps a finished import as its record until another file is uploaded', asy
   await stage('first.csv', FIRST_FILE)
 
   // Answered by hand, so the next file guesses it again only if it starts afresh
-  const merchantField = page.getByRole('combobox', { name: 'Match To App Field Merchant', exact: true })
+  const merchantField = page.getByRole('combobox', { name: 'Match to app field Merchant', exact: true })
   await expect(merchantField).toContainText('Merchant')
   await merchantField.click()
   await page.getByRole('option', { name: 'Do not import', exact: true }).click()
@@ -144,10 +144,10 @@ test('keeps the merchants and categories a finished import created as created on
   await stage('first.csv', CREATING_FILE)
   const merchant = page.getByRole('combobox', { name: 'Merchant Market', exact: true })
   await expect(merchant).toContainText('Create new merchant')
-  const category = page.getByRole('combobox', { name: 'Existing Category Treats', exact: true })
-  const guessed = page.getByRole('combobox', { name: 'Existing Category Gifts', exact: true })
+  const category = page.getByRole('combobox', { name: 'Existing category Treats', exact: true })
+  const guessed = page.getByRole('combobox', { name: 'Existing category Gifts', exact: true })
   await expect(guessed).toContainText('Gifts & Donations')
-  for (const source of [category, page.getByRole('combobox', { name: 'Existing Category Gifts!', exact: true })]) {
+  for (const source of [category, page.getByRole('combobox', { name: 'Existing category Gifts!', exact: true })]) {
     await source.click()
     await page.getByRole('option', { name: 'Create new category', exact: true }).click()
     await expect(source).toContainText('Create new category')
@@ -169,8 +169,8 @@ test('keeps the merchants and categories a finished import created as created on
 
   // The categories it created now exist under the same names, which the record does not mistake for
   // ones the user already had
-  const preview = page.locator('section').filter({ has: page.getByText('Preview and Commit', { exact: true }) })
-  await expect(preview.getByRole('paragraph').filter({ hasText: /^(New Categories|\d+)$/ }).last()).toHaveText('2')
+  const preview = page.locator('section').filter({ has: page.getByText('Preview and commit', { exact: true }) })
+  await expect(preview.getByRole('paragraph').filter({ hasText: /^(New categories|\d+)$/ }).last()).toHaveText('2')
 })
 
 // Apart from the test above, since a page opened for one account files every row there and offers
@@ -183,8 +183,8 @@ test('keeps an account a finished import created as created on its record', asyn
   const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')
   await expect(upload).toBeEnabled()
   await upload.setInputFiles({ name: 'first.csv', mimeType: 'text/csv', buffer: Buffer.from(ACCOUNT_FILE) })
-  const account = page.getByRole('combobox', { name: 'Existing Account Holiday fund', exact: true })
-  await expect(account).toContainText('Create New Account')
+  const account = page.getByRole('combobox', { name: 'Existing account Holiday fund', exact: true })
+  await expect(account).toContainText('Create new account')
   const body = page.locator('body')
   await chooseFromDropdown(body, 'Type Holiday fund', /^Savings$/)
   await chooseFromDropdown(body, 'Currency Holiday fund', /^CAD/)
@@ -193,7 +193,7 @@ test('keeps an account a finished import created as created on its record', asyn
   const type = page.getByRole('combobox', { name: 'Type Holiday fund', exact: true })
   const currency = page.getByRole('combobox', { name: 'Currency Holiday fund', exact: true })
   await expect(account).toBeDisabled()
-  await expect(account).toContainText('Create New Account')
+  await expect(account).toContainText('Create new account')
   await expect(type).toBeDisabled()
   await expect(type).toContainText('Savings')
   await expect(currency).toBeDisabled()
@@ -203,7 +203,7 @@ test('keeps an account a finished import created as created on its record', asyn
 test('guesses a new file\'s columns afresh after the user answered for the removed one', async ({ page, request }) => {
   const { stage } = await openCsvImport(page, request)
   await stage('first.csv', SECOND_FILE)
-  const dateField = page.getByRole('combobox', { name: 'Match To App Field Date', exact: true })
+  const dateField = page.getByRole('combobox', { name: 'Match to app field Date', exact: true })
   await expect(dateField).toContainText('Date')
   await dateField.click()
   await page.getByRole('option', { name: 'Do not import', exact: true }).click()
@@ -213,5 +213,5 @@ test('guesses a new file\'s columns afresh after the user answered for the remov
 
   await stage('second.csv', SECOND_FILE)
   await expect(dateField).toContainText('Date')
-  await expect(page.getByRole('combobox', { name: 'Match To App Field Amount', exact: true })).toContainText('Amount')
+  await expect(page.getByRole('combobox', { name: 'Match to app field Amount', exact: true })).toContainText('Amount')
 })

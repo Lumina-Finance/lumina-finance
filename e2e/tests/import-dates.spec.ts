@@ -34,7 +34,7 @@ for (const { profileZone, browserZone, dates } of DATE_CASES) {
       const account = await createAccount(request, user, { name: 'Timestamp import account' })
       await logInViaApi(page, user)
       await openPage(page, `/settings/imports?account=${account.id}`)
-      await expect(page.getByRole('heading', { name: 'Import Transactions', exact: true })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Import transactions', exact: true })).toBeVisible()
       const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')
       await expect(upload).toBeEnabled()
       await upload.setInputFiles({ name: 'iso-dates.csv', mimeType: 'text/csv', buffer: Buffer.from(CSV) })
@@ -67,7 +67,7 @@ for (const { profileZone, browserZone, dates } of DATE_CASES) {
 
       // ImportStep renders its title in a paragraph directly inside the enclosing section
       const preview = page.locator('section').filter({
-        has: page.getByText('Preview and Commit', { exact: true }),
+        has: page.getByText('Preview and commit', { exact: true }),
       })
       await expect(preview).toBeVisible()
       for (const day of new Set(dates.map((date) => Number(date.slice(-2))))) {
@@ -107,7 +107,7 @@ for (const { profileZone, browserZone, dates } of DATE_CASES) {
         mimeType: 'text/csv',
         buffer: Buffer.from('Date,Amount,Category,Merchant\n2024-03-15T24:00:00Z,-12.34,Groceries,Unknown'),
       })
-      await page.getByRole('combobox', { name: 'Match To App Field Date', exact: true }).click()
+      await page.getByRole('combobox', { name: 'Match to app field Date', exact: true }).click()
       await page.getByRole('option', { name: 'Date Transaction date.', exact: true }).click()
       await dateFormat.click()
       await page.getByRole('option', { name: /^ISO date\/time \(2026-04-30T12:00:00Z\)/ }).click()

@@ -87,10 +87,10 @@ test('keeps an account the user can only read out of the accounts an import writ
 
   // The name match reaches only the account the user can write to, and the source naming the
   // shared account falls back to creating one of the user's own
-  const ownRow = page.getByRole('combobox', { name: `Existing Account ${OWN_ACCOUNT_NAME}`, exact: true })
-  const sharedRow = page.getByRole('combobox', { name: `Existing Account ${SHARED_ACCOUNT_NAME}`, exact: true })
+  const ownRow = page.getByRole('combobox', { name: `Existing account ${OWN_ACCOUNT_NAME}`, exact: true })
+  const sharedRow = page.getByRole('combobox', { name: `Existing account ${SHARED_ACCOUNT_NAME}`, exact: true })
   await expect(ownRow).toHaveText(OWN_ACCOUNT_NAME)
-  await expect(sharedRow).toHaveText('Create New Account')
+  await expect(sharedRow).toHaveText('Create new account')
 
   await sharedRow.click()
   const listbox = page.getByRole('listbox')
@@ -109,21 +109,21 @@ test('keeps group accounts and categories out of a Firefly III import', async ({
 
   await logInViaApi(page, user)
   await openPage(page, '/settings/imports')
-  await chooseFromDropdown(page.locator('body'), 'Data Source', /^Firefly III/)
+  await chooseFromDropdown(page.locator('body'), 'Data source', /^Firefly III/)
   const upload = page.locator('input[type="file"][accept=".csv,text/csv"]').first()
   await expect(upload).toBeEnabled()
   await upload.setInputFiles({ name: 'transactions.csv', mimeType: 'text/csv', buffer: Buffer.from(FIREFLY_CSV) })
 
-  const ownRow = page.getByRole('combobox', { name: `Existing Account ${OWN_ACCOUNT_NAME}`, exact: true })
-  const groupRow = page.getByRole('combobox', { name: `Existing Account ${SHARED_ACCOUNT_NAME}`, exact: true })
+  const ownRow = page.getByRole('combobox', { name: `Existing account ${OWN_ACCOUNT_NAME}`, exact: true })
+  const groupRow = page.getByRole('combobox', { name: `Existing account ${SHARED_ACCOUNT_NAME}`, exact: true })
   await expect(ownRow).toHaveText(OWN_ACCOUNT_NAME)
-  await expect(groupRow).toHaveText('Create New Account')
+  await expect(groupRow).toHaveText('Create new account')
   await groupRow.click()
   await expect(page.getByRole('listbox').getByRole('option', { name: OWN_ACCOUNT_NAME })).toBeVisible()
   await expect(page.getByRole('listbox').getByRole('option', { name: SHARED_ACCOUNT_NAME })).toHaveCount(0)
   await page.keyboard.press('Escape')
 
-  const categoryRow = page.getByRole('combobox', { name: `Existing Category ${GROUP_CATEGORY_NAME}`, exact: true })
+  const categoryRow = page.getByRole('combobox', { name: `Existing category ${GROUP_CATEGORY_NAME}`, exact: true })
   await expect(categoryRow).toHaveText('Create new category')
   await categoryRow.click()
   await expect(page.getByRole('listbox').getByRole('option', { name: 'Groceries', exact: true })).toBeVisible()

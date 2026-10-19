@@ -1,5 +1,5 @@
 /**
- * Tests the CSV import's Category Matching step, so a category answered "Create new" whose name the
+ * Tests the CSV import's Category matching step, so a category answered "Create new" whose name the
  * user already has for the same type shows as that category without a New badge, since the import
  * reuses it rather than creating one, while a new category and one whose name another type holds
  * still show as new
@@ -69,7 +69,7 @@ function renderRows(categoriesBeforeImport = [HOBBY_SUPPLIES, GIFTS], kinds: Rec
   return Object.fromEntries(importedCategories.map((source) => [source, rows.find((row) => row.includes(`>${source}<`)) ?? '']))
 }
 
-describe('the CSV import\'s Category Matching step', () => {
+describe('the CSV import\'s Category matching step', () => {
   it('marks only the categories the import will create as new', () => {
     const rows = renderRows()
 

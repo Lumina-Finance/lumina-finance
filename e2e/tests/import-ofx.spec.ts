@@ -13,8 +13,8 @@ const CARD_LABEL = 'Credit card ending 1111'
 async function openOfxImport(page: Page, user: TestUser) {
   await logInViaApi(page, user)
   await openPage(page, '/settings/imports')
-  await chooseFromDropdown(page.locator('body'), 'Data Source', 'OFX/QFX')
-  await expect(page.getByText('What To Expect', { exact: true })).toBeVisible()
+  await chooseFromDropdown(page.locator('body'), 'Data source', 'OFX/QFX')
+  await expect(page.getByText('What to expect', { exact: true })).toBeVisible()
 }
 
 async function uploadStatement(page: Page, user: TestUser, contents: string, name = 'statement.ofx') {
@@ -59,7 +59,7 @@ test('imports a bank and a credit card statement of one file in one run', async 
 
   // Each statement is offered a new account of its own, and the preview shows both
   for (const label of [ACCOUNT_LABEL, CARD_LABEL]) {
-    await expect(page.getByRole('combobox', { name: `Existing Account ${label}` })).toHaveText('Create New Account')
+    await expect(page.getByRole('combobox', { name: `Existing account ${label}` })).toHaveText('Create new account')
   }
   await expect(page.getByText('Hardware', { exact: true }).first()).toBeVisible()
 
@@ -94,7 +94,7 @@ test('refuses a statement whose currency is not its account\'s and commits nothi
   const account = await createAccount(request, user, { name: 'Everyday', currency: 'CAD' })
   await uploadStatement(page, user, buildFile([buildBankMessageSet('USD', [CAFE])]))
 
-  await chooseFromDropdown(page.locator('body'), `Existing Account ${ACCOUNT_LABEL}`, account.name)
+  await chooseFromDropdown(page.locator('body'), `Existing account ${ACCOUNT_LABEL}`, account.name)
   await expect(page.getByText('Statements in another currency', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Commit import', exact: true })).toBeDisabled()
   expect(await countLedgerTransactions(request, user)).toBe(0)
@@ -139,7 +139,7 @@ test('imports the statements of several files as one import, skipping a transact
 
   // One account answer covers the account that all three files hold, and the repeat is left out
   // with the file that has it
-  await expect(page.getByRole('combobox', { name: `Existing Account ${ACCOUNT_LABEL}` })).toHaveCount(1)
+  await expect(page.getByRole('combobox', { name: `Existing account ${ACCOUNT_LABEL}` })).toHaveCount(1)
   await expect(page.getByText('This transaction is already in 2024-01.qfx.', { exact: true })).toBeVisible()
   await expect(page.getByTitle('2024-02.qfx', { exact: true })).toBeVisible()
 
@@ -191,8 +191,8 @@ test('keeps the account answer when another file is added and clears it once eve
   const upload = await openStatementUpload(page, user)
   await upload.setInputFiles([JANUARY])
 
-  const answer = page.getByRole('combobox', { name: `Existing Account ${ACCOUNT_LABEL}` })
-  await chooseFromDropdown(page.locator('body'), `Existing Account ${ACCOUNT_LABEL}`, account.name)
+  const answer = page.getByRole('combobox', { name: `Existing account ${ACCOUNT_LABEL}` })
+  await chooseFromDropdown(page.locator('body'), `Existing account ${ACCOUNT_LABEL}`, account.name)
   await expect(answer).toHaveText(account.name)
 
   await upload.setInputFiles([MARCH])
@@ -205,7 +205,7 @@ test('keeps the account answer when another file is added and clears it once eve
   await expect(answer).toHaveText(account.name)
   await page.getByRole('button', { name: 'Remove 2024-03.qfx', exact: true }).click()
   await upload.setInputFiles([JANUARY])
-  await expect(answer).toHaveText('Create New Account')
+  await expect(answer).toHaveText('Create new account')
 })
 
 // The staged list and the card for more statements sit in the setup panel, which collapses once a

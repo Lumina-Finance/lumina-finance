@@ -55,14 +55,14 @@ export function ImportPreviewLayout({
   return (
     <ImportStep
       index={index}
-      title="Preview and Commit"
+      title="Preview and commit"
       description={`Showing the first ${IMPORT_SAMPLE_PREVIEW_LIMIT} transactions as they will appear in your ledger.`}
     >
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <ImportStat label="Rows" value={stats.rowCount.toString()} />
-        <ImportStat label="Will Create" value={stats.transactionEstimate?.toString() ?? UNKNOWN_IMPORT_FIGURE} />
-        <ImportStat label="New Accounts" value={stats.newAccountCount.toString()} />
-        <ImportStat label="New Categories" value={stats.newCategoryCount.toString()} />
+        <ImportStat label="Will create" value={stats.transactionEstimate?.toString() ?? UNKNOWN_IMPORT_FIGURE} />
+        <ImportStat label="New accounts" value={stats.newAccountCount.toString()} />
+        <ImportStat label="New categories" value={stats.newCategoryCount.toString()} />
       </div>
 
       {children}

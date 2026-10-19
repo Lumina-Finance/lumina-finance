@@ -22,9 +22,9 @@ test('imports an OFX statement into the account from its page, which then opens 
 
   // An account nothing was imported into opens on CSV, and the user can still change it
   await openPage(page, `/settings/imports?account=${checking.id}`)
-  const source = page.getByRole('combobox', { name: 'Data Source' })
+  const source = page.getByRole('combobox', { name: 'Data source' })
   await expect(source).toHaveText('CSV')
-  await chooseFromDropdown(page.locator('body'), 'Data Source', 'OFX/QFX')
+  await chooseFromDropdown(page.locator('body'), 'Data source', 'OFX/QFX')
   await expect(source).toHaveText('OFX/QFX')
 
   // Firefly III and Actual Budget exports cover many accounts, so they are not offered here
@@ -34,7 +34,7 @@ test('imports an OFX statement into the account from its page, which then opens 
 
   await uploadStatement(page, buildFile([buildBankMessageSet('CAD', [CAFE, PAYROLL])]))
   await expect(page.getByText('Corner Cafe', { exact: true }).first()).toBeVisible()
-  await expect(page.getByRole('combobox', { name: /^Existing Account/ })).toHaveCount(0)
+  await expect(page.getByRole('combobox', { name: /^Existing account/ })).toHaveCount(0)
 
   const response = await commitImport(page)
   expect(response.status()).toBe(201)
@@ -46,7 +46,7 @@ test('imports an OFX statement into the account from its page, which then opens 
     .toMatchObject([{ current_balance: 248750 }])
 
   await openPage(page, `/settings/imports?account=${checking.id}`)
-  await expect(page.getByRole('combobox', { name: 'Data Source' })).toHaveText('OFX/QFX')
+  await expect(page.getByRole('combobox', { name: 'Data source' })).toHaveText('OFX/QFX')
 })
 
 /**
@@ -82,12 +82,12 @@ test('opens on the source imported since the account\'s page was last visited', 
   const checking = await createAccount(request, user, { name: 'Checking', currency: 'CAD' })
   await logInViaApi(page, user)
   await openPage(page, `/settings/imports?account=${checking.id}`)
-  await expect(page.getByRole('combobox', { name: 'Data Source' })).toHaveText('CSV')
+  await expect(page.getByRole('combobox', { name: 'Data source' })).toHaveText('CSV')
 
   await importOfxRowOverApi(request, user, checking.id)
   await openPage(page, `/settings/imports?account=${checking.id}`)
 
-  await expect(page.getByRole('combobox', { name: 'Data Source' })).toHaveText('OFX/QFX')
+  await expect(page.getByRole('combobox', { name: 'Data source' })).toHaveText('OFX/QFX')
 })
 
 /**
@@ -117,7 +117,7 @@ test('opens an account\'s import page again on the remembered source without the
   await importOfxRowOverApi(request, user, checking.id)
   await logInViaApi(page, user)
   await openPage(page, `/settings/imports?account=${checking.id}`)
-  const source = page.getByRole('combobox', { name: 'Data Source' })
+  const source = page.getByRole('combobox', { name: 'Data source' })
   await expect(source).toHaveText('OFX/QFX')
 
   await page.getByRole('button', { name: 'Close import workflow', exact: true }).click()
@@ -196,7 +196,7 @@ test('imports the statements of several files into the account from its page', a
   const checking = await createAccount(request, user, { name: 'Checking', currency: 'CAD' })
   await logInViaApi(page, user)
   await openPage(page, `/settings/imports?account=${checking.id}`)
-  await chooseFromDropdown(page.locator('body'), 'Data Source', 'OFX/QFX')
+  await chooseFromDropdown(page.locator('body'), 'Data source', 'OFX/QFX')
 
   const hardware = { posted: '20240201120000', amount: '-20.00', fitId: 'B1', name: 'Hardware' }
   const card = { posted: '20240118120000', amount: '-30.00', fitId: 'C1', name: 'Groceries' }
@@ -208,7 +208,7 @@ test('imports the statements of several files into the account from its page', a
   ])
 
   await expect(page.getByText('This transaction is already in 2024-01.qfx.', { exact: true })).toBeVisible()
-  await expect(page.getByRole('combobox', { name: /^Existing Account/ })).toHaveCount(0)
+  await expect(page.getByRole('combobox', { name: /^Existing account/ })).toHaveCount(0)
   expect((await commitImport(page)).status()).toBe(201)
 
   expect(await countLedgerTransactions(request, user)).toBe(4)
@@ -225,13 +225,13 @@ test('imports a statement overlapping an earlier one into the account, adding on
   const checking = await createAccount(request, user, { name: 'Checking', currency: 'CAD' })
   await logInViaApi(page, user)
   await openPage(page, `/settings/imports?account=${checking.id}`)
-  await chooseFromDropdown(page.locator('body'), 'Data Source', 'OFX/QFX')
+  await chooseFromDropdown(page.locator('body'), 'Data source', 'OFX/QFX')
   await uploadStatement(page, buildFile([buildBankMessageSet('CAD', [CAFE, PAYROLL])]))
   expect((await commitImport(page)).status()).toBe(201)
 
   const hardware = { posted: '20240201120000', amount: '-20.00', fitId: 'B1', name: 'Hardware' }
   await openPage(page, `/settings/imports?account=${checking.id}`)
-  await expect(page.getByRole('combobox', { name: 'Data Source' })).toHaveText('OFX/QFX')
+  await expect(page.getByRole('combobox', { name: 'Data source' })).toHaveText('OFX/QFX')
   await uploadStatement(page, buildFile([buildBankMessageSet('CAD', [CAFE, PAYROLL, hardware])]))
   expect((await commitImport(page)).status()).toBe(201)
 
@@ -252,7 +252,7 @@ test('keeps a staged statement on screen when the saved sources are read again',
   const checking = await createAccount(request, user, { name: 'Checking', currency: 'CAD' })
   await logInViaApi(page, user)
   await openPage(page, `/settings/imports?account=${checking.id}`)
-  await chooseFromDropdown(page.locator('body'), 'Data Source', 'OFX/QFX')
+  await chooseFromDropdown(page.locator('body'), 'Data source', 'OFX/QFX')
   await uploadStatement(page, buildFile([buildBankMessageSet('CAD', [CAFE])]))
   // The setup panel holding the file's remove button folds away once the statement is staged, so the
   // statement is found by the Commit import button, which stays on screen beside its preview
@@ -275,7 +275,7 @@ test('refuses a statement file holding several statements on an account\'s page 
   const checking = await createAccount(request, user, { name: 'Checking', currency: 'CAD' })
   await logInViaApi(page, user)
   await openPage(page, `/settings/imports?account=${checking.id}`)
-  await chooseFromDropdown(page.locator('body'), 'Data Source', 'OFX/QFX')
+  await chooseFromDropdown(page.locator('body'), 'Data source', 'OFX/QFX')
 
   await uploadStatement(page, buildFile([
     buildBankMessageSet('CAD', [CAFE]),

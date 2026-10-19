@@ -43,7 +43,7 @@ async function uploadYear(page: Page, request: Parameters<typeof signUpUser>[0],
 // are counted apart from skipped ones
 test('imports only the rows from the start date to the end date', async ({ page, request }) => {
   const { user, account } = await uploadYear(page, request)
-  const travel = page.getByRole('combobox', { name: 'Existing Category Travel', exact: true })
+  const travel = page.getByRole('combobox', { name: 'Existing category Travel', exact: true })
   await expect(travel).toBeVisible()
 
   // A date only begun limits nothing yet, so it blocks the import rather than importing every row
@@ -60,9 +60,9 @@ test('imports only the rows from the start date to the end date', async ({ page,
   await expect(travel).toHaveCount(0)
 
   // Held to the preview step, since the file panel beside the steps also counts its rows under Rows
-  const preview = page.locator('section').filter({ has: page.getByText('Preview and Commit', { exact: true }) })
-  await expect(preview.getByRole('paragraph').filter({ hasText: /^(Rows|Will Create|New Accounts|New Categories|\d+)$/ }))
-    .toHaveText(['Rows', '14', 'Will Create', '3', 'New Accounts', '0', 'New Categories', '0'])
+  const preview = page.locator('section').filter({ has: page.getByText('Preview and commit', { exact: true }) })
+  await expect(preview.getByRole('paragraph').filter({ hasText: /^(Rows|Will create|New accounts|New categories|\d+)$/ }))
+    .toHaveText(['Rows', '14', 'Will create', '3', 'New accounts', '0', 'New categories', '0'])
   await expect(preview.getByText('Rows outside the chosen dates', { exact: true })).toBeVisible()
   await expect(preview.getByText('11 rows are dated outside the chosen dates, so they won\'t be imported.', { exact: true })).toBeVisible()
 
@@ -78,7 +78,7 @@ test('imports only the rows from the start date to the end date', async ({ page,
   expect(dates).toEqual(['2025-03-01', '2025-03-15', '2025-03-31'])
 })
 
-// The dates sit in the File section beside the other reading choices, not in Column Mapping, and
+// The dates sit in the File section beside the other reading choices, not in Column mapping, and
 // show only once a column is mapped as the date
 test('puts the dates in the File section after Skip last rows and blocks the import while they are crossed', AT_EVERY_SIZE, async ({ page, request }) => {
   await uploadYear(page, request, '2024-12-31')

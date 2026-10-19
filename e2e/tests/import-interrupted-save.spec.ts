@@ -32,7 +32,7 @@ async function importWithLostAnswer(page: Page, request: APIRequestContext) {
   const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')
   await expect(upload).toBeEnabled()
   await upload.setInputFiles({ name: 'interrupted.csv', mimeType: 'text/csv', buffer: Buffer.from(CSV) })
-  await page.getByRole('combobox', { name: 'Existing Category Pottery classes', exact: true }).click()
+  await page.getByRole('combobox', { name: 'Existing category Pottery classes', exact: true }).click()
   await page.getByRole('option', { name: 'Create new category' }).click()
 
   // The first save is held until the overlay has been checked mid-save, then lands with its answer lost
@@ -95,7 +95,7 @@ test('saves the kept upload once after a CSV save that landed but whose answer w
 test('imports nothing twice after a CSV save that landed but whose answer was lost', async ({ page, request }) => {
   const { overlay, user, ledgerAfterFirstSave } = await importWithLostAnswer(page, request)
 
-  await page.getByRole('combobox', { name: 'Match To App Field Notes', exact: true }).click()
+  await page.getByRole('combobox', { name: 'Match to app field Notes', exact: true }).click()
   await page.getByRole('option', { name: /^Do not import/ }).click()
   await commitImport(page)
 
@@ -110,7 +110,7 @@ test('imports nothing twice when a file is added after an OFX save that landed b
   const user = await signUpUser(request)
   await logInViaApi(page, user)
   await openPage(page, '/settings/imports')
-  await chooseFromDropdown(page.locator('body'), 'Data Source', 'OFX/QFX')
+  await chooseFromDropdown(page.locator('body'), 'Data source', 'OFX/QFX')
   const upload = page.locator('input[type="file"][accept*=".ofx"]')
   await expect(upload).toBeEnabled()
   const statement = (name: string, fitId: string) => statementFile(name, [{ posted: '20240115', amount: '-5.00', fitId, name: 'Cafe' }])

@@ -100,7 +100,7 @@ describe('resolveProviderAccountMappings', () => {
   })
 
   it.each([
-    ['Create New Account', CREATE_ACCOUNT_VALUE],
+    ['Create new account', CREATE_ACCOUNT_VALUE],
     ['an existing account', 'chequing'],
   ])('preserves an explicit %s answer across account-list readiness', (_label, choice) => {
     const liveMappings = { Chequing: choice }

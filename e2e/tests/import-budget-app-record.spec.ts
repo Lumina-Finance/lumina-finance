@@ -40,8 +40,8 @@ const YEN_ROW_COUNT = (JSON.parse(readFileSync(new URL('../fixtures/actual-yen/m
 // import would show in the count
 const NEXT_FIREFLY_EXPORT = csv('next-transactions.csv', [FIREFLY_ROWS[4], FIREFLY_ROWS[2]])
 
-const accountAnswers = (page: Page) => page.getByRole('combobox', { name: /^Existing Account / })
-const categoryAnswers = (page: Page) => page.getByRole('combobox', { name: /^Existing Category / })
+const accountAnswers = (page: Page) => page.getByRole('combobox', { name: /^Existing account / })
+const categoryAnswers = (page: Page) => page.getByRole('combobox', { name: /^Existing category / })
 const removeButtons = (page: Page) => page.getByRole('button', { name: /^Remove / })
 
 /** Reads what each of the dropdowns shows, in order */
@@ -72,7 +72,7 @@ async function openFirefly(page: Page, request: Parameters<typeof signUpUser>[0]
   const user = await signUpUser(request)
   await logInViaApi(page, user)
   await openPage(page, '/settings/imports')
-  await chooseFromDropdown(page.locator('body'), 'Data Source', /^Firefly III/)
+  await chooseFromDropdown(page.locator('body'), 'Data source', /^Firefly III/)
   const uploads = page.locator('input[type="file"][accept=".csv,text/csv"]')
   for (const [index, file] of FIREFLY_FILES.entries()) {
     await expect(uploads.nth(index)).toBeEnabled()
@@ -89,7 +89,7 @@ async function openActual(page: Page, request: Parameters<typeof signUpUser>[0])
   const user = await signUpUser(request)
   await logInViaApi(page, user)
   await openPage(page, '/settings/imports')
-  await chooseFromDropdown(page.locator('body'), 'Data Source', 'Actual Budget')
+  await chooseFromDropdown(page.locator('body'), 'Data source', 'Actual Budget')
   const upload = page.locator('input[type="file"][accept=".zip,.sqlite,application/zip"]')
   await expect(upload).toBeEnabled()
   return { user, upload }
