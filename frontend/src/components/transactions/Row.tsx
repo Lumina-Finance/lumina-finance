@@ -16,6 +16,7 @@ import {
 } from '@/pages/transactions/constants/transactionList'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { FADED_ROW_COLOURS, FadedRowsContext } from '@/contexts/FadedRowsContext'
+import { signTransactionAmount } from '@/utils/signedTransactionAmount'
 import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
 
 const MAX_VISIBLE_TAGS = 1
@@ -209,7 +210,7 @@ function NoteAndTagIcons({ hasNotes, tagCount, className = '' }: { hasNotes: boo
 export default function TransactionRow({ transaction, currency, onOpen, ...props }: TransactionRowProps) {
   const { formatCurrency } = useMoneyFormatters()
   const sign = transaction.amount < 0 ? -1 : transaction.amount > 0 ? 1 : 0
-  const text = `${sign < 0 ? '-' : '+'}${formatCurrency(Math.abs(transaction.amount), currency)}`
+  const text = signTransactionAmount(sign, formatCurrency(Math.abs(transaction.amount), currency))
   return <TransactionRowView {...props} transaction={transaction} amountPresentation={{ text, sign }} onOpen={() => onOpen(transaction)} />
 }
 
