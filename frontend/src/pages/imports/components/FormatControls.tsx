@@ -15,6 +15,12 @@ import { ImportSegmentedToggle } from './tables/SegmentedToggle'
 
 const UNREADABLE_FORMAT_BADGE = 'Does not fit'
 
+/**
+ * A format dropdown gives up width to the field dropdown beside it only down to the room its longest
+ * placeholder, "Choose the amount format", needs. The field dropdown shrinks first
+ */
+const FORMAT_CONTROL_CLASS_NAME = 'flex min-w-[15rem] flex-[1.4] flex-col gap-2'
+
 const AMOUNT_PRESETS: Array<{ format: ImportAmountFormat; label: string }> = [
   { format: { decimalSeparator: '.', groupingSeparator: ',' }, label: '1,234.56' },
   { format: { decimalSeparator: ',', groupingSeparator: '.' }, label: '1.234,56' },
@@ -50,7 +56,7 @@ export function ImportDateFormatControl({
     : undefined
 
   return (
-    <div className="flex min-w-0 flex-[1.4] flex-col gap-2">
+    <div className={FORMAT_CONTROL_CLASS_NAME}>
       <p id={formatLabelId} className="sr-only">
         Date format
       </p>
@@ -99,7 +105,7 @@ export function ImportAmountFormatControl({
   }
 
   return (
-    <div className="flex min-w-0 flex-[1.4] flex-col gap-2">
+    <div className={FORMAT_CONTROL_CLASS_NAME}>
       <p id={formatLabelId} className="sr-only">
         Amount format
       </p>
