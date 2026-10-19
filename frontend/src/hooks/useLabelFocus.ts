@@ -9,8 +9,8 @@ const OWN_ACTION_SELECTOR = 'a[href], button, input, select, textarea, summary, 
  * A label presses the control it names. That suits a checkbox, but a dropdown or a picker whose head
  * is a button would open, when a label should only move focus there as it does for a text field. A
  * click on a help button or another control inside the label keeps its own action, and a disabled
- * button takes no focus, as it would natively. The focus ring is asked for explicitly, since a browser
- * otherwise leaves it off a button focused after a mouse click and the move would go unseen
+ * button takes no focus, as it would natively. The keyboard focus look is asked for explicitly, since a
+ * browser otherwise leaves it off a button focused after a mouse click and the move would go unseen
  */
 function focusLabelledButton(event: MouseEvent) {
   if (!(event.target instanceof Element)) return

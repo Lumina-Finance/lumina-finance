@@ -1106,10 +1106,6 @@
     box-shadow: var(--app-focus-border);
   }
 
-  .app-range-glass-head:focus-visible {
-    outline: none;
-  }
-
   /* The mobile control spans the full width instead of hugging its content like the sidebar pill */
   .app-range-glass-full {
     width: 100%;
