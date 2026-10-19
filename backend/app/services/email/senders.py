@@ -15,6 +15,7 @@ from app.config.email import (
     SMTP_HOST,
     SMTP_PASSWORD,
     SMTP_PORT,
+    SMTP_TIMEOUT_SECONDS,
     SMTP_USE_TLS,
     SMTP_USERNAME,
 )
@@ -52,6 +53,7 @@ class SmtpEmailSender:
             username=SMTP_USERNAME or None,
             password=SMTP_PASSWORD or None,
             start_tls=SMTP_USE_TLS,
+            timeout=SMTP_TIMEOUT_SECONDS,
         )
 
 

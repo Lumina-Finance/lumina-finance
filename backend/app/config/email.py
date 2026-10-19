@@ -21,6 +21,10 @@ SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip()
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_USE_TLS = optional_bool_env("SMTP_USE_TLS", True)
 
+# Bounds each SMTP step, so an unreachable or silent server fails the send well under common
+# proxy and gateway request timeouts, while a slow but working server still has room to answer
+SMTP_TIMEOUT_SECONDS = 10
+
 # The sender display name is deliberately a constant, not a setting, so mail from a
 # self-hosted instance is always identifiable as self-hosted
 EMAIL_SENDER_NAME = "Lumina Finance (Self-Hosted)"

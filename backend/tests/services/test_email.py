@@ -1,7 +1,9 @@
 """Email sender tests"""
 
+import asyncio
 import logging
 
+import aiosmtplib
 import pytest
 
 import app.services.email.contract as contract_module
@@ -35,6 +37,27 @@ async def test_smtp_sender_delivers_multipart_message(monkeypatch):
 
     # The HTML alternative rides alongside the plain-text part
     assert delivered.get_content_type() == "multipart/alternative"
+
+
+async def test_smtp_sender_times_out_on_a_silent_server(monkeypatch):
+    """A server that accepts the connection and never greets fails the send within the SMTP timeout"""
+
+    # Closes its side once the client gives up, so leaving the server never waits on an open connection
+    async def hold_connection_silently(reader, writer):
+        await reader.read()
+        writer.close()
+        await writer.wait_closed()
+
+    server = await asyncio.start_server(hold_connection_silently, "127.0.0.1", 0)
+    monkeypatch.setattr(senders_module, "SMTP_HOST", "127.0.0.1")
+    monkeypatch.setattr(senders_module, "SMTP_PORT", server.sockets[0].getsockname()[1])
+    monkeypatch.setattr(senders_module, "MAIL_FROM", "no-reply@example.com")
+    monkeypatch.setattr(senders_module, "SMTP_TIMEOUT_SECONDS", 0.2)
+
+    # The outer bound only keeps a missing timeout from stalling the suite for the library's own minute
+    async with server:
+        with pytest.raises(aiosmtplib.SMTPTimeoutError):
+            await asyncio.wait_for(SmtpEmailSender().send("user@example.com", RenderedEmail(subject="Hi", text_body="Body")), 5)
 
 
 async def test_logging_sender_logs_body(caplog):
