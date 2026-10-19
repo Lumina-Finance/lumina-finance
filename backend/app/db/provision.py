@@ -44,9 +44,11 @@ async def ensure_roles() -> None:
                     f'CREATE ROLE "{role_name}" WITH {_ROLE_ATTRIBUTES}; '
                     f"END IF; END $$"
                 ))
-                await conn.execute(text(
+                # Sent to the driver untouched, since text() would read a colon in the password
+                # as a bind parameter
+                await conn.exec_driver_sql(
                     f'ALTER ROLE "{role_name}" WITH {_ROLE_ATTRIBUTES} PASSWORD {_quote_literal(password)}'
-                ))
+                )
 
             # The migrator owns and builds the schema, the app role only connects
             # and reads it, its table privileges arrive later with the RLS policies
