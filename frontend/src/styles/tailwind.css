@@ -6,7 +6,8 @@
     /* Light — warm parchment */
     --app-bg: #F2EDE4;
     --app-surface-soft: #FBF8F0;
-    /* Shared hover feedback for rows and controls, plus transaction pending backgrounds.
+    /* Shared hover feedback for rows and controls, plus transaction pending backgrounds and the
+       loading skeletons' shimmer sweep.
        Kept apart from
        .app-dropdown-row-highlighted, which mixes the same proportion in both themes rather than
        taking this token, since pointing that rule at this token would carry the flat light value
