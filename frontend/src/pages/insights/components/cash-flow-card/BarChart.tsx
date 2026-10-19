@@ -22,12 +22,16 @@ import {
   getChartDataSignature,
   useChartEntranceAnimation,
 } from '@/components/charts/useChartEntranceAnimation'
-import type { Currency } from '@/api/currency'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/pages/dashboard/constants/chart'
 import type { CashFlowBarBucket } from '@/pages/insights/types/cashFlow'
 import { formatSignedCurrency, getSignedAmountColor } from '@/pages/insights/utils/money'
-import { formatCurrency } from '@/utils/formatCurrency'
+import {
+  useFittedYAxisWidth,
+  Y_AXIS_LABEL_CLASS_NAME,
+  Y_AXIS_TICK_MARGIN_PX,
+  Y_AXIS_TICK_SIZE_PX,
+} from './useFittedYAxisWidth'
 
 type CashFlowTooltipState = {
   activeLabel?: string | number
@@ -61,26 +65,6 @@ function getCashFlowTooltipPointer(
     clientY: event.clientY,
     chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
   }
-}
-
-// Wide enough for the longest label this can produce across the seeded currencies, measured rather
-// than assumed: a negative three-decimal amount written with its code instead of a symbol, such as
-// (BHD 1,234,567.890) at nineteen characters. Most codes render that way rather than with a symbol,
-// accounting style wraps a negative in parentheses, and the net figure plotted here is negative in
-// any month that spent more than it earned, so all three apply at once
-const MAX_Y_AXIS_WIDTH_PX = 124
-
-/**
- * Sizes the Y axis from formatted currency labels so large values do not clip
- */
-function getCashFlowYAxisWidth(buckets: CashFlowBarBucket[], currency: string, currencies: Currency[]) {
-  const values = buckets.flatMap((bucket) => [bucket.net, 0])
-  const longestLabel = values.reduce((longest, value) => {
-    const label = formatCurrency(value, currency, currencies)
-    return label.length > longest.length ? label : longest
-  }, '')
-
-  return Math.min(MAX_Y_AXIS_WIDTH_PX, Math.max(52, longestLabel.length * 6 + 10))
 }
 
 /**
@@ -130,9 +114,9 @@ export function CashFlowBarChart({
 }: CashFlowBarChartProps) {
   const chartRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<DeferredChartTooltipOverlayHandle<CashFlowBarBucket>>(null)
-  const { currencies, formatCurrency } = useMoneyFormatters()
+  const { formatCurrency } = useMoneyFormatters()
   const hasActivity = buckets.some((bucket) => bucket.inflow > 0 || bucket.outflow > 0)
-  const yAxisWidth = getCashFlowYAxisWidth(buckets, displayCurrency, currencies)
+  const yAxisWidth = useFittedYAxisWidth(chartRef)
   const dataSignature = useMemo(
     () => getChartDataSignature(buckets, (bucket) => bucket.net),
     [buckets],
@@ -200,7 +184,9 @@ export function CashFlowBarChart({
                 (dataMin: number) => Math.min(dataMin, 0),
                 (dataMax: number) => Math.max(dataMax, 0),
               ]}
-              tick={{ fill: 'var(--app-text-subtle)', fontSize: 11 }}
+              tickSize={Y_AXIS_TICK_SIZE_PX}
+              tickMargin={Y_AXIS_TICK_MARGIN_PX}
+              tick={{ fill: 'var(--app-text-subtle)', fontSize: 11, className: Y_AXIS_LABEL_CLASS_NAME }}
               tickFormatter={(value) => formatCurrency(Number(value), displayCurrency)}
             />
             <ReferenceLine y={0} stroke="var(--app-border-strong)" strokeWidth={1} />
