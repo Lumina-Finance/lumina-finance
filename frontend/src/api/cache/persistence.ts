@@ -35,7 +35,9 @@ function shouldDehydrateQuery(query: Query) {
   return defaultShouldDehydrateQuery(query) && !hasUncacheableFxStatus(query.state.data);
 }
 
-const dehydrateOptions = { shouldDehydrateQuery };
+// Query data only. A request held while offline would otherwise be written out in plain text with
+// what it sends, such as both passwords of a password change, and could never be sent after a reload
+const dehydrateOptions = { shouldDehydrateQuery, shouldDehydrateMutation: () => false };
 
 // The query cache events that change what a save writes, the ones the persister itself saves on
 const SAVED_CACHE_EVENT_TYPES = new Set<QueryCacheNotifyEvent['type']>(['added', 'removed', 'updated']);
