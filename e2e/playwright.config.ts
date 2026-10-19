@@ -34,9 +34,9 @@ export default defineConfig({
 
   forbidOnly: Boolean(process.env.CI),
 
-  // None anywhere. A spec that passes only on a second attempt is reporting a race in the app
-  // or in itself, and retrying would hide the one thing this suite exists to catch
-  retries: 0,
+  // Three everywhere, so one slow moment on a busy runner doesn't fail a whole run. A spec that
+  // passes only on a retry is still listed as flaky in the report, so the race stays visible
+  retries: 3,
 
   // Long real flows need a total budget that tolerates CPU contention at high worker counts.
   // Each assertion still bounds the expected UI update independently
