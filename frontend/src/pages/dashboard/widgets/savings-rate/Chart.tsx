@@ -20,8 +20,8 @@ import {
   getChartDataSignature,
   useChartEntranceAnimation,
 } from '@/components/charts/useChartEntranceAnimation'
-import { SavingsCurrentBoundary } from '@/pages/dashboard/components/SavingsCurrentBoundary'
-import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/pages/dashboard/constants/chart'
+import { CHART_X_AXIS_TICK_FONT_SIZE } from '@/components/charts/constants'
+import { SavingsCurrentBoundary } from '@/components/charts/SavingsCurrentBoundary'
 import {
   getSavingsRateDisplay,
   type SavingsRateChartPoint,
@@ -155,7 +155,7 @@ export function SavingsRateChart({
             axisLine={{ stroke: 'var(--app-border)', strokeWidth: 1 }}
             tickLine={false}
             interval={0}
-            tick={{ fill: 'var(--app-text-subtle)', fontSize: DASHBOARD_X_AXIS_TICK_FONT_SIZE }}
+            tick={{ fill: 'var(--app-text-subtle)', fontSize: CHART_X_AXIS_TICK_FONT_SIZE }}
             tickMargin={3}
           />
           <YAxis

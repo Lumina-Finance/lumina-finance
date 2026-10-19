@@ -18,10 +18,10 @@ import {
   getChartDataSignature,
   useChartEntranceAnimation,
 } from '@/components/charts/useChartEntranceAnimation'
+import { CHART_X_AXIS_TICK_FONT_SIZE } from '@/components/charts/constants'
 import {
   DASHBOARD_NET_WORTH_X_AXIS_LABEL_PADDING,
   DASHBOARD_NET_WORTH_X_AXIS_TICK_COUNT,
-  DASHBOARD_X_AXIS_TICK_FONT_SIZE,
 } from '@/pages/dashboard/constants/chart'
 import type { NetWorthSeriesPoint } from '@/pages/dashboard/types/dashboard'
 import { getValueMarkColor } from '@/utils/valueMarkColor'
@@ -195,7 +195,7 @@ export function NetWorthChart({ data, displayCurrency }: NetWorthChartProps) {
               left: DASHBOARD_NET_WORTH_X_AXIS_LABEL_PADDING,
               right: DASHBOARD_NET_WORTH_X_AXIS_LABEL_PADDING,
             }}
-            tick={{ fill: 'var(--app-text-subtle)', fontSize: DASHBOARD_X_AXIS_TICK_FONT_SIZE }}
+            tick={{ fill: 'var(--app-text-subtle)', fontSize: CHART_X_AXIS_TICK_FONT_SIZE }}
             tickMargin={3}
           />
           <YAxis hide domain={['dataMin', 'dataMax']} />

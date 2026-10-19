@@ -22,8 +22,8 @@ import {
   getChartDataSignature,
   useChartEntranceAnimation,
 } from '@/components/charts/useChartEntranceAnimation'
+import { CHART_X_AXIS_TICK_FONT_SIZE } from '@/components/charts/constants'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
-import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/pages/dashboard/constants/chart'
 import type { CashFlowBarBucket } from '@/pages/insights/types/cashFlow'
 import { formatSignedCurrency, getSignedAmountColor } from '@/pages/insights/utils/money'
 import {
@@ -173,7 +173,7 @@ export function CashFlowBarChart({
               tickLine={false}
               interval="preserveStartEnd"
               minTickGap={32}
-              tick={{ fill: 'var(--app-text-subtle)', fontSize: DASHBOARD_X_AXIS_TICK_FONT_SIZE }}
+              tick={{ fill: 'var(--app-text-subtle)', fontSize: CHART_X_AXIS_TICK_FONT_SIZE }}
               tickMargin={4}
             />
             <YAxis

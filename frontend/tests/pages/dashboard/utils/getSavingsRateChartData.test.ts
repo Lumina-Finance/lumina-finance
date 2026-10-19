@@ -3,7 +3,7 @@
  * expense month with no income reads as an unbounded loss rather than a number
  */
 import { describe, expect, it } from 'vitest'
-import type { SavingsRateSeriesPoint } from '@/pages/dashboard/types/dashboard'
+import type { SavingsRateSeriesPoint } from '@/components/charts/types'
 import {
   getSavingsRateChartData,
   getSavingsRateDisplay,
