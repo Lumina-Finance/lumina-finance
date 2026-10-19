@@ -1,72 +1,67 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useLayoutEffect, useState, type CSSProperties } from 'react'
+import { flushSync } from 'react-dom'
 
 /**
  * Shrinks a headline amount, which never wraps, until it fits its container's width
  *
- * The text keeps its class's font size, `maxRem`, while it fits, and the returned style is undefined
- * then. A total too long even at `minRem` stays on one line at that size
+ * The text keeps its class's font size, `maxRem`, while it fits. A total too long even at `minRem`
+ * stays on one line at that size. The text's parent must be an inline-size container, since the
+ * returned size follows the container's width in CSS. The browser then refits it in the same layout
+ * that resizes the container, so no frame shows a size meant for another width, and only a new value
+ * or a newly loaded font needs measuring
  */
 export function useFittedAmount(value: string, maxRem: number, minRem: number) {
   // A callback ref held in state, so the fitting follows the element as it mounts and unmounts
   // (the Net Cash Flow headline is absent while its load has failed)
   const [textElement, setTextElement] = useState<HTMLParagraphElement | null>(null)
-  const [fontSizeRem, setFontSizeRem] = useState(maxRem)
+  // The font size, as a share of the container's width, at which the text fills it
+  const [fillRatio, setFillRatio] = useState<number | null>(null)
 
-  useEffect(() => {
-    const containerElement = textElement?.parentElement
-    if (!textElement || !containerElement) return undefined
+  useLayoutEffect(() => {
+    if (!textElement) return undefined
     const measuredTextElement = textElement
 
-    let frameId = 0
-    let cancelled = false
-
     /**
-     * Re-measures from the largest allowed size so a previously reduced value can grow again
+     * Measures the text at the largest allowed size, since its width grows in proportion to its
+     * font size
      */
-    function measure() {
-      window.cancelAnimationFrame(frameId)
-      frameId = window.requestAnimationFrame(() => {
-        if (cancelled) return
+    function measure(paintAtOnce = true) {
+      const { style } = measuredTextElement
+      const previousStyle = { fontSize: style.fontSize, width: style.width, maxWidth: style.maxWidth }
+      // Sized to its text for the measure, which can be narrower or wider than its container
+      Object.assign(style, { fontSize: `${maxRem}rem`, width: 'max-content', maxWidth: 'none' })
+      // A fractional width, since a whole-pixel one can fall up to a pixel short of the text and let the
+      // fitted size run past the container by a fraction of a pixel
+      const textWidth = measuredTextElement.getBoundingClientRect().width
+      const fontSizePx = parseFloat(getComputedStyle(measuredTextElement).fontSize)
+      Object.assign(style, previousStyle)
 
-        const previousFontSize = measuredTextElement.style.fontSize
-        measuredTextElement.style.fontSize = `${maxRem}rem`
-
-        const availableWidth = measuredTextElement.clientWidth
-        const requiredWidth = measuredTextElement.scrollWidth
-
-        measuredTextElement.style.fontSize = previousFontSize
-
-        const nextFontSize =
-          availableWidth > 0 && requiredWidth > availableWidth
-            ? Math.max(minRem, maxRem * (availableWidth / requiredWidth))
-            : maxRem
-
-        setFontSizeRem((currentFontSize) =>
-          Math.abs(currentFontSize - nextFontSize) < 0.02 ? currentFontSize : nextFontSize,
-        )
-      })
+      const nextFillRatio = textWidth > 0 ? fontSizePx / textWidth : null
+      const update = () => setFillRatio(nextFillRatio)
+      // Rendered before the browser paints, since a frame drawn with the old measurement shows the
+      // text at a size fitted for another text or font. The first measure runs inside a layout
+      // effect, which renders before the paint anyway
+      if (paintAtOnce) flushSync(update)
+      else update()
     }
 
-    measure()
-    document.fonts?.ready.then(measure)
-
-    if (typeof ResizeObserver === 'undefined') {
-      return () => {
-        cancelled = true
-        window.cancelAnimationFrame(frameId)
-      }
-    }
-
-    const resizeObserver = new ResizeObserver(measure)
-    resizeObserver.observe(containerElement)
+    measure(false)
+    let cancelled = false
+    // The font the amount is measured in may arrive after it is drawn
+    void document.fonts?.ready.then(() => {
+      if (!cancelled) measure()
+    })
 
     return () => {
       cancelled = true
-      window.cancelAnimationFrame(frameId)
-      resizeObserver.disconnect()
     }
   }, [textElement, value, maxRem, minRem])
 
-  const style: CSSProperties | undefined = fontSizeRem < maxRem ? { fontSize: `${fontSizeRem}rem` } : undefined
+  const style: CSSProperties = {
+    // Glyph widths rounded to whole pixels at each size would make the text's width stray from
+    // its font size, so a size worked out for one width could run past another
+    textRendering: 'geometricPrecision',
+    ...(fillRatio !== null && { fontSize: `clamp(${minRem}rem, ${fillRatio * 100}cqi, ${maxRem}rem)` }),
+  }
   return [setTextElement, style] as const
 }

@@ -130,7 +130,7 @@ export function CashFlowCard({
 
           {!displaySnapshot.failed && (
             <div className={BODY_CLASS}>
-              <div className="mb-3">
+              <div className="mb-3 [container-type:inline-size]">
                 <p className="app-label app-label-compact inline-flex items-center gap-2">
                   Net Cash Flow
                   <InsightCalculationTooltip
