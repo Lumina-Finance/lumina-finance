@@ -41,6 +41,9 @@ const HEADER_ALIAS_SCORES: Record<ColumnTarget, Record<string, number>> = {
     dataoperacji: 100,
     年月日: 100,
     datamov: 100,
+    帳務日期: 100,
+    交易日期: 100,
+    거래일시: 100,
     datavalor: 90,
   },
   category_id: {

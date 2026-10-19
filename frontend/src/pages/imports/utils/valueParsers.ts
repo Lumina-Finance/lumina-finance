@@ -32,6 +32,14 @@ interface CalendarDateParts {
 // first, so a value like 2024-03/15 is malformed rather than a format
 const YEAR_FIRST_PATTERN = /^(\d{4})([-/.:])(\d{1,2})\2(\d{1,2})$/
 
+// Year, month and day as eight digits with no separator. It has none to check against an explicitly
+// chosen one, so it reads only while the separator is automatic
+const COMPACT_YEAR_FIRST_PATTERN = /^(\d{4})(\d{2})(\d{2})$/
+
+// A numeric date may be followed by the time of day after whitespace. The time is never kept, so a
+// bank that writes both in one cell reads as the day it states
+const TIMED_DATE_PATTERN = /^(\S+)\s+(\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/
+
 // A complete timestamp may add fractional seconds and a zone. The captured zone distinguishes an
 // instant that must be converted from an unzoned timestamp whose written calendar day is retained
 const ISO_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-](\d{2}):(\d{2}))?)?$/
@@ -157,14 +165,20 @@ function readCalendarDateParts(
     return { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) }
   }
 
+  const dateText = stripTimeOfDay(value)
+  if (dateText === null) return null
+
   if (format === 'yearFirst') {
-    const match = YEAR_FIRST_PATTERN.exec(value)
+    const compact = separator === 'automatic' ? COMPACT_YEAR_FIRST_PATTERN.exec(dateText) : null
+    if (compact) return { year: Number(compact[1]), month: Number(compact[2]), day: Number(compact[3]) }
+
+    const match = YEAR_FIRST_PATTERN.exec(dateText)
     return match && isExpectedDateSeparator(match[2], separator)
       ? { year: Number(match[1]), month: Number(match[3]), day: Number(match[4]) }
       : null
   }
 
-  const match = NUMERIC_PATTERN.exec(value)
+  const match = NUMERIC_PATTERN.exec(dateText)
   if (!match || !isExpectedDateSeparator(match[2], separator)) return null
 
   const first = Number(match[1])
@@ -174,6 +188,18 @@ function readCalendarDateParts(
   return format === 'dayFirst'
     ? { year, month: second, day: first }
     : { year, month: first, day: second }
+}
+
+/**
+ * Returns the date written before a trailing time of day, the whole value when it has no time, or
+ * null when the time is not one a clock shows
+ */
+function stripTimeOfDay(value: string) {
+  const match = TIMED_DATE_PATTERN.exec(value)
+  if (!match) return value
+
+  const [, dateText, hour, minute, second = '0'] = match
+  return Number(hour) <= 23 && Number(minute) <= 59 && Number(second) <= 59 ? dateText : null
 }
 
 /** Converts a strictly recognized offset timestamp to the profile's calendar day */

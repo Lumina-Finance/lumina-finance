@@ -52,6 +52,15 @@ describe('automatic date format choices', () => {
     expect(scan.ambiguous).toBe(false)
   })
 
+  it.each([
+    ['dates with no separators', ['20260405', '20260131']],
+    ['dates with a time of day', ['2026.03.01 09:00:00', '2026.03.02 10:30:00']],
+  ])('chooses year first for a column of %s', (_name, values) => {
+    const scan = scanImportDateFormatChoices(values)
+
+    expect(scan.automatic).toBe('yearFirst')
+  })
+
   it('does not choose a format for an empty column', () => {
     expect(scanImportDateFormatChoices(['', '   ']).automatic).toBeNull()
   })

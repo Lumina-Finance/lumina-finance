@@ -1149,8 +1149,6 @@ function createExport(headers: string[], records: string[][]) {
 // it. The values under them decide nothing: a short description could be any text column, and a
 // column of numbers would take the amount on its shape alone
 describe('a bank\'s headings in a language other than English, German or French', () => {
-  // ING Netherlands writes its dates as 20260405, which the reader does not take, so only the other
-  // fields are asked of it
   it('reads ING Netherlands\' Dutch headings, with Af Bij as the direction', () => {
     const files = createExport(
       ['Datum', 'Naam / Omschrijving', 'Rekening', 'Tegenrekening', 'Code', 'Af Bij', 'Bedrag (EUR)', 'Mutatiesoort', 'Mededelingen', 'Saldo na mutatie', 'Tag'],
@@ -1162,6 +1160,7 @@ describe('a bank\'s headings in a language other than English, German or French'
 
     const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
 
+    expect(map.dt).toBe('Datum')
     expect(map.merchant_id).toBe('Naam / Omschrijving')
     expect(map.amount).toBe('Bedrag (EUR)')
     expect(map.amount_direction).toBe('Af Bij')
@@ -1329,8 +1328,6 @@ describe('a bank\'s headings in a language other than English, German or French'
     expect(Object.values(map)).not.toContain('残高')
   })
 
-  // KB writes the date and the time of day in one cell, 2026.03.01 09:00:00, which the reader does
-  // not take, so only the other fields are asked of it
   it('reads KB Kookmin Bank\'s Korean headings, with 출금액 and 입금액 as the pair', () => {
     const files = createExport(
       ['거래일시', '적요', '보낸분/받는분', '송금메모', '출금액', '입금액', '잔액', '거래점'],
@@ -1342,14 +1339,13 @@ describe('a bank\'s headings in a language other than English, German or French'
 
     const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
 
+    expect(map.dt).toBe('거래일시')
     expect(map.merchant_id).toBe('보낸분/받는분')
     expect(map.notes).toBe('송금메모')
     expect(map.amount_out).toBe('출금액')
     expect(map.amount_in).toBe('입금액')
   })
 
-  // Yuanta writes its dates as 20260821, which the reader does not take, so only the other fields
-  // are asked of it
   it('reads Yuanta Bank\'s Traditional Chinese headings, with 支出金額 and 存入金額 as the pair', () => {
     const files = createExport(
       ['帳號', '帳務日期', '交易日期', '交易時間', '交易說明', '支出金額', '存入金額', '帳面餘額', '票據號碼', '備註'],
@@ -1361,6 +1357,7 @@ describe('a bank\'s headings in a language other than English, German or French'
 
     const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
 
+    expect(map.dt).toBe('帳務日期')
     expect(map.merchant_id).toBe('交易說明')
     expect(map.notes).toBe('備註')
     expect(map.amount_out).toBe('支出金額')
