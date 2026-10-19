@@ -2,13 +2,28 @@ import { useLayoutEffect, useState, type CSSProperties } from 'react'
 import { flushSync } from 'react-dom'
 
 /**
- * Shrinks a headline amount, which never wraps, until it fits its container's width
+ * Builds the style that sizes an amount to fill its container's width, from `maxRem` down to
+ * `minRem`. `fillRatio` is the font size, as a share of the container's width, at which the text
+ * fills it, and null until the text is measured
+ */
+export function getFittedAmountStyle(fillRatio: number | null, maxRem: number, minRem: number): CSSProperties {
+  return {
+    // Glyph widths rounded to whole pixels at each size would make the text's width stray from
+    // its font size, so a size worked out for one width could run past another
+    textRendering: 'geometricPrecision',
+    ...(fillRatio !== null && { fontSize: `clamp(${minRem}rem, ${fillRatio * 100}cqi, ${maxRem}rem)` }),
+  }
+}
+
+/**
+ * Shrinks an amount, which never wraps, until it fits its container's width
  *
  * The text keeps its class's font size, `maxRem`, while it fits. A total too long even at `minRem`
  * stays on one line at that size. The text's parent must be an inline-size container, since the
  * returned size follows the container's width in CSS. The browser then refits it in the same layout
  * that resizes the container, so no frame shows a size meant for another width, and only a new value
- * or a newly loaded font needs measuring
+ * or a newly loaded font needs measuring. The fill ratio is returned for `getFittedAmountStyle`, so
+ * amounts shown side by side in equal containers can share the smallest one
  */
 export function useFittedAmount(value: string, maxRem: number, minRem: number) {
   // A callback ref held in state, so the fitting follows the element as it mounts and unmounts
@@ -57,11 +72,5 @@ export function useFittedAmount(value: string, maxRem: number, minRem: number) {
     }
   }, [textElement, value, maxRem, minRem])
 
-  const style: CSSProperties = {
-    // Glyph widths rounded to whole pixels at each size would make the text's width stray from
-    // its font size, so a size worked out for one width could run past another
-    textRendering: 'geometricPrecision',
-    ...(fillRatio !== null && { fontSize: `clamp(${minRem}rem, ${fillRatio * 100}cqi, ${maxRem}rem)` }),
-  }
-  return [setTextElement, style] as const
+  return [setTextElement, fillRatio] as const
 }

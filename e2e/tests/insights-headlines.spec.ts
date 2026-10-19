@@ -1,10 +1,11 @@
 /**
  * The Net Cash Flow headline once wrapped a very large total at phone width, leaving its minus sign
  * alone on the line above the amount. The Period Glance headline, which shares its fitting, once ran
- * past its panel's right edge at phone width with a very large total. Both headlines also showed a
- * very large total at full size for a frame on first load before shrinking it to fit, and the Period
- * Glance headline did the same after a range change. A window narrowed under a fitted headline could
- * also show it running past its panel for a frame
+ * past its panel's right edge at phone width with a very large total, and its Income and Expenses
+ * figures were cut off at the panel's edge with a very large amount. The Net Cash Flow and Period
+ * Glance headlines also showed a very large total at full size for a frame on first load before
+ * shrinking it to fit, and the Period Glance headline did the same after a range change. A window
+ * narrowed under a fitted headline could also show it running past its panel for a frame
  */
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
@@ -99,6 +100,51 @@ const PERIOD_GLANCE_CASES = [
   { name: 'an ordinary total on a phone', currency: 'CAD', income: 525_000, expense: 5_000, text: /^(CA)?\$5,200\.00$/, viewport: PHONE, minFontSizePx: PERIOD_GLANCE_FULL_FONT_SIZE_PX },
   { name: 'a very large total on a desktop', currency: 'IQD', income: 1_246_913_569_002, expense: 1, text: /^IQD\s1,246,913,569\.001$/, viewport: DESKTOP, minFontSizePx: PERIOD_GLANCE_DESKTOP_MIN_FONT_SIZE_PX },
 ]
+
+// The Income and Expenses figures' full size, `text-lg`, which an ordinary amount keeps
+const PERIOD_GLANCE_FIGURE_FULL_FONT_SIZE_PX = 18
+
+// Where the Period Glance panel moves its figures beside the headline instead of under it
+const PERIOD_GLANCE_SPLIT = { width: 750, height: 1024 }
+
+// The headline is income minus expenses, and differs from both figures in each case, so it can't
+// match either figure's text. `fullSize` says whether both figures keep their full size or shrink
+// below it. A 1280px desktop lays the panel out as the split does, so the split stands for it
+const PERIOD_GLANCE_FIGURE_CASES = [
+  { name: 'very large amounts on a phone', currency: 'IQD', income: 1_246_913_569_002, expense: 1_246_913_569_001, incomeText: /^IQD\s1,246,913,569\.002$/, expensesText: /^IQD\s1,246,913,569\.001$/, viewport: PHONE, fullSize: false },
+  { name: 'very large expenses beside ordinary income on a phone', currency: 'IQD', income: 5_000, expense: 1_246_913_569_001, incomeText: /^IQD\s5\.000$/, expensesText: /^IQD\s1,246,913,569\.001$/, viewport: PHONE, fullSize: false },
+  { name: 'ordinary amounts on a phone', currency: 'CAD', income: 125_000, expense: 5_000, incomeText: /^(CA)?\$1,250\.00$/, expensesText: /^(CA)?\$50\.00$/, viewport: PHONE, fullSize: true },
+  { name: 'very large amounts where the panel splits', currency: 'IQD', income: 1_246_913_569_002, expense: 1_246_913_569_001, incomeText: /^IQD\s1,246,913,569\.002$/, expensesText: /^IQD\s1,246,913,569\.001$/, viewport: PERIOD_GLANCE_SPLIT, fullSize: true },
+]
+
+for (const example of PERIOD_GLANCE_FIGURE_CASES) {
+  test(`period glance income and expenses fit their panel at one shared size for ${example.name}`, async ({ page, request }) => {
+    const user = await signUpUser(request, { baseCurrency: example.currency })
+    const account = await createAccount(request, user, { name: 'Period glance figures account', currency: example.currency })
+    await createTransaction(request, user, {
+      accountId: account.id, categoryName: 'Salary', amount: example.income, currency: example.currency,
+    })
+    await createTransaction(request, user, {
+      accountId: account.id, categoryName: 'Groceries', amount: -example.expense, currency: example.currency,
+    })
+    await page.setViewportSize(example.viewport)
+    await logIn(page, user)
+    await expectSignedIn(page)
+    await navigate(page, 'Insights')
+
+    // The card has no heading role, so it is found by its section holding the title
+    const glance = page.locator('section').filter({ hasText: 'This Period at a Glance' })
+    const income = glance.getByRole('paragraph').filter({ hasText: example.incomeText })
+    const expenses = glance.getByRole('paragraph').filter({ hasText: example.expensesText })
+    await expect.poll(() => measureHeadline(page, income)).toEqual({ lines: 1, overflows: false })
+    await expect.poll(() => measureHeadline(page, expenses)).toEqual({ lines: 1, overflows: false })
+
+    const incomeSize = await readSettledFontSize(page, income)
+    expect(await readSettledFontSize(page, expenses)).toBe(incomeSize)
+    if (example.fullSize) expect(incomeSize).toBe(PERIOD_GLANCE_FIGURE_FULL_FONT_SIZE_PX)
+    else expect(incomeSize).toBeLessThan(PERIOD_GLANCE_FIGURE_FULL_FONT_SIZE_PX)
+  })
+}
 
 for (const example of PERIOD_GLANCE_CASES) {
   test(`period glance headline fits its panel on one line for ${example.name}`, async ({ page, request }) => {
