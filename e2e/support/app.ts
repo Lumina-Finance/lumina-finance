@@ -151,14 +151,18 @@ const IMPORT_COMMIT_PATH = /\/transactions\/import\/runs\/[^/]+(\/journal)?\/com
  * the overlay has only its own fixed pauses left before it shows the outcome
  *
  * @param page - Page showing a staged import
+ * @param options.via - How the button is pressed: a pointer click, Enter after focusing it, which leaves the
+ * pointer where it is, or a bare click event with no pointer press, key or focus before it, as an assistive technology sends
  * @returns The save's response, whatever its status
  */
-export async function commitImport(page: Page): Promise<Response> {
+export async function commitImport(page: Page, { via = 'click' }: { via?: 'click' | 'keyboard' | 'event' } = {}): Promise<Response> {
   const commit = page.getByRole('button', { name: 'Commit import', exact: true })
   await expect(commit).toBeEnabled()
   const committed = page.waitForResponse((response) => response.request().method() === 'POST'
     && IMPORT_COMMIT_PATH.test(new URL(response.url()).pathname), { timeout: 0 })
-  await commit.click()
+  if (via === 'keyboard') await commit.press('Enter')
+  else if (via === 'event') await commit.dispatchEvent('click')
+  else await commit.click()
   return committed
 }
 
@@ -195,6 +199,17 @@ export async function leaveImportSetup(page: Page): Promise<void> {
   await page.getByRole('heading', { name: 'Import transactions' }).click()
   if (!await isAtLeast(page, IMPORT_SIDE_BY_SIDE_BREAKPOINT_PX)) return
   await expect(page.getByRole('button', { name: 'Expand import setup', exact: true })).toHaveAttribute('aria-expanded', 'false')
+}
+
+/**
+ * Ends the editing of the import's dates, which is what makes the rest of the page take them, by
+ * moving the pointer and focus off the setup panel. On desktop the panel then goes back to its strip
+ * unless a date in it holds it open, so a step that touches the dates again calls `showImportSetup`
+ *
+ * @param page - Page showing a staged import
+ */
+export async function applyImportDates(page: Page): Promise<void> {
+  await page.getByRole('heading', { name: 'Import transactions' }).click()
 }
 
 /**

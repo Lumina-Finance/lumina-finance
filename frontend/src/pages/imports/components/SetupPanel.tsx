@@ -83,9 +83,13 @@ const OVER_STEPS_EDGE = '1px 0 0 var(--app-border), 8px 0 16px -10px var(--app-b
  *
  * @param hasFile - Whether a file is staged, which collapses the panel on desktop
  */
-export function ImportSetupPanel({ hasFile, children }: { hasFile: boolean; children: ReactNode }) {
+export function ImportSetupPanel({ hasFile, onPointerInsideChange, children }: {
+  hasFile: boolean
+  onPointerInsideChange?: (isInside: boolean) => void
+  children: ReactNode
+}) {
   const panelId = useId()
-  const { panelRef, isDesktop, isCollapsed, isOpen, isPlacedAtOnce, toggle, peekHandlers } = useImportSetupPanel(hasFile)
+  const { panelRef, isDesktop, isCollapsed, isOpen, isPlacedAtOnce, toggle, peekHandlers } = useImportSetupPanel(hasFile, onPointerInsideChange)
 
   // The strip the steps sit beside, and the bar they sit below
   const isStrip = isDesktop && isCollapsed

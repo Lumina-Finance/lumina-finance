@@ -163,7 +163,12 @@ export function ImportDateRangeFields({
           {/* The hairline sits inside, since a border on a box whose height animates to zero stays
               behind. No room is left below, so the list's own gap sets the space under the dates
               as it does under any other row */}
-          <div role="group" aria-labelledby={titleId} className="flex flex-col gap-4 border-t border-[var(--app-border)] pt-4">
+          <div
+            role="group"
+            aria-labelledby={titleId}
+            data-import-dates=""
+            className="flex flex-col gap-4 border-t border-[var(--app-border)] pt-4"
+          >
             <span id={titleId} className="text-sm">{IMPORT_DATE_RANGE_TITLE}</span>
             {fields.map(({ end, label }) => {
               const fieldId = `${baseId}-${end}`

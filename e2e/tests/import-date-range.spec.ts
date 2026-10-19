@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, createTransaction, signUpUser } from '../support/api'
-import { commitImport, logInViaApi, openPage, showImportSetup, typeDate } from '../support/app'
+import { applyImportDates, commitImport, logInViaApi, openPage, showImportSetup, typeDate } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
@@ -54,10 +54,12 @@ test('imports only the rows from the start date to the end date', async ({ page,
   await start.getByRole('textbox', { name: 'Year', exact: true }).fill('2025')
   await expect(page.getByText('Enter the whole date, or clear it', { exact: true })).toBeVisible()
   await expect(start.getByRole('textbox', { name: 'Year', exact: true })).toHaveAttribute('aria-invalid', 'true')
+  await applyImportDates(page)
   await expect(commit).toBeDisabled()
 
   await typeDate(page, 'Start date', '2025-03-01')
   await typeDate(page, 'End date', '2025-03-31')
+  await applyImportDates(page)
   await expect(travel).toHaveCount(0)
 
   // Held to the preview step, since the file panel beside the steps also counts its rows under Rows
@@ -86,6 +88,115 @@ test('imports only the rows from the start date to the end date', async ({ page,
     await expect(field.getByRole('textbox', { name: 'Year', exact: true })).toHaveValue('2025')
   }
   await expect(page.getByRole('button', { name: /^Clear (start|end) date$/ })).toHaveCount(0)
+})
+
+// The page takes the dates only once editing ends, so the fields and their messages stay quick, and
+// then it takes them once. Focus moving from the start date to the end date is not the end
+test('updates the preview and the counts once the dates are left', async ({ page, request }) => {
+  await uploadYear(page, request)
+  const travel = page.getByRole('combobox', { name: 'Existing category Travel', exact: true })
+  const preview = page.locator('section').filter({ has: page.getByText('Preview and commit', { exact: true }) })
+  const outside = preview.getByText('11 rows are dated outside the chosen dates, so they won\'t be imported.', { exact: true })
+  await expect(travel).toBeVisible()
+
+  await typeDate(page, 'Start date', '2025-03-01')
+  const end = await typeDate(page, 'End date', '2025-03-31')
+  const clearEnd = page.getByRole('button', { name: 'Clear end date', exact: true })
+  await expect(end.getByRole('textbox', { name: 'Day', exact: true })).toBeFocused()
+
+  // Still the whole file, though both dates are set and the button beside the end date has grown in
+  // with the change, which a page taking the dates at once would have rebuilt in the same render
+  await expectGrownIn(clearEnd)
+  await expect(travel).toBeVisible()
+  await expect(outside).toHaveCount(0)
+
+  await applyImportDates(page)
+  await expect(travel).toHaveCount(0)
+  await expect(outside).toBeVisible()
+
+  // A date cleared is the same: the field goes at once and the page follows once it is left
+  await showImportSetup(page)
+  await clearEnd.click()
+  await expect(clearEnd).toHaveCount(0)
+  await expect(outside).toBeVisible()
+  await applyImportDates(page)
+  await expect(outside).toHaveCount(0)
+  await expect(preview.getByText(/^\d+ rows? (is|are) dated outside the chosen dates/)).toBeVisible()
+  await expect(travel).toBeVisible()
+})
+
+// A mouse leaving the panel ends the editing by itself. The suggestion's click leaves focus where
+// nothing else would end it, so only the pointer leaving can be what updates the page
+test('updates the preview when the mouse leaves the setup panel', async ({ page, request }) => {
+  await uploadYear(page, request, '2025-07-31')
+  const travel = page.getByRole('combobox', { name: 'Existing category Travel', exact: true })
+  await expect(travel).toBeVisible()
+
+  await page.getByRole('button', { name: 'Latest recorded transaction', exact: true }).click()
+  const clearStart = page.getByRole('button', { name: 'Clear start date', exact: true })
+  await expectGrownIn(clearStart)
+  await expect(travel).toBeVisible()
+
+  await page.mouse.move(page.viewportSize()!.width - 100, 700)
+  await expect(travel).toHaveCount(0)
+})
+
+// A touch has no hover to end, so its pointer leaving the panel is not the end of editing. Only a press
+// outside the dates is
+test('keeps the preview as it was when a touch pointer leaves the setup panel', async ({ page, request }) => {
+  await uploadYear(page, request)
+  const travel = page.getByRole('combobox', { name: 'Existing category Travel', exact: true })
+  await typeDate(page, 'Start date', '2025-08-01')
+  await expectGrownIn(page.getByRole('button', { name: 'Clear start date', exact: true }))
+  await page.getByRole('complementary', { name: 'Import setup', exact: true }).dispatchEvent('pointerleave', { pointerType: 'touch' })
+  await expect(travel).toBeVisible()
+
+  await applyImportDates(page)
+  await expect(travel).toHaveCount(0)
+})
+
+// The calendar belongs to the date fields, so the mouse moving onto it from the panel and over its
+// days is still editing. Picking a day closes it with the mouse off the panel, which ends the editing
+// with no press after it
+test('takes a day picked in the calendar with the mouse once the calendar closes', async ({ page, request }) => {
+  await uploadYear(page, request)
+  const travel = page.getByRole('combobox', { name: 'Existing category Travel', exact: true })
+  const start = await typeDate(page, 'Start date', '2025-08-01')
+  await start.getByRole('button', { name: 'Open calendar', exact: true }).click()
+  const day = page.getByRole('dialog', { name: 'Choose date', exact: true }).locator('[data-iso="2025-08-31"]')
+  await day.hover()
+  await expectGrownIn(page.getByRole('button', { name: 'Clear start date', exact: true }))
+  await expect(travel).toBeVisible()
+
+  await day.click()
+  await expect(start.getByRole('textbox', { name: 'Day', exact: true })).toHaveValue('31')
+  await expect(travel).toHaveCount(0)
+})
+
+// A click event that nothing came before leaves the dates still being edited, and must still import
+// the dates on screen rather than the ones before or nothing
+test('imports the dates on screen when Commit import is activated with a bare click event', async ({ page, request }) => {
+  const { user, account } = await uploadYear(page, request)
+  await typeDate(page, 'Start date', '2025-03-01')
+  await typeDate(page, 'End date', '2025-03-31')
+
+  expect((await commitImport(page, { via: 'event' })).status()).toBe(201)
+  const stored = await request.get(`${API_BASE_URL}/transactions?account_id=${account.id}`, { headers: asUser(user) })
+  const dates = (await stored.json() as { dt: string }[]).map((row) => row.dt).sort()
+  expect(dates).toEqual(['2025-03-01', '2025-03-15', '2025-03-31'])
+})
+
+// A keyboard user can leave the pointer resting on the panel, so leaving by focus alone must take the
+// dates the fields show, or the import would be saved with the ones before
+test('imports the dates on screen when Commit import is pressed from a date field', AT_EVERY_SIZE, async ({ page, request }) => {
+  const { user, account } = await uploadYear(page, request)
+  await typeDate(page, 'Start date', '2025-03-01')
+  await typeDate(page, 'End date', '2025-03-31')
+
+  expect((await commitImport(page, { via: 'keyboard' })).status()).toBe(201)
+  const stored = await request.get(`${API_BASE_URL}/transactions?account_id=${account.id}`, { headers: asUser(user) })
+  const dates = (await stored.json() as { dt: string }[]).map((row) => row.dt).sort()
+  expect(dates).toEqual(['2025-03-01', '2025-03-15', '2025-03-31'])
 })
 
 /**
@@ -120,8 +231,14 @@ test('clears a date with its clear button and stops limiting the rows', AT_EVERY
 
   // A start date after July leaves the July row out
   const start = await typeDate(page, 'Start date', '2025-08-01')
-  await expect(travel).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Clear end date', exact: true })).toHaveCount(0)
+
+  // The rest of the page waits until the dates are left, and the panel is brought back to go on
+  await expect(travel).toBeVisible()
+  await applyImportDates(page)
+  await expect(travel).toHaveCount(0)
+  await showImportSetup(page)
+  await expect.poll(async () => (await startField.boundingBox())!.x).toBe(startBefore.x)
 
   // Once it has grown in, the button sits right of the field, which has narrowed by its room and kept
   // its height, and the other date's field has not moved
@@ -132,7 +249,9 @@ test('clears a date with its clear button and stops limiting the rows', AT_EVERY
   expect(startWith.width).toBeLessThan(startBefore.width)
   expect(clearBox.x).toBeGreaterThanOrEqual(startWith.x + startWith.width)
   expect(clearBox.x + clearBox.width).toBeLessThanOrEqual(startBefore.x + startBefore.width)
-  expect(await readEnd()).toEqual(endBefore)
+
+  // The panel was brought back a moment ago and may still be sliding into place
+  await expect.poll(readEnd).toEqual(endBefore)
 
   await clearStart.click()
   for (const segment of ['Year', 'Month', 'Day']) {
@@ -144,8 +263,10 @@ test('clears a date with its clear button and stops limiting the rows', AT_EVERY
   // The field widens back to where it was as the button goes
   await expect.poll(async () => (await startField.boundingBox())!.width).toBe(startBefore.width)
   expect(await readEnd()).toEqual(endBefore)
+  await applyImportDates(page)
   await expect(travel).toBeVisible()
   await expect(page.getByRole('button', { name: 'Commit import', exact: true })).toBeEnabled()
+  await showImportSetup(page)
 
   // A date only begun counts as holding something, and the button empties it too
   await start.getByRole('textbox', { name: 'Year', exact: true }).fill('2025')
@@ -216,6 +337,7 @@ test('puts the dates in the File section after Skip last rows and blocks the imp
   const startLabelBox = (await fileSection.getByText('Start date', { exact: true }).boundingBox())!
   const endLabelBox = (await fileSection.getByText('End date', { exact: true }).boundingBox())!
   expect(startLabelBox.height).toBe(endLabelBox.height)
+  await applyImportDates(page)
   await expect(page.getByRole('button', { name: 'Commit import', exact: true })).toBeDisabled()
   await expect(page.getByText('No rows in this import fall within the chosen dates.', { exact: true })).toHaveCount(0)
 

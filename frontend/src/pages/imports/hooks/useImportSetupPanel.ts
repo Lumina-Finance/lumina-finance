@@ -73,9 +73,14 @@ function holdsPanelOpen(element: Element | null): boolean {
  * or expands it
  *
  * @param hasFile - Whether a file is staged and nothing about it needs the user's attention
+ * @param onPointerInsideChange - Told when a mouse enters the panel and when it leaves, since a touch has no hover to end
  */
-export function useImportSetupPanel(hasFile: boolean) {
+export function useImportSetupPanel(hasFile: boolean, onPointerInsideChange?: (isInside: boolean) => void) {
   const panelRef = useRef<HTMLElement>(null)
+  const onPointerInsideChangeRef = useRef(onPointerInsideChange)
+  useEffect(() => {
+    onPointerInsideChangeRef.current = onPointerInsideChange
+  })
   const [isDesktop, setIsDesktop] = useState(() => window.matchMedia?.(IMPORT_SIDE_BY_SIDE_QUERY).matches ?? false)
   const [state, setState] = useState<SetupPanelState>(INITIAL_SETUP_PANEL_STATE)
   const hadFileRef = useRef(hasFile)
@@ -127,9 +132,14 @@ export function useImportSetupPanel(hasFile: boolean) {
     const panel = panelRef.current
     if (!panel) return
     const enter = (event: globalThis.PointerEvent) => {
-      if (event.pointerType === 'mouse') setState((current) => reduceSetupPanel(current, { type: 'pointer-entered' }))
+      if (event.pointerType !== 'mouse') return
+      setState((current) => reduceSetupPanel(current, { type: 'pointer-entered' }))
+      onPointerInsideChangeRef.current?.(true)
     }
-    const leave = () => setState((current) => reduceSetupPanel(current, { type: 'pointer-left' }))
+    const leave = (event: globalThis.PointerEvent) => {
+      setState((current) => reduceSetupPanel(current, { type: 'pointer-left' }))
+      if (event.pointerType === 'mouse') onPointerInsideChangeRef.current?.(false)
+    }
     panel.addEventListener('pointerenter', enter)
     panel.addEventListener('pointerleave', leave)
     return () => {
