@@ -1,17 +1,18 @@
-import { useEffect, useRef, useState } from 'react'
-
-const PRIMARY_AMOUNT_MAX_REM = 3
-const PRIMARY_AMOUNT_MIN_REM = 1.875
+import { useEffect, useState, type CSSProperties } from 'react'
 
 /**
- * Fits the primary period amount into its container without wrapping
+ * Shrinks a headline amount, which never wraps, until it fits its container's width
+ *
+ * The text keeps its class's font size, `maxRem`, while it fits, and the returned style is undefined
+ * then. A total too long even at `minRem` stays on one line at that size
  */
-export function useFittedPrimaryAmount(value: string) {
-  const textRef = useRef<HTMLParagraphElement>(null)
-  const [fontSizeRem, setFontSizeRem] = useState(PRIMARY_AMOUNT_MAX_REM)
+export function useFittedAmount(value: string, maxRem: number, minRem: number) {
+  // A callback ref held in state, so the fitting follows the element as it mounts and unmounts
+  // (the Net Cash Flow headline is absent while its load has failed)
+  const [textElement, setTextElement] = useState<HTMLParagraphElement | null>(null)
+  const [fontSizeRem, setFontSizeRem] = useState(maxRem)
 
   useEffect(() => {
-    const textElement = textRef.current
     const containerElement = textElement?.parentElement
     if (!textElement || !containerElement) return undefined
     const measuredTextElement = textElement
@@ -28,7 +29,7 @@ export function useFittedPrimaryAmount(value: string) {
         if (cancelled) return
 
         const previousFontSize = measuredTextElement.style.fontSize
-        measuredTextElement.style.fontSize = `${PRIMARY_AMOUNT_MAX_REM}rem`
+        measuredTextElement.style.fontSize = `${maxRem}rem`
 
         const availableWidth = measuredTextElement.clientWidth
         const requiredWidth = measuredTextElement.scrollWidth
@@ -37,8 +38,8 @@ export function useFittedPrimaryAmount(value: string) {
 
         const nextFontSize =
           availableWidth > 0 && requiredWidth > availableWidth
-            ? Math.max(PRIMARY_AMOUNT_MIN_REM, PRIMARY_AMOUNT_MAX_REM * (availableWidth / requiredWidth))
-            : PRIMARY_AMOUNT_MAX_REM
+            ? Math.max(minRem, maxRem * (availableWidth / requiredWidth))
+            : maxRem
 
         setFontSizeRem((currentFontSize) =>
           Math.abs(currentFontSize - nextFontSize) < 0.02 ? currentFontSize : nextFontSize,
@@ -64,7 +65,8 @@ export function useFittedPrimaryAmount(value: string) {
       window.cancelAnimationFrame(frameId)
       resizeObserver.disconnect()
     }
-  }, [value])
+  }, [textElement, value, maxRem, minRem])
 
-  return [textRef, fontSizeRem, PRIMARY_AMOUNT_MAX_REM] as const
+  const style: CSSProperties | undefined = fontSizeRem < maxRem ? { fontSize: `${fontSizeRem}rem` } : undefined
+  return [setTextElement, style] as const
 }

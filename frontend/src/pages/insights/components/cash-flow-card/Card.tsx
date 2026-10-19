@@ -8,6 +8,7 @@ import {
 } from '@/components/loading/Transition'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
+import { useFittedAmount } from '@/pages/insights/hooks/useFittedAmount'
 import { CashFlowBarChart } from './BarChart'
 import type { CashFlowBarBucket, CashFlowGranularity } from '@/pages/insights/types/cashFlow'
 import { getInsightsCashFlowFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
@@ -43,6 +44,11 @@ type CashFlowSnapshot = {
 // The card holds this height whether it is drawing the chart or saying the request failed, so a
 // failure does not resize it
 const BODY_CLASS = 'flex h-[390px] flex-col'
+
+// The net total's `text-3xl` size, and the smallest it shrinks to, `text-xl`, which keeps a
+// total as long as "-IQD 1,246,913,569.001" inside the card at phone width
+const TOTAL_NET_MAX_REM = 1.875
+const TOTAL_NET_MIN_REM = 1.25
 
 const cashFlowCalculation = 'Bars group money moving in and out by period. Net equals inflow minus outflow. Transfers are included. Balance adjustments are excluded'
 const netCashFlowCalculation = 'The cumulative net cash flow at the end of the chosen time range'
@@ -85,6 +91,8 @@ export function CashFlowCard({
   const totalInflow = displaySnapshot.buckets.reduce((sum, bucket) => sum + bucket.inflow, 0)
   const totalOutflow = displaySnapshot.buckets.reduce((sum, bucket) => sum + bucket.outflow, 0)
   const totalNet = totalInflow - totalOutflow
+  const formattedTotalNet = formatSignedCurrency(totalNet, displaySnapshot.displayCurrency, currencies)
+  const [totalNetRef, totalNetFitStyle] = useFittedAmount(formattedTotalNet, TOTAL_NET_MAX_REM, TOTAL_NET_MIN_REM)
 
   return (
     <section className="app-card">
@@ -131,10 +139,11 @@ export function CashFlowCard({
                   />
                 </p>
                 <p
-                  className="mt-1 font-financial text-3xl leading-none tracking-tight"
-                  style={{ color: getSignedAmountColor(totalNet) }}
+                  ref={totalNetRef}
+                  className="mt-1 max-w-full whitespace-nowrap font-financial text-3xl leading-none tracking-tight"
+                  style={{ ...totalNetFitStyle, color: getSignedAmountColor(totalNet) }}
                 >
-                  {formatSignedCurrency(totalNet, displaySnapshot.displayCurrency, currencies)}
+                  {formattedTotalNet}
                 </p>
               </div>
               <CashFlowBarChart
