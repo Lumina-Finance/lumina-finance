@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useCallback, startTransition, lazy, Suspense } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, startTransition, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, type Location } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCurrencies } from '@/api/currency'
@@ -16,22 +16,26 @@ import ErrorBoundary from '@/components/errors/Boundary'
 import Fallback from '@/components/errors/Fallback'
 import LoadingScreen from '@/components/loading/Screen'
 import ForcedReenrollScreen from '@/components/two-factor/ForcedReenrollScreen'
+import { lazyPage } from '@/utils/pageCode'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 
 // Pages are lazy-loaded so each route ships as its own chunk instead of the
 // initial bundle, keeping first load small and pulling heavy page-only deps
 // like recharts off the landing path
-const DashboardPage = lazy(() => import('@/pages/dashboard/DashboardPage'))
-const AccountsPage = lazy(() => import('@/pages/accounts/AccountsPage'))
-const AccountDetailPage = lazy(() => import('@/pages/accounts/detail/AccountDetailPage'))
-const TransactionsPage = lazy(() => import('@/pages/transactions/TransactionsPage'))
-const BudgetsPage = lazy(() => import('@/pages/budgets/BudgetsPage'))
-const InsightsPage = lazy(() => import('@/pages/insights/InsightsPage'))
-const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage'))
-const ImportsPage = lazy(() => import('@/pages/imports/ImportsPage'))
-const AuthPage = lazy(() => import('@/pages/auth/AuthPage'))
-const ResetPasswordPage = lazy(() => import('@/pages/auth/ResetPasswordPage'))
-const OidcCallbackPage = lazy(() => import('@/pages/auth/OidcCallbackPage'))
+//
+// A tab open across a deploy asks for chunk files the deploy removed, so each load goes through
+// lazyPage, which reloads once onto the new build instead of failing
+const DashboardPage = lazyPage(() => import('@/pages/dashboard/DashboardPage'))
+const AccountsPage = lazyPage(() => import('@/pages/accounts/AccountsPage'))
+const AccountDetailPage = lazyPage(() => import('@/pages/accounts/detail/AccountDetailPage'))
+const TransactionsPage = lazyPage(() => import('@/pages/transactions/TransactionsPage'))
+const BudgetsPage = lazyPage(() => import('@/pages/budgets/BudgetsPage'))
+const InsightsPage = lazyPage(() => import('@/pages/insights/InsightsPage'))
+const SettingsPage = lazyPage(() => import('@/pages/settings/SettingsPage'))
+const ImportsPage = lazyPage(() => import('@/pages/imports/ImportsPage'))
+const AuthPage = lazyPage(() => import('@/pages/auth/AuthPage'))
+const ResetPasswordPage = lazyPage(() => import('@/pages/auth/ResetPasswordPage'))
+const OidcCallbackPage = lazyPage(() => import('@/pages/auth/OidcCallbackPage'))
 
 const PAGE_TRANSITION_MS = 350;
 const PAGE_TRANSITION_OFFSET_PX = 12;
