@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser, type TestUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
@@ -6,7 +6,7 @@ import { card } from '../support/insights'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
 // The overhang tests run at every size, since the axis width they check changes with the screen's
-// width. The tick tests run on desktop only, since the chart draws the same ticks at every width
+// width. The tick and sign tests run on desktop only, since the chart draws the same ticks at every width
 
 const LARGE_AMOUNT = -1_246_913_569_001
 
@@ -53,22 +53,52 @@ const TICK_CASES = [
   { name: 'an ordinary net', currency: 'CAD', minorUnits: 125_000, count: 5, first: '0.00', last: '1,250.00' },
 ]
 
+// A net is an amount that moved, so its labels are signed like the card's headline, never written in
+// the parentheses a held balance takes
+const SIGN_CASES = [
+  { name: 'a net of minus 1,250 dollars', minorUnits: -125_000, sign: '-', extreme: '-$1,250.00' },
+  { name: 'a net of plus 1,250 dollars', minorUnits: 125_000, sign: '+', extreme: '+$1,250.00' },
+]
+
+/**
+ * Records one transaction in the given currency and opens the Insights page on the Cash Flow card,
+ * returning its amount labels, which have decimals that the dates along the bottom never do
+ */
+async function openCashFlowAxis(page: Page, request: APIRequestContext, currency: string, minorUnits: number) {
+  const user = await signUpUser(request, { baseCurrency: currency })
+  const account = await createAccount(request, user, { name: 'Cash flow axis account', currency })
+  await createTransaction(request, user, {
+    accountId: account.id, categoryName: minorUnits < 0 ? 'Groceries' : 'Salary', amount: minorUnits, currency,
+  })
+  await logInViaApi(page, user)
+  await openPage(page, '/insights')
+
+  // The card loads once it is scrolled into view
+  const cashFlow = card(page, 1)
+  await cashFlow.scrollIntoViewIfNeeded()
+  const amountLabels = cashFlow.locator('svg text').filter({ hasText: /\d\.\d/ })
+  await expect(amountLabels.first()).toBeVisible()
+  return amountLabels
+}
+
+for (const example of SIGN_CASES) {
+  test(`cash flow axis signs the amounts for ${example.name}`, async ({ page, request }) => {
+    const amountLabels = await openCashFlowAxis(page, request, 'CAD', example.minorUnits)
+
+    // Recharts picks the ticks between zero and the net, so only their sign is pinned
+    await expect.poll(async () => {
+      const labels = await amountLabels.allTextContents()
+      return {
+        hasExtreme: labels.includes(example.extreme),
+        unsigned: labels.filter((label) => label !== '$0.00' && !label.startsWith(example.sign)),
+      }
+    }).toEqual({ hasExtreme: true, unsigned: [] })
+  })
+}
+
 for (const example of TICK_CASES) {
   test(`cash flow axis shows each amount once for ${example.name}`, async ({ page, request }) => {
-    const user = await signUpUser(request, { baseCurrency: example.currency })
-    const account = await createAccount(request, user, { name: 'Cash flow axis account', currency: example.currency })
-    await createTransaction(request, user, {
-      accountId: account.id, categoryName: 'Salary', amount: example.minorUnits, currency: example.currency,
-    })
-    await logInViaApi(page, user)
-    await openPage(page, '/insights')
-
-    // The card loads once it is scrolled into view
-    const cashFlow = card(page, 1)
-    await cashFlow.scrollIntoViewIfNeeded()
-    // Every amount on the axis has decimals, which the dates along the bottom never do
-    const amountLabels = cashFlow.locator('svg text').filter({ hasText: /\d\.\d/ })
-    await expect(amountLabels.first()).toBeVisible()
+    const amountLabels = await openCashFlowAxis(page, request, example.currency, example.minorUnits)
 
     // Only the amount is compared, since the currency's symbol is not what repeats
     await expect.poll(async () => {

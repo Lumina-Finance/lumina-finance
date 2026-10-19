@@ -114,7 +114,7 @@ export function CashFlowBarChart({
 }: CashFlowBarChartProps) {
   const chartRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<DeferredChartTooltipOverlayHandle<CashFlowBarBucket>>(null)
-  const { formatCurrency } = useMoneyFormatters()
+  const { currencies } = useMoneyFormatters()
   const hasActivity = buckets.some((bucket) => bucket.inflow > 0 || bucket.outflow > 0)
   const yAxisWidth = useFittedYAxisWidth(chartRef)
   const dataSignature = useMemo(
@@ -190,7 +190,8 @@ export function CashFlowBarChart({
               tickSize={Y_AXIS_TICK_SIZE_PX}
               tickMargin={Y_AXIS_TICK_MARGIN_PX}
               tick={{ fill: 'var(--app-text-subtle)', fontSize: 11, className: Y_AXIS_LABEL_CLASS_NAME }}
-              tickFormatter={(value) => formatCurrency(Number(value), displayCurrency)}
+              // The bars are net flows, amounts that moved, so the labels are signed like the headline
+              tickFormatter={(value) => formatSignedCurrency(Number(value), displayCurrency, currencies)}
             />
             <ReferenceLine y={0} stroke="var(--app-border-strong)" strokeWidth={1} />
             <Bar dataKey="net" radius={4} maxBarSize={40} {...barEntrance}>
