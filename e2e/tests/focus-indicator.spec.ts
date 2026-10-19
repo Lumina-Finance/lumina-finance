@@ -186,6 +186,40 @@ async function seedOneTransaction(page: Page, request: Parameters<typeof signUpU
   return page.getByTestId(`transaction-row-${id}`)
 }
 
+/**
+ * Measures the contrast of an element's text against what is drawn behind it: every ancestor's fill down
+ * to the element's own, and the sliding highlight beside it that tints the selected option. The layers
+ * are blended on a canvas so the ratio is the one on screen, whatever colour format the browser resolved
+ */
+async function readTextContrast(element: Locator): Promise<number> {
+  return element.evaluate((node) => {
+    const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!
+    const pixel = (layers: string[]) => {
+      context.clearRect(0, 0, 1, 1)
+      for (const layer of layers) {
+        context.fillStyle = layer
+        context.fillRect(0, 0, 1, 1)
+      }
+      return Array.from(context.getImageData(0, 0, 1, 1).data.slice(0, 3))
+    }
+    const luminance = (rgb: number[]) => {
+      const [r, g, b] = rgb.map((value) => {
+        const channel = value / 255
+        return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
+      })
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    }
+
+    const fills: string[] = []
+    const indicator = node.parentElement?.querySelector('[class*="indicator"]')
+    for (let ancestor: Element | null = node; ancestor; ancestor = ancestor.parentElement) fills.unshift(getComputedStyle(ancestor).backgroundColor)
+    if (indicator) fills.splice(fills.length - 1, 0, getComputedStyle(indicator).backgroundColor)
+
+    const [high, low] = [luminance(pixel(fills)), luminance(pixel([getComputedStyle(node).color]))].sort((a, b) => b - a)
+    return (high + 0.05) / (low + 0.05)
+  })
+}
+
 for (const colorScheme of ['light', 'dark'] as const) {
   // One control of each kind the app styles, on the toolbar and in the Add Transaction dialog, shows the
   // right focus: a field on its own border, and a button as it looks under the pointer, with no ring
@@ -229,6 +263,22 @@ for (const colorScheme of ['light', 'dark'] as const) {
       dialog.getByRole('button', { name: 'Add Transaction', exact: true }),
     ]
     for (const control of buttons) await expectHoverLook(page, control)
+  })
+
+  // The selected option's text keeps 4.5:1 on the deeper tint it takes under the pointer, which the
+  // accent colour itself falls short of in the light theme
+  test(`keeps a hovered selected option's text readable in the ${colorScheme} theme`, async ({ page, request }) => {
+    await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
+    const user = await signUpUser(request)
+    await logInViaApi(page, user)
+    await openPage(page, '/transactions')
+    const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+    const selected = dialog.getByRole('tab', { selected: true }).first()
+
+    const atRest = await readTextContrast(selected)
+    await selected.hover()
+    await expect.poll(() => readTextContrast(selected).then((ratio) => ratio !== atRest)).toBe(true)
+    expect(await readTextContrast(selected)).toBeGreaterThanOrEqual(4.5)
   })
 
   // A row opened through its button takes the hover look on the row itself, with no ring around it,

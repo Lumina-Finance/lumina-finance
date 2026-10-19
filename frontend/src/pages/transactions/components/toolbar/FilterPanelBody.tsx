@@ -428,11 +428,13 @@ function SectionEditor({
                       // so the choice is held still while an applied bound is waiting for its own
                       disabled={isAmountCurrencyLocked}
                       className={`rounded-full border px-3 py-1 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-                        isSelected ? 'bg-[var(--app-accent-soft)] hover:bg-[var(--app-accent-border)]' : 'hover:bg-[var(--app-accent-soft)]'
+                        isSelected
+                          ? 'bg-[var(--app-accent-soft)] text-[var(--app-accent)] hover:bg-[var(--app-accent-border)] hover:text-[var(--app-accent-on-hover-fill)]'
+                          : 'hover:bg-[var(--app-accent-soft)]'
                       }`}
                       style={
                         isSelected
-                          ? { borderColor: 'transparent', color: 'var(--app-accent)', fontWeight: 500 }
+                          ? { borderColor: 'transparent', fontWeight: 500 }
                           : { borderColor: 'var(--app-input-border)', color: 'var(--app-text)' }
                       }
                       onClick={() => onCurrencyToggle(option.value)}

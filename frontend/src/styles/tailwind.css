@@ -40,9 +40,16 @@
     --app-accent: #8A5F25;
     --app-accent-soft: #9b6c2c1a;
     --app-accent-border: #9b6c2c38;
-    /* The border a bordered button takes under the pointer or keyboard focus, the accent at a strength
-       that shows against both themes' hairline borders */
-    --app-hover-border: color-mix(in srgb, var(--app-accent) 55%, transparent);
+    /* The border a bordered button takes under the pointer or keyboard focus, the full accent so it shows
+       against both themes' hairline borders as clearly as the doubled focus colour border it replaced */
+    --app-hover-border: var(--app-accent);
+    /* The tint a selected option takes under the pointer or keyboard focus, deeper than the soft tint
+       it already rests in so the change shows on top of it */
+    --app-accent-hover-fill: color-mix(in srgb, var(--app-accent) 30%, transparent);
+    /* The text on that fill, the accent drawn toward the page text colour. The accent itself falls under
+       4.5:1 on it in the light theme and on the deepest surfaces in the dark one, and this clears 4.7:1
+       on every surface in both. The chip in the Filters panel takes it on its 22% hover tint too */
+    --app-accent-on-hover-fill: color-mix(in srgb, var(--app-text) 60%, var(--app-accent));
     /* The gold gradient behind a user's initials and the initials on it, the same in both themes. The end stop is
        the darkest point the initials sit on, kept light enough for them to read at 4.5:1 */
     --app-avatar-start: #C9A96A;
@@ -734,9 +741,14 @@
     color: var(--app-button-primary-text);
   }
 
-  .app-calendar-day[data-selected]:hover,
   .app-calendar-day[data-selected]:focus-visible {
     background: var(--app-button-primary-bg-hover);
+  }
+
+  @media (hover: hover) {
+    .app-calendar-day[data-selected]:hover {
+      background: var(--app-button-primary-bg-hover);
+    }
   }
 
   .app-runway-threshold-input {
@@ -1110,10 +1122,16 @@
 
   /* The head fills the glass, so its hover look is drawn on the glass, the fill and border the glass
      button takes */
-  .app-range-glass:has(> .app-range-glass-head:hover),
   .app-range-glass:has(> .app-range-glass-head:focus-visible) {
     background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
     border-color: var(--app-hover-border);
+  }
+
+  @media (hover: hover) {
+    .app-range-glass:has(> .app-range-glass-head:hover) {
+      background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
+      border-color: var(--app-hover-border);
+    }
   }
 
   /* The mobile control spans the full width instead of hugging its content like the sidebar pill */
@@ -1832,10 +1850,16 @@
     color: var(--app-accent);
   }
 
-  .app-segmented-option-active:hover,
   .app-segmented-option-active:focus-visible {
-    color: var(--app-accent);
-    background: var(--app-accent-border);
+    color: var(--app-accent-on-hover-fill);
+    background: var(--app-accent-hover-fill);
+  }
+
+  @media (hover: hover) {
+    .app-segmented-option-active:hover {
+      color: var(--app-accent-on-hover-fill);
+      background: var(--app-accent-hover-fill);
+    }
   }
 
   .app-time-selector {
@@ -1879,10 +1903,16 @@
   }
 
   /* Over the indicator that already tints the selected option, so the two tints together show */
-  .app-time-selector .app-segmented-option-active:hover,
   .app-time-selector .app-segmented-option-active:focus-visible {
-    color: var(--app-accent);
-    background: var(--app-accent-soft);
+    color: var(--app-accent-on-hover-fill);
+    background: var(--app-accent-hover-fill);
+  }
+
+  @media (hover: hover) {
+    .app-time-selector .app-segmented-option-active:not(:disabled):hover {
+      color: var(--app-accent-on-hover-fill);
+      background: var(--app-accent-hover-fill);
+    }
   }
 
   .app-navigation-theme-toggle-indicator {
@@ -1924,10 +1954,16 @@
     background: transparent;
   }
 
-  .app-navigation-theme-toggle .app-segmented-option-active:hover,
   .app-navigation-theme-toggle .app-segmented-option-active:focus-visible {
-    color: var(--app-accent);
-    background: var(--app-accent-soft);
+    color: var(--app-accent-on-hover-fill);
+    background: var(--app-accent-hover-fill);
+  }
+
+  @media (hover: hover) {
+    .app-navigation-theme-toggle .app-segmented-option-active:not(:disabled):hover {
+      color: var(--app-accent-on-hover-fill);
+      background: var(--app-accent-hover-fill);
+    }
   }
 
   /* The options share the width equally, as the highlight that slides between them assumes, and the control
@@ -1964,10 +2000,16 @@
     background: transparent;
   }
 
-  .app-balance-chart-mode-selector .app-segmented-option-active:hover,
   .app-balance-chart-mode-selector .app-segmented-option-active:focus-visible {
-    color: var(--app-accent);
-    background: var(--app-accent-soft);
+    color: var(--app-accent-on-hover-fill);
+    background: var(--app-accent-hover-fill);
+  }
+
+  @media (hover: hover) {
+    .app-balance-chart-mode-selector .app-segmented-option-active:not(:disabled):hover {
+      color: var(--app-accent-on-hover-fill);
+      background: var(--app-accent-hover-fill);
+    }
   }
 
   .app-create-transaction-pill-selector-indicator {
@@ -1999,10 +2041,16 @@
     background: transparent;
   }
 
-  .app-create-transaction-pill-selector .app-segmented-option-active:hover,
   .app-create-transaction-pill-selector .app-segmented-option-active:focus-visible {
-    color: var(--app-accent);
-    background: var(--app-accent-soft);
+    color: var(--app-accent-on-hover-fill);
+    background: var(--app-accent-hover-fill);
+  }
+
+  @media (hover: hover) {
+    .app-create-transaction-pill-selector .app-segmented-option-active:not(:disabled):hover {
+      color: var(--app-accent-on-hover-fill);
+      background: var(--app-accent-hover-fill);
+    }
   }
 
   .app-create-transaction-pill-selector .app-segmented-option:disabled:hover,
