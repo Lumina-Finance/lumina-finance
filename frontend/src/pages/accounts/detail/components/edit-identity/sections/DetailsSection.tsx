@@ -61,7 +61,7 @@ export function AccountDetailsSection({
       {canLinkTaxAdvantagedCategory && (
         <div>
           <AccountIdentityFieldLabelRow
-            label="Tax-Advantaged Category"
+            label="Tax-advantaged category"
             htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.taxAdvantagedCategory}
           />
           <Dropdown
@@ -91,7 +91,7 @@ export function AccountDetailsSection({
             htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.creditLimit}
             label={(
               <span className="inline-flex items-center gap-2">
-                Credit Limit
+                Credit limit
                 <CurrencyUnavailableTooltip unavailable={isCreditLimitLocked} currencyState={currencyState} label="Credit limit unavailable" />
               </span>
             )}

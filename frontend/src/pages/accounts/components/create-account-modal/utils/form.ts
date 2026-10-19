@@ -79,7 +79,7 @@ export function buildCreateAccountViewModel(form: CreateAccountForm, currencies:
     isRevolving,
     selectedAccountTypeLabel: CREATE_ACCOUNT_TYPE_OPTIONS.find((option) => option.value === form.account_type)?.label,
     selectedCurrencySymbol: currencies.find((currency) => currency.id === form.currency)?.symbol ?? '',
-    startingBalanceLabel: isLiability ? 'Starting Amount Owed' : 'Starting Balance',
+    startingBalanceLabel: isLiability ? 'Starting amount owed' : 'Starting balance',
   }
 }
 

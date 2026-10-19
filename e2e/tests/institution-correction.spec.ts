@@ -24,7 +24,7 @@ test('corrects the highlighted institution by keyboard and the original inline a
 
   await logInViaApi(page, user)
   await openPage(page, '/accounts')
-  const create = await openModal(page, ['Add Account', 'Add account'], 'Add Account')
+  const create = await openModal(page, ['Add Account', 'Add account'], 'Add account')
   const picker = create.getByRole('combobox', { name: 'Institution', exact: true })
   const describedBy = await picker.getAttribute('aria-describedby')
   expect(describedBy).toBeTruthy()

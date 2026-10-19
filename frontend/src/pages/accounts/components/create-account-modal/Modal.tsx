@@ -154,7 +154,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
       <ModalTitledPanel
         open={open}
         titleId="create-account-title"
-        title="Add Account"
+        title="Add account"
         eyebrow={selectedAccountTypeLabel ?? 'New account'}
         RailIcon={Landmark}
         railLabel="Account"
@@ -162,7 +162,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
         onSubmit={handleSubmit}
         footer={
           <ModalFormFooter
-            submitLabel="Create Account"
+            submitLabel="Create account"
             submitDisabled={mutation.isPending}
             submitWidthClassName="w-full sm:w-40"
             onCancel={onClose}
@@ -177,7 +177,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
               <div>
                 <CreateModalFieldLabelRow
                   htmlFor={CREATE_ACCOUNT_MODAL_FIELD_IDS.accountType}
-                  label="Account Type"
+                  label="Account type"
                   error={showError('account_type') || undefined}
                 />
                 <Dropdown
@@ -197,7 +197,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
               </div>
 
               <div>
-                <CreateModalFieldLabelRow htmlFor="account-name" label="Account Name" error={showError('name') || undefined} />
+                <CreateModalFieldLabelRow htmlFor="account-name" label="Account name" error={showError('name') || undefined} />
                 <input
                   id="account-name"
                   type="text"
@@ -310,7 +310,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                           htmlFor={CREATE_ACCOUNT_MODAL_FIELD_IDS.taxAdvantagedCategory}
                           className="app-label mb-1.5 block text-[0.9375rem] leading-5"
                         >
-                          Tax-Advantaged Category
+                          Tax-advantaged category
                         </label>
                         <Dropdown
                           id={CREATE_ACCOUNT_MODAL_FIELD_IDS.taxAdvantagedCategory}
@@ -336,7 +336,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                       <div>
                         <CreateModalFieldLabelRow
                           htmlFor="credit-limit"
-                          label="Credit Limit"
+                          label="Credit limit"
                           error={showError('credit_limit') || undefined}
                         />
                         <div className="relative">
