@@ -5,6 +5,7 @@ import { ProviderAccountMappingStep } from '@/pages/imports/sections/ProviderAcc
 type FireflyAccountMappingStepProps = Pick<
   FireflyImportWorkflow,
   | 'transactionsFile'
+  | 'importResult'
   | 'trackedAccounts'
   | 'accountMappings'
   | 'autoFilledAccountSources'
@@ -39,6 +40,7 @@ type FireflyAccountMappingStepProps = Pick<
  */
 export function FireflyAccountMappingStep({
   transactionsFile,
+  importResult,
   trackedAccounts,
   updateFireflyAccountMapping,
   ...props
@@ -46,6 +48,7 @@ export function FireflyAccountMappingStep({
   return (
     <ProviderAccountMappingStep
       {...props}
+      isImportFinished={Boolean(importResult)}
       index="02"
       description="Asset and liability accounts from the export must map to an existing account or a new one."
       notice={(

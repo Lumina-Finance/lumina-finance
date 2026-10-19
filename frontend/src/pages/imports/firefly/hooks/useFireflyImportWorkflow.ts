@@ -15,6 +15,7 @@ import {
   useProviderFileIntake,
   useProviderImportReferenceData,
   useProviderImportRun,
+  useReferenceBeforeImport,
 } from '@/pages/imports/hooks'
 import type { ImportAccountCreateDetails, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
 import {
@@ -62,7 +63,9 @@ const FIREFLY_FILE_KINDS: readonly FireflyFileKind[] = ['transactions', 'budgets
  *
  * Uploading a new transactions export resets every derived mapping and any prior result, since a
  * different export invalidates all of it. A new accounts export resets the account answers, since
- * it changes which accounts there are and what each is proposed as. An import that fails writes nothing, and one whose save
+ * it changes which accounts there are and what each is proposed as. A file chosen once an import has
+ * finished starts a new import from that file alone, since the staged files are the finished import's
+ * record until then. An import that fails writes nothing, and one whose save
  * failed for a reason trying again could clear keeps its upload, so a retry only saves again
  */
 export function useFireflyImportWorkflow() {
@@ -152,6 +155,9 @@ export function useFireflyImportWorkflow() {
     balanceAdjustmentCategory,
   } = useProviderImportReferenceData({ transferCategoryName: IMPORT_TRANSFER_CATEGORY_NAME })
 
+  // A finished import is a record of what it did, so its answers are guessed without what it created
+  const referenceBeforeImport = useReferenceBeforeImport({ selectableAccounts, categories, categoryById }, run.workflow.importResult)
+
   const fireflyRows = useMemo(
     () => getFireflyFileRows(transactionsFile),
     [transactionsFile],
@@ -202,7 +208,7 @@ export function useFireflyImportWorkflow() {
   const { resolvedAccountMappings, autoFilledAccountSources, handAnsweredAccountSources } = useProviderAccountAnswers({
     sources: accountMappingSources,
     accountMappings,
-    reference: { accountsResolved, accountsCurrent, accountById, selectableAccounts },
+    reference: { accountsResolved, accountsCurrent, accountById, selectableAccounts: referenceBeforeImport.selectableAccounts },
   })
 
   const resolvedAccountCreateDetails = useMemo(
@@ -235,8 +241,8 @@ export function useFireflyImportWorkflow() {
   )
 
   const inferCategoryMappings = useCallback(
-    (liveMappings: Record<string, string>) => inferFireflyCategoryMappings(importedCategories, liveMappings, categories ?? [], inferredCategoryKinds),
-    [categories, importedCategories, inferredCategoryKinds],
+    (liveMappings: Record<string, string>) => inferFireflyCategoryMappings(importedCategories, liveMappings, referenceBeforeImport.categories ?? [], inferredCategoryKinds),
+    [referenceBeforeImport.categories, importedCategories, inferredCategoryKinds],
   )
 
   const categorySources = useMemo(() => importedCategories.map((source) => ({ id: source, name: source })), [importedCategories])
@@ -254,7 +260,7 @@ export function useFireflyImportWorkflow() {
     inferMappings: inferCategoryMappings,
     proposedKinds: proposedCategoryKinds,
     appName: FIREFLY_CATEGORY_RENAME_APP_NAME,
-    reference: { categoriesResolved, categoryById },
+    reference: { categoriesResolved, categoryById: referenceBeforeImport.categoryById },
   })
 
   const previewRows = useMemo(
@@ -476,6 +482,15 @@ export function useFireflyImportWorkflow() {
     setSelectedBudgetNames(null)
   }
 
+  const clearImport = () => {
+    setTransactionsFile(null)
+    setBudgetsFile(null)
+    setAccountsFile(null)
+    resetMappingState()
+    resetCommitState()
+    resetBudgetPanelState()
+  }
+
   const assignFireflyFile = (kind: FireflyFileKind, draft: ImportFileDraft | null) => {
     fileIntake.setIntakeError(kind, null)
 
@@ -515,7 +530,20 @@ export function useFireflyImportWorkflow() {
       read: (selectedFile) => readFireflyCsvFile(selectedFile, kind, supportedCurrencyCodes),
     })
 
-    if (intake.status === 'accepted') assignFireflyFile(kind, intake.result)
+    if (intake.status !== 'accepted') return
+
+    if (run.workflow.importResult) {
+      // A file the import can't use leaves the record as it was, with the refusal on the slot
+      if (intake.result.error) {
+        fileIntake.setIntakeError(kind, intake.result.error)
+        return
+      }
+
+      // A usable file starts a new import, so the record of the last one and the files it was read
+      // from give way to it, whichever of the three it is
+      clearImport()
+    }
+    assignFireflyFile(kind, intake.result)
   }
 
   const removeFireflyFile = (kind: FireflyFileKind) => {
@@ -535,13 +563,8 @@ export function useFireflyImportWorkflow() {
   }
 
   const resetFireflyWorkflow = () => {
-    setTransactionsFile(null)
-    setBudgetsFile(null)
-    setAccountsFile(null)
+    clearImport()
     fileIntake.resetFileIntake()
-    resetMappingState()
-    resetCommitState()
-    resetBudgetPanelState()
   }
 
   return {
