@@ -2,14 +2,14 @@
 
 import pytest
 from sqlalchemy import text
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from app import bank_transaction_key
 from app.bank_transaction_key import generate_key, key_fingerprint
 from app.config import imports as import_config
 from app.db import bank_transaction_key as provisioning
 from app.db.bank_transaction_key import ensure_key, reset_key, verify_key_matches_hashes
-from tests.conftest import engine
+from tests.conftest import engine, scoped_engine
 
 _RESET_ADVICE = "accept that statements imported again will bring back"
 
@@ -87,18 +87,27 @@ async def test_ensure_key_generates_one_before_the_hash_column_exists(key_file):
     assert key_file.exists()
 
 
-@pytest.mark.parametrize("depends_on", ["hashes", "fingerprint"])
-async def test_ensure_key_refuses_to_replace_a_key_the_database_depends_on(key_file, depends_on):
+async def test_ensure_key_refuses_to_replace_the_key_saved_hashes_were_made_with(key_file):
     """A restore without the key would otherwise bring back every statement's transactions on re-import"""
     async with engine.begin() as connection:
-        if depends_on == "hashes":
-            await _save_hashed_transaction(connection)
-        else:
-            await _record(connection, generate_key())
+        await _save_hashed_transaction(connection)
+        await _record(connection, generate_key())
 
         with pytest.raises(RuntimeError, match=f"Restore that key.*{_RESET_ADVICE}"):
             await ensure_key(connection)
 
+    assert not key_file.exists()
+
+
+async def test_ensure_key_refuses_a_recorded_key_no_hash_uses_and_says_resetting_costs_nothing(key_file):
+    """The missing key may be a sign of a bad restore, so it stays the operator's call, without a false warning"""
+    async with engine.begin() as connection:
+        await _record(connection, generate_key())
+
+        with pytest.raises(RuntimeError, match="Nothing is lost by resetting") as refusal:
+            await ensure_key(connection)
+
+    assert _RESET_ADVICE not in str(refusal.value)
     assert not key_file.exists()
 
 
@@ -155,14 +164,50 @@ async def test_a_start_with_a_key_and_no_record_yet_passes(key_file, monkeypatch
         await verify_key_matches_hashes(connection)
 
 
-async def test_resetting_binds_the_database_to_a_new_key_so_it_starts(key_file):
+@pytest.mark.parametrize("source", ["environment", "file", "generated"])
+async def test_resetting_binds_the_database_to_a_new_key_so_it_starts(key_file, monkeypatch, source):
     """Someone who lost the key must have a way forward, taken on purpose rather than by accident"""
+    key = generate_key()
+    if source == "environment":
+        monkeypatch.setattr(import_config, "BANK_TRANSACTION_HASH_KEY", key)
+    elif source == "file":
+        key_file.write_text(key)
+
     async with engine.begin() as connection:
         await _save_hashed_transaction(connection)
         await _record(connection, generate_key())
 
-        await reset_key(connection)
+    await reset_key(engine)
 
+    if source == "generated":
+        key = key_file.read_text()
+    async with engine.connect() as connection:
         await verify_key_matches_hashes(connection)
         recorded = await connection.scalar(text("SELECT fingerprint FROM bank_transaction_key_fingerprint"))
-    assert recorded == key_fingerprint(bytes.fromhex(key_file.read_text()))
+    assert recorded == key_fingerprint(bytes.fromhex(key))
+    assert key_file.exists() == (source != "environment")
+
+
+async def test_a_reset_that_cannot_record_the_key_leaves_no_key_behind(key_file):
+    """A key file written before the record would leave every later start refused"""
+    lost_key = generate_key()
+    async with engine.begin() as connection:
+        await _record(connection, lost_key)
+
+    # The app role may only read the record, as a role short of the migrator's rights would be
+    with pytest.raises(ProgrammingError, match="permission denied"):
+        await reset_key(scoped_engine)
+
+    assert not key_file.exists()
+    async with engine.connect() as connection:
+        assert await provisioning.read_fingerprint(connection) == key_fingerprint(bytes.fromhex(lost_key))
+
+
+async def test_the_app_role_can_read_the_recorded_key():
+    """The app checks the record as the app role at every start, so it must keep its read grant"""
+    key = generate_key()
+    async with engine.begin() as connection:
+        await _record(connection, key)
+
+    async with scoped_engine.connect() as connection:
+        assert await provisioning.read_fingerprint(connection) == key_fingerprint(bytes.fromhex(key))

@@ -16,7 +16,9 @@ from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.bank_transaction_key import key_fingerprint, resolve_key, seal_bank_transaction_hash
-from app.config.database import MIGRATOR_DB_USER
+from app.config.database import APP_DB_USER, MIGRATOR_DB_USER
+from app.db.bank_transaction_key import read_fingerprint as read_bank_transaction_key_fingerprint
+from app.db.credentials import resolve_role_password
 from app.models.base import Base
 from app.models.types import find_encrypted_columns
 from app.services.merchants.defaults import (
@@ -262,6 +264,14 @@ async def test_bank_transaction_hash_migration_hashes_saved_bank_ids_as_the_impo
             async with engine.connect() as conn:
                 recorded = await conn.scalar(text("SELECT fingerprint FROM bank_transaction_key_fingerprint"))
             assert recorded == key_fingerprint(resolve_key(generate=False))
+
+            # The app reads the record as the app role at every start, so the migration must grant it
+            app_engine = _create_app_role_engine(database_name)
+            try:
+                async with app_engine.connect() as conn:
+                    assert await read_bank_transaction_key_fingerprint(conn) == recorded
+            finally:
+                await app_engine.dispose()
             if not reupgrade:
                 async with engine.connect() as conn:
                     assert await _read_import_run_sources(conn) == {
@@ -872,6 +882,13 @@ def _create_engine_for_database(database_name: str, *, isolation_level: str | No
     database_url = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{database_name}"
     engine = create_async_engine(database_url, poolclass=NullPool, isolation_level=isolation_level)
     return engine
+
+
+def _create_app_role_engine(database_name: str):
+    """Create an async engine for a test database connecting as the runtime app role"""
+    password = resolve_role_password("app", generate=False)
+    database_url = f"postgresql+asyncpg://{APP_DB_USER}:{password}@{DB_HOST}:{DB_PORT}/{database_name}"
+    return create_async_engine(database_url, poolclass=NullPool)
 
 
 async def test_system_merchant_migration_folds_everyones_own_myself() -> None:

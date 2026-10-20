@@ -67,7 +67,7 @@ def _parse_key(value: str, source: str) -> bytes:
     return bytes.fromhex(value)
 
 
-def _persist_key(key: str) -> None:
+def persist_key(key: str) -> None:
     """Write a new key file readable by its owner alone from the moment it exists
 
     Raises:
@@ -116,7 +116,7 @@ def resolve_key(*, generate: bool) -> bytes:
         raise RuntimeError(f"Missing {KEY_ENV_VAR}. Set it to {_KEY_GUIDANCE}")
 
     generated = generate_key()
-    _persist_key(generated)
+    persist_key(generated)
     return bytes.fromhex(generated)
 
 

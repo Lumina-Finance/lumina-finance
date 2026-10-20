@@ -11,12 +11,11 @@ import sys
 
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 
 from app import bank_transaction_key
-from app.config.database import admin_database_url
-from app.db.encryption_key import table_exists
-from app.models.encryption_key import SINGLETON_ID
+from app.config.database import admin_database_url, migration_database_url
+from app.db import key_fingerprint
 
 FINGERPRINT_TABLE = "bank_transaction_key_fingerprint"
 
@@ -24,23 +23,23 @@ FINGERPRINT_TABLE = "bank_transaction_key_fingerprint"
 RESET_COMMAND = "docker compose run --rm app reset-bank-transaction-hash-key"
 
 
+def _key_locations() -> str:
+    """Name the two places a key is read from"""
+    return f"{bank_transaction_key.KEY_ENV_VAR} or {bank_transaction_key.KEY_FILE}"
+
+
 def _way_forward() -> str:
     """Say how to recover, and what the one way that keeps no key costs"""
     return (
-        f"Restore that key to {bank_transaction_key.KEY_ENV_VAR} or {bank_transaction_key.KEY_FILE}. "
-        f"If it is lost, run `{RESET_COMMAND}` to start over with the key now set, or a new one, and "
-        f"accept that statements imported again will bring back the transactions already saved from them"
+        f"Restore that key to {_key_locations()}. If it is lost, run `{RESET_COMMAND}` to start over "
+        f"with the key now set, or a new one, and accept that statements imported again will bring "
+        f"back the transactions already saved from them"
     )
 
 
 async def read_fingerprint(connection: AsyncConnection) -> str | None:
     """Return the recorded key fingerprint, or None before the migration that records one"""
-    if not await table_exists(connection, FINGERPRINT_TABLE):
-        return None
-    return await connection.scalar(
-        text(f"SELECT fingerprint FROM public.{FINGERPRINT_TABLE} WHERE id = :id"),  # noqa: S608
-        {"id": SINGLETON_ID},
-    )
+    return await key_fingerprint.read_fingerprint(connection, FINGERPRINT_TABLE)
 
 
 async def holds_bank_transaction_hashes(connection: AsyncConnection) -> bool:
@@ -80,7 +79,8 @@ async def ensure_key(connection: AsyncConnection) -> None:
 
     env_var = bank_transaction_key.KEY_ENV_VAR
     try:
-        depends_on_key = await read_fingerprint(connection) is not None or await holds_bank_transaction_hashes(connection)
+        holds_hashes = await holds_bank_transaction_hashes(connection)
+        records_key = await read_fingerprint(connection) is not None
     except SQLAlchemyError as error:
         # Run as the admin role, which may be unable to read the tables. Minting a key is what
         # would break the saved hashes, so refusing is the safe answer
@@ -89,8 +89,18 @@ async def ensure_key(connection: AsyncConnection) -> None:
             f"({error}). Set {env_var} rather than having one generated here"
         ) from error
 
-    if depends_on_key:
+    if holds_hashes:
         raise RuntimeError(f"No {env_var}, but this database's bank transaction hashes were made with one. {_way_forward()}")
+
+    # Recorded by the migration but not yet used, so a new key costs nothing. It is still the
+    # operator's call, since the missing key may point at a restore that left something else behind
+    if records_key:
+        raise RuntimeError(
+            f"No {env_var}, but this database records the bank transaction hash key it was set up "
+            f"with, although no transaction has a hash made with it yet. Restore that key to "
+            f"{_key_locations()}, or run `{RESET_COMMAND}` to start over with a new one. Nothing is "
+            f"lost by resetting, since no saved transaction depends on the key"
+        )
 
     bank_transaction_key.resolve_key(generate=True)
     print(f"Generated bank transaction hash key at {bank_transaction_key.KEY_FILE}", file=sys.stderr)
@@ -110,51 +120,68 @@ async def verify_key_matches_hashes(connection: AsyncConnection) -> None:
     if recorded is not None and recorded != bank_transaction_key.key_fingerprint(key):
         raise RuntimeError(
             f"Refusing to start: the bank transaction hashes were made with a different key than the "
-            f"one in {bank_transaction_key.KEY_ENV_VAR} or {bank_transaction_key.KEY_FILE}. {_way_forward()}"
+            f"one in {_key_locations()}. {_way_forward()}"
         )
 
 
-async def reset_key(connection: AsyncConnection) -> None:
+async def reset_key(engine: AsyncEngine) -> None:
     """Bind the database to the key now set, or a newly generated one, giving up the old hashes
 
     The transactions keep their old hashes, which no statement will match again, so each one
-    imported again is brought in as new
+    imported again is brought in as new. A generated key is persisted only once its fingerprint is
+    recorded, so a reset that fails leaves the deployment as it was rather than refused at every
+    start
 
     Args:
-        connection: Open connection inside the transaction that records the key
+        engine: Engine for the migrator role, which owns the fingerprint table
     """
-    key = bank_transaction_key.resolve_key(generate=True)
-    await connection.execute(
-        text(
-            f"INSERT INTO public.{FINGERPRINT_TABLE} (id, fingerprint) VALUES (:id, :fingerprint) "  # noqa: S608
-            f"ON CONFLICT (id) DO UPDATE SET fingerprint = EXCLUDED.fingerprint, updated_at = now()"
-        ),
-        {"id": SINGLETON_ID, "fingerprint": bank_transaction_key.key_fingerprint(key)},
-    )
+    generated = None
+    if bank_transaction_key.is_key_available():
+        key = bank_transaction_key.resolve_key(generate=False)
+    else:
+        generated = bank_transaction_key.generate_key()
+        key = bytes.fromhex(generated)
+
+    async with engine.begin() as connection:
+        await key_fingerprint.record_fingerprint(connection, FINGERPRINT_TABLE, bank_transaction_key.key_fingerprint(key))
+
+    if generated is not None:
+        bank_transaction_key.persist_key(generated)
+        print(f"Generated bank transaction hash key at {bank_transaction_key.KEY_FILE}", file=sys.stderr)
+
     print(
         "Recorded the bank transaction hash key now in use. Statements imported again will bring back the transactions already saved from them",
         file=sys.stderr,
     )
 
 
-async def _run(command) -> None:
-    """Run a command against the admin role, which exists before the managed roles are provisioned"""
+async def _run_ensure_key() -> None:
+    """Provision against the admin role, which exists before the managed roles are provisioned"""
     engine = create_async_engine(admin_database_url())
     try:
         async with engine.begin() as connection:
-            await command(connection)
+            await ensure_key(connection)
     finally:
         await engine.dispose()
 
 
-_COMMANDS = {"ensure-key": ensure_key, "reset-key": reset_key}
+async def _run_reset_key() -> None:
+    """Reset against the migrator role, which owns the fingerprint table once the schema is built"""
+    engine = create_async_engine(migration_database_url())
+    try:
+        await reset_key(engine)
+    finally:
+        await engine.dispose()
+
+
+_COMMANDS = {"ensure-key": _run_ensure_key, "reset-key": _run_reset_key}
 
 
 def main() -> None:
     """Run the command named as the single command-line argument"""
     if len(sys.argv) != 2 or sys.argv[1] not in _COMMANDS:
         sys.exit(f"Usage: python -m app.db.bank_transaction_key {{{'|'.join(_COMMANDS)}}}")
-    asyncio.run(_run(_COMMANDS[sys.argv[1]]))
+    asyncio.run(_COMMANDS[sys.argv[1]]())
 
 
 if __name__ == "__main__":
