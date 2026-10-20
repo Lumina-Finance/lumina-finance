@@ -7,10 +7,12 @@ from sqlalchemy.exc import OperationalError, ProgrammingError
 from app import bank_transaction_key
 from app.bank_transaction_key import generate_key, key_fingerprint
 from app.config import imports as import_config
+from app.config.database import MIGRATOR_DB_USER
 from app.db import bank_transaction_key as provisioning
+from app.db import provision
 from app.db.bank_transaction_key import ensure_key, reset_key, verify_key_matches_hashes
 from app.db.key_fingerprint import read_fingerprint
-from tests.conftest import engine, scoped_engine
+from tests.conftest import DB_USER, TEST_DATABASE_URL, engine, migrator_engine, scoped_engine
 
 _RESET_ADVICE = "accept that statements imported again will bring back"
 
@@ -202,6 +204,57 @@ async def test_a_reset_that_cannot_record_the_key_leaves_no_key_behind(key_file)
     assert not key_file.exists()
     async with engine.connect() as connection:
         assert await read_fingerprint(connection, provisioning.FINGERPRINT_TABLE) == key_fingerprint(bytes.fromhex(lost_key))
+
+
+@pytest.fixture
+async def migrator_owned_schema(monkeypatch):
+    """Let the ownership transfer run on this worker's database, and hand everything back afterwards
+
+    The suite builds the schema as its own login, while a deployment's migrator owns it. The
+    transfer connects as the admin role through the URL it is given, and the migrator needs the
+    schema rights ensure-roles grants it to be able to take ownership
+    """
+    monkeypatch.setattr(provision, "admin_database_url", lambda: TEST_DATABASE_URL)
+    async with engine.begin() as connection:
+        await connection.execute(text(f'GRANT CREATE, USAGE ON SCHEMA public TO "{MIGRATOR_DB_USER}"'))
+
+    yield
+
+    async with engine.begin() as connection:
+        await connection.execute(text(_RETURN_OWNERSHIP))
+        await connection.execute(text(f'REVOKE CREATE, USAGE ON SCHEMA public FROM "{MIGRATOR_DB_USER}"'))
+
+
+# Tables first, which takes their sequences along, then what transfer-ownership moves besides
+_RETURN_OWNERSHIP = f"""
+DO $$ DECLARE statement text; BEGIN
+FOR statement IN SELECT format('ALTER TABLE public.%I OWNER TO %I', tablename, current_user)
+    FROM pg_tables WHERE schemaname = 'public' AND tableowner = '{MIGRATOR_DB_USER}' LOOP EXECUTE statement; END LOOP;
+FOR statement IN SELECT format('ALTER SEQUENCE public.%I OWNER TO %I', sequencename, current_user)
+    FROM pg_sequences WHERE schemaname = 'public' AND sequenceowner = '{MIGRATOR_DB_USER}' LOOP EXECUTE statement; END LOOP;
+FOR statement IN SELECT format('ALTER FUNCTION %s OWNER TO %I', p.oid::regprocedure, current_user)
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND pg_get_userbyid(p.proowner) = '{MIGRATOR_DB_USER}' LOOP EXECUTE statement; END LOOP;
+FOR statement IN SELECT format('ALTER TYPE public.%I OWNER TO %I', t.typname, current_user)
+    FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+    WHERE n.nspname = 'public' AND t.typtype = 'e' AND pg_get_userbyid(t.typowner) = '{MIGRATOR_DB_USER}' LOOP EXECUTE statement; END LOOP;
+END $$
+"""  # noqa: S608
+
+
+async def test_a_reset_records_the_key_once_the_schema_is_handed_to_the_migrator(key_file, monkeypatch, migrator_owned_schema):
+    """A restored dump arrives owned by the admin role, and the reset writes the record as the migrator"""
+    key = generate_key()
+    monkeypatch.setattr(import_config, "BANK_TRANSACTION_HASH_KEY", key)
+    async with engine.begin() as connection:
+        await connection.execute(text(f'ALTER TABLE {provisioning.FINGERPRINT_TABLE} OWNER TO "{DB_USER}"'))
+        await _record(connection, generate_key())
+
+    await provision.transfer_schema_ownership()
+    await reset_key(migrator_engine)
+
+    async with engine.connect() as connection:
+        assert await read_fingerprint(connection, provisioning.FINGERPRINT_TABLE) == key_fingerprint(bytes.fromhex(key))
 
 
 async def test_the_app_role_can_read_the_recorded_key():
