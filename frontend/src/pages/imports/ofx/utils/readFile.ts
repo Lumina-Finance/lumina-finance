@@ -1,7 +1,6 @@
 import {
   MAX_OFX_FILE_BYTES,
   OFX_ACCOUNT_NUMBER_TAIL_LENGTH,
-  OFX_INSECURE_CONNECTION_BLOCK,
   OFX_BANK_ACCOUNT_TYPES,
   OFX_CREDIT_CARD_ACCOUNT,
   OFX_DEFAULT_BANK_ACCOUNT,
@@ -12,7 +11,6 @@ import {
   OFX_TOO_LARGE_REASON,
 } from '@/pages/imports/ofx/constants'
 import type { OfxFileRead, OfxStatement, OfxStatementKind, OfxTransaction } from '@/pages/imports/ofx/types'
-import type { ImportUploadBlock } from '@/pages/imports/types'
 import { findAllDescendants, findChild, parseOfxMarkup, readLeaf, type OfxNode } from './markup'
 
 // The 1.x header is plain ASCII lines before the markup, so a prefix is enough to find its charset
@@ -35,16 +33,17 @@ const LEFT_OUT_MESSAGE_SETS = { investment: 'INVSTMTMSGSRSV1', loan: 'LOANMSGSRS
  * currency. A transaction whose date or amount cannot be read is kept with that value null, so the
  * import lists it as skipped instead of refusing the file
  *
- * @param file - The uploaded file, never sent anywhere
+ * @param file - The uploaded file, sent nowhere as it is. Each transaction carries the bank account
+ * and bank ID it names, which the import sends to the server to be hashed there
  * @param fileId - What tells this file's transactions from those of another file of the same name
  */
-export async function readOfxFile(file: File, fileId: string = crypto.randomUUID()): Promise<OfxFileRead> {
+export async function readOfxFile(file: File, fileId: string = createOfxFileId()): Promise<OfxFileRead> {
   if (file.size > MAX_OFX_FILE_BYTES) return { status: 'refused', reason: OFX_TOO_LARGE_REASON }
 
   // A file the reader cannot get through is refused as not a statement, as a crash would otherwise
   // leave the upload with no word on why it did nothing
   try {
-    return await readOfxStatements(decodeOfxBytes(await file.arrayBuffer()), { fileId, fileName: file.name })
+    return readOfxStatements(decodeOfxBytes(await file.arrayBuffer()), { fileId, fileName: file.name })
   } catch {
     return { status: 'refused', reason: OFX_NOT_READABLE_REASON }
   }
@@ -53,7 +52,17 @@ export async function readOfxFile(file: File, fileId: string = crypto.randomUUID
 /** The file a statement is read from, which each of its transactions records */
 type OfxFileOrigin = Pick<OfxTransaction, 'fileId' | 'fileName'>
 
-async function readOfxStatements(text: string, origin: OfxFileOrigin): Promise<OfxFileRead> {
+/**
+ * Makes an id that tells a file from the others staged with it, including one of the same name
+ *
+ * Uses getRandomValues, which a page on plain HTTP has, rather than crypto.randomUUID, which a
+ * browser offers only on HTTPS or localhost
+ */
+export function createOfxFileId() {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
+function readOfxStatements(text: string, origin: OfxFileOrigin): OfxFileRead {
   const root = parseOfxMarkup(text)
   if (!root) return { status: 'refused', reason: OFX_NOT_READABLE_REASON }
 
@@ -68,7 +77,7 @@ async function readOfxStatements(text: string, origin: OfxFileOrigin): Promise<O
 
   const statements: OfxStatement[] = []
   for (const { kind, node } of sections) {
-    const statement = await readStatement(kind, node, origin)
+    const statement = readStatement(kind, node, origin)
     if (!statement) return { status: 'refused', reason: OFX_STATEMENT_INCOMPLETE_REASON }
     statements.push(statement)
   }
@@ -107,7 +116,7 @@ function countStatementResponses(root: OfxNode, messageSetName: string) {
   }, 0)
 }
 
-async function readStatement(kind: OfxStatementKind, node: OfxNode, origin: OfxFileOrigin): Promise<OfxStatement | null> {
+function readStatement(kind: OfxStatementKind, node: OfxNode, origin: OfxFileOrigin): OfxStatement | null {
   const currency = readLeaf(node, 'CURDEF')?.toUpperCase()
   const account = findChild(node, kind === 'bank' ? 'BANKACCTFROM' : 'CCACCTFROM')
   const accountNumber = account && readLeaf(account, 'ACCTID')
@@ -121,8 +130,9 @@ async function readStatement(kind: OfxStatementKind, node: OfxNode, origin: OfxF
   const tail = accountNumber.replace(/[^A-Za-z0-9]/g, '').slice(-OFX_ACCOUNT_NUMBER_TAIL_LENGTH)
   const name = `${accountKind.label} ending ${tail || accountNumber}`
 
-  // Kept in the browser only: it tells statements of one bank account apart from another's while
-  // the files are combined, and reaches the server only inside each transaction's one-way hash
+  // It tells statements of one bank account apart from another's while the files are combined, and
+  // goes to the server with each transaction's bank ID, which hashes the pair before keeping anything.
+  // The statement itself is sent under its position, so no account number names an answer
   const accountKey = [kind, bankId, accountNumber].filter(Boolean).join(':')
   const transactions = findAllDescendants(node, 'STMTTRN')
   return {
@@ -132,39 +142,8 @@ async function readStatement(kind: OfxStatementKind, node: OfxNode, origin: OfxF
     label: `${name} (${currency})`,
     proposedType: accountKind.type,
     currency,
-    transactions: await Promise.all(transactions.map((transaction, index) => readTransaction(transaction, index + 1, currency, accountKey, origin))),
+    transactions: transactions.map((transaction, index) => readTransaction(transaction, index + 1, currency, accountKey, origin)),
   }
-}
-
-/**
- * Says why no statement can be read on this page, or null where one can
- *
- * Browsers only offer crypto.subtle, which the bank transaction hash is made with, and
- * crypto.randomUUID, which tells files apart, to a page on HTTPS or localhost. A self-hosted server
- * can be opened over plain HTTP by its IP address, where every file would otherwise fail to read
- */
-export function getOfxReadBlock(): ImportUploadBlock | null {
-  return globalThis.isSecureContext ? null : { message: OFX_INSECURE_CONNECTION_BLOCK, isFailure: true }
-}
-
-/**
- * Hashes the bank account a statement names with the bank's ID for one of its transactions, as
- * SHA-256 over their UTF-8 bytes joined by a zero byte, written as lower-case hex
- *
- * The backend keys this digest with its own secret, and the migration that introduced the hash
- * builds the same in SQL for transactions saved before, so changing how it is built leaves those
- * unmatched until a migration rebuilds them. Only reachable where getOfxReadBlock allows reading
- */
-async function hashBankTransaction(accountKey: string, fitId: string) {
-  const encoder = new TextEncoder()
-  const account = encoder.encode(accountKey)
-  const id = encoder.encode(fitId)
-  const bytes = new Uint8Array(account.length + 1 + id.length)
-  bytes.set(account)
-  bytes.set(id, account.length + 1)
-
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))
-  return Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
 /**
@@ -197,13 +176,13 @@ function readOtherCurrency(node: OfxNode, statementCurrency: string) {
   return code === statementCurrency ? null : code
 }
 
-async function readTransaction(
+function readTransaction(
   node: OfxNode,
   index: number,
   statementCurrency: string,
   accountKey: string,
   origin: OfxFileOrigin,
-): Promise<OfxTransaction> {
+): OfxTransaction {
   const postedText = readLeaf(node, 'DTPOSTED') ?? ''
   const amountText = readLeaf(node, 'TRNAMT') ?? ''
   const payeeAggregate = findChild(node, 'PAYEE')
@@ -216,7 +195,8 @@ async function readTransaction(
 
     // A file read alone is the first of the files, until combining them orders it among the others
     fileOrder: 1,
-    bankTransactionHash: fitId ? await hashBankTransaction(accountKey, fitId) : null,
+    bankAccountKey: accountKey,
+    bankTransactionId: fitId || null,
     postedText,
     date: readPostedDate(postedText),
     amountText,

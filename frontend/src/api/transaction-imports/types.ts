@@ -63,11 +63,12 @@ export interface TransactionImportRow {
   counterparty_account_source?: string | null;
 
   /**
-   * A SHA-256 digest in lower-case hex of the bank account a statement names and the bank's ID for
-   * the transaction, so neither leaves the browser. The server keeps only its own keyed hash of the
-   * digest, and the save leaves the row out when its account already holds that keyed hash
+   * The bank account an OFX statement names and the bank's ID for the transaction, as the file wrote
+   * them, both or neither. The server hashes the pair with a secret key before staging, so neither
+   * is kept, and the save leaves the row out when its account already holds that hash
    */
-  bank_transaction_hash?: string | null;
+  bank_account_key?: string | null;
+  bank_transaction_id?: string | null;
 }
 
 export interface TransactionImportPayload {

@@ -25,16 +25,22 @@ async function uploadStatement(page: Page, user: TestUser, contents: string, nam
   await upload.setInputFiles({ name, mimeType: 'application/octet-stream', buffer: Buffer.from(contents) })
 }
 
-// A self-hosted server opened over plain HTTP by its IP address gets no browser hashing, so every
-// file would fail to read without the upload saying why first
-test('blocks the upload and says how to open the app where the connection is not secure', async ({ page, request }) => {
+// A self-hosted server opened over plain HTTP by its IP address is not a secure context, so the browser
+// withholds crypto.subtle and crypto.randomUUID. The server hashes bank IDs, so the import must not need them
+test('imports a statement where the browser withholds crypto.subtle and crypto.randomUUID', async ({ page, request }) => {
   const user = await signUpUser(request)
-  await page.addInitScript(() => Object.defineProperty(window, 'isSecureContext', { get: () => false }))
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'isSecureContext', { get: () => false })
+    Object.defineProperty(Crypto.prototype, 'subtle', { get: () => undefined })
+    Object.defineProperty(Crypto.prototype, 'randomUUID', { value: undefined })
+  })
+  await uploadStatement(page, user, buildFile([buildBankMessageSet('CAD', [CAFE, PAYROLL])]))
+  await expect(page.getByText('Corner Cafe', { exact: true }).first()).toBeVisible()
 
-  await openOfxImport(page, user)
+  const response = await commitImport(page)
 
-  await expect(page.getByText('To import statements, open Lumina Finance over HTTPS or at localhost.', { exact: true })).toBeVisible()
-  await expect(page.locator('input[type="file"][accept*=".ofx"]')).toBeDisabled()
+  expect(response.status()).toBe(201)
+  expect(await countLedgerTransactions(request, user)).toBe(2)
 })
 
 test('imports a statement into a new account, leaving out a transaction with no readable amount', async ({ page, request }) => {

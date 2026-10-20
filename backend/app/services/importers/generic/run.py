@@ -15,6 +15,7 @@ from app.schemas.import_run import (
     TransactionImportResponse,
     TransactionImportRow,
     TransactionImportStageRequest,
+    TransactionImportStageRow,
 )
 from app.services.importers.generic.service import import_transactions
 from app.services.importers.shared.layouts import save_import_layout
@@ -67,21 +68,22 @@ async def stage_import_batch(
     )
 
 
-def _seal_row(row: TransactionImportRow) -> TransactionImportRow:
-    """Key the page's bank transaction digest before the row is staged
+def _seal_row(row: TransactionImportStageRow) -> TransactionImportRow:
+    """Replace the page's bank account and bank ID with their keyed hash before the row is staged
 
-    The bare digest could be reversed by trying every account number, so only the keyed hash is
-    staged and later stored, and the commit reads it back from the staged row as it is
+    The account number and ID are never staged or stored, only the keyed hash, and the commit reads
+    it back from the staged row as it is
 
     Args:
         row: One row as the page sent it
 
     Returns:
-        The row with its digest replaced by the keyed hash, or the row itself when it has none
+        The row with the keyed hash of its bank account and bank ID, or none when it has no bank ID
     """
-    if row.bank_transaction_hash is None:
-        return row
-    return row.model_copy(update={"bank_transaction_hash": seal_bank_transaction_hash(row.bank_transaction_hash)})
+    fields = row.model_dump(exclude={"bank_account_key", "bank_transaction_id"})
+    if row.bank_account_key is None or row.bank_transaction_id is None:
+        return TransactionImportRow(**fields)
+    return TransactionImportRow(**fields, bank_transaction_hash=seal_bank_transaction_hash(row.bank_account_key, row.bank_transaction_id))
 
 
 async def commit_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> TransactionImportResponse:

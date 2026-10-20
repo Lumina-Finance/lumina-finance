@@ -8,11 +8,11 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TransferCounterpartyScope
 
-# Characters of a bank transaction hash in lower-case hex. The import page sends a SHA-256 digest of
-# the bank account a statement names and the bank's ID for the transaction, so neither reaches the
-# server, and the server keeps HMAC-SHA256 of that digest under its secret key
-# (app.bank_transaction_key). Migration 7c2e9a4d1f58 builds the same hash in SQL for rows saved
-# before, so a change to how either is built needs a migration that rebuilds every saved hash
+# Characters of a bank transaction hash in lower-case hex. The import page sends the bank account a
+# statement names and the bank's ID for the transaction, and the server keeps HMAC-SHA256 of their
+# SHA-256 digest under its secret key (app.bank_transaction_key), never the pair itself. Migration
+# 7c2e9a4d1f58 builds the same hash in SQL for rows saved before, so a change to how it is built
+# needs a migration that rebuilds every saved hash
 BANK_TRANSACTION_HASH_LENGTH = 64
 
 

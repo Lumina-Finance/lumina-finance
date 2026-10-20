@@ -1,10 +1,10 @@
 """The server's secret key for the bank transaction hashes an OFX import keeps
 
-The import page sends a SHA-256 digest of the bank account a statement names and the bank's ID for
-each transaction. An account or card number has few enough possible values that the bare digest
-could be reversed by trying them all, so the server keys it with HMAC-SHA256 under this secret
-before staging or storing it. The secret is kept outside the database, so a copy of the database
-alone cannot be searched that way
+The import page sends the bank account a statement names and the bank's ID for each transaction as
+the file wrote them. The server hashes the pair with SHA-256 and keys the digest with HMAC-SHA256
+under this secret before staging, storing or logging anything. An account or card number has few
+enough possible values that a bare digest could be reversed by trying them all. The secret is kept
+outside the database, so a copy of the database alone cannot be searched that way
 
 Losing or changing the secret leaves every saved hash unmatched, so a statement imported again
 brings back the transactions an earlier import already saved. So the database records the key's
@@ -126,13 +126,19 @@ def _key() -> bytes:
     return resolve_key(generate=False)
 
 
-def seal_bank_transaction_hash(digest: str) -> str:
-    """Return what the server keeps for the import page's digest of a bank transaction
+def seal_bank_transaction_hash(bank_account_key: str, bank_transaction_id: str) -> str:
+    """Return what the server keeps for a bank transaction
+
+    The SHA-256 digest of the account key and the ID is taken over their UTF-8 bytes joined by a zero
+    byte, which is how the migration that introduced the hash builds it in SQL for transactions saved
+    before, so changing it leaves those unmatched. The digest is then keyed with the secret
 
     Args:
-        digest: The page's SHA-256 digest, as 64 lower-case hex characters
+        bank_account_key: The bank account the statement names, as the import page read it
+        bank_transaction_id: The bank's ID for the transaction, as the import page read it
 
     Returns:
         HMAC-SHA256 of the digest's 32 bytes under the key, as 64 lower-case hex characters
     """
-    return hmac.new(_key(), bytes.fromhex(digest), hashlib.sha256).hexdigest()
+    digest = hashlib.sha256(bank_account_key.encode() + b"\0" + bank_transaction_id.encode()).digest()
+    return hmac.new(_key(), digest, hashlib.sha256).hexdigest()

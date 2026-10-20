@@ -2,7 +2,7 @@
  * Tests reading OFX statements: the same statement in OFX 1.x SGML and 2.x XML reads the
  * same, and a file that is not a bank or credit card statement is refused or left out loudly
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   OFX_NO_STATEMENTS_REASON,
   OFX_NOT_READABLE_REASON,
@@ -71,17 +71,28 @@ describe('reading a bank statement', () => {
     expect(await readFile(qfx, 'statement.qfx')).toEqual(await readFile(buildSgmlOfx([CHECKING]), 'statement.qfx'))
   })
 
-  // The backend migration hashed every bank ID saved before the hash in SQL, and its test pins the
-  // same digest, so a statement imported again only skips those if the two are built alike
-  it('hashes the bank account with the bank\'s transaction ID, keeps the file each transaction is in, and null for an ID the file leaves out', async () => {
+  // The server hashes the account key and the bank ID it is sent, and its tests pin the hash of this
+  // pair, so the account key must be built from the routing ID and the account number as it is here
+  it('reads the bank account key and the bank\'s transaction ID as the file wrote them, keeps the file each transaction is in, and null for an ID the file leaves out', async () => {
     const file = await readFile(buildSgmlOfx([{ transactions: [{ fitId: 'A1' }, { fitId: null }] }]), '2024-01.qfx')
 
-    expect(file.statements[0].transactions.map(({ bankTransactionHash, fileName }) => ({ bankTransactionHash, fileName }))).toEqual([
-
-      // From `printf 'bank:123000456:000123456789\0A1' | shasum -a 256`
-      { bankTransactionHash: '7d404905c477742532f9d2abc554de3c7f8089848d5e927aa19725a9b5d931ed', fileName: '2024-01.qfx' },
-      { bankTransactionHash: null, fileName: '2024-01.qfx' },
+    expect(file.statements[0].transactions.map(({ bankAccountKey, bankTransactionId, fileName }) => ({ bankAccountKey, bankTransactionId, fileName }))).toEqual([
+      { bankAccountKey: 'bank:123000456:000123456789', bankTransactionId: 'A1', fileName: '2024-01.qfx' },
+      { bankAccountKey: 'bank:123000456:000123456789', bankTransactionId: null, fileName: '2024-01.qfx' },
     ])
+  })
+
+  it('reads a file where the browser withholds crypto.subtle and crypto.randomUUID, as on a page opened over plain HTTP', async () => {
+    vi.stubGlobal('crypto', { getRandomValues: crypto.getRandomValues.bind(crypto) })
+    try {
+      const reads = await Promise.all([readOfxFile(toOfxFile(buildSgmlOfx([CHECKING]))), readOfxFile(toOfxFile(buildSgmlOfx([CHECKING])))])
+
+      const origins = reads.map((read) => (read.status === 'read' ? read.file.statements[0].transactions[0] : null))
+      expect(origins.map((transaction) => transaction?.bankTransactionId)).toEqual(['A1', 'A1'])
+      expect(origins[0]?.fileId).not.toBe(origins[1]?.fileId)
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('reads a bank statement and a credit card statement of one file as two statements', async () => {
@@ -103,15 +114,15 @@ describe('reading a bank statement', () => {
     expect(file.statements.map((statement) => statement.name)).toEqual(['Checking ending 6789', 'Checking ending 6789 (2)'])
   })
 
-  // What sets the second statement apart on the page must stay out of the hash, or its transactions
-  // would never match the same ones imported from a file holding that statement alone
-  it('hashes a transaction of the second statement of one account as it would alone', async () => {
+  // What sets the second statement apart on the page must stay out of the account key, or its
+  // transactions would never match the same ones imported from a file holding that statement alone
+  it('keys a transaction of the second statement of one account as it would alone', async () => {
     const second: FixtureStatement = { transactions: [{ fitId: 'X' }] }
     const [, split] = (await readFile(buildSgmlOfx([CHECKING, second]))).statements
     const [alone] = (await readFile(buildSgmlOfx([second]))).statements
 
-    expect(alone.transactions[0].bankTransactionHash).toMatch(/^[0-9a-f]{64}$/)
-    expect(split.transactions[0].bankTransactionHash).toBe(alone.transactions[0].bankTransactionHash)
+    expect(alone.transactions[0].bankAccountKey).toBe('bank:123000456:000123456789')
+    expect(split.transactions[0].bankAccountKey).toBe(alone.transactions[0].bankAccountKey)
   })
 
   it('reads the date a stamp starts with, the amount with a comma decimal, and entities in names', async () => {

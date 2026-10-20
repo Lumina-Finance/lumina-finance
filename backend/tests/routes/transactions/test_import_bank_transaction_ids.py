@@ -7,6 +7,7 @@ an overlapping statement adds only what is new and two genuine look-alike purcha
 import asyncio
 import hashlib
 import hmac
+import json
 import os
 import re
 import uuid
@@ -14,7 +15,9 @@ import uuid
 import pytest
 from sqlalchemy import event, select, text
 
+from app.bank_transaction_key import seal_bank_transaction_hash
 from app.models.transaction import Transaction
+from app.schemas.import_run import MAX_IMPORT_BANK_ACCOUNT_KEY_LENGTH, MAX_IMPORT_BANK_TRANSACTION_ID_LENGTH
 from app.services.importers.generic import service as generic_service
 from app.services.transactions import bulk_update as bulk_update_module
 from app.services.transactions import update as update_module
@@ -37,16 +40,21 @@ _CHEQUING_KEY = "bank:021000021:000111222333"
 _TEST_KEY = bytes.fromhex(os.environ["BANK_TRANSACTION_HASH_KEY"])
 
 
-def _bank_hash(bank_transaction_id):
-    """The digest the import page sends for a chequing transaction with this bank ID, or None for none"""
+def _stored_hash(bank_transaction_id, account_key=_CHEQUING_KEY):
+    """What the server keeps for a transaction with this bank ID, built apart from the app's own code
+
+    The keyed hash of the SHA-256 digest of the account key, a zero byte and the bank ID, which is
+    what the browser's digest was keyed to before the server hashed the pair itself
+    """
+    digest = hashlib.sha256(f"{account_key}\0{bank_transaction_id}".encode()).digest()
+    return hmac.new(_TEST_KEY, digest, hashlib.sha256).hexdigest()
+
+
+def _bank_fields(bank_transaction_id):
+    """The bank account and bank ID the page sends for a chequing transaction, or neither for no ID"""
     if bank_transaction_id is None:
-        return None
-    return hashlib.sha256(f"{_CHEQUING_KEY}\0{bank_transaction_id}".encode()).hexdigest()
-
-
-def _stored_hash(bank_transaction_id):
-    """What the server keeps for a chequing transaction with this bank ID: the page's digest, keyed"""
-    return hmac.new(_TEST_KEY, bytes.fromhex(_bank_hash(bank_transaction_id)), hashlib.sha256).hexdigest()
+        return {"bank_account_key": None, "bank_transaction_id": None}
+    return {"bank_account_key": _CHEQUING_KEY, "bank_transaction_id": bank_transaction_id}
 
 
 def _ofx_payload(account_id, category_id, rows):
@@ -60,9 +68,9 @@ def _ofx_payload(account_id, category_id, rows):
                 "category_source": "Spending",
                 "dt": dt,
                 "amount": amount,
-                "merchant_name": f"Payee {bank_transaction_id}",
+                "merchant_name": f"Payee {str(bank_transaction_id)[:20]}",
                 "tag_names": [],
-                "bank_transaction_hash": _bank_hash(bank_transaction_id),
+                **_bank_fields(bank_transaction_id),
             }
             for bank_transaction_id, dt, amount in rows
         ],
@@ -185,60 +193,94 @@ async def test_an_import_repeating_a_bank_id_in_one_account_is_refused(client):
     assert await _ledger(client, headers, account_id) == []
 
 
-_DIGEST = _bank_hash("0001")
+# A bank account and bank ID with the hash the branch before the server hashed them stored for the
+# same pair, found by hand with `printf 'bank:021000021:000111222333\0A1' | shasum -a 256`, keyed with
+# the test key. Saved hashes keep matching only while the server makes this value from this input
+_KNOWN_ACCOUNT_KEY = "bank:021000021:000111222333"
+_KNOWN_BANK_ID = "A1"
+_KNOWN_STORED_HASH = "b9f6b59e50040034f5acd7c6ddb5d0c4cd0a3910031ae5dca1cbdc1504aa55df"
 
 
-@pytest.mark.parametrize(
-    "sent",
-    ["0001", _CHEQUING_KEY, _DIGEST.upper(), _DIGEST[:-1], f"{_DIGEST}0"],
-    ids=["bank ID", "account key", "upper case digest", "63 characters", "65 characters"],
-)
-async def test_a_raw_bank_id_or_account_number_is_refused_as_it_is_staged(client, sent):
-    """Only a digest is kept, so an account number or bank ID sent in its place must never be stored"""
+def test_the_server_hashes_a_known_bank_transaction_to_the_value_earlier_imports_stored():
+    """Changing how the pair is hashed leaves every saved transaction unmatched, so a known pair is pinned"""
+    assert seal_bank_transaction_hash(_KNOWN_ACCOUNT_KEY, _KNOWN_BANK_ID) == _KNOWN_STORED_HASH
+    assert _stored_hash(_KNOWN_BANK_ID, _KNOWN_ACCOUNT_KEY) == _KNOWN_STORED_HASH
+
+
+def test_the_pair_is_hashed_over_utf8_bytes_with_a_zero_byte_between():
+    """The browser hashed UTF-8 bytes, so a non-ASCII bank ID must hash the same way and not as text"""
+    assert seal_bank_transaction_hash("creditCard:4111", "Café-№1") == _stored_hash("Café-№1", "creditCard:4111")
+
+
+_BAD_BANK_FIELDS = {
+    "an ID with no account": {"bank_account_key": None, "bank_transaction_id": "0001"},
+    "an account with no ID": {"bank_account_key": _CHEQUING_KEY, "bank_transaction_id": None},
+    "an empty ID": {"bank_transaction_id": ""},
+    "an empty account": {"bank_account_key": ""},
+    "an ID past the cap": {"bank_transaction_id": "x" * (MAX_IMPORT_BANK_TRANSACTION_ID_LENGTH + 1)},
+    "an account past the cap": {"bank_account_key": "x" * (MAX_IMPORT_BANK_ACCOUNT_KEY_LENGTH + 1)},
+}
+
+
+@pytest.mark.parametrize("changes", _BAD_BANK_FIELDS.values(), ids=_BAD_BANK_FIELDS.keys())
+async def test_a_bank_account_and_bank_id_that_do_not_make_a_pair_are_refused_without_echoing_them(client, changes):
+    """A half pair, or an empty or huge value, can't be keyed, and no value is repeated back"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     payload = _ofx_payload(account_id, category_id, [("0001", "2026-03-01", "-10.00")])
-    payload["rows"][0]["bank_transaction_hash"] = sent
-
-    resp = await _import_ofx(client, headers, payload)
-
-    assert resp.status_code == 422, resp.text
-    assert [(error["loc"], error["msg"]) for error in resp.json()["detail"]] == [
-        (
-            ["body", "rows", 0, "bank_transaction_hash"],
-            "String should match pattern '^[0-9a-f]{64}$'",
-        )
-    ]
-    assert await _ledger(client, headers, account_id) == []
-
-
-async def test_a_page_from_before_the_hash_is_refused_before_it_stages_anything(client):
-    """An open tab still sends the account number and bank ID, which must not be stored or imported unmatched"""
-    headers, account_id, category_id = await _setup_user_with_deps(client)
-    payload = _ofx_payload(account_id, category_id, [(None, "2026-03-01", "-10.00")])
-    payload["accounts"][0]["source"] = _CHEQUING_KEY
-    payload["rows"][0] |= {"account_source": _CHEQUING_KEY, "bank_account_key": _CHEQUING_KEY, "bank_transaction_id": "0001"}
-    del payload["rows"][0]["bank_transaction_hash"]
+    payload["rows"][0] |= changes
     run_id = await _open_run(client, headers, source="ofx")
 
     resp = await _stage_batch(client, headers, run_id, {**payload, "start_row_index": 0}, source="ofx")
 
     assert resp.status_code == 422, resp.text
-    assert sorted((tuple(error["loc"]), error["msg"]) for error in resp.json()["detail"]) == [
-        (("body", "rows", 0, "bank_account_key"), "Extra inputs are not permitted"),
-        (("body", "rows", 0, "bank_transaction_id"), "Extra inputs are not permitted"),
+    assert all(error["loc"][:3] == ["body", "rows", 0] and "input" not in error for error in resp.json()["detail"])
+    for raw in (_CHEQUING_KEY, "0001", "x" * 50):
+        assert raw not in resp.text
+    async with TestSession() as session:
+        staged = await session.scalar(text("SELECT count(*) FROM import_staged_rows WHERE import_run_id = :id"), {"id": uuid.UUID(run_id)})
+    assert staged == 0
+
+
+async def test_a_refusal_of_the_batch_as_a_whole_does_not_echo_the_rows_it_holds(client):
+    """FastAPI answers with the failing input, which for a batch missing its mappings is every raw bank ID"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    payload = _ofx_payload(account_id, category_id, [("0001", "2026-03-01", "-10.00")])
+    del payload["categories"]
+    run_id = await _open_run(client, headers, source="ofx")
+
+    resp = await _stage_batch(client, headers, run_id, {**payload, "start_row_index": 0}, source="ofx")
+
+    assert resp.status_code == 422, resp.text
+    assert _CHEQUING_KEY not in resp.text
+    assert "0001" not in resp.text
+
+
+async def test_a_page_from_before_the_server_hashed_the_pair_is_refused_before_it_stages_anything(client):
+    """An open tab still sends its own digest, which the server would store unkeyed and import unmatched"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    payload = _ofx_payload(account_id, category_id, [(None, "2026-03-01", "-10.00")])
+    payload["rows"][0] = {key: value for key, value in payload["rows"][0].items() if not key.startswith("bank_")}
+    payload["rows"][0]["bank_transaction_hash"] = "ab" * 32
+    run_id = await _open_run(client, headers, source="ofx")
+
+    resp = await _stage_batch(client, headers, run_id, {**payload, "start_row_index": 0}, source="ofx")
+
+    assert resp.status_code == 422, resp.text
+    assert [(tuple(error["loc"]), error["msg"]) for error in resp.json()["detail"]] == [
+        (("body", "rows", 0, "bank_transaction_hash"), "Extra inputs are not permitted"),
     ]
     async with TestSession() as session:
         staged = await session.scalar(text("SELECT count(*) FROM import_staged_rows WHERE import_run_id = :id"), {"id": uuid.UUID(run_id)})
-        answers = await session.scalar(text("SELECT account_mappings FROM import_runs WHERE id = :id"), {"id": uuid.UUID(run_id)})
-    assert (staged, answers) == (0, {})
+    assert staged == 0
 
 
-async def test_the_pages_digest_is_staged_and_stored_only_keyed(client):
-    """The bare digest of an account number can be reversed by trying them all, so it must not be kept"""
+async def test_the_pair_is_staged_and_stored_only_as_its_keyed_hash(client):
+    """No account number or bank ID may reach the staged row, the transaction or the run, only the keyed hash"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     run_id = await _open_staged_run(client, headers, _ofx_payload(account_id, category_id, _march(1, 1)), source="ofx")
     async with TestSession() as session:
         staged = await session.scalar(text("SELECT payload FROM import_staged_rows WHERE import_run_id = :id"), {"id": uuid.UUID(run_id)})
+        run_row = await session.scalar(text("SELECT to_jsonb(import_runs)::text FROM import_runs WHERE id = :id"), {"id": uuid.UUID(run_id)})
 
     resp = await _commit_run(client, headers, run_id, source="ofx")
 
@@ -247,7 +289,28 @@ async def test_the_pages_digest_is_staged_and_stored_only_keyed(client):
         stored = await session.scalar(
             select(Transaction.bank_transaction_hash).where(Transaction.account_id == uuid.UUID(account_id)),
         )
+        transaction_row = await session.scalar(
+            text("SELECT to_jsonb(transactions)::text FROM transactions WHERE account_id = :id"), {"id": uuid.UUID(account_id)}
+        )
     assert (staged["bank_transaction_hash"], stored) == (_stored_hash("M1"), _stored_hash("M1"))
+    assert set(staged).isdisjoint({"bank_account_key", "bank_transaction_id"})
+    for raw in (_CHEQUING_KEY, "000111222333", '"M1"'):
+        assert raw not in json.dumps(staged) + run_row + transaction_row + resp.text
+
+
+@pytest.mark.parametrize("length", [300, 5_000, MAX_IMPORT_BANK_TRANSACTION_ID_LENGTH])
+async def test_a_long_bank_id_imports_and_is_recognised_when_imported_again(client, length):
+    """Hashing keeps no length, so a bank ID past the 255 characters OFX allows is no reason to leave a transaction out"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    payload = _ofx_payload(account_id, category_id, [("y" * length, "2026-03-01", "-10.00")])
+
+    first = await _import_ofx(client, headers, payload)
+    again = await _import_ofx(client, headers, payload)
+
+    assert first.status_code == 201, first.text
+    assert (first.json()["transactions_created"], first.json()["transactions_already_imported"]) == (1, 0)
+    assert again.status_code == 422
+    assert again.json()["detail"] == "Every transaction in this import is already in Main Chequing"
 
 
 async def test_an_edited_transaction_moved_to_another_account_is_still_recognised_there(client):

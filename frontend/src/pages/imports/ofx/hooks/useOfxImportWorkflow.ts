@@ -24,7 +24,7 @@ import {
   type OfxImportBuild,
 } from '@/pages/imports/ofx/utils/payload'
 import { buildOfxPreviewRows } from '@/pages/imports/ofx/utils/preview'
-import { getOfxReadBlock, readOfxFile } from '@/pages/imports/ofx/utils/readFile'
+import { createOfxFileId, readOfxFile } from '@/pages/imports/ofx/utils/readFile'
 import { describeOfxSavedEarlier } from '@/pages/imports/ofx/utils/savedEarlier'
 import { combineOfxFiles, stageOfxFiles } from '@/pages/imports/ofx/utils/stagedFiles'
 import type { ImportAccountCreateDetails } from '@/pages/imports/types'
@@ -229,7 +229,7 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
   )
 
   const canCommitImport = run.canCommit({ hasPayload: importBuild.payload !== null, isProcessingFile })
-  const uploadBlockReason = getOfxReadBlock() ?? getImportUploadBlockReason(currencies, currenciesError)
+  const uploadBlockReason = getImportUploadBlockReason(currencies, currenciesError)
 
   const resetAnswers = () => {
     setAccountMappings({})
@@ -244,7 +244,7 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
       unavailableReason: uploadBlockReason?.message ?? null,
       fileType: OFX_IMPORT_FILE_TYPE,
       read: (files) => Promise.all(files.map(async (source) => {
-        const id = crypto.randomUUID()
+        const id = createOfxFileId()
         return { id, name: source.name, size: source.size, lastModified: source.lastModified, read: await readOfxFile(source, id) }
       })),
     })

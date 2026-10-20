@@ -33,6 +33,12 @@ MAX_IMPORT_MAPPINGS = 1_000
 # row. Long enough for a full statement memo line and the reference numbers banks append to it
 MAX_IMPORT_NOTES_LENGTH = 10_000
 
+# Characters of a bank account key and of a bank transaction ID one OFX row may carry. OFX allows
+# 255 for an ID, but a bank may write more and a long ID must not leave its transaction out, so the
+# caps only stop one value filling a request. The browser's byte budget bounds a request on its own
+MAX_IMPORT_BANK_ACCOUNT_KEY_LENGTH = 1_000
+MAX_IMPORT_BANK_TRANSACTION_ID_LENGTH = 100_000
+
 # Tags one row may carry, and characters one tag name may carry. The length matches the column tags
 # are stored in, so a name too long is refused as the batch carrying it is staged rather than at the
 # commit, once the rows are already parked
@@ -76,7 +82,7 @@ _BROWSER_TRIMMED_WHITESPACE = (
 _UNSIGNED_DECIMAL_PATTERN = r"^[0-9]+(\.[0-9]+)?$"
 _CURRENCY_CODE_PATTERN = r"^[A-Z]{3}$"
 
-# A SHA-256 digest in lower-case hex, as the import page writes one
+# A keyed hash in lower-case hex, as the server makes one
 _BANK_TRANSACTION_HASH_PATTERN = rf"^[0-9a-f]{{{BANK_TRANSACTION_HASH_LENGTH}}}$"
 
 
@@ -283,16 +289,15 @@ class TransactionImportMerchantMapping(BaseModel):
     skip: bool = False
 
 
-class TransactionImportRow(BaseModel):
-    """One frontend-compiled import row.
+class _ImportRowFields(BaseModel):
+    """The fields every frontend-compiled import row carries, before any bank transaction identity.
 
     Amount carries the cell's own digits rather than minor units. Its sign is the frontend's where
     the file states direction by which column a value sits in, and the cell's own otherwise.
     """
 
-    # A field this version does not take is refused rather than dropped. A page loaded before the
-    # bank transaction hash still sends the bank account number and bank ID, and dropping them would
-    # import its statement with nothing to recognise it by, under statements named by that number
+    # A field this version does not take is refused rather than dropped, so a page loaded before a
+    # change gets a refusal and stages nothing instead of an import missing what it no longer sends
     model_config = ConfigDict(extra="forbid")
 
     account_source: str = Field(min_length=1, max_length=256)
@@ -307,11 +312,38 @@ class TransactionImportRow(BaseModel):
     # that leaves it unset records that the money left the tracked accounts
     counterparty_account_source: str | None = Field(None, min_length=1, max_length=256)
 
-    # The page's one-way hash of the bank account an OFX statement names and the bank's ID for the
-    # transaction, which a CSV file has none of. Only a digest is taken, so a raw account number or
-    # bank ID is refused rather than stored. Staging keys it with the server's secret, so the staged
-    # row and the transaction hold only the keyed hash, and a row is left out at the commit when its
-    # account already holds that
+
+class TransactionImportStageRow(_ImportRowFields):
+    """One row as the import page sends it to be staged.
+
+    An OFX row carries the bank account its statement names and the bank's ID for the transaction,
+    as the file wrote them, which a CSV file has none of. Staging replaces both with one keyed hash
+    before anything is staged, stored or logged, so neither is kept.
+    """
+
+    # Both or neither, since the hash is made from the pair. The account key is the bank's routing
+    # ID and the account number joined by colons, or only the card number
+    bank_account_key: str | None = Field(None, min_length=1, max_length=MAX_IMPORT_BANK_ACCOUNT_KEY_LENGTH)
+    bank_transaction_id: str | None = Field(None, min_length=1, max_length=MAX_IMPORT_BANK_TRANSACTION_ID_LENGTH)
+
+    @model_validator(mode="after")
+    def _require_bank_pair(self) -> TransactionImportStageRow:
+        """Refuse a row that names a bank account without a bank ID, or the other way round
+
+        The message never repeats a value, which would put an account number in the response.
+        """
+        if (self.bank_account_key is None) != (self.bank_transaction_id is None):
+            raise ValueError("a bank account and a bank transaction ID must be sent together")
+        return self
+
+
+class TransactionImportRow(_ImportRowFields):
+    """One import row as staged and committed, which holds only the keyed hash of a bank transaction."""
+
+    # The server's keyed hash of the bank account an OFX statement names and the bank's ID for the
+    # transaction, which a CSV file has none of. Only the server makes one, from the pair a stage
+    # request carries, so no account number or bank ID is staged. A row is left out at the commit
+    # when its account already holds that hash
     bank_transaction_hash: str | None = Field(None, pattern=_BANK_TRANSACTION_HASH_PATTERN)
 
 
@@ -336,7 +368,7 @@ class TransactionImportStageRequest(BaseModel):
     # Carries no minimum, unlike the other two, because a batch whose merchants were all left alone
     # declares none of them
     merchants: list[TransactionImportMerchantMapping] = Field(default=[], max_length=MAX_IMPORT_MAPPINGS)
-    rows: list[TransactionImportRow] = Field(min_length=1, max_length=MAX_IMPORT_BATCH_ROWS)
+    rows: list[TransactionImportStageRow] = Field(min_length=1, max_length=MAX_IMPORT_BATCH_ROWS)
 
     # Where this batch starts in the file, so a batch sent twice stages the same positions and the
     # unique constraint on them absorbs the second copy. A position already staged keeps what it

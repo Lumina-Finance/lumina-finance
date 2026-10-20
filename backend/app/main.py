@@ -5,6 +5,7 @@ import logging
 from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config.oidc import OIDC_PROVIDER_CONFIGS
@@ -13,6 +14,7 @@ from app.database import async_session, engine, verify_app_role_is_unprivileged
 from app.db.bank_transaction_key import verify_key_matches_hashes
 from app.db.encryption_key import verify_key_matches_data
 from app.request_security import RequestBodySizeLimitMiddleware
+from app.request_validation import handle_request_validation_error
 from app.routes.accounts import router as account_router
 from app.routes.app_version import router as app_version_router
 from app.routes.auth import router as auth_router
@@ -89,6 +91,8 @@ app = FastAPI(
 
 # Install the configured email sender before any request can send mail
 set_email_sender(build_email_sender())
+
+app.add_exception_handler(RequestValidationError, handle_request_validation_error)
 
 
 # Added before CORS so CORS ends up the outer layer, since middleware wraps in reverse order

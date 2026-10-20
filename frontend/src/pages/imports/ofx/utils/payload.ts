@@ -102,8 +102,9 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
   const currencyMismatches: string[] = []
 
   const prepared = getOfxStatementsToImport(file).map((statement, position) => {
-    // Named by position rather than by the statement's id, which holds the account number and must
-    // stay in the browser. The same files give the same positions, so a resent upload matches
+    // Named by position rather than by the statement's id, which holds the account number that only
+    // goes to the server inside a transaction, to be hashed. The same files give the same positions,
+    // so a resent upload matches
     const source = `statement-${position + 1}`
     const built = buildImportAccountMapping({
       source,
@@ -171,7 +172,8 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
         merchant_name: transaction.payee,
         notes: transaction.memo,
         tag_names: [],
-        bank_transaction_hash: transaction.bankTransactionHash,
+        bank_account_key: transaction.bankTransactionId === null ? null : transaction.bankAccountKey,
+        bank_transaction_id: transaction.bankTransactionId,
       })
     }
 
@@ -189,12 +191,12 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
 }
 
 /**
- * What tells one bank transaction from another across the import: the hash of the bank's ID with
- * the bank account it was issued for, in the statement's currency, or null for a transaction the
- * file gave no ID
+ * What tells one bank transaction from another across the import: the bank's ID with the bank
+ * account it was issued for, in the statement's currency, or null for a transaction the file gave
+ * no ID. Held in the browser only to find repeats, and never sent
  */
 function getOfxRepeatKey(statement: OfxStatement, transaction: OfxTransaction) {
-  return transaction.bankTransactionHash === null ? null : JSON.stringify([transaction.bankTransactionHash, statement.currency])
+  return transaction.bankTransactionId === null ? null : JSON.stringify([transaction.bankAccountKey, transaction.bankTransactionId, statement.currency])
 }
 
 /**

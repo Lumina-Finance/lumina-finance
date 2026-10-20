@@ -213,7 +213,6 @@ async def _build_reference_batch(client, count, mode):
                 "notes": f"Reference row {i}",
                 "tag_names": [],
                 "counterparty_account_source": None,
-                "bank_transaction_hash": None,
             }
             for i in range(count)
         ],

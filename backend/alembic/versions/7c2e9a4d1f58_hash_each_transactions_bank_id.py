@@ -30,9 +30,9 @@ _FINGERPRINT_TABLE = "bank_transaction_key_fingerprint"
 # Bytes in one SHA-256 block, which HMAC pads its key to
 _SHA256_BLOCK_BYTES = 64
 
-# What the server keeps for a transaction: HMAC-SHA256 under its secret key of the digest the import
-# page sends, which is SHA-256 over the bank account key's UTF-8 bytes, a zero byte and the bank
-# ID's UTF-8 bytes. Postgres has SHA-256 but no HMAC without an extension, so HMAC is built from its
+# What the server keeps for a transaction: HMAC-SHA256 under its secret key of the SHA-256 digest
+# over the bank account key's UTF-8 bytes, a zero byte and the bank ID's UTF-8 bytes, which the
+# server takes from what the import page sends. Postgres has SHA-256 but no HMAC without an extension, so HMAC is built from its
 # definition, SHA-256(outer key || SHA-256(inner key || message)), with both padded keys made in
 # Python and sent as parameters rather than written into the statement. It must match the server
 # byte for byte, or a statement imported again would bring back every transaction saved before it
@@ -90,8 +90,7 @@ def _record_key_fingerprint(key: bytes) -> None:
 def upgrade() -> None:
     """Replace each transaction's bank account key and bank ID with their hash, and drop unsaved OFX runs
 
-    Every transaction an OFX import saved gets the keyed hash the server now keeps for what the import
-    page sends, so a statement imported again still skips what is already in the account. That needs
+    Every transaction an OFX import saved gets the keyed hash the server now keeps for it, so a statement imported again still skips what is already in the account. That needs
     the server's bank transaction hash key, which this refuses to run without. The account and card
     numbers and the bank IDs are then dropped and cannot be recovered
 

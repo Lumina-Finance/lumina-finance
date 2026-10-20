@@ -15,7 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from app.bank_transaction_key import key_fingerprint, resolve_key, seal_bank_transaction_hash
+from app.bank_transaction_key import key_fingerprint, resolve_key
 from app.config.database import APP_DB_USER, MIGRATOR_DB_USER
 from app.db.bank_transaction_key import FINGERPRINT_TABLE as BANK_TRANSACTION_KEY_FINGERPRINT_TABLE
 from app.db.credentials import resolve_role_password
@@ -71,9 +71,11 @@ _CHEQUING_KEY = "bank:123000456:000123456789"
 _ALEMBIC_RUN_SOURCES_DB_NAME = f"{WORKER_DB_NAME}_alembic_run_sources"
 _RUN_SOURCES_REVISION = "9e1b5c3a7d24"
 
-# SHA-256 of the account key, a zero byte and "A1", from `printf 'bank:123000456:000123456789\0A1' | shasum -a 256`.
-# The import page's test pins the same digest
-_CHEQUING_A1_HASH = "7d404905c477742532f9d2abc554de3c7f8089848d5e927aa19725a9b5d931ed"
+# What the server keeps for the account key above and the bank ID "A1" under the test key: HMAC-SHA256
+# of the SHA-256 digest of the key, a zero byte and "A1". The digest, from
+# `printf 'bank:123000456:000123456789\0A1' | shasum -a 256`, is 7d404905c477742532f9d2abc554de3c7f8089848d5e927aa19725a9b5d931ed,
+# which is what the browser sent before the server hashed the pair
+_CHEQUING_A1_STORED_HASH = "7947133547ae51015c6ef7299aa59548c51f7bae848b3428f73186db52f1cfee"
 
 
 async def test_account_date_index_migration_preserves_rows_and_existing_indexes() -> None:
@@ -228,9 +230,9 @@ async def test_ofx_import_source_migration_keeps_other_runs_and_drops_ofx_runs_o
 async def test_bank_transaction_hash_migration_hashes_saved_bank_ids_as_the_import_page_does() -> None:
     """Verify upgrade, downgrade and reupgrade of the bank ID hash leave no account number behind
 
-    The expected hash is what the server keeps for the import page's digest of the same account key
-    and bank ID, which the page's own test pins too, so a migration hashing any other way would let a
-    statement imported again bring back every transaction an earlier OFX import saved
+    The expected hash is the literal the server kept for the same account key and bank ID before it
+    hashed them itself, so a migration hashing any other way would let a statement imported again
+    bring back every transaction an earlier OFX import saved
     """
     database_name = _ALEMBIC_BANK_HASH_DB_NAME
     await _recreate_database(database_name)
@@ -256,7 +258,7 @@ async def test_bank_transaction_hash_migration_hashes_saved_bank_ids_as_the_impo
 
             # A downgrade loses the bank IDs for good, so the second upgrade has nothing to hash
             assert hashes == {
-                "Statement": None if reupgrade else seal_bank_transaction_hash(_CHEQUING_A1_HASH),
+                "Statement": None if reupgrade else _CHEQUING_A1_STORED_HASH,
                 "Typed": None,
             }
             assert {"bank_account_key", "bank_transaction_id"}.isdisjoint(columns)

@@ -23,11 +23,13 @@ export interface OfxTransaction {
   fileName: string
 
   /**
-   * A one-way hash of the bank account the statement names and the bank's ID for the transaction,
-   * or null where the file states no ID. It tells one bank transaction from another without the
-   * account number or the ID leaving the browser
+   * The bank account the statement names, as its routing ID and account number or card number
+   * joined by colons. Sent with the bank's ID, so the server can hash the pair, and never kept
    */
-  bankTransactionHash: string | null
+  bankAccountKey: string
+
+  /** The bank's ID for the transaction as the file wrote it, or null where the file states none */
+  bankTransactionId: string | null
 
   /** The posted date as the file wrote it, shown beside a transaction left out */
   postedText: string
