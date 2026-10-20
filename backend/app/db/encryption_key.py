@@ -10,9 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 from app import encryption
 from app.config.database import admin_database_url, migration_database_url
+from app.db import key_fingerprint
+from app.db.key_fingerprint import table_exists
 from app.models import import_all_models
 from app.models.base import Base
-from app.models.encryption_key import SINGLETON_ID
 from app.models.types import find_encrypted_columns
 
 FINGERPRINT_TABLE = "encryption_key_fingerprint"
@@ -22,14 +23,8 @@ FINGERPRINT_TABLE = "encryption_key_fingerprint"
 _MIGRATION_TABLE = "alembic_version"
 
 
-async def table_exists(connection: AsyncConnection, table: str) -> bool:
-    """Whether a public table is present in the database"""
-    qualified = await connection.scalar(text("SELECT to_regclass(:qualified)"), {"qualified": f"public.{table}"})
-    return qualified is not None
-
-
 async def read_fingerprint(connection: AsyncConnection) -> str | None:
-    """Return the recorded key fingerprint, or None when nothing is recorded yet
+    """Return the fingerprint of the key the stored secrets are under, or None when nothing is recorded yet
 
     Args:
         connection: Open connection to the application database
@@ -37,14 +32,7 @@ async def read_fingerprint(connection: AsyncConnection) -> str | None:
     Returns:
         The recorded SHA-256 hex digest, or None when the table or the row is absent
     """
-    if not await table_exists(connection, FINGERPRINT_TABLE):
-        return None
-
-    # Read the single row stating which key this database's secrets are under
-    return await connection.scalar(
-        text(f"SELECT fingerprint FROM public.{FINGERPRINT_TABLE} WHERE id = :id"),  # noqa: S608
-        {"id": SINGLETON_ID},
-    )
+    return await key_fingerprint.read_fingerprint(connection, FINGERPRINT_TABLE)
 
 
 async def record_fingerprint(connection: AsyncConnection, key: str) -> None:
@@ -54,14 +42,7 @@ async def record_fingerprint(connection: AsyncConnection, key: str) -> None:
         connection: Open connection inside the transaction that wrote the secrets
         key: The url-safe base64 Fernet key the data is now encrypted under
     """
-    # Upsert the single row, so recording after a rotation replaces the previous key
-    await connection.execute(
-        text(
-            f"INSERT INTO public.{FINGERPRINT_TABLE} (id, fingerprint) VALUES (:id, :fingerprint) "  # noqa: S608
-            f"ON CONFLICT (id) DO UPDATE SET fingerprint = EXCLUDED.fingerprint, updated_at = now()"
-        ),
-        {"id": SINGLETON_ID, "fingerprint": encryption.key_fingerprint(key)},
-    )
+    await key_fingerprint.record_fingerprint(connection, FINGERPRINT_TABLE, encryption.key_fingerprint(key))
 
 
 async def read_stored_secret(connection: AsyncConnection) -> str | None:
@@ -100,7 +81,7 @@ def decrypts(key: str, token: str) -> bool:
     """
     try:
         Fernet(key.encode()).decrypt(token.encode())
-    except (InvalidToken, ValueError):
+    except InvalidToken, ValueError:
         return False
     return True
 
@@ -151,11 +132,8 @@ async def ensure_key(connection: AsyncConnection) -> None:
     # the missing key would be lost behind a freshly generated one
     if await table_exists(connection, _MIGRATION_TABLE):
         try:
-            already_encrypted = (
-                await read_fingerprint(connection) is not None or await read_stored_secret(connection) is not None
-            )
+            already_encrypted = await read_fingerprint(connection) is not None or await read_stored_secret(connection) is not None
         except SQLAlchemyError as error:
-
             # This step runs as the admin role, which owns none of the tables it reads here,
             # so a deployment whose admin role is not a superuser cannot see them. Refusing
             # is the safe answer: minting a key is what destroys data, and proving the
