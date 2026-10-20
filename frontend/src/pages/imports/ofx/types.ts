@@ -22,8 +22,12 @@ export interface OfxTransaction {
   /** The name of that file, with its position added when another staged file has the same name */
   fileName: string
 
-  /** The bank's ID for the transaction, or null where the file states none */
-  fitId: string | null
+  /**
+   * A one-way hash of the bank account the statement names and the bank's ID for the transaction,
+   * or null where the file states no ID. It tells one bank transaction from another without the
+   * account number or the ID leaving the browser
+   */
+  bankTransactionHash: string | null
 
   /** The posted date as the file wrote it, shown beside a transaction left out */
   postedText: string
@@ -57,12 +61,6 @@ export interface OfxStatement {
   /** Identifies the statement within the file, which the account answers are filed under */
   id: string
   kind: OfxStatementKind
-
-  /**
-   * Identifies the bank account the statement is for, which the `id` does too until a second
-   * statement of the account in one file gives it a suffix
-   */
-  accountKey: string
 
   /** The name a new account is created under */
   name: string

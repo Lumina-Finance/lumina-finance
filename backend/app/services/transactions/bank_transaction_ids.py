@@ -1,4 +1,4 @@
-"""Finding which bank transactions an account already holds, by the bank's own ID"""
+"""Finding which bank transactions an account already holds, by the hash of the bank's own ID"""
 
 import uuid
 from collections.abc import Collection
@@ -8,24 +8,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.transaction import Transaction
 
-# One transaction as its bank names it inside one of the user's accounts: the account, the bank
-# account the statement names, and the bank's ID for the transaction
-type BankTransactionKey = tuple[uuid.UUID, str, str]
+# One transaction as its bank names it inside one of the user's accounts: the account, and the hash
+# of the bank account the statement names with the bank's ID for the transaction
+type BankTransactionKey = tuple[uuid.UUID, str]
 
 
 async def find_held_bank_transactions(
     db: AsyncSession,
     keys: Collection[BankTransactionKey],
 ) -> set[BankTransactionKey]:
-    """Return the keys whose account already holds a transaction with that bank account and ID
+    """Return the keys whose account already holds a transaction with that bank transaction hash
 
-    The accounts and IDs are bound as one array each rather than one value each, since an import
+    The accounts and hashes are bound as one array each rather than one value each, since an import
     can carry 100,000 rows and the driver caps bound values. Matching the pair inside each account
-    happens here, as the arrays only narrow the read to the right accounts and IDs
+    happens here, as the arrays only narrow the read to the right accounts and hashes
 
     Args:
         db: Active database session
-        keys: Account, bank account key and bank transaction ID of each transaction to look for
+        keys: Account and bank transaction hash of each transaction to look for
 
     Returns:
         The keys an account already holds, which is none of them when none was given
@@ -34,10 +34,10 @@ async def find_held_bank_transactions(
         return set()
 
     account_ids = bindparam("account_ids", sorted({key[0] for key in keys}), type_=ARRAY(Uuid))
-    bank_transaction_ids = bindparam("bank_transaction_ids", sorted({key[2] for key in keys}), type_=ARRAY(VARCHAR))
-    query = select(Transaction.account_id, Transaction.bank_account_key, Transaction.bank_transaction_id).where(
+    hashes = bindparam("bank_transaction_hashes", sorted({key[1] for key in keys}), type_=ARRAY(VARCHAR))
+    query = select(Transaction.account_id, Transaction.bank_transaction_hash).where(
         Transaction.account_id == any_(account_ids),
-        Transaction.bank_transaction_id == any_(bank_transaction_ids),
+        Transaction.bank_transaction_hash == any_(hashes),
     )
-    held = {(account_id, account_key, transaction_id) for account_id, account_key, transaction_id in await db.execute(query)}
+    held = {(account_id, bank_transaction_hash) for account_id, bank_transaction_hash in await db.execute(query)}
     return held & set(keys)

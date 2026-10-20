@@ -7,7 +7,7 @@ from typing import Annotated, Literal
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
 from app.models.base import RecurrenceFreq
-from app.models.transaction import MAX_BANK_TRANSACTION_ID_LENGTH
+from app.models.transaction import BANK_TRANSACTION_HASH_LENGTH
 from app.schemas.budget import validate_recurrence_anchor_fields
 from app.schemas.names import TrimmedName
 
@@ -75,6 +75,9 @@ _BROWSER_TRIMMED_WHITESPACE = (
 # type and the imported side carry the direction
 _UNSIGNED_DECIMAL_PATTERN = r"^[0-9]+(\.[0-9]+)?$"
 _CURRENCY_CODE_PATTERN = r"^[A-Z]{3}$"
+
+# A SHA-256 digest in lower-case hex, as the import page writes one
+_BANK_TRANSACTION_HASH_PATTERN = rf"^[0-9a-f]{{{BANK_TRANSACTION_HASH_LENGTH}}}$"
 
 
 def _require_trimmed(value: str) -> str:
@@ -299,18 +302,11 @@ class TransactionImportRow(BaseModel):
     # that leaves it unset records that the money left the tracked accounts
     counterparty_account_source: str | None = Field(None, min_length=1, max_length=256)
 
-    # The bank's ID for the transaction and the bank account the statement names, which an OFX
-    # statement states and a CSV file does not. A row carrying them is left out at the commit when
-    # its account already holds that pair
-    bank_account_key: str | None = Field(None, min_length=1, max_length=MAX_BANK_TRANSACTION_ID_LENGTH)
-    bank_transaction_id: str | None = Field(None, min_length=1, max_length=MAX_BANK_TRANSACTION_ID_LENGTH)
-
-    @model_validator(mode="after")
-    def _require_bank_account_with_bank_id(self) -> TransactionImportRow:
-        """Refuse a bank transaction ID without the bank account it belongs to, or the other way round"""
-        if (self.bank_account_key is None) != (self.bank_transaction_id is None):
-            raise ValueError("a bank transaction ID is sent together with its bank account key")
-        return self
+    # The page's one-way hash of the bank account an OFX statement names and the bank's ID for the
+    # transaction, which a CSV file has none of. Only a digest is taken, so a raw account number or
+    # bank ID is refused rather than stored. A row carrying one is left out at the commit when its
+    # account already holds that hash
+    bank_transaction_hash: str | None = Field(None, pattern=_BANK_TRANSACTION_HASH_PATTERN)
 
 
 class TransactionImportRequest(BaseModel):

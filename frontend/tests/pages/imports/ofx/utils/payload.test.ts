@@ -3,7 +3,7 @@
  * what a statement refuses for its currency, which transactions are left out with their reasons,
  * and where money in and out is filed, with a transaction an earlier one of the import already
  * holds under the same account, currency and bank ID skipped, whatever the files are named, and the
- * bank ID the save matches on carried with every row
+ * hash of the bank account and bank ID the save matches on carried with every row in place of either
  */
 import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
@@ -23,9 +23,7 @@ import {
   getOfxFixedAccountCurrencyError,
   getOfxOtherCurrencyReason,
   getOfxRepeatedTransactionReason,
-  MAX_OFX_BANK_TRANSACTION_ID_LENGTH,
   OFX_AMOUNT_UNREADABLE_REASON,
-  OFX_BANK_ID_TOO_LONG_REASON,
   OFX_CATEGORIES_UNAVAILABLE_ERROR,
   OFX_DATE_UNREADABLE_REASON,
   OFX_REPEATED_IN_FILE_REASON,
@@ -41,6 +39,9 @@ import { buildOfxPreviewRows } from '@/pages/imports/ofx/utils/preview'
 import { readOfxFile } from '@/pages/imports/ofx/utils/readFile'
 import { combineOfxFiles } from '@/pages/imports/ofx/utils/stagedFiles'
 import { buildSgmlOfx, toOfxFile, type FixtureStatement } from './fixtures'
+
+// A SHA-256 digest in lower-case hex, the only form a bank ID leaves the browser in
+const SHA256_HEX = /^[0-9a-f]{64}$/
 
 const CURRENCIES = [
   { id: 'CAD', name: 'Canadian dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -100,8 +101,7 @@ describe('compiling an OFX import', () => {
           merchant_name: 'Corner Cafe',
           notes: 'Latte',
           tag_names: [],
-          bank_account_key: 'bank:123000456:000123456789',
-          bank_transaction_id: 'A1',
+          bank_transaction_hash: file.statements[0].transactions[0].bankTransactionHash,
         },
         expect.objectContaining({ category_source: '(money in, no category)', dt: '2024-01-16', amount: '2500.00', merchant_name: 'Payroll', notes: null }),
       ],
@@ -449,10 +449,9 @@ describe('a transaction that an earlier file of the import already holds', () =>
     const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
 
     expect(build.skippedRows).toEqual([])
-    expect(build.payload?.rows.map((row) => [row.merchant_name, row.bank_account_key, row.bank_transaction_id])).toEqual([
-      ['Chequing', 'bank:123000456:000123456789', '0'],
-      ['Savings', 'bank:123000456:000999888777', '0'],
-    ])
+    const [chequing, savings] = build.payload?.rows.map((row) => row.bank_transaction_hash) ?? []
+    expect([chequing, savings]).toEqual([expect.stringMatching(SHA256_HEX), expect.stringMatching(SHA256_HEX)])
+    expect(savings).not.toBe(chequing)
   })
 
   it('is imported when the same ID belongs to another bank account', async () => {
@@ -470,29 +469,19 @@ describe('a transaction that an earlier file of the import already holds', () =>
     const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
 
     expect(build.skippedRows).toEqual([])
-    expect(build.payload?.rows.map((row) => [row.bank_account_key, row.bank_transaction_id])).toEqual([[null, null], [null, null]])
+    expect(build.payload?.rows.map((row) => row.bank_transaction_hash)).toEqual([null, null])
   })
 
-  // A second statement of one bank account in a file is told apart by a suffix on its id, which
-  // the bank account the save matches on must not carry
-  it('carries the bank account the file names, without the suffix of a second statement of it', async () => {
-    const month = (name: string, fitId: string) => ({ transactions: [{ posted: '20240110', amount: '-5.00', fitId, name }] })
-    const file = await readFiles([{ name: 'a.qfx', statements: [month('Jan', 'J1'), month('Feb', 'F1')] }])
-    const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
-
-    expect(file.statements[1].id).not.toBe(file.statements[1].accountKey)
-    expect(build.payload?.rows.map((row) => row.bank_account_key)).toEqual(['bank:123000456:000123456789', 'bank:123000456:000123456789'])
-  })
-
-  it('is skipped when its bank ID is longer than the app keeps, and imported at the limit', async () => {
+  // The save keeps a fixed-length hash, so a bank ID longer than the 255 characters OFX allows is
+  // no reason to leave the transaction out
+  it('is imported however long its bank ID is', async () => {
     const file = await readFiles([{ name: '2024-01.qfx', statements: [{ transactions: [
-      { posted: '20240110', amount: '-5.00', fitId: 'x'.repeat(MAX_OFX_BANK_TRANSACTION_ID_LENGTH), name: 'At limit' },
-      { posted: '20240111', amount: '-6.00', fitId: 'y'.repeat(MAX_OFX_BANK_TRANSACTION_ID_LENGTH + 1), name: 'Over limit' },
+      { posted: '20240110', amount: '-5.00', fitId: 'y'.repeat(300), name: 'Long ID' },
     ] }] }])
     const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
 
-    expect(build.skippedRows.map(({ payee, reason }) => [payee, reason])).toEqual([['Over limit', OFX_BANK_ID_TOO_LONG_REASON]])
-    expect(build.payload?.rows.map((row) => row.merchant_name)).toEqual(['At limit'])
+    expect(build.skippedRows).toEqual([])
+    expect(build.payload?.rows.map((row) => [row.merchant_name, row.bank_transaction_hash])).toEqual([['Long ID', expect.stringMatching(SHA256_HEX)]])
   })
 
   it('does not count a first copy that was itself left out, so a readable copy in a later file is imported', async () => {

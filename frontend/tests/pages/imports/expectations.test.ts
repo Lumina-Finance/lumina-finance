@@ -75,7 +75,6 @@ describe('the card saying what an import does with its data', () => {
           'With a payee name or memo over the limits this app takes',
           'Already in an earlier file of the same import, by the bank\'s transaction ID',
           'Listed twice in the same file',
-          'With a bank ID over the length this app takes',
         ],
       },
       { group: 'Not imported', items: ['Check numbers and transaction types'] },

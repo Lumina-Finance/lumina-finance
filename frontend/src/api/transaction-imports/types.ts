@@ -63,11 +63,11 @@ export interface TransactionImportRow {
   counterparty_account_source?: string | null;
 
   /**
-   * The bank account a statement names and the bank's ID for the transaction, sent together or not
-   * at all. The save leaves the row out when its account already holds the pair
+   * A SHA-256 digest in lower-case hex of the bank account a statement names and the bank's ID for
+   * the transaction, so neither leaves the browser. The save leaves the row out when its account
+   * already holds the digest
    */
-  bank_account_key?: string | null;
-  bank_transaction_id?: string | null;
+  bank_transaction_hash?: string | null;
 }
 
 export interface TransactionImportPayload {

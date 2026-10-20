@@ -732,11 +732,9 @@ async def _refuse_moves_into_held_bank_transactions(
         HTTPException: Raised with 409 when at least one moving row's bank ID is already in its new account
     """
     moving_keys: list[BankTransactionKey] = [
-        (resolutions[transaction.id].account_id, transaction.bank_account_key, transaction.bank_transaction_id)
+        (resolutions[transaction.id].account_id, transaction.bank_transaction_hash)
         for transaction in transactions
-        if transaction.bank_account_key is not None
-        and transaction.bank_transaction_id is not None
-        and resolutions[transaction.id].account_id != transaction.account_id
+        if transaction.bank_transaction_hash is not None and resolutions[transaction.id].account_id != transaction.account_id
     ]
     held = await find_held_bank_transactions(db, moving_keys)
 

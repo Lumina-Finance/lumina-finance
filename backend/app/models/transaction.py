@@ -8,9 +8,11 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TransferCounterpartyScope
 
-# Characters a bank's transaction ID or bank account key may carry. OFX caps its transaction IDs
-# at 255, and the import rows take both at this length so a longer one is refused as it is staged
-MAX_BANK_TRANSACTION_ID_LENGTH = 255
+# Characters of a bank transaction hash: a SHA-256 digest in lower-case hex. The import page builds
+# it from the bank account a statement names and the bank's ID for the transaction, so neither
+# reaches the server. Migration 7c2e9a4d1f58 builds the same digest in SQL for rows saved before,
+# so a change to how the page builds it needs a migration that rebuilds every saved hash
+BANK_TRANSACTION_HASH_LENGTH = 64
 
 
 class Transaction(Base):
@@ -30,22 +32,15 @@ class Transaction(Base):
         Index("ix_transactions_merchant_id_dt", "merchant_id", "dt"),
         # Supports account and date lookups for history, analytics and snapshot rebuilds
         Index("ix_transactions_account_id_dt", "account_id", "dt"),
-        # A bank's transaction ID names one transaction only within the bank account it was issued
-        # under, so the two are stored together or not at all
-        CheckConstraint(
-            "(bank_account_key IS NULL) = (bank_transaction_id IS NULL)",
-            name="ck_transactions_bank_account_key_matches_bank_transaction_id",
-        ),
         # Holds each bank transaction once in an account, so two imports of overlapping statements
         # saving into it at once cannot both write it. The import leaves out what an account already
         # holds before writing, so only such a race reaches this
         Index(
             "uq_transactions_account_bank_transaction",
             "account_id",
-            "bank_account_key",
-            "bank_transaction_id",
+            "bank_transaction_hash",
             unique=True,
-            postgresql_where=text("bank_transaction_id IS NOT NULL"),
+            postgresql_where=text("bank_transaction_hash IS NOT NULL"),
         ),
     )
 
@@ -83,12 +78,12 @@ class Transaction(Base):
         index=True,
     )
 
-    # The bank's own ID for the transaction and the bank account the statement names, as an OFX
-    # import read them, so a later import into this account leaves the transaction out. Empty on a
-    # transaction entered by hand, imported from a file with no such ID, or saved before IDs were
-    # kept. No edit changes them, so an edited or moved transaction is still recognised
-    bank_account_key: Mapped[str | None] = mapped_column(VARCHAR(MAX_BANK_TRANSACTION_ID_LENGTH))
-    bank_transaction_id: Mapped[str | None] = mapped_column(VARCHAR(MAX_BANK_TRANSACTION_ID_LENGTH))
+    # A one-way hash of the bank account an OFX statement names and the bank's own ID for the
+    # transaction, so a later import into this account leaves the transaction out without the
+    # server holding the account number. Empty on a transaction entered by hand, imported from a
+    # file with no such ID, or saved before IDs were kept. No edit changes it, so an edited or moved
+    # transaction is still recognised
+    bank_transaction_hash: Mapped[str | None] = mapped_column(VARCHAR(BANK_TRANSACTION_HASH_LENGTH))
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())

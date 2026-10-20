@@ -1,10 +1,11 @@
 """An OFX import leaves out a bank transaction its account already holds
 
-Matched by the bank's ID within the bank account the statement names and nothing else, so an
-overlapping statement adds only what is new and two genuine look-alike purchases still both import
+Matched by the hash of the bank's ID with the bank account the statement names and nothing else, so
+an overlapping statement adds only what is new and two genuine look-alike purchases still both import
 """
 
 import asyncio
+import hashlib
 import re
 import uuid
 
@@ -24,13 +25,19 @@ from tests.routes.transactions._import_helpers import (
     _open_staged_run,
 )
 
-# Two bank accounts as an OFX statement names them, which can give their transactions the same IDs
+# A bank account as an OFX statement names it
 _CHEQUING_KEY = "bank:021000021:000111222333"
-_SAVINGS_KEY = "bank:021000021:000444555666"
+
+
+def _bank_hash(bank_transaction_id):
+    """The digest the import page sends for a chequing transaction with this bank ID, or None for none"""
+    if bank_transaction_id is None:
+        return None
+    return hashlib.sha256(f"{_CHEQUING_KEY}\0{bank_transaction_id}".encode()).hexdigest()
 
 
 def _ofx_payload(account_id, category_id, rows):
-    """Build an OFX import into one existing account from (bank account key, bank ID, date, amount) rows"""
+    """Build an OFX import into one existing account from (bank ID, date, amount) rows"""
     return {
         "accounts": [{"source": "Statement", "account_id": account_id}],
         "categories": [{"source": "Spending", "category_id": category_id}],
@@ -42,21 +49,20 @@ def _ofx_payload(account_id, category_id, rows):
                 "amount": amount,
                 "merchant_name": f"Payee {bank_transaction_id}",
                 "tag_names": [],
-                "bank_account_key": account_key,
-                "bank_transaction_id": bank_transaction_id,
+                "bank_transaction_hash": _bank_hash(bank_transaction_id),
             }
-            for account_key, bank_transaction_id, dt, amount in rows
+            for bank_transaction_id, dt, amount in rows
         ],
     }
 
 
 def _march(first_day, last_day):
     """Rows for one transaction a day, each with its own bank ID, from one March day to another"""
-    return [(_CHEQUING_KEY, f"M{day}", f"2026-03-{day:02d}", "-10.00") for day in range(first_day, last_day + 1)]
+    return [(f"M{day}", f"2026-03-{day:02d}", "-10.00") for day in range(first_day, last_day + 1)]
 
 
 # Ten instalments of one purchase, each with its own bank ID, on one day for one amount
-_INSTALMENTS = [(_CHEQUING_KEY, f"I{number}", "2026-03-05", "-25.00") for number in range(10)]
+_INSTALMENTS = [(f"I{number}", "2026-03-05", "-25.00") for number in range(10)]
 
 
 async def _import_ofx(client, headers, payload):
@@ -110,48 +116,10 @@ async def test_the_same_statement_into_another_account_skips_nothing(client):
     assert len(await _ledger(client, headers, other_id)) == 5
 
 
-async def test_the_same_bank_id_from_two_bank_accounts_imports_into_one_account_both_times(client):
-    """Bank IDs are unique only within one bank account, so two statements filed together can share one"""
-    headers, account_id, category_id = await _setup_user_with_deps(client)
-    together = await _import_ofx(
-        client,
-        headers,
-        _ofx_payload(
-            account_id,
-            category_id,
-            [
-                (_CHEQUING_KEY, "0001", "2026-03-01", "-10.00"),
-                (_SAVINGS_KEY, "0001", "2026-03-02", "-20.00"),
-                (_CHEQUING_KEY, "0002", "2026-03-03", "-30.00"),
-            ],
-        ),
-    )
-    assert together.status_code == 201, together.text
-    assert together.json()["transactions_created"] == 3
-
-    # Only the first bank account holds 0002, so the second's own 0002 is new
-    later = await _import_ofx(
-        client,
-        headers,
-        _ofx_payload(
-            account_id,
-            category_id,
-            [
-                (_SAVINGS_KEY, "0001", "2026-03-02", "-20.00"),
-                (_SAVINGS_KEY, "0002", "2026-03-04", "-40.00"),
-            ],
-        ),
-    )
-
-    assert later.status_code == 201, later.text
-    assert (later.json()["transactions_created"], later.json()["transactions_already_imported"]) == (1, 1)
-    assert len(await _ledger(client, headers, account_id)) == 4
-
-
 async def test_rows_with_no_bank_id_import_every_time(client):
     """A row with no ID is never matched, so leaving it out would drop a CSV row or an ID-less statement line"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    payload = _ofx_payload(account_id, category_id, [(None, None, "2026-03-01", "-10.00")] * 3)
+    payload = _ofx_payload(account_id, category_id, [(None, "2026-03-01", "-10.00")] * 3)
 
     for expected_count in (3, 6):
         resp = await _import_ofx(client, headers, payload)
@@ -195,7 +163,7 @@ async def test_a_statement_whose_every_transaction_is_already_there_is_refused_a
 async def test_an_import_repeating_a_bank_id_in_one_account_is_refused(client):
     """The page leaves a repeat out before sending, so one arriving would write a transaction twice"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    repeated = [(_CHEQUING_KEY, "0001", "2026-03-01", "-10.00"), (_CHEQUING_KEY, "0001", "2026-03-02", "-20.00")]
+    repeated = [("0001", "2026-03-01", "-10.00"), ("0001", "2026-03-02", "-20.00")]
 
     resp = await _import_ofx(client, headers, _ofx_payload(account_id, category_id, repeated))
 
@@ -204,20 +172,22 @@ async def test_an_import_repeating_a_bank_id_in_one_account_is_refused(client):
     assert await _ledger(client, headers, account_id) == []
 
 
-async def test_a_bank_id_without_its_bank_account_is_refused_as_it_is_staged(client):
-    """An ID stored without its bank account would match the same ID from any other bank"""
+async def test_a_raw_bank_id_or_account_number_is_refused_as_it_is_staged(client):
+    """Only a digest is kept, so an account number or bank ID sent in its place must never be stored"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
 
-    for account_key, bank_transaction_id in ((None, "0001"), (_CHEQUING_KEY, None)):
-        payload = _ofx_payload(account_id, category_id, [(account_key, bank_transaction_id, "2026-03-01", "-10.00")])
+    for sent in ("0001", _CHEQUING_KEY, _bank_hash("0001").upper()):
+        payload = _ofx_payload(account_id, category_id, [("0001", "2026-03-01", "-10.00")])
+        payload["rows"][0]["bank_transaction_hash"] = sent
         resp = await _import_ofx(client, headers, payload)
         assert resp.status_code == 422, resp.text
         assert [(error["loc"], error["msg"]) for error in resp.json()["detail"]] == [
             (
-                ["body", "rows", 0],
-                "Value error, a bank transaction ID is sent together with its bank account key",
+                ["body", "rows", 0, "bank_transaction_hash"],
+                "String should match pattern '^[0-9a-f]{64}$'",
             )
         ]
+    assert await _ledger(client, headers, account_id) == []
 
 
 async def test_an_edited_transaction_moved_to_another_account_is_still_recognised_there(client):
@@ -242,7 +212,7 @@ async def test_an_edited_transaction_moved_to_another_account_is_still_recognise
 
 async def _count_transaction_reads(client, headers, account_id, category_id, row_count):
     """Commit a statement of row_count rows, the first ten already held, and count its reads of the transactions table"""
-    rows = [(_CHEQUING_KEY, f"R{index}", "2026-03-01", "-1.00") for index in range(row_count)]
+    rows = [(f"R{index}", "2026-03-01", "-1.00") for index in range(row_count)]
     run_id = await _open_staged_run(client, headers, _ofx_payload(account_id, category_id, rows), source="ofx")
     reads = []
 
@@ -265,7 +235,7 @@ async def test_the_bank_ids_are_read_in_one_statement_however_many_rows_carry_th
     """A read per row would cost a round trip for each of a statement's thousands of transactions"""
     small_headers, small_account_id, small_category_id = await _setup_user_with_deps(client)
     large_headers, large_account_id, large_category_id = await _setup_user_with_deps(client, email="large@example.com")
-    held = [(_CHEQUING_KEY, f"R{index}", "2026-03-01", "-1.00") for index in range(10)]
+    held = [(f"R{index}", "2026-03-01", "-1.00") for index in range(10)]
     for headers, account_id, category_id in (
         (small_headers, small_account_id, small_category_id),
         (large_headers, large_account_id, large_category_id),
@@ -325,13 +295,13 @@ async def test_two_imports_saving_one_bank_transaction_at_once_write_it_once(cli
         ids = (
             (
                 await session.execute(
-                    select(Transaction.bank_transaction_id).where(Transaction.account_id == uuid.UUID(account_id)),
+                    select(Transaction.bank_transaction_hash).where(Transaction.account_id == uuid.UUID(account_id)),
                 )
             )
             .scalars()
             .all()
         )
-    assert sorted(ids) == ["M1", "M2", "M3", "M4"]
+    assert sorted(ids) == sorted(_bank_hash(f"M{day}") for day in range(1, 5))
 
 
 async def _import_into_both(client):
@@ -374,12 +344,12 @@ async def test_moving_transactions_into_an_account_holding_their_bank_ids_in_bul
     assert len(await _ledger(client, headers, other_id)) == 3
 
 
-async def test_moving_a_transaction_into_an_account_holding_its_bank_id_from_another_bank_account_is_allowed(client):
-    """Bank IDs are unique only within one bank account, so a savings 0001 is not the chequing 0001"""
+async def test_moving_a_transaction_into_an_account_holding_other_bank_ids_is_allowed(client):
+    """Only the same bank transaction clashes, so an account with imported transactions still takes others"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     other_id = (await _create_account(client, headers, name="Joint Chequing")).json()["id"]
-    for target_id, account_key in ((account_id, _SAVINGS_KEY), (other_id, _CHEQUING_KEY)):
-        payload = _ofx_payload(target_id, category_id, [(account_key, "0001", "2026-03-01", "-10.00")])
+    for target_id, bank_transaction_id in ((account_id, "0001"), (other_id, "0002")):
+        payload = _ofx_payload(target_id, category_id, [(bank_transaction_id, "2026-03-01", "-10.00")])
         assert (await _import_ofx(client, headers, payload)).status_code == 201
     moving_id = (await _ledger_transactions(client, headers, account_id))[0]["id"]
 
@@ -432,9 +402,9 @@ def _give_held_row_bank_id_after(original, other_id, bank_transaction_id):
         async with TestSession() as other:
             await other.execute(
                 text(
-                    "UPDATE transactions SET bank_transaction_id = :clash WHERE account_id = :account_id AND bank_transaction_id = 'X1'",
+                    "UPDATE transactions SET bank_transaction_hash = :clash WHERE account_id = :account_id AND bank_transaction_hash = :free",
                 ),
-                {"clash": bank_transaction_id, "account_id": uuid.UUID(other_id)},
+                {"clash": _bank_hash(bank_transaction_id), "free": _bank_hash("X1"), "account_id": uuid.UUID(other_id)},
             )
             await other.commit()
         return result
@@ -447,7 +417,7 @@ async def _import_one_each_with_a_free_row_in_the_other(client):
     headers, account_id, category_id = await _setup_user_with_deps(client)
     other_id = (await _create_account(client, headers, name="Joint Chequing")).json()["id"]
     for target_id, bank_transaction_id in ((account_id, "M1"), (other_id, "X1")):
-        payload = _ofx_payload(target_id, category_id, [(_CHEQUING_KEY, bank_transaction_id, "2026-03-01", "-10.00")])
+        payload = _ofx_payload(target_id, category_id, [(bank_transaction_id, "2026-03-01", "-10.00")])
         assert (await _import_ofx(client, headers, payload)).status_code == 201
     return headers, account_id, other_id
 

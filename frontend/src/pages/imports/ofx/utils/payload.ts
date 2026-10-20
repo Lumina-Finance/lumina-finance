@@ -17,9 +17,7 @@ import {
   getOfxFixedAccountCurrencyError,
   getOfxOtherCurrencyReason,
   getOfxRepeatedTransactionReason,
-  MAX_OFX_BANK_TRANSACTION_ID_LENGTH,
   OFX_AMOUNT_UNREADABLE_REASON,
-  OFX_BANK_ID_TOO_LONG_REASON,
   OFX_CATEGORIES_UNAVAILABLE_ERROR,
   OFX_DATE_UNREADABLE_REASON,
   OFX_REPEATED_IN_FILE_REASON,
@@ -169,11 +167,7 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
         merchant_name: transaction.payee,
         notes: transaction.memo,
         tag_names: [],
-
-        // The bank account the file names, without the suffix a second statement of it gets, so a
-        // later statement of the same account is matched whatever position it holds in its file
-        bank_account_key: transaction.fitId === null ? null : statement.accountKey,
-        bank_transaction_id: transaction.fitId,
+        bank_transaction_hash: transaction.bankTransactionHash,
       })
     }
 
@@ -191,12 +185,12 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
 }
 
 /**
- * What tells one bank transaction from another across the import: the bank's ID within the bank
- * account and currency it was issued for, or null for a transaction the file gave no ID. The account
- * is the one the file names, before any suffix that tells a file's second statement of it apart
+ * What tells one bank transaction from another across the import: the hash of the bank's ID with
+ * the bank account it was issued for, in the statement's currency, or null for a transaction the
+ * file gave no ID
  */
 function getOfxRepeatKey(statement: OfxStatement, transaction: OfxTransaction) {
-  return transaction.fitId === null ? null : JSON.stringify([statement.accountKey, statement.currency, transaction.fitId])
+  return transaction.bankTransactionHash === null ? null : JSON.stringify([transaction.bankTransactionHash, statement.currency])
 }
 
 /**
@@ -249,7 +243,6 @@ export function getOfxTransactionProblem(transaction: OfxTransaction, exponent: 
   if (transaction.payee && [...transaction.payee].length > JOURNAL_ROW_FIELD_MAX_LENGTHS.merchantName) {
     return getImportMerchantTooLongReason([...transaction.payee].length)
   }
-  if (transaction.fitId && [...transaction.fitId].length > MAX_OFX_BANK_TRANSACTION_ID_LENGTH) return OFX_BANK_ID_TOO_LONG_REASON
   return null
 }
 

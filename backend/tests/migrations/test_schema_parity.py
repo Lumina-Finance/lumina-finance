@@ -1,5 +1,6 @@
 """Alembic schema parity tests"""
 
+import json
 import os
 import subprocess
 import sys
@@ -54,6 +55,17 @@ _OFX_OWNER_ID = "77777777-7777-4777-8777-777777777777"
 _CSV_RUN_ID = "88888888-8888-4888-8888-888888888888"
 _OFX_RUN_ID = "99999999-9999-4999-8999-999999999999"
 _ALEMBIC_BANK_TRANSACTION_DB_NAME = f"{WORKER_DB_NAME}_alembic_bank_transaction"
+_ALEMBIC_BANK_HASH_DB_NAME = f"{WORKER_DB_NAME}_alembic_bank_hash"
+_BEFORE_BANK_HASH_REVISION = "f3a9c1d7b265"
+_BANK_HASH_REVISION = "7c2e9a4d1f58"
+_BANK_HASH_ACCOUNT_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+_BANK_HASH_CATEGORY_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+_UNSAVED_OFX_RUN_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+_CHEQUING_KEY = "bank:123000456:000123456789"
+
+# SHA-256 of the account key, a zero byte and "A1", from `printf 'bank:123000456:000123456789\0A1' | shasum -a 256`.
+# The import page's test pins the same digest
+_CHEQUING_A1_HASH = "7d404905c477742532f9d2abc554de3c7f8089848d5e927aa19725a9b5d931ed"
 
 
 async def test_account_date_index_migration_preserves_rows_and_existing_indexes() -> None:
@@ -205,6 +217,123 @@ async def test_ofx_import_source_migration_keeps_other_runs_and_drops_ofx_runs_o
         await _drop_database(database_name)
 
 
+async def test_bank_transaction_hash_migration_hashes_saved_bank_ids_as_the_import_page_does() -> None:
+    """Verify upgrade, downgrade and reupgrade of the bank ID hash leave no account number behind
+
+    The expected digest is the import page's for the same account key and bank ID, which its own
+    test pins too, so a migration hashing any other way would let a statement imported again bring
+    back every transaction an earlier OFX import saved
+    """
+    database_name = _ALEMBIC_BANK_HASH_DB_NAME
+    await _recreate_database(database_name)
+    engine = _create_engine_for_database(database_name)
+    try:
+        _run_alembic_upgrade(database_name, revision=_BEFORE_BANK_HASH_REVISION)
+        async with engine.begin() as conn:
+            await _seed_bank_id_ledger(conn)
+
+        for reupgrade in (False, True):
+            _run_alembic_upgrade(database_name, revision=_BANK_HASH_REVISION)
+            async with engine.connect() as conn:
+                hashes = dict((await conn.execute(text("SELECT notes, bank_transaction_hash FROM transactions"))).all())
+                columns = set(
+                    (
+                        await conn.execute(
+                            text(
+                                "SELECT column_name FROM information_schema.columns WHERE table_name = 'transactions'",
+                            )
+                        )
+                    ).scalars()
+                )
+
+            # A downgrade loses the bank IDs for good, so the second upgrade has nothing to hash
+            assert hashes == {"Statement": None if reupgrade else _CHEQUING_A1_HASH, "Typed": None}
+            assert {"bank_account_key", "bank_transaction_id"}.isdisjoint(columns)
+            if not reupgrade:
+                async with engine.connect() as conn:
+                    assert await _read_import_run_sources(conn) == {_CSV_RUN_ID: "generic", _OFX_RUN_ID: "ofx"}
+                _run_alembic_downgrade(database_name, _BEFORE_BANK_HASH_REVISION)
+                async with engine.connect() as conn:
+                    restored = (
+                        await conn.execute(
+                            text(
+                                "SELECT count(*), count(bank_account_key), count(bank_transaction_id) FROM transactions",
+                            )
+                        )
+                    ).one()
+                assert tuple(restored) == (2, 0, 0)
+    finally:
+        await engine.dispose()
+        await _drop_database(database_name)
+
+
+async def _seed_bank_id_ledger(conn: AsyncConnection) -> None:
+    """Seed one transaction an OFX import saved with its bank ID, one typed in, and three import runs
+
+    The runs are a saved CSV run, a saved OFX run and an unsaved OFX run, whose staged rows hold the
+    numbers the upgrade drops
+    """
+    await conn.execute(
+        text(
+            "INSERT INTO currencies (id, name, symbol, minor_unit_exponent)"
+            " VALUES ('CAD', 'Canadian Dollar', '$', 2) ON CONFLICT (id) DO NOTHING",
+        )
+    )
+    await conn.execute(
+        text(
+            "INSERT INTO users (id, email, first_name, tz, base_currency)"
+            " VALUES (:id, 'bank-hash-migration@example.com', 'Hash', 'UTC', 'CAD')",
+        ),
+        {"id": UUID(_OFX_OWNER_ID)},
+    )
+    await conn.execute(
+        text(
+            "INSERT INTO accounts (id, owner_id, name, currency, account_kind, account_type, is_archived)"
+            " VALUES (:account_id, :owner_id, 'Chequing ending 6789', 'CAD', 'ASSET', 'CHECKING', false)",
+        ),
+        {"account_id": UUID(_BANK_HASH_ACCOUNT_ID), "owner_id": UUID(_OFX_OWNER_ID)},
+    )
+    await conn.execute(
+        text(
+            "INSERT INTO categories (id, name, kind, is_system) VALUES (:id, 'Hash category', 'EXPENSE', true)",
+        ),
+        {"id": UUID(_BANK_HASH_CATEGORY_ID)},
+    )
+    for notes, account_key, bank_id in (("Statement", _CHEQUING_KEY, "A1"), ("Typed", None, None)):
+        await conn.execute(
+            text(
+                "INSERT INTO transactions (id, created_by_user_id, account_id, dt, category_id, amount, currency, notes,"
+                " bank_account_key, bank_transaction_id)"
+                " VALUES (gen_random_uuid(), :owner_id, :account_id, '2026-03-15', :category_id, -1250, 'CAD', :notes,"
+                " :account_key, :bank_id)",
+            ),
+            {
+                "owner_id": UUID(_OFX_OWNER_ID),
+                "account_id": UUID(_BANK_HASH_ACCOUNT_ID),
+                "category_id": UUID(_BANK_HASH_CATEGORY_ID),
+                "notes": notes,
+                "account_key": account_key,
+                "bank_id": bank_id,
+            },
+        )
+
+    await _insert_import_run(conn, _CSV_RUN_ID, "generic")
+    await _insert_import_run(conn, _OFX_RUN_ID, "ofx")
+    await conn.execute(text("UPDATE import_runs SET committed_at = now()"))
+    await _insert_import_run(conn, _UNSAVED_OFX_RUN_ID, "ofx")
+    await conn.execute(
+        text(
+            "INSERT INTO import_staged_rows (id, import_run_id, owner_id, row_index, payload)"
+            " VALUES (gen_random_uuid(), :run_id, :owner_id, 0, :payload)",
+        ),
+        {
+            "run_id": UUID(_UNSAVED_OFX_RUN_ID),
+            "owner_id": UUID(_OFX_OWNER_ID),
+            "payload": json.dumps({"account_source": _CHEQUING_KEY, "bank_account_key": _CHEQUING_KEY, "bank_transaction_id": "A2"}),
+        },
+    )
+
+
 async def _insert_import_run(conn: AsyncConnection, run_id: str, source: str) -> None:
     """Insert one import run of the given source for the fixture owner"""
     await conn.execute(
@@ -345,16 +474,12 @@ async def test_alembic_enum_labels_match_model_metadata() -> None:
 
 
 async def test_alembic_bank_transaction_rules_match_model_metadata() -> None:
-    """Verify Alembic builds the bank ID index and its pairing rule as the models declare them
+    """Verify Alembic builds the bank transaction index as the models declare it
 
     The route tests build the schema from model metadata, so a migration that built the index on
-    the bank ID alone, or left out its condition, would pass them while refusing real imports
+    the hash alone, or left out its condition, would pass them while refusing real imports
     """
-    rules_query = text(
-        "SELECT indexdef FROM pg_indexes WHERE indexname = 'uq_transactions_account_bank_transaction'"
-        " UNION ALL SELECT pg_get_constraintdef(oid) FROM pg_constraint"
-        " WHERE conname = 'ck_transactions_bank_account_key_matches_bank_transaction_id'",
-    )
+    rules_query = text("SELECT indexdef FROM pg_indexes WHERE indexname = 'uq_transactions_account_bank_transaction'")
     await _recreate_database(_ALEMBIC_BANK_TRANSACTION_DB_NAME)
     try:
         _run_alembic_upgrade(_ALEMBIC_BANK_TRANSACTION_DB_NAME)
@@ -367,7 +492,7 @@ async def test_alembic_bank_transaction_rules_match_model_metadata() -> None:
             finally:
                 await engine.dispose()
 
-        assert len(built[WORKER_DB_NAME]) == 2
+        assert len(built[WORKER_DB_NAME]) == 1
         assert built[_ALEMBIC_BANK_TRANSACTION_DB_NAME] == built[WORKER_DB_NAME]
     finally:
         await _drop_database(_ALEMBIC_BANK_TRANSACTION_DB_NAME)

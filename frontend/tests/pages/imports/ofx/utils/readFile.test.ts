@@ -71,12 +71,16 @@ describe('reading a bank statement', () => {
     expect(await readFile(qfx, 'statement.qfx')).toEqual(await readFile(buildSgmlOfx([CHECKING]), 'statement.qfx'))
   })
 
-  it('reads the bank\'s transaction ID and the file each transaction is in, and null for an ID the file leaves out', async () => {
+  // The backend migration hashed every bank ID saved before the hash in SQL, and its test pins the
+  // same digest, so a statement imported again only skips those if the two are built alike
+  it('hashes the bank account with the bank\'s transaction ID, keeps the file each transaction is in, and null for an ID the file leaves out', async () => {
     const file = await readFile(buildSgmlOfx([{ transactions: [{ fitId: 'A1' }, { fitId: null }] }]), '2024-01.qfx')
 
-    expect(file.statements[0].transactions.map(({ fitId, fileName }) => ({ fitId, fileName }))).toEqual([
-      { fitId: 'A1', fileName: '2024-01.qfx' },
-      { fitId: null, fileName: '2024-01.qfx' },
+    expect(file.statements[0].transactions.map(({ bankTransactionHash, fileName }) => ({ bankTransactionHash, fileName }))).toEqual([
+
+      // From `printf 'bank:123000456:000123456789\0A1' | shasum -a 256`
+      { bankTransactionHash: '7d404905c477742532f9d2abc554de3c7f8089848d5e927aa19725a9b5d931ed', fileName: '2024-01.qfx' },
+      { bankTransactionHash: null, fileName: '2024-01.qfx' },
     ])
   })
 

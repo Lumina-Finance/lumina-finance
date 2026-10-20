@@ -42,7 +42,7 @@ export async function readOfxFile(file: File, fileId: string = crypto.randomUUID
   // A file the reader cannot get through is refused as not a statement, as a crash would otherwise
   // leave the upload with no word on why it did nothing
   try {
-    return readOfxStatements(decodeOfxBytes(await file.arrayBuffer()), { fileId, fileName: file.name })
+    return await readOfxStatements(decodeOfxBytes(await file.arrayBuffer()), { fileId, fileName: file.name })
   } catch {
     return { status: 'refused', reason: OFX_NOT_READABLE_REASON }
   }
@@ -51,7 +51,7 @@ export async function readOfxFile(file: File, fileId: string = crypto.randomUUID
 /** The file a statement is read from, which each of its transactions records */
 type OfxFileOrigin = Pick<OfxTransaction, 'fileId' | 'fileName'>
 
-function readOfxStatements(text: string, origin: OfxFileOrigin): OfxFileRead {
+async function readOfxStatements(text: string, origin: OfxFileOrigin): Promise<OfxFileRead> {
   const root = parseOfxMarkup(text)
   if (!root) return { status: 'refused', reason: OFX_NOT_READABLE_REASON }
 
@@ -66,7 +66,7 @@ function readOfxStatements(text: string, origin: OfxFileOrigin): OfxFileRead {
 
   const statements: OfxStatement[] = []
   for (const { kind, node } of sections) {
-    const statement = readStatement(kind, node, origin)
+    const statement = await readStatement(kind, node, origin)
     if (!statement) return { status: 'refused', reason: OFX_STATEMENT_INCOMPLETE_REASON }
     statements.push(statement)
   }
@@ -105,7 +105,7 @@ function countStatementResponses(root: OfxNode, messageSetName: string) {
   }, 0)
 }
 
-function readStatement(kind: OfxStatementKind, node: OfxNode, origin: OfxFileOrigin): OfxStatement | null {
+async function readStatement(kind: OfxStatementKind, node: OfxNode, origin: OfxFileOrigin): Promise<OfxStatement | null> {
   const currency = readLeaf(node, 'CURDEF')?.toUpperCase()
   const account = findChild(node, kind === 'bank' ? 'BANKACCTFROM' : 'CCACCTFROM')
   const accountNumber = account && readLeaf(account, 'ACCTID')
@@ -119,17 +119,38 @@ function readStatement(kind: OfxStatementKind, node: OfxNode, origin: OfxFileOri
   const tail = accountNumber.replace(/[^A-Za-z0-9]/g, '').slice(-OFX_ACCOUNT_NUMBER_TAIL_LENGTH)
   const name = `${accountKind.label} ending ${tail || accountNumber}`
 
+  // Kept in the browser only: it tells statements of one bank account apart from another's while
+  // the files are combined, and reaches the server only inside each transaction's one-way hash
   const accountKey = [kind, bankId, accountNumber].filter(Boolean).join(':')
+  const transactions = findAllDescendants(node, 'STMTTRN')
   return {
     id: accountKey,
     kind,
-    accountKey,
     name,
     label: `${name} (${currency})`,
     proposedType: accountKind.type,
     currency,
-    transactions: findAllDescendants(node, 'STMTTRN').map((transaction, index) => readTransaction(transaction, index + 1, currency, origin)),
+    transactions: await Promise.all(transactions.map((transaction, index) => readTransaction(transaction, index + 1, currency, accountKey, origin))),
   }
+}
+
+/**
+ * Hashes the bank account a statement names with the bank's ID for one of its transactions, as
+ * SHA-256 over their UTF-8 bytes joined by a zero byte, written as lower-case hex
+ *
+ * The backend migration that introduced the hash builds the same digest in SQL for transactions saved
+ * before, so changing how it is built leaves those unmatched until a migration rebuilds them
+ */
+async function hashBankTransaction(accountKey: string, fitId: string) {
+  const encoder = new TextEncoder()
+  const account = encoder.encode(accountKey)
+  const id = encoder.encode(fitId)
+  const bytes = new Uint8Array(account.length + 1 + id.length)
+  bytes.set(account)
+  bytes.set(id, account.length + 1)
+
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))
+  return Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
 /**
@@ -162,11 +183,18 @@ function readOtherCurrency(node: OfxNode, statementCurrency: string) {
   return code === statementCurrency ? null : code
 }
 
-function readTransaction(node: OfxNode, index: number, statementCurrency: string, origin: OfxFileOrigin): OfxTransaction {
+async function readTransaction(
+  node: OfxNode,
+  index: number,
+  statementCurrency: string,
+  accountKey: string,
+  origin: OfxFileOrigin,
+): Promise<OfxTransaction> {
   const postedText = readLeaf(node, 'DTPOSTED') ?? ''
   const amountText = readLeaf(node, 'TRNAMT') ?? ''
   const payeeAggregate = findChild(node, 'PAYEE')
   const payee = readLeaf(node, 'NAME') ?? (payeeAggregate ? readLeaf(payeeAggregate, 'NAME') : null)
+  const fitId = readLeaf(node, 'FITID')
 
   return {
     index,
@@ -174,7 +202,7 @@ function readTransaction(node: OfxNode, index: number, statementCurrency: string
 
     // A file read alone is the first of the files, until combining them orders it among the others
     fileOrder: 1,
-    fitId: readLeaf(node, 'FITID') || null,
+    bankTransactionHash: fitId ? await hashBankTransaction(accountKey, fitId) : null,
     postedText,
     date: readPostedDate(postedText),
     amountText,

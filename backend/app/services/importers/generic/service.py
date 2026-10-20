@@ -98,9 +98,9 @@ async def import_transactions(
 
 def _get_bank_transaction_key(transaction: ImportedTransaction) -> BankTransactionKey | None:
     """Return what names a row's bank transaction inside its account, or None for a row with no bank ID"""
-    if transaction.bank_account_key is None or transaction.bank_transaction_id is None:
+    if transaction.bank_transaction_hash is None:
         return None
-    return transaction.account.id, transaction.bank_account_key, transaction.bank_transaction_id
+    return transaction.account.id, transaction.bank_transaction_hash
 
 
 async def _leave_out_held_bank_transactions(

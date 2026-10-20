@@ -214,9 +214,9 @@ async def _refuse_move_into_held_bank_transaction(db: AsyncSession, txn: Transac
     Raises:
         HTTPException: Raised with 409 when the account already holds the transaction's bank ID
     """
-    if txn.bank_account_key is None or txn.bank_transaction_id is None or new_account.id == txn.account_id:
+    if txn.bank_transaction_hash is None or new_account.id == txn.account_id:
         return
-    if await find_held_bank_transactions(db, {(new_account.id, txn.bank_account_key, txn.bank_transaction_id)}):
+    if await find_held_bank_transactions(db, {(new_account.id, txn.bank_transaction_hash)}):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=_get_held_bank_transaction_detail(new_account.name),
