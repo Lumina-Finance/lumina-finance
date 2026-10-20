@@ -1,6 +1,6 @@
 import type { InsightsPeriodGlanceResponse } from '@/api/insights'
 import type { Currency } from '@/api/currency'
-import { formatCurrency, formatMovedCurrency } from '@/utils/formatCurrency'
+import { formatMovedCurrency } from '@/utils/formatCurrency'
 import type {
   PeriodGlancePrimaryMetric,
   PeriodGlanceSupportItem,
@@ -33,7 +33,6 @@ type PeriodBrief = {
     detail: string
     calculation?: string
     tone: PeriodGlancePrimaryMetric['tone']
-    signed?: boolean
     fxStatus?: PeriodGlanceSupportItem['fxStatus']
     getFxStatusMessage?: PeriodGlanceSupportItem['getFxStatusMessage']
   }>
@@ -92,7 +91,6 @@ function getPeriodGlanceBrief(
         detail: 'Across all accounts',
         calculation: 'End-of-range account balances minus balances from the day before the range',
         tone: data.net_worth_change >= 0 ? 'positive' : 'negative',
-        signed: true,
         fxStatus: data.net_worth_change_fx_status,
         getFxStatusMessage: getNetWorthChangeFxStatusMessage,
       },
@@ -146,7 +144,6 @@ function getLoadingPeriodGlanceBrief(): PeriodBrief {
         value: 0,
         detail: 'Loading tracked balance movement',
         tone: 'neutral',
-        signed: true,
       },
     ],
     signals: [
@@ -174,9 +171,7 @@ function formatBriefMetricValue(
   displayCurrency: string,
   currencies: Currency[],
 ) {
-  return metric.signed
-    ? formatMovedCurrency(metric.value, displayCurrency, currencies)
-    : formatCurrency(metric.value, displayCurrency, currencies)
+  return formatMovedCurrency(metric.value, displayCurrency, currencies)
 }
 
 function getSupportItems(

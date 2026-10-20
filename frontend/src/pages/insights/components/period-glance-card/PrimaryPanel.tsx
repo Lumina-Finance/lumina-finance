@@ -7,10 +7,11 @@ import { InsightCalculationTooltip } from '@/pages/insights/components/Calculati
 import { getPeriodGlanceToneClass } from './display'
 import { getFittedAmountStyle, useFittedAmount } from '@/pages/insights/hooks/useFittedAmount'
 
-// The headline's `text-5xl` size, and the smallest it shrinks to, `text-xl`, which keeps an amount
-// as long as "(IQD 1,246,913,569.001)" inside the panel at phone width
+// The headline's `text-5xl` size, and the smallest it shrinks to, `text-lg`, which keeps an amount
+// as long as "+IQD 1,246,913,569.001" inside the panel at phone width, including the frames after
+// a resize in which the panel is still narrower than it settles
 const PRIMARY_AMOUNT_MAX_REM = 3
-const PRIMARY_AMOUNT_MIN_REM = 1.25
+const PRIMARY_AMOUNT_MIN_REM = 1.125
 
 // The Income and Expenses figures' `text-lg` size, and the smallest they shrink to, `text-xs`, the
 // smallest named type size. Checked at 390px wide only, where it keeps an amount as long as
