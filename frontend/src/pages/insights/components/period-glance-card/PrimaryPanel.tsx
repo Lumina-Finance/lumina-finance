@@ -1,4 +1,3 @@
-import type { CSSProperties } from 'react'
 import type { FxStatus } from '@/api/shared/fx'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import type { PeriodGlancePrimaryMetric } from '@/pages/insights/types/periodGlance'
@@ -6,7 +5,11 @@ import { getPeriodIncomeExpenseFxStatusMessage } from '@/pages/insights/utils/fx
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
 import { getPeriodGlanceToneClass } from './display'
-import { useFittedPrimaryAmount } from './useFittedPrimaryAmount'
+import { useFittedAmount } from '@/pages/insights/hooks/useFittedAmount'
+
+// The headline's `text-5xl` size, and the smallest it shrinks to, `text-3xl`
+const PRIMARY_AMOUNT_MAX_REM = 3
+const PRIMARY_AMOUNT_MIN_REM = 1.875
 
 type PeriodGlancePrimaryPanelProps = {
   primaryMetric: PeriodGlancePrimaryMetric
@@ -27,9 +30,11 @@ export function PeriodGlancePrimaryPanel({
   displayCurrency,
 }: PeriodGlancePrimaryPanelProps) {
   const { formatCurrency } = useMoneyFormatters()
-  const [primaryAmountRef, primaryAmountFontSizeRem, primaryAmountMaxRem] = useFittedPrimaryAmount(primaryMetric.value)
-  const primaryAmountStyle: CSSProperties | undefined =
-    primaryAmountFontSizeRem < primaryAmountMaxRem ? { fontSize: `${primaryAmountFontSizeRem}rem` } : undefined
+  const [primaryAmountRef, primaryAmountStyle] = useFittedAmount(
+    primaryMetric.value,
+    PRIMARY_AMOUNT_MAX_REM,
+    PRIMARY_AMOUNT_MIN_REM,
+  )
 
   return (
     <div className="grid gap-5 rounded-xl border border-[var(--app-accent-border)] bg-[var(--app-accent-soft)] p-4 min-[750px]:grid-cols-[minmax(0,60fr)_minmax(0,40fr)] min-[750px]:items-center min-[1500px]:flex min-[1500px]:min-h-52 min-[1500px]:flex-col min-[1500px]:items-stretch min-[1500px]:justify-between">
