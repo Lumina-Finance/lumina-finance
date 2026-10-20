@@ -8,7 +8,7 @@ import {
 } from '@/components/loading/Transition'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
-import { useFittedAmount } from '@/pages/insights/hooks/useFittedAmount'
+import { getFittedAmountStyle, useFittedAmount } from '@/pages/insights/hooks/useFittedAmount'
 import { CashFlowBarChart } from './BarChart'
 import type { CashFlowBarBucket, CashFlowGranularity } from '@/pages/insights/types/cashFlow'
 import { getInsightsCashFlowFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
@@ -92,7 +92,8 @@ export function CashFlowCard({
   const totalOutflow = displaySnapshot.buckets.reduce((sum, bucket) => sum + bucket.outflow, 0)
   const totalNet = totalInflow - totalOutflow
   const formattedTotalNet = formatSignedCurrency(totalNet, displaySnapshot.displayCurrency, currencies)
-  const [totalNetRef, totalNetFitStyle] = useFittedAmount(formattedTotalNet, TOTAL_NET_MAX_REM, TOTAL_NET_MIN_REM)
+  const [totalNetRef, totalNetFillRatio] = useFittedAmount(formattedTotalNet, TOTAL_NET_MAX_REM, TOTAL_NET_MIN_REM)
+  const totalNetFitStyle = getFittedAmountStyle(totalNetFillRatio, TOTAL_NET_MAX_REM, TOTAL_NET_MIN_REM)
 
   return (
     <section className="app-card">
