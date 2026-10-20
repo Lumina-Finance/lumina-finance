@@ -109,8 +109,9 @@ async def commit_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> 
             account they cannot reach, 409 when another request holds the run or another import
             saved one of its bank transactions first, and 422 when another importer opened the run,
             when the staged rows do not add up to the file the run declared, when a staged row
-            cannot be written as it stands, when a mapping the run recorded no longer resolves, or
-            when every row is already in its account
+            cannot be written as it stands, when a mapping the run recorded no longer resolves,
+            when every row is already in its account, or when a row falls on the days a linked
+            account's bank supplies
     """
 
     async def write_run(run: ImportRun, rows: list[ImportStagedRow]) -> TransactionImportResponse:

@@ -50,7 +50,8 @@ async def import_transactions(
     Raises:
         HTTPException: Raised with 409 when another import wrote one of the same bank transactions
             into the account while this one was saving, and 422 when the import repeats a bank ID in
-            one account or every row is already in its account
+            one account, every row is already in its account, or a row falls on the days a linked
+            account's bank supplies
     """
     stats = ImportStats()
     import_lookups = await load_import_lookups(
