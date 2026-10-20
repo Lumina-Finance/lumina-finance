@@ -2,13 +2,14 @@ import { expect, test } from '@playwright/test'
 
 import { signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
+import { ACROSS_ORIGINS } from '../support/origins'
 import { API_BASE_URL, BASE_URL } from '../support/target'
 
-// Runs on desktop only: the warning reads the same at every size
+// Runs in the cross-origin project only: the warning reads the same at every size, but it needs the API on another origin
 
 // The browser can read the attempts count only when the API lists the header as exposed to another
 // origin, so the warning shows nothing unless the two origins differ, as they do on the dev instance
-test('warns how many attempts remain after a wrong step-up password', async ({ page, request }) => {
+test('warns how many attempts remain after a wrong step-up password', ACROSS_ORIGINS, async ({ page, request }) => {
   expect(new URL(API_BASE_URL).origin).not.toBe(new URL(BASE_URL).origin)
 
   const user = await signUpUser(request)
