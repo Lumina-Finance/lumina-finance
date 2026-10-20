@@ -430,8 +430,10 @@ test('net cash flow calculation tooltip is drawn over the chart below it', async
   await navigate(page, 'Insights')
 
   const cashFlow = card(page, 1)
-  await cashFlow.scrollIntoViewIfNeeded()
   const trigger = cashFlow.getByRole('button', { name: 'Net Cash Flow calculation', exact: true })
+  // Centred, so the viewport's lower edge leaves the panel room to open below. A trigger left at that
+  // edge makes the panel open above it instead, which is right but not what this test covers
+  await trigger.evaluate((element) => element.scrollIntoView({ block: 'center' }))
   await trigger.hover()
   const tooltip = trigger.locator('xpath=..').getByRole('tooltip')
   await expect(tooltip).toBeVisible()
