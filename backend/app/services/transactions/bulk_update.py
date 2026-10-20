@@ -9,6 +9,7 @@ far-side answer under such a category, and this path skips the end on that row i
 A field is applied when the request carried it, not when it is non-null, because the note takes null
 as a real answer meaning clear it
 """
+
 import uuid
 from datetime import date
 from typing import NamedTuple
@@ -110,16 +111,24 @@ async def bulk_update_transactions(
         own_end_accounts: dict[uuid.UUID, Account] = {}
     else:
         own_end_accounts = await _load_own_end_accounts(
-            db, user, transactions, data, chosen_category, categories_by_id,
+            db,
+            user,
+            transactions,
+            data,
+            chosen_category,
+            categories_by_id,
         )
         group_ids = set()
         for transaction in transactions:
             own_account = _candidate_own_account(
-                transaction, data, chosen_category, categories_by_id, own_end_accounts,
+                transaction,
+                data,
+                chosen_category,
+                categories_by_id,
+                own_end_accounts,
             )
             group_ids.add(
-                own_account.group_id if own_account is not None
-                else source_accounts_by_id[transaction.account_id].group_id,
+                own_account.group_id if own_account is not None else source_accounts_by_id[transaction.account_id].group_id,
             )
     await _validate_chosen_scope(db, user, data, sent, group_ids)
 
@@ -144,7 +153,8 @@ async def bulk_update_transactions(
     except IntegrityError as error:
         await db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Another change reached one of these transactions first",
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Another change reached one of these transactions first",
         ) from error
 
     if snapshot_starts:
@@ -449,8 +459,7 @@ async def _load_current_categories(
         refused = sum(1 for transaction in transactions if transaction.category_id in missing)
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"{refused} of these transactions cannot be changed: "
-            f"{refused} using a category you cannot open",
+            detail=f"{refused} of these transactions cannot be changed: {refused} using a category you cannot open",
         )
 
     return categories_by_id
@@ -586,9 +595,7 @@ def _refuse_transfer_fields_reaching_no_row(
     sent_ends = {"transfer_from", "transfer_to"} & data.model_fields_set
     if not sent_ends and "transfer_direction" not in data.model_fields_set:
         return
-    if any(
-        does_category_record_counterparty_account(resolution.category) for resolution in resolutions.values()
-    ):
+    if any(does_category_record_counterparty_account(resolution.category) for resolution in resolutions.values()):
         return
     detail = (
         "From and To apply to transfers only, and none of the selected transactions end up as one"
@@ -686,14 +693,16 @@ async def _refuse_rows_breaking_single_edit_rules(
     if not reasons:
         return
 
-    refused_count = len({
-        *without_merchant,
-        *missing_fx_rate,
-        *sits_outside,
-        *unanswered_transfers,
-        *own_account_counterparty,
-        *unreachable_counterparties,
-    })
+    refused_count = len(
+        {
+            *without_merchant,
+            *missing_fx_rate,
+            *sits_outside,
+            *unanswered_transfers,
+            *own_account_counterparty,
+            *unreachable_counterparties,
+        }
+    )
     raise HTTPException(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         detail=f"{refused_count} of these transactions cannot be changed: {', '.join(reasons)}",
@@ -723,11 +732,9 @@ async def _refuse_moves_into_held_bank_transactions(
         HTTPException: Raised with 409 when at least one moving row's bank ID is already in its new account
     """
     moving_keys: list[BankTransactionKey] = [
-        (resolutions[transaction.id].account_id, transaction.bank_account_key, transaction.bank_transaction_id)
+        (resolutions[transaction.id].account_id, transaction.bank_transaction_hash)
         for transaction in transactions
-        if transaction.bank_account_key is not None
-        and transaction.bank_transaction_id is not None
-        and resolutions[transaction.id].account_id != transaction.account_id
+        if transaction.bank_transaction_hash is not None and resolutions[transaction.id].account_id != transaction.account_id
     ]
     held = await find_held_bank_transactions(db, moving_keys)
 
@@ -851,10 +858,7 @@ def _collect_far_side_account_ids(
     """
     far_side_ids: set[uuid.UUID] = set()
     for transaction in transactions:
-        if (
-            transaction.counterparty_account_scope == TransferCounterpartyScope.TRACKED
-            and transaction.counterparty_account_id is not None
-        ):
+        if transaction.counterparty_account_scope == TransferCounterpartyScope.TRACKED and transaction.counterparty_account_id is not None:
             far_side_ids.add(transaction.counterparty_account_id)
 
         ends = resolutions[transaction.id].ends
@@ -893,9 +897,7 @@ async def _apply_changes(
         await db.execute(update(Transaction).where(Transaction.id.in_(transaction_ids)).values(**column_values))
 
     records_counterparty = [
-        transaction.id
-        for transaction in transactions
-        if does_category_record_counterparty_account(resolutions[transaction.id].category)
+        transaction.id for transaction in transactions if does_category_record_counterparty_account(resolutions[transaction.id].category)
     ]
 
     # Split into at most two buckets by the ends each row already resolved. A stored zero stays
@@ -954,19 +956,13 @@ async def _apply_changes(
     }
     if clearable_ids:
         await db.execute(
-            update(Transaction)
-            .where(Transaction.id.in_(clearable_ids))
-            .values(counterparty_account_id=None, counterparty_account_scope=None),
+            update(Transaction).where(Transaction.id.in_(clearable_ids)).values(counterparty_account_id=None, counterparty_account_scope=None),
         )
 
     # A column written straight onto every selected row, a direction of any kind, and a tag operation
     # all write across the whole selection rather than a filtered subset, so each counts as reaching
     # every row the request carried, whether or not a given row already held that value
-    direct_ids = (
-        set(transaction_ids)
-        if column_values or "direction" in sent or data.add_tag_ids or data.override_tags
-        else set()
-    )
+    direct_ids = set(transaction_ids) if column_values or "direction" in sent or data.add_tag_ids or data.override_tags else set()
 
     if data.override_tags:
         await clear_transaction_tag_assignments(db, transaction_ids)

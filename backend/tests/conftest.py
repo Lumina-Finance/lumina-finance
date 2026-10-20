@@ -5,7 +5,7 @@ from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from app.config.database import APP_DB_USER
+from app.config.database import APP_DB_USER, MIGRATOR_DB_USER
 from app.config.env import require
 from app.database import stamp_request_identity
 from app.db.credentials import resolve_role_password
@@ -45,6 +45,12 @@ ScopedSession = async_sessionmaker(scoped_engine, expire_on_commit=False)
 
 # Stamp the request identity exactly as production does so the policies read it
 event.listen(scoped_engine.sync_engine, "begin", stamp_request_identity)
+
+# A third engine connecting as the migrator role, which owns the schema in a deployment once
+# ownership is handed to it, for the maintenance commands that run as that role
+_MIGRATOR_PASSWORD = resolve_role_password("migrator", generate=False)
+_MIGRATOR_DATABASE_URL = f"postgresql+asyncpg://{MIGRATOR_DB_USER}:{_MIGRATOR_PASSWORD}@{DB_HOST}:{DB_PORT}/{WORKER_DB_NAME}"
+migrator_engine = create_async_engine(_MIGRATOR_DATABASE_URL, poolclass=NullPool)
 
 
 @pytest.fixture(scope="session", autouse=True)

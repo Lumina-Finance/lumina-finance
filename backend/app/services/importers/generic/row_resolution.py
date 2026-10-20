@@ -60,10 +60,7 @@ def _resolve_import_row(row: TransactionImportRow, import_lookups: ImportLookups
     if account_source in import_lookups.outside_account_sources:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=(
-                f"Map to one of your accounts: {account_source} has rows of its own, "
-                "so it cannot be answered as outside."
-            ),
+            detail=(f"Map to one of your accounts: {account_source} has rows of its own, so it cannot be answered as outside."),
         )
 
     account = get_import_row_account(import_lookups.accounts_by_source, row.account_source)
@@ -88,6 +85,5 @@ def _resolve_import_row(row: TransactionImportRow, import_lookups: ImportLookups
         tag_names=row.tag_names,
         counterparty_account_id=counterparty_account_id,
         counterparty_account_scope=counterparty_account_scope,
-        bank_account_key=row.bank_account_key,
-        bank_transaction_id=row.bank_transaction_id,
+        bank_transaction_hash=row.bank_transaction_hash,
     )

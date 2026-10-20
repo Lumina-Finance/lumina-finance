@@ -33,10 +33,11 @@ const LEFT_OUT_MESSAGE_SETS = { investment: 'INVSTMTMSGSRSV1', loan: 'LOANMSGSRS
  * currency. A transaction whose date or amount cannot be read is kept with that value null, so the
  * import lists it as skipped instead of refusing the file
  *
- * @param file - The uploaded file, never sent anywhere
+ * @param file - The uploaded file, sent nowhere as it is. Each transaction carries the bank account
+ * and bank ID it names, which the import sends to the server to be hashed there
  * @param fileId - What tells this file's transactions from those of another file of the same name
  */
-export async function readOfxFile(file: File, fileId: string = crypto.randomUUID()): Promise<OfxFileRead> {
+export async function readOfxFile(file: File, fileId: string = createOfxFileId()): Promise<OfxFileRead> {
   if (file.size > MAX_OFX_FILE_BYTES) return { status: 'refused', reason: OFX_TOO_LARGE_REASON }
 
   // A file the reader cannot get through is refused as not a statement, as a crash would otherwise
@@ -50,6 +51,16 @@ export async function readOfxFile(file: File, fileId: string = crypto.randomUUID
 
 /** The file a statement is read from, which each of its transactions records */
 type OfxFileOrigin = Pick<OfxTransaction, 'fileId' | 'fileName'>
+
+/**
+ * Makes an id that tells a file from the others staged with it, including one of the same name
+ *
+ * Uses getRandomValues, which a page on plain HTTP has, rather than crypto.randomUUID, which a
+ * browser offers only on HTTPS or localhost
+ */
+export function createOfxFileId() {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
 
 function readOfxStatements(text: string, origin: OfxFileOrigin): OfxFileRead {
   const root = parseOfxMarkup(text)
@@ -119,16 +130,19 @@ function readStatement(kind: OfxStatementKind, node: OfxNode, origin: OfxFileOri
   const tail = accountNumber.replace(/[^A-Za-z0-9]/g, '').slice(-OFX_ACCOUNT_NUMBER_TAIL_LENGTH)
   const name = `${accountKind.label} ending ${tail || accountNumber}`
 
+  // It tells statements of one bank account apart from another's while the files are combined, and
+  // goes to the server with each transaction's bank ID, which hashes the pair before keeping anything.
+  // The statement itself is sent under its position, so no account number names an answer
   const accountKey = [kind, bankId, accountNumber].filter(Boolean).join(':')
+  const transactions = findAllDescendants(node, 'STMTTRN')
   return {
     id: accountKey,
     kind,
-    accountKey,
     name,
     label: `${name} (${currency})`,
     proposedType: accountKind.type,
     currency,
-    transactions: findAllDescendants(node, 'STMTTRN').map((transaction, index) => readTransaction(transaction, index + 1, currency, origin)),
+    transactions: transactions.map((transaction, index) => readTransaction(transaction, index + 1, currency, accountKey, origin)),
   }
 }
 
@@ -162,11 +176,18 @@ function readOtherCurrency(node: OfxNode, statementCurrency: string) {
   return code === statementCurrency ? null : code
 }
 
-function readTransaction(node: OfxNode, index: number, statementCurrency: string, origin: OfxFileOrigin): OfxTransaction {
+function readTransaction(
+  node: OfxNode,
+  index: number,
+  statementCurrency: string,
+  accountKey: string,
+  origin: OfxFileOrigin,
+): OfxTransaction {
   const postedText = readLeaf(node, 'DTPOSTED') ?? ''
   const amountText = readLeaf(node, 'TRNAMT') ?? ''
   const payeeAggregate = findChild(node, 'PAYEE')
   const payee = readLeaf(node, 'NAME') ?? (payeeAggregate ? readLeaf(payeeAggregate, 'NAME') : null)
+  const fitId = readLeaf(node, 'FITID')
 
   return {
     index,
@@ -174,7 +195,8 @@ function readTransaction(node: OfxNode, index: number, statementCurrency: string
 
     // A file read alone is the first of the files, until combining them orders it among the others
     fileOrder: 1,
-    fitId: readLeaf(node, 'FITID') || null,
+    bankAccountKey: accountKey,
+    bankTransactionId: fitId || null,
     postedText,
     date: readPostedDate(postedText),
     amountText,

@@ -70,7 +70,8 @@ async def test_staging_reference_selects_are_bounded_and_replay_keeps_exact_rows
         assert len(run.category_mappings) == count
         assert len(run.merchant_mappings) == count
     assert [row.row_index for row in rows] == list(range(count))
-    assert [row.payload for row in rows] == batch["rows"]
+    # A staged row also records the keyed hash of its bank transaction, which a CSV row has none of
+    assert [row.payload for row in rows] == [{**row, "bank_transaction_hash": None} for row in batch["rows"]]
     assert first_count <= STAGING_SELECT_LIMIT, {"mode": mode, "count": count, "selects": first_count}
     assert replay_count <= STAGING_SELECT_LIMIT, {"mode": mode, "count": count, "selects": replay_count}
 

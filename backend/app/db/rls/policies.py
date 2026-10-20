@@ -72,7 +72,12 @@ SECURED_TABLES = (
 
 # Tables the app role reads with no per-row scoping, either because every authenticated
 # user reads the same reference rows or because the row describes the deployment itself
-GLOBAL_READ_TABLES = ("currencies", "encryption_key_fingerprint", "institutions")
+GLOBAL_READ_TABLES = (
+    "bank_transaction_key_fingerprint",
+    "currencies",
+    "encryption_key_fingerprint",
+    "institutions",
+)
 
 # Auth tables stay out of RLS because the login and token flows query them before a
 # request identity exists, always by exact id, so the queries already scope them

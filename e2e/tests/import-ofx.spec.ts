@@ -25,6 +25,29 @@ async function uploadStatement(page: Page, user: TestUser, contents: string, nam
   await upload.setInputFiles({ name, mimeType: 'application/octet-stream', buffer: Buffer.from(contents) })
 }
 
+// A self-hosted server opened over plain HTTP by its IP address is not a secure context, so the browser
+// withholds crypto.subtle and crypto.randomUUID. The server hashes bank IDs, so the import must not need them
+test('imports a statement where the browser withholds crypto.subtle and crypto.randomUUID', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'isSecureContext', { get: () => false })
+    Object.defineProperty(Crypto.prototype, 'subtle', { get: () => undefined })
+    Object.defineProperty(Crypto.prototype, 'randomUUID', { value: undefined })
+  })
+  await openOfxImport(page, user)
+
+  // The script must really take them away, or this proves nothing about a page on plain HTTP
+  expect(await page.evaluate(() => [typeof crypto.subtle, typeof crypto.randomUUID])).toEqual(['undefined', 'undefined'])
+  const upload = page.locator('input[type="file"][accept*=".ofx"]')
+  await upload.setInputFiles({ name: 'statement.ofx', mimeType: 'application/octet-stream', buffer: Buffer.from(buildFile([buildBankMessageSet('CAD', [CAFE, PAYROLL])])) })
+  await expect(page.getByText('Corner Cafe', { exact: true }).first()).toBeVisible()
+
+  const response = await commitImport(page)
+
+  expect(response.status()).toBe(201)
+  expect(await countLedgerTransactions(request, user)).toBe(2)
+})
+
 test('imports a statement into a new account, leaving out a transaction with no readable amount', async ({ page, request }) => {
   const user = await signUpUser(request)
   await uploadStatement(page, user, buildFile([buildBankMessageSet('CAD', [

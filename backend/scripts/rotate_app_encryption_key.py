@@ -13,11 +13,10 @@ from app.config.database import APP_DB_USER, migration_database_url
 from app.db.encryption_key import (
     FINGERPRINT_TABLE,
     decrypts,
-    read_fingerprint,
     read_stored_secret,
     record_fingerprint,
-    table_exists,
 )
+from app.db.key_fingerprint import read_fingerprint, table_exists
 from app.models import import_all_models
 from app.models.base import Base
 from app.models.types import find_encrypted_columns
@@ -204,7 +203,7 @@ async def _rotation_already_applied(connection: AsyncConnection, new_key: str) -
     stored_secret = await read_stored_secret(connection)
     if stored_secret is None or not decrypts(new_key, stored_secret):
         return False
-    return await read_fingerprint(connection) == encryption.key_fingerprint(new_key)
+    return await read_fingerprint(connection, FINGERPRINT_TABLE) == encryption.key_fingerprint(new_key)
 
 
 async def rotate_encryption_key(engine: AsyncEngine, new_key: str) -> dict[tuple[str, str], int] | None:

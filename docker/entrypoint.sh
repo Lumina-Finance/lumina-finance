@@ -26,9 +26,25 @@ if [ "$#" -gt 0 ]; then
 		shift
 		exec python -m scripts.rotate_app_encryption_key "$@"
 		;;
+	reset-bank-transaction-hash-key)
+		# Binds the database to the key now set, generating one when none is, for an
+		# operator who has lost the old one. Statements imported again then bring back
+		# the transactions already saved from them, which is why it is never automatic
+		if [ "$#" -gt 1 ]; then
+			echo "reset-bank-transaction-hash-key takes no arguments" >&2
+			exit 64
+		fi
+
+		# The reset records the key as the migrator, which owns the record. A lost data volume
+		# or a dump restored onto a new host has neither the migrator's password nor its
+		# ownership yet, so they are set up as a normal start would, as the admin role
+		python -m app.db.provision ensure-roles
+		python -m app.db.provision transfer-ownership
+		exec python -m app.db.bank_transaction_key reset-key
+		;;
 	*)
 		echo "Unknown command: $1" >&2
-		echo "Available: generate-app-encryption-key, rotate-app-encryption-key" >&2
+		echo "Available: generate-app-encryption-key, rotate-app-encryption-key, reset-bank-transaction-hash-key" >&2
 		exit 64
 		;;
 	esac
@@ -80,6 +96,12 @@ ensure_private_key "Refresh" "$JWT_REFRESH_PRIVATE_KEY_PATH"
 # and persisted next to the role secrets when absent. A database that already holds
 # encrypted secrets refuses here rather than starting under a key that cannot read them
 python -m app.db.encryption_key ensure-key
+
+# The key the bank transaction hashes of OFX imports are made with, generated and persisted
+# beside the encryption key when absent. A database that already has a key refuses here rather
+# than starting under a new one none of its hashes match, and the app refuses at start when the
+# key set is not the one recorded. The migrations need it to hash transactions saved before
+python -m app.db.bank_transaction_key ensure-key
 
 # Create the migrator and app roles and hand them schema ownership while still
 # connected as the admin role, before migrations run as the migrator

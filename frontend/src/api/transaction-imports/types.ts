@@ -63,11 +63,12 @@ export interface TransactionImportRow {
   counterparty_account_source?: string | null;
 
   /**
-   * The bank account a statement names and the bank's ID for the transaction, sent together or not
-   * at all. The save leaves the row out when its account already holds the pair
+   * The bank account an OFX statement names and the bank's ID for the transaction, as the file wrote
+   * them, both or neither. The server hashes the pair with a secret key before staging, so neither
+   * is kept, and the save leaves the row out when its account already holds that hash
    */
-  bank_account_key?: string | null;
-  bank_transaction_id?: string | null;
+  bank_account?: string | null;
+  bank_transaction?: string | null;
 }
 
 export interface TransactionImportPayload {

@@ -4,6 +4,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.bank_transaction_key import seal_bank_transaction_hash
 from app.models.import_run import ImportRun, ImportRunSource, ImportStagedRow
 from app.models.user import User
 from app.schemas.import_run import (
@@ -14,6 +15,7 @@ from app.schemas.import_run import (
     TransactionImportResponse,
     TransactionImportRow,
     TransactionImportStageRequest,
+    TransactionImportStageRow,
 )
 from app.services.importers.generic.service import import_transactions
 from app.services.importers.shared.layouts import save_import_layout
@@ -59,11 +61,29 @@ async def stage_import_batch(
         _GENERIC_RUN_SOURCES,
         accounts=data.accounts,
         categories=data.categories,
-        rows=data.rows,
+        rows=[_seal_row(row) for row in data.rows],
         start_row_index=data.start_row_index,
         allows_outside_accounts=True,
         merchants=data.merchants,
     )
+
+
+def _seal_row(row: TransactionImportStageRow) -> TransactionImportRow:
+    """Replace the page's bank account and bank ID with their keyed hash before the row is staged
+
+    The account number and ID are never staged or stored, only the keyed hash, and the commit reads
+    it back from the staged row as it is
+
+    Args:
+        row: One row as the page sent it
+
+    Returns:
+        The row with the keyed hash of its bank account and bank ID, or none when it has no bank ID
+    """
+    fields = row.model_dump(exclude={"bank_account", "bank_transaction"})
+    if row.bank_account is None or row.bank_transaction is None:
+        return TransactionImportRow(**fields)
+    return TransactionImportRow(**fields, bank_transaction_hash=seal_bank_transaction_hash(row.bank_account, row.bank_transaction))
 
 
 async def commit_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> TransactionImportResponse:
@@ -90,6 +110,7 @@ async def commit_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> 
             cannot be written as it stands, when a mapping the run recorded no longer resolves, or
             when every row is already in its account
     """
+
     async def write_run(run: ImportRun, rows: list[ImportStagedRow]) -> TransactionImportResponse:
         summary = await import_transactions(db, user, _build_import_request(run, rows), run.id)
         await save_import_layout(db, user, run, summary.affected_account_ids)
@@ -111,11 +132,7 @@ def _build_import_request(run: ImportRun, rows: list[ImportStagedRow]) -> Transa
     """
     return TransactionImportRequest(
         accounts=[TransactionImportAccountMapping.model_validate(mapping) for mapping in run.account_mappings.values()],
-        categories=[
-            TransactionImportCategoryMapping.model_validate(mapping) for mapping in run.category_mappings.values()
-        ],
-        merchants=[
-            TransactionImportMerchantMapping.model_validate(mapping) for mapping in run.merchant_mappings.values()
-        ],
+        categories=[TransactionImportCategoryMapping.model_validate(mapping) for mapping in run.category_mappings.values()],
+        merchants=[TransactionImportMerchantMapping.model_validate(mapping) for mapping in run.merchant_mappings.values()],
         rows=[TransactionImportRow.model_validate(row.payload) for row in rows],
     )

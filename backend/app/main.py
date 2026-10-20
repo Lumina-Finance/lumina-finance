@@ -5,13 +5,16 @@ import logging
 from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config.oidc import OIDC_PROVIDER_CONFIGS
 from app.config.runtime import ALLOWED_ORIGINS, API_DOCS_ENABLED, RUNTIME
 from app.database import async_session, engine, verify_app_role_is_unprivileged
+from app.db.bank_transaction_key import verify_key_matches_hashes
 from app.db.encryption_key import verify_key_matches_data
 from app.request_security import RequestBodySizeLimitMiddleware
+from app.request_validation import handle_request_validation_error
 from app.routes.accounts import router as account_router
 from app.routes.app_version import router as app_version_router
 from app.routes.auth import router as auth_router
@@ -40,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
-    """Verify the runtime and its encryption key, seed OIDC providers, then prune expired records while serving"""
+    """Verify the runtime and its keys, seed OIDC providers, then prune expired records while serving"""
     await verify_app_role_is_unprivileged()
 
     # The seeding below rewrites the OIDC client secret under whatever key resolved, so a
@@ -48,6 +51,10 @@ async def _lifespan(_app: FastAPI):
     # entrypoint checks this too, and this covers every other way the app starts
     async with engine.connect() as connection:
         await verify_key_matches_data(connection)
+
+        # A missing key would refuse every OFX import, and another key than the hashes were made
+        # with would let every statement imported again bring back what is already saved
+        await verify_key_matches_hashes(connection)
 
     # Reconcile the provider table with the environment on every boot so credential
     # rotations and removals apply without a migration
@@ -84,6 +91,8 @@ app = FastAPI(
 
 # Install the configured email sender before any request can send mail
 set_email_sender(build_email_sender())
+
+app.add_exception_handler(RequestValidationError, handle_request_validation_error)
 
 
 # Added before CORS so CORS ends up the outer layer, since middleware wraps in reverse order

@@ -1,16 +1,23 @@
 """An OFX import leaves out a bank transaction its account already holds
 
-Matched by the bank's ID within the bank account the statement names and nothing else, so an
-overlapping statement adds only what is new and two genuine look-alike purchases still both import
+Matched by the hash of the bank's ID with the bank account the statement names and nothing else, so
+an overlapping statement adds only what is new and two genuine look-alike purchases still both import
 """
 
 import asyncio
+import hashlib
+import hmac
+import json
+import os
 import re
 import uuid
 
+import pytest
 from sqlalchemy import event, select, text
 
+from app.bank_transaction_key import seal_bank_transaction_hash
 from app.models.transaction import Transaction
+from app.schemas.import_run import MAX_IMPORT_BANK_ACCOUNT_KEY_LENGTH, MAX_IMPORT_BANK_TRANSACTION_ID_LENGTH, MAX_IMPORT_BATCH_ROWS
 from app.services.importers.generic import service as generic_service
 from app.services.transactions import bulk_update as bulk_update_module
 from app.services.transactions import update as update_module
@@ -21,16 +28,37 @@ from tests.routes.transactions._import_helpers import (
     _commit_run,
     _import_run,
     _list_transactions,
+    _open_run,
     _open_staged_run,
+    _stage_batch,
 )
 
-# Two bank accounts as an OFX statement names them, which can give their transactions the same IDs
+# A bank account as an OFX statement names it
 _CHEQUING_KEY = "bank:021000021:000111222333"
-_SAVINGS_KEY = "bank:021000021:000444555666"
+
+# The server's bank transaction hash key, from the test environment
+_TEST_KEY = bytes.fromhex(os.environ["BANK_TRANSACTION_HASH_KEY"])
+
+
+def _stored_hash(bank_transaction_id, account_key=_CHEQUING_KEY):
+    """What the server keeps for a transaction with this bank ID, built apart from the app's own code
+
+    The keyed hash of the SHA-256 digest of the account key, a zero byte and the bank ID, made here
+    with hashlib and hmac rather than the app's helper
+    """
+    digest = hashlib.sha256(f"{account_key}\0{bank_transaction_id}".encode()).digest()
+    return hmac.new(_TEST_KEY, digest, hashlib.sha256).hexdigest()
+
+
+def _bank_fields(bank_transaction_id):
+    """The bank account and bank ID the page sends for a chequing transaction, or neither for no ID"""
+    if bank_transaction_id is None:
+        return {"bank_account": None, "bank_transaction": None}
+    return {"bank_account": _CHEQUING_KEY, "bank_transaction": bank_transaction_id}
 
 
 def _ofx_payload(account_id, category_id, rows):
-    """Build an OFX import into one existing account from (bank account key, bank ID, date, amount) rows"""
+    """Build an OFX import into one existing account from (bank ID, date, amount) rows"""
     return {
         "accounts": [{"source": "Statement", "account_id": account_id}],
         "categories": [{"source": "Spending", "category_id": category_id}],
@@ -40,23 +68,22 @@ def _ofx_payload(account_id, category_id, rows):
                 "category_source": "Spending",
                 "dt": dt,
                 "amount": amount,
-                "merchant_name": f"Payee {bank_transaction_id}",
+                "merchant_name": f"Payee {str(bank_transaction_id)[:20]}",
                 "tag_names": [],
-                "bank_account_key": account_key,
-                "bank_transaction_id": bank_transaction_id,
+                **_bank_fields(bank_transaction_id),
             }
-            for account_key, bank_transaction_id, dt, amount in rows
+            for bank_transaction_id, dt, amount in rows
         ],
     }
 
 
 def _march(first_day, last_day):
     """Rows for one transaction a day, each with its own bank ID, from one March day to another"""
-    return [(_CHEQUING_KEY, f"M{day}", f"2026-03-{day:02d}", "-10.00") for day in range(first_day, last_day + 1)]
+    return [(f"M{day}", f"2026-03-{day:02d}", "-10.00") for day in range(first_day, last_day + 1)]
 
 
 # Ten instalments of one purchase, each with its own bank ID, on one day for one amount
-_INSTALMENTS = [(_CHEQUING_KEY, f"I{number}", "2026-03-05", "-25.00") for number in range(10)]
+_INSTALMENTS = [(f"I{number}", "2026-03-05", "-25.00") for number in range(10)]
 
 
 async def _import_ofx(client, headers, payload):
@@ -110,32 +137,10 @@ async def test_the_same_statement_into_another_account_skips_nothing(client):
     assert len(await _ledger(client, headers, other_id)) == 5
 
 
-async def test_the_same_bank_id_from_two_bank_accounts_imports_into_one_account_both_times(client):
-    """Bank IDs are unique only within one bank account, so two statements filed together can share one"""
-    headers, account_id, category_id = await _setup_user_with_deps(client)
-    together = await _import_ofx(client, headers, _ofx_payload(account_id, category_id, [
-        (_CHEQUING_KEY, "0001", "2026-03-01", "-10.00"),
-        (_SAVINGS_KEY, "0001", "2026-03-02", "-20.00"),
-        (_CHEQUING_KEY, "0002", "2026-03-03", "-30.00"),
-    ]))
-    assert together.status_code == 201, together.text
-    assert together.json()["transactions_created"] == 3
-
-    # Only the first bank account holds 0002, so the second's own 0002 is new
-    later = await _import_ofx(client, headers, _ofx_payload(account_id, category_id, [
-        (_SAVINGS_KEY, "0001", "2026-03-02", "-20.00"),
-        (_SAVINGS_KEY, "0002", "2026-03-04", "-40.00"),
-    ]))
-
-    assert later.status_code == 201, later.text
-    assert (later.json()["transactions_created"], later.json()["transactions_already_imported"]) == (1, 1)
-    assert len(await _ledger(client, headers, account_id)) == 4
-
-
 async def test_rows_with_no_bank_id_import_every_time(client):
     """A row with no ID is never matched, so leaving it out would drop a CSV row or an ID-less statement line"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    payload = _ofx_payload(account_id, category_id, [(None, None, "2026-03-01", "-10.00")] * 3)
+    payload = _ofx_payload(account_id, category_id, [(None, "2026-03-01", "-10.00")] * 3)
 
     for expected_count in (3, 6):
         resp = await _import_ofx(client, headers, payload)
@@ -179,7 +184,7 @@ async def test_a_statement_whose_every_transaction_is_already_there_is_refused_a
 async def test_an_import_repeating_a_bank_id_in_one_account_is_refused(client):
     """The page leaves a repeat out before sending, so one arriving would write a transaction twice"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    repeated = [(_CHEQUING_KEY, "0001", "2026-03-01", "-10.00"), (_CHEQUING_KEY, "0001", "2026-03-02", "-20.00")]
+    repeated = [("0001", "2026-03-01", "-10.00"), ("0001", "2026-03-02", "-20.00")]
 
     resp = await _import_ofx(client, headers, _ofx_payload(account_id, category_id, repeated))
 
@@ -188,18 +193,187 @@ async def test_an_import_repeating_a_bank_id_in_one_account_is_refused(client):
     assert await _ledger(client, headers, account_id) == []
 
 
-async def test_a_bank_id_without_its_bank_account_is_refused_as_it_is_staged(client):
-    """An ID stored without its bank account would match the same ID from any other bank"""
-    headers, account_id, category_id = await _setup_user_with_deps(client)
+# A bank account and bank ID with the hash the server keeps for the pair, found by hand: the digest
+# from `printf 'bank:021000021:000111222333\0A1' | shasum -a 256`, keyed with the test key by
+# `openssl dgst -sha256 -mac HMAC`. Saved hashes keep matching only while the server makes this
+# value from this input
+_KNOWN_ACCOUNT_KEY = "bank:021000021:000111222333"
+_KNOWN_BANK_ID = "A1"
+_KNOWN_STORED_HASH = "b9f6b59e50040034f5acd7c6ddb5d0c4cd0a3910031ae5dca1cbdc1504aa55df"
 
-    for account_key, bank_transaction_id in ((None, "0001"), (_CHEQUING_KEY, None)):
-        payload = _ofx_payload(account_id, category_id, [(account_key, bank_transaction_id, "2026-03-01", "-10.00")])
-        resp = await _import_ofx(client, headers, payload)
-        assert resp.status_code == 422, resp.text
-        assert [(error["loc"], error["msg"]) for error in resp.json()["detail"]] == [(
-            ["body", "rows", 0],
-            "Value error, a bank transaction ID is sent together with its bank account key",
-        )]
+
+def test_the_server_hashes_a_known_bank_transaction_to_the_value_earlier_imports_stored():
+    """Changing how the pair is hashed leaves every saved transaction unmatched, so a known pair is pinned"""
+    assert seal_bank_transaction_hash(_KNOWN_ACCOUNT_KEY, _KNOWN_BANK_ID) == _KNOWN_STORED_HASH
+    assert _stored_hash(_KNOWN_BANK_ID, _KNOWN_ACCOUNT_KEY) == _KNOWN_STORED_HASH
+
+
+def test_the_pair_is_hashed_over_utf8_bytes_with_a_zero_byte_between():
+    """A non-ASCII bank ID hashes as its UTF-8 bytes, pinned to a value found by hand as above"""
+    assert seal_bank_transaction_hash("creditCard:4111", "Café-№1") == "d3071d035906ef2d1df8773301a69b7ff3e6f3118ac4b3da01283ab0da12502e"
+
+
+_BAD_BANK_FIELDS = {
+    "an ID with no account": {"bank_account": None, "bank_transaction": "0001"},
+    "an account with no ID": {"bank_account": _CHEQUING_KEY, "bank_transaction": None},
+    "an empty ID": {"bank_transaction": ""},
+    "an empty account": {"bank_account": ""},
+    "an ID past the cap": {"bank_transaction": "x" * (MAX_IMPORT_BANK_TRANSACTION_ID_LENGTH + 1)},
+    "an account past the cap": {"bank_account": "x" * (MAX_IMPORT_BANK_ACCOUNT_KEY_LENGTH + 1)},
+}
+
+
+@pytest.mark.parametrize("changes", _BAD_BANK_FIELDS.values(), ids=_BAD_BANK_FIELDS.keys())
+async def test_a_bank_account_and_bank_id_that_do_not_make_a_pair_are_refused_without_echoing_them(client, changes):
+    """A half pair, or an empty or huge value, can't be keyed, and no value is repeated back"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    payload = _ofx_payload(account_id, category_id, [("0001", "2026-03-01", "-10.00")])
+    payload["rows"][0] |= changes
+    run_id = await _open_run(client, headers, source="ofx")
+
+    resp = await _stage_batch(client, headers, run_id, {**payload, "start_row_index": 0}, source="ofx")
+
+    assert resp.status_code == 422, resp.text
+    assert all(error["loc"][:3] == ["body", "rows", 0] and "input" not in error for error in resp.json()["detail"])
+    for raw in (_CHEQUING_KEY, "0001", "x" * 50):
+        assert raw not in resp.text
+    async with TestSession() as session:
+        staged = await session.scalar(text("SELECT count(*) FROM import_staged_rows WHERE import_run_id = :id"), {"id": uuid.UUID(run_id)})
+    assert staged == 0
+
+
+async def test_a_refusal_of_the_batch_as_a_whole_does_not_echo_the_rows_it_holds(client):
+    """FastAPI answers with the failing input, which for a batch missing its mappings is every raw bank ID"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    payload = _ofx_payload(account_id, category_id, [("0001", "2026-03-01", "-10.00")])
+    del payload["categories"]
+    run_id = await _open_run(client, headers, source="ofx")
+
+    resp = await _stage_batch(client, headers, run_id, {**payload, "start_row_index": 0}, source="ofx")
+
+    assert resp.status_code == 422, resp.text
+    assert _CHEQUING_KEY not in resp.text
+    assert "0001" not in resp.text
+
+
+async def test_a_refusal_of_the_rows_as_a_list_does_not_echo_the_rows_it_holds(client):
+    """A batch over the row cap fails on the rows list itself, whose input is every raw bank ID"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    rows = [("0001", "2026-03-01", "-10.00")] * (MAX_IMPORT_BATCH_ROWS + 1)
+    payload = _ofx_payload(account_id, category_id, rows)
+    run_id = await _open_run(client, headers, source="ofx")
+
+    resp = await _stage_batch(client, headers, run_id, {**payload, "start_row_index": 0}, source="ofx")
+
+    assert resp.status_code == 422, resp.text
+    assert [error["loc"] for error in resp.json()["detail"]] == [["body", "rows"]]
+    assert "input" not in resp.json()["detail"][0]
+    assert _CHEQUING_KEY not in resp.text
+
+
+async def test_a_page_that_names_accounts_by_account_number_is_refused_before_it_stages_anything(client):
+    """The page before this one sent each statement's account answer and rows under the raw account key
+
+    Its fields are refused, so none of its account numbers reaches the run's answers, its summary or
+    a staged row
+    """
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    payload = _ofx_payload(account_id, category_id, [(None, "2026-03-01", "-10.00")])
+    payload["accounts"][0]["source"] = _CHEQUING_KEY
+    payload["rows"][0] = {
+        **{key: value for key, value in payload["rows"][0].items() if not key.startswith("bank_")},
+        "account_source": _CHEQUING_KEY,
+        "bank_account_key": _CHEQUING_KEY,
+        "bank_transaction_id": "0001",
+    }
+    run_id = await _open_run(client, headers, source="ofx")
+
+    resp = await _stage_batch(client, headers, run_id, {**payload, "start_row_index": 0}, source="ofx")
+
+    assert resp.status_code == 422, resp.text
+    assert sorted((tuple(error["loc"]), error["msg"]) for error in resp.json()["detail"]) == [
+        (("body", "rows", 0, "bank_account_key"), "Extra inputs are not permitted"),
+        (("body", "rows", 0, "bank_transaction_id"), "Extra inputs are not permitted"),
+    ]
+    assert _CHEQUING_KEY not in resp.text
+    async with TestSession() as session:
+        staged = await session.scalar(text("SELECT count(*) FROM import_staged_rows WHERE import_run_id = :id"), {"id": uuid.UUID(run_id)})
+        answers = await session.scalar(text("SELECT account_mappings FROM import_runs WHERE id = :id"), {"id": uuid.UUID(run_id)})
+    assert (staged, answers) == (0, {})
+
+
+async def test_a_hash_sent_by_the_page_is_refused_since_only_the_server_makes_one(client):
+    """A hash from the client would be staged as it is, unkeyed, and match nothing the server saved"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    payload = _ofx_payload(account_id, category_id, [(None, "2026-03-01", "-10.00")])
+    payload["rows"][0] = {key: value for key, value in payload["rows"][0].items() if not key.startswith("bank_")}
+    payload["rows"][0]["bank_transaction_hash"] = "ab" * 32
+    run_id = await _open_run(client, headers, source="ofx")
+
+    resp = await _stage_batch(client, headers, run_id, {**payload, "start_row_index": 0}, source="ofx")
+
+    assert resp.status_code == 422, resp.text
+    assert [(tuple(error["loc"]), error["msg"]) for error in resp.json()["detail"]] == [
+        (("body", "rows", 0, "bank_transaction_hash"), "Extra inputs are not permitted"),
+    ]
+    async with TestSession() as session:
+        staged = await session.scalar(text("SELECT count(*) FROM import_staged_rows WHERE import_run_id = :id"), {"id": uuid.UUID(run_id)})
+    assert staged == 0
+
+
+async def test_the_pair_is_staged_and_stored_only_as_its_keyed_hash(client):
+    """No account number or bank ID may reach the staged row, the transaction or the run, only the keyed hash"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, source="ofx")
+    staging = await _stage_batch(
+        client, headers, run_id, {**_ofx_payload(account_id, category_id, _march(1, 1)), "start_row_index": 0}, source="ofx"
+    )
+    assert staging.status_code == 204, staging.text
+    async with TestSession() as session:
+        staged = await session.scalar(text("SELECT payload FROM import_staged_rows WHERE import_run_id = :id"), {"id": uuid.UUID(run_id)})
+        run_row = await session.scalar(text("SELECT to_jsonb(import_runs)::text FROM import_runs WHERE id = :id"), {"id": uuid.UUID(run_id)})
+
+    resp = await _commit_run(client, headers, run_id, source="ofx")
+
+    assert resp.status_code == 201, resp.text
+    async with TestSession() as session:
+        stored = await session.scalar(
+            select(Transaction.bank_transaction_hash).where(Transaction.account_id == uuid.UUID(account_id)),
+        )
+        transaction_row = await session.scalar(
+            text("SELECT to_jsonb(transactions)::text FROM transactions WHERE account_id = :id"), {"id": uuid.UUID(account_id)}
+        )
+    assert (staged["bank_transaction_hash"], stored) == (_stored_hash("M1"), _stored_hash("M1"))
+    assert set(staged).isdisjoint({"bank_account", "bank_transaction"})
+    for raw in (_CHEQUING_KEY, "000111222333", '"M1"'):
+        assert raw not in json.dumps(staged) + run_row + transaction_row + staging.text + resp.text
+
+
+async def test_an_account_key_of_exactly_the_cap_is_accepted(client):
+    """The cap is a limit on what is accepted, so a key of exactly that many characters must import"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    payload = _ofx_payload(account_id, category_id, [("0001", "2026-03-01", "-10.00")])
+    payload["rows"][0]["bank_account"] = "k" * MAX_IMPORT_BANK_ACCOUNT_KEY_LENGTH
+
+    resp = await _import_ofx(client, headers, payload)
+
+    assert resp.status_code == 201, resp.text
+    assert (resp.json()["transactions_created"], resp.json()["transactions_already_imported"]) == (1, 0)
+
+
+@pytest.mark.parametrize("length", [300, MAX_IMPORT_BANK_TRANSACTION_ID_LENGTH])
+async def test_a_long_bank_id_imports_and_is_recognised_when_imported_again(client, length):
+    """Hashing keeps no length, so a bank ID past the 255 characters OFX allows is no reason to leave a transaction out"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    payload = _ofx_payload(account_id, category_id, [("y" * length, "2026-03-01", "-10.00")])
+
+    first = await _import_ofx(client, headers, payload)
+    again = await _import_ofx(client, headers, payload)
+
+    assert first.status_code == 201, first.text
+    assert (first.json()["transactions_created"], first.json()["transactions_already_imported"]) == (1, 0)
+    assert again.status_code == 422
+    assert again.json()["detail"] == "Every transaction in this import is already in Main Chequing"
 
 
 async def test_an_edited_transaction_moved_to_another_account_is_still_recognised_there(client):
@@ -224,7 +398,7 @@ async def test_an_edited_transaction_moved_to_another_account_is_still_recognise
 
 async def _count_transaction_reads(client, headers, account_id, category_id, row_count):
     """Commit a statement of row_count rows, the first ten already held, and count its reads of the transactions table"""
-    rows = [(_CHEQUING_KEY, f"R{index}", "2026-03-01", "-1.00") for index in range(row_count)]
+    rows = [(f"R{index}", "2026-03-01", "-1.00") for index in range(row_count)]
     run_id = await _open_staged_run(client, headers, _ofx_payload(account_id, category_id, rows), source="ofx")
     reads = []
 
@@ -247,9 +421,10 @@ async def test_the_bank_ids_are_read_in_one_statement_however_many_rows_carry_th
     """A read per row would cost a round trip for each of a statement's thousands of transactions"""
     small_headers, small_account_id, small_category_id = await _setup_user_with_deps(client)
     large_headers, large_account_id, large_category_id = await _setup_user_with_deps(client, email="large@example.com")
-    held = [(_CHEQUING_KEY, f"R{index}", "2026-03-01", "-1.00") for index in range(10)]
+    held = [(f"R{index}", "2026-03-01", "-1.00") for index in range(10)]
     for headers, account_id, category_id in (
-        (small_headers, small_account_id, small_category_id), (large_headers, large_account_id, large_category_id),
+        (small_headers, small_account_id, small_category_id),
+        (large_headers, large_account_id, large_category_id),
     ):
         assert (await _import_ofx(client, headers, _ofx_payload(account_id, category_id, held))).status_code == 201
 
@@ -306,13 +481,13 @@ async def test_two_imports_saving_one_bank_transaction_at_once_write_it_once(cli
         ids = (
             (
                 await session.execute(
-                    select(Transaction.bank_transaction_id).where(Transaction.account_id == uuid.UUID(account_id)),
+                    select(Transaction.bank_transaction_hash).where(Transaction.account_id == uuid.UUID(account_id)),
                 )
             )
             .scalars()
             .all()
         )
-    assert sorted(ids) == ["M1", "M2", "M3", "M4"]
+    assert sorted(ids) == sorted(_stored_hash(f"M{day}") for day in range(1, 5))
 
 
 async def _import_into_both(client):
@@ -340,10 +515,14 @@ async def test_moving_transactions_into_an_account_holding_their_bank_ids_in_bul
     """A bulk edit must refuse what a single edit refuses, and leave every row where it was"""
     headers, account_id, other_id, first_account = await _import_into_both(client)
 
-    resp = await client.patch("/transactions/bulk", json={
-        "transaction_ids": [transaction["id"] for transaction in first_account],
-        "account_id": other_id,
-    }, headers=headers)
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={
+            "transaction_ids": [transaction["id"] for transaction in first_account],
+            "account_id": other_id,
+        },
+        headers=headers,
+    )
 
     assert resp.status_code == 409
     assert resp.json()["detail"] == "Joint Chequing already has 3 of these transactions from an earlier import"
@@ -351,12 +530,12 @@ async def test_moving_transactions_into_an_account_holding_their_bank_ids_in_bul
     assert len(await _ledger(client, headers, other_id)) == 3
 
 
-async def test_moving_a_transaction_into_an_account_holding_its_bank_id_from_another_bank_account_is_allowed(client):
-    """Bank IDs are unique only within one bank account, so a savings 0001 is not the chequing 0001"""
+async def test_moving_a_transaction_into_an_account_holding_other_bank_ids_is_allowed(client):
+    """Only the same bank transaction clashes, so an account with imported transactions still takes others"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     other_id = (await _create_account(client, headers, name="Joint Chequing")).json()["id"]
-    for target_id, account_key in ((account_id, _SAVINGS_KEY), (other_id, _CHEQUING_KEY)):
-        payload = _ofx_payload(target_id, category_id, [(account_key, "0001", "2026-03-01", "-10.00")])
+    for target_id, bank_transaction_id in ((account_id, "0001"), (other_id, "0002")):
+        payload = _ofx_payload(target_id, category_id, [(bank_transaction_id, "2026-03-01", "-10.00")])
         assert (await _import_ofx(client, headers, payload)).status_code == 201
     moving_id = (await _ledger_transactions(client, headers, account_id))[0]["id"]
 
@@ -375,15 +554,21 @@ async def test_moving_a_set_some_of_which_an_account_holds_in_bulk_is_refused_wh
     assert (await _import_ofx(client, headers, _ofx_payload(other_id, category_id, _march(2, 2)))).status_code == 201
     moving = await _ledger_transactions(client, headers, account_id)
 
-    resp = await client.patch("/transactions/bulk", json={
-        "transaction_ids": [transaction["id"] for transaction in moving],
-        "account_id": other_id,
-    }, headers=headers)
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={
+            "transaction_ids": [transaction["id"] for transaction in moving],
+            "account_id": other_id,
+        },
+        headers=headers,
+    )
 
     assert resp.status_code == 409
     assert resp.json()["detail"] == "Joint Chequing already has 1 of these transactions from an earlier import"
     assert sorted(merchant for _, merchant in await _ledger(client, headers, account_id)) == [
-        "Payee M1", "Payee M2", "Payee M3",
+        "Payee M1",
+        "Payee M2",
+        "Payee M3",
     ]
     assert await _ledger(client, headers, other_id) == [("2026-03-02", "Payee M2")]
 
@@ -397,15 +582,15 @@ def _give_held_row_bank_id_after(original, other_id, bank_transaction_id):
 
     Stands in for an import landing in the other account between the check and the write
     """
+
     async def check_then_clash(*args, **kwargs):
         result = await original(*args, **kwargs)
         async with TestSession() as other:
             await other.execute(
                 text(
-                    "UPDATE transactions SET bank_transaction_id = :clash "
-                    "WHERE account_id = :account_id AND bank_transaction_id = 'X1'",
+                    "UPDATE transactions SET bank_transaction_hash = :clash WHERE account_id = :account_id AND bank_transaction_hash = :free",
                 ),
-                {"clash": bank_transaction_id, "account_id": uuid.UUID(other_id)},
+                {"clash": _stored_hash(bank_transaction_id), "free": _stored_hash("X1"), "account_id": uuid.UUID(other_id)},
             )
             await other.commit()
         return result
@@ -418,7 +603,7 @@ async def _import_one_each_with_a_free_row_in_the_other(client):
     headers, account_id, category_id = await _setup_user_with_deps(client)
     other_id = (await _create_account(client, headers, name="Joint Chequing")).json()["id"]
     for target_id, bank_transaction_id in ((account_id, "M1"), (other_id, "X1")):
-        payload = _ofx_payload(target_id, category_id, [(_CHEQUING_KEY, bank_transaction_id, "2026-03-01", "-10.00")])
+        payload = _ofx_payload(target_id, category_id, [(bank_transaction_id, "2026-03-01", "-10.00")])
         assert (await _import_ofx(client, headers, payload)).status_code == 201
     return headers, account_id, other_id
 
@@ -451,7 +636,9 @@ async def test_a_bulk_move_racing_an_import_of_its_bank_id_into_the_account_is_r
     moving_id = (await _ledger_transactions(client, headers, account_id))[0]["id"]
 
     resp = await client.patch(
-        "/transactions/bulk", json={"transaction_ids": [moving_id], "account_id": other_id}, headers=headers,
+        "/transactions/bulk",
+        json={"transaction_ids": [moving_id], "account_id": other_id},
+        headers=headers,
     )
 
     assert resp.status_code == 409, resp.text
@@ -464,12 +651,18 @@ async def test_an_edit_naming_the_transactions_own_account_is_not_a_move(client)
     headers, account_id, _, first_account = await _import_into_both(client)
 
     single = await client.patch(
-        f"/transactions/{first_account[0]['id']}", json={"account_id": account_id, "notes": "Edited"}, headers=headers,
+        f"/transactions/{first_account[0]['id']}",
+        json={"account_id": account_id, "notes": "Edited"},
+        headers=headers,
     )
-    bulk = await client.patch("/transactions/bulk", json={
-        "transaction_ids": [transaction["id"] for transaction in first_account],
-        "account_id": account_id,
-    }, headers=headers)
+    bulk = await client.patch(
+        "/transactions/bulk",
+        json={
+            "transaction_ids": [transaction["id"] for transaction in first_account],
+            "account_id": account_id,
+        },
+        headers=headers,
+    )
 
     assert single.status_code == 200, single.text
     assert bulk.status_code == 200, bulk.text

@@ -17,9 +17,7 @@ import {
   getOfxFixedAccountCurrencyError,
   getOfxOtherCurrencyReason,
   getOfxRepeatedTransactionReason,
-  MAX_OFX_BANK_TRANSACTION_ID_LENGTH,
   OFX_AMOUNT_UNREADABLE_REASON,
-  OFX_BANK_ID_TOO_LONG_REASON,
   OFX_CATEGORIES_UNAVAILABLE_ERROR,
   OFX_DATE_UNREADABLE_REASON,
   OFX_REPEATED_IN_FILE_REASON,
@@ -85,8 +83,9 @@ export function getOfxSkippedRowId(statement: OfxStatement, transaction: OfxTran
  * A statement is written to the account its answer names, in that account's currency, so one whose
  * currency differs is refused rather than converted. Transactions the file leaves unreadable, that
  * the importer could not store, or whose bank ID an earlier transaction of the import already has,
- * are left out and listed with the reason, and the rest import with their bank IDs, which the save
- * uses to leave out what the account already holds.
+ * are left out and listed with the reason, and the rest import with the hash of their bank IDs,
+ * which the save uses to leave out what the account already holds. Nothing sent names the account
+ * number: each statement's answer goes by its position in the import.
  * A statement carries no categories, so money out is filed under the seeded Miscellaneous category
  * and money in under the seeded Other Income one, as a CSV row with no category is
  */
@@ -102,9 +101,13 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
   const writtenSources = new Set<string>()
   const currencyMismatches: string[] = []
 
-  const prepared = getOfxStatementsToImport(file).map((statement) => {
+  const prepared = getOfxStatementsToImport(file).map((statement, position) => {
+    // Named by position rather than by the statement's id, which holds the account number that only
+    // goes to the server inside a transaction, to be hashed. The same files give the same positions,
+    // so a resent upload matches
+    const source = `statement-${position + 1}`
     const built = buildImportAccountMapping({
-      source: statement.id,
+      source,
       label: statement.label,
       name: statement.name,
       choice: answers.accountMappings[statement.id] ?? '',
@@ -127,11 +130,11 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
     }
 
     const exponent = isWritable ? findCurrencyExponent(answers.currencies, statement.currency) : null
-    return { statement, built, isWritable, exponent }
+    return { statement, source, built, isWritable, exponent }
   })
   const firstCopies = findFirstOfxCopies(prepared)
 
-  for (const { statement, built, isWritable, exponent } of prepared) {
+  for (const { statement, source, built, isWritable, exponent } of prepared) {
     let hasRows = false
     for (const transaction of statement.transactions) {
       const skip = (reason: string) => skippedRows.push({
@@ -162,18 +165,15 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
 
       hasRows = true
       rows.push({
-        account_source: statement.id,
+        account_source: source,
         category_source: getOfxCategorySource(transaction),
         dt: transaction.date!,
         amount: transaction.amount!,
         merchant_name: transaction.payee,
         notes: transaction.memo,
         tag_names: [],
-
-        // The bank account the file names, without the suffix a second statement of it gets, so a
-        // later statement of the same account is matched whatever position it holds in its file
-        bank_account_key: transaction.fitId === null ? null : statement.accountKey,
-        bank_transaction_id: transaction.fitId,
+        bank_account: transaction.bankTransactionId === null ? null : transaction.bankAccountKey,
+        bank_transaction: transaction.bankTransactionId,
       })
     }
 
@@ -191,12 +191,12 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
 }
 
 /**
- * What tells one bank transaction from another across the import: the bank's ID within the bank
- * account and currency it was issued for, or null for a transaction the file gave no ID. The account
- * is the one the file names, before any suffix that tells a file's second statement of it apart
+ * What tells one bank transaction from another across the import: the bank's ID with the bank
+ * account it was issued for, in the statement's currency, or null for a transaction the file gave
+ * no ID. Held in the browser only to find repeats, and never sent
  */
 function getOfxRepeatKey(statement: OfxStatement, transaction: OfxTransaction) {
-  return transaction.fitId === null ? null : JSON.stringify([statement.accountKey, statement.currency, transaction.fitId])
+  return transaction.bankTransactionId === null ? null : JSON.stringify([transaction.bankAccountKey, transaction.bankTransactionId, statement.currency])
 }
 
 /**
@@ -249,7 +249,6 @@ export function getOfxTransactionProblem(transaction: OfxTransaction, exponent: 
   if (transaction.payee && [...transaction.payee].length > JOURNAL_ROW_FIELD_MAX_LENGTHS.merchantName) {
     return getImportMerchantTooLongReason([...transaction.payee].length)
   }
-  if (transaction.fitId && [...transaction.fitId].length > MAX_OFX_BANK_TRANSACTION_ID_LENGTH) return OFX_BANK_ID_TOO_LONG_REASON
   return null
 }
 
