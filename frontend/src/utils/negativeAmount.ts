@@ -26,6 +26,14 @@ export function getAmountSign(amount: number | bigint): AmountSign {
 }
 
 /**
+ * Returns the direction of an amount in minor units as it is shown, which is rounded to whole minor
+ * units, so an amount that shows as zero is zero. Colours and text both read this, so they agree
+ */
+export function getShownAmountSign(amount: number): AmountSign {
+  return Math.round(Math.abs(amount)) === 0 ? 0 : getAmountSign(amount)
+}
+
+/**
  * Puts an amount's direction in front of its already formatted magnitude
  *
  * Money in always carries a plus. Money out is written in the style set for amounts that moved. A

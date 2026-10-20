@@ -14,7 +14,7 @@ const styles = vi.hoisted(() => ({ held: 'brackets', moved: 'minus' }) as Record
 vi.mock('@/utils/negativeStyle', () => ({ getNegativeStyle: (kind: MoneyKind) => styles[kind] }))
 
 import { formatCurrency, formatMovedCurrency } from '@/utils/formatCurrency'
-import { getAmountSign, formatMovedPercent, signMovedAmount } from '@/utils/negativeAmount'
+import { getAmountSign, getShownAmountSign, formatMovedPercent, signMovedAmount } from '@/utils/negativeAmount'
 
 const currencies: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -44,6 +44,10 @@ describe('direction of an amount', () => {
   it('reads zero and negative zero as no direction', () => {
     expect([getAmountSign(5), getAmountSign(-5), getAmountSign(0), getAmountSign(-0)]).toEqual([1, -1, 0, 0])
     expect([getAmountSign(5n), getAmountSign(-5n), getAmountSign(0n)]).toEqual([1, -1, 0])
+  })
+
+  it('reads an amount that rounds to zero as no direction', () => {
+    expect([getShownAmountSign(0.4), getShownAmountSign(-0.4), getShownAmountSign(0.6), getShownAmountSign(-0.6)]).toEqual([0, 0, 1, -1])
   })
 })
 

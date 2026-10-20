@@ -1,6 +1,6 @@
 import type { Currency } from '@/api/currency'
 import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent } from '@/utils/moneyInput'
-import { getAmountSign, getNegativeAffixes, signMovedAmount } from '@/utils/negativeAmount'
+import { getNegativeAffixes, getShownAmountSign, signMovedAmount } from '@/utils/negativeAmount'
 
 /**
  * Formats a currency's code, name, and symbol for selection and reference fields
@@ -123,6 +123,5 @@ export function formatCurrency(minorUnits: number, currency: string, currencies:
  */
 export function formatMovedCurrency(minorUnits: number, currency: string, currencies: Currency[]): string {
   const magnitude = Math.round(Math.abs(minorUnits))
-  const sign = magnitude === 0 ? 0 : getAmountSign(minorUnits)
-  return signMovedAmount(sign, formatCurrency(magnitude, currency, currencies))
+  return signMovedAmount(getShownAmountSign(minorUnits), formatCurrency(magnitude, currency, currencies))
 }
