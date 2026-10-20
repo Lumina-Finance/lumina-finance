@@ -37,6 +37,7 @@ from app.services.auth.step_up import ATTEMPTS_REMAINING_HEADER
 from app.services.email import build_email_sender, set_email_sender
 from app.services.fx.lookup_budget import FxLookupBudgetMiddleware
 from app.services.maintenance.expired_records import prune_expired_records_on_schedule
+from app.valkey_store import use_valkey
 
 logger = logging.getLogger(__name__)
 
@@ -67,19 +68,21 @@ async def _lifespan(_app: FastAPI):
     else:
         logger.info("OIDC sign-in is not configured")
 
-    # Only a long-running server can keep a timer going. A Lambda process is frozen between
-    # invocations, so that runtime calls prune_expired_records from its own scheduler instead
-    if RUNTIME != "server":
-        yield
-        return
+    # The cache's pool lives as long as the app, in every runtime, and a server without ValKey starts as usual
+    async with use_valkey():
+        # Only a long-running server can keep a timer going. A Lambda process is frozen between
+        # invocations, so that runtime calls prune_expired_records from its own scheduler instead
+        if RUNTIME != "server":
+            yield
+            return
 
-    pruning = asyncio.create_task(prune_expired_records_on_schedule())
-    try:
-        yield
-    finally:
-        pruning.cancel()
-        with suppress(asyncio.CancelledError):
-            await pruning
+        pruning = asyncio.create_task(prune_expired_records_on_schedule())
+        try:
+            yield
+        finally:
+            pruning.cancel()
+            with suppress(asyncio.CancelledError):
+                await pruning
 
 
 # FastAPI mounts /docs and /redoc only beside the schema, so leaving the schema out turns off all three

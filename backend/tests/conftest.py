@@ -1,4 +1,6 @@
 import os
+from collections.abc import AsyncIterator
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import event, text
@@ -14,6 +16,7 @@ from app.models import import_all_models
 from app.models.base import Base
 from app.services.categories.defaults import seed_system_categories
 from app.services.merchants.defaults import seed_system_merchants
+from app.valkey_store import ValkeyStore, use_valkey
 
 # Import all models so Base.metadata has the full schema
 import_all_models()
@@ -121,3 +124,33 @@ async def clean_tables():
         await seed_system_merchants(session)
         await session.commit()
     yield
+
+
+@pytest.fixture
+async def valkey_store() -> AsyncIterator[ValkeyStore]:
+    """A store over the test ValKey, under a namespace of its own so no test sees another's keys
+
+    Not published to the app, so code under test that finds its store through get_valkey still runs
+    without a cache. A missing or unreachable test ValKey fails the tests that ask for it. The test's
+    keys are deleted afterwards, since some are stored for months and the test ValKey is shared
+    """
+    store = ValkeyStore.from_url(require("TEST_VALKEY_URL"), namespace=f"test-{uuid4().hex}:")
+    try:
+        yield store
+    finally:
+        try:
+            keys = [key async for key in store.client.scan_iter(match=store.namespace + "*")]
+            if keys:
+                await store.client.delete(*keys)
+        finally:
+            await store.aclose()
+
+
+@pytest.fixture
+async def published_valkey(valkey_store: ValkeyStore) -> AsyncIterator[ValkeyStore]:
+    """The test store, published as the app's cache for the length of the test
+
+    The test client does not run the app's lifespan, which is what publishes the store in production
+    """
+    async with use_valkey(valkey_store):
+        yield valkey_store
