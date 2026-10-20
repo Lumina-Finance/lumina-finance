@@ -10,6 +10,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 
 from alembic import op
+from app.bank_transaction_key import resolve_key
 
 revision: str = "7c2e9a4d1f58"
 down_revision: str | Sequence[str] | None = "f3a9c1d7b265"
@@ -22,33 +23,63 @@ _HASH_LENGTH = 64
 # Characters the raw bank account key and bank ID columns took
 _RAW_LENGTH = 255
 
-# The digest the import page builds: SHA-256 over the bank account key's UTF-8 bytes, a zero byte
-# and the bank ID's UTF-8 bytes, in lower-case hex. It must match the page byte for byte, or a
-# statement imported again after this would bring back every transaction saved before it
+# Bytes in one SHA-256 block, which HMAC pads its key to
+_SHA256_BLOCK_BYTES = 64
+
+# What the server keeps for a transaction: HMAC-SHA256 under its secret key of the digest the import
+# page sends, which is SHA-256 over the bank account key's UTF-8 bytes, a zero byte and the bank
+# ID's UTF-8 bytes. Postgres has SHA-256 but no HMAC without an extension, so HMAC is built from its
+# definition, SHA-256(outer key || SHA-256(inner key || message)), with both padded keys made in
+# Python and sent as parameters rather than written into the statement. It must match the server
+# byte for byte, or a statement imported again would bring back every transaction saved before it
 _HASH_SAVED_BANK_IDS = r"""
     UPDATE transactions
     SET bank_transaction_hash = encode(
-        sha256(convert_to(bank_account_key, 'UTF8') || '\x00'::bytea || convert_to(bank_transaction_id, 'UTF8')),
+        sha256(:outer_key || sha256(:inner_key || sha256(
+            convert_to(bank_account_key, 'UTF8') || '\x00'::bytea || convert_to(bank_transaction_id, 'UTF8')
+        ))),
         'hex'
     )
     WHERE bank_transaction_id IS NOT NULL
 """
 
+# A staged row of an unsaved CSV run was written by the previous version with both fields set to
+# null, and rows now refuse fields they do not take, so its commit would fail without this
+_FORGET_STAGED_BANK_FIELDS = """
+    UPDATE import_staged_rows
+    SET payload = payload - 'bank_account_key' - 'bank_transaction_id'
+    WHERE payload ?| ARRAY['bank_account_key', 'bank_transaction_id']
+"""
+
+
+def _hmac_keys() -> tuple[bytes, bytes]:
+    """Return the server key padded to a block and masked for HMAC's inner and outer hash"""
+    padded = resolve_key(generate=False).ljust(_SHA256_BLOCK_BYTES, b"\x00")
+    return bytes(byte ^ 0x36 for byte in padded), bytes(byte ^ 0x5C for byte in padded)
+
 
 def upgrade() -> None:
     """Replace each transaction's bank account key and bank ID with their hash, and drop unsaved OFX runs
 
-    Every transaction an OFX import saved gets the hash the import page now sends for it, so a
-    statement imported again still skips what is already in the account. The account and card
+    Every transaction an OFX import saved gets the keyed hash the server now keeps for what the import
+    page sends, so a statement imported again still skips what is already in the account. That needs
+    the server's bank transaction hash key, which this refuses to run without. The account and card
     numbers and the bank IDs are then dropped and cannot be recovered
 
     An OFX run not yet saved is deleted with its staged rows, which hold the same numbers. Nothing of
     it is in the ledger, and the page reloaded for this version cannot resume it, so its user imports
     the files again
     """
+    inner_key, outer_key = _hmac_keys()
     op.add_column("transactions", sa.Column("bank_transaction_hash", sa.VARCHAR(length=_HASH_LENGTH), nullable=True))
-    op.execute(sa.text(_HASH_SAVED_BANK_IDS))
+    op.execute(
+        sa.text(_HASH_SAVED_BANK_IDS).bindparams(
+            sa.bindparam("inner_key", inner_key, type_=sa.LargeBinary),
+            sa.bindparam("outer_key", outer_key, type_=sa.LargeBinary),
+        )
+    )
     op.execute(sa.text("DELETE FROM import_runs WHERE source = 'ofx' AND committed_at IS NULL"))
+    op.execute(sa.text(_FORGET_STAGED_BANK_FIELDS))
 
     op.drop_index("uq_transactions_account_bank_transaction", table_name="transactions")
     op.drop_constraint("ck_transactions_bank_account_key_matches_bank_transaction_id", "transactions", type_="check")

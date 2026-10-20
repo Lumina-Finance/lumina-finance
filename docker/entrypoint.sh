@@ -81,6 +81,10 @@ ensure_private_key "Refresh" "$JWT_REFRESH_PRIVATE_KEY_PATH"
 # encrypted secrets refuses here rather than starting under a key that cannot read them
 python -m app.db.encryption_key ensure-key
 
+# The key the bank transaction hashes of OFX imports are made with, generated and persisted
+# beside the encryption key when absent. The migrations need it to hash transactions saved before
+python -m app.bank_transaction_key ensure-key
+
 # Create the migrator and app roles and hand them schema ownership while still
 # connected as the admin role, before migrations run as the migrator
 python -m app.db.provision ensure-roles

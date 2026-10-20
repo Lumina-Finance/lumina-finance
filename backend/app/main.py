@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.bank_transaction_key import verify_key as verify_bank_transaction_key
 from app.config.oidc import OIDC_PROVIDER_CONFIGS
 from app.config.runtime import ALLOWED_ORIGINS, API_DOCS_ENABLED, RUNTIME
 from app.database import async_session, engine, verify_app_role_is_unprivileged
@@ -40,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
-    """Verify the runtime and its encryption key, seed OIDC providers, then prune expired records while serving"""
+    """Verify the runtime and its keys, seed OIDC providers, then prune expired records while serving"""
     await verify_app_role_is_unprivileged()
 
     # The seeding below rewrites the OIDC client secret under whatever key resolved, so a
@@ -48,6 +49,9 @@ async def _lifespan(_app: FastAPI):
     # entrypoint checks this too, and this covers every other way the app starts
     async with engine.connect() as connection:
         await verify_key_matches_data(connection)
+
+    # Without it no OFX import could be staged, so a missing key stops the start instead
+    verify_bank_transaction_key()
 
     # Reconcile the provider table with the environment on every boot so credential
     # rotations and removals apply without a migration

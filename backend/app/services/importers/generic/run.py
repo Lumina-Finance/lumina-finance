@@ -4,6 +4,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.bank_transaction_key import seal_bank_transaction_hash
 from app.models.import_run import ImportRun, ImportRunSource, ImportStagedRow
 from app.models.user import User
 from app.schemas.import_run import (
@@ -59,11 +60,28 @@ async def stage_import_batch(
         _GENERIC_RUN_SOURCES,
         accounts=data.accounts,
         categories=data.categories,
-        rows=data.rows,
+        rows=[_seal_row(row) for row in data.rows],
         start_row_index=data.start_row_index,
         allows_outside_accounts=True,
         merchants=data.merchants,
     )
+
+
+def _seal_row(row: TransactionImportRow) -> TransactionImportRow:
+    """Key the page's bank transaction digest before the row is staged
+
+    The bare digest could be reversed by trying every account number, so only the keyed hash is
+    staged and later stored, and the commit reads it back from the staged row as it is
+
+    Args:
+        row: One row as the page sent it
+
+    Returns:
+        The row with its digest replaced by the keyed hash, or the row itself when it has none
+    """
+    if row.bank_transaction_hash is None:
+        return row
+    return row.model_copy(update={"bank_transaction_hash": seal_bank_transaction_hash(row.bank_transaction_hash)})
 
 
 async def commit_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> TransactionImportResponse:
@@ -90,6 +108,7 @@ async def commit_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> 
             cannot be written as it stands, when a mapping the run recorded no longer resolves, or
             when every row is already in its account
     """
+
     async def write_run(run: ImportRun, rows: list[ImportStagedRow]) -> TransactionImportResponse:
         summary = await import_transactions(db, user, _build_import_request(run, rows), run.id)
         await save_import_layout(db, user, run, summary.affected_account_ids)
@@ -111,11 +130,7 @@ def _build_import_request(run: ImportRun, rows: list[ImportStagedRow]) -> Transa
     """
     return TransactionImportRequest(
         accounts=[TransactionImportAccountMapping.model_validate(mapping) for mapping in run.account_mappings.values()],
-        categories=[
-            TransactionImportCategoryMapping.model_validate(mapping) for mapping in run.category_mappings.values()
-        ],
-        merchants=[
-            TransactionImportMerchantMapping.model_validate(mapping) for mapping in run.merchant_mappings.values()
-        ],
+        categories=[TransactionImportCategoryMapping.model_validate(mapping) for mapping in run.category_mappings.values()],
+        merchants=[TransactionImportMerchantMapping.model_validate(mapping) for mapping in run.merchant_mappings.values()],
         rows=[TransactionImportRow.model_validate(row.payload) for row in rows],
     )

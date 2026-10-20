@@ -8,10 +8,11 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TransferCounterpartyScope
 
-# Characters of a bank transaction hash: a SHA-256 digest in lower-case hex. The import page builds
-# it from the bank account a statement names and the bank's ID for the transaction, so neither
-# reaches the server. Migration 7c2e9a4d1f58 builds the same digest in SQL for rows saved before,
-# so a change to how the page builds it needs a migration that rebuilds every saved hash
+# Characters of a bank transaction hash in lower-case hex. The import page sends a SHA-256 digest of
+# the bank account a statement names and the bank's ID for the transaction, so neither reaches the
+# server, and the server keeps HMAC-SHA256 of that digest under its secret key
+# (app.bank_transaction_key). Migration 7c2e9a4d1f58 builds the same hash in SQL for rows saved
+# before, so a change to how either is built needs a migration that rebuilds every saved hash
 BANK_TRANSACTION_HASH_LENGTH = 64
 
 
@@ -78,7 +79,7 @@ class Transaction(Base):
         index=True,
     )
 
-    # A one-way hash of the bank account an OFX statement names and the bank's own ID for the
+    # A keyed one-way hash of the bank account an OFX statement names and the bank's own ID for the
     # transaction, so a later import into this account leaves the transaction out without the
     # server holding the account number. Empty on a transaction entered by hand, imported from a
     # file with no such ID, or saved before IDs were kept. No edit changes it, so an edited or moved

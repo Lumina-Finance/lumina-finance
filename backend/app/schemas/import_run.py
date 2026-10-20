@@ -290,6 +290,11 @@ class TransactionImportRow(BaseModel):
     the file states direction by which column a value sits in, and the cell's own otherwise.
     """
 
+    # A field this version does not take is refused rather than dropped. A page loaded before the
+    # bank transaction hash still sends the bank account number and bank ID, and dropping them would
+    # import its statement with nothing to recognise it by, under statements named by that number
+    model_config = ConfigDict(extra="forbid")
+
     account_source: str = Field(min_length=1, max_length=256)
     category_source: str = Field(min_length=1, max_length=256)
     dt: date
@@ -304,8 +309,9 @@ class TransactionImportRow(BaseModel):
 
     # The page's one-way hash of the bank account an OFX statement names and the bank's ID for the
     # transaction, which a CSV file has none of. Only a digest is taken, so a raw account number or
-    # bank ID is refused rather than stored. A row carrying one is left out at the commit when its
-    # account already holds that hash
+    # bank ID is refused rather than stored. Staging keys it with the server's secret, so the staged
+    # row and the transaction hold only the keyed hash, and a row is left out at the commit when its
+    # account already holds that
     bank_transaction_hash: str | None = Field(None, pattern=_BANK_TRANSACTION_HASH_PATTERN)
 
 

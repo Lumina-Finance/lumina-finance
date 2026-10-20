@@ -6,6 +6,8 @@ an overlapping statement adds only what is new and two genuine look-alike purcha
 
 import asyncio
 import hashlib
+import hmac
+import os
 import re
 import uuid
 
@@ -22,11 +24,16 @@ from tests.routes.transactions._import_helpers import (
     _commit_run,
     _import_run,
     _list_transactions,
+    _open_run,
     _open_staged_run,
+    _stage_batch,
 )
 
 # A bank account as an OFX statement names it
 _CHEQUING_KEY = "bank:021000021:000111222333"
+
+# The server's bank transaction hash key, from the test environment
+_TEST_KEY = bytes.fromhex(os.environ["BANK_TRANSACTION_HASH_KEY"])
 
 
 def _bank_hash(bank_transaction_id):
@@ -34,6 +41,11 @@ def _bank_hash(bank_transaction_id):
     if bank_transaction_id is None:
         return None
     return hashlib.sha256(f"{_CHEQUING_KEY}\0{bank_transaction_id}".encode()).hexdigest()
+
+
+def _stored_hash(bank_transaction_id):
+    """What the server keeps for a chequing transaction with this bank ID: the page's digest, keyed"""
+    return hmac.new(_TEST_KEY, bytes.fromhex(_bank_hash(bank_transaction_id)), hashlib.sha256).hexdigest()
 
 
 def _ofx_payload(account_id, category_id, rows):
@@ -176,7 +188,8 @@ async def test_a_raw_bank_id_or_account_number_is_refused_as_it_is_staged(client
     """Only a digest is kept, so an account number or bank ID sent in its place must never be stored"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
 
-    for sent in ("0001", _CHEQUING_KEY, _bank_hash("0001").upper()):
+    digest = _bank_hash("0001")
+    for sent in ("0001", _CHEQUING_KEY, digest.upper(), digest[:-1], f"{digest}0"):
         payload = _ofx_payload(account_id, category_id, [("0001", "2026-03-01", "-10.00")])
         payload["rows"][0]["bank_transaction_hash"] = sent
         resp = await _import_ofx(client, headers, payload)
@@ -188,6 +201,45 @@ async def test_a_raw_bank_id_or_account_number_is_refused_as_it_is_staged(client
             )
         ]
     assert await _ledger(client, headers, account_id) == []
+
+
+async def test_a_page_from_before_the_hash_is_refused_before_it_stages_anything(client):
+    """An open tab still sends the account number and bank ID, which must not be stored or imported unmatched"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    payload = _ofx_payload(account_id, category_id, [(None, "2026-03-01", "-10.00")])
+    payload["accounts"][0]["source"] = _CHEQUING_KEY
+    payload["rows"][0] |= {"account_source": _CHEQUING_KEY, "bank_account_key": _CHEQUING_KEY, "bank_transaction_id": "0001"}
+    del payload["rows"][0]["bank_transaction_hash"]
+    run_id = await _open_run(client, headers, source="ofx")
+
+    resp = await _stage_batch(client, headers, run_id, {**payload, "start_row_index": 0}, source="ofx")
+
+    assert resp.status_code == 422, resp.text
+    assert sorted((tuple(error["loc"]), error["msg"]) for error in resp.json()["detail"]) == [
+        (("body", "rows", 0, "bank_account_key"), "Extra inputs are not permitted"),
+        (("body", "rows", 0, "bank_transaction_id"), "Extra inputs are not permitted"),
+    ]
+    async with TestSession() as session:
+        staged = await session.scalar(text("SELECT count(*) FROM import_staged_rows WHERE import_run_id = :id"), {"id": uuid.UUID(run_id)})
+        answers = await session.scalar(text("SELECT account_mappings FROM import_runs WHERE id = :id"), {"id": uuid.UUID(run_id)})
+    assert (staged, answers) == (0, {})
+
+
+async def test_the_pages_digest_is_staged_and_stored_only_keyed(client):
+    """The bare digest of an account number can be reversed by trying them all, so it must not be kept"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_staged_run(client, headers, _ofx_payload(account_id, category_id, _march(1, 1)), source="ofx")
+    async with TestSession() as session:
+        staged = await session.scalar(text("SELECT payload FROM import_staged_rows WHERE import_run_id = :id"), {"id": uuid.UUID(run_id)})
+
+    resp = await _commit_run(client, headers, run_id, source="ofx")
+
+    assert resp.status_code == 201, resp.text
+    async with TestSession() as session:
+        stored = await session.scalar(
+            select(Transaction.bank_transaction_hash).where(Transaction.account_id == uuid.UUID(account_id)),
+        )
+    assert (staged["bank_transaction_hash"], stored) == (_stored_hash("M1"), _stored_hash("M1"))
 
 
 async def test_an_edited_transaction_moved_to_another_account_is_still_recognised_there(client):
@@ -301,7 +353,7 @@ async def test_two_imports_saving_one_bank_transaction_at_once_write_it_once(cli
             .scalars()
             .all()
         )
-    assert sorted(ids) == sorted(_bank_hash(f"M{day}") for day in range(1, 5))
+    assert sorted(ids) == sorted(_stored_hash(f"M{day}") for day in range(1, 5))
 
 
 async def _import_into_both(client):
@@ -404,7 +456,7 @@ def _give_held_row_bank_id_after(original, other_id, bank_transaction_id):
                 text(
                     "UPDATE transactions SET bank_transaction_hash = :clash WHERE account_id = :account_id AND bank_transaction_hash = :free",
                 ),
-                {"clash": _bank_hash(bank_transaction_id), "free": _bank_hash("X1"), "account_id": uuid.UUID(other_id)},
+                {"clash": _stored_hash(bank_transaction_id), "free": _stored_hash("X1"), "account_id": uuid.UUID(other_id)},
             )
             await other.commit()
         return result

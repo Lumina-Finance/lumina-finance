@@ -18,8 +18,9 @@ depends_on: str | Sequence[str] | None = None
 
 # A saved OFX run named each statement's account answer by its bank, account or card number, in its
 # answers and in the summary a repeated save is answered with. Nothing reads a saved run's answers,
-# so they are emptied. The summary's names become positions, as the import page now sends them,
-# keeping the account each one went to, which is all the page reads of them
+# so they are emptied. The summary's names become statement-1, statement-2 and so on, numbered in
+# the order Postgres keeps the object's keys rather than the order of the file's statements. Each
+# keeps the account it went to, which is all the page reads of them
 _FORGET_SAVED_RUN_ACCOUNT_NUMBERS = """
     UPDATE import_runs r
     SET account_mappings = '{}'::jsonb,

@@ -15,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from app.bank_transaction_key import seal_bank_transaction_hash
 from app.config.database import MIGRATOR_DB_USER
 from app.models.base import Base
 from app.models.types import find_encrypted_columns
@@ -61,6 +62,8 @@ _BANK_HASH_REVISION = "7c2e9a4d1f58"
 _BANK_HASH_ACCOUNT_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 _BANK_HASH_CATEGORY_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 _UNSAVED_OFX_RUN_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+_UNSAVED_CSV_RUN_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+_SAVINGS_ACCOUNT_ID = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
 _CHEQUING_KEY = "bank:123000456:000123456789"
 _ALEMBIC_RUN_SOURCES_DB_NAME = f"{WORKER_DB_NAME}_alembic_run_sources"
 _RUN_SOURCES_REVISION = "9e1b5c3a7d24"
@@ -222,9 +225,9 @@ async def test_ofx_import_source_migration_keeps_other_runs_and_drops_ofx_runs_o
 async def test_bank_transaction_hash_migration_hashes_saved_bank_ids_as_the_import_page_does() -> None:
     """Verify upgrade, downgrade and reupgrade of the bank ID hash leave no account number behind
 
-    The expected digest is the import page's for the same account key and bank ID, which its own
-    test pins too, so a migration hashing any other way would let a statement imported again bring
-    back every transaction an earlier OFX import saved
+    The expected hash is what the server keeps for the import page's digest of the same account key
+    and bank ID, which the page's own test pins too, so a migration hashing any other way would let a
+    statement imported again bring back every transaction an earlier OFX import saved
     """
     database_name = _ALEMBIC_BANK_HASH_DB_NAME
     await _recreate_database(database_name)
@@ -249,11 +252,24 @@ async def test_bank_transaction_hash_migration_hashes_saved_bank_ids_as_the_impo
                 )
 
             # A downgrade loses the bank IDs for good, so the second upgrade has nothing to hash
-            assert hashes == {"Statement": None if reupgrade else _CHEQUING_A1_HASH, "Typed": None}
+            assert hashes == {
+                "Statement": None if reupgrade else seal_bank_transaction_hash(_CHEQUING_A1_HASH),
+                "Typed": None,
+            }
             assert {"bank_account_key", "bank_transaction_id"}.isdisjoint(columns)
             if not reupgrade:
                 async with engine.connect() as conn:
-                    assert await _read_import_run_sources(conn) == {_CSV_RUN_ID: "generic", _OFX_RUN_ID: "ofx"}
+                    assert await _read_import_run_sources(conn) == {
+                        _CSV_RUN_ID: "generic",
+                        _OFX_RUN_ID: "ofx",
+                        _UNSAVED_CSV_RUN_ID: "generic",
+                    }
+
+                    # The unsaved CSV run can still be saved, so its rows lose only the fields rows no longer take
+                    staged = (await conn.execute(text("SELECT import_run_id, payload FROM import_staged_rows"))).all()
+                    assert [(str(run_id), payload) for run_id, payload in staged] == [
+                        (_UNSAVED_CSV_RUN_ID, {"account_source": "Chequing", "amount": "-12.50"}),
+                    ]
                 _run_alembic_downgrade(database_name, _BEFORE_BANK_HASH_REVISION)
                 async with engine.connect() as conn:
                     restored = (
@@ -278,29 +294,48 @@ async def test_saved_ofx_runs_forget_the_account_numbers_their_statements_were_n
     database_name = _ALEMBIC_RUN_SOURCES_DB_NAME
     await _recreate_database(database_name)
     engine = _create_engine_for_database(database_name)
-    ofx_mappings = {_CHEQUING_KEY: {"source": _CHEQUING_KEY, "account_id": _BANK_HASH_ACCOUNT_ID}}
+    # Two statements of one bank account answered with one account, as a file split over two date
+    # ranges is, and a credit card answered with another
+    ofx_targets = {
+        _CHEQUING_KEY: _BANK_HASH_ACCOUNT_ID,
+        f"{_CHEQUING_KEY}#2": _BANK_HASH_ACCOUNT_ID,
+        "creditCard:4111111111111111": _SAVINGS_ACCOUNT_ID,
+    }
+    ofx_mappings = {key: {"source": key, "account_id": account_id} for key, account_id in ofx_targets.items()}
     csv_mappings = {"Chequing": {"source": "Chequing", "account_id": _BANK_HASH_ACCOUNT_ID}}
     try:
         _run_alembic_upgrade(database_name, revision=_BANK_HASH_REVISION)
         async with engine.begin() as conn:
-            await conn.execute(text(
-                "INSERT INTO currencies (id, name, symbol, minor_unit_exponent)"
-                " VALUES ('CAD', 'Canadian Dollar', '$', 2) ON CONFLICT (id) DO NOTHING",
-            ))
-            await conn.execute(text(
-                "INSERT INTO users (id, email, first_name, tz, base_currency)"
-                " VALUES (:id, 'run-sources-migration@example.com', 'Runs', 'UTC', 'CAD')",
-            ), {"id": UUID(_OFX_OWNER_ID)})
+            await conn.execute(
+                text(
+                    "INSERT INTO currencies (id, name, symbol, minor_unit_exponent)"
+                    " VALUES ('CAD', 'Canadian Dollar', '$', 2) ON CONFLICT (id) DO NOTHING",
+                )
+            )
+            await conn.execute(
+                text(
+                    "INSERT INTO users (id, email, first_name, tz, base_currency)"
+                    " VALUES (:id, 'run-sources-migration@example.com', 'Runs', 'UTC', 'CAD')",
+                ),
+                {"id": UUID(_OFX_OWNER_ID)},
+            )
             for run_id, source, mappings in ((_OFX_RUN_ID, "ofx", ofx_mappings), (_CSV_RUN_ID, "generic", csv_mappings)):
-                summary = {"transactions_created": 3, "account_source_ids": {key: _BANK_HASH_ACCOUNT_ID for key in mappings}}
-                await conn.execute(text(
-                    "INSERT INTO import_runs (id, owner_id, source, expected_transaction_count, account_mappings,"
-                    " category_mappings, committed_at, summary)"
-                    " VALUES (:id, :owner_id, :source, 3, :mappings, '{}', now(), :summary)",
-                ), {
-                    "id": UUID(run_id), "owner_id": UUID(_OFX_OWNER_ID), "source": source,
-                    "mappings": json.dumps(mappings), "summary": json.dumps(summary),
-                })
+                source_ids = {key: mapping["account_id"] for key, mapping in mappings.items()}
+                summary = {"transactions_created": 3, "account_source_ids": source_ids}
+                await conn.execute(
+                    text(
+                        "INSERT INTO import_runs (id, owner_id, source, expected_transaction_count, account_mappings,"
+                        " category_mappings, committed_at, summary)"
+                        " VALUES (:id, :owner_id, :source, 3, :mappings, '{}', now(), :summary)",
+                    ),
+                    {
+                        "id": UUID(run_id),
+                        "owner_id": UUID(_OFX_OWNER_ID),
+                        "source": source,
+                        "mappings": json.dumps(mappings),
+                        "summary": json.dumps(summary),
+                    },
+                )
 
         for reupgrade in (False, True):
             _run_alembic_upgrade(database_name, revision=_RUN_SOURCES_REVISION)
@@ -311,8 +346,14 @@ async def test_saved_ofx_runs_forget_the_account_numbers_their_statements_were_n
                         text("SELECT id, account_mappings, summary FROM import_runs"),
                     )
                 }
+            ofx_answers, ofx_summary = runs.pop(_OFX_RUN_ID)
+            ofx_source_ids = ofx_summary.pop("account_source_ids")
+            assert (ofx_answers, ofx_summary) == ({}, {"transactions_created": 3})
+
+            # Named in the order Postgres keeps the keys, so only the names and the accounts are fixed
+            assert set(ofx_source_ids) == {"statement-1", "statement-2", "statement-3"}
+            assert sorted(ofx_source_ids.values()) == sorted(ofx_targets.values())
             assert runs == {
-                _OFX_RUN_ID: ({}, {"transactions_created": 3, "account_source_ids": {"statement-1": _BANK_HASH_ACCOUNT_ID}}),
                 _CSV_RUN_ID: (csv_mappings, {"transactions_created": 3, "account_source_ids": {"Chequing": _BANK_HASH_ACCOUNT_ID}}),
             }
             if not reupgrade:
@@ -323,10 +364,11 @@ async def test_saved_ofx_runs_forget_the_account_numbers_their_statements_were_n
 
 
 async def _seed_bank_id_ledger(conn: AsyncConnection) -> None:
-    """Seed one transaction an OFX import saved with its bank ID, one typed in, and three import runs
+    """Seed one transaction an OFX import saved with its bank ID, one typed in, and four import runs
 
-    The runs are a saved CSV run, a saved OFX run and an unsaved OFX run, whose staged rows hold the
-    numbers the upgrade drops
+    The runs are a saved CSV run, a saved OFX run, an unsaved OFX run, whose staged row holds the
+    numbers the upgrade drops, and an unsaved CSV run, whose staged row the previous version wrote
+    with both bank fields empty
     """
     await conn.execute(
         text(
@@ -376,17 +418,22 @@ async def _seed_bank_id_ledger(conn: AsyncConnection) -> None:
     await _insert_import_run(conn, _OFX_RUN_ID, "ofx")
     await conn.execute(text("UPDATE import_runs SET committed_at = now()"))
     await _insert_import_run(conn, _UNSAVED_OFX_RUN_ID, "ofx")
-    await conn.execute(
-        text(
-            "INSERT INTO import_staged_rows (id, import_run_id, owner_id, row_index, payload)"
-            " VALUES (gen_random_uuid(), :run_id, :owner_id, 0, :payload)",
+    await _insert_import_run(conn, _UNSAVED_CSV_RUN_ID, "generic")
+    staged_payloads = (
+        (_UNSAVED_OFX_RUN_ID, {"account_source": _CHEQUING_KEY, "bank_account_key": _CHEQUING_KEY, "bank_transaction_id": "A2"}),
+        (
+            _UNSAVED_CSV_RUN_ID,
+            {"account_source": "Chequing", "amount": "-12.50", "bank_account_key": None, "bank_transaction_id": None},
         ),
-        {
-            "run_id": UUID(_UNSAVED_OFX_RUN_ID),
-            "owner_id": UUID(_OFX_OWNER_ID),
-            "payload": json.dumps({"account_source": _CHEQUING_KEY, "bank_account_key": _CHEQUING_KEY, "bank_transaction_id": "A2"}),
-        },
     )
+    for run_id, payload in staged_payloads:
+        await conn.execute(
+            text(
+                "INSERT INTO import_staged_rows (id, import_run_id, owner_id, row_index, payload)"
+                " VALUES (gen_random_uuid(), :run_id, :owner_id, 0, :payload)",
+            ),
+            {"run_id": UUID(run_id), "owner_id": UUID(_OFX_OWNER_ID), "payload": json.dumps(payload)},
+        )
 
 
 async def _insert_import_run(conn: AsyncConnection, run_id: str, source: str) -> None:
