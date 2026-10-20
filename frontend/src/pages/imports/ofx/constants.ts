@@ -16,7 +16,7 @@ export const OFX_ONLY_LEFT_OUT_REASON = "This file only holds investment or loan
 export const OFX_NO_STATEMENTS_REASON = `This file has no bank or credit card statements. ${OFX_FILE_GUIDANCE}`
 
 /** Said in place of the upload where the browser withholds the hashing a statement is read with */
-export const OFX_INSECURE_CONNECTION_BLOCK = 'Statements can only be read over a secure connection. Open Lumina Finance over HTTPS, or on localhost, rather than by its IP address.'
+export const OFX_INSECURE_CONNECTION_BLOCK = 'To import statements, open Lumina Finance over HTTPS or at localhost.'
 
 export const OFX_IMPORT_FILE_TYPE: ImportFileType = {
   matches: (file) => /\.(ofx|qfx)$/i.test(file.name),

@@ -25,6 +25,18 @@ async function uploadStatement(page: Page, user: TestUser, contents: string, nam
   await upload.setInputFiles({ name, mimeType: 'application/octet-stream', buffer: Buffer.from(contents) })
 }
 
+// A self-hosted server opened over plain HTTP by its IP address gets no browser hashing, so every
+// file would fail to read without the upload saying why first
+test('blocks the upload and says how to open the app where the connection is not secure', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await page.addInitScript(() => Object.defineProperty(window, 'isSecureContext', { get: () => false }))
+
+  await openOfxImport(page, user)
+
+  await expect(page.getByText('To import statements, open Lumina Finance over HTTPS or at localhost.', { exact: true })).toBeVisible()
+  await expect(page.locator('input[type="file"][accept*=".ofx"]')).toBeDisabled()
+})
+
 test('imports a statement into a new account, leaving out a transaction with no readable amount', async ({ page, request }) => {
   const user = await signUpUser(request)
   await uploadStatement(page, user, buildFile([buildBankMessageSet('CAD', [
