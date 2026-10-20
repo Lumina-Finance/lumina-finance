@@ -24,7 +24,7 @@ import {
   type OfxImportBuild,
 } from '@/pages/imports/ofx/utils/payload'
 import { buildOfxPreviewRows } from '@/pages/imports/ofx/utils/preview'
-import { readOfxFile } from '@/pages/imports/ofx/utils/readFile'
+import { getOfxReadBlock, readOfxFile } from '@/pages/imports/ofx/utils/readFile'
 import { describeOfxSavedEarlier } from '@/pages/imports/ofx/utils/savedEarlier'
 import { combineOfxFiles, stageOfxFiles } from '@/pages/imports/ofx/utils/stagedFiles'
 import type { ImportAccountCreateDetails } from '@/pages/imports/types'
@@ -229,7 +229,7 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
   )
 
   const canCommitImport = run.canCommit({ hasPayload: importBuild.payload !== null, isProcessingFile })
-  const uploadBlockReason = getImportUploadBlockReason(currencies, currenciesError)
+  const uploadBlockReason = getOfxReadBlock() ?? getImportUploadBlockReason(currencies, currenciesError)
 
   const resetAnswers = () => {
     setAccountMappings({})

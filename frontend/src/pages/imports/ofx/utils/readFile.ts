@@ -1,6 +1,7 @@
 import {
   MAX_OFX_FILE_BYTES,
   OFX_ACCOUNT_NUMBER_TAIL_LENGTH,
+  OFX_INSECURE_CONNECTION_BLOCK,
   OFX_BANK_ACCOUNT_TYPES,
   OFX_CREDIT_CARD_ACCOUNT,
   OFX_DEFAULT_BANK_ACCOUNT,
@@ -11,6 +12,7 @@ import {
   OFX_TOO_LARGE_REASON,
 } from '@/pages/imports/ofx/constants'
 import type { OfxFileRead, OfxStatement, OfxStatementKind, OfxTransaction } from '@/pages/imports/ofx/types'
+import type { ImportUploadBlock } from '@/pages/imports/types'
 import { findAllDescendants, findChild, parseOfxMarkup, readLeaf, type OfxNode } from './markup'
 
 // The 1.x header is plain ASCII lines before the markup, so a prefix is enough to find its charset
@@ -135,11 +137,23 @@ async function readStatement(kind: OfxStatementKind, node: OfxNode, origin: OfxF
 }
 
 /**
+ * Says why no statement can be read on this page, or null where one can
+ *
+ * Browsers only offer crypto.subtle, which the bank transaction hash is made with, and
+ * crypto.randomUUID, which tells files apart, to a page on HTTPS or localhost. A self-hosted server
+ * can be opened over plain HTTP by its IP address, where every file would otherwise fail to read
+ */
+export function getOfxReadBlock(): ImportUploadBlock | null {
+  return globalThis.isSecureContext ? null : { message: OFX_INSECURE_CONNECTION_BLOCK, isFailure: true }
+}
+
+/**
  * Hashes the bank account a statement names with the bank's ID for one of its transactions, as
  * SHA-256 over their UTF-8 bytes joined by a zero byte, written as lower-case hex
  *
- * The backend migration that introduced the hash builds the same digest in SQL for transactions saved
- * before, so changing how it is built leaves those unmatched until a migration rebuilds them
+ * The backend keys this digest with its own secret, and the migration that introduced the hash
+ * builds the same in SQL for transactions saved before, so changing how it is built leaves those
+ * unmatched until a migration rebuilds them. Only reachable where getOfxReadBlock allows reading
  */
 async function hashBankTransaction(accountKey: string, fitId: string) {
   const encoder = new TextEncoder()
