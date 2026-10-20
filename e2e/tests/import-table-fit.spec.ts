@@ -316,3 +316,51 @@ test('keeps every Column mapping row one height with its content inside its cell
     soft(await dateFormat.locator('.truncate').evaluate((text) => text.clientWidth), `the format's text at ${width}px`).toBeGreaterThan(60)
   }
 })
+
+// A row's icon took its room from the whole Match to app field cell, so the Date row's field came out
+// narrower than the Amount row's, and the two no longer lined up
+test('keeps the Date row\'s field as wide as the Amount row\'s while its icon takes room from the date format', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday chequing' })
+  await logInViaApi(page, user)
+  await openPage(page, `/settings/imports?account=${account.id}`)
+  const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')
+  await expect(upload).toBeEnabled()
+  const csv = ['Date,Amount', '2024-13-45,"1,234"', '99/99/2024,5.678'].join('\n')
+  await upload.setInputFiles({ name: 'dates.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) })
+
+  const table = tableOf(page, 'Column mapping')
+  await expect(table).toBeVisible()
+  const dateField = page.getByRole('combobox', { name: 'Match to app field Date', exact: true })
+  const amountField = page.getByRole('combobox', { name: 'Match to app field Amount', exact: true })
+  const dateFormat = page.getByRole('combobox', { name: 'Date format', exact: true })
+  const amountFormat = page.getByRole('combobox', { name: 'Amount format', exact: true })
+  await dateField.click()
+  await page.getByRole('option', { name: /^Date\b/ }).click()
+  await dateFormat.click()
+  await page.getByRole('option', { name: /^Day first/ }).click()
+  await expect(dateFormat).toContainText('Does not fit')
+  await expect(table.getByRole('row', { name: /^Date\b/ }).getByRole('button')).toBeVisible()
+
+  const measure = async (control: Locator) => {
+    const box = (await control.boundingBox())!
+    return { x: box.x, width: box.width }
+  }
+
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 800 })
+    // Polled, since the icon's room eases in
+    await expect.poll(async () => {
+      const [date, amount] = await Promise.all([measure(dateField), measure(amountField)])
+      return Math.abs(date.x - amount.x) <= 1 && Math.abs(date.width - amount.width) <= 1
+        ? 'aligned'
+        : `Date field at ${date.x} by ${date.width}, Amount field at ${amount.x} by ${amount.width}`
+    }, { message: `the fields at ${width}px` }).toBe('aligned')
+
+    // The room came out of the date format, which is narrower than the amount format by the icon's room
+    await expect.poll(async () => {
+      const [date, amount] = await Promise.all([measure(dateFormat), measure(amountFormat)])
+      return Math.round(amount.width - date.width)
+    }, { message: `the formats at ${width}px` }).toBe(ICON_ROOM)
+  }
+})

@@ -22,6 +22,14 @@ const TIMESTAMP_HELP: RowIcon = {
 }
 
 /**
+ * The cell holding a row's format dropdown and the room for its icon. A format dropdown gives up width
+ * to the field dropdown beside it only down to the room its longest placeholder, "Choose the amount
+ * format", needs, and the field dropdown shrinks first. The icon's room is inside this cell, so a row
+ * showing an icon leaves its field dropdown the width and edges every other row's has
+ */
+const FORMAT_CELL_CLASS_NAME = 'ml-2 flex min-w-[15rem] flex-[1.4] items-start'
+
+/**
  * The room after a row's dropdown for its icon, which only a row showing one makes. The dropdown gives
  * up the width as the icon fades in, and takes it back as the icon leaves, which keeps showing what it
  * last showed until the room has closed. Closed, the icon can't be reached
@@ -122,6 +130,27 @@ export function ImportHeaderMappingTable({
             const validationError = validationErrors[header]
             const rowIcon = getRowIcon(header)
             const autoFilled = Boolean(selectedTarget && autoFilledHeaders.has(header))
+            const formatControl = selectedTarget === 'dt'
+              ? (
+                <ImportDateFormatControl
+                  format={dateFormat}
+                  automatic={dateFormatAutomatic}
+                  scan={dateFormatScan}
+                  disabled={disabled}
+                  onChange={onDateFormatChange}
+                />
+              )
+              : (selectedTarget === 'amount' || selectedTarget === 'amount_out' || selectedTarget === 'amount_in')
+                ? (
+                  <ImportAmountFormatControl
+                    format={amountFormat}
+                    automatic={amountFormatAutomatic}
+                    scan={amountFormatScan}
+                    disabled={disabled}
+                    onChange={onAmountFormatChange}
+                  />
+                )
+                : null
 
             return (
               <tr
@@ -152,41 +181,28 @@ export function ImportHeaderMappingTable({
                 </td>
                 <td className="py-2.5 pl-4 pr-0 align-middle">
                   <div className="flex min-w-0 items-start">
-                    <div className="flex min-w-0 flex-1 items-start gap-2">
-                      {/* Rounded like the control inside it, so the auto-fill glow traces it rather
-                          than a rectangle around it */}
-                      <div className={`min-w-0 flex-1 rounded-lg ${autoFilled ? 'import-auto-fill-field' : ''}`}>
-                        <Dropdown
-                          labelledBy={`${targetHeadingId} ${sourceLabelId}`}
-                          options={options}
-                          value={selectedTarget}
-                          onChange={(nextValue) => onChange(header, nextValue)}
-                          searchable
-                          size="compact"
-                          hasError={Boolean(validationError)}
-                          disabled={disabled}
-                        />
-                      </div>
-                      {selectedTarget === 'dt' && (
-                        <ImportDateFormatControl
-                          format={dateFormat}
-                          automatic={dateFormatAutomatic}
-                          scan={dateFormatScan}
-                          disabled={disabled}
-                          onChange={onDateFormatChange}
-                        />
-                      )}
-                      {(selectedTarget === 'amount' || selectedTarget === 'amount_out' || selectedTarget === 'amount_in') && (
-                        <ImportAmountFormatControl
-                          format={amountFormat}
-                          automatic={amountFormatAutomatic}
-                          scan={amountFormatScan}
-                          disabled={disabled}
-                          onChange={onAmountFormatChange}
-                        />
-                      )}
+                    {/* Rounded like the control inside it, so the auto-fill glow traces it rather
+                        than a rectangle around it */}
+                    <div className={`min-w-0 flex-1 rounded-lg ${autoFilled ? 'import-auto-fill-field' : ''}`}>
+                      <Dropdown
+                        labelledBy={`${targetHeadingId} ${sourceLabelId}`}
+                        options={options}
+                        value={selectedTarget}
+                        onChange={(nextValue) => onChange(header, nextValue)}
+                        searchable
+                        size="compact"
+                        hasError={Boolean(validationError)}
+                        disabled={disabled}
+                      />
                     </div>
-                    <RowIconSlot icon={rowIcon} />
+                    {formatControl ? (
+                      <div className={FORMAT_CELL_CLASS_NAME}>
+                        {formatControl}
+                        <RowIconSlot icon={rowIcon} />
+                      </div>
+                    ) : (
+                      <RowIconSlot icon={rowIcon} />
+                    )}
                   </div>
                 </td>
               </tr>
