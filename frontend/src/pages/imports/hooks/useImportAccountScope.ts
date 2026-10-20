@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { useAccounts } from '@/api/accounts'
 import type { AccountsOverview } from '@/api/accounts'
-import { IMPORT_ACCOUNT_PARAM } from '@/pages/imports/constants'
+import { IMPORT_ACCOUNT_PARAM } from '@/constants/importAccountParam'
 import { getImportAccountScopeState, type ImportAccountScopeState } from '@/pages/imports/utils'
 
 /**

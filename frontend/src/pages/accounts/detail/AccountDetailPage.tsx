@@ -14,7 +14,7 @@ import MonthlyCashFlowCard from '@/pages/accounts/detail/components/monthly-cash
 import { TopCategoriesBySpendingCard } from '@/pages/accounts/detail/components/spending-breakdown/TopCategoriesCard'
 import { TopMerchantsBySpendingCard } from '@/pages/accounts/detail/components/spending-breakdown/TopMerchantsCard'
 import { ACCOUNT_SKELETON_FADE_MS, EASE } from '@/pages/accounts/detail/constants/accountDetail'
-import { IMPORT_ACCOUNT_PARAM } from '@/pages/imports/constants'
+import { IMPORT_ACCOUNT_PARAM } from '@/constants/importAccountParam'
 import TransactionListSection from '@/pages/transactions/components/ListSection'
 import { toTransactionListAccount } from '@/pages/transactions/types/transactionList'
 import CreateTransactionModal from '@/pages/transactions/components/transaction-modal/Modal'
