@@ -64,8 +64,8 @@ export interface TransactionImportRow {
 
   /**
    * A SHA-256 digest in lower-case hex of the bank account a statement names and the bank's ID for
-   * the transaction, so neither leaves the browser. The save leaves the row out when its account
-   * already holds the digest
+   * the transaction, so neither leaves the browser. The server keeps only its own keyed hash of the
+   * digest, and the save leaves the row out when its account already holds that keyed hash
    */
   bank_transaction_hash?: string | null;
 }
