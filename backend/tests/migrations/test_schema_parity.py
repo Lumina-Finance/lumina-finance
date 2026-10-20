@@ -64,49 +64,59 @@ async def test_account_date_index_migration_preserves_rows_and_existing_indexes(
     try:
         _run_alembic_upgrade(database_name, revision=_BEFORE_ACCOUNT_DATE_INDEX_REVISION)
         async with engine.begin() as conn:
-
             # Supply the currency required by the synthetic owner and ledger rows
-            await conn.execute(text(
-                "INSERT INTO currencies (id, name, symbol, minor_unit_exponent)"
-                " VALUES ('CAD', 'Canadian Dollar', '$', 2) ON CONFLICT (id) DO NOTHING",
-            ))
+            await conn.execute(
+                text(
+                    "INSERT INTO currencies (id, name, symbol, minor_unit_exponent)"
+                    " VALUES ('CAD', 'Canadian Dollar', '$', 2) ON CONFLICT (id) DO NOTHING",
+                )
+            )
 
             # Keep the fixture owner independent of existing profile data
-            await conn.execute(text(
-                "INSERT INTO users (id, email, first_name, tz, base_currency)"
-                " VALUES ('11111111-1111-4111-8111-111111111111', 'index-migration@example.com', 'Index', 'UTC', 'CAD')",
-            ))
+            await conn.execute(
+                text(
+                    "INSERT INTO users (id, email, first_name, tz, base_currency)"
+                    " VALUES ('11111111-1111-4111-8111-111111111111', 'index-migration@example.com', 'Index', 'UTC', 'CAD')",
+                )
+            )
 
             # Put both ledger rows in one active account to exercise duplicate account dates
-            await conn.execute(text(
-                "INSERT INTO accounts (id, owner_id, name, currency, account_kind, account_type, is_archived)"
-                " VALUES ('22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111',"
-                " 'Index account', 'CAD', 'ASSET', 'CHECKING', false)",
-            ))
+            await conn.execute(
+                text(
+                    "INSERT INTO accounts (id, owner_id, name, currency, account_kind, account_type, is_archived)"
+                    " VALUES ('22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111',"
+                    " 'Index account', 'CAD', 'ASSET', 'CHECKING', false)",
+                )
+            )
 
             # Give the ledger rows a valid classification without application seeding
-            await conn.execute(text(
-                "INSERT INTO categories (id, name, kind, is_system)"
-                " VALUES ('33333333-3333-4333-8333-333333333333', 'Index category', 'EXPENSE', true)",
-            ))
+            await conn.execute(
+                text(
+                    "INSERT INTO categories (id, name, kind, is_system)"
+                    " VALUES ('33333333-3333-4333-8333-333333333333', 'Index category', 'EXPENSE', true)",
+                )
+            )
 
             # Give both rows a shared merchant so existing merchant index coverage remains relevant
-            await conn.execute(text(
-                "INSERT INTO merchants (id, name, is_system)"
-                " VALUES ('44444444-4444-4444-8444-444444444444', 'Index merchant', true)",
-            ))
+            await conn.execute(
+                text(
+                    "INSERT INTO merchants (id, name, is_system) VALUES ('44444444-4444-4444-8444-444444444444', 'Index merchant', true)",
+                )
+            )
             for identifier, amount, notes in (
                 ("55555555-5555-4555-8555-555555555555", -12345, "Purchase"),
                 ("66666666-6666-4666-8666-666666666666", 250, "Refund"),
             ):
-
                 # Preserve distinct financial values while proving that duplicate dates remain valid
-                await conn.execute(text(
-                    "INSERT INTO transactions (id, created_by_user_id, account_id, dt, merchant_id, category_id, amount, currency, notes)"
-                    " VALUES (:id, '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222',"
-                    " '2026-03-15', '44444444-4444-4444-8444-444444444444', '33333333-3333-4333-8333-333333333333',"
-                    " :amount, 'CAD', :notes)",
-                ), {"id": UUID(identifier), "amount": amount, "notes": notes})
+                await conn.execute(
+                    text(
+                        "INSERT INTO transactions (id, created_by_user_id, account_id, dt, merchant_id, category_id, amount, currency, notes)"
+                        " VALUES (:id, '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222',"
+                        " '2026-03-15', '44444444-4444-4444-8444-444444444444', '33333333-3333-4333-8333-333333333333',"
+                        " :amount, 'CAD', :notes)",
+                    ),
+                    {"id": UUID(identifier), "amount": amount, "notes": notes},
+                )
         async with engine.connect() as conn:
             original_rows, original_indexes = await _read_account_index_migration_state(conn)
         assert len(original_rows) == 2
@@ -122,11 +132,16 @@ async def test_account_date_index_migration_preserves_rows_and_existing_indexes(
                 rows, indexes = await _read_account_index_migration_state(conn)
 
                 # Verify the physical index independently of the migration and metadata declarations
-                catalog = (await conn.execute(text(
-                    "SELECT i.indisvalid, i.indisunique, i.indnkeyatts,"
-                    " pg_get_indexdef(i.indexrelid, 1, true), pg_get_indexdef(i.indexrelid, 2, true)"
-                    " FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid WHERE c.relname = :name",
-                ), {"name": _ACCOUNT_DATE_INDEX_NAME})).one()
+                catalog = (
+                    await conn.execute(
+                        text(
+                            "SELECT i.indisvalid, i.indisunique, i.indnkeyatts,"
+                            " pg_get_indexdef(i.indexrelid, 1, true), pg_get_indexdef(i.indexrelid, 2, true)"
+                            " FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid WHERE c.relname = :name",
+                        ),
+                        {"name": _ACCOUNT_DATE_INDEX_NAME},
+                    )
+                ).one()
             assert tuple(catalog) == (True, False, 2, "account_id", "dt")
             assert rows == original_rows
             assert {name: definition for name, definition in indexes.items() if name != _ACCOUNT_DATE_INDEX_NAME} == original_indexes
@@ -149,16 +164,20 @@ async def test_ofx_import_source_migration_keeps_other_runs_and_drops_ofx_runs_o
     try:
         _run_alembic_upgrade(database_name, revision=_BEFORE_OFX_SOURCE_REVISION)
         async with engine.begin() as conn:
-
             # Supply the currency required by the synthetic owner
-            await conn.execute(text(
-                "INSERT INTO currencies (id, name, symbol, minor_unit_exponent)"
-                " VALUES ('CAD', 'Canadian Dollar', '$', 2) ON CONFLICT (id) DO NOTHING",
-            ))
-            await conn.execute(text(
-                "INSERT INTO users (id, email, first_name, tz, base_currency)"
-                " VALUES (:id, 'ofx-migration@example.com', 'Ofx', 'UTC', 'CAD')",
-            ), {"id": UUID(_OFX_OWNER_ID)})
+            await conn.execute(
+                text(
+                    "INSERT INTO currencies (id, name, symbol, minor_unit_exponent)"
+                    " VALUES ('CAD', 'Canadian Dollar', '$', 2) ON CONFLICT (id) DO NOTHING",
+                )
+            )
+            await conn.execute(
+                text(
+                    "INSERT INTO users (id, email, first_name, tz, base_currency)"
+                    " VALUES (:id, 'ofx-migration@example.com', 'Ofx', 'UTC', 'CAD')",
+                ),
+                {"id": UUID(_OFX_OWNER_ID)},
+            )
             await _insert_import_run(conn, _CSV_RUN_ID, "generic")
 
         # Before the revision the check names no OFX source, so such a run is refused
@@ -188,10 +207,13 @@ async def test_ofx_import_source_migration_keeps_other_runs_and_drops_ofx_runs_o
 
 async def _insert_import_run(conn: AsyncConnection, run_id: str, source: str) -> None:
     """Insert one import run of the given source for the fixture owner"""
-    await conn.execute(text(
-        "INSERT INTO import_runs (id, owner_id, source, expected_transaction_count, account_mappings, category_mappings)"
-        " VALUES (:id, :owner_id, :source, 1, '{}', '{}')",
-    ), {"id": UUID(run_id), "owner_id": UUID(_OFX_OWNER_ID), "source": source})
+    await conn.execute(
+        text(
+            "INSERT INTO import_runs (id, owner_id, source, expected_transaction_count, account_mappings, category_mappings)"
+            " VALUES (:id, :owner_id, :source, 1, '{}', '{}')",
+        ),
+        {"id": UUID(run_id), "owner_id": UUID(_OFX_OWNER_ID), "source": source},
+    )
 
 
 async def _read_import_run_sources(conn: AsyncConnection) -> dict[str, str]:
@@ -203,15 +225,24 @@ async def _read_import_run_sources(conn: AsyncConnection) -> dict[str, str]:
 def _run_alembic_downgrade(database_name: str, revision: str) -> None:
     """Run Alembic downgrade against a generated migration database"""
     environment = os.environ.copy()
-    environment.update({
-        "DB_HOST": DB_HOST, "DB_PORT": DB_PORT, "DB_NAME": database_name,
-        "DB_USER": DB_USER, "DB_PASSWORD": DB_PASSWORD,
-    })
+    environment.update(
+        {
+            "DB_HOST": DB_HOST,
+            "DB_PORT": DB_PORT,
+            "DB_NAME": database_name,
+            "DB_USER": DB_USER,
+            "DB_PASSWORD": DB_PASSWORD,
+        }
+    )
 
     # Fixed revisions and executable keep this migration subprocess independent of application imports
     completed = subprocess.run(  # noqa: S603
         [sys.executable, "-m", "alembic", "downgrade", revision],
-        cwd=_BACKEND_DIR, env=environment, check=False, capture_output=True, text=True,
+        cwd=_BACKEND_DIR,
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
 
@@ -221,24 +252,39 @@ async def _read_account_index_migration_state(conn: AsyncConnection) -> tuple[li
     rows = [tuple(row) for row in (await conn.execute(text("SELECT * FROM transactions ORDER BY id"))).all()]
 
     # Preserve all existing index definitions across both migration directions
-    indexes = dict((await conn.execute(text(
-        "SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = 'public' AND tablename = 'transactions' ORDER BY indexname",
-    ))).all())
+    indexes = dict(
+        (
+            await conn.execute(
+                text(
+                    "SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = 'public' AND tablename = 'transactions' ORDER BY indexname",
+                )
+            )
+        ).all()
+    )
     return rows, indexes
 
 
 def _run_account_index_downgrade(database_name: str) -> None:
     """Downgrade only the account index revision in a generated migration database"""
     environment = os.environ.copy()
-    environment.update({
-        "DB_HOST": DB_HOST, "DB_PORT": DB_PORT, "DB_NAME": database_name,
-        "DB_USER": DB_USER, "DB_PASSWORD": DB_PASSWORD,
-    })
+    environment.update(
+        {
+            "DB_HOST": DB_HOST,
+            "DB_PORT": DB_PORT,
+            "DB_NAME": database_name,
+            "DB_USER": DB_USER,
+            "DB_PASSWORD": DB_PASSWORD,
+        }
+    )
 
     # Fixed revision and executable keep this migration subprocess independent of application imports
     completed = subprocess.run(  # noqa: S603
         [sys.executable, "-m", "alembic", "downgrade", _BEFORE_ACCOUNT_DATE_INDEX_REVISION],
-        cwd=_BACKEND_DIR, env=environment, check=False, capture_output=True, text=True,
+        cwd=_BACKEND_DIR,
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
 
@@ -276,9 +322,7 @@ async def test_alembic_column_types_and_defaults_match_model_metadata() -> None:
         from_metadata = await _get_column_definitions(WORKER_DB_NAME)
 
         assert from_alembic == from_metadata
-        assert {column: from_alembic[column][0] for column in encrypted_columns} == dict.fromkeys(
-            encrypted_columns, "text"
-        )
+        assert {column: from_alembic[column][0] for column in encrypted_columns} == dict.fromkeys(encrypted_columns, "text")
     finally:
         await _drop_database(_ALEMBIC_ENCRYPTED_DB_NAME)
 
@@ -431,7 +475,6 @@ async def _seed_legacy_auth_state(database_name: str) -> None:
     engine = _create_engine_for_database(database_name)
     try:
         async with engine.begin() as conn:
-
             # Seed the user dependency needed by legacy auth rows
             await conn.execute(
                 text(
@@ -483,7 +526,6 @@ async def _get_auth_storage_state(database_name: str) -> tuple[int, int, bool]:
     engine = _create_engine_for_database(database_name)
     try:
         async with engine.connect() as conn:
-
             # Count remaining sessions to verify pre-overhaul login state was discarded
             session_count = await conn.scalar(text("SELECT count(*) FROM auth_sessions"))
 
@@ -504,7 +546,6 @@ async def _get_database_columns(database_name: str) -> dict[str, set[str]]:
     engine = _create_engine_for_database(database_name)
     try:
         async with engine.connect() as conn:
-
             # Fetch public schema columns created by Alembic for comparison with model metadata
             result = await conn.execute(
                 text(
@@ -537,7 +578,6 @@ async def _get_column_definitions(database_name: str) -> dict[tuple[str, str], t
     engine = _create_engine_for_database(database_name)
     try:
         async with engine.connect() as conn:
-
             # Fetch what the database actually built, rather than what either side declared
             result = await conn.execute(
                 text(
@@ -556,10 +596,7 @@ async def _get_column_definitions(database_name: str) -> dict[tuple[str, str], t
 
 def _get_model_columns() -> dict[str, set[str]]:
     """Return SQLAlchemy model columns keyed by table name"""
-    columns_by_table = {
-        table.name: {column.name for column in table.columns}
-        for table in Base.metadata.sorted_tables
-    }
+    columns_by_table = {table.name: {column.name for column in table.columns} for table in Base.metadata.sorted_tables}
     return columns_by_table
 
 
@@ -568,7 +605,6 @@ async def _get_database_enums(database_name: str) -> dict[str, set[str]]:
     engine = _create_engine_for_database(database_name)
     try:
         async with engine.connect() as conn:
-
             # Fetch every public enum type and its labels created by Alembic
             result = await conn.execute(
                 text(
@@ -618,16 +654,26 @@ async def test_system_merchant_migration_folds_everyones_own_myself() -> None:
         engine = _create_engine_for_database(_ALEMBIC_SYSTEM_MERCHANT_DB_NAME)
         try:
             async with engine.connect() as conn:
-                system_merchants = (await conn.execute(text(
-                    "SELECT id, name FROM merchants WHERE is_system = true",
-                ))).all()
-                remaining_own = (await conn.execute(text(
-                    "SELECT count(*) FROM merchants WHERE is_system = false",
-                ))).scalar_one()
-                merchant_on_transaction = (await conn.execute(
-                    text("SELECT merchant_id FROM transactions WHERE id = :id"),
-                    {"id": transaction_id},
-                )).scalar_one()
+                system_merchants = (
+                    await conn.execute(
+                        text(
+                            "SELECT id, name FROM merchants WHERE is_system = true",
+                        )
+                    )
+                ).all()
+                remaining_own = (
+                    await conn.execute(
+                        text(
+                            "SELECT count(*) FROM merchants WHERE is_system = false",
+                        )
+                    )
+                ).scalar_one()
+                merchant_on_transaction = (
+                    await conn.execute(
+                        text("SELECT merchant_id FROM transactions WHERE id = :id"),
+                        {"id": transaction_id},
+                    )
+                ).scalar_one()
         finally:
             await engine.dispose()
 
@@ -652,22 +698,30 @@ async def test_unknown_merchant_migration_folds_a_personal_one_and_spares_a_grou
         engine = _create_engine_for_database(_ALEMBIC_UNKNOWN_MERCHANT_DB_NAME)
         try:
             async with engine.connect() as conn:
-                system_merchant_id = (await conn.execute(
-                    text("SELECT id FROM merchants WHERE is_system = true AND name = :name"),
-                    {"name": UNKNOWN_MERCHANT_NAME},
-                )).scalar_one()
-                merchant_on_transaction = (await conn.execute(
-                    text("SELECT merchant_id FROM transactions WHERE id = :id"),
-                    {"id": seeded["transaction_id"]},
-                )).scalar_one()
-                personal_remaining = (await conn.execute(
-                    text("SELECT count(*) FROM merchants WHERE id = :id"),
-                    {"id": seeded["personal_merchant_id"]},
-                )).scalar_one()
-                group_remaining = (await conn.execute(
-                    text("SELECT count(*) FROM merchants WHERE id = :id"),
-                    {"id": seeded["group_merchant_id"]},
-                )).scalar_one()
+                system_merchant_id = (
+                    await conn.execute(
+                        text("SELECT id FROM merchants WHERE is_system = true AND name = :name"),
+                        {"name": UNKNOWN_MERCHANT_NAME},
+                    )
+                ).scalar_one()
+                merchant_on_transaction = (
+                    await conn.execute(
+                        text("SELECT merchant_id FROM transactions WHERE id = :id"),
+                        {"id": seeded["transaction_id"]},
+                    )
+                ).scalar_one()
+                personal_remaining = (
+                    await conn.execute(
+                        text("SELECT count(*) FROM merchants WHERE id = :id"),
+                        {"id": seeded["personal_merchant_id"]},
+                    )
+                ).scalar_one()
+                group_remaining = (
+                    await conn.execute(
+                        text("SELECT count(*) FROM merchants WHERE id = :id"),
+                        {"id": seeded["group_merchant_id"]},
+                    )
+                ).scalar_one()
         finally:
             await engine.dispose()
 
@@ -700,10 +754,11 @@ async def _seed_own_unknown_merchants(database_name: str) -> dict[str, UUID]:
     engine = _create_engine_for_database(database_name)
     try:
         async with engine.begin() as conn:
-            await conn.execute(text(
-                "INSERT INTO currencies (id, name, symbol, minor_unit_exponent)"
-                " VALUES ('CAD', 'Canadian Dollar', '$', 2)",
-            ))
+            await conn.execute(
+                text(
+                    "INSERT INTO currencies (id, name, symbol, minor_unit_exponent) VALUES ('CAD', 'Canadian Dollar', '$', 2)",
+                )
+            )
             await conn.execute(
                 text(
                     "INSERT INTO users (id, email, first_name, tz, base_currency)"
@@ -738,8 +793,7 @@ async def _seed_own_unknown_merchants(database_name: str) -> dict[str, UUID]:
             )
             await conn.execute(
                 text(
-                    "INSERT INTO merchants (id, owner_id, group_id, name)"
-                    " VALUES (:merchant_id, :user_id, :group_id, :name)",
+                    "INSERT INTO merchants (id, owner_id, group_id, name) VALUES (:merchant_id, :user_id, :group_id, :name)",
                 ),
                 {
                     "merchant_id": group_merchant_id,
@@ -789,60 +843,85 @@ async def test_folded_name_migration_merges_categories_and_numbers_the_ones_reco
         engine = _create_engine_for_database(_ALEMBIC_FOLDED_CATEGORY_DB_NAME)
         try:
             async with engine.connect() as conn:
-                grocery_ids = (await conn.execute(
-                    text(
-                        "SELECT id FROM categories"
-                        " WHERE owner_id = :user_id AND group_id IS NULL AND lower(name) = 'groceries'",
-                    ),
-                    {"user_id": seeded["user_id"]},
-                )).scalars().all()
-                grocery_transaction_categories = (await conn.execute(
-                    text("SELECT category_id FROM transactions WHERE id = ANY(:ids)"),
-                    {"ids": [seeded["older_grocery_transaction_id"], seeded["newer_grocery_transaction_id"]]},
-                )).scalars().all()
-                active_tracked_rows = (await conn.execute(
-                    text(
-                        "SELECT base_budget_id, count(*) FROM budget_tracked_categories"
-                        " WHERE removed_at IS NULL GROUP BY base_budget_id",
-                    ),
-                )).all()
-                tabbed_name = (await conn.execute(
-                    text("SELECT name FROM categories WHERE id = :id"),
-                    {"id": seeded["tabbed_snacks_id"]},
-                )).scalar_one()
-                staged_category_id = (await conn.execute(
-                    text(
-                        "SELECT category_mappings->'GROCERIES'->>'category_id'"
-                        " FROM import_runs WHERE id = :id",
-                    ),
-                    {"id": seeded["import_run_id"]},
-                )).scalar_one()
-                bonus_names = dict((await conn.execute(
-                    text("SELECT id, name FROM categories WHERE id = ANY(:ids)"),
-                    {"ids": [seeded["income_bonus_id"], seeded["expense_bonus_id"]]},
-                )).all())
-                expense_bonus_transaction_category = (await conn.execute(
-                    text("SELECT category_id FROM transactions WHERE id = :id"),
-                    {"id": seeded["expense_bonus_transaction_id"]},
-                )).scalar_one()
-                dining = (await conn.execute(
-                    text(
-                        "SELECT id, name FROM categories"
-                        " WHERE owner_id = :user_id AND group_id IS NULL AND lower(name) = 'dining'",
-                    ),
-                    {"user_id": seeded["user_id"]},
-                )).all()
-                group_category_remaining = (await conn.execute(
-                    text("SELECT count(*) FROM categories WHERE id = :id"),
-                    {"id": seeded["group_grocery_id"]},
-                )).scalar_one()
-                adjustment_row = (await conn.execute(
-                    text(
-                        "SELECT category_id, counterparty_account_id, counterparty_account_scope"
-                        " FROM transactions WHERE id = :id",
-                    ),
-                    {"id": seeded["adjustment_transaction_id"]},
-                )).one()
+                grocery_ids = (
+                    (
+                        await conn.execute(
+                            text(
+                                "SELECT id FROM categories WHERE owner_id = :user_id AND group_id IS NULL AND lower(name) = 'groceries'",
+                            ),
+                            {"user_id": seeded["user_id"]},
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                grocery_transaction_categories = (
+                    (
+                        await conn.execute(
+                            text("SELECT category_id FROM transactions WHERE id = ANY(:ids)"),
+                            {"ids": [seeded["older_grocery_transaction_id"], seeded["newer_grocery_transaction_id"]]},
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                active_tracked_rows = (
+                    await conn.execute(
+                        text(
+                            "SELECT base_budget_id, count(*) FROM budget_tracked_categories WHERE removed_at IS NULL GROUP BY base_budget_id",
+                        ),
+                    )
+                ).all()
+                tabbed_name = (
+                    await conn.execute(
+                        text("SELECT name FROM categories WHERE id = :id"),
+                        {"id": seeded["tabbed_snacks_id"]},
+                    )
+                ).scalar_one()
+                staged_category_id = (
+                    await conn.execute(
+                        text(
+                            "SELECT category_mappings->'GROCERIES'->>'category_id' FROM import_runs WHERE id = :id",
+                        ),
+                        {"id": seeded["import_run_id"]},
+                    )
+                ).scalar_one()
+                bonus_names = dict(
+                    (
+                        await conn.execute(
+                            text("SELECT id, name FROM categories WHERE id = ANY(:ids)"),
+                            {"ids": [seeded["income_bonus_id"], seeded["expense_bonus_id"]]},
+                        )
+                    ).all()
+                )
+                expense_bonus_transaction_category = (
+                    await conn.execute(
+                        text("SELECT category_id FROM transactions WHERE id = :id"),
+                        {"id": seeded["expense_bonus_transaction_id"]},
+                    )
+                ).scalar_one()
+                dining = (
+                    await conn.execute(
+                        text(
+                            "SELECT id, name FROM categories WHERE owner_id = :user_id AND group_id IS NULL AND lower(name) = 'dining'",
+                        ),
+                        {"user_id": seeded["user_id"]},
+                    )
+                ).all()
+                group_category_remaining = (
+                    await conn.execute(
+                        text("SELECT count(*) FROM categories WHERE id = :id"),
+                        {"id": seeded["group_grocery_id"]},
+                    )
+                ).scalar_one()
+                adjustment_row = (
+                    await conn.execute(
+                        text(
+                            "SELECT category_id, counterparty_account_id, counterparty_account_scope FROM transactions WHERE id = :id",
+                        ),
+                        {"id": seeded["adjustment_transaction_id"]},
+                    )
+                ).one()
         finally:
             await engine.dispose()
 
@@ -901,25 +980,36 @@ async def test_folded_name_migration_merges_merchants_differing_only_in_capitals
         engine = _create_engine_for_database(_ALEMBIC_FOLDED_MERCHANT_DB_NAME)
         try:
             async with engine.connect() as conn:
-                remaining = (await conn.execute(
-                    text(
-                        "SELECT id, name FROM merchants"
-                        " WHERE owner_id = :user_id AND group_id IS NULL AND lower(name) = 'amazon'",
-                    ),
-                    {"user_id": seeded["user_id"]},
-                )).all()
-                group_remaining = (await conn.execute(
-                    text("SELECT id, name FROM merchants WHERE group_id = :group_id"),
-                    {"group_id": seeded["group_id"]},
-                )).all()
-                group_transaction_merchant = (await conn.execute(
-                    text("SELECT merchant_id FROM transactions WHERE id = :id"),
-                    {"id": seeded["group_transaction_id"]},
-                )).scalar_one()
-                merchants_on_transactions = (await conn.execute(
-                    text("SELECT merchant_id FROM transactions WHERE id = ANY(:ids)"),
-                    {"ids": [seeded["older_transaction_id"], seeded["newer_transaction_id"]]},
-                )).scalars().all()
+                remaining = (
+                    await conn.execute(
+                        text(
+                            "SELECT id, name FROM merchants WHERE owner_id = :user_id AND group_id IS NULL AND lower(name) = 'amazon'",
+                        ),
+                        {"user_id": seeded["user_id"]},
+                    )
+                ).all()
+                group_remaining = (
+                    await conn.execute(
+                        text("SELECT id, name FROM merchants WHERE group_id = :group_id"),
+                        {"group_id": seeded["group_id"]},
+                    )
+                ).all()
+                group_transaction_merchant = (
+                    await conn.execute(
+                        text("SELECT merchant_id FROM transactions WHERE id = :id"),
+                        {"id": seeded["group_transaction_id"]},
+                    )
+                ).scalar_one()
+                merchants_on_transactions = (
+                    (
+                        await conn.execute(
+                            text("SELECT merchant_id FROM transactions WHERE id = ANY(:ids)"),
+                            {"ids": [seeded["older_transaction_id"], seeded["newer_transaction_id"]]},
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
         finally:
             await engine.dispose()
 
@@ -977,8 +1067,7 @@ async def _assert_second_merchant_differing_only_in_capitals_is_refused(
             async with engine.begin() as conn:
                 await conn.execute(
                     text(
-                        "INSERT INTO merchants (id, owner_id, name)"
-                        " VALUES (gen_random_uuid(), :user_id, 'amazon')",
+                        "INSERT INTO merchants (id, owner_id, name) VALUES (gen_random_uuid(), :user_id, 'amazon')",
                     ),
                     {"user_id": user_id},
                 )
@@ -1001,10 +1090,11 @@ async def _seed_own_myself_merchant(database_name: str) -> UUID:
     engine = _create_engine_for_database(database_name)
     try:
         async with engine.begin() as conn:
-            await conn.execute(text(
-                "INSERT INTO currencies (id, name, symbol, minor_unit_exponent)"
-                " VALUES ('CAD', 'Canadian Dollar', '$', 2)",
-            ))
+            await conn.execute(
+                text(
+                    "INSERT INTO currencies (id, name, symbol, minor_unit_exponent) VALUES ('CAD', 'Canadian Dollar', '$', 2)",
+                )
+            )
             await conn.execute(
                 text(
                     "INSERT INTO users (id, email, first_name, tz, base_currency)"
@@ -1115,10 +1205,11 @@ async def _seed_categories_differing_only_in_capitals(database_name: str) -> dic
     engine = _create_engine_for_database(database_name)
     try:
         async with engine.begin() as conn:
-            await conn.execute(text(
-                "INSERT INTO currencies (id, name, symbol, minor_unit_exponent)"
-                " VALUES ('CAD', 'Canadian Dollar', '$', 2)",
-            ))
+            await conn.execute(
+                text(
+                    "INSERT INTO currencies (id, name, symbol, minor_unit_exponent) VALUES ('CAD', 'Canadian Dollar', '$', 2)",
+                )
+            )
             await conn.execute(
                 text(
                     "INSERT INTO users (id, email, first_name, tz, base_currency)"
@@ -1241,11 +1332,7 @@ async def _seed_categories_differing_only_in_capitals(database_name: str) -> dic
                 {
                     "id": ids["import_run_id"],
                     "user_id": ids["user_id"],
-                    "category_mappings": (
-                        '{"GROCERIES": {"source": "GROCERIES", "category_id": "'
-                        + str(ids["newer_grocery_id"])
-                        + '"}}'
-                    ),
+                    "category_mappings": ('{"GROCERIES": {"source": "GROCERIES", "category_id": "' + str(ids["newer_grocery_id"]) + '"}}'),
                 },
             )
     finally:
@@ -1278,10 +1365,11 @@ async def _seed_merchants_differing_only_in_capitals(database_name: str) -> dict
     engine = _create_engine_for_database(database_name)
     try:
         async with engine.begin() as conn:
-            await conn.execute(text(
-                "INSERT INTO currencies (id, name, symbol, minor_unit_exponent)"
-                " VALUES ('CAD', 'Canadian Dollar', '$', 2)",
-            ))
+            await conn.execute(
+                text(
+                    "INSERT INTO currencies (id, name, symbol, minor_unit_exponent) VALUES ('CAD', 'Canadian Dollar', '$', 2)",
+                )
+            )
             await conn.execute(
                 text(
                     "INSERT INTO users (id, email, first_name, tz, base_currency)"
@@ -1314,8 +1402,7 @@ async def _seed_merchants_differing_only_in_capitals(database_name: str) -> dict
             ):
                 await conn.execute(
                     text(
-                        "INSERT INTO merchants (id, owner_id, name, created_at)"
-                        " VALUES (:id, :user_id, :name, :created_at)",
+                        "INSERT INTO merchants (id, owner_id, name, created_at) VALUES (:id, :user_id, :name, :created_at)",
                     ),
                     {"id": merchant_id, "user_id": ids["user_id"], "name": name, "created_at": created_at},
                 )

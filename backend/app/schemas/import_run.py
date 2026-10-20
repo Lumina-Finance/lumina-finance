@@ -68,8 +68,7 @@ MAX_CSV_LAYOUT_LINE = MAX_IMPORT_ROWS
 # The characters JavaScript's String.prototype.trim removes, which is how the import screen trims
 # every value it sends. Python's str.strip takes a different set, so the check names these exactly
 _BROWSER_TRIMMED_WHITESPACE = (
-    "\t\n\v\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a"
-    "\u2028\u2029\u202f\u205f\u3000\ufeff"
+    "\t\n\v\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
 )
 
 # An amount as the import screen sends it: a magnitude in plain decimal text, since the journal

@@ -113,19 +113,35 @@ async def test_the_same_statement_into_another_account_skips_nothing(client):
 async def test_the_same_bank_id_from_two_bank_accounts_imports_into_one_account_both_times(client):
     """Bank IDs are unique only within one bank account, so two statements filed together can share one"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    together = await _import_ofx(client, headers, _ofx_payload(account_id, category_id, [
-        (_CHEQUING_KEY, "0001", "2026-03-01", "-10.00"),
-        (_SAVINGS_KEY, "0001", "2026-03-02", "-20.00"),
-        (_CHEQUING_KEY, "0002", "2026-03-03", "-30.00"),
-    ]))
+    together = await _import_ofx(
+        client,
+        headers,
+        _ofx_payload(
+            account_id,
+            category_id,
+            [
+                (_CHEQUING_KEY, "0001", "2026-03-01", "-10.00"),
+                (_SAVINGS_KEY, "0001", "2026-03-02", "-20.00"),
+                (_CHEQUING_KEY, "0002", "2026-03-03", "-30.00"),
+            ],
+        ),
+    )
     assert together.status_code == 201, together.text
     assert together.json()["transactions_created"] == 3
 
     # Only the first bank account holds 0002, so the second's own 0002 is new
-    later = await _import_ofx(client, headers, _ofx_payload(account_id, category_id, [
-        (_SAVINGS_KEY, "0001", "2026-03-02", "-20.00"),
-        (_SAVINGS_KEY, "0002", "2026-03-04", "-40.00"),
-    ]))
+    later = await _import_ofx(
+        client,
+        headers,
+        _ofx_payload(
+            account_id,
+            category_id,
+            [
+                (_SAVINGS_KEY, "0001", "2026-03-02", "-20.00"),
+                (_SAVINGS_KEY, "0002", "2026-03-04", "-40.00"),
+            ],
+        ),
+    )
 
     assert later.status_code == 201, later.text
     assert (later.json()["transactions_created"], later.json()["transactions_already_imported"]) == (1, 1)
@@ -196,10 +212,12 @@ async def test_a_bank_id_without_its_bank_account_is_refused_as_it_is_staged(cli
         payload = _ofx_payload(account_id, category_id, [(account_key, bank_transaction_id, "2026-03-01", "-10.00")])
         resp = await _import_ofx(client, headers, payload)
         assert resp.status_code == 422, resp.text
-        assert [(error["loc"], error["msg"]) for error in resp.json()["detail"]] == [(
-            ["body", "rows", 0],
-            "Value error, a bank transaction ID is sent together with its bank account key",
-        )]
+        assert [(error["loc"], error["msg"]) for error in resp.json()["detail"]] == [
+            (
+                ["body", "rows", 0],
+                "Value error, a bank transaction ID is sent together with its bank account key",
+            )
+        ]
 
 
 async def test_an_edited_transaction_moved_to_another_account_is_still_recognised_there(client):
@@ -249,7 +267,8 @@ async def test_the_bank_ids_are_read_in_one_statement_however_many_rows_carry_th
     large_headers, large_account_id, large_category_id = await _setup_user_with_deps(client, email="large@example.com")
     held = [(_CHEQUING_KEY, f"R{index}", "2026-03-01", "-1.00") for index in range(10)]
     for headers, account_id, category_id in (
-        (small_headers, small_account_id, small_category_id), (large_headers, large_account_id, large_category_id),
+        (small_headers, small_account_id, small_category_id),
+        (large_headers, large_account_id, large_category_id),
     ):
         assert (await _import_ofx(client, headers, _ofx_payload(account_id, category_id, held))).status_code == 201
 
@@ -340,10 +359,14 @@ async def test_moving_transactions_into_an_account_holding_their_bank_ids_in_bul
     """A bulk edit must refuse what a single edit refuses, and leave every row where it was"""
     headers, account_id, other_id, first_account = await _import_into_both(client)
 
-    resp = await client.patch("/transactions/bulk", json={
-        "transaction_ids": [transaction["id"] for transaction in first_account],
-        "account_id": other_id,
-    }, headers=headers)
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={
+            "transaction_ids": [transaction["id"] for transaction in first_account],
+            "account_id": other_id,
+        },
+        headers=headers,
+    )
 
     assert resp.status_code == 409
     assert resp.json()["detail"] == "Joint Chequing already has 3 of these transactions from an earlier import"
@@ -375,15 +398,21 @@ async def test_moving_a_set_some_of_which_an_account_holds_in_bulk_is_refused_wh
     assert (await _import_ofx(client, headers, _ofx_payload(other_id, category_id, _march(2, 2)))).status_code == 201
     moving = await _ledger_transactions(client, headers, account_id)
 
-    resp = await client.patch("/transactions/bulk", json={
-        "transaction_ids": [transaction["id"] for transaction in moving],
-        "account_id": other_id,
-    }, headers=headers)
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={
+            "transaction_ids": [transaction["id"] for transaction in moving],
+            "account_id": other_id,
+        },
+        headers=headers,
+    )
 
     assert resp.status_code == 409
     assert resp.json()["detail"] == "Joint Chequing already has 1 of these transactions from an earlier import"
     assert sorted(merchant for _, merchant in await _ledger(client, headers, account_id)) == [
-        "Payee M1", "Payee M2", "Payee M3",
+        "Payee M1",
+        "Payee M2",
+        "Payee M3",
     ]
     assert await _ledger(client, headers, other_id) == [("2026-03-02", "Payee M2")]
 
@@ -397,13 +426,13 @@ def _give_held_row_bank_id_after(original, other_id, bank_transaction_id):
 
     Stands in for an import landing in the other account between the check and the write
     """
+
     async def check_then_clash(*args, **kwargs):
         result = await original(*args, **kwargs)
         async with TestSession() as other:
             await other.execute(
                 text(
-                    "UPDATE transactions SET bank_transaction_id = :clash "
-                    "WHERE account_id = :account_id AND bank_transaction_id = 'X1'",
+                    "UPDATE transactions SET bank_transaction_id = :clash WHERE account_id = :account_id AND bank_transaction_id = 'X1'",
                 ),
                 {"clash": bank_transaction_id, "account_id": uuid.UUID(other_id)},
             )
@@ -451,7 +480,9 @@ async def test_a_bulk_move_racing_an_import_of_its_bank_id_into_the_account_is_r
     moving_id = (await _ledger_transactions(client, headers, account_id))[0]["id"]
 
     resp = await client.patch(
-        "/transactions/bulk", json={"transaction_ids": [moving_id], "account_id": other_id}, headers=headers,
+        "/transactions/bulk",
+        json={"transaction_ids": [moving_id], "account_id": other_id},
+        headers=headers,
     )
 
     assert resp.status_code == 409, resp.text
@@ -464,12 +495,18 @@ async def test_an_edit_naming_the_transactions_own_account_is_not_a_move(client)
     headers, account_id, _, first_account = await _import_into_both(client)
 
     single = await client.patch(
-        f"/transactions/{first_account[0]['id']}", json={"account_id": account_id, "notes": "Edited"}, headers=headers,
+        f"/transactions/{first_account[0]['id']}",
+        json={"account_id": account_id, "notes": "Edited"},
+        headers=headers,
     )
-    bulk = await client.patch("/transactions/bulk", json={
-        "transaction_ids": [transaction["id"] for transaction in first_account],
-        "account_id": account_id,
-    }, headers=headers)
+    bulk = await client.patch(
+        "/transactions/bulk",
+        json={
+            "transaction_ids": [transaction["id"] for transaction in first_account],
+            "account_id": account_id,
+        },
+        headers=headers,
+    )
 
     assert single.status_code == 200, single.text
     assert bulk.status_code == 200, bulk.text

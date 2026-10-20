@@ -1,4 +1,5 @@
 """Transaction update service"""
+
 import uuid
 
 from fastapi import HTTPException, status
@@ -56,7 +57,11 @@ async def update_transaction_and_get_response(
     """
     # Lock the fresh row before access checks and validation; hold it through the commit
     txn = await check_transaction_access(
-        db, transaction_id, user.id, PermissionLevel.WRITE, lock_for_update=True,
+        db,
+        transaction_id,
+        user.id,
+        PermissionLevel.WRITE,
+        lock_for_update=True,
     )
 
     # Load the persisted parent account for archive validation and cache scope updates
@@ -97,7 +102,10 @@ async def update_transaction_and_get_response(
     # Confirm changed category and merchant records belong to the selected account group
     if "category_id" in changed_fields:
         category = await validate_transaction_category_access(
-            db, changed_fields["category_id"], user.id, account_group_id,
+            db,
+            changed_fields["category_id"],
+            user.id,
+            account_group_id,
         )
     else:
         # The answer is judged against the category the transaction ends up with, so an unchanged
@@ -131,10 +139,7 @@ async def update_transaction_and_get_response(
             changed_fields.get("counterparty_account_scope", txn.counterparty_account_scope),
         )
     else:
-        if (
-            changed_fields.get("counterparty_account_id") is not None
-            or changed_fields.get("counterparty_account_scope") is not None
-        ):
+        if changed_fields.get("counterparty_account_id") is not None or changed_fields.get("counterparty_account_scope") is not None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=COUNTERPARTY_NOT_ALLOWED_DETAIL,
@@ -164,9 +169,7 @@ async def update_transaction_and_get_response(
 
     # Validate requested tags before replacing junction rows
     if new_tag_ids is not None:
-        validated_tag_ids = (
-            await get_valid_transaction_tag_ids(db, user.id, new_tag_ids, account_group_id) if new_tag_ids else []
-        )
+        validated_tag_ids = await get_valid_transaction_tag_ids(db, user.id, new_tag_ids, account_group_id) if new_tag_ids else []
         await replace_transaction_tag_assignments(db, txn.id, validated_tag_ids)
 
     # Flush row and tag changes before rebuilding any affected balance snapshots
@@ -215,5 +218,6 @@ async def _refuse_move_into_held_bank_transaction(db: AsyncSession, txn: Transac
         return
     if await find_held_bank_transactions(db, {(new_account.id, txn.bank_account_key, txn.bank_transaction_id)}):
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=_get_held_bank_transaction_detail(new_account.name),
+            status_code=status.HTTP_409_CONFLICT,
+            detail=_get_held_bank_transaction_detail(new_account.name),
         )

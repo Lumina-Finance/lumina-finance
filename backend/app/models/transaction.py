@@ -28,23 +28,24 @@ class Transaction(Base):
         # range for each merchant. Leading on merchant_id means it also covers every lookup that
         # filters on the merchant alone, so no separate index on that column is needed
         Index("ix_transactions_merchant_id_dt", "merchant_id", "dt"),
-
         # Supports account and date lookups for history, analytics and snapshot rebuilds
         Index("ix_transactions_account_id_dt", "account_id", "dt"),
-
         # A bank's transaction ID names one transaction only within the bank account it was issued
         # under, so the two are stored together or not at all
         CheckConstraint(
             "(bank_account_key IS NULL) = (bank_transaction_id IS NULL)",
             name="ck_transactions_bank_account_key_matches_bank_transaction_id",
         ),
-
         # Holds each bank transaction once in an account, so two imports of overlapping statements
         # saving into it at once cannot both write it. The import leaves out what an account already
         # holds before writing, so only such a race reaches this
         Index(
-            "uq_transactions_account_bank_transaction", "account_id", "bank_account_key", "bank_transaction_id",
-            unique=True, postgresql_where=text("bank_transaction_id IS NOT NULL"),
+            "uq_transactions_account_bank_transaction",
+            "account_id",
+            "bank_account_key",
+            "bank_transaction_id",
+            unique=True,
+            postgresql_where=text("bank_transaction_id IS NOT NULL"),
         ),
     )
 

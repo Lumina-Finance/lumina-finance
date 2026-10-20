@@ -154,17 +154,30 @@ async def _build_reference_batch(client, count, mode):
     institution = await _seed_institution()
     size = count if mode == "distinct" else 1
     async with TestSession() as session:
-
         # Reuse the synthetic dependency account's owner for isolated reference fixtures
         owner_id = (await session.execute(select(Account.owner_id).where(Account.id == uuid.UUID(account_id)))).scalar_one()
-        accounts = [Account(
-            id=uuid.uuid4(), owner_id=owner_id, account_kind=AccountKind.ASSET,
-            account_type=AccountType.CHECKING, name=f"Reference account {i}",
-            currency="CAD", institution_id=institution.id, is_archived=False,
-        ) for i in range(size)]
-        categories = [Category(
-            id=uuid.uuid4(), owner_id=owner_id, name=f"Reference category {i}", kind=CategoryKind.EXPENSE,
-        ) for i in range(size)]
+        accounts = [
+            Account(
+                id=uuid.uuid4(),
+                owner_id=owner_id,
+                account_kind=AccountKind.ASSET,
+                account_type=AccountType.CHECKING,
+                name=f"Reference account {i}",
+                currency="CAD",
+                institution_id=institution.id,
+                is_archived=False,
+            )
+            for i in range(size)
+        ]
+        categories = [
+            Category(
+                id=uuid.uuid4(),
+                owner_id=owner_id,
+                name=f"Reference category {i}",
+                kind=CategoryKind.EXPENSE,
+            )
+            for i in range(size)
+        ]
         merchants = [Merchant(id=uuid.uuid4(), owner_id=owner_id, name=f"Reference merchant {i}") for i in range(size)]
         session.add_all([*accounts, *categories, *merchants])
         await session.commit()
@@ -173,18 +186,38 @@ async def _build_reference_batch(client, count, mode):
     category_mappings = [{"source": f"Category {i}", "category_id": str(categories[i % size].id)} for i in range(count)]
     merchant_mappings = [{"source": f"Merchant {i}", "merchant_id": str(merchants[i % size].id)} for i in range(count)]
     if mode == "create":
-        account_mappings = [{
-            "source": f"Account {i}",
-            "create": {"name": f"Created account {i}", "account_type": "checking", "currency": "cad",
-                       "institution_id": str(institution.id)},
-        } for i in range(count)]
+        account_mappings = [
+            {
+                "source": f"Account {i}",
+                "create": {
+                    "name": f"Created account {i}",
+                    "account_type": "checking",
+                    "currency": "cad",
+                    "institution_id": str(institution.id),
+                },
+            }
+            for i in range(count)
+        ]
     return headers, {
-        "start_row_index": 0, "accounts": account_mappings, "categories": category_mappings,
+        "start_row_index": 0,
+        "accounts": account_mappings,
+        "categories": category_mappings,
         "merchants": merchant_mappings,
-        "rows": [{"account_source": f"Account {i}", "category_source": f"Category {i}",
-                  "merchant_name": f"Merchant {i}", "dt": "2026-04-10", "amount": "-1.23",
-                  "notes": f"Reference row {i}", "tag_names": [], "counterparty_account_source": None,
-                  "bank_account_key": None, "bank_transaction_id": None} for i in range(count)],
+        "rows": [
+            {
+                "account_source": f"Account {i}",
+                "category_source": f"Category {i}",
+                "merchant_name": f"Merchant {i}",
+                "dt": "2026-04-10",
+                "amount": "-1.23",
+                "notes": f"Reference row {i}",
+                "tag_names": [],
+                "counterparty_account_source": None,
+                "bank_account_key": None,
+                "bank_transaction_id": None,
+            }
+            for i in range(count)
+        ],
     }
 
 

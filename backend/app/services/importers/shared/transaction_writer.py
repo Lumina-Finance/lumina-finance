@@ -114,38 +114,37 @@ async def write_imported_transactions(
     for chunk_start in range(0, len(transactions), IMPORT_WRITE_CHUNK):
         pending: list[tuple[Transaction, list[Tag]]] = []
 
-        for imported in transactions[chunk_start:chunk_start + IMPORT_WRITE_CHUNK]:
+        for imported in transactions[chunk_start : chunk_start + IMPORT_WRITE_CHUNK]:
             # Every transaction carries a merchant, so a row stating no merchant, such as a transfer leg
             # or a balance adjustment, is stamped with the shared one for its kind
-            merchant = (
-                get_import_merchant(imported.merchant_name, import_lookups.merchants, stats)
-                or stamped_merchants.get_for_category(imported.category)
+            merchant = get_import_merchant(imported.merchant_name, import_lookups.merchants, stats) or stamped_merchants.get_for_category(
+                imported.category
             )
             tags = get_import_row_tags(imported.tag_names, import_lookups.tags_by_name, stats)
-            pending.append((
-                Transaction(
-                    created_by_user_id=user_id,
-                    account_id=imported.account.id,
-                    dt=imported.dt,
-                    merchant_id=merchant.id,
-                    category_id=imported.category.id,
-                    amount=imported.amount,
-                    currency=imported.account.currency,
-                    fx_rate=None,
-                    notes=imported.notes,
-                    counterparty_account_id=imported.counterparty_account_id,
-                    counterparty_account_scope=imported.counterparty_account_scope,
-                    import_run_id=import_run_id,
-                    bank_account_key=imported.bank_account_key,
-                    bank_transaction_id=imported.bank_transaction_id,
-                ),
-                tags,
-            ))
+            pending.append(
+                (
+                    Transaction(
+                        created_by_user_id=user_id,
+                        account_id=imported.account.id,
+                        dt=imported.dt,
+                        merchant_id=merchant.id,
+                        category_id=imported.category.id,
+                        amount=imported.amount,
+                        currency=imported.account.currency,
+                        fx_rate=None,
+                        notes=imported.notes,
+                        counterparty_account_id=imported.counterparty_account_id,
+                        counterparty_account_scope=imported.counterparty_account_scope,
+                        import_run_id=import_run_id,
+                        bank_account_key=imported.bank_account_key,
+                        bank_transaction_id=imported.bank_transaction_id,
+                    ),
+                    tags,
+                )
+            )
 
             current_first = first_import_date_by_account_id.get(imported.account.id)
-            first_import_date_by_account_id[imported.account.id] = (
-                imported.dt if current_first is None else min(current_first, imported.dt)
-            )
+            first_import_date_by_account_id[imported.account.id] = imported.dt if current_first is None else min(current_first, imported.dt)
 
         # One flush per chunk assigns ids to the whole chunk, so its tag links are added without a
         # round trip per transaction and go out with the next flush
