@@ -34,6 +34,12 @@ if [ "$#" -gt 0 ]; then
 			echo "reset-bank-transaction-hash-key takes no arguments" >&2
 			exit 64
 		fi
+
+		# The reset records the key as the migrator, which owns the record. A lost data volume
+		# or a dump restored onto a new host has neither the migrator's password nor its
+		# ownership yet, so they are set up as a normal start would, as the admin role
+		python -m app.db.provision ensure-roles
+		python -m app.db.provision transfer-ownership
 		exec python -m app.db.bank_transaction_key reset-key
 		;;
 	*)
