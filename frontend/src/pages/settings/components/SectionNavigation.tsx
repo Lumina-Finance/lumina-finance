@@ -89,9 +89,8 @@ export function SettingsMobileSectionMenu({
         >
           <button
             type="button"
-            className="app-field-focus-visible relative flex h-11 w-full items-center gap-3 rounded-xl border px-4 text-left font-medium shadow-sm transition-colors duration-150"
+            className="relative flex h-11 w-full items-center gap-3 rounded-xl border bg-[var(--app-surface-soft)] px-4 text-left font-medium shadow-sm transition-colors duration-150 hover:bg-[var(--app-accent-soft)]"
             style={{
-              background: 'var(--app-surface-soft)',
               borderColor: 'var(--app-border)',
               color: 'var(--app-text)',
             }}

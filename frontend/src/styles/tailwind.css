@@ -1,6 +1,22 @@
 @import "tailwindcss";
 @config "../../tailwind.config.js";
 
+/* Every hover: utility on a button also applies while the button is keyboard focused, so a button
+   reached by keyboard looks as it does hovered. A button with a border of its own shows only that, and
+   one without keeps the ring too (see the base rules below). The pointer part is Tailwind's own hover
+   variant, which a touch screen's sticky hover is kept out of */
+@custom-variant hover {
+  @media (hover: hover) {
+    &:hover {
+      @slot;
+    }
+  }
+
+  &:is(button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"]):focus-visible {
+    @slot;
+  }
+}
+
 @layer base {
   :root {
     /* Light — warm parchment */
@@ -13,8 +29,11 @@
        taking this token, since pointing that rule at this token would carry the flat light value
        below into the dropdown and lose the mix it depends on there */
     --app-hover-soft: #FBF8F0;
-    /* Hover feedback on a surface shaded --app-surface-soft, which the flat value above matches. A wash of
-       the text colour, light enough that subtle text on it keeps its contrast */
+    /* Hover feedback on a surface shaded --app-surface-soft, which the flat value above matches, and on a
+       navigation item, which sits on the page in the settings sidebar, on --app-nav-bg in the main sidebar
+       and on --app-surface-soft in the phone's settings menu. The wash shows the same on each, where the
+       flat value nearly vanishes on the last two. A wash of the text colour, light enough that subtle text
+       on it keeps its contrast */
     --app-hover-on-surface-soft: color-mix(in srgb, var(--app-text) 5%, transparent);
 
     --app-border: #4b37231c;
@@ -25,6 +44,16 @@
     --app-accent: #8A5F25;
     --app-accent-soft: #9b6c2c1a;
     --app-accent-border: #9b6c2c38;
+    /* The border a bordered button takes under the pointer or keyboard focus, the full accent so it shows
+       against both themes' hairline borders as clearly as the doubled focus colour border it replaced */
+    --app-hover-border: var(--app-accent);
+    /* The tint a selected option takes under the pointer or keyboard focus, deeper than the soft tint
+       it already rests in so the change shows on top of it */
+    --app-accent-hover-fill: color-mix(in srgb, var(--app-accent) 30%, transparent);
+    /* The text on that fill, the accent drawn toward the page text colour. The accent itself falls under
+       4.5:1 on it in the light theme and on the deepest surfaces in the dark one, and this clears 4.7:1
+       on every surface in both. The chip in the Filters panel takes it on its 22% hover tint too */
+    --app-accent-on-hover-fill: color-mix(in srgb, var(--app-text) 60%, var(--app-accent));
     /* The gold gradient behind a user's initials and the initials on it, the same in both themes. The end stop is
        the darkest point the initials sit on, kept light enough for them to read at 4.5:1 */
     --app-avatar-start: #C9A96A;
@@ -68,8 +97,13 @@
     --app-negative-border: #9a3c344d;
     /* Filled destructive buttons need a darker red than negative text to keep white labels readable */
     --app-danger-fill: #9A3C34;
+    /* Their fill under the pointer or keyboard focus, darker in both themes, since a lighter red would
+       take the white label under 4.5:1 in the dark one */
+    --app-danger-fill-hover: color-mix(in srgb, var(--app-danger-fill) 75%, black);
     --app-button-primary-bg: #6E4818;
-    --app-button-primary-bg-hover: #7A5220;
+    /* Darker than the rest fill, so the change shows through the button's translucency, which a lighter
+       bronze evened out */
+    --app-button-primary-bg-hover: #5A3A12;
     --app-button-primary-text: #FFF8EC;
     --app-nav-bg: #F8F4EC;
     --app-shadow-soft: 0 2px 20px #1c151012, 0 1px 4px #1c15100a;
@@ -217,12 +251,28 @@
     cursor: pointer;
   }
 
-  /* Anything that takes keyboard focus without a focus style of its own, such as a link, a chart or
-     an info button, draws the app's ring in place of the browser's own. A control that shows focus
-     another way turns this off in its own rule */
+  /* Anything that takes keyboard focus without a focus style of its own, such as a link or a chart,
+     draws the app's ring in place of the browser's own. A control that shows focus another way turns
+     this off in its own rule */
   :focus-visible {
     outline: var(--app-focus-outline);
     outline-offset: var(--app-focus-offset);
+  }
+
+  /* A button with a border of its own, such as an outlined button or a pill, never draws a ring around
+     it. Reached by keyboard it looks as it does hovered, which each hover rule also lists under
+     :focus-visible, so the two can't drift apart. One without a border, such as a filled button, an icon
+     button or a menu item, keeps the ring above on top of its hover look. A border is the shared classes
+     that draw one, and the border utility unless it is transparent */
+  :is(a, button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"]):is(
+    .app-secondary-button,
+    .app-glass-button,
+    .app-glass-icon-button,
+    .app-range-glass-head,
+    .app-card,
+    .border:not(.border-transparent)
+  ):not(svg *):focus-visible {
+    outline: none;
   }
 
   @supports (-webkit-touch-callout: none) {
@@ -549,16 +599,39 @@
     border: 1px solid transparent;
   }
 
-  .app-nav-link:hover {
-    color: var(--app-accent);
-    background: var(--app-accent-soft);
-    border-color: var(--app-accent-border);
+  /* An item under the pointer or keyboard focus takes a neutral wash, so it never reads as a second
+     selected item. The selected one takes a deeper tint instead, so its focus shows too. The pointer
+     looks are kept off touch screens, where a tapped item would otherwise hold them */
+  .app-nav-link:focus-visible {
+    color: var(--app-text);
+    background: var(--app-hover-on-surface-soft);
+    border-color: var(--app-border);
   }
 
   .app-nav-link-active {
     background: var(--app-accent-soft);
     border-color: var(--app-accent-border);
     color: var(--app-accent);
+  }
+
+  .app-nav-link-active:focus-visible {
+    color: var(--app-accent-on-hover-fill);
+    background: var(--app-accent-hover-fill);
+    border-color: var(--app-accent-border);
+  }
+
+  @media (hover: hover) {
+    .app-nav-link:hover {
+      color: var(--app-text);
+      background: var(--app-hover-on-surface-soft);
+      border-color: var(--app-border);
+    }
+
+    .app-nav-link-active:hover {
+      color: var(--app-accent-on-hover-fill);
+      background: var(--app-accent-hover-fill);
+      border-color: var(--app-accent-border);
+    }
   }
 
   .app-input {
@@ -688,8 +761,9 @@
     color: var(--app-text);
   }
 
-  .app-calendar-day:hover {
-    background: var(--app-hover-soft);
+  .app-calendar-day:hover,
+  .app-calendar-day:focus-visible {
+    background: var(--app-accent-soft);
   }
 
   .app-calendar-day[data-outside] {
@@ -704,6 +778,16 @@
   .app-calendar-day[data-selected] {
     background: var(--app-button-primary-bg);
     color: var(--app-button-primary-text);
+  }
+
+  .app-calendar-day[data-selected]:focus-visible {
+    background: var(--app-button-primary-bg-hover);
+  }
+
+  @media (hover: hover) {
+    .app-calendar-day[data-selected]:hover {
+      background: var(--app-button-primary-bg-hover);
+    }
   }
 
   .app-runway-threshold-input {
@@ -971,7 +1055,8 @@
     visibility: visible;
   }
 
-  .app-dropdown-row-edit:hover {
+  .app-dropdown-row-edit:hover,
+  .app-dropdown-row-edit:focus-visible {
     color: var(--app-accent);
   }
 
@@ -1050,7 +1135,8 @@
      thousand lines below this, so without the second selector the button would drop to plain text
      colour the moment it was hovered */
   .app-dropdown-search .app-icon-button,
-  .app-dropdown-search .app-icon-button:hover {
+  .app-dropdown-search .app-icon-button:hover,
+  .app-dropdown-search .app-icon-button:focus-visible {
     color: var(--app-accent);
   }
 
@@ -1070,17 +1156,21 @@
     background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
     -webkit-backdrop-filter: blur(20px) saturate(160%);
     backdrop-filter: blur(20px) saturate(160%);
+    transition: background-color 150ms ease, border-color 150ms ease;
   }
 
-  /* The head fills the glass, which clips anything drawn past its edge, so the head's focus shows on
-     the glass's own border in place of a ring on the head */
+  /* The head fills the glass, so its hover look is drawn on the glass, the fill and border the glass
+     button takes */
   .app-range-glass:has(> .app-range-glass-head:focus-visible) {
-    border-color: var(--app-focus-ring);
-    box-shadow: var(--app-focus-border);
+    background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
+    border-color: var(--app-hover-border);
   }
 
-  .app-range-glass-head:focus-visible {
-    outline: none;
+  @media (hover: hover) {
+    .app-range-glass:has(> .app-range-glass-head:hover) {
+      background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
+      border-color: var(--app-hover-border);
+    }
   }
 
   /* The mobile control spans the full width instead of hugging its content like the sidebar pill */
@@ -1178,7 +1268,8 @@
     font-weight: 500;
   }
 
-  .app-range-apply:hover {
+  .app-range-apply:hover,
+  .app-range-apply:focus-visible {
     background: var(--app-button-primary-bg-hover);
     border-color: var(--app-button-primary-bg-hover);
   }
@@ -1195,7 +1286,8 @@
     transition: color 0.15s ease, background 0.15s ease;
   }
 
-  .app-range-glass-clear:hover {
+  .app-range-glass-clear:hover,
+  .app-range-glass-clear:focus-visible {
     color: var(--app-text);
     background: color-mix(in srgb, var(--app-text) 8%, transparent);
   }
@@ -1295,7 +1387,8 @@
     outline-offset: var(--app-focus-offset);
   }
 
-  .app-range-seg-option:hover {
+  .app-range-seg-option:hover,
+  .app-range-seg-option:focus-visible {
     color: var(--app-text);
     background: var(--app-accent-soft);
   }
@@ -1373,7 +1466,8 @@
     color: var(--app-text);
   }
 
-  .app-range-unit-option:hover {
+  .app-range-unit-option:hover,
+  .app-range-unit-option:focus-visible {
     background: color-mix(in srgb, var(--app-text) 6%, transparent);
   }
 
@@ -1383,6 +1477,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
+    .app-range-glass,
     .app-range-glass-head,
     .app-range-glass-bodywrap,
     .app-range-glass-inner,
@@ -1452,6 +1547,7 @@
 
   .import-record .app-segmented-option-active:disabled:hover {
     color: var(--app-accent);
+    background: var(--app-accent-soft);
   }
 
   .import-record .app-input:disabled:hover {
@@ -1565,9 +1661,17 @@
     background: color-mix(in srgb, var(--app-button-primary-bg) 82%, transparent);
   }
 
-  .app-primary-button:hover {
+  /* The pointer look is kept off touch screens, where a tapped button would otherwise stay darker */
+  .app-primary-button:focus-visible {
     background: color-mix(in srgb, var(--app-button-primary-bg-hover) 88%, transparent);
     border-color: color-mix(in srgb, var(--app-button-primary-bg-hover) 70%, var(--app-border-strong));
+  }
+
+  @media (hover: hover) {
+    .app-primary-button:hover {
+      background: color-mix(in srgb, var(--app-button-primary-bg-hover) 88%, transparent);
+      border-color: color-mix(in srgb, var(--app-button-primary-bg-hover) 70%, var(--app-border-strong));
+    }
   }
 
   .app-primary-button:active {
@@ -1577,11 +1681,6 @@
   .app-primary-button:disabled {
     opacity: 0.5;
     pointer-events: none;
-  }
-
-  .app-primary-button:focus-visible {
-    outline: var(--app-focus-outline);
-    outline-offset: var(--app-focus-offset);
   }
 
   .app-secondary-button {
@@ -1594,9 +1693,11 @@
     background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
   }
 
-  .app-secondary-button:hover {
+  .app-secondary-button:hover,
+  .app-secondary-button:focus-visible {
     color: var(--app-text);
     background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
+    border-color: var(--app-hover-border);
   }
 
   .app-secondary-button:active {
@@ -1606,14 +1707,6 @@
   .app-secondary-button:disabled {
     opacity: 0.5;
     pointer-events: none;
-  }
-
-  /* An outlined button shows focus on its own border, the way a field does. A filled button keeps
-     the ring, since its fill is close to the focus colour and a border on it would barely change */
-  .app-secondary-button:focus-visible {
-    outline: none;
-    border-color: var(--app-focus-ring);
-    box-shadow: var(--app-focus-border);
   }
 
   /* Draws the eye to a just-linked provider badge after returning from the provider */
@@ -1643,9 +1736,16 @@
     background: color-mix(in srgb, var(--app-danger-fill) 82%, transparent);
   }
 
-  .app-danger-button:hover {
-    background: color-mix(in srgb, var(--app-danger-fill) 90%, transparent);
-    border-color: color-mix(in srgb, var(--app-danger-fill) 72%, var(--app-border-strong));
+  .app-danger-button:focus-visible {
+    background: color-mix(in srgb, var(--app-danger-fill-hover) 90%, transparent);
+    border-color: color-mix(in srgb, var(--app-danger-fill-hover) 72%, var(--app-border-strong));
+  }
+
+  @media (hover: hover) {
+    .app-danger-button:hover {
+      background: color-mix(in srgb, var(--app-danger-fill-hover) 90%, transparent);
+      border-color: color-mix(in srgb, var(--app-danger-fill-hover) 72%, var(--app-border-strong));
+    }
   }
 
   .app-danger-button:active {
@@ -1655,11 +1755,6 @@
   .app-danger-button:disabled {
     opacity: 0.5;
     pointer-events: none;
-  }
-
-  .app-danger-button:focus-visible {
-    outline: var(--app-focus-outline);
-    outline-offset: var(--app-focus-offset);
   }
 
   /* Liquid-glass variants of the toolbar controls, sharing the filter pill and insights range
@@ -1697,9 +1792,16 @@
     background: color-mix(in srgb, var(--app-button-primary-bg) 82%, transparent);
   }
 
-  .app-glass-button-primary:hover {
+  .app-glass-button-primary:focus-visible {
     background: color-mix(in srgb, var(--app-button-primary-bg-hover) 88%, transparent);
     border-color: color-mix(in srgb, var(--app-button-primary-bg-hover) 70%, var(--app-border-strong));
+  }
+
+  @media (hover: hover) {
+    .app-glass-button-primary:hover {
+      background: color-mix(in srgb, var(--app-button-primary-bg-hover) 88%, transparent);
+      border-color: color-mix(in srgb, var(--app-button-primary-bg-hover) 70%, var(--app-border-strong));
+    }
   }
 
   .app-glass-button-primary:active {
@@ -1709,11 +1811,6 @@
   .app-glass-button-primary:disabled {
     opacity: 0.5;
     pointer-events: none;
-  }
-
-  .app-glass-button-primary:focus-visible {
-    outline: var(--app-focus-outline);
-    outline-offset: var(--app-focus-offset);
   }
 
   /* Neutral glass counterpart of the secondary button, sharing the filter pill surface */
@@ -1729,9 +1826,11 @@
     backdrop-filter: blur(20px) saturate(160%);
   }
 
-  .app-glass-button:hover {
+  .app-glass-button:hover,
+  .app-glass-button:focus-visible {
     color: var(--app-text);
     background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
+    border-color: var(--app-hover-border);
   }
 
   .app-glass-button:active {
@@ -1741,12 +1840,6 @@
   .app-glass-button:disabled {
     opacity: 0.5;
     pointer-events: none;
-  }
-
-  .app-glass-button:focus-visible {
-    outline: none;
-    border-color: var(--app-focus-ring);
-    box-shadow: var(--app-focus-border);
   }
 
   /* Square icon-button member of the glass family for the floating mobile menu toggle, sharing the
@@ -1761,18 +1854,14 @@
     backdrop-filter: blur(20px) saturate(160%);
   }
 
-  .app-glass-icon-button:hover {
+  .app-glass-icon-button:hover,
+  .app-glass-icon-button:focus-visible {
     background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
+    border-color: var(--app-hover-border);
   }
 
   .app-glass-icon-button:active {
     transform: translateY(1px);
-  }
-
-  .app-glass-icon-button:focus-visible {
-    outline: none;
-    border-color: var(--app-focus-ring);
-    box-shadow: var(--app-focus-border);
   }
 
   .app-primary-button-loading {
@@ -1792,6 +1881,19 @@
     @apply h-8 p-0.5;
   }
 
+  /* A compact control clips its sliding indicator and has only 2px of padding, room for the ring but
+     not its gap, so the ring sits against the option's edge. Inside the edge it would fall on the
+     selected option's tint, which it doesn't clear 3:1 against in the light theme */
+  .app-segmented-control-compact .app-segmented-option:focus-visible {
+    outline-offset: 0;
+  }
+
+  /* The options fill the room inside the padding, which is 2px shorter than the compact option's own
+     height, so the ring against their edge is not cut off below them */
+  .app-segmented-control-compact .app-segmented-option {
+    height: 100%;
+  }
+
   /* A rule rather than a utility, so a finished import's record below can show the choice at full
      strength instead */
   .app-segmented-control-disabled {
@@ -1808,14 +1910,10 @@
     font-size: 0.71875rem;
   }
 
-  .app-segmented-option:hover {
+  .app-segmented-option:hover,
+  .app-segmented-option:focus-visible {
     color: var(--app-text);
     background: var(--app-hover-soft);
-  }
-
-  .app-segmented-option:focus-visible {
-    outline: var(--app-focus-outline);
-    outline-offset: var(--app-focus-offset);
   }
 
   .app-segmented-option-active {
@@ -1823,17 +1921,22 @@
     color: var(--app-accent);
   }
 
+  .app-segmented-option-active:focus-visible {
+    color: var(--app-accent-on-hover-fill);
+    background: var(--app-accent-hover-fill);
+  }
+
+  @media (hover: hover) {
+    .app-segmented-option-active:hover {
+      color: var(--app-accent-on-hover-fill);
+      background: var(--app-accent-hover-fill);
+    }
+  }
+
   .app-time-selector {
     position: relative;
     overflow: hidden;
     isolation: isolate;
-  }
-
-  /* The selector clips its sliding indicator and has only 2px of padding, room for the ring but not
-     its gap, so the ring sits against the option's edge. Inside the edge it would fall on the
-     selected option's tint, which it doesn't clear 3:1 against in the light theme */
-  .app-time-selector .app-segmented-option:focus-visible {
-    outline-offset: 0;
   }
 
   .app-time-selector-indicator {
@@ -1855,7 +1958,8 @@
     transition: color 180ms ease, background-color 180ms ease, transform 180ms ease;
   }
 
-  .app-time-selector .app-segmented-option:hover {
+  .app-time-selector .app-segmented-option:hover,
+  .app-time-selector .app-segmented-option:focus-visible {
     color: var(--app-text);
     background: var(--app-accent-soft);
   }
@@ -1864,10 +1968,22 @@
     transform: scale(0.9);
   }
 
-  .app-time-selector .app-segmented-option-active,
-  .app-time-selector .app-segmented-option-active:hover {
+  .app-time-selector .app-segmented-option-active {
     color: var(--app-accent);
     background: transparent;
+  }
+
+  /* Over the indicator that already tints the selected option, so the two tints together show */
+  .app-time-selector .app-segmented-option-active:focus-visible {
+    color: var(--app-accent-on-hover-fill);
+    background: var(--app-accent-hover-fill);
+  }
+
+  @media (hover: hover) {
+    .app-time-selector .app-segmented-option-active:not(:disabled):hover {
+      color: var(--app-accent-on-hover-fill);
+      background: var(--app-accent-hover-fill);
+    }
   }
 
   .app-navigation-theme-toggle-indicator {
@@ -1894,7 +2010,8 @@
     transition: color 180ms ease, background-color 180ms ease, transform 180ms ease, opacity 200ms ease, flex-grow 280ms ease;
   }
 
-  .app-navigation-theme-toggle .app-segmented-option:hover {
+  .app-navigation-theme-toggle .app-segmented-option:hover,
+  .app-navigation-theme-toggle .app-segmented-option:focus-visible {
     color: var(--app-text);
     background: var(--app-accent-soft);
   }
@@ -1903,10 +2020,21 @@
     transform: scale(0.96);
   }
 
-  .app-navigation-theme-toggle .app-segmented-option-active,
-  .app-navigation-theme-toggle .app-segmented-option-active:hover {
+  .app-navigation-theme-toggle .app-segmented-option-active {
     color: var(--app-accent);
     background: transparent;
+  }
+
+  .app-navigation-theme-toggle .app-segmented-option-active:focus-visible {
+    color: var(--app-accent-on-hover-fill);
+    background: var(--app-accent-hover-fill);
+  }
+
+  @media (hover: hover) {
+    .app-navigation-theme-toggle .app-segmented-option-active:not(:disabled):hover {
+      color: var(--app-accent-on-hover-fill);
+      background: var(--app-accent-hover-fill);
+    }
   }
 
   /* The options share the width equally, as the highlight that slides between them assumes, and the control
@@ -1928,7 +2056,8 @@
     transition: color 180ms ease, background-color 180ms ease, transform 180ms ease;
   }
 
-  .app-balance-chart-mode-selector .app-segmented-option:hover {
+  .app-balance-chart-mode-selector .app-segmented-option:hover,
+  .app-balance-chart-mode-selector .app-segmented-option:focus-visible {
     color: var(--app-text);
     background: var(--app-accent-soft);
   }
@@ -1937,10 +2066,21 @@
     transform: scale(0.9);
   }
 
-  .app-balance-chart-mode-selector .app-segmented-option-active,
-  .app-balance-chart-mode-selector .app-segmented-option-active:hover {
+  .app-balance-chart-mode-selector .app-segmented-option-active {
     color: var(--app-accent);
     background: transparent;
+  }
+
+  .app-balance-chart-mode-selector .app-segmented-option-active:focus-visible {
+    color: var(--app-accent-on-hover-fill);
+    background: var(--app-accent-hover-fill);
+  }
+
+  @media (hover: hover) {
+    .app-balance-chart-mode-selector .app-segmented-option-active:not(:disabled):hover {
+      color: var(--app-accent-on-hover-fill);
+      background: var(--app-accent-hover-fill);
+    }
   }
 
   .app-create-transaction-pill-selector-indicator {
@@ -1957,7 +2097,8 @@
     transition: color 180ms ease, background-color 180ms ease, transform 180ms ease;
   }
 
-  .app-create-transaction-pill-selector .app-segmented-option:hover {
+  .app-create-transaction-pill-selector .app-segmented-option:hover,
+  .app-create-transaction-pill-selector .app-segmented-option:focus-visible {
     color: var(--app-text);
     background: var(--app-accent-soft);
   }
@@ -1966,10 +2107,21 @@
     transform: scale(0.96);
   }
 
-  .app-create-transaction-pill-selector .app-segmented-option-active,
-  .app-create-transaction-pill-selector .app-segmented-option-active:hover {
+  .app-create-transaction-pill-selector .app-segmented-option-active {
     color: var(--app-accent);
     background: transparent;
+  }
+
+  .app-create-transaction-pill-selector .app-segmented-option-active:focus-visible {
+    color: var(--app-accent-on-hover-fill);
+    background: var(--app-accent-hover-fill);
+  }
+
+  @media (hover: hover) {
+    .app-create-transaction-pill-selector .app-segmented-option-active:not(:disabled):hover {
+      color: var(--app-accent-on-hover-fill);
+      background: var(--app-accent-hover-fill);
+    }
   }
 
   .app-create-transaction-pill-selector .app-segmented-option:disabled:hover,
@@ -2011,7 +2163,8 @@
     border: 1px solid transparent;
   }
 
-  .app-icon-button:hover {
+  .app-icon-button:hover,
+  .app-icon-button:focus-visible {
     color: var(--app-text);
     background: var(--app-hover-soft);
     border-color: var(--app-border);
@@ -2021,16 +2174,11 @@
     transform: translateY(1px);
   }
 
-  .app-icon-button:focus-visible {
-    outline: var(--app-focus-outline);
-    outline-offset: var(--app-focus-offset);
-  }
-
   /* The Imports page's upload card, which turns the shared hover colour under the pointer, as the remove button
      on a staged file does, and sits down a pixel when pressed, as the buttons beside it do. Its rest fill is set
      on the element as a colour, which outranks this rule, so the hover colour is marked important. Fill, border
-     and press ease together. Keyboard focus is the base ring, since its border shows only for a refusal or a
-     file being dragged over it. A card that cannot take a file keeps its rest fill and its cursor */
+     and press ease together. Keyboard focus shows the same hover colour and the base ring, since its border
+     shows only for a refusal or a file being dragged over it. A card that cannot take a file keeps its rest fill and its cursor */
   .app-upload-card {
     transition:
       background-color 150ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -2038,7 +2186,8 @@
       transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  .app-upload-card:not([aria-disabled="true"]):hover {
+  .app-upload-card:not([aria-disabled="true"]):hover,
+  .app-upload-card:not([aria-disabled="true"]):focus-visible {
     background-color: var(--app-hover-soft) !important;
   }
 
@@ -2059,11 +2208,62 @@
   }
 
   /* A transaction row is focused through the button inside it, or its checkbox while selecting, and
-     neither fills the row, so the ring goes around the row itself. It is drawn inside the row's edges,
-     where the next row and the list's own edge cannot cover it */
+     neither fills the row, so the ring goes around the row itself, drawn inside the row's edges where
+     the next row and the list's own edge cannot cover it. The row also shows the hover look while its
+     button is focused */
   .app-transaction-row:has(:focus-visible) {
     outline: var(--app-focus-outline);
     outline-offset: calc(var(--app-focus-offset) * -1);
+  }
+
+  .app-transaction-row:has(button:focus-visible) {
+    background: var(--app-hover-soft);
+  }
+
+  /* A toggle switch (Switch.tsx). Its track has no border, so keyboard focus draws the shared ring around
+     the whole switch and the track also takes the stronger fill it has under the pointer anywhere on the label row around it, since
+     the whole row toggles it. The two fills
+     are properties so each hover rule changes both states at once: the off track is drawn toward the
+     text colour, and the on track too, which darkens it in the light theme and brightens it in the dark
+     one, as the filled buttons do */
+  .app-switch {
+    @apply relative inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5;
+  }
+
+  .app-switch:has(> .app-switch-input:focus-visible) {
+    outline: var(--app-focus-outline);
+    outline-offset: var(--app-focus-offset);
+  }
+
+  .app-switch-track {
+    @apply absolute inset-0 rounded-full transition-colors;
+    --app-switch-off: var(--app-border-strong);
+    --app-switch-on: var(--app-accent);
+    background: var(--app-switch-off);
+  }
+
+  .app-switch-input:checked + .app-switch-track {
+    background: var(--app-switch-on);
+  }
+
+  .app-switch-input:focus-visible + .app-switch-track {
+    --app-switch-off: color-mix(in srgb, var(--app-border-strong) 70%, var(--app-text));
+    --app-switch-on: color-mix(in srgb, var(--app-accent) 60%, var(--app-text));
+  }
+
+  @media (hover: hover) {
+    label:hover .app-switch-input:not(:disabled) + .app-switch-track {
+      --app-switch-off: color-mix(in srgb, var(--app-border-strong) 70%, var(--app-text));
+      --app-switch-on: color-mix(in srgb, var(--app-accent) 60%, var(--app-text));
+    }
+  }
+
+  .app-switch-thumb {
+    @apply relative h-5 w-5 rounded-full bg-white shadow-sm transition-transform;
+  }
+
+  .app-switch-input:checked ~ .app-switch-thumb {
+    transform: translateX(1.25rem);
   }
 
   .app-spinner {
@@ -2475,6 +2675,34 @@
       left: 0.5rem;
       right: 0.5rem;
       margin: 0;
+    }
+  }
+}
+
+/*
+  An underlined text button has no fill or border to change, and its colour is often set on the element,
+  so under the pointer or on keyboard focus its underline thickens, as a link's does in a browser. These
+  rules live in the utilities layer because the buttons carry transition utilities, which Tailwind orders
+  after components, and a components-layer transition would lose to them
+*/
+@layer utilities {
+  button.underline {
+    text-decoration-thickness: 1px;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    button.underline {
+      transition: text-decoration-thickness 150ms ease, color 200ms ease;
+    }
+  }
+
+  button.underline:focus-visible {
+    text-decoration-thickness: 2px;
+  }
+
+  @media (hover: hover) {
+    button.underline:hover {
+      text-decoration-thickness: 2px;
     }
   }
 }

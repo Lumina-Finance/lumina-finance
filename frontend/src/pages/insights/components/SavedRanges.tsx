@@ -113,7 +113,7 @@ export function SavedRanges({
                 <div className="flex items-center gap-1 pb-1">
                   <button
                     type="button"
-                    className="app-card app-field-focus-visible flex min-w-0 flex-1 items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-left text-sm"
+                    className="app-card flex min-w-0 flex-1 items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-left text-sm transition-colors hover:bg-[var(--app-accent-soft)]"
                     onClick={() => onApplySavedRange(range)}
                     title={`Apply ${range.name}`}
                   >

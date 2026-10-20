@@ -111,7 +111,7 @@ function CollapsedConceptGroup({
     <div className="mt-3 border-l-2 pl-3" style={{ borderColor: railColour }}>
       <button
         type="button"
-        className="flex w-full cursor-pointer items-center justify-between gap-2 text-left"
+        className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-md text-left transition-colors hover:bg-[var(--app-hover-soft)] motion-reduce:transition-none"
         onClick={() => setExpanded((current) => !current)}
         aria-expanded={expanded}
         aria-label={expanded ? `Collapse ${toggleLabel}` : `Expand ${toggleLabel}`}

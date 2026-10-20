@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { EyeOff } from 'lucide-react'
+import { Switch } from '@/components/forms/Switch'
 import { useRevealWhenGrown } from '@/pages/accounts/detail/hooks/useRevealWhenGrown'
 import {
   ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON,
@@ -54,30 +55,13 @@ export function AccountArchiveSection({
             Move this account out of active lists while keeping its history.
           </span>
         </span>
-        <span className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors">
-          <input
-            id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archive}
-            type="checkbox"
-            role="switch"
-            checked={isArchived}
-            disabled={isArchiveBlocked}
-            aria-describedby={isArchiveBlocked ? EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archiveBlockedReason : undefined}
-            onChange={(event) => {
-              onToggle(event.target.checked)
-            }}
-            className="peer sr-only"
-          />
-          <span
-            className="absolute inset-0 rounded-full transition-colors peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2"
-            style={{ background: isArchived ? 'var(--app-accent)' : 'var(--app-border-strong)' }}
-            aria-hidden
-          />
-          <span
-            className="relative h-5 w-5 rounded-full bg-white shadow-sm transition-transform"
-            style={{ transform: isArchived ? 'translateX(1.25rem)' : 'translateX(0)' }}
-            aria-hidden
-          />
-        </span>
+        <Switch
+          id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archive}
+          checked={isArchived}
+          disabled={isArchiveBlocked}
+          describedBy={isArchiveBlocked ? EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archiveBlockedReason : undefined}
+          onChange={onToggle}
+        />
       </label>
 
       {isArchiveBlocked && (

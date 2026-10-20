@@ -194,7 +194,7 @@ export function ImportDateRangeFields({
                           <button
                             type="button"
                             onClick={() => onChange('from', startSuggestion, false)}
-                            className="text-right text-xs font-medium underline underline-offset-2 text-[var(--app-text-muted)] transition-colors duration-200 ease-out hover:text-[var(--app-accent)] motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                            className="text-right text-xs font-medium underline underline-offset-2 text-[var(--app-text-muted)] transition-colors duration-200 ease-out hover:text-[var(--app-accent)] motion-reduce:transition-none"
                           >
                             {IMPORT_LATEST_START_LABEL}
                           </button>

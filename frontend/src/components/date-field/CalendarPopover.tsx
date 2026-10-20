@@ -313,7 +313,8 @@ export default function CalendarPopover({ open, anchorRef, value, onSelect, onCl
             ))}
           </div>
 
-          <div className="relative overflow-hidden">
+          {/* The box clips the sliding months, so its padding gives the focus ring on a day at its edge room to show, and the negative margin keeps the grid where it was */}
+          <div className="relative -m-1 overflow-hidden p-1">
             <AnimatePresence initial={false} mode="popLayout" custom={direction}>
               <motion.div
                 key={monthKey}

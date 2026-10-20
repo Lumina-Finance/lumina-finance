@@ -55,7 +55,7 @@ export default function TransactionModalPillSelector<T extends string>({
             disabled={disabled}
             onClick={() => onChange(option.value)}
             className={joinClassNames(
-              'app-segmented-option relative flex-1 bg-transparent text-sm',
+              'app-segmented-option relative flex-1 text-sm',
               compactOnMobile && 'whitespace-nowrap px-1 text-xs sm:px-2.5 sm:text-sm',
               active && 'app-segmented-option-active',
               disabled && 'cursor-not-allowed',
