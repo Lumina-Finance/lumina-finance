@@ -16,15 +16,6 @@ export type NetWorthSeriesPoint = {
   value: number
 }
 
-export type SavingsRateSeriesPoint = {
-  monthLabel: string
-  fullLabel: string
-  rate: number | null
-  income: number
-  expenses: number
-  isCurrent: boolean
-}
-
 export type SpendingComparisonSeriesPoint = {
   label: string
   current: number | null

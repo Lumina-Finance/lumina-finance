@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { buildCategoryTransactionsUrl } from '@/pages/transactions/utils/filterNavigation'
+import { buildCategoryTransactionsUrl } from '@/components/transactions/utils/filterNavigation'
 import {
   type InsightsBreakdownCategoryKind,
   useDeleteSavedInsightsRange,

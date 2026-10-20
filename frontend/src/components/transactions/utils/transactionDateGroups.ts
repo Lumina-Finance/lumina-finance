@@ -1,0 +1,39 @@
+import type { Transaction } from '@/api/transactions'
+import type { TransactionDateGroup, TransactionListAccount } from '@/components/transactions/types/transactionList'
+import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
+
+/**
+ * Groups already-sorted transactions under browser-local calendar date labels
+ */
+export function groupTransactionsByDate(transactions: Transaction[]): TransactionDateGroup[] {
+  const groups: TransactionDateGroup[] = []
+  let currentLabel = ''
+
+  // Transactions arrive sorted by date, so one pass preserves backend ordering without building an intermediate map
+  for (const transaction of transactions) {
+    // A date the calendar does not have keeps its raw value as the heading, so the transaction
+    // still appears in the list with its amount rather than disappearing behind a broken label
+    const dt = parseYmd(transaction.dt)
+    const label = dt ? formatDate(dt, DATE_FORMATS.longDate) : transaction.dt
+    if (label !== currentLabel) {
+      groups.push({ dateLabel: label, transactions: [] })
+      currentLabel = label
+    }
+    groups[groups.length - 1].transactions.push(transaction)
+  }
+
+  return groups
+}
+
+/**
+ * Sums the displayed amount for one date group using account currency on account-scoped lists and base currency otherwise
+ */
+export function getTransactionDateGroupTotal(
+  transactions: Transaction[],
+  fixedAccount?: TransactionListAccount,
+) {
+  return transactions.reduce((sum, transaction) => {
+    const displayAmount = fixedAccount ? transaction.account_amount : transaction.base_currency_amount
+    return sum + (displayAmount ?? 0)
+  }, 0)
+}

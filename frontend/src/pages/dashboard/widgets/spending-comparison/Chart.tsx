@@ -15,7 +15,7 @@ import {
   getChartDataSignature,
   useChartEntranceAnimation,
 } from '@/components/charts/useChartEntranceAnimation'
-import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/pages/dashboard/constants/chart'
+import { CHART_X_AXIS_TICK_FONT_SIZE } from '@/components/charts/constants'
 import type { SpendingComparisonSeriesPoint } from '@/pages/dashboard/types/dashboard'
 import {
   getRechartsTooltipPoint,
@@ -67,7 +67,7 @@ function SpendingComparisonXAxisTick({
       dy={12}
       textAnchor={textAnchor}
       fill="var(--app-text-subtle)"
-      fontSize={DASHBOARD_X_AXIS_TICK_FONT_SIZE}
+      fontSize={CHART_X_AXIS_TICK_FONT_SIZE}
     >
       {value}
     </text>

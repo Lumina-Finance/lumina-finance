@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { LoaderCircle } from 'lucide-react'
 import type { TransactionsOverview } from '@/api/transactions'
-import TransactionFilterLoadingOverlay from '@/pages/transactions/components/FilterLoadingOverlay'
+import TransactionFilterLoadingOverlay from '@/components/transactions/FilterLoadingOverlay'
 import { useMinimumLoadingDuration } from '@/pages/transactions/hooks/useMinimumLoadingDuration'
 import DailyCashFlowChart, {
   type DailyCashFlowChartMode,

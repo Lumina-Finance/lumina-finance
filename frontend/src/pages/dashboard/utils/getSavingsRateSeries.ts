@@ -1,5 +1,5 @@
 import type { SavingsRateWidgetResponse } from '@/api/dashboard'
-import type { SavingsRateSeriesPoint } from '@/pages/dashboard/types/dashboard'
+import type { SavingsRateSeriesPoint } from '@/components/charts/types'
 import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
 
 /**

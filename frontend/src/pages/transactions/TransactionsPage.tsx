@@ -11,11 +11,11 @@ import {
   useTransactionsOverview,
   type Transaction,
 } from '@/api/transactions'
-import TransactionListSection from '@/pages/transactions/components/ListSection'
-import CreateTransactionModal from '@/pages/transactions/components/transaction-modal/Modal'
+import TransactionListSection from '@/components/transactions/ListSection'
+import CreateTransactionModal from '@/components/transactions/transaction-modal/Modal'
 import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
 import TransactionsTopBand from '@/pages/transactions/components/TopBand'
-import { toTransactionListAccount } from '@/pages/transactions/types/transactionList'
+import { toTransactionListAccount } from '@/components/transactions/types/transactionList'
 import { useTransactionNavigationFilters } from '@/pages/transactions/hooks/useTransactionNavigationFilters'
 import { getCurrentMonthOverviewRange } from '@/pages/transactions/utils/date'
 import { formatDateRangeLabel } from '@/utils/date'

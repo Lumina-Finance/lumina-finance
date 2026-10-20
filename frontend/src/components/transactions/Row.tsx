@@ -5,15 +5,15 @@ import type { Institution } from '@/api/institutions'
 import type { Category } from '@/api/categories'
 import type { Transaction } from '@/api/transactions'
 import { Checkbox } from '@/components/forms/Checkbox'
-import { MAX_BULK_EDIT_TRANSACTIONS } from '@/pages/transactions/components/bulk-edit/constants'
-import type { RowSelectionMark } from '@/pages/transactions/components/bulk-edit/selection'
+import { MAX_BULK_EDIT_TRANSACTIONS } from '@/components/transactions/bulk-edit/constants'
+import type { RowSelectionMark } from '@/components/transactions/bulk-edit/selection'
 import {
   REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
   TRANSACTION_CHECKBOX_RAIL,
   TRANSACTION_CHECKBOX_RAIL_DURATION_S,
   TRANSACTION_CHECKBOX_RAIL_WIDTH,
   TRANSACTION_ROW_SCROLL_MARGIN,
-} from '@/pages/transactions/constants/transactionList'
+} from '@/components/transactions/constants/transactionList'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { FADED_ROW_COLOURS, FadedRowsContext } from '@/contexts/FadedRowsContext'
 import { signTransactionAmount } from '@/utils/signedTransactionAmount'

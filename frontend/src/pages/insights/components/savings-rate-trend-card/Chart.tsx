@@ -18,8 +18,8 @@ import {
   getChartDataSignature,
   useChartEntranceAnimation,
 } from '@/components/charts/useChartEntranceAnimation'
-import { SavingsCurrentBoundary } from '@/pages/dashboard/components/SavingsCurrentBoundary'
-import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/pages/dashboard/constants/chart'
+import { CHART_X_AXIS_TICK_FONT_SIZE } from '@/components/charts/constants'
+import { SavingsCurrentBoundary } from '@/components/charts/SavingsCurrentBoundary'
 import type { SavingsRateHistoryPoint } from '@/pages/insights/types/savingsRate'
 import {
   getSavingsRateAxisConfig,
@@ -245,7 +245,7 @@ export function SavingsRateChart({
                 tickLine={false}
                 interval="preserveStartEnd"
                 minTickGap={28}
-                tick={{ fill: 'var(--app-text-subtle)', fontSize: DASHBOARD_X_AXIS_TICK_FONT_SIZE }}
+                tick={{ fill: 'var(--app-text-subtle)', fontSize: CHART_X_AXIS_TICK_FONT_SIZE }}
                 tickFormatter={(value) => tickLabels.get(String(value)) ?? String(value)}
                 tickMargin={4}
               />

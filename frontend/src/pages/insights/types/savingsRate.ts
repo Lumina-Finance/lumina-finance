@@ -1,4 +1,4 @@
-import type { SavingsRateSeriesPoint } from '@/pages/dashboard/types/dashboard'
+import type { SavingsRateSeriesPoint } from '@/components/charts/types'
 
 export type SavingsRateHistoryPoint = SavingsRateSeriesPoint & {
   monthKey: string

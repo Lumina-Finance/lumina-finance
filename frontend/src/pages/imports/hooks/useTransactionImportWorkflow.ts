@@ -34,7 +34,6 @@ import {
   getImportedTags,
   getImportAccountRowState,
   getImportHeaders,
-  isImportableAccount,
   getStatedCurrencyByAccountSource,
   getColumnValues,
   countImportRowsOutsideDateRange,
@@ -91,6 +90,7 @@ import {
   type StagingCandidate,
   type CsvImportAnswers,
 } from '@/pages/imports/utils'
+import { isImportableAccount } from '@/utils/importableAccount'
 import { waitForMilliseconds } from '@/utils/timing'
 import { useImportAccountCreateState } from './useImportAccountCreateState'
 import { useImportMerchantMatches } from './useImportMerchantMatches'

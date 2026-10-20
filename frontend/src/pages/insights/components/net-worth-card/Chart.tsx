@@ -25,8 +25,8 @@ import {
   getChartDataSignature,
   useChartEntranceAnimation,
 } from '@/components/charts/useChartEntranceAnimation'
+import { CHART_X_AXIS_TICK_FONT_SIZE } from '@/components/charts/constants'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
-import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/pages/dashboard/constants/chart'
 import {
   NET_WORTH_AXIS_TICK_COUNT,
   formatNetWorthAxisDate,
@@ -138,7 +138,7 @@ function NetWorthXAxisTick({
       dy={12}
       textAnchor="middle"
       fill="var(--app-text-subtle)"
-      fontSize={DASHBOARD_X_AXIS_TICK_FONT_SIZE}
+      fontSize={CHART_X_AXIS_TICK_FONT_SIZE}
     >
       {dateLabelsByMs.get(value) ?? formatNetWorthAxisDate(value)}
     </text>
