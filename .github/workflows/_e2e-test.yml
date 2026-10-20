@@ -44,70 +44,29 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Download the native image
-        uses: actions/download-artifact@v8
+      - name: Prepare the image and env file
+        uses: ./.github/actions/e2e-image
         with:
-          name: e2e-image-${{ matrix.target.platform }}
-          path: ${{ runner.temp }}
-
-      - name: Load the image
-        run: docker load --input "${RUNNER_TEMP}/lumina-image.tar"
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v4
-        with:
-          username: ${{ vars.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      # APP_URL gives passkeys their domain, as an operator's deploy does, so the passkey flows run
-      - name: Write the operator env file
-        run: |
-          cat > docker/.env <<EOF
-          DB_HOST=${DB_HOST}
-          DB_PORT=${DB_PORT}
-          DB_NAME=${DB_NAME}
-          DB_USER=${DB_USER}
-          DB_PASSWORD=${DB_PASSWORD}
-          APP_URL=http://localhost:8080
-          EOF
+          platform: ${{ matrix.target.platform }}
+          app-url: http://localhost:8080
+          registry-username: ${{ vars.DOCKERHUB_USERNAME }}
+          registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Start the stack
         run: docker compose -f docker/compose.yml up -d
 
       # Overlap E2E setup with application migrations and seeding
-      - name: Set up Node
-        uses: actions/setup-node@v7
+      - name: Set up the browser suite
+        uses: ./.github/actions/e2e-browser
         with:
-          node-version: "26.10"
-          cache: npm
-          cache-dependency-path: e2e/package-lock.json
+          cache-dependency-paths: e2e/package-lock.json
+          typecheck: "true"
 
-      - name: Install E2E dependencies
-        working-directory: e2e
-        run: npm ci --ignore-scripts
-
-      # E2E tests have a separate TypeScript project from the frontend
-      - name: Type-check E2E tests
-        working-directory: e2e
-        run: npm run typecheck
-
-      - name: Install Chromium
-        working-directory: e2e
-        run: npx playwright install --with-deps chromium
-
-      - name: Ping the health endpoint
-        run: |
-          for attempt in $(seq 1 30); do
-            if curl -fsS http://localhost:8080/api/health | grep -qE '"status":\s*"ok"'; then
-              echo "Health check passed"
-              exit 0
-            fi
-            echo "Attempt ${attempt}: app not ready yet"
-            sleep 5
-          done
-          echo "Health check never succeeded, dumping logs"
-          docker compose -f docker/compose.yml logs
-          exit 1
+      - name: Wait for the stack
+        uses: ./.github/actions/e2e-health
+        with:
+          health-url: http://localhost:8080/api/health
+          compose-files: -f docker/compose.yml
 
       - name: Run E2E tests
         id: e2e-tests
@@ -133,3 +92,99 @@ jobs:
       - name: Tear down the stack
         if: always()
         run: docker compose -f docker/compose.yml down -v
+
+  # The packaged image serves the app and the API from one origin, so the tests that need two run
+  # here. The frontend is built a second time to reach the API at another address of the same stack,
+  # and mounted over the image's. This job needs only the image, so it runs beside the matrix above
+  cross-origin:
+    name: E2E tests (cross-origin)
+    runs-on: ubuntu-latest
+
+    env:
+      APP_IMAGE_TAG: ci
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: lumina
+      DB_USER: lumina
+      DB_PASSWORD: lumina-smoke
+      # The same stack answers on two ports, so the API is another origin from the app. It stays on the
+      # same host because the refresh cookie is SameSite=Lax, which a request from localhost to
+      # 127.0.0.1 would not carry, and the session would never start
+      APP_ORIGIN: http://localhost:8080
+      API_URL: http://localhost:8081/api
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      # APP_URL is the origin the API allows, so the app on port 8080 may call it on port 8081
+      - name: Prepare the image and env file
+        uses: ./.github/actions/e2e-image
+        with:
+          platform: amd64
+          app-url: ${{ env.APP_ORIGIN }}
+          registry-username: ${{ vars.DOCKERHUB_USERNAME }}
+          registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Set up before the frontend build, which needs Node too. The stack starts after that build,
+      # since it mounts the result
+      - name: Set up the browser suite
+        uses: ./.github/actions/e2e-browser
+        with:
+          cache-dependency-paths: |
+            frontend/package-lock.json
+            e2e/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build the frontend for the second origin
+        working-directory: frontend
+        env:
+          VITE_API_URL: ${{ env.API_URL }}
+        run: npm run build:app
+
+      - name: Mount that build and open the second port
+        run: |
+          cat > docker/compose.cross-origin.yml <<EOF
+          services:
+            app:
+              ports:
+                - "8081:80"
+              volumes:
+                - ${GITHUB_WORKSPACE}/frontend/dist:/srv/lumina/frontend:ro
+          EOF
+
+      - name: Start the stack
+        run: docker compose -f docker/compose.yml -f docker/compose.cross-origin.yml up -d
+
+      - name: Wait for the stack
+        uses: ./.github/actions/e2e-health
+        with:
+          health-url: ${{ env.API_URL }}/health
+          compose-files: -f docker/compose.yml -f docker/compose.cross-origin.yml
+
+      - name: Run E2E tests
+        id: e2e-tests
+        working-directory: e2e
+        env:
+          E2E_BASE_URL: ${{ env.APP_ORIGIN }}
+          E2E_API_BASE_URL: ${{ env.API_URL }}
+        run: npx playwright test --project=cross-origin
+
+      - name: Dump container logs
+        if: failure()
+        run: docker compose -f docker/compose.yml -f docker/compose.cross-origin.yml logs || true
+
+      - name: Keep the report from a failed run
+        if: ${{ failure() && steps.e2e-tests.outcome == 'failure' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-tests-cross-origin
+          path: e2e/playwright-report
+          retention-days: 7
+
+      - name: Tear down the stack
+        if: always()
+        run: docker compose -f docker/compose.yml -f docker/compose.cross-origin.yml down -v

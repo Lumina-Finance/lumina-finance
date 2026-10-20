@@ -1,0 +1,33 @@
+name: Wait for the stack
+description: Pings the API health endpoint until it answers ok, and dumps the stack's logs if it never does
+
+inputs:
+  health-url:
+    description: Address of the API's health endpoint
+    required: true
+  compose-files:
+    description: The -f arguments naming the stack's Compose files
+    required: true
+
+runs:
+  using: composite
+
+  steps:
+    - name: Ping the health endpoint
+      shell: bash
+      env:
+        HEALTH_URL: ${{ inputs.health-url }}
+        COMPOSE_FILES: ${{ inputs.compose-files }}
+      run: |
+        for attempt in $(seq 1 30); do
+          if curl -fsS "${HEALTH_URL}" | grep -qE '"status":\s*"ok"'; then
+            echo "Health check passed"
+            exit 0
+          fi
+          echo "Attempt ${attempt}: app not ready yet"
+          sleep 5
+        done
+        echo "Health check never succeeded, dumping logs"
+        # shellcheck disable=SC2086
+        docker compose ${COMPOSE_FILES} logs
+        exit 1

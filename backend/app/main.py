@@ -30,6 +30,7 @@ from app.routes.tax_advantaged_categories import router as tax_advantaged_catego
 from app.routes.transactions import router as transaction_router
 from app.routes.users import router as user_router
 from app.services.auth.oidc_providers import sync_oidc_providers
+from app.services.auth.step_up import ATTEMPTS_REMAINING_HEADER
 from app.services.email import build_email_sender, set_email_sender
 from app.services.maintenance.expired_records import prune_expired_records_on_schedule
 
@@ -97,8 +98,9 @@ if ALLOWED_ORIGINS:
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Authorization", "Content-Type"],
-        # The client reads the bearer challenge to tell an expired-token 401 from a wrong-credential 401
-        expose_headers=["WWW-Authenticate"],
+        # The client reads the bearer challenge to tell an expired-token 401 from a wrong-credential 401, and
+        # the attempts count to warn before the lockout. A browser on another origin sees only what is listed
+        expose_headers=["WWW-Authenticate", ATTEMPTS_REMAINING_HEADER],
     )
 
 app.include_router(auth_router)

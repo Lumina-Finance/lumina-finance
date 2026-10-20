@@ -1,0 +1,38 @@
+name: Set up the browser suite
+description: Installs Node, the E2E dependencies and Chromium
+
+inputs:
+  cache-dependency-paths:
+    description: Lockfiles the npm cache is keyed on, one per line
+    required: true
+  typecheck:
+    description: Type-check the E2E tests after installing their dependencies, true or false
+    default: "false"
+
+runs:
+  using: composite
+
+  steps:
+    - name: Set up Node
+      uses: actions/setup-node@v7
+      with:
+        node-version: "26.10"
+        cache: npm
+        cache-dependency-path: ${{ inputs.cache-dependency-paths }}
+
+    - name: Install E2E dependencies
+      shell: bash
+      working-directory: e2e
+      run: npm ci --ignore-scripts
+
+    # E2E tests have a separate TypeScript project from the frontend
+    - name: Type-check E2E tests
+      if: ${{ inputs.typecheck == 'true' }}
+      shell: bash
+      working-directory: e2e
+      run: npm run typecheck
+
+    - name: Install Chromium
+      shell: bash
+      working-directory: e2e
+      run: npx playwright install --with-deps chromium

@@ -21,7 +21,7 @@ from app.services.auth.webauthn import is_passkey_registered, verify_passkey_sec
 
 # Carries how many step-up attempts remain before the shared lockout trips, so the client can warn the
 # user that another wrong entry locks the account and signs every session out
-_ATTEMPTS_REMAINING_HEADER = "X-Auth-Attempts-Remaining"
+ATTEMPTS_REMAINING_HEADER = "X-Auth-Attempts-Remaining"
 
 
 async def _reject_failed_step_up(db: AsyncSession, credential: PasswordCredential, detail: str) -> NoReturn:
@@ -42,7 +42,7 @@ async def _reject_failed_step_up(db: AsyncSession, credential: PasswordCredentia
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail=detail,
-        headers={_ATTEMPTS_REMAINING_HEADER: str(remaining)},
+        headers={ATTEMPTS_REMAINING_HEADER: str(remaining)},
     )
 
 
@@ -91,7 +91,7 @@ async def verify_step_up(
             # cannot lock the account
             if error.status_code == status.HTTP_401_UNAUTHORIZED:
                 remaining = await record_failed_attempt(db, credential)
-                error.headers = {**(error.headers or {}), _ATTEMPTS_REMAINING_HEADER: str(remaining)}
+                error.headers = {**(error.headers or {}), ATTEMPTS_REMAINING_HEADER: str(remaining)}
             raise
     elif code is not None:
         if not await is_user_totp_code_valid(db, user.id, code):

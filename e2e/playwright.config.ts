@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test'
 import { availableParallelism } from 'node:os'
 
 import { TEST_TIMEZONE } from './support/api'
+import { ACROSS_ORIGINS_TESTS } from './support/origins'
 import { EVERY_SIZE_TESTS } from './support/sizes'
 import { BASE_URL } from './support/target'
 
@@ -72,6 +73,16 @@ export default defineConfig({
   projects: [
     {
       name: 'desktop',
+      grepInvert: ACROSS_ORIGINS_TESTS,
+      use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS.desktop },
+    },
+    {
+      // Desktop's size, for the tests desktop leaves out because they need the app and the API on
+      // different origins. Its CI job builds the frontend for that and is the only job to name
+      // this project. The development runner names none, so it runs this one too, on an instance
+      // whose frontend and API already have separate ports
+      name: 'cross-origin',
+      grep: ACROSS_ORIGINS_TESTS,
       use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS.desktop },
     },
     {
