@@ -17,55 +17,13 @@ from app.services.fx import (
 )
 from app.services.fx.frankfurter_provider import DEFAULT_FX_PROVIDER_RETRY_DELAY_SECONDS
 from app.services.fx.lookup_budget import FxLookupBudget, use_lookup_budget
-
-
-class _FakeProvider:
-    """Small test double for FxRateProvider
-
-    Converter tests should not hit Frankfurter or mock HTTP details. This fake lets
-    each test predeclare rates/errors and then assert how often the provider was used
-    """
-
-    def __init__(
-        self,
-        rates: dict[tuple[str, str, date], Decimal] | None = None,
-        rate_ranges: dict[tuple[str, str, date, date], dict[date, Decimal]] | None = None,
-        errors: dict[tuple[str, str, date], Exception] | None = None,
-        range_errors: dict[tuple[str, str, date, date], Exception] | None = None,
-    ):
-        # Success maps are keyed by the exact provider call arguments
-        self.rates = rates or {}
-        self.rate_ranges = rate_ranges or {}
-
-        # Error maps simulate missing provider data and endpoint failures
-        self.errors = errors or {}
-        self.range_errors = range_errors or {}
-
-        # Call logs make memoization/prefetch behavior explicit in assertions
-        self.calls: list[tuple[str, str, date]] = []
-        self.range_calls: list[tuple[str, str, date, date]] = []
-
-    async def get_rate(self, base: str, quote: str, rate_date: date) -> Decimal:
-        """Return a fake FX rate or raise the configured error."""
-        key = (base, quote, rate_date)
-        self.calls.append(key)
-        if key in self.errors:
-            raise self.errors[key]
-        return self.rates[key]
-
-    async def get_rates(self, base: str, quote: str, start_date: date, end_date: date) -> dict[date, Decimal]:
-        """Return fake FX rates for a date range or raise the configured error."""
-        key = (base, quote, start_date, end_date)
-        self.range_calls.append(key)
-        if key in self.range_errors:
-            raise self.range_errors[key]
-        return self.rate_ranges[key]
+from tests.services.fx.fakes import FakeProvider
 
 
 async def test_converter_reuses_rate_within_one_request():
     """Repeated pair/date conversions fetch the provider rate once."""
     rate_date = date(2026, 5, 30)
-    provider = _FakeProvider({("USD", "CAD", rate_date): Decimal("1.375")})
+    provider = FakeProvider({("USD", "CAD", rate_date): Decimal("1.375")})
     converter = FxConverter(
         provider=provider,
         currency_exponents={"USD": 2, "CAD": 2},
@@ -83,7 +41,7 @@ async def test_converter_reuses_rate_within_one_request():
 async def test_converter_reports_missing_pair_once():
     """Missing rates are memoized as failures and reported in detail."""
     rate_date = date(2026, 5, 30)
-    provider = _FakeProvider(errors={("ABC", "CAD", rate_date): FxRateNotFoundError()})
+    provider = FakeProvider(errors={("ABC", "CAD", rate_date): FxRateNotFoundError()})
     converter = FxConverter(
         provider=provider,
         currency_exponents={"ABC": 2, "CAD": 2},
@@ -104,7 +62,7 @@ async def test_converter_reports_missing_pair_once():
 async def test_converter_reports_provider_unavailable_when_all_fx_fails():
     """Provider failures mark the whole FX calculation unavailable when nothing converts."""
     rate_date = date(2026, 5, 30)
-    provider = _FakeProvider(errors={("USD", "CAD", rate_date): FxProviderUnavailableError()})
+    provider = FakeProvider(errors={("USD", "CAD", rate_date): FxProviderUnavailableError()})
     converter = FxConverter(
         provider=provider,
         currency_exponents={"USD": 2, "CAD": 2},
@@ -123,7 +81,7 @@ async def test_converter_prefetches_range_rates_once():
     """Prefetched date-window rates avoid per-day provider lookups."""
     start_date = date(2026, 5, 29)
     end_date = date(2026, 5, 30)
-    provider = _FakeProvider(
+    provider = FakeProvider(
         rate_ranges={
             ("USD", "CAD", start_date, end_date): {
                 start_date: Decimal("1.37"),
@@ -150,7 +108,7 @@ async def test_converter_reports_missing_prefetched_dates_when_used():
     """Missing dates from a prefetched range are reported only when conversion needs them."""
     start_date = date(2026, 5, 29)
     end_date = date(2026, 5, 30)
-    provider = _FakeProvider(
+    provider = FakeProvider(
         rate_ranges={
             ("USD", "CAD", start_date, end_date): {
                 end_date: Decimal("1.375"),
@@ -175,7 +133,7 @@ async def test_converter_reports_missing_prefetched_dates_when_used():
 async def test_converter_reports_a_rejected_lookup_as_a_missing_pair(lookup):
     """A request the provider refused leaves the amount out as a missing pair, never failing the panel"""
     rate_date = date(2026, 5, 30)
-    provider = _FakeProvider(
+    provider = FakeProvider(
         errors={("USD", "CAD", rate_date): FxRateRejectedError()},
         range_errors={("USD", "CAD", rate_date, rate_date): FxRateRejectedError()},
     )

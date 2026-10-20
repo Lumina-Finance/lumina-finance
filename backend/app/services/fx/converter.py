@@ -8,6 +8,7 @@ from app.schemas.fx import FxIssueReason, FxRateIssue, FxStatus
 from app.services.fx.errors import FxProviderUnavailableError, FxRateNotFoundError
 from app.services.fx.frankfurter_provider import FrankfurterProvider
 from app.services.fx.provider import FxRateProvider
+from app.services.fx.rate_cache import CachedFxRateProvider
 from app.utils.dates import get_dates_in_range
 from app.utils.money import convert_minor_units_between_currencies as convert_minor_units
 
@@ -36,7 +37,7 @@ class FxConverter:
             provider: Optional FX provider implementation
             currency_exponents: Minor-unit exponents keyed by currency code
         """
-        self.provider = provider or FrankfurterProvider()
+        self.provider = provider or CachedFxRateProvider(FrankfurterProvider())
         self.currency_exponents = currency_exponents or {}
         self.rates: dict[FxRateKey, Decimal] = {}
         self.failed_rates: dict[FxRateKey, FxIssueReason] = {}

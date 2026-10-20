@@ -1,5 +1,7 @@
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
+from datetime import datetime
+from types import ModuleType
 from uuid import uuid4
 
 import pytest
@@ -124,6 +126,24 @@ async def clean_tables():
         await seed_system_merchants(session)
         await session.commit()
     yield
+
+
+@pytest.fixture
+def freeze_now(monkeypatch) -> Callable[[ModuleType, datetime], None]:
+    """Return a function that makes one module's datetime.now answer a fixed moment
+
+    The module must import the datetime class by name, which is what the function replaces
+    """
+
+    def freeze(module: ModuleType, moment: datetime) -> None:
+        class FixedDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return moment.astimezone(tz) if tz else moment
+
+        monkeypatch.setattr(module, "datetime", FixedDateTime)
+
+    return freeze
 
 
 @pytest.fixture
