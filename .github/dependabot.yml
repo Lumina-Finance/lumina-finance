@@ -63,6 +63,8 @@ updates:
     directories:
       - /
       - /.github/actions/docker-build-setup
+      - /.github/actions/e2e-image
+      - /.github/actions/e2e-browser
     schedule:
       interval: weekly
       day: monday

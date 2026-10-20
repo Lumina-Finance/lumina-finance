@@ -1,0 +1,51 @@
+name: Prepare the E2E image
+description: Loads the image built for this architecture and writes the operator env file the stack reads. The job's env supplies the DB_* values
+
+inputs:
+  platform:
+    description: Architecture of the image artifact to load, amd64 or arm64
+    required: true
+  app-url:
+    description: Origin the API allows and builds links from, written as APP_URL
+    required: true
+  registry-username:
+    description: Docker Hub account name
+    required: true
+  registry-token:
+    description: Docker Hub access token
+    required: true
+
+runs:
+  using: composite
+
+  steps:
+    - name: Download the native image
+      uses: actions/download-artifact@v8
+      with:
+        name: e2e-image-${{ inputs.platform }}
+        path: ${{ runner.temp }}
+
+    - name: Load the image
+      shell: bash
+      run: docker load --input "${RUNNER_TEMP}/lumina-image.tar"
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v4
+      with:
+        username: ${{ inputs.registry-username }}
+        password: ${{ inputs.registry-token }}
+
+    # APP_URL gives passkeys their domain, as an operator's deploy does, so the passkey flows run
+    - name: Write the operator env file
+      shell: bash
+      env:
+        APP_URL: ${{ inputs.app-url }}
+      run: |
+        cat > docker/.env <<EOF
+        DB_HOST=${DB_HOST}
+        DB_PORT=${DB_PORT}
+        DB_NAME=${DB_NAME}
+        DB_USER=${DB_USER}
+        DB_PASSWORD=${DB_PASSWORD}
+        APP_URL=${APP_URL}
+        EOF
