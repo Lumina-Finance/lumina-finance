@@ -11,6 +11,7 @@ import os
 import re
 import uuid
 
+import pytest
 from sqlalchemy import event, select, text
 
 from app.models.transaction import Transaction
@@ -184,22 +185,29 @@ async def test_an_import_repeating_a_bank_id_in_one_account_is_refused(client):
     assert await _ledger(client, headers, account_id) == []
 
 
-async def test_a_raw_bank_id_or_account_number_is_refused_as_it_is_staged(client):
+_DIGEST = _bank_hash("0001")
+
+
+@pytest.mark.parametrize(
+    "sent",
+    ["0001", _CHEQUING_KEY, _DIGEST.upper(), _DIGEST[:-1], f"{_DIGEST}0"],
+    ids=["bank ID", "account key", "upper case digest", "63 characters", "65 characters"],
+)
+async def test_a_raw_bank_id_or_account_number_is_refused_as_it_is_staged(client, sent):
     """Only a digest is kept, so an account number or bank ID sent in its place must never be stored"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
+    payload = _ofx_payload(account_id, category_id, [("0001", "2026-03-01", "-10.00")])
+    payload["rows"][0]["bank_transaction_hash"] = sent
 
-    digest = _bank_hash("0001")
-    for sent in ("0001", _CHEQUING_KEY, digest.upper(), digest[:-1], f"{digest}0"):
-        payload = _ofx_payload(account_id, category_id, [("0001", "2026-03-01", "-10.00")])
-        payload["rows"][0]["bank_transaction_hash"] = sent
-        resp = await _import_ofx(client, headers, payload)
-        assert resp.status_code == 422, resp.text
-        assert [(error["loc"], error["msg"]) for error in resp.json()["detail"]] == [
-            (
-                ["body", "rows", 0, "bank_transaction_hash"],
-                "String should match pattern '^[0-9a-f]{64}$'",
-            )
-        ]
+    resp = await _import_ofx(client, headers, payload)
+
+    assert resp.status_code == 422, resp.text
+    assert [(error["loc"], error["msg"]) for error in resp.json()["detail"]] == [
+        (
+            ["body", "rows", 0, "bank_transaction_hash"],
+            "String should match pattern '^[0-9a-f]{64}$'",
+        )
+    ]
     assert await _ledger(client, headers, account_id) == []
 
 

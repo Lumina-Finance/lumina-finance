@@ -1,6 +1,12 @@
-"""Import run lifetimes, shared by the import services and the database helper that prunes runs"""
+"""Import settings: run lifetimes, shared with the database helper that prunes runs, and the bank transaction hash key"""
 
+import os
 from datetime import timedelta
+
+# The key OFX imports' bank transaction hashes are made with, as set in the environment, or None.
+# app.bank_transaction_key falls back to the file persisted on the data volume, so None alone does
+# not mean there is no key. A trailing newline from an env file or a mounted secret is not part of it
+BANK_TRANSACTION_HASH_KEY = os.getenv("BANK_TRANSACTION_HASH_KEY", "").strip() or None
 
 # Both are written into the pruning helper's body when a migration creates it, so changing either
 # needs a migration that calls create_helper_functions, or the database keeps the old lifetime

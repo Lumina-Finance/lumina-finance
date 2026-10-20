@@ -7,7 +7,8 @@ before staging or storing it. The secret is kept outside the database, so a copy
 alone cannot be searched that way
 
 Losing or changing the secret leaves every saved hash unmatched, so a statement imported again
-brings back the transactions an earlier import already saved
+brings back the transactions an earlier import already saved. app.db.bank_transaction_key refuses
+to generate a new one over a database that already holds hashes for that reason
 """
 
 import functools
@@ -16,8 +17,9 @@ import hmac
 import os
 import re
 import secrets
-import sys
 from pathlib import Path
+
+from app.config import imports as import_config
 
 # Persisted beside the database role secrets and the encryption key, on the data volume
 _SECRETS_DIR = Path("/data/secrets")
@@ -36,6 +38,11 @@ def generate_key() -> str:
     return secrets.token_hex(_KEY_BYTES)
 
 
+def is_key_available() -> bool:
+    """Whether a key is set in the environment or persisted, without checking that it is valid"""
+    return import_config.BANK_TRANSACTION_HASH_KEY is not None or KEY_FILE.exists()
+
+
 def _parse_key(value: str, source: str) -> bytes:
     """Return the key's bytes, refusing a value that is not one
 
@@ -51,8 +58,23 @@ def _parse_key(value: str, source: str) -> bytes:
     return bytes.fromhex(value)
 
 
+def _persist_key(key: str) -> None:
+    """Write a new key file readable by its owner alone from the moment it exists
+
+    Raises:
+        FileExistsError: Another process persisted a key first, which is left as it is
+    """
+    _SECRETS_DIR.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(KEY_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL, _KEY_FILE_MODE)
+    with os.fdopen(descriptor, "w") as key_file:
+        key_file.write(key)
+
+
 def resolve_key(*, generate: bool) -> bytes:
     """Return the key, from the environment, then the persisted file, then a new one when allowed
+
+    Generating is only for a deployment no hash depends on yet, which app.db.bank_transaction_key
+    checks before asking for it
 
     Args:
         generate: Whether a missing key may be generated and persisted
@@ -64,8 +86,7 @@ def resolve_key(*, generate: bool) -> bytes:
         RuntimeError: The configured and persisted keys differ, either is malformed, or there is
             none and generation is not allowed
     """
-    # A trailing newline from an env file or a mounted secret is not part of the key
-    configured = os.getenv(KEY_ENV_VAR, "").strip() or None
+    configured = import_config.BANK_TRANSACTION_HASH_KEY
     persisted = KEY_FILE.read_text().strip() if KEY_FILE.exists() else None
 
     # Only one of them matches the hashes already saved, and picking the wrong one would quietly
@@ -86,9 +107,7 @@ def resolve_key(*, generate: bool) -> bytes:
         raise RuntimeError(f"Missing {KEY_ENV_VAR}. Set it to {_KEY_GUIDANCE}")
 
     generated = generate_key()
-    _SECRETS_DIR.mkdir(parents=True, exist_ok=True)
-    KEY_FILE.write_text(generated)
-    KEY_FILE.chmod(_KEY_FILE_MODE)
+    _persist_key(generated)
     return bytes.fromhex(generated)
 
 
@@ -96,11 +115,6 @@ def resolve_key(*, generate: bool) -> bytes:
 def _key() -> bytes:
     """Return the key, resolved once, since it is stable for the life of the process"""
     return resolve_key(generate=False)
-
-
-def verify_key() -> None:
-    """Resolve the key now, so a server without one refuses to start rather than refusing imports"""
-    _key()
 
 
 def seal_bank_transaction_hash(digest: str) -> str:
@@ -113,15 +127,3 @@ def seal_bank_transaction_hash(digest: str) -> str:
         HMAC-SHA256 of the digest's 32 bytes under the key, as 64 lower-case hex characters
     """
     return hmac.new(_key(), bytes.fromhex(digest), hashlib.sha256).hexdigest()
-
-
-def main() -> None:
-    """Make sure the deployment has a key, generating and persisting one when it has none"""
-    if len(sys.argv) != 2 or sys.argv[1] != "ensure-key":
-        sys.exit("Usage: python -m app.bank_transaction_key ensure-key")
-    resolve_key(generate=True)
-    print("Bank transaction hash key configured", file=sys.stderr)
-
-
-if __name__ == "__main__":
-    main()
