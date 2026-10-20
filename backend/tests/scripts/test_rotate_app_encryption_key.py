@@ -7,7 +7,8 @@ from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import text
 
 from app import encryption
-from app.db.encryption_key import FINGERPRINT_TABLE, read_fingerprint, record_fingerprint
+from app.db.encryption_key import FINGERPRINT_TABLE, record_fingerprint
+from app.db.key_fingerprint import read_fingerprint
 from app.db.rls import grant_auth_table, grant_global_read_table
 from app.encryption import generate_encryption_key, key_fingerprint
 from app.models.auth import TotpCredential
@@ -111,7 +112,7 @@ async def test_rotation_moves_the_recorded_fingerprint(current_key):
     await rotate_encryption_key(engine, new_key)
 
     async with engine.begin() as connection:
-        assert await read_fingerprint(connection) == key_fingerprint(new_key)
+        assert await read_fingerprint(connection, FINGERPRINT_TABLE) == key_fingerprint(new_key)
 
 
 async def test_rotation_removes_the_stale_key_file(current_key, key_file):
@@ -154,7 +155,7 @@ async def test_a_failure_part_way_through_rewrites_nothing(current_key):
     assert await _read_stored("oidc_providers", "client_secret_encrypted") == oidc_before
     assert Fernet(current_key.encode()).decrypt(oidc_before.encode()).decode() == _OIDC_SECRET
     async with engine.begin() as connection:
-        assert await read_fingerprint(connection) is None
+        assert await read_fingerprint(connection, FINGERPRINT_TABLE) is None
 
 
 async def test_rotation_refuses_a_key_equal_to_the_current_one(current_key):

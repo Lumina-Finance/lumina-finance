@@ -23,18 +23,6 @@ FINGERPRINT_TABLE = "encryption_key_fingerprint"
 _MIGRATION_TABLE = "alembic_version"
 
 
-async def read_fingerprint(connection: AsyncConnection) -> str | None:
-    """Return the fingerprint of the key the stored secrets are under, or None when nothing is recorded yet
-
-    Args:
-        connection: Open connection to the application database
-
-    Returns:
-        The recorded SHA-256 hex digest, or None when the table or the row is absent
-    """
-    return await key_fingerprint.read_fingerprint(connection, FINGERPRINT_TABLE)
-
-
 async def record_fingerprint(connection: AsyncConnection, key: str) -> None:
     """Record the key the stored secrets are under, replacing any earlier record
 
@@ -100,7 +88,7 @@ async def verify_key_matches_data(connection: AsyncConnection) -> None:
     Raises:
         RuntimeError: The recorded fingerprint and the resolved key disagree
     """
-    recorded = await read_fingerprint(connection)
+    recorded = await key_fingerprint.read_fingerprint(connection, FINGERPRINT_TABLE)
     if recorded is None:
         return
 
@@ -132,7 +120,8 @@ async def ensure_key(connection: AsyncConnection) -> None:
     # the missing key would be lost behind a freshly generated one
     if await table_exists(connection, _MIGRATION_TABLE):
         try:
-            already_encrypted = await read_fingerprint(connection) is not None or await read_stored_secret(connection) is not None
+            recorded = await key_fingerprint.read_fingerprint(connection, FINGERPRINT_TABLE)
+            already_encrypted = recorded is not None or await read_stored_secret(connection) is not None
         except SQLAlchemyError as error:
             # This step runs as the admin role, which owns none of the tables it reads here,
             # so a deployment whose admin role is not a superuser cannot see them. Refusing
@@ -169,7 +158,7 @@ async def verify_fingerprint(connection: AsyncConnection) -> None:
     if not await table_exists(connection, FINGERPRINT_TABLE):
         raise RuntimeError(f"No {FINGERPRINT_TABLE} table. Run the migrations before verifying the key")
 
-    if await read_fingerprint(connection) is not None:
+    if await key_fingerprint.read_fingerprint(connection, FINGERPRINT_TABLE) is not None:
         await verify_key_matches_data(connection)
         return
 

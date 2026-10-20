@@ -7,13 +7,14 @@ from sqlalchemy.exc import ProgrammingError
 
 from app import encryption
 from app.db.encryption_key import (
+    FINGERPRINT_TABLE,
     ensure_key,
-    read_fingerprint,
     read_stored_secret,
     record_fingerprint,
     verify_fingerprint,
     verify_key_matches_data,
 )
+from app.db.key_fingerprint import read_fingerprint
 from app.encryption import generate_encryption_key, key_fingerprint
 from tests.conftest import engine
 
@@ -159,7 +160,7 @@ async def test_verify_fingerprint_records_the_key_on_an_upgrading_deployment(con
 
         await verify_fingerprint(connection)
 
-        assert await read_fingerprint(connection) == key_fingerprint(configured_key)
+        assert await read_fingerprint(connection, FINGERPRINT_TABLE) == key_fingerprint(configured_key)
 
 
 async def test_verify_fingerprint_refuses_to_record_a_key_that_reads_nothing(configured_key):
@@ -170,7 +171,7 @@ async def test_verify_fingerprint_refuses_to_record_a_key_that_reads_nothing(con
         with pytest.raises(RuntimeError, match="does not decrypt"):
             await verify_fingerprint(connection)
 
-        assert await read_fingerprint(connection) is None
+        assert await read_fingerprint(connection, FINGERPRINT_TABLE) is None
 
 
 async def test_verify_fingerprint_records_on_a_database_with_no_secrets(configured_key):
@@ -178,7 +179,7 @@ async def test_verify_fingerprint_records_on_a_database_with_no_secrets(configur
     async with engine.begin() as connection:
         await verify_fingerprint(connection)
 
-        assert await read_fingerprint(connection) == key_fingerprint(configured_key)
+        assert await read_fingerprint(connection, FINGERPRINT_TABLE) == key_fingerprint(configured_key)
 
 
 async def test_verify_key_matches_data_refuses_a_key_the_data_is_not_under(configured_key):
@@ -211,5 +212,5 @@ async def test_record_fingerprint_replaces_the_previous_key(configured_key):
         await record_fingerprint(connection, configured_key)
         await record_fingerprint(connection, rotated_key)
 
-        assert await read_fingerprint(connection) == key_fingerprint(rotated_key)
+        assert await read_fingerprint(connection, FINGERPRINT_TABLE) == key_fingerprint(rotated_key)
         assert await connection.scalar(text("SELECT count(*) FROM encryption_key_fingerprint")) == 1
