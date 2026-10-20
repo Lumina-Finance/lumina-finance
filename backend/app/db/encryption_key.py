@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 from app import encryption
 from app.config.database import admin_database_url, migration_database_url
 from app.db import key_fingerprint
-from app.db.key_fingerprint import table_exists
 from app.models import import_all_models
 from app.models.base import Base
 from app.models.types import find_encrypted_columns
@@ -44,7 +43,7 @@ async def read_stored_secret(connection: AsyncConnection) -> str | None:
     """
     import_all_models()
     for table, column in find_encrypted_columns(Base.metadata):
-        if not await table_exists(connection, table):
+        if not await key_fingerprint.table_exists(connection, table):
             continue
 
         # Table and column come from the model metadata rather than any caller, so they are
@@ -118,7 +117,7 @@ async def ensure_key(connection: AsyncConnection) -> None:
 
     # A schema that exists means this is not a first install, so anything encrypted under
     # the missing key would be lost behind a freshly generated one
-    if await table_exists(connection, _MIGRATION_TABLE):
+    if await key_fingerprint.table_exists(connection, _MIGRATION_TABLE):
         try:
             recorded = await key_fingerprint.read_fingerprint(connection, FINGERPRINT_TABLE)
             already_encrypted = recorded is not None or await read_stored_secret(connection) is not None
@@ -155,7 +154,7 @@ async def verify_fingerprint(connection: AsyncConnection) -> None:
             matches the record nor reads the stored secrets
     """
     key = encryption.resolve_encryption_key(generate=False)
-    if not await table_exists(connection, FINGERPRINT_TABLE):
+    if not await key_fingerprint.table_exists(connection, FINGERPRINT_TABLE):
         raise RuntimeError(f"No {FINGERPRINT_TABLE} table. Run the migrations before verifying the key")
 
     if await key_fingerprint.read_fingerprint(connection, FINGERPRINT_TABLE) is not None:
