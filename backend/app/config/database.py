@@ -1,5 +1,7 @@
 """Database connection settings and per-role connection URLs"""
 
+from urllib.parse import quote
+
 from app.config.env import require
 from app.db.credentials import resolve_role_password
 
@@ -23,12 +25,26 @@ def _build_database_url(user: str, password: str) -> str:
 
     Args:
         user: Database role name
-        password: Password for the role
+        password: Password for the role, in any form the database accepts
 
     Returns:
-        An asyncpg SQLAlchemy connection URL
+        An asyncpg SQLAlchemy connection URL with the credentials percent-encoded
+
+    Raises:
+        ValueError: The role name or password cannot be encoded, naming the one to fix without echoing it
     """
-    return f"{_DB_URL_SCHEME}://{user}:{password}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    # Every reserved character is percent-encoded, since a password may hold any of them
+    # The default encoding error names the offending character, so each failure names only the
+    # credential to fix and never any of its value
+    try:
+        encoded_user = quote(user, safe="")
+    except UnicodeEncodeError:
+        raise ValueError("A database role name cannot be encoded as UTF-8") from None
+    try:
+        encoded_password = quote(password, safe="")
+    except UnicodeEncodeError:
+        raise ValueError(f"The password for the {user} database role cannot be encoded as UTF-8") from None
+    return f"{_DB_URL_SCHEME}://{encoded_user}:{encoded_password}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 
 # Each URL resolves its password lazily so a process only needs its own role's secret
