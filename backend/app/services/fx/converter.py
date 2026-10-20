@@ -3,41 +3,13 @@
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from typing import Protocol
 
 from app.schemas.fx import FxIssueReason, FxRateIssue, FxStatus
 from app.services.fx.errors import FxProviderUnavailableError, FxRateNotFoundError
 from app.services.fx.frankfurter_provider import FrankfurterProvider
+from app.services.fx.provider import FxRateProvider
+from app.utils.dates import get_dates_in_range
 from app.utils.money import convert_minor_units_between_currencies as convert_minor_units
-
-
-class _FxRateProvider(Protocol):
-    """Provider interface used by FxConverter"""
-
-    async def get_rate(self, base: str, quote: str, rate_date: date) -> Decimal:
-        """Return quote currency units per one base currency unit
-
-        Args:
-            base: Source currency code
-            quote: Target currency code
-            rate_date: Date for the requested rate
-
-        Returns:
-            Quote currency units per one base currency unit
-        """
-
-    async def get_rates(self, base: str, quote: str, start_date: date, end_date: date) -> dict[date, Decimal]:
-        """Return quote currency units per one base currency unit over a date range
-
-        Args:
-            base: Source currency code
-            quote: Target currency code
-            start_date: First date in the requested range
-            end_date: Last date in the requested range
-
-        Returns:
-            Rates keyed by calendar date
-        """
 
 
 @dataclass(frozen=True)
@@ -55,7 +27,7 @@ class FxConverter:
     def __init__(
         self,
         *,
-        provider: _FxRateProvider | None = None,
+        provider: FxRateProvider | None = None,
         currency_exponents: dict[str, int] | None = None,
     ):
         """Initialize a converter with per-instance rate and failure memoization
@@ -139,7 +111,7 @@ class FxConverter:
         if normalized_base == normalized_quote or start_date > end_date:
             return
 
-        dates = _get_dates_in_range(start_date, end_date)
+        dates = get_dates_in_range(start_date, end_date)
         try:
             rates = await self.provider.get_rates(normalized_base, normalized_quote, start_date, end_date)
         except FxRateNotFoundError:
@@ -209,20 +181,3 @@ class FxConverter:
             quote=key.quote,
         )
         self.missing_pairs.append(issue)
-
-
-def _get_dates_in_range(start_date: date, end_date: date) -> list[date]:
-    """Return every calendar date in an inclusive date range
-
-    Args:
-        start_date: First date in the range
-        end_date: Last date in the range
-
-    Returns:
-        Calendar dates from start_date through end_date
-    """
-    dates = [
-        date.fromordinal(ordinal)
-        for ordinal in range(start_date.toordinal(), end_date.toordinal() + 1)
-    ]
-    return dates
