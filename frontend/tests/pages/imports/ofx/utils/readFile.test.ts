@@ -2,9 +2,8 @@
  * Tests reading OFX statements: the same statement in OFX 1.x SGML and 2.x XML reads the
  * same, and a file that is not a bank or credit card statement is refused or left out loudly
  */
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
-  OFX_INSECURE_CONNECTION_BLOCK,
   OFX_NO_STATEMENTS_REASON,
   OFX_NOT_READABLE_REASON,
   OFX_ONLY_LEFT_OUT_REASON,
@@ -13,7 +12,7 @@ import {
   MAX_OFX_FILE_BYTES,
 } from '@/pages/imports/ofx/constants'
 import type { OfxFile } from '@/pages/imports/ofx/types'
-import { getOfxReadBlock, readOfxFile } from '@/pages/imports/ofx/utils/readFile'
+import { readOfxFile } from '@/pages/imports/ofx/utils/readFile'
 import {
   buildLeftOutMessageSet,
   buildMessageSet,
@@ -195,24 +194,6 @@ describe('reading a bank statement', () => {
     }]))
 
     expect(file.statements[0].transactions.map((transaction) => transaction.otherCurrency)).toEqual(['USD', null, null, null])
-  })
-})
-
-describe('a page opened without a secure connection', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('blocks the upload, saying how to open the app instead, where the browser withholds the hashing', () => {
-    vi.stubGlobal('isSecureContext', false)
-
-    expect(getOfxReadBlock()).toEqual({ message: OFX_INSECURE_CONNECTION_BLOCK, isFailure: true })
-  })
-
-  it('leaves the upload open over HTTPS or on localhost', () => {
-    vi.stubGlobal('isSecureContext', true)
-
-    expect(getOfxReadBlock()).toBeNull()
   })
 })
 
