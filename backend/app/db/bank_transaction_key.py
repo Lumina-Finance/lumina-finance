@@ -125,8 +125,9 @@ async def reset_key(engine: AsyncEngine) -> None:
 
     The transactions keep their old hashes, which no statement will match again, so each one
     imported again is brought in as new. A generated key is persisted only once its fingerprint is
-    recorded, so a reset that fails leaves the deployment as it was rather than refused at every
-    start
+    recorded, so a reset that fails before then changes nothing. One that fails while writing the
+    key file leaves the database recording a key that is not saved, and runs again once the
+    problem is fixed and any partly written key file is deleted
 
     Args:
         engine: Engine for the migrator role, which owns the fingerprint table
