@@ -1,13 +1,16 @@
 /**
  * The Net Cash Flow headline once wrapped a very large total at phone width, leaving its minus sign
  * alone on the line above the amount. The Period Glance headline, which shares its fitting, once ran
- * past its panel's right edge at phone width with a very large total
+ * past its panel's right edge at phone width with a very large total. Both headlines also showed a
+ * very large total at full size for a frame on first load before shrinking it to fit, and the Period
+ * Glance headline did the same after a range change. A window narrowed under a fitted headline could
+ * also show it running past its panel for a frame
  */
-import { expect, test, type APIResponse, type Locator, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
-import { createAccount, createTransaction, signUpUser } from '../support/api'
+import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
 import { expectSignedIn, logIn } from '../support/app'
-import { card, createExpenseInApp, matchesApi, navigate } from '../support/insights'
+import { card, matchesApi, navigate } from '../support/insights'
 
 // Runs on desktop only: each case sets the width it checks itself
 
@@ -40,19 +43,19 @@ async function measureHeadline(page: Page, headline: Locator) {
     const range = document.createRange()
     range.selectNodeContents(element)
     const lineTops = new Set([...range.getClientRects()].map((rect) => Math.round(rect.top)))
-    return { lines: lineTops.size, overflows: element.scrollWidth > element.clientWidth }
+    // The text's fractional width against the element's, since scrollWidth and clientWidth are whole
+    // pixels and can't see a text running under a pixel past its right edge
+    const overflowPx = range.getBoundingClientRect().width - element.getBoundingClientRect().width
+    return { lines: lineTops.size, overflows: overflowPx > 0.01 }
   })
 }
 
 /**
- * Reads a headline's font size once its fitting has settled. The fitting measures in an animation
- * frame after the font loads and renders its size on the next, so the size read any sooner can
- * still be the full size the headline starts at
+ * Reads a headline's font size once the font it is fitted in has loaded. The fitting refits the
+ * headline as soon as the font arrives, so a size read sooner can belong to the fallback font
  */
 async function readSettledFontSize(page: Page, headline: Locator) {
-  await page.evaluate(() => document.fonts.ready.then(() => new Promise<void>((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-  })))
+  await page.evaluate(() => document.fonts.ready.then(() => undefined))
   return headline.evaluate((element) => parseFloat(getComputedStyle(element).fontSize))
 }
 
@@ -123,25 +126,21 @@ for (const example of PERIOD_GLANCE_CASES) {
   })
 }
 
-test('net cash flow headline is fitted again when its card recovers from a failed refetch', async ({ page, request }) => {
+test('net cash flow headline is fitted when its card recovers from a failed first load', async ({ page, request }) => {
   const user = await signUpUser(request, { baseCurrency: 'IQD' })
   const account = await createAccount(request, user, { name: 'Cash flow recovery account', currency: 'IQD' })
   await createTransaction(request, user, {
-    accountId: account.id, categoryName: 'Groceries', amount: -1_246_913_569_001, currency: 'IQD',
+    accountId: account.id, categoryName: 'Groceries', amount: -12_469_135_690_010, currency: 'IQD',
   })
-  // The refetch must ask for the same range as the first load, so the date is held still
-  await page.clock.setFixedTime(new Date())
-  let failRefetch = false
-  let firstResponse: APIResponse | undefined
-  // The reload after the failure is answered with the first load's data, so the recovered headline
-  // reads exactly what it did before the failure, even though the page made an expense in between
+  // The card's first load fails, so its headline mounts for the first time on recovery. Its text then
+  // differs from what the card held while failed, and nothing has been measured yet
+  let failLoad = true
   await page.route((url) => matchesApi(url.href, '/insights/cash-flow'), async (route) => {
     if (route.request().method() !== 'GET') return route.continue()
-    if (failRefetch) {
+    if (failLoad) {
       return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ detail: 'Synthetic failure' }) })
     }
-    firstResponse ??= await route.fetch()
-    return route.fulfill({ response: firstResponse })
+    return route.continue()
   })
   await page.setViewportSize(PHONE)
   await logIn(page, user)
@@ -150,23 +149,299 @@ test('net cash flow headline is fitted again when its card recovers from a faile
 
   const cashFlow = card(page, 1)
   await cashFlow.scrollIntoViewIfNeeded()
-  const headline = cashFlow.getByRole('paragraph').filter({ hasText: /^-IQD\s1,246,913,569\.001$/ })
-  await expect.poll(() => measureHeadline(page, headline)).toEqual({ lines: 1, overflows: false })
-
-  // The page opens on a failed refetch, so the headline is absent while the cached total is held
-  await navigate(page, 'Transactions')
-  failRefetch = true
-  await createExpenseInApp(page, 'Cash flow recovery account')
-  await navigate(page, 'Insights')
-  await cashFlow.scrollIntoViewIfNeeded()
+  const text = /^-IQD\s12,469,135,690\.010$/
+  const headline = cashFlow.getByRole('paragraph').filter({ hasText: text })
   await expect(cashFlow.getByRole('heading', { name: 'Cash flow could not load', exact: true })).toBeVisible()
   await expect(headline).toHaveCount(0)
 
-  // The card recovers without a reload when the connection comes back, and the headline returns with
-  // the same text it held before the failure, so only its element tells the fitting to measure again
-  failRefetch = false
+  // The card recovers without a reload when the connection comes back. The headline's element is new
+  // and the fitting has measured none before it, so only the element appearing tells it to measure,
+  // and no frame may show the total at full size before it does
+  const readFrames = await recordFrames(page, text)
+  failLoad = false
   await page.context().setOffline(true)
   await page.context().setOffline(false)
   await expect.poll(() => measureHeadline(page, headline)).toEqual({ lines: 1, overflows: false })
-  expect(await readSettledFontSize(page, headline)).not.toBe(FULL_FONT_SIZE_PX)
+  expect(await readSettledFontSize(page, headline)).toBeLessThan(FULL_FONT_SIZE_PX)
+  const frames = await readFrames()
+  expect(frames.length).toBeGreaterThan(0)
+  expect(frames.filter((frame) => frame.size >= FULL_FONT_SIZE_PX)).toEqual([])
+})
+
+type FrameSample = { size: number; overflows: boolean; windowWidth: number }
+
+/**
+ * Records the font size of each paragraph reading `text`, whether it runs past its own width, and the
+ * window's width, in every frame from now on in which it shows on screen. Each frame is read in its
+ * animation frame callback, which runs after every task and layout effect that changed the page since
+ * the last frame and before the frame is drawn, so it reads exactly what that frame paints. A read
+ * after the paint would also see what an effect running after the paint had changed, and miss a
+ * frame drawn before that effect
+ * @returns A reader for the frames recorded so far
+ */
+async function recordFrames(page: Page, text: RegExp) {
+  const key = `frames:${text.source}`
+  await page.evaluate(({ key, source, flags }) => {
+    const pattern = new RegExp(source, flags)
+    const frames: FrameSample[] = []
+    Object.assign(window, { [key]: frames })
+    function sample() {
+      for (const element of document.querySelectorAll('p')) {
+        const box = element.getBoundingClientRect()
+        const onScreen = box.width > 0 && box.bottom > 0 && box.top < window.innerHeight
+        if (onScreen && pattern.test(element.textContent ?? '')) {
+          const range = document.createRange()
+          range.selectNodeContents(element)
+          frames.push({
+            size: parseFloat(getComputedStyle(element).fontSize),
+            overflows: range.getBoundingClientRect().width - box.width > 0.01,
+            windowWidth: window.innerWidth,
+          })
+        }
+      }
+      requestAnimationFrame(sample)
+    }
+    requestAnimationFrame(sample)
+  }, { key, source: text.source, flags: text.flags })
+  return () => page.evaluate((key) => (window as unknown as Record<string, FrameSample[]>)[key], key)
+}
+
+/**
+ * Collects every error the open page reports from now on, a resize observer's undelivered
+ * notifications included, which reach only the window's error event
+ * @returns A reader for the errors collected so far
+ */
+async function collectPageErrors(page: Page) {
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text())
+  })
+  await page.evaluate(() => {
+    const windowErrors: string[] = []
+    Object.assign(window, { windowErrors })
+    window.addEventListener('error', (event) => windowErrors.push(event.message))
+  })
+  return async () => [
+    ...errors,
+    ...await page.evaluate(() => (window as unknown as { windowErrors: string[] }).windowErrors),
+  ]
+}
+
+/**
+ * Loads the figures' font for `text` before a headline first shows it. A headline drawn in the
+ * fallback font while the real one loads is fitted to the fallback's width, which the fitting
+ * can't know ahead of the font, so those frames would read as a size other than the settled one
+ */
+async function loadFigureFont(page: Page, text: string) {
+  await page.evaluate(async (text) => {
+    const probe = document.createElement('span')
+    probe.className = 'font-financial'
+    document.body.append(probe)
+    const { fontFamily } = getComputedStyle(probe)
+    probe.remove()
+    await document.fonts.load(`1rem ${fontFamily}`, text)
+  }, text)
+}
+
+/**
+ * Waits for a headline to fit, then checks that no frame showed it larger than the size it settled
+ * at, and that it settled below `fullSizePx`, so the frames read were ones the fitting had to shrink
+ */
+async function expectNoFrameAboveSettledSize(
+  page: Page,
+  headline: Locator,
+  readFrames: () => Promise<FrameSample[]>,
+  fullSizePx: number,
+) {
+  await expect.poll(() => measureHeadline(page, headline)).toEqual({ lines: 1, overflows: false })
+  const settled = await readSettledFontSize(page, headline)
+  expect(settled).toBeLessThan(fullSizePx)
+  const sizes = (await readFrames()).map((frame) => frame.size)
+  expect(sizes.length).toBeGreaterThan(0)
+  expect(sizes.filter((size) => size > settled)).toEqual([])
+}
+
+// The Period Glance and Net Cash Flow headlines for one very large income. The Income figure and
+// the account's ending balance each differ from them, so neither can match
+const LARGE_PERIOD_GLANCE_TEXT = /^IQD\s1,246,913,569\.001$/
+const LARGE_NET_CASH_FLOW_TEXT = /^\+IQD\s1,246,913,569\.001$/
+
+/**
+ * Signs up a user whose only income this month is very large, so both headlines read it
+ */
+async function signUpWithLargeTotal(request: APIRequestContext) {
+  const user = await signUpUser(request, { baseCurrency: 'IQD' })
+  const account = await createAccount(request, user, {
+    name: 'Large total account', currency: 'IQD', startingBalance: PERIOD_GLANCE_STARTING_BALANCE,
+  })
+  await createTransaction(request, user, {
+    accountId: account.id, categoryName: 'Salary', amount: 1_246_913_569_002, currency: 'IQD',
+  })
+  await createTransaction(request, user, {
+    accountId: account.id, categoryName: 'Groceries', amount: -1, currency: 'IQD',
+  })
+  return user
+}
+
+test('headlines show a very large total at its fitted size from the first frame on a phone', async ({ page, request }) => {
+  const user = await signUpWithLargeTotal(request)
+  await page.setViewportSize(PHONE)
+  await logIn(page, user)
+  await expectSignedIn(page)
+  await loadFigureFont(page, '+IQD 1,246,913,569.001')
+
+  const readPeriodGlanceFrames = await recordFrames(page, LARGE_PERIOD_GLANCE_TEXT)
+  const readNetCashFlowFrames = await recordFrames(page, LARGE_NET_CASH_FLOW_TEXT)
+  await navigate(page, 'Insights')
+
+  await expectNoFrameAboveSettledSize(
+    page,
+    page.getByRole('paragraph').filter({ hasText: LARGE_PERIOD_GLANCE_TEXT }),
+    readPeriodGlanceFrames,
+    PERIOD_GLANCE_FULL_FONT_SIZE_PX,
+  )
+
+  // The card loads once it is scrolled into view
+  const cashFlow = card(page, 1)
+  await cashFlow.scrollIntoViewIfNeeded()
+  await expectNoFrameAboveSettledSize(
+    page,
+    cashFlow.getByRole('paragraph').filter({ hasText: LARGE_NET_CASH_FLOW_TEXT }),
+    readNetCashFlowFrames,
+    FULL_FONT_SIZE_PX,
+  )
+})
+
+test('period glance headline stays inside its panel in every frame and raises no errors as the window narrows to a phone', async ({ page, request }) => {
+  const user = await signUpWithLargeTotal(request)
+  await page.setViewportSize(DESKTOP)
+  await logIn(page, user)
+  await expectSignedIn(page)
+  await navigate(page, 'Insights')
+
+  const headline = page.getByRole('paragraph').filter({ hasText: LARGE_PERIOD_GLANCE_TEXT })
+  await expect.poll(() => measureHeadline(page, headline)).toEqual({ lines: 1, overflows: false })
+  const desktopSize = await readSettledFontSize(page, headline)
+
+  const readFrames = await recordFrames(page, LARGE_PERIOD_GLANCE_TEXT)
+  // A refit that resizes what a resize observer watches, inside its own callback, reports an error
+  const readErrors = await collectPageErrors(page)
+  await page.setViewportSize(PHONE)
+  await expect.poll(() => measureHeadline(page, headline)).toEqual({ lines: 1, overflows: false })
+
+  // The phone's panel is narrower, so the headline had to shrink in the frames read
+  expect(await readSettledFontSize(page, headline)).toBeLessThan(desktopSize)
+  expect(await readErrors()).toEqual([])
+  const frames = await readFrames()
+  expect(frames.filter((frame) => frame.windowWidth === PHONE.width).length).toBeGreaterThan(0)
+  expect(frames.filter((frame) => frame.overflows)).toEqual([])
+})
+
+test('period glance headline shrinks a very large total without a full-size frame after a range change on a phone', async ({ page, request }) => {
+  const user = await signUpUser(request, { baseCurrency: 'IQD' })
+  const account = await createAccount(request, user, {
+    name: 'Range change account', currency: 'IQD', startingBalance: PERIOD_GLANCE_STARTING_BALANCE,
+  })
+
+  // This month's total is IQD 5.001, and the last 90 days add an income from before this month,
+  // since no month is 45 days long
+  await createTransaction(request, user, {
+    accountId: account.id, categoryName: 'Salary', amount: 6_001, currency: 'IQD',
+  })
+  await createTransaction(request, user, {
+    accountId: account.id, categoryName: 'Groceries', amount: -1_000, currency: 'IQD',
+  })
+  await createTransaction(request, user, {
+    accountId: account.id, categoryName: 'Salary', amount: 1_246_913_564_000, currency: 'IQD', date: daysFromTodayInTestTimezone(-45),
+  })
+  await page.setViewportSize(PHONE)
+  await logIn(page, user)
+  await expectSignedIn(page)
+  await navigate(page, 'Insights')
+
+  const shortHeadline = page.getByRole('paragraph').filter({ hasText: /^IQD\s5\.001$/ })
+  await expect.poll(() => measureHeadline(page, shortHeadline)).toEqual({ lines: 1, overflows: false })
+  expect(await readSettledFontSize(page, shortHeadline)).toBe(PERIOD_GLANCE_FULL_FONT_SIZE_PX)
+
+  const readFrames = await recordFrames(page, LARGE_PERIOD_GLANCE_TEXT)
+  await page.getByRole('button', { name: /^Insights date range: / }).filter({ visible: true }).click()
+  await page.getByRole('tab', { name: '90D', exact: true }).filter({ visible: true }).click()
+
+  await expectNoFrameAboveSettledSize(
+    page,
+    page.getByRole('paragraph').filter({ hasText: LARGE_PERIOD_GLANCE_TEXT }),
+    readFrames,
+    PERIOD_GLANCE_FULL_FONT_SIZE_PX,
+  )
+})
+
+test('net cash flow calculation tooltip is drawn over the chart below it', async ({ page, request }) => {
+  const user = await signUpWithLargeTotal(request)
+  await page.setViewportSize(DESKTOP)
+  await logIn(page, user)
+  await expectSignedIn(page)
+  await navigate(page, 'Insights')
+
+  const cashFlow = card(page, 1)
+  await cashFlow.scrollIntoViewIfNeeded()
+  const trigger = cashFlow.getByRole('button', { name: 'Net Cash Flow calculation', exact: true })
+  await trigger.hover()
+  const tooltip = trigger.locator('xpath=..').getByRole('tooltip')
+  await expect(tooltip).toBeVisible()
+
+  // The panel opens below its trigger, since the card's top leaves it no room above, so the chart
+  // that follows the headline is under it. Points across the panel must hit the panel, not the chart
+  const [panelBox, amountBox] = await Promise.all([
+    tooltip.boundingBox(),
+    cashFlow.getByRole('paragraph').filter({ hasText: LARGE_NET_CASH_FLOW_TEXT }).boundingBox(),
+  ])
+  expect(panelBox!.y + panelBox!.height).toBeGreaterThan(amountBox!.y + amountBox!.height)
+  const covered = await tooltip.evaluate((panel) => {
+    const box = panel.getBoundingClientRect()
+    const points = [0.15, 0.5, 0.85].flatMap((x) => [0.15, 0.5, 0.85].map((y) => [
+      box.left + box.width * x,
+      box.top + box.height * y,
+    ]))
+    return points.map(([x, y]) => panel.contains(document.elementFromPoint(x, y)))
+  })
+  expect(covered).toEqual(Array(9).fill(true))
+})
+
+test('headlines refit to the figures font when it arrives after they are drawn', async ({ page, request }) => {
+  const user = await signUpWithLargeTotal(request)
+  await page.setViewportSize(PHONE)
+
+  // Holds the figures' font file until released, so the headline is first drawn and fitted in the
+  // fallback font
+  let releaseFont = () => {}
+  const fontHeld = new Promise<void>((resolve) => { releaseFont = resolve })
+  await page.route(/space-grotesk.*\.woff2/, async (route) => {
+    await fontHeld
+    await route.continue()
+  })
+  const headline = page.getByRole('paragraph').filter({ hasText: LARGE_PERIOD_GLANCE_TEXT })
+  try {
+    await logIn(page, user)
+    await expectSignedIn(page)
+    await navigate(page, 'Insights')
+
+    await expect(headline).toBeVisible()
+    expect(await page.evaluate(() => document.fonts.status)).toBe('loading')
+  } finally {
+    // However the test got here, the held request must not stay pending
+    releaseFont()
+  }
+  await page.evaluate(() => document.fonts.ready.then(() => undefined))
+
+  // Fitted to the container, the text's own width is the container's whole width
+  await expect.poll(() => headline.evaluate((element) => {
+    const container = element.parentElement as HTMLElement
+    const previousWidth = element.style.width
+    element.style.width = 'max-content'
+    const textWidth = element.getBoundingClientRect().width
+    element.style.width = previousWidth
+    return textWidth / container.getBoundingClientRect().width
+  })).toBeGreaterThan(0.97)
+  expect(await measureHeadline(page, headline)).toEqual({ lines: 1, overflows: false })
 })
