@@ -103,6 +103,17 @@ describe('reading a bank statement', () => {
     expect(file.statements.map((statement) => statement.name)).toEqual(['Checking ending 6789', 'Checking ending 6789 (2)'])
   })
 
+  // What sets the second statement apart on the page must stay out of the hash, or its transactions
+  // would never match the same ones imported from a file holding that statement alone
+  it('hashes a transaction of the second statement of one account as it would alone', async () => {
+    const second: FixtureStatement = { transactions: [{ fitId: 'X' }] }
+    const [, split] = (await readFile(buildSgmlOfx([CHECKING, second]))).statements
+    const [alone] = (await readFile(buildSgmlOfx([second]))).statements
+
+    expect(alone.transactions[0].bankTransactionHash).toMatch(/^[0-9a-f]{64}$/)
+    expect(split.transactions[0].bankTransactionHash).toBe(alone.transactions[0].bankTransactionHash)
+  })
+
   it('reads the date a stamp starts with, the amount with a comma decimal, and entities in names', async () => {
     const file = await readFile(buildSgmlOfx([{
       transactions: [{ posted: '20240229235959.000[-5:EST]', amount: '-1234,50', name: 'Fish &amp; Chips &amp;lt;', memo: 'Table &#35;4' }],
