@@ -4,7 +4,7 @@ from datetime import date
 
 import httpx
 
-from app.services.fx.errors import FxProviderUnavailableError, FxRateNotFoundError
+from app.services.fx.errors import FxProviderUnavailableError, FxRateNotFoundError, FxRateRejectedError
 
 
 async def request_frankfurter_rate_response(
@@ -98,7 +98,8 @@ def _raise_for_rate_response_error(
 
     Raises:
         FxProviderUnavailableError: Provider returned a server error or asked to slow down
-        FxRateNotFoundError: Provider returned a missing or invalid rate response
+        FxRateNotFoundError: Provider answered 404, which means it has no rate
+        FxRateRejectedError: Provider refused the request with another client error
     """
     if response.status_code == httpx.codes.NOT_FOUND:
         raise FxRateNotFoundError(f"No FX rate found for {base}/{quote} on {rate_date.isoformat()}")
@@ -108,7 +109,7 @@ def _raise_for_rate_response_error(
     try:
         response.raise_for_status()
     except httpx.HTTPStatusError as exc:
-        raise FxRateNotFoundError(f"No FX rate found for {base}/{quote} on {rate_date.isoformat()}") from exc
+        raise FxRateRejectedError(f"FX provider rejected the request for {base}/{quote} on {rate_date.isoformat()}") from exc
 
 
 def _raise_for_rates_response_error(
@@ -125,7 +126,8 @@ def _raise_for_rates_response_error(
 
     Raises:
         FxProviderUnavailableError: Provider returned a server error or asked to slow down
-        FxRateNotFoundError: Provider returned a missing or invalid rate response
+        FxRateNotFoundError: Provider answered 404, which means it has no rate
+        FxRateRejectedError: Provider refused the request with another client error
     """
     if response.status_code == httpx.codes.NOT_FOUND:
         raise FxRateNotFoundError(f"No FX rates found for {base}/{quote}")
@@ -135,7 +137,7 @@ def _raise_for_rates_response_error(
     try:
         response.raise_for_status()
     except httpx.HTTPStatusError as exc:
-        raise FxRateNotFoundError(f"No FX rates found for {base}/{quote}") from exc
+        raise FxRateRejectedError(f"FX provider rejected the request for {base}/{quote}") from exc
 
 
 def _is_transient_status(status_code: int) -> bool:

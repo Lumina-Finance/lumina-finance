@@ -11,6 +11,7 @@ from app.services.fx import (
     FxConverter,
     FxProviderUnavailableError,
     FxRateNotFoundError,
+    FxRateRejectedError,
     FxRateResponseError,
     convert_minor_units,
 )
@@ -168,6 +169,31 @@ async def test_converter_reports_missing_prefetched_dates_when_used():
     assert unused_missing == 0
     assert converted == 13_75
     assert converter.get_status() == FxStatus(state="complete")
+
+
+@pytest.mark.parametrize("lookup", ["rate", "rates"])
+async def test_converter_reports_a_rejected_lookup_as_a_missing_pair(lookup):
+    """A request the provider refused leaves the amount out as a missing pair, never failing the panel"""
+    rate_date = date(2026, 5, 30)
+    provider = _FakeProvider(
+        errors={("USD", "CAD", rate_date): FxRateRejectedError()},
+        range_errors={("USD", "CAD", rate_date, rate_date): FxRateRejectedError()},
+    )
+    converter = FxConverter(
+        provider=provider,
+        currency_exponents={"USD": 2, "CAD": 2},
+    )
+
+    if lookup == "rates":
+        await converter.prefetch_rates(base="USD", quote="CAD", start_date=rate_date, end_date=rate_date)
+    converted = await converter.convert_minor_units(10_00, base="USD", quote="CAD", rate_date=rate_date)
+
+    assert converted is None
+    assert len(provider.calls) + len(provider.range_calls) == 1
+    assert converter.get_status() == FxStatus(
+        state="incomplete",
+        missing_pairs=[FxRateIssue(base="USD", quote="CAD")],
+    )
 
 
 def test_convert_minor_units_handles_currency_exponents_and_rounding():
@@ -381,6 +407,46 @@ async def test_frankfurter_provider_asks_once_for_an_unknown_pair(lookup):
                 await provider.get_rates("ABC", "CAD", date(2026, 5, 29), date(2026, 5, 30))
 
     assert calls == 1
+
+
+@pytest.mark.parametrize("lookup", ["rate", "rates"])
+@pytest.mark.parametrize("status_code", [400, 403, 422])
+async def test_frankfurter_provider_tells_a_rejected_request_from_a_missing_rate(lookup, status_code):
+    """Only a 404 is the provider saying it has no rate. Any other client error is a rejection
+
+    Callers still read a rejection as a missing rate, since it is a kind of one, but the cache must
+    not keep it as the provider's answer, because a changed API or a refused request says nothing
+    about the rate
+    """
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(status_code, json={"message": "rejected"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        provider = FrankfurterProvider(url="https://fx.example.test/v2/", client=client, retry_delay_seconds=0)
+        with pytest.raises(FxRateRejectedError):
+            if lookup == "rate":
+                await provider.get_rate("USD", "CAD", date(2026, 5, 30))
+            else:
+                await provider.get_rates("USD", "CAD", date(2026, 5, 29), date(2026, 5, 30))
+
+
+@pytest.mark.parametrize("lookup", ["rate", "rates"])
+async def test_frankfurter_provider_reports_a_404_as_a_plain_missing_rate(lookup):
+    """A 404 raises the missing-rate error itself, not the rejection that subclasses it"""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        provider = FrankfurterProvider(url="https://fx.example.test/v2/", client=client, retry_delay_seconds=0)
+        with pytest.raises(FxRateNotFoundError) as raised:
+            if lookup == "rate":
+                await provider.get_rate("USD", "CAD", date(2026, 5, 30))
+            else:
+                await provider.get_rates("USD", "CAD", date(2026, 5, 29), date(2026, 5, 30))
+
+    assert type(raised.value) is FxRateNotFoundError
 
 
 async def test_frankfurter_provider_treats_rate_limiting_as_unavailable():
