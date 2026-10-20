@@ -184,6 +184,9 @@ export function CashFlowBarChart({
                 (dataMin: number) => Math.min(dataMin, 0),
                 (dataMax: number) => Math.max(dataMax, 0),
               ]}
+              // Amounts are in minor units, so a tick between two whole units prints the same as its
+              // neighbour at the currency's decimals, and a range of a few units gets fewer ticks instead
+              allowDecimals={false}
               tickSize={Y_AXIS_TICK_SIZE_PX}
               tickMargin={Y_AXIS_TICK_MARGIN_PX}
               tick={{ fill: 'var(--app-text-subtle)', fontSize: 11, className: Y_AXIS_LABEL_CLASS_NAME }}
