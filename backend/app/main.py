@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config.oidc import OIDC_PROVIDER_CONFIGS
-from app.config.runtime import ALLOWED_ORIGINS, RUNTIME
+from app.config.runtime import ALLOWED_ORIGINS, API_DOCS_ENABLED, RUNTIME
 from app.database import async_session, engine, verify_app_role_is_unprivileged
 from app.db.encryption_key import verify_key_matches_data
 from app.request_security import RequestBodySizeLimitMiddleware
@@ -73,7 +73,12 @@ async def _lifespan(_app: FastAPI):
             await pruning
 
 
-app = FastAPI(title="Lumina Finance API", lifespan=_lifespan)
+# FastAPI mounts /docs and /redoc only beside the schema, so leaving the schema out turns off all three
+app = FastAPI(
+    title="Lumina Finance API",
+    openapi_url="/openapi.json" if API_DOCS_ENABLED else None,
+    lifespan=_lifespan,
+)
 
 # Install the configured email sender before any request can send mail
 set_email_sender(build_email_sender())
@@ -84,18 +89,17 @@ set_email_sender(build_email_sender())
 app.add_middleware(RequestBodySizeLimitMiddleware)
 
 
-# CORS origins from env
-_allowed_origins = list(ALLOWED_ORIGINS)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_allowed_origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allow_headers=["Authorization", "Content-Type"],
-    # The client reads the bearer challenge to tell an expired-token 401 from a wrong-credential 401
-    expose_headers=["WWW-Authenticate"],
-)
+# Without a configured origin the CORS layer is left out, so no response carries CORS headers
+if ALLOWED_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=ALLOWED_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+        allow_headers=["Authorization", "Content-Type"],
+        # The client reads the bearer challenge to tell an expired-token 401 from a wrong-credential 401
+        expose_headers=["WWW-Authenticate"],
+    )
 
 app.include_router(auth_router)
 app.include_router(app_version_router)

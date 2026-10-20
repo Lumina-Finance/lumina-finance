@@ -3,17 +3,27 @@
 import os
 
 from app.config.env import optional_bool_env
+from app.config.runtime import RUNTIME
 
 # EMAIL_BACKEND selects the email sender: smtp to deliver or logging for development
 EMAIL_BACKEND_SMTP = "smtp"
 EMAIL_BACKEND_LOGGING = "logging"
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", EMAIL_BACKEND_LOGGING).strip()
 
+# The logging sender writes live reset links into the log, so RUNTIME=lambda refuses it and
+# requires mail to be delivered
+if RUNTIME == "lambda" and EMAIL_BACKEND == EMAIL_BACKEND_LOGGING:
+    raise RuntimeError(f"Invalid EMAIL_BACKEND={EMAIL_BACKEND!r}. RUNTIME=lambda requires {EMAIL_BACKEND_SMTP}")
+
 SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip()
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_USE_TLS = optional_bool_env("SMTP_USE_TLS", True)
+
+# Bounds each SMTP step, so an unreachable or silent server fails the send well under common
+# proxy and gateway request timeouts, while a slow but working server still has room to answer
+SMTP_TIMEOUT_SECONDS = 10
 
 # The sender display name is deliberately a constant, not a setting, so mail from a
 # self-hosted instance is always identifiable as self-hosted
