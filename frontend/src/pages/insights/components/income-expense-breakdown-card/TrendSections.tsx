@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'motion/react'
 import type { InsightsBreakdownCategoryKind } from '@/api/insights'
+import { formatMovedPercent } from '@/utils/negativeAmount'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
 import type { CategoryTrendSection } from '@/pages/insights/types/incomeExpenseBreakdown'
@@ -84,7 +85,7 @@ export function IncomeExpenseTrendSections({
                     const driverColor = getCategoryDriverColor(mode, changeAmount)
                     const changePctLabel = driver.changePct === null
                       ? null
-                      : `(${driver.changePct > 0 ? '+' : ''}${driver.changePct}%)`
+                      : `(${formatMovedPercent(driver.changePct)})`
                     return (
                       <motion.div
                         key={driver.id}

@@ -1,6 +1,7 @@
 import type { InsightsPeriodGlanceResponse } from '@/api/insights'
 import type { Currency } from '@/api/currency'
 import { formatMovedCurrency } from '@/utils/formatCurrency'
+import { formatMovedPercent } from '@/utils/negativeAmount'
 import type {
   PeriodGlancePrimaryMetric,
   PeriodGlanceSupportItem,
@@ -63,7 +64,7 @@ function getPeriodGlanceChangeDetail(
   if (changePct === undefined) {
     return `${amount} vs previous matching period`
   }
-  return `${amount} (${changePct > 0 ? '+' : ''}${changePct}%) vs previous matching period`
+  return `${amount} (${formatMovedPercent(changePct)}) vs previous matching period`
 }
 
 function getPeriodGlanceBrief(
@@ -166,14 +167,6 @@ function getLoadingPeriodGlanceBrief(): PeriodBrief {
   }
 }
 
-function formatBriefMetricValue(
-  metric: PeriodBrief['metrics'][number],
-  displayCurrency: string,
-  currencies: Currency[],
-) {
-  return formatMovedCurrency(metric.value, displayCurrency, currencies)
-}
-
 function getSupportItems(
   secondaryMetric: PeriodBrief['metrics'][number],
   signals: PeriodBrief['signals'],
@@ -182,7 +175,7 @@ function getSupportItems(
 ) {
   const secondarySignal: InsightSignal = {
     label: secondaryMetric.label,
-    value: formatBriefMetricValue(secondaryMetric, displayCurrency, currencies),
+    value: formatMovedCurrency(secondaryMetric.value, displayCurrency, currencies),
     detail: secondaryMetric.detail,
     calculation: secondaryMetric.calculation,
     tone: secondaryMetric.tone,
@@ -222,7 +215,7 @@ export function getPeriodGlanceCardData(
   return {
     primaryMetric: {
       label: primaryMetric.label,
-      value: formatBriefMetricValue(primaryMetric, displayCurrency, currencies),
+      value: formatMovedCurrency(primaryMetric.value, displayCurrency, currencies),
       detail: primaryMetric.detail,
       calculation: primaryMetric.calculation,
       tone: primaryMetric.tone,

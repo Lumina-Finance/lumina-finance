@@ -268,7 +268,8 @@ async function recordFrames(page: Page, text: RegExp, owner: HeadlineOwner) {
           frames.push({
             size: parseFloat(getComputedStyle(element).fontSize),
             overflows: range.getBoundingClientRect().width - box.width > 0.01,
-            windowWidth: window.innerWidth,          })
+            windowWidth: window.innerWidth,
+          })
         }
       }
       requestAnimationFrame(sample)

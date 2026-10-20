@@ -7,6 +7,7 @@ import {
 import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/TooltipContent'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import { useCursorTooltip } from '@/hooks/useCursorTooltip'
+import { formatMovedPercent } from '@/utils/negativeAmount'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import type {
   MerchantMarketMerchant,
@@ -208,7 +209,7 @@ export function MerchantMarketMap({
                     {formatMovedCurrency(hoveredMerchant.changeAmount, currency)}
                     {hoveredMerchant.changePct === null
                       ? ''
-                      : ` (${hoveredMerchant.changePct > 0 ? '+' : ''}${hoveredMerchant.changePct}%)`}
+                      : ` (${formatMovedPercent(hoveredMerchant.changePct)})`}
                   </>
                 )}
                 financialValue

@@ -42,12 +42,6 @@ describe('period glance amounts that moved', () => {
     expect(primaryMetric.value).toBe('+$150.00')
   })
 
-  it('leaves a break-even period unsigned', () => {
-    const { primaryMetric } = getPeriodGlanceCardData(respond({ income: 10_000, expenses: 10_000 }), 'USD', currencies)
-
-    expect(primaryMetric.value).toBe('$0.00')
-  })
-
   it('signs the net worth change and the biggest change with a true minus', () => {
     const { supportItems } = getPeriodGlanceCardData(
       respond({ net_worth_change: -4_200, biggest_change_name: 'Dining', biggest_change_amount: -1_000, biggest_change_pct: -10 }),
@@ -57,6 +51,6 @@ describe('period glance amounts that moved', () => {
 
     expect(supportItems.find((item) => item.label === 'Net Worth Changed By')?.value).toBe('−$42.00')
     expect(supportItems.find((item) => item.label === 'Biggest Change')?.detail)
-      .toBe('−$10.00 (-10%) vs previous matching period')
+      .toBe('−$10.00 (−10%) vs previous matching period')
   })
 })

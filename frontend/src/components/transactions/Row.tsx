@@ -16,7 +16,7 @@ import {
 } from '@/components/transactions/constants/transactionList'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { FADED_ROW_COLOURS, FadedRowsContext } from '@/contexts/FadedRowsContext'
-import { getAmountSign } from '@/utils/negativeStyle'
+import { getAmountSign } from '@/utils/negativeAmount'
 import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
 
 const MAX_VISIBLE_TAGS = 1

@@ -2,7 +2,7 @@ import { Link } from 'react-router'
 import { formatDashboardShortDate } from '@/pages/dashboard/utils/formatDashboardShortDate'
 import type { RecentActivityRow } from '@/pages/dashboard/utils/getRecentActivityRows'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
-import { getAmountSign } from '@/utils/negativeStyle'
+import { getAmountSign } from '@/utils/negativeAmount'
 
 type RecentActivityListProps = {
   rows: RecentActivityRow[]

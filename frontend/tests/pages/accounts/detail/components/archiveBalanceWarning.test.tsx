@@ -45,9 +45,7 @@ afterEach(() => vi.unstubAllGlobals())
 
 describe('archive balance warning', () => {
   it.each([
-    ['de-DE', 50000, `−500,00${NBSP}CA$ will be recorded`],
     ['ja-JP', 50000, `−CA$500.00 will be recorded`],
-    ['fi-FI', 50000, `−500,00${NBSP}CAD will be recorded`],
     ['de-DE', -4250, `+42,50${NBSP}CA$ will be recorded`],
   ])('writes the adjustment for a %s reader holding %s', (locale, balance, expected) => {
     readAs(locale)

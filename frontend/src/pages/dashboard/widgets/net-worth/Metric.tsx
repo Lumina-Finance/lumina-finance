@@ -1,7 +1,7 @@
 import type { Currency } from '@/api/currency'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { formatDashboardMoney } from '@/pages/dashboard/utils/formatDashboardMoney'
-import { getAmountSign, signMovedAmount } from '@/utils/negativeStyle'
+import { getAmountSign, signMovedAmount } from '@/utils/negativeAmount'
 
 type NetWorthMetricProps = {
   netWorth: number

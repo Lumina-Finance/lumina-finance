@@ -1,7 +1,7 @@
 import type { Currency } from '@/api/currency'
 import type { TransactionAmountPresentation } from '@/components/transactions/Row'
 import { createMoneyFormatter } from '@/utils/formatCurrency'
-import { getAmountSign, signMovedAmount } from '@/utils/negativeStyle'
+import { getAmountSign, signMovedAmount } from '@/utils/negativeAmount'
 import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent } from '@/utils/moneyInput'
 
 /**

@@ -13,14 +13,9 @@ export type NegativeStyle = 'minus' | 'brackets'
  */
 export type MoneyKind = 'held' | 'moved'
 
-/** The direction of an amount, with zero as its own direction */
-export type AmountSign = -1 | 0 | 1
-
-export const TRUE_MINUS = '−'
-
 // The product rules: a held amount shows a negative in brackets, and an amount that moved shows a
 // true minus. This is the one place that decides, so a later user setting replaces what
-// `getNegativeStyle` returns rather than being threaded through every screen
+// `getNegativeStyle` returns and nothing else
 const DEFAULT_NEGATIVE_STYLES: Record<MoneyKind, NegativeStyle> = {
   held: 'brackets',
   moved: 'minus',
@@ -31,29 +26,4 @@ const DEFAULT_NEGATIVE_STYLES: Record<MoneyKind, NegativeStyle> = {
  */
 export function getNegativeStyle(kind: MoneyKind): NegativeStyle {
   return DEFAULT_NEGATIVE_STYLES[kind]
-}
-
-/**
- * Returns the direction of an amount, reading both 0 and -0 as zero
- */
-export function getAmountSign(amount: number | bigint): AmountSign {
-  if (amount < 0) return -1
-  if (amount > 0) return 1
-  return 0
-}
-
-/**
- * Puts an amount's direction in front of its already formatted magnitude
- *
- * Money in always carries a plus. Money out is written in the given negative style. A zero amount
- * moved nothing, so it stays unsigned, the same as every other zero in the app
- */
-export function signMovedAmount(
-  sign: AmountSign,
-  magnitude: string,
-  style: NegativeStyle = getNegativeStyle('moved'),
-): string {
-  if (sign === 0) return magnitude
-  if (sign > 0) return `+${magnitude}`
-  return style === 'brackets' ? `(${magnitude})` : `${TRUE_MINUS}${magnitude}`
 }

@@ -7,6 +7,7 @@ import {
   LoadingOverlay,
 } from '@/components/loading/Transition'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
+import { formatMovedPercent } from '@/utils/negativeAmount'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import type { MerchantRankingRow } from '@/pages/insights/types/merchantRanking'
 import { getMerchantSpendingFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
@@ -52,7 +53,7 @@ function getChangeColor(changePct: number | null) {
 
 function getChangeLabel(changePct: number | null) {
   if (changePct === null) return 'New'
-  return `${changePct > 0 ? '+' : ''}${changePct}%`
+  return formatMovedPercent(changePct)
 }
 
 /**
