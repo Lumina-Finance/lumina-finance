@@ -1,3 +1,4 @@
+import asyncio
 from datetime import date
 from decimal import Decimal
 
@@ -14,6 +15,7 @@ from app.services.fx import (
     convert_minor_units,
 )
 from app.services.fx.frankfurter_provider import DEFAULT_FX_PROVIDER_RETRY_DELAY_SECONDS
+from app.services.fx.lookup_budget import FxLookupBudget, use_lookup_budget
 
 
 class _FakeProvider:
@@ -358,3 +360,104 @@ async def test_frankfurter_provider_rejects_invalid_rate():
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         with pytest.raises(FxRateResponseError):
             await FrankfurterProvider(client=client, retry_delay_seconds=0).get_rate("USD", "CAD", date(2026, 5, 30))
+
+
+@pytest.mark.parametrize("lookup", ["rate", "rates"])
+async def test_frankfurter_provider_asks_once_for_an_unknown_pair(lookup):
+    """An unknown currency is a final answer, so one bad pair costs one request, not three"""
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(422, json={"status": 422, "message": "invalid currency: ABC"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        provider = FrankfurterProvider(url="https://fx.example.test/v2/", client=client, retry_delay_seconds=0)
+        with pytest.raises(FxRateNotFoundError):
+            if lookup == "rate":
+                await provider.get_rate("ABC", "CAD", date(2026, 5, 30))
+            else:
+                await provider.get_rates("ABC", "CAD", date(2026, 5, 29), date(2026, 5, 30))
+
+    assert calls == 1
+
+
+async def test_frankfurter_provider_treats_rate_limiting_as_unavailable():
+    """A rate-limited lookup is retried and then reported unavailable, never as a missing rate"""
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(429)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(FxProviderUnavailableError):
+            await FrankfurterProvider(client=client, retry_delay_seconds=0).get_rate("USD", "CAD", date(2026, 5, 30))
+
+    assert calls == 3
+
+
+async def test_frankfurter_provider_stops_retrying_once_the_request_budget_is_spent(monkeypatch):
+    """Attempts and pauses draw on the request's budget, and each attempt may only take what is left"""
+    clock = 0.0
+    attempt_timeouts: list[float] = []
+
+    def fake_monotonic() -> float:
+        """Read the test's clock"""
+        return clock
+
+    async def fake_sleep(delay: float) -> None:
+        """Pause without waiting"""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal clock
+        attempt_timeouts.append(request.extensions["timeout"]["read"])
+        clock += 2.0
+        return httpx.Response(503)
+
+    monkeypatch.setattr("app.services.fx.frankfurter_provider.monotonic", fake_monotonic)
+    monkeypatch.setattr("app.services.fx.frankfurter_provider.asyncio.sleep", fake_sleep)
+    budget = FxLookupBudget(seconds=5.0)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        with use_lookup_budget(budget), pytest.raises(FxProviderUnavailableError):
+            await FrankfurterProvider(client=client).get_rate("USD", "CAD", date(2026, 5, 30))
+
+    # 2 s, a 0.5 s pause, then 2 s of the 2.5 s left, leaving no room for another pause and try
+    assert attempt_timeouts == [5.0, 2.5]
+    assert budget.spent == 4.5
+
+
+async def test_frankfurter_provider_makes_no_request_once_the_budget_is_spent():
+    """A lookup after the request's budget is spent fails as unavailable without calling the provider"""
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(200, json={"date": "2026-05-30", "base": "USD", "quote": "CAD", "rate": 1.375})
+
+    budget = FxLookupBudget()
+    budget.charge(budget.seconds)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        with use_lookup_budget(budget), pytest.raises(FxProviderUnavailableError):
+            await FrankfurterProvider(client=client).get_rate("USD", "CAD", date(2026, 5, 30))
+
+    assert calls == 0
+
+
+async def test_frankfurter_provider_gives_up_on_an_answer_slower_than_the_attempt_deadline():
+    """An answer still arriving when the attempt's time is up fails as unavailable rather than arriving late"""
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        # The mock transport ignores httpx's own timeouts, as a slowly trickling answer can
+        await asyncio.sleep(0.5)
+        return httpx.Response(200, json={"date": "2026-05-30", "base": "USD", "quote": "CAD", "rate": 1.375})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        provider = FrankfurterProvider(client=client, timeout=0.05, retry_attempts=1)
+        with pytest.raises(FxProviderUnavailableError):
+            await provider.get_rate("USD", "CAD", date(2026, 5, 30))

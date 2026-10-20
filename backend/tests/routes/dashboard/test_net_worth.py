@@ -207,3 +207,48 @@ async def test_dashboard_net_worth_reports_unavailable_fx(client, monkeypatch):
             },
         ],
     }
+
+
+async def test_dashboard_net_worth_gives_each_request_its_own_fx_budget(client, monkeypatch):
+    """A request that spent its whole rate budget leaves the next request a full one"""
+    from app.routes import dashboard as dashboard_routes
+    from app.services.fx import FxProviderUnavailableError, frankfurter_provider
+
+    clock = 0.0
+    calls = 0
+
+    def fake_monotonic() -> float:
+        """Read the test's clock"""
+        return clock
+
+    async def slow_failing_request(*args, **kwargs):
+        """Fail as a timeout would, after using more than the whole budget"""
+        nonlocal clock, calls
+        calls += 1
+        clock += 10.0
+        raise FxProviderUnavailableError("FX provider request failed")
+
+    monkeypatch.setattr(dashboard_routes, "datetime", _FixedClock(datetime(2026, 3, 20, 16, 0, tzinfo=UTC)))
+    monkeypatch.setattr(frankfurter_provider, "monotonic", fake_monotonic)
+    monkeypatch.setattr(frankfurter_provider, "request_frankfurter_rates_response", slow_failing_request)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    async with TestSession() as session:
+        session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
+        await session.commit()
+
+    usd_account = (await _create_account(client, headers, name="USD Cash", currency="USD")).json()
+    async with TestSession() as session:
+        session.add(AccountBalanceSnapshot(account_id=UUID(usd_account["id"]), dt=date(2026, 3, 20), balance=200_00))
+        await session.commit()
+
+    first = await client.get("/dashboard/net-worth", params={"window_days": 1}, headers=headers)
+    second = await client.get("/dashboard/net-worth", params={"window_days": 1}, headers=headers)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json()["fx_status"]["state"] == "unavailable"
+
+    # One attempt each: the first spends its budget, and the second starts with a fresh one
+    assert calls == 2
