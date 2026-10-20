@@ -97,6 +97,15 @@ describe('reading a bank statement', () => {
     }
   })
 
+  // The server hashes the card key with the bank's transaction ID, and a card's saved transactions are
+  // matched on that hash, so renaming the key's prefix would bring back every transaction already imported
+  it('builds the credit card key from the card number', async () => {
+    const file = await readFile(buildSgmlOfx([{ kind: 'creditCard', transactions: [{ fitId: '1' }] }]))
+
+    expect(file.statements[0].transactions[0].bankAccountKey).toBe('creditCard:4111111111111111')
+    expect(file.statements[0].transactions[0].bankTransactionId).toBe('1')
+  })
+
   it('reads a bank statement and a credit card statement of one file as two statements', async () => {
     const file = await readFile(buildSgmlOfx([
       CHECKING,
