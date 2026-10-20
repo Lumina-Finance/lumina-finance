@@ -14,7 +14,7 @@ class FxLookupBudget:
     """Provider time a request has spent on exchange rate lookups
 
     Only time inside provider attempts and the pauses between them is charged, so database work
-    and cache writes between lookups never use it up
+    between lookups never uses it up
     """
 
     def __init__(self, seconds: float = FX_LOOKUP_BUDGET_SECONDS) -> None:
