@@ -126,14 +126,14 @@ export function FundFlowCard({
         icon={Network}
         label={(
           <span className="inline-flex items-center gap-2">
-            Fund Flow
+            Fund flow
             <InsightCalculationTooltip
-              label="Fund Flow"
+              label="Fund flow"
               calculation="Refunds and reversals are applied first. Money in flows to Income. Money out flows through Expenses. Transfers are excluded"
             />
             {displaySnapshot.fxStatus && (
               <FxStatusBadge
-                label="Fund Flow FX status"
+                label="Fund flow FX status"
                 fxStatus={displaySnapshot.fxStatus}
                 getMessage={getFundFlowFxStatusMessage}
               />
@@ -166,22 +166,22 @@ export function FundFlowCard({
         <>
         <div className="mb-3 grid items-start gap-3 min-[720px]:grid-cols-2">
           <FundFlowCategoryList
-            title="Income Sources"
+            title="Income sources"
             normalEntries={normalIncomeSources}
             flippedEntries={displaySnapshot.expenseInflows}
-            flippedLabel="Expense Inflow"
-            normalLabel="Income Source"
+            flippedLabel="Expense inflow"
+            normalLabel="Income source"
             calculation="Refunds reduce spending first before flipping into an income source. +x means categories that flipped"
             displayCurrency={displaySnapshot.displayCurrency}
             open={incomeListOpen}
             onToggle={() => setIncomeListOpen((current) => !current)}
           />
           <FundFlowCategoryList
-            title="Expense Categories"
+            title="Expense categories"
             normalEntries={normalExpenseCategories}
             flippedEntries={displaySnapshot.incomeOutflows}
-            flippedLabel="Income Outflow"
-            normalLabel="Expense Category"
+            flippedLabel="Income outflow"
+            normalLabel="Expense category"
             calculation="Reversals reduce income first before flipping into an expense category. +x means categories that flipped"
             displayCurrency={displaySnapshot.displayCurrency}
             open={expenseListOpen}

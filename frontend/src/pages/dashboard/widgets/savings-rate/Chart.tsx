@@ -55,7 +55,7 @@ function SavingsRateTooltipContent({ point }: { point: SavingsRateChartPoint }) 
     <>
       <ChartTooltipTitle>{point.fullLabel}</ChartTooltipTitle>
       <ChartTooltipValue>
-        Savings Rate: {display ?? 'N/A'}
+        Savings rate: {display ?? 'N/A'}
       </ChartTooltipValue>
     </>
   )

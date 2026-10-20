@@ -22,5 +22,5 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   { id: 'categories', label: 'Categories', icon: Tag },
   { id: 'merchants', label: 'Merchants', icon: Store },
   { id: 'tags', label: 'Tags', icon: Tags },
-  { id: 'tax-advantaged-categories', label: 'Tax-Advantaged Categories', icon: Landmark },
+  { id: 'tax-advantaged-categories', label: 'Tax-advantaged categories', icon: Landmark },
 ]

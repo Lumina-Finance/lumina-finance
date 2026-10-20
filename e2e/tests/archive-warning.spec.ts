@@ -21,7 +21,7 @@ test('brings the whole archive warning into view above the footer', AT_EVERY_SIZ
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${account.id}`)
   await page.getByRole('button', { name: 'Edit account', exact: true }).click()
-  const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
 
   await dialog.getByText('Archive account', { exact: true }).click()
   await expect(dialog.getByRole('switch')).toBeChecked()

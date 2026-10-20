@@ -47,7 +47,7 @@ export function TopCategoriesBySpendingCard({ account }: { account: Account }) {
 
   return (
     <SpendingBreakdownCard
-      title="Categories by Spending"
+      title="Categories by spending"
       rangeLabel="Spending range"
       range={range}
       onRangeChange={handleRangeChange}

@@ -10,22 +10,22 @@ export const DASHBOARD_RANGE_SELECT_OPTIONS: Array<{ value: SpendingRange; label
 ]
 
 export const PREVIOUS_LABEL_BY_RANGE: Record<SpendingRange, string> = {
-  WTD: 'Last Week',
-  MTD: 'Last Month',
-  QTD: 'Last Quarter',
-  YTD: 'Last Year',
+  WTD: 'Last week',
+  MTD: 'Last month',
+  QTD: 'Last quarter',
+  YTD: 'Last year',
 }
 
 export const PREVIOUS_PERIOD_LABEL_BY_RANGE: Record<SpendingRange, string> = {
-  WTD: 'Week',
-  MTD: 'Month',
-  QTD: 'Quarter',
-  YTD: 'Year',
+  WTD: 'week',
+  MTD: 'month',
+  QTD: 'quarter',
+  YTD: 'year',
 }
 
 export const CURRENT_LABEL_BY_RANGE: Record<SpendingRange, string> = {
-  WTD: 'This Week',
-  MTD: 'This Month',
-  QTD: 'This Quarter',
-  YTD: 'This Year',
+  WTD: 'This week',
+  MTD: 'This month',
+  QTD: 'This quarter',
+  YTD: 'This year',
 }

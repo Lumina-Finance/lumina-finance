@@ -148,7 +148,7 @@ test('opens an account\'s import page from its first visit in a tab without the 
   await expect(importButton).toBeVisible()
   await watchForLoadingAnimation(page)
   await importButton.click()
-  await expect(page.getByRole('combobox', { name: 'Data Source' })).toHaveText('OFX/QFX')
+  await expect(page.getByRole('combobox', { name: 'Data source' })).toHaveText('OFX/QFX')
   expect(await loadingAnimationWasSeen(page)).toBe(false)
 })
 
@@ -170,9 +170,9 @@ test('opens an account\'s import page on the source just imported, not the one i
 
   // Everything after this first load happens inside the app, so the cache is never reloaded from storage
   await openPage(page, `/settings/imports?account=${checking.id}`)
-  const source = page.getByRole('combobox', { name: 'Data Source' })
+  const source = page.getByRole('combobox', { name: 'Data source' })
   await expect(source).toHaveText('CSV')
-  await chooseFromDropdown(page.locator('body'), 'Data Source', 'OFX/QFX')
+  await chooseFromDropdown(page.locator('body'), 'Data source', 'OFX/QFX')
   await uploadStatement(page, buildFile([buildBankMessageSet('CAD', [CAFE])]))
   isHolding = true
   expect((await commitImport(page)).status()).toBe(201)

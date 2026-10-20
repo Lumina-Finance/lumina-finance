@@ -299,7 +299,7 @@ export default function DailyCashFlowChart({
           <span className="inline-flex items-baseline whitespace-nowrap">
             <span>{cashFlowCadenceTitle}</span>
             <DailyCashFlowTitleWord visible={mode === 'net'} />
-            <span className="ml-[0.25em]">Cash Flow</span>
+            <span className="ml-[0.25em]">Cash flow</span>
           </span>
           <IconTooltip
             label={calculationTooltipLabel}

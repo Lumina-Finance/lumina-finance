@@ -92,7 +92,7 @@ async function expectRows(page: Page, ids: string[]) {
 
 /** Finds the real breakdown card through its uniquely named calculation button */
 function breakdown(page: Page) {
-  return page.locator('section.app-card').filter({ has: page.getByRole('button', { name: 'Expense Breakdown calculation', exact: true }) })
+  return page.locator('section.app-card').filter({ has: page.getByRole('button', { name: 'Expense breakdown calculation', exact: true }) })
 }
 
 /** Brings the lazy-loaded card into view so its real visibility-gated query can run */

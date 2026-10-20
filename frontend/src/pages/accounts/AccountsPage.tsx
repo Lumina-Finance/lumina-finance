@@ -69,7 +69,7 @@ export default function AccountsPage() {
   return (
     <div>
       <header className="app-page-header">
-        <h1 className="app-page-title">My Accounts</h1>
+        <h1 className="app-page-title">My accounts</h1>
         <p className="app-page-description">
           Review balances, account groups, contribution limits, and archived accounts in one place.
         </p>

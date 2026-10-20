@@ -203,7 +203,7 @@ export function getNetWorthLegendItems(
 ) {
   return [
     ...(mode === 'overview'
-      ? [{ id: 'net-worth-change', name: 'Net Worth Change', color: netWorthChangeColor }]
+      ? [{ id: 'net-worth-change', name: 'Net worth change', color: netWorthChangeColor }]
       : []),
     ...items.map((item) => ({ id: item.id, name: item.name, color: item.color })),
   ]

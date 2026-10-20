@@ -79,7 +79,7 @@ function getPeriodGlanceBrief(
   return {
     metrics: [
       {
-        label: netSavings >= 0 ? 'You Kept' : 'You Overspent',
+        label: netSavings >= 0 ? 'You kept' : 'You overspent',
         value: netSavings,
         detail: netSavings >= 0
           ? 'Recorded income exceeds recorded expenses in the selected range, excluding transfers'
@@ -88,7 +88,7 @@ function getPeriodGlanceBrief(
         tone: netSavings >= 0 ? 'positive' : 'negative',
       },
       {
-        label: 'Net Worth Changed By',
+        label: 'Net worth changed by',
         value: data.net_worth_change,
         detail: 'Across all accounts',
         calculation: 'End-of-range account balances minus balances from the day before the range',
@@ -100,7 +100,7 @@ function getPeriodGlanceBrief(
     ],
     signals: [
       {
-        label: 'Biggest Change',
+        label: 'Biggest change',
         value: data.biggest_change_name ?? 'N/A',
         detail: data.biggest_change_name && data.biggest_change_amount !== undefined
           ? getPeriodGlanceChangeDetail(data.biggest_change_amount, data.biggest_change_pct, displayCurrency, currencies)
@@ -110,7 +110,7 @@ function getPeriodGlanceBrief(
         getFxStatusMessage: getBiggestChangeFxStatusMessage,
       },
       {
-        label: 'Top Category',
+        label: 'Top category',
         value: data.top_category_name ?? 'N/A',
         detail: data.top_category_share_pct === undefined
           ? 'No recorded expenses in this range'
@@ -120,7 +120,7 @@ function getPeriodGlanceBrief(
         getFxStatusMessage: getPeriodTopCategoryFxStatusMessage,
       },
       {
-        label: 'Savings Rate',
+        label: 'Savings rate',
         value: formatSavingsRateValue(savingsRate),
         detail: savingsRate === null
           ? 'No recorded income in the selected range'
@@ -137,13 +137,13 @@ function getLoadingPeriodGlanceBrief(): PeriodBrief {
   return {
     metrics: [
       {
-        label: 'You Kept',
+        label: 'You kept',
         value: 0,
         detail: 'Loading period summary',
         tone: 'neutral',
       },
       {
-        label: 'Net Worth Changed By',
+        label: 'Net worth changed by',
         value: 0,
         detail: 'Loading tracked balance movement',
         tone: 'neutral',
@@ -152,17 +152,17 @@ function getLoadingPeriodGlanceBrief(): PeriodBrief {
     ],
     signals: [
       {
-        label: 'Biggest Change',
+        label: 'Biggest change',
         value: 'Loading',
         detail: 'Fetching comparable category movement',
       },
       {
-        label: 'Top Category',
+        label: 'Top category',
         value: 'Loading',
         detail: 'Fetching recorded expense categories',
       },
       {
-        label: 'Savings Rate',
+        label: 'Savings rate',
         value: 'Loading',
         detail: 'Fetching income and expense totals',
       },

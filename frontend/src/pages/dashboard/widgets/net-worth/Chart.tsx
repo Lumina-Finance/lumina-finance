@@ -73,7 +73,7 @@ function NetWorthTooltipContent({
     <>
       <ChartTooltipTitle>{point.date}</ChartTooltipTitle>
       <ChartTooltipRow
-        label="Net Worth"
+        label="Net worth"
         value={formatCurrency(point.value, displayCurrency)}
         financialValue
       />

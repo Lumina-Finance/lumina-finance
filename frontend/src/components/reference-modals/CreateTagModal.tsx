@@ -70,7 +70,7 @@ export default function CreateTagModal({
 
   const railLabel = isSecondary ? 'Linked' : 'Tag'
   const eyebrow = isSecondary ? 'Transaction setup' : 'New transaction tag'
-  const title = isSecondary ? 'Add Tag' : 'Create Tag'
+  const title = isSecondary ? 'Add tag' : 'Create tag'
   const submitLabel = isSecondary ? 'Create' : 'Create'
   const submitWidth = isSecondary ? 'w-full sm:w-32' : 'w-full sm:w-28'
 
@@ -100,7 +100,7 @@ export default function CreateTagModal({
       <CreateModalSectionFrame step="01">
         <div className="min-w-0 space-y-3">
           <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>
-            Tag Name
+            Tag name
           </p>
           <div>
             <label htmlFor={CREATE_TAG_FIELD_IDS.name} className="sr-only">Tag name</label>

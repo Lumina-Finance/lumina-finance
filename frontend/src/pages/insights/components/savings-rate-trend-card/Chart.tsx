@@ -94,7 +94,7 @@ function SavingsRateHistoryTooltipContent({
     <>
       <ChartTooltipTitle>{point.fullLabel}</ChartTooltipTitle>
       <ChartTooltipRow
-        label="Savings Rate"
+        label="Savings rate"
         value={formatSavingsRateValue(point.rate)}
         financialValue
       />

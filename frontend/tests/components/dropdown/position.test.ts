@@ -80,7 +80,7 @@ describe('dropdown box placement', () => {
   })
 
   it('keeps the box inside a dialog’s body, clear of its title and buttons', () => {
-    // Category in Add Transaction on a 1280x800 window, where the body runs from under the title at
+    // Category in Add transaction on a 1280x800 window, where the body runs from under the title at
     // 172 to the top of the buttons at 643
     const bounds = { bottom: 643, top: 172 }
     const position = getDropdownBoxPosition({

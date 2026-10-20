@@ -72,7 +72,7 @@ export default function TaxAdvantagedLimitDetailsModal({
       <div className="flex shrink-0 items-start justify-between gap-4 border-b p-5" style={{ borderColor: 'var(--app-border)' }}>
         <div className="min-w-0">
           <h4 id="tax-year-limit-title" className="font-serif text-2xl font-medium tracking-tight">
-            {showAddTaxYear ? 'New Year' : selectedLimit?.year}
+            {showAddTaxYear ? 'New year' : selectedLimit?.year}
           </h4>
           <p className="mt-1 text-sm" style={{ color: 'var(--app-text-muted)' }}>
             {showAddTaxYear ? 'Configure annual limits and opening usage.' : 'Edit annual limits and opening usage.'}

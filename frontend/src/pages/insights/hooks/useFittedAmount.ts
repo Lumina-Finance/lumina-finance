@@ -27,7 +27,7 @@ export function getFittedAmountStyle(fillRatio: number | null, maxRem: number, m
  */
 export function useFittedAmount(value: string, maxRem: number, minRem: number) {
   // A callback ref held in state, so the fitting follows the element as it mounts and unmounts
-  // (the Net Cash Flow headline is absent while its load has failed)
+  // (the Net cash flow headline is absent while its load has failed)
   const [textElement, setTextElement] = useState<HTMLParagraphElement | null>(null)
   // The font size, as a share of the container's width, at which the text fills it
   const [fillRatio, setFillRatio] = useState<number | null>(null)

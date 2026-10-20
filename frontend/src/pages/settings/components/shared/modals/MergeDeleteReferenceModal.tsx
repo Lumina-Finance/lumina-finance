@@ -119,7 +119,7 @@ export default function MergeDeleteReferenceModal<TItem>({
       onClose={onClose}
       onSubmit={handleSubmit}
       titleId={titleId}
-      title="Move Transactions First"
+      title="Move transactions first"
       eyebrow={`${wording.entityLabel} in use`}
       RailIcon={Icon}
       railLabel={wording.entityLabel}

@@ -63,7 +63,7 @@ export default function AccountListToolbar({
               setFilter={setFilter}
             />
           }
-          createLabel="Add Account"
+          createLabel="Add account"
           onCreate={onAddAccount}
         />
       </ToolbarStickyShell>

@@ -250,7 +250,7 @@ export default function BudgetCreateModal({
   return (
     <BudgetEditorModalShell
       open={open}
-      title="Add Budget"
+      title="Add budget"
       titleId="budget-create-title"
       eyebrow={form.recurs ? 'Recurring budget' : 'One-off budget'}
       sideLabel="Budget"
@@ -263,7 +263,7 @@ export default function BudgetCreateModal({
           level="page"
           isPending={isPending}
           submitDisabled={isPending}
-          submitLabel="Create Budget"
+          submitLabel="Create budget"
           onClose={closeAndReset}
         />
       )}

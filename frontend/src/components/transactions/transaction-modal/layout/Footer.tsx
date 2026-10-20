@@ -179,12 +179,12 @@ export default function TransactionModalFooter({
           <button
             type="submit"
             data-testid="transaction-submit"
-            aria-label={editing ? 'Save' : 'Add Transaction'}
+            aria-label={editing ? 'Save' : 'Add transaction'}
             aria-busy={submitLoading}
             disabled={isPending}
             className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${submitLoading ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : editing ? 'w-full sm:w-24' : 'w-full sm:w-44'}`}
           >
-            {submitLoading ? <div className="app-spinner" /> : editing ? 'Save' : 'Add Transaction'}
+            {submitLoading ? <div className="app-spinner" /> : editing ? 'Save' : 'Add transaction'}
           </button>
         )}
       </div>

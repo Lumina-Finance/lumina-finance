@@ -204,7 +204,7 @@ export function IncomeExpensePieChart({
       >
         <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center">
           <span className="app-label app-label-compact">
-            Total {mode === 'expense' ? 'Expense' : 'Income'}
+            Total {mode === 'expense' ? 'expense' : 'income'}
           </span>
           <span className="font-financial text-3xl leading-none tracking-tight">
             {formatCurrency(total, displayCurrency)}

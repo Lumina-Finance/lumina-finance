@@ -91,7 +91,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await logInViaApi(page, user)
       await openPage(page, '/transactions')
       await expectTheme(page)
-      const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+      const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
       // The field shows the currency symbol once an account gives it a currency
       await chooseFromDropdown(dialog, 'Account', 'Everyday')
       await dialog.getByTestId('transaction-submit').click()
@@ -108,7 +108,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await openPage(page, `/accounts/${account.id}`)
       await expectTheme(page)
       await page.getByRole('button', { name: 'Edit account', exact: true }).click()
-      const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+      const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
       await dialog.getByText('Archive account', { exact: true }).click()
       await expect(dialog.getByRole('switch')).toBeChecked()
       const heading = dialog.getByText('Balance will be set to zero', { exact: true })

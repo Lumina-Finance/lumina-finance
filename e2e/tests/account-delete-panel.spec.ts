@@ -28,7 +28,7 @@ const DIALOG_SIZES = [
 async function openEditDialog(page: Page, accountId: string) {
   await openPage(page, `/accounts/${accountId}`)
   await page.getByRole('button', { name: 'Edit account', exact: true }).click()
-  const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
   await expect(dialog).toBeVisible()
   return dialog
 }
@@ -93,7 +93,7 @@ test('brings the delete confirmation into view and moves focus through its steps
     }
   }
 
-  const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
   await page.keyboard.press('Tab')
   await expect(dialog.getByRole('button', { name: 'Continue', exact: true })).toBeFocused()
 
@@ -201,7 +201,7 @@ test('lines the delete confirmation and the save error up with the sections abov
     const archiveBox = dialog.locator('label').filter({ hasText: 'Archive account' })
     const panel = dialog.getByRole('group', { name: `Delete ${ACCOUNT_NAME}?`, exact: true })
 
-    await dialog.getByRole('button', { name: 'Save Changes', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Save changes', exact: true }).click()
     const saveError = dialog.locator('p[style*="--app-negative"]')
     await expect(saveError).toBeVisible()
     const sections = await archiveBox.boundingBox()

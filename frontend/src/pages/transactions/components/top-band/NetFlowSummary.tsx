@@ -68,7 +68,7 @@ export default function NetFlowSummary({
     <div ref={containerRef} className={`relative min-w-0 ${className}`}>
       <div className="mb-1.5 flex items-center gap-2">
         <p className="app-label inline-flex items-center gap-2">
-          Net Flow
+          Net flow
           <IconTooltip
             label="How net flow is calculated"
             level="info"

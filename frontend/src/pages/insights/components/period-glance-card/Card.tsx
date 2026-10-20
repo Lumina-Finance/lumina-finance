@@ -83,7 +83,7 @@ export function PeriodGlanceCard({
 
   return (
     <section className="app-card">
-      <InsightSectionHeader icon={Sparkles} label="This Period at a Glance" />
+      <InsightSectionHeader icon={Sparkles} label="This period at a glance" />
 
       <div className="relative overflow-hidden" data-tooltip-bounds>
         <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>

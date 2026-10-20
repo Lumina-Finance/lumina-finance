@@ -44,7 +44,7 @@ export default function CreateTaxAdvantagedCategoryModal({
       onClose={onClose}
       onSubmit={handleCreatePlan}
       titleId="create-tax-advantaged-category-title"
-      title="Create Category"
+      title="Create category"
       eyebrow="Tax-advantaged category"
       RailIcon={Landmark}
       railLabel="TAC"
@@ -52,7 +52,7 @@ export default function CreateTaxAdvantagedCategoryModal({
       closeDisabled={isCreating}
       footer={(
         <ModalFormFooter
-          submitLabel="Create Category"
+          submitLabel="Create category"
           submitDisabled={isCreating}
           submitWidthClassName="w-full sm:w-40"
           onCancel={onClose}
@@ -131,7 +131,7 @@ export default function CreateTaxAdvantagedCategoryModal({
                 />
               </div>
               <div>
-                <label htmlFor={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.lifetimeContributionLimit} className="app-label mb-1.5 block text-[0.9375rem] leading-5">Lifetime Contribution Limit</label>
+                <label htmlFor={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.lifetimeContributionLimit} className="app-label mb-1.5 block text-[0.9375rem] leading-5">Lifetime contribution limit</label>
                 <CurrencyInput
                   id={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.lifetimeContributionLimit}
                   currencies={currencies}
@@ -142,7 +142,7 @@ export default function CreateTaxAdvantagedCategoryModal({
                 />
               </div>
               <div>
-                <label htmlFor={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.accruedContributions} className="app-label mb-1.5 block text-[0.9375rem] leading-5">Accrued Contributions</label>
+                <label htmlFor={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.accruedContributions} className="app-label mb-1.5 block text-[0.9375rem] leading-5">Accrued contributions</label>
                 <CurrencyInput
                   id={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.accruedContributions}
                   currencies={currencies}

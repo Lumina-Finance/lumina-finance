@@ -61,7 +61,7 @@ test('brings each chosen settings section to rest below the pinned section menu'
   const menu = page.locator('[aria-controls="settings-mobile-section-menu"]')
   const compact = await menu.isVisible()
   const gap = compact ? 16 : 32
-  for (const name of ['Security', 'Runway', 'Categories', 'Merchants', 'Tags', 'Tax-Advantaged Categories']) {
+  for (const name of ['Security', 'Runway', 'Categories', 'Merchants', 'Tags', 'Tax-advantaged categories']) {
     if (compact) {
       await menu.click()
       await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name, exact: true }).click()
@@ -141,7 +141,7 @@ for (const { path, placeholder, buttons, oneRow, lastSeeded } of [
   {
     path: '/transactions',
     placeholder: 'Search transactions...',
-    buttons: ['Select transactions', 'Import transactions', 'Transaction filters', 'Add Transaction'],
+    buttons: ['Select transactions', 'Import transactions', 'Transaction filters', 'Add transaction'],
     oneRow: { 1024: true, 960: false } as Record<number, boolean>,
     // The last row of the list's first page
     lastSeeded: (page: Page) => page.getByTestId(/^transaction-row-/).nth(14),
@@ -149,7 +149,7 @@ for (const { path, placeholder, buttons, oneRow, lastSeeded } of [
   {
     path: '/accounts',
     placeholder: 'Search accounts...',
-    buttons: ['Account filters', 'Add Account'],
+    buttons: ['Account filters', 'Add account'],
     oneRow: { 1024: true } as Record<number, boolean>,
     lastSeeded: (page: Page) => page.getByText('Pinned bar account 19'),
   },

@@ -8,7 +8,7 @@ export function RecentActivityHeader() {
   return (
     <div className="flex items-center gap-2 mb-3">
       <DashboardWidgetHeaderIcon icon={Activity} />
-      <span className="app-label">Recent Activity</span>
+      <span className="app-label">Recent activity</span>
     </div>
   )
 }

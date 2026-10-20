@@ -137,7 +137,7 @@ export default function BudgetsPage() {
         </header>
         <button type="button" className="app-primary-button w-full min-[750px]:w-auto" onClick={() => requireCurrencies(() => setCreateOpen(true))}>
           <Plus size={18} aria-hidden />
-          New Budget
+          New budget
         </button>
       </div>
 
@@ -160,7 +160,7 @@ export default function BudgetsPage() {
         )}
       </AnimatePresence>
 
-      {/* The New Budget button refuses the click while the currency table is missing, so this only ever
+      {/* The New budget button refuses the click while the currency table is missing, so this only ever
           opens with the table in hand */}
       <BudgetCreateModal
         key={`${defaultCurrency}-${userTimeZone}`}

@@ -184,7 +184,7 @@ export default function TopCategoriesChart({
   return (
     <div className={`flex min-w-0 flex-col ${className}`}>
       <p className="app-label mb-1 inline-flex items-center gap-2">
-        Top Categories
+        Top categories
         <IconTooltip
           label="How top categories are calculated"
           level="info"

@@ -63,7 +63,7 @@ export default function MergeDeleteTagModal({
       useReplacementQuery={useTagReplacementQuery}
       wording={{
         entityLabel: 'Tag',
-        fieldLabel: 'Replacement Tag',
+        fieldLabel: 'Replacement tag',
         description: `${tag.name} is used by existing transactions. Choose another tag for those transactions, then it can be deleted.`,
         selectSrLabel: 'Replacement tag',
         searchPlaceholder: 'Search tags...',

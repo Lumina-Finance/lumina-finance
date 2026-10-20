@@ -61,9 +61,9 @@ for (const longDetail of [false, true]) {
       await expectContained(heading)
       await expectContained(widget.getByRole('button', { name: 'Reload', exact: true }))
       await expectContained(widget.getByRole('button', { name: 'Copy error details', exact: true }))
-      if (index === 0) await expect(widget.getByRole('button', { name: 'Ending Net Worth calculation', exact: true })).toHaveCount(0)
-      if (index === 1) await expect(widget.getByRole('button', { name: 'Net Cash Flow calculation', exact: true })).toHaveCount(0)
-      if (index === 2) await expect(widget.getByRole('button', { name: 'Latest Savings Rate calculation', exact: true })).toHaveCount(0)
+      if (index === 0) await expect(widget.getByRole('button', { name: 'Ending net worth calculation', exact: true })).toHaveCount(0)
+      if (index === 1) await expect(widget.getByRole('button', { name: 'Net cash flow calculation', exact: true })).toHaveCount(0)
+      if (index === 2) await expect(widget.getByRole('button', { name: 'Latest savings rate calculation', exact: true })).toHaveCount(0)
       if (index === 3) await expect(widget.getByRole('img', { name: 'Merchant market map', exact: true })).toHaveCount(0)
       if (index === 4) await expect(widget.getByText(/^Insights \d long descriptive merchant/)).toHaveCount(0)
     }

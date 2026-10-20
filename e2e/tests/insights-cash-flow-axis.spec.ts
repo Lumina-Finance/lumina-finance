@@ -61,7 +61,7 @@ const SIGN_CASES = [
 ]
 
 /**
- * Records one transaction in the given currency and opens the Insights page on the Cash Flow card,
+ * Records one transaction in the given currency and opens the Insights page on the Cash flow card,
  * returning its amount labels, which have decimals that the dates along the bottom never do
  */
 async function openCashFlowAxis(page: Page, request: APIRequestContext, currency: string, minorUnits: number) {

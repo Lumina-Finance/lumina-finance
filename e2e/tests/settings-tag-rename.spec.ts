@@ -48,7 +48,7 @@ test('shows a renamed tag without reloading when its id and list position stay t
   expect(await persisted.json()).toMatchObject({ id, name: newName })
 })
 
-test('marks the Create Tag name field invalid when the name is taken or empty', async ({ page, request }) => {
+test('marks the Create tag name field invalid when the name is taken or empty', async ({ page, request }) => {
   const user = await signUpUser(request)
   const name = `Holiday ${crypto.randomUUID()}`
   const created = await request.post(`${API_BASE_URL}/tags`, { headers: asUser(user), data: { name } })
@@ -57,8 +57,8 @@ test('marks the Create Tag name field invalid when the name is taken or empty', 
   await logInViaApi(page, user)
   await openPage(page, '/settings#tags')
   await page.locator('#tags').getByRole('button', { name: 'Create tag', exact: true }).click()
-  const dialog = page.getByRole('dialog', { name: 'Create Tag' })
-  const field = dialog.getByRole('textbox', { name: 'Tag Name', exact: true })
+  const dialog = page.getByRole('dialog', { name: 'Create tag' })
+  const field = dialog.getByRole('textbox', { name: 'Tag name', exact: true })
   const create = dialog.getByRole('button', { name: 'Create', exact: true })
 
   await field.fill(name)
@@ -91,8 +91,8 @@ test('says something went wrong when creating a tag fails with no explanation', 
   await logInViaApi(page, user)
   await openPage(page, '/settings#tags')
   await page.locator('#tags').getByRole('button', { name: 'Create tag', exact: true }).click()
-  const dialog = page.getByRole('dialog', { name: 'Create Tag' })
-  await dialog.getByRole('textbox', { name: 'Tag Name', exact: true }).fill('Holiday')
+  const dialog = page.getByRole('dialog', { name: 'Create tag' })
+  await dialog.getByRole('textbox', { name: 'Tag name', exact: true }).fill('Holiday')
   await dialog.getByRole('button', { name: 'Create', exact: true }).click()
 
   await expect(dialog.getByRole('alert')).toHaveText('Oops, something went wrong. Please try again.')

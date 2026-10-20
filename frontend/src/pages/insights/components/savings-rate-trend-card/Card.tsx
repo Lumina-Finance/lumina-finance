@@ -109,14 +109,14 @@ export function SavingsRateTrendCard({
         icon={Repeat}
         label={(
           <span className="inline-flex items-center gap-2">
-            Savings Rate Trend
+            Savings rate trend
             <InsightCalculationTooltip
-              label="Savings Rate Trend"
+              label="Savings rate trend"
               calculation={savingsRateCalculation}
             />
             {displaySnapshot.fxStatus && (
               <FxStatusBadge
-                label="Savings Rate Trend FX status"
+                label="Savings rate trend FX status"
                 fxStatus={displaySnapshot.fxStatus}
                 getMessage={getSavingsRateTrendFxStatusMessage}
               />
@@ -154,9 +154,9 @@ export function SavingsRateTrendCard({
               <div className="mb-4 grid gap-4 border-b border-[var(--app-border)] pb-4 min-[750px]:grid-cols-[minmax(0,1.15fr)_minmax(0,1.85fr)] min-[750px]:items-center min-[750px]:gap-6">
                 <div className="min-w-0">
                   <p className="app-label inline-flex items-center gap-2">
-                    Latest Savings Rate
+                    Latest savings rate
                     <InsightCalculationTooltip
-                      label="Latest Savings Rate"
+                      label="Latest savings rate"
                       calculation={latestSavingsRateCalculation}
                     />
                   </p>
@@ -172,7 +172,7 @@ export function SavingsRateTrendCard({
                     <p className={savingsRateStatLabelClass}>
                       Average
                       <InsightCalculationTooltip
-                        label="Average Savings Rate"
+                        label="Average savings rate"
                         calculation={averageSavingsRateCalculation}
                       />
                     </p>
@@ -189,7 +189,7 @@ export function SavingsRateTrendCard({
                     <p className={savingsRateStatLabelClass}>
                       Best
                       <InsightCalculationTooltip
-                        label="Best Savings Rate"
+                        label="Best savings rate"
                         calculation={bestSavingsRateCalculation}
                       />
                     </p>
@@ -206,7 +206,7 @@ export function SavingsRateTrendCard({
                     <p className={savingsRateStatLabelClass}>
                       Worst
                       <InsightCalculationTooltip
-                        label="Worst Savings Rate"
+                        label="Worst savings rate"
                         calculation={worstSavingsRateCalculation}
                       />
                     </p>

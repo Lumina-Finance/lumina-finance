@@ -197,7 +197,7 @@ export function MerchantMarketMap({
           <>
             <ChartTooltipTitle>{hoveredMerchant.name}</ChartTooltipTitle>
             <ChartTooltipRow
-              label="Total Spend"
+              label="Total spend"
               value={formatCurrency(hoveredMerchant.totalAmount, currency)}
               financialValue
             />

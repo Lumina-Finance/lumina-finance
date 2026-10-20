@@ -66,7 +66,7 @@ export default function MergeDeleteMerchantModal({
       useReplacementQuery={useMerchantReplacementQuery}
       wording={{
         entityLabel: 'Merchant',
-        fieldLabel: 'Replacement Merchant',
+        fieldLabel: 'Replacement merchant',
         description: `${merchant.name} is used by existing transactions. Choose another merchant for those transactions, then it can be deleted.`,
         selectSrLabel: 'Replacement merchant',
         searchPlaceholder: 'Search merchants...',

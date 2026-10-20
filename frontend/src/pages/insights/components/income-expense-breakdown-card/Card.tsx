@@ -115,10 +115,10 @@ export function IncomeExpenseBreakdownCard({
           <span className="inline-flex items-center gap-2">
             <span className="inline-flex items-baseline whitespace-nowrap">
               <AppSlotMachineText text={displaySnapshot.mode === 'expense' ? 'Expense' : 'Income'} />
-              <span className="ml-[0.25em]">Breakdown</span>
+              <span className="ml-[0.25em]">breakdown</span>
             </span>
             <InsightCalculationTooltip
-              label={`${displaySnapshot.mode === 'expense' ? 'Expense' : 'Income'} Breakdown`}
+              label={`${displaySnapshot.mode === 'expense' ? 'Expense' : 'Income'} breakdown`}
               calculation={getBreakdownCalculation(displaySnapshot.mode)}
             />
             {displaySnapshot.fxStatus && (

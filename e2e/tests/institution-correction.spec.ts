@@ -24,12 +24,12 @@ test('corrects the highlighted institution by keyboard and the original inline a
 
   await logInViaApi(page, user)
   await openPage(page, '/accounts')
-  const create = await openModal(page, ['Add Account', 'Add account'], 'Add account')
+  const create = await openModal(page, ['Add account'], 'Add account')
   const picker = create.getByRole('combobox', { name: 'Institution', exact: true })
   const describedBy = await picker.getAttribute('aria-describedby')
   expect(describedBy).toBeTruthy()
   await picker.press('Alt+Enter')
-  const correction = page.getByRole('dialog', { name: 'Correct Institution', exact: true })
+  const correction = page.getByRole('dialog', { name: 'Correct institution', exact: true })
   await expect(correction).toBeHidden()
   await expect(picker).toHaveAttribute('aria-expanded', 'false')
 
@@ -69,7 +69,7 @@ test('corrects the highlighted institution by keyboard and the original inline a
 
   await openPage(page, `/accounts/${account.id}`)
   await page.getByRole('button', { name: 'Edit account', exact: true }).click()
-  const edit = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  const edit = page.getByRole('dialog', { name: 'Edit account', exact: true })
   const current = edit.getByRole('combobox', { name: 'Institution', exact: true })
   await expect(current).toHaveText(name)
   await current.click()

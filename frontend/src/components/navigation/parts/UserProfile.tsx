@@ -30,7 +30,7 @@ export function NavigationUserProfile({
           {displayName}
         </p>
         <p className="truncate text-[0.6875rem]" style={{ color: 'var(--app-text-subtle)' }}>
-          Premium Plan
+          Premium plan
         </p>
       </div>
       <button

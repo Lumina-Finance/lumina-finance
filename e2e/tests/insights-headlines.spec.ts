@@ -1,8 +1,8 @@
 /**
- * The Net Cash Flow headline once wrapped a very large total at phone width, leaving its minus sign
+ * The Net cash flow headline once wrapped a very large total at phone width, leaving its minus sign
  * alone on the line above the amount. The Period Glance headline, which shares its fitting, once ran
  * past its panel's right edge at phone width with a very large total, and its Income and Expenses
- * figures were cut off at the panel's edge with a very large amount. The Net Cash Flow and Period
+ * figures were cut off at the panel's edge with a very large amount. The Net cash flow and Period
  * Glance headlines also showed a very large total at full size for a frame on first load before
  * shrinking it to fit, and the Period Glance headline did the same after a range change. A window
  * narrowed under a fitted headline could also show it running past its panel for a frame
@@ -18,7 +18,7 @@ import { card, matchesApi, navigate } from '../support/insights'
 const PHONE = { width: 390, height: 844 }
 const DESKTOP = { width: 1280, height: 800 }
 
-// The size the Net Cash Flow headline takes whenever its total fits, `text-3xl`
+// The size the Net cash flow headline takes whenever its total fits, `text-3xl`
 const FULL_FONT_SIZE_PX = 30
 
 // The Period Glance headline's full size, `text-5xl`, and the smallest it once shrank to, `text-3xl`,
@@ -86,7 +86,7 @@ for (const example of CASES) {
   })
 }
 
-// A balance the account opens with, which is not cash flow, so the Net Worth card's "Ending Net
+// A balance the account opens with, which is not cash flow, so the Net worth card's "Ending Net
 // Worth" figure differs from the Period Glance headline. The signed net worth changes can't match,
 // since no headline pattern allows a plus sign
 const PERIOD_GLANCE_STARTING_BALANCE = 100_000
@@ -133,7 +133,7 @@ for (const example of PERIOD_GLANCE_FIGURE_CASES) {
     await navigate(page, 'Insights')
 
     // The card has no heading role, so it is found by its section holding the title
-    const glance = page.locator('section').filter({ hasText: 'This Period at a Glance' })
+    const glance = page.locator('section').filter({ hasText: 'This period at a glance' })
     const income = glance.getByRole('paragraph').filter({ hasText: example.incomeText })
     const expenses = glance.getByRole('paragraph').filter({ hasText: example.expensesText })
     await expect.poll(() => measureHeadline(page, income)).toEqual({ lines: 1, overflows: false })
@@ -308,7 +308,7 @@ async function expectNoFrameAboveSettledSize(
   expect(sizes.filter((size) => size > settled)).toEqual([])
 }
 
-// The Period Glance and Net Cash Flow headlines for one very large income. The Income figure and
+// The Period Glance and Net cash flow headlines for one very large income. The Income figure and
 // the account's ending balance each differ from them, so neither can match
 const LARGE_PERIOD_GLANCE_TEXT = /^IQD\s1,246,913,569\.001$/
 const LARGE_NET_CASH_FLOW_TEXT = /^\+IQD\s1,246,913,569\.001$/
@@ -467,7 +467,7 @@ test('net cash flow calculation tooltip is drawn over the chart below it', async
   const cashFlow = card(page, 1)
   await loadCardsUpTo(page, cashFlow, responses)
 
-  const trigger = cashFlow.getByRole('button', { name: 'Net Cash Flow calculation', exact: true })
+  const trigger = cashFlow.getByRole('button', { name: 'Net cash flow calculation', exact: true })
   // Centred, so the viewport's lower edge leaves the panel room to open below. A trigger left at that
   // edge makes the panel open above it instead, which is right but not what this test covers
   await trigger.evaluate((element) => element.scrollIntoView({ block: 'center' }))

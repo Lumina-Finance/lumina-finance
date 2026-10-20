@@ -34,7 +34,7 @@ export function SpendingBreakdownHeader({
       <DashboardWidgetHeaderIcon icon={PieChartIcon} />
       <span className="app-label inline-flex items-baseline whitespace-nowrap">
         <AppSlotMachineText text={breakdownMode === 'spending' ? 'Spending' : 'Income'} />
-        <span className="ml-[0.25em]">Breakdown</span>
+        <span className="ml-[0.25em]">breakdown</span>
       </span>
       <FxStatusBadge
         label="Spending breakdown FX status"

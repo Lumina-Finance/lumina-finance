@@ -9,14 +9,14 @@ import { AT_EVERY_SIZE } from '../support/sizes'
 
 // These are the outer-card contracts, independent of their CSS implementation
 const CARDS = [
-  { label: 'Net Worth', height: 248 },
-  { label: 'Credit', slotText: 'Used', height: 248 },
-  { label: 'Savings Rate', height: 248 },
+  { label: 'Net worth', height: 248 },
+  { label: 'Credit', slotText: 'used', height: 248 },
+  { label: 'Savings rate', height: 248 },
   { label: 'Runway', height: 248 },
-  { label: 'Spending comparison', slotText: 'Month', height: 470 },
+  { label: 'Spending comparison', slotText: 'month', height: 470 },
   { label: 'Spending breakdown', slotText: 'Spending', height: 470 },
-  { label: 'Top Budgets', height: 410 },
-  { label: 'Recent Activity', height: 410 },
+  { label: 'Top budgets', height: 410 },
+  { label: 'Recent activity', height: 410 },
 ] as const
 
 const FAILURE_TIERS = [
