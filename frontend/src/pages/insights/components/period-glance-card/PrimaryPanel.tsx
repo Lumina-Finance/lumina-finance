@@ -7,9 +7,10 @@ import { InsightCalculationTooltip } from '@/pages/insights/components/Calculati
 import { getPeriodGlanceToneClass } from './display'
 import { useFittedAmount } from '@/pages/insights/hooks/useFittedAmount'
 
-// The headline's `text-5xl` size, and the smallest it shrinks to, `text-3xl`
+// The headline's `text-5xl` size, and the smallest it shrinks to, `text-xl`, which keeps an amount
+// as long as "(IQD 1,246,913,569.001)" inside the panel at phone width
 const PRIMARY_AMOUNT_MAX_REM = 3
-const PRIMARY_AMOUNT_MIN_REM = 1.875
+const PRIMARY_AMOUNT_MIN_REM = 1.25
 
 type PeriodGlancePrimaryPanelProps = {
   primaryMetric: PeriodGlancePrimaryMetric
