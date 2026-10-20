@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState, type RefObject } from 'react'
+import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { flushSync } from 'react-dom'
 
 /** Marks the axis labels the width is measured from */
@@ -19,6 +19,8 @@ const MIN_Y_AXIS_WIDTH_PX = 52
  */
 export function useFittedYAxisWidth(containerRef: RefObject<HTMLElement | null>) {
   const [width, setWidth] = useState(MIN_Y_AXIS_WIDTH_PX)
+  // The width last set, which outlives an effect re-run so a re-measure is compared with what is held
+  const fittedWidth = useRef(MIN_Y_AXIS_WIDTH_PX)
 
   useLayoutEffect(() => {
     const container = containerRef.current
@@ -39,41 +41,47 @@ export function useFittedYAxisWidth(containerRef: RefObject<HTMLElement | null>)
         MIN_Y_AXIS_WIDTH_PX,
         Math.ceil(widest) + Y_AXIS_TICK_SIZE_PX + Y_AXIS_TICK_MARGIN_PX,
       )
-      const update = () => setWidth((current) => (current === nextWidth ? current : nextWidth))
+      if (nextWidth === fittedWidth.current) return
+      fittedWidth.current = nextWidth
       // Rendered before the browser paints, since a frame drawn with the old width clips the labels
-      // and moves the bars. The first measure runs inside an effect, which renders after it anyway
-      if (paintAtOnce) flushSync(update)
-      else update()
+      // and moves the bars. The first measure runs inside an effect, which renders after it anyway.
+      // A change that leaves the width as it was returns above, so a render cannot set off another
+      if (paintAtOnce) flushSync(() => setWidth(nextWidth))
+      else setWidth(nextWidth)
     }
 
     /**
      * Whether a change touched the chart's drawing, as opposed to the tooltip beside it
      */
-    function isChartMutation(mutation: MutationRecord) {
-      const inChart = (node: Node) => (node instanceof Element ? node : node.parentElement)?.closest('svg')
-      return inChart(mutation.target) !== null
-        || [...mutation.addedNodes].some((node) => node instanceof Element && (node.matches('svg') || node.querySelector('svg')))
+    function touchesChart(mutation: MutationRecord) {
+      const element = (node: Node) => (node instanceof Element ? node : node.parentElement)
+      return element(mutation.target)?.closest('svg') != null
+        || [...mutation.addedNodes].some((node) => node instanceof Element && (node.closest('svg') || node.querySelector('svg')))
     }
 
     measure(false)
-    // Labels are drawn after the chart has been sized and again whenever the amounts change, and the
-    // font they are measured in may arrive after they are drawn
+    const remeasure = () => measure()
+    // Recharts draws its labels after the container has been sized, which no resize reports, and
+    // draws them again whenever the amounts change, so the drawing itself is watched
     const mutationObserver = new MutationObserver((mutations) => {
-      if (mutations.some(isChartMutation)) measure()
+      if (mutations.some(touchesChart)) remeasure()
     })
     mutationObserver.observe(containerElement, { childList: true, subtree: true, characterData: true })
     // A taller chart draws more ticks
-    const resizeObserver = new ResizeObserver(() => measure())
+    const resizeObserver = new ResizeObserver(remeasure)
     resizeObserver.observe(containerElement)
+    // The labels are measured in the loaded font, which may arrive before or after they are drawn
+    document.fonts?.addEventListener('loadingdone', remeasure)
     let cancelled = false
     void document.fonts?.ready.then(() => {
-      if (!cancelled) measure()
+      if (!cancelled) remeasure()
     })
 
     return () => {
       cancelled = true
       mutationObserver.disconnect()
       resizeObserver.disconnect()
+      document.fonts?.removeEventListener('loadingdone', remeasure)
     }
   }, [containerRef])
 
