@@ -369,7 +369,7 @@ export default function ImportsPage() {
                 overlayWorkflow.importResult && 'import-record',
               ].filter(Boolean).join(' ')}
             >
-              <ImportSetupPanel hasFile={hasStagedFile}>
+              <ImportSetupPanel hasFile={hasStagedFile} onPointerInsideChange={workflow.setIsPointerInDatePanel}>
                 {/* First, so the way to undo the last import is in view without scrolling the steps below */}
                 <LastImportCard />
                 {/* An import started from an account offers the sources that write to one account */}

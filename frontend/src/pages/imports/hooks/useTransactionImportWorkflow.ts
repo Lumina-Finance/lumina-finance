@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
 import { getImportFileName } from '@/api/import-runs'
 import { useTransactions } from '@/api/transactions'
@@ -12,7 +12,7 @@ import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import { useAuth } from '@/hooks/useAuth'
 import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
-import type { ColumnMap, ColumnTarget, ColumnValidationErrors, CsvReadingChoices, ImportAmountDirection, ImportCategoryKind, ImportDateRange, ImportFileDraft, ImportRowProblem, PreviewTransactionRow } from '@/pages/imports/types'
+import type { ColumnMap, ColumnTarget, ColumnValidationErrors, CsvReadingChoices, ImportAmountDirection, ImportCategoryKind, ImportFileDraft, ImportRowProblem, PreviewTransactionRow } from '@/pages/imports/types'
 import {
   buildColumnTargetOptions,
   buildImportAnswerScope,
@@ -41,10 +41,8 @@ import {
   getImportDateRangeFilter,
   getLatestStartSuggestion,
   getLatestTransactionFilters,
-  getNextImportDateRange,
   includeEveryImportRow,
   isImportDateRangeCrossed,
-  WHOLE_FILE_DATE_RANGE,
   getMissingRequiredColumnLabels,
   getNextAutoFilledColumnHeaders,
   getNextColumnMap,
@@ -97,6 +95,7 @@ import { waitForMilliseconds } from '@/utils/timing'
 import { useImportAccountCreateState } from './useImportAccountCreateState'
 import { useImportMerchantMatches } from './useImportMerchantMatches'
 import { useImportReferenceData } from './useImportReferenceData'
+import { useImportDateRange } from './useImportDateRange'
 import { useImportRun } from './useImportRun'
 import { useUnchangedImportAnswers } from './useUnchangedImportAnswers'
 
@@ -194,7 +193,11 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
 
   // The dates the import is limited to. Kept apart from the column mapping, since the mapping
   // describes the file while the range is a choice about this one import
-  const [dateRange, setDateRange] = useState<ImportDateRange>(WHOLE_FILE_DATE_RANGE)
+  //
+  // The page reads the range once the user has finished editing it, while the fields show it at once
+  const { dateRange, shownDateRange, applyDateRange, setDateRangeEnd, resetDateRange, setIsPointerInDatePanel } = useImportDateRange()
+  const isCommitAfterDatesRef = useRef(false)
+
   const dateRangeFilter = useMemo(
     () => getImportDateRangeFilter({ columnMap, dateFormat, timeZone, dateRange }),
     [columnMap, dateFormat, dateRange, timeZone],
@@ -208,15 +211,11 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     () => countImportRowsOutsideDateRange(files, dateRangeFilter),
     [dateRangeFilter, files],
   )
-  const isDateRangeCrossed = isImportDateRangeCrossed(columnMap, dateRange)
+  const isDateRangeCrossed = isImportDateRangeCrossed(columnMap, shownDateRange)
 
   // Offered rather than filled in, so the start stays empty unless the user asks for it
   const { data: latestTransactions } = useTransactions(getLatestTransactionFilters(fixedAccount?.id ?? null))
   const latestStartSuggestion = getLatestStartSuggestion(latestTransactions?.[0]?.dt)
-
-  const setDateRangeEnd =(end: keyof ImportDateRange, value: string, isPartlyTyped: boolean) => {
-    setDateRange((current) => getNextImportDateRange(current, end, value, isPartlyTyped))
-  }
 
   const accountMappingSources = useMemo(
     () => buildImportAccountMappingSources(files, columnMap.account_id, columnMap.counterparty_account_id, isRowIncluded),
@@ -1070,7 +1069,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
 
           if (isReplacingFinishedImport) {
             run.resetImportRun()
-            setDateRange(WHOLE_FILE_DATE_RANGE)
+            resetDateRange()
             sourceFilesRef.current = new Map()
           }
           for (const { draft, source } of accepted) sourceFilesRef.current.set(draft.id, source)
@@ -1201,6 +1200,12 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   }
 
   const handleCommitImport = async () => {
+    // A click that no pointer press, key or focus came before, as an assistive technology's is, finds
+    // the dates still being edited. The range on screen is taken and the commit is made from the
+    // render that holds it, so the import never goes out with an earlier range or is dropped
+    isCommitAfterDatesRef.current = true
+    if (applyDateRange()) return
+    isCommitAfterDatesRef.current = false
     const payload = importBuild.payload
 
     // A payload is only built once the range can be applied, so the count is known whenever there is one
@@ -1224,6 +1229,13 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     })
   }
 
+  // Runs after the render that took the dates, so the commit reads the build made from them
+  useEffect(() => {
+    if (!isCommitAfterDatesRef.current) return
+    isCommitAfterDatesRef.current = false
+    void handleCommitImport()
+  })
+
   /**
    * Clears the import for a fresh start, keeping an upload an interrupted save left for the next
    * import on this screen to settle, since dropping it could not tell whether it had landed
@@ -1244,7 +1256,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setTagHandlingOpen(true)
     setColumnValidationErrors({})
     setDateFormatChoice(createImportFormatChoiceState(''))
-    setDateRange(WHOLE_FILE_DATE_RANGE)
+    resetDateRange()
     setAmountFormatChoice(createImportFormatChoiceState(''))
     setScopedDirectionAnswers(emptyScopedImportAnswers)
     setScopedCategoryMappings(emptyScopedImportAnswers)
@@ -1281,10 +1293,11 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     dateFormatAutomatic,
     dateFormatScan,
     setDateFormat,
-    dateRange,
+    dateRange: shownDateRange,
     isDateRangeCrossed,
     outsideRangeRowCount,
     setDateRangeEnd,
+    setIsPointerInDatePanel,
     amountFormat,
     amountFormatAutomatic,
     amountFormatScan,

@@ -320,6 +320,9 @@ export const IMPORT_DATE_RANGE_END_LABEL = 'End date'
 /** Offers to fill the start date with the day after the latest transaction, kept short for the line above the date */
 export const IMPORT_LATEST_START_LABEL = 'Latest recorded transaction'
 
+/** The name of the icon button that empties a date, read to assistive technology as "Clear start date" */
+export const IMPORT_DATE_RANGE_CLEAR_LABEL = 'Clear'
+
 /** Said on the start date's label row while it falls after the end date */
 export const IMPORT_DATE_RANGE_CROSSED_FIELD_ERROR = 'Must be on or before the end date'
 
