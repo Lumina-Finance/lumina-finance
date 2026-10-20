@@ -15,7 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from app.bank_transaction_key import seal_bank_transaction_hash
+from app.bank_transaction_key import key_fingerprint, resolve_key, seal_bank_transaction_hash
 from app.config.database import MIGRATOR_DB_USER
 from app.models.base import Base
 from app.models.types import find_encrypted_columns
@@ -257,6 +257,11 @@ async def test_bank_transaction_hash_migration_hashes_saved_bank_ids_as_the_impo
                 "Typed": None,
             }
             assert {"bank_account_key", "bank_transaction_id"}.isdisjoint(columns)
+
+            # Recorded with the hashes, so the app refuses to start under any other key from here on
+            async with engine.connect() as conn:
+                recorded = await conn.scalar(text("SELECT fingerprint FROM bank_transaction_key_fingerprint"))
+            assert recorded == key_fingerprint(resolve_key(generate=False))
             if not reupgrade:
                 async with engine.connect() as conn:
                     assert await _read_import_run_sources(conn) == {

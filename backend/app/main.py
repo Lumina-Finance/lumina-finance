@@ -7,10 +7,10 @@ from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.bank_transaction_key import resolve_key as resolve_bank_transaction_key
 from app.config.oidc import OIDC_PROVIDER_CONFIGS
 from app.config.runtime import ALLOWED_ORIGINS, API_DOCS_ENABLED, RUNTIME
 from app.database import async_session, engine, verify_app_role_is_unprivileged
+from app.db.bank_transaction_key import verify_key_matches_hashes
 from app.db.encryption_key import verify_key_matches_data
 from app.request_security import RequestBodySizeLimitMiddleware
 from app.routes.accounts import router as account_router
@@ -50,8 +50,9 @@ async def _lifespan(_app: FastAPI):
     async with engine.connect() as connection:
         await verify_key_matches_data(connection)
 
-    # Without it no OFX import could be staged, so a missing key stops the start instead
-    resolve_bank_transaction_key(generate=False)
+        # A missing key would refuse every OFX import, and another key than the hashes were made
+        # with would let every statement imported again bring back what is already saved
+        await verify_key_matches_hashes(connection)
 
     # Reconcile the provider table with the environment on every boot so credential
     # rotations and removals apply without a migration

@@ -10,7 +10,8 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 
 from alembic import op
-from app.bank_transaction_key import resolve_key
+from app.bank_transaction_key import key_fingerprint, resolve_key
+from app.db.rls import grant_global_read_table
 
 revision: str = "7c2e9a4d1f58"
 down_revision: str | Sequence[str] | None = "f3a9c1d7b265"
@@ -22,6 +23,9 @@ _HASH_LENGTH = 64
 
 # Characters the raw bank account key and bank ID columns took
 _RAW_LENGTH = 255
+
+# The single-row record of which key the hashes are made with
+_FINGERPRINT_TABLE = "bank_transaction_key_fingerprint"
 
 # Bytes in one SHA-256 block, which HMAC pads its key to
 _SHA256_BLOCK_BYTES = 64
@@ -52,10 +56,35 @@ _FORGET_STAGED_BANK_FIELDS = """
 """
 
 
-def _hmac_keys() -> tuple[bytes, bytes]:
+def _hmac_keys(key: bytes) -> tuple[bytes, bytes]:
     """Return the server key padded to a block and masked for HMAC's inner and outer hash"""
-    padded = resolve_key(generate=False).ljust(_SHA256_BLOCK_BYTES, b"\x00")
+    padded = key.ljust(_SHA256_BLOCK_BYTES, b"\x00")
     return bytes(byte ^ 0x36 for byte in padded), bytes(byte ^ 0x5C for byte in padded)
+
+
+def _record_key_fingerprint(key: bytes) -> None:
+    """Create the record of the key the hashes are made with, holding this key's fingerprint
+
+    Recorded here, with the hashes, so the app refuses to start under any other key from now on
+    """
+    op.create_table(
+        _FINGERPRINT_TABLE,
+        # Not a sequence: the row is the fixed singleton id, as on the encryption key's record
+        sa.Column("id", sa.Integer(), autoincrement=False, nullable=False),
+        sa.Column("fingerprint", sa.Text(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.CheckConstraint("id = 1", name="ck_bank_transaction_key_fingerprint_singleton"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+
+    # Added after the row-level security bootstrap, so the app role, which checks it at every
+    # start, is granted its read here
+    grant_global_read_table(op.get_bind(), _FINGERPRINT_TABLE)
+    op.execute(
+        sa.text(f"INSERT INTO {_FINGERPRINT_TABLE} (id, fingerprint) VALUES (1, :fingerprint)").bindparams(  # noqa: S608
+            fingerprint=key_fingerprint(key)
+        )
+    )
 
 
 def upgrade() -> None:
@@ -70,7 +99,9 @@ def upgrade() -> None:
     it is in the ledger, and the page reloaded for this version cannot resume it, so its user imports
     the files again
     """
-    inner_key, outer_key = _hmac_keys()
+    key = resolve_key(generate=False)
+    _record_key_fingerprint(key)
+    inner_key, outer_key = _hmac_keys(key)
     op.add_column("transactions", sa.Column("bank_transaction_hash", sa.VARCHAR(length=_HASH_LENGTH), nullable=True))
     op.execute(
         sa.text(_HASH_SAVED_BANK_IDS).bindparams(
@@ -105,6 +136,7 @@ def downgrade() -> None:
     op.add_column("transactions", sa.Column("bank_account_key", sa.VARCHAR(length=_RAW_LENGTH), nullable=True))
     op.add_column("transactions", sa.Column("bank_transaction_id", sa.VARCHAR(length=_RAW_LENGTH), nullable=True))
     op.drop_column("transactions", "bank_transaction_hash")
+    op.drop_table(_FINGERPRINT_TABLE)
     op.create_check_constraint(
         "ck_transactions_bank_account_key_matches_bank_transaction_id",
         "transactions",

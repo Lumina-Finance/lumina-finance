@@ -7,8 +7,9 @@ before staging or storing it. The secret is kept outside the database, so a copy
 alone cannot be searched that way
 
 Losing or changing the secret leaves every saved hash unmatched, so a statement imported again
-brings back the transactions an earlier import already saved. app.db.bank_transaction_key refuses
-to generate a new one over a database that already holds hashes for that reason
+brings back the transactions an earlier import already saved. So the database records the key's
+fingerprint, and app.db.bank_transaction_key refuses to start under another key or to generate one
+over a database that has a key, until an operator accepts that cost with its reset command
 """
 
 import functools
@@ -25,7 +26,7 @@ from app.config import imports as import_config
 _SECRETS_DIR = Path("/data/secrets")
 KEY_FILE = _SECRETS_DIR / "bank_transaction_hash_key"
 _KEY_FILE_MODE = 0o600
-KEY_ENV_VAR = "BANK_TRANSACTION_HASH_KEY"
+KEY_ENV_VAR = import_config.BANK_TRANSACTION_HASH_KEY_ENV_VAR
 
 # 32 random bytes written as lower-case hex
 _KEY_BYTES = 32
@@ -36,6 +37,14 @@ _KEY_GUIDANCE = "64 lower-case hex characters, such as the output of: openssl ra
 def generate_key() -> str:
     """Return a new key as lower-case hex"""
     return secrets.token_hex(_KEY_BYTES)
+
+
+def key_fingerprint(key: bytes) -> str:
+    """Return the SHA-256 hex digest the database records to say which key its hashes were made with
+
+    The key is 32 random bytes, so its digest discloses nothing about it
+    """
+    return hashlib.sha256(key).hexdigest()
 
 
 def is_key_available() -> bool:

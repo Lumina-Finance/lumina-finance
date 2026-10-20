@@ -1,6 +1,10 @@
 """Bank transaction hash key resolution tests"""
 
+import os
 import stat
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -8,11 +12,29 @@ from app import bank_transaction_key
 from app.bank_transaction_key import generate_key, resolve_key
 from app.config import imports as import_config
 
+_BACKEND_DIR = Path(__file__).resolve().parents[1]
+
 _MALFORMED_KEYS = {
-    "too short": generate_key()[:63],
-    "upper case": generate_key().upper(),
+    "too short": "ab" * 31 + "a",
+    "upper case": "AB" * 32,
     "not hex": "g" * 64,
 }
+
+
+@pytest.mark.parametrize(("value", "expected"), [("", None), ("  \n", None), (f"{'ab' * 32}\n", "ab" * 32)])
+def test_the_key_setting_reads_blank_as_unset_and_drops_a_trailing_newline(value, expected):
+    """An env file line left empty means no key, and a mounted secret ends in a newline that is not part of it"""
+    script = "from app.config.imports import BANK_TRANSACTION_HASH_KEY as key; print(repr(key))"
+    result = subprocess.run(  # noqa: S603
+        [sys.executable, "-c", script],
+        cwd=_BACKEND_DIR,
+        env={**os.environ, "BANK_TRANSACTION_HASH_KEY": value},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert result.stdout.strip() == repr(expected)
 
 
 @pytest.fixture
@@ -72,6 +94,7 @@ def test_a_generated_key_is_kept_owner_only_and_not_replaced(key_file, monkeypat
 
     generated = resolve_key(generate=True)
 
+    assert len(generated) == 32
     assert stat.S_IMODE(key_file.stat().st_mode) == 0o600
     assert key_file.read_text() == generated.hex()
     assert resolve_key(generate=True) == generated
