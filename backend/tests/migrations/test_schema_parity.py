@@ -62,6 +62,8 @@ _BANK_HASH_ACCOUNT_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 _BANK_HASH_CATEGORY_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 _UNSAVED_OFX_RUN_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
 _CHEQUING_KEY = "bank:123000456:000123456789"
+_ALEMBIC_RUN_SOURCES_DB_NAME = f"{WORKER_DB_NAME}_alembic_run_sources"
+_RUN_SOURCES_REVISION = "9e1b5c3a7d24"
 
 # SHA-256 of the account key, a zero byte and "A1", from `printf 'bank:123000456:000123456789\0A1' | shasum -a 256`.
 # The import page's test pins the same digest
@@ -262,6 +264,59 @@ async def test_bank_transaction_hash_migration_hashes_saved_bank_ids_as_the_impo
                         )
                     ).one()
                 assert tuple(restored) == (2, 0, 0)
+    finally:
+        await engine.dispose()
+        await _drop_database(database_name)
+
+
+async def test_saved_ofx_runs_forget_the_account_numbers_their_statements_were_named_by() -> None:
+    """Verify upgrade, downgrade and reupgrade leave a saved OFX run no account number and keep its accounts
+
+    A repeated save is answered from the summary, whose accounts the page counts, so renaming must
+    keep every account id while a CSV run, whose sources are the user's own column values, is left alone
+    """
+    database_name = _ALEMBIC_RUN_SOURCES_DB_NAME
+    await _recreate_database(database_name)
+    engine = _create_engine_for_database(database_name)
+    ofx_mappings = {_CHEQUING_KEY: {"source": _CHEQUING_KEY, "account_id": _BANK_HASH_ACCOUNT_ID}}
+    csv_mappings = {"Chequing": {"source": "Chequing", "account_id": _BANK_HASH_ACCOUNT_ID}}
+    try:
+        _run_alembic_upgrade(database_name, revision=_BANK_HASH_REVISION)
+        async with engine.begin() as conn:
+            await conn.execute(text(
+                "INSERT INTO currencies (id, name, symbol, minor_unit_exponent)"
+                " VALUES ('CAD', 'Canadian Dollar', '$', 2) ON CONFLICT (id) DO NOTHING",
+            ))
+            await conn.execute(text(
+                "INSERT INTO users (id, email, first_name, tz, base_currency)"
+                " VALUES (:id, 'run-sources-migration@example.com', 'Runs', 'UTC', 'CAD')",
+            ), {"id": UUID(_OFX_OWNER_ID)})
+            for run_id, source, mappings in ((_OFX_RUN_ID, "ofx", ofx_mappings), (_CSV_RUN_ID, "generic", csv_mappings)):
+                summary = {"transactions_created": 3, "account_source_ids": {key: _BANK_HASH_ACCOUNT_ID for key in mappings}}
+                await conn.execute(text(
+                    "INSERT INTO import_runs (id, owner_id, source, expected_transaction_count, account_mappings,"
+                    " category_mappings, committed_at, summary)"
+                    " VALUES (:id, :owner_id, :source, 3, :mappings, '{}', now(), :summary)",
+                ), {
+                    "id": UUID(run_id), "owner_id": UUID(_OFX_OWNER_ID), "source": source,
+                    "mappings": json.dumps(mappings), "summary": json.dumps(summary),
+                })
+
+        for reupgrade in (False, True):
+            _run_alembic_upgrade(database_name, revision=_RUN_SOURCES_REVISION)
+            async with engine.connect() as conn:
+                runs = {
+                    str(run_id): (mappings, summary)
+                    for run_id, mappings, summary in await conn.execute(
+                        text("SELECT id, account_mappings, summary FROM import_runs"),
+                    )
+                }
+            assert runs == {
+                _OFX_RUN_ID: ({}, {"transactions_created": 3, "account_source_ids": {"statement-1": _BANK_HASH_ACCOUNT_ID}}),
+                _CSV_RUN_ID: (csv_mappings, {"transactions_created": 3, "account_source_ids": {"Chequing": _BANK_HASH_ACCOUNT_ID}}),
+            }
+            if not reupgrade:
+                _run_alembic_downgrade(database_name, _BANK_HASH_REVISION)
     finally:
         await engine.dispose()
         await _drop_database(database_name)

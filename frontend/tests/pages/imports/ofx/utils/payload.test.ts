@@ -86,7 +86,7 @@ describe('compiling an OFX import', () => {
 
     expect(build.errors).toEqual([])
     expect(build.payload).toEqual({
-      accounts: [{ source: file.statements[0].id, account_id: CHEQUING.id }],
+      accounts: [{ source: 'statement-1', account_id: CHEQUING.id }],
       categories: [
         { source: '(no category)', category_id: MISCELLANEOUS.id },
         { source: '(money in, no category)', category_id: OTHER_INCOME.id },
@@ -94,7 +94,7 @@ describe('compiling an OFX import', () => {
       merchants: [],
       rows: [
         {
-          account_source: file.statements[0].id,
+          account_source: 'statement-1',
           category_source: '(no category)',
           dt: '2024-01-15',
           amount: '-12.50',
@@ -108,17 +108,20 @@ describe('compiling an OFX import', () => {
     })
   })
 
-  it('imports a bank and a credit card statement in one run, each into the account chosen for it', async () => {
+  // The statement ids hold the bank, account and card numbers, which must stay in the browser
+  it('imports a bank and a credit card statement in one run, each into the account chosen for it, sending no account number', async () => {
     const file = await readStatements([CHECKING, { kind: 'creditCard', transactions: [{ amount: '-30.00', name: 'Hardware' }] }])
     const [bank, card] = file.statements
     const build = buildOfxImportPayload(file, createAnswers(file, CREATE_ACCOUNT_VALUE))
 
     expect(build.payload?.accounts).toEqual([
-      { source: bank.id, create: { name: 'Checking ending 6789', account_type: 'checking', currency: 'CAD', institution_id: null } },
-      { source: card.id, create: { name: 'Credit card ending 1111', account_type: 'credit_card', currency: 'CAD', institution_id: null } },
+      { source: 'statement-1', create: { name: 'Checking ending 6789', account_type: 'checking', currency: 'CAD', institution_id: null } },
+      { source: 'statement-2', create: { name: 'Credit card ending 1111', account_type: 'credit_card', currency: 'CAD', institution_id: null } },
     ])
-    expect(build.payload?.rows.map((row) => row.account_source)).toEqual([bank.id, bank.id, card.id])
+    expect(build.payload?.rows.map((row) => row.account_source)).toEqual(['statement-1', 'statement-1', 'statement-2'])
     expect([...build.writtenSources]).toEqual([bank.id, card.id])
+    expect([bank.id, card.id].join()).toMatch(/123000456.*000123456789.*4111111111111111/)
+    expect(JSON.stringify(build.payload)).not.toMatch(/123000456|000123456789|4111111111111111/)
   })
 
   it('refuses a statement whose currency is not its account\'s, and writes nothing from it', async () => {
@@ -147,7 +150,7 @@ describe('compiling an OFX import', () => {
 
     expect(mappings).toEqual({ [file.statements[0].id]: CHEQUING.id })
     expect(build.errors).toEqual([])
-    expect(build.payload?.accounts).toEqual([{ source: file.statements[0].id, account_id: CHEQUING.id }])
+    expect(build.payload?.accounts).toEqual([{ source: 'statement-1', account_id: CHEQUING.id }])
   })
 
   it('answers the statement of every file with the account an import started from', async () => {
@@ -266,7 +269,7 @@ describe('transactions the import leaves out', () => {
     const file = await readStatements([CHECKING, { kind: 'creditCard', transactions: [{ amount: 'n/a', name: 'Broken' }] }])
     const build = buildOfxImportPayload(file, createAnswers(file, CREATE_ACCOUNT_VALUE))
 
-    expect(build.payload?.accounts.map((account) => account.source)).toEqual([file.statements[0].id])
+    expect(build.payload?.accounts.map((account) => account.source)).toEqual(['statement-1'])
     expect([...build.writtenSources]).toEqual([file.statements[0].id])
   })
 

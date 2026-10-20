@@ -83,8 +83,9 @@ export function getOfxSkippedRowId(statement: OfxStatement, transaction: OfxTran
  * A statement is written to the account its answer names, in that account's currency, so one whose
  * currency differs is refused rather than converted. Transactions the file leaves unreadable, that
  * the importer could not store, or whose bank ID an earlier transaction of the import already has,
- * are left out and listed with the reason, and the rest import with their bank IDs, which the save
- * uses to leave out what the account already holds.
+ * are left out and listed with the reason, and the rest import with the hash of their bank IDs,
+ * which the save uses to leave out what the account already holds. Nothing sent names the account
+ * number: each statement's answer goes by its position in the import.
  * A statement carries no categories, so money out is filed under the seeded Miscellaneous category
  * and money in under the seeded Other Income one, as a CSV row with no category is
  */
@@ -100,9 +101,12 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
   const writtenSources = new Set<string>()
   const currencyMismatches: string[] = []
 
-  const prepared = getOfxStatementsToImport(file).map((statement) => {
+  const prepared = getOfxStatementsToImport(file).map((statement, position) => {
+    // Named by position rather than by the statement's id, which holds the account number and must
+    // stay in the browser. The same files give the same positions, so a resent upload matches
+    const source = `statement-${position + 1}`
     const built = buildImportAccountMapping({
-      source: statement.id,
+      source,
       label: statement.label,
       name: statement.name,
       choice: answers.accountMappings[statement.id] ?? '',
@@ -125,11 +129,11 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
     }
 
     const exponent = isWritable ? findCurrencyExponent(answers.currencies, statement.currency) : null
-    return { statement, built, isWritable, exponent }
+    return { statement, source, built, isWritable, exponent }
   })
   const firstCopies = findFirstOfxCopies(prepared)
 
-  for (const { statement, built, isWritable, exponent } of prepared) {
+  for (const { statement, source, built, isWritable, exponent } of prepared) {
     let hasRows = false
     for (const transaction of statement.transactions) {
       const skip = (reason: string) => skippedRows.push({
@@ -160,7 +164,7 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
 
       hasRows = true
       rows.push({
-        account_source: statement.id,
+        account_source: source,
         category_source: getOfxCategorySource(transaction),
         dt: transaction.date!,
         amount: transaction.amount!,
