@@ -60,7 +60,7 @@ test('brings the delete confirmation into view and moves focus through its steps
     const at = `${size.width}×${size.height}`
     await page.setViewportSize(size)
     const dialog = await openEditDialog(page, account.id)
-    const firstField = dialog.getByLabel('Account Name', { exact: true })
+    const firstField = dialog.getByLabel('Account name', { exact: true })
     const before = await readScrollingBox(firstField)
     await pressTrash(dialog)
 

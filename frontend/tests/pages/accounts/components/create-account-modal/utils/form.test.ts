@@ -68,7 +68,7 @@ describe('create account form helpers', () => {
       isRevolving: true,
       selectedAccountTypeLabel: 'Credit Card',
       selectedCurrencySymbol: '$',
-      startingBalanceLabel: 'Starting Amount Owed',
+      startingBalanceLabel: 'Starting amount owed',
     })
     expect(buildCreateAccountPayload(form, currencies)).toEqual({
       account_kind: 'revolving',

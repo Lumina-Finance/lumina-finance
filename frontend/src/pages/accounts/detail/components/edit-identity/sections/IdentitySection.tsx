@@ -32,7 +32,7 @@ export function AccountIdentitySection({
   return (
     <EditModalSection number="01" title="Identity">
       <div>
-        <AccountIdentityFieldLabelRow htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name} label="Account Name" error={fieldErrors.name} />
+        <AccountIdentityFieldLabelRow htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name} label="Account name" error={fieldErrors.name} />
         <input
           id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name}
           className={`app-input ${fieldErrors.name ? 'app-input-error' : ''}`}

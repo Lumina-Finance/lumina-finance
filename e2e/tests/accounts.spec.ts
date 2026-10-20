@@ -25,12 +25,12 @@ test('starts a new user with no accounts and creates one through the modal', asy
   // assertion also fails if row-level security ever stops separating one user from another
   await expect(page.getByText('No asset accounts')).toBeVisible()
 
-  const dialog = await openModal(page, ['Add Account', 'Add account'], 'Add Account')
-  await chooseFromDropdown(dialog, 'Account Type', 'Checking')
-  await dialog.getByLabel('Account Name').fill(ACCOUNT_NAME)
+  const dialog = await openModal(page, ['Add Account', 'Add account'], 'Add account')
+  await chooseFromDropdown(dialog, 'Account type', 'Checking')
+  await dialog.getByLabel('Account name').fill(ACCOUNT_NAME)
 
   // Currency is left alone: it already holds the base currency chosen at signup
-  await dialog.getByRole('button', { name: 'Create Account' }).click()
+  await dialog.getByRole('button', { name: 'Create account' }).click()
 
   await expect(dialog).toBeHidden()
   await expect(page.getByRole('link', { name: new RegExp(ACCOUNT_NAME) })).toBeVisible()
@@ -75,7 +75,7 @@ test('keeps the account save action named while an edit is pending', async ({ pa
   await openPage(page, `/accounts/${account.id}`)
   await page.getByRole('button', { name: 'Edit account', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
-  await dialog.getByLabel('Account Name').fill('Account after edit')
+  await dialog.getByLabel('Account name').fill('Account after edit')
   const submit = dialog.getByTestId('account-submit')
   await expect(submit).toHaveRole('button')
   await expect(submit).toHaveAccessibleName('Save Changes')
