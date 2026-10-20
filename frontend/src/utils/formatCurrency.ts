@@ -80,8 +80,8 @@ function resolveDisplayExponent(currency: string, currencies: Currency[]): numbe
  * Formats an amount already in major units at a fixed number of decimal places
  *
  * An amount too small to show at those places is rendered as zero rather than as a signed value.
- * Accounting style decides to wrap a negative in parentheses before rounding it, so without this a
- * balance 40 cents over its limit comes back as ($0) on a meter that shows no decimals
+ * A negative is written before the amount is rounded, so without this a balance 40 cents over its
+ * limit comes back as a negative zero such as ($0) on a meter that shows no decimals
  */
 export function formatMajorUnits(value: number, currency: string, fractionDigits: number): string {
   const roundsToZero = Math.abs(value) < 0.5 / 10 ** fractionDigits

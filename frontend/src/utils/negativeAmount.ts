@@ -39,6 +39,16 @@ export function signMovedAmount(sign: AmountSign, magnitude: string): string {
 }
 
 /**
+ * Formats a savings rate, which is unsigned when it is positive and written with the same negative
+ * as an amount that moved when spending outran income. Minus infinity, the rate of spending with no
+ * income behind it, is written the same way
+ */
+export function formatRatePercent(rate: number): string {
+  const magnitude = Number.isFinite(rate) ? Math.abs(rate).toString() : '∞'
+  return rate < 0 ? signMovedAmount(-1, `${magnitude}%`) : `${magnitude}%`
+}
+
+/**
  * Formats a percentage change that describes an amount that moved, signed the same way as the
  * amount, so a line never mixes a hyphen with a true minus. The sign follows the figure as shown, so
  * a change that rounds to zero is left unsigned
