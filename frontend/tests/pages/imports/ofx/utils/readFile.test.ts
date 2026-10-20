@@ -85,6 +85,8 @@ describe('reading a bank statement', () => {
   it('reads a file where the browser withholds crypto.subtle and crypto.randomUUID, as on a page opened over plain HTTP', async () => {
     vi.stubGlobal('crypto', { getRandomValues: crypto.getRandomValues.bind(crypto) })
     try {
+      // The stub must really take these away, or this proves nothing about a page on plain HTTP
+      expect([crypto.randomUUID, (crypto as { subtle?: unknown }).subtle]).toEqual([undefined, undefined])
       const reads = await Promise.all([readOfxFile(toOfxFile(buildSgmlOfx([CHECKING]))), readOfxFile(toOfxFile(buildSgmlOfx([CHECKING])))])
 
       const origins = reads.map((read) => (read.status === 'read' ? read.file.statements[0].transactions[0] : null))

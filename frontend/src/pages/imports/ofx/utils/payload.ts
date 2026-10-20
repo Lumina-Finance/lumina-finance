@@ -172,8 +172,8 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
         merchant_name: transaction.payee,
         notes: transaction.memo,
         tag_names: [],
-        bank_account_key: transaction.bankTransactionId === null ? null : transaction.bankAccountKey,
-        bank_transaction_id: transaction.bankTransactionId,
+        bank_account: transaction.bankTransactionId === null ? null : transaction.bankAccountKey,
+        bank_transaction: transaction.bankTransactionId,
       })
     }
 

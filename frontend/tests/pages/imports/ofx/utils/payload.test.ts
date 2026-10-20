@@ -98,8 +98,8 @@ describe('compiling an OFX import', () => {
           merchant_name: 'Corner Cafe',
           notes: 'Latte',
           tag_names: [],
-          bank_account_key: file.statements[0].id,
-          bank_transaction_id: 'A1',
+          bank_account: file.statements[0].id,
+          bank_transaction: 'A1',
         },
         expect.objectContaining({ category_source: '(money in, no category)', dt: '2024-01-16', amount: '2500.00', merchant_name: 'Payroll', notes: null }),
       ],
@@ -120,9 +120,9 @@ describe('compiling an OFX import', () => {
     expect(build.payload?.rows.map((row) => row.account_source)).toEqual(['statement-1', 'statement-1', 'statement-2'])
     expect([...build.writtenSources]).toEqual([bank.id, card.id])
     expect([bank.id, card.id].join()).toMatch(/123000456.*000123456789.*4111111111111111/)
-    const withoutBankFields = { ...build.payload, rows: build.payload?.rows.map((row) => ({ ...row, bank_account_key: null, bank_transaction_id: null })) }
+    const withoutBankFields = { ...build.payload, rows: build.payload?.rows.map((row) => ({ ...row, bank_account: null, bank_transaction: null })) }
     expect(JSON.stringify(withoutBankFields)).not.toMatch(/123000456|000123456789|4111111111111111/)
-    expect(build.payload?.rows.map((row) => [row.bank_account_key, row.bank_transaction_id])).toEqual([
+    expect(build.payload?.rows.map((row) => [row.bank_account, row.bank_transaction])).toEqual([
       [bank.id, 'A1'],
       [bank.id, 'A2'],
       [card.id, '1'],
@@ -457,7 +457,7 @@ describe('a transaction that an earlier file of the import already holds', () =>
     const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
 
     expect(build.skippedRows).toEqual([])
-    const [chequing, savings] = build.payload?.rows.map((row) => [row.bank_account_key, row.bank_transaction_id]) ?? []
+    const [chequing, savings] = build.payload?.rows.map((row) => [row.bank_account, row.bank_transaction]) ?? []
     expect([chequing, savings]).toEqual([[file.statements[0].id, '0'], [file.statements[1].id, '0']])
     expect(savings).not.toEqual(chequing)
   })
@@ -477,7 +477,7 @@ describe('a transaction that an earlier file of the import already holds', () =>
     const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
 
     expect(build.skippedRows).toEqual([])
-    expect(build.payload?.rows.map((row) => [row.bank_account_key, row.bank_transaction_id])).toEqual([[null, null], [null, null]])
+    expect(build.payload?.rows.map((row) => [row.bank_account, row.bank_transaction])).toEqual([[null, null], [null, null]])
   })
 
   // The server keeps a fixed-length hash, so a bank ID longer than the 255 characters OFX allows is
@@ -489,7 +489,7 @@ describe('a transaction that an earlier file of the import already holds', () =>
     const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
 
     expect(build.skippedRows).toEqual([])
-    expect(build.payload?.rows.map((row) => [row.merchant_name, row.bank_transaction_id])).toEqual([['Long ID', 'y'.repeat(300)]])
+    expect(build.payload?.rows.map((row) => [row.merchant_name, row.bank_transaction])).toEqual([['Long ID', 'y'.repeat(300)]])
   })
 
   it('does not count a first copy that was itself left out, so a readable copy in a later file is imported', async () => {

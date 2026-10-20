@@ -67,8 +67,8 @@ export interface TransactionImportRow {
    * them, both or neither. The server hashes the pair with a secret key before staging, so neither
    * is kept, and the save leaves the row out when its account already holds that hash
    */
-  bank_account_key?: string | null;
-  bank_transaction_id?: string | null;
+  bank_account?: string | null;
+  bank_transaction?: string | null;
 }
 
 export interface TransactionImportPayload {

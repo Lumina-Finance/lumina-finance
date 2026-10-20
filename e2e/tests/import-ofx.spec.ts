@@ -34,7 +34,12 @@ test('imports a statement where the browser withholds crypto.subtle and crypto.r
     Object.defineProperty(Crypto.prototype, 'subtle', { get: () => undefined })
     Object.defineProperty(Crypto.prototype, 'randomUUID', { value: undefined })
   })
-  await uploadStatement(page, user, buildFile([buildBankMessageSet('CAD', [CAFE, PAYROLL])]))
+  await openOfxImport(page, user)
+
+  // The script must really take them away, or this proves nothing about a page on plain HTTP
+  expect(await page.evaluate(() => [typeof crypto.subtle, typeof crypto.randomUUID])).toEqual(['undefined', 'undefined'])
+  const upload = page.locator('input[type="file"][accept*=".ofx"]')
+  await upload.setInputFiles({ name: 'statement.ofx', mimeType: 'application/octet-stream', buffer: Buffer.from(buildFile([buildBankMessageSet('CAD', [CAFE, PAYROLL])])) })
   await expect(page.getByText('Corner Cafe', { exact: true }).first()).toBeVisible()
 
   const response = await commitImport(page)

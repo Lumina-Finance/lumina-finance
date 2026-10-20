@@ -321,10 +321,12 @@ class TransactionImportStageRow(_ImportRowFields):
     before anything is staged, stored or logged, so neither is kept.
     """
 
-    # Both or neither, since the hash is made from the pair. The account key is the bank's routing
-    # ID and the account number joined by colons, or only the card number
-    bank_account_key: str | None = Field(None, min_length=1, max_length=MAX_IMPORT_BANK_ACCOUNT_KEY_LENGTH)
-    bank_transaction_id: str | None = Field(None, min_length=1, max_length=MAX_IMPORT_BANK_TRANSACTION_ID_LENGTH)
+    # Both or neither, since the hash is made from the pair. The account is "bank:" and the bank's
+    # routing ID and the account number joined by colons, or "creditCard:" and the card number. The
+    # names differ from those an earlier page sent, which also named each statement's account answer
+    # by its account number, so a request from that page is refused as it is staged and stages nothing
+    bank_account: str | None = Field(None, min_length=1, max_length=MAX_IMPORT_BANK_ACCOUNT_KEY_LENGTH)
+    bank_transaction: str | None = Field(None, min_length=1, max_length=MAX_IMPORT_BANK_TRANSACTION_ID_LENGTH)
 
     @model_validator(mode="after")
     def _require_bank_pair(self) -> TransactionImportStageRow:
@@ -332,7 +334,7 @@ class TransactionImportStageRow(_ImportRowFields):
 
         The message never repeats a value, which would put an account number in the response.
         """
-        if (self.bank_account_key is None) != (self.bank_transaction_id is None):
+        if (self.bank_account is None) != (self.bank_transaction is None):
             raise ValueError("a bank account and a bank transaction ID must be sent together")
         return self
 

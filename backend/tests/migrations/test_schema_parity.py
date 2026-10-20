@@ -73,8 +73,8 @@ _RUN_SOURCES_REVISION = "9e1b5c3a7d24"
 
 # What the server keeps for the account key above and the bank ID "A1" under the test key: HMAC-SHA256
 # of the SHA-256 digest of the key, a zero byte and "A1". The digest, from
-# `printf 'bank:123000456:000123456789\0A1' | shasum -a 256`, is 7d404905c477742532f9d2abc554de3c7f8089848d5e927aa19725a9b5d931ed,
-# which is what the browser sent before the server hashed the pair
+# `printf 'bank:123000456:000123456789\0A1' | shasum -a 256`, is
+# 7d404905c477742532f9d2abc554de3c7f8089848d5e927aa19725a9b5d931ed
 _CHEQUING_A1_STORED_HASH = "7947133547ae51015c6ef7299aa59548c51f7bae848b3428f73186db52f1cfee"
 
 

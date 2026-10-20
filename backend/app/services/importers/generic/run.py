@@ -80,10 +80,10 @@ def _seal_row(row: TransactionImportStageRow) -> TransactionImportRow:
     Returns:
         The row with the keyed hash of its bank account and bank ID, or none when it has no bank ID
     """
-    fields = row.model_dump(exclude={"bank_account_key", "bank_transaction_id"})
-    if row.bank_account_key is None or row.bank_transaction_id is None:
+    fields = row.model_dump(exclude={"bank_account", "bank_transaction"})
+    if row.bank_account is None or row.bank_transaction is None:
         return TransactionImportRow(**fields)
-    return TransactionImportRow(**fields, bank_transaction_hash=seal_bank_transaction_hash(row.bank_account_key, row.bank_transaction_id))
+    return TransactionImportRow(**fields, bank_transaction_hash=seal_bank_transaction_hash(row.bank_account, row.bank_transaction))
 
 
 async def commit_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> TransactionImportResponse:

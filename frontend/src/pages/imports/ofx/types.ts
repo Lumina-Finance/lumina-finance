@@ -23,8 +23,9 @@ export interface OfxTransaction {
   fileName: string
 
   /**
-   * The bank account the statement names, as its routing ID and account number or card number
-   * joined by colons. Sent with the bank's ID, so the server can hash the pair, and never kept
+   * The bank account the statement names, as "bank:" and its routing ID and account number joined
+   * by colons, or "creditCard:" and the card number. Sent with the bank's ID, so the server can
+   * hash the pair, and never kept
    */
   bankAccountKey: string
 

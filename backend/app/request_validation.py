@@ -12,8 +12,9 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-# The request fields that hold a raw account number or bank ID
-SENSITIVE_FIELDS = frozenset({"bank_account_key", "bank_transaction_id"})
+# The request fields that hold a raw account number or bank ID, with the names an earlier page sent
+# them under, which a request from it is refused for and must not have echoed back
+SENSITIVE_FIELDS = frozenset({"bank_account", "bank_transaction", "bank_account_key", "bank_transaction_id"})
 
 
 def _holds_sensitive_value(error: dict[str, Any]) -> bool:
