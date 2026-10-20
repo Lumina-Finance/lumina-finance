@@ -1,10 +1,11 @@
 /**
  * Guards the saved copy of the query cache that every tab shares: a tab with nothing new must not put
  * its older copy over another tab's, a tab saves only while the session flag names its own user, a
- * load restores only the copy of the user the flag names, and a save that fails must not leave an
- * older copy behind for the next load to restore as fresh
+ * load restores only the copy of the user the flag names, a save that fails must not leave an older
+ * copy behind for the next load to restore as fresh, and no save may write a request held while
+ * offline along with what it sends, such as both passwords of a password change
  */
-import { QueryClient } from '@tanstack/react-query';
+import { focusManager, MutationObserver, onlineManager, QueryClient } from '@tanstack/react-query';
 import { persistQueryClientRestore, persistQueryClientSubscribe } from '@tanstack/react-query-persist-client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SESSION_KEY } from '@/api/auth';
@@ -15,6 +16,16 @@ import {
   saveQueryCacheOnPageHide,
   setQueryCacheUser,
 } from '@/api/cache/persistence';
+import { changePassword, type ChangePasswordPayload } from '@/api/user';
+
+const { authenticatedFetchMock } = vi.hoisted(() => ({
+  authenticatedFetchMock: vi.fn(),
+}));
+
+vi.mock('@/api/client', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/api/client')>(),
+  authenticatedFetch: authenticatedFetchMock,
+}));
 
 const USER_A = 'user-a';
 const USER_C = 'user-c';
@@ -50,8 +61,8 @@ class FakeStorage {
  * @param stored - What local storage holds as the page loads
  * @param user - The user the tab is signed in as, by default the one the stored flag names
  * @param withTimedSave - Whether the persister's own timed save runs too, as in the app
- * @returns The page's local storage and query client, a way to hide the page as a tab switch does,
- * and the restore the page runs on loading
+ * @returns The page's local storage and query client, ways to hide and show the page as a tab switch
+ * does, and the restore the page runs on loading
  */
 function loadPage(
   stored: Record<string, string>,
@@ -74,8 +85,12 @@ function loadPage(
     document.visibilityState = 'hidden';
     document.dispatchEvent(new Event('visibilitychange'));
   };
+  const show = () => {
+    document.visibilityState = 'visible';
+    document.dispatchEvent(new Event('visibilitychange'));
+  };
   const restore = () => persistQueryClientRestore({ ...options, queryClient: client });
-  return { localStorage, client, hide, restore };
+  return { localStorage, client, hide, show, restore };
 }
 
 // The persister's default wait between timed writes
@@ -102,6 +117,9 @@ beforeEach(() => {
 afterEach(() => {
   for (const unsubscribe of unsubscribes.splice(0)) unsubscribe();
   for (const client of clients.splice(0)) client.clear();
+  onlineManager.setOnline(true);
+  focusManager.setFocused(undefined);
+  authenticatedFetchMock.mockReset();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -234,5 +252,50 @@ describe('saving the query cache', () => {
 
     expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull();
     expect(page.localStorage.getItem(SESSION_KEY)).toBe(USER_A);
+  });
+
+  it('keeps query data but not a password change held while offline, and sends the change once back online', async () => {
+    const page = loadPage({ [SESSION_KEY]: USER_A }, { withTimedSave: true });
+    // Mounted as the app's provider mounts it, since only a mounted client sends held requests once
+    // the connection returns
+    page.client.mount();
+    unsubscribes.push(() => page.client.unmount());
+    authenticatedFetchMock.mockResolvedValue(undefined);
+    page.client.setQueryData(['accounts'], [{ id: 'account-kept' }]);
+
+    onlineManager.setOnline(false);
+    const payload: ChangePasswordPayload = {
+      current_password: 'current-secret-123',
+      new_password: 'new-secret-456',
+      code: '482915',
+    };
+    const passwordChange = new MutationObserver(page.client, { mutationFn: changePassword });
+    void passwordChange.mutate(payload).catch(() => {});
+    expect(passwordChange.getCurrentResult().isPaused).toBe(true);
+
+    const expectNoHeldChangeStored = () => {
+      const stored = page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY) ?? '';
+      expect(JSON.parse(stored).clientState.mutations).toEqual([]);
+      for (const secret of Object.values(payload)) expect(stored).not.toContain(secret);
+    };
+
+    // The timed save and the save on hiding the page each write the copy
+    await runTimedSave();
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toContain('account-kept');
+    expectNoHeldChangeStored();
+
+    page.client.setQueryData(['tags'], [{ id: 'tag-kept' }]);
+    page.hide();
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toContain('tag-kept');
+    expectNoHeldChangeStored();
+
+    // A held request also waits while the page is hidden, so it goes once the user is back on it
+    page.show();
+    onlineManager.setOnline(true);
+    await vi.waitFor(() => expect(passwordChange.getCurrentResult().isSuccess).toBe(true));
+    expect(authenticatedFetchMock).toHaveBeenCalledExactlyOnceWith('/auth/password', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
   });
 });
