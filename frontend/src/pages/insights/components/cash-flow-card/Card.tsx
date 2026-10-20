@@ -12,7 +12,7 @@ import { getFittedAmountStyle, useFittedAmount } from '@/pages/insights/hooks/us
 import { CashFlowBarChart } from './BarChart'
 import type { CashFlowBarBucket, CashFlowGranularity } from '@/pages/insights/types/cashFlow'
 import { getInsightsCashFlowFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
-import { formatSignedCurrency, getSignedAmountColor } from '@/pages/insights/utils/money'
+import { getSignedAmountColor } from '@/pages/insights/utils/money'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
 import { InsightSectionHeader } from '@/pages/insights/components/SectionHeader'
@@ -66,7 +66,7 @@ export function CashFlowCard({
   loading = false,
   transitionKey,
 }: CashFlowCardProps) {
-  const { currencies } = useMoneyFormatters()
+  const { formatMovedCurrency } = useMoneyFormatters()
   // The failure travels in the snapshot rather than beside it, so the box arrives with the reveal
   // instead of growing the card while the spinner is still turning
   const incomingSnapshot = useMemo<CashFlowSnapshot>(() => ({
@@ -91,7 +91,7 @@ export function CashFlowCard({
   const totalInflow = displaySnapshot.buckets.reduce((sum, bucket) => sum + bucket.inflow, 0)
   const totalOutflow = displaySnapshot.buckets.reduce((sum, bucket) => sum + bucket.outflow, 0)
   const totalNet = totalInflow - totalOutflow
-  const formattedTotalNet = formatSignedCurrency(totalNet, displaySnapshot.displayCurrency, currencies)
+  const formattedTotalNet = formatMovedCurrency(totalNet, displaySnapshot.displayCurrency)
   const [totalNetRef, totalNetFillRatio] = useFittedAmount(formattedTotalNet, TOTAL_NET_MAX_REM, TOTAL_NET_MIN_REM)
   const totalNetFitStyle = getFittedAmountStyle(totalNetFillRatio, TOTAL_NET_MAX_REM, TOTAL_NET_MIN_REM)
 

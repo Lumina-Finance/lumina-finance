@@ -2,7 +2,7 @@ import { Link } from 'react-router'
 import { formatDashboardShortDate } from '@/pages/dashboard/utils/formatDashboardShortDate'
 import type { RecentActivityRow } from '@/pages/dashboard/utils/getRecentActivityRows'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
-import { signTransactionAmount } from '@/utils/signedTransactionAmount'
+import { getAmountSign } from '@/utils/negativeStyle'
 
 type RecentActivityListProps = {
   rows: RecentActivityRow[]
@@ -17,9 +17,9 @@ type RecentActivityRowProps = {
  * Renders one recent transaction row with category metadata and signed amount
  */
 function RecentActivityRowItem({ row, showDivider }: RecentActivityRowProps) {
-  const { formatCurrency } = useMoneyFormatters()
+  const { formatMovedCurrency } = useMoneyFormatters()
   const { transaction, category, title, isIncome } = row
-  const sign = transaction.amount < 0 ? -1 : transaction.amount > 0 ? 1 : 0
+  const sign = getAmountSign(transaction.amount)
 
   return (
     <div
@@ -52,7 +52,7 @@ function RecentActivityRowItem({ row, showDivider }: RecentActivityRowProps) {
         className="font-financial shrink-0 tabular-nums text-sm font-medium max-[1000px]:text-[0.7875rem]"
         style={{ color: isIncome && sign !== 0 ? 'var(--app-positive)' : 'var(--app-text)' }}
       >
-        {signTransactionAmount(sign, formatCurrency(Math.abs(transaction.amount), transaction.currency))}
+        {formatMovedCurrency(transaction.amount, transaction.currency)}
       </span>
     </div>
   )

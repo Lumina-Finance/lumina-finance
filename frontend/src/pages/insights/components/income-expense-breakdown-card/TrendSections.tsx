@@ -4,7 +4,6 @@ import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
 import type { CategoryTrendSection } from '@/pages/insights/types/incomeExpenseBreakdown'
 import {
-  formatSignedBreakdownCurrency,
   getCategoryDriverColor,
   getCategoryDriverDescriptor,
   getTransactionCountLabel,
@@ -43,7 +42,7 @@ export function IncomeExpenseTrendSections({
   animationKey,
   shouldReduceMotion,
 }: IncomeExpenseTrendSectionsProps) {
-  const { currencies, formatCurrency } = useMoneyFormatters()
+  const { formatCurrency, formatMovedCurrency } = useMoneyFormatters()
 
   return (
     <div className="flex flex-col border-t border-[var(--app-border)] pt-4 min-[1350px]:min-h-[620px] min-[1350px]:border-t-0 min-[1350px]:pt-0">
@@ -119,7 +118,7 @@ export function IncomeExpenseTrendSections({
                             {formatCurrency(driver.amount, displayCurrency)}
                           </p>
                           <p className="font-financial text-sm min-[750px]:mt-1" style={{ color: driverColor }}>
-                            {formatSignedBreakdownCurrency(changeAmount, displayCurrency, currencies)}
+                            {formatMovedCurrency(changeAmount, displayCurrency)}
                             {changePctLabel && (
                               <>
                                 {' '}

@@ -58,8 +58,8 @@ test('keeps the running balance in Add transaction right after switching windows
   await expect(dialog).toBeHidden()
   const amounts = page.getByTestId(/^transaction-row-/).getByTestId('transaction-amount').filter({ visible: true })
   await expect(amounts).toHaveCount(3)
-  await expect(amounts.filter({ hasText: '-$100.00' })).toHaveCount(1)
-  await expect(amounts.filter({ hasText: '-$50.00' })).toHaveCount(1)
+  await expect(amounts.filter({ hasText: '−$100.00' })).toHaveCount(1)
+  await expect(amounts.filter({ hasText: '−$50.00' })).toHaveCount(1)
 })
 
 test('shows a change made in another window once Add transaction closes', async ({ page, request }) => {

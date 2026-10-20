@@ -1,13 +1,12 @@
 import type { InsightsPeriodGlanceResponse } from '@/api/insights'
 import type { Currency } from '@/api/currency'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { formatCurrency, formatMovedCurrency } from '@/utils/formatCurrency'
 import type {
   PeriodGlancePrimaryMetric,
   PeriodGlanceSupportItem,
 } from '@/pages/insights/types/periodGlance'
 import {
   formatSavingsRateValue,
-  formatSignedCurrency,
   getSavingsRate,
 } from './money'
 import {
@@ -61,7 +60,7 @@ function getPeriodGlanceChangeDetail(
   displayCurrency: string,
   currencies: Currency[],
 ) {
-  const amount = formatSignedCurrency(changeAmount, displayCurrency, currencies)
+  const amount = formatMovedCurrency(changeAmount, displayCurrency, currencies)
   if (changePct === undefined) {
     return `${amount} vs previous matching period`
   }
@@ -176,7 +175,7 @@ function formatBriefMetricValue(
   currencies: Currency[],
 ) {
   return metric.signed
-    ? formatSignedCurrency(metric.value, displayCurrency, currencies)
+    ? formatMovedCurrency(metric.value, displayCurrency, currencies)
     : formatCurrency(metric.value, displayCurrency, currencies)
 }
 

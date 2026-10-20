@@ -30,7 +30,7 @@ test('filters the list down to one category', AT_EVERY_SIZE, async ({ page, requ
   const dining = page.getByTestId(`transaction-row-${ids[2]}`)
   const rows = page.getByTestId(/^transaction-row-/)
   await expect(rows).toHaveCount(3)
-  for (const [index, amount] of ['-$10.00', '-$20.00', '-$30.00'].entries()) {
+  for (const [index, amount] of ['−$10.00', '−$20.00', '−$30.00'].entries()) {
     await expectTransactionRow(page, ids[index], amount)
   }
 
@@ -69,7 +69,7 @@ async function openListWithUpcomingAndToday(page: Page, request: APIRequestConte
   await openPage(page, '/transactions')
 
   // Today's row settles the list first, so anything read about the upcoming row is read from a loaded list
-  await expectTransactionRow(page, todayId, '-$10.00')
+  await expectTransactionRow(page, todayId, '−$10.00')
   return { upcomingId, todayId, upcoming: page.getByRole('button', { name: /Upcoming/ }) }
 }
 
@@ -83,13 +83,13 @@ test('keeps future-dated transactions in a collapsed Upcoming section until it i
   await upcoming.click()
   await expect(upcoming).toHaveAttribute('aria-expanded', 'true')
   await expect(page.getByText("These haven't happened yet")).toBeVisible()
-  await expectTransactionRow(page, upcomingId, '-$45.00')
+  await expectTransactionRow(page, upcomingId, '−$45.00')
 })
 
 test('closes the Upcoming section again when a search empties it and it comes back', async ({ page, request }) => {
   const { upcomingId, upcoming } = await openListWithUpcomingAndToday(page, request)
   await upcoming.click()
-  await expectTransactionRow(page, upcomingId, '-$45.00')
+  await expectTransactionRow(page, upcomingId, '−$45.00')
 
   const search = page.getByPlaceholder('Search transactions...', { exact: true })
   await search.fill('no transaction matches this')
@@ -102,7 +102,7 @@ test('closes the Upcoming section again when a search empties it and it comes ba
 test('unticks upcoming transactions when the Upcoming section closes', async ({ page, request }) => {
   const { upcomingId, upcoming } = await openListWithUpcomingAndToday(page, request)
   await upcoming.click()
-  await expectTransactionRow(page, upcomingId, '-$45.00')
+  await expectTransactionRow(page, upcomingId, '−$45.00')
 
   // Closing the section unticks what it hides, so an edit never reaches rows the user can't see
   await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
@@ -120,7 +120,7 @@ test('shows a hover on an upcoming row in the light theme', async ({ page, reque
   await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' })
   const { upcomingId, todayId, upcoming } = await openListWithUpcomingAndToday(page, request)
   await upcoming.click()
-  await expectTransactionRow(page, upcomingId, '-$45.00')
+  await expectTransactionRow(page, upcomingId, '−$45.00')
 
   // A hovered upcoming row stands out from the section's shading at least as much as a hovered row in the
   // main list stands out from the page
@@ -278,7 +278,7 @@ test('loads the next page when the browser reports the end of the list leaving a
   await page.setViewportSize({ ...page.viewportSize()!, height: 600 })
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
-  await expectTransactionRow(page, ids[0], '-$10.00')
+  await expectTransactionRow(page, ids[0], '−$10.00')
 
   // The end of the first page starts out of view, which the observer reports as soon as it watches it
   await expect.poll(() => page.evaluate(() => (window as unknown as { heldIntersections: () => number }).heldIntersections())).toBe(1)
@@ -314,7 +314,7 @@ test('moves an upcoming transaction into the list when its day comes while the p
 
   // Past midnight and the next check of the day
   await page.clock.fastForward('02:00')
-  await expectTransactionRow(page, id, '-$45.00')
+  await expectTransactionRow(page, id, '−$45.00')
   await expect(upcoming).toHaveCount(0)
 })
 
@@ -380,7 +380,7 @@ test('preserves transaction action names through save and delete confirmation', 
   })
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
-  await expectTransactionRow(page, id, '-$42.50')
+  await expectTransactionRow(page, id, '−$42.50')
   await page.getByTestId(`transaction-row-${id}`).click()
   const dialog = page.getByRole('dialog', { name: 'Edit transaction', exact: true })
   await dialog.getByLabel('Amount').fill('43.50')
@@ -390,7 +390,7 @@ test('preserves transaction action names through save and delete confirmation', 
   await whileApiRequestHeld(page, 'PATCH', `/transactions/${id}`,
     () => submit.click(), () => expectPendingAction(submit, 'Save'))
   await expect(dialog).toBeHidden()
-  await expectTransactionRow(page, id, '-$43.50')
+  await expectTransactionRow(page, id, '−$43.50')
 
   await page.getByTestId(`transaction-row-${id}`).click()
   const remove = dialog.getByTestId('transaction-delete')
@@ -448,7 +448,7 @@ async function openNotedRow(page: Page, request: APIRequestContext) {
   const plainId = await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -2000 })
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
-  await expectTransactionRow(page, plainId, '-$20.00')
+  await expectTransactionRow(page, plainId, '−$20.00')
   const noted = page.getByTestId(`transaction-row-${notedId}`)
   return {
     user,

@@ -25,7 +25,7 @@ import {
 import { CHART_X_AXIS_TICK_FONT_SIZE } from '@/components/charts/constants'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import type { CashFlowBarBucket } from '@/pages/insights/types/cashFlow'
-import { formatSignedCurrency, getSignedAmountColor } from '@/pages/insights/utils/money'
+import { getSignedAmountColor } from '@/pages/insights/utils/money'
 import {
   useFittedYAxisWidth,
   Y_AXIS_LABEL_CLASS_NAME,
@@ -77,14 +77,14 @@ function CashFlowBarTooltipContent({
   bucket: CashFlowBarBucket
   displayCurrency: string
 }) {
-  const { currencies, formatCurrency } = useMoneyFormatters()
+  const { formatCurrency, formatMovedCurrency } = useMoneyFormatters()
 
   return (
     <>
       <ChartTooltipTitle>{bucket.rangeLabel}</ChartTooltipTitle>
       <ChartTooltipRow
         label="Net"
-        value={formatSignedCurrency(bucket.net, displayCurrency, currencies)}
+        value={formatMovedCurrency(bucket.net, displayCurrency)}
         valueStyle={{ color: getSignedAmountColor(bucket.net) }}
         financialValue
       />
@@ -114,7 +114,7 @@ export function CashFlowBarChart({
 }: CashFlowBarChartProps) {
   const chartRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<DeferredChartTooltipOverlayHandle<CashFlowBarBucket>>(null)
-  const { currencies } = useMoneyFormatters()
+  const { formatMovedCurrency } = useMoneyFormatters()
   const hasActivity = buckets.some((bucket) => bucket.inflow > 0 || bucket.outflow > 0)
   const yAxisWidth = useFittedYAxisWidth(chartRef)
   const dataSignature = useMemo(
@@ -191,7 +191,7 @@ export function CashFlowBarChart({
               tickMargin={Y_AXIS_TICK_MARGIN_PX}
               tick={{ fill: 'var(--app-text-subtle)', fontSize: 11, className: Y_AXIS_LABEL_CLASS_NAME }}
               // The bars are net flows, amounts that moved, so the labels are signed like the headline
-              tickFormatter={(value) => formatSignedCurrency(Number(value), displayCurrency, currencies)}
+              tickFormatter={(value) => formatMovedCurrency(Number(value), displayCurrency)}
             />
             <ReferenceLine y={0} stroke="var(--app-border-strong)" strokeWidth={1} />
             <Bar dataKey="net" radius={4} maxBarSize={40} {...barEntrance}>

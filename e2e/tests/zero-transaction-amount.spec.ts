@@ -19,7 +19,7 @@ test('shows a zero transaction amount unsigned beside signed ones', AT_EVERY_SIZ
   await openPage(page, '/transactions')
 
   await expectTransactionRow(page, zeroId, '$0.00')
-  await expectTransactionRow(page, spentId, '-$10.00')
+  await expectTransactionRow(page, spentId, '−$10.00')
   await expectTransactionRow(page, refundId, '+$10.00')
 })
 
@@ -37,7 +37,7 @@ test('shows a zero transaction amount unsigned and neutral in the dashboard rece
 
   const amounts = page.getByTestId('recent-activity-amount')
   const zero = amounts.filter({ hasText: /^\$0\.00$/ })
-  const expense = amounts.filter({ hasText: /^-\$10\.00$/ })
+  const expense = amounts.filter({ hasText: /^−\$10\.00$/ })
   const income = amounts.filter({ hasText: /^\+\$10\.00$/ })
   await expect(zero).toHaveCount(1)
   await expect(expense).toHaveCount(1)

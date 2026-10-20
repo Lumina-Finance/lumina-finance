@@ -31,7 +31,6 @@ import {
   NET_WORTH_AXIS_TICK_COUNT,
   formatNetWorthAxisDate,
   formatNetWorthAxisMoney,
-  formatSignedNetWorthCurrency,
   getChangeKey,
   getChartKey,
   getNetWorthDateAxisTicks,
@@ -159,7 +158,7 @@ function NetWorthChartTooltipContent({
   displayCurrency: string
   mode: NetWorthViewMode
 }) {
-  const { currencies, formatCurrency } = useMoneyFormatters()
+  const { formatCurrency, formatMovedCurrency } = useMoneyFormatters()
   const detailItems = items.map((item, index) => ({ item, index }))
   const displayedNetWorth = mode === 'composition'
     ? detailItems.reduce((sum, { index }) => sum + Number(point[getValueKey(index)] ?? 0), 0)
@@ -176,7 +175,7 @@ function NetWorthChartTooltipContent({
       {mode === 'overview' && (
         <ChartTooltipRow
           label="Change"
-          value={formatSignedNetWorthCurrency(point.totalChange, displayCurrency, currencies)}
+          value={formatMovedCurrency(point.totalChange, displayCurrency)}
           financialValue
         />
       )}
@@ -196,7 +195,7 @@ function NetWorthChartTooltipContent({
                   {mode === 'overview' && (
                     <>
                       {' '}
-                      ({formatSignedNetWorthCurrency(change, displayCurrency, currencies)})
+                      ({formatMovedCurrency(change, displayCurrency)})
                     </>
                   )}
                 </>

@@ -7,9 +7,14 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/hooks/useMoneyFormatters', () => ({
-  useMoneyFormatters: () => ({ formatCurrency: (amount: number) => `CA$${(amount / 100).toFixed(2)}` }),
+  useMoneyFormatters: () => ({
+    formatCurrency: (amount: number) => `CA$${(amount / 100).toFixed(2)}`,
+    formatMovedCurrency: (amount: number) =>
+      signMovedAmount(getAmountSign(amount), `CA$${(Math.abs(amount) / 100).toFixed(2)}`),
+  }),
 }))
 
+import { getAmountSign, signMovedAmount } from '@/utils/negativeStyle'
 import { BalanceValueSummary } from '@/pages/accounts/detail/components/balance-chart/ValueSummary'
 import { getBalanceChartSnapshot } from '@/pages/accounts/detail/utils/balanceChartViewModel'
 

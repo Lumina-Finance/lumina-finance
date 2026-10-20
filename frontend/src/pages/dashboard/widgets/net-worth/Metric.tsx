@@ -1,6 +1,7 @@
 import type { Currency } from '@/api/currency'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { formatDashboardMoney } from '@/pages/dashboard/utils/formatDashboardMoney'
+import { getAmountSign, signMovedAmount } from '@/utils/negativeStyle'
 
 type NetWorthMetricProps = {
   netWorth: number
@@ -12,8 +13,7 @@ type NetWorthMetricProps = {
  * Formats dashboard net worth movement with an explicit positive or negative sign
  */
 function formatNetWorthChange(amount: number, currency: string, currencies: Currency[]) {
-  if (amount === 0) return formatDashboardMoney(0, currency, 'netWorth', currencies)
-  return `${amount > 0 ? '+' : '-'}${formatDashboardMoney(Math.abs(amount), currency, 'netWorth', currencies)}`
+  return signMovedAmount(getAmountSign(amount), formatDashboardMoney(Math.abs(amount), currency, 'netWorth', currencies))
 }
 
 /**

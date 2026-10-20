@@ -1,5 +1,6 @@
 import type { Currency } from '@/api/currency'
 import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent } from '@/utils/moneyInput'
+import { getAmountSign, getNegativeStyle, signMovedAmount, TRUE_MINUS, type NegativeStyle } from '@/utils/negativeStyle'
 
 /**
  * Formats a currency's code, name, and symbol for selection and reference fields
@@ -25,16 +26,40 @@ export function formatCurrencyLabel(currency: Currency): string {
  * rendered produces a wrong number: 123456 minor units of PKR divides to 1234.56, which Intl then
  * renders as "PKR 1,235" because it believes PKR has no decimals
  *
- * currencySign: 'accounting' renders negatives in parentheses, so -100 gives ($100.00)
+ * The brackets style uses currencySign: 'accounting', which renders negatives in parentheses, so -100
+ * gives ($100.00), though Intl leaves a language with no brackets of its own writing its own minus.
+ * The minus style is written by `formatMoneyParts` rather than by Intl, so it is the same true minus
+ * in every language
  */
-export function createMoneyFormatter(currency: string, fractionDigits: number): Intl.NumberFormat {
+export function createMoneyFormatter(
+  currency: string,
+  fractionDigits: number,
+  style: NegativeStyle = getNegativeStyle('held'),
+): Intl.NumberFormat {
   return new Intl.NumberFormat(undefined, {
     style: 'currency',
     currency,
-    currencySign: 'accounting',
+    currencySign: style === 'brackets' ? 'accounting' : 'standard',
     minimumFractionDigits: fractionDigits,
     maximumFractionDigits: fractionDigits,
   })
+}
+
+/**
+ * Splits an amount in major units into the parts of its text, writing a negative in the given style
+ *
+ * The minus style formats the magnitude and puts the true minus in front of all of it, so the sign
+ * sits in the same place in every language
+ */
+export function formatMoneyParts(
+  value: number,
+  currency: string,
+  fractionDigits: number,
+  style: NegativeStyle = getNegativeStyle('held'),
+): Intl.NumberFormatPart[] {
+  const formatter = createMoneyFormatter(currency, fractionDigits, style)
+  if (style === 'brackets' || value >= 0) return formatter.formatToParts(value)
+  return [{ type: 'minusSign', value: TRUE_MINUS }, ...formatter.formatToParts(-value)]
 }
 
 /**
@@ -64,9 +89,16 @@ function resolveDisplayExponent(currency: string, currencies: Currency[]): numbe
  * Accounting style decides to wrap a negative in parentheses before rounding it, so without this a
  * balance 40 cents over its limit comes back as ($0) on a meter that shows no decimals
  */
-export function formatMajorUnits(value: number, currency: string, fractionDigits: number): string {
+export function formatMajorUnits(
+  value: number,
+  currency: string,
+  fractionDigits: number,
+  style: NegativeStyle = getNegativeStyle('held'),
+): string {
   const roundsToZero = Math.abs(value) < 0.5 / 10 ** fractionDigits
-  return createMoneyFormatter(currency, fractionDigits).format(roundsToZero ? 0 : value)
+  return formatMoneyParts(roundsToZero ? 0 : value, currency, fractionDigits, style)
+    .map((part) => part.value)
+    .join('')
 }
 
 /**
@@ -81,12 +113,24 @@ export function toMajorUnits(minorUnits: number, currency: string, currencies: C
  * Formats an integer amount in a currency's minor units as a currency string, written the way the
  * reader's own region writes it
  *
- * Negative amounts render in accounting style, wrapped in parentheses instead of a leading minus sign,
- * and an amount that rounds to zero never appears wrapped that way
+ * This is for held amounts (balances, net worth, credit used, limits). A negative is written in the
+ * held negative style, which today is brackets, and an amount that rounds to zero never appears
+ * wrapped that way. An amount that moved goes through `formatMovedCurrency`
  *
  * @param currencies - The fetched currency list, which carries each code's decimal places
  */
 export function formatCurrency(minorUnits: number, currency: string, currencies: Currency[]): string {
   const exponent = resolveDisplayExponent(currency, currencies)
   return formatMajorUnits(minorUnits / Math.pow(10, exponent), currency, exponent)
+}
+
+/**
+ * Formats an amount that moved (a transaction, a net flow, a change, the adjustment an action will
+ * record) in a currency's minor units, signed with a plus for money in and the moved negative style
+ * for money out, which today is a true minus in every language. A zero amount is left unsigned
+ *
+ * @param currencies - The fetched currency list, which carries each code's decimal places
+ */
+export function formatMovedCurrency(minorUnits: number, currency: string, currencies: Currency[]): string {
+  return signMovedAmount(getAmountSign(minorUnits), formatCurrency(Math.abs(minorUnits), currency, currencies))
 }

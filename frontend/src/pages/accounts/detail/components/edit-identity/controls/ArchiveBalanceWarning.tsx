@@ -13,7 +13,7 @@ export function ArchiveBalanceWarning({
   balance,
   currency,
 }: ArchiveBalanceWarningProps) {
-  const { formatCurrency } = useMoneyFormatters()
+  const { formatMovedCurrency } = useMoneyFormatters()
   const adjustmentAmount = -balance
   const hasBalance = balance !== 0
 
@@ -36,7 +36,7 @@ export function ArchiveBalanceWarning({
           <p className="text-sm font-semibold leading-5">Balance will be set to zero</p>
           <p className="mt-0.5 text-sm leading-5" style={{ color: 'var(--app-text-muted-on-warning)' }}>
             {hasBalance
-              ? `${formatCurrency(adjustmentAmount, currency)} will be recorded as a Balance Adjustment with note "Account archived". Unarchiving will not restore the previous balance.`
+              ? `${formatMovedCurrency(adjustmentAmount, currency)} will be recorded as a Balance Adjustment with note "Account archived". Unarchiving will not restore the previous balance.`
               : 'This account already has a zero balance, so no balance adjustment will be recorded.'}
           </p>
         </div>

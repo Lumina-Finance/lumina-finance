@@ -1,5 +1,6 @@
 import { TrendingDown, TrendingUp } from 'lucide-react'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
+import { signMovedAmount } from '@/utils/negativeStyle'
 import type { BalanceChartSnapshot } from '@/pages/accounts/detail/utils/balanceChartViewModel'
 
 type BalanceValueSummaryProps = {
@@ -10,7 +11,7 @@ type BalanceValueSummaryProps = {
  * Renders the current balance and selected-range movement summary above the chart
  */
 export function BalanceValueSummary({ snapshot }: BalanceValueSummaryProps) {
-  const { formatCurrency } = useMoneyFormatters()
+  const { formatCurrency, formatMovedCurrency } = useMoneyFormatters()
   const sign = snapshot.deltaSign
 
   return (
@@ -26,13 +27,11 @@ export function BalanceValueSummary({ snapshot }: BalanceValueSummaryProps) {
           {snapshot.trend === 'up' && <TrendingUp size={14} aria-hidden />}
           {snapshot.trend === 'down' && <TrendingDown size={14} aria-hidden />}
           <span className="font-financial">
-            {sign}
-            {formatCurrency(Math.abs(snapshot.periodDelta.absolute), snapshot.currency)}
+            {formatMovedCurrency(snapshot.periodDelta.absolute, snapshot.currency)}
             {snapshot.periodDelta.pct !== null && (
               <>
                 {' '}
-                ({sign}
-                {Math.abs(snapshot.periodDelta.pct).toFixed(1)}%)
+                ({signMovedAmount(sign, `${Math.abs(snapshot.periodDelta.pct).toFixed(1)}%`)})
               </>
             )}
           </span>

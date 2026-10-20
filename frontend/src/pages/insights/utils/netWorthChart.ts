@@ -1,5 +1,4 @@
 import type { Currency } from '@/api/currency'
-import { formatCurrency } from '@/utils/formatCurrency'
 import { formatCompactMoney, type CompactMoneyRule } from '@/utils/formatCompactMoney'
 import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
 
@@ -63,14 +62,6 @@ const netWorthAxisMoneyRules: CompactMoneyRule[] = [
   { threshold: 10_000, divisor: 1_000, suffix: 'K', fractionDigits: 1 },
   { threshold: 1_000, divisor: 1_000, suffix: 'K', fractionDigits: 0 },
 ]
-
-/**
- * Formats signed currency changes without showing a sign for unchanged values
- */
-export function formatSignedNetWorthCurrency(amount: number, currency: string, currencies: Currency[]) {
-  if (amount === 0) return formatCurrency(amount, currency, currencies)
-  return `${amount > 0 ? '+' : '-'}${formatCurrency(Math.abs(amount), currency, currencies)}`
-}
 
 /**
  * Formats a net worth chart axis value with K/M compaction rules and no currency prefix

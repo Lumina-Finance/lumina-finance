@@ -10,7 +10,7 @@ import { WHOLE_FILE_DATE_RANGE } from '@/pages/imports/utils/dateRange'
 import { buildImportPreviewRows, groupPreviewRowsByDate } from '@/pages/imports/utils/preview'
 import { buildTransactionImportPayload } from '@/pages/imports/utils/payload'
 import { formatPreviewMoney } from '@/pages/imports/utils/formatPreviewMoney'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { formatCurrency, formatMovedCurrency } from '@/utils/formatCurrency'
 
 const captured = vi.hoisted(() => ({ buttons: [] as { onClick: (event: { shiftKey: boolean }) => void; tabIndex?: number }[] }))
 
@@ -27,7 +27,11 @@ vi.mock('motion/react', () => ({
   },
 }))
 vi.mock('@/hooks/useMoneyFormatters', () => ({
-  useMoneyFormatters: () => ({ currencies: CURRENCIES, formatCurrency: (amount: number, currency: string) => formatCurrency(amount, currency, CURRENCIES) }),
+  useMoneyFormatters: () => ({
+    currencies: CURRENCIES,
+    formatCurrency: (amount: number, currency: string) => formatCurrency(amount, currency, CURRENCIES),
+    formatMovedCurrency: (amount: number, currency: string) => formatMovedCurrency(amount, currency, CURRENCIES),
+  }),
 }))
 
 // A today later than every preview row, so each row renders in the list rather than behind the Upcoming
@@ -84,15 +88,15 @@ describe('exact generic import presentation', () => {
     ['JPY', '9007199254740993', 9007199254740993n, '+¥9,007,199,254,740,993'],
     ['CAD', '90071992547409.93', 9007199254740993n, '+CA$90,071,992,547,409.93'],
     ['IQD', '9007199254740.993', 9007199254740993n, '+IQD\u00a09,007,199,254,740.993'],
-    ['JPY', '-9007199254740993', -9007199254740993n, '-¥9,007,199,254,740,993'],
-    ['CAD', '-90071992547409.93', -9007199254740993n, '-CA$90,071,992,547,409.93'],
-    ['IQD', '-9007199254740.993', -9007199254740993n, '-IQD\u00a09,007,199,254,740.993'],
+    ['JPY', '-9007199254740993', -9007199254740993n, '−¥9,007,199,254,740,993'],
+    ['CAD', '-90071992547409.93', -9007199254740993n, '−CA$90,071,992,547,409.93'],
+    ['IQD', '-9007199254740.993', -9007199254740993n, '−IQD\u00a09,007,199,254,740.993'],
     ['JPY', '9223372036854775807', 9223372036854775807n, '+¥9,223,372,036,854,775,807'],
     ['CAD', '92233720368547758.07', 9223372036854775807n, '+CA$92,233,720,368,547,758.07'],
     ['IQD', '9223372036854775.807', 9223372036854775807n, '+IQD\u00a09,223,372,036,854,775.807'],
-    ['JPY', '-9223372036854775808', -9223372036854775808n, '-¥9,223,372,036,854,775,808'],
-    ['CAD', '-92233720368547758.08', -9223372036854775808n, '-CA$92,233,720,368,547,758.08'],
-    ['IQD', '-9223372036854775.808', -9223372036854775808n, '-IQD\u00a09,223,372,036,854,775.808'],
+    ['JPY', '-9223372036854775808', -9223372036854775808n, '−¥9,223,372,036,854,775,808'],
+    ['CAD', '-92233720368547758.08', -9223372036854775808n, '−CA$92,233,720,368,547,758.08'],
+    ['IQD', '-9223372036854775.808', -9223372036854775808n, '−IQD\u00a09,223,372,036,854,775.808'],
   ] as const)('preserves every digit through builder and all responsive nodes: %s %s', (currency, raw, exact, text) => {
     const { rows, payload } = build(currency, [raw])
     expect(rows).toHaveLength(1)
@@ -115,7 +119,7 @@ describe('exact generic import presentation', () => {
   })
 
   it.each([
-    [0n, 'CAD', 'CA$0.00', 0], [-1n, 'CAD', '-CA$0.01', -1],
+    [0n, 'CAD', 'CA$0.00', 0], [-1n, 'CAD', '−CA$0.01', -1],
     [10n, 'IQD', '+IQD\u00a00.010', 1], [1000n, 'IQD', '+IQD\u00a01.000', 1],
   ] as const)('preserves small fractions, padded zeros and sign: %s %s', (amount, currency, text, sign) => {
     expect(formatPreviewMoney(amount, currency, CURRENCIES)).toEqual({ text, sign })
@@ -154,7 +158,7 @@ describe('exact generic import presentation', () => {
     const { rows } = build('CAD', ['-12.34'])
     const numeric: Transaction = { ...rows[0].transaction, amount: -1234, account_amount: -1234, base_currency_amount: -1234 }
     const markup = renderToStaticMarkup(createElement(ImportPreviewList, { groups: [{ dateLabel: rows[0].dateLabel, rows: [{ ...rows[0], transaction: numeric }] }] }))
-    expect(new Set(amountNodes(markup))).toEqual(new Set(['-CA$12.34']))
+    expect(new Set(amountNodes(markup))).toEqual(new Set(['−CA$12.34']))
   })
 
   it('preserves the ordinary ledger callback and selection routing', () => {

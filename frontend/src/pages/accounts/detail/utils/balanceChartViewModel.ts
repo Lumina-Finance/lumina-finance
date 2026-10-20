@@ -4,6 +4,7 @@ import {
   type BalanceChartMode,
   type BalanceRange,
 } from '@/pages/accounts/detail/constants/accountDetail'
+import type { AmountSign } from '@/utils/negativeStyle'
 import { getBalanceXAxisTicks } from '@/pages/accounts/detail/utils/balanceChartAxis'
 import { calendarDateMs } from '@/pages/accounts/detail/utils/calendarDate'
 import {
@@ -34,7 +35,7 @@ export type BalanceChartSnapshot = {
   periodDelta: BalanceChartPeriodDelta | null
   trend: BalanceTrend
   /** A plus or a true minus before the change, empty for a flat period since zero is unsigned */
-  deltaSign: '+' | '−' | ''
+  deltaSign: AmountSign
   deltaColor: string
   chartLineColor: string
   chartSeries: BalanceChartDataPoint[]
@@ -154,7 +155,7 @@ export function getBalanceChartSnapshot({
     currency,
     periodDelta,
     trend,
-    deltaSign: trend === 'up' ? '+' : trend === 'down' ? '−' : '',
+    deltaSign: trend === 'up' ? 1 : trend === 'down' ? -1 : 0,
     deltaColor,
     chartLineColor: chartMode === 'change' && trend !== 'flat' ? deltaMarkColor : lineColor,
     chartSeries,

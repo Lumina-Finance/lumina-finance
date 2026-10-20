@@ -77,7 +77,7 @@ describe('balance chart view model helpers', () => {
     expect(snapshot.chartSeries.map((point) => point.periodBalance)).toEqual([0, 0, 1_500])
     expect(snapshot.periodDelta).toEqual({ absolute: 1_500, pct: 15 })
     expect(snapshot.trend).toBe('up')
-    expect(snapshot.deltaSign).toBe('+')
+    expect(snapshot.deltaSign).toBe(1)
 
     // The same rise is a figure and a line, so it carries the text green and the chart green at once
     expect(snapshot.deltaColor).toBe('var(--app-positive)')
@@ -120,7 +120,7 @@ describe('balance chart view model helpers', () => {
     })
 
     expect(falling.trend).toBe('down')
-    expect(falling.deltaSign).toBe('−')
+    expect(falling.deltaSign).toBe(-1)
     expect(falling.deltaColor).toBe('var(--app-negative)')
     expect(falling.chartLineColor).toBe('var(--app-chart-negative)')
 
@@ -158,7 +158,7 @@ describe('balance chart view model helpers', () => {
 
     expect(flat.periodDelta).toEqual({ absolute: 0, pct: 0 })
     expect(flat.trend).toBe('flat')
-    expect(flat.deltaSign).toBe('')
+    expect(flat.deltaSign).toBe(0)
     expect(flat.deltaColor).toBe('var(--app-text-muted)')
     expect(flat.chartLineColor).toBe('var(--app-accent)')
   })
