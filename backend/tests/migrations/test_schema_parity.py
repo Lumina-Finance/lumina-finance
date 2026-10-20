@@ -17,8 +17,9 @@ from sqlalchemy.pool import NullPool
 
 from app.bank_transaction_key import key_fingerprint, resolve_key, seal_bank_transaction_hash
 from app.config.database import APP_DB_USER, MIGRATOR_DB_USER
-from app.db.bank_transaction_key import read_fingerprint as read_bank_transaction_key_fingerprint
+from app.db.bank_transaction_key import FINGERPRINT_TABLE as BANK_TRANSACTION_KEY_FINGERPRINT_TABLE
 from app.db.credentials import resolve_role_password
+from app.db.key_fingerprint import read_fingerprint
 from app.models.base import Base
 from app.models.types import find_encrypted_columns
 from app.services.merchants.defaults import (
@@ -269,7 +270,7 @@ async def test_bank_transaction_hash_migration_hashes_saved_bank_ids_as_the_impo
             app_engine = _create_app_role_engine(database_name)
             try:
                 async with app_engine.connect() as conn:
-                    assert await read_bank_transaction_key_fingerprint(conn) == recorded
+                    assert await read_fingerprint(conn, BANK_TRANSACTION_KEY_FINGERPRINT_TABLE) == recorded
             finally:
                 await app_engine.dispose()
             if not reupgrade:

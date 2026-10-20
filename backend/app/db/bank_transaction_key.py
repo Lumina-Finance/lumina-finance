@@ -37,11 +37,6 @@ def _way_forward() -> str:
     )
 
 
-async def read_fingerprint(connection: AsyncConnection) -> str | None:
-    """Return the recorded key fingerprint, or None before the migration that records one"""
-    return await key_fingerprint.read_fingerprint(connection, FINGERPRINT_TABLE)
-
-
 async def holds_bank_transaction_hashes(connection: AsyncConnection) -> bool:
     """Whether any transaction already carries a bank transaction hash
 
@@ -80,7 +75,7 @@ async def ensure_key(connection: AsyncConnection) -> None:
     env_var = bank_transaction_key.KEY_ENV_VAR
     try:
         holds_hashes = await holds_bank_transaction_hashes(connection)
-        records_key = await read_fingerprint(connection) is not None
+        records_key = await key_fingerprint.read_fingerprint(connection, FINGERPRINT_TABLE) is not None
     except SQLAlchemyError as error:
         # Run as the admin role, which may be unable to read the tables. Minting a key is what
         # would break the saved hashes, so refusing is the safe answer
@@ -116,7 +111,8 @@ async def verify_key_matches_hashes(connection: AsyncConnection) -> None:
         RuntimeError: There is no key, or the recorded fingerprint names another
     """
     key = bank_transaction_key.resolve_key(generate=False)
-    recorded = await read_fingerprint(connection)
+    # Before the migration that records one there is no record, and so nothing to refuse
+    recorded = await key_fingerprint.read_fingerprint(connection, FINGERPRINT_TABLE)
     if recorded is not None and recorded != bank_transaction_key.key_fingerprint(key):
         raise RuntimeError(
             f"Refusing to start: the bank transaction hashes were made with a different key than the "

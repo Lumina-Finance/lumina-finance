@@ -9,6 +9,7 @@ from app.bank_transaction_key import generate_key, key_fingerprint
 from app.config import imports as import_config
 from app.db import bank_transaction_key as provisioning
 from app.db.bank_transaction_key import ensure_key, reset_key, verify_key_matches_hashes
+from app.db.key_fingerprint import read_fingerprint
 from tests.conftest import engine, scoped_engine
 
 _RESET_ADVICE = "accept that statements imported again will bring back"
@@ -200,7 +201,7 @@ async def test_a_reset_that_cannot_record_the_key_leaves_no_key_behind(key_file)
 
     assert not key_file.exists()
     async with engine.connect() as connection:
-        assert await provisioning.read_fingerprint(connection) == key_fingerprint(bytes.fromhex(lost_key))
+        assert await read_fingerprint(connection, provisioning.FINGERPRINT_TABLE) == key_fingerprint(bytes.fromhex(lost_key))
 
 
 async def test_the_app_role_can_read_the_recorded_key():
@@ -210,4 +211,4 @@ async def test_the_app_role_can_read_the_recorded_key():
         await _record(connection, key)
 
     async with scoped_engine.connect() as connection:
-        assert await provisioning.read_fingerprint(connection) == key_fingerprint(bytes.fromhex(key))
+        assert await read_fingerprint(connection, provisioning.FINGERPRINT_TABLE) == key_fingerprint(bytes.fromhex(key))
