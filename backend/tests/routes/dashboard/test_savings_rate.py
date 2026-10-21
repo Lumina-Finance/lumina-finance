@@ -9,6 +9,7 @@ from tests.routes.dashboard._helpers import (
     _FixedClock,
 )
 from tests.routes.support import _create_account, _create_user, _get_auth_header
+from tests.routes.support.clock_helpers import PROFILE_TODAY, PROFILE_TOMORROW, freeze_profile_clock
 
 
 async def test_dashboard_savings_rate_excludes_transfers(client, monkeypatch):
@@ -137,6 +138,26 @@ async def test_dashboard_savings_rate_converts_foreign_currency_accounts(client,
     }
     assert data["fx_status"] == {"state": "complete", "missing_pairs": []}
     assert calls == [("USD", "CAD", date(2025, 9, 1), date(2026, 3, 20))]
+
+
+async def test_dashboard_savings_rate_leaves_out_days_after_the_profile_date(client, freeze_now):
+    """A later day of the current month adds nothing, though it is already today in UTC."""
+    freeze_profile_clock(freeze_now)
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    account_id = (await _create_account(client, headers)).json()["id"]
+    income_id = (await _create_category(client, headers, name="Test Salary", kind="income")).json()["id"]
+    expense_id = (await _create_category(client, headers, name="Test Groceries", kind="expense")).json()["id"]
+
+    await _create_transaction(client, headers, account_id, income_id, dt=PROFILE_TODAY.isoformat(), amount=100_000)
+    await _create_transaction(client, headers, account_id, income_id, dt=PROFILE_TOMORROW.isoformat(), amount=40_000)
+    await _create_transaction(client, headers, account_id, expense_id, dt=PROFILE_TODAY.isoformat(), amount=-30_000)
+    await _create_transaction(client, headers, account_id, expense_id, dt=PROFILE_TOMORROW.isoformat(), amount=-20_000)
+
+    resp = await client.get("/dashboard/savings-rate", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["savings_rate_history"][-1] == {"month": "2026-06-01", "income": 100_000, "expenses": 30_000}
 
 
 async def test_dashboard_savings_rate_reports_incomplete_fx_with_missing_pairs(client, monkeypatch):

@@ -10,6 +10,7 @@ from app.models.currency import Currency
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
 from tests.routes.support import _create_account, _create_user, _get_auth_header
+from tests.routes.support.clock_helpers import PROFILE_TODAY, PROFILE_TOMORROW, freeze_profile_clock
 
 
 def _category(user_id: UUID, name: str, kind: CategoryKind) -> tuple[UUID, Category]:
@@ -422,6 +423,39 @@ async def test_fund_flow_requires_date_params(client):
     resp = await client.get("/insights/fund-flow", headers=headers)
 
     assert resp.status_code == 422
+
+
+async def test_fund_flow_leaves_out_days_after_the_profile_date(client, freeze_now):
+    """A transaction dated after the profile's today adds nothing, though it is already today in UTC."""
+    freeze_profile_clock(freeze_now)
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    account_id = UUID((await _create_account(client, headers, name="Main Cash")).json()["id"])
+    salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
+    rent_id, rent = _category(user_id, "Rent", CategoryKind.EXPENSE)
+
+    async with TestSession() as session:
+        rows = [
+            salary,
+            rent,
+            _transaction(user_id, account_id, salary_id, PROFILE_TODAY, 100_000),
+            _transaction(user_id, account_id, salary_id, PROFILE_TOMORROW, 40_000),
+            _transaction(user_id, account_id, rent_id, PROFILE_TODAY, -30_000),
+            _transaction(user_id, account_id, rent_id, PROFILE_TOMORROW, -20_000),
+        ]
+        session.add_all(rows)
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/fund-flow",
+        params={"from_date": "2026-06-08", "to_date": "2026-06-11"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["income_sources"] == [["Salary", 100_000]]
+    assert resp.json()["expense_categories"] == [["Rent", 30_000]]
 
 
 async def test_fund_flow_requires_auth(client):

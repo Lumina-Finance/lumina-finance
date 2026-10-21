@@ -10,6 +10,7 @@ from app.models.currency import Currency
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
 from tests.routes.support import _create_account, _create_user, _get_auth_header
+from tests.routes.support.clock_helpers import PROFILE_TODAY, PROFILE_TOMORROW, freeze_profile_clock
 
 
 class _FixedClock:
@@ -372,6 +373,34 @@ async def test_savings_rate_trend_returns_empty_payload_without_activity(client,
         "points": [],
         "fx_status": {"state": "none", "missing_pairs": []},
     }
+
+
+async def test_savings_rate_trend_leaves_out_days_after_the_profile_date(client, freeze_now):
+    """A later day of the current month adds nothing, though it is already today in UTC."""
+    freeze_profile_clock(freeze_now)
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    account_id = UUID((await _create_account(client, headers, name="Main Cash")).json()["id"])
+    salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
+    groceries_id, groceries = _category(user_id, "Groceries", CategoryKind.EXPENSE)
+
+    async with TestSession() as session:
+        rows = [
+            salary,
+            groceries,
+            _transaction(user_id, account_id, salary_id, PROFILE_TODAY, 100_000),
+            _transaction(user_id, account_id, salary_id, PROFILE_TOMORROW, 40_000),
+            _transaction(user_id, account_id, groceries_id, PROFILE_TODAY, -30_000),
+            _transaction(user_id, account_id, groceries_id, PROFILE_TOMORROW, -20_000),
+        ]
+        session.add_all(rows)
+        await session.commit()
+
+    resp = await client.get("/insights/savings-rate-trend", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["points"] == [["2026-06-01", 100_000, 30_000]]
 
 
 async def test_savings_rate_trend_requires_auth(client):

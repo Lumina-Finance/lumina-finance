@@ -10,6 +10,7 @@ from app.models.currency import Currency
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
 from tests.routes.support import _create_account, _create_user, _get_auth_header
+from tests.routes.support.clock_helpers import PROFILE_TODAY, PROFILE_TOMORROW, freeze_profile_clock
 
 
 def _category(user_id: UUID, name: str, kind: CategoryKind) -> tuple[UUID, Category]:
@@ -542,6 +543,67 @@ async def test_income_expense_breakdown_requires_date_params(client):
     resp = await client.get("/insights/income-expense-breakdown", headers=headers)
 
     assert resp.status_code == 422
+
+
+async def test_income_expense_breakdown_leaves_out_days_after_the_profile_date(client, freeze_now):
+    """A transaction dated after the profile's today adds nothing, though it is already today in UTC."""
+    freeze_profile_clock(freeze_now)
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    account_id = UUID((await _create_account(client, headers, name="Main Cash")).json()["id"])
+    salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
+    rent_id, rent = _category(user_id, "Rent", CategoryKind.EXPENSE)
+
+    async with TestSession() as session:
+        rows = [
+            salary,
+            rent,
+            _transaction(user_id, account_id, salary_id, PROFILE_TODAY, 100_000),
+            _transaction(user_id, account_id, salary_id, PROFILE_TOMORROW, 40_000),
+            _transaction(user_id, account_id, rent_id, PROFILE_TODAY, -30_000),
+            _transaction(user_id, account_id, rent_id, PROFILE_TOMORROW, -20_000),
+        ]
+        session.add_all(rows)
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/income-expense-breakdown",
+        params={"from_date": "2026-06-08", "to_date": "2026-06-11"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["income_total"] == 100_000
+    assert resp.json()["expense_total"] == 30_000
+
+
+async def test_income_expense_breakdown_compares_only_with_days_up_to_the_profile_date(client, freeze_now):
+    """A range that starts tomorrow is compared with the days before it, leaving out any after the profile's today."""
+    freeze_profile_clock(freeze_now)
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    account_id = UUID((await _create_account(client, headers, name="Main Cash")).json()["id"])
+    rent_id, rent = _category(user_id, "Rent", CategoryKind.EXPENSE)
+
+    async with TestSession() as session:
+        rows = [
+            rent,
+            _transaction(user_id, account_id, rent_id, PROFILE_TODAY, -30_000),
+            _transaction(user_id, account_id, rent_id, PROFILE_TOMORROW, -20_000),
+        ]
+        session.add_all(rows)
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/income-expense-breakdown",
+        params={"from_date": "2026-06-11", "to_date": "2026-06-12"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["expense_decreases"] == [[str(rent_id), "Rent", 0, 30_000, -100, 0]]
 
 
 async def test_income_expense_breakdown_requires_auth(client):

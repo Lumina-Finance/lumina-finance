@@ -12,6 +12,7 @@ from tests.routes.dashboard._helpers import (
     _owner_local_creation_day,
 )
 from tests.routes.support import _create_account, _create_user, _get_auth_header
+from tests.routes.support.clock_helpers import PROFILE_TOMORROW, freeze_profile_clock
 
 
 async def test_dashboard_includes_archived_accounts_in_net_worth_and_credit(client, monkeypatch):
@@ -207,6 +208,28 @@ async def test_dashboard_net_worth_reports_unavailable_fx(client, monkeypatch):
             },
         ],
     }
+
+
+async def test_dashboard_net_worth_leaves_out_balances_after_the_profile_date(client, freeze_now):
+    """A balance that starts after the profile's today stays out of the history, though it is already today in UTC."""
+    freeze_profile_clock(freeze_now)
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    account = (await _create_account(client, headers, name="Main Cash")).json()
+
+    async with TestSession() as session:
+        rows = [
+            AccountBalanceSnapshot(account_id=UUID(account["id"]), dt=date(2026, 6, 8), balance=100_000),
+            AccountBalanceSnapshot(account_id=UUID(account["id"]), dt=PROFILE_TOMORROW, balance=140_000),
+        ]
+        session.add_all(rows)
+        await session.commit()
+
+    resp = await client.get("/dashboard/net-worth", params={"window_days": 3}, headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["net_worth_history"] == [0, 100_000, 100_000]
+    assert resp.json()["current_net_worth"] == 100_000
 
 
 async def test_dashboard_net_worth_gives_each_request_its_own_fx_budget(client, monkeypatch):

@@ -11,6 +11,7 @@ from app.models.merchant import Merchant
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
 from tests.routes.support import _create_account, _create_user, _get_auth_header
+from tests.routes.support.clock_helpers import PROFILE_TODAY, PROFILE_TOMORROW, freeze_profile_clock
 
 
 def _category(user_id: UUID, name: str, kind: CategoryKind) -> tuple[UUID, Category]:
@@ -254,6 +255,40 @@ async def test_merchants_compare_previous_calendar_month(client):
         ],
         "fx_status": {"state": "none", "missing_pairs": []},
     }
+
+
+async def test_merchants_leave_out_days_after_the_profile_date(client, freeze_now):
+    """A purchase dated after the profile's today adds nothing, though it is already today in UTC."""
+    freeze_profile_clock(freeze_now)
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    account_id = UUID((await _create_account(client, headers, name="Main Cash")).json()["id"])
+    expense_id, expense = _category(user_id, "Shopping", CategoryKind.EXPENSE)
+    alpha_id, alpha = _merchant(user_id, "Alpha Market")
+    beta_id, beta = _merchant(user_id, "Beta Grocer")
+
+    async with TestSession() as session:
+        rows = [
+            expense,
+            alpha,
+            beta,
+            _transaction(user_id, account_id, expense_id, PROFILE_TODAY, -10_000, alpha_id),
+            _transaction(user_id, account_id, expense_id, PROFILE_TOMORROW, -90_000, alpha_id),
+            _transaction(user_id, account_id, expense_id, PROFILE_TOMORROW, -50_000, beta_id),
+        ]
+        session.add_all(rows)
+        await session.commit()
+
+    resp = await client.get(
+        "/insights/merchants",
+        params={"from_date": "2026-06-01", "to_date": "2026-06-30"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["distribution"] == [[str(alpha_id), "Alpha Market", 10_000, None, 10_000]]
+    assert resp.json()["ranking"] == [[str(alpha_id), "Alpha Market", 10_000, 1, None]]
 
 
 async def test_merchants_rejects_invalid_date_range(client):
