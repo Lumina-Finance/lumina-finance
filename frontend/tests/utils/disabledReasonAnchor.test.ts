@@ -67,15 +67,42 @@ describe('disabled control keep-clear box', () => {
     expect(getReasonKeepClear(byIds).top).toBe(460)
   })
 
-  it('ignores a label far from the control', () => {
-    const far = { getBoundingClientRect: () => rect(500, 100, 120, 20) }
+  it('reaches a label up to 24px from the control and ignores one further off', () => {
+    // The control spans 490 to 530, and a label 20px high ends 24px above it, or 25px above it
+    const near = { getBoundingClientRect: () => rect(500, 446, 120, 20) }
+    const far = { getBoundingClientRect: () => rect(500, 445, 120, 20) }
+    const withLabel = (label: unknown) => ({
+      getBoundingClientRect: () => rect(500, 490, 280, 40),
+      getAttribute: () => null,
+      labels: [label],
+    }) as unknown as HTMLElement
+
+    expect(getReasonKeepClear(withLabel(near)).top).toBe(446)
+    expect(getReasonKeepClear(withLabel(far)).top).toBe(490)
+  })
+
+  it('takes in a label below the control down to its bottom edge', () => {
+    const below = { getBoundingClientRect: () => rect(500, 536, 120, 20) }
     const control = {
       getBoundingClientRect: () => rect(500, 490, 280, 40),
       getAttribute: () => null,
-      labels: [far],
+      labels: [below],
     } as unknown as HTMLElement
 
-    expect(getReasonKeepClear(control).top).toBe(490)
+    const box = getReasonKeepClear(control)
+    expect([box.top, box.bottom]).toEqual([490, 556])
+  })
+
+  it('falls back to the control labels when the named id is not on the page', () => {
+    const label = { getBoundingClientRect: () => rect(500, 460, 120, 20) }
+    const control = {
+      getBoundingClientRect: () => rect(500, 490, 280, 40),
+      getAttribute: () => 'missing-label',
+      ownerDocument: { getElementById: () => null },
+      labels: [label],
+    } as unknown as HTMLElement
+
+    expect(getReasonKeepClear(control).top).toBe(460)
   })
 
   it('is the control box when nothing names it', () => {

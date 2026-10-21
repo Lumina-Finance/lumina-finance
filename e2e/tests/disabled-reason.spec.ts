@@ -250,4 +250,31 @@ test('explains the tags dropdown while no account is chosen', async ({ page, req
 
   await expect(tags).toHaveAttribute('aria-disabled', 'true')
   await expect(tags).toHaveAccessibleDescription('Select an account first')
+
+  // Over the field, the reason shows in front of the window and clear above the label that names the field
+  await page.mouse.move(2, 2)
+  await tags.hover()
+  const tooltip = page.getByTestId(TOOLTIP).filter({ hasText: 'Select an account first' })
+  await expect(tooltip).toHaveCSS('opacity', '1')
+  const labelBox = (await dialog.locator('label[for="txn-tags"]').boundingBox())!
+  // The card inside the tooltip carries the flip above the field, so its box is the one on screen, read once it has settled
+  const card = tooltip.locator('.app-cursor-tooltip-flip')
+  await expect.poll(async () => {
+    const box = await card.boundingBox()
+    return box ? box.y + box.height : Infinity
+  }).toBeLessThanOrEqual(labelBox.y)
+  const tooltipBox = (await card.boundingBox())!
+  expect(tooltipBox.height).toBeGreaterThan(0)
+  // The tooltip passes pointer events through, so its stacking is read from the layers: above the window's backdrop
+  const layers = await page.evaluate(() => {
+    const level = (selector: string) => Number(getComputedStyle(document.querySelector(selector)!).zIndex)
+    return { tooltip: level('[data-testid="disabled-reason-tooltip"]'), backdrop: level('.app-modal-backdrop') }
+  })
+  expect(layers.tooltip).toBeGreaterThan(layers.backdrop)
+
+  // The fence: choosing an account frees the field and the reason goes with it
+  await dialog.locator('#txn-account').click()
+  await page.getByRole('option', { name: /^Savings\b/ }).click()
+  await expect(tags).not.toHaveAttribute('aria-disabled', 'true')
+  await expect(tags).not.toHaveAccessibleDescription('Select an account first')
 })

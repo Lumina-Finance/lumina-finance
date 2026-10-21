@@ -24,7 +24,7 @@ export function getReasonKeepClear(control: HTMLElement): DOMRect {
   const label = (labelId ? control.ownerDocument.getElementById(labelId) : null) ?? (control as HTMLButtonElement).labels?.[0]
   if (!label) return box
   const labelBox = label.getBoundingClientRect()
-  // Only a label that sits beside the control, not a heading far from it
+  // Only a label that sits beside the control, not a heading far from it. A label wrapping a large block would widen the box, which no control does
   const gap = Math.max(labelBox.top - box.bottom, box.top - labelBox.bottom)
   if (gap > LABEL_REACH) return box
   const left = Math.min(box.left, labelBox.left)
