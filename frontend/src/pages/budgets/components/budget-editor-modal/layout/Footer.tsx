@@ -1,5 +1,6 @@
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import type { ModalLevel } from '@/components/modal/Shell'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 
 // Cancel and the main action as two equal halves below sm and together on the right from it, the same
 // for adding and editing a budget
@@ -10,6 +11,8 @@ interface BudgetEditorModalFooterProps {
   level: ModalLevel
   isPending: boolean
   submitDisabled: boolean
+  // Why Save is held off by the form, shown in a tooltip while the button stays focusable
+  submitDisabledReason?: string
   submitLabel: string
   onClose: () => void
 }
@@ -21,6 +24,7 @@ export default function BudgetEditorModalFooter({
   level,
   isPending,
   submitDisabled,
+  submitDisabledReason,
   submitLabel,
   onClose,
 }: BudgetEditorModalFooterProps) {
@@ -32,16 +36,17 @@ export default function BudgetEditorModalFooter({
       <button type="button" className="app-secondary-button w-full sm:w-auto" onClick={onClose} disabled={isPending}>
         Cancel
       </button>
-      <button
+      <DisabledReasonButton
         type="submit"
         data-testid="budget-submit"
         aria-label={submitLabel}
         aria-busy={isPending}
         className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${isPending ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : 'w-full sm:w-36'}`}
         disabled={submitDisabled}
+        disabledReason={submitDisabled ? undefined : submitDisabledReason}
       >
         {isPending ? <div className="app-spinner" /> : submitLabel}
-      </button>
+      </DisabledReasonButton>
     </div>
   )
 }

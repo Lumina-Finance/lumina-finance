@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { setPassword } from '@/api/user'
 import { PasswordRequirements } from '@/components/PasswordRequirements'
 import { ModalContentPanel } from '@/components/modal/ContentPanel'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { isNewPasswordValid } from '@/utils/passwordPolicy'
 import { withMinDelay } from '@/utils/timing'
 
@@ -32,7 +33,12 @@ export function SetPasswordModal({ open, onClose, onDone, onExitComplete }: SetP
   const [error, setError] = useState<string | null>(null)
 
   const confirmMatches = confirmPassword.length > 0 && confirmPassword === newPassword
-  const submitDisabled = submitting || !isNewPasswordValid(newPassword) || !confirmMatches
+  const submitBlockReason = !isNewPasswordValid(newPassword)
+    ? 'Choose a password that meets the rules first'
+    : !confirmMatches
+      ? 'Enter the same password in both fields first'
+      : undefined
+  const submitDisabled = submitting || submitBlockReason !== undefined
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -118,13 +124,14 @@ export function SetPasswordModal({ open, onClose, onDone, onExitComplete }: SetP
         </div>
 
         <div className="flex justify-center">
-          <button
+          <DisabledReasonButton
             type="submit"
-            disabled={submitDisabled}
+            disabled={submitting}
+            disabledReason={submitting ? undefined : submitBlockReason}
             className={`app-primary-button transition-all duration-300 ${submitting ? 'app-primary-button-loading' : 'w-full'}`}
           >
             {submitting ? <div className="app-spinner" /> : 'Set password'}
-          </button>
+          </DisabledReasonButton>
         </div>
       </form>
     </ModalContentPanel>

@@ -163,15 +163,18 @@ export default function BudgetEditModal({
   const fieldsLocked = baseBudget.is_archived
   // The same waiver as the validator: a locked limit is blank and stays out of the save, so it must not
   // hold the button down either. periodChanged is already false while the limit is blank
-  const canSave =
-    !isPending
-    && form.name.trim().length > 0
-    && hasCategory
-    && (!latestPeriod || isLimitLocked || limitMinorUnits !== null)
-    && (baseChanged || periodChanged || archiveChanged)
+  const saveBlockedReason = form.name.trim().length === 0
+    ? 'Name the budget first'
+    : !hasCategory
+      ? 'Choose a category first'
+      : latestPeriod && !isLimitLocked && limitMinorUnits === null
+        ? 'Enter a limit first'
+        : !(baseChanged || periodChanged || archiveChanged)
+          ? 'There are no changes to save'
+          : undefined
   const state: BudgetEditorModalViewState = { form, formError, fieldErrors, touched, categorySearch }
   const options: BudgetEditorModalOptions = { categories: categoryOptions, filteredCategories, currencies }
-  // Save changes is disabled while no category is chosen, and a disabled button cannot be pressed to
+  // Save changes is held off while no category is chosen, and a held-off button does not submit to
   // surface the error, so that one is shown at once rather than after a touch. An archived budget's
   // categories are locked, so nothing there can be missing
   const showError: BudgetEditorModalErrorGetter = (field) => {
@@ -349,7 +352,8 @@ export default function BudgetEditModal({
         <BudgetEditorModalFooter
           level="stacked"
           isPending={isPending}
-          submitDisabled={!canSave}
+          submitDisabled={isPending}
+          submitDisabledReason={saveBlockedReason}
           submitLabel="Save changes"
           onClose={closeAndReset}
         />
