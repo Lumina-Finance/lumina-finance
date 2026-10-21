@@ -1,5 +1,5 @@
 # Frontend build
-FROM dhi.io/node:26.10-debian13-sfw-dev AS frontend-builder
+FROM dhi.io/node:26.12-debian13-sfw-dev AS frontend-builder
 
 ARG APP_VERSION
 
