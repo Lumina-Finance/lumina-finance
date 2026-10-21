@@ -1,4 +1,5 @@
 import ActionFeedbackButton, { type ActionFeedbackStatus } from '@/components/feedback/ActionButton'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 
 type SettingsPaneActionsProps = {
   canSave: boolean
@@ -22,6 +23,9 @@ export function SettingsPaneActions({
   pending,
   status,
 }: SettingsPaneActionsProps) {
+  // Unchanged is the common case. A changed pane that still can't save has a field to put right
+  const saveBlockedReason = dirty ? 'Complete the fields above first' : 'There are no changes to save'
+
   return (
     <div className="space-y-2 border-t pt-4" style={{ borderColor: 'var(--app-border)' }}>
       {error && (
@@ -30,19 +34,20 @@ export function SettingsPaneActions({
         </p>
       )}
       <div className="flex items-center justify-between gap-2">
-        <button
-          type="button"
+        <DisabledReasonButton
           className="app-secondary-button"
           onClick={onDiscard}
-          disabled={!dirty || pending}
+          disabled={pending}
+          disabledReason={!dirty && !pending ? 'There are no changes to discard' : undefined}
         >
           Discard
-        </button>
+        </DisabledReasonButton>
         <ActionFeedbackButton
           type="button"
           className="app-primary-button w-[72px]"
           onClick={onSave}
           disabled={!canSave && status === 'idle'}
+          disabledReason={!canSave && status === 'idle' && !pending ? saveBlockedReason : undefined}
           loadingLabel="Saving"
           status={status}
         >
