@@ -836,7 +836,13 @@ test('lists the outline colour in the transition of every control that draws the
         control.getAnimations().forEach((animation) => animation.finish())
         const style = getComputedStyle(target)
         const draws = style.outlineStyle !== 'none' && style.outlineStyle !== 'auto' && !/, 0\)$|\/ 0\)$/.test(style.outlineColor)
-        const eases = /\b(all|outline-color)\b/.test(style.transitionProperty) && style.transitionDuration.split(', ').some((duration) => parseFloat(duration) > 0)
+        // The last entry naming the outline colour, or all, is the one that applies, and it eases it over
+        // a short time: a longer one, such as a button's 300ms width change, would drag the ring out too
+        const properties = style.transitionProperty.split(', ')
+        const durations = style.transitionDuration.split(', ')
+        const named = properties.map((property, index) => (property === 'outline-color' || property === 'all' ? index : -1)).filter((index) => index >= 0)
+        const seconds = named.length > 0 ? parseFloat(durations[named[named.length - 1] % durations.length]) : 0
+        const eases = seconds > 0 && seconds <= 0.25
         if (draws) drawing++
         if (draws && !eases) problems.push(`${control.tagName.toLowerCase()}.${String(control.getAttribute('class') ?? '').split(' ').slice(0, 3).join('.')} ${control.getAttribute('aria-label') ?? control.textContent?.trim().slice(0, 20)}`)
         control.blur()

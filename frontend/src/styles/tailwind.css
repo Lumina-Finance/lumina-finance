@@ -2763,6 +2763,14 @@
     text-decoration-thickness: 2px;
   }
 
+  /* A shared button that changes its width into a spinner and back takes 300ms through `duration-300`, while
+     its focus ring still fades in the shared 150ms: the later entry for outline-color wins the list */
+  @media (prefers-reduced-motion: no-preference) {
+    :is(.app-primary-button, .app-danger-button, .app-secondary-button).duration-300 {
+      transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1), var(--app-focus-fade);
+    }
+  }
+
   @media (hover: hover) {
     button.underline:hover {
       text-decoration-thickness: 2px;
