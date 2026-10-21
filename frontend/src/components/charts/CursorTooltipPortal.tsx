@@ -12,6 +12,9 @@ type CursorTooltipPortalProps = {
   className?: string
   onTransitionEnd?: (event: ReactTransitionEvent<HTMLDivElement>) => void
   style?: CSSProperties
+
+  /** A test id for the tooltip's outer wrapper, which carries the fade */
+  testId?: string
 }
 
 const defaultTooltipStyle: CSSProperties = {
@@ -25,10 +28,12 @@ const CursorTooltipPortal = forwardRef<HTMLDivElement, CursorTooltipPortalProps>
   className = '',
   onTransitionEnd,
   style,
+  testId,
 }, ref) {
   const tooltip = (
     <div
       ref={ref}
+      data-testid={testId}
       className="pointer-events-none fixed left-0 top-0"
       onTransitionEnd={onTransitionEnd}
       style={{

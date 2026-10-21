@@ -1,4 +1,4 @@
-import { useId, useMemo, useState, type ReactNode } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { PencilLine } from 'lucide-react'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
@@ -12,17 +12,17 @@ import DateField from '@/components/date-field/DateField'
 import Dropdown from '@/components/dropdown/Dropdown'
 import { InfoCallout } from '@/components/InfoCallout'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
-import IconTooltip from '@/components/tooltips/IconTooltip'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { DIRECTION_OPTIONS, EASE } from '@/components/transactions/transaction-modal/constants'
 import TransactionModalPillSelector from '@/components/transactions/transaction-modal/controls/PillSelector'
 import BulkEditSummaryPanel from '@/components/transactions/bulk-edit/BulkEditSummary'
 import {
   buildBulkEditFields,
-  canApplyBulkEdit,
   doesAnyResultingCategoryRecordTransferTarget,
   doesChosenCategoryRecordTransferTarget,
   endsAfterDirectionClick,
   endsAfterEndPick,
+  getBulkEditApplyBlockReason,
   getBulkEditBlockers,
   getBulkMoveTargets,
   getTransferEndTargets,
@@ -342,7 +342,7 @@ export function BulkEditModal({
     endsAreOffered,
   }
   const blockers = getBulkEditBlockers(rows, choice, chosenCategoryRecordsTransferTarget, accounts)
-  const canApply = canApplyBulkEdit(rows, choice, blockers)
+  const applyBlockReason = getBulkEditApplyBlockReason(rows, choice, blockers)
 
   const transactionsWord = rows.length === 1 ? 'transaction' : 'transactions'
 
@@ -360,39 +360,22 @@ export function BulkEditModal({
   const spansMultipleCurrencies = selectedCurrencies.length > 1
   const hasNoAccountForCurrency = selectedCurrencies.length === 1 && accountOptions.length === 0
 
-  // At most one icon beside Move to account, in the order its disabled reasons take priority: a
+  // At most one reason for Move to account, in the order its disabled reasons take priority: a
   // selection spanning currencies refuses every account, then a single currency no unarchived
   // account the user can write to holds, then an end already answering where the money moves
   // instead
-  let moveAccountIcon: ReactNode = null
+  let moveAccountReason: string | undefined
   if (spansMultipleCurrencies) {
-    moveAccountIcon = (
-      <IconTooltip label="Multiple currencies" level="warn" widthClassName="w-72">
-        The selected transactions span more than one currency, so they cannot move to one account
-        together.
-      </IconTooltip>
-    )
+    moveAccountReason = 'The selected transactions span more than one currency, so they cannot move to one account together'
   } else if (hasNoAccountForCurrency) {
-    moveAccountIcon = (
-      <IconTooltip label="No account for this currency" level="warn">
-        No unarchived account holds this currency.
-      </IconTooltip>
-    )
+    moveAccountReason = 'No unarchived account holds this currency'
   } else if (sendsAnEnd) {
-    moveAccountIcon = (
-      <IconTooltip label="Cleared by From or To" level="info">
-        Cleared while From or To is set.
-      </IconTooltip>
-    )
+    moveAccountReason = 'Cleared while From or To is set'
   }
 
   // From and To disable themselves the moment Move to account holds a value, so both carry the
   // same explanation rather than only the one nearer the control
-  const clearedByMoveAccountIcon = accountId ? (
-    <IconTooltip label="Cleared by Move to account" level="info">
-      Cleared while Move to account is set.
-    </IconTooltip>
-  ) : null
+  const clearedByMoveAccountReason = accountId ? 'Cleared while Move to account is set' : undefined
 
   return (
     <ModalTitledPanel
@@ -412,14 +395,13 @@ export function BulkEditModal({
           <button type="button" className="app-secondary-button h-9 px-3 text-sm" onClick={onClose}>
             Cancel
           </button>
-          <button
-            type="button"
+          <DisabledReasonButton
             className="app-primary-button h-9 px-4 text-sm"
-            disabled={!canApply}
+            disabledReason={applyBlockReason}
             onClick={() => onApply(buildBulkEditFields(choice))}
           >
             Apply
-          </button>
+          </DisabledReasonButton>
         </div>
       }
     >
@@ -434,7 +416,7 @@ export function BulkEditModal({
         <CreateModalSectionFrame step="01" title="Account & Direction">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <CreateModalFieldLabelRow htmlFor="bulk-account" label="Move to account" accessory={moveAccountIcon} />
+              <CreateModalFieldLabelRow htmlFor="bulk-account" label="Move to account" />
               <Dropdown
                 id="bulk-account"
                 options={moveAccountOptions}
@@ -444,6 +426,7 @@ export function BulkEditModal({
                 blankOptionIsPlaceholder
                 searchable
                 disabled={accountOptions.length === 0 || sendsAnEnd}
+                disabledReason={moveAccountReason}
               />
             </div>
 
@@ -477,7 +460,7 @@ export function BulkEditModal({
             {endsAreOffered && (
               <>
                 <div>
-                  <CreateModalFieldLabelRow htmlFor="bulk-transfer-from" label="From" accessory={clearedByMoveAccountIcon} />
+                  <CreateModalFieldLabelRow htmlFor="bulk-transfer-from" label="From" />
                   <Dropdown
                     id="bulk-transfer-from"
                     options={endOptions}
@@ -487,11 +470,12 @@ export function BulkEditModal({
                     blankOptionIsPlaceholder
                     searchable
                     disabled={Boolean(accountId)}
+                    disabledReason={clearedByMoveAccountReason}
                   />
                 </div>
 
                 <div>
-                  <CreateModalFieldLabelRow htmlFor="bulk-transfer-to" label="To" accessory={clearedByMoveAccountIcon} />
+                  <CreateModalFieldLabelRow htmlFor="bulk-transfer-to" label="To" />
                   <Dropdown
                     id="bulk-transfer-to"
                     options={endOptions}
@@ -501,6 +485,7 @@ export function BulkEditModal({
                     blankOptionIsPlaceholder
                     searchable
                     disabled={Boolean(accountId)}
+                    disabledReason={clearedByMoveAccountReason}
                   />
                 </div>
               </>

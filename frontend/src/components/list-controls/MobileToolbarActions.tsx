@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Plus, SlidersHorizontal } from 'lucide-react'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 
 type MobileToolbarActionsProps = {
   activeFilterCount: number
@@ -8,7 +9,7 @@ type MobileToolbarActionsProps = {
   // Accessible name for the primary action, shown while it is enabled
   primaryLabel: string
   primaryDisabled?: boolean
-  // Shown as the button's title and accessible name in place of primaryLabel while disabled
+  // Shown in a tooltip beside the cursor, on focus and on a tap, and read as the button's description
   primaryDisabledReason?: string
 
   // An action shown beside the primary one, for a list that has a second thing to offer
@@ -54,16 +55,15 @@ export function MobileToolbarActions({
 
       {secondaryAction}
 
-      <button
-        type="button"
+      <DisabledReasonButton
         className="app-glass-button-primary h-11 w-11 shrink-0 px-0"
         onClick={onPrimaryAction}
         disabled={primaryDisabled}
-        title={primaryDisabledReason}
-        aria-label={primaryDisabledReason ?? primaryLabel}
+        disabledReason={primaryDisabled ? primaryDisabledReason : undefined}
+        aria-label={primaryLabel}
       >
         <Plus size={18} aria-hidden />
-      </button>
+      </DisabledReasonButton>
     </div>
   )
 }

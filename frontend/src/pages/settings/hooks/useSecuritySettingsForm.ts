@@ -6,6 +6,7 @@ import { useChangePassword } from '@/api/user'
 import type { StepUpCredentials } from '@/components/two-factor/StepUpModal'
 import { useActionFeedback } from '@/hooks/useActionFeedback'
 import { buildLockoutWarning, getAttemptsRemaining } from '@/utils/lockoutWarning'
+import { getPasswordSaveBlockedReason } from '@/pages/settings/utils/passwordForm'
 import { isNewPasswordValid } from '@/utils/passwordPolicy'
 
 export interface PasswordFormState {
@@ -64,6 +65,7 @@ export function useSecuritySettingsForm() {
   const isPasswordPending = passwordFeedback.isPending || changePassword.isPending
   const canSavePassword =
     isPasswordDirty && !isPasswordPending && currentPasswordFilled && newPasswordValid && confirmMatches
+  const passwordSaveBlockedReason = getPasswordSaveBlockedReason({ currentPasswordFilled, newPasswordValid, confirmMatches })
   const passwordSaveError = changePassword.isError
     ? getChangePasswordErrorMessage(changePassword.error)
     : null
@@ -146,6 +148,7 @@ export function useSecuritySettingsForm() {
     isPasswordDirty,
     isPasswordPending,
     canSavePassword,
+    passwordSaveBlockedReason,
     passwordSaveError,
     passwordSaveStatus: passwordFeedback.status,
     handleSavePassword,

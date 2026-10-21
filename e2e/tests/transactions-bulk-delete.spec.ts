@@ -52,7 +52,7 @@ test('turns Delete off while a group account row is ticked', async ({ page, requ
 
   const deleteAction = page.getByRole('button', { name: 'Delete the selected transactions', exact: true })
   await expect(deleteAction).toBeDisabled()
-  await expect(deleteAction).toHaveAttribute('title', "Transactions in group accounts can't be deleted in bulk")
+  await expect(deleteAction).toHaveAccessibleDescription("Transactions in group accounts can't be deleted in bulk")
 })
 
 // The confirmation opens on Cancel so a stray Enter deletes nothing, reads its warning with the title,

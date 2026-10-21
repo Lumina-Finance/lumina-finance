@@ -1,5 +1,6 @@
 import { Pencil, Trash2, X } from 'lucide-react'
 import { ModalShell } from '@/components/modal/Shell'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import type { Currency } from '@/api/currency'
 import type {
   TaxAdvantagedCategory,
@@ -209,14 +210,14 @@ export default function TaxAdvantagedLimitDetailsModal({
               >
                 Cancel
               </button>
-              <button
-                type="button"
+              <DisabledReasonButton
                 className="app-primary-button justify-center"
                 onClick={() => onSaveLimit(selectedLimit.year)}
-                disabled={selectedSavingLimit || !selectedLimitDirty}
+                disabled={selectedSavingLimit}
+                disabledReason={!selectedSavingLimit && !selectedLimitDirty ? 'There are no changes to save' : undefined}
               >
                 {selectedSavingLimit ? <div className="app-spinner" aria-label="Saving" /> : 'Save'}
-              </button>
+              </DisabledReasonButton>
             </div>
           </div>
         ) : null}

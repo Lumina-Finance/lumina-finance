@@ -19,6 +19,7 @@ import { PasswordRequirements } from '@/components/PasswordRequirements';
 import { AUTH_VIEW_TRANSITION, SIGNUP_FIELD_ANIMATION } from '@/pages/auth/constants/authAnimations';
 import { useAuthFormWorkflow } from '@/pages/auth/hooks/useAuthFormWorkflow';
 import { getAuthMode, REGISTRATION_CLOSED_NOTICE } from '@/pages/auth/utils/authForm';
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
 import { getBrowserTimeZone } from '@/utils/date';
 import { isNewPasswordValid } from '@/utils/passwordPolicy';
 import { buildTimezoneOptions } from '@/utils/timezoneOptions';
@@ -63,6 +64,7 @@ const AuthPage = () => {
     setPasswordFocused,
     forgotRepeated,
     submitDisabled,
+    submitBlockReason,
     submitted,
     submitting,
     switchMode,
@@ -331,15 +333,16 @@ const AuthPage = () => {
               />
 
               <div className="mt-5 flex justify-center">
-                <button
+                <DisabledReasonButton
                   type="submit"
                   disabled={submitDisabled}
+                  disabledReason={submitBlockReason}
                   className={`app-primary-button transition-all duration-300 ${
                     submitting ? 'app-primary-button-loading' : 'w-full'
                   }`}
                 >
                   {submitting ? <div className="app-spinner" /> : submitLabel}
-                </button>
+                </DisabledReasonButton>
               </div>
 
               {(showPasskeyButton || showOidcButtons) && (

@@ -8,6 +8,10 @@ type CursorTooltipPositionOptions = {
   clientX: number
   clientY: number
   bounds?: HTMLElement | DOMRect
+
+  // A box the tooltip must not cover, such as the control it explains when no cursor is over it. It then
+  // hangs clear below the box or, with no room there, rises clear above it
+  keepClear?: DOMRect
   offset?: number
   margin?: number
   strategy?: CursorTooltipPositionStrategy
@@ -53,6 +57,7 @@ export function getCursorTooltipPosition({
   clientX,
   clientY,
   bounds,
+  keepClear,
   offset = DEFAULT_CURSOR_TOOLTIP_OFFSET,
   margin = DEFAULT_CURSOR_TOOLTIP_MARGIN,
   strategy = DEFAULT_CURSOR_TOOLTIP_STRATEGY,
@@ -65,12 +70,17 @@ export function getCursorTooltipPosition({
   const minY = boundsRect.top - coordinateTop + margin
   const maxX = boundsRect.right - coordinateLeft - tooltip.offsetWidth - margin
   const pointerX = clientX - coordinateLeft
-  const pointerY = clientY - coordinateTop
+  // With a box to keep clear, the tooltip hangs from the box's bottom edge, or from its top edge when
+  // there is no room below, in place of from the cursor
+  const maxY = boundsRect.bottom - coordinateTop - margin
+  const roomBelowBox = keepClear !== undefined
+    && keepClear.bottom - coordinateTop + offset + tooltip.offsetHeight <= maxY
+  const pointerY = (keepClear ? (roomBelowBox ? keepClear.bottom : keepClear.top) : clientY) - coordinateTop
 
   // The tooltip sits above the cursor unless it would clip the top bound, where it flips below. The
   // vertical follow and the flip offset are returned apart so the flip can animate while the tooltip
   // keeps tracking the cursor instantly
-  const placeAbove = pointerY - tooltip.offsetHeight - offset >= minY
+  const placeAbove = keepClear ? !roomBelowBox : pointerY - tooltip.offsetHeight - offset >= minY
   const flipY = placeAbove ? -(tooltip.offsetHeight + offset) : offset
 
   return {

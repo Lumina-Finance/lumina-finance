@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { BookmarkPlus, X } from 'lucide-react'
 import type { SavedInsightsRange } from '@/api/insights'
 import LoadFailure from '@/components/errors/LoadFailure'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { getRelativeRangeLabel } from '@/pages/insights/utils/range'
 
 const SAVED_RANGE_NAME_MAX_LENGTH = 64
@@ -83,14 +84,15 @@ export function SavedRanges({
             </p>
           )}
         </div>
-        <button
+        <DisabledReasonButton
           type="submit"
           className="app-secondary-button flex shrink-0 items-center gap-1.5 text-sm"
-          disabled={trimmedName === '' || isSaving}
+          disabled={isSaving}
+          disabledReason={!isSaving && trimmedName === '' ? 'Name the range first' : undefined}
         >
           <BookmarkPlus size={15} aria-hidden />
           Save
-        </button>
+        </DisabledReasonButton>
       </form>
 
       {/* Ranges cached from an earlier session survive a failed request, since the query cache is

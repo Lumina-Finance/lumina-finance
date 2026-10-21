@@ -23,6 +23,7 @@ import {
   getSubmitTouchedFields,
   isAuthFieldErrorKey,
   isAuthLockoutError,
+  getAuthSubmitBlockReason,
   isAuthSubmitDisabled,
   validateAuthFields,
   type AuthFieldErrors,
@@ -100,6 +101,7 @@ export function useAuthFormWorkflow({
   const isLogin = mode === 'login'
   const currencyPlaceholder = getCurrencyPlaceholder(currenciesError, currencies.length)
   const submitDisabled = isAuthSubmitDisabled(submitting, fieldErrors, mode, currencies.length)
+  const submitBlockReason = getAuthSubmitBlockReason(submitting, fieldErrors, mode, currencies.length)
 
   // The passkey button only shows where a ceremony can actually run, so an unsupported origin such as
   // a bare IP simply offers password login instead of a button that always fails
@@ -311,6 +313,7 @@ export function useAuthFormWorkflow({
     setPasswordFocused,
     forgotRepeated,
     submitDisabled,
+    submitBlockReason,
     submitted,
     submitting,
     switchMode,

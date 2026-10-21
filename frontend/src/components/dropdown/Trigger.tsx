@@ -1,6 +1,8 @@
 import type { KeyboardEvent, RefObject } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { ChevronDown } from 'lucide-react'
+import { useDisabledReason } from '@/hooks/useDisabledReason'
+import { getDisabledReasonProps } from '@/utils/disabledReasonControl'
 import { joinClassNames } from '@/utils/classNames'
 import { DropdownBadge, DropdownCount } from './Badge'
 import { DROPDOWN_INSTANT_TRANSITION, DROPDOWN_SPRING } from './motion'
@@ -8,6 +10,12 @@ import type { DropdownOption, DropdownSize } from './types'
 
 interface DropdownHeadProps {
   disabled: boolean
+
+  /**
+   * Why the dropdown is unavailable, shown in a tooltip beside the cursor, on keyboard focus and on a
+   * tap. The head then stays focusable and hoverable, marked aria-disabled, and opens nothing
+   */
+  disabledReason?: string
   hasError: boolean
   emptySelectionIsBlank: boolean
   headRef: RefObject<HTMLButtonElement | null>
@@ -56,6 +64,7 @@ const SIZE_CLASS: Record<DropdownSize, string> = {
  */
 export function DropdownHead({
   disabled,
+  disabledReason,
   hasError,
   emptySelectionIsBlank,
   headRef,
@@ -74,8 +83,15 @@ export function DropdownHead({
 }: DropdownHeadProps) {
   const shouldReduceMotion = useReducedMotion()
   const hasVisibleSelection = Boolean(selected && !emptySelectionIsBlank && !blankOptionSelected)
+  const reason = useDisabledReason(disabled ? disabledReason : undefined)
+  const reasonProps = getDisabledReasonProps<HTMLButtonElement>(reason, {
+    'aria-describedby': describedBy,
+    onClick,
+    onKeyDown,
+  })
 
   return (
+    <>
     <button
       ref={headRef}
       id={id}
@@ -86,12 +102,10 @@ export function DropdownHead({
       aria-haspopup="listbox"
       aria-controls={open ? listId : undefined}
       aria-labelledby={labelledBy}
-      aria-describedby={describedBy}
       aria-invalid={hasError || undefined}
-      disabled={disabled}
+      disabled={disabled && !reason.isUnavailable}
       className={joinClassNames('app-dropdown-head', SIZE_CLASS[size])}
-      onClick={onClick}
-      onKeyDown={onKeyDown}
+      {...reasonProps}
     >
       <span
         className="flex min-w-0 flex-1 items-center gap-2"
@@ -119,5 +133,7 @@ export function DropdownHead({
         <ChevronDown size={16} aria-hidden />
       </motion.span>
     </button>
+    {reason.tooltip}
+    </>
   )
 }

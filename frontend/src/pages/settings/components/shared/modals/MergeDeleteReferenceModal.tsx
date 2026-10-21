@@ -3,7 +3,10 @@ import type { LucideIcon } from 'lucide-react'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { waitForMilliseconds } from '@/utils/timing'
+
+const NO_REPLACEMENT_REASON = 'Nothing compatible to move the transactions to'
 
 interface ReplacementQueryResult<TItem> {
   replacements: TItem[]
@@ -83,6 +86,9 @@ export default function MergeDeleteReferenceModal<TItem>({
   const idSlug = wording.entityLabel.toLowerCase()
   const titleId = `merge-delete-${idSlug}-title`
   const selectId = `merge-delete-${idSlug}-replacement`
+  const hasNoReplacement = !replacementQuery.isLoading && options.length === 0
+  // Only a settled empty list is a reason, since the list is also empty while it loads and while the move runs
+  const noReplacementReason = !isSubmitting && hasNoReplacement ? NO_REPLACEMENT_REASON : undefined
   const dropdownPlaceholder = replacementQuery.isLoading && wording.loadingPlaceholder
     ? wording.loadingPlaceholder
     : options.length === 0
@@ -142,17 +148,18 @@ export default function MergeDeleteReferenceModal<TItem>({
             >
               Cancel
             </button>
-            <button
+            <DisabledReasonButton
               type="submit"
               className={`app-danger-button overflow-hidden whitespace-nowrap duration-300 ${isSubmitting ? 'app-primary-button-loading' : 'w-full sm:w-40'}`}
               disabled={isSubmitting || options.length === 0}
+              disabledReason={noReplacementReason}
             >
               {isSubmitting ? (
                 <div className="app-spinner" aria-label="Deleting" />
               ) : (
                 'Replace & Delete'
               )}
-            </button>
+            </DisabledReasonButton>
           </div>
       )}
     >
@@ -196,7 +203,8 @@ export default function MergeDeleteReferenceModal<TItem>({
                 isLoading={replacementQuery.isLoading || replacementQuery.isFetchingNextPage}
                 hasMore={replacementQuery.hasNextPage}
                 onLoadMore={replacementQuery.fetchNextPage}
-                disabled={isSubmitting || (!replacementQuery.isLoading && options.length === 0)}
+                disabled={isSubmitting || hasNoReplacement}
+                disabledReason={noReplacementReason}
               />
             </div>
           </div>

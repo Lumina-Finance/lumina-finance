@@ -699,6 +699,24 @@ export function canApplyBulkEdit(
   );
 }
 
+/**
+ * Says why Apply is unavailable, or nothing while the edit can be applied
+ *
+ * Nothing chosen and a selection past the limit have a reason of their own. Every other refusal is a
+ * warning the What changes panel already spells out, so the reason points there
+ */
+export function getBulkEditApplyBlockReason(
+  rows: SelectedTransactionFacts[],
+  choice: BulkEditChoice,
+  blockers: BulkEditBlockers,
+): string | undefined {
+  if (canApplyBulkEdit(rows, choice, blockers)) return undefined
+  if (rows.length === 0) return 'Tick a transaction first'
+  if (rows.length > MAX_BULK_EDIT_TRANSACTIONS) return `Up to ${MAX_BULK_EDIT_TRANSACTIONS} transactions can be edited at once`
+  if (!hasBulkEditChoice(choice)) return 'Choose a change to apply'
+  return 'Fix the warnings under What changes first'
+}
+
 /** One row as the selection sees it: an identifier, and whether the app allows editing it */
 export interface SelectableRow {
   id: string;

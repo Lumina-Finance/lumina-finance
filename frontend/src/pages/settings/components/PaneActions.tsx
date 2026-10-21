@@ -1,4 +1,5 @@
 import ActionFeedbackButton, { type ActionFeedbackStatus } from '@/components/feedback/ActionButton'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 
 type SettingsPaneActionsProps = {
   canSave: boolean
@@ -7,6 +8,9 @@ type SettingsPaneActionsProps = {
   onDiscard: () => void
   onSave: () => void
   pending: boolean
+
+  /** The field a changed pane still needs put right before it can save, shown on Save in place of a bare disabled button */
+  saveBlockedReason?: string
   status: ActionFeedbackStatus
 }
 
@@ -20,8 +24,11 @@ export function SettingsPaneActions({
   onDiscard,
   onSave,
   pending,
+  saveBlockedReason: saveBlockedByForm,
   status,
 }: SettingsPaneActionsProps) {
+  const saveBlockedReason = dirty ? saveBlockedByForm : 'There are no changes to save'
+
   return (
     <div className="space-y-2 border-t pt-4" style={{ borderColor: 'var(--app-border)' }}>
       {error && (
@@ -30,19 +37,20 @@ export function SettingsPaneActions({
         </p>
       )}
       <div className="flex items-center justify-between gap-2">
-        <button
-          type="button"
+        <DisabledReasonButton
           className="app-secondary-button"
           onClick={onDiscard}
-          disabled={!dirty || pending}
+          disabled={pending}
+          disabledReason={!dirty && !pending ? 'There are no changes to discard' : undefined}
         >
           Discard
-        </button>
+        </DisabledReasonButton>
         <ActionFeedbackButton
           type="button"
           className="app-primary-button w-[72px]"
           onClick={onSave}
           disabled={!canSave && status === 'idle'}
+          disabledReason={!canSave && status === 'idle' && !pending ? saveBlockedReason : undefined}
           loadingLabel="Saving"
           status={status}
         >

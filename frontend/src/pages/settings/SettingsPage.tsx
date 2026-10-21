@@ -34,6 +34,7 @@ export default function SettingsPage() {
     isProfileDirty,
     isProfilePending,
     canSaveProfile,
+    profileSaveBlockedReason,
     profileSaveError,
     profileSaveStatus,
     handleSaveProfile,
@@ -64,6 +65,7 @@ export default function SettingsPage() {
     isPasswordDirty,
     isPasswordPending,
     canSavePassword,
+    passwordSaveBlockedReason,
     passwordSaveError,
     passwordSaveStatus,
     handleSavePassword,
@@ -80,6 +82,7 @@ export default function SettingsPage() {
   const profileActions = (
     <SettingsPaneActions
       canSave={canSaveProfile}
+      saveBlockedReason={profileSaveBlockedReason}
       dirty={isProfileDirty}
       error={profileSaveError}
       onDiscard={handleDiscardProfile}
@@ -91,6 +94,7 @@ export default function SettingsPage() {
   const securityActions = (
     <SettingsPaneActions
       canSave={canSavePassword}
+      saveBlockedReason={passwordSaveBlockedReason}
       dirty={isPasswordDirty}
       error={passwordSaveError}
       onDiscard={handleDiscardPassword}

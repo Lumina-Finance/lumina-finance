@@ -6,6 +6,7 @@ import { canApplyBatchEditToRow, countImportAccountRowStates } from '@/pages/imp
 import { formatAccountMappingSummary } from '@/pages/imports/utils/accountMappingSummary'
 import { getImportAccountSelection, toggleAllImportAccountRows } from '@/pages/imports/utils/accountSelection'
 import { Checkbox } from '@/components/forms/Checkbox'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 
 /**
  * Table mapping every source account found in an import to an existing account or a new one, with a
@@ -116,6 +117,13 @@ export function ImportAccountMappingTable({
   })
   const hasBatchInstitutionSet = batchAccountInstitution !== UNSET_BATCH_INSTITUTION
   const hasBatchFieldSet = Boolean(batchAccountType || batchAccountCurrency) || hasBatchInstitutionSet
+
+  // Both are needed, and the rows come first since they are what the batch applies to
+  const batchApplyReason = editableRows.length === 0
+    ? 'Select the accounts to edit first'
+    : hasBatchFieldSet
+      ? undefined
+      : 'Choose a type, currency or institution first'
 
   /** Updates one eligible row while retaining the other table's current selection */
   const toggleRow = (row: (typeof rows)[number]) => {
@@ -312,14 +320,14 @@ export function ImportAccountMappingTable({
                 createNewLabel={(query) => query ? `Create institution "${query}"` : 'Create institution'}
               />
             </div>
-            <button
-              type="button"
+            <DisabledReasonButton
               className="app-primary-button h-10 shrink-0"
               onClick={applyBatchType}
-              disabled={disabled || !hasBatchFieldSet || editableRows.length === 0}
+              disabled={disabled}
+              disabledReason={disabled ? undefined : batchApplyReason}
             >
               Apply
-            </button>
+            </DisabledReasonButton>
           </div>
         </div>
       </div>

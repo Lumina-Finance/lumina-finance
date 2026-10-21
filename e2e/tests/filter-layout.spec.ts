@@ -231,10 +231,20 @@ test('retains Tags explanations and invalid amount and date blocking', AT_EVERY_
   await panel.getByRole('button', { name: TEST_CURRENCY, exact: true }).click()
   await panel.getByRole('textbox', { name: /^Min(?:\s|$)/ }).fill('20')
   await panel.getByRole('textbox', { name: /^Max(?:\s|$)/ }).fill('10')
-  await expect(panel.getByText('Enter a minimum at or below the maximum', { exact: true })).toBeVisible()
-  await expect(panel.getByRole('button', { name: 'Apply filters', exact: true })).toBeDisabled()
+  const apply = panel.getByRole('button', { name: 'Apply filters', exact: true })
+  // The line under the fields is found through the id the field points to, since Apply carries the same
+  // words in a description of its own that a text search would find as well
+  const crossedAmount = 'Enter a minimum at or below the maximum'
+  await expect(panel.getByRole('textbox', { name: /^Max(?:\s|$)/ })).toHaveAttribute('aria-describedby', /.+/)
+  const amountMessageId = await panel.getByRole('textbox', { name: /^Max(?:\s|$)/ }).getAttribute('aria-describedby')
+  const amountMessage = panel.locator(`[id="${amountMessageId}"]`)
+  await expect(amountMessage).toBeVisible()
+  await expect(amountMessage).toHaveText(crossedAmount)
+  await expect(apply).toBeDisabled()
+  await expect(apply).toHaveAccessibleDescription(crossedAmount)
   await panel.getByRole('textbox', { name: /^Max(?:\s|$)/ }).fill('30')
-  await expect(panel.getByRole('button', { name: 'Apply filters', exact: true })).toBeEnabled()
+  await expect(apply).toBeEnabled()
+  await expect(apply).not.toHaveAttribute('aria-describedby', /.+/)
   await selectFacet(page, panel, 'Date')
   for (const [label, day] of [['From', '20'], ['To', '10']] as const) {
     const date = panel.getByRole('group', { name: label, exact: true })
@@ -242,6 +252,13 @@ test('retains Tags explanations and invalid amount and date blocking', AT_EVERY_
     await date.getByRole('textbox', { name: 'Month', exact: true }).fill('03')
     await date.getByRole('textbox', { name: 'Day', exact: true }).fill(day)
   }
-  await expect(panel.getByText('The From date must be on or before the To date', { exact: true })).toBeVisible()
-  await expect(panel.getByRole('button', { name: 'Apply filters', exact: true })).toBeDisabled()
+  const crossedDates = 'The From date must be on or before the To date'
+  const fromYear = panel.getByRole('group', { name: 'From', exact: true }).getByRole('textbox', { name: 'Year', exact: true })
+  await expect(fromYear).toHaveAttribute('aria-describedby', /.+/)
+  const dateMessageId = await fromYear.getAttribute('aria-describedby')
+  const dateMessage = panel.locator(`[id="${dateMessageId}"]`)
+  await expect(dateMessage).toBeVisible()
+  await expect(dateMessage).toHaveText(crossedDates)
+  await expect(apply).toBeDisabled()
+  await expect(apply).toHaveAccessibleDescription(crossedDates)
 })

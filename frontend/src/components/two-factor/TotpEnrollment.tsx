@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
 import {
   useCompleteTotp,
   useConfirmTotp,
@@ -225,14 +226,14 @@ export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialS
             <SetupRestart onStartAgain={startAgain} />
           ) : (
             <div className="flex justify-center">
-              <button
-                type="button"
+              <DisabledReasonButton
                 onClick={handleComplete}
-                disabled={!savedAcknowledged || !lockoutAcknowledged || completing}
+                disabled={completing}
+                disabledReason={!savedAcknowledged || !lockoutAcknowledged ? 'Tick both boxes first' : undefined}
                 className={`app-primary-button transition-all duration-300 ${completing ? 'app-primary-button-loading' : 'w-full'}`}
               >
                 {completing ? <div className="app-spinner" /> : 'Done'}
-              </button>
+              </DisabledReasonButton>
             </div>
           )}
         </div>
@@ -295,14 +296,14 @@ export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialS
           )}
 
           <div className="flex justify-center">
-            <button
-              type="button"
+            <DisabledReasonButton
               onClick={handleConfirm}
-              disabled={confirming || code.length < OTP_LENGTH}
+              disabled={confirming}
+              disabledReason={code.length < OTP_LENGTH ? 'Enter the full code first' : undefined}
               className={`app-primary-button transition-all duration-300 ${confirming ? 'app-primary-button-loading' : 'w-full'}`}
             >
               {confirming ? <div className="app-spinner" /> : 'Confirm'}
-            </button>
+            </DisabledReasonButton>
           </div>
 
           {onSwitchToPasskey && (

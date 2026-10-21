@@ -20,6 +20,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { AuthTextField } from '@/pages/auth/components/fields/TextField'
 import { CurrencyRetryWarning } from '@/pages/auth/components/feedback/CurrencyRetryWarning'
 import { AUTH_VIEW_TRANSITION } from '@/pages/auth/constants/authAnimations'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { consumeOidcIntent, type OidcSignedInIntent } from '@/utils/oidcIntent'
 import { buildCurrencyOptions, getCurrencyPlaceholder } from '@/pages/auth/utils/authForm'
 import { getBrowserTimeZone } from '@/utils/date'
@@ -277,6 +278,13 @@ function OidcOnboardingForm({ onboarding, onBackToLogin }: OidcOnboardingFormPro
   const [error, setError] = useState<string | null>(null)
 
   const submitDisabled = submitting || !firstName.trim() || !baseCurrency
+  const submitBlockReason = submitting
+    ? undefined
+    : !firstName.trim()
+      ? 'Enter your first name to continue'
+      : !baseCurrency
+        ? 'Choose a base currency to continue'
+        : undefined
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -393,15 +401,16 @@ function OidcOnboardingForm({ onboarding, onBackToLogin }: OidcOnboardingFormPro
       </div>
 
       <div className="mt-6 flex justify-center">
-        <button
+        <DisabledReasonButton
           type="submit"
-          disabled={submitDisabled}
+          disabled={submitting}
+          disabledReason={submitBlockReason}
           className={`app-primary-button transition-all duration-300 ${
             submitting ? 'app-primary-button-loading' : 'w-full'
           }`}
         >
           {submitting ? <div className="app-spinner" /> : 'Create account'}
-        </button>
+        </DisabledReasonButton>
       </div>
 
       <p className="mt-5 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>

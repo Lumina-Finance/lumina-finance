@@ -90,9 +90,6 @@ export default function TransactionDetailsSection({
         <div>
           <div className="mb-1.5 flex items-center gap-2">
             <label htmlFor={TRANSACTION_MODAL_FIELD_IDS.currency} className="app-label block text-[0.9375rem] leading-5">Currency</label>
-            <IconTooltip label="Transaction currency limitation">
-              Locked to the selected account's currency
-            </IconTooltip>
             {currencyState === 'loading' && (
               <IconTooltip label="Loading currencies" modalFieldTabStop>
                 {CURRENCY_LIST_LOADING}
@@ -113,6 +110,7 @@ export default function TransactionDetailsSection({
             searchable
             searchPlaceholder="Search currencies..."
             disabled
+            disabledReason="Locked to the selected account's currency"
           />
         </div>
         <div>

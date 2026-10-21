@@ -5,7 +5,9 @@ import type { OptionItem } from '@/components/filters/OptionList'
 import { ActiveFilterChips } from '@/components/filters/ActiveFilterChips'
 import { MultiSelectChecklist } from '@/components/filters/MultiSelectChecklist'
 import { FacetSelectDropdown } from '@/components/list-controls/FacetSelectDropdown'
+import { CLEAR_FILTERS_DISABLED_REASON } from '@/components/list-controls/filterReasons'
 import { FILTER_GLASS_SPRING } from '@/components/list-controls/toolbarStyles'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { joinClassNames } from '@/utils/classNames'
 import { getMoneyPlaceholder } from '@/utils/moneyInput'
 import {
@@ -20,6 +22,8 @@ import { ReferenceFacet } from '@/components/transactions/toolbar/ReferenceFacet
 import type { AmountDraft } from '@/components/transactions/utils/amountRange'
 import { buildAmountRangeLabel } from '@/components/transactions/utils/amountRangeLabel'
 import {
+  CROSSED_AMOUNT_RANGE_MESSAGE,
+  CROSSED_DATE_RANGE_MESSAGE,
   FILTER_FACETS,
   type FacetConfig,
   type MultiSelections,
@@ -232,12 +236,12 @@ export function FilterPanelBody({
           <>
             {draft.hasCrossedAmountBounds && (
               <p id={amountRangeMessageId} className="mt-2 px-0.5 text-xs" style={{ color: 'var(--app-negative)' }}>
-                Enter a minimum at or below the maximum
+                {CROSSED_AMOUNT_RANGE_MESSAGE}
               </p>
             )}
             {draft.hasCrossedDateRange && (
               <p id={dateRangeMessageId} className="mt-2 px-0.5 text-xs" style={{ color: 'var(--app-negative)' }}>
-                The From date must be on or before the To date
+                {CROSSED_DATE_RANGE_MESSAGE}
               </p>
             )}
           </>
@@ -250,22 +254,20 @@ export function FilterPanelBody({
 
       {showFooter && (
         <motion.div layout={blockLayout} transition={transition} className="mt-3 flex items-center justify-between">
-          <button
-            type="button"
+          <DisabledReasonButton
             className="app-secondary-button"
-            disabled={draft.activeFacetCount === 0}
+            disabledReason={draft.activeFacetCount === 0 ? CLEAR_FILTERS_DISABLED_REASON : undefined}
             onClick={draft.clearAll}
           >
             Clear all
-          </button>
-          <button
-            type="button"
+          </DisabledReasonButton>
+          <DisabledReasonButton
             className="app-glass-button-primary"
-            disabled={draft.isApplyBlocked}
+            disabledReason={draft.applyBlockedReason}
             onClick={draft.applyFilters}
           >
             Apply filters
-          </button>
+          </DisabledReasonButton>
         </motion.div>
       )}
     </div>

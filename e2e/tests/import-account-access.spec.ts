@@ -68,7 +68,7 @@ test('refuses an import started from an account the user can only read', async (
   await openPage(page, `/accounts/${shared.id}`)
   const importButton = page.getByRole('button', { name: 'Import transactions into this account', exact: true })
   await expect(importButton).toBeDisabled()
-  await expect(importButton).toHaveAttribute('title', 'Read-only access')
+  await expect(importButton).toHaveAccessibleDescription('Read-only access')
 })
 
 // The same rule keeps the account off every choice that writes rows to it, so a file naming it
