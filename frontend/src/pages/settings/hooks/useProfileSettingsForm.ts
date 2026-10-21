@@ -7,6 +7,7 @@ import {
 import { useActionFeedback } from '@/hooks/useActionFeedback'
 import { useAuth } from '@/hooks/useAuth'
 import { profileFormFromUser, type ProfileFormState } from '@/pages/settings/profileForm'
+import { getProfileSaveBlockedReason } from '@/pages/settings/utils/profileForm'
 
 const emptyProfileForm: ProfileFormState = { first_name: '', last_name: '', tz: '' }
 
@@ -94,6 +95,7 @@ export function useProfileSettingsForm() {
     isProfileDirty,
     isProfilePending,
     canSaveProfile,
+    profileSaveBlockedReason: getProfileSaveBlockedReason(firstNameValid),
     profileSaveError,
     profileSaveStatus: profileSaveFeedback.status,
     handleSaveProfile,

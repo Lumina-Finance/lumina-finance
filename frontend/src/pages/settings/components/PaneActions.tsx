@@ -8,6 +8,9 @@ type SettingsPaneActionsProps = {
   onDiscard: () => void
   onSave: () => void
   pending: boolean
+
+  /** The field a changed pane still needs put right before it can save, shown on Save in place of a bare disabled button */
+  saveBlockedReason?: string
   status: ActionFeedbackStatus
 }
 
@@ -21,10 +24,10 @@ export function SettingsPaneActions({
   onDiscard,
   onSave,
   pending,
+  saveBlockedReason: saveBlockedByForm,
   status,
 }: SettingsPaneActionsProps) {
-  // Unchanged is the common case. A changed pane that still can't save has a field to put right
-  const saveBlockedReason = dirty ? 'Complete the fields above first' : 'There are no changes to save'
+  const saveBlockedReason = dirty ? saveBlockedByForm : 'There are no changes to save'
 
   return (
     <div className="space-y-2 border-t pt-4" style={{ borderColor: 'var(--app-border)' }}>
