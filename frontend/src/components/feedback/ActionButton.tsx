@@ -2,6 +2,7 @@ import { forwardRef, type ReactNode } from 'react'
 import { motion, type HTMLMotionProps } from 'motion/react'
 import { Check, LoaderCircle } from 'lucide-react'
 import { useDisabledReason } from '@/hooks/useDisabledReason'
+import { getDisabledReasonProps } from '@/utils/disabledReasonControl'
 
 export type ActionFeedbackStatus = 'idle' | 'loading' | 'success'
 
@@ -38,7 +39,16 @@ const ActionFeedbackButton = forwardRef<HTMLButtonElement, ActionFeedbackButtonP
     ...props
   }, ref) {
     const reason = useDisabledReason(disabledReason)
-    const { controlProps } = reason
+    const reasonProps = getDisabledReasonProps<HTMLButtonElement>(reason, {
+      'aria-describedby': describedBy,
+      onClick,
+      onKeyDown,
+      onMouseEnter,
+      onMouseMove,
+      onMouseLeave,
+      onFocus,
+      onBlur,
+    })
     const stateStyle = status === 'success'
       ? {
           background: 'var(--app-positive)',
@@ -52,8 +62,7 @@ const ActionFeedbackButton = forwardRef<HTMLButtonElement, ActionFeedbackButtonP
         <motion.button
           {...props}
           aria-busy={status === 'loading'}
-          aria-disabled={controlProps['aria-disabled']}
-          aria-describedby={[describedBy, controlProps['aria-describedby']].filter(Boolean).join(' ') || undefined}
+          {...reasonProps}
           className={className}
           disabled={reason.isUnavailable ? undefined : disabled}
           ref={ref}
@@ -62,34 +71,6 @@ const ActionFeedbackButton = forwardRef<HTMLButtonElement, ActionFeedbackButtonP
             transition: STATE_STYLE_TRANSITION,
             ...stateStyle,
           }}
-          onClick={(event) => {
-            if (reason.isUnavailable) {
-              reason.handleBlockedClick(event)
-              return
-            }
-            onClick?.(event)
-          }}
-          onMouseEnter={(event) => {
-            onMouseEnter?.(event)
-            controlProps.onMouseEnter?.(event)
-          }}
-          onMouseMove={(event) => {
-            onMouseMove?.(event)
-            controlProps.onMouseMove?.(event)
-          }}
-          onMouseLeave={(event) => {
-            onMouseLeave?.(event)
-            controlProps.onMouseLeave?.()
-          }}
-          onFocus={(event) => {
-            onFocus?.(event)
-            controlProps.onFocus?.(event)
-          }}
-          onBlur={(event) => {
-            onBlur?.(event)
-            controlProps.onBlur?.()
-          }}
-          onKeyDown={onKeyDown}
         >
           <span className="inline-flex h-6 min-w-6 items-center justify-center">
             {status === 'success' ? (

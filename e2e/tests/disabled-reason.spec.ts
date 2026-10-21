@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Locator, type Page, type Request } from '@playwright/test'
 
 import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser, TEST_PASSWORD } from '../support/api'
-import { logInViaApi, openPage } from '../support/app'
+import { logInViaApi, openModal, openPage } from '../support/app'
 
 // Runs on desktop only, except the tap test, which sets up a touch screen of its own. A control held off
 // for a reason does nothing when it is clicked, tabbed to or pressed with Enter, and says why instead
@@ -97,6 +97,56 @@ test('sends nothing when a sign-up with a refused field is submitted by click or
   await submit.click()
   expect((await signedUp).status()).toBe(201)
   expect(signupRequests).toHaveLength(1)
+})
+
+test('saves nothing when Settings Save is pressed with no changes, and saves once there is one', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/settings')
+  const profileRequests = recordRequests(page, 'PATCH', /\/me$/)
+  // Every settings pane has its own Save, so this one is the profile pane's
+  const save = page.locator('#profile').getByRole('button', { name: 'Save', exact: true })
+
+  await expect(save).toHaveAttribute('aria-disabled', 'true')
+  await expect(save).toHaveAccessibleDescription('There are no changes to save')
+
+  await save.click({ force: true })
+  await save.focus()
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Space')
+
+  // The fence: a real Save goes through once the name changes, and only it was ever sent
+  await page.getByLabel('First name').fill('Renamed')
+  await expect(save).not.toHaveAttribute('aria-disabled', 'true')
+  const saved = page.waitForResponse((response) => response.request().method() === 'PATCH' && /\/me$/.test(new URL(response.url()).pathname))
+  await save.click()
+  expect((await saved).ok()).toBe(true)
+  expect(profileRequests).toHaveLength(1)
+})
+
+test('opens nothing when a dropdown held off for a reason is clicked or Enter is pressed', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
+  const currency = dialog.locator('#txn-currency')
+
+  await expect(currency).toHaveAttribute('aria-disabled', 'true')
+  await expect(currency).toHaveAccessibleDescription("Locked to the selected account's currency")
+
+  await currency.click({ force: true })
+  await currency.focus()
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('ArrowDown')
+  await expect(currency).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.getByRole('listbox')).toHaveCount(0)
+
+  // The fence: a dropdown with no reason opens from the same presses
+  const category = dialog.locator('#txn-category')
+  await category.click()
+  await expect(category).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.getByRole('listbox')).toHaveCount(1)
 })
 
 test('shows the reason on keyboard focus and puts it away on Escape without closing the window', async ({ page, request }) => {

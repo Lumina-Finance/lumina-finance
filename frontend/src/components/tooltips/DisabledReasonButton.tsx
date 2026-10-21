@@ -1,5 +1,6 @@
-import { forwardRef, type ButtonHTMLAttributes, type MouseEvent } from 'react'
+import { forwardRef, type ButtonHTMLAttributes } from 'react'
 import { useDisabledReason } from '@/hooks/useDisabledReason'
+import { getDisabledReasonProps } from '@/utils/disabledReasonControl'
 
 type DisabledReasonButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   /**
@@ -36,45 +37,25 @@ export const DisabledReasonButton = forwardRef<HTMLButtonElement, DisabledReason
     ...rest
   }, ref) {
     const reason = useDisabledReason(disabledReason, reasonShownById)
-    const { controlProps } = reason
+    const reasonProps = getDisabledReasonProps<HTMLButtonElement>(reason, {
+      'aria-describedby': describedBy,
+      onClick,
+      onKeyDown,
+      onMouseEnter,
+      onMouseMove,
+      onMouseLeave,
+      onFocus,
+      onBlur,
+    })
 
     return (
       <>
         <button
           {...rest}
+          {...reasonProps}
           ref={ref}
           type={type}
           disabled={reason.isUnavailable ? undefined : disabled}
-          aria-disabled={controlProps['aria-disabled']}
-          aria-describedby={[describedBy, controlProps['aria-describedby']].filter(Boolean).join(' ') || undefined}
-          onClick={(event: MouseEvent<HTMLButtonElement>) => {
-            if (reason.isUnavailable) {
-              reason.handleBlockedClick(event)
-              return
-            }
-            onClick?.(event)
-          }}
-          onMouseEnter={(event) => {
-            onMouseEnter?.(event)
-            controlProps.onMouseEnter?.(event)
-          }}
-          onMouseMove={(event) => {
-            onMouseMove?.(event)
-            controlProps.onMouseMove?.(event)
-          }}
-          onMouseLeave={(event) => {
-            onMouseLeave?.(event)
-            controlProps.onMouseLeave?.()
-          }}
-          onFocus={(event) => {
-            onFocus?.(event)
-            controlProps.onFocus?.(event)
-          }}
-          onBlur={(event) => {
-            onBlur?.(event)
-            controlProps.onBlur?.()
-          }}
-          onKeyDown={onKeyDown}
         />
         {reason.tooltip}
       </>

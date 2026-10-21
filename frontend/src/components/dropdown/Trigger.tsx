@@ -2,6 +2,7 @@ import type { KeyboardEvent, RefObject } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { ChevronDown } from 'lucide-react'
 import { useDisabledReason } from '@/hooks/useDisabledReason'
+import { getDisabledReasonProps } from '@/utils/disabledReasonControl'
 import { joinClassNames } from '@/utils/classNames'
 import { DropdownBadge, DropdownCount } from './Badge'
 import { DROPDOWN_INSTANT_TRANSITION, DROPDOWN_SPRING } from './motion'
@@ -83,7 +84,11 @@ export function DropdownHead({
   const shouldReduceMotion = useReducedMotion()
   const hasVisibleSelection = Boolean(selected && !emptySelectionIsBlank && !blankOptionSelected)
   const reason = useDisabledReason(disabled ? disabledReason : undefined)
-  const { controlProps } = reason
+  const reasonProps = getDisabledReasonProps<HTMLButtonElement>(reason, {
+    'aria-describedby': describedBy,
+    onClick,
+    onKeyDown,
+  })
 
   return (
     <>
@@ -97,21 +102,10 @@ export function DropdownHead({
       aria-haspopup="listbox"
       aria-controls={open ? listId : undefined}
       aria-labelledby={labelledBy}
-      aria-describedby={[describedBy, controlProps['aria-describedby']].filter(Boolean).join(' ') || undefined}
       aria-invalid={hasError || undefined}
-      aria-disabled={controlProps['aria-disabled']}
       disabled={disabled && !reason.isUnavailable}
       className={joinClassNames('app-dropdown-head', SIZE_CLASS[size])}
-      onClick={reason.isUnavailable ? reason.handleBlockedClick : onClick}
-      onKeyDown={(event) => {
-        if (reason.isUnavailable) return
-        onKeyDown(event)
-      }}
-      onMouseEnter={controlProps.onMouseEnter}
-      onMouseMove={controlProps.onMouseMove}
-      onMouseLeave={controlProps.onMouseLeave}
-      onFocus={controlProps.onFocus}
-      onBlur={controlProps.onBlur}
+      {...reasonProps}
     >
       <span
         className="flex min-w-0 flex-1 items-center gap-2"
