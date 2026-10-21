@@ -12,7 +12,7 @@ RUN npm ci
 
 COPY frontend/index.html frontend/postcss.config.js frontend/tailwind.config.js frontend/tsconfig.app.json frontend/tsconfig.node.json frontend/vite.config.ts ./
 
-# Vite reads tsconfig.json during bundling, so Docker uses the app-only config
+# App-only TypeScript config
 COPY frontend/tsconfig.app.json ./tsconfig.json
 COPY frontend/public ./public
 COPY frontend/src ./src
@@ -55,7 +55,7 @@ ENV UPDATE_CHECKS_ENABLED=true
 
 WORKDIR /app/backend
 
-# Add only the small OS packages the entrypoint/runtime need.
+# OS packages
 RUN apt-get update \
     && apt-get install -y --no-install-recommends bash ca-certificates openssl \
     && rm -rf /var/lib/apt/lists/*
