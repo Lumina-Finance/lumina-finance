@@ -48,11 +48,13 @@ async function readFocusRing(element: Locator): Promise<FocusRing | null> {
       const shadow = style.boxShadow.match(/^(rgba?\([^)]*\)) 0px 0px 0px ([\d.]+)px inset$/)
       return shadow && shadow[1] === style.borderTopColor ? { colour: shadow[1], spread: Number(shadow[2]) } : null
     }
+    // A control holds a clear outline at rest so its ring can fade in, which draws nothing
+    const draws = (style: CSSStyleDeclaration) => style.outlineStyle !== 'none' && (channels(style.outlineColor)[3] ?? 1) > 0
     let frame: Element | null = node
-    while (frame && getComputedStyle(frame).outlineStyle === 'none' && !doubling(getComputedStyle(frame))) frame = frame.parentElement
+    while (frame && !draws(getComputedStyle(frame)) && !doubling(getComputedStyle(frame))) frame = frame.parentElement
     if (!frame || frame === document.body) return null
     const style = getComputedStyle(frame)
-    const border = style.outlineStyle === 'none' ? doubling(style) : null
+    const border = draws(style) ? null : doubling(style)
     const colour = border ? border.colour : style.outlineColor
 
     // What the ring is drawn on: the page, then every fill down to the frame's parent, and the frame's own
@@ -772,4 +774,150 @@ test('shows keyboard focus on a card row border only while the row is a card', A
   await focusFromKeyboard(page, row)
   if (page.viewportSize()!.width < 750) await expectSharedRing(row, 'border')
   else await expectSharedRing(row, 'outline', '-2px')
+})
+
+/**
+ * Moves focus onto `target` and off it again by keyboard, the way a Tab does, and reads the ring on
+ * `frame` as it fades. Both happen in one step in the page, so the transitions are read the instant they
+ * start rather than after a round trip that outlasts them. Each fade is paused halfway through and the
+ * colour the browser draws then is read, with its length. Null where nothing fades, because the ring
+ * switches at once
+ */
+async function readRingFades(page: Page, target: Locator, frame: Locator) {
+  await page.keyboard.press('Shift')
+  const targetHandle = await target.elementHandle()
+  return frame.evaluate((box, focusable) => {
+    const alpha = (colour: string) => {
+      const channels = colour.match(/[\d.]+/g)!.map(Number)
+      return channels.length > 3 ? channels[3] : 1
+    }
+    const settle = () => box.getAnimations().forEach((animation) => animation.finish())
+    const midway = () => {
+      const fade = box.getAnimations().find((animation): animation is CSSTransition => animation instanceof CSSTransition && animation.transitionProperty === 'outline-color')
+      if (!fade) return null
+      const duration = Number(fade.effect!.getComputedTiming().duration)
+      fade.pause()
+      fade.currentTime = duration / 2
+      return { duration, alpha: alpha(getComputedStyle(box).outlineColor), offset: getComputedStyle(box).outlineOffset }
+    }
+
+    settle()
+    ;(focusable as HTMLElement).focus()
+    const atOnce = alpha(getComputedStyle(box).outlineColor)
+    const fadeIn = midway()
+    settle()
+    ;(focusable as HTMLElement).blur()
+    const fadeOut = midway()
+    settle()
+    return { atOnce, fadeIn, fadeOut }
+  }, targetHandle!)
+}
+
+// Every control that draws the ring eases its outline colour, so none pops in. A control that sets its own
+// transition has to list outline-color (or all) in it. Each is focused by keyboard and read where it draws
+// the ring, on the pages the Tab-through test visits
+test('lists the outline colour in the transition of every control that draws the ring', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000, date: daysFromTodayInTestTimezone(-1) })
+  await logInViaApi(page, user)
+  const offenders = new Set<string>()
+  const sweep = async () => {
+    const found = await page.evaluate(() => {
+      const controls = document.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, summary, [tabindex], [role="button"], [role="tab"], [role="radio"], [role="menuitem"], .app-focus-ring, .app-focus-inset, .app-transaction-row, .app-switch, .app-breakdown-sector, svg.recharts-surface')
+      const problems: string[] = []
+      for (const control of controls) {
+        if (control.getClientRects().length === 0) continue
+        control.focus({ focusVisible: true } as FocusOptions)
+        if (document.activeElement !== control) continue
+        const target = control.closest<HTMLElement>('.app-transaction-row, .app-switch') ?? control
+        control.getAnimations().forEach((animation) => animation.finish())
+        const style = getComputedStyle(target)
+        const draws = style.outlineStyle !== 'none' && style.outlineStyle !== 'auto' && !/, 0\)$|\/ 0\)$/.test(style.outlineColor)
+        const eases = /\b(all|outline-color)\b/.test(style.transitionProperty) && style.transitionDuration.split(', ').some((duration) => parseFloat(duration) > 0)
+        if (draws && !eases) problems.push(`${control.tagName.toLowerCase()}.${String(control.getAttribute('class') ?? '').split(' ').slice(0, 3).join('.')} ${control.getAttribute('aria-label') ?? control.textContent?.trim().slice(0, 20)}`)
+        control.blur()
+      }
+      return problems
+    })
+    for (const problem of found) offenders.add(problem)
+  }
+
+  await openPage(page, '/transactions')
+  await sweep()
+  await openModal(page, ['Add transaction'], 'Add transaction')
+  await sweep()
+  await openPage(page, `/accounts/${account.id}`)
+  await sweep()
+  await page.getByRole('button', { name: 'Edit account', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: 'Edit account', exact: true })).toBeVisible()
+  await sweep()
+  await openPage(page, '/dashboard')
+  await sweep()
+  await openPage(page, '/settings')
+  await sweep()
+  await openPage(page, '/imports')
+  await sweep()
+  await openPage(page, '/insights')
+  await sweep()
+  expect([...offenders]).toEqual([])
+})
+
+// The ring fades in on Tab and out on leaving over about the time a hover look takes, wherever a control
+// without a border draws one, and its end state keeps 3:1. Each fade is read halfway through its time,
+// which pins the ease-out curve as well as the fade
+test('fades the keyboard focus ring in and out', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  const rowButton = await seedOneTransaction(page, request)
+
+  const expectFades = async (name: string, target: Locator, frame: Locator, offset: string) => {
+    const fades = await readRingFades(page, target, frame)
+    expect(fades.fadeIn, `${name} fades in`).not.toBeNull()
+    expect(fades.fadeOut, `${name} fades out`).not.toBeNull()
+    for (const [way, fade] of [['in', fades.fadeIn!], ['out', fades.fadeOut!]] as const) {
+      expect(fade.duration, `${name} fade ${way} length`).toBeGreaterThanOrEqual(100)
+      expect(fade.duration, `${name} fade ${way} length`).toBeLessThanOrEqual(200)
+      // Fading in it is more than half drawn, and fading out less than half, since ease-out is quick at first
+      if (way === 'in') {
+        expect(fade.alpha, `${name} fade in midway`).toBeGreaterThan(0.5)
+        expect(fade.alpha, `${name} fade in midway`).toBeLessThan(1)
+      } else {
+        expect(fade.alpha, `${name} fade out midway`).toBeGreaterThan(0)
+        expect(fade.alpha, `${name} fade out midway`).toBeLessThan(0.5)
+      }
+      // The ring stays where it is drawn while it fades out, so an inset one doesn't jump outward
+      expect(fade.offset, `${name} fade ${way} gap`).toBe(offset)
+    }
+    await focusFromKeyboard(page, target)
+    await expectSharedRing(frame, 'outline', offset)
+  }
+
+  await expectFades('transaction row', rowButton, rowButton.locator('..'), '-2px')
+  const chart = page.locator('svg.recharts-surface[tabindex="0"]').filter({ visible: true }).first()
+  await expect(chart).toBeVisible()
+  await expectFades('chart', chart, chart, '-2px')
+
+  await openPage(page, '/settings')
+  const security = page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Security', exact: true })
+  await expectFades('section list item', security, security, '2px')
+})
+
+// With reduced motion the ring is the focus colour from the start and only its style switches, so it
+// appears and goes at once. Removing the reduced-motion override of the rest outline fails this
+test('shows the keyboard focus ring at once with reduced motion', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await seedOneTransaction(page, request)
+  await openPage(page, '/settings')
+  const security = page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Security', exact: true })
+  expect(await readRingFades(page, security, security)).toEqual({ atOnce: 1, fadeIn: null, fadeOut: null })
+})
+
+// Forced colours would draw the clear outline a control holds at rest, so none is held there
+test('holds no outline at rest in forced colours', async ({ page, request }) => {
+  await page.emulateMedia({ forcedColors: 'active' })
+  await seedOneTransaction(page, request)
+  await openPage(page, '/settings')
+  const security = page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Security', exact: true })
+  expect(await security.evaluate((node) => getComputedStyle(node).outlineStyle)).toBe('none')
 })

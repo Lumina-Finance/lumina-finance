@@ -105,7 +105,7 @@ export function ImportSetupPanel({ hasFile, onPointerInsideChange, children }: {
   const header = (
     <button
       type="button"
-      className={`app-icon-button z-20 transition-[background-color,border-color,color] ${PANEL_MOTION} ${isDesktop
+      className={`app-icon-button z-20 transition-[background-color,border-color,color,outline-color] ${PANEL_MOTION} ${isDesktop
         ? `absolute left-0 top-0 ${isOpen
           ? 'h-9 w-[var(--setup-open-width)]'
           : 'h-full w-(--setup-strip-width) hover:[background:transparent] hover:[border-color:transparent]'}`

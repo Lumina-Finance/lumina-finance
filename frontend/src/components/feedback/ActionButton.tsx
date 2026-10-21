@@ -4,7 +4,7 @@ import { Check, LoaderCircle } from 'lucide-react'
 
 export type ActionFeedbackStatus = 'idle' | 'loading' | 'success'
 
-const STATE_STYLE_TRANSITION = 'background 250ms ease, border-color 250ms ease, color 250ms ease'
+const STATE_STYLE_TRANSITION = 'background 250ms ease, border-color 250ms ease, color 250ms ease, var(--app-focus-fade)'
 
 interface ActionFeedbackButtonProps extends Omit<HTMLMotionProps<'button'>, 'children'> {
   children: ReactNode
