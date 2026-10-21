@@ -1,5 +1,6 @@
 """Shared clock helpers for tests of the future-date cutoff"""
 
+import importlib
 from datetime import UTC, date, datetime
 
 # The default test user's profile zone is America/Toronto, where this instant is 23:30 on June 9
@@ -11,7 +12,7 @@ PROFILE_TOMORROW = date(2026, 6, 10)
 
 
 def freeze_profile_clock(freeze_now, moment: datetime = PROFILE_LATE_EVENING) -> None:
-    """Freeze every clock the insights and dashboard cutoffs read
+    """Freeze every clock the account, insights and dashboard cutoffs read
 
     Args:
         freeze_now: The ``freeze_now`` fixture
@@ -21,5 +22,8 @@ def freeze_profile_clock(freeze_now, moment: datetime = PROFILE_LATE_EVENING) ->
     from app.routes import insights as insights_routes
     from app.routes.users import date_helpers
 
-    for module in (date_helpers, insights_routes, dashboard_routes):
+    # The package attribute named router is the APIRouter, so the module is imported by path
+    account_routes = importlib.import_module("app.routes.accounts.router")
+
+    for module in (date_helpers, insights_routes, dashboard_routes, account_routes):
         freeze_now(module, moment)
