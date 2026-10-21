@@ -10,9 +10,10 @@ import {
 import { logInViaApi, openModal, openPage } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
-// Runs on desktop only, apart from three groups that run at every size. The focus ring on each kind
-// of control does so because the toolbar changes below 750px, and the Settings section menu and
-// card row tests because the menu and the card change with the width too. The date-range control
+// Runs on desktop only, apart from four groups that run at every size. The focus ring on each kind
+// of control does so because the toolbar changes below 750px, the Settings section menu and
+// card row tests because the menu and the card change with the width too, and the whole-ring test
+// because the filters, charts and rows are laid out differently at each size. The date-range control
 // tests set their own sizes.
 
 /**
@@ -35,7 +36,7 @@ type FocusRing = {
  * Reads the focus drawn for the focused element, from the element itself or the nearest frame around it
  * that draws it, such as a date field around its day box. A field draws its border in the focus colour,
  * doubled from the inside by a shadow of the same colour, so its width is the two together. Anything
- * else, such as a row or a button without a border, draws an outline. The contrast is against the page, worked out from the colours
+ * else, such as a row or a button without a border, draws an outline. The contrast is against what the ring is drawn on, worked out from the colours
  * the browser resolved and any fade around the frame, so it is the ratio on screen. Null when nothing
  * draws focus
  */
@@ -47,18 +48,31 @@ async function readFocusRing(element: Locator): Promise<FocusRing | null> {
       const shadow = style.boxShadow.match(/^(rgba?\([^)]*\)) 0px 0px 0px ([\d.]+)px inset$/)
       return shadow && shadow[1] === style.borderTopColor ? { colour: shadow[1], spread: Number(shadow[2]) } : null
     }
+    // A control holds a clear outline at rest so its ring can fade in, which draws nothing
+    const draws = (style: CSSStyleDeclaration) => style.outlineStyle !== 'none' && (channels(style.outlineColor)[3] ?? 1) > 0
     let frame: Element | null = node
-    while (frame && getComputedStyle(frame).outlineStyle === 'none' && !doubling(getComputedStyle(frame))) frame = frame.parentElement
+    while (frame && !draws(getComputedStyle(frame)) && !doubling(getComputedStyle(frame))) frame = frame.parentElement
     if (!frame || frame === document.body) return null
     const style = getComputedStyle(frame)
-    const border = style.outlineStyle === 'none' ? doubling(style) : null
+    const border = draws(style) ? null : doubling(style)
     const colour = border ? border.colour : style.outlineColor
 
+    // What the ring is drawn on: the page, then every fill down to the frame's parent, and the frame's own
+    // fill too when the ring is drawn inside its edge, where the frame is what sits behind it. The layers
+    // are blended on a canvas so the ratio is the one on screen, whatever colour format the browser resolved
     const probe = document.createElement('div')
     probe.style.background = 'var(--app-bg)'
     document.body.append(probe)
-    const page = getComputedStyle(probe).backgroundColor
+    const fills = [getComputedStyle(probe).backgroundColor]
     probe.remove()
+    const drawnInside = Boolean(border) || parseFloat(style.outlineOffset) < 0
+    for (let box: Element | null = drawnInside ? frame : frame.parentElement; box; box = box.parentElement) fills.splice(1, 0, getComputedStyle(box).backgroundColor)
+    const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!
+    for (const fill of fills) {
+      context.fillStyle = fill
+      context.fillRect(0, 0, 1, 1)
+    }
+    const page = `rgb(${Array.from(context.getImageData(0, 0, 1, 1).data.slice(0, 3)).join(', ')})`
 
     // A faded frame, such as a dialog fading in, fades its ring with it, so the ring on screen is its
     // colour mixed into the page by however much the frame and everything around it are faded
@@ -79,11 +93,14 @@ async function readFocusRing(element: Locator): Promise<FocusRing | null> {
     // that clips its contents and doesn't hold all of that cuts it off
     const reach = border ? 0 : parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth)
     const ring = frame.getBoundingClientRect()
+    // A ring drawn inside the control's edge and a box around it can differ by a fraction of a pixel once
+    // layout rounds them, which cuts nothing. A ring drawn outside keeps no such allowance
+    const slack = drawnInside && !border ? 0.5 : 0
     let clipped = false
     for (let box = frame.parentElement; box; box = box.parentElement) {
       if (getComputedStyle(box).overflow === 'visible') continue
       const edge = box.getBoundingClientRect()
-      if (ring.left - reach < edge.left || ring.top - reach < edge.top || ring.right + reach > edge.right || ring.bottom + reach > edge.bottom) clipped = true
+      if (ring.left - reach < edge.left - slack || ring.top - reach < edge.top - slack || ring.right + reach > edge.right + slack || ring.bottom + reach > edge.bottom + slack) clipped = true
     }
 
     return {
@@ -451,6 +468,88 @@ test('shows every Tab stop with a whole ring or a visible hover look', async ({ 
   expect([...problems]).toEqual([])
 })
 
+/**
+ * Expects the shared focus on an element to be whole: drawn, at least 3:1 against the page, and not cut
+ * by any scrolling or clipping box around it. Read until it holds, since a card fades its content in
+ */
+async function expectWholeRing(element: Locator) {
+  await expect.poll(async () => {
+    const ring = await readFocusRing(element)
+    return ring && { drawn: true, clipped: ring.clipped, contrast: ring.contrast >= 3 }
+  }, { message: `focus on ${element}` }).toEqual({ drawn: true, clipped: false, contrast: true })
+}
+
+// A control without a border draws the ring outside its edge, which a box around it that scrolls or
+// clips cuts off: a transaction row, the charts, and an option in the filters' scrolling account list.
+// Each keeps its whole ring, on every screen and in both themes
+for (const colorScheme of ['light', 'dark'] as const) {
+  test(`keeps the whole ring on rows, charts and filter options in the ${colorScheme} theme`, AT_EVERY_SIZE, async ({ page, request }) => {
+    await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
+    const user = await signUpUser(request)
+    const account = await createAccount(request, user, { name: 'Chequing' })
+    await createAccount(request, user, { name: 'Savings' })
+    const rows = [
+      await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -4250, date: daysFromTodayInTestTimezone(-1) }),
+      await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1875, date: daysFromTodayInTestTimezone(-1) }),
+    ]
+    await logInViaApi(page, user)
+    const charts = page.locator('svg.recharts-surface[tabindex="0"]').filter({ visible: true })
+    const expectEveryChart = async () => {
+      // A chart that mounts late is counted too: the count is read until two reads in a row agree
+      let previous = 0
+      await expect.poll(async () => {
+        const count = await charts.count()
+        const settled = count > 0 && count === previous
+        previous = count
+        return settled
+      }).toBe(true)
+      for (let index = 0; index < await charts.count(); index++) {
+        await focusFromKeyboard(page, charts.nth(index))
+        await expectWholeRing(charts.nth(index))
+      }
+    }
+
+    await openPage(page, '/transactions')
+    await expect(page.locator('html')).toHaveClass(colorScheme === 'dark' ? /\bdark\b/ : /^(?!.*\bdark\b)/)
+    // The rows are already covered on desktop by the row test above, so this adds the tablet and phone
+    // sizes for the issue's two row examples
+    for (const id of rows) {
+      const row = page.getByTestId(`transaction-row-${id}`)
+      await focusFromKeyboard(page, row)
+      await expectWholeRing(row)
+    }
+    await expectEveryChart()
+
+    const mobile = page.viewportSize()!.width < 750
+    await page.getByRole('button', { name: mobile ? /^Filters/ : 'Transaction filters', exact: !mobile }).click()
+    const panel = mobile ? page.getByRole('dialog', { name: 'Transaction filters', exact: true }) : page.locator('.app-range-glass').filter({ has: page.getByRole('button', { name: 'Transaction filters', exact: true }) })
+    // The accounts list is the shared checklist and the merchants list the server-searched one, and each
+    // keeps its whole ring. A selected option sits on the accent tint, which the ring must still reach 3:1 against
+    for (const { facet, name } of [{ facet: 'Accounts', name: 'Chequing' }, { facet: 'Merchant', name: 'Unknown' }]) {
+      if (mobile) {
+        await panel.getByRole('combobox', { name: 'Filters', exact: true }).click()
+        await page.getByRole('option', { name: new RegExp(`^${facet}`) }).click()
+      } else await panel.getByRole('tab', { name: new RegExp(`^${facet}`) }).click()
+      const option = panel.getByRole('checkbox', { name, exact: true })
+      await focusFromKeyboard(page, option)
+      await expectWholeRing(option)
+
+      await option.click()
+      await expect(option).toBeChecked()
+      await page.mouse.move(0, 0)
+      await focusFromKeyboard(page, option)
+      // The tint is dropped while the row has keyboard focus, so the ring is measured on the plain surface
+      await expect.poll(() => option.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgba(0, 0, 0, 0)')
+      await expectWholeRing(option)
+    }
+
+    await openPage(page, '/dashboard')
+    await expectEveryChart()
+    await openPage(page, `/accounts/${account.id}`)
+    await expectEveryChart()
+  })
+}
+
 // The date-range controls built on the glass pill, the Insights one on a wide page and a dashboard
 // widget's on a phone, have a press animation that used to put their frame in the Tab order as a
 // silent stop before the button. Motion stays on, since the press animation is what made the frame a stop
@@ -675,4 +774,161 @@ test('shows keyboard focus on a card row border only while the row is a card', A
   await focusFromKeyboard(page, row)
   if (page.viewportSize()!.width < 750) await expectSharedRing(row, 'border')
   else await expectSharedRing(row, 'outline', '-2px')
+})
+
+/**
+ * Moves focus onto `target` and off it again by keyboard, the way a Tab does, and reads the ring on
+ * `frame` as it fades. Both happen in one step in the page, so the transitions are read the instant they
+ * start rather than after a round trip that outlasts them. Each fade is paused halfway through and the
+ * colour the browser draws then is read, with its length. Null where nothing fades, because the ring
+ * switches at once
+ */
+async function readRingFades(page: Page, target: Locator, frame: Locator) {
+  await page.keyboard.press('Shift')
+  const targetHandle = await target.elementHandle()
+  return frame.evaluate((box, focusable) => {
+    const alpha = (colour: string) => {
+      const channels = colour.match(/[\d.]+/g)!.map(Number)
+      return channels.length > 3 ? channels[3] : 1
+    }
+    const settle = () => box.getAnimations().forEach((animation) => animation.finish())
+    const midway = () => {
+      const fade = box.getAnimations().find((animation): animation is CSSTransition => animation instanceof CSSTransition && animation.transitionProperty === 'outline-color')
+      if (!fade) return null
+      const duration = Number(fade.effect!.getComputedTiming().duration)
+      fade.pause()
+      fade.currentTime = duration / 2
+      return { duration, alpha: alpha(getComputedStyle(box).outlineColor), offset: getComputedStyle(box).outlineOffset }
+    }
+
+    settle()
+    ;(focusable as HTMLElement).focus()
+    const atOnce = alpha(getComputedStyle(box).outlineColor)
+    const fadeIn = midway()
+    settle()
+    ;(focusable as HTMLElement).blur()
+    const fadeOut = midway()
+    settle()
+    return { atOnce, fadeIn, fadeOut }
+  }, targetHandle!)
+}
+
+// Every control that draws the ring eases its outline colour, so none pops in. A control that sets its own
+// transition has to list outline-color (or all) in it. Each is focused by keyboard and read where it draws
+// the ring, on the pages the Tab-through test visits
+test('lists the outline colour in the transition of every control that draws the ring', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000, date: daysFromTodayInTestTimezone(-1) })
+  await logInViaApi(page, user)
+  const offenders = new Set<string>()
+  const sweep = async () => {
+    const found = await page.evaluate(() => {
+      const controls = document.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, summary, [tabindex], [role="button"], [role="tab"], [role="radio"], [role="menuitem"], .app-focus-ring, .app-focus-inset, .app-transaction-row, .app-switch, .app-breakdown-sector, svg.recharts-surface')
+      const problems: string[] = []
+      let drawing = 0
+      for (const control of controls) {
+        if (control.getClientRects().length === 0) continue
+        control.focus({ focusVisible: true } as FocusOptions)
+        if (document.activeElement !== control) continue
+        const target = control.closest<HTMLElement>('.app-transaction-row, .app-switch') ?? control
+        control.getAnimations().forEach((animation) => animation.finish())
+        const style = getComputedStyle(target)
+        const draws = style.outlineStyle !== 'none' && style.outlineStyle !== 'auto' && !/, 0\)$|\/ 0\)$/.test(style.outlineColor)
+        // The last entry naming the outline colour, or all, is the one that applies, and it eases it over
+        // a short time: a longer one, such as a button's 300ms width change, would drag the ring out too
+        const properties = style.transitionProperty.split(', ')
+        const durations = style.transitionDuration.split(', ')
+        const named = properties.map((property, index) => (property === 'outline-color' || property === 'all' ? index : -1)).filter((index) => index >= 0)
+        const seconds = named.length > 0 ? parseFloat(durations[named[named.length - 1] % durations.length]) : 0
+        const eases = seconds > 0 && seconds <= 0.25
+        if (draws) drawing++
+        if (draws && !eases) problems.push(`${control.tagName.toLowerCase()}.${String(control.getAttribute('class') ?? '').split(' ').slice(0, 3).join('.')} ${control.getAttribute('aria-label') ?? control.textContent?.trim().slice(0, 20)}`)
+        control.blur()
+      }
+      return { problems, drawing }
+    })
+    for (const problem of found.problems) offenders.add(problem)
+    // A page where no control drew a ring means the sweep read nothing, so it must not pass
+    expect(found.drawing).toBeGreaterThan(0)
+  }
+
+  await openPage(page, '/transactions')
+  await sweep()
+  await openModal(page, ['Add transaction'], 'Add transaction')
+  await sweep()
+  await openPage(page, `/accounts/${account.id}`)
+  await sweep()
+  await page.getByRole('button', { name: 'Edit account', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: 'Edit account', exact: true })).toBeVisible()
+  await sweep()
+  await openPage(page, '/dashboard')
+  await sweep()
+  await openPage(page, '/settings')
+  await sweep()
+  await openPage(page, '/imports')
+  await sweep()
+  await openPage(page, '/insights')
+  await sweep()
+  expect([...offenders]).toEqual([])
+})
+
+// The ring fades in on Tab and out on leaving over about the time a hover look takes, wherever a control
+// without a border draws one, and its end state keeps 3:1. Each fade is read halfway through its time.
+// The shared fade is 150ms ease-out, which has the ring about 0.96 drawn there. A control that overrides
+// it with a 200ms curve, such as Tailwind's duration-200, has it about 0.77 drawn, so it fails both the length and the midpoint
+test('fades the keyboard focus ring in and out', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  const rowButton = await seedOneTransaction(page, request)
+
+  const expectFades = async (name: string, target: Locator, frame: Locator, offset: string) => {
+    const fades = await readRingFades(page, target, frame)
+    expect(fades.fadeIn, `${name} fades in`).not.toBeNull()
+    expect(fades.fadeOut, `${name} fades out`).not.toBeNull()
+    for (const [way, fade] of [['in', fades.fadeIn!], ['out', fades.fadeOut!]] as const) {
+      expect(fade.duration, `${name} fade ${way} length`).toBe(150)
+      // Ease-out is quick at first: halfway the ring is nearly all drawn fading in and nearly all gone fading out
+      const drawn = way === 'in' ? fade.alpha : 1 - fade.alpha
+      expect(drawn, `${name} fade ${way} midway`).toBeCloseTo(0.96, 2)
+      // The ring stays where it is drawn while it fades out, so an inset one doesn't jump outward
+      expect(fade.offset, `${name} fade ${way} gap`).toBe(offset)
+    }
+    await focusFromKeyboard(page, target)
+    await expectSharedRing(frame, 'outline', offset)
+  }
+
+  await expectFades('transaction row', rowButton, rowButton.locator('..'), '-2px')
+  const chart = page.locator('svg.recharts-surface[tabindex="0"]').filter({ visible: true }).first()
+  await expect(chart).toBeVisible()
+  await expectFades('chart', chart, chart, '-2px')
+
+  // An option in the filters' list also eases its hover colours, which must not replace the ring's curve
+  await page.getByRole('button', { name: 'Transaction filters', exact: true }).click()
+  await page.getByRole('tab', { name: /^Accounts/ }).click()
+  const option = page.getByRole('checkbox', { name: 'Everyday', exact: true })
+  await expectFades('filter option', option, option, '-2px')
+
+  await openPage(page, '/settings')
+  const security = page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Security', exact: true })
+  await expectFades('section list item', security, security, '2px')
+})
+
+// With reduced motion the ring is the focus colour from the start and only its style switches, so it
+// appears and goes at once. Removing the reduced-motion override of the rest outline fails this
+test('shows the keyboard focus ring at once with reduced motion', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await seedOneTransaction(page, request)
+  await openPage(page, '/settings')
+  const security = page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Security', exact: true })
+  expect(await readRingFades(page, security, security)).toEqual({ atOnce: 1, fadeIn: null, fadeOut: null })
+})
+
+// Forced colours would draw the clear outline a control holds at rest, so none is held there
+test('holds no outline at rest in forced colours', async ({ page, request }) => {
+  await page.emulateMedia({ forcedColors: 'active' })
+  await seedOneTransaction(page, request)
+  await openPage(page, '/settings')
+  const security = page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Security', exact: true })
+  expect(await security.evaluate((node) => getComputedStyle(node).outlineStyle)).toBe('none')
 })

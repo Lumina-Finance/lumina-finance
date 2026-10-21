@@ -69,6 +69,12 @@
        neither adds anything to the control's size, so focusing never moves anything */
     --app-focus-ring: #A17E4F;
     --app-focus-outline: 2px solid var(--app-focus-ring);
+    /* The ring's look before focus arrives, so it can fade in and out: an outline can't be eased
+       between none and solid, but its colour can be eased from clear to the focus colour. With reduced
+       motion it is the focus colour but not drawn, so nothing eases at all */
+    --app-focus-outline-rest: 2px solid transparent;
+    /* The ring's fade, for a control whose own transition list has to carry it */
+    --app-focus-fade: outline-color 150ms cubic-bezier(0.22, 1, 0.36, 1);
     --app-focus-offset: 2px;
     --app-focus-border: inset 0 0 0 1px var(--app-focus-ring);
     --app-focus-border-error: inset 0 0 0 1px var(--app-negative);
@@ -257,6 +263,47 @@
   :focus-visible {
     outline: var(--app-focus-outline);
     outline-offset: var(--app-focus-offset);
+  }
+
+  /* The ring fades in and out over about the time a hover look does. Each control that draws it holds a
+     clear outline of the same size at rest, since the outline's colour is all that can be eased. The
+     ones that draw it inside their edge hold the same inward gap, so it doesn't jump as it fades. The
+     clear outline is left off in forced colours, which would draw it. A control that sets its own
+     transition lists outline-color in it, as transition-colors does, or its ring appears at once */
+  @media (forced-colors: none) {
+    :where(
+      a[href],
+      button,
+      input,
+      select,
+      textarea,
+      summary,
+      [tabindex],
+      [role="button"],
+      [role="tab"],
+      [role="radio"],
+      [role="menuitem"],
+      .app-focus-ring,
+      .app-focus-inset,
+      .app-transaction-row,
+      .app-switch,
+      .app-breakdown-sector,
+      svg.recharts-surface
+    ) {
+      outline: var(--app-focus-outline-rest);
+      outline-offset: var(--app-focus-offset);
+      transition: var(--app-focus-fade);
+    }
+
+    :where(.app-focus-inset, .app-transaction-row, svg.recharts-surface) {
+      outline-offset: calc(var(--app-focus-offset) * -1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :root {
+      --app-focus-outline-rest: 2px none var(--app-focus-ring);
+    }
   }
 
   /* A button with a border of its own, such as an outlined button or a pill, never draws a ring around
@@ -593,8 +640,10 @@
 
   .app-nav-link {
     @apply relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5
-           font-medium no-underline transition-all duration-200;
+           font-medium no-underline;
     font-size: 0.9375rem;
+    transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1), background-color 200ms cubic-bezier(0.4, 0, 0.2, 1),
+      border-color 200ms cubic-bezier(0.4, 0, 0.2, 1), var(--app-focus-fade);
     color: var(--app-text-muted);
     border: 1px solid transparent;
   }
@@ -1156,7 +1205,7 @@
     background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
     -webkit-backdrop-filter: blur(20px) saturate(160%);
     backdrop-filter: blur(20px) saturate(160%);
-    transition: background-color 150ms ease, border-color 150ms ease;
+    transition: background-color 150ms ease, border-color 150ms ease, var(--app-focus-fade);
   }
 
   /* The head fills the glass, so its hover look is drawn on the glass, the fill and border the glass
@@ -1283,7 +1332,7 @@
   .app-range-glass-clear {
     color: var(--app-text-subtle);
     border-radius: 9999px;
-    transition: color 0.15s ease, background 0.15s ease;
+    transition: color 0.15s ease, background 0.15s ease, var(--app-focus-fade);
   }
 
   .app-range-glass-clear:hover,
@@ -1371,7 +1420,7 @@
     text-align: center;
     white-space: nowrap;
     color: var(--app-text-muted);
-    transition: color 180ms ease, background-color 180ms ease;
+    transition: color 180ms ease, background-color 180ms ease, var(--app-focus-fade);
   }
 
   .app-breakdown-sector {
@@ -1955,7 +2004,7 @@
     width: 2.625rem;
     background: transparent;
     box-shadow: none;
-    transition: color 180ms ease, background-color 180ms ease, transform 180ms ease;
+    transition: color 180ms ease, background-color 180ms ease, transform 180ms ease, var(--app-focus-fade);
   }
 
   .app-time-selector .app-segmented-option:hover,
@@ -2007,7 +2056,7 @@
     overflow: hidden;
     background: transparent;
     box-shadow: none;
-    transition: color 180ms ease, background-color 180ms ease, transform 180ms ease, opacity 200ms ease, flex-grow 280ms ease;
+    transition: color 180ms ease, background-color 180ms ease, transform 180ms ease, opacity 200ms ease, flex-grow 280ms ease, var(--app-focus-fade);
   }
 
   .app-navigation-theme-toggle .app-segmented-option:hover,
@@ -2053,7 +2102,7 @@
     @apply relative z-10;
     background: transparent;
     box-shadow: none;
-    transition: color 180ms ease, background-color 180ms ease, transform 180ms ease;
+    transition: color 180ms ease, background-color 180ms ease, transform 180ms ease, var(--app-focus-fade);
   }
 
   .app-balance-chart-mode-selector .app-segmented-option:hover,
@@ -2094,7 +2143,7 @@
   .app-create-transaction-pill-selector .app-segmented-option {
     background: transparent;
     box-shadow: none;
-    transition: color 180ms ease, background-color 180ms ease, transform 180ms ease;
+    transition: color 180ms ease, background-color 180ms ease, transform 180ms ease, var(--app-focus-fade);
   }
 
   .app-create-transaction-pill-selector .app-segmented-option:hover,
@@ -2183,7 +2232,8 @@
     transition:
       background-color 150ms cubic-bezier(0.22, 1, 0.36, 1),
       border-color 150ms cubic-bezier(0.22, 1, 0.36, 1),
-      transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
+      transform 150ms cubic-bezier(0.22, 1, 0.36, 1),
+      var(--app-focus-fade);
   }
 
   .app-upload-card:not([aria-disabled="true"]):hover,
@@ -2207,10 +2257,29 @@
     outline-offset: var(--app-focus-offset);
   }
 
+  /* The same ring drawn inside the control's edge instead of around it, for a control with no border
+     whose scrolling or clipping box leaves no room outside it, such as a row in a scrolling list or a
+     chart in a card that clips. A chart's own svg takes it too, so every chart keeps a whole ring */
+  .app-focus-inset:focus-visible,
+  svg.recharts-surface:focus-visible {
+    outline: var(--app-focus-outline);
+    outline-offset: calc(var(--app-focus-offset) * -1);
+  }
+
+  /* A row that takes this also eases its colours on hover, which Tailwind's transition-colors would do
+     with its own curve over the ring's, so the row lists both here */
+  .app-focus-inset {
+    transition: color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), var(--app-focus-fade);
+  }
+
   /* A transaction row is focused through the button inside it, or its checkbox while selecting, and
      neither fills the row, so the ring goes around the row itself, drawn inside the row's edges where
      the next row and the list's own edge cannot cover it. The row also shows the hover look while its
      button is focused */
+  .app-transaction-row {
+    transition: background-color 100ms cubic-bezier(0.4, 0, 0.2, 1), var(--app-focus-fade);
+  }
+
   .app-transaction-row:has(:focus-visible) {
     outline: var(--app-focus-outline);
     outline-offset: calc(var(--app-focus-offset) * -1);
@@ -2692,12 +2761,20 @@
 
   @media (prefers-reduced-motion: no-preference) {
     button.underline {
-      transition: text-decoration-thickness 150ms ease, color 200ms ease;
+      transition: text-decoration-thickness 150ms ease, color 200ms ease, var(--app-focus-fade);
     }
   }
 
   button.underline:focus-visible {
     text-decoration-thickness: 2px;
+  }
+
+  /* A shared button that changes its width into a spinner and back takes 300ms through `duration-300`, while
+     its focus ring still fades in the shared 150ms: the later entry for outline-color wins the list */
+  @media (prefers-reduced-motion: no-preference) {
+    :is(.app-primary-button, .app-danger-button, .app-secondary-button).duration-300 {
+      transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1), var(--app-focus-fade);
+    }
   }
 
   @media (hover: hover) {
