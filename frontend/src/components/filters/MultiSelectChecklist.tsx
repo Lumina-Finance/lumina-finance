@@ -116,7 +116,7 @@ function ChecklistRow({
         role="checkbox"
         aria-checked={selected}
         onClick={() => onToggle(option.value)}
-        className="app-focus-inset flex focus-visible:bg-transparent! w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-[var(--app-accent-soft)]"
+        className="app-focus-inset flex focus-visible:bg-transparent! w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-[var(--app-accent-soft)]"
         style={getFilterOptionStyle(selected)}
       >
         {option.imageUrl ? (

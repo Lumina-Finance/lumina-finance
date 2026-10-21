@@ -903,6 +903,12 @@ test('fades the keyboard focus ring in and out', async ({ page, request }) => {
   await expect(chart).toBeVisible()
   await expectFades('chart', chart, chart, '-2px')
 
+  // An option in the filters' list also eases its hover colours, which must not replace the ring's curve
+  await page.getByRole('button', { name: 'Transaction filters', exact: true }).click()
+  await page.getByRole('tab', { name: /^Accounts/ }).click()
+  const option = page.getByRole('checkbox', { name: 'Everyday', exact: true })
+  await expectFades('filter option', option, option, '-2px')
+
   await openPage(page, '/settings')
   const security = page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Security', exact: true })
   await expectFades('section list item', security, security, '2px')
