@@ -473,7 +473,8 @@ async def complete_oidc_link(db: AsyncSession, user: User, code: str, state: str
 
     Raises:
         HTTPException: The roundtrip is unknown, expired, or belongs to another account,
-            the exchange or token does not verify, or the subject is already linked
+            the exchange or token does not verify, the provider's email differs from the
+            account's, or the subject is already linked
     """
     request_row = await _consume_authorization_request(db, state, OIDC_PURPOSE_LINK)
 
@@ -486,6 +487,16 @@ async def complete_oidc_link(db: AsyncSession, user: User, code: str, state: str
     subject: str = claims["sub"]
 
     email = _require_provider_email(claims)
+
+    # A provider identity can only be linked to the account with the same address. Letter case is
+    # ignored, since providers differ in how they cased the address the user registered with.
+    # Checked before the subject lookup so a mismatch reveals nothing about which accounts a subject
+    # is linked to
+    if email.lower() != user.email.lower():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="The identity provider's email address must match your account's email address",
+        )
 
     existing_identity = await _find_identity(db, provider.id, subject)
     if existing_identity is not None:
