@@ -35,12 +35,13 @@ test('says why a selection in a currency no account holds cannot move', async ({
 
   const edit = page.getByRole('dialog', { name: 'Edit 1 transaction', exact: true })
   await expect(edit).toBeVisible()
-  await expect(edit.locator('#bulk-account')).toBeDisabled()
-  await expect(edit.locator('#bulk-account')).toContainText('No account to move to')
+  const moveTo = edit.locator('#bulk-account')
+  await expect(moveTo).toBeDisabled()
+  await expect(moveTo).toContainText('No account to move to')
 
-  const reason = edit.getByRole('button', { name: 'No account for this currency', exact: true })
-  await reason.click()
-  await expect(reason).toHaveAttribute('aria-expanded', 'true')
-  await expect(edit.getByText('No unarchived account holds this currency.', { exact: true }))
-    .toBeVisible()
+  // The reason is the dropdown's own description and shows beside the cursor while it hovers
+  await expect(moveTo).toHaveAccessibleDescription('No unarchived account holds this currency')
+  await moveTo.hover()
+  await expect(page.getByTestId('disabled-reason-tooltip').filter({ hasText: 'No unarchived account holds this currency' }))
+    .toHaveCSS('opacity', '1')
 })

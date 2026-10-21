@@ -18,6 +18,7 @@ import {
   eligibleSelectionIds,
   endsAfterDirectionClick,
   endsAfterEndPick,
+  getBulkEditApplyBlockReason,
   getBulkEditBlockers,
   groupSelectionMark,
   hasBulkEditChoice,
@@ -502,6 +503,25 @@ describe('what a bulk edit may do to the rows it covers', () => {
     expect(canApplyBulkEdit([groceries], allowed, getBulkEditBlockers([groceries], allowed, undefined))).toBe(true)
     const oversized = untouched({ tagIds: tags, overrideTags: true })
     expect(canApplyBulkEdit([groceries], oversized, getBulkEditBlockers([groceries], oversized, undefined))).toBe(false)
+  })
+
+  it('gives Apply no reason while the edit can be applied, and the reason it is held off otherwise', () => {
+    const nothing = untouched({})
+    expect(getBulkEditApplyBlockReason([groceries], nothing, getBulkEditBlockers([groceries], nothing, undefined)))
+      .toBe('Choose a change to apply')
+    const tags = Array.from({ length: 33 }, (_, index) => `tag-${index}`)
+    const oversized = untouched({ tagIds: tags, overrideTags: true })
+    expect(getBulkEditApplyBlockReason([groceries], oversized, getBulkEditBlockers([groceries], oversized, undefined)))
+      .toBe('Fix the warnings under What changes first')
+    const clearing = untouched({ overrideTags: true })
+    expect(getBulkEditApplyBlockReason([groceries], clearing, getBulkEditBlockers([groceries], clearing, undefined)))
+      .toBeUndefined()
+    // No rows is not a warning in What changes, so it names the selection instead
+    expect(getBulkEditApplyBlockReason([], clearing, getBulkEditBlockers([], clearing, undefined)))
+      .toBe('Tick a transaction first')
+    const tooMany = Array.from({ length: MAX_BULK_EDIT_TRANSACTIONS + 1 }, () => groceries)
+    expect(getBulkEditApplyBlockReason(tooMany, clearing, getBulkEditBlockers(tooMany, clearing, undefined)))
+      .toBe(`Up to ${MAX_BULK_EDIT_TRANSACTIONS} transactions can be edited at once`)
   })
 
   it('distinguishes clearing, replacing, appending and leaving tags unchanged', () => {

@@ -95,6 +95,12 @@ interface DropdownProps {
   onLoadMore?: () => void;
   onSearchCommit?: (value: string) => void;
   disabled?: boolean;
+
+  /**
+   * Why the dropdown is disabled. Shown in a tooltip beside the cursor, on keyboard focus and on a tap,
+   * and read as the trigger's description, which keeps a disabled dropdown reachable for all of them
+   */
+  disabledReason?: string;
   blankWhenEmpty?: boolean;
 
   /**
@@ -152,6 +158,7 @@ const Dropdown = ({
   onLoadMore,
   onSearchCommit,
   disabled = false,
+  disabledReason,
   blankWhenEmpty = false,
   blankOptionIsPlaceholder = false,
   onCreateNew,
@@ -488,6 +495,7 @@ const Dropdown = ({
           id={id}
           testId={testId}
           disabled={disabled}
+          disabledReason={disabledReason}
           hasError={hasError}
           emptySelectionIsBlank={emptySelectionIsBlank}
           labelledBy={labelledBy}

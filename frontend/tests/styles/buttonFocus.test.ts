@@ -308,6 +308,45 @@ describe('button keyboard focus', () => {
       expect(declared(rule, 'outline')).toBe('var(--app-focus-outline)')
       expect(declared(rule, 'opacity')).toBeUndefined()
     })
+
+    it('keeps a focused dropdown dimmed without fading its ring', () => {
+      const [box] = rulesListing('.app-dropdown-glass.app-dropdown-glass-disabled:focus-within')
+      expect(box).toBeDefined()
+      // The box keeps its ring at full strength and dims through the alpha of its fill
+      expect(declared(box, 'opacity')).toBe('1')
+      expect(declared(box, 'border-color')).toBe('var(--app-focus-ring)')
+      expect(declared(box, 'background')).toContain('color-mix(in srgb, var(--app-dropdown-bg) 50%, transparent)')
+      // What sits inside it carries no ring, so that fades
+      const [head] = rulesListing('.app-dropdown-glass.app-dropdown-glass-disabled:focus-within .app-dropdown-head')
+      expect(head).toBeDefined()
+      expect(declared(head, 'opacity')).toBe('var(--app-dropdown-disabled-opacity-control)')
+      // The fill, the ring and the content move together, over the time and easing of the focus fade
+      let fade = ''
+      stylesheet.walkDecls('--app-focus-fade', (decl) => {
+        fade = decl.value
+      })
+      const [time, easing] = [/(\d+ms)/.exec(fade)?.[1], /(cubic-bezier\([^)]*\))/.exec(fade)?.[1]]
+      const restBox = rulesListing('.app-dropdown-glass.app-dropdown-glass-disabled').find((rule) => declared(rule, 'transition') !== undefined)
+      const restHead = rulesListing('.app-dropdown-glass-disabled .app-dropdown-head').find((rule) => declared(rule, 'transition') !== undefined)
+      expect(time).toBeDefined()
+      expect(easing).toBeDefined()
+      expect(restBox).toBeDefined()
+      expect(restHead).toBeDefined()
+      for (const property of ['border-color', 'background', 'box-shadow', 'opacity']) {
+        expect(declared(restBox!, 'transition')).toContain(`${property} ${time} ${easing}`)
+      }
+      expect(declared(restHead!, 'transition')).toBe(`opacity ${time} ${easing}`)
+      // Reduced motion turns the move off, for the box and for its content
+      for (const selector of ['.app-dropdown-glass.app-dropdown-glass-disabled', '.app-dropdown-glass-disabled .app-dropdown-head']) {
+        const still = rulesListing(selector).filter((rule) => rule.parent instanceof AtRule && /prefers-reduced-motion:\s*reduce/.test(rule.parent.params) && declared(rule, 'transition') === 'none')
+        expect(still).toHaveLength(1)
+      }
+      // A finished import's answers read at full strength, focused or not
+      const [recordBox] = rulesListing('.import-record .app-dropdown-glass.app-dropdown-glass-disabled:focus-within')
+      const [recordHead] = rulesListing('.import-record .app-dropdown-glass.app-dropdown-glass-disabled:focus-within .app-dropdown-head')
+      expect(declared(recordBox, 'background')).toBe('var(--app-dropdown-bg)')
+      expect(declared(recordHead, 'opacity')).toBe('1')
+    })
   })
 
   // A control with a border of its own shows its hover look and no ring, since a second outline would sit

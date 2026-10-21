@@ -972,7 +972,8 @@
     outline: none;
   }
 
-  .app-dropdown-head:disabled {
+  .app-dropdown-head:disabled,
+  .app-dropdown-head[aria-disabled="true"] {
     cursor: not-allowed;
   }
 
@@ -1925,9 +1926,55 @@
     background: color-mix(in srgb, var(--app-input-bg) 31%, transparent);
   }
 
-  button[aria-disabled="true"]:focus-visible {
+  button[aria-disabled="true"]:not(.app-dropdown-head):focus-visible {
     outline: var(--app-focus-outline);
     outline-offset: var(--app-focus-offset);
+  }
+
+  /* A dropdown unavailable for a reason shows its focus on its box, as any dropdown does. It stays
+     dimmed while focused, but not by fading the box, which would fade the ring and leave it under 3:1.
+     The box keeps its ring whole and halves the alpha of its fill, and what sits inside it, which
+     carries no ring, fades as before */
+  .app-dropdown-glass.app-dropdown-glass-disabled:focus-within {
+    border-color: var(--app-focus-ring);
+    background: color-mix(in srgb, var(--app-dropdown-bg) 50%, transparent);
+    box-shadow: var(--app-focus-border);
+    opacity: 1;
+  }
+
+  .app-dropdown-glass.app-dropdown-glass-disabled:focus-within .app-dropdown-head {
+    opacity: var(--app-dropdown-disabled-opacity-control);
+  }
+
+  /* Gaining or losing focus moves the fill, the fade of the content and the ring together, over the
+     same time and easing the focus ring fades with everywhere else (--app-focus-fade), so none of
+     them snaps ahead of the others */
+  .app-dropdown-glass.app-dropdown-glass-disabled {
+    transition:
+      border-color 150ms cubic-bezier(0.22, 1, 0.36, 1),
+      background 150ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 150ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 150ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .app-dropdown-glass-disabled .app-dropdown-head {
+    transition: opacity 150ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app-dropdown-glass.app-dropdown-glass-disabled,
+    .app-dropdown-glass-disabled .app-dropdown-head {
+      transition: none;
+    }
+  }
+
+  /* A finished import's answers show at full strength, focused or not */
+  .import-record .app-dropdown-glass.app-dropdown-glass-disabled:focus-within {
+    background: var(--app-dropdown-bg);
+  }
+
+  .import-record .app-dropdown-glass.app-dropdown-glass-disabled:focus-within .app-dropdown-head {
+    opacity: 1;
   }
 
   /* Square icon-button member of the glass family for the floating mobile menu toggle, sharing the
