@@ -1,7 +1,7 @@
 /**
  * Guards how "This Period at a Glance" writes the amounts that moved. The headline is income minus
- * expenses, a net flow, so a shortfall under "You Overspent" reads with a true minus rather than in
- * the brackets a held balance takes, and a surplus under "You Kept" reads with a plus. The changes
+ * expenses, a net flow, so a shortfall under "You overspent" reads with a true minus rather than in
+ * the brackets a held balance takes, and a surplus under "You kept" reads with a plus. The changes
  * beside it follow the same rule
  */
 import { describe, expect, it } from 'vitest'
@@ -28,17 +28,17 @@ function respond(overrides: Partial<InsightsPeriodGlanceResponse>): InsightsPeri
 }
 
 describe('period glance amounts that moved', () => {
-  it('writes a shortfall under "You Overspent" with a true minus, not in brackets', () => {
+  it('writes a shortfall under "You overspent" with a true minus, not in brackets', () => {
     const { primaryMetric } = getPeriodGlanceCardData(respond({ income: 10_000, expenses: 25_000 }), 'USD', currencies)
 
-    expect(primaryMetric.label).toBe('You Overspent')
+    expect(primaryMetric.label).toBe('You overspent')
     expect(primaryMetric.value).toBe('−$150.00')
   })
 
-  it('writes a surplus under "You Kept" with a plus', () => {
+  it('writes a surplus under "You kept" with a plus', () => {
     const { primaryMetric } = getPeriodGlanceCardData(respond({ income: 25_000, expenses: 10_000 }), 'USD', currencies)
 
-    expect(primaryMetric.label).toBe('You Kept')
+    expect(primaryMetric.label).toBe('You kept')
     expect(primaryMetric.value).toBe('+$150.00')
   })
 
@@ -49,8 +49,8 @@ describe('period glance amounts that moved', () => {
       currencies,
     )
 
-    expect(supportItems.find((item) => item.label === 'Net Worth Changed By')?.value).toBe('−$42.00')
-    expect(supportItems.find((item) => item.label === 'Biggest Change')?.detail)
+    expect(supportItems.find((item) => item.label === 'Net worth changed by')?.value).toBe('−$42.00')
+    expect(supportItems.find((item) => item.label === 'Biggest change')?.detail)
       .toBe('−$10.00 (−10%) vs previous matching period')
   })
 })
