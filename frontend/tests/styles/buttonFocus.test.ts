@@ -40,6 +40,16 @@ const BORDER_CHANGING = ['.app-secondary-button', '.app-glass-button', '.app-gla
 // Filled buttons, whose hover look is a change of fill alone
 const FILLED_BUTTONS = ['.app-primary-button', '.app-glass-button-primary', '.app-danger-button']
 
+// The shared buttons that can be unavailable for a reason, which keeps them hoverable and focusable and
+// marks them aria-disabled. Their hover, press and keyboard looks are written for the others only
+const REASON_GUARD = ':not([aria-disabled="true"])'
+const REASON_GUARDED = [...FILLED_BUTTONS, '.app-secondary-button', '.app-glass-button']
+
+/** A button class with the guard its hover, press and focus rules carry, when it has one */
+function guarded(name: string) {
+  return REASON_GUARDED.includes(name) ? `${name}${REASON_GUARD}` : name
+}
+
 // The least contrast between a filled button's rest and hover fills on the page. The dark theme's primary
 // button, which reads clearly as hovered, measures 1.31
 const MIN_FILL_CHANGE = 1.25
@@ -173,7 +183,7 @@ describe('button keyboard focus', () => {
   for (const name of BORDER_CHANGING) {
     it(`gives ${name} a border of its own under the pointer and on keyboard focus`, () => {
       const [rest] = rulesListing(name)
-      const [hover] = rulesListing(`${name}:hover`)
+      const [hover] = rulesListing(`${guarded(name)}:hover`)
       expect(declared(hover, 'border-color')).toBeDefined()
       expect(declared(hover, 'border-color')).not.toBe(borderColourOf(rest))
     })
@@ -238,7 +248,7 @@ describe('button keyboard focus', () => {
     for (const name of FILLED_BUTTONS) {
       it(`changes ${name}'s fill visibly under the pointer and on keyboard focus in the ${theme} theme`, () => {
         const [rest] = rulesListing(name)
-        const [hover] = rulesListing(`${name}:focus-visible`)
+        const [hover] = rulesListing(`${guarded(name)}:focus-visible`)
         const page = resolveColour('var(--app-bg)', theme).rgb
         const onPage = (rule: Rule) => {
           const fill = resolveColour(declared(rule, 'background')!, theme)
@@ -249,12 +259,63 @@ describe('button keyboard focus', () => {
     }
   }
 
+  // A button unavailable for a reason stays hoverable and focusable, so it must show neither the pointer
+  // look nor the press, and must read as off without fading its focus ring
+  describe('button unavailable for a reason', () => {
+    for (const name of FILLED_BUTTONS) {
+      it(`keeps ${name} from changing under the pointer`, () => {
+        const hover = rulesListing(`${guarded(name)}:hover`)
+        expect(hover.length).toBeGreaterThan(0)
+        expect(rulesListing(`${name}:hover`)).toHaveLength(0)
+      })
+    }
+
+    for (const name of REASON_GUARDED) {
+      it(`keeps ${name} from sinking when pressed`, () => {
+        expect(rulesListing(`${guarded(name)}:active`).length).toBeGreaterThan(0)
+        expect(rulesListing(`${name}:active`)).toHaveLength(0)
+      })
+
+      it(`dims ${name} through its own colours and not through opacity, which would fade the focus ring`, () => {
+        const dimming: Rule[] = []
+        stylesheet.walkRules((rule) => {
+          const [selector] = selectorsOf(rule)
+          if (selectorsOf(rule).length === 1 && selector.includes(name) && selector.endsWith('[aria-disabled="true"]') && !selector.includes(':not(')) dimming.push(rule)
+        })
+        const colours = dimming.filter((rule) => declared(rule, 'background') !== undefined)
+        expect(colours.length).toBeGreaterThan(0)
+        for (const rule of dimming) expect(declared(rule, 'opacity')).toBeUndefined()
+        for (const rule of colours) {
+          expect(declared(rule, 'color')).toBeDefined()
+          expect(declared(rule, 'border-color')).toBeDefined()
+        }
+        // The look that says unavailable
+        expect(dimming.some((rule) => declared(rule, 'cursor') === 'not-allowed')).toBe(true)
+      })
+    }
+
+    for (const theme of ['light', 'dark'] as const) {
+      it(`draws a focus ring that reaches 3:1 against the page in the ${theme} theme`, () => {
+        const ring = resolveColour('var(--app-focus-ring)', theme).rgb
+        const page = resolveColour('var(--app-bg)', theme).rgb
+        expect(contrast(ring, page)).toBeGreaterThanOrEqual(3)
+      })
+    }
+
+    it('draws the ring on a focused one with no fade of its own', () => {
+      const [rule] = rulesListing('button[aria-disabled="true"]:not(.app-dropdown-head):focus-visible')
+      expect(rule).toBeDefined()
+      expect(declared(rule, 'outline')).toBe('var(--app-focus-outline)')
+      expect(declared(rule, 'opacity')).toBeUndefined()
+    })
+  })
+
   // A control with a border of its own shows its hover look and no ring, since a second outline would sit
   // around the border it already has. Every other button, filled buttons and menu items included, keeps
   // the base ring on top of its hover look
   describe('ring', () => {
     const optOut = rulesListing(
-      ':is(a, button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"]):is(.app-secondary-button, .app-glass-button, .app-glass-icon-button, .app-range-glass-head, .app-card, .border:not(.border-transparent)):not(svg *):focus-visible',
+      ':is(a, button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"]):is(.app-secondary-button, .app-glass-button, .app-glass-icon-button, .app-range-glass-head, .app-card, .border:not(.border-transparent)):not(svg *):not([aria-disabled="true"]):focus-visible',
     )
 
     it('is dropped only from buttons that draw a border of their own', () => {
@@ -276,7 +337,7 @@ describe('button keyboard focus', () => {
     ]
     for (const name of BORDERLESS) {
       it(`keeps the ring on ${name} reached by keyboard`, () => {
-        const focusRules = rulesListing(`${name}:focus-visible`)
+        const focusRules = rulesListing(`${guarded(name)}:focus-visible`)
         expect(focusRules.length).toBeGreaterThan(0)
         for (const rule of focusRules) {
           expect(rule.nodes.some((node) => node.type === 'decl' && /^outline/.test(node.prop))).toBe(false)

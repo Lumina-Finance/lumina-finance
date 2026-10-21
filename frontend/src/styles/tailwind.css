@@ -318,7 +318,7 @@
     .app-range-glass-head,
     .app-card,
     .border:not(.border-transparent)
-  ):not(svg *):focus-visible {
+  ):not(svg *):not([aria-disabled="true"]):focus-visible {
     outline: none;
   }
 
@@ -1711,19 +1711,19 @@
   }
 
   /* The pointer look is kept off touch screens, where a tapped button would otherwise stay darker */
-  .app-primary-button:focus-visible {
+  .app-primary-button:not([aria-disabled="true"]):focus-visible {
     background: color-mix(in srgb, var(--app-button-primary-bg-hover) 88%, transparent);
     border-color: color-mix(in srgb, var(--app-button-primary-bg-hover) 70%, var(--app-border-strong));
   }
 
   @media (hover: hover) {
-    .app-primary-button:hover {
+    .app-primary-button:not([aria-disabled="true"]):hover {
       background: color-mix(in srgb, var(--app-button-primary-bg-hover) 88%, transparent);
       border-color: color-mix(in srgb, var(--app-button-primary-bg-hover) 70%, var(--app-border-strong));
     }
   }
 
-  .app-primary-button:active {
+  .app-primary-button:not([aria-disabled="true"]):active {
     transform: translateY(1px);
   }
 
@@ -1742,14 +1742,14 @@
     background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
   }
 
-  .app-secondary-button:hover,
-  .app-secondary-button:focus-visible {
+  .app-secondary-button:not([aria-disabled="true"]):hover,
+  .app-secondary-button:not([aria-disabled="true"]):focus-visible {
     color: var(--app-text);
     background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
     border-color: var(--app-hover-border);
   }
 
-  .app-secondary-button:active {
+  .app-secondary-button:not([aria-disabled="true"]):active {
     transform: translateY(1px);
   }
 
@@ -1785,19 +1785,19 @@
     background: color-mix(in srgb, var(--app-danger-fill) 82%, transparent);
   }
 
-  .app-danger-button:focus-visible {
+  .app-danger-button:not([aria-disabled="true"]):focus-visible {
     background: color-mix(in srgb, var(--app-danger-fill-hover) 90%, transparent);
     border-color: color-mix(in srgb, var(--app-danger-fill-hover) 72%, var(--app-border-strong));
   }
 
   @media (hover: hover) {
-    .app-danger-button:hover {
+    .app-danger-button:not([aria-disabled="true"]):hover {
       background: color-mix(in srgb, var(--app-danger-fill-hover) 90%, transparent);
       border-color: color-mix(in srgb, var(--app-danger-fill-hover) 72%, var(--app-border-strong));
     }
   }
 
-  .app-danger-button:active {
+  .app-danger-button:not([aria-disabled="true"]):active {
     transform: translateY(1px);
   }
 
@@ -1841,19 +1841,19 @@
     background: color-mix(in srgb, var(--app-button-primary-bg) 82%, transparent);
   }
 
-  .app-glass-button-primary:focus-visible {
+  .app-glass-button-primary:not([aria-disabled="true"]):focus-visible {
     background: color-mix(in srgb, var(--app-button-primary-bg-hover) 88%, transparent);
     border-color: color-mix(in srgb, var(--app-button-primary-bg-hover) 70%, var(--app-border-strong));
   }
 
   @media (hover: hover) {
-    .app-glass-button-primary:hover {
+    .app-glass-button-primary:not([aria-disabled="true"]):hover {
       background: color-mix(in srgb, var(--app-button-primary-bg-hover) 88%, transparent);
       border-color: color-mix(in srgb, var(--app-button-primary-bg-hover) 70%, var(--app-border-strong));
     }
   }
 
-  .app-glass-button-primary:active {
+  .app-glass-button-primary:not([aria-disabled="true"]):active {
     transform: translateY(1px);
   }
 
@@ -1875,20 +1875,59 @@
     backdrop-filter: blur(20px) saturate(160%);
   }
 
-  .app-glass-button:hover,
-  .app-glass-button:focus-visible {
+  .app-glass-button:not([aria-disabled="true"]):hover,
+  .app-glass-button:not([aria-disabled="true"]):focus-visible {
     color: var(--app-text);
     background: color-mix(in srgb, var(--app-input-bg) 76%, transparent);
     border-color: var(--app-hover-border);
   }
 
-  .app-glass-button:active {
+  .app-glass-button:not([aria-disabled="true"]):active {
     transform: translateY(1px);
   }
 
   .app-glass-button:disabled {
     opacity: 0.5;
     pointer-events: none;
+  }
+
+  /* A button unavailable for a reason stays hoverable and focusable so the reason can be shown, which
+     the native disabled state can't do. It looks as a disabled one does and shows no hover or press.
+     Its keyboard focus keeps the shared ring even on an outlined button, since the hover look it would
+     otherwise show is switched off */
+  :is(
+    .app-primary-button,
+    .app-secondary-button,
+    .app-danger-button,
+    .app-glass-button-primary,
+    .app-glass-button
+  )[aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+
+  /* Faded by halving the alpha of its own colours rather than with opacity, which would fade the focus
+     ring too and leave it under 3:1. The ring stays whole and only the control behind it reads as off */
+  :is(.app-primary-button, .app-glass-button-primary)[aria-disabled="true"] {
+    color: color-mix(in srgb, var(--app-button-primary-text) 50%, transparent);
+    border-color: color-mix(in srgb, color-mix(in srgb, var(--app-button-primary-bg) 65%, var(--app-border-strong)) 50%, transparent);
+    background: color-mix(in srgb, var(--app-button-primary-bg) 41%, transparent);
+  }
+
+  .app-danger-button[aria-disabled="true"] {
+    color: color-mix(in srgb, white 50%, transparent);
+    border-color: color-mix(in srgb, color-mix(in srgb, var(--app-danger-fill) 65%, var(--app-border-strong)) 50%, transparent);
+    background: color-mix(in srgb, var(--app-danger-fill) 41%, transparent);
+  }
+
+  :is(.app-secondary-button, .app-glass-button)[aria-disabled="true"] {
+    color: color-mix(in srgb, var(--app-text-muted) 50%, transparent);
+    border-color: color-mix(in srgb, var(--app-border-strong) 50%, transparent);
+    background: color-mix(in srgb, var(--app-input-bg) 31%, transparent);
+  }
+
+  button[aria-disabled="true"]:focus-visible {
+    outline: var(--app-focus-outline);
+    outline-offset: var(--app-focus-offset);
   }
 
   /* Square icon-button member of the glass family for the floating mobile menu toggle, sharing the
