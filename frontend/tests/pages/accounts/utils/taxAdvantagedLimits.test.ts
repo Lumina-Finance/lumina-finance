@@ -1,6 +1,7 @@
 /**
  * Tests the tax-advantaged limit helpers, so the usage percentages, meter labels and plan summaries
- * cannot drift from the contribution room recorded against each plan
+ * cannot drift from the contribution room recorded against each plan, including a meter amount that
+ * rounds up to a million reading CA$1M rather than CA$1,000K
  *
  * A currency's symbol is written the reader's way, so the amounts below assume the region the suite
  * pins through LC_ALL in its package script: read from the United States, where US dollars are the
@@ -66,6 +67,12 @@ describe('tax-advantaged limit helpers', () => {
     // 1100 major units is 1.1 thousand, which rounds down to one. Rounding up would report a
     // contribution of CA$2K against a limit the account is nowhere near
     expect(formatTaxAdvantagedMeterMoney(110_000, 'CAD', testCurrencies)).toBe('CA$1K')
+  })
+
+  it('reads a meter amount that rounds up to a million as a million', () => {
+    // 999,999.99 is 1,000K once rounded, which would be a third way of writing a million
+    expect(formatTaxAdvantagedMeterMoney(99_999_999, 'CAD', testCurrencies)).toBe('CA$1M')
+    expect(formatTaxAdvantagedMeterMoney(99_949_999, 'CAD', testCurrencies)).toBe('CA$999K')
   })
 
   it('shows lifetime available boundary only when accrued room is between used and the lifetime cap', () => {
