@@ -5,7 +5,7 @@
  * clear below it when there is no room above, and still follows the pointer sideways
  */
 import { describe, expect, it } from 'vitest'
-import { getReasonAnchor } from '@/utils/disabledReasonAnchor'
+import { getReasonAnchor, getReasonKeepClear } from '@/utils/disabledReasonAnchor'
 import { getCursorTooltipPosition } from '@/utils/tooltipPosition'
 
 // A 40px high button in a 1280 by 800 window, with a reason 36px high and 200px wide
@@ -34,6 +34,59 @@ function place(top: number, clientX: number, clientY: number) {
 describe('disabled control reason anchor', () => {
   it('ends at the control right edge, from its top', () => {
     expect(getReasonAnchor({ right: 300, top: 200 })).toEqual({ clientX: 300, clientY: 200 })
+  })
+})
+
+describe('disabled control keep-clear box', () => {
+  it('takes in the label that names the control, so a reason rising above it never covers the label', () => {
+    const label = { getBoundingClientRect: () => rect(500, 460, 120, 20) }
+    const control = {
+      getBoundingClientRect: () => rect(500, 490, 280, 40),
+      getAttribute: () => 'field-label',
+      ownerDocument: { getElementById: () => label },
+    } as unknown as HTMLElement
+
+    const box = getReasonKeepClear(control)
+    expect([box.left, box.top, box.right, box.bottom]).toEqual([500, 460, 780, 530])
+  })
+
+  it('finds the label through the control labels and the first of several ids', () => {
+    const label = { getBoundingClientRect: () => rect(500, 460, 120, 20) }
+    const byLabels = {
+      getBoundingClientRect: () => rect(500, 490, 280, 40),
+      getAttribute: () => null,
+      labels: [label],
+    } as unknown as HTMLElement
+    const byIds = {
+      getBoundingClientRect: () => rect(500, 490, 280, 40),
+      getAttribute: () => ' first-label second-label ',
+      ownerDocument: { getElementById: (id: string) => (id === 'first-label' ? label : null) },
+    } as unknown as HTMLElement
+
+    expect(getReasonKeepClear(byLabels).top).toBe(460)
+    expect(getReasonKeepClear(byIds).top).toBe(460)
+  })
+
+  it('ignores a label far from the control', () => {
+    const far = { getBoundingClientRect: () => rect(500, 100, 120, 20) }
+    const control = {
+      getBoundingClientRect: () => rect(500, 490, 280, 40),
+      getAttribute: () => null,
+      labels: [far],
+    } as unknown as HTMLElement
+
+    expect(getReasonKeepClear(control).top).toBe(490)
+  })
+
+  it('is the control box when nothing names it', () => {
+    const control = {
+      getBoundingClientRect: () => rect(500, 490, 280, 40),
+      getAttribute: () => null,
+      labels: null,
+    } as unknown as HTMLElement
+
+    const box = getReasonKeepClear(control)
+    expect([box.left, box.top, box.right, box.bottom]).toEqual([500, 490, 780, 530])
   })
 })
 

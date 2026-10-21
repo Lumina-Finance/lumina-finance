@@ -11,7 +11,7 @@ import {
 import { useReducedMotion } from 'motion/react'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import { useCursorTooltip } from '@/hooks/useCursorTooltip'
-import { getReasonAnchor, getViewportBounds } from '@/utils/disabledReasonAnchor'
+import { getReasonAnchor, getReasonKeepClear, getViewportBounds } from '@/utils/disabledReasonAnchor'
 
 type ReasonEvent = MouseEvent<HTMLElement>
 
@@ -62,7 +62,7 @@ export function useDisabledReason(reason: string | null | undefined, shownById?:
   const originRef = useRef<HTMLElement | null>(null)
   const [isPinned, setIsPinned] = useState(false)
   // The control's own box, which its reason is drawn clear of so the label stays readable
-  const getKeepClear = useCallback(() => originRef.current?.getBoundingClientRect(), [])
+  const getKeepClear = useCallback(() => (originRef.current ? getReasonKeepClear(originRef.current) : undefined), [])
   const {
     tooltipRef,
     tooltipItem,
