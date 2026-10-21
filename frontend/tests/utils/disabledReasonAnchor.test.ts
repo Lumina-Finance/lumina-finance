@@ -1,6 +1,6 @@
 /**
  * Guards where a disabled control's reason appears. Under the pointer it is placed as the chart tooltips
- * are, from the pointer, and follows it. With no pointer, for keyboard focus or a tap, it is anchored to
+ * are, from the pointer, and follows it. With no pointer, for keyboard focus or a tap, it is anchored near
  * the control's right edge and hangs clear below the control, or rises clear above it when there is no
  * room below, so it never lands on the control or on a field above it
  */
@@ -67,8 +67,8 @@ describe('disabled control reason beside the control', () => {
     expect(bottom).toBeLessThanOrEqual(box.top)
   })
 
-  it('ends at the control right edge', () => {
+  it('ends the cursor offset inside the control right edge', () => {
     const { x, box } = placeBeside(300)
-    expect(x + TOOLTIP.offsetWidth).toBeLessThanOrEqual(box.right)
+    expect(x + TOOLTIP.offsetWidth).toBe(box.right - 10)
   })
 })
