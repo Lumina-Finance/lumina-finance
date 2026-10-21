@@ -827,6 +827,7 @@ test('lists the outline colour in the transition of every control that draws the
     const found = await page.evaluate(() => {
       const controls = document.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, summary, [tabindex], [role="button"], [role="tab"], [role="radio"], [role="menuitem"], .app-focus-ring, .app-focus-inset, .app-transaction-row, .app-switch, .app-breakdown-sector, svg.recharts-surface')
       const problems: string[] = []
+      let drawing = 0
       for (const control of controls) {
         if (control.getClientRects().length === 0) continue
         control.focus({ focusVisible: true } as FocusOptions)
@@ -836,12 +837,15 @@ test('lists the outline colour in the transition of every control that draws the
         const style = getComputedStyle(target)
         const draws = style.outlineStyle !== 'none' && style.outlineStyle !== 'auto' && !/, 0\)$|\/ 0\)$/.test(style.outlineColor)
         const eases = /\b(all|outline-color)\b/.test(style.transitionProperty) && style.transitionDuration.split(', ').some((duration) => parseFloat(duration) > 0)
+        if (draws) drawing++
         if (draws && !eases) problems.push(`${control.tagName.toLowerCase()}.${String(control.getAttribute('class') ?? '').split(' ').slice(0, 3).join('.')} ${control.getAttribute('aria-label') ?? control.textContent?.trim().slice(0, 20)}`)
         control.blur()
       }
-      return problems
+      return { problems, drawing }
     })
-    for (const problem of found) offenders.add(problem)
+    for (const problem of found.problems) offenders.add(problem)
+    // A page where no control drew a ring means the sweep read nothing, so it must not pass
+    expect(found.drawing).toBeGreaterThan(0)
   }
 
   await openPage(page, '/transactions')
@@ -867,7 +871,7 @@ test('lists the outline colour in the transition of every control that draws the
 // The ring fades in on Tab and out on leaving over about the time a hover look takes, wherever a control
 // without a border draws one, and its end state keeps 3:1. Each fade is read halfway through its time.
 // The shared fade is 150ms ease-out, which has the ring about 0.96 drawn there. A control that overrides
-// it with Tailwind's default 200ms curve has it about 0.77 drawn, so it fails both the length and the midpoint
+// it with a 200ms curve, such as Tailwind's duration-200, has it about 0.77 drawn, so it fails both the length and the midpoint
 test('fades the keyboard focus ring in and out', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   const rowButton = await seedOneTransaction(page, request)

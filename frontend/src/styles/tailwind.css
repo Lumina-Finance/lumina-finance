@@ -1097,7 +1097,7 @@
     align-items: center;
     visibility: hidden;
     color: var(--app-text-muted);
-    transition: color 0.1s, var(--app-focus-fade);
+    transition: color 0.1s;
   }
 
   .app-dropdown-row:hover .app-dropdown-row-edit {
@@ -1205,7 +1205,7 @@
     background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
     -webkit-backdrop-filter: blur(20px) saturate(160%);
     backdrop-filter: blur(20px) saturate(160%);
-    transition: background-color 150ms ease, border-color 150ms ease, var(--app-focus-fade);
+    transition: background-color 150ms ease, border-color 150ms ease;
   }
 
   /* The head fills the glass, so its hover look is drawn on the glass, the fill and border the glass
@@ -2755,7 +2755,7 @@
 
   @media (prefers-reduced-motion: no-preference) {
     button.underline {
-      transition: text-decoration-thickness 150ms ease, color 200ms ease;
+      transition: text-decoration-thickness 150ms ease, color 200ms ease, var(--app-focus-fade);
     }
   }
 
