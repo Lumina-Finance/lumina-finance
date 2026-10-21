@@ -422,14 +422,51 @@ test('period glance headline shrinks a very large total without a full-size fram
   )
 })
 
+/**
+ * Scrolls each Insights card down to the given one into view in turn, which is when it asks for its data,
+ * and returns once every one of those cards has its response and none is still loading. A card is reported
+ * in view a frame after the scroll, so two frames pass before the next scroll
+ * @param page - Insights page
+ * @param last - The last card to load, which has the others above it
+ * @param responses - The cards' responses, watched from before the app opened since a card asks for its
+ * data as soon as it is reported in view
+ */
+async function loadCardsUpTo(page: Page, last: Locator, responses: Promise<unknown>[]) {
+  const reportedInView = () => page.evaluate(() => new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  }))
+  // Each card sits in a box of the page's column of cards, and the cards above are that box's earlier siblings
+  const box = last.locator('xpath=ancestor::div[parent::*[contains(@class, "space-y-4")]]')
+  // The page's cards render once the page's code has loaded, and a list of locators is read at once
+  await expect(box).toHaveCount(1)
+  const wrappers = [...await box.locator('xpath=preceding-sibling::div').all(), box]
+  for (const wrapper of wrappers) {
+    await wrapper.scrollIntoViewIfNeeded()
+    await reportedInView()
+  }
+  await Promise.all(responses)
+  await expect(page.getByRole('status', {
+    name: /^Loading (period at a glance|fund flow|income and expense breakdown|net worth|cash flow)$/,
+  })).toHaveCount(0)
+}
+
 test('net cash flow calculation tooltip is drawn over the chart below it', async ({ page, request }) => {
   const user = await signUpWithLargeTotal(request)
   await page.setViewportSize(DESKTOP)
+  // Watched from before signing in, since the Dashboard asks for some of them first and the Insights card
+  // then reuses what it loaded
+  const responses = ['period-glance', 'fund-flow', 'income-expense-breakdown', 'net-worth', 'cash-flow'].map(
+    (path) => page.waitForResponse((response) => matchesApi(response.url(), `/insights/${path}`) && response.ok()),
+  )
   await logIn(page, user)
   await expectSignedIn(page)
   await navigate(page, 'Insights')
 
+  // Every card above the trigger grows when its data arrives, which moves the trigger down the page, so
+  // the trigger is centred only once they have all loaded
   const cashFlow = card(page, 1)
+  await loadCardsUpTo(page, cashFlow, responses)
+
   const trigger = cashFlow.getByRole('button', { name: 'Net Cash Flow calculation', exact: true })
   // Centred, so the viewport's lower edge leaves the panel room to open below. A trigger left at that
   // edge makes the panel open above it instead, which is right but not what this test covers
