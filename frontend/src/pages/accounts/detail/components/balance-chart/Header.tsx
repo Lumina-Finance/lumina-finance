@@ -32,7 +32,7 @@ export function BalanceChartHeader({
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
       {/* Takes the free space beside the controls, so they sit at their natural width on the right.
           Wrapped below it they have the row to themselves, and fill it from the title's edge */}
-      <p className="app-label grow-[9999]">Current Balance</p>
+      <p className="app-label grow-[9999]">Current balance</p>
       <BalanceChartModeSelector
         value={chartMode}
         onChange={onChartModeChange}

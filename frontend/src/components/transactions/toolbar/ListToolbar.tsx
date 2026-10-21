@@ -283,7 +283,7 @@ export default function TransactionListToolbar({
               </div>
             </div>
           }
-          createLabel="Add Transaction"
+          createLabel="Add transaction"
           onCreate={onCreateTransaction}
           createDisabled={createDisabled}
           createDisabledReason={createDisabledReason}

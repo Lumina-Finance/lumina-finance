@@ -27,7 +27,7 @@ export function EditModalHeader({
             {humanizeAccountType(accountType)}
           </p>
           <h2 id="edit-account-identity-title" className="font-serif text-3xl font-normal">
-            Edit Account
+            Edit account
           </h2>
         </div>
         <button type="button" onClick={onClose} className="app-icon-button shrink-0" aria-label="Close" disabled={isBusy}>

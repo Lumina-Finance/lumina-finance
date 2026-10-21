@@ -15,7 +15,7 @@ export function NetWorthHeader({ fxStatus }: NetWorthHeaderProps) {
   return (
     <div className="flex items-center gap-2 mb-3">
       <DashboardWidgetHeaderIcon icon={Wallet} />
-      <span className="app-label">Net Worth</span>
+      <span className="app-label">Net worth</span>
       <FxStatusBadge
         label="Net worth FX status"
         fxStatus={fxStatus}

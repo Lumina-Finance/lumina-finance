@@ -23,13 +23,13 @@ function recordChecksAndReloads(page: Page): string[] {
   return reloads
 }
 
-test('keeps the running balance in Add Transaction right after switching windows', async ({ page, request }) => {
+test('keeps the running balance in Add transaction right after switching windows', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday Chequing', startingBalance: 100000 })
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${account.id}`)
 
-  const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+  const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
   await dialog.getByRole('checkbox', { name: /Keep modal open after adding/ }).check()
   await chooseFromDropdown(dialog, 'Merchant', 'Unknown')
   await chooseFromDropdown(dialog, 'Category', 'Groceries')
@@ -62,13 +62,13 @@ test('keeps the running balance in Add Transaction right after switching windows
   await expect(amounts.filter({ hasText: '-$50.00' })).toHaveCount(1)
 })
 
-test('shows a change made in another window once Add Transaction closes', async ({ page, request }) => {
+test('shows a change made in another window once Add transaction closes', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday Chequing' })
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
 
-  const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+  const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
   const id = await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -4250 })
   await returnToWindow(page)
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()

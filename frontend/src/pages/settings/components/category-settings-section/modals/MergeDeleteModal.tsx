@@ -48,7 +48,7 @@ export default function MergeDeleteCategoryModal({
       useReplacementQuery={resolveCategoryReplacements}
       wording={{
         entityLabel: 'Category',
-        fieldLabel: 'Replacement Category',
+        fieldLabel: 'Replacement category',
         description: `${category.name} is used by existing transactions. Choose another category for those transactions, then it can be deleted.`,
         selectSrLabel: 'Replacement category',
         searchPlaceholder: 'Search categories...',

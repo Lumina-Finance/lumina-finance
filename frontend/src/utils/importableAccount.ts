@@ -13,7 +13,7 @@ export type ImportableAccountFacts = {
  *
  * Asked of these fields rather than a whole account, since the transaction list is handed a
  * summary carrying only what it reads. A summary missing `is_archived` is taken as not archived,
- * which is how the Add Transaction button beside it already reads that field
+ * which is how the Add transaction button beside it already reads that field
  *
  * @param account - The account, or null where none has been loaded, which is not importable either
  */

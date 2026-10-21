@@ -254,9 +254,9 @@ export default function TaxAdvantagedCategoryModal({
                 value={plan.currency}
               />
               <TaxAdvantagedInfoItem label="Scope" value={plan.group_id ? 'Group' : 'Personal'} />
-              <TaxAdvantagedInfoItem label="Linked Accounts" value={linkedAccountsSummary} />
+              <TaxAdvantagedInfoItem label="Linked accounts" value={linkedAccountsSummary} />
               <TaxAdvantagedInfoItem
-                label="Internal Transfers"
+                label="Internal transfers"
                 value={plan.counts_internal_transfers ? 'Counted' : 'Not counted'}
               />
             </div>

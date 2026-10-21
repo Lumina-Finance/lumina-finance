@@ -10,7 +10,7 @@ import { logInViaApi, openModal, openPage } from '../support/app'
 // Runs on desktop only: it sets the window sizes it checks itself
 
 for (const size of [{ width: 1280, height: 800 }, { width: 1920, height: 1080 }]) {
-  test(`keeps the title and buttons of Add Transaction in view with Category open at ${size.width}x${size.height}`, async ({ page, request }) => {
+  test(`keeps the title and buttons of Add transaction in view with Category open at ${size.width}x${size.height}`, async ({ page, request }) => {
     const user = await signUpUser(request)
     await createAccount(request, user, { name: 'Everyday Chequing' })
     await page.setViewportSize(size)
@@ -18,12 +18,12 @@ for (const size of [{ width: 1280, height: 800 }, { width: 1920, height: 1080 }]
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await logInViaApi(page, user)
     await openPage(page, '/transactions')
-    const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+    const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
 
     const edges = [
-      dialog.getByRole('heading', { name: 'Add Transaction', exact: true }),
+      dialog.getByRole('heading', { name: 'Add transaction', exact: true }),
       dialog.getByRole('button', { name: 'Cancel', exact: true }),
-      dialog.getByRole('button', { name: 'Add Transaction', exact: true }),
+      dialog.getByRole('button', { name: 'Add transaction', exact: true }),
     ]
     // The dialog's own entrance plays even with reduced motion, so its edges are read once it has ended. Motion
     // scales and fades the dialog frame by frame from script, so two readings taken within one frame match

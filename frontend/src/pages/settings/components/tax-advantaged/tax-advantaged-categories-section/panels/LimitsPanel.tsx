@@ -61,7 +61,7 @@ export default function TaxAdvantagedLimitsPanel({
   return (
     <div className="space-y-5">
       <div className="space-y-2 border-b pb-4" style={{ borderColor: 'var(--app-border)' }}>
-        <p className="text-sm font-medium">Lifetime Contribution Room</p>
+        <p className="text-sm font-medium">Lifetime contribution room</p>
         <div className="grid grid-cols-2 gap-3 min-[750px]:gap-x-8">
           <div className="grid min-w-0 gap-1 min-[750px]:grid-cols-[auto_minmax(0,1fr)] min-[750px]:items-baseline min-[750px]:gap-4">
             <span className="text-sm" style={{ color: 'var(--app-text-muted)' }}>Limit</span>
@@ -81,7 +81,7 @@ export default function TaxAdvantagedLimitsPanel({
       </div>
       <div className="flex flex-col gap-3 min-[750px]:flex-row min-[750px]:items-center min-[750px]:justify-between">
         <div className="space-y-1">
-          <p className="text-sm font-medium">Annual Limits</p>
+          <p className="text-sm font-medium">Annual limits</p>
           <p className="text-[0.9375rem]" style={{ color: 'var(--app-text-muted)' }}>
             Configure annual contribution and withdrawal limits.
           </p>

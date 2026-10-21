@@ -133,14 +133,14 @@ export function NetWorthCard({
         icon={Wallet}
         label={(
           <span className="inline-flex items-center gap-2">
-            Net Worth
+            Net worth
             <InsightCalculationTooltip
-              label="Net Worth"
+              label="Net worth"
               calculation={getNetWorthCalculation(displaySnapshot.mode)}
             />
             {displaySnapshot.fxStatus && (
               <FxStatusBadge
-                label="Net Worth FX status"
+                label="Net worth FX status"
                 fxStatus={displaySnapshot.fxStatus}
                 getMessage={getInsightsNetWorthFxStatusMessage}
               />
@@ -175,9 +175,9 @@ export function NetWorthCard({
               <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
                 <div>
                   <p className="app-label app-label-compact inline-flex items-center gap-2">
-                    Ending Net Worth
+                    Ending net worth
                     <InsightCalculationTooltip
-                      label="Ending Net Worth"
+                      label="Ending net worth"
                       calculation="Ending net worth value as of the last date in the chosen time period"
                     />
                   </p>

@@ -34,14 +34,14 @@ export default function MonthlyCashFlowCard({ account }: { account: Account }) {
     [chartData, avgIn, avgOut],
   )
   const avgData: CashFlowBar[] = [
-    { label: `${CASH_FLOW_AVG_MONTHS} Mo Avg`, income: avgIn, expense: avgOut },
+    { label: `${CASH_FLOW_AVG_MONTHS} mo avg`, income: avgIn, expense: avgOut },
   ]
   const monthlyLabelByKey = new Map(chartData.map((m) => [m.label, m.tooltipLabel]))
 
   return (
     <section className="app-card flex h-[400px] flex-col">
       <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
-        <p className="app-label">Monthly Cash Flow</p>
+        <p className="app-label">Monthly cash flow</p>
         <MonthlyCashFlowLegend />
       </div>
 

@@ -77,14 +77,14 @@ export function MerchantDistributionCard({
         icon={Store}
         label={(
           <span className="inline-flex items-center gap-2">
-            Spending Distribution by Merchant
+            Spending distribution by merchant
             <InsightCalculationTooltip
-              label="Merchant Distribution"
+              label="Merchant distribution"
               calculation="Shows merchant spending after refunds. Income losses are not included"
             />
             {displaySnapshot.fxStatus && (
               <FxStatusBadge
-                label="Merchant Distribution FX status"
+                label="Merchant distribution FX status"
                 fxStatus={displaySnapshot.fxStatus}
                 getMessage={getMerchantSpendingFxStatusMessage}
               />

@@ -58,7 +58,7 @@ function expectNear(actual: number, expected: number, message: string) {
  */
 function measureHeader(page: Page) {
   return page.evaluate(() => {
-    const title = [...document.querySelectorAll('p')].find((node) => node.textContent === 'Current Balance')!
+    const title = [...document.querySelectorAll('p')].find((node) => node.textContent === 'Current balance')!
     const header = title.parentElement!
     const visible = (node: Element) => node.getBoundingClientRect().width > 0
     const switchBox = [...header.querySelectorAll('[role="tablist"][aria-label="Balance chart view"]')].find(visible)!

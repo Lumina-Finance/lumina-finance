@@ -31,7 +31,7 @@ export function CreditHeader({
       <DashboardWidgetHeaderIcon icon={CreditCard} background={tierSoft} color={tierColor} />
       <span className="inline-flex min-w-0 items-center gap-2">
         <span className="app-label">
-          Credit <AppSlotMachineText text={creditMode === 'used' ? 'Used' : 'Remaining'} />
+          Credit <AppSlotMachineText text={creditMode === 'used' ? 'used' : 'remaining'} />
         </span>
         <FxStatusBadge
           label="Credit FX status"

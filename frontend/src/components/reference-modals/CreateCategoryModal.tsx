@@ -113,8 +113,8 @@ export default function CreateCategoryModal({
 
   const railLabel = isSecondary ? 'Linked' : 'Category'
   const eyebrow = isSecondary ? 'Transaction setup' : `${KIND_LABELS[form.kind]} category`
-  const title = isSecondary ? 'Add Category' : 'Create Category'
-  const submitLabel = isSecondary ? 'Create' : 'Create Category'
+  const title = isSecondary ? 'Add category' : 'Create category'
+  const submitLabel = isSecondary ? 'Create' : 'Create category'
   const submitWidth = isSecondary ? 'w-full sm:w-32' : 'w-full sm:w-40'
 
   return (

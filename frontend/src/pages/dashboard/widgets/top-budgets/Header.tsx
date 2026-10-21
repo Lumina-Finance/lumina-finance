@@ -15,7 +15,7 @@ export function TopBudgetsHeader({ fxStatus }: TopBudgetsHeaderProps) {
   return (
     <div className="flex items-center gap-2 mb-3">
       <DashboardWidgetHeaderIcon icon={PieChartIcon} />
-      <span className="app-label">Top Budgets</span>
+      <span className="app-label">Top budgets</span>
       <FxStatusBadge
         fxStatus={fxStatus}
         label="Top budgets FX status"

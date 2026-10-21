@@ -98,8 +98,8 @@ export default function CreateMerchantModal({
 
   const railLabel = isSecondary ? 'Linked' : 'Merchant'
   const eyebrow = isSecondary ? 'Transaction setup' : 'Personal merchant'
-  const title = isSecondary ? 'Add Merchant' : 'Create Merchant'
-  const submitLabel = isSecondary ? 'Create' : 'Create Merchant'
+  const title = isSecondary ? 'Add merchant' : 'Create merchant'
+  const submitLabel = isSecondary ? 'Create' : 'Create merchant'
   const submitWidth = isSecondary ? 'w-full sm:w-32' : 'w-full sm:w-40'
 
   return (
@@ -127,7 +127,7 @@ export default function CreateMerchantModal({
         <CreateModalSectionFrame step="01">
           <div className="min-w-0 space-y-3">
             <div className="flex min-h-4 items-start justify-between gap-3">
-              <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Merchant Name</p>
+              <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Merchant name</p>
               <AnimatePresence initial={false}>
                 {showError('name') && (
                   <motion.p
@@ -163,7 +163,7 @@ export default function CreateMerchantModal({
         <CreateModalSectionFrame step="02">
           <div className="min-w-0 space-y-3">
             <div>
-              <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Default Category</p>
+              <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Default category</p>
               <p className="mt-2 text-sm leading-5" style={{ color: 'var(--app-text-muted)' }}>
                 Used to prefill the category when this merchant is selected when creating a new transaction.
               </p>

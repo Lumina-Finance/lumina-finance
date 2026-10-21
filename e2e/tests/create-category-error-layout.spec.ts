@@ -31,7 +31,7 @@ async function translateToGerman(page: Page) {
 }
 
 for (const [language, words] of Object.entries(LANGUAGES)) {
-  // Submitting the empty Create Category form marks the Icon box invalid without any visible text beside
+  // Submitting the empty Create category form marks the Icon box invalid without any visible text beside
   // it, so the box stays level with the Category name field, and the name error sits clear of the labels
   test(`marks the Icon box invalid in place and keeps the name error clear of the labels in ${language}`, AT_EVERY_SIZE, async ({ page, request }) => {
     const user = await signUpUser(request)
@@ -39,7 +39,7 @@ for (const [language, words] of Object.entries(LANGUAGES)) {
     await logInViaApi(page, user)
     await openPage(page, '/settings#categories')
     await page.locator('#categories').getByRole('button', { name: 'Create category', exact: true }).click()
-    const dialog = page.getByRole('dialog', { name: 'Create Category' })
+    const dialog = page.getByRole('dialog', { name: 'Create category' })
     const iconBox = dialog.getByRole('button', { name: 'Select New category icon' })
     const nameInput = dialog.getByRole('textbox', { name: 'Category name', exact: true })
 
@@ -56,7 +56,7 @@ for (const [language, words] of Object.entries(LANGUAGES)) {
     expect(startName.y, 'name input top level with the Icon box top').toBe(start.y)
     await expect(iconBox).not.toHaveAttribute('aria-invalid')
 
-    await dialog.getByRole('button', { name: 'Create Category', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Create category', exact: true }).click()
     await expect(iconBox).toHaveAttribute('aria-invalid', 'true')
     await expect(iconBox).toHaveAccessibleDescription('Required')
     await expect(dialog.getByText('Name is required', { exact: true })).toBeVisible()

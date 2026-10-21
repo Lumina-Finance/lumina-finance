@@ -66,7 +66,7 @@ describe('create account form helpers', () => {
       conditionalAccountField: 'credit-limit',
       isLiability: true,
       isRevolving: true,
-      selectedAccountTypeLabel: 'Credit Card',
+      selectedAccountTypeLabel: 'Credit card',
       selectedCurrencySymbol: '$',
       startingBalanceLabel: 'Starting amount owed',
     })

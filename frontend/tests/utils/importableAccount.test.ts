@@ -30,7 +30,7 @@ describe('which accounts an import may be written to', () => {
   })
 
   // The transaction list is handed a summary of an account rather than the whole thing, so the rule
-  // has to answer for one without an archived flag, the way the Add Transaction button
+  // has to answer for one without an archived flag, the way the Add transaction button
   // beside it already reads a missing archived flag
   it('takes a summary without an archived flag as not archived', () => {
     expect(isImportableAccount({ can_write: true })).toBe(true)

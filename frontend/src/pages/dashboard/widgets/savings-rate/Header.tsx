@@ -21,7 +21,7 @@ export function SavingsRateHeader({
   return (
     <div className="flex items-center gap-2 mb-3">
       <DashboardWidgetHeaderIcon icon={Repeat} />
-      <span className="app-label">Savings Rate</span>
+      <span className="app-label">Savings rate</span>
       <FxStatusBadge
         label="Savings rate FX status"
         fxStatus={fxStatus}

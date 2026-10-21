@@ -45,7 +45,7 @@ export default function MetricsBand({
       >
         <MetricPanel
           className="order-1 min-w-0 border-b border-[var(--app-border)] pb-3 min-[730px]:order-2 min-[730px]:border-b-0 min-[730px]:pr-4 min-[730px]:pt-3 min-[730px]:pb-0 min-[1201px]:order-1 min-[1201px]:pr-6 min-[1201px]:pt-0"
-          label="Savings Rate"
+          label="Savings rate"
           tooltipLabel="Savings rate FX status"
           fxStatus={savingsRate.fxStatus}
           getMessage={getSavingsRateFxStatusMessage}
@@ -60,7 +60,7 @@ export default function MetricsBand({
 
         <MetricPanel
           className="order-2 min-w-0 border-b border-[var(--app-border)] py-3 min-[730px]:order-1 min-[730px]:col-span-2 min-[730px]:pt-0 min-[730px]:pb-3 min-[1201px]:order-2 min-[1201px]:col-span-1 min-[1201px]:border-x min-[1201px]:border-b-0 min-[1201px]:px-6 min-[1201px]:py-0"
-          label="Credit Usage"
+          label="Credit usage"
           tooltipLabel="Credit FX status"
           fxStatus={creditUsage.fxStatus}
           getMessage={getCreditFxStatusMessage}

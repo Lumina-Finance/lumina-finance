@@ -28,31 +28,31 @@ function readEdgeOffsets(dialog: Locator, title: string, first: Locator, last: L
 
 // The transaction dialog draws its own footer, which lines up with its header at every width, so its
 // keep-open checkbox starts where the title starts and its submit action ends where the close button ends
-test('lines the Add Transaction footer up with its header', AT_EVERY_SIZE, async ({ page, request }) => {
+test('lines the Add transaction footer up with its header', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   await createAccount(request, user, { name: 'Everyday' })
 
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
-  const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+  const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
   const keepOpen = dialog.getByRole('checkbox')
-  const submit = dialog.getByRole('button', { name: 'Add Transaction', exact: true })
+  const submit = dialog.getByRole('button', { name: 'Add transaction', exact: true })
 
-  await expect.poll(readEdgeOffsets(dialog, 'Add Transaction', keepOpen, submit)).toEqual({ left: 0, right: 0 })
+  await expect.poll(readEdgeOffsets(dialog, 'Add transaction', keepOpen, submit)).toEqual({ left: 0, right: 0 })
 })
 
 // The account edit dialog sits on the narrower stacked panel and draws its own footer, which still lines
-// up with its header: Delete starts where the title starts and Save Changes ends where Close ends
-test('lines the Edit Account footer up with its header', AT_EVERY_SIZE, async ({ page, request }) => {
+// up with its header: Delete starts where the title starts and Save changes ends where Close ends
+test('lines the Edit account footer up with its header', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
 
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${account.id}`)
   await page.getByRole('button', { name: 'Edit account', exact: true }).click()
-  const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
   const remove = dialog.getByRole('button', { name: 'Delete account', exact: true })
-  const save = dialog.getByRole('button', { name: 'Save Changes', exact: true })
+  const save = dialog.getByRole('button', { name: 'Save changes', exact: true })
 
-  await expect.poll(readEdgeOffsets(dialog, 'Edit Account', remove, save)).toEqual({ left: 0, right: 0 })
+  await expect.poll(readEdgeOffsets(dialog, 'Edit account', remove, save)).toEqual({ left: 0, right: 0 })
 })

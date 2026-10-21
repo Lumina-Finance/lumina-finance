@@ -224,7 +224,7 @@ async function readTextContrast(element: Locator): Promise<number> {
 }
 
 for (const colorScheme of ['light', 'dark'] as const) {
-  // One control of each kind the app styles, on the toolbar and in the Add Transaction dialog, shows the
+  // One control of each kind the app styles, on the toolbar and in the Add transaction dialog, shows the
   // right focus: a field on its own border, a button with a border of its own as it looks under the
   // pointer with no ring, and one without a border as it looks under the pointer with the ring too
   test(`shows the same keyboard focus on each kind of control in the ${colorScheme} theme`, AT_EVERY_SIZE, async ({ page, request }) => {
@@ -251,7 +251,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     ]
     for (const control of hoverButtons) await expectHoverLook(page, control)
 
-    const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+    const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
     const fields = [
       dialog.getByLabel('Amount'),
       dialog.getByRole('group', { name: 'Date', exact: true }).getByRole('textbox', { name: 'Day', exact: true }),
@@ -264,7 +264,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expectHoverLook(page, dialog.getByRole('button', { name: 'Cancel', exact: true }))
     // A segmented option and a filled button have no border, so they keep the ring on top of the look
     await expectHoverLook(page, dialog.getByRole('tab').first(), { offset: '2px' })
-    await expectHoverLook(page, dialog.getByRole('button', { name: 'Add Transaction', exact: true }), { offset: '2px' })
+    await expectHoverLook(page, dialog.getByRole('button', { name: 'Add transaction', exact: true }), { offset: '2px' })
   })
 
   // The selected option's text keeps 4.5:1 on the deeper tint it takes under the pointer, which the
@@ -274,7 +274,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     const user = await signUpUser(request)
     await logInViaApi(page, user)
     await openPage(page, '/transactions')
-    const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+    const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
     const selected = dialog.getByRole('tab', { selected: true }).first()
 
     const atRest = await readTextContrast(selected)
@@ -324,7 +324,7 @@ test('never shows the browser focus ring when tabbing through the app', async ({
   }
 
   await tabThrough(30)
-  await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+  await openModal(page, ['Add transaction'], 'Add transaction')
   await tabThrough(15)
   expect([...browserRings]).toEqual([])
 })
@@ -394,7 +394,7 @@ test('shows the whole ring and the hover look on a range selector option reached
   expect(focused.button.backgroundColor).not.toBe(rest.button.backgroundColor)
 })
 
-// Every stop on the way through the transactions page, the Add Transaction dialog, an account's page and
+// Every stop on the way through the transactions page, the Add transaction dialog, an account's page and
 // the dashboard, whose "View all transactions" link is an outlined button drawn on a link,
 // shows its focus whole: a ring that nothing clips and that reaches 3:1, or no ring and a hover look that
 // differs from rest. A tooltip's trigger opens its tooltip instead, which its own test covers
@@ -436,7 +436,7 @@ test('shows every Tab stop with a whole ring or a visible hover look', async ({ 
 
   await openPage(page, '/transactions')
   await tabThrough(30)
-  await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+  await openModal(page, ['Add transaction'], 'Add transaction')
   await tabThrough(15)
   await openPage(page, `/accounts/${account.id}`)
   await tabThrough(40)
@@ -445,7 +445,7 @@ test('shows every Tab stop with a whole ring or a visible hover look', async ({ 
   // The Edit account window holds a toggle switch and the filled Delete circle
   await openPage(page, `/accounts/${account.id}`)
   await page.getByRole('button', { name: 'Edit account', exact: true }).click()
-  await expect(page.getByRole('dialog', { name: 'Edit Account', exact: true })).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'Edit account', exact: true })).toBeVisible()
   await tabThrough(25)
   expect(switchStops, 'the toggle switch was reached by Tab').toBeGreaterThan(0)
   expect([...problems]).toEqual([])
@@ -565,7 +565,7 @@ test('shows a visible hover look on keyboard focus on the buttons that had none'
   if (page.viewportSize()!.width < 1200) await expectVisibleHoverLook(page, page.locator('[aria-controls="settings-mobile-section-menu"]'))
 
   await openPage(page, '/transactions')
-  const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+  const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
   await expectVisibleHoverLook(page, dialog.getByRole('button', { name: 'Cancel', exact: true }))
   await expectVisibleHoverLook(page, dialog.getByRole('tab', { selected: true }).first(), { offset: '2px' })
   await dialog.getByRole('group', { name: 'Date', exact: true }).getByRole('button', { name: 'Open calendar', exact: true }).click()
@@ -592,7 +592,7 @@ test('keeps the ring and the hover look on keyboard focus on controls without a 
 
   await openPage(page, `/accounts/${account.id}`)
   await page.getByRole('button', { name: 'Edit account', exact: true }).click()
-  const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
   await expect(dialog).toBeVisible()
   await expectVisibleHoverLook(page, dialog.getByRole('button', { name: 'Delete account', exact: true }), { offset: '2px' })
   await expectVisibleHoverLook(page, dialog.getByRole('button', { name: 'Cancel', exact: true }))
@@ -609,7 +609,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await logInViaApi(page, user)
     await openPage(page, `/accounts/${account.id}`)
     await page.getByRole('button', { name: 'Edit account', exact: true }).click()
-    const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+    const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
     const toggle = dialog.getByRole('switch')
     // The label row that toggles the switch, whose hover gives the track its hover look
     const row = dialog.locator('label').filter({ has: page.getByRole('switch') })

@@ -32,7 +32,7 @@ function MerchantSpendingTotalTooltip() {
       size={13}
     >
       A merchant refunded more than it charged is left out of this total. Its category can still
-      count as spending, so the Categories by Spending card can show a different figure.
+      count as spending, so the Categories by spending card can show a different figure.
     </IconTooltip>
   )
 }
@@ -76,7 +76,7 @@ export function TopMerchantsBySpendingCard({ account }: { account: Account }) {
 
   return (
     <SpendingBreakdownCard
-      title="Merchants by Spending"
+      title="Merchants by spending"
       rangeLabel="Merchant range"
       range={range}
       onRangeChange={handleRangeChange}

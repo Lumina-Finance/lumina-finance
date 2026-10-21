@@ -14,7 +14,7 @@ import { logInViaApi, openPage } from '../support/app'
 
 const LISTS = [
   { name: 'transactions', path: '/transactions', filters: 'Transaction filters', neighbour: 'Import transactions' },
-  { name: 'accounts', path: '/accounts', filters: 'Account filters', neighbour: 'Add Account' },
+  { name: 'accounts', path: '/accounts', filters: 'Account filters', neighbour: 'Add account' },
 ] as const
 
 async function openList(page: Page, request: Parameters<typeof signUpUser>[0], path: string) {

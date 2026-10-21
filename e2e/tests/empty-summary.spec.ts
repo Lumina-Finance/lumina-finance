@@ -55,5 +55,5 @@ test('skips empty summary samples and restores genuine transaction edit actions'
   await edit.focus()
   await expect(edit).toBeFocused()
   await page.keyboard.press('Enter')
-  await expect(page.getByRole('dialog', { name: 'Edit Transaction', exact: true })).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'Edit transaction', exact: true })).toBeVisible()
 })

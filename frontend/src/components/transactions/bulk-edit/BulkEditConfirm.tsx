@@ -17,7 +17,7 @@ interface BulkEditConfirmProps {
  * Asks before a bulk edit is written, whatever the size of the selection, over the edit modal
  *
  * A refusal keeps this open and shows what the server said, since the batch is applied whole or not
- * at all and the user has to know that nothing changed. Styled like the Add Merchant dialog opened
+ * at all and the user has to know that nothing changed. Styled like the Add merchant dialog opened
  * from the transaction form, down to its footer, so a second confirmation stacked over an edit modal
  * reads as the same kind of dialog rather than a different one.
  */

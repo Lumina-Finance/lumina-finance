@@ -234,7 +234,7 @@ const ResetPasswordPage = () => {
       transition={{ duration: 0.3 }}
     >
       <div className="w-full max-w-sm">
-        <h1 className="font-serif text-4xl font-normal tracking-tight">Password Reset</h1>
+        <h1 className="font-serif text-4xl font-normal tracking-tight">Password reset</h1>
 
         <AnimatePresence mode="wait" initial={false}>
           {done ? (

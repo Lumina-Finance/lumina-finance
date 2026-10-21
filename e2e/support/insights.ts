@@ -5,11 +5,11 @@ import { chooseFromDropdown, openModal } from './app'
 import { API_BASE_URL } from './target'
 
 export const CARDS = [
-  { calculation: 'Net Worth', subject: 'Net worth', path: '/insights/net-worth', loading: 'Loading net worth', bodyHeight: 360 },
-  { calculation: 'Cash Flow', subject: 'Cash flow', path: '/insights/cash-flow', loading: 'Loading cash flow', bodyHeight: 390 },
-  { calculation: 'Savings Rate Trend', subject: 'Savings rate trend', path: '/insights/savings-rate-trend', loading: 'Loading savings rate trend', bodyHeight: 430 },
-  { calculation: 'Merchant Distribution', subject: 'Spending distribution by merchant', path: '/insights/merchants', loading: 'Loading merchant spending distribution' },
-  { calculation: 'Merchant Ranking', subject: 'Merchant ranking', path: '/insights/merchants', loading: 'Loading merchant ranking' },
+  { calculation: 'Net worth', subject: 'Net worth', path: '/insights/net-worth', loading: 'Loading net worth', bodyHeight: 360 },
+  { calculation: 'Cash flow', subject: 'Cash flow', path: '/insights/cash-flow', loading: 'Loading cash flow', bodyHeight: 390 },
+  { calculation: 'Savings rate trend', subject: 'Savings rate trend', path: '/insights/savings-rate-trend', loading: 'Loading savings rate trend', bodyHeight: 430 },
+  { calculation: 'Merchant distribution', subject: 'Spending distribution by merchant', path: '/insights/merchants', loading: 'Loading merchant spending distribution' },
+  { calculation: 'Merchant ranking', subject: 'Merchant ranking', path: '/insights/merchants', loading: 'Loading merchant ranking' },
 ] as const
 export const PATHS = [...new Set(CARDS.map((contract) => contract.path))]
 
@@ -181,7 +181,7 @@ export async function navigate(page: Page, name: 'Transactions' | 'Insights'): P
  * @throws When creation does not answer 201 or the modal does not close
  */
 export async function createExpenseInApp(page: Page, accountName: string): Promise<void> {
-  const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+  const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
   await chooseFromDropdown(dialog, 'Account', accountName)
   await chooseFromDropdown(dialog, 'Category', 'Groceries')
   await chooseFromDropdown(dialog, 'Merchant', 'Unknown')

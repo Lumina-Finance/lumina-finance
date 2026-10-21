@@ -348,7 +348,7 @@ test('keeps transaction account controls identifiable as transfer labels change'
   await createAccount(request, user, { name: 'Transfer destination' })
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
-  const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+  const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
   const account = dialog.getByTestId('transaction-account')
   const counterparty = dialog.getByTestId('transaction-counterparty-account')
 
@@ -382,7 +382,7 @@ test('preserves transaction action names through save and delete confirmation', 
   await openPage(page, '/transactions')
   await expectTransactionRow(page, id, '-$42.50')
   await page.getByTestId(`transaction-row-${id}`).click()
-  const dialog = page.getByRole('dialog', { name: 'Edit Transaction', exact: true })
+  const dialog = page.getByRole('dialog', { name: 'Edit transaction', exact: true })
   await dialog.getByLabel('Amount').fill('43.50')
   const submit = dialog.getByTestId('transaction-submit')
   await expect(submit).toHaveRole('button')
@@ -408,11 +408,11 @@ test('preserves transaction action names through save and delete confirmation', 
   await expect(page.getByTestId(`transaction-row-${id}`)).toBeHidden()
 })
 
-test('leaves the date in Add Transaction with one Tab, past its calendar icon', async ({ page, request }) => {
+test('leaves the date in Add transaction with one Tab, past its calendar icon', async ({ page, request }) => {
   const user = await signUpUser(request)
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
-  const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+  const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
   const date = dialog.getByRole('group', { name: 'Date', exact: true })
   const day = date.getByRole('textbox', { name: 'Day', exact: true })
 

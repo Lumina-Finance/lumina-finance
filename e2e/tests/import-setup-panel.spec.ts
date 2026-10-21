@@ -275,7 +275,7 @@ test('keeps the setup sheet opaque and one collapsed gap past the sections at ev
 
   // What the sections show keeps the room the strip leaves the steps from the sheet's edge, so no
   // shape other than the panel itself shows as it moves and the content never touches its edge. The
-  // Data Source dropdown ends a pixel inside the cards below it, which have the room exactly
+  // Data source dropdown ends a pixel inside the cards below it, which have the room exactly
   const dropdownInset = 1
   const expectRoomThroughout = (frames: Awaited<ReturnType<typeof sampleSheetRoom>>) => {
     expect(new Set(frames.map((frame) => Math.round(frame.comboRight))).size).toBeGreaterThan(2)

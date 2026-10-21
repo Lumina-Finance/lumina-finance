@@ -16,7 +16,7 @@ test('is one Tab stop, on its button', async ({ page, request }) => {
   await createAccount(request, user, { name: 'Everyday' })
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
-  const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+  const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
   const field = dialog.getByRole('combobox').first()
 
   // The dialog moves focus into itself a frame after it opens, so that lands before the test moves it

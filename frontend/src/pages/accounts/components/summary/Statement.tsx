@@ -54,7 +54,7 @@ export default function SummaryStatement({
       <div className="grid gap-5 min-[730px]:flex min-[730px]:flex-wrap min-[730px]:items-end min-[730px]:justify-between min-[730px]:gap-6">
         <div className="min-w-0">
           <div className="mb-1.5 flex items-center gap-2">
-            <p className="app-label">Net Worth</p>
+            <p className="app-label">Net worth</p>
             <FxStatusBadge
               label="Net worth FX status"
               fxStatus={fxStatus}

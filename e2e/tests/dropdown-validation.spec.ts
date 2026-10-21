@@ -11,7 +11,7 @@ test('exposes and clears an invalid dropdown with its inline validation alert', 
   const user = await signUpUser(request)
   await logInViaApi(page, user)
   await openPage(page, '/accounts')
-  const dialog = await openModal(page, ['Add Account', 'Add account'], 'Add account')
+  const dialog = await openModal(page, ['Add account'], 'Add account')
   await dialog.getByRole('textbox', { name: 'Account name', exact: true }).fill('Validation account')
   const type = dialog.getByRole('combobox', { name: 'Account type', exact: true })
   await dialog.getByRole('button', { name: 'Create account', exact: true }).click()
@@ -32,7 +32,7 @@ test('keeps the transaction Category message on its label line without moving th
   await createAccount(request, user, { name: 'Validation account' })
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
-  const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+  const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
   const category = dialog.getByRole('combobox', { name: 'Category', exact: true })
   // Read from the label in one go, since the dialog may still be sliding in
   const belowLabel = () => category.evaluate((field) => {
@@ -41,7 +41,7 @@ test('keeps the transaction Category message on its label line without moving th
   })
   const gap = await belowLabel()
 
-  await dialog.getByRole('button', { name: 'Add Transaction', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Add transaction', exact: true }).click()
   const error = dialog.getByRole('alert').filter({ hasText: 'Select a category' })
   await expect(error).toBeVisible()
   // On the label's line, and the field as far below the label as before the message showed

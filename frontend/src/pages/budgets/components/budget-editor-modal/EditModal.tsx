@@ -171,7 +171,7 @@ export default function BudgetEditModal({
     && (baseChanged || periodChanged || archiveChanged)
   const state: BudgetEditorModalViewState = { form, formError, fieldErrors, touched, categorySearch }
   const options: BudgetEditorModalOptions = { categories: categoryOptions, filteredCategories, currencies }
-  // Save Changes is disabled while no category is chosen, and a disabled button cannot be pressed to
+  // Save changes is disabled while no category is chosen, and a disabled button cannot be pressed to
   // surface the error, so that one is shown at once rather than after a touch. An archived budget's
   // categories are locked, so nothing there can be missing
   const showError: BudgetEditorModalErrorGetter = (field) => {
@@ -335,7 +335,7 @@ export default function BudgetEditModal({
   return (
     <BudgetEditorModalShell
       open={open}
-      title="Edit Budget"
+      title="Edit budget"
       titleId="budget-edit-title"
       eyebrow={form.recurs ? 'Recurring budget' : 'One-off budget'}
       headerStatus={fieldsLocked ? 'Archived budget' : undefined}
@@ -350,7 +350,7 @@ export default function BudgetEditModal({
           level="stacked"
           isPending={isPending}
           submitDisabled={!canSave}
-          submitLabel="Save Changes"
+          submitLabel="Save changes"
           onClose={closeAndReset}
         />
       )}

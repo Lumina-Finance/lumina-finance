@@ -67,12 +67,12 @@ export function getCategoryTrendSections(
   return [
     {
       id: 'increases',
-      label: 'Top Increases',
+      label: 'Top increases',
       drivers: getCategoryDrivers(mode === 'expense' ? data?.expense_increases : data?.income_increases),
     },
     {
       id: 'decreases',
-      label: 'Top Decreases',
+      label: 'Top decreases',
       drivers: getCategoryDrivers(mode === 'expense' ? data?.expense_decreases : data?.income_decreases),
     },
   ]

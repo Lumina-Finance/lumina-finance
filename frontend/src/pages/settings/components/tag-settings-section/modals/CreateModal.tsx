@@ -61,7 +61,7 @@ export default function TagCreateModal({
       onClose={onClose}
       onSubmit={handleSubmit}
       titleId="create-tag-title"
-      title="Create Tag"
+      title="Create tag"
       eyebrow="New transaction tag"
       RailIcon={TagIcon}
       railLabel="Tag"
@@ -95,7 +95,7 @@ export default function TagCreateModal({
             className="flex h-4 items-center text-base font-bold leading-none"
             style={{ color: 'var(--app-accent)' }}
           >
-            Tag Name
+            Tag name
           </p>
           <div>
             <input

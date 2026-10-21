@@ -102,14 +102,14 @@ export function MerchantRankingCard({
         icon={ListChecks}
         label={(
           <span className="inline-flex items-center gap-2">
-            Merchant Ranking
+            Merchant ranking
             <InsightCalculationTooltip
-              label="Merchant Ranking"
+              label="Merchant ranking"
               calculation="Ranks merchants by spending after refunds. Income losses are not included"
             />
             {displaySnapshot.fxStatus && (
               <FxStatusBadge
-                label="Merchant Ranking FX status"
+                label="Merchant ranking FX status"
                 fxStatus={displaySnapshot.fxStatus}
                 getMessage={getMerchantSpendingFxStatusMessage}
               />

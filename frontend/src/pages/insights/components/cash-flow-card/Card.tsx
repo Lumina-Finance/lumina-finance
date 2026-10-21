@@ -101,14 +101,14 @@ export function CashFlowCard({
         icon={CalendarDays}
         label={(
           <span className="inline-flex items-center gap-2">
-            Cash Flow
+            Cash flow
             <InsightCalculationTooltip
-              label="Cash Flow"
+              label="Cash flow"
               calculation={cashFlowCalculation}
             />
             {displaySnapshot.fxStatus && (
               <FxStatusBadge
-                label="Cash Flow FX status"
+                label="Cash flow FX status"
                 fxStatus={displaySnapshot.fxStatus}
                 getMessage={getInsightsCashFlowFxStatusMessage}
               />
@@ -133,9 +133,9 @@ export function CashFlowCard({
             <div className={BODY_CLASS}>
               <div className="mb-3 [container-type:inline-size]">
                 <p className="app-label app-label-compact inline-flex items-center gap-2">
-                  Net Cash Flow
+                  Net cash flow
                   <InsightCalculationTooltip
-                    label="Net Cash Flow"
+                    label="Net cash flow"
                     calculation={netCashFlowCalculation}
                   />
                 </p>

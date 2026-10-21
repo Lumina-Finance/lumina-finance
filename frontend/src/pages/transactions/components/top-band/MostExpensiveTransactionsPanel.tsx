@@ -41,7 +41,7 @@ export default function MostExpensiveTransactionsPanel({
   return (
     <div className={`flex min-w-0 flex-col ${className}`}>
       <p className="app-label mb-1 inline-flex items-center gap-2">
-        Most Expensive Transactions
+        Most expensive transactions
         <IconTooltip
           label="How most expensive transactions are calculated"
           level="info"

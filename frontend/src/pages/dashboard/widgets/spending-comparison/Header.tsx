@@ -29,7 +29,7 @@ export function SpendingComparisonHeader({
     <div className="flex flex-wrap items-center gap-2 mb-3">
       <DashboardWidgetHeaderIcon icon={BarChart3} />
       <span className="app-label inline-flex items-baseline whitespace-nowrap">
-        Spending vs. Last&nbsp;
+        Spending vs. last&nbsp;
         <AppSlotMachineText text={PREVIOUS_PERIOD_LABEL_BY_RANGE[spendingRange]} />
       </span>
       <FxStatusBadge

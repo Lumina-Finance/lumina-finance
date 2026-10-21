@@ -228,7 +228,7 @@ test('imports transfers into a credit card under Credit Card Payment on both acc
   // transfers until it's set up as a credit card, when they get a row of their own
   const paymentsTarget = page.getByRole('combobox', { name: 'Existing category Payments to credit cards and credit lines' })
   await expect(paymentsTarget).toHaveCount(0)
-  await chooseFromDropdown(page.locator('body'), 'Type Savings', /^Credit Card$/)
+  await chooseFromDropdown(page.locator('body'), 'Type Savings', /^Credit card$/)
   await expect(page.getByRole('listbox')).toHaveCount(0)
   await expect(paymentsTarget).toContainText('Credit Card Payment')
 

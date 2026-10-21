@@ -19,13 +19,13 @@ test('starts a new user with no accounts and creates one through the modal', asy
   // the summary's placeholder to go says the request settled, and the summary label is there
   // only when it settled without an error, since a failure replaces the whole summary
   await expect(page.getByRole('status', { name: 'Loading net worth value' })).toBeHidden()
-  await expect(page.getByText('Net Worth')).toBeVisible()
+  await expect(page.getByText('Net worth')).toBeVisible()
 
   // A fresh user sees this even against a database holding other people's records, so the
   // assertion also fails if row-level security ever stops separating one user from another
   await expect(page.getByText('No asset accounts')).toBeVisible()
 
-  const dialog = await openModal(page, ['Add Account', 'Add account'], 'Add account')
+  const dialog = await openModal(page, ['Add account'], 'Add account')
   await chooseFromDropdown(dialog, 'Account type', 'Checking')
   await dialog.getByLabel('Account name').fill(ACCOUNT_NAME)
 
@@ -43,7 +43,7 @@ test('records an expense through the modal and shows it as money out', async ({ 
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
 
-  const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
+  const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
   const accountControl = dialog.getByTestId('transaction-account')
   await expect(accountControl).toHaveRole('combobox')
   await expect(accountControl).toHaveAccessibleName('Account')
@@ -54,9 +54,9 @@ test('records an expense through the modal and shows it as money out', async ({ 
   await dialog.getByLabel('Amount').fill('42.50')
   const submit = dialog.getByTestId('transaction-submit')
   await expect(submit).toHaveRole('button')
-  await expect(submit).toHaveAccessibleName('Add Transaction')
+  await expect(submit).toHaveAccessibleName('Add transaction')
   await whileApiRequestHeld(page, 'POST', '/transactions',
-    () => submit.click(), () => expectPendingAction(submit, 'Add Transaction'),
+    () => submit.click(), () => expectPendingAction(submit, 'Add transaction'),
     { account_id: account.id })
 
   await expect(dialog).toBeHidden()
@@ -74,13 +74,13 @@ test('keeps the account save action named while an edit is pending', async ({ pa
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${account.id}`)
   await page.getByRole('button', { name: 'Edit account', exact: true }).click()
-  const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
   await dialog.getByLabel('Account name').fill('Account after edit')
   const submit = dialog.getByTestId('account-submit')
   await expect(submit).toHaveRole('button')
-  await expect(submit).toHaveAccessibleName('Save Changes')
+  await expect(submit).toHaveAccessibleName('Save changes')
   await whileApiRequestHeld(page, 'PATCH', `/accounts/${account.id}`,
-    () => submit.click(), () => expectPendingAction(submit, 'Save Changes'))
+    () => submit.click(), () => expectPendingAction(submit, 'Save changes'))
   await expect(dialog).toBeHidden()
   await expect(page.getByRole('heading', { name: 'Account after edit', exact: true })).toBeVisible()
 })
@@ -95,7 +95,7 @@ test('asks nothing more about an account once it is deleted from its page', asyn
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${account.id}`)
   await page.getByRole('button', { name: 'Edit account', exact: true }).click()
-  const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
   await dialog.getByRole('button', { name: 'Delete account', exact: true }).click()
   await dialog.getByRole('button', { name: 'Continue', exact: true }).click()
   const confirmation = dialog.getByLabel(`Type "${ACCOUNT_NAME}" to delete.`, { exact: true })
@@ -113,7 +113,7 @@ test('asks nothing more about an account once it is deleted from its page', asyn
   await confirmation.press('Enter')
 
   await expect(page).toHaveURL(/\/accounts$/)
-  await expect(page.getByRole('heading', { name: 'My Accounts', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'My accounts', exact: true })).toBeVisible()
   // The account's page fades out over the list, and a request it sent late in that fade would still count
   await expect(page.getByRole('heading', { name: ACCOUNT_NAME, exact: true })).toHaveCount(0)
   expect(deleted).toBe(true)

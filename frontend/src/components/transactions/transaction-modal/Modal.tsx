@@ -247,7 +247,7 @@ export default function CreateTransactionModal({
       <ModalTitledPanel
         open={open}
         titleId="create-txn-title"
-        title={editing ? 'Edit Transaction' : 'Add Transaction'}
+        title={editing ? 'Edit transaction' : 'Add transaction'}
         eyebrow={editing ? 'Existing transaction' : `${KIND_LABELS[form.kind]} transaction`}
         headerStatus={readOnly ? 'Archived account' : undefined}
         RailIcon={ReceiptText}

@@ -13,10 +13,10 @@ import { expectPendingAction, whileApiRequestHeld } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
-// Runs on desktop only, apart from the month boundary and Edit Budget buttons tests, which run at
+// Runs on desktop only, apart from the month boundary and Edit budget buttons tests, which run at
 // every size: the period history turns from a table into cards, and the buttons into halves on a
-// phone. The tests of a refused Create Budget set each size they check themselves, and so does the
-// first Edit Budget category test, which widens to 393 once the dialog is open so the categories stack
+// phone. The tests of a refused Create budget set each size they check themselves, and so does the
+// first Edit budget category test, which widens to 393 once the dialog is open so the categories stack
 // below the first fields (the details dialog's Edit button is covered when opened at that width)
 
 // Format stored calendar dates without applying the test runner's own timezone
@@ -90,19 +90,19 @@ test('keeps budget actions named during creation and editing', async ({ page, re
   await logInViaApi(page, user)
   await openPage(page, '/budgets')
   const name = 'Selectors budget'
-  const dialog = await openModal(page, ['New Budget'], 'Add Budget')
+  const dialog = await openModal(page, ['New budget'], 'Add budget')
   await dialog.getByLabel('Name', { exact: true }).fill(name)
   await dialog.getByLabel('Limit', { exact: true }).fill('500')
   await dialog.getByRole('button', { name: 'Groceries', exact: true }).click()
   const submit = dialog.getByTestId('budget-submit')
   await expect(submit).toHaveRole('button')
-  await expect(submit).toHaveAccessibleName('Create Budget')
+  await expect(submit).toHaveAccessibleName('Create budget')
   const created = page.waitForResponse((response) =>
     response.url() === `${API_BASE_URL}/base-budgets`
     && response.request().method() === 'POST'
     && (response.request().postDataJSON() as { name?: string }).name === name)
   await whileApiRequestHeld(page, 'POST', '/base-budgets',
-    () => submit.click(), () => expectPendingAction(submit, 'Create Budget'), { name })
+    () => submit.click(), () => expectPendingAction(submit, 'Create budget'), { name })
   const response = await created
   expect(response.status()).toBe(201)
   const { id } = (await response.json()) as { id: string }
@@ -117,19 +117,19 @@ test('keeps budget actions named during creation and editing', async ({ page, re
   const details = page.getByRole('dialog', { name, exact: true })
   await expect(details).toBeVisible()
   await details.getByRole('button', { name: 'Edit', exact: true }).click()
-  const edit = page.getByRole('dialog', { name: 'Edit Budget', exact: true })
+  const edit = page.getByRole('dialog', { name: 'Edit budget', exact: true })
   await edit.getByLabel('Name', { exact: true }).fill('Selectors budget edited')
   const save = edit.getByTestId('budget-submit')
   await expect(save).toHaveRole('button')
-  await expect(save).toHaveAccessibleName('Save Changes')
+  await expect(save).toHaveAccessibleName('Save changes')
   await expect(save).toBeEnabled()
   await whileApiRequestHeld(page, 'PATCH', `/base-budgets/${id}`,
-    () => save.click(), () => expectPendingAction(save, 'Save Changes'))
+    () => save.click(), () => expectPendingAction(save, 'Save changes'))
   await expect(edit).toBeHidden()
   await expect(page.getByRole('dialog', { name: 'Selectors budget edited', exact: true })).toBeVisible()
 })
 
-test('shows the Edit Budget Cancel and Save Changes buttons in one row, as halves on a phone', AT_EVERY_SIZE, async ({ page, request }) => {
+test('shows the Edit budget Cancel and Save changes buttons in one row, as halves on a phone', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const id = await createMonthlyBudget(request, user, {
     name: 'Footer budget',
@@ -141,7 +141,7 @@ test('shows the Edit Budget Cancel and Save Changes buttons in one row, as halve
   await openPage(page, '/budgets')
   await page.getByTestId(`budget-card-${id}`).click()
   await page.getByRole('dialog', { name: 'Footer budget', exact: true }).getByRole('button', { name: 'Edit', exact: true }).click()
-  const edit = page.getByRole('dialog', { name: 'Edit Budget', exact: true })
+  const edit = page.getByRole('dialog', { name: 'Edit budget', exact: true })
   // Both read in one go, since the dialog may still be sliding in
   const [cancel, save] = await edit.getByTestId('budget-submit').evaluate((submit) => {
     const cancelButton = [...submit.parentElement!.querySelectorAll('button')].find((button) => button.textContent === 'Cancel')!
@@ -156,7 +156,7 @@ test('shows the Edit Budget Cancel and Save Changes buttons in one row, as halve
 
 const NO_CATEGORY_MESSAGE = 'Select at least one category'
 
-test('explains the disabled Save Changes of Edit Budget as soon as the last category is deselected', async ({ page, request }) => {
+test('explains the disabled Save changes of Edit budget as soon as the last category is deselected', async ({ page, request }) => {
   const user = await signUpUser(request)
   const id = await createMonthlyBudget(request, user, {
     name: 'Two categories',
@@ -168,7 +168,7 @@ test('explains the disabled Save Changes of Edit Budget as soon as the last cate
   await openPage(page, '/budgets')
   await page.getByTestId(`budget-card-${id}`).click()
   await page.getByRole('dialog', { name: 'Two categories', exact: true }).getByRole('button', { name: 'Edit', exact: true }).click()
-  const edit = page.getByRole('dialog', { name: 'Edit Budget', exact: true })
+  const edit = page.getByRole('dialog', { name: 'Edit budget', exact: true })
 
   // Resized once the dialog is open, so the stacked layout puts the categories below the first fields
   await page.setViewportSize({ width: 393, height: 852 })
@@ -182,7 +182,7 @@ test('explains the disabled Save Changes of Edit Budget as soon as the last cate
   await groceries.click()
   await expect(message).toHaveCount(0)
 
-  // The last one going says why Save Changes is disabled, in view beside the categories
+  // The last one going says why Save changes is disabled, in view beside the categories
   await dining.click()
   await expect(save).toBeDisabled()
   await expect(message).toBeInViewport({ ratio: 1 })
@@ -193,7 +193,7 @@ test('explains the disabled Save Changes of Edit Budget as soon as the last cate
   await expect(save).toBeEnabled()
 })
 
-test('leaves the Edit Budget of an archived budget without a category message', async ({ page, request }) => {
+test('leaves the Edit budget of an archived budget without a category message', async ({ page, request }) => {
   const user = await signUpUser(request)
   const id = await createMonthlyBudget(request, user, {
     name: 'Archived budget',
@@ -211,7 +211,7 @@ test('leaves the Edit Budget of an archived budget without a category message', 
   await page.getByRole('button', { name: /Archived budgets/ }).click()
   await page.getByTestId(`budget-card-${id}`).click()
   await page.getByRole('dialog', { name: 'Archived budget', exact: true }).getByRole('button', { name: 'Edit', exact: true }).click()
-  const edit = page.getByRole('dialog', { name: 'Edit Budget', exact: true })
+  const edit = page.getByRole('dialog', { name: 'Edit budget', exact: true })
 
   await expect(edit.getByText('Unarchive this budget to edit its details.', { exact: true })).toBeVisible()
   await expect(edit.getByText(NO_CATEGORY_MESSAGE, { exact: true })).toHaveCount(0)
@@ -227,7 +227,7 @@ const REFUSED_CREATE_SIZES = [
 
 const PHONE_SIZE = { width: 393, height: 852 }
 
-test('brings the missing category message into view when Create Budget is refused', async ({ page, request }) => {
+test('brings the missing category message into view when Create budget is refused', async ({ page, request }) => {
   const user = await signUpUser(request)
   await logInViaApi(page, user)
 
@@ -235,7 +235,7 @@ test('brings the missing category message into view when Create Budget is refuse
     const at = `${size.width}×${size.height}`
     await page.setViewportSize(size)
     await openPage(page, '/budgets')
-    const dialog = await openModal(page, ['New Budget'], 'Add Budget')
+    const dialog = await openModal(page, ['New budget'], 'Add budget')
     await dialog.getByLabel('Name', { exact: true }).fill('Groceries budget')
     await dialog.getByLabel('Limit', { exact: true }).fill('500')
     const search = dialog.getByPlaceholder('Search categories...', { exact: true })
@@ -255,12 +255,12 @@ test('brings the missing category message into view when Create Budget is refuse
   }
 })
 
-test('brings the first refused field into view when Create Budget is refused for several', async ({ page, request }) => {
+test('brings the first refused field into view when Create budget is refused for several', async ({ page, request }) => {
   const user = await signUpUser(request)
   await page.setViewportSize(PHONE_SIZE)
   await logInViaApi(page, user)
   await openPage(page, '/budgets')
-  const dialog = await openModal(page, ['New Budget'], 'Add Budget')
+  const dialog = await openModal(page, ['New budget'], 'Add budget')
   const name = dialog.getByLabel('Name', { exact: true })
   const limit = dialog.getByLabel('Limit', { exact: true })
   const search = dialog.getByPlaceholder('Search categories...', { exact: true })
@@ -291,7 +291,7 @@ test('creates a valid budget on a phone without scrolling the dialog', async ({ 
   await page.setViewportSize(PHONE_SIZE)
   await logInViaApi(page, user)
   await openPage(page, '/budgets')
-  const dialog = await openModal(page, ['New Budget'], 'Add Budget')
+  const dialog = await openModal(page, ['New budget'], 'Add budget')
   const name = 'Phone budget'
   await dialog.getByLabel('Name', { exact: true }).fill(name)
   await dialog.getByLabel('Limit', { exact: true }).fill('500')
@@ -301,7 +301,7 @@ test('creates a valid budget on a phone without scrolling the dialog', async ({ 
 
   const submit = dialog.getByTestId('budget-submit')
   await whileApiRequestHeld(page, 'POST', '/base-budgets', () => submit.click(), async () => {
-    await expectPendingAction(submit, 'Create Budget')
+    await expectPendingAction(submit, 'Create budget')
     // Two frames on, so a scroll the refusal path would start a frame after the press has begun
     await page.evaluate(() => new Promise((resolve) => {
       requestAnimationFrame(() => requestAnimationFrame(resolve))
