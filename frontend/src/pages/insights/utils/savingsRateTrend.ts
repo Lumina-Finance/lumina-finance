@@ -1,7 +1,7 @@
 import type { InsightsSavingsRateTrendResponse } from '@/api/insights'
 import type { SavingsRateHistoryPoint } from '@/pages/insights/types/savingsRate'
 import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
-import { getSavingsRate } from './money'
+import { getSavingsRate } from '@/utils/savingsRate'
 
 /**
  * Maps the savings rate trend response into chart points, computing each month's rate and

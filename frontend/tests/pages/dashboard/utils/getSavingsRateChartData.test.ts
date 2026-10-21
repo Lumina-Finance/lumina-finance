@@ -49,4 +49,19 @@ describe('savings rate chart data', () => {
       chartRate: -100,
     })).toBe('−∞%')
   })
+
+  it('rounds the tooltip rate down, so an exact 14.5% reads 14% and -14.5% reads -15%', () => {
+    const point: SavingsRateSeriesPoint & { chartRate: number | null } = {
+      monthLabel: 'Mar',
+      fullLabel: 'March 2026',
+      rate: 14,
+      income: 200_000,
+      expenses: 171_000,
+      isCurrent: false,
+      chartRate: 14,
+    }
+
+    expect(getSavingsRateDisplay(point)).toBe('14%')
+    expect(getSavingsRateDisplay({ ...point, expenses: 229_000 })).toBe('−15%')
+  })
 })

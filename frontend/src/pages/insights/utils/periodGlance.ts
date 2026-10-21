@@ -8,8 +8,8 @@ import type {
 } from '@/pages/insights/types/periodGlance'
 import {
   formatSavingsRateValue,
-  getSavingsRate,
 } from './money'
+import { getSavingsRate } from '@/utils/savingsRate'
 import {
   getBiggestChangeFxStatusMessage,
   getNetWorthChangeFxStatusMessage,

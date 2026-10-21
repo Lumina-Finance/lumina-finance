@@ -1,6 +1,7 @@
 import type { SavingsRateWidgetResponse } from '@/api/dashboard'
 import type { SavingsRateSeriesPoint } from '@/components/charts/types'
 import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
+import { getSavingsRate } from '@/utils/savingsRate'
 
 /**
  * Converts monthly income/expense rows into chart-ready savings-rate bars
@@ -17,7 +18,7 @@ export function getSavingsRateSeries(
     // Null means no bar for months with no activity. Expense-only months are
     // plotted at -100 so the chart still communicates the negative case
     if (row.income > 0) {
-      rate = Math.round(((row.income - row.expenses) / row.income) * 100)
+      rate = getSavingsRate(row.income, row.expenses)
     } else if (row.expenses > 0) {
       rate = -100
     } else {

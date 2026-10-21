@@ -1,18 +1,6 @@
 import { formatRatePercent } from '@/utils/negativeAmount'
 
 /**
- * Returns the share of income left after expenses, as a whole percentage, or null when there was
- * no income in the period and the rate would have no meaning
- *
- * Spending more than was earned gives a negative result rather than being clamped at zero, so an
- * overspent period stays visible instead of looking like a break-even one
- */
-export function getSavingsRate(income: number, expenses: number) {
-  if (income <= 0) return null
-  return Math.round(((income - expenses) / income) * 100)
-}
-
-/**
  * Renders a savings rate for display, showing "N/A" when there was no income to measure against
  * and an infinity symbol when spending happened with no income behind it
  */

@@ -53,4 +53,13 @@ describe('period glance amounts that moved', () => {
     expect(supportItems.find((item) => item.label === 'Biggest change')?.detail)
       .toBe('−$10.00 (−10%) vs previous matching period')
   })
+
+  it('rounds the savings rate down, so an exact 14.5% reads 14% and -14.5% reads -15%', () => {
+    const savingsRateOf = (income: number, expenses: number) =>
+      getPeriodGlanceCardData(respond({ income, expenses }), 'USD', currencies)
+        .supportItems.find((item) => item.label === 'Savings rate')?.value
+
+    expect(savingsRateOf(200_000, 171_000)).toBe('14%')
+    expect(savingsRateOf(200_000, 229_000)).toBe('−15%')
+  })
 })
