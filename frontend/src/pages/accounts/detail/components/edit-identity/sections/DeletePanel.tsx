@@ -115,6 +115,8 @@ export function DeleteAccountPanel({
                               onClick={onArchiveInstead}
                               disabled={isBusy}
                               disabledReason={!isBusy && isArchiveBlocked ? ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON : undefined}
+                              // The archive section above already prints this reason, so it describes the button
+                              reasonShownById={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archiveBlockedReason}
                             >
                               {/* The faded label stands for unavailable, and the button itself stays whole so its focus ring does not fade */}
                               <span className="inline-flex items-center gap-2 group-aria-disabled:opacity-60">

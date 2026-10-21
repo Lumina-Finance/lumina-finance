@@ -64,9 +64,11 @@ describe('archive blocked by later-dated transactions', () => {
   it('holds off the archive shortcut in the delete confirmation and explains why', () => {
     const blocked = getArchiveInsteadButton(renderDeletePanel(true))
     expect(blocked).toContain('aria-disabled="true"')
-    expect(blocked).toContain('aria-describedby=')
     expect(blocked).not.toContain('disabled=""')
-    expect(renderDeletePanel(true)).toContain(RENDERED_REASON)
+    // The reason is the line the archive section prints, so the button is described by that line and
+    // the panel adds no hidden copy of it for a screen reader to read twice
+    expect(blocked).toContain('aria-describedby="edit-account-archive-blocked-reason"')
+    expect(renderDeletePanel(true)).not.toContain(RENDERED_REASON)
 
     const available = getArchiveInsteadButton(renderDeletePanel(false))
     expect(available).not.toContain('aria-disabled="true"')
