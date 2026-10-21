@@ -865,8 +865,9 @@ test('lists the outline colour in the transition of every control that draws the
 })
 
 // The ring fades in on Tab and out on leaving over about the time a hover look takes, wherever a control
-// without a border draws one, and its end state keeps 3:1. Each fade is read halfway through its time,
-// which pins the ease-out curve as well as the fade
+// without a border draws one, and its end state keeps 3:1. Each fade is read halfway through its time.
+// The shared fade is 150ms ease-out, which has the ring about 0.96 drawn there. A control that overrides
+// it with Tailwind's default 200ms curve has it about 0.77 drawn, so it fails both the length and the midpoint
 test('fades the keyboard focus ring in and out', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   const rowButton = await seedOneTransaction(page, request)
@@ -876,16 +877,10 @@ test('fades the keyboard focus ring in and out', async ({ page, request }) => {
     expect(fades.fadeIn, `${name} fades in`).not.toBeNull()
     expect(fades.fadeOut, `${name} fades out`).not.toBeNull()
     for (const [way, fade] of [['in', fades.fadeIn!], ['out', fades.fadeOut!]] as const) {
-      expect(fade.duration, `${name} fade ${way} length`).toBeGreaterThanOrEqual(100)
-      expect(fade.duration, `${name} fade ${way} length`).toBeLessThanOrEqual(200)
-      // Fading in it is more than half drawn, and fading out less than half, since ease-out is quick at first
-      if (way === 'in') {
-        expect(fade.alpha, `${name} fade in midway`).toBeGreaterThan(0.5)
-        expect(fade.alpha, `${name} fade in midway`).toBeLessThan(1)
-      } else {
-        expect(fade.alpha, `${name} fade out midway`).toBeGreaterThan(0)
-        expect(fade.alpha, `${name} fade out midway`).toBeLessThan(0.5)
-      }
+      expect(fade.duration, `${name} fade ${way} length`).toBe(150)
+      // Ease-out is quick at first: halfway the ring is nearly all drawn fading in and nearly all gone fading out
+      const drawn = way === 'in' ? fade.alpha : 1 - fade.alpha
+      expect(drawn, `${name} fade ${way} midway`).toBeCloseTo(0.96, 2)
       // The ring stays where it is drawn while it fades out, so an inset one doesn't jump outward
       expect(fade.offset, `${name} fade ${way} gap`).toBe(offset)
     }
