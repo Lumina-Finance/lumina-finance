@@ -65,9 +65,12 @@ const netWorthAxisMoneyRules: CompactMoneyRule[] = [
 
 /**
  * Formats a net worth chart axis value with K/M compaction rules and no currency prefix
+ *
+ * An axis tick is a round step chosen for the scale, not a figure, so it rounds to the nearest and
+ * keeps its own digits (3K, not 3.0K) rather than following the rounding rule
  */
 export function formatNetWorthAxisMoney(value: number, currency: string, currencies: Currency[]) {
-  return formatCompactMoney(value, currency, netWorthAxisMoneyRules, currencies, {
+  return formatCompactMoney(value, currency, netWorthAxisMoneyRules, currencies, 'nearest', {
     prefix: '',
     plainFractionDigits: 0,
   })

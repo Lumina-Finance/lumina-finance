@@ -2,8 +2,8 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import type { TaxAdvantagedLimitSummary } from '@/pages/accounts/types/accounts'
-import { type CompactMoneyRule, formatCompactMoney } from '@/utils/formatCompactMoney'
-import { formatMajorUnits, toMajorUnits } from '@/utils/formatCurrency'
+import { type CompactMoneyRule, formatCompactMoney, formatRoundedMoney } from '@/utils/formatCompactMoney'
+import { getRoundedPercent, type RoundingDirection } from '@/utils/rounding'
 import { getValueMarkColor, type ValueMarkTone } from '@/utils/valueMarkColor'
 
 /**
@@ -60,15 +60,16 @@ export function getTaxAdvantagedRemainingColor(remaining: number): string {
   return 'var(--app-accent)'
 }
 
-// The meters read at a glance beside a progress bar, so every amount on them is whole, both the
-// compacted ones and the ones small enough to render in full
+// The meters read at a glance beside a progress bar, so an amount small enough to render in full is
+// whole, and a compacted one keeps one decimal like every compact amount
 const METER_MONEY_RULES: CompactMoneyRule[] = [
-  { threshold: 1_000_000, divisor: 1_000_000, suffix: 'M', fractionDigits: 0 },
-  { threshold: 1_000, divisor: 1_000, suffix: 'K', fractionDigits: 0 },
+  { threshold: 1_000_000, divisor: 1_000_000, suffix: 'M', fractionDigits: 1 },
+  { threshold: 1_000, divisor: 1_000, suffix: 'K', fractionDigits: 1 },
 ]
 
 /**
- * Formats compact meter amounts without decimals while preserving currency symbols
+ * Formats compact meter amounts while preserving currency symbols. Room used and the amount over the
+ * limit round up, and the limit and room left round down (`utils/rounding.ts`)
  *
  * No "≈" prefix, unlike the dashboard's compact amounts: the meter shows the figure beside the limit
  * it is measured against, where a marker of approximation on one and not the other would read as a
@@ -78,22 +79,34 @@ export function formatTaxAdvantagedMeterMoney(
   amount: number,
   currency: string,
   currencies: Currency[],
+  rounding: RoundingDirection,
 ): string {
-  return formatCompactMoney(amount, currency, METER_MONEY_RULES, currencies, {
+  return formatCompactMoney(amount, currency, METER_MONEY_RULES, currencies, rounding, {
     prefix: '',
     plainFractionDigits: 0,
   })
 }
 
 /**
- * Formats full tax-advantaged limit amounts for tooltip rows
+ * Formats full tax-advantaged limit amounts for tooltip rows, whole dollars rounded the way the
+ * meter rounds the same figure
  */
 export function formatTaxAdvantagedRawMoney(
   amount: number,
   currency: string,
   currencies: Currency[],
+  rounding: RoundingDirection,
 ): string {
-  return formatMajorUnits(toMajorUnits(amount, currency, currencies), currency, 0)
+  return formatRoundedMoney(amount, currency, currencies, 0, rounding)
+}
+
+/**
+ * Returns the whole percent of the limit that is used for the usage label, rounded up and held
+ * between 0 and 100 like the bar it sits beside
+ */
+export function getTaxAdvantagedUsageLabelPercent(used: number, limit: number): number {
+  if (limit <= 0) return 100
+  return clampTaxAdvantagedPercent(getRoundedPercent(used, limit, 'up'))
 }
 
 /**

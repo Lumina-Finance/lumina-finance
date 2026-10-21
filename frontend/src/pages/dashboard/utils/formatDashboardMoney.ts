@@ -2,19 +2,23 @@ import type { Currency } from '@/api/currency'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { DASHBOARD_MONEY_RULES } from '@/pages/dashboard/constants/moneyRules'
 import { formatCompactMoney } from '@/utils/formatCompactMoney'
+import type { RoundingDirection } from '@/utils/rounding'
 import type { DashboardMoneyFormat } from '@/pages/dashboard/types/dashboard'
 
 /**
  * Formats dashboard money values with widget-specific K/M compaction rules
  * Input values are API minor units and thresholds are evaluated in major units
+ *
+ * The rounding is the caller's to choose for the figure shown (`utils/rounding.ts`)
  */
 export function formatDashboardMoney(
   minorUnits: number,
   currency: string,
   format: DashboardMoneyFormat,
   currencies: Currency[],
+  rounding: RoundingDirection,
 ) {
   if (format === 'raw') return formatCurrency(minorUnits, currency, currencies)
 
-  return formatCompactMoney(minorUnits, currency, DASHBOARD_MONEY_RULES[format], currencies)
+  return formatCompactMoney(minorUnits, currency, DASHBOARD_MONEY_RULES[format], currencies, rounding)
 }

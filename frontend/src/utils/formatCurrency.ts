@@ -67,7 +67,7 @@ export function formatMoneyParts(value: number, currency: string, fractionDigits
  * fails to load never reaches here, since the app shows its recovery screen instead of rendering any
  * amount at all
  */
-function resolveDisplayExponent(currency: string, currencies: Currency[]): number {
+export function resolveDisplayExponent(currency: string, currencies: Currency[]): number {
   const seeded = findCurrencyExponent(currencies, currency)
   if (seeded !== null) return seeded
 

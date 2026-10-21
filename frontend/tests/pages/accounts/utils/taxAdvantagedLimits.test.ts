@@ -13,6 +13,7 @@ import {
   formatTaxAdvantagedMeterMoney,
   formatTaxAdvantagedRawMoney,
   getLifetimeAvailableBoundary,
+  getTaxAdvantagedUsageLabelPercent,
   getTaxAdvantagedLimitSummaries,
   getTaxAdvantagedUsageColor,
   getTaxAdvantagedUsagePercent,
@@ -45,34 +46,41 @@ describe('tax-advantaged limit helpers', () => {
   it('keeps meter amounts whole and unprefixed below the compaction thresholds', () => {
     // The meter shows this beside the limit it is measured against, so a small amount must match
     // how that limit is written: no cents, and no "≈" marking one of the pair as approximate
-    expect(formatTaxAdvantagedMeterMoney(50_000, 'CAD', testCurrencies)).toBe('CA$500')
-    expect(formatTaxAdvantagedMeterMoney(0, 'CAD', testCurrencies)).toBe('CA$0')
+    expect(formatTaxAdvantagedMeterMoney(50_000, 'CAD', testCurrencies, 'down')).toBe('CA$500')
+    expect(formatTaxAdvantagedMeterMoney(0, 'CAD', testCurrencies, 'up')).toBe('CA$0')
   })
 
   it('shows an amount too small for the meter as zero rather than as a negative', () => {
     // The meter renders no decimals, and accounting style decides to wrap a negative before it
     // rounds, so being 40 cents over a limit would otherwise read as (CA$0)
-    expect(formatTaxAdvantagedMeterMoney(-40, 'CAD', testCurrencies)).toBe('CA$0')
-    expect(formatTaxAdvantagedRawMoney(-40, 'CAD', testCurrencies)).toBe('CA$0')
+    expect(formatTaxAdvantagedMeterMoney(-40, 'CAD', testCurrencies, 'up')).toBe('CA$0')
+    expect(formatTaxAdvantagedRawMoney(-40, 'CAD', testCurrencies, 'up')).toBe('CA$0')
     // Far enough from zero to keep its sign
-    expect(formatTaxAdvantagedRawMoney(-60, 'CAD', testCurrencies)).toBe('(CA$1)')
+    expect(formatTaxAdvantagedRawMoney(-60, 'CAD', testCurrencies, 'down')).toBe('(CA$1)')
   })
 
-  it('renders tooltip amounts whole, and keeps the suffix inside a negative', () => {
-    expect(formatTaxAdvantagedRawMoney(123_456, 'CAD', testCurrencies)).toBe('CA$1,235')
-    expect(formatTaxAdvantagedMeterMoney(-12_300_000, 'USD', testCurrencies)).toBe('($123K)')
+  it('rounds room used up and room left down, in the tooltip and on the meter', () => {
+    expect(formatTaxAdvantagedRawMoney(123_456, 'CAD', testCurrencies, 'up')).toBe('CA$1,235')
+    expect(formatTaxAdvantagedRawMoney(123_456, 'CAD', testCurrencies, 'down')).toBe('CA$1,234')
+    expect(formatTaxAdvantagedMeterMoney(-12_300_000, 'USD', testCurrencies, 'down')).toBe('($123.0K)')
   })
 
-  it('rounds a compacted meter amount rather than rounding it up', () => {
-    // 1100 major units is 1.1 thousand, which rounds down to one. Rounding up would report a
-    // contribution of CA$2K against a limit the account is nowhere near
-    expect(formatTaxAdvantagedMeterMoney(110_000, 'CAD', testCurrencies)).toBe('CA$1K')
+  it('rounds a compacted meter amount at the tenth in the direction of its figure', () => {
+    // 1,150 major units is 1.15 thousand: contributions made read as 1.2K, room left as 1.1K
+    expect(formatTaxAdvantagedMeterMoney(115_000, 'CAD', testCurrencies, 'up')).toBe('CA$1.2K')
+    expect(formatTaxAdvantagedMeterMoney(115_000, 'CAD', testCurrencies, 'down')).toBe('CA$1.1K')
   })
 
   it('reads a meter amount that rounds up to a million as a million', () => {
-    // 999,999.99 is 1,000K once rounded, which would be a third way of writing a million
-    expect(formatTaxAdvantagedMeterMoney(99_999_999, 'CAD', testCurrencies)).toBe('CA$1M')
-    expect(formatTaxAdvantagedMeterMoney(99_949_999, 'CAD', testCurrencies)).toBe('CA$999K')
+    // 999,999.99 is 1,000.0K once rounded up, which would be a third way of writing a million
+    expect(formatTaxAdvantagedMeterMoney(99_999_999, 'CAD', testCurrencies, 'up')).toBe('CA$1.0M')
+    expect(formatTaxAdvantagedMeterMoney(99_999_999, 'CAD', testCurrencies, 'down')).toBe('CA$999.9K')
+  })
+
+  it('labels usage with the percent rounded up and held to the bar', () => {
+    expect(getTaxAdvantagedUsageLabelPercent(1, 3)).toBe(34)
+    expect(getTaxAdvantagedUsageLabelPercent(150, 100)).toBe(100)
+    expect(getTaxAdvantagedUsageLabelPercent(5, 0)).toBe(100)
   })
 
   it('shows lifetime available boundary only when accrued room is between used and the lifetime cap', () => {

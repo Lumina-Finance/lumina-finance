@@ -68,12 +68,12 @@ export function TaxAdvantagedCompactLimitMeter({
 
   const color = getTaxAdvantagedUsageBarColor(used, limit)
   const barWidth = getTaxAdvantagedUsagePercent(used, limit)
-  const usageLabel = `${formatTaxAdvantagedMeterMoney(used, currency, currencies)} / ${formatTaxAdvantagedMeterMoney(limit, currency, currencies)}`
+  const usageLabel = `${formatTaxAdvantagedMeterMoney(used, currency, currencies, 'up')} / ${formatTaxAdvantagedMeterMoney(limit, currency, currencies, 'down')}`
   const remaining = limit - used
   const remainingLabel =
     remaining < 0
-      ? `${formatTaxAdvantagedMeterMoney(Math.abs(remaining), currency, currencies)} over`
-      : formatTaxAdvantagedMeterMoney(remaining, currency, currencies)
+      ? `${formatTaxAdvantagedMeterMoney(Math.abs(remaining), currency, currencies, 'up')} over`
+      : formatTaxAdvantagedMeterMoney(remaining, currency, currencies, 'down')
   const valueLabel = valueMode === 'remaining' ? remainingLabel : usageLabel
   const availablePercent =
     availableBoundary === null ? 0 : getTaxAdvantagedUsagePercent(availableBoundary, limit)

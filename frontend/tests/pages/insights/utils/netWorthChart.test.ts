@@ -45,8 +45,10 @@ describe('net worth chart positions', () => {
 describe('net worth axis money', () => {
   const currencies = [{ id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 }];
 
-  it('writes amounts whole on both sides of the first threshold', () => {
+  it('writes ticks whole on both sides of the first threshold, to the nearest and without a decimal', () => {
+    // An axis tick is a round step, so it is exempt from the rounding rule and reads 3K, not 3.0K
     expect(formatNetWorthAxisMoney(50_000, 'CAD', currencies)).toBe('CA$500');
     expect(formatNetWorthAxisMoney(99_999, 'CAD', currencies)).toBe('CA$1K');
+    expect(formatNetWorthAxisMoney(300_000, 'CAD', currencies)).toBe('CA$3K');
   });
 });

@@ -28,13 +28,13 @@ export function TaxAdvantagedLimitMeterTooltipContent({
       <ChartTooltipTitle className="font-medium">{label}</ChartTooltipTitle>
       <ChartTooltipRow
         label="Used"
-        value={formatTaxAdvantagedRawMoney(used, currency, currencies)}
+        value={formatTaxAdvantagedRawMoney(used, currency, currencies, 'up')}
         valueClassName="text-right"
         financialValue
       />
       <ChartTooltipRow
         label="Remaining"
-        value={formatTaxAdvantagedRawMoney(remaining, currency, currencies)}
+        value={formatTaxAdvantagedRawMoney(remaining, currency, currencies, 'down')}
         valueClassName="text-right"
         valueStyle={remaining < 0 ? { color: 'var(--app-negative)' } : undefined}
         financialValue
