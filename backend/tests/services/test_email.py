@@ -39,6 +39,129 @@ async def test_smtp_sender_delivers_multipart_message(monkeypatch):
     assert delivered.get_content_type() == "multipart/alternative"
 
 
+def record_smtp_attempts(monkeypatch, outcomes):
+    """Replace aiosmtplib.send with a stand-in that records each attempt's TLS options and raises or returns the next outcome"""
+    attempts = []
+
+    async def fake_send(email_message, **kwargs):
+        attempts.append({"use_tls": kwargs.get("use_tls", False), "start_tls": kwargs["start_tls"], "timeout": kwargs["timeout"]})
+        outcome = outcomes[len(attempts) - 1]
+        if outcome is not None:
+            raise outcome
+
+    monkeypatch.setattr(senders_module, "MAIL_FROM", "no-reply@example.com")
+    monkeypatch.setattr(senders_module.aiosmtplib, "send", fake_send)
+    return attempts
+
+
+async def send_test_email():
+    """Send a minimal message through the SMTP sender"""
+    await SmtpEmailSender().send("user@example.com", RenderedEmail(subject="Hi", text_body="Body"))
+
+
+async def test_smtp_sender_tries_implicit_tls_first_on_port_465(monkeypatch):
+    """Port 465 connects with implicit TLS and stops there when the server accepts it"""
+    monkeypatch.setattr(senders_module, "SMTP_PORT", 465)
+    monkeypatch.setattr(senders_module, "SMTP_USE_TLS", True)
+    attempts = record_smtp_attempts(monkeypatch, [None])
+
+    await send_test_email()
+
+    assert attempts == [{"use_tls": True, "start_tls": False, "timeout": senders_module.SMTP_TIMEOUT_SECONDS}]
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        aiosmtplib.SMTPConnectError("TLS handshake failed"),
+        aiosmtplib.SMTPConnectTimeoutError("Timed out connecting"),
+    ],
+)
+async def test_smtp_sender_retries_with_required_starttls_after_a_connect_failure_on_port_465(monkeypatch, failure):
+    """A TLS or connect failure on port 465 retries once with STARTTLS required and a fresh timeout, never plain text"""
+    monkeypatch.setattr(senders_module, "SMTP_PORT", 465)
+    monkeypatch.setattr(senders_module, "SMTP_USE_TLS", True)
+    attempts = record_smtp_attempts(monkeypatch, [failure, None])
+
+    await send_test_email()
+
+    timeout = senders_module.SMTP_TIMEOUT_SECONDS
+    assert attempts == [
+        {"use_tls": True, "start_tls": False, "timeout": timeout},
+        {"use_tls": False, "start_tls": True, "timeout": timeout},
+    ]
+
+
+async def test_smtp_sender_fails_when_port_465_offers_neither_kind_of_tls(monkeypatch):
+    """A server that refuses implicit TLS and offers no STARTTLS fails the send with the STARTTLS error"""
+    monkeypatch.setattr(senders_module, "SMTP_PORT", 465)
+    monkeypatch.setattr(senders_module, "SMTP_USE_TLS", True)
+    no_starttls = aiosmtplib.SMTPException("SMTP STARTTLS extension not supported by server.")
+    attempts = record_smtp_attempts(monkeypatch, [aiosmtplib.SMTPConnectError("TLS handshake failed"), no_starttls])
+
+    with pytest.raises(aiosmtplib.SMTPException, match="STARTTLS"):
+        await send_test_email()
+
+    assert [(a["use_tls"], a["start_tls"]) for a in attempts] == [(True, False), (False, True)]
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        aiosmtplib.SMTPAuthenticationError(535, "Bad credentials"),
+        aiosmtplib.SMTPRecipientsRefused([]),
+        aiosmtplib.SMTPSenderRefused(550, "Sender refused", "no-reply@example.com"),
+    ],
+)
+async def test_smtp_sender_does_not_retry_when_a_connected_server_refuses_the_message(monkeypatch, failure):
+    """An authentication or address error from a server that accepted implicit TLS surfaces without a second attempt"""
+    monkeypatch.setattr(senders_module, "SMTP_PORT", 465)
+    monkeypatch.setattr(senders_module, "SMTP_USE_TLS", True)
+    attempts = record_smtp_attempts(monkeypatch, [failure, None])
+
+    with pytest.raises(type(failure)):
+        await send_test_email()
+
+    assert len(attempts) == 1
+
+
+async def test_smtp_sender_keeps_starttls_on_other_ports(monkeypatch):
+    """Port 587 requires STARTTLS on a single attempt, and a connect failure there is not retried"""
+    monkeypatch.setattr(senders_module, "SMTP_PORT", 587)
+    monkeypatch.setattr(senders_module, "SMTP_USE_TLS", True)
+    attempts = record_smtp_attempts(monkeypatch, [aiosmtplib.SMTPConnectError("down"), None])
+
+    with pytest.raises(aiosmtplib.SMTPConnectError):
+        await send_test_email()
+
+    assert attempts == [{"use_tls": False, "start_tls": True, "timeout": senders_module.SMTP_TIMEOUT_SECONDS}]
+
+
+@pytest.mark.parametrize("port", [25, 465, 587])
+async def test_smtp_sender_sends_in_plain_text_only_when_tls_is_off(monkeypatch, port):
+    """SMTP_USE_TLS=false sends once without any TLS on every port, 465 included"""
+    monkeypatch.setattr(senders_module, "SMTP_PORT", port)
+    monkeypatch.setattr(senders_module, "SMTP_USE_TLS", False)
+    attempts = record_smtp_attempts(monkeypatch, [None])
+
+    await send_test_email()
+
+    assert [(a["use_tls"], a["start_tls"]) for a in attempts] == [(False, False)]
+
+
+async def test_smtp_sender_never_attempts_plain_text_when_tls_is_wanted(monkeypatch):
+    """Whatever fails on port 465, every attempt asks for implicit TLS or required STARTTLS"""
+    monkeypatch.setattr(senders_module, "SMTP_PORT", 465)
+    monkeypatch.setattr(senders_module, "SMTP_USE_TLS", True)
+    attempts = record_smtp_attempts(monkeypatch, [aiosmtplib.SMTPConnectError("down")] * 2)
+
+    with pytest.raises(aiosmtplib.SMTPConnectError):
+        await send_test_email()
+
+    assert attempts
+    assert all(a["use_tls"] or a["start_tls"] for a in attempts)
+
+
 async def test_smtp_sender_times_out_on_a_silent_server(monkeypatch):
     """A server that accepts the connection and never greets fails the send within the SMTP timeout"""
 
