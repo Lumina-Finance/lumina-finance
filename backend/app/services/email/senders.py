@@ -23,6 +23,9 @@ from app.services.email.contract import EmailSender, RenderedEmail
 
 logger = logging.getLogger(__name__)
 
+# The port SMTP servers conventionally serve implicit TLS on
+IMPLICIT_TLS_PORT = 465
+
 
 class SmtpEmailSender:
     """Delivers email through an SMTP server for self-hosted deployments"""
@@ -46,13 +49,29 @@ class SmtpEmailSender:
         if message.html_body is not None:
             email_message.add_alternative(message.html_body, subtype="html")
 
+        # Port 465 is the implicit TLS port, but some servers there speak STARTTLS, so a connect or
+        # TLS failure retries once with STARTTLS required. A server that connected and then refused
+        # the login or an address is not retried, and plain text is never an option when TLS is on
+        if SMTP_USE_TLS and SMTP_PORT == IMPLICIT_TLS_PORT:
+            try:
+                await self._deliver(email_message, use_tls=True, start_tls=False)
+            except aiosmtplib.SMTPConnectError:
+                logger.info("Implicit TLS to the mail server failed, retrying with STARTTLS", exc_info=True)
+                await self._deliver(email_message, use_tls=False, start_tls=True)
+            return
+
+        await self._deliver(email_message, use_tls=False, start_tls=SMTP_USE_TLS)
+
+    async def _deliver(self, email_message: EmailMessage, *, use_tls: bool, start_tls: bool) -> None:
+        """Make one delivery attempt with the given TLS mode, bounded by the SMTP timeout"""
         await aiosmtplib.send(
             email_message,
             hostname=SMTP_HOST,
             port=SMTP_PORT,
             username=SMTP_USERNAME or None,
             password=SMTP_PASSWORD or None,
-            start_tls=SMTP_USE_TLS,
+            use_tls=use_tls,
+            start_tls=start_tls,
             timeout=SMTP_TIMEOUT_SECONDS,
         )
 
