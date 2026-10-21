@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react';
 import { KeyRound } from 'lucide-react';
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
 import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
 import { WarningCallout } from '@/components/WarningCallout';
 
@@ -105,15 +106,16 @@ export function MfaChallenge({
       )}
 
       <div className="flex justify-center">
-        <button
+        <DisabledReasonButton
           type="submit"
-          disabled={submitting || !codeReady}
+          disabled={submitting}
+          disabledReason={!submitting && !codeReady ? (useRecoveryCode ? 'Enter a recovery code first' : 'Enter the full code first') : undefined}
           className={`app-primary-button transition-all duration-300 ${
             submitting ? 'app-primary-button-loading' : 'w-full'
           }`}
         >
           {submitting ? <div className="app-spinner" /> : 'Verify'}
-        </button>
+        </DisabledReasonButton>
       </div>
 
       {challenge.canEnterAuthenticatorCode && (

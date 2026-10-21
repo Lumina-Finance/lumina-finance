@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { KeyRound } from 'lucide-react';
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
 import { useConfirmPasskeyRegistration, useRegisterPasskey } from '@/api/passkeys';
 import type { StepUpPayload } from '@/api/two-factor';
 import { RecoveryCodesPanel } from '@/components/two-factor/RecoveryCodesPanel';
@@ -121,14 +122,14 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
             <SetupRestart onStartAgain={startAgain} />
           ) : (
             <div className="flex justify-center">
-              <button
-                type="button"
+              <DisabledReasonButton
                 onClick={handleActivate}
-                disabled={!savedAcknowledged || !lockoutAcknowledged || confirmRegistration.isPending}
+                disabled={confirmRegistration.isPending}
+                disabledReason={!savedAcknowledged || !lockoutAcknowledged ? 'Tick both boxes first' : undefined}
                 className={`app-primary-button transition-all duration-300 ${confirmRegistration.isPending ? 'app-primary-button-loading' : 'w-full'}`}
               >
                 {confirmRegistration.isPending ? <div className="app-spinner" /> : 'Done'}
-              </button>
+              </DisabledReasonButton>
             </div>
           )}
         </div>
@@ -158,10 +159,10 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
           )}
 
           <div className="flex justify-center">
-            <button
-              type="button"
+            <DisabledReasonButton
               onClick={handleRegister}
-              disabled={register.isPending || !name.trim()}
+              disabled={register.isPending}
+              disabledReason={!name.trim() ? 'Name the passkey first' : undefined}
               className={`app-primary-button transition-all duration-300 ${register.isPending ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
             >
               {register.isPending ? (
@@ -172,7 +173,7 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
                   Set up a passkey
                 </>
               )}
-            </button>
+            </DisabledReasonButton>
           </div>
 
           {onSwitchToTotp && (

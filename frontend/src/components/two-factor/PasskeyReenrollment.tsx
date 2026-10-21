@@ -1,6 +1,7 @@
 import { KeyRound } from 'lucide-react';
 import { useState } from 'react';
 import { usePasskeyConfig, useConfirmPasskeyRegistration, useRegisterPasskey } from '@/api/passkeys';
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
 import { RecoveryCodesModal } from '@/components/two-factor/RecoveryCodesModal';
 import { WarningCallout } from '@/components/WarningCallout';
 import { getPasskeyRegistrationMessage } from '@/utils/passkeyErrors';
@@ -77,10 +78,10 @@ export function PasskeyReenrollment({ onComplete }: PasskeyReenrollmentProps) {
       />
 
       <div className="flex justify-center">
-        <button
-          type="button"
+        <DisabledReasonButton
           onClick={handleRegister}
-          disabled={register.isPending || !name.trim()}
+          disabled={register.isPending}
+          disabledReason={!name.trim() ? 'Name the passkey first' : undefined}
           className={`app-primary-button transition-all duration-300 ${register.isPending ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
         >
           {register.isPending ? (
@@ -91,7 +92,7 @@ export function PasskeyReenrollment({ onComplete }: PasskeyReenrollmentProps) {
               Set up a passkey
             </>
           )}
-        </button>
+        </DisabledReasonButton>
       </div>
 
       {error && (

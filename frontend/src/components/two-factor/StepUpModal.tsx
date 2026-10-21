@@ -1,4 +1,5 @@
 import { KeyRound } from 'lucide-react';
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
 import { useState, type FormEvent, type MouseEvent } from 'react';
 import type { AuthenticationResponseJSON } from '@simplewebauthn/browser';
 import { requestPasskeyStepUpAssertion, usePasskeyConfig, usePasskeys } from '@/api/passkeys';
@@ -279,14 +280,14 @@ export function StepUpModal({
               <span>I have a recovery code and understand I'll need one to sign back in</span>
             </label>
             <div className="flex justify-center">
-              <button
-                type="button"
+              <DisabledReasonButton
                 onClick={handleRecoveryReset}
-                disabled={resetting || !recoveryAcknowledged}
+                disabled={resetting}
+                disabledReason={!resetting && !recoveryAcknowledged ? 'Tick the box first' : undefined}
                 className={`app-danger-button transition-all duration-300 ${resetting ? 'app-primary-button-loading' : 'w-full'}`}
               >
                 {resetting ? <div className="app-spinner" /> : 'Sign out to recover'}
-              </button>
+              </DisabledReasonButton>
             </div>
             <button
               type="button"
@@ -312,18 +313,23 @@ export function StepUpModal({
             {feedback}
             {passwordOnly ? (
               <div className="flex justify-center">
-                <button
+                <DisabledReasonButton
                   type="submit"
-                  disabled={!password || verifying}
+                  disabled={verifying}
+                  disabledReason={!verifying && !password ? 'Enter your password first' : undefined}
                   className={`${danger ? 'app-danger-button' : 'app-primary-button'} transition-all duration-300 ${verifyingPath === 'code' ? 'app-primary-button-loading' : 'w-full'}`}
                 >
                   {verifyingPath === 'code' ? <div className="app-spinner" /> : confirmLabel}
-                </button>
+                </DisabledReasonButton>
               </div>
             ) : (
-              <button type="submit" disabled={!password} className="app-primary-button w-full">
+              <DisabledReasonButton
+                type="submit"
+                disabledReason={!password ? 'Enter your password first' : undefined}
+                className="app-primary-button w-full"
+              >
                 Continue
-              </button>
+              </DisabledReasonButton>
             )}
           </form>
         ) : (
@@ -363,9 +369,14 @@ export function StepUpModal({
 
               {showCodeEntry && (
                 <div className="flex justify-center">
-                  <button type="submit" disabled={!canSubmitCode || verifying} className={actionButtonClass}>
+                  <DisabledReasonButton
+                    type="submit"
+                    disabled={verifying}
+                    disabledReason={!verifying && !canSubmitCode ? 'Enter the full code first' : undefined}
+                    className={actionButtonClass}
+                  >
                     {verifyingPath === 'code' ? <div className="app-spinner" /> : confirmLabel}
-                  </button>
+                  </DisabledReasonButton>
                 </div>
               )}
             </form>

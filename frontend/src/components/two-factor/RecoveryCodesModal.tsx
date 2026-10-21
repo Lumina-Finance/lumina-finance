@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
 import { RecoveryCodesPanel, type RecoveryFactors } from '@/components/two-factor/RecoveryCodesPanel';
 import { SetupRestart } from '@/components/two-factor/SetupRestart';
 import { ModalContentPanel } from '@/components/modal/ContentPanel';
@@ -128,14 +129,14 @@ export function RecoveryCodesModal({
         <SetupRestart onStartAgain={handleStartAgain} />
       ) : (
         <div className="flex justify-center">
-          <button
-            type="button"
+          <DisabledReasonButton
             onClick={handleConfirm}
-            disabled={!ready || confirming}
+            disabled={confirming}
+            disabledReason={ready ? undefined : 'Tick both boxes first'}
             className={`app-primary-button transition-all duration-300 ${confirming ? 'app-primary-button-loading' : 'w-full'}`}
           >
             {confirming ? <div className="app-spinner" /> : 'Done'}
-          </button>
+          </DisabledReasonButton>
         </div>
       )}
     </ModalContentPanel>
