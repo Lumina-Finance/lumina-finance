@@ -530,10 +530,13 @@ async def test_signup_rejects_forged_onboarding_token(client):
 # --- Linking ---
 
 
-async def _create_password_user(client):
-    """Sign up the default password account and return its auth header and user id"""
+async def _create_password_user(client, email: str | None = None):
+    """Sign up a password account and return its auth header and user id
+
+    The email defaults to the one `_claims` asserts, so a link matches unless a test says otherwise
+    """
     await _seed_currency()
-    signup = await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
+    signup = await client.post("/auth/signup", json={**SIGNUP_PAYLOAD, "email": email or _claims()["email"]})
     assert signup.status_code == 201
     from tests.routes.support import _get_auth_header
 
@@ -599,6 +602,73 @@ async def test_link_requires_an_email(client, provider_protocol):
     async with TestSession() as session:
         identities = (await session.execute(select(OidcIdentity))).scalars().all()
     assert identities == []
+
+
+async def test_link_refuses_a_different_provider_email(client, provider_protocol):
+    """A provider asserting another address than the account's is refused and attaches nothing"""
+    auth, _ = await _create_password_user(client)
+    await _seed_provider()
+    provider_protocol["claims"] = _claims(email="someone-else@example.com")
+
+    state = await _start_link(client, auth)
+    resp = await client.post("/auth/oidc/link/callback", headers=auth, json={"code": "any", "state": state})
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "The identity provider's email address must match your account's email address"
+    async with TestSession() as session:
+        identities = (await session.execute(select(OidcIdentity))).scalars().all()
+        auth_identities = (await session.execute(select(AuthIdentity).where(AuthIdentity.auth_provider == AuthProvider.OIDC))).scalars().all()
+    assert identities == []
+    assert auth_identities == []
+
+
+async def test_link_refuses_an_email_that_only_casefolds_equal(client, provider_protocol):
+    """An address that matches only under Unicode case folding is another address and is refused"""
+    auth, _ = await _create_password_user(client, email="strasse@example.com")
+    await _seed_provider()
+    provider_protocol["claims"] = _claims(email="straße@example.com")
+
+    state = await _start_link(client, auth)
+    resp = await client.post("/auth/oidc/link/callback", headers=auth, json={"code": "any", "state": state})
+
+    assert resp.status_code == 422
+
+
+async def test_link_mismatch_is_refused_before_the_subject_lookup(client, provider_protocol):
+    """A mismatched email gets the email refusal even for a subject another account owns, revealing nothing about it"""
+    auth, _ = await _create_password_user(client)
+    provider = await _seed_provider()
+    provider_protocol["claims"] = _claims(email="someone-else@example.com")
+    async with TestSession() as session:
+        other_user = User(id=uuid.uuid4(), email="other@example.com", first_name="Other", tz="America/Toronto", base_currency="CAD")
+        session.add(other_user)
+        await session.flush()
+        session.add(OidcIdentity(user_id=other_user.id, provider_id=provider.id, subject="subject-1", email="other@example.com"))
+        await session.commit()
+
+    state = await _start_link(client, auth)
+    resp = await client.post("/auth/oidc/link/callback", headers=auth, json={"code": "any", "state": state})
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.parametrize(
+    ("account_email", "provider_email"),
+    [("sso-user@example.com", "Sso-User@Example.com"), ("Sso-User@Example.com", "sso-user@example.com")],
+)
+async def test_link_accepts_an_email_differing_only_in_case(client, provider_protocol, account_email, provider_email):
+    """Addresses that differ only in letter case are the same address, whichever side is cased differently"""
+    auth, user_id = await _create_password_user(client, email=account_email)
+    await _seed_provider()
+    provider_protocol["claims"] = _claims(email=provider_email)
+
+    state = await _start_link(client, auth)
+    resp = await client.post("/auth/oidc/link/callback", headers=auth, json={"code": "any", "state": state})
+
+    assert resp.status_code == 200
+    async with TestSession() as session:
+        identity = (await session.execute(select(OidcIdentity))).scalar_one()
+    assert str(identity.user_id) == user_id
 
 
 async def test_link_requires_correct_password(client, provider_protocol):

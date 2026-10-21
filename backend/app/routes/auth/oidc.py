@@ -305,9 +305,7 @@ async def link_oidc_route(
     if provider is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown sign-in provider")
 
-    authorization_url = await _manage_provider(
-        db, user, response, data, oidc_reauth_stepup, lambda: begin_oidc_link(db, user, provider)
-    )
+    authorization_url = await _manage_provider(db, user, response, data, oidc_reauth_stepup, lambda: begin_oidc_link(db, user, provider))
     return OidcAuthorizeResponse(authorization_url=authorization_url)
 
 
@@ -329,7 +327,8 @@ async def oidc_link_callback_route(
 
     Raises:
         HTTPException: The roundtrip, exchange, or token does not verify, the roundtrip
-            belongs to another account, or the subject is already linked
+            belongs to another account, the provider's email differs from the account's,
+            or the subject is already linked
     """
     identity, provider = await complete_oidc_link(db, user, data.code, data.state)
     return _build_identity_summary(identity, provider)
@@ -423,9 +422,7 @@ async def remove_oidc_identity_route(
         HTTPException: The step-up fails, the identity is not the user's, or removing it
             would leave the account with no way to sign in
     """
-    await _manage_provider(
-        db, user, response, data, oidc_reauth_stepup, lambda: unlink_oidc_identity(db, user, identity_id)
-    )
+    await _manage_provider(db, user, response, data, oidc_reauth_stepup, lambda: unlink_oidc_identity(db, user, identity_id))
 
 
 def _decode_onboarding_claims(onboarding_token: str) -> OidcOnboardingClaims:
