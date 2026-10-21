@@ -1,4 +1,4 @@
-# Build the Vite frontend into static assets.
+# Frontend build
 FROM dhi.io/node:26.10-debian13-sfw-dev AS frontend-builder
 
 ARG APP_VERSION
@@ -19,7 +19,7 @@ COPY frontend/src ./src
 RUN npm run build:app
 
 
-# Install locked Python production dependencies into a virtualenv.
+# Backend dependencies
 FROM dhi.io/python:3-debian13-sfw-dev AS backend-deps
 
 ARG UV_VERSION=0.12.0
@@ -37,11 +37,11 @@ COPY backend/pyproject.toml backend/uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 
-# Source the Caddy binary for the final image.
+# Caddy binary
 FROM dhi.io/caddy:2-debian13-dev AS caddy
 
 
-# Assemble the final one-image runtime.
+# Runtime image
 FROM dhi.io/python:3-debian13-dev AS runtime
 
 ARG APP_VERSION
@@ -60,18 +60,18 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends bash ca-certificates openssl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy built artifacts and runtime dependencies from prior stages.
+# Built frontend and dependencies
 COPY --from=caddy /usr/local/bin/caddy /usr/local/bin/caddy
 COPY --from=backend-deps /app/backend/.venv /app/backend/.venv
 COPY --from=frontend-builder /app/frontend/dist /srv/lumina/frontend
 
-# Copy backend source, migrations, and seed scripts.
+# Backend source, migrations and seed scripts
 COPY backend/alembic ./alembic
 COPY backend/alembic.ini ./
 COPY backend/app ./app
 COPY backend/scripts ./scripts
 
-# Copy self-hosted runtime configuration.
+# Runtime configuration
 COPY docker/Caddyfile /etc/caddy/Caddyfile
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
