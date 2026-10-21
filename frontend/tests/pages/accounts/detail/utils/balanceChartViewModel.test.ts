@@ -49,6 +49,20 @@ describe('balance chart view model helpers', () => {
     })
   })
 
+  it('rounds the balance change in percent down to the tenth', () => {
+    const point = (date: string, balance: number) => ({
+      date,
+      dateMs: calendarDateMs(new Date(date)),
+      dateLabel: date,
+      tooltipLabel: date,
+      balance,
+    })
+
+    // +2.349% reads 2.3%, and a fall of 2.341% reads 2.4%
+    expect(getBalancePeriodDelta([point('2026-06-01', 100_000), point('2026-06-02', 102_349)])?.pct).toBe(2.3)
+    expect(getBalancePeriodDelta([point('2026-06-01', 100_000), point('2026-06-02', 97_659)])?.pct).toBe(-2.4)
+  })
+
   it('finds a year boundary only when the selected range crosses New Year', () => {
     expect(getBalanceYearBoundary(new Date(2025, 11, 20), new Date(2026, 0, 10))).toEqual({
       dateMs: calendarDateMs(new Date(2026, 0, 1)),

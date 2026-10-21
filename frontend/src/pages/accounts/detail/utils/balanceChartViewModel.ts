@@ -6,6 +6,7 @@ import {
 } from '@/pages/accounts/detail/constants/accountDetail'
 import { getBalanceXAxisTicks } from '@/pages/accounts/detail/utils/balanceChartAxis'
 import { calendarDateMs } from '@/pages/accounts/detail/utils/calendarDate'
+import { getRoundedPercent } from '@/utils/rounding'
 import {
   buildChartSeries,
   rezeroSeriesToPeriod,
@@ -100,7 +101,8 @@ export function getBalancePeriodDelta(series: BalanceChartPoint[]): BalanceChart
   const start = series[0].balance
   const end = series[series.length - 1].balance
   const absolute = end - start
-  const pct = start === 0 ? null : (absolute / Math.abs(start)) * 100
+  // A balance is held, so its change in percent rounds down to the tenth like the balance itself
+  const pct = start === 0 ? null : getRoundedPercent(absolute, Math.abs(start), 'down', 1)
   return { absolute, pct }
 }
 
