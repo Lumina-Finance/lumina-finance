@@ -4,7 +4,9 @@ import { AlertTriangle, EyeOff } from 'lucide-react'
 import type { Account } from '@/api/accounts'
 import { getFocusableElements } from '@/components/modal/focus'
 import { useRevealWhenGrown } from '@/pages/accounts/detail/hooks/useRevealWhenGrown'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import {
+  ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON,
   EDIT_ACCOUNT_IDENTITY_FIELD_IDS,
   EASE,
 } from '@/pages/accounts/detail/constants/accountDetail'
@@ -107,17 +109,19 @@ export function DeleteAccountPanel({
                       >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           {!account.is_archived ? (
-                            <button
-                              type="button"
-                              className="inline-flex items-center gap-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60"
+                            <DisabledReasonButton
+                              className="group inline-flex items-center gap-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:cursor-not-allowed"
                               style={{ color: 'var(--app-text-muted)' }}
                               onClick={onArchiveInstead}
-                              disabled={isBusy || isArchiveBlocked}
-                              aria-describedby={isArchiveBlocked ? EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archiveBlockedReason : undefined}
+                              disabled={isBusy}
+                              disabledReason={!isBusy && isArchiveBlocked ? ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON : undefined}
                             >
-                              <EyeOff size={15} aria-hidden />
-                              Archive instead
-                            </button>
+                              {/* The faded label stands for unavailable, and the button itself stays whole so its focus ring does not fade */}
+                              <span className="inline-flex items-center gap-2 group-aria-disabled:opacity-60">
+                                <EyeOff size={15} aria-hidden />
+                                Archive instead
+                              </span>
+                            </DisabledReasonButton>
                           ) : (
                             <span aria-hidden />
                           )}
@@ -172,16 +176,16 @@ export function DeleteAccountPanel({
                           )}
 
                           <div className="mt-4 flex justify-end">
-                            <button
-                              type="button"
+                            <DisabledReasonButton
                               className={`app-danger-button justify-center overflow-hidden whitespace-nowrap duration-300 ${deleteLoading ? 'app-primary-button-loading shrink-0' : 'w-full min-[1050px]:w-auto'}`}
                               onClick={onDelete}
-                              disabled={!canDelete || isBusy}
+                              disabled={isBusy}
+                              disabledReason={!isBusy && !canDelete ? "Type the account's name first" : undefined}
                               aria-label="Delete account"
                               aria-busy={deleteLoading}
                             >
                               {deleteLoading ? <span className="app-spinner" /> : 'Delete account'}
-                            </button>
+                            </DisabledReasonButton>
                           </div>
                         </div>
                       </motion.div>

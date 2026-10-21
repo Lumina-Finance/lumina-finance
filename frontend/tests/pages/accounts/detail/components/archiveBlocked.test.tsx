@@ -43,7 +43,7 @@ function renderDeletePanel(isArchiveBlocked: boolean) {
 }
 
 function getArchiveInsteadButton(markup: string) {
-  return markup.match(/<button[^>]*>(?:(?!<\/button>).)*Archive instead<\/button>/s)?.[0] ?? ''
+  return markup.match(/<button[^>]*>(?:(?!<\/button>).)*Archive instead(?:<\/span>)?<\/button>/s)?.[0] ?? ''
 }
 
 describe('archive blocked by later-dated transactions', () => {
@@ -60,8 +60,16 @@ describe('archive blocked by later-dated transactions', () => {
     expect(markup).not.toMatch(/<input[^>]*role="switch"[^>]*disabled=""/)
   })
 
-  it('disables the archive shortcut in the delete confirmation', () => {
-    expect(getArchiveInsteadButton(renderDeletePanel(true))).toContain('disabled=""')
-    expect(getArchiveInsteadButton(renderDeletePanel(false))).not.toContain('disabled=""')
+  // It stays focusable and hoverable so the reason can be shown, which a native disabled button can't be
+  it('holds off the archive shortcut in the delete confirmation and explains why', () => {
+    const blocked = getArchiveInsteadButton(renderDeletePanel(true))
+    expect(blocked).toContain('aria-disabled="true"')
+    expect(blocked).toContain('aria-describedby=')
+    expect(blocked).not.toContain('disabled=""')
+    expect(renderDeletePanel(true)).toContain(RENDERED_REASON)
+
+    const available = getArchiveInsteadButton(renderDeletePanel(false))
+    expect(available).not.toContain('aria-disabled="true"')
+    expect(available).not.toContain('disabled=""')
   })
 })
