@@ -61,4 +61,20 @@ describe('net worth change', () => {
     expect(markup).toContain(`>${expected}<`)
     expect(markup).toContain(`aria-label="Net worth change ${expected}"`)
   })
+
+  it('rounds a gain down and a loss up in size, and net worth down', () => {
+    // 1,234,567.00 is 1.2345 million
+    const gain = renderToStaticMarkup(
+      <NetWorthMetric netWorth={123_456_700} netWorthChange={123_456_700} displayCurrency="USD" />,
+    )
+    expect(gain).toContain('>≈$1.2M<')
+    expect(gain).toContain('>+≈$1.2M<')
+
+    const loss = renderToStaticMarkup(
+      <NetWorthMetric netWorth={-123_456_700} netWorthChange={-123_456_700} displayCurrency="USD" />,
+    )
+    // Net worth rounds down, so a negative one reads larger, and a loss reads larger too
+    expect(loss).toContain('>≈($1.3M)<')
+    expect(loss).toContain('>−≈$1.3M<')
+  })
 })

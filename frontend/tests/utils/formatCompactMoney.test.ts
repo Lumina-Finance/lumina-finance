@@ -17,6 +17,7 @@ import { formatCurrency } from '@/utils/formatCurrency'
 const currencies: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
   { id: 'IQD', name: 'Iraqi Dinar', symbol: 'ع.د', minor_unit_exponent: 3 },
+  { id: 'JPY', name: 'Japanese Yen', symbol: '¥', minor_unit_exponent: 0 },
 ]
 
 const RULES: CompactMoneyRule[] = [
@@ -90,12 +91,27 @@ describe('compact money formatting', () => {
     expect(formatCompactMoney(999_01, 'CAD', RULES, currencies, 'down', whole)).toBe('CA$999')
   })
 
-  it('rounds a dashboard breakdown total either way without stepping into a larger size', () => {
+  it('rounds in a currency with three decimals and one with none', () => {
+    // 2,841.000 dinar is 2,841,000 minor units, and 2,841 yen is 2,841
+    expect(formatCompactMoney(2_841_000, 'IQD', RULES, currencies, 'up')).toBe('≈IQD 2.9K')
+    expect(formatCompactMoney(2_841_000, 'IQD', RULES, currencies, 'down')).toBe('≈IQD 2.8K')
+    expect(formatCompactMoney(2_841, 'JPY', RULES, currencies, 'up')).toBe('≈¥2.9K')
+    expect(formatCompactMoney(2_841, 'JPY', RULES, currencies, 'down')).toBe('≈¥2.8K')
+    // Whole amounts below the first threshold take the same exponent
+    expect(formatCompactMoney(500_001, 'IQD', RULES, currencies, 'up', { plainFractionDigits: 0 })).toBe('IQD 501')
+    expect(formatRoundedMoney(500_001, 'IQD', currencies, 0, 'down')).toBe('IQD 500')
+  })
+
+  it('rounds a negative axis tick to the nearest', () => {
+    const axis: CompactMoneyRule[] = [{ threshold: 1_000, divisor: 1_000, suffix: 'K', fractionDigits: 0 }]
+    expect(formatCompactMoney(-2_841_00, 'CAD', axis, currencies, 'nearest', { prefix: '' })).toBe('(CA$3K)')
+    expect(formatCompactMoney(-2_500_00, 'CAD', axis, currencies, 'nearest', { prefix: '' })).toBe('(CA$3K)')
+  })
+
+  it('keeps an amount on its step without stepping into a larger size', () => {
     const rules = DASHBOARD_MONEY_RULES.breakdown
     const read = (major: number, rounding: 'up' | 'down') =>
       formatCompactMoney(Math.round(major * 100), 'CAD', rules, currencies, rounding)
-    expect(read(2_987, 'up')).toBe('≈CA$3.0K')
-    expect(read(2_987, 'down')).toBe('≈CA$2.9K')
     // Amounts that divide to a long binary fraction stay on their step
     expect(read(99_900, 'up')).toBe('≈CA$99.9K')
     expect(read(1_100, 'up')).toBe('≈CA$1.1K')

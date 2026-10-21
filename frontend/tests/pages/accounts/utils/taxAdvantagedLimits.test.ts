@@ -13,6 +13,7 @@ import {
   formatTaxAdvantagedMeterMoney,
   formatTaxAdvantagedRawMoney,
   getLifetimeAvailableBoundary,
+  getTaxAdvantagedMeterLabels,
   getTaxAdvantagedUsageLabelPercent,
   getTaxAdvantagedLimitSummaries,
   getTaxAdvantagedUsageColor,
@@ -75,6 +76,16 @@ describe('tax-advantaged limit helpers', () => {
     // 999,999.99 is 1,000.0K once rounded up, which would be a third way of writing a million
     expect(formatTaxAdvantagedMeterMoney(99_999_999, 'CAD', testCurrencies, 'up')).toBe('CA$1.0M')
     expect(formatTaxAdvantagedMeterMoney(99_999_999, 'CAD', testCurrencies, 'down')).toBe('CA$999.9K')
+  })
+
+  it('writes room used and over up, and the limit and room left down', () => {
+    // 1,150 of a 3,999.99 limit: 2,849.99 of room is left
+    expect(getTaxAdvantagedMeterLabels(115_000, 399_999, 'CAD', testCurrencies)).toEqual({
+      usageLabel: 'CA$1.2K / CA$3.9K',
+      remainingLabel: 'CA$2.8K',
+    })
+    // 1,150 against a 1,000.01 limit is 149.99 over
+    expect(getTaxAdvantagedMeterLabels(115_000, 100_001, 'CAD', testCurrencies).remainingLabel).toBe('CA$150 over')
   })
 
   it('labels usage with the percent rounded up and held to the bar', () => {

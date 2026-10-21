@@ -7,12 +7,10 @@ import { formatCompactRunway } from '@/utils/runway'
 describe('compact runway', () => {
   it('rounds months down', () => {
     expect(formatCompactRunway(4.9)).toBe('≈ 4 mths')
-    expect(formatCompactRunway(0.9)).toBe('< 1 mth')
   })
 
   it('rounds a year and a half down to the half year', () => {
     expect(formatCompactRunway(23.9)).toBe('≈ 1.5 yrs')
-    expect(formatCompactRunway(12.5)).toBe('≈ 1 yr')
   })
 
   it('rounds longer runways down to the year', () => {

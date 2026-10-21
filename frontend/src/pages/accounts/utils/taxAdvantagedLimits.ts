@@ -88,6 +88,25 @@ export function formatTaxAdvantagedMeterMoney(
 }
 
 /**
+ * Writes the two labels a meter can show: room used beside the limit, and room left or the amount
+ * over. Used and over round up, the limit and room left round down
+ */
+export function getTaxAdvantagedMeterLabels(
+  used: number,
+  limit: number,
+  currency: string,
+  currencies: Currency[],
+) {
+  const remaining = limit - used
+  return {
+    usageLabel: `${formatTaxAdvantagedMeterMoney(used, currency, currencies, 'up')} / ${formatTaxAdvantagedMeterMoney(limit, currency, currencies, 'down')}`,
+    remainingLabel: remaining < 0
+      ? `${formatTaxAdvantagedMeterMoney(Math.abs(remaining), currency, currencies, 'up')} over`
+      : formatTaxAdvantagedMeterMoney(remaining, currency, currencies, 'down'),
+  }
+}
+
+/**
  * Formats full tax-advantaged limit amounts for tooltip rows, whole dollars rounded the way the
  * meter rounds the same figure
  */

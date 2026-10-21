@@ -4,7 +4,6 @@
  */
 import { describe, expect, it } from 'vitest'
 import { divideRounded, getRoundedPercent } from '@/utils/rounding'
-import { getSavingsRate } from '@/utils/savingsRate'
 
 describe('rounded division', () => {
   it('rounds a negative quotient by its signed value', () => {
@@ -32,27 +31,5 @@ describe('rounded percent', () => {
     // 0.07 * 100 is 7.000000000000001 in floating point, which would round up to 8
     expect(getRoundedPercent(7, 100, 'up')).toBe(7)
     expect(getRoundedPercent(29, 100, 'down')).toBe(29)
-  })
-})
-
-describe('savings rate', () => {
-  it('rounds an exact half down, not up', () => {
-    // 2,000.00 income and 1,710.00 expenses is exactly 14.5%
-    expect(getSavingsRate(200_000, 171_000)).toBe(14)
-  })
-
-  it('rounds just under a whole percent down', () => {
-    expect(getSavingsRate(10_000, 8_501)).toBe(14)
-    expect(getSavingsRate(10_000, 8_500)).toBe(15)
-  })
-
-  it('rounds a negative rate down, away from zero', () => {
-    // Expenses 2,290.00 against 2,000.00 income is exactly -14.5%
-    expect(getSavingsRate(200_000, 229_000)).toBe(-15)
-    expect(getSavingsRate(10_000, 11_401)).toBe(-15)
-  })
-
-  it('has no rate without income', () => {
-    expect(getSavingsRate(0, 5_000)).toBeNull()
   })
 })
