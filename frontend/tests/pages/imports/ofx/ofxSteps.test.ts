@@ -16,7 +16,7 @@ import { OfxFilesStep, OfxPreviewStep } from '@/pages/imports/ofx/sections'
 import { buildOfxImportPayload } from '@/pages/imports/ofx/utils/payload'
 import { readOfxFile } from '@/pages/imports/ofx/utils/readFile'
 import { combineOfxFiles } from '@/pages/imports/ofx/utils/stagedFiles'
-import { buildLeftOutMessageSet, buildMessageSet, toOfxFile, wrapMessageSets, type FixtureStatement } from './utils/fixtures'
+import { buildInvestmentMessageSet, buildMessageSet, toOfxFile, wrapMessageSets, type FixtureStatement } from './utils/fixtures'
 
 const CURRENCIES = [{ id: 'CAD', name: 'Canadian dollar', symbol: '$', minor_unit_exponent: 2 }] as Currency[]
 const CHEQUING = { id: 'chequing', name: 'Chequing', currency: 'CAD', can_write: true, is_archived: false, group_id: null } as AccountsOverview
@@ -42,7 +42,7 @@ describe('the files step', () => {
     const stagedFiles = fileNames.map((name, index) => ({ id: String(index), name, size: 10, lastModified: index, file }))
     return renderToStaticMarkup(createElement(OfxFilesStep, {
       stagedFiles,
-      ofxFile: combineOfxFiles(stagedFiles.map((staged) => staged.file)),
+      leftOutNotice: getOfxLeftOutNotice(combineOfxFiles(stagedFiles.map((staged) => staged.file)).leftOut, stagedFiles.length),
       isProcessingFile: false,
       fileIntakeError: null,
       handleOfxFileChange: async () => undefined,
@@ -53,25 +53,25 @@ describe('the files step', () => {
   }
 
   it('tells the user which statements the file holds that are not imported', async () => {
-    const markup = await renderFilesStep([buildLeftOutMessageSet('INVSTMTMSGSRSV1', 2), buildLeftOutMessageSet('LOANMSGSRSV1', 1)])
+    const markup = await renderFilesStep([buildInvestmentMessageSet(2)])
 
     expect(markup).toContain('Statements left out')
-    expect(markup).toContain(escapeHtml(getOfxLeftOutNotice({ investment: 2, loan: 1 }, 1) ?? ''))
-    expect(markup).toContain('2 investment statements and 1 loan statement in this file aren&#x27;t imported.')
+    expect(markup).toContain(escapeHtml(getOfxLeftOutNotice({ investment: 2 }, 1) ?? ''))
+    expect(markup).toContain('2 investment statements in this file aren&#x27;t imported: only bank, credit card and loan statements are supported.')
   })
 
   it('counts what every staged file leaves out, and says so of the files', async () => {
-    const markup = await renderFilesStep([buildLeftOutMessageSet('LOANMSGSRSV1', 1)], ['2024-01.qfx', '2024-02.qfx'])
+    const markup = await renderFilesStep([buildInvestmentMessageSet(1)], ['2024-01.qfx', '2024-02.qfx'])
 
-    expect(markup).toContain('2 loan statements in these files aren&#x27;t imported.')
+    expect(markup).toContain('2 investment statements in these files aren&#x27;t imported: only bank, credit card and loan statements are supported.')
   })
 
   // A finished import's files are its record, and the card that starts the next import comes after them
   it('puts the upload card after the notice once the import has finished', async () => {
-    const file = await readStatements([CHECKING], [buildLeftOutMessageSet('LOANMSGSRSV1', 1)])
+    const file = await readStatements([CHECKING], [buildInvestmentMessageSet(1)])
     const markup = renderToStaticMarkup(createElement(OfxFilesStep, {
       stagedFiles: [{ id: '1', name: 'statement.ofx', size: 10, lastModified: 1, file }],
-      ofxFile: file,
+      leftOutNotice: getOfxLeftOutNotice(file.leftOut, 1),
       isProcessingFile: false,
       fileIntakeError: null,
       handleOfxFileChange: async () => undefined,

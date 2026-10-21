@@ -14,7 +14,7 @@ import {
 import type { OfxFile } from '@/pages/imports/ofx/types'
 import { readOfxFile } from '@/pages/imports/ofx/utils/readFile'
 import {
-  buildLeftOutMessageSet,
+  buildInvestmentMessageSet,
   buildMessageSet,
   buildSgmlOfx,
   buildXmlOfx,
@@ -97,6 +97,15 @@ describe('reading a bank statement', () => {
     }
   })
 
+  // The server hashes the card key with the bank's transaction ID, and a card's saved transactions are
+  // matched on that hash, so renaming the key's prefix would bring back every transaction already imported
+  it('builds the credit card key from the card number', async () => {
+    const file = await readFile(buildSgmlOfx([{ kind: 'creditCard', transactions: [{ fitId: '1' }] }]))
+
+    expect(file.statements[0].transactions[0].bankAccountKey).toBe('creditCard:4111111111111111')
+    expect(file.statements[0].transactions[0].bankTransactionId).toBe('1')
+  })
+
   it('reads a bank statement and a credit card statement of one file as two statements', async () => {
     const file = await readFile(buildSgmlOfx([
       CHECKING,
@@ -107,6 +116,37 @@ describe('reading a bank statement', () => {
       { kind: 'bank', name: 'Checking ending 6789', currency: 'CAD', proposedType: 'checking' },
       { kind: 'creditCard', name: 'Credit card ending 1111', currency: 'USD', proposedType: 'credit_card' },
     ])
+  })
+
+  it('reads a loan statement like a bank statement, with a payment as a positive amount', async () => {
+    const loan: FixtureStatement = { kind: 'loan', transactions: [{ amount: '450.00', name: 'Payment', fitId: 'L1' }, { amount: '-35.00', name: 'Interest' }] }
+    const sgml = await readFile(buildSgmlOfx([loan]))
+
+    expect(await readFile(buildXmlOfx([loan]))).toEqual(sgml)
+    expect(sgml.leftOut).toEqual({ investment: 0 })
+    expect(sgml.statements.map(({ kind, name, currency, proposedType }) => ({ kind, name, currency, proposedType }))).toEqual([
+      { kind: 'loan', name: 'Loan ending 6777', currency: 'CAD', proposedType: 'loan' },
+    ])
+    expect(sgml.statements[0].transactions).toEqual([
+      expect.objectContaining({ bankAccountKey: 'loan:000555666777', bankTransactionId: 'L1', amount: '450.00', payee: 'Payment' }),
+      expect.objectContaining({ amount: '-35.00', payee: 'Interest' }),
+    ])
+  })
+
+  it('proposes a mortgage for a mortgage loan statement and a loan for any other', async () => {
+    const file = await readFile(buildSgmlOfx([
+      { kind: 'loan', accountType: 'MORTGAGE', transactions: [{}] },
+      { kind: 'loan', accountType: 'STUDENT', accountId: '000999888', transactions: [{}] },
+    ]))
+
+    expect(file.statements.map(({ name, proposedType }) => ({ name, proposedType }))).toEqual([
+      { name: 'Mortgage ending 6777', proposedType: 'mortgage' },
+      { name: 'Loan ending 9888', proposedType: 'loan' },
+    ])
+  })
+
+  it('refuses a loan statement with no account number', async () => {
+    expect(await readReason(buildSgmlOfx([{ kind: 'loan', accountId: null, transactions: [{}] }]))).toBe(OFX_STATEMENT_INCOMPLETE_REASON)
   })
 
   it('keeps two statements of one account apart so each can be answered', async () => {
@@ -225,20 +265,16 @@ describe('a file that crashes the reader', () => {
 })
 
 describe('statements the import leaves out or refuses', () => {
-  it('counts investment and loan statements it leaves out beside the ones it reads', async () => {
-    const markup = wrapMessageSets([
-      buildLeftOutMessageSet('INVSTMTMSGSRSV1', 2),
-      buildLeftOutMessageSet('LOANMSGSRSV1', 1),
-      buildMessageSet(CHECKING, false),
-    ])
+  it('counts the investment statements it leaves out beside the ones it reads', async () => {
+    const markup = wrapMessageSets([buildInvestmentMessageSet(2), buildMessageSet(CHECKING, false)])
     const file = await readFile(markup)
 
-    expect(file.leftOut).toEqual({ investment: 2, loan: 1 })
+    expect(file.leftOut).toEqual({ investment: 2 })
     expect(file.statements).toHaveLength(1)
   })
 
-  it('refuses a file holding only investment and loan statements, saying so', async () => {
-    const markup = wrapMessageSets([buildLeftOutMessageSet('INVSTMTMSGSRSV1', 1)])
+  it('refuses a file holding only investment statements, saying so', async () => {
+    const markup = wrapMessageSets([buildInvestmentMessageSet(1)])
 
     expect(await readReason(markup)).toBe(OFX_ONLY_LEFT_OUT_REASON)
   })

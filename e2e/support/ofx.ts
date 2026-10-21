@@ -50,6 +50,32 @@ export function buildCardMessageSet(currency: string, transactions: StatementTra
   ]
 }
 
+/** The auto loan ending 6777, whose transactions are named as a loan statement names them */
+export function buildLoanMessageSet(currency: string, transactions: StatementTransaction[]) {
+  return [
+    '<LOANMSGSRSV1><LOANSTMTTRNRS><LOANSTMTRS>',
+    `<CURDEF>${currency}`,
+    '<LOANACCTFROM><LOANACCTID>000555666777<LOANACCTTYPE>AUTO</LOANACCTFROM>',
+    '<LOANTRANLIST>',
+    ...transactions.flatMap((transaction) => [
+      '<LOANSTMTTRN>',
+      '<LOANTRNTYPE>PAYMENT',
+      `<DTPOSTED>${transaction.posted}`,
+      `<TRNAMT>${transaction.amount}`,
+      `<FITID>${transaction.fitId}`,
+      `<NAME>${transaction.name}`,
+      '</LOANSTMTTRN>',
+    ]),
+    '</LOANTRANLIST>',
+    '</LOANSTMTRS></LOANSTMTTRNRS></LOANMSGSRSV1>',
+  ]
+}
+
+/** Investment statements, which the import leaves out, as many as the count */
+export function buildInvestmentMessageSet(count: number) {
+  return [`<INVSTMTMSGSRSV1>${'<INVSTMTTRNRS><TRNUID>2001</INVSTMTTRNRS>'.repeat(count)}</INVSTMTMSGSRSV1>`]
+}
+
 export function buildFile(messageSets: string[][]) {
   return [
     'OFXHEADER:100', 'DATA:OFXSGML', 'VERSION:102', 'SECURITY:NONE', 'ENCODING:USASCII', 'CHARSET:1252',

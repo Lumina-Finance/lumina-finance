@@ -8,7 +8,7 @@ import type { OfxFile, OfxStagedFile } from '@/pages/imports/ofx/types'
 import { readOfxFile } from '@/pages/imports/ofx/utils/readFile'
 import { combineOfxFiles, stageOfxFiles, type OfxStagingCandidate } from '@/pages/imports/ofx/utils/stagedFiles'
 import { MAX_IMPORT_ROWS } from '@/pages/imports/utils'
-import { buildLeftOutMessageSet, buildMessageSet, toOfxFile, wrapMessageSets, type FixtureStatement } from './fixtures'
+import { buildInvestmentMessageSet, buildMessageSet, toOfxFile, wrapMessageSets, type FixtureStatement } from './fixtures'
 
 async function readStatements(statements: FixtureStatement[], leftOut: string[] = []): Promise<OfxFile> {
   const read = await readOfxFile(toOfxFile(wrapMessageSets([...statements.map((statement) => buildMessageSet(statement, false)), ...leftOut])))
@@ -147,11 +147,11 @@ describe('combining the statements of several files', () => {
   })
 
   it('adds up the statements every file leaves out', async () => {
-    const january = await readOfxFile(toOfxFile(wrapMessageSets([buildMessageSet(JANUARY, false), buildLeftOutMessageSet('LOANMSGSRSV1', 1)])))
-    const february = await readOfxFile(toOfxFile(wrapMessageSets([buildMessageSet(FEBRUARY, false), buildLeftOutMessageSet('INVSTMTMSGSRSV1', 2), buildLeftOutMessageSet('LOANMSGSRSV1', 1)])))
+    const january = await readOfxFile(toOfxFile(wrapMessageSets([buildMessageSet(JANUARY, false), buildInvestmentMessageSet(1)])))
+    const february = await readOfxFile(toOfxFile(wrapMessageSets([buildMessageSet(FEBRUARY, false), buildInvestmentMessageSet(2)])))
     if (january.status !== 'read' || february.status !== 'read') throw new Error('Fixture files were not read')
 
-    expect(combineOfxFiles([january.file, february.file]).leftOut).toEqual({ investment: 2, loan: 2 })
+    expect(combineOfxFiles([january.file, february.file]).leftOut).toEqual({ investment: 3 })
   })
 
   it('leaves a single file as it was read', async () => {

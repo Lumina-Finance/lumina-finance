@@ -57,12 +57,11 @@ function getRefusalReason(held: OfxStagedFile[], candidate: Omit<OfxStagedFile, 
  */
 export function combineOfxFiles(files: OfxFile[]): OfxFile {
   const merged = new Map<string, OfxStatement>()
-  const leftOut = { investment: 0, loan: 0 }
+  const leftOut = { investment: 0 }
   const nameFile = getFileNamer(files)
 
   for (const [position, file] of files.entries()) {
     leftOut.investment += file.leftOut.investment
-    leftOut.loan += file.leftOut.loan
 
     for (const readStatement of file.statements) {
       const statement = {

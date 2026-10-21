@@ -57,6 +57,7 @@ describe('the card saying what an import does with its data', () => {
       'A transaction',
       'A transaction an earlier OFX import brought into the account',
       'A statement in another currency than its account',
+      'A loan statement',
       'A new account',
     ])
     expect(expectations.changes.find((change) => change.source.startsWith('A transaction an earlier'))?.lumina).toMatch(/^Skipped/)
@@ -65,7 +66,7 @@ describe('the card saying what an import does with its data', () => {
     )
     expect(expectations.changes.find((change) => change.source.startsWith('A statement in another'))?.lumina).toMatch(/^Refused/)
     expect(expectations.leftBehind).toEqual([
-      { group: 'Statements', items: ['Investment', 'Loan'] },
+      { group: 'Statements', items: ['Investment'] },
       {
         group: 'Transactions',
         items: [
