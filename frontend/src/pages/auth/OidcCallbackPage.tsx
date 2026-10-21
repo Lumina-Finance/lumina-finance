@@ -281,9 +281,9 @@ function OidcOnboardingForm({ onboarding, onBackToLogin }: OidcOnboardingFormPro
   const submitBlockReason = submitting
     ? undefined
     : !firstName.trim()
-      ? 'Enter your first name first'
+      ? 'Enter your first name to continue'
       : !baseCurrency
-        ? 'Choose a base currency first'
+        ? 'Choose a base currency to continue'
         : undefined
 
   const handleSubmit = async (event: React.FormEvent) => {
