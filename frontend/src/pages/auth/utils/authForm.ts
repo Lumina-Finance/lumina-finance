@@ -193,6 +193,22 @@ export function isAuthSubmitDisabled(
 }
 
 /**
+ * Says why the submit button is held off when the form itself is the cause, or nothing while it is
+ * ready or only waiting on its own request
+ */
+export function getAuthSubmitBlockReason(
+  submitting: boolean,
+  fieldErrors: AuthFieldErrors,
+  mode: AuthMode,
+  currencyCount: number,
+): string | undefined {
+  if (submitting) return undefined
+  if (Object.values(fieldErrors).some(Boolean)) return 'Fix the fields with errors first'
+  if (mode === 'signup' && currencyCount === 0) return 'Currencies are not available yet'
+  return undefined
+}
+
+/**
  * Maps backend auth errors into user-facing messages while hiding unrecognised implementation details
  */
 export function getAuthErrorMessage(error: unknown): string {

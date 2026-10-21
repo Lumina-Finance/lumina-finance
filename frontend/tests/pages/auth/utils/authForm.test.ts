@@ -11,6 +11,7 @@ import {
   buildSignupPayload,
   getAuthErrorMessage,
   getAuthMode,
+  getAuthSubmitBlockReason,
   getCurrencyPlaceholder,
   getLockoutExpiry,
   getLockoutRemainingLabel,
@@ -97,6 +98,13 @@ describe('auth form helpers', () => {
     expect(getCurrencyPlaceholder(true, 0)).toBe('Failed to load currencies')
     expect(isAuthSubmitDisabled(false, {}, 'signup', 0)).toBe(true)
     expect(isAuthSubmitDisabled(false, {}, 'login', 0)).toBe(false)
+    expect(getAuthSubmitBlockReason(false, {}, 'signup', 0)).toBe('Currencies are not available yet')
+    expect(getAuthSubmitBlockReason(false, {}, 'login', 0)).toBeUndefined()
+  })
+
+  it('gives the submit button a reason only when the form holds it off, not its own request', () => {
+    expect(getAuthSubmitBlockReason(false, { email: 'Enter a valid email' }, 'login', 2)).toBe('Fix the fields with errors first')
+    expect(getAuthSubmitBlockReason(true, { email: 'Enter a valid email' }, 'login', 2)).toBeUndefined()
   })
 
   it('maps backend errors and lockout timestamps into user-facing auth state', () => {

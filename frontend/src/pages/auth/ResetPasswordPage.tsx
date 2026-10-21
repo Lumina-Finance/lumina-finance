@@ -17,6 +17,7 @@ import { getPasskeySignInMessage, isPasskeyCeremonyCancelled } from '@/utils/pas
 import { assessPasskeySupport } from '@/utils/passkeySupport'
 import { AUTH_LOADING_MIN_MS, withMinDelay } from '@/utils/timing'
 import { isNewPasswordValid } from '@/utils/passwordPolicy'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 
 /**
  * Renders the password reset form reached from the emailed link, validating the new password
@@ -52,6 +53,13 @@ const ResetPasswordPage = () => {
   const newPasswordValid = isNewPasswordValid(newPassword)
   const confirmMatches = confirmPassword === newPassword
   const canSubmit = !submitting && newPasswordValid && confirmMatches
+  const submitBlockReason = submitting
+    ? undefined
+    : !newPasswordValid
+      ? 'Choose a new password that meets the rules first'
+      : !confirmMatches
+        ? 'Enter the same password in both fields first'
+        : undefined
   const showRules = newPassword.length > 0
   const showMismatch = confirmPassword.length > 0 && !confirmMatches
 
@@ -327,15 +335,16 @@ const ResetPasswordPage = () => {
               </div>
 
               <div className="mt-5 flex justify-center">
-                <button
+                <DisabledReasonButton
                   type="submit"
-                  disabled={!canSubmit}
+                  disabled={submitting}
+                  disabledReason={submitBlockReason}
                   className={`app-primary-button transition-all duration-300 ${
                     submitting ? 'app-primary-button-loading' : 'w-full'
                   }`}
                 >
                   {submitting ? <div className="app-spinner" /> : 'Reset password'}
-                </button>
+                </DisabledReasonButton>
               </div>
 
               <p className="mt-5 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
