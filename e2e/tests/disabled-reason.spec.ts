@@ -238,3 +238,16 @@ test.describe('on a touch screen', () => {
     await expectFadedOut(tooltip)
   })
 })
+
+test('explains the tags dropdown while no account is chosen', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await createAccount(request, user, { name: 'Everyday' })
+  await createAccount(request, user, { name: 'Savings' })
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
+  const tags = dialog.locator('#txn-tags')
+
+  await expect(tags).toHaveAttribute('aria-disabled', 'true')
+  await expect(tags).toHaveAccessibleDescription('Select an account first')
+})

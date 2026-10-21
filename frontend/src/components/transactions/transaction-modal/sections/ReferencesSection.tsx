@@ -420,7 +420,7 @@ export default function TransactionReferencesSection({
           value=""
           onChange={onTagChange}
           labelledBy={getFieldLabelId(TRANSACTION_MODAL_FIELD_IDS.tags)}
-          placeholder={tagsDisabled ? 'Select account first' : 'Add tags...'}
+          placeholder={tagsDisabled ? 'Select an account first' : 'Add tags...'}
           searchable
           searchPlaceholder="Search tags..."
           searchValue={tagSearch}
@@ -436,6 +436,7 @@ export default function TransactionReferencesSection({
           onCreateNew={readOnly ? undefined : onCreateTag}
           createNewLabel={readOnly ? undefined : (query) => query ? `Create tag "${query}"` : 'Create tag'}
           disabled={tagsDisabled || readOnly}
+          disabledReason={tagsDisabled && !readOnly ? 'Select an account first' : undefined}
         />
         <AnimatePresence initial={false}>
           {selectedTags.length > 0 && (
