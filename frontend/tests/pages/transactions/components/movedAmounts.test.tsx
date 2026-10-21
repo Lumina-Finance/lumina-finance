@@ -1,7 +1,8 @@
 /**
  * Guards the transactions overview's amounts that moved. The net flow showed a negative in brackets
  * and the daily chart's net in brackets too, where the rule wants a plus or a true minus, and a zero
- * stays unsigned. Inflow and outflow are magnitudes under their own labels and stay unsigned
+ * stays unsigned. Inflow and outflow are magnitudes under their own labels and stay unsigned. A zero
+ * net flow, including one that rounds to zero, showed green instead of neutral
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -40,6 +41,21 @@ describe('net flow summary', () => {
     )
 
     expect(textOf(markup)).toContain(expected)
+  })
+
+  it.each([
+    [-5_000, 0, 'var(--app-negative)'],
+    [5_000, 0, 'var(--app-positive)'],
+    [0, 0, 'var(--app-text)'],
+    [4_000, -4_000, 'var(--app-text)'],
+    [0.3, 0, 'var(--app-text)'],
+    [0, -0.4, 'var(--app-text)'],
+  ])('colours inflow %s and outflow %s as %s', (inflow, outflow, expected) => {
+    const markup = renderToStaticMarkup(
+      <NetFlowSummary inflow={inflow} outflow={outflow} fxStatus={undefined} displayCurrency="USD" />,
+    )
+
+    expect(markup).toContain(`style="color:${expected};`)
   })
 
   it('leaves inflow and outflow as magnitudes', () => {
