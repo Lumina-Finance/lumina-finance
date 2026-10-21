@@ -5,6 +5,7 @@ from app.services.fx.errors import (
     FxProviderUnavailableError,
     FxRateError,
     FxRateNotFoundError,
+    FxRateRejectedError,
     FxRateResponseError,
 )
 from app.services.fx.frankfurter_provider import FrankfurterProvider
@@ -16,6 +17,7 @@ __all__ = [
     "FxRateError",
     "FxRateKey",
     "FxRateNotFoundError",
+    "FxRateRejectedError",
     "FxRateResponseError",
     "convert_minor_units",
 ]

@@ -118,6 +118,42 @@ async def test_dashboard_spending_breakdown_converts_foreign_currency_accounts(c
     assert calls == [("USD", "CAD", date(2026, 3, 1), date(2026, 3, 20))]
 
 
+async def test_dashboard_spending_breakdown_loaded_twice_asks_the_rate_provider_once(client, monkeypatch, published_valkey):
+    """With the cache on, a second load of the dashboard makes no outbound rate call and shows the same totals"""
+    from app.routes import dashboard as dashboard_routes
+    from app.services.fx import FrankfurterProvider
+
+    calls = []
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        calls.append((base, quote, start_date, end_date))
+        return {date(2026, 3, 13): Decimal("1.25"), date(2026, 3, 14): Decimal("1.75")}
+
+    monkeypatch.setattr(dashboard_routes, "datetime", _FixedClock(datetime(2026, 3, 20, 16, 0, tzinfo=UTC)))
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    async with TestSession() as session:
+        session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
+        await session.commit()
+
+    usd_account_id = (await _create_account(client, headers, name="USD Cash", currency="USD")).json()["id"]
+    expense_id = (await _create_category(client, headers, name="Test Groceries", kind="expense")).json()["id"]
+    for day in ("2026-03-13", "2026-03-14"):
+        await _create_transaction(
+            client, headers, usd_account_id, expense_id, dt=day, amount=-10_000, currency="USD"
+        )
+
+    first = await client.get("/dashboard/spending-breakdown", params={"range": "MTD"}, headers=headers)
+    second = await client.get("/dashboard/spending-breakdown", params={"range": "MTD"}, headers=headers)
+
+    assert first.status_code == 200
+    assert first.json()["expense_total"] == 12_500 + 17_500
+    assert second.json() == first.json()
+    assert len(calls) == 1
+
+
 async def test_dashboard_spending_breakdown_reports_incomplete_fx_with_missing_pairs(client, monkeypatch):
     """Spending breakdown skips unconverted foreign rows and reports the missing pair."""
     from app.routes import dashboard as dashboard_routes

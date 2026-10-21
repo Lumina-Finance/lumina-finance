@@ -112,3 +112,16 @@ def get_recent_month_start_dates(reference: date | datetime, count: int) -> list
     final_month = get_month_start_date(reference)
     start_month = get_shifted_month_start_date(final_month, -(count - 1))
     return get_month_start_dates(start_month, count)
+
+
+def get_dates_in_range(start_date: date, end_date: date) -> list[date]:
+    """Return every calendar date in an inclusive date range
+
+    Args:
+        start_date: First date in the range
+        end_date: Last date in the range
+
+    Returns:
+        Calendar dates from start_date through end_date
+    """
+    return [date.fromordinal(ordinal) for ordinal in range(start_date.toordinal(), end_date.toordinal() + 1)]

@@ -9,6 +9,11 @@ services:
       - "8080:80"
     env_file:
       - .env
+    # Caches exchange rates in the valkey service below. It is deliberately not in depends_on, since the app
+    # starts and works without a cache. An unset VALKEY_URL points at the service, and setting it blank in
+    # .env turns the cache off
+    environment:
+      VALKEY_URL: "${VALKEY_URL-valkey://valkey:6379}"
     volumes:
       - lumina_data:/data
 
@@ -26,6 +31,18 @@ services:
       retries: 5
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+  # A cache, so it keeps nothing on disk and a restart just empties it. The memory cap with eviction means
+  # it never refuses a write when full. It publishes no port, so only the app can reach it
+  valkey:
+    image: valkey/valkey:9-alpine
+    restart: unless-stopped
+    command: ["valkey-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
   lumina_data:

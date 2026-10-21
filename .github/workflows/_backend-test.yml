@@ -56,6 +56,17 @@ jobs:
           --health-start-period 5s
           --tmpfs /var/lib/postgresql/data
 
+      # The cache tests run against a real ValKey, found at the default TEST_VALKEY_URL in tests/.env.test
+      valkey:
+        image: valkey/valkey:9-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 10
+
     defaults:
       run:
         working-directory: backend
