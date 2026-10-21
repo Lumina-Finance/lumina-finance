@@ -1,6 +1,7 @@
 import type { ReactNode, RefObject } from 'react'
 import { Plus } from 'lucide-react'
 import { getDesktopControlsClearanceClassName } from '@/components/list-controls/toolbarStyles'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { joinClassNames } from '@/utils/classNames'
 
 type DesktopToolbarControlsProps = {
@@ -62,16 +63,15 @@ export function DesktopToolbarControls({
           row is tuned to look even rather than to measure even, so this is a compromise and not an
           oversight: do not square it up with the rest. The invisible twin below is measured by the
           toolbar to decide when the row wraps, so any height change has to happen on both */}
-      <button
-        type="button"
+      <DisabledReasonButton
         className={`app-glass-button-primary h-10 shrink-0 ${desktopCreateStacked ? 'basis-full justify-center' : 'w-auto'}`}
         onClick={onCreate}
         disabled={createDisabled}
-        title={createDisabledReason}
+        disabledReason={createDisabled ? createDisabledReason : undefined}
       >
         <Plus size={18} aria-hidden />
         <span>{createLabel}</span>
-      </button>
+      </DisabledReasonButton>
       <button
         ref={createMeasureRef}
         type="button"

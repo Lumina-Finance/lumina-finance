@@ -5,6 +5,7 @@ import { DesktopToolbarControls } from '@/components/list-controls/DesktopToolba
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import { MobileToolbarActions } from '@/components/list-controls/MobileToolbarActions'
 import { ToolbarStickyShell } from '@/components/list-controls/ToolbarStickyShell'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { getSearchFieldWrapperClassName } from '@/components/list-controls/toolbarStyles'
 import { useToolbarShellState } from '@/components/list-controls/useToolbarShellState'
 import { TRANSACTION_LIST_EASE } from '@/components/transactions/constants/transactionList'
@@ -62,15 +63,14 @@ export default function TransactionListToolbar({
   // word on a desktop, but the same height throughout. The accessible name says which import this is,
   // since the word on the button cannot: on a list fixed to one account it files every row into that
   // account, and on the list of every account it is the way to the import page. The reason it is
-  // blocked rides on the title alone, the way the create button's does, so the name still says what
+  // blocked is the button's description, the way the create button's is, so the name still says what
   // the control is
   const importAction = onImport ? (
-    <button
-      type="button"
+    <DisabledReasonButton
       className="app-glass-button h-11 w-11 shrink-0 px-0 min-[750px]:w-auto min-[750px]:px-4"
       onClick={onImport}
       disabled={importDisabled}
-      title={importDisabledReason}
+      disabledReason={importDisabled ? importDisabledReason : undefined}
       aria-label={showAccountFilter ? 'Import transactions' : 'Import transactions into this account'}
     >
       <Upload size={18} aria-hidden />
@@ -78,7 +78,7 @@ export default function TransactionListToolbar({
       {/* The word is dropped on a phone, where the row is three controls wide and the filters button
           needs the space it would take. The accessible name carries it at both widths */}
       <span className="hidden min-[750px]:inline">Import</span>
-    </button>
+    </DisabledReasonButton>
   ) : undefined
 
   // Follows the import button's shape while browsing. In the mobile selection row, Done gains its
@@ -119,17 +119,15 @@ export default function TransactionListToolbar({
     if (!onEditSelection) return undefined
     const reason = editDisabledReason ?? (selectedCount === 0 ? 'Tick a transaction first' : undefined)
     return (
-      <button
-        type="button"
+      <DisabledReasonButton
         className={className}
         onClick={onEditSelection}
-        disabled={Boolean(reason)}
-        title={reason}
+        disabledReason={reason}
         aria-label="Edit the selected transactions"
       >
         <PencilLine size={18} aria-hidden />
         <span className={labelClassName}>Edit</span>
-      </button>
+      </DisabledReasonButton>
     )
   }
 
@@ -139,17 +137,15 @@ export default function TransactionListToolbar({
     if (!onDeleteSelection) return undefined
     const reason = selectedCount === 0 ? 'Tick a transaction first' : deleteDisabledReason
     return (
-      <button
-        type="button"
+      <DisabledReasonButton
         className={className}
         onClick={onDeleteSelection}
-        disabled={Boolean(reason)}
-        title={reason}
+        disabledReason={reason}
         aria-label="Delete the selected transactions"
       >
         <Trash2 size={18} aria-hidden />
         <span className="hidden min-[1050px]:inline">Delete</span>
-      </button>
+      </DisabledReasonButton>
     )
   }
 
