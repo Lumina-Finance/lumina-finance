@@ -67,7 +67,10 @@ const netWorthAxisMoneyRules: CompactMoneyRule[] = [
  * Formats a net worth chart axis value with K/M compaction rules and no currency prefix
  */
 export function formatNetWorthAxisMoney(value: number, currency: string, currencies: Currency[]) {
-  return formatCompactMoney(value, currency, netWorthAxisMoneyRules, currencies, { prefix: '' })
+  return formatCompactMoney(value, currency, netWorthAxisMoneyRules, currencies, {
+    prefix: '',
+    plainFractionDigits: 0,
+  })
 }
 
 /**
