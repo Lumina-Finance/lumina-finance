@@ -168,14 +168,16 @@ export default function ImportsPage() {
   // Collapses the setup panel on desktop once the flow on screen holds its files, and shows it again
   // when they go or the import is saved, so the next import's upload card and the last import's undo
   // are in view. Firefly takes three files, so it waits for all of them. A refused file or an intake
-  // message keeps the panel open, since its reason is shown there
+  // message keeps the panel open, since its reason is shown there. So does the OFX notice of
+  // statements left out, which is the only place that says how many, for as long as the files stay
   const hasStagedFile = !overlayWorkflow.importResult && {
     generic: hasOnlyAcceptedFiles(workflow.files) && workflow.fileIntakeError === null,
     firefly: [fireflyWorkflow.transactionsFile, fireflyWorkflow.budgetsFile, fireflyWorkflow.accountsFile].every((file) => file !== null)
       && hasOnlyAcceptedFiles([fireflyWorkflow.transactionsFile, fireflyWorkflow.budgetsFile, fireflyWorkflow.accountsFile])
       && Object.values(fireflyWorkflow.fileIntakeErrors).every((message) => message === null),
     actual: actualWorkflow.stagedFile !== null && actualWorkflow.fileIntakeError === null,
-    ofx: ofxWorkflow.stagedFiles.length > 0 && ofxWorkflow.fileIntakeError === null,
+    ofx: ofxWorkflow.stagedFiles.length > 0 && ofxWorkflow.fileIntakeError === null
+      && !ofxWorkflow.leftOutNotice,
   }[activeFlow]
 
   // Where the page came from, which is also where its two exits go: the account while the scope

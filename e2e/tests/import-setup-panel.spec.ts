@@ -2,13 +2,10 @@ import { fileURLToPath } from 'node:url'
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { signUpUser } from '../support/api'
-import { chooseFromDropdown, logInViaApi, openPage, showImportSetup, typeDate } from '../support/app'
+import { chooseFromDropdown, IMPORT_SETUP_MOTION_MS, logInViaApi, openPage, showImportSetup, typeDate, waitPastMotion } from '../support/app'
 
 // Runs on desktop only: each test sets the width it checks itself, since the setup panel collapses
 // by itself only beside the steps and by its caret alone below them
-
-// How long the setup panel's collapse and expand take, as the page has it, which a spec cannot import
-const IMPORT_SETUP_MOTION_MS = 240
 
 // Two rows, so Skip last rows can be raised to one without emptying the file
 const CSV = Buffer.from(['Date,Amount,Merchant', '2024-03-15,-12.34,Market', '2024-03-16,-5.00,Market'].join('\n'))
@@ -64,18 +61,6 @@ const COLLAPSED_GAP = 16
 
 // The width of the open panel's header, which the strip grows to while the sections show
 const OPEN_WIDTH = 340
-
-/**
- * Waits on the page's own frames for longer than a collapse takes, so a panel that was going to
- * collapse has done so, which a wait for the panel to stay would not otherwise tell
- */
-async function waitPastMotion(page: Page) {
-  await page.evaluate((motionMs) => new Promise<void>((done) => {
-    const start = performance.now()
-    const tick = () => (performance.now() - start >= 2 * motionMs ? done() : requestAnimationFrame(tick))
-    tick()
-  }), IMPORT_SETUP_MOTION_MS)
-}
 
 // The least a control's hit target is, and the room the label and caret keep from each side of the strip
 const MIN_HIT_TARGET = 24

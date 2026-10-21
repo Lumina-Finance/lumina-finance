@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { EmptyState, ImportFilesStepLayout, ImportNotice, ImportStagedFileTable, ImportUploadCard } from '@/pages/imports/components'
 import { useStagedFileFocus } from '@/pages/imports/hooks'
 import { OfxReveal } from '@/pages/imports/ofx/components/OfxReveal'
-import { getOfxLeftOutNotice, OFX_IMPORT_FILE_TYPE } from '@/pages/imports/ofx/constants'
+import { OFX_IMPORT_FILE_TYPE } from '@/pages/imports/ofx/constants'
 import type { OfxImportWorkflow } from '@/pages/imports/ofx/hooks'
 import type { OfxStagedFile } from '@/pages/imports/ofx/types'
 import { countOfxTransactions } from '@/pages/imports/ofx/utils/stagedFiles'
@@ -10,7 +10,7 @@ import { countOfxTransactions } from '@/pages/imports/ofx/utils/stagedFiles'
 type OfxFilesStepProps = Pick<
   OfxImportWorkflow,
   | 'stagedFiles'
-  | 'ofxFile'
+  | 'leftOutNotice'
   | 'fixedAccount'
   | 'isProcessingFile'
   | 'fileIntakeError'
@@ -37,7 +37,7 @@ function describeOfxFile({ file }: OfxStagedFile) {
  */
 export function OfxFilesStep({
   stagedFiles,
-  ofxFile,
+  leftOutNotice,
   fixedAccount,
   isProcessingFile,
   fileIntakeError,
@@ -48,7 +48,6 @@ export function OfxFilesStep({
 }: OfxFilesStepProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const { stagedListRef, uploadCardRef, removeFileKeepingFocus } = useStagedFileFocus(stagedFiles, removeOfxFile)
-  const leftOutNotice = ofxFile && getOfxLeftOutNotice(ofxFile.leftOut, stagedFiles.length)
   const isUploadBlocked = isProcessingFile || uploadBlockReason !== null
   const isImportFinished = Boolean(importResult)
   const isAddingFiles = stagedFiles.length > 0 && !isImportFinished
@@ -99,6 +98,19 @@ export function OfxFilesStep({
         { label: 'Statements', value: stagedFiles.reduce((total, { file }) => total + file.statements.length, 0) },
       ]}
     >
+      {/* The notice leads the step, since the setup column scrolls at some sizes and a notice below
+          a long list of staged files would fall out of view, which is the one place it is told */}
+      {/* The step's gap sits after this box even while it is empty or closing, so its own room is
+          taken back here and given again inside the notice, where it grows and shrinks with it and
+          the list below never jumps by a gap when the notice arrives or leaves */}
+      <div className="-mb-3">
+        <OfxReveal show={Boolean(leftOutNotice)}>
+          <div className="pb-3">
+            <ImportNotice title="Statements left out">{leftOutNotice}</ImportNotice>
+          </div>
+        </OfxReveal>
+      </div>
+
       {stagedFiles.length > 0 && (
         <div ref={stagedListRef}>
           <ImportStagedFileTable
@@ -117,9 +129,6 @@ export function OfxFilesStep({
         <EmptyState title="No files staged" description="The uploaded files will appear here." />
       )}
 
-      <OfxReveal show={Boolean(leftOutNotice)}>
-        <ImportNotice title="Statements left out">{leftOutNotice}</ImportNotice>
-      </OfxReveal>
       {isImportFinished && uploadArea}
     </ImportFilesStepLayout>
   )

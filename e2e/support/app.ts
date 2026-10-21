@@ -188,6 +188,23 @@ export async function showImportSetup(page: Page): Promise<void> {
   await strip.hover()
 }
 
+// How long the setup panel's collapse and expand take, as the page has it, which a spec cannot import
+export const IMPORT_SETUP_MOTION_MS = 240
+
+/**
+ * Waits on the page's own frames for longer than a collapse takes, so a panel that was going to
+ * collapse has done so, which a wait for the panel to stay would not otherwise tell
+ *
+ * @param page - Page showing an import
+ */
+export async function waitPastMotion(page: Page): Promise<void> {
+  await page.evaluate((motionMs) => new Promise<void>((done) => {
+    const start = performance.now()
+    const tick = () => (performance.now() - start >= 2 * motionMs ? done() : requestAnimationFrame(tick))
+    tick()
+  }), IMPORT_SETUP_MOTION_MS)
+}
+
 /**
  * Moves focus and the pointer out of the import's setup panel, which stays slid out over the steps
  * beside it while the pointer is on it, as it is after `showImportSetup`. On desktop it then expects

@@ -12,6 +12,7 @@ import {
 } from '@/pages/imports/hooks'
 import {
   getOfxAccountSourceScope,
+  getOfxLeftOutNotice,
   getOfxMultipleStatementsReason,
   OFX_IMPORT_FILE_TYPE,
   OFX_UPLOAD_LABEL,
@@ -74,6 +75,7 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
     () => (stagedFiles.length > 0 ? combineOfxFiles(stagedFiles.map(({ file }) => file)) : null),
     [stagedFiles],
   )
+  const leftOutNotice = ofxFile && getOfxLeftOutNotice(ofxFile.leftOut, stagedFiles.length)
   // Counts the changes to the staged files, so files read for a list that has since changed are dropped
   const stagedFilesVersionRef = useRef(0)
   const fileIntake = useProviderFileIntake(OFX_FILE_KINDS)
@@ -309,6 +311,7 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
     ...run.workflow,
     stagedFiles,
     ofxFile,
+    leftOutNotice,
     fixedAccount,
     isProcessingFile,
     fileIntakeError,

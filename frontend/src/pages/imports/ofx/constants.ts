@@ -94,5 +94,5 @@ export function getOfxLeftOutNotice({ investment, loan }: { investment: number; 
     investment > 0 ? `${investment} investment ${investment === 1 ? 'statement' : 'statements'}` : null,
     loan > 0 ? `${loan} loan ${loan === 1 ? 'statement' : 'statements'}` : null,
   ].filter((part): part is string => part !== null)
-  return parts.length === 0 ? null : `${parts.join(' and ')} in ${fileCount === 1 ? 'this file' : 'these files'} ${investment + loan === 1 ? "isn't" : "aren't"} imported.`
+  return parts.length === 0 ? null : `${parts.join(' and ')} in ${fileCount === 1 ? 'this file' : 'these files'} ${investment + loan === 1 ? "isn't" : "aren't"} imported, because only bank and credit card statements can be imported.`
 }
