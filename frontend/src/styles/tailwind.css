@@ -1205,7 +1205,7 @@
     background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
     -webkit-backdrop-filter: blur(20px) saturate(160%);
     backdrop-filter: blur(20px) saturate(160%);
-    transition: background-color 150ms ease, border-color 150ms ease;
+    transition: background-color 150ms ease, border-color 150ms ease, var(--app-focus-fade);
   }
 
   /* The head fills the glass, so its hover look is drawn on the glass, the fill and border the glass
