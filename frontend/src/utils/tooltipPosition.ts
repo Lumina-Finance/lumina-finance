@@ -9,8 +9,8 @@ type CursorTooltipPositionOptions = {
   clientY: number
   bounds?: HTMLElement | DOMRect
 
-  // A box the tooltip must not cover, such as the control it explains. It then sits clear above the box
-  // or, with no room there, clear below it, while still following the cursor sideways
+  // A box the tooltip must not cover, such as the control it explains when no cursor is over it. It then
+  // hangs clear below the box or, with no room there, rises clear above it
   keepClear?: DOMRect
   offset?: number
   margin?: number
@@ -70,16 +70,17 @@ export function getCursorTooltipPosition({
   const minY = boundsRect.top - coordinateTop + margin
   const maxX = boundsRect.right - coordinateLeft - tooltip.offsetWidth - margin
   const pointerX = clientX - coordinateLeft
-  // With a box to keep clear, the tooltip hangs from the box's top edge, or from its bottom edge when
-  // there is no room above, in place of from the cursor
-  const roomAboveBox = keepClear !== undefined
-    && keepClear.top - coordinateTop - tooltip.offsetHeight - offset >= minY
-  const pointerY = (keepClear ? (roomAboveBox ? keepClear.top : keepClear.bottom) : clientY) - coordinateTop
+  // With a box to keep clear, the tooltip hangs from the box's bottom edge, or from its top edge when
+  // there is no room below, in place of from the cursor
+  const maxY = boundsRect.bottom - coordinateTop - margin
+  const roomBelowBox = keepClear !== undefined
+    && keepClear.bottom - coordinateTop + offset + tooltip.offsetHeight <= maxY
+  const pointerY = (keepClear ? (roomBelowBox ? keepClear.bottom : keepClear.top) : clientY) - coordinateTop
 
   // The tooltip sits above the cursor unless it would clip the top bound, where it flips below. The
   // vertical follow and the flip offset are returned apart so the flip can animate while the tooltip
   // keeps tracking the cursor instantly
-  const placeAbove = keepClear ? roomAboveBox : pointerY - tooltip.offsetHeight - offset >= minY
+  const placeAbove = keepClear ? !roomBelowBox : pointerY - tooltip.offsetHeight - offset >= minY
   const flipY = placeAbove ? -(tooltip.offsetHeight + offset) : offset
 
   return {

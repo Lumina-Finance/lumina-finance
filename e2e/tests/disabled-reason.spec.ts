@@ -184,18 +184,21 @@ test('puts away a reason shown under the pointer on Escape without closing the w
 })
 
 // With reduced motion the reason is placed once, where the pointer enters. It used to be measured before
-// its words were in, a few pixels high, and so was placed back over the button it explains
-test('places a reason clear above its button under reduced motion', async ({ page, request }) => {
+// its words were in, a few pixels high, and so was placed too low, back under the pointer
+test('places a reason above the pointer under reduced motion', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   const dialog = await openBulkEdit(page, request)
   const apply = dialog.getByRole('button', { name: 'Apply', exact: true })
 
-  await apply.hover()
+  const box = (await apply.boundingBox())!
+  const pointer = { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+  await page.mouse.move(2, 2)
+  await page.mouse.move(pointer.x, pointer.y)
   const reason = page.getByTestId(TOOLTIP).getByText(NOTHING_CHOSEN, { exact: true })
   await expect(reason).toBeVisible()
   await expect.poll(async () => {
-    const [shown, button] = [await reason.boundingBox(), await apply.boundingBox()]
-    return shown!.y + shown!.height <= button!.y
+    const shown = await reason.boundingBox()
+    return shown!.y + shown!.height <= pointer.y
   }).toBe(true)
 })
 
@@ -251,26 +254,53 @@ test('explains the tags dropdown while no account is chosen', async ({ page, req
   await expect(tags).toHaveAttribute('aria-disabled', 'true')
   await expect(tags).toHaveAccessibleDescription('Select an account first')
 
-  // Over the field, the reason shows in front of the window and clear above the label that names the field
+  // Over the field, the reason shows in front of the window and moves with the pointer
+  const field = (await tags.boundingBox())!
+  const midY = field.y + field.height / 2
   await page.mouse.move(2, 2)
-  await tags.hover()
+  await page.mouse.move(field.x + 40, midY)
   const tooltip = page.getByTestId(TOOLTIP).filter({ hasText: 'Select an account first' })
   await expect(tooltip).toHaveCSS('opacity', '1')
-  const labelBox = (await dialog.locator('label[for="txn-tags"]').boundingBox())!
-  // The card inside the tooltip carries the flip above the field, so its box is the one on screen, read once it has settled
+  // The card inside the tooltip carries the flip, so its box is the one on screen, read once it has settled
   const card = tooltip.locator('.app-cursor-tooltip-flip')
-  await expect.poll(async () => {
-    const box = await card.boundingBox()
-    return box ? box.y + box.height : Infinity
-  }).toBeLessThanOrEqual(labelBox.y)
-  const tooltipBox = (await card.boundingBox())!
-  expect(tooltipBox.height).toBeGreaterThan(0)
+  await expect.poll(async () => (await card.boundingBox())?.height ?? 0).toBeGreaterThan(0)
+  const before = (await card.boundingBox())!
+
+  // Across the field the reason keeps its distance from the pointer, so its position moves by what the pointer moved
+  await page.mouse.move(field.x + field.width - 40, midY, { steps: 5 })
+  await expect.poll(async () => (await card.boundingBox())!.x - before.x).toBeGreaterThan(field.width - 80 - 2)
+  const across = (await card.boundingBox())!
+  expect(across.x - before.x).toBeLessThanOrEqual(field.width - 80 + 2)
+  await page.mouse.move(field.x + field.width - 40, midY - 8, { steps: 3 })
+  await expect.poll(async () => across.y - (await card.boundingBox())!.y).toBeGreaterThan(6)
   // The tooltip passes pointer events through, so its stacking is read from the layers: above the window's backdrop
   const layers = await page.evaluate(() => {
     const level = (selector: string) => Number(getComputedStyle(document.querySelector(selector)!).zIndex)
     return { tooltip: level('[data-testid="disabled-reason-tooltip"]'), backdrop: level('.app-modal-backdrop') }
   })
   expect(layers.tooltip).toBeGreaterThan(layers.backdrop)
+
+  // On keyboard focus there is no pointer, so the reason sits beside the field and over no other field
+  await page.mouse.move(2, 2)
+  await expectFadedOut(tooltip)
+  await page.keyboard.press('Shift')
+  await tags.focus()
+  await expect(tooltip).toHaveCSS('opacity', '1')
+  await expect.poll(async () => {
+    const shown = await card.boundingBox()
+    const field = await tags.boundingBox()
+    return shown && field ? shown.y >= field.y + field.height || shown.y + shown.height <= field.y : false
+  }).toBe(true)
+  const others = await dialog.locator('input, textarea, button[id^="txn-"]').evaluateAll((nodes) => (
+    nodes.filter((node) => node.id !== 'txn-tags').map((node) => node.getBoundingClientRect().toJSON() as DOMRect)
+  ))
+  const shown = (await card.boundingBox())!
+  const overlaps = others.filter((other) => (
+    other.width > 0 && other.height > 0
+    && shown.x < other.right && shown.x + shown.width > other.left
+    && shown.y < other.bottom && shown.y + shown.height > other.top
+  ))
+  expect(overlaps).toEqual([])
 
   // The fence: choosing an account frees the field and the reason goes with it
   await dialog.locator('#txn-account').click()

@@ -11,7 +11,7 @@ import {
 import { useReducedMotion } from 'motion/react'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import { useCursorTooltip } from '@/hooks/useCursorTooltip'
-import { getReasonAnchor, getReasonKeepClear, getViewportBounds } from '@/utils/disabledReasonAnchor'
+import { getReasonAnchor, getViewportBounds } from '@/utils/disabledReasonAnchor'
 
 type ReasonEvent = MouseEvent<HTMLElement>
 
@@ -42,7 +42,9 @@ function getReasonKey(reason: string) {
   return reason
 }
 /**
- * Explains why a control is unavailable, in a tooltip that follows the cursor over the control
+ * Explains why a control is unavailable, in a tooltip that follows the cursor over the control as the
+ * chart tooltips do. With no cursor, on keyboard focus or a tap, it sits beside the control, below it or
+ * above when there is no room, as `IconTooltip` does
  *
  * Pass `shownById` when the page already prints the reason in an element with that id. The control is
  * then described by that element, and no hidden copy is added for a screen reader to read twice.
@@ -61,8 +63,13 @@ export function useDisabledReason(reason: string | null | undefined, shownById?:
   const prefersReducedMotion = useReducedMotion()
   const originRef = useRef<HTMLElement | null>(null)
   const [isPinned, setIsPinned] = useState(false)
-  // The control's own box, which its reason is drawn clear of so the label stays readable
-  const getKeepClear = useCallback(() => (originRef.current ? getReasonKeepClear(originRef.current) : undefined), [])
+  // Whether the reason was last placed from the control's edge, as for keyboard focus or a tap, in place of
+  // from a pointer over it. Only then is it drawn clear of the control's own box, beside it
+  const placedBesideRef = useRef(false)
+  const getKeepClear = useCallback(
+    () => (placedBesideRef.current ? originRef.current?.getBoundingClientRect() : undefined),
+    [],
+  )
   const {
     tooltipRef,
     tooltipItem,
@@ -86,8 +93,9 @@ export function useDisabledReason(reason: string | null | undefined, shownById?:
     hideTooltip()
   }
 
-  function reveal(element: HTMLElement, pointer: { clientX: number; clientY: number }) {
+  function reveal(element: HTMLElement, pointer: { clientX: number; clientY: number }, beside = false) {
     originRef.current = element
+    placedBesideRef.current = beside
     showTooltip(activeReason, pointer)
   }
 
@@ -156,7 +164,7 @@ export function useDisabledReason(reason: string | null | undefined, shownById?:
     const byKeyboard = event.detail === 0
     if (canHover && !byKeyboard) return
 
-    reveal(event.currentTarget, getReasonAnchor(event.currentTarget.getBoundingClientRect()))
+    reveal(event.currentTarget, getReasonAnchor(event.currentTarget.getBoundingClientRect()), true)
     setIsPinned(true)
   }
 
@@ -174,7 +182,7 @@ export function useDisabledReason(reason: string | null | undefined, shownById?:
         },
         onFocus: (event) => {
           if (!event.currentTarget.matches(':focus-visible')) return
-          reveal(event.currentTarget, getReasonAnchor(event.currentTarget.getBoundingClientRect()))
+          reveal(event.currentTarget, getReasonAnchor(event.currentTarget.getBoundingClientRect()), true)
         },
         onBlur: dismiss,
       }
