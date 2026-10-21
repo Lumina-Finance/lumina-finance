@@ -63,47 +63,49 @@ async def test_income_expense_breakdown_returns_limited_period_payload(client):
     transfer_id, transfer = _category(user_id, "Transfer", CategoryKind.TRANSFER)
 
     async with TestSession() as session:
-        session.add_all([
-            salary,
-            freelance,
-            bonus,
-            housing,
-            groceries,
-            dining,
-            shopping,
-            transport,
-            travel,
-            medical,
-            coffee,
-            pets,
-            old_utilities,
-            transfer,
-            _transaction(user_id, account_id, salary_id, date(2026, 3, 11), 500_000),
-            _transaction(user_id, account_id, freelance_id, date(2026, 3, 12), 100_000),
-            _transaction(user_id, account_id, bonus_id, date(2026, 3, 13), 80_000),
-            _transaction(user_id, account_id, housing_id, date(2026, 3, 11), -180_000),
-            _transaction(user_id, account_id, groceries_id, date(2026, 3, 12), -90_000),
-            _transaction(user_id, account_id, dining_id, date(2026, 3, 13), -80_000),
-            _transaction(user_id, account_id, shopping_id, date(2026, 3, 14), -70_000),
-            _transaction(user_id, account_id, transport_id, date(2026, 3, 15), -60_000),
-            _transaction(user_id, account_id, travel_id, date(2026, 3, 16), -50_000),
-            _transaction(user_id, account_id, medical_id, date(2026, 3, 16), -40_000),
-            _transaction(user_id, account_id, coffee_id, date(2026, 3, 16), -30_000),
-            _transaction(user_id, account_id, pets_id, date(2026, 3, 16), -20_000),
-            _transaction(user_id, account_id, transfer_id, date(2026, 3, 15), 999_999),
-            _transaction(user_id, account_id, salary_id, date(2026, 3, 4), 450_000),
-            _transaction(user_id, account_id, freelance_id, date(2026, 3, 5), 120_000),
-            _transaction(user_id, account_id, housing_id, date(2026, 3, 4), -200_000),
-            _transaction(user_id, account_id, groceries_id, date(2026, 3, 5), -30_000),
-            _transaction(user_id, account_id, dining_id, date(2026, 3, 6), -120_000),
-            _transaction(user_id, account_id, transport_id, date(2026, 3, 7), -60_000),
-            _transaction(user_id, account_id, travel_id, date(2026, 3, 8), -50_000),
-            _transaction(user_id, account_id, medical_id, date(2026, 3, 9), -40_000),
-            _transaction(user_id, account_id, old_utilities_id, date(2026, 3, 9), -55_000),
-            _transaction(user_id, account_id, salary_id, date(2026, 2, 28), 300_000),
-            _transaction(user_id, archived_account_id, salary_id, date(2026, 3, 11), 700_000),
-            _transaction(user_id, archived_account_id, housing_id, date(2026, 3, 11), -700_000),
-        ])
+        session.add_all(
+            [
+                salary,
+                freelance,
+                bonus,
+                housing,
+                groceries,
+                dining,
+                shopping,
+                transport,
+                travel,
+                medical,
+                coffee,
+                pets,
+                old_utilities,
+                transfer,
+                _transaction(user_id, account_id, salary_id, date(2026, 3, 11), 500_000),
+                _transaction(user_id, account_id, freelance_id, date(2026, 3, 12), 100_000),
+                _transaction(user_id, account_id, bonus_id, date(2026, 3, 13), 80_000),
+                _transaction(user_id, account_id, housing_id, date(2026, 3, 11), -180_000),
+                _transaction(user_id, account_id, groceries_id, date(2026, 3, 12), -90_000),
+                _transaction(user_id, account_id, dining_id, date(2026, 3, 13), -80_000),
+                _transaction(user_id, account_id, shopping_id, date(2026, 3, 14), -70_000),
+                _transaction(user_id, account_id, transport_id, date(2026, 3, 15), -60_000),
+                _transaction(user_id, account_id, travel_id, date(2026, 3, 16), -50_000),
+                _transaction(user_id, account_id, medical_id, date(2026, 3, 16), -40_000),
+                _transaction(user_id, account_id, coffee_id, date(2026, 3, 16), -30_000),
+                _transaction(user_id, account_id, pets_id, date(2026, 3, 16), -20_000),
+                _transaction(user_id, account_id, transfer_id, date(2026, 3, 15), 999_999),
+                _transaction(user_id, account_id, salary_id, date(2026, 3, 4), 450_000),
+                _transaction(user_id, account_id, freelance_id, date(2026, 3, 5), 120_000),
+                _transaction(user_id, account_id, housing_id, date(2026, 3, 4), -200_000),
+                _transaction(user_id, account_id, groceries_id, date(2026, 3, 5), -30_000),
+                _transaction(user_id, account_id, dining_id, date(2026, 3, 6), -120_000),
+                _transaction(user_id, account_id, transport_id, date(2026, 3, 7), -60_000),
+                _transaction(user_id, account_id, travel_id, date(2026, 3, 8), -50_000),
+                _transaction(user_id, account_id, medical_id, date(2026, 3, 9), -40_000),
+                _transaction(user_id, account_id, old_utilities_id, date(2026, 3, 9), -55_000),
+                _transaction(user_id, account_id, salary_id, date(2026, 2, 28), 300_000),
+                _transaction(user_id, archived_account_id, salary_id, date(2026, 3, 11), 700_000),
+                _transaction(user_id, archived_account_id, housing_id, date(2026, 3, 11), -700_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -183,17 +185,19 @@ async def test_income_expense_breakdown_converts_foreign_entries_by_transaction_
     food_id, food = _category(user_id, "Food", CategoryKind.EXPENSE)
 
     async with TestSession() as session:
-        session.add_all([
-            salary,
-            food,
-            _transaction(user_id, cad_account_id, salary_id, date(2026, 5, 1), 100_00),
-            _transaction(user_id, usd_account_id, salary_id, date(2026, 5, 1), 10_00, "USD"),
-            _transaction(user_id, usd_account_id, salary_id, date(2026, 5, 2), 10_00, "USD"),
-            _transaction(user_id, cad_account_id, food_id, date(2026, 5, 2), -50_00),
-            _transaction(user_id, usd_account_id, food_id, date(2026, 5, 2), -30_00, "USD"),
-            _transaction(user_id, usd_account_id, salary_id, date(2026, 4, 30), 50_00, "USD"),
-            _transaction(user_id, usd_account_id, food_id, date(2026, 4, 30), -20_00, "USD"),
-        ])
+        session.add_all(
+            [
+                salary,
+                food,
+                _transaction(user_id, cad_account_id, salary_id, date(2026, 5, 1), 100_00),
+                _transaction(user_id, usd_account_id, salary_id, date(2026, 5, 1), 10_00, "USD"),
+                _transaction(user_id, usd_account_id, salary_id, date(2026, 5, 2), 10_00, "USD"),
+                _transaction(user_id, cad_account_id, food_id, date(2026, 5, 2), -50_00),
+                _transaction(user_id, usd_account_id, food_id, date(2026, 5, 2), -30_00, "USD"),
+                _transaction(user_id, usd_account_id, salary_id, date(2026, 4, 30), 50_00, "USD"),
+                _transaction(user_id, usd_account_id, food_id, date(2026, 4, 30), -20_00, "USD"),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -236,12 +240,14 @@ async def test_income_expense_breakdown_reports_incomplete_fx_with_missing_pairs
     food_id, food = _category(user_id, "Food", CategoryKind.EXPENSE)
 
     async with TestSession() as session:
-        session.add_all([
-            salary,
-            food,
-            _transaction(user_id, cad_account_id, salary_id, date(2026, 6, 1), 100_000),
-            _transaction(user_id, abc_account_id, food_id, date(2026, 6, 2), -70_000, "ABC"),
-        ])
+        session.add_all(
+            [
+                salary,
+                food,
+                _transaction(user_id, cad_account_id, salary_id, date(2026, 6, 1), 100_000),
+                _transaction(user_id, abc_account_id, food_id, date(2026, 6, 2), -70_000, "ABC"),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -279,23 +285,25 @@ async def test_income_expense_breakdown_counts_category_crossovers_by_sign(clien
     over_refund_id, over_refund = _category(user_id, "Over-refunded", CategoryKind.EXPENSE)
 
     async with TestSession() as session:
-        session.add_all([
-            salary,
-            capital_gains,
-            groceries,
-            over_refund,
-            _transaction(user_id, account_id, salary_id, date(2026, 4, 2), 360_000),
-            _transaction(user_id, account_id, salary_id, date(2026, 4, 3), -60_000),
-            _transaction(user_id, account_id, capital_gains_id, date(2026, 4, 3), 20_000),
-            _transaction(user_id, account_id, capital_gains_id, date(2026, 4, 4), -100_000),
-            _transaction(user_id, account_id, groceries_id, date(2026, 4, 4), -100_000),
-            _transaction(user_id, account_id, groceries_id, date(2026, 4, 5), 40_000),
-            _transaction(user_id, account_id, over_refund_id, date(2026, 4, 6), -30_000),
-            _transaction(user_id, account_id, over_refund_id, date(2026, 4, 7), 50_000),
-            _transaction(user_id, account_id, salary_id, date(2026, 3, 5), 300_000),
-            _transaction(user_id, account_id, capital_gains_id, date(2026, 3, 6), 20_000),
-            _transaction(user_id, account_id, over_refund_id, date(2026, 3, 7), -30_000),
-        ])
+        session.add_all(
+            [
+                salary,
+                capital_gains,
+                groceries,
+                over_refund,
+                _transaction(user_id, account_id, salary_id, date(2026, 4, 2), 360_000),
+                _transaction(user_id, account_id, salary_id, date(2026, 4, 3), -60_000),
+                _transaction(user_id, account_id, capital_gains_id, date(2026, 4, 3), 20_000),
+                _transaction(user_id, account_id, capital_gains_id, date(2026, 4, 4), -100_000),
+                _transaction(user_id, account_id, groceries_id, date(2026, 4, 4), -100_000),
+                _transaction(user_id, account_id, groceries_id, date(2026, 4, 5), 40_000),
+                _transaction(user_id, account_id, over_refund_id, date(2026, 4, 6), -30_000),
+                _transaction(user_id, account_id, over_refund_id, date(2026, 4, 7), 50_000),
+                _transaction(user_id, account_id, salary_id, date(2026, 3, 5), 300_000),
+                _transaction(user_id, account_id, capital_gains_id, date(2026, 3, 6), 20_000),
+                _transaction(user_id, account_id, over_refund_id, date(2026, 3, 7), -30_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -328,19 +336,18 @@ async def test_income_expense_breakdown_does_not_emit_other_for_exact_limit(clie
     headers = _get_auth_header(signup_resp)
     account_id = UUID((await _create_account(client, headers, name="Main Cash")).json()["id"])
 
-    category_rows = [
-        _category(user_id, f"Category {index}", CategoryKind.EXPENSE)
-        for index in range(1, 8)
-    ]
+    category_rows = [_category(user_id, f"Category {index}", CategoryKind.EXPENSE) for index in range(1, 8)]
 
     async with TestSession() as session:
-        session.add_all([
-            *(category for _category_id, category in category_rows),
-            *(
-                _transaction(user_id, account_id, category_id, date(2026, 7, index), -(10_000 * index))
-                for index, (category_id, _category) in enumerate(category_rows, start=1)
-            ),
-        ])
+        session.add_all(
+            [
+                *(category for _category_id, category in category_rows),
+                *(
+                    _transaction(user_id, account_id, category_id, date(2026, 7, index), -(10_000 * index))
+                    for index, (category_id, _category) in enumerate(category_rows, start=1)
+                ),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -367,12 +374,14 @@ async def test_income_expense_breakdown_one_day_range_compares_previous_one_day(
     dining_id, dining = _category(user_id, "Dining", CategoryKind.EXPENSE)
 
     async with TestSession() as session:
-        session.add_all([
-            dining,
-            _transaction(user_id, account_id, dining_id, date(2026, 8, 15), -70_000),
-            _transaction(user_id, account_id, dining_id, date(2026, 8, 14), -20_000),
-            _transaction(user_id, account_id, dining_id, date(2026, 8, 13), -900_000),
-        ])
+        session.add_all(
+            [
+                dining,
+                _transaction(user_id, account_id, dining_id, date(2026, 8, 15), -70_000),
+                _transaction(user_id, account_id, dining_id, date(2026, 8, 14), -20_000),
+                _transaction(user_id, account_id, dining_id, date(2026, 8, 13), -900_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -398,14 +407,16 @@ async def test_income_expense_breakdown_omits_zero_net_current_categories(client
     offset_income_id, offset_income = _category(user_id, "Offset Income", CategoryKind.INCOME)
 
     async with TestSession() as session:
-        session.add_all([
-            reimbursed,
-            offset_income,
-            _transaction(user_id, account_id, reimbursed_id, date(2026, 9, 10), -50_000),
-            _transaction(user_id, account_id, reimbursed_id, date(2026, 9, 11), 50_000),
-            _transaction(user_id, account_id, offset_income_id, date(2026, 9, 12), 80_000),
-            _transaction(user_id, account_id, offset_income_id, date(2026, 9, 13), -80_000),
-        ])
+        session.add_all(
+            [
+                reimbursed,
+                offset_income,
+                _transaction(user_id, account_id, reimbursed_id, date(2026, 9, 10), -50_000),
+                _transaction(user_id, account_id, reimbursed_id, date(2026, 9, 11), 50_000),
+                _transaction(user_id, account_id, offset_income_id, date(2026, 9, 12), 80_000),
+                _transaction(user_id, account_id, offset_income_id, date(2026, 9, 13), -80_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -463,12 +474,14 @@ async def test_income_expense_breakdown_uses_stable_tie_breakers(client):
     alpha_id, alpha = _category(user_id, "Alpha", CategoryKind.EXPENSE)
 
     async with TestSession() as session:
-        session.add_all([
-            beta,
-            alpha,
-            _transaction(user_id, account_id, beta_id, date(2026, 5, 4), -50_000),
-            _transaction(user_id, account_id, alpha_id, date(2026, 5, 5), -50_000),
-        ])
+        session.add_all(
+            [
+                beta,
+                alpha,
+                _transaction(user_id, account_id, beta_id, date(2026, 5, 4), -50_000),
+                _transaction(user_id, account_id, alpha_id, date(2026, 5, 5), -50_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -498,12 +511,14 @@ async def test_income_expense_breakdown_compares_previous_calendar_month(client)
     groceries_id, groceries = _category(user_id, "Groceries", CategoryKind.EXPENSE)
 
     async with TestSession() as session:
-        session.add_all([
-            groceries,
-            _transaction(user_id, account_id, groceries_id, date(2026, 5, 15), -100_000),
-            _transaction(user_id, account_id, groceries_id, date(2026, 4, 10), -40_000),
-            _transaction(user_id, account_id, groceries_id, date(2026, 3, 31), -60_000),
-        ])
+        session.add_all(
+            [
+                groceries,
+                _transaction(user_id, account_id, groceries_id, date(2026, 5, 15), -100_000),
+                _transaction(user_id, account_id, groceries_id, date(2026, 4, 10), -40_000),
+                _transaction(user_id, account_id, groceries_id, date(2026, 3, 31), -60_000),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(

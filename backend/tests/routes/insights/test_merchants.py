@@ -67,18 +67,20 @@ async def test_merchants_returns_distribution_and_ranking_payloads(client):
     income_merchant_id, income_merchant = _merchant(user_id, "Income Merchant")
 
     async with TestSession() as session:
-        session.add_all([
-            expense,
-            salary,
-            alpha,
-            beta,
-            income_merchant,
-            _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -100_000, alpha_id),
-            _transaction(user_id, account_id, expense_id, date(2026, 4, 11), 20_000, alpha_id),
-            _transaction(user_id, account_id, expense_id, date(2026, 4, 12), -50_000, beta_id),
-            _transaction(user_id, account_id, salary_id, date(2026, 4, 12), -999_999, income_merchant_id),
-            _transaction(user_id, account_id, expense_id, date(2026, 3, 20), -40_000, alpha_id),
-        ])
+        session.add_all(
+            [
+                expense,
+                salary,
+                alpha,
+                beta,
+                income_merchant,
+                _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -100_000, alpha_id),
+                _transaction(user_id, account_id, expense_id, date(2026, 4, 11), 20_000, alpha_id),
+                _transaction(user_id, account_id, expense_id, date(2026, 4, 12), -50_000, beta_id),
+                _transaction(user_id, account_id, salary_id, date(2026, 4, 12), -999_999, income_merchant_id),
+                _transaction(user_id, account_id, expense_id, date(2026, 3, 20), -40_000, alpha_id),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -130,16 +132,18 @@ async def test_merchants_converts_foreign_entries_by_transaction_date(client, mo
     beta_id, beta = _merchant(user_id, "Beta Grocer")
 
     async with TestSession() as session:
-        session.add_all([
-            expense,
-            alpha,
-            beta,
-            _transaction(user_id, cad_account_id, expense_id, date(2026, 5, 1), -20_00, alpha_id),
-            _transaction(user_id, usd_account_id, expense_id, date(2026, 5, 1), -100_00, alpha_id, "USD"),
-            _transaction(user_id, usd_account_id, expense_id, date(2026, 5, 2), 20_00, alpha_id, "USD"),
-            _transaction(user_id, cad_account_id, expense_id, date(2026, 5, 2), -50_00, beta_id),
-            _transaction(user_id, usd_account_id, expense_id, date(2026, 4, 30), -40_00, alpha_id, "USD"),
-        ])
+        session.add_all(
+            [
+                expense,
+                alpha,
+                beta,
+                _transaction(user_id, cad_account_id, expense_id, date(2026, 5, 1), -20_00, alpha_id),
+                _transaction(user_id, usd_account_id, expense_id, date(2026, 5, 1), -100_00, alpha_id, "USD"),
+                _transaction(user_id, usd_account_id, expense_id, date(2026, 5, 2), 20_00, alpha_id, "USD"),
+                _transaction(user_id, cad_account_id, expense_id, date(2026, 5, 2), -50_00, beta_id),
+                _transaction(user_id, usd_account_id, expense_id, date(2026, 4, 30), -40_00, alpha_id, "USD"),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -186,13 +190,15 @@ async def test_merchants_reports_incomplete_fx_with_missing_pairs(client, monkey
     beta_id, beta = _merchant(user_id, "Beta Grocer")
 
     async with TestSession() as session:
-        session.add_all([
-            expense,
-            alpha,
-            beta,
-            _transaction(user_id, usd_account_id, expense_id, date(2026, 5, 1), -100_00, alpha_id, "USD"),
-            _transaction(user_id, abc_account_id, expense_id, date(2026, 5, 2), -90_00, beta_id, "ABC"),
-        ])
+        session.add_all(
+            [
+                expense,
+                alpha,
+                beta,
+                _transaction(user_id, usd_account_id, expense_id, date(2026, 5, 1), -100_00, alpha_id, "USD"),
+                _transaction(user_id, abc_account_id, expense_id, date(2026, 5, 2), -90_00, beta_id, "ABC"),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(
@@ -226,13 +232,15 @@ async def test_merchants_compare_previous_calendar_month(client):
     alpha_id, alpha = _merchant(user_id, "Alpha Market")
 
     async with TestSession() as session:
-        session.add_all([
-            expense,
-            alpha,
-            _transaction(user_id, account_id, expense_id, date(2026, 5, 10), -100_000, alpha_id),
-            _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -40_000, alpha_id),
-            _transaction(user_id, account_id, expense_id, date(2026, 3, 31), -60_000, alpha_id),
-        ])
+        session.add_all(
+            [
+                expense,
+                alpha,
+                _transaction(user_id, account_id, expense_id, date(2026, 5, 10), -100_000, alpha_id),
+                _transaction(user_id, account_id, expense_id, date(2026, 4, 10), -40_000, alpha_id),
+                _transaction(user_id, account_id, expense_id, date(2026, 3, 31), -60_000, alpha_id),
+            ]
+        )
         await session.commit()
 
     resp = await client.get(

@@ -176,10 +176,12 @@ async def test_dashboard_savings_rate_reports_incomplete_fx_with_missing_pairs(c
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     async with TestSession() as session:
-        session.add_all([
-            Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
-            Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2),
-        ])
+        session.add_all(
+            [
+                Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
+                Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2),
+            ]
+        )
         await session.commit()
 
     cad_account_id = (await _create_account(client, headers, name="CAD Cash")).json()["id"]

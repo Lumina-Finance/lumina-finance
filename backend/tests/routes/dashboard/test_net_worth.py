@@ -25,29 +25,37 @@ async def test_dashboard_includes_archived_accounts_in_net_worth_and_credit(clie
     headers = _get_auth_header(signup_resp)
     visible_asset = (await _create_account(client, headers, name="Visible Cash")).json()
     archived_asset = (await _create_account(client, headers, name="Archived Cash", is_archived=True)).json()
-    visible_credit = (await _create_account(
-        client, headers,
-        account_kind="revolving",
-        account_type="credit_card",
-        name="Visible Card",
-        credit_limit=200_000,
-    )).json()
-    archived_credit = (await _create_account(
-        client, headers,
-        account_kind="revolving",
-        account_type="credit_card",
-        name="Archived Card",
-        credit_limit=900_000,
-        is_archived=True,
-    )).json()
+    visible_credit = (
+        await _create_account(
+            client,
+            headers,
+            account_kind="revolving",
+            account_type="credit_card",
+            name="Visible Card",
+            credit_limit=200_000,
+        )
+    ).json()
+    archived_credit = (
+        await _create_account(
+            client,
+            headers,
+            account_kind="revolving",
+            account_type="credit_card",
+            name="Archived Card",
+            credit_limit=900_000,
+            is_archived=True,
+        )
+    ).json()
 
     async with TestSession() as session:
-        session.add_all([
-            AccountBalanceSnapshot(account_id=UUID(visible_asset["id"]), dt=date(2026, 3, 20), balance=100_000),
-            AccountBalanceSnapshot(account_id=UUID(archived_asset["id"]), dt=date(2026, 3, 20), balance=500_000),
-            AccountBalanceSnapshot(account_id=UUID(visible_credit["id"]), dt=date(2026, 3, 20), balance=-30_000),
-            AccountBalanceSnapshot(account_id=UUID(archived_credit["id"]), dt=date(2026, 3, 20), balance=-70_000),
-        ])
+        session.add_all(
+            [
+                AccountBalanceSnapshot(account_id=UUID(visible_asset["id"]), dt=date(2026, 3, 20), balance=100_000),
+                AccountBalanceSnapshot(account_id=UUID(archived_asset["id"]), dt=date(2026, 3, 20), balance=500_000),
+                AccountBalanceSnapshot(account_id=UUID(visible_credit["id"]), dt=date(2026, 3, 20), balance=-30_000),
+                AccountBalanceSnapshot(account_id=UUID(archived_credit["id"]), dt=date(2026, 3, 20), balance=-70_000),
+            ]
+        )
         for account, balance in [
             (visible_asset, 100_000),
             (archived_asset, 500_000),
@@ -105,10 +113,12 @@ async def test_dashboard_net_worth_converts_foreign_currency_accounts(client, mo
     usd_account = (await _create_account(client, headers, name="USD Cash", currency="USD")).json()
 
     async with TestSession() as session:
-        session.add_all([
-            AccountBalanceSnapshot(account_id=UUID(cad_account["id"]), dt=date(2026, 3, 20), balance=100_00),
-            AccountBalanceSnapshot(account_id=UUID(usd_account["id"]), dt=date(2026, 3, 20), balance=200_00),
-        ])
+        session.add_all(
+            [
+                AccountBalanceSnapshot(account_id=UUID(cad_account["id"]), dt=date(2026, 3, 20), balance=100_00),
+                AccountBalanceSnapshot(account_id=UUID(usd_account["id"]), dt=date(2026, 3, 20), balance=200_00),
+            ]
+        )
         await session.commit()
 
     resp = await client.get("/dashboard/net-worth", params={"window_days": 2}, headers=headers)
@@ -137,10 +147,12 @@ async def test_dashboard_net_worth_reports_incomplete_fx_with_missing_pairs(clie
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     async with TestSession() as session:
-        session.add_all([
-            Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
-            Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2),
-        ])
+        session.add_all(
+            [
+                Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
+                Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2),
+            ]
+        )
         await session.commit()
 
     cad_account = (await _create_account(client, headers, name="CAD Cash")).json()
@@ -148,11 +160,13 @@ async def test_dashboard_net_worth_reports_incomplete_fx_with_missing_pairs(clie
     abc_account = (await _create_account(client, headers, name="ABC Cash", currency="ABC")).json()
 
     async with TestSession() as session:
-        session.add_all([
-            AccountBalanceSnapshot(account_id=UUID(cad_account["id"]), dt=date(2026, 3, 20), balance=100_00),
-            AccountBalanceSnapshot(account_id=UUID(usd_account["id"]), dt=date(2026, 3, 20), balance=200_00),
-            AccountBalanceSnapshot(account_id=UUID(abc_account["id"]), dt=date(2026, 3, 20), balance=900_00),
-        ])
+        session.add_all(
+            [
+                AccountBalanceSnapshot(account_id=UUID(cad_account["id"]), dt=date(2026, 3, 20), balance=100_00),
+                AccountBalanceSnapshot(account_id=UUID(usd_account["id"]), dt=date(2026, 3, 20), balance=200_00),
+                AccountBalanceSnapshot(account_id=UUID(abc_account["id"]), dt=date(2026, 3, 20), balance=900_00),
+            ]
+        )
         await session.commit()
 
     resp = await client.get("/dashboard/net-worth", params={"window_days": 1}, headers=headers)

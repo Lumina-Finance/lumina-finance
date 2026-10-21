@@ -62,18 +62,20 @@ async def test_cash_flow_returns_daily_buckets_and_excludes_non_cash_flow_rows(c
     balance_adjustment_id = await _get_category_id(client, headers, "Balance Adjustment")
 
     async with TestSession() as session:
-        session.add_all([
-            salary,
-            groceries,
-            transfer,
-            _transaction(user_id, account_id, salary_id, date(2026, 5, 1), 100_000),
-            _transaction(user_id, account_id, groceries_id, date(2026, 5, 2), -25_000),
-            _transaction(user_id, account_id, transfer_id, date(2026, 5, 3), 10_000),
-            _transaction(user_id, account_id, transfer_id, date(2026, 5, 4), -7_000),
-            _transaction(user_id, account_id, balance_adjustment_id, date(2026, 5, 5), 999_999),
-            _transaction(user_id, account_id, salary_id, date(2026, 4, 30), 50_000),
-            _transaction(user_id, archived_account_id, salary_id, date(2026, 5, 1), 800_000),
-        ])
+        session.add_all(
+            [
+                salary,
+                groceries,
+                transfer,
+                _transaction(user_id, account_id, salary_id, date(2026, 5, 1), 100_000),
+                _transaction(user_id, account_id, groceries_id, date(2026, 5, 2), -25_000),
+                _transaction(user_id, account_id, transfer_id, date(2026, 5, 3), 10_000),
+                _transaction(user_id, account_id, transfer_id, date(2026, 5, 4), -7_000),
+                _transaction(user_id, account_id, balance_adjustment_id, date(2026, 5, 5), 999_999),
+                _transaction(user_id, account_id, salary_id, date(2026, 4, 30), 50_000),
+                _transaction(user_id, archived_account_id, salary_id, date(2026, 5, 1), 800_000),
+            ]
+        )
         await session.commit()
 
     response = await client.get(
@@ -106,11 +108,13 @@ async def test_cash_flow_uses_daily_buckets_through_31_day_ranges(client):
     salary_id, salary = _category(user_id, "Daily Salary", CategoryKind.INCOME)
 
     async with TestSession() as session:
-        session.add_all([
-            salary,
-            _transaction(user_id, account_id, salary_id, date(2026, 6, 1), 100_000),
-            _transaction(user_id, account_id, salary_id, date(2026, 7, 1), 50_000),
-        ])
+        session.add_all(
+            [
+                salary,
+                _transaction(user_id, account_id, salary_id, date(2026, 6, 1), 100_000),
+                _transaction(user_id, account_id, salary_id, date(2026, 7, 1), 50_000),
+            ]
+        )
         await session.commit()
 
     response = await client.get(
@@ -155,14 +159,16 @@ async def test_cash_flow_converts_foreign_entries_by_transaction_date(client, mo
     groceries_id, groceries = _category(user_id, "Groceries", CategoryKind.EXPENSE)
 
     async with TestSession() as session:
-        session.add_all([
-            salary,
-            groceries,
-            _transaction(user_id, cad_account_id, salary_id, date(2026, 5, 1), 20_00),
-            _transaction(user_id, cad_account_id, groceries_id, date(2026, 5, 1), -10_00),
-            _transaction(user_id, usd_account_id, salary_id, date(2026, 5, 1), 100_00, "USD"),
-            _transaction(user_id, usd_account_id, groceries_id, date(2026, 5, 2), -50_00, "USD"),
-        ])
+        session.add_all(
+            [
+                salary,
+                groceries,
+                _transaction(user_id, cad_account_id, salary_id, date(2026, 5, 1), 20_00),
+                _transaction(user_id, cad_account_id, groceries_id, date(2026, 5, 1), -10_00),
+                _transaction(user_id, usd_account_id, salary_id, date(2026, 5, 1), 100_00, "USD"),
+                _transaction(user_id, usd_account_id, groceries_id, date(2026, 5, 2), -50_00, "USD"),
+            ]
+        )
         await session.commit()
 
     response = await client.get(
@@ -204,12 +210,14 @@ async def test_cash_flow_reports_incomplete_fx_with_missing_pairs(client, monkey
     groceries_id, groceries = _category(user_id, "Groceries", CategoryKind.EXPENSE)
 
     async with TestSession() as session:
-        session.add_all([
-            salary,
-            groceries,
-            _transaction(user_id, usd_account_id, salary_id, date(2026, 5, 1), 100_00, "USD"),
-            _transaction(user_id, abc_account_id, groceries_id, date(2026, 5, 2), -90_00, "ABC"),
-        ])
+        session.add_all(
+            [
+                salary,
+                groceries,
+                _transaction(user_id, usd_account_id, salary_id, date(2026, 5, 1), 100_00, "USD"),
+                _transaction(user_id, abc_account_id, groceries_id, date(2026, 5, 2), -90_00, "ABC"),
+            ]
+        )
         await session.commit()
 
     response = await client.get(
@@ -241,13 +249,15 @@ async def test_cash_flow_uses_weekly_buckets_for_mid_length_ranges(client):
     groceries_id, groceries = _category(user_id, "Weekly Groceries", CategoryKind.EXPENSE)
 
     async with TestSession() as session:
-        session.add_all([
-            salary,
-            groceries,
-            _transaction(user_id, account_id, salary_id, date(2026, 3, 10), 100_000),
-            _transaction(user_id, account_id, groceries_id, date(2026, 3, 16), -30_000),
-            _transaction(user_id, account_id, salary_id, date(2026, 4, 20), 40_000),
-        ])
+        session.add_all(
+            [
+                salary,
+                groceries,
+                _transaction(user_id, account_id, salary_id, date(2026, 3, 10), 100_000),
+                _transaction(user_id, account_id, groceries_id, date(2026, 3, 16), -30_000),
+                _transaction(user_id, account_id, salary_id, date(2026, 4, 20), 40_000),
+            ]
+        )
         await session.commit()
 
     response = await client.get(
@@ -279,12 +289,14 @@ async def test_cash_flow_uses_weekly_buckets_through_183_day_ranges(client):
     groceries_id, groceries = _category(user_id, "Half Year Groceries", CategoryKind.EXPENSE)
 
     async with TestSession() as session:
-        session.add_all([
-            salary,
-            groceries,
-            _transaction(user_id, account_id, salary_id, date(2026, 1, 1), 100_000),
-            _transaction(user_id, account_id, groceries_id, date(2026, 7, 2), -20_000),
-        ])
+        session.add_all(
+            [
+                salary,
+                groceries,
+                _transaction(user_id, account_id, salary_id, date(2026, 1, 1), 100_000),
+                _transaction(user_id, account_id, groceries_id, date(2026, 7, 2), -20_000),
+            ]
+        )
         await session.commit()
 
     response = await client.get(
@@ -310,13 +322,15 @@ async def test_cash_flow_uses_monthly_buckets_for_long_ranges(client):
     rent_id, rent = _category(user_id, "Monthly Rent", CategoryKind.EXPENSE)
 
     async with TestSession() as session:
-        session.add_all([
-            salary,
-            rent,
-            _transaction(user_id, account_id, salary_id, date(2026, 1, 15), 100_000),
-            _transaction(user_id, account_id, rent_id, date(2026, 2, 1), -40_000),
-            _transaction(user_id, account_id, salary_id, date(2026, 5, 20), 80_000),
-        ])
+        session.add_all(
+            [
+                salary,
+                rent,
+                _transaction(user_id, account_id, salary_id, date(2026, 1, 15), 100_000),
+                _transaction(user_id, account_id, rent_id, date(2026, 2, 1), -40_000),
+                _transaction(user_id, account_id, salary_id, date(2026, 5, 20), 80_000),
+            ]
+        )
         await session.commit()
 
     response = await client.get(
