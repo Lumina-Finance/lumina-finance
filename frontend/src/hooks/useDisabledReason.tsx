@@ -190,7 +190,9 @@ export function useDisabledReason(reason: string | null | undefined, shownById?:
 
   const tooltip: ReactNode = activeReason && (
     <>
-      {!shownById && <span id={descriptionId} className="sr-only">{activeReason}</span>}
+      {/* Hidden, not `sr-only`: a screen reader still reads a hidden element named by `aria-describedby`,
+          and an absolutely positioned one would escape a scrolling table's clip and widen the page */}
+      {!shownById && <span id={descriptionId} hidden>{activeReason}</span>}
       <CursorTooltipPortal
         ref={tooltipRef}
         testId="disabled-reason-tooltip"
