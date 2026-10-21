@@ -20,7 +20,7 @@ const CARDS = [
 ] as const
 
 const FAILURE_TIERS = [
-  { index: 1, path: '/dashboard/credit', subject: 'Credit usage', loading: 'Loading credit' },
+  { index: 1, path: '/dashboard/credit-utilization', subject: 'Credit usage', loading: 'Loading credit' },
   { index: 5, path: '/dashboard/spending-breakdown', subject: 'Spending breakdown', loading: 'Loading spending breakdown' },
   { index: 6, path: '/budgets/latest-utilizations', subject: 'Top budgets', loading: 'Loading top budgets' },
 ] as const

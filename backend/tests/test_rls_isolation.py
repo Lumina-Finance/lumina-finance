@@ -26,7 +26,7 @@ from app.models.category import Category
 from app.models.currency import Currency
 from app.models.group import Group, GroupMember
 from app.models.transaction import Transaction
-from app.models.user import User
+from app.models.user import User, UserCreditExcludedAccount
 from tests.conftest import ScopedSession, TestSession
 
 
@@ -105,7 +105,6 @@ async def test_transactions_follow_account_access(users):
     """A transaction is visible only to a user who can reach its account"""
     user_a, user_b = users
     async with TestSession() as session:
-
         # Reuse a seeded system category so the transaction has a valid category
         system_category_id = await session.scalar(select(Category.id).where(Category.is_system).limit(1))
         account = _build_account(user_a.id, "A Chequing")
@@ -205,7 +204,6 @@ async def test_budget_spend_rows_returns_nothing_to_unauthorized_readers(users):
     """
     user_a, user_b = users
     async with TestSession() as session:
-
         # The tracked category and the transaction share a seeded system category
         system_category_id = await session.scalar(select(Category.id).where(Category.is_system).limit(1))
         account = _build_account(user_a.id, "A Chequing")
@@ -224,19 +222,23 @@ async def test_budget_spend_rows_returns_nothing_to_unauthorized_readers(users):
             overall_limit=100000,
         )
         session.add(budget)
-        session.add(BudgetTrackedCategory(
-            base_budget_id=base_budget.id,
-            category_id=system_category_id,
-            added_at=date(2026, 1, 1),
-        ))
-        session.add(Transaction(
-            created_by_user_id=user_a.id,
-            account_id=account.id,
-            dt=date(2026, 3, 15),
-            category_id=system_category_id,
-            amount=-5000,
-            currency="CAD",
-        ))
+        session.add(
+            BudgetTrackedCategory(
+                base_budget_id=base_budget.id,
+                category_id=system_category_id,
+                added_at=date(2026, 1, 1),
+            )
+        )
+        session.add(
+            Transaction(
+                created_by_user_id=user_a.id,
+                account_id=account.id,
+                dt=date(2026, 3, 15),
+                category_id=system_category_id,
+                amount=-5000,
+                currency="CAD",
+            )
+        )
         await session.commit()
 
     spend_query = text("SELECT id FROM public.budget_spend_rows(:budget_ids, :now)")
@@ -262,10 +264,12 @@ async def group_with_admin_and_member(users):
     async with TestSession() as session:
         session.add(group)
         await session.flush()
-        session.add_all([
-            GroupMember(group_id=group.id, user_id=user_a.id, is_admin=True),
-            GroupMember(group_id=group.id, user_id=user_b.id),
-        ])
+        session.add_all(
+            [
+                GroupMember(group_id=group.id, user_id=user_a.id, is_admin=True),
+                GroupMember(group_id=group.id, user_id=user_b.id),
+            ]
+        )
         await session.commit()
     return group, user_a, user_b
 
@@ -296,9 +300,7 @@ async def _read_cache_changed_at(user_id):
         The recorded change time, or None when no row exists
     """
     async with TestSession() as session:
-        return await session.scalar(
-            select(UserCacheState.changed_at).where(UserCacheState.user_id == user_id)
-        )
+        return await session.scalar(select(UserCacheState.changed_at).where(UserCacheState.user_id == user_id))
 
 
 async def test_group_admin_can_bump_a_member_of_that_group(group_with_admin_and_member):
@@ -340,9 +342,7 @@ async def test_cache_bump_is_refused_once_the_member_is_gone(group_with_admin_an
     """
     group, user_a, user_b = group_with_admin_and_member
     async with _act_as(user_a.id) as session:
-        await session.execute(
-            delete(GroupMember).where(GroupMember.group_id == group.id, GroupMember.user_id == user_b.id)
-        )
+        await session.execute(delete(GroupMember).where(GroupMember.group_id == group.id, GroupMember.user_id == user_b.id))
         with pytest.raises(ProgrammingError, match="Not authorized"):
             await session.execute(_BUMP_MEMBER_CACHE, {"user_id": user_b.id, "group_id": group.id})
 
@@ -355,9 +355,7 @@ async def test_user_can_bump_their_own_cache_leaving_a_group(group_with_admin_an
     """
     group, _, user_b = group_with_admin_and_member
     async with _act_as(user_b.id) as session:
-        await session.execute(
-            delete(GroupMember).where(GroupMember.group_id == group.id, GroupMember.user_id == user_b.id)
-        )
+        await session.execute(delete(GroupMember).where(GroupMember.group_id == group.id, GroupMember.user_id == user_b.id))
         await session.execute(_BUMP_MEMBER_CACHE, {"user_id": user_b.id, "group_id": group.id})
         await session.commit()
 
@@ -420,6 +418,63 @@ async def test_import_sources_follow_account_access(users):
         session.add(AccountImportSource(account_id=account.id, source="generic"))
         with pytest.raises(ProgrammingError, match="row-level security"):
             await session.flush()
+
+
+async def test_credit_exclusions_follow_their_user_and_account_access(users):
+    """Another user read a credit exclusion, or left out an account they can't reach"""
+    user_a, user_b = users
+    account = _build_account(user_a.id, "A Card")
+    async with TestSession() as session:
+        session.add(account)
+        await session.flush()
+        session.add(UserCreditExcludedAccount(user_id=user_a.id, account_id=account.id))
+        await session.commit()
+
+    async with _act_as(user_a.id) as session:
+        assert (await session.scalars(select(UserCreditExcludedAccount.account_id))).all() == [account.id]
+
+    async with _act_as(user_b.id) as session:
+        assert (await session.scalars(select(UserCreditExcludedAccount.account_id))).all() == []
+        session.add(UserCreditExcludedAccount(user_id=user_b.id, account_id=account.id))
+        with pytest.raises(ProgrammingError, match="row-level security"):
+            await session.flush()
+
+
+async def test_credit_exclusions_on_a_shared_account_stay_each_users_own(users):
+    """A user left out an account both reach in another user's name, or lost their own row for it"""
+    user_a, user_b = users
+    group = Group(owner_id=user_a.id, name="Shared")
+    async with TestSession() as session:
+        session.add(group)
+        await session.flush()
+        session.add_all(
+            [
+                GroupMember(group_id=group.id, user_id=user_a.id, is_admin=True),
+                GroupMember(group_id=group.id, user_id=user_b.id, is_admin=True),
+            ]
+        )
+        account = Account(
+            group_id=group.id,
+            account_kind=AccountKind.ASSET,
+            account_type=AccountType.CHECKING,
+            name="Shared card",
+            currency="CAD",
+        )
+        session.add(account)
+        await session.flush()
+        session.add(UserCreditExcludedAccount(user_id=user_a.id, account_id=account.id))
+        await session.commit()
+
+    async with _act_as(user_b.id) as session:
+        assert (await session.scalars(select(UserCreditExcludedAccount.user_id))).all() == []
+        session.add(UserCreditExcludedAccount(user_id=user_a.id, account_id=account.id))
+        with pytest.raises(ProgrammingError, match="row-level security"):
+            await session.flush()
+
+    async with _act_as(user_b.id) as session:
+        session.add(UserCreditExcludedAccount(user_id=user_b.id, account_id=account.id))
+        await session.flush()
+        assert (await session.scalars(select(UserCreditExcludedAccount.user_id))).all() == [user_b.id]
 
 
 async def test_cache_bump_is_refused_without_a_request_identity():

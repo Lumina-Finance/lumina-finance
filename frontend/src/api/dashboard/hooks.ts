@@ -1,11 +1,14 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { updateCreditUtilizationCache } from '@/api/cache/updates/dashboard';
 import {
   fetchDashboardCredit,
+  fetchDashboardCreditUtilization,
   fetchDashboardNetWorth,
   fetchDashboardRecentActivity,
   fetchDashboardSavingsRate,
   fetchSpendingBreakdown,
   fetchSpendingComparison,
+  replaceCreditExcludedAccounts,
 } from '@/api/dashboard/requests';
 import type { SpendingRange } from '@/api/dashboard/types';
 import { dashboardKeys } from '@/api/cache/queryKeys';
@@ -24,6 +27,32 @@ export function useDashboardCredit() {
     queryFn: ({ signal }) => fetchDashboardCredit(signal),
     enabled: !!accessToken,
     staleTime: getFxAwareStaleTime(DASHBOARD_FX_STALE_TIME_MS),
+  });
+}
+
+/**
+ * Reads the credit totals the dashboard credit widget shows, counting only the accounts the user chose
+ */
+export function useDashboardCreditUtilization() {
+  const { accessToken } = useAuth();
+  return useQuery({
+    queryKey: dashboardKeys.creditUtilization(),
+    queryFn: ({ signal }) => fetchDashboardCreditUtilization(signal),
+    enabled: !!accessToken,
+    staleTime: getFxAwareStaleTime(DASHBOARD_FX_STALE_TIME_MS),
+  });
+}
+
+/**
+ * Saves which credit accounts are left out of the dashboard credit widget
+ */
+export function useReplaceCreditExcludedAccounts() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: replaceCreditExcludedAccounts,
+    onSuccess: (utilization) => {
+      updateCreditUtilizationCache(queryClient, utilization);
+    },
   });
 }
 

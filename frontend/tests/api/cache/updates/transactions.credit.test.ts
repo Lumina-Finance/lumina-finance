@@ -22,6 +22,7 @@ function creditSummary(used: number): CreditWidgetResponse {
 function createClient(): QueryClient {
   const client = new QueryClient({ defaultOptions: { queries: { staleTime: CREDIT_STALE_TIME_MS, retry: false } } });
   client.setQueryData(dashboardKeys.credit(), creditSummary(10000));
+  client.setQueryData(dashboardKeys.creditUtilization(), { ...creditSummary(10000), accounts: [] });
   clients.push(client);
   return client;
 }
@@ -71,6 +72,9 @@ describe('credit usage after deferred transaction creation', () => {
       invalidateTransactionAccountData(client, ['credit'], { refetchAccountList: true });
 
       expect(client.getQueryState(dashboardKeys.credit())?.isInvalidated, kind).toBe(kind === 'revolving');
+
+      // The dashboard widget reads its own query, which a card's new balance has to refresh too
+      expect(client.getQueryState(dashboardKeys.creditUtilization())?.isInvalidated, kind).toBe(kind === 'revolving');
     }
   });
 

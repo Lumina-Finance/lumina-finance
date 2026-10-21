@@ -26,9 +26,21 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     # Set when a recovery-code login wipes every factor, forcing re-enrolment before the account unlocks
-    second_factor_reenrollment_required: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default="false"
-    )
+    second_factor_reenrollment_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+
+
+class UserCreditExcludedAccount(Base):
+    """An account the user left out of the dashboard credit widget's utilization
+
+    The accounts left out are stored rather than the ones counted, so every credit account counts
+    until left out, including one added later. A row for an account the user can no longer see is
+    kept and ignored, so the choice returns if they regain access
+    """
+
+    __tablename__ = "user_credit_excluded_accounts"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    account_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), primary_key=True)
 
 
 class UserRunwayAccount(Base):
@@ -36,9 +48,5 @@ class UserRunwayAccount(Base):
 
     __tablename__ = "user_runway_accounts"
 
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
-    )
-    account_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("accounts.id", ondelete="CASCADE"), primary_key=True
-    )
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    account_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), primary_key=True)

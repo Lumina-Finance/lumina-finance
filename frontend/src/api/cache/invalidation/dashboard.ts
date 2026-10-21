@@ -6,8 +6,13 @@ export const dashboardBalanceTargets: InvalidationTarget[] = [
   { queryKey: dashboardKeys.netWorthAll },
 ];
 
+export const dashboardCreditUtilizationTargets: InvalidationTarget[] = [
+  { queryKey: dashboardKeys.creditUtilization(), exact: true },
+];
+
 export const dashboardCreditTargets: InvalidationTarget[] = [
   { queryKey: dashboardKeys.credit(), exact: true },
+  ...dashboardCreditUtilizationTargets,
 ];
 
 export const dashboardRecentTargets: InvalidationTarget[] = [
@@ -44,6 +49,13 @@ export function invalidateDashboardBalance(queryClient: QueryClient) {
  */
 export function invalidateDashboardCredit(queryClient: QueryClient) {
   invalidateTargets(queryClient, dashboardCreditTargets);
+}
+
+/**
+ * Invalidates only the dashboard credit widget's data and account list, for a change its totals ignore
+ */
+export function invalidateDashboardCreditUtilization(queryClient: QueryClient) {
+  invalidateTargets(queryClient, dashboardCreditUtilizationTargets);
 }
 
 /**

@@ -68,6 +68,7 @@ export const taxAdvantagedCategoryKeys = {
 
 export const dashboardKeys = {
   credit: () => ['dashboard-credit'] as const,
+  creditUtilization: () => ['dashboard-credit-utilization'] as const,
   netWorth: (windowDays: number) => ['dashboard-net-worth', windowDays] as const,
   netWorthAll: ['dashboard-net-worth'] as const,
   savingsRate: () => ['dashboard-savings-rate'] as const,

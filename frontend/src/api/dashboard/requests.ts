@@ -1,6 +1,7 @@
 import { authenticatedFetch } from '@/api/client';
 import { buildQueryString } from '@/api/utils/queryString';
 import type {
+  CreditUtilizationResponse,
   CreditWidgetResponse,
   NetWorthWidgetResponse,
   RecentActivityWidgetResponse,
@@ -17,6 +18,25 @@ import type {
  */
 export function fetchDashboardCredit(signal?: AbortSignal) {
   return authenticatedFetch<CreditWidgetResponse>('/dashboard/credit', { signal });
+}
+
+/**
+ * Fetches the credit totals the dashboard credit widget shows, counting only the accounts the user chose
+ *
+ * @param signal - Aborts the request when the load that asked for it is abandoned
+ */
+export function fetchDashboardCreditUtilization(signal?: AbortSignal) {
+  return authenticatedFetch<CreditUtilizationResponse>('/dashboard/credit-utilization', { signal });
+}
+
+/**
+ * Saves the credit accounts left out of the dashboard credit widget and returns the widget's new data
+ */
+export function replaceCreditExcludedAccounts(accountIds: string[]) {
+  return authenticatedFetch<CreditUtilizationResponse>('/dashboard/credit-utilization/excluded-accounts', {
+    method: 'PUT',
+    body: JSON.stringify({ account_ids: accountIds }),
+  });
 }
 
 /**
