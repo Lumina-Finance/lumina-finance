@@ -1,6 +1,7 @@
 import type { SpendingComparisonResponse, SpendingRange } from '@/api/dashboard'
 import type { SpendingComparisonSeriesPoint } from '@/pages/dashboard/types/dashboard'
 import { formatMovedPercent } from '@/utils/negativeAmount'
+import { getRoundedPercent } from '@/utils/rounding'
 import { getSpendingComparisonSeries } from '@/pages/dashboard/utils/getSpendingComparisonSeries'
 
 export type SpendingComparisonSummary = {
@@ -37,7 +38,9 @@ function getSpendingComparisonXAxisTicks(
 }
 
 /**
- * Compares current cumulative spending with the previous period at the same available offset
+ * Compares current cumulative spending with the previous period at the same available offset, as a
+ * percent to the tenth that rounds up, so spending never reads as growing less or shrinking more than
+ * it did
  */
 function getSpendingComparisonDeltaPct(currentSeries: number[], previousSeries: number[]) {
   const spentToDate = currentSeries.at(-1) ?? 0
@@ -47,7 +50,7 @@ function getSpendingComparisonDeltaPct(currentSeries: number[], previousSeries: 
       : previousSeries[Math.min(currentSeries.length, previousSeries.length) - 1] ?? null
 
   return previousAtSameOffset != null && previousAtSameOffset > 0
-    ? ((spentToDate - previousAtSameOffset) / previousAtSameOffset) * 100
+    ? getRoundedPercent(spentToDate - previousAtSameOffset, previousAtSameOffset, 'up', 1)
     : null
 }
 

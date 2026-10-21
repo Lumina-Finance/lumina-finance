@@ -30,6 +30,7 @@ describe('top budgets', () => {
     ])
 
     expect(budgets.map((budget) => budget.budget_id)).toEqual(['watch', 'rounded-high', 'rounded-low'])
-    expect(budgets.map((budget) => budget.usagePct)).toEqual([80, 50, 50])
+    // 50.4% and 49.6% round up, so neither reads as less spent than it is
+    expect(budgets.map((budget) => budget.usagePct)).toEqual([80, 51, 50])
   })
 })

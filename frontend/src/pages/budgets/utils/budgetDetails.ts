@@ -3,7 +3,7 @@ import type { Category } from '@/api/categories'
 import type { BudgetChartPoint } from '@/pages/budgets/components/budget-details-modal/ChartTooltip'
 import { nextRecurringPeriodStart } from '@/pages/budgets/utils/budgetPeriods'
 import { DATE_FORMATS, formatDate, getIsoWeek, getIsoWeekYear, getYmdTime, parseYmd } from '@/utils/date'
-import { getBudgetUtilizationPercent } from '@/pages/budgets/utils/utilization'
+import { getBudgetUtilizationLabelPercent, getBudgetUtilizationPercent } from '@/pages/budgets/utils/utilization'
 import { getCategoryColorMap } from '@/utils/chartColor'
 
 const BUDGET_CHART_MAX_PERIODS = 12
@@ -181,7 +181,7 @@ function buildBudgetPeriodPoint(
     hasYearAxisLabel: hasYearLabel,
     spent: periodSpent,
     limit: period.overall_limit,
-    utilizationPct: Math.round(getBudgetUtilizationPercent(periodSpent, period.overall_limit)),
+    utilizationPct: getBudgetUtilizationLabelPercent(periodSpent, period.overall_limit),
     isCurrent: period.period_start <= today && today <= period.period_end,
     categories: chartCategories.map((category) => {
       const categorySpent = categorySpentById.get(category.id) ?? 0

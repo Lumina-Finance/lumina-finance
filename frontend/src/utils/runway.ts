@@ -82,11 +82,12 @@ export function runwayBand(
 export function formatCompactRunway(months: number | null): string {
   if (months === null || !Number.isFinite(months)) return 'N/A'
   if (months < 1) return '< 1 mth'
-  if (months < 12) return `≈ ${Math.round(months)} mths`
+  // A runway is time to spend through, where less is worse, so it rounds down
+  if (months < 12) return `≈ ${Math.floor(months)} mths`
   const years = months / 12
   if (months < 24) {
     // 12 → "1 yr", 18 → "1.5 yrs". Half-step resolution reads naturally here
-    const rounded = Math.round(years * 2) / 2
+    const rounded = Math.floor(years * 2) / 2
     return `≈ ${rounded} ${rounded === 1 ? 'yr' : 'yrs'}`
   }
   return `≈ ${Math.floor(years)} yrs`

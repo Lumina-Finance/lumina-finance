@@ -8,7 +8,7 @@ import ArchivedPill from '@/pages/budgets/components/shared/ArchivedPill'
 import BudgetAttentionIcon from '@/pages/budgets/components/shared/AttentionIcon'
 import BudgetFxStatusBadge from '@/pages/budgets/components/shared/FxStatusBadge'
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/pages/budgets/utils/budgetPeriods'
-import { getBudgetUtilizationPercent } from '@/pages/budgets/utils/utilization'
+import { getBudgetUtilizationLabelPercent, getBudgetUtilizationPercent } from '@/pages/budgets/utils/utilization'
 
 type BudgetAttention = {
   label: string
@@ -66,7 +66,7 @@ export default function BudgetDetailsSidebar({
   const [trackedCategoryListScrollable, setTrackedCategoryListScrollable] = useState(false)
   const [trackedCategoryListAtBottom, setTrackedCategoryListAtBottom] = useState(false)
   const showTrackedCategoryListMoreIndicator = trackedCategoryListScrollable && !trackedCategoryListAtBottom
-  const utilizationPct = latestPeriod ? Math.round(getBudgetUtilizationPercent(spent, limit)) : null
+  const utilizationPct = latestPeriod ? getBudgetUtilizationLabelPercent(spent, limit) : null
 
   /**
    * Recomputes the tracked-category overflow state after responsive layout and category-count changes
